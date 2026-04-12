@@ -59,31 +59,16 @@ public static class AccountEndpoints
                 return Results.Redirect("/auth/login?error=InvalidLink");
             }
 
-            // Link or create profile — ALWAYS verify the link is correct.
-            // A previous bug could have linked a user to the wrong profile.
+            // Link or create profile if missing (accounts from before registration fix, or migrated data)
+            if (string.IsNullOrEmpty(user.UserProfileId))
             {
                 var db = httpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
                 var logger = httpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("AutoSignIn");
+                
+                // Try to find an existing profile: by email first, then by display name, then first available
                 var userEmail = user.Email ?? "";
                 var userName = user.DisplayName ?? user.UserName ?? "";
-
-                // If already linked, verify the link is correct (email match)
-                if (!string.IsNullOrEmpty(user.UserProfileId))
-                {
-                    var linkedProfile = await db.UserProfiles.FindAsync(user.UserProfileId);
-                    if (linkedProfile is not null && !string.IsNullOrEmpty(linkedProfile.Email)
-                        && !string.IsNullOrEmpty(userEmail)
-                        && !string.Equals(linkedProfile.Email, userEmail, StringComparison.OrdinalIgnoreCase))
-                    {
-                        // Wrong profile linked! Find the correct one by email.
-                        logger.LogWarning("Profile mismatch: user {UserEmail} was linked to profile {ProfileEmail} ({ProfileId}). Re-linking.",
-                            userEmail, linkedProfile.Email, linkedProfile.Id);
-                        user.UserProfileId = null; // Force re-link below
-                    }
-                }
-
-                if (string.IsNullOrEmpty(user.UserProfileId))
-                {
+                
                 var existing = await db.UserProfiles
                     .FirstOrDefaultAsync(p => p.Email == userEmail && userEmail != "");
                 if (existing is null && !string.IsNullOrEmpty(userName))
@@ -123,13 +108,11 @@ public static class AccountEndpoints
                         profile.Id, userEmail, await db.UserProfiles.CountAsync());
                 }
                 await userManager.UpdateAsync(user);
-                }
             }
 
             await signInManager.SignInAsync(user, isPersistent: true);
 
             // Set the active profile so Profile page and other features find it
-            var isOnboarded = false;
             if (!string.IsNullOrEmpty(user.UserProfileId))
             {
                 preferences.Set("active_profile_id", user.UserProfileId);
@@ -143,19 +126,10 @@ public static class AccountEndpoints
                     && !string.IsNullOrEmpty(profile.NativeLanguage))
                 {
                     preferences.Set("is_onboarded", true);
-                    isOnboarded = true;
                 }
             }
 
-            // Override returnUrl if user is onboarded but was sent to onboarding
-            // (happens when preferences file was wiped by container deploy)
-            var destination = returnUrl ?? "/";
-            if (isOnboarded && destination.Contains("onboarding", StringComparison.OrdinalIgnoreCase))
-            {
-                destination = "/";
-            }
-
-            return Results.LocalRedirect(destination);
+            return Results.LocalRedirect(returnUrl ?? "/");
         });
 
         group.MapGet("/ConfirmEmail", async (
