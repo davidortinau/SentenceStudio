@@ -24,6 +24,20 @@ dotnet tool install --global androidsdk.tool    # Android only
 dotnet tool install --global appledev.tools     # iOS/Mac only
 ```
 
+### Verify CLI Name
+
+Before proceeding, confirm the exact CLI command name — it can differ between installs:
+
+```bash
+# Confirm the exact command name (hyphen, not space):
+which maui-devflow || dotnet tool list -g | grep -i devflow
+```
+
+The command is `maui-devflow` (one word with hyphen). If your environment
+has `maui devflow` (two words), the tool has been restructured — run
+`maui devflow --version` and `maui-devflow --version` to find the correct one.
+Use the verified name consistently throughout all commands.
+
 Keep the skill up to date: `maui-devflow update-skill`. Check installed version vs remote
 with `maui-devflow skill-version`. For full update procedures, see
 [references/setup.md](references/setup.md#checking-for-updates).
@@ -84,6 +98,26 @@ ALWAYS run `wait` after launching. Never assume the agent is connected — verif
 
 ### 1. Ensure a Device/Simulator/Emulator is Running
 
+#### TFM-to-Minimum-Simulator-Runtime Mapping
+
+| TFM | Minimum iOS Sim | Minimum Android API |
+|-----|-----------------|---------------------|
+| net10.0-ios | iOS 26.0 | — |
+| net9.0-ios | iOS 17.0 | — |
+| net10.0-android | — | API 24 |
+| net9.0-android | — | API 24 |
+
+**CRITICAL:** ALWAYS check the project TFM BEFORE selecting a simulator.
+An older simulator may have a stale app install that appears to "work" but
+runs an incompatible binary with a broken database. NEVER trust a pre-existing
+app install — always do a fresh build + deploy.
+
+```bash
+# Example: project targets net10.0-ios → need iOS 26+ simulator
+grep -i 'TargetFrameworks' *.csproj | grep -o 'net[0-9]*\.[0-9]-ios'
+xcrun simctl list devices available | grep "iOS 26"
+```
+
 **⚠️ Multi-project conflict avoidance:** When multiple projects may run simultaneously
 (common with AI agents), each project should use its own dedicated simulator/emulator to
 prevent apps from replacing each other. Check what's already in use first:
@@ -116,6 +150,39 @@ android avd start --name "MyApp-Pixel8"
 
 **Mac Catalyst / macOS (AppKit) / Linux/GTK:** No device setup needed — runs as desktop app.
 Multiple desktop apps can run simultaneously without conflicts.
+
+#### Simulator & Emulator State Tracking
+
+After every successful DevFlow connection, record the simulator/emulator details to
+`.claude/skills/maui-ai-debugging/references/device-state.json`:
+
+```json
+{
+  "lastSuccessful": {
+    "platform": "iOS",
+    "deviceName": "iPhone 16 Pro",
+    "udid": "802B6FB8-...",
+    "runtime": "iOS 26.2",
+    "tfm": "net10.0-ios",
+    "appBundleId": "com.simplyprofound.sentencestudio",
+    "hasData": true,
+    "lastUsed": "2026-04-12T22:00:00Z",
+    "outcome": "success"
+  },
+  "lastFailed": null
+}
+```
+
+**Rules for device selection:**
+- **On session start:** Read `device-state.json` to pick up where the last session left off.
+- **Task requires existing data:** Prefer the `lastSuccessful` device — it has a working
+  app install with real data. Boot it and reconnect.
+- **Task requires a CLEAN start:** Use a DIFFERENT simulator. Create a new one if needed
+  (e.g., `xcrun simctl create "CleanTest-iPhone16" "iPhone 16 Pro" "iOS 26.2"`).
+  Do NOT reuse the `lastSuccessful` device and risk destroying its data.
+- **Always update this file** after testing — record both successes and failures.
+- **After a failure:** Record details in `lastFailed` so the next session can avoid the
+  same device/configuration.
 
 ### 2. Detect the TFM
 
@@ -506,6 +573,43 @@ by index, AutomationId, or element ID. Default: first WebView.
 to list them, then `--webview <index-or-automationId>` on any command to target a specific one.
 Example: `maui-devflow cdp --webview 1 snapshot` or `maui-devflow cdp -w MyWebView Runtime evaluate "1+1"`.
 
+### Blazor Hybrid CDP Interaction Limitations
+
+**WARNING:** `cdp Input fill` and `cdp Input dispatchClickEvent` use synthetic DOM events.
+Blazor's event delegation checks `event.isTrusted` and ignores synthetic events.
+This means **CDP input commands may silently fail** in Blazor Hybrid apps.
+
+**Workaround hierarchy (try in order):**
+1. `maui-devflow MAUI tap --automationId "X"` — native-level tap, generates real touch events
+2. `maui-devflow MAUI fill --automationId "X" "text"` — native-level text input
+3. `maui-devflow cdp Runtime evaluate "document.querySelector('button').click()"` — may work for non-Blazor-delegated handlers
+4. If the element has no AutomationId, use `maui-devflow MAUI hittest <x> <y>` to find it by coordinates from a screenshot
+
+**NEVER spend more than 5 minutes on CDP input failures.** Fall back to MAUI-level interaction immediately.
+
+### Navigating Within Blazor Hybrid Apps
+
+Blazor Hybrid navigation works differently from web Blazor. The URL bar
+is not the source of truth — `NavigationManager` is.
+
+**Approach hierarchy (try in order):**
+1. **Tap the nav element** — Find the link/button in the MAUI tree or CDP snapshot
+   that navigates to the target page and tap it. This is the most reliable approach.
+2. **Use CDP to invoke Blazor's NavigationManager:**
+   ```bash
+   maui-devflow cdp Runtime evaluate "Blazor.navigateTo('/vocab-quiz')"
+   ```
+   If this returns undefined, inspect the API:
+   ```bash
+   maui-devflow cdp Runtime evaluate "JSON.stringify(Object.keys(Blazor))"
+   ```
+3. **Navigate via the app's own UI** — Use `maui-devflow cdp snapshot` to find
+   the page, locate the nav link, and click through the app's normal flow.
+
+**NEVER brute-force JS navigation for more than 3 attempts.** If `Blazor.navigateTo`
+and tapping links both fail, something is fundamentally wrong with the app state —
+diagnose that instead.
+
 ### maui-devflow Broker & Discovery
 
 The broker is a background daemon that manages port assignments for all running agents.
@@ -730,3 +834,40 @@ maui-devflow MAUI property <id> Text
 maui-devflow MAUI tap --automationId "IncrementButton"
 maui-devflow MAUI assert --automationId "CounterLabel" Text "1"
 ```
+
+### Circuit Breaker: When to Stop and Reassess
+
+Apply these time limits to any single approach:
+
+| Task | Max attempts | Max time | Then do |
+|------|-------------|----------|---------|
+| CDP command fails | 3 tries | 5 min | Fall back to MAUI-level commands |
+| MAUI-level command fails | 3 tries | 5 min | Check `maui-devflow diagnose` |
+| Build fails | 2 tries | 10 min | Clean and rebuild from scratch |
+| Navigation fails | 3 tries | 5 min | Use the app's own UI to navigate |
+| Any approach | — | 15 min | STOP. Summarize what failed. Ask the user. |
+
+**After any failure:** Diagnose FIRST, then retry.
+- `maui-devflow diagnose` — full system health check
+- `maui-devflow MAUI logs --limit 20` — app-side errors
+- `maui-devflow cdp status` — CDP connection health
+- `maui-devflow MAUI status` — agent connection health
+
+**The 15-minute rule:** If you have spent 15 minutes total on testing without
+a single successful interaction, something is fundamentally wrong with the
+setup. Stop trying workarounds and diagnose the environment.
+
+### Verification Integrity
+
+NEVER claim verification without evidence. For each surface tested, provide:
+- **Platform and device/simulator identifier** (e.g., "iPhone 16 Pro — iOS 26.2 sim, UDID 802B6FB8")
+- **Screenshot or snapshot** proving the feature works (filename or inline)
+- **What was NOT tested** and why — explicitly state gaps
+
+A test that fails is a **"failed test,"** not a **"verified feature."**
+"Attempted" and "verified" are NOT interchangeable:
+- **Verified** = observed the expected behavior with captured evidence
+- **Attempted** = tried but could not confirm the outcome
+
+If simulator or device testing fails, report honestly: "Verified on web only.
+Simulator testing failed due to [reason]. The feature is NOT verified on native."

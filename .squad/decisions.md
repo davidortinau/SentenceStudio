@@ -3973,3 +3973,150 @@ The study plan generates activities with ResourceId and SkillId parameters and r
 - Scene and Conversation pages accept plan parameters without dropping them.
 - PlanConverter route tests updated and all 275 unit tests pass.
 - Future work: Add resource-aware methods to SceneImageService and ConversationService/ScenarioService so these pages can filter content by the plan's resource context.
+
+---
+
+# Decision: maui-ai-debugging Skill Post-Mortem Updates
+
+**Date:** 2026-07-17
+**Author:** Kaylee
+**Status:** IMPLEMENTED
+**Triggered by:** wash-simulator-postmortem.md (Captain's directive)
+
+## What Changed
+
+Applied all 7 post-mortem fixes to `.claude/skills/maui-ai-debugging/SKILL.md`:
+
+1. **CLI Name Verification** (Prerequisites) — Step to verify `maui-devflow` vs `maui devflow` before proceeding
+2. **TFM-to-Runtime Mapping Table** (Section 1) — Maps net10.0-ios to iOS 26+, net9.0-ios to iOS 17+, etc. CRITICAL: always check TFM before picking a simulator
+3. **Simulator State Tracking** (New subsection in Section 1) — Persist device details to `references/device-state.json` after every session; reuse working devices, avoid broken ones
+4. **CDP Interaction Limitations** (After CDP reference table) — Documents Blazor `isTrusted` issue; fallback hierarchy: MAUI tap > MAUI fill > CDP evaluate > CDP Input (last resort); 5-minute max
+5. **Blazor Hybrid Navigation Guide** (After CDP section) — Approach hierarchy: tap nav element > Blazor.navigateTo() > inspect API > use app UI; 3-attempt max
+6. **Circuit Breaker Protocol** (AI Agent Best Practices) — Time limits table, 15-minute hard stop, diagnostic commands to run when stuck
+7. **Verification Integrity** (AI Agent Best Practices) — Evidence-based claims only; platform ID + screenshot required; explicitly state what was NOT tested
+
+## Also Created
+
+- `references/device-state.json` — Empty initial state (`null`/`null`) ready for first session
+
+## Decisions Encoded
+
+- **Verification Honesty Policy:** "Verified" requires evidence. "Attempted" is not "verified."
+- **Simulator TFM Compatibility:** Always check project TFM before selecting simulator runtime.
+- **15-Minute Circuit Breaker:** Stop and diagnose after 15 minutes of failure. No more death spirals.
+- **Device State Persistence:** Record simulator details after every session to avoid cold-start mistakes.
+
+## Impact
+
+These changes prevent the entire class of failures from the VocabQuiz testing session: wrong simulator, CDP death spirals, fake verification claims, and CLI name confusion.
+
+---
+
+# Decision: Post-Mortem Code Improvements
+
+**Date:** 2026-07-17  
+**Author:** Wash  
+**Status:** IMPLEMENTED  
+**Requested by:** Captain (David Ortinau)
+
+## Context
+
+The simulator testing post-mortem (`wash-simulator-postmortem.md`) identified two code-level improvements that would make future automated testing more reliable:
+
+1. VocabQuiz page elements lacked stable IDs for DevFlow automation targeting
+2. No quick way to verify app health (DB, migrations, user, data) before running feature tests
+
+## Decisions
+
+### 1. AutomationIds on VocabQuiz Key Elements
+
+Added `id` attributes to VocabQuiz.razor:
+
+| Element | ID |
+|---------|-----|
+| Info icon button | `quiz-info-button` |
+| Info panel offcanvas | `quiz-info-panel` |
+| Multiple choice buttons | `quiz-option-a` through `quiz-option-d` |
+| Text input field | `quiz-text-input` |
+| Progress indicator | `quiz-progress` |
+| Correct count badge | `quiz-correct-count` |
+
+**Rationale:** DevFlow automation should target stable IDs, not fragile CSS selectors or text content that changes with localization. The post-mortem showed agents spending 20+ minutes fighting with selectors.
+
+### 2. Debug Health Page
+
+Created `DebugHealth.razor` at route `/debug/health`:
+
+- Gated by `#if DEBUG` — the `IsDebugBuild` const is set at compile time, so the page renders nothing in Release builds
+- Shows: DB connectivity, provider, table count; applied/pending migrations; auth state, active profile, profile count; total words, words with progress; resource count; API reachability; CoreSync registration status
+- Uses existing DI services — no new dependencies introduced
+- Uses `IHttpClientFactory.CreateClient("HttpClientToServer")` for API connectivity check
+
+**Rationale:** The post-mortem showed the agent spending 45 minutes on a test that would have been diagnosed in 30 seconds if it could check app health first. This page makes "is the app functional?" a single navigation.
+
+## Build Verification
+
+`dotnet build src/SentenceStudio.UI/SentenceStudio.UI.csproj` — 0 errors, warnings are all pre-existing.
+
+## Files Changed
+
+- `src/SentenceStudio.UI/Pages/VocabQuiz.razor` — added 6 `id` attributes to key elements
+- `src/SentenceStudio.UI/Pages/DebugHealth.razor` — new file, debug health dashboard
+
+---
+
+# Decision: IActiveUserProvider abstraction to fix cross-user data leak
+
+**Date:** 2025-07-18
+**Author:** Wash (Backend Dev)
+**Status:** Implemented
+**Priority:** CRITICAL — Security Bug
+
+## Context
+
+After every Azure deploy, the Captain (David) got logged in as "Jose" instead of himself. This is a cross-user data leak caused by `WebPreferencesService` — a server-side singleton backed by a single JSON file at `sentencestudio/webapp/preferences.json`. It stored `active_profile_id` globally, shared across ALL users on the server.
+
+The preference system was designed for MAUI (single device = single user). On the multi-user server, it's a global singleton — whoever logs in last overwrites everyone else's active profile.
+
+## Decision
+
+Introduced `IActiveUserProvider` — a host-aware abstraction that returns the current user's profile ID differently depending on the runtime environment:
+
+- **MAUI** (`PreferencesActiveUserProvider`): Reads from device preferences. Single-user per device, so the existing behavior is correct and safe.
+- **WebApp** (`ClaimsActiveUserProvider`): Reads from the authenticated user's Identity claims via `IHttpContextAccessor` → `UserManager<ApplicationUser>.UserProfileId`. Never touches the shared preferences file for user identity.
+
+Additionally, the interface exposes `ShouldFallbackToFirstProfile`:
+- MAUI returns `true` (safe — one device, one user)
+- WebApp returns `false` (critical — prevents `FirstOrDefaultAsync()` from returning a random user's profile when no active profile is found)
+
+## DI Registration Strategy
+
+- WebApp registers `ClaimsActiveUserProvider` as `IActiveUserProvider` in `Program.cs` **before** calling `AddSentenceStudioCoreServices()`
+- `CoreServiceExtensions` uses `TryAddSingleton<IActiveUserProvider, PreferencesActiveUserProvider>()` — the WebApp's registration wins; MAUI hosts get the preferences-based default
+
+## Files Changed
+
+**Created:**
+- `src/SentenceStudio.Shared/Abstractions/IActiveUserProvider.cs`
+- `src/SentenceStudio.Shared/Services/PreferencesActiveUserProvider.cs`
+- `src/SentenceStudio.WebApp/Auth/ClaimsActiveUserProvider.cs`
+
+**Modified (all now use `IActiveUserProvider` instead of direct preference reads):**
+- `UserProfileRepository.cs`
+- `SkillProfileRepository.cs`
+- `UserActivityRepository.cs`
+- `VocabularyProgressRepository.cs`
+- `LearningResourceRepository.cs`
+- `ProgressCacheService.cs`
+- `WebApp/Program.cs`
+- `CoreServiceExtensions.cs`
+
+## Alternatives Considered
+
+1. **Pass userId parameter to every repository method** — Too invasive; would require changing every caller across the UI and service layer.
+2. **Inject `IHttpContextAccessor` directly into repositories** — Couples shared code to ASP.NET Core; breaks MAUI hosts.
+3. **Add `user_profile_id` claim to Identity cookie via `IUserClaimsPrincipalFactory`** — More complex auth pipeline change; the DB lookup in `ClaimsActiveUserProvider` is simpler and reliable.
+
+## Remaining Work
+
+Many Blazor `.razor` pages also read `active_profile_id` directly from `IPreferencesService` (VocabQuiz, Writing, Import, etc.). These should be migrated to `IActiveUserProvider` in a follow-up pass. The critical data-layer leak (repositories + cache) is now plugged.

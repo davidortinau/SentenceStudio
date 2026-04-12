@@ -9,6 +9,14 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+- `maui-ai-debugging` SKILL.md needs surgical updates, not rewrites — the file is 800+ lines with precise section structure
+- CDP Input commands (`fill`, `dispatchClickEvent`) silently fail in Blazor Hybrid because Blazor checks `event.isTrusted` — always prefer MAUI-level tap/fill
+- Blazor Hybrid navigation: `Blazor.navigateTo()` API surface changes between .NET versions — inspect `Object.keys(Blazor)` before guessing
+- net10.0-ios requires iOS 26+ simulator; net9.0-ios requires iOS 17+ — ALWAYS check TFM before picking a simulator
+- Device state tracking (`device-state.json`) prevents cold-start mistakes by recording which simulator last worked
+- Circuit breaker: 5 min max per approach, 15 min hard stop — diagnose FIRST, then retry
+- Verification claims require evidence: platform ID + screenshot/snapshot + explicit gap reporting
+
 - PageHeader `ToolbarActions` slot renders icon buttons in the header toolbar on ALL screen sizes — use `d-md-none` to restrict to mobile
 - Bootstrap `offcanvas-bottom` with `d-md-none` is the pattern for mobile-only slide-up filter panels
 - Vocabulary page filter dropdowns reuse the same `@onchange` handlers in both inline row and offcanvas — single source of truth via search query parsing
@@ -579,3 +587,24 @@ Built the complete Feedback page with three-state flow (Form, Preview, Success) 
 **Build/Test:** UI (0 errors), WebApp (0 errors), 275/275 tests pass.
 
 **Key Insight:** Cloze and Translation services were already well-built with grace period filtering. Shadowing was the only service with a real vocabulary scoping bug. Reading and Writing needed minor parameter/logging fixes only.
+
+---
+
+### Word Info Diagnostic Panel on VocabQuiz
+**Date:** 2025-07-24
+**Requested by:** Captain (David Ortinau)
+
+Added a diagnostic info panel to the VocabQuiz page — an `bi-info-circle` icon button in the control row (alongside audio/photo) that opens a bottom offcanvas showing the current word's full learning details.
+
+**Panel shows:**
+- Word identity (target + native terms) with colored status badge (Unknown/Learning/Familiar/Known)
+- IsKnown, IsUserDeclared, VerificationState flags
+- MasteryScore (%), CurrentStreak, ProductionInStreak (X/2), TotalAttempts, CorrectAttempts, Accuracy
+- SRS schedule: NextReviewDate, ReviewInterval, EaseFactor, IsDueForReview
+- Quiz context: current mode (MultipleChoice/Text), DueOnly filter, and a plain-English explanation of why that mode was selected
+
+**Pattern used:** Same `offcanvas offcanvas-bottom show` + backdrop pattern from Reading.razor word lookup panel, styled for dark theme. Dismissable via close button or backdrop tap. Auto-dismissed on NextItem.
+
+**Files modified:** `src/SentenceStudio.UI/Pages/VocabQuiz.razor` — info button (line ~222), offcanvas panel (line ~373), `showInfoPanel` state var, dismiss on `NextItem()`.
+
+**Build/Deploy:** UI (0 errors), iOS Release (0 errors), installed to iPhone.

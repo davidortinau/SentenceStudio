@@ -1,0 +1,305 @@
+@page "/debug/health"
+@using Microsoft.EntityFrameworkCore
+@using SentenceStudio.Abstractions
+
+<PageHeader Title="Debug Health" ShowBack="true" />
+
+@if (!IsDebugBuild)
+{
+    <div class="text-center p-5">
+        <p class="ss-body1 text-secondary-ss">This page is only available in Debug builds.</p>
+    </div>
+}
+else if (isLoading)
+{
+    <div class="d-flex justify-content-center p-5">
+        <div class="spinner-border text-primary" role="status"></div>
+    </div>
+}
+else
+{
+    <div class="mx-auto" style="max-width: 720px;">
+
+        @* Database *@
+        <div class="card card-ss p-3 mb-3">
+            <h5 class="ss-title3 mb-2"><i class="bi bi-database me-2"></i>Database</h5>
+            <div class="d-flex flex-column gap-1">
+                <Row Label="Can connect" Value="@dbCanConnect" Ok="@dbCanConnect" />
+                <Row Label="Provider" Value="@dbProvider" />
+                <Row Label="Table count" Value="@dbTableCount.ToString()" />
+            </div>
+        </div>
+
+        @* Migrations *@
+        <div class="card card-ss p-3 mb-3">
+            <h5 class="ss-title3 mb-2"><i class="bi bi-arrow-repeat me-2"></i>EF Migrations</h5>
+            <div class="d-flex flex-column gap-1">
+                <Row Label="Applied" Value="@appliedMigrationCount.ToString()" />
+                <Row Label="Pending" Value="@pendingMigrationCount.ToString()" Ok="@(pendingMigrationCount == 0)" />
+                @if (appliedMigrations.Any())
+                {
+                    <details class="mt-1">
+                        <summary class="ss-caption1 text-secondary-ss" style="cursor: pointer;">Show applied migrations</summary>
+                        <ul class="list-unstyled mt-1 mb-0 ps-3">
+                            @foreach (var m in appliedMigrations)
+                            {
+                                <li class="ss-caption1 text-secondary-ss">@m</li>
+                            }
+                        </ul>
+                    </details>
+                }
+            </div>
+        </div>
+
+        @* User Profile *@
+        <div class="card card-ss p-3 mb-3">
+            <h5 class="ss-title3 mb-2"><i class="bi bi-person me-2"></i>User Profile</h5>
+            <div class="d-flex flex-column gap-1">
+                <Row Label="Signed in" Value="@isSignedIn" Ok="@isSignedIn" />
+                <Row Label="User name" Value="@userName" />
+                <Row Label="Active profile ID" Value="@activeProfileId" />
+                <Row Label="Profile count" Value="@profileCount.ToString()" />
+            </div>
+        </div>
+
+        @* Vocabulary *@
+        <div class="card card-ss p-3 mb-3">
+            <h5 class="ss-title3 mb-2"><i class="bi bi-book me-2"></i>Vocabulary</h5>
+            <div class="d-flex flex-column gap-1">
+                <Row Label="Total words" Value="@totalWordCount.ToString()" />
+                <Row Label="Words with progress" Value="@wordsWithProgressCount.ToString()" />
+            </div>
+        </div>
+
+        @* Learning Resources *@
+        <div class="card card-ss p-3 mb-3">
+            <h5 class="ss-title3 mb-2"><i class="bi bi-collection me-2"></i>Learning Resources</h5>
+            <div class="d-flex flex-column gap-1">
+                <Row Label="Resource count" Value="@resourceCount.ToString()" />
+            </div>
+        </div>
+
+        @* API Connectivity *@
+        <div class="card card-ss p-3 mb-3">
+            <h5 class="ss-title3 mb-2"><i class="bi bi-cloud me-2"></i>API Connectivity</h5>
+            <div class="d-flex flex-column gap-1">
+                <Row Label="API reachable" Value="@apiReachable" Ok="@apiReachable" />
+                <Row Label="API base URL" Value="@apiBaseUrl" />
+            </div>
+        </div>
+
+        @* CoreSync *@
+        <div class="card card-ss p-3 mb-3">
+            <h5 class="ss-title3 mb-2"><i class="bi bi-arrow-left-right me-2"></i>CoreSync</h5>
+            <div class="d-flex flex-column gap-1">
+                <Row Label="Sync service registered" Value="@syncServiceRegistered" Ok="@syncServiceRegistered" />
+            </div>
+        </div>
+
+        <div class="text-center mb-4">
+            <button class="btn btn-ss-secondary btn-sm" @onclick="LoadHealthData">
+                <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+            </button>
+        </div>
+    </div>
+}
+
+@code {
+
+#if DEBUG
+    private const bool IsDebugBuild = true;
+#else
+    private const bool IsDebugBuild = false;
+#endif
+
+    [Inject] private IServiceProvider ServiceProvider { get; set; } = default!;
+    [Inject] private IPreferencesService Preferences { get; set; } = default!;
+    [Inject] private UserProfileRepository ProfileRepo { get; set; } = default!;
+    [Inject] private SentenceStudio.Services.IAuthService AuthService { get; set; } = default!;
+    [Inject] private ILogger<DebugHealth> Logger { get; set; } = default!;
+    [Inject] private IHttpClientFactory HttpClientFactory { get; set; } = default!;
+
+    private bool isLoading = true;
+
+    // Database
+    private bool dbCanConnect;
+    private string dbProvider = "—";
+    private int dbTableCount;
+
+    // Migrations
+    private int appliedMigrationCount;
+    private int pendingMigrationCount;
+    private List<string> appliedMigrations = new();
+
+    // User
+    private bool isSignedIn;
+    private string userName = "—";
+    private string activeProfileId = "—";
+    private int profileCount;
+
+    // Vocabulary
+    private int totalWordCount;
+    private int wordsWithProgressCount;
+
+    // Resources
+    private int resourceCount;
+
+    // API
+    private bool apiReachable;
+    private string apiBaseUrl = "—";
+
+    // Sync
+    private bool syncServiceRegistered;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!IsDebugBuild) return;
+        await LoadHealthData();
+    }
+
+    private async Task LoadHealthData()
+    {
+        isLoading = true;
+        StateHasChanged();
+
+        try
+        {
+            using var scope = ServiceProvider.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+            // Database connectivity
+            try
+            {
+                dbCanConnect = await db.Database.CanConnectAsync();
+                dbProvider = db.Database.ProviderName ?? "Unknown";
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Database connectivity check failed");
+                dbCanConnect = false;
+            }
+
+            // Table count & migrations
+            if (dbCanConnect)
+            {
+                try
+                {
+                    var model = db.Model;
+                    dbTableCount = model.GetEntityTypes().Count();
+                }
+                catch { dbTableCount = -1; }
+
+                try
+                {
+                    appliedMigrations = (await db.Database.GetAppliedMigrationsAsync()).ToList();
+                    appliedMigrationCount = appliedMigrations.Count;
+                    var pending = await db.Database.GetPendingMigrationsAsync();
+                    pendingMigrationCount = pending.Count();
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogWarning(ex, "Migration check failed");
+                }
+
+                // Vocabulary counts
+                try
+                {
+                    totalWordCount = await db.VocabularyWords.CountAsync();
+                    wordsWithProgressCount = await db.VocabularyProgresses.Select(p => p.VocabularyWordId).Distinct().CountAsync();
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogWarning(ex, "Vocabulary count failed");
+                }
+
+                // Resource count
+                try
+                {
+                    resourceCount = await db.LearningResources.CountAsync();
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogWarning(ex, "Resource count failed");
+                }
+            }
+
+            // User profile
+            try
+            {
+                isSignedIn = AuthService.IsSignedIn;
+                userName = AuthService.UserName ?? "—";
+                activeProfileId = Preferences.Get("active_profile_id", "—");
+                var profiles = await ProfileRepo.ListAsync();
+                profileCount = profiles.Count;
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "User profile check failed");
+            }
+
+            // API connectivity
+            try
+            {
+                var client = HttpClientFactory.CreateClient("HttpClientToServer");
+                apiBaseUrl = client.BaseAddress?.ToString() ?? "Not configured";
+                if (client.BaseAddress != null)
+                {
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                    var response = await client.GetAsync("/health", cts.Token);
+                    apiReachable = response.IsSuccessStatusCode;
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "API connectivity check failed");
+                apiReachable = false;
+            }
+
+            // CoreSync
+            try
+            {
+                var syncSvc = ServiceProvider.GetService<ISyncService>();
+                syncServiceRegistered = syncSvc != null;
+            }
+            catch { syncServiceRegistered = false; }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Health check failed");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    /// <summary>Helper component for a key-value row with optional green/red indicator.</summary>
+    private RenderFragment Row(string Label, string Value, bool? Ok = null) => builder =>
+    {
+        builder.OpenElement(0, "div");
+        builder.AddAttribute(1, "class", "d-flex justify-content-between align-items-center py-1");
+
+        builder.OpenElement(2, "span");
+        builder.AddAttribute(3, "class", "ss-body2 text-secondary-ss");
+        builder.AddContent(4, Label);
+        builder.CloseElement();
+
+        builder.OpenElement(5, "span");
+        builder.AddAttribute(6, "class", "ss-body2 fw-bold");
+
+        if (Ok.HasValue)
+        {
+            builder.OpenElement(7, "i");
+            builder.AddAttribute(8, "class", Ok.Value ? "bi bi-check-circle-fill text-success me-1" : "bi bi-x-circle-fill text-danger me-1");
+            builder.CloseElement();
+        }
+        builder.AddContent(9, Value);
+        builder.CloseElement();
+
+        builder.CloseElement();
+    };
+
+    private RenderFragment Row(string Label, bool Value, bool? Ok = null) =>
+        Row(Label, Value ? "Yes" : "No", Ok);
+}

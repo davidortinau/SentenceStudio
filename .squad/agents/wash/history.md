@@ -561,3 +561,12 @@ services.AddSingleton<IActiveUserProvider>(new PreferencesActiveUserProvider(moc
 **`ProgressCacheServiceTests.cs`** — `ProgressCacheService` constructor changed from `(ILogger, IPreferencesService)` to `(ILogger, IServiceProvider)`. Replaced `Mock<IPreferencesService>` user-switching with `Mock<IActiveUserProvider>` backed by a minimal `ServiceProvider`.
 
 **Result:** 363 passed, 1 pre-existing failure (`ResourceUsed15DaysAgo_ShouldNotBeTreatedAsNeverUsed` — fails on clean main too).
+
+### Post-mortem code improvements (2026-07-17)
+
+- Added automation IDs to VocabQuiz.razor key elements: `quiz-info-button`, `quiz-info-panel`, `quiz-option-a` through `quiz-option-d`, `quiz-text-input`, `quiz-progress`, `quiz-correct-count` — these make DevFlow automation reliable without fragile CSS selectors
+- Created `DebugHealth.razor` at `/debug/health` route — a `#if DEBUG`-gated page showing DB status, migrations, user profile, vocab counts, resource counts, API connectivity, and CoreSync status
+- The UI project (`SentenceStudio.UI`) is a Razor class library targeting `net10.0` — `#if DEBUG` works in `@code` blocks but not in Razor markup, so use a `const bool IsDebugBuild` pattern set via `#if DEBUG` in code and `@if (IsDebugBuild)` in markup
+- `ApplicationDbContext` DbSet names: `VocabularyWords`, `VocabularyProgresses`, `LearningResources`, `UserProfiles` (plural)
+- Named HttpClient `"HttpClientToServer"` is registered in `ServiceCollectionExtentions.cs` and is the standard way to reach the API from UI code
+- `/health` endpoint exists in Aspire service defaults (`WebServiceDefaults/Extensions.cs`) — safe to ping for connectivity checks

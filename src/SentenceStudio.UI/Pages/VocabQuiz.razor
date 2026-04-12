@@ -219,6 +219,12 @@ else if (currentItem != null)
                         <i class="bi @(showMnemonicImage ? "bi-eye-slash" : "bi-image")"></i>
                     </button>
                 }
+                <button id="quiz-info-button" class="btn btn-outline-secondary btn-sm rounded-circle"
+                        style="width: 44px; height: 44px;"
+                        title="Word learning details"
+                        @onclick="() => showInfoPanel = true">
+                    <i class="bi bi-info-circle"></i>
+                </button>
             </div>
 
             @if (showMnemonicImage && !string.IsNullOrWhiteSpace(currentItem?.Word?.MnemonicImageUri))
@@ -261,6 +267,7 @@ else if (currentItem != null)
                     var optCopy = choiceOptions[optionIndex];
                     var optionText = optCopy.Text;
                     var optionLabel = $"Option {(char)('A' + optionIndex)}";
+                    var optionId = $"quiz-option-{(char)('a' + optionIndex)}";
                     var bgClass = "";
                     var borderStyle = "";
 
@@ -297,6 +304,7 @@ else if (currentItem != null)
                             </button>
 
                             <button class="btn btn-outline-secondary quiz-choice-btn py-3 ss-title3 flex-grow-1 @bgClass"
+                                    id="@optionId"
                                     style="@borderStyle"
                                     title="Select this answer"
                                     aria-label="@($"Choose {optionLabel.ToLowerInvariant()}")"
@@ -309,6 +317,7 @@ else if (currentItem != null)
                     else
                     {
                         <button class="btn btn-outline-secondary quiz-choice-btn py-3 ss-title3 @bgClass"
+                                id="@optionId"
                                 style="@borderStyle"
                                 disabled="@showAnswer"
                                 @onclick="() => SelectMultipleChoice(optionText)">
@@ -322,7 +331,7 @@ else if (currentItem != null)
         {
             <form @onsubmit="SubmitTextInput" @onsubmit:preventDefault class="mx-auto" style="max-width: 500px;">
                 <label class="form-label text-secondary-ss">Type the translation</label>
-                <input type="text" class="form-control form-control-ss form-control-lg"
+                <input id="quiz-text-input" type="text" class="form-control form-control-ss form-control-lg"
                        @bind="userInput"
                        disabled="@(showAnswer && !requireCorrectTyping)"
                        placeholder="@(requireCorrectTyping ? "Type the correct answer to continue" : "Type your answer")" />
@@ -358,9 +367,138 @@ else
 @if (currentItem != null && !showSessionSummary && !isSentenceShortcutMode)
 {
     <div class="activity-footer d-flex justify-content-between align-items-center">
-        <span class="ss-body1 text-secondary-ss">@(currentTurnInRound + 1) / @roundWordOrder.Count</span>
-        <span class="badge bg-success rounded-pill px-3"><i class="bi bi-check-lg me-1"></i>@correctCount correct</span>
+        <span id="quiz-progress" class="ss-body1 text-secondary-ss">@(currentTurnInRound + 1) / @roundWordOrder.Count</span>
+        <span id="quiz-correct-count" class="badge bg-success rounded-pill px-3"><i class="bi bi-check-lg me-1"></i>@correctCount correct</span>
     </div>
+}
+
+@* Word info diagnostic panel *@
+@if (showInfoPanel && currentItem != null)
+{
+    <div id="quiz-info-panel" class="offcanvas offcanvas-bottom show" tabindex="-1"
+         style="height: auto; max-height: 70vh; border-radius: var(--bs-border-radius-xl) var(--bs-border-radius-xl) 0 0; z-index: 1050;">
+        <div class="offcanvas-header pb-1 border-bottom">
+            <h5 class="ss-title3 mb-0"><i class="bi bi-info-circle me-2"></i>Learning Details</h5>
+            <button type="button" class="btn-close" @onclick="() => showInfoPanel = false"></button>
+        </div>
+        <div class="offcanvas-body pt-2" style="overflow-y: auto;">
+            @{
+                var p = currentItem.Progress;
+                var statusText = p?.Status.ToString() ?? "Unknown";
+                var statusBadge = statusText switch
+                {
+                    "Known" => "bg-success",
+                    "Learning" => "bg-warning text-dark",
+                    "Familiar" => "bg-info text-dark",
+                    _ => "bg-secondary"
+                };
+            }
+            <div class="mb-3">
+                <h6 class="ss-body1 fw-bold mb-1" style="color: var(--bs-primary);">@currentItem.Word.TargetLanguageTerm</h6>
+                <span class="ss-body2 text-secondary-ss">@currentItem.Word.NativeLanguageTerm</span>
+                <span class="badge @statusBadge ms-2">@statusText</span>
+            </div>
+
+            <div class="row g-2 mb-3">
+                <div class="col-6">
+                    <small class="text-secondary-ss d-block">IsKnown</small>
+                    <span class="ss-body2 fw-bold">@(p?.IsKnown == true ? "Yes" : "No")</span>
+                </div>
+                <div class="col-6">
+                    <small class="text-secondary-ss d-block">IsUserDeclared</small>
+                    <span class="ss-body2 fw-bold">@(p?.IsUserDeclared == true ? "Yes" : "No")</span>
+                </div>
+                <div class="col-6">
+                    <small class="text-secondary-ss d-block">VerificationState</small>
+                    <span class="ss-body2 fw-bold">@(p?.VerificationState.ToString() ?? "None")</span>
+                </div>
+                <div class="col-6">
+                    <small class="text-secondary-ss d-block">MasteryScore</small>
+                    <span class="ss-body2 fw-bold">@((p?.MasteryScore ?? 0f).ToString("P0"))</span>
+                </div>
+            </div>
+
+            <hr class="border-secondary my-2" />
+
+            <div class="row g-2 mb-3">
+                <div class="col-4">
+                    <small class="text-secondary-ss d-block">CurrentStreak</small>
+                    <span class="ss-body2 fw-bold">@(p?.CurrentStreak ?? 0)</span>
+                </div>
+                <div class="col-4">
+                    <small class="text-secondary-ss d-block">ProductionInStreak</small>
+                    <span class="ss-body2 fw-bold">@(p?.ProductionInStreak ?? 0) / 2</span>
+                </div>
+                <div class="col-4">
+                    <small class="text-secondary-ss d-block">TotalAttempts</small>
+                    <span class="ss-body2 fw-bold">@(p?.TotalAttempts ?? 0)</span>
+                </div>
+                <div class="col-4">
+                    <small class="text-secondary-ss d-block">CorrectAttempts</small>
+                    <span class="ss-body2 fw-bold">@(p?.CorrectAttempts ?? 0)</span>
+                </div>
+                <div class="col-4">
+                    <small class="text-secondary-ss d-block">Accuracy</small>
+                    <span class="ss-body2 fw-bold">@((p?.Accuracy ?? 0f).ToString("P0"))</span>
+                </div>
+            </div>
+
+            <hr class="border-secondary my-2" />
+            <h6 class="ss-caption1 text-secondary-ss mb-2">SRS Schedule</h6>
+            <div class="row g-2 mb-3">
+                <div class="col-6">
+                    <small class="text-secondary-ss d-block">NextReviewDate</small>
+                    <span class="ss-body2 fw-bold">@(p?.NextReviewDate?.ToString("MMM d, yyyy") ?? "Not scheduled")</span>
+                </div>
+                <div class="col-6">
+                    <small class="text-secondary-ss d-block">ReviewInterval</small>
+                    <span class="ss-body2 fw-bold">@(p?.ReviewInterval ?? 1) days</span>
+                </div>
+                <div class="col-6">
+                    <small class="text-secondary-ss d-block">EaseFactor</small>
+                    <span class="ss-body2 fw-bold">@((p?.EaseFactor ?? 2.5f).ToString("F2"))</span>
+                </div>
+                <div class="col-6">
+                    <small class="text-secondary-ss d-block">IsDueForReview</small>
+                    <span class="ss-body2 fw-bold @(p?.IsDueForReview == true ? "text-warning" : "")">@(p?.IsDueForReview == true ? "Yes" : "No")</span>
+                </div>
+            </div>
+
+            <hr class="border-secondary my-2" />
+            <h6 class="ss-caption1 text-secondary-ss mb-2">Quiz Context</h6>
+            <div class="row g-2">
+                <div class="col-6">
+                    <small class="text-secondary-ss d-block">Quiz Mode</small>
+                    <span class="ss-body2 fw-bold">@userMode</span>
+                </div>
+                <div class="col-6">
+                    <small class="text-secondary-ss d-block">DueOnly Filter</small>
+                    <span class="ss-body2 fw-bold">@(DueOnly ? "Yes" : "No")</span>
+                </div>
+                <div class="col-12">
+                    <small class="text-secondary-ss d-block">Why This Mode</small>
+                    <span class="ss-body2 fw-bold">
+                        @if (userMode == "Text")
+                        {
+                            @if (currentItem.IsPromotedInQuiz)
+                            {
+                                <text>Promoted in quiz (3+ MC correct this session)</text>
+                            }
+                            else
+                            {
+                                <text>MasteryScore >= 50% (global progress)</text>
+                            }
+                        }
+                        else
+                        {
+                            <text>Still building recognition (mastery &lt; 50%, not yet promoted)</text>
+                        }
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="offcanvas-backdrop fade show" style="z-index: 1049;" @onclick="() => showInfoPanel = false"></div>
 }
 
 </div> @* end activity-page-wrapper *@
@@ -417,6 +555,7 @@ else
     private bool showMnemonicTextHint;
     private bool audioPromptAvailable = true;
     private bool audioAnswerModeAvailable = true;
+    private bool showInfoPanel;
     private IAudioPlayer? audioPlayer;
     private CancellationTokenSource? autoAdvanceCts;
     private string userInput = "";
@@ -1020,6 +1159,7 @@ else
         currentTurnInRound++;
         requireCorrectTyping = false;
         showMnemonicImage = false;
+        showInfoPanel = false;
         await LoadCurrentItem();
     }
 
