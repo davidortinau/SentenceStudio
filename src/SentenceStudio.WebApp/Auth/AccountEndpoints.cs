@@ -59,16 +59,31 @@ public static class AccountEndpoints
                 return Results.Redirect("/auth/login?error=InvalidLink");
             }
 
-            // Link or create profile if missing (accounts from before registration fix, or migrated data)
-            if (string.IsNullOrEmpty(user.UserProfileId))
+            // Link or create profile — ALWAYS verify the link is correct.
+            // A previous bug could have linked a user to the wrong profile.
             {
                 var db = httpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
                 var logger = httpContext.RequestServices.GetRequiredService<ILoggerFactory>().CreateLogger("AutoSignIn");
-                
-                // Try to find an existing profile: by email first, then by display name, then first available
                 var userEmail = user.Email ?? "";
                 var userName = user.DisplayName ?? user.UserName ?? "";
-                
+
+                // If already linked, verify the link is correct (email match)
+                if (!string.IsNullOrEmpty(user.UserProfileId))
+                {
+                    var linkedProfile = await db.UserProfiles.FindAsync(user.UserProfileId);
+                    if (linkedProfile is not null && !string.IsNullOrEmpty(linkedProfile.Email)
+                        && !string.IsNullOrEmpty(userEmail)
+                        && !string.Equals(linkedProfile.Email, userEmail, StringComparison.OrdinalIgnoreCase))
+                    {
+                        // Wrong profile linked! Find the correct one by email.
+                        logger.LogWarning("Profile mismatch: user {UserEmail} was linked to profile {ProfileEmail} ({ProfileId}). Re-linking.",
+                            userEmail, linkedProfile.Email, linkedProfile.Id);
+                        user.UserProfileId = null; // Force re-link below
+                    }
+                }
+
+                if (string.IsNullOrEmpty(user.UserProfileId))
+                {
                 var existing = await db.UserProfiles
                     .FirstOrDefaultAsync(p => p.Email == userEmail && userEmail != "");
                 if (existing is null && !string.IsNullOrEmpty(userName))
@@ -108,6 +123,7 @@ public static class AccountEndpoints
                         profile.Id, userEmail, await db.UserProfiles.CountAsync());
                 }
                 await userManager.UpdateAsync(user);
+                }
             }
 
             await signInManager.SignInAsync(user, isPersistent: true);
