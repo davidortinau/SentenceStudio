@@ -608,3 +608,62 @@ Added a diagnostic info panel to the VocabQuiz page — an `bi-info-circle` icon
 **Files modified:** `src/SentenceStudio.UI/Pages/VocabQuiz.razor` — info button (line ~222), offcanvas panel (line ~373), `showInfoPanel` state var, dismiss on `NextItem()`.
 
 **Build/Deploy:** UI (0 errors), iOS Release (0 errors), installed to iPhone.
+
+## Mastery & Quiz Bug Fixes - 2025-01-XX
+
+### Task: Implement 4 Critical Quiz Fixes
+
+Implemented 4 bug fixes for Vocabulary Quiz mastery tracking and session management based on Captain's bug reports, Wash's audit, and rubber-duck review refinements:
+
+**Fix 1: Session Summary Marking Words Wrong (HIGH PRIORITY)**
+- **Problem**: When completing a word via sentence shortcut, `WasCorrectThisSession` was never set to `true`, causing the session summary to incorrectly mark these words with cross icons
+- **Solution**: 
+  - Added `currentItem.WasCorrectThisSession = true;` after sentence shortcut processing in `ContinueAfterSentenceShortcut()` (around line 952)
+  - Also patched `OverrideAsCorrect()` method (around line 1242) to set `WasCorrectThisSession = true`
+- **Files Modified**: `src/SentenceStudio.UI/Pages/VocabQuiz.razor`
+
+**Fix 2: Non-Due Words Appearing Despite DueOnly Filter (HIGH PRIORITY)**
+- **Problem**: Words with `IsDueForReview: No` were appearing despite `DueOnly = Yes` parameter
+- **Important Note**: Did NOT re-apply DueOnly filter mid-session (rubber-duck review found this dangerous — every correct answer pushes NextReviewDate into the future, so re-filtering would eject words after just 1 correct answer)
+- **Solution**: Tightened the INITIAL DueOnly filter in `LoadVocabulary()` (around line 693) to properly exclude words with future NextReviewDate AND TotalAttempts > 0
+- **Filter Logic**:
+  - Include: truly unseen words (`TotalAttempts == 0`)
+  - Include: words due for review (`NextReviewDate <= now`)
+  - EXCLUDE: words not yet due (`NextReviewDate > now && TotalAttempts > 0`)
+- **Files Modified**: `src/SentenceStudio.UI/Pages/VocabQuiz.razor`
+
+**Fix 3: Words Not Rotating Out After Demonstrating Mastery (MEDIUM)**
+- **Problem**: `ReadyToRotateOut` only checked quiz-session streaks (3 correct in each mode). Words that were globally mastered (`IsKnown`) still needed to prove themselves again every session
+- **Solution**:
+  - Added `IsDueOnlySession` property to `VocabularyQuizItem` class
+  - Updated `ReadyToRotateOut` logic to allow globally mastered words to rotate out in DueOnly sessions
+  - Set `IsDueOnlySession = DueOnly` when building quiz items in `LoadVocabulary()` (around line 706)
+- **Files Modified**: 
+  - `src/SentenceStudio.Shared/Models/VocabularyQuizItem.cs`
+  - `src/SentenceStudio.UI/Pages/VocabQuiz.razor`
+
+**Fix 4: IsKnown Threshold Too Strict (MEDIUM)**
+- **Problem**: Words at 84% mastery with 13-streak were not "known." The global 85% threshold was too strict
+- **Important Note**: Did NOT lower the global threshold — `IsKnown` is used system-wide (planning, smart resources, review scheduling)
+- **Solution**: Added high-confidence streak-based bypass to `IsKnown` in `VocabularyProgress.cs`:
+  - Constants: HIGH_CONFIDENCE_MASTERY_FLOOR = 0.75, HIGH_CONFIDENCE_MIN_PRODUCTION = 4, HIGH_CONFIDENCE_MIN_ATTEMPTS = 8
+  - A word is "known" if EITHER:
+    - Standard: MasteryScore >= 85% AND ProductionInStreak >= 2
+    - High-confidence bypass: MasteryScore >= 75% AND ProductionInStreak >= 4 AND TotalAttempts >= 8
+- **Files Modified**: `src/SentenceStudio.Shared/Models/VocabularyProgress.cs`
+
+### Build Status
+- ✅ Build succeeded: `dotnet build src/SentenceStudio.UI/ -f net10.0`
+- No compilation errors, only pre-existing warnings
+- Build time: 139.7s
+
+### Key Learnings
+1. **WasCorrectThisSession tracking**: Must be set in ALL success paths (multiple choice, text entry, sentence shortcut, override). Easy to miss edge cases.
+2. **DueOnly filtering strategy**: Initial filtering at load time is safer than mid-session re-filtering for spaced repetition systems. Re-filtering mid-session creates a "moving target" problem where correct answers immediately change a word's due status.
+3. **Context-aware mastery rotation**: Different session contexts (DueOnly vs. general practice) need different rotation rules. DueOnly sessions should respect global mastery; general practice sessions should require local demonstration.
+4. **Mastery threshold design**: Don't lower global thresholds to fix edge cases. Instead, add context-aware bypass rules (like the high-confidence streak bypass) that recognize exceptional performance patterns while preserving system-wide standards.
+
+### Files Modified
+- `src/SentenceStudio.UI/Pages/VocabQuiz.razor` (3 changes: sentence shortcut flag, override flag, DueOnly filter tightening, IsDueOnlySession assignment)
+- `src/SentenceStudio.Shared/Models/VocabularyQuizItem.cs` (ReadyToRotateOut logic + IsDueOnlySession property)
+- `src/SentenceStudio.Shared/Models/VocabularyProgress.cs` (IsKnown high-confidence bypass)

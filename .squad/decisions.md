@@ -4120,3 +4120,611 @@ Additionally, the interface exposes `ShouldFallbackToFirstProfile`:
 ## Remaining Work
 
 Many Blazor `.razor` pages also read `active_profile_id` directly from `IPreferencesService` (VocabQuiz, Writing, Import, etc.). These should be migrated to `IActiveUserProvider` in a follow-up pass. The critical data-layer leak (repositories + cache) is now plugged.
+# Vocabulary Quiz Mastery & Filtering Audit
+
+**Date:** 2025-01-29  
+**Auditor:** Wash (Backend Dev)  
+**Scope:** Deep investigation of quiz mastery scoring and word filtering bugs
+
+## Executive Summary
+
+I've identified **four critical bugs** in the vocabulary quiz pipeline. All four stem from the **session summary logic misusing ReadyToRotateOut** rather than actual correctness, and the **DueOnly filter checking NextReviewDate existence but not persistence**.
+
+**IMPACT:**
+- Words marked wrong when user performed perfectly ❌
+- Non-due words appearing despite DueOnly filter active ❌
+- Words not removed after mastery demonstrated within session ❌
+- IsKnown threshold too strict (84% vs 85% with 13-streak) ❌
+
+---
+
+## Bug 1: Session Summary Marking Words Wrong Despite Correct Performance
+
+### Root Cause
+**File:** `src/SentenceStudio.UI/Pages/VocabQuiz.razor` (lines 55-56)
+
+```csharp
+var iconClass = item.WasCorrectThisSession
+    ? (item.ReadyToRotateOut ? "bi-check-circle-fill text-success" : "bi-check-circle text-success")
+    : "bi-x-circle text-danger";
+```
+
+**THE PROBLEM:** The session summary displays ❌ for any word where `WasCorrectThisSession = false`, but `WasCorrectThisSession` is ONLY SET TO TRUE if the user gets the word correct *at least once during the round* (line 1118).
+
+However, the word 커피 **was correct multiple times** (3 production attempts in the session), yet appears with ❌ because:
+
+1. `WasCorrectThisSession` starts as `false` (default on VocabularyQuizItem)
+2. It's only set to `true` when `isCorrect` during `SubmitAnswer()` (line 1118)
+3. BUT — if the user completes the word via **sentence shortcut** (lines 920-945), the code updates `QuizProductionStreak` but **NEVER sets `WasCorrectThisSession = true`**
+
+**Evidence from screenshots:**
+- 커피: 3 correct production attempts logged (ProductionInStreak 4/2)
+- Session shows 22/22 correct
+- Yet session summary marks 커피 with ❌
+
+### Fix Recommendation
+
+**Option A (Recommended): Set WasCorrectThisSession in sentence shortcut path**
+
+In `VocabQuiz.razor` around line 949, after updating production streak from sentence shortcut results:
+
+```csharp
+currentItem.QuizProductionStreak = Math.Min(productionStreak, VocabularyQuizItem.RequiredCorrectAnswers);
+currentItem.WasCorrectThisSession = true;  // <-- ADD THIS LINE
+totalTurns += sentenceEntries.Count;
+```
+
+**Option B (Alternative): Change session summary to use global progress instead**
+
+Instead of relying on `WasCorrectThisSession` flag, reconstruct session correctness from the difference in CorrectAttempts before/after session. This would require tracking initial progress state at session start, which is more complex.
+
+---
+
+## Bug 2: Non-Due Words Appearing Despite DueOnly Filter Active
+
+### Root Cause
+**File:** `src/SentenceStudio.UI/Pages/VocabQuiz.razor` (lines 693-700)
+
+```csharp
+// Bug B fix: when SRS plan sends DueOnly=true, only include words actually due for review
+if (DueOnly)
+{
+    var now = DateTime.Now;
+    quizCandidates = quizCandidates.Where(i =>
+        i.Progress?.NextReviewDate != null && i.Progress.NextReviewDate <= now
+        || (i.Progress?.TotalAttempts ?? 0) == 0); // include unseen words too
+}
+```
+
+**THE PROBLEM:** This filter checks `NextReviewDate != null && NextReviewDate <= now`, but when words are **newly created** or when progress is created on-the-fly in lines 684-688:
+
+```csharp
+if (progress == null)
+    progress = new VocabularyProgress
+    {
+        VocabularyWordId = word.Id, UserId = activeUserId,
+        TotalAttempts = 0, CorrectAttempts = 0
+    };
+```
+
+These in-memory progress records have **NextReviewDate = null** (default), so they satisfy the "unseen words" fallback `(i.Progress?.TotalAttempts ?? 0) == 0` clause.
+
+**However**, words like 커피, 한국사람, 한국 사람들, 내 안에 have:
+- **TotalAttempts > 0** (3, 1, 4, 2 respectively)
+- **IsDueForReview: No** (NextReviewDate is in the future)
+- **Yet they appear in the quiz**
+
+This indicates the progress records are being **loaded from the database** with NextReviewDate values in the future, but the quiz is still including them. The filter is **not being persisted** or is being bypassed by the batch pool logic.
+
+### Diagnosis
+
+The actual issue is that the DueOnly filter is applied ONCE during initial `LoadVocabularyAsync()`, but when `SetupNewRound()` is called on line 715 and 728, it **rebuilds the round from `batchPool`**, which was already filtered. The problem is:
+
+**Words are removed from `batchPool` based on `ReadyToRotateOut`** (line 733), NOT based on whether they're still due for review. So if a word becomes non-due mid-session (unlikely), or if the initial filtering missed it, it stays in the pool.
+
+**MORE LIKELY:** The progress records are created with `NextReviewDate = null` on first load, satisfying the unseen check, then they get persisted with a future NextReviewDate after the first attempt, but by then they're already in `batchPool`.
+
+### Fix Recommendation
+
+**Option A (Recommended): Re-apply DueOnly filter when building each round**
+
+In `SetupNewRound()` (line 728), before selecting words for the round:
+
+```csharp
+private async Task SetupNewRound()
+{
+    showSessionSummary = false;
+
+    // Remove mastered words from the batch pool
+    batchPool.RemoveAll(i => i.ReadyToRotateOut);
+    
+    // Re-apply DueOnly filter if active (words may have been updated mid-session)
+    if (DueOnly)
+    {
+        var now = DateTime.Now;
+        batchPool.RemoveAll(i => 
+            i.Progress != null 
+            && i.Progress.NextReviewDate.HasValue 
+            && i.Progress.NextReviewDate > now
+            && i.Progress.TotalAttempts > 0); // Don't remove truly unseen words
+    }
+
+    if (!batchPool.Any())
+    {
+        Toast.ShowSuccess("All words mastered! Session complete.");
+        GoBack();
+        return;
+    }
+    // ... rest of method
+}
+```
+
+**Option B (Alternative): Exclude words with future NextReviewDate from initial load**
+
+Ensure that when creating in-memory progress (lines 684-688), immediately check if the word should be included under DueOnly rules by fetching existing progress from the database first, not creating a stub.
+
+---
+
+## Bug 3: Words Not Being Removed After Demonstrating Mastery
+
+### Root Cause
+**File:** `src/SentenceStudio.UI/Pages/VocabQuiz.razor` (lines 733, 1272-1278)
+
+```csharp
+// SetupNewRound (line 733):
+batchPool.RemoveAll(i => i.ReadyToRotateOut);
+
+// HandleMasteredWords (lines 1272-1278):
+var mastered = vocabItems.Where(i => i.ReadyToRotateOut).ToList();
+foreach (var item in mastered)
+{
+    vocabItems.Remove(item);
+    batchPool.Remove(item);
+    wordsMastered++;
+}
+```
+
+**VocabularyQuizItem.ReadyToRotateOut** (from `VocabularyQuizItem.cs` line 17):
+
+```csharp
+public bool ReadyToRotateOut => QuizRecognitionComplete && QuizProductionComplete;
+```
+
+Where:
+```csharp
+public bool QuizRecognitionComplete => QuizRecognitionStreak >= RequiredCorrectAnswers;
+public bool QuizProductionComplete => QuizProductionStreak >= RequiredCorrectAnswers;
+public const int RequiredCorrectAnswers = 3;
+```
+
+**THE PROBLEM:** The quiz removes words from subsequent rounds based on **quiz-specific streaks** (`QuizRecognitionStreak` and `QuizProductionStreak`), which require **3 consecutive correct answers in EACH mode within THIS quiz session**.
+
+However:
+- Words like 커피 (streak 9, ProductionInStreak 4/2) have already demonstrated mastery in **global progress**
+- The quiz is using `IsPromoted` (line 786) which checks `MasteryScore >= 0.50`, but this only determines **whether to use Text mode**, NOT whether to rotate out
+- Words can be in Text mode (promoted) but still required to answer 3 times correctly **in this session** before rotating out
+
+**Evidence from screenshots:**
+- 커피: CurrentStreak 9, ProductionInStreak 4/2, MasteryScore 65%, still appearing every round
+- 한국 사람들: CurrentStreak 13, ProductionInStreak 7/2, MasteryScore 84%, still appearing
+
+### Architectural Issue
+
+The quiz has **dual tracking**:
+1. **Global progress** (VocabularyProgress) — tracks lifetime mastery across all activities
+2. **Quiz-session streaks** (QuizRecognitionStreak, QuizProductionStreak) — tracks performance within THIS quiz session only
+
+The removal logic (`ReadyToRotateOut`) uses **quiz-session streaks**, which reset every time you start a new quiz. This means words you've already mastered globally keep appearing until you prove it again in this session.
+
+**This is BY DESIGN** for spaced repetition — even "known" words should be reviewed. However, the filter `DueOnly` is meant to respect spaced repetition schedules, so words marked as non-due shouldn't appear at all.
+
+### Fix Recommendation
+
+**Option A (Recommended): Use global mastery for rotation when DueOnly is active**
+
+When `DueOnly = true` (indicating this is a scheduled review session), words that reach mastery threshold should rotate out immediately based on **global progress**, not session-specific streaks.
+
+Modify `ReadyToRotateOut` to check both quiz streaks AND global mastery when appropriate:
+
+In `VocabularyQuizItem.cs`:
+
+```csharp
+// Add a property to indicate session type (set from VocabQuiz.razor)
+public bool IsDueOnlySession { get; set; }
+
+// Update ReadyToRotateOut to respect global mastery in DueOnly sessions
+public bool ReadyToRotateOut => IsDueOnlySession
+    ? (QuizRecognitionComplete && QuizProductionComplete) || IsKnown
+    : QuizRecognitionComplete && QuizProductionComplete;
+```
+
+Then in `VocabQuiz.razor`, set `IsDueOnlySession` when building quiz items (around line 688):
+
+```csharp
+return new VocabularyQuizItem { 
+    Word = word, 
+    Progress = progress,
+    IsDueOnlySession = DueOnly  // <-- ADD THIS
+};
+```
+
+**Option B (Alternative): Lower RequiredCorrectAnswers threshold for high-mastery words**
+
+Words with high MasteryScore could require fewer in-session demonstrations. For example, words with MasteryScore >= 0.80 only need 1 correct answer to rotate out.
+
+---
+
+## Bug 4: IsKnown Threshold Too Strict
+
+### Root Cause
+**File:** `src/SentenceStudio.Shared/Models/VocabularyProgress.cs` (lines 9-11, 100)
+
+```csharp
+private const int MIN_PRODUCTION_FOR_KNOWN = 2;
+private const float MASTERY_THRESHOLD = 0.85f;
+
+// Line 100:
+public bool IsKnown => MasteryScore >= MASTERY_THRESHOLD && ProductionInStreak >= MIN_PRODUCTION_FOR_KNOWN;
+```
+
+**THE PROBLEM:** The mastery threshold is **0.85 (85%)**, which means a word with:
+- **84% MasteryScore**
+- **13 consecutive correct answers** (CurrentStreak)
+- **7 production attempts in streak** (ProductionInStreak)
+
+is marked as **IsKnown: No**.
+
+This is mathematically correct per the threshold, but **perceptually wrong** for users. A word with a 13-streak and 84% mastery is indistinguishable from a known word.
+
+### Mastery Score Calculation
+
+From `VocabularyProgressService.cs` (lines 241-255):
+
+```csharp
+private static float CalculateBlendedMastery(VocabularyProgress progress)
+{
+    // Accuracy component (70% weight)
+    float accuracy = progress.TotalAttempts > 0
+        ? (float)progress.CorrectAttempts / progress.TotalAttempts
+        : 0f;
+    float confidenceRamp = Math.Min(1.0f, progress.TotalAttempts / ACCURACY_RAMP_ATTEMPTS);
+    float accuracyComponent = accuracy * confidenceRamp;
+
+    // Streak component (30% weight)
+    float effectiveStreak = progress.CurrentStreak + (progress.ProductionInStreak * 0.5f);
+    float streakComponent = Math.Min(effectiveStreak / EFFECTIVE_STREAK_DIVISOR, 1.0f);
+
+    return Math.Min((accuracyComponent * ACCURACY_WEIGHT) + (streakComponent * STREAK_WEIGHT), 1.0f);
+}
+```
+
+Constants:
+- `MASTERY_THRESHOLD = 0.85f`
+- `MIN_PRODUCTION_FOR_KNOWN = 2`
+- `EFFECTIVE_STREAK_DIVISOR = 7.0f`
+- `ACCURACY_WEIGHT = 0.7f`
+- `STREAK_WEIGHT = 0.3f`
+- `ACCURACY_RAMP_ATTEMPTS = 6.0f`
+
+**Example Calculation for 한국 사람들:**
+- TotalAttempts: 13
+- CorrectAttempts: 12 (implied from 92% accuracy)
+- CurrentStreak: 13
+- ProductionInStreak: 7
+
+```
+accuracy = 12/13 = 0.923
+confidenceRamp = min(1.0, 13/6) = 1.0
+accuracyComponent = 0.923 * 1.0 = 0.923
+
+effectiveStreak = 13 + (7 * 0.5) = 16.5
+streakComponent = min(16.5/7, 1.0) = 1.0
+
+MasteryScore = (0.923 * 0.7) + (1.0 * 0.3) = 0.646 + 0.300 = 0.946 = 94.6%
+```
+
+Wait — this calculation shows **94.6% mastery**, but the screenshot shows **84%**. Let me recalculate assuming the actual data from the screenshot:
+
+**Actual data from screenshot (한국 사람들):**
+- MasteryScore: 84%
+- CurrentStreak: 13
+- ProductionInStreak: 7/2
+- Accuracy: not shown, but let's reverse-engineer:
+
+```
+0.84 = (accuracy * 1.0 * 0.7) + (streakComponent * 0.3)
+0.84 = (accuracy * 0.7) + (1.0 * 0.3)  [assuming streakComponent = 1.0 with streak 13]
+0.84 = (accuracy * 0.7) + 0.3
+0.54 = accuracy * 0.7
+accuracy = 0.77 (77%)
+```
+
+So 한국 사람들 has approximately **77% overall accuracy** with a **13-streak**. That's 10 wrong out of ~13 attempts historically, but the current streak is perfect.
+
+**Now for 커피:**
+- MasteryScore: 65%
+- CurrentStreak: 9
+- ProductionInStreak: 4/2
+- CorrectAttempts: 3
+- Accuracy: 60%
+
+```
+effectiveStreak = 9 + (4 * 0.5) = 11
+streakComponent = min(11/7, 1.0) = 1.0
+
+MasteryScore = (0.60 * 0.7) + (1.0 * 0.3) = 0.42 + 0.30 = 0.72 = 72%
+```
+
+But the screenshot shows **65%** — let me check if `CorrectAttempts: 3` means TotalAttempts is 5:
+
+```
+accuracy = 3/5 = 0.60 ✓
+confidenceRamp = min(1.0, 5/6) = 0.833
+
+accuracyComponent = 0.60 * 0.833 = 0.50
+
+MasteryScore = (0.50 * 0.7) + (1.0 * 0.3) = 0.35 + 0.30 = 0.65 = 65% ✓
+```
+
+**Confirmed.** The confidence ramp is penalizing words with fewer than 6 attempts, which is intentional.
+
+### Analysis
+
+The 85% threshold is **functioning as designed**, but it creates edge cases where:
+- A word with 84% mastery and a 13-streak feels "known" to the user
+- But the system marks it as "learning"
+
+The **1% difference** feels arbitrary when the learner has demonstrated consistent mastery (13-streak).
+
+### Fix Recommendation
+
+**Option A (Recommended): Lower threshold to 0.80 (80%)**
+
+Change `MASTERY_THRESHOLD` from `0.85f` to `0.80f` in `VocabularyProgress.cs`:
+
+```csharp
+private const float MASTERY_THRESHOLD = 0.80f;  // Changed from 0.85f
+```
+
+**Rationale:** An 80% threshold with 2+ production attempts is a strong indicator of mastery. This aligns better with user perception and reduces false negatives for high-streak words.
+
+**Option B (Alternative): Add streak-based bypass for high streaks**
+
+Allow words with **CurrentStreak >= 10** to qualify as Known even if MasteryScore is between 80-85%:
+
+```csharp
+public bool IsKnown => 
+    (MasteryScore >= MASTERY_THRESHOLD && ProductionInStreak >= MIN_PRODUCTION_FOR_KNOWN)
+    || (MasteryScore >= 0.80f && CurrentStreak >= 10 && ProductionInStreak >= MIN_PRODUCTION_FOR_KNOWN);
+```
+
+**Option C (Least invasive): Change MIN_PRODUCTION_FOR_KNOWN to 3**
+
+Require 3 production attempts instead of 2. This would tighten the Known criteria, but wouldn't help with the 84% vs 85% issue. **Not recommended.**
+
+---
+
+## Summary of Fixes
+
+| Bug | File | Fix | Priority |
+|-----|------|-----|----------|
+| #1: Session summary marks correct words wrong | VocabQuiz.razor:949 | Set `WasCorrectThisSession = true` after sentence shortcut success | **HIGH** |
+| #2: Non-due words appearing with DueOnly filter | VocabQuiz.razor:728 | Re-apply DueOnly filter in SetupNewRound() | **HIGH** |
+| #3: Words not removed after mastery | VocabularyQuizItem.cs:17, VocabQuiz.razor:688 | Add `IsDueOnlySession` property, use global mastery for rotation | **MEDIUM** |
+| #4: IsKnown threshold too strict | VocabularyProgress.cs:11 | Lower `MASTERY_THRESHOLD` from 0.85f to 0.80f | **MEDIUM** |
+
+---
+
+## Additional Observations
+
+### Positive Findings
+
+1. **MasteryScore calculation is working correctly** — blended accuracy + streak formula is sound
+2. **Spaced repetition logic is intact** — NextReviewDate updates properly
+3. **VocabularyProgressService is robust** — streak resets, production tracking, all functioning as designed
+
+### Architectural Notes
+
+- The **dual-tracking system** (global progress + quiz-session streaks) creates complexity but serves a purpose for spaced repetition
+- The **DueOnly filter** is a layer on top of quiz mechanics that wasn't fully integrated into the round rotation logic
+- The **sentence shortcut** path is a parallel entry point that bypasses some of the normal quiz flow (hence the missing `WasCorrectThisSession` flag)
+
+---
+
+## Recommended Implementation Order
+
+1. **Fix Bug #1 first** — one-line change, immediately visible to users, zero risk
+2. **Fix Bug #2 second** — prevents non-due words from polluting review sessions
+3. **Fix Bug #4 third** — improves user experience for high-mastery words
+4. **Fix Bug #3 last** — most complex, requires property addition and testing
+
+---
+
+**End of Audit**
+
+# Decision: Thread WordIds Through All Activity Pages
+
+**Date:** 2025-07-21
+**Author:** Wash (Backend Dev)
+**Status:** Implemented
+
+## Context
+
+The daily plan builder selects specific vocabulary words (via SRS due-word logic) and stores their IDs in `PlanActivity.WordIds`. Previously, only VocabQuiz consumed this parameter. Other activity pages ignored it, loading all words from the resource instead — defeating the plan's targeted practice.
+
+## Decision
+
+Thread `WordIds` query parameter through ALL vocabulary-loading activity types:
+
+1. **PlanConverter.BuildRouteParameters** — WordIds are now added to route params for ALL activity types (not just VocabularyReview). Moved from VocabReview-specific block to a shared block after the activity-type switch.
+
+2. **Page-level changes** — Five pages updated with the same pattern:
+   - `VocabMatching.razor` — WordIds bypass resource loading, loads words directly by ID
+   - `Writing.razor` — WordIds pre-filter vocabulary shown as practice blocks
+   - `WordAssociation.razor` — WordIds bypass `GetRoundWordsAsync`, loads words directly
+   - `Cloze.razor` — WordIds passed to `ClozureService.GetSentences()` to filter AI input
+   - `Translation.razor` — WordIds passed to `TranslationService.GetTranslationSentences()` to filter AI input
+
+3. **Service-level changes** — Two AI services updated with optional `filterWordIds` parameter:
+   - `ClozureService.GetSentences()` — accepts `string[]? filterWordIds`
+   - `TranslationService.GetTranslationSentences()` — accepts `string[]? filterWordIds`
+
+## Pattern
+
+Every vocabulary-loading page follows this priority:
+1. If `WordIds` present → load only those specific words (plan-targeted)
+2. Else if `ResourceId` present → load all words from resource (manual navigation)
+3. Else → fallback behavior (varies by page)
+
+## Not Changed
+
+- Reading, Shadowing, Conversation, Scene pages — these use resource content (transcripts, audio), not individual vocab word lists
+- `VocabularyProgressService.GetProgressForWordsAsync` userId fix — already in place (line 211, `ResolvedActiveUserId` fallback)
+
+# Mastery/Quiz Bug Fixes Code Review
+
+**Status:** CONDITIONAL APPROVE  
+**Date:** 2026-04-15  
+**Reviewer:** Zoe (Lead)  
+**Implementer:** Kaylee
+
+## Executive Summary
+
+**VERDICT: CONDITIONAL APPROVE** — Core bug fixes (1-4) are solid and solve real problems, but there's significant scope creep that needs discussion before merge.
+
+### The Four Target Fixes: ✅ All Correct
+
+1. **Fix 1 (WasCorrectThisSession)** — ✅ Correct. Sets flag in sentence shortcut AND SubmitAnswer AND OverrideAsCorrect. Session summary now accurately reflects outcomes.
+
+2. **Fix 2 (DueOnly filter)** — ✅ Correct. Explicit three-branch logic (unseen, due, exclude future) prevents non-due words from appearing. Much clearer than original.
+
+3. **Fix 3 (DueOnly rotation)** — ✅ Correct. `IsDueOnlySession` flag propagates to items, `ReadyToRotateOut` allows globally-known words to skip in DueOnly mode. Solves the "stuck word" problem.
+
+4. **Fix 4 (High-confidence bypass)** — ✅ Correct. Alternative path to `IsKnown` (75% mastery, 4+ production, 8+ attempts) is reasonable for words that fell out of streak due to one mistake. Constants are well-documented.
+
+### Major Scope Creep Issues
+
+**1. BLENDED MASTERY SCORE (VocabularyProgressService.cs)**
+- **What:** Replaced pure streak-based scoring with 70% accuracy + 30% streak blend
+- **Impact:** Changes MasteryScore calculation for EVERY word in the system
+- **Risk:** This is a **fundamental** change to the scoring algorithm — not a bug fix
+- **Why it matters:** A word with 92% accuracy and streak=1 now scores ~71% instead of ~14%. This affects planning, smart resources, due counts, etc.
+- **Verdict:** This is an **algorithmic improvement**, not a bug fix. Should be in a separate PR with:
+  - Migration plan for existing MasteryScore values
+  - Impact analysis on existing user data
+  - A/B testing or gradual rollout strategy
+  - Dedicated review of the 70/30 weights
+
+**2. PLAN WORDIDS PARAMETER (DeterministicPlanBuilder, ClozureService, TranslationService, VocabQuiz, etc.)**
+- **What:** Added `WordIds` parameter to allow plan to specify exact words for activities
+- **Impact:** Touches 8+ files across services, repositories, pages
+- **Why it's here:** Needed to support new "due words + unseen words" logic in DeterministicPlanBuilder
+- **Verdict:** This is a **feature enhancement** (precise word targeting), not a bug fix. Should be in a separate PR titled "Plan-driven word selection" or similar.
+
+**3. DUE + UNSEEN WORDS LOGIC (DeterministicPlanBuilder)**
+- **What:** Changed vocab review item selection to include NEW/unseen words (no progress record) when due count < 20
+- **Impact:** Fundamentally changes what goes into daily plans
+- **Verdict:** This is a **feature** (introduce new words automatically), not a bug fix. Should be separate PR with product discussion.
+
+**4. HIGH-ACCURACY TEXT MODE PROMOTION (VocabQuiz.razor)**
+- **What:** Added third path to Text mode (80%+ accuracy, 5+ attempts)
+- **Impact:** Changes quiz behavior — users get Text mode earlier
+- **Verdict:** This is a **UX improvement**, not a bug fix. Should be separate or clearly documented as "opportunistic improvement while fixing quiz."
+
+**5. MINOR CHANGES**
+- `DateTime.Today` → `DateTime.UtcNow.Date` (Index.razor) — ✅ Good fix (timezone safety), but unrelated to mastery
+- `ResolvedActiveUserId` property (VocabularyProgressRepository) — ✅ Good refactor, but unrelated to mastery
+
+## Specific Code Issues
+
+### ❌ CRITICAL: Missing Migration for MasteryScore Change
+The blended mastery formula changes how `MasteryScore` is calculated, but there's no migration to recalculate existing values. Words scored under the old formula will have stale scores until their next attempt.
+
+**Required action:**
+- Add a one-time backfill migration that recalculates MasteryScore for all existing VocabularyProgress records using the new formula
+- OR document that scores will converge naturally over time (acceptable if Captain approves)
+
+### ⚠️ WARNING: IsKnown Side Effects
+Fix 4 adds a bypass to `IsKnown` that affects:
+- Daily plan generation (DeterministicPlanBuilder.GetVocabReviewItemAsync)
+- Smart resource filtering (all callers of `IsKnown`)
+- Due word counts (VocabularyProgressRepository.GetDueVocabularyAsync)
+
+**Analysis:** This is probably fine — the bypass is conservative (requires significant evidence). But it's a **global behavior change**, not a localized quiz fix.
+
+**Action:** Document in commit message that this affects planning/reporting, not just quiz rotation.
+
+### ✅ GOOD: Fix 1 is Complete
+`WasCorrectThisSession` is set in all three places:
+- Sentence shortcut (line 973)
+- SubmitAnswer (line 1141)
+- OverrideAsCorrect (line 1266)
+
+Session summary will now accurately show green checkmarks for words completed via sentence shortcut.
+
+### ✅ GOOD: Fix 2 Logic is Explicit
+The DueOnly filter is now crystal clear:
+```csharp
+// Include truly unseen words (never attempted)
+if (totalAttempts == 0) return true;
+
+// Include words due for review (NextReviewDate <= now)
+if (nextReview.HasValue && nextReview.Value <= now) return true;
+
+// EXCLUDE words not yet due
+return false;
+```
+This is much better than the original `|| (TotalAttempts == 0)` which was ambiguous about the intent.
+
+### ✅ GOOD: Fix 3 is Safe
+`ReadyToRotateOut` logic is clear:
+```csharp
+public bool ReadyToRotateOut => IsDueOnlySession
+    ? (QuizRecognitionComplete && QuizProductionComplete) || (Progress?.IsKnown ?? false)
+    : QuizRecognitionComplete && QuizProductionComplete;
+```
+In DueOnly sessions, globally-known words can rotate out early. In normal sessions, original behavior is preserved. This is exactly what was needed.
+
+## Recommendations
+
+### For Captain (Decision Required)
+1. **Accept this PR as-is?** All changes work together, but mixing bug fixes + features + algorithm changes makes rollback risky if something breaks.
+2. **Split into 3 PRs?**
+   - **PR #1 (URGENT):** Fixes 1-4 only (quiz bugs)
+   - **PR #2 (FEATURE):** Blended mastery scoring + migration
+   - **PR #3 (FEATURE):** Plan-driven WordIds + unseen word selection
+
+### For Kaylee (If Splitting)
+If Captain wants to split:
+1. Create a branch from current main for "mastery-quiz-fixes-only"
+2. Cherry-pick ONLY the changes to:
+   - VocabularyProgress.cs (Fix 4: high-confidence bypass constants + IsKnown logic)
+   - VocabularyQuizItem.cs (Fix 3: IsDueOnlySession + ReadyToRotateOut)
+   - VocabQuiz.razor (Fixes 1, 2, 3: WasCorrectThisSession, DueOnly filter, session flag)
+3. Revert everything else (blended mastery, WordIds, unseen words logic)
+4. Open that as a focused PR for quick review + merge
+5. Open separate PRs for the other features with proper context
+
+### For Merge (If Keeping As-Is)
+If Captain accepts the scope creep:
+1. Add a migration to recalculate MasteryScore for existing records (or document that it's not needed)
+2. Update the commit message to clearly list ALL changes, not just the 4 fixes
+3. Add a note in the PR description about the algorithm change and its global impact
+
+## Final Verdict
+
+**CONDITIONAL APPROVE:**
+- ✅ The 4 target bug fixes are correct and solve real problems
+- ⚠️ Significant scope creep (blended mastery, WordIds, unseen words) should be discussed before merge
+- ❌ Missing migration for MasteryScore recalculation (or explicit decision to skip it)
+
+**Recommendation:** Captain should decide whether to merge as-is (accepting the scope creep) or split into focused PRs. Either is defensible — the code quality is good, it's just a question of change management strategy.
+
+If merging as-is: Add the migration, update the commit message to reflect full scope.  
+If splitting: Kaylee should extract the 4 core fixes into a standalone PR first.
+
+---
+
+**Blocking Issues:** None (code works correctly)  
+**Non-Blocking Issues:** Scope creep, missing migration documentation  
+**Who Should Fix:** Captain decides strategy, Kaylee executes
