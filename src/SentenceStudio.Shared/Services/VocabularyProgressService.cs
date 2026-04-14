@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Shared.Models;
+using SentenceStudio.Abstractions;
 
 namespace SentenceStudio.Services;
 
@@ -8,6 +9,7 @@ public class VocabularyProgressService : IVocabularyProgressService
     private readonly VocabularyProgressRepository _progressRepo;
     private readonly VocabularyLearningContextRepository _contextRepo;
     private readonly ILogger<VocabularyProgressService> _logger;
+    private readonly IPreferencesService? _preferences;
 
     // NEW: Streak-based scoring constants
     private const float MASTERY_THRESHOLD = 0.85f;                // MasteryScore threshold for "Known"
@@ -34,11 +36,29 @@ public class VocabularyProgressService : IVocabularyProgressService
     public VocabularyProgressService(
         VocabularyProgressRepository progressRepo,
         VocabularyLearningContextRepository contextRepo,
-        ILogger<VocabularyProgressService> logger)
+        ILogger<VocabularyProgressService> logger,
+        IPreferencesService? preferences = null)
     {
         _progressRepo = progressRepo;
         _contextRepo = contextRepo;
         _logger = logger;
+        _preferences = preferences;
+    }
+
+    // CRITICAL: Resolves the active user ID. Throws if no user is available.
+    // This exists because userId="" silently returns empty results, which caused
+    // known words to appear as new in quizzes. Never allow empty userId to pass through.
+    private string ResolveUserId(string userId)
+    {
+        if (!string.IsNullOrEmpty(userId))
+            return userId;
+        
+        var resolved = _preferences?.Get("active_profile_id", string.Empty) ?? string.Empty;
+        if (string.IsNullOrEmpty(resolved))
+        {
+            _logger.LogWarning("VocabularyProgressService: No userId provided and no active_profile_id in preferences. Progress queries will return empty results.");
+        }
+        return resolved;
     }
 
     /// <summary>
@@ -169,7 +189,7 @@ public class VocabularyProgressService : IVocabularyProgressService
     /// </summary>
     public Task<VocabularyProgress> GetProgressAsync(string vocabularyWordId, string userId = "")
     {
-        return GetOrCreateProgressAsync(vocabularyWordId, userId);
+        return GetOrCreateProgressAsync(vocabularyWordId, ResolveUserId(userId));
     }
 
     /// <summary>
@@ -179,9 +199,10 @@ public class VocabularyProgressService : IVocabularyProgressService
     /// </summary>
     public async Task<List<VocabularyProgress>> GetReviewCandidatesAsync(string userId = "")
     {
+        var resolvedUserId = ResolveUserId(userId);
         var allProgress = await _progressRepo.ListAsync();
         return allProgress.Where(p =>
-            p.UserId == userId &&
+            p.UserId == resolvedUserId &&
             p.IsDueForReview &&
             !p.IsKnown &&
             !p.IsInGracePeriod).ToList();
@@ -192,26 +213,30 @@ public class VocabularyProgressService : IVocabularyProgressService
     /// </summary>
     public async Task<List<VocabularyProgress>> GetAllProgressAsync(string userId = "")
     {
+        var resolvedUserId = ResolveUserId(userId);
         var allProgress = await _progressRepo.ListAsync();
-        return allProgress.Where(p => p.UserId == userId).ToList();
+        return allProgress.Where(p => p.UserId == resolvedUserId).ToList();
     }
 
     /// <summary>
     /// Gets progress for multiple vocabulary words and returns as dictionary.
     /// OPTIMIZED: Uses batch query and only returns EXISTING progress (no auto-creation).
     /// Use this for list views where you just want to display status.
+    /// NOTE: userId is auto-resolved from preferences if not provided.
     /// </summary>
     public async Task<Dictionary<string, VocabularyProgress>> GetProgressForWordsAsync(List<string> vocabularyWordIds, string userId = "")
     {
         if (!vocabularyWordIds.Any())
             return new Dictionary<string, VocabularyProgress>();
 
+        var resolvedUserId = ResolveUserId(userId);
+
         // OPTIMIZATION: Use batch query instead of loading entire table
         var existingProgress = await _progressRepo.GetByWordIdsAsync(vocabularyWordIds);
 
         // Filter by user and build dictionary - no auto-creation for list views
         return existingProgress
-            .Where(p => p.UserId == userId)
+            .Where(p => p.UserId == resolvedUserId)
             .ToDictionary(p => p.VocabularyWordId, p => p);
     }
 
@@ -222,7 +247,8 @@ public class VocabularyProgressService : IVocabularyProgressService
     /// </summary>
     public async Task<Dictionary<string, VocabularyProgress>> GetAllProgressDictionaryAsync(string userId = "")
     {
-        var allProgress = await _progressRepo.GetAllForUserAsync(userId);
+        var resolvedUserId = ResolveUserId(userId);
+        var allProgress = await _progressRepo.GetAllForUserAsync(resolvedUserId);
         
         return allProgress.ToDictionary(p => p.VocabularyWordId, p => p);
     }
