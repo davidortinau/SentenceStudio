@@ -1285,3 +1285,37 @@ The GitHub Copilot coding agent (`@copilot`) can join the Squad as an autonomous
 - Capability profile (🟢/🟡/🔴) lives in team.md. Lead evaluates issues against it during triage.
 - Auto-assign controlled by `<!-- copilot-auto-assign: true/false -->` in team.md.
 - Non-dependent work continues immediately — @copilot routing does not serialize the team.
+
+---
+
+## Publish Workflow
+
+**"Publish" = Azure webapp + iOS to DX24. ALWAYS do both. Both point at the same Azure API. See `docs/deploy-runbook.md` for full details.**
+
+### Step 1: Azure
+```bash
+azd deploy   # VPN must be off
+```
+
+### Step 2: iOS to DX24 (iPhone 15 Pro, CF4F94E3-A1C9-5617-A089-9ABB0110A09F)
+```bash
+# Switch SDK
+cp global.json global.json.bak
+echo '{"sdk":{"version":"11.0.100-preview.3.26209.122","rollForward":"latestFeature","allowPrerelease":true}}' > global.json
+
+# Build Release with Azure API
+services__api__https__0=https://api.livelyforest-b32e7d63.centralus.azurecontainerapps.io \
+  dotnet build src/SentenceStudio.iOS/SentenceStudio.iOS.csproj -f net10.0-ios -c Release -p:RuntimeIdentifier=ios-arm64
+
+# Install + launch
+xcrun devicectl device install app --device CF4F94E3-A1C9-5617-A089-9ABB0110A09F \
+  src/SentenceStudio.iOS/bin/Release/net10.0-ios/ios-arm64/SentenceStudio.iOS.app
+xcrun devicectl device process launch --device CF4F94E3-A1C9-5617-A089-9ABB0110A09F \
+  com.simplyprofound.sentencestudio
+
+# Restore SDK
+cp global.json.bak global.json && rm global.json.bak
+```
+
+### Local Dev Build (NOT for publish)
+Debug config, points at localhost, requires Aspire running locally. Never deploy Debug to DX24 for production use.
