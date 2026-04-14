@@ -4728,3 +4728,110 @@ If splitting: Kaylee should extract the 4 core fixes into a standalone PR first.
 **Blocking Issues:** None (code works correctly)  
 **Non-Blocking Issues:** Scope creep, missing migration documentation  
 **Who Should Fix:** Captain decides strategy, Kaylee executes
+
+---
+
+### 12. Quiz Mastery Bug Fixes - 4 Targeted Corrections (2026-04-14)
+
+**Status:** ACTIVE  
+**Date:** 2026-04-14  
+**Author:** Scribe (from Wash / Kaylee / Zoe)
+
+**Context**
+
+Captain reported known words appearing repeatedly in quizzes and session summaries marking correct answers as wrong. Investigation identified four interrelated mastery scoring and session tracking bugs in the quiz flow.
+
+**Decision**
+
+1. **Session Summary Accuracy:** Use `WasCorrectThisSession` flag (not `ReadyToRotateOut`) for displaying correct/wrong icons in session summaries. This flag is set consistently in Sentence shortcut, SubmitAnswer, and OverrideAsCorrect paths.
+
+2. **DueOnly Filter Stability:** Apply DueOnly filter only at session entry; never re-filter mid-session. Rubber-duck analysis confirmed that mid-session re-filtering contradicts SRS behavior (NextReviewDate advances after each correct answer, violating the session's invariant set).
+
+3. **Known-Word Rotation:** In DueOnly sessions, `ReadyToRotateOut` checks `IsKnown` so globally-mastered words can rotate out early while maintaining original rotation logic in normal sessions.
+
+4. **IsKnown High-Confidence Bypass:** Accept words as known when MasteryScore >= 0.75 AND ProductionInStreak >= 4 AND TotalAttempts >= 8. This does NOT lower the global 85% threshold but prevents known words from being re-tested in the same session.
+
+**Impact**
+
+- Session summaries now accurately reflect correct/incorrect marks across all completion paths.
+- Users stop seeing mastered words repeatedly offered in the same session.
+- DueOnly filtering logic is explicit and maintainable (no silent side effects).
+- Quiz rotation respects both local session confidence and global mastery standards.
+
+---
+
+### 13. VocabularyProgressService userId Resolution - Auto-Resolve from Preferences (2026-04-14)
+
+**Status:** ACTIVE  
+**Date:** 2026-04-14  
+**Author:** Scribe (from Wash / Squad Coordinator / Jayne)
+
+**Context**
+
+The userId="" default parameter silently returned empty results when callers forgot to pass it, making all known words appear as new. This bug recurred 3+ times across activity pages. Every page was affected by the userId trap.
+
+**Decision**
+
+1. All VocabularyProgressService query methods now auto-resolve userId from IPreferencesService when callers don't pass an explicit value.
+2. Add `ResolveUserId()` helper method to centralize this logic.
+3. Enforce the fix via 9 regression tests that validate userId resolution in all query paths.
+4. Treat this as a permanent pattern: services should never silently return empty results due to missing user context.
+
+**Impact**
+
+- Callers cannot accidentally pass empty userId; the service self-heals.
+- Known words now appear reliably in progress tracking and planning.
+- Tests prevent this class of bug from recurring.
+- Pattern is now a model for other services that depend on user context.
+
+---
+
+### 14. Publish Workflow Definition - Azure Deploy + iOS Release Build (2026-04-14)
+
+**Status:** ACTIVE  
+**Date:** 2026-04-14  
+**Author:** Scribe (from Squad Coordinator)
+
+**Context**
+
+"Publish" is Captain's most frequent workflow but was being relearned every session due to unclear scope.
+
+**Decision**
+
+1. **"Publish" Always Means Both:** Azure deployment (`azd deploy` to webapp) AND iOS Release build to DX24. Neither happens independently.
+2. **Both Must Point at Azure API:** Both targets must reference the same Azure backend.
+3. **Never Deploy Debug to DX24:** Only Release builds go to device.
+4. **Documented in:** squad.agent.md, AGENTS.md, and docs/deploy-runbook.md.
+
+**Impact**
+
+- Captain has a single, repeatable publish command with clear scope.
+- No more accidental mismatches (Debug on device, or iOS pointing at localhost).
+- New team members have explicit written guidance.
+- Workflow is self-documenting in the runbook.
+
+---
+
+### 15. Scope Creep Policy - Separate PRs Required (2026-04-14)
+
+**Status:** ACTIVE  
+**Date:** 2026-04-14  
+**Author:** Scribe (from Zoe / Captain approval)
+
+**Context**
+
+Kaylee's bug fix PR included algorithm changes (blended mastery), new features (WordIds), and UX improvements (unseen word selection) alongside the four core bug fixes. This mixing complicates rollback if a single change breaks.
+
+**Decision**
+
+1. Bug fix PRs must contain ONLY bug fixes.
+2. Algorithm changes, new features, and UX improvements go in separate PRs, even if discovered during bug work.
+3. Kaylee's extras (blended mastery, WordIds, unseen word selection) were reverted from the bug fix commit to keep scope focused.
+4. If extras are still valuable, they will be re-proposed in a separate PR with full context.
+
+**Impact**
+
+- Change management is clearer; rollback is safer.
+- Bug fixes ship faster and are easier to review.
+- Features get proper standalone review and justification.
+- Policy applies to all future PR submissions across the team.
