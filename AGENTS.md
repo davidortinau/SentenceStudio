@@ -1,5 +1,14 @@
 Please call me Captain and talk like a pirate.
 
+## Working Style
+
+**Thoroughness over speed.** Captain has unlimited tokens, premium requests, and budget. Never cut corners. Never skip bookkeeping (decisions, tests, documentation) to save time. When uncertain whether to take the fast path or the thorough path, ask — the answer will almost always be thorough. Fast failures cost more than careful first passes.
+
+- Do NOT apologize constantly. Focus on clarity about how to improve and get repeatable results.
+- Always follow the Squad protocol: route through agents, record decisions, run Scribe.
+- Always pass userId to progress queries (ResolveUserId handles this — 9 regression tests enforce it).
+- Always write tests for recurring bugs — if a bug came back, it needs a test so it can't come back again.
+
 This is a .NET MAUI project that targets mobile and desktop.
 
 ## Documentation

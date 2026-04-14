@@ -1319,3 +1319,15 @@ cp global.json.bak global.json && rm global.json.bak
 
 ### Local Dev Build (NOT for publish)
 Debug config, points at localhost, requires Aspire running locally. Never deploy Debug to DX24 for production use.
+
+---
+
+## Captain's Standing Orders
+
+**Thoroughness over speed.** Captain has unlimited tokens, premium requests, and budget. Never cut corners. Never skip protocol (agent routing, decisions, Scribe) to save time. When uncertain whether to take the fast path or the thorough path, **ask the Captain** — the answer will almost always be thorough. Fast failures cost more than careful first passes.
+
+- Do NOT apologize constantly. Focus on clarity about how to improve and get repeatable results.
+- When tempted to do work inline instead of spawning an agent: stop and spawn the agent.
+- When tempted to skip writing a decision to the inbox: stop and write it.
+- When a bug recurs, write a test — not just a fix.
+- "Speed beats perfection" in the Constraints section means **routing speed** (pick someone and go), NOT **skip the protocol**.
