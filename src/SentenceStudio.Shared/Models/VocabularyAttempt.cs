@@ -10,7 +10,7 @@ public class VocabularyAttempt
     public string Activity { get; set; } = string.Empty; // "VocabularyQuiz", "Clozure", etc.
     public string InputMode { get; set; } = string.Empty; // "MultipleChoice", "Text", "Voice" (from InputMode enum)
     public bool WasCorrect { get; set; }
-    public float DifficultyWeight { get; set; } = 1.0f; // 0.0-2.0, how hard was this usage
+    public float DifficultyWeight { get; set; } = 1.0f; // 0.0-3.0, how hard was this usage — directly affects mastery via streak increment
     public string? ContextType { get; set; } // "Isolated", "Sentence", "Conjugated"
     public string? LearningResourceId { get; set; }
     public string? UserInput { get; set; }

@@ -9,6 +9,28 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+- DifficultyWeight is FUNCTIONAL, not decorative — it directly multiplies the streak increment (MC=1.0, Text=1.5, Sentence=2.5). CurrentStreak must be float to support this.
+- Tier 1 rotation (high mastery) requires BOTH text production AND cleared PendingRecognitionCheck — a mastered word returning via SRS cannot rotate out after a single MC answer if it was wrong first.
+- Recovery-aware mastery formula adds +0.02 per correct answer when streak hasn't caught up to mastery. Eliminates the flat plateau from simple Math.Max. The boost stops automatically once streak >= mastery.
+- DueOnly filter applies ONCE at session start, never re-applied between rounds. Rotation controlled exclusively by mastery/tiered logic.
+- IsKnown re-qualification after losing it gets 14-day review interval (not 60) — tracked via LostKnownThisSession session flag.
+- Words never repeat within a round — rounds naturally shrink as words rotate out, with no minimum round size.
+
+- PendingRecognitionCheck OVERRIDES lifetime mode selection — it's Priority 1 in the unified mode algorithm. Without this, established words with preserved streaks skip the recognition check after a wrong text answer.
+- Session counters (SessionMCCorrect, SessionTextCorrect, SessionCorrectCount) are CUMULATIVE, not consecutive — they never reset on wrong answers. This is a fundamental semantic change from the old QuizRecognitionStreak/QuizProductionStreak which were consecutive and reset on wrong.
+- Cross-activity behavior: Global progress (CurrentStreak, MasteryScore) is shared across ALL activities, but session-local fields (PendingRecognitionCheck, SessionCorrectCount) are VocabQuiz-scoped. Activity-switching legitimately resets session-local state by design.
+- Spec heading levels matter for section hierarchy — a `##` subsection vs `###` changes which sections appear as siblings vs children. Always verify heading levels match the intended numbering scheme.
+- Quiz mode selection (MC vs Text) must be based on LIFETIME `VocabularyProgress.CurrentStreak`, not session-local `QuizRecognitionStreak`. Captain's correction: 3 consecutive correct across ANY sessions = Text mode.
+- Wrong text answer demotion should be gentle: exactly 1 MC check turn, then back to Text. NOT a full reset requiring 3 more MC correct. Needs `PendingRecognitionCheck` flag mechanism.
+- PendingRecognitionCheck flag clears ONLY on correct MC answer — never on wrong. Captain's principle: "Incorrect responses should never result in a promotion."
+- Mastered words must be removed IMMEDIATELY mid-round, not deferred to round boundaries. Check mastery after each answer recording.
+- Session-local streaks (`QuizRecognitionStreak`, `QuizProductionStreak`) are for ROTATION-OUT logic only, not for mode selection. Mode is driven by global persisted progress.
+- QuizRecognitionStreak is potentially redundant — Captain asked whether it should be removed. Recommended tiered rotation based on global progress instead. Awaiting Captain approval.
+- Captain APPROVED tiered rotation model (R3): replaces QuizRecognitionStreak/QuizProductionStreak with SessionCorrectCount + tiered requirements based on global mastery. High-mastery = 1 correct, mid = 2, low = 3+3.
+- Deferred persistence pattern (answer → review → advance → DB write) is sound, but the returned VocabularyProgress must be written back to currentItem.Progress immediately for Learning Details to reflect current state.
+- Sentence production DifficultyWeight is 2.5f (higher than text entry's 1.5f) — Captain confirmed River's implementation at 2.5f.
+- Temporal weighting APPROVED (R3): wrong-answer penalty scales by track record (0.6–0.92), partial streak preservation (0–50%), and correct-answer mastery floor (Math.Max). Fixes the double-whammy bug where correct answer after wrong makes mastery worse.
+
 - YouTubeImportService already exists using YoutubeExplode (no API key needed) — handles transcript fetch, audio extraction, and caption track discovery for any public video
 - VideoWatchingService handles YouTube URL parsing and embed generation for LearningResources
 - TranscriptFormattingService + TranscriptSentenceExtractor provide full transcript cleanup and sentence extraction pipeline
