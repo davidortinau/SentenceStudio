@@ -468,6 +468,22 @@ return $"{_localize[item.TitleKey]}"; // May not match resource file format
    - String interpolation patterns
    - Common translation reference
 
+## Publish Workflow
+
+**"Publish" means BOTH Azure webapp AND iOS to DX24. Always do both. Both point at the same Azure API.**
+
+See `docs/deploy-runbook.md` for full details. Quick reference:
+
+1. **Azure:** `azd deploy` (VPN must be off)
+2. **iOS to DX24 (iPhone 15 Pro, device CF4F94E3-A1C9-5617-A089-9ABB0110A09F):**
+   - Switch `global.json` to .NET 11 Preview 3 (`allowPrerelease: true`, sdk `11.0.100-preview.3.26209.122`)
+   - Build: `services__api__https__0=https://api.livelyforest-b32e7d63.centralus.azurecontainerapps.io dotnet build src/SentenceStudio.iOS/SentenceStudio.iOS.csproj -f net10.0-ios -c Release -p:RuntimeIdentifier=ios-arm64`
+   - Install: `xcrun devicectl device install app --device CF4F94E3-A1C9-5617-A089-9ABB0110A09F src/SentenceStudio.iOS/bin/Release/net10.0-ios/ios-arm64/SentenceStudio.iOS.app`
+   - Launch: `xcrun devicectl device process launch --device CF4F94E3-A1C9-5617-A089-9ABB0110A09F com.simplyprofound.sentencestudio`
+   - Restore `global.json` after
+
+**Local dev builds** use Debug config and point at localhost (requires Aspire running). Never deploy a Debug build to DX24 for production use.
+
 ## UI Style Rules
 
 **NEVER use emoji characters in UI, code output, logs, or any user-facing text.** This is non-negotiable. Use Bootstrap icons (bi-* classes) or plain text labels instead. Examples:
