@@ -52,7 +52,9 @@ else
                 <hr class="border-secondary" />
                 @foreach (var item in sessionItems)
                 {
-                    var iconClass = item.ReadyToRotateOut ? "bi-check-circle text-success" : item.QuizRecognitionStreak > 0 ? "bi-arrow-repeat text-warning" : "bi-x-circle text-danger";
+                    var iconClass = item.WasCorrectThisSession
+                        ? (item.ReadyToRotateOut ? "bi-check-circle-fill text-success" : "bi-check-circle text-success")
+                        : "bi-x-circle text-danger";
                     <div class="d-flex align-items-center gap-2 py-1">
                         <i class="bi @iconClass"></i>
                         <span class="ss-body1 fw-bold" style="color: var(--bs-primary);">@item.Word.TargetLanguageTerm</span>
@@ -673,13 +675,26 @@ else
             .Where(i => !(i.IsKnown))  // Bug A fix: use IsKnown (computed) not IsCompleted (stale persisted bool)
             .Where(i => !(i.Progress?.IsInGracePeriod ?? false));
 
-            // Bug B fix: when SRS plan sends DueOnly=true, only include words actually due for review
+            // Fix 2: when SRS plan sends DueOnly=true, only include words actually due for review
             if (DueOnly)
             {
                 var now = DateTime.Now;
                 quizCandidates = quizCandidates.Where(i =>
-                    i.Progress?.NextReviewDate != null && i.Progress.NextReviewDate <= now
-                    || (i.Progress?.TotalAttempts ?? 0) == 0); // include unseen words too
+                {
+                    var totalAttempts = i.Progress?.TotalAttempts ?? 0;
+                    var nextReview = i.Progress?.NextReviewDate;
+                    
+                    // Include truly unseen words (never attempted)
+                    if (totalAttempts == 0)
+                        return true;
+                    
+                    // Include words due for review (NextReviewDate <= now)
+                    if (nextReview.HasValue && nextReview.Value <= now)
+                        return true;
+                    
+                    // EXCLUDE words not yet due (NextReviewDate > now AND TotalAttempts > 0)
+                    return false;
+                });
             }
 
             batchPool = quizCandidates
@@ -687,6 +702,12 @@ else
             .ThenBy(_ => Guid.NewGuid())
             .Take(BatchSize)
             .ToList();
+            
+            // Fix 3: Mark items with DueOnly session flag
+            foreach (var item in batchPool)
+            {
+                item.IsDueOnlySession = DueOnly;
+            }
 
             if (!batchPool.Any())
             {
@@ -922,6 +943,11 @@ else
             sentenceShortcutResults.Clear();
             sentenceShortcutResults.AddRange(gradedResults);
             currentItem.QuizProductionStreak = Math.Min(productionStreak, VocabularyQuizItem.RequiredCorrectAnswers);
+            
+            // Fix 1: Mark as correct if any sentences passed
+            if (sentenceShortcutSuccessCount > 0)
+                currentItem.WasCorrectThisSession = true;
+            
             totalTurns += sentenceEntries.Count;
             correctCount += sentenceShortcutSuccessCount;
             CacheService.InvalidateVocabSummary();
@@ -1090,6 +1116,8 @@ else
             else currentItem.QuizProductionStreak = 0;
         }
 
+        if (isCorrect) currentItem.WasCorrectThisSession = true;
+
         if (isCorrect && fuzzyCompleteForm != null)
             feedbackMessage = $"Correct! Full form: {fuzzyCompleteForm}";
         else if (isCorrect)
@@ -1207,6 +1235,9 @@ else
             currentItem.QuizRecognitionStreak++;
         else
             currentItem.QuizProductionStreak++;
+
+        // Fix 1: Also mark as correct in session
+        currentItem.WasCorrectThisSession = true;
 
         // Update the deferred attempt to correct and persist it
         if (pendingAttempt != null)

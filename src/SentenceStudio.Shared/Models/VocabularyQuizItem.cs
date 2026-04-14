@@ -14,7 +14,14 @@ public class VocabularyQuizItem
     public int QuizProductionStreak { get; set; } = 0;   // Consecutive text entry correct
     public bool QuizRecognitionComplete => QuizRecognitionStreak >= RequiredCorrectAnswers;
     public bool QuizProductionComplete => QuizProductionStreak >= RequiredCorrectAnswers;
-    public bool ReadyToRotateOut => QuizRecognitionComplete && QuizProductionComplete;
+    
+    // Fix 3: Track if this is a DueOnly session
+    public bool IsDueOnlySession { get; set; }
+    
+    // Fix 3: In DueOnly sessions, allow globally mastered words to rotate out
+    public bool ReadyToRotateOut => IsDueOnlySession
+        ? (QuizRecognitionComplete && QuizProductionComplete) || (Progress?.IsKnown ?? false)
+        : QuizRecognitionComplete && QuizProductionComplete;
 
     // Current phase within THIS quiz (independent of global phase)
     public bool IsPromotedInQuiz => QuizRecognitionComplete;
@@ -37,6 +44,9 @@ public class VocabularyQuizItem
 
     // Check if term is ready to be skipped in current phase
     public bool IsReadyToSkipInCurrentPhase { get; set; }
+
+    // Whether the user answered correctly in this quiz session (for summary display)
+    public bool WasCorrectThisSession { get; set; }
 
     // Enhanced status helpers (use new IsKnown logic)
     public bool IsUnknown => Progress?.IsUnknown ?? true;

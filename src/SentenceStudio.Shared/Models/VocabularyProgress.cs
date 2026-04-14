@@ -9,6 +9,11 @@ public class VocabularyProgress
     // Minimum production attempts required to be considered "Known"
     private const int MIN_PRODUCTION_FOR_KNOWN = 2;
     private const float MASTERY_THRESHOLD = 0.85f;
+    
+    // Fix 4: High-confidence bypass for IsKnown
+    private const float HIGH_CONFIDENCE_MASTERY_FLOOR = 0.75f;
+    private const int HIGH_CONFIDENCE_MIN_PRODUCTION = 4;
+    private const int HIGH_CONFIDENCE_MIN_ATTEMPTS = 8;
 
     public string Id { get; set; } = Guid.NewGuid().ToString();
     public string VocabularyWordId { get; set; } = string.Empty; // FK - ONE record per word
@@ -95,9 +100,13 @@ public class VocabularyProgress
                 _ => LearningStatus.Learning
             };
 
-    // NEW: IsKnown requires both mastery threshold AND production evidence
+    // Fix 4: IsKnown with high-confidence streak-based bypass
     [NotMapped]
-    public bool IsKnown => MasteryScore >= MASTERY_THRESHOLD && ProductionInStreak >= MIN_PRODUCTION_FOR_KNOWN;
+    public bool IsKnown => 
+        (MasteryScore >= MASTERY_THRESHOLD && ProductionInStreak >= MIN_PRODUCTION_FOR_KNOWN)
+        || (MasteryScore >= HIGH_CONFIDENCE_MASTERY_FLOOR 
+            && ProductionInStreak >= HIGH_CONFIDENCE_MIN_PRODUCTION 
+            && TotalAttempts >= HIGH_CONFIDENCE_MIN_ATTEMPTS);
 
     [NotMapped]
     public bool IsLearning => MasteryScore > 0 && !IsKnown;
