@@ -199,6 +199,7 @@ else
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private ILogger<Conversation> Logger { get; set; } = default!;
     [Inject] private SentenceStudio.Services.Progress.IProgressService PlanProgressService { get; set; } = default!;
+    [Inject] private SentenceStudio.Services.Progress.ProgressCacheService CacheService { get; set; } = default!;
     [Inject] private SentenceStudio.Services.Timer.IActivityTimerService ActivityTimer { get; set; } = default!;
 
     private bool isBusy;
@@ -358,6 +359,7 @@ else
                         reply.VocabularyAnalysis, userVocabulary, activeUserId,
                         activity: "Conversation", difficultyWeight: 1.2f,
                         penaltyOverride: 0.8f);
+                    CacheService.InvalidateVocabSummary();
                 }
             }
         }

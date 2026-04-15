@@ -235,6 +235,7 @@ else
     [Inject] private ILogger<Scene> Logger { get; set; } = default!;
     [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
     [Inject] private SentenceStudio.Services.Progress.IProgressService PlanProgressService { get; set; } = default!;
+    [Inject] private SentenceStudio.Services.Progress.ProgressCacheService CacheService { get; set; } = default!;
     [Inject] private SentenceStudio.Services.Timer.IActivityTimerService ActivityTimer { get; set; } = default!;
 
     private bool isBusy;
@@ -351,6 +352,7 @@ else
                 var scoringResults = await ProgressService.ExtractAndScoreVocabularyAsync(
                     grade.VocabularyAnalysis, userVocabulary, activeUserId,
                     activity: "SceneDescription", difficultyWeight: 1.5f);
+                CacheService.InvalidateVocabSummary();
             }
 
             var label = grade.Accuracy >= 80 ? "Excellent" : grade.Accuracy >= 50 ? "Good effort" : "Keep practicing";
