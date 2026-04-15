@@ -4835,3 +4835,534 @@ Kaylee's bug fix PR included algorithm changes (blended mastery), new features (
 - Bug fixes ship faster and are easier to review.
 - Features get proper standalone review and justification.
 - Policy applies to all future PR submissions across the team.
+# Decision: PRODUCTION DATA SAFETY — Non-Negotiable Governance
+
+**Author:** Zoe (Lead)  
+**Date:** 2025-07-25  
+**Status:** ENACTED — Effective immediately  
+**Priority:** P0 — HIGHEST PRIORITY DECISION IN THIS PROJECT  
+**Trigger:** Production data loss incident (2025-07-25)
+
+---
+
+## Incident Summary
+
+Running `aspire deploy` after infrastructure was provisioned by `azd deploy` caused the production Postgres container to be recreated WITHOUT its Azure File share volume mount. All production user data was permanently lost — accounts, vocabulary progress, mastery scores, learning history. There was no backup.
+
+### Root Cause Chain
+
+1. `azd deploy` provisioned infrastructure correctly: ACA environment, storage account, file share, volume mount on the `db` container
+2. `aspire deploy` (preview tool) generated a new container revision from the AppHost manifest
+3. `.WithDataVolume()` creates a Docker named volume for local dev but does NOT automatically translate to an Azure File share mount in ACA
+4. The new revision replaced the old one — ephemeral storage only, no file share
+5. Postgres started fresh in the new container — empty database
+6. **There was no backup to recover from**
+7. **There was no pre-deploy check that would have caught this**
+8. **There was no post-deploy verification that would have detected it before users noticed**
+
+### What Was Missing
+
+| Gap | Consequence |
+|-----|-------------|
+| No pre-deploy backup requirement | No recovery possible after data loss |
+| No "never mix deploy tools" rule | Two tools with different resource management strategies operated on the same infrastructure |
+| Custom instructions "Data Preservation Rules" covered only local dev | AI agents had no production data safety imperative |
+| Pre-deploy safety checks in runbook were advisory | No enforcement mechanism — checks could be skipped |
+| No post-deploy verification | Data loss was not detected until users reported it |
+| No managed database strategy | Containerized DB + file share is inherently fragile |
+
+---
+
+## Decision: Production Data Safety Rules
+
+### Rule 1: MANDATORY BACKUP BEFORE EVERY PRODUCTION DEPLOY
+
+**No exceptions. No shortcuts. No "it should be fine."**
+
+Before ANY command that modifies production infrastructure (`azd deploy`, `aspire deploy`, `az containerapp update`, Bicep deployments, ARM template deployments, or ANY equivalent), a verified database backup MUST exist.
+
+**Backup procedure:**
+```bash
+# 1. Get the DB container's FQDN or exec into it
+az containerapp exec \
+  --name db --resource-group rg-sstudio-prod \
+  --command "pg_dump -U postgres sentencestudio" > backup-$(date +%Y%m%d-%H%M%S).sql
+
+# 2. Verify the backup is non-empty and contains expected tables
+head -50 backup-*.sql  # Should show CREATE TABLE statements
+wc -l backup-*.sql     # Should be substantial (not 0 or single-digit lines)
+
+# 3. Store the backup outside the deploy blast radius
+# Upload to a separate storage account or keep locally until deploy is verified
+```
+
+If `az containerapp exec` is unavailable, use the Azure File share directly:
+```bash
+az storage file download-batch \
+  --account-name vol3ovvqiybthkb6 \
+  --source db-sentencestudioapphost8351ffded3dbdata \
+  --destination ./backup-$(date +%Y%m%d-%H%M%S)/
+```
+
+**A deploy without a verified backup is a fireable offense against this project's values.**
+
+### Rule 2: NEVER MIX DEPLOY TOOLS IN THE SAME SESSION
+
+**Pick ONE deploy tool per session. Do not switch.**
+
+- `azd deploy` and `aspire deploy` manage Azure resources through different pipelines with different assumptions
+- `azd` uses Bicep templates generated at provision time; `aspire deploy` generates Bicep from the AppHost at deploy time
+- When they interact with the same resources, one tool's output can overwrite the other's configuration
+- This is EXACTLY what caused the data loss: `aspire deploy` regenerated the `db` container app without the volume mount that `azd` had configured
+
+**Current recommendation:** Use `azd deploy` until `aspire deploy` exits preview and has verified parity with `azd` for stateful resource management. If `aspire deploy` must be used, follow ALL pre-deploy and post-deploy checks with extra scrutiny.
+
+### Rule 3: PRE-DEPLOY VERIFICATION IS MANDATORY, NOT ADVISORY
+
+The following checks MUST pass before executing any deploy command. Failure of ANY check is a hard stop.
+
+**Check 1 — Volume mount exists on current revision:**
+```bash
+az containerapp revision list \
+  --name db --resource-group rg-sstudio-prod \
+  --query "[0].{revision:name, volumes:properties.template.volumes}" -o json
+```
+**Pass condition:** `volumes` array contains `storageType: AzureFile` with `storageName: db-sentencestudioapphost8351ffde`
+
+**Check 2 — Azure File share exists and has data:**
+```bash
+az storage file list \
+  --account-name vol3ovvqiybthkb6 \
+  --share-name db-sentencestudioapphost8351ffded3dbdata \
+  --output table
+```
+**Pass condition:** File list is non-empty (PostgreSQL data files present)
+
+**Check 3 — ACA environment storage mount exists:**
+```bash
+az containerapp env storage show \
+  --name cae-3ovvqiybthkb6 --resource-group rg-sstudio-prod \
+  --storage-name db-sentencestudioapphost8351ffde
+```
+**Pass condition:** Returns storage mount configuration (not a 404)
+
+### Rule 4: POST-DEPLOY VERIFICATION IS MANDATORY
+
+After EVERY deploy completes, these checks MUST pass before the deploy is considered successful:
+
+**Check 1 — New revision has volume mount:**
+```bash
+az containerapp revision list \
+  --name db --resource-group rg-sstudio-prod \
+  --query "[0].{revision:name, volumes:properties.template.volumes}" -o json
+```
+
+**Check 2 — Database is accessible and has data:**
+```bash
+# Health check: can we connect and query?
+az containerapp exec \
+  --name db --resource-group rg-sstudio-prod \
+  --command "psql -U postgres -d sentencestudio -c 'SELECT count(*) FROM \"Users\";'"
+```
+
+**Check 3 — API health check:**
+```bash
+curl -sf https://api.livelyforest-b32e7d63.centralus.azurecontainerapps.io/health
+```
+
+**If any post-deploy check fails:** Immediately investigate. If the volume mount is missing on the new revision, the old data is still on the Azure File share — but the container is running with ephemeral storage and will NOT see it. Fix the revision before any writes occur.
+
+### Rule 5: MIGRATE TO AZURE POSTGRESQL FLEXIBLE SERVER
+
+The containerized Postgres + Azure File share architecture is fundamentally fragile. Any deploy tool, any Bicep regeneration, any container revision update that forgets the volume mount will lose all data. This is not a "fix the tooling" problem — it's an architectural flaw.
+
+**Target architecture:** Azure Database for PostgreSQL Flexible Server
+- Managed service — no containers, no volume mounts, no file shares
+- Automatic daily backups with 7-35 day retention (configurable)
+- Point-in-time restore to any second within the retention window
+- No data loss risk from container redeployments
+- HA options (zone-redundant) available when needed
+
+See "Migration Plan" section below for details.
+
+---
+
+## Stateful Resource Audit
+
+Reviewed all resources in `AppHost.cs` for volume/persistence risk:
+
+| Resource | Type | Stateful? | Volume? | Risk Level |
+|----------|------|-----------|---------|------------|
+| `db` (Postgres) | Container + Azure File share | YES | `.WithDataVolume()` + `PublishAsAzureContainerApp` callback | **CRITICAL** — this is the resource that lost data |
+| `cache` (Redis) | Container | Semi — cache data | None | **LOW** — cache loss is inconvenient but not catastrophic. Redis data is reconstructable. |
+| `storage` (Azure Blob) | Azure Storage account | YES | Managed service | **NONE** — Azure Storage is a managed service, not affected by container deploys |
+| `api`, `webapp`, `marketing`, `workers` | .NET projects | No (stateless) | None | **NONE** |
+
+**Finding:** The `db` container is the ONLY resource with this vulnerability. Redis has no persistent volume and is acceptable to lose. Azure Storage is a managed service. The Postgres container is the single point of failure.
+
+---
+
+## Migration Plan: Azure PostgreSQL Flexible Server
+
+### What It Provides
+
+| Capability | Current (Container + File Share) | Managed (Flexible Server) |
+|------------|----------------------------------|---------------------------|
+| Automatic backups | None | Daily, 7-35 day retention |
+| Point-in-time restore | Impossible | Any second within retention |
+| Deploy safety | Volume mount can be dropped | Not affected by app deploys |
+| Scaling | Manual container resource limits | Built-in scaling options |
+| High availability | None | Zone-redundant option |
+| Monitoring | Manual | Azure Monitor integration |
+| Patching | Manual | Automatic minor version updates |
+| Connection security | ACA internal DNS | Private endpoint + SSL |
+
+### AppHost Changes
+
+**Before (current — fragile):**
+```csharp
+var postgresServer = builder.AddPostgres("db")
+    .WithLifetime(ContainerLifetime.Persistent)
+    .WithDataVolume()
+    .PublishAsAzureContainerApp((infra, app) =>
+    {
+        // Manual Azure File share volume mount...
+    });
+```
+
+**After (managed — durable):**
+```csharp
+var postgresServer = builder.AddAzurePostgresFlexibleServer("db")
+    .RunAsContainer(c => c
+        .WithLifetime(ContainerLifetime.Persistent)
+        .WithDataVolume());
+
+var postgres = postgresServer.AddDatabase("sentencestudio");
+```
+
+- `.AddAzurePostgresFlexibleServer()` creates a managed Azure PostgreSQL Flexible Server in production
+- `.RunAsContainer()` keeps the local dev experience identical (Docker container with named volume)
+- No file share, no volume mount, no `PublishAsAzureContainerApp` callback needed
+- Connection string is automatically injected via Aspire service discovery
+
+### Migration Steps
+
+1. **Provision the Flexible Server** (can run in parallel with existing container)
+   ```bash
+   # Aspire will provision via Bicep, or manually:
+   az postgres flexible-server create \
+     --name sentencestudio-db \
+     --resource-group rg-sstudio-prod \
+     --location centralus \
+     --sku-name Standard_B1ms \
+     --tier Burstable \
+     --storage-size 32 \
+     --version 16 \
+     --admin-user ssadmin \
+     --admin-password <from-secrets>
+   ```
+
+2. **Export data from current container:**
+   ```bash
+   az containerapp exec \
+     --name db --resource-group rg-sstudio-prod \
+     --command "pg_dump -U postgres --format=custom sentencestudio" > export.dump
+   ```
+
+3. **Import to Flexible Server:**
+   ```bash
+   pg_restore --host=sentencestudio-db.postgres.database.azure.com \
+     --username=ssadmin --dbname=sentencestudio \
+     --no-owner --no-privileges export.dump
+   ```
+
+4. **Update AppHost** to use `AddAzurePostgresFlexibleServer`
+
+5. **Deploy** — `azd deploy` or `aspire deploy` now targets the managed server
+
+6. **Verify** — run health check queries against the new server
+
+7. **Decommission** the old container + file share once verified
+
+### Cost Estimate
+
+| Tier | Monthly Cost (est.) | Notes |
+|------|---------------------|-------|
+| Burstable B1ms (1 vCore, 2GB) | ~$13/month | Sufficient for current usage |
+| Burstable B2s (2 vCore, 4GB) | ~$26/month | If growth requires it |
+| Storage (32GB) | ~$3.65/month | Included in base |
+| Backups (7-day retention) | Included | No extra cost for default retention |
+
+**Total: ~$17/month** — a trivial cost compared to the value of production data.
+
+### Timeline Recommendation
+
+| Phase | Timeline | Owner |
+|-------|----------|-------|
+| Decision approval | Immediate | Captain |
+| Provision Flexible Server | 1-2 hours | Wash |
+| Data migration + verification | 2-4 hours | Wash + Zoe review |
+| AppHost update + deploy | 1-2 hours | Wash |
+| Decommission old container | After 1 week of clean operation | Wash |
+
+**Total elapsed time: 1 day.** This is not a multi-sprint project. It's an afternoon of focused work.
+
+---
+
+## Recommended Custom Instructions Update
+
+The existing "Data Preservation Rules" in the project's custom instructions MUST be expanded. Current rules:
+
+> 1. NEVER uninstall/reinstall apps to fix issues
+> 2. NEVER delete the database file without permission
+> 3. When facing database errors: Fix migrations, not wipe data
+> 4. Before any destructive action: Ask user for permission
+> 5. Simulator/device data is precious
+
+These are ALL local dev rules. They say nothing about production. Here is the recommended replacement:
+
+```
+## Data Preservation Rules
+
+**CRITICAL: NEVER delete or lose user data — local OR production!**
+
+### Local Development
+1. **NEVER uninstall/reinstall apps** to fix issues - this destroys all user data
+2. **NEVER delete the database file** without explicit user permission AND a verified backup
+3. **When facing database errors**: Fix migrations, adjust schema, or find workarounds - do NOT wipe data
+4. **Before any destructive action**: Ask the user for explicit permission and explain the data loss consequences
+5. **Simulator/device data is precious**: Test data takes significant time to create - treat it as production data
+
+### Production Deployment (HIGHEST PRIORITY)
+6. **MANDATORY BACKUP before every deploy**: Run pg_dump or Azure File share download BEFORE any deploy command. Verify the backup is non-empty. A deploy without a verified backup is forbidden.
+7. **NEVER mix deploy tools**: Use EITHER `azd deploy` OR `aspire deploy` in a single session. Never both. They manage Azure resources through different pipelines and can overwrite each other's stateful resource configuration.
+8. **Pre-deploy verification is MANDATORY**: Before deploying, verify the DB container has its Azure File share volume mount, the file share exists with data, and the ACA storage mount exists. See docs/deploy-runbook.md for exact commands.
+9. **Post-deploy verification is MANDATORY**: After deploying, verify the new container revision has the volume mount, the database is accessible and contains data, and the API health check passes.
+10. **NEVER run deploy commands without reading docs/deploy-runbook.md first**: The runbook contains the exact verification commands and pass/fail criteria.
+11. **If any verification check fails: STOP IMMEDIATELY**: Do not proceed. Do not try to fix it by redeploying. Investigate the root cause. The existing data on the Azure File share may still be intact — do not overwrite it.
+12. **Report any data safety concern to the Captain immediately**: Data loss is a business-ending event. Err on the side of caution.
+```
+
+---
+
+## Answers to the Captain's Questions
+
+### "Is this imperative not already encoded into your memory and decisions and non-negotiables?"
+
+**Partially, but fatally incomplete.** The custom instructions had "Data Preservation Rules" — five rules about local dev. The team's `history.md` recorded "NEVER delete user data or database files." But ALL of this was about local development: don't delete SQLite files, don't uninstall apps, don't wipe the emulator.
+
+There was ZERO governance for production deploys. No rule said "backup before deploying." No rule said "don't mix deploy tools." No rule said "verify the volume mount after deploy." The gap was not in the team's values — everyone understood data is sacred — but in the specificity of the rules. The rules didn't anticipate that a deploy TOOL could silently destroy data. That gap has now been closed.
+
+### "How can I be sure this will never ever ever happen again?"
+
+**Three layers of defense, any one of which would have prevented this:**
+
+1. **Procedural (immediate):** Mandatory backup before every deploy. Even if the deploy destroys the volume mount, the backup exists for recovery. This is in the runbook NOW.
+
+2. **Verification (immediate):** Mandatory pre-deploy and post-deploy checks with specific pass/fail criteria. The pre-deploy check would have caught the missing volume mount BEFORE data was lost. The post-deploy check would have caught it BEFORE users noticed. Both are in the runbook NOW.
+
+3. **Architectural (1 day of work):** Migrate to Azure PostgreSQL Flexible Server. This eliminates the entire vulnerability class. A managed database cannot lose data because a container revision dropped a volume mount. There ARE no volume mounts. The database exists independently of the application containers. This is the permanent fix.
+
+All three layers should be implemented. The first two are already in effect. The third should be completed this week.
+
+---
+
+## Decision Record
+
+**Decision:** All six rules above (backup, no mixing tools, pre-deploy checks, post-deploy checks, managed DB migration, stateful resource audit) are enacted immediately as the highest-priority governance in this project.
+
+**Rationale:** Production data loss is an existential threat to the business. The Captain's assessment is correct: with paying customers, this would be catastrophic. The cost of prevention ($17/month for managed Postgres + 10 minutes of verification per deploy) is infinitesimal compared to the cost of another incident.
+
+**Dissent:** None. This is not debatable.
+
+**Affected Files:**
+- `docs/deploy-runbook.md` — updated with mandatory safety checklist
+- `src/SentenceStudio.AppHost/AppHost.cs` — future update for managed Postgres
+- Custom instructions — recommended expansion of Data Preservation Rules
+- `.squad/agents/*/history.md` — all team members must record this governance
+### R5 Spec Revision — Captain's 6 Design Decisions Integrated
+
+**Date:** 2025-07-25  
+**Author:** Zoe (Lead)  
+**Spec:** `docs/specs/quiz-learning-journey.md`  
+**Source:** Captain's answers to Jayne's skeptic review (Q1–Q6)
+
+---
+
+#### Decision 1: DifficultyWeight accelerates mastery (no longer decorative)
+
+**Change:** Streak increment is now multiplied by DifficultyWeight. MC adds 1.0, Text adds 1.5, Sentence adds 2.5 to CurrentStreak.
+
+**Implementation note:** `CurrentStreak` changes from `int` to `float` to support fractional increments. This is cleaner than applying weights only at EffectiveStreak calculation time because it makes the streak value itself expressive.
+
+**Sections updated:** 2.1, 2.3, 2.5, 5.6, 7. DifficultyWeight comment range updated from 0.0–2.0 to 0.0–3.0 in `VocabularyAttempt.cs`. All "decorative"/"log-only" references removed.
+
+#### Decision 2: Tier 1 rotation requires text + cleared recognition
+
+**Change:** Tier 1 (high mastery >= 0.80) now requires `SessionTextCorrect >= 1 AND PendingRecognitionCheck == false` instead of just `SessionCorrectCount >= 1`. A mastered word returning after months that gets a wrong answer must re-demonstrate both recognition (correct MC) AND production (correct text) before rotating out.
+
+**Sections updated:** 1.2.2 (tier table), 1.3 (rotation code), 7 (tiered rotation reference).
+
+#### Decision 3: No repeat within a round (existing rule, now explicit)
+
+**Change:** Added bold rule in section 1.3: "A word is NEVER presented twice in a round." Clarified that rounds naturally shrink as words rotate out with no minimum round size. Degenerate round concern (from Jayne's review) is a non-issue.
+
+**Sections updated:** 1.3, 7.
+
+#### Decision 4: Recovery-aware mastery formula (no plateau)
+
+**Change:** Replaced simple `Math.Max(streakScore, MasteryScore)` with a recovery-aware formula that adds `+0.02` per correct answer during recovery (when streak hasn't caught up to mastery). This eliminates the flat period where correct answers show no visible mastery progress.
+
+**Key formula:**
+```
+recoveryBoost = (MasteryScore > streakScore) ? 0.02 : 0.0
+MasteryScore = max(streakScore, MasteryScore) + recoveryBoost
+```
+
+Added recovery scenario table showing the improvement vs R3.
+
+**Sections updated:** 5.6 Component 3, 5.6 Constants, 5.6 combined scenario, 7.
+
+#### Decision 5: DueOnly filter applies at session start ONLY
+
+**Change:** Removed "re-apply DueOnly filter between rounds" from section 1.4. Replaced with explicit rule: DueOnly applies once at initial word selection. Words that become not-due mid-session remain in the batch pool. Rotation is controlled exclusively by mastery/tiered logic.
+
+**Sections updated:** 1.1 (discrepancy table — marked RESOLVED), 1.4 (removed expected step, added DueOnly note), 6 (D6 resolved), 7 (DueOnly reference added).
+
+#### Decision 6: IsKnown re-qualification gets 14-day review interval
+
+**Change:** When a word loses IsKnown status (wrong answer) and re-qualifies, ReviewInterval = 14 days (not 60). Added `LostKnownThisSession` flag to session counter model for detection. Added section 4.3.1 with full re-qualification logic.
+
+**Sections updated:** 1.2.3 (session counter model), 2.3 (mastery check note), 4.2 (SRS table), 4.3 (new 4.3.1 subsection), 5.6 Constants, 7.
+
+---
+
+**Impact on implementation:** These are all spec-only changes. The code changes needed are tracked via the discrepancy table in section 6. Key new work items:
+- Change `CurrentStreak` from `int` to `float` (or add `EffectiveStreakAccumulator` field)
+- Implement recovery boost in mastery calculation
+- Update tier 1 rotation logic
+- Add `LostKnownThisSession` tracking
+- Add 14-day re-qualification path in `RecordAttemptAsync`
+# Decision: Azure Resource Locks & Deploy Safety Hardening
+
+**Author:** Wash (Backend Dev)
+**Date:** 2025-07-25
+**Status:** ENACTED
+**Priority:** P0
+**Trigger:** Follow-up to production data loss incident (2025-07-25); implementing the 5-layer defense model requested by Captain
+
+---
+
+## What Happened
+
+On 2025-07-25, `aspire deploy` recreated the Postgres container without its Azure File share volume mount, destroying all production user data. Zoe's decision (`zoe-production-data-safety.md`) established governance rules and a migration plan. This decision implements 5 additional Azure-level defense layers to prevent a repeat.
+
+## What Was Implemented
+
+### Layer 1: Backup (already in place)
+Mandatory pg_dump or Azure File share download before every deploy. Documented in `docs/deploy-runbook.md` Step 1. This is the last line of defense -- even if everything else fails, a verified backup enables recovery.
+
+### Layer 2: Resource Locks (applied now)
+Azure `CanNotDelete` locks on both the `db` container app and the `vol3ovvqiybthkb6` storage account. No deploy tool (azd, aspire deploy, Bicep, ARM) can delete or recreate these resources without first explicitly removing the lock. Applied via:
+
+```bash
+az lock create --name do-not-delete-db \
+  --resource-group rg-sstudio-prod \
+  --resource db --resource-type Microsoft.App/containerApps \
+  --lock-type CanNotDelete
+
+az lock create --name do-not-delete-db-storage \
+  --resource-group rg-sstudio-prod \
+  --resource vol3ovvqiybthkb6 --resource-type Microsoft.Storage/storageAccounts \
+  --lock-type CanNotDelete
+```
+
+### Layer 3: Preprovision Hook (added to azure.yaml)
+`azure.yaml` now includes a `preprovision` hook that runs `scripts/pre-deploy-check.sh` before any `azd` operation. The script verifies:
+- Resource locks exist (at least 2)
+- The `db` container app exists
+- The current revision has an AzureFile volume mount
+- The storage account exists
+- The file share exists and is non-empty
+
+If any check fails, the hook exits 1 and blocks the deploy.
+
+### Layer 4: Runbook Lock Verification (added to deploy-runbook.md)
+Step 5 added to the pre-deploy safety checklist: verify resource locks exist before deploying. Includes the `az lock list` command and remediation instructions if locks are missing.
+
+### Layer 5: Managed Database Migration Path (documented)
+A "Future: Managed Database Migration" section added to `docs/deploy-runbook.md` documenting the path to Azure PostgreSQL Flexible Server. This eliminates the volume-mount fragility entirely:
+- Automatic daily backups with 35-day retention
+- Point-in-time restore
+- No volume mounts to lose
+- ~$17/month estimated cost
+- AppHost changes: `AddAzurePostgresFlexibleServer("db").RunAsContainer(...)`
+
+## The 5-Layer Defense Model
+
+```
+Layer 1: BACKUP        --> Recovery possible even if all else fails
+Layer 2: LOCK          --> Azure blocks deletion of DB + storage resources
+Layer 3: HOOK          --> azd refuses to proceed if checks fail
+Layer 4: VERIFICATION  --> Human confirms locks exist before deploying
+Layer 5: MANAGED DB    --> Eliminates the vulnerability class entirely (future)
+```
+
+Each layer is independent. Any single layer would have prevented the 2025-07-25 incident. All 5 together make repeat data loss from deployment errors extremely unlikely.
+
+## Files Changed
+
+| File | Change |
+|------|--------|
+| `azure.yaml` | Added `preprovision` hook pointing to safety check script |
+| `scripts/pre-deploy-check.sh` | New: automated pre-deploy safety verification |
+| `docs/deploy-runbook.md` | Added Step 5 (lock verification) + managed DB migration section |
+| Azure resources | CanNotDelete locks on `db` container app and `vol3ovvqiybthkb6` storage account |
+
+## Why
+
+Because losing production data once is a wake-up call. Losing it twice is negligence. These 5 layers ensure that even if one defense fails, the others catch it. The managed database migration (Layer 5) is the permanent architectural fix that makes the other layers unnecessary for this specific risk -- but we keep them all because defense in depth is not optional.
+# Decision: Cross-Activity Mastery Spec R2 Revisions Applied
+
+> **Author:** Zoe (Lead)  
+> **Date:** 2025-07-25  
+> **Status:** COMPLETE — R2 revisions applied to spec  
+> **Spec:** `docs/specs/cross-activity-mastery.md`  
+> **Supersedes:** `zoe-cross-activity-spec.md` (R1 complete note)
+
+---
+
+## Context
+
+Captain reviewed the spec with architect and skeptic reviewers. Three design questions arose plus six mechanical fixes. Captain answered all questions and approved all fixes. This decision records the R2 changes applied.
+
+## Captain's R2 Decisions
+
+1. **Processing order is a non-issue.** Each word has its own `VocabularyProgress` record. `RecordAttemptAsync` calls within `ExtractAndScoreVocabularyAsync` operate on independent records — order doesn't matter.
+2. **SRS reset is the same everywhere.** Wrong usage in any activity (Writing, Translation, Scene, Conversation) resets `ReviewInterval` to 1 day, identical to Quiz. No special softening.
+3. **Deduplicate before scoring loop.** Use `.DistinctBy(v => v.DictionaryForm)` as step 2 of the algorithm. First occurrence wins when a word appears multiple times in one sentence.
+
+## Mechanical Fixes Applied (R2)
+
+4. **GradeTranslation, not GradeSentence.** Translation.razor should use `TeacherSvc.GradeTranslation()` (line 138 in TeacherService.cs), not `GradeSentence()`. The method already exists and its template already requests `vocabulary_analysis`.
+5. **[NOT YET IMPLEMENTED] markers.** Added explicit block in section 0 noting R5 quiz spec formulas (DifficultyWeight streak acceleration, temporal weighting, recovery boost, CurrentStreak as float) are approved but not yet in code.
+6. **Section 3.6 dedup row references explicit step.** Updated to point at `.DistinctBy()` in step 2 of section 3.4.
+7. **Conversation JSON format prerequisite.** Added note in section 4.4 that ContinueConversation templates need proper JSON output format before vocabulary_analysis can be added reliably.
+8. **Verification probe separation.** `HandleVerificationProbeResultAsync` must NOT be called inside the scoring loop. Collect probe targets during the loop, fire after loop completes. Prevents stale-state reads from interleaved saves.
+9. **LastExposedAt replaces LastPracticedAt for passive exposure.** New `DateTime? LastExposedAt` field on `VocabularyProgress`. `RecordPassiveExposureAsync` updates this instead of `LastPracticedAt`, which is reserved for active practice/SRS scheduling.
+
+## Impact vs R1
+
+- **Section 0:** Added revision header + [NOT YET IMPLEMENTED] block
+- **Section 2:** Added SRS reset universality notes to both standard and Conversation penalty subsections
+- **Section 3.4:** Rewrote algorithm with dedup step, processing-order note, verification probe separation
+- **Section 3.6:** Updated dedup edge-case row
+- **Section 4.2:** GradeSentence → GradeTranslation throughout
+- **Section 4.4:** Added JSON format prerequisite note
+- **Section 5.3:** LastPracticedAt → LastExposedAt in code sample and explanation
+- **Section 7.2:** Added LastExposedAt to model changes table
+- **Section 8:** Updated Translation row to reference GradeTranslation
+- **Section 9:** Updated Phase 1 (added LastExposedAt) and Phase 2 (GradeTranslation)
+- **Section 6:** Updated AI grading table and Translation code sample
+
+No formula changes. No new activities added. The spec is structurally the same, just more precise.

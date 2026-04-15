@@ -269,3 +269,86 @@ Designed full architecture for YouTube channel monitoring + video import feature
 - Mobile app backgrounding is the key constraint for UX design — anything that relies on persistent connections fails
 
 - Phase 2 review (c806a96): APPROVED. ExtractAndScoreVocabularyAsync dedup/probe-separation is clean. PenaltyOverride wired correctly into RecordAttemptAsync. Migration filenames don't match [Migration] attribute IDs (cosmetic). ExposureCount increment is a useful additive beyond the spec sample.
+
+## Learnings
+
+- **PRODUCTION DATA LOSS (2025-07-25):** `aspire deploy` recreated the Postgres container WITHOUT its Azure File share volume mount. `.WithDataVolume()` does NOT automatically translate to ACA volume mounts — the `PublishAsAzureContainerApp` callback was added AFTER the incident but there was no backup to recover from. All user data was permanently lost.
+- **Deploy tool mixing is dangerous:** `azd deploy` and `aspire deploy` manage Azure resources through different Bicep pipelines. Using both on the same infrastructure can cause one tool to silently overwrite stateful configuration set by the other.
+- **Advisory checklists are worthless without enforcement:** The runbook had pre-deploy checks but they were presented as suggestions. They needed to be mandatory with explicit pass/fail criteria and hard-stop language.
+- **Custom instructions must cover production, not just local dev:** The "Data Preservation Rules" had five rules, all about local development (don't delete SQLite files, don't uninstall apps). Zero rules about production deploys, backups, or volume mounts. This gap has been closed.
+- **Containerized DB + file share is architecturally fragile:** Any tool that recreates the container risks losing the volume mount. Azure PostgreSQL Flexible Server eliminates this entire vulnerability class. Migration is ~1 day of work, ~$17/month. Should be done this week.
+- **The `db` container is the ONLY stateful container at risk:** Redis has no volume (cache, acceptable to lose). Azure Storage is a managed service. All other containers are stateless .NET projects.
+
+### 2025-07-25 — Production Data Safety Governance (P0)
+
+**Status:** Decision enacted, runbook updated, migration plan written  
+**Output:** `.squad/decisions/inbox/zoe-production-data-safety.md`, updated `docs/deploy-runbook.md`
+
+**What:**
+Following production data loss caused by `aspire deploy` dropping the Postgres container's Azure File share volume mount, conducted a full audit of existing data safety governance and created comprehensive, enforceable production data safety rules. Six rules enacted: mandatory backup, no mixing deploy tools, mandatory pre-deploy checks, mandatory post-deploy verification, managed DB migration plan, stateful resource audit.
+
+**Key Findings:**
+- Custom instructions "Data Preservation Rules" covered ONLY local dev — zero production coverage
+- No decision in decisions.md addressed production data safety
+- The deploy runbook had advisory checks with no enforcement language
+- The `PublishAsAzureContainerApp` fix in AppHost.cs was applied AFTER data loss, not before
+- Only the `db` container is at risk — Redis is cache-only, Azure Storage is managed
+
+**Deliverables:**
+1. Decision document: `.squad/decisions/inbox/zoe-production-data-safety.md` — P0 priority, six enforceable rules
+2. Runbook overhaul: `docs/deploy-runbook.md` — mandatory checklist with backup, verification, and hard-stop language
+3. Custom instructions recommendation: expanded "Data Preservation Rules" covering production deploys
+4. Migration plan: Azure PostgreSQL Flexible Server — eliminates the vulnerability class entirely (~$17/month, ~1 day of work)
+5. Stateful resource audit: only `db` is at risk, Redis and Azure Storage are safe
+
+
+### 2025-07-25 — Cross-Activity Mastery Spec R5 & R2 Revisions Merged (Complete)
+
+**Status:** Spec frozen, awaiting implementation  
+**Specs:** `docs/specs/quiz-learning-journey.md`, `docs/specs/cross-activity-mastery.md`
+
+**What Happened:**
+
+Merged Captain's 6 design decisions (from Jayne's skeptic review answers) into R5 quiz spec, plus merged R2 revisions for cross-activity spec. Both specs now stable and ready for implementation.
+
+**R5 Quiz Spec — 6 Captain Decisions Integrated:**
+
+1. **DifficultyWeight accelerates mastery** — Streak increment now multiplied by DifficultyWeight (MC=1.0, Text=1.5, Sentence=2.5). CurrentStreak changed from int to float to support fractional increments.
+
+2. **Tier 1 rotation requires text + cleared recognition** — High mastery (>=0.80) now requires `SessionTextCorrect >= 1 AND PendingRecognitionCheck == false`. Mastered word returning after months must re-demonstrate both recognition AND production before rotating out.
+
+3. **No repeat within a round** — Added explicit rule: "A word is NEVER presented twice in a round." Rounds naturally shrink as words rotate out with no minimum round size.
+
+4. **Recovery-aware mastery formula (no plateau)** — Replaced simple `Math.Max(streakScore, MasteryScore)` with recovery formula that adds `+0.02` per correct during recovery. Eliminates flat period where correct answers showed no visible mastery progress.
+
+5. **DueOnly filter applies at session start ONLY** — Removed "re-apply between rounds" rule. DueOnly applies once at initial word selection; words that become not-due mid-session remain in batch pool. Rotation controlled exclusively by mastery/tiered logic.
+
+6. **IsKnown re-qualification gets 14-day review interval** — When word loses IsKnown status (wrong answer) and re-qualifies, ReviewInterval = 14 days (not 60). New `LostKnownThisSession` flag on session counter model for detection.
+
+**R2 Cross-Activity Mastery Revisions — Captain Decisions + Mechanical Fixes:**
+
+**Captain's R2 Decisions:**
+1. Processing order is non-issue — each word has independent `VocabularyProgress` record
+2. SRS reset same everywhere — ReviewInterval=1 on wrong (no special softening for Conversation)
+3. Dedup before scoring — use `.DistinctBy(v => v.DictionaryForm)`, first occurrence wins
+
+**Mechanical Fixes Applied:**
+4. GradeTranslation, not GradeSentence — Translation.razor should use `TeacherSvc.GradeTranslation()` which already has vocabulary_analysis in template
+5. [NOT YET IMPLEMENTED] markers added — R5 quiz spec formulas (DifficultyWeight streak acceleration, temporal weighting, recovery boost, CurrentStreak as float) approved but not yet in code
+6. Section 3.6 dedup row updated — Points to `.DistinctBy()` in step 2 of section 3.4
+7. Conversation JSON format prerequisite — ContinueConversation templates need proper JSON output format before vocabulary_analysis can be added reliably
+8. Verification probe separation — `HandleVerificationProbeResultAsync` must NOT be called inside scoring loop; collect probes during loop, fire after
+9. LastExposedAt replaces LastPracticedAt for passive exposure — New `DateTime? LastExposedAt` field on `VocabularyProgress`
+
+**Impact on Implementation:**
+- R5 quiz spec is stable (Captain approved all 6 decisions)
+- R2 cross-activity spec is stable (Captain approved fixes, no formula changes)
+- Implementation work items tracked via section 6 discrepancy tables
+- Key new work: CurrentStreak int→float, recovery boost formula, tier 1 rotation logic, LostKnownThisSession tracking, 14-day re-qualification path
+
+**Files Updated:**
+- `docs/specs/quiz-learning-journey.md` — R5 complete
+- `docs/specs/cross-activity-mastery.md` — R2 complete
+- Sections 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 across both specs
+
+**Next:** Implementation phase — prioritize by risk and dependency order specified in section 6 of both specs.

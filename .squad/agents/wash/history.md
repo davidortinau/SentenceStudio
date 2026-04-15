@@ -591,3 +591,53 @@ services.AddSingleton<IActiveUserProvider>(new PreferencesActiveUserProvider(moc
 - Scoring engine now uses 5 named constants: WRONG_ANSWER_FLOOR, MAX_WRONG_PENALTY, MAX_STREAK_PRESERVE, STREAK_PRESERVE_DIVISOR, RECOVERY_BOOST
 - VocabQuiz.razor RecordPendingAttemptAsync was missing write-back: currentItem.Progress = updatedProgress — this caused the quiz UI to show stale progress data
 - When updating scoring behavior, check test assertions in MasteryAlgorithmIntegrationTests, MultiDayLearningJourneyTests, and ScoringEngineTests — they assert specific numeric outcomes
+
+
+### 2025-07-25 — Production Data Safety Response & Azure Hardening (P0)
+
+**Incident:** `aspire deploy` recreated Postgres container without Azure File share volume mount, destroying all production user data. No backup existed — data loss permanent.
+
+**Response Phases:**
+
+1. **Phone Data Recovery Investigation**
+   - Analyzed CoreSync bidirectional sync to determine if user data synced to phone could be recovered
+   - Identified UserId orphaning risk: recovery logic MUST validate that words being re-tagged belong to correct user profile
+   - Recommended: Before any recovery attempt, add explicit user ID validation guardrails
+   - Finding: Phone-based recovery IS viable if synced data was pushed to device before server loss and UserId is validated correctly
+
+2. **Azure Infrastructure Hardening (Layers 2–5 of 5-layer defense)**
+   - **Layer 2 — Resource Locks:** Applied `CanNotDelete` locks to:
+     - `db` container app
+     - `vol3ovvqiybthkb6` storage account
+   - **Layer 3 — Pre-deploy Hook:** Created `scripts/pre-deploy-check.sh` with 5 mandatory checks:
+     - Resource locks exist (at least 2)
+     - db container app exists
+     - Current revision has AzureFile volume mount
+     - Storage account exists
+     - File share exists and is non-empty
+   - **Layer 4 — Runbook Verification:** Updated `docs/deploy-runbook.md` Step 5 with lock verification checks
+   - **Layer 5 — Managed DB Migration:** Documented Azure PostgreSQL Flexible Server migration path (eliminates container-recreation risk entirely)
+
+**Files Modified:**
+- `AppHost.cs` — PublishAsAzureContainerApp callback wiring (pre-incident, ensures volume mount on future revisions)
+- `azure.yaml` — preprovision hook calling pre-deploy-check.sh
+- `DataRecoveryService.cs` — Phone recovery flow analysis (NEW)
+- `IdentityAuthService.cs` — Cross-referenced in recovery scenario
+- `docs/deploy-runbook.md` — Hardened with mandatory checklist + migration plan
+
+**Commits:**
+- `b466985` — Orphan recovery support (phone data recovery analysis)
+- `9d71fbf` — Azure resource locks + pre-deploy hook verification
+
+**Key Learnings:**
+- Deploy tool mixing (azd vs aspire deploy) silently overwrites infrastructure configuration — Bicep + AppHost DSL manage resources differently
+- Container-based databases are architecturally fragile — any tool that recreates containers can accidentally lose volume mounts
+- Pre-deploy hooks in azure.yaml are effective enforcement mechanism (stronger than advisory checklists)
+- Phone-based recovery is viable path if synced data existed pre-loss and UserId validation is explicit
+
+**Cross-team coordination:**
+- Zoe: Wrote P0 governance decision + migration plan
+- Wash: Implemented infrastructure enforcement + phone recovery analysis
+- Both: Coordinated on 5-layer defense model
+
+**Next:** Monitor next deploy cycle; begin managed database migration planning (1 day effort, ~$17/month, eliminates vulnerability class)
