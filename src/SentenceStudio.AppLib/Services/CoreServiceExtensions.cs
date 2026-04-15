@@ -62,6 +62,9 @@ public static class CoreServiceExtensions
         services.AddSingleton<TranscriptFormattingService>();
         services.AddSingleton<TranscriptSentenceExtractor>();
 
+        // Data recovery (orphan re-tagging after server wipe)
+        services.AddSingleton<DataRecoveryService>();
+
         // Repositories
         services.AddSingleton<StoryRepository>();
         services.AddSingleton<UserProfileRepository>();

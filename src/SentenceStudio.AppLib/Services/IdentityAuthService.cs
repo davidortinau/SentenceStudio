@@ -4,6 +4,7 @@ using System.Net.Http.Json;
 using System.Security.Claims;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Abstractions;
+using SentenceStudio.Data;
 
 namespace SentenceStudio.Services;
 
@@ -22,6 +23,7 @@ public sealed class IdentityAuthService : IAuthService
     private readonly IPreferencesService _preferences;
     private readonly ILogger<IdentityAuthService> _logger;
     private readonly ISyncService? _syncService;
+    private readonly DataRecoveryService? _dataRecovery;
 
     private string? _cachedToken;
     private DateTimeOffset _cachedExpires;
@@ -32,13 +34,15 @@ public sealed class IdentityAuthService : IAuthService
         ISecureStorageService secureStorage,
         IPreferencesService preferences,
         ILogger<IdentityAuthService> logger,
-        ISyncService? syncService = null)
+        ISyncService? syncService = null,
+        DataRecoveryService? dataRecovery = null)
     {
         _http = httpClientFactory.CreateClient("AuthClient");
         _secureStorage = secureStorage;
         _preferences = preferences;
         _logger = logger;
         _syncService = syncService;
+        _dataRecovery = dataRecovery;
     }
 
     public bool IsSignedIn => _cachedToken is not null && _cachedExpires > DateTimeOffset.UtcNow;
@@ -335,6 +339,20 @@ public sealed class IdentityAuthService : IAuthService
         {
             _preferences.Set("active_profile_id", response.UserProfileId);
             _logger.LogInformation("Active profile set to {ProfileId}", response.UserProfileId);
+
+            // Re-tag any orphaned local data (e.g. after server wipe + re-registration)
+            // before sync pushes records to the server.
+            if (_dataRecovery != null)
+            {
+                try
+                {
+                    await _dataRecovery.RecoverOrphanedDataAsync(response.UserProfileId);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Orphan data recovery failed — sync will proceed without recovery");
+                }
+            }
         }
         else
         {
