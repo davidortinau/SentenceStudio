@@ -480,11 +480,15 @@ else
                 <div class="col-12">
                     <small class="text-secondary-ss d-block">Why This Mode</small>
                     <span class="ss-body2 fw-bold">
-                        @if (userMode == "Text")
+                        @if (currentItem.PendingRecognitionCheck)
                         {
-                            @if (currentItem.IsPromotedInQuiz)
+                            <text>Recognition check (wrong text answer earlier)</text>
+                        }
+                        else if (userMode == "Text")
+                        {
+                            @if ((currentItem.Progress?.CurrentStreak ?? 0f) >= 3f)
                             {
-                                <text>Promoted in quiz (3+ MC correct this session)</text>
+                                <text>Lifetime streak >= 3 (global progress)</text>
                             }
                             else
                             {
@@ -493,7 +497,7 @@ else
                         }
                         else
                         {
-                            <text>Still building recognition (mastery &lt; 50%, not yet promoted)</text>
+                            <text>Still building recognition (streak &lt; 3, mastery &lt; 50%)</text>
                         }
                     </span>
                 </div>
@@ -780,9 +784,17 @@ else
         isCorrect = false;
         requireCorrectTyping = false;
 
-        // Determine mode
-        userMode = (currentItem.IsPromotedInQuiz || (currentItem.Progress?.MasteryScore ?? 0f) >= 0.50f)
-            ? "Text" : "MultipleChoice";
+        // Unified mode-selection algorithm (spec §1.2)
+        // Priority 1: Gentle demotion override — must prove recognition first
+        if (currentItem.PendingRecognitionCheck)
+            userMode = "MultipleChoice";
+        // Priority 2: Lifetime progress indicates production readiness
+        else if ((currentItem.Progress?.CurrentStreak ?? 0f) >= 3f
+                 || (currentItem.Progress?.MasteryScore ?? 0f) >= 0.50f)
+            userMode = "Text";
+        // Priority 3: Default — still learning
+        else
+            userMode = "MultipleChoice";
 
         if (userMode == "MultipleChoice")
         {
@@ -876,7 +888,6 @@ else
         {
             var activeUserId = Preferences.Get("active_profile_id", "");
             var updatedProgress = currentItem.Progress;
-            var productionStreak = currentItem.QuizProductionStreak;
             var responseTimeMs = responseTimer.IsRunning ? (int)responseTimer.ElapsedMilliseconds : 0;
             var gradedResults = new List<SentenceShortcutResult>(sentenceEntries.Count);
 
@@ -931,7 +942,10 @@ else
                 });
 
                 currentItem.Progress = updatedProgress;
-                productionStreak++;
+
+                // Update session counters for sentence shortcut
+                currentItem.SessionCorrectCount++;
+                currentItem.SessionTextCorrect++;
 
                 if (updatedProgress.IsFamiliar)
                 {
@@ -942,7 +956,6 @@ else
 
             sentenceShortcutResults.Clear();
             sentenceShortcutResults.AddRange(gradedResults);
-            currentItem.QuizProductionStreak = Math.Min(productionStreak, VocabularyQuizItem.RequiredCorrectAnswers);
             
             // Fix 1: Mark as correct if any sentences passed
             if (sentenceShortcutSuccessCount > 0)
@@ -1104,16 +1117,31 @@ else
         }
         showAnswer = true;
 
-        // Update streaks
-        if (userMode == "MultipleChoice")
+        // Update session counters (cumulative — never reset on wrong answers, spec §1.2.3)
+        if (isCorrect)
         {
-            if (isCorrect) currentItem.QuizRecognitionStreak++;
-            else currentItem.QuizRecognitionStreak = 0;
+            currentItem.SessionCorrectCount++;
+            if (userMode == "MultipleChoice")
+            {
+                currentItem.SessionMCCorrect++;
+                // Correct MC clears gentle demotion flag (spec §1.2.1)
+                currentItem.PendingRecognitionCheck = false;
+            }
+            else
+            {
+                currentItem.SessionTextCorrect++;
+            }
         }
         else
         {
-            if (isCorrect) currentItem.QuizProductionStreak++;
-            else currentItem.QuizProductionStreak = 0;
+            // Wrong text answer → gentle demotion: force MC next appearance (spec §1.2.1)
+            if (userMode == "Text")
+                currentItem.PendingRecognitionCheck = true;
+            // Wrong MC does NOT clear PendingRecognitionCheck — stays set (spec §2.2)
+
+            // Track if word loses IsKnown status this session (spec §4.3.1)
+            if ((currentItem.Progress?.MasteredAt != null) && !(currentItem.LostKnownThisSession))
+                currentItem.LostKnownThisSession = true;
         }
 
         if (isCorrect) currentItem.WasCorrectThisSession = true;
@@ -1184,7 +1212,32 @@ else
     {
         autoAdvanceCts?.Cancel();
         await RecordPendingAttemptAsync();
-        currentTurnInRound++;
+
+        // Immediate rotation check (spec §1.3): remove word mid-round if mastered
+        if (currentItem != null && currentItem.ReadyToRotateOut)
+        {
+            roundWordOrder.Remove(currentItem);
+            batchPool.Remove(currentItem);
+            wordsMastered++;
+
+            // If that was the last word in the round, trigger round summary
+            if (roundWordOrder.Count == 0 || currentTurnInRound >= roundWordOrder.Count)
+            {
+                roundsCompleted++;
+                sessionItems = vocabItems.ToList();
+                showSessionSummary = true;
+                requireCorrectTyping = false;
+                showMnemonicImage = false;
+                showInfoPanel = false;
+                return;
+            }
+            // Don't increment currentTurnInRound — next word slides into current index
+        }
+        else
+        {
+            currentTurnInRound++;
+        }
+
         requireCorrectTyping = false;
         showMnemonicImage = false;
         showInfoPanel = false;
@@ -1203,8 +1256,27 @@ else
 
         try
         {
+            // Snapshot IsKnown state before recording to detect loss (spec §4.3.1)
+            var wasKnownBefore = currentItem?.Progress?.IsKnown ?? false;
+
             var updatedProgress = await ProgressService.RecordAttemptAsync(attempt);
-            if (currentItem != null) currentItem.Progress = updatedProgress;
+            if (currentItem != null)
+            {
+                currentItem.Progress = updatedProgress;
+
+                // Track IsKnown loss this session (spec §4.3.1)
+                if (wasKnownBefore && !updatedProgress.IsKnown)
+                    currentItem.LostKnownThisSession = true;
+
+                // IsKnown re-qualification with shorter 14-day interval (spec §4.3.1)
+                if (currentItem.LostKnownThisSession && updatedProgress.IsKnown)
+                {
+                    updatedProgress.ReviewInterval = 14;
+                    updatedProgress.NextReviewDate = DateTime.Now.AddDays(14);
+                    // Persist the shorter interval
+                    await ProgressService.UpdateProgressAsync(updatedProgress);
+                }
+            }
 
             if (updatedProgress.IsFamiliar)
             {
@@ -1231,11 +1303,17 @@ else
         requireCorrectTyping = false;
         feedbackMessage = "Marked correct ✓";
 
-        // Fix streaks
+        // Update session counters (override counts as correct)
+        currentItem.SessionCorrectCount++;
         if (userMode == "MultipleChoice")
-            currentItem.QuizRecognitionStreak++;
+        {
+            currentItem.SessionMCCorrect++;
+            currentItem.PendingRecognitionCheck = false;
+        }
         else
-            currentItem.QuizProductionStreak++;
+        {
+            currentItem.SessionTextCorrect++;
+        }
 
         // Fix 1: Also mark as correct in session
         currentItem.WasCorrectThisSession = true;

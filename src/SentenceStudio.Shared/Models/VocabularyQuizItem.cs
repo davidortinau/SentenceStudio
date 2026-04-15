@@ -9,51 +9,70 @@ public class VocabularyQuizItem
     // Global progress from VocabularyProgress table (cross-activity mastery)
     public SentenceStudio.Shared.Models.VocabularyProgress? Progress { get; set; }
 
-    // Activity-specific progress (THIS quiz activity only)
-    public int QuizRecognitionStreak { get; set; } = 0;  // Consecutive multiple choice correct
-    public int QuizProductionStreak { get; set; } = 0;   // Consecutive text entry correct
-    public bool QuizRecognitionComplete => QuizRecognitionStreak >= RequiredCorrectAnswers;
-    public bool QuizProductionComplete => QuizProductionStreak >= RequiredCorrectAnswers;
-    
-    // Fix 3: Track if this is a DueOnly session
+    // --- Session-local counters (cumulative, never reset on wrong answers) ---
+    // Replace old QuizRecognitionStreak/QuizProductionStreak per spec §1.2.3
+    public int SessionCorrectCount { get; set; }   // Total correct this session (any mode)
+    public int SessionMCCorrect { get; set; }       // MC correct this session
+    public int SessionTextCorrect { get; set; }     // Text correct this session
+
+    // Gentle demotion flag (spec §1.2.1): wrong Text → force MC until correct MC clears it
+    public bool PendingRecognitionCheck { get; set; }
+
+    // IsKnown re-qualification tracking (spec §4.3.1): 14-day interval instead of 60
+    public bool LostKnownThisSession { get; set; }
+
+    // Legacy streaks — kept for backward compat but no longer drive mode or rotation
+    [Obsolete("Replaced by SessionMCCorrect for rotation and Progress.CurrentStreak for mode selection")]
+    public int QuizRecognitionStreak { get; set; } = 0;
+    [Obsolete("Replaced by SessionTextCorrect for rotation")]
+    public int QuizProductionStreak { get; set; } = 0;
+
+    // Track if this is a DueOnly session
     public bool IsDueOnlySession { get; set; }
-    
-    // Fix 3: In DueOnly sessions, allow globally mastered words to rotate out
-    public bool ReadyToRotateOut => IsDueOnlySession
-        ? (QuizRecognitionComplete && QuizProductionComplete) || (Progress?.IsKnown ?? false)
-        : QuizRecognitionComplete && QuizProductionComplete;
 
-    // Current phase within THIS quiz (independent of global phase)
-    public bool IsPromotedInQuiz => QuizRecognitionComplete;
+    // Tiered rotation model (spec §1.2.2 / §1.3)
+    public bool ReadyToRotateOut
+    {
+        get
+        {
+            var mastery = Progress?.MasteryScore ?? 0f;
+            var streak = Progress?.CurrentStreak ?? 0f;
 
-    // NEW: Streak-based computed properties
-    // IsPromoted now based on MasteryScore threshold for text mode
+            bool tieredReady;
+
+            // Tier 1: High mastery — 1 correct text + recognition cleared
+            if (mastery >= 0.80f || streak >= 8f)
+                tieredReady = SessionTextCorrect >= 1 && !PendingRecognitionCheck;
+            // Tier 2: Mid mastery — 2 correct (at least 1 text)
+            else if (mastery >= 0.50f || streak >= 3f)
+                tieredReady = SessionCorrectCount >= 2 && SessionTextCorrect >= 1;
+            // Tier 3: Low mastery — full 3+3 demonstration
+            else
+                tieredReady = SessionMCCorrect >= 3 && SessionTextCorrect >= 3;
+
+            // DueOnly bonus: globally known words can also rotate out
+            return tieredReady || (Progress?.IsKnown ?? false);
+        }
+    }
+
+    // Streak-based computed properties
     public bool IsPromoted => Progress?.MasteryScore >= 0.50f;
-
-    // IsCompleted now uses the new IsKnown property (requires MasteryScore >= 0.85 AND ProductionInStreak >= 2)
     public bool IsCompleted => Progress?.IsKnown ?? false;
 
-    // Legacy support for backward compatibility
     public const int RequiredCorrectAnswers = 3;
 
-    // NEW: Streak-based progress indicators
     public float CurrentStreak => Progress?.CurrentStreak ?? 0f;
     public int ProductionInStreak => Progress?.ProductionInStreak ?? 0;
     public float EffectiveStreak => Progress?.EffectiveStreak ?? 0f;
     public float MasteryProgress => Progress?.MasteryScore ?? 0f;
 
-    // Check if term is ready to be skipped in current phase
     public bool IsReadyToSkipInCurrentPhase { get; set; }
-
-    // Whether the user answered correctly in this quiz session (for summary display)
     public bool WasCorrectThisSession { get; set; }
 
-    // Enhanced status helpers (use new IsKnown logic)
+    // Status helpers
     public bool IsUnknown => Progress?.IsUnknown ?? true;
     public bool IsLearning => Progress?.IsLearning ?? false;
     public bool IsKnown => Progress?.IsKnown ?? false;
-
-    // Spaced repetition support
     public bool IsDueForReview => Progress?.IsDueForReview ?? false;
 
     // LEGACY: Kept for backward compatibility but deprecated

@@ -631,4 +631,14 @@ public class VocabularyProgressService : IVocabularyProgressService
             _ => 1.0f
         };
     }
+
+    /// <summary>
+    /// Persists updated SRS fields on an existing progress record.
+    /// Used for IsKnown re-qualification with shortened review intervals (spec §4.3.1).
+    /// </summary>
+    public async Task UpdateProgressAsync(VocabularyProgress progress)
+    {
+        progress.UpdatedAt = DateTime.Now;
+        await _progressRepo.SaveAsync(progress);
+    }
 }

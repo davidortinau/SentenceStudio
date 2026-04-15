@@ -165,8 +165,12 @@ public class VocabQuizFilteringTests
 
         var item = MakeQuizItem(progress);
 
-        var mode = (item.IsPromotedInQuiz || (item.Progress?.MasteryScore ?? 0f) >= 0.50f)
-            ? "Text" : "MultipleChoice";
+        // New unified mode-selection algorithm (spec §1.2)
+        var mode = item.PendingRecognitionCheck
+            ? "MultipleChoice"
+            : ((item.Progress?.CurrentStreak ?? 0f) >= 3f || (item.Progress?.MasteryScore ?? 0f) >= 0.50f)
+                ? "Text"
+                : "MultipleChoice";
 
         mode.Should().Be("Text", "MasteryScore >= 0.50 must result in Text mode");
     }
@@ -183,10 +187,13 @@ public class VocabQuizFilteringTests
 
         var item = MakeQuizItem(progress);
 
-        var mode = (item.IsPromotedInQuiz || (item.Progress?.MasteryScore ?? 0f) >= 0.50f)
-            ? "Text" : "MultipleChoice";
+        var mode = item.PendingRecognitionCheck
+            ? "MultipleChoice"
+            : ((item.Progress?.CurrentStreak ?? 0f) >= 3f || (item.Progress?.MasteryScore ?? 0f) >= 0.50f)
+                ? "Text"
+                : "MultipleChoice";
 
-        mode.Should().Be("MultipleChoice", "MasteryScore < 0.50 → MultipleChoice");
+        mode.Should().Be("MultipleChoice", "MasteryScore < 0.50 and CurrentStreak < 3 → MultipleChoice");
     }
 
     [Fact]
@@ -204,30 +211,80 @@ public class VocabQuizFilteringTests
             Progress = null
         };
 
-        var mode = (item.IsPromotedInQuiz || (item.Progress?.MasteryScore ?? 0f) >= 0.50f)
-            ? "Text" : "MultipleChoice";
+        var mode = item.PendingRecognitionCheck
+            ? "MultipleChoice"
+            : ((item.Progress?.CurrentStreak ?? 0f) >= 3f || (item.Progress?.MasteryScore ?? 0f) >= 0.50f)
+                ? "Text"
+                : "MultipleChoice";
 
         mode.Should().Be("MultipleChoice", "null Progress → fallback to MultipleChoice");
     }
 
     [Fact]
-    public void ModeSelection_QuizLocalPromotion_OverridesToText()
+    public void ModeSelection_QuizLocalPromotion_NoLongerDrivesMode()
     {
-        // Quiz-local: 3 consecutive correct recognition → promoted within quiz
+        // Phase 1: Mode is now driven by GLOBAL Progress.CurrentStreak, not session-local
         var progress = new VocabularyProgress
         {
-            MasteryScore = 0.20f, // Low global mastery
+            MasteryScore = 0.20f,
+            CurrentStreak = 1f, // Low global streak
         };
 
         var item = MakeQuizItem(progress);
-        item.QuizRecognitionStreak = 3; // Promoted in THIS quiz session
+        item.SessionMCCorrect = 3; // Session counters don't drive mode selection
 
-        item.IsPromotedInQuiz.Should().BeTrue("3 recognition correct → promoted in quiz");
+        // New unified mode-selection algorithm (spec §1.2):
+        // PendingRecognitionCheck=false, CurrentStreak < 3, MasteryScore < 0.50 → MC
+        var mode = item.PendingRecognitionCheck
+            ? "MultipleChoice"
+            : ((item.Progress?.CurrentStreak ?? 0f) >= 3f || (item.Progress?.MasteryScore ?? 0f) >= 0.50f)
+                ? "Text"
+                : "MultipleChoice";
 
-        var mode = (item.IsPromotedInQuiz || (item.Progress?.MasteryScore ?? 0f) >= 0.50f)
-            ? "Text" : "MultipleChoice";
+        mode.Should().Be("MultipleChoice",
+            "session-local counters no longer drive mode; global CurrentStreak=1 → MC");
+    }
 
-        mode.Should().Be("Text", "quiz-local promotion overrides to Text");
+    [Fact]
+    public void ModeSelection_LifetimeStreak3_GetsTextMode()
+    {
+        var progress = new VocabularyProgress
+        {
+            MasteryScore = 0.20f,
+            CurrentStreak = 3f, // Lifetime streak hits threshold
+        };
+
+        var item = MakeQuizItem(progress);
+
+        var mode = item.PendingRecognitionCheck
+            ? "MultipleChoice"
+            : ((item.Progress?.CurrentStreak ?? 0f) >= 3f || (item.Progress?.MasteryScore ?? 0f) >= 0.50f)
+                ? "Text"
+                : "MultipleChoice";
+
+        mode.Should().Be("Text", "lifetime CurrentStreak >= 3 → Text mode");
+    }
+
+    [Fact]
+    public void ModeSelection_PendingRecognitionCheck_ForcesMultipleChoice()
+    {
+        var progress = new VocabularyProgress
+        {
+            MasteryScore = 0.80f,
+            CurrentStreak = 5f, // Would normally be Text
+        };
+
+        var item = MakeQuizItem(progress);
+        item.PendingRecognitionCheck = true; // Gentle demotion flag set
+
+        var mode = item.PendingRecognitionCheck
+            ? "MultipleChoice"
+            : ((item.Progress?.CurrentStreak ?? 0f) >= 3f || (item.Progress?.MasteryScore ?? 0f) >= 0.50f)
+                ? "Text"
+                : "MultipleChoice";
+
+        mode.Should().Be("MultipleChoice",
+            "PendingRecognitionCheck overrides lifetime progress and forces MC");
     }
 
     // ── Comprehensive: full pipeline filter simulation ───────────────
@@ -285,10 +342,13 @@ public class VocabQuizFilteringTests
             .And.Contain("restaurant")
             .And.Contain("airport");
 
-        // Verify mode selection for beach-towel
+        // Verify mode selection for beach-towel (new unified algorithm)
         var beachTowel = filtered.First(i => i.Progress!.VocabularyWordId == "beach-towel");
-        var btMode = (beachTowel.IsPromotedInQuiz || (beachTowel.Progress?.MasteryScore ?? 0f) >= 0.50f)
-            ? "Text" : "MultipleChoice";
+        var btMode = beachTowel.PendingRecognitionCheck
+            ? "MultipleChoice"
+            : ((beachTowel.Progress?.CurrentStreak ?? 0f) >= 3f || (beachTowel.Progress?.MasteryScore ?? 0f) >= 0.50f)
+                ? "Text"
+                : "MultipleChoice";
         btMode.Should().Be("Text", "Beach Towel has MasteryScore=1.0 → Text mode");
     }
 
@@ -306,5 +366,103 @@ public class VocabQuizFilteringTests
             },
             Progress = progress
         };
+    }
+
+    // ── Tiered Rotation Tests (spec §1.2.2 / §1.3) ─────────────────
+
+    [Fact]
+    public void Tier1_HighMastery_RotatesAfter1TextCorrect()
+    {
+        var item = MakeQuizItem(new VocabularyProgress
+        {
+            MasteryScore = 0.84f, CurrentStreak = 8f
+        });
+        item.SessionTextCorrect = 1;
+        item.PendingRecognitionCheck = false;
+
+        item.ReadyToRotateOut.Should().BeTrue("Tier 1: streak >= 8, 1 text correct, no pending check");
+    }
+
+    [Fact]
+    public void Tier1_HighMastery_BlockedByPendingRecognitionCheck()
+    {
+        var item = MakeQuizItem(new VocabularyProgress
+        {
+            MasteryScore = 0.90f, CurrentStreak = 10f
+        });
+        item.SessionTextCorrect = 1;
+        item.PendingRecognitionCheck = true;
+
+        item.ReadyToRotateOut.Should().BeFalse("Tier 1 blocked: PendingRecognitionCheck is set");
+    }
+
+    [Fact]
+    public void Tier2_MidMastery_Rotates_2CorrectWith1Text()
+    {
+        var item = MakeQuizItem(new VocabularyProgress
+        {
+            MasteryScore = 0.55f, CurrentStreak = 4f
+        });
+        item.SessionCorrectCount = 2;
+        item.SessionTextCorrect = 1;
+
+        item.ReadyToRotateOut.Should().BeTrue("Tier 2: 2 correct with 1 text");
+    }
+
+    [Fact]
+    public void Tier2_MidMastery_NotEnoughTotal()
+    {
+        var item = MakeQuizItem(new VocabularyProgress
+        {
+            MasteryScore = 0.55f, CurrentStreak = 4f
+        });
+        item.SessionCorrectCount = 1;
+        item.SessionTextCorrect = 1;
+
+        item.ReadyToRotateOut.Should().BeFalse("Tier 2: only 1 correct total, need 2");
+    }
+
+    [Fact]
+    public void Tier3_LowMastery_Requires3MC_3Text()
+    {
+        var item = MakeQuizItem(new VocabularyProgress
+        {
+            MasteryScore = 0.20f, CurrentStreak = 1f
+        });
+        item.SessionMCCorrect = 3;
+        item.SessionTextCorrect = 3;
+
+        item.ReadyToRotateOut.Should().BeTrue("Tier 3: 3 MC + 3 Text");
+    }
+
+    [Fact]
+    public void Tier3_LowMastery_InsufficientText()
+    {
+        var item = MakeQuizItem(new VocabularyProgress
+        {
+            MasteryScore = 0.20f, CurrentStreak = 1f
+        });
+        item.SessionMCCorrect = 3;
+        item.SessionTextCorrect = 2;
+
+        item.ReadyToRotateOut.Should().BeFalse("Tier 3: only 2 text, need 3");
+    }
+
+    [Fact]
+    public void SessionCounters_AreCumulative_NeverResetOnWrong()
+    {
+        var item = MakeQuizItem(new VocabularyProgress
+        {
+            MasteryScore = 0.30f, CurrentStreak = 2f
+        });
+        item.SessionMCCorrect = 2;
+        item.SessionTextCorrect = 1;
+        item.SessionCorrectCount = 3;
+
+        // Simulate wrong answer — counters should NOT be reset
+        // (wrong answers just don't increment; they never decrement)
+        item.SessionMCCorrect.Should().Be(2, "wrong answer does not reset cumulative counters");
+        item.SessionTextCorrect.Should().Be(1);
+        item.SessionCorrectCount.Should().Be(3);
     }
 }

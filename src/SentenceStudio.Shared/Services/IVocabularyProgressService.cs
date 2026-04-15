@@ -80,4 +80,10 @@ public interface IVocabularyProgressService
     /// Correct: promotes to Known. Incorrect: demotes to Learning.
     /// </summary>
     Task<VocabularyProgress> HandleVerificationProbeResultAsync(string vocabularyWordId, string userId, bool wasCorrect);
+
+    /// <summary>
+    /// Persists updated SRS fields (ReviewInterval, NextReviewDate) on an existing progress record.
+    /// Used for IsKnown re-qualification with shortened review intervals.
+    /// </summary>
+    Task UpdateProgressAsync(VocabularyProgress progress);
 }
