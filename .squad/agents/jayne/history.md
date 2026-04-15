@@ -227,3 +227,135 @@ E2E verification that SentenceStudio iOS builds and runs with Microsoft.Maui.Dev
 - VocabularyQuizItem still uses old `QuizRecognitionStreak`/`QuizProductionStreak` consecutive counters — proposed `SessionCorrectCount` fields don't exist yet
 - `RecordAttemptAsync` returns updated progress but the quiz razor doesn't assign it back to `currentItem.Progress` — confirms spec's D1 finding
 - Current mode selection in VocabQuiz.razor (line 784) uses `IsPromotedInQuiz` (session-local) OR `MasteryScore >= 0.50` — not lifetime `CurrentStreak >= 3` as spec requires
+
+### 2025-07-25 — Phase 0 Scoring Engine Tests
+
+**Status:** COMPLETE  
+**File:** `tests/SentenceStudio.UnitTests/Services/MasteryScoring/ScoringEngineTests.cs`  
+**Decision:** `.squad/decisions/inbox/jayne-phase0-tests.md`
+
+Wrote 19 acceptance tests for Phase 0 scoring changes. All 19 pass.
+
+## Learnings
+
+- Wash already landed Phase 0 — `CurrentStreak` is float, DifficultyWeight accelerates streak, temporal weighting and recovery boost are live
+- Spec table says penalty "caps at 0.92" but the formula is logarithmic and continues rising (200 correct → 0.937). Don't treat approximate table values as hard bounds.
+- 5 pre-existing integration tests (`MasteryAlgorithmIntegrationTests`, `MultiDayLearningJourneyTests`, `DeterministicPlanBuilderResourceSelectionTests`) still expect old flat-penalty behavior — they need updating separately
+- In-memory SQLite test pattern works well for scoring engine tests — no mocks needed for the core math, real EF Core pipeline validates persistence round-trip
+
+### 2025-07-25 — Phase 0 Test Failure Audit
+
+**Status:** COMPLETE — NO FAILURES FOUND  
+**Suite:** `tests/SentenceStudio.UnitTests/SentenceStudio.UnitTests.csproj`  
+**Result:** 392 passed, 0 failed, 0 skipped
+
+Ran full test suite to find pre-existing failures from Phase 0 scoring changes. All 392 tests pass clean. The integration tests I flagged earlier (`MasteryAlgorithmIntegrationTests`, `MultiDayLearningJourneyTests`) have already been updated to use Phase 0 assertions — partial streak preservation, scaled penalty checks, float `CurrentStreak`, recovery boost. Someone (likely Wash) already landed the fixes before this task was assigned. No commit needed.
+
+### 2025-07-25 — Phase 0 + Phase 1 E2E Validation (VocabQuiz in Aspire)
+
+**Status:** COMPLETE — 10/12 PASS, 1 BY-DESIGN, 1 UI GAP
+**Environment:** Aspire stack (webapp at https://localhost:7071, PostgreSQL in Docker)
+**Test User:** e2etest@sentencestudio.local
+**Test Scripts:** e2e-testing-workspace/quiz-mastery-e2e-v2.js, quiz-summary-info.js, mastery-deferred-v2.js
+
+#### Results
+
+| # | Test | Result | Notes |
+|---|------|--------|-------|
+| 1 | Quiz loads without crash | PASS | MC mode, 4 options, progress counter |
+| 2 | Answer feedback (correct/incorrect) | PASS | Visual feedback + check/X icons |
+| 3 | Learning Details panel shows mastery data | PASS | MasteryScore, CurrentStreak (float!), ProductionInStreak, SRS, Why This Mode |
+| 4 | Round completion at 10/10 | PASS | Session Summary screen appears |
+| 5 | Session summary accuracy | PASS | Correct/Total counts, per-word results with icons |
+| 6 | Mode selection uses lifetime progress | PASS | New words to MC; streak < 3 mastery < 50% |
+| 7 | CurrentStreak is float in DB | PASS | PostgreSQL real type, fractional values observed (0.0866434) |
+| 8 | MasteryScore formula correct | PASS | 0.14285715 = 1/7 for streak=1 |
+| 9 | DifficultyWeight tracked per attempt | PASS | 1.0 for MC in VocabularyLearningContext.DifficultyScore |
+| 10 | Recording persists to DB after auto-advance | PASS | RecordPendingAttemptAsync writes correctly |
+| 11 | Mastery updates during feedback phase | BY-DESIGN | Info panel shows STALE data during feedback (deferred recording) |
+| 12 | DifficultyWeight visible in info panel | UI GAP | Stored in DB but NOT surfaced in Learning Details panel |
+
+#### Key Findings
+
+1. **Deferred Recording (BY DESIGN):** pendingAttempt is created when user answers but NOT persisted until NextItem() runs (auto-advance or manual). Info panel reads currentItem.Progress which is only updated post-persist. This means the info panel shows stale mastery during the feedback phase. This is intentional per the override design (user can mark correct before persist).
+
+2. **Phase 0 Scoring Verified End-to-End:**
+   - CurrentStreak is real (float) in PostgreSQL — confirmed working
+   - DifficultyWeight: 1.0 for MC, 1.5 for Text (stored as DifficultyScore)
+   - Fractional streaks: 0.0866434 observed for partial recovery (wrong then correct)
+   - MasteryScore = CurrentStreak / 7.0 confirmed (0.14285715 = 1/7)
+
+3. **Phase 1 Quiz Behavior Verified:**
+   - Mode selection based on lifetime progress (streak < 3 implies MC)
+   - Why This Mode explanation shown in info panel
+   - Session summary shows accurate results with Bootstrap icons
+   - Immediate rotation code exists (spec 1.3) but not triggered in test (no words reached mastery threshold)
+
+4. **Database:** Aspire uses PostgreSQL (NOT SQLite). The SQLite file at ~/Library/Application Support/sentencestudio/server/sentencestudio.db has OLD data from March 18. Always use PostgreSQL when running via Aspire.
+
+5. **Audio Mode:** ShowAudioChoiceControls renders Option A/B/C/D labels instead of text — intentional for audio-based quiz. The buttons still have IDs quiz-option-a through quiz-option-d.
+
+#### Recommendations
+
+1. **Consider optimistic mastery display:** After creating pendingAttempt, compute and display the projected mastery in the info panel so users see immediate feedback. Revert if they override.
+2. **Surface DifficultyWeight in info panel:** Add a line like DifficultyWeight: 1.0 (Multiple Choice) to the Learning Details panel for transparency.
+3. **Text mode E2E:** Not tested — all words for the test user had low streak (< 3), so Text mode never triggered. Need a test with pre-seeded high-streak words to validate Text mode and DifficultyWeight=1.5.
+
+#### Environment Notes
+
+- Playwright MCP browser was dead (target closed) — used Node.js Playwright scripts as fallback
+- Aspire CLI output can appear stuck on Building while stack is fully running — verify with curl
+- Docker Desktop must be running before Aspire start (containers will not start otherwise)
+
+### 2026-04-15 — Full E2E Validation: Mastery-Affected Activities (Phases 0-3)
+
+**Status:** COMPLETE — code review + database forensics + schema verification
+**Note:** Playwright MCP was dead (target closed + not connected after reload). Pivoted to code analysis + PostgreSQL DB verification.
+
+**Approach:** Aspire stack was running (PostgreSQL + webapp + API). Verified wiring via code review, DB records via docker exec psql, schema via PRAGMA/information_schema, migration history via __EFMigrationsHistory.
+
+#### Results
+
+| Activity | Wiring | DifficultyWeight | CacheInvalidation | DB Evidence | Verdict |
+|----------|--------|-----------------|-------------------|-------------|---------|
+| Quiz (Phase 0+1) | ExtractAndScore + direct RecordAttemptAsync | 1.0 MC / 1.5 Text / 2.5 Sentence | InvalidateVocabSummary() | 164 records at 1.5, 421 at 1.0 | PASS |
+| Writing (Phase 2) | ExtractAndScoreVocabularyAsync | 1.5f | InvalidateVocabSummary() | 8 records (pre-Phase, DifficultyScore=1.0) | PASS (code) |
+| Translation (Phase 2 bug fix) | ExtractAndScoreVocabularyAsync | 1.5f | InvalidateVocabSummary() | 29 records (pre-fix, DifficultyScore=1.0) | PASS — BUG FIX VERIFIED |
+| Scene (Phase 3) | ExtractAndScoreVocabularyAsync | 1.5f | MISSING | 44 records (pre-Phase, DifficultyScore=1.0) | CONDITIONAL PASS |
+| Conversation (Phase 3) | ExtractAndScoreVocabularyAsync + penaltyOverride=0.8f | 1.2f | MISSING | 0 records (never used) | CONDITIONAL PASS |
+
+#### Bugs Found
+
+**BUG 1: Scene.razor missing CacheService.InvalidateVocabSummary()**
+- CacheService (`ProgressCacheService`) is not injected at all in Scene.razor
+- After recording vocabulary progress, dashboard counts won't refresh until manual cache expiry
+- Fix: Add `[Inject] private ProgressCacheService CacheService { get; set; } = default!;` and call `CacheService.InvalidateVocabSummary()` after ExtractAndScoreVocabularyAsync
+
+**BUG 2: Conversation.razor missing CacheService.InvalidateVocabSummary()**
+- Same issue as Scene — CacheService not injected, no invalidation call
+- Fix: Same pattern as Scene
+
+**NOT A BUG: SQLite local DB (MAUI) still has INTEGER for CurrentStreak**
+- The SQLite file at `~/Library/Application Support/sentencestudio/server/sentencestudio.db` hasn't applied the CurrentStreakToFloat migration
+- This is because the Aspire stack uses PostgreSQL, not SQLite. The SQLite file is from the MAUI client.
+- PostgreSQL has `CurrentStreak` as `real` — confirmed via information_schema
+- MAUI client will need its own migration path (SyncService handles this)
+
+#### Schema Verification
+- PostgreSQL `VocabularyProgress.CurrentStreak`: real (float) — migration 20260415024019_CurrentStreakToFloat applied
+- PostgreSQL `VocabularyProgress.ProductionInStreak`: integer — correct per model
+- PostgreSQL `VocabularyLearningContext.DifficultyScore`: real — correct
+- VocabularyAttempt.PenaltyOverride: float? — correctly wired through pipeline
+- All 6 PostgreSQL migrations applied including CurrentStreakToFloat
+
+#### Shared Extraction Pipeline (Phase 2 refactoring goal)
+- ExtractAndScoreVocabularyAsync() at VocabularyProgressService:659 — single pipeline for all activities
+- Used by: Writing, Translation, Scene, Conversation (all 4 Phase 2-3 activities)
+- Deduplicates by DictionaryForm, matches against user vocabulary, creates VocabularyAttempt, records via RecordAttemptAsync
+- PenaltyOverride flows through: Conversation passes 0.8f → VocabularyAttempt.PenaltyOverride → RecordAttemptAsync applies it at line 158-160
+
+#### Learnings
+- Aspire stack uses PostgreSQL, NOT the SQLite file the Captain referenced. Always check AppHost.cs for the DB provider.
+- Playwright MCP can die permanently within a session — reload doesn't fix "Not connected". May need full CLI restart.
+- Scene activity uses "SceneDescription" as the Activity name (not "Scene") — matches pre-existing DB records
+- No Writing/Translation/Scene/Conversation records exist post-Phase-2-3 — code was deployed same day, nobody has exercised these activities via webapp yet. DB evidence is from PRE-phase implementations only.

@@ -9,6 +9,10 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+- Phase 0+1 scoring engine review: LostKnownThisSession detection must happen AFTER RecordAttemptAsync (deferred), never eagerly in the immediate answer handler. Eager detection based on MasteredAt!=null fires even when temporal weighting keeps IsKnown intact, causing incorrect 14-day re-qualification.
+- When reviewing IsKnown loss detection, always trace the full deferred-persistence flow: immediate state changes → RecordPendingAttemptAsync → snapshot wasKnownBefore → RecordAttemptAsync → compare. The timing of flag-setting relative to DB recording is critical.
+- Spec pseudocode may contain casts (e.g., `(int)`) from before a type change (int→float). When the type has changed, the cast should be dropped. Review spec code as guidance, not copy-paste.
+
 - Writing.razor is the ONLY activity that already does multi-word vocabulary scoring via `VocabularyAnalysis` from `GradeResponse`. It matches each word's `DictionaryForm` against the user's tracked vocabulary and calls `RecordAttemptAsync` per word. This pattern must be extracted into a shared service method for reuse by Translation, Scene, and Conversation.
 - Translation.razor has a BUG: `VocabularyProgressService` is injected but `RecordAttemptAsync` is never called. The grading prompt also doesn't request `VocabularyAnalysis`. Both need fixing.
 - Conversation and Scene have AI grading but return NO `VocabularyAnalysis` — their grading services need extension to return per-word correctness data before vocabulary progress can be recorded.
@@ -63,6 +67,10 @@
 - CRUD feedback pattern: Success/errors use toasts (auto-dismiss), destructive ops require Bootstrap modal confirmation BEFORE + toast AFTER
 - Auth flow complete: IdentityAuthService handles JWT + refresh tokens via API, SecureStorage persists on iOS, token auto-refresh on expiry via 60s buffer
 - Token lifespan: JWT ~15 min, refresh tokens 7 days; /api/auth endpoints: register, login, refresh, confirm-email, forgot-password, reset-password, delete (protected)
+
+- Phase 3 review (Scene+Conversation scoring): GradeMyDescription.scriban-txt already had vocabulary_analysis at line 22 — no template change was needed for Scene. Only the Conversation templates needed JSON schema additions.
+- Both ContinueConversation templates (default + scenario) must include the full JSON output schema with vocabulary_analysis for the AI to return parseable structured data. Free-form prompts without explicit JSON format do not reliably return vocabulary analysis.
+- `ExtractAndScoreVocabularyAsync` shared method signature: (List<VocabularyAnalysis>?, List<VocabularyWord>, string userId, string activity, float difficultyWeight, float? penaltyOverride = null). All dedup + verification probe ordering lives inside — callers only pass parameters.
 
 ## Work Sessions
 
@@ -260,3 +268,4 @@ Designed full architecture for YouTube channel monitoring + video import feature
 - YoutubeExplode can list channel uploads via `Channels.GetUploadsAsync()` — no API key needed
 - Mobile app backgrounding is the key constraint for UX design — anything that relies on persistent connections fails
 
+- Phase 2 review (c806a96): APPROVED. ExtractAndScoreVocabularyAsync dedup/probe-separation is clean. PenaltyOverride wired correctly into RecordAttemptAsync. Migration filenames don't match [Migration] attribute IDs (cosmetic). ExposureCount increment is a useful additive beyond the spec sample.
