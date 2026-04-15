@@ -20,4 +20,8 @@ public class Reply
     [Description("List of grammar corrections found in the user's input")]
     [JsonPropertyName("grammar_corrections")]
     public List<GrammarCorrectionDto> GrammarCorrections { get; set; } = new();
+
+    [Description("Per-word vocabulary analysis of the user's message")]
+    [JsonPropertyName("vocabulary_analysis")]
+    public List<VocabularyAnalysis>? VocabularyAnalysis { get; set; }
 }

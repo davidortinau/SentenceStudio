@@ -228,9 +228,12 @@ else
     [Inject] private TeacherService TeacherSvc { get; set; } = default!;
     [Inject] private UserProfileRepository ProfileRepo { get; set; } = default!;
     [Inject] private UserActivityRepository ActivityRepo { get; set; } = default!;
+    [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
+    [Inject] private VocabularyProgressService ProgressService { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private ILogger<Scene> Logger { get; set; } = default!;
+    [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
     [Inject] private SentenceStudio.Services.Progress.IProgressService PlanProgressService { get; set; } = default!;
     [Inject] private SentenceStudio.Services.Timer.IActivityTimerService ActivityTimer { get; set; } = default!;
 
@@ -245,6 +248,7 @@ else
     private string nativeLanguage = "English";
     private int expandedSentenceIndex = -1;
     private List<Sentence> gradedSentences = new();
+    private List<VocabularyWord> userVocabulary = new();
 
     // Gallery state
     private bool showGallery;
@@ -269,6 +273,8 @@ else
             var profile = await ProfileRepo.GetAsync();
             targetLanguage = profile?.TargetLanguage ?? "Korean";
             nativeLanguage = profile?.NativeLanguage ?? "English";
+
+            userVocabulary = await ResourceRepo.GetAllVocabularyWordsAsync() ?? new();
         }
         catch { }
 
@@ -337,6 +343,15 @@ else
                 CreatedAt = DateTime.Now,
                 UpdatedAt = DateTime.Now
             });
+
+            // Record vocabulary progress via shared extraction pipeline
+            if (userVocabulary?.Any() == true)
+            {
+                var activeUserId = Preferences.Get("active_profile_id", "");
+                var scoringResults = await ProgressService.ExtractAndScoreVocabularyAsync(
+                    grade.VocabularyAnalysis, userVocabulary, activeUserId,
+                    activity: "SceneDescription", difficultyWeight: 1.5f);
+            }
 
             var label = grade.Accuracy >= 80 ? "Excellent" : grade.Accuracy >= 50 ? "Good effort" : "Keep practicing";
             Toast.ShowSuccess($"{label} — Accuracy: {(int)grade.Accuracy}%");

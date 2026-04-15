@@ -190,7 +190,10 @@ else
     [Inject] private ElevenLabsSpeechService SpeechService { get; set; } = default!;
     [Inject] private SpeechVoicePreferences VoicePrefs { get; set; } = default!;
     [Inject] private UserProfileRepository ProfileRepo { get; set; } = default!;
+    [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
+    [Inject] private VocabularyProgressService ProgressService { get; set; } = default!;
     [Inject] private SentenceStudio.Abstractions.IFileSystemService FileSystemService { get; set; } = default!;
+    [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
     [Inject] private IAudioManager AudioMgr { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
@@ -210,6 +213,7 @@ else
 
     private List<ConversationChunk> chunks = new();
     private List<ConversationScenario> scenarios = new();
+    private List<VocabularyWord> userVocabulary = new();
     private ConversationScenario? activeScenario;
     private IAudioPlayer? audioPlayer;
     private ElementReference chatContainer;
@@ -258,6 +262,8 @@ else
             // When launched from plan with ResourceId but no scenarioId, use default scenario.
             // ResourceId/SkillId are accepted for future resource-aware scenario matching.
             activeScenario ??= scenarios.FirstOrDefault();
+
+            userVocabulary = await ResourceRepo.GetAllVocabularyWordsAsync() ?? new();
 
             await StartConversation();
         }
@@ -343,6 +349,16 @@ else
                     SentTime = DateTime.Now
                 };
                 chunks.Add(aiChunk);
+
+                // Record vocabulary progress via shared extraction pipeline (softer penalty for chat)
+                if (userVocabulary?.Any() == true)
+                {
+                    var activeUserId = Preferences.Get("active_profile_id", "");
+                    var scoringResults = await ProgressService.ExtractAndScoreVocabularyAsync(
+                        reply.VocabularyAnalysis, userVocabulary, activeUserId,
+                        activity: "Conversation", difficultyWeight: 1.2f,
+                        penaltyOverride: 0.8f);
+                }
             }
         }
         catch (Exception ex)
