@@ -1,6 +1,14 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/Azure/azure-dev/main/schemas/v1.0/azure.yaml.json
 
 name: sentence-studio
+
+hooks:
+  preprovision:
+    shell: sh
+    run: ./scripts/pre-deploy-check.sh
+    interactive: true
+    continueOnError: false
+
 services:  
   app:
     language: dotnet
