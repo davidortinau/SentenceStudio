@@ -364,6 +364,8 @@ public class SyncService : ISyncService
             ("VocabularyWord", "MnemonicImageUri", "TEXT"),
             ("VocabularyWord", "AudioPronunciationUri", "TEXT"),
             ("DailyPlanCompletion", "NarrativeJson", "TEXT"),
+            ("VocabularyProgress", "LastExposedAt", "TEXT"),
+            ("VocabularyProgress", "ExposureCount", "INTEGER"),
         };
 
         foreach (var (table, column, sqlType) in expectedColumns)

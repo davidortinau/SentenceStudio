@@ -71,6 +71,10 @@ public class VocabularyProgress
     public DateTime LastPracticedAt { get; set; } = DateTime.Now;
     public DateTime? MasteredAt { get; set; } // When reached mastery threshold
 
+    // Passive exposure tracking (Reading word lookups)
+    public DateTime? LastExposedAt { get; set; }
+    public int ExposureCount { get; set; } = 0;
+
     [JsonIgnore]
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 

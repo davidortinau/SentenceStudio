@@ -134,12 +134,15 @@ else
     public string? PlanItemId { get; set; }
 
     [Inject] private TranslationService TranslationSvc { get; set; } = default!;
+    [Inject] private TeacherService TeacherSvc { get; set; } = default!;
     [Inject] private AiService AiSvc { get; set; } = default!;
     [Inject] private UserActivityRepository ActivityRepo { get; set; } = default!;
     [Inject] private VocabularyProgressService ProgressService { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private ILogger<Translation> Logger { get; set; } = default!;
+    [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
+    [Inject] private SentenceStudio.Services.Progress.ProgressCacheService CacheService { get; set; } = default!;
     [Inject] private SentenceStudio.Services.Progress.IProgressService PlanProgressService { get; set; } = default!;
     [Inject] private SentenceStudio.Services.Timer.IActivityTimerService ActivityTimer { get; set; } = default!;
 
@@ -237,14 +240,18 @@ else
         try
         {
             var challenge = sentences[currentIndex];
-            var prompt = $"Grade this translation.\n\nOriginal ({targetLanguage}): {currentSentence}\nUser's translation (English): {userInput}\nExpected translation: {challenge.SentenceText}\n\nProvide a JSON response with: fluency_score (0-100), accuracy_score (0-100), fluency_explanation, accuracy_explanation, recommended_translation.";
 
-            var feedback = await AiSvc.SendPrompt<GradeResponse>(prompt);
+            // Use TeacherSvc.GradeTranslation which uses the proper Scriban template
+            // with vocabulary_analysis support
+            var feedback = await TeacherSvc.GradeTranslation(
+                userInput: userInput,
+                originalSentence: currentSentence,
+                recommendedTranslation: challenge.SentenceText ?? "");
 
             recommendedTranslation = feedback.RecommendedTranslation ?? "";
             var accuracy = (int)feedback.Accuracy;
             feedbackType = accuracy >= 80 ? "success" : accuracy >= 50 ? "hint" : "info";
-            feedbackMessage = $"Accuracy: {accuracy}% • Fluency: {(int)feedback.Fluency}%";
+            feedbackMessage = $"Accuracy: {accuracy}% | Fluency: {(int)feedback.Fluency}%";
             if (!string.IsNullOrEmpty(feedback.AccuracyExplanation))
                 feedbackMessage += $"\n{feedback.AccuracyExplanation}";
 
@@ -264,6 +271,18 @@ else
                 CreatedAt = DateTime.Now,
                 UpdatedAt = DateTime.Now
             });
+
+            // Record vocabulary progress via shared extraction pipeline
+            if (currentVocabulary?.Any() == true)
+            {
+                var activeUserId = Preferences.Get("active_profile_id", "");
+                var scoringResults = await ProgressService.ExtractAndScoreVocabularyAsync(
+                    feedback.VocabularyAnalysis, currentVocabulary, activeUserId,
+                    activity: "Translation", difficultyWeight: 1.5f);
+
+                if (scoringResults.Any())
+                    CacheService.InvalidateVocabSummary();
+            }
 
             Toast.ShowSuccess($"Graded! Accuracy: {accuracy}%");
         }

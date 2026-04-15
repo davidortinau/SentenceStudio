@@ -1199,6 +1199,9 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<float>("EaseFactor")
                         .HasColumnType("real");
 
+                    b.Property<int>("ExposureCount")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime>("FirstSeenAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1210,6 +1213,9 @@ namespace SentenceStudio.Shared.Migrations
 
                     b.Property<bool>("IsUserDeclared")
                         .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastExposedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime>("LastPracticedAt")
                         .HasColumnType("timestamp with time zone");

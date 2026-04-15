@@ -310,41 +310,21 @@ else
                 UpdatedAt = DateTime.Now
             });
 
-            // Record vocabulary progress
-            if (grade.VocabularyAnalysis?.Any() == true)
+            // Record vocabulary progress via shared extraction pipeline
+            var activeUserId = Preferences.Get("active_profile_id", "");
+            var scoringResults = await ProgressService.ExtractAndScoreVocabularyAsync(
+                grade.VocabularyAnalysis, allVocabulary, activeUserId,
+                activity: "Writing", difficultyWeight: 1.5f);
+
+            // Show verification probe feedback to user
+            foreach (var result in scoringResults)
             {
-                var activeUserId = Preferences.Get("active_profile_id", "");
-                foreach (var vocabItem in grade.VocabularyAnalysis)
+                if (result.UpdatedProgress.IsFamiliar)
                 {
-                    var matched = allVocabulary.FirstOrDefault(v =>
-                        v.TargetLanguageTerm.Equals(vocabItem.DictionaryForm, StringComparison.OrdinalIgnoreCase));
-
-                    if (matched != null)
-                    {
-                        var updatedProgress = await ProgressService.RecordAttemptAsync(new VocabularyAttempt
-                        {
-                            VocabularyWordId = matched.Id,
-                            UserId = activeUserId,
-                            Activity = "Writing",
-                            InputMode = "Text",
-                            WasCorrect = vocabItem.UsageCorrect,
-                            DifficultyWeight = 1.0f,
-                            ContextType = "Application",
-                            UserInput = vocabItem.UsedForm ?? vocabItem.DictionaryForm,
-                            ExpectedAnswer = vocabItem.DictionaryForm
-                        });
-
-                        // Handle verification probe for Familiar words
-                        if (updatedProgress.IsFamiliar)
-                        {
-                            await ProgressService.HandleVerificationProbeResultAsync(
-                                matched.Id, activeUserId, vocabItem.UsageCorrect);
-                            if (vocabItem.UsageCorrect)
-                                Toast.ShowSuccess("Confirmed! This one is solid.");
-                            else
-                                Toast.ShowInfo("This one is tricky in context. A few more reps will help.");
-                        }
-                    }
+                    if (result.WasCorrect)
+                        Toast.ShowSuccess("Confirmed! This one is solid.");
+                    else
+                        Toast.ShowInfo("This one is tricky in context. A few more reps will help.");
                 }
             }
 

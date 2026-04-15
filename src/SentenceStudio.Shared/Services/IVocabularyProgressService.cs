@@ -86,4 +86,24 @@ public interface IVocabularyProgressService
     /// Used for IsKnown re-qualification with shortened review intervals.
     /// </summary>
     Task UpdateProgressAsync(VocabularyProgress progress);
+
+    /// <summary>
+    /// Scores all tracked vocabulary words found in an AI grading response.
+    /// Each word in VocabularyAnalysis is matched against the user's vocabulary
+    /// and scored independently via RecordAttemptAsync.
+    /// </summary>
+    Task<List<VocabScoringResult>> ExtractAndScoreVocabularyAsync(
+        List<VocabularyAnalysis>? vocabularyAnalysis,
+        List<VocabularyWord> userVocabulary,
+        string userId,
+        string activity,
+        float difficultyWeight,
+        float? penaltyOverride = null);
+
+    /// <summary>
+    /// Records a passive exposure (e.g., Reading word lookup).
+    /// Does NOT call RecordAttemptAsync — no streak/mastery change.
+    /// Only creates a VocabularyLearningContext entry for analytics.
+    /// </summary>
+    Task RecordPassiveExposureAsync(string vocabularyWordId, string userId, string activity);
 }

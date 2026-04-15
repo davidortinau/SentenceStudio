@@ -17,6 +17,7 @@ public class VocabularyAttempt
     public string? ExpectedAnswer { get; set; }
     public int ResponseTimeMs { get; set; }
     public float? UserConfidence { get; set; } // 0.0-1.0, optional self-assessment
+    public float? PenaltyOverride { get; set; } // Optional: overrides WRONG_ANSWER_FLOOR for softer penalties (e.g., Conversation uses 0.8)
 
     /// <summary>
     /// Determines the learning phase based on input mode and context.

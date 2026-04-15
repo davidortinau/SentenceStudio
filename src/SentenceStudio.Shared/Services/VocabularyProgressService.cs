@@ -152,6 +152,14 @@ public class VocabularyProgressService : IVocabularyProgressService
             float penaltyFactor = MathF.Max(
                 WRONG_ANSWER_FLOOR,
                 1.0f - (MAX_WRONG_PENALTY / (1f + MathF.Log(1 + progress.CorrectAttempts))));
+
+            // PenaltyOverride: if the caller provided an override (e.g., Conversation's 0.8),
+            // use it directly instead of the computed scaled penalty
+            if (attempt.PenaltyOverride.HasValue)
+            {
+                penaltyFactor = attempt.PenaltyOverride.Value;
+            }
+
             progress.MasteryScore *= penaltyFactor;
 
             // Partial streak preservation — experienced words keep some streak
@@ -641,4 +649,128 @@ public class VocabularyProgressService : IVocabularyProgressService
         progress.UpdatedAt = DateTime.Now;
         await _progressRepo.SaveAsync(progress);
     }
+
+    /// <summary>
+    /// Scores all tracked vocabulary words found in an AI grading response.
+    /// Each word in VocabularyAnalysis is matched against the user's vocabulary
+    /// and scored independently via RecordAttemptAsync.
+    /// Verification probes are collected during the loop and fired after all scoring completes.
+    /// </summary>
+    public async Task<List<VocabScoringResult>> ExtractAndScoreVocabularyAsync(
+        List<VocabularyAnalysis>? vocabularyAnalysis,
+        List<VocabularyWord> userVocabulary,
+        string userId,
+        string activity,
+        float difficultyWeight,
+        float? penaltyOverride = null)
+    {
+        if (vocabularyAnalysis == null || !vocabularyAnalysis.Any())
+            return new List<VocabScoringResult>();
+
+        // Deduplicate by DictionaryForm — first occurrence wins
+        var deduplicated = vocabularyAnalysis
+            .Where(v => !string.IsNullOrEmpty(v.DictionaryForm))
+            .DistinctBy(v => v.DictionaryForm)
+            .ToList();
+
+        var results = new List<VocabScoringResult>();
+        var verificationProbes = new List<(string WordId, string UserId, bool WasCorrect)>();
+
+        foreach (var vocabItem in deduplicated)
+        {
+            var matched = userVocabulary.FirstOrDefault(v =>
+                v.TargetLanguageTerm.Equals(vocabItem.DictionaryForm, StringComparison.OrdinalIgnoreCase));
+
+            if (matched == null)
+                continue;
+
+            var attempt = new VocabularyAttempt
+            {
+                VocabularyWordId = matched.Id,
+                UserId = userId,
+                Activity = activity,
+                InputMode = InputMode.Text.ToString(),
+                WasCorrect = vocabItem.UsageCorrect,
+                DifficultyWeight = difficultyWeight,
+                PenaltyOverride = penaltyOverride,
+                ContextType = "Application",
+                UserInput = vocabItem.UsedForm ?? vocabItem.DictionaryForm,
+                ExpectedAnswer = vocabItem.DictionaryForm
+            };
+
+            var updatedProgress = await RecordAttemptAsync(attempt);
+
+            results.Add(new VocabScoringResult
+            {
+                Word = matched,
+                UpdatedProgress = updatedProgress,
+                WasCorrect = vocabItem.UsageCorrect,
+                UsedForm = vocabItem.UsedForm,
+                UsageExplanation = vocabItem.UsageExplanation
+            });
+
+            // Collect verification probes — do NOT fire inline
+            if (updatedProgress.IsFamiliar)
+            {
+                verificationProbes.Add((matched.Id, userId, vocabItem.UsageCorrect));
+            }
+        }
+
+        // Handle verification probes AFTER all scoring completes
+        foreach (var (wordId, uid, wasCorrect) in verificationProbes)
+        {
+            await HandleVerificationProbeResultAsync(wordId, uid, wasCorrect);
+        }
+
+        _logger.LogInformation("ExtractAndScoreVocabulary: {Activity} scored {Count} words for user {UserId}",
+            activity, results.Count, userId);
+
+        return results;
+    }
+
+    /// <summary>
+    /// Records a passive exposure (e.g., Reading word lookup).
+    /// Does NOT call RecordAttemptAsync — no streak/mastery change.
+    /// Only creates a VocabularyLearningContext entry for analytics
+    /// and updates LastExposedAt / ExposureCount.
+    /// </summary>
+    public async Task RecordPassiveExposureAsync(
+        string vocabularyWordId, string userId, string activity)
+    {
+        var progress = await GetOrCreateProgressAsync(vocabularyWordId, userId);
+
+        var context = new VocabularyLearningContext
+        {
+            VocabularyProgressId = progress.Id,
+            Activity = activity,
+            InputMode = "Passive",
+            WasCorrect = true,
+            DifficultyScore = 0f,
+            ContextType = "Exposure",
+            LearnedAt = DateTime.Now
+        };
+
+        await _contextRepo.SaveAsync(context);
+
+        // Update passive exposure tracking — NOT LastPracticedAt (SRS uses that)
+        progress.LastExposedAt = DateTime.Now;
+        progress.ExposureCount++;
+        progress.UpdatedAt = DateTime.Now;
+        await _progressRepo.SaveAsync(progress);
+
+        _logger.LogDebug("Passive exposure recorded: Word {WordId}, User {UserId}, Activity {Activity}, ExposureCount {Count}",
+            vocabularyWordId, userId, activity, progress.ExposureCount);
+    }
+}
+
+/// <summary>
+/// Result of scoring a single vocabulary word from an AI grading response.
+/// </summary>
+public class VocabScoringResult
+{
+    public VocabularyWord Word { get; set; } = null!;
+    public VocabularyProgress UpdatedProgress { get; set; } = null!;
+    public bool WasCorrect { get; set; }
+    public string? UsedForm { get; set; }
+    public string? UsageExplanation { get; set; }
 }
