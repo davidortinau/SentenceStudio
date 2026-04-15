@@ -18,7 +18,10 @@ IMPORTANT: Also analyze the vocabulary words used in my sentence. For each impor
 IMPORTANT FOR THIS RESPONSE:
 - The target word to evaluate is "{{ target_word }}"{{ if target_word_meaning && target_word_meaning != '' }} meaning "{{ target_word_meaning }}"{{ end }}.
 - Ensure vocabulary_analysis includes an entry for this target word, even if I used an inflected or conjugated form.
-- For the target word, usage_correct must depend ONLY on whether the word is used correctly and meaningfully in context.
+- For the target word, usage_correct must depend ONLY on whether the word is used correctly and meaningfully in a natural context.
+- CONTEXTUAL USAGE is what matters: the sentence should demonstrate the user UNDERSTANDS the word by using it naturally, NOT that they can recite its dictionary definition.
+  - GOOD: A sentence where the word appears in a real-world context (e.g., "I went to the park" for "to go")
+  - BAD grading criterion: Expecting "X means Y" or definition-style usage
 - Do NOT require extra sentence complexity; a short, simple, natural sentence is acceptable.
 - Mistakes elsewhere in the sentence should still be explained, but they should not make usage_correct false unless they make the target word usage unclear, unnatural in meaning, or wrong.
 - In the accuracy explanation, explicitly mention whether the target word usage counts as a successful demonstration.

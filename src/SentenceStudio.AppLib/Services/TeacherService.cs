@@ -203,11 +203,13 @@ namespace SentenceStudio.Services
 
             var targetWord = word.TargetLanguageTerm ?? string.Empty;
             var targetMeaning = word.NativeLanguageTerm ?? string.Empty;
-            var intendedMeaning = string.IsNullOrWhiteSpace(targetMeaning)
-                ? $"Use the target word \"{targetWord}\" naturally in context."
-                : $"Use the target word \"{targetWord}\" to mean \"{targetMeaning}\".";
 
-            return GradeSentence(userInput, intendedMeaning, targetLanguage, nativeLanguage, targetWord, targetMeaning);
+            // Pass empty userMeaning — the target word context is provided separately
+            // via targetWord/targetWordMeaning parameters so the template's dedicated
+            // target-word section handles grading criteria. Passing an instruction like
+            // "Use X to mean Y" as userMeaning biases the AI toward definition-style
+            // grading instead of natural contextual usage.
+            return GradeSentence(userInput, string.Empty, targetLanguage, nativeLanguage, targetWord, targetMeaning);
         }
 
         public async Task<GradeResponse> GradeSentence(
