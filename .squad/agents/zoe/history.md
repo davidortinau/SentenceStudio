@@ -9,6 +9,17 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+- Writing.razor is the ONLY activity that already does multi-word vocabulary scoring via `VocabularyAnalysis` from `GradeResponse`. It matches each word's `DictionaryForm` against the user's tracked vocabulary and calls `RecordAttemptAsync` per word. This pattern must be extracted into a shared service method for reuse by Translation, Scene, and Conversation.
+- Translation.razor has a BUG: `VocabularyProgressService` is injected but `RecordAttemptAsync` is never called. The grading prompt also doesn't request `VocabularyAnalysis`. Both need fixing.
+- Conversation and Scene have AI grading but return NO `VocabularyAnalysis` — their grading services need extension to return per-word correctness data before vocabulary progress can be recorded.
+- Reading, Shadowing, VideoWatching, HowDoYouSay are passive activities — no production output to score for mastery.
+- MinimalPairs uses a completely separate progress system (`MinimalPairSessionRepository`) — not connected to `VocabularyProgressService`.
+- Current DifficultyWeight values across activities: VocabMatching=0.8, WordAssociation=1.0, VocabQuiz MC=1.0, Cloze=1.2, VocabQuiz Text=1.5, Writing=1.0, VocabQuiz Sentence=2.5.
+- Cross-activity mastery spec recommended as Option B: new `cross-activity-mastery.md` referencing quiz spec for shared formulas. Quiz spec (963 lines) is too dense to absorb all activities.
+- `TeacherSvc.GradeTranslation()` (line 138) already exists and its Scriban template already requests `vocabulary_analysis`. Translation.razor should use this instead of its ad-hoc prompt — NOT `GradeSentence()`.
+- Passive exposure (Reading word lookups) should update `LastExposedAt`, NOT `LastPracticedAt`. The latter is used by SRS scheduling and must not be contaminated by passive encounters.
+- `HandleVerificationProbeResultAsync` directly overwrites mastery/streak fields (not additive). Must be called AFTER the scoring loop in `ExtractAndScoreVocabularyAsync`, not interleaved with `RecordAttemptAsync` calls, to avoid stale-state reads.
+
 - DifficultyWeight is FUNCTIONAL, not decorative — it directly multiplies the streak increment (MC=1.0, Text=1.5, Sentence=2.5). CurrentStreak must be float to support this.
 - Tier 1 rotation (high mastery) requires BOTH text production AND cleared PendingRecognitionCheck — a mastered word returning via SRS cannot rotate out after a single MC answer if it was wrong first.
 - Recovery-aware mastery formula adds +0.02 per correct answer when streak hasn't caught up to mastery. Eliminates the flat plateau from simple Math.Max. The boost stops automatically once streak >= mastery.
@@ -54,6 +65,44 @@
 - Token lifespan: JWT ~15 min, refresh tokens 7 days; /api/auth endpoints: register, login, refresh, confirm-email, forgot-password, reset-password, delete (protected)
 
 ## Work Sessions
+
+### 2025-07-25 — Cross-Activity Mastery Spec (Option B)
+
+**Status:** Complete (spec written + R2 revisions applied, awaiting implementation)
+**Output:** `docs/specs/cross-activity-mastery.md`, `.squad/decisions/inbox/zoe-cross-activity-spec.md`, `.squad/decisions/inbox/zoe-cross-activity-r2.md`
+
+**What:**
+Surveyed all 15 activity pages, classified each by recognition/production and single/multi-word, then wrote the full cross-activity mastery spec per Captain's directive. Applied R2 revisions based on architect/skeptic review feedback + Captain's answers. Key deliverables:
+
+- Activity taxonomy with DifficultyWeight assignments (Captain approved: Writing/Translation/Scene=1.5, Conversation=1.2, passive=0)
+- Shared `ExtractAndScoreVocabularyAsync` pipeline design (extracted from Writing's existing inline pattern)
+- `PenaltyOverride` mechanism on VocabularyAttempt (Conversation gets 0.8x instead of standard 0.6x)
+- `RecordPassiveExposureAsync` for Reading word lookups (analytics only, no mastery change)
+- Translation.razor bug documented (ProgressService injected but never called)
+- 5-phase implementation sequence ordered by risk
+
+**Captain's Design Decisions:**
+1. Translation IS production (native→target), DW=1.5
+2. Conversation penalty softer: 0.8x (chat context)
+3. Reading lookups = passive exposure (log only)
+4. Writing DW upgraded 1.0→1.5
+
+**R2 Revisions (Captain's answers + mechanical fixes):**
+1. Processing order is non-issue (independent VocabularyProgress records)
+2. SRS reset same everywhere (ReviewInterval=1 on wrong, no special softening)
+3. Deduplicate via `.DistinctBy(v => v.DictionaryForm)` before scoring loop
+4. Use `GradeTranslation()` not `GradeSentence()` for Translation (method already exists)
+5. [NOT YET IMPLEMENTED] markers for R5 quiz spec formulas
+6. Verification probe separation (handle AFTER loop, not inside)
+7. Conversation template JSON format prerequisite note
+8. `LastExposedAt` replaces `LastPracticedAt` for passive exposure
+
+**Learnings:**
+- Writing.razor is the only existing multi-word scoring implementation — its VocabularyAnalysis matching loop is the basis for the shared pipeline
+- Translation has a recording bug — ProgressService wired but never called, must be fixed
+- `TeacherSvc.GradeTranslation()` already exists with vocabulary_analysis in its template — simpler fix than initially expected
+- Conversation and Scene need AI grading template extensions to return VocabularyAnalysis
+- No formula changes needed in RecordAttemptAsync (only PenaltyOverride addition)
 
 ### 2026-03-13 — GitHub Issues Created for Azure + Entra ID Plan
 

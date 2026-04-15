@@ -201,3 +201,29 @@ E2E verification that SentenceStudio iOS builds and runs with Microsoft.Maui.Dev
 - Decisions: Feedback auth fix merged to team decisions log
 
 **Impact for Jayne:** Valid mobile UX issues ready for sprint planning and E2E test prioritization.
+
+### 2025-07-25 — Skeptic Review: Quiz Learning Journey Spec
+
+**Status:** COMPLETE  
+**Output:** `.squad/decisions/inbox/jayne-spec-skeptic.md`
+
+**Task:** Adversarial review of `docs/specs/quiz-learning-journey.md` — the VocabQuiz learning journey specification. Found 15 issues (2 critical, 4 high, 8 medium, 1 low).
+
+**Critical findings:**
+- Section 5.6 (temporal weighting) is referenced 7 times but doesn't exist — numbering jumps from 5.5 to 6. Implementation constants land in an unnumbered block under section 6.
+- Section 7 "Scoring Reference" (the implementer cheat sheet) contradicts R3-approved changes — still shows old formulas.
+
+**Key interaction bugs identified:**
+- PendingRecognitionCheck vs lifetime mode selection has no defined priority — implementer will guess wrong
+- Tier 1 rotation (1 correct = rotate out) combined with temporal weighting is too lenient — user escapes gentle demotion with minimal evidence
+- Math.Max mastery floor creates a hidden plateau where correct answers don't visibly change mastery — contradicts Captain's "immediately reflected" expectation
+- DifficultyWeight (2.5f for sentences) is decorative — never used in mastery formula. Also contradicts itself (2.0 vs 2.5 in different sections).
+- Immediate mid-round rotation can leave 1 word in a 10-turn round = degenerate UX
+
+## Learnings
+
+- Spec cross-references must be verified before review sign-off — broken section numbering is a recurring doc quality issue
+- DifficultyWeight on VocabularyAttempt is stored in VocabularyLearningContext.DifficultyScore as a log field — never feeds into mastery calculation
+- VocabularyQuizItem still uses old `QuizRecognitionStreak`/`QuizProductionStreak` consecutive counters — proposed `SessionCorrectCount` fields don't exist yet
+- `RecordAttemptAsync` returns updated progress but the quiz razor doesn't assign it back to `currentItem.Progress` — confirms spec's D1 finding
+- Current mode selection in VocabQuiz.razor (line 784) uses `IsPromotedInQuiz` (session-local) OR `MasteryScore >= 0.50` — not lifetime `CurrentStreak >= 3` as spec requires
