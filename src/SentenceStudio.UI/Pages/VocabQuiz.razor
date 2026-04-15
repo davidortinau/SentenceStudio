@@ -1139,9 +1139,8 @@ else
                 currentItem.PendingRecognitionCheck = true;
             // Wrong MC does NOT clear PendingRecognitionCheck — stays set (spec §2.2)
 
-            // Track if word loses IsKnown status this session (spec §4.3.1)
-            if ((currentItem.Progress?.MasteredAt != null) && !(currentItem.LostKnownThisSession))
-                currentItem.LostKnownThisSession = true;
+            // LostKnownThisSession is set in RecordPendingAttemptAsync AFTER recording,
+            // when we know whether IsKnown was actually lost (spec §4.3.1)
         }
 
         if (isCorrect) currentItem.WasCorrectThisSession = true;
