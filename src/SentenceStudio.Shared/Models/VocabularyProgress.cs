@@ -25,7 +25,7 @@ public class VocabularyProgress
     public int CorrectAttempts { get; set; } = 0;
 
     // NEW: Streak-based tracking (replaces phase-specific tracking)
-    public int CurrentStreak { get; set; } = 0;  // Consecutive correct answers
+    public float CurrentStreak { get; set; } = 0f;  // Weighted consecutive correct answers
     public int ProductionInStreak { get; set; } = 0;  // Production attempts within current streak
 
     // LEGACY: Phase-specific tracking - to be dropped in future migration

@@ -9,6 +9,6 @@ public sealed class VocabularyProgressResponse
     public bool IsUserDeclared { get; set; }
     public DateTime? UserDeclaredAt { get; set; }
     public string VerificationState { get; set; } = string.Empty;
-    public int CurrentStreak { get; set; }
+    public float CurrentStreak { get; set; }
     public int TotalAttempts { get; set; }
 }

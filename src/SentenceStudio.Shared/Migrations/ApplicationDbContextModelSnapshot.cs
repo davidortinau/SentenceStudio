@@ -1193,8 +1193,8 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<int>("CurrentPhase")
                         .HasColumnType("integer");
 
-                    b.Property<int>("CurrentStreak")
-                        .HasColumnType("integer");
+                    b.Property<float>("CurrentStreak")
+                        .HasColumnType("real");
 
                     b.Property<float>("EaseFactor")
                         .HasColumnType("real");

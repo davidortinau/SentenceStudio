@@ -100,17 +100,20 @@ public class MasteryAlgorithmIntegrationTests : IClassFixture<PlanGenerationTest
 
         var beforeWrong = await _progressService.GetProgressAsync(wordId, PlanGenerationTestFixture.TestUserId);
         var masteryBefore = beforeWrong.MasteryScore;
+        var streakBefore = beforeWrong.CurrentStreak;
         masteryBefore.Should().BeGreaterThan(0, "should have built up mastery");
 
         // Act: wrong answer
         var result = await _progressService.RecordAttemptAsync(
             MakeAttempt(wordId, wasCorrect: false, inputMode: "MultipleChoice"));
 
-        // Assert
-        result.CurrentStreak.Should().Be(0, "streak resets on wrong answer");
-        result.ProductionInStreak.Should().Be(0, "production streak resets on wrong answer");
-        result.MasteryScore.Should().BeApproximately(masteryBefore * 0.6f, 0.01f,
-            "mastery should be penalized by 60% factor");
+        // Assert: Phase 0 — partial streak preservation and scaled penalty
+        result.CurrentStreak.Should().BeGreaterThan(0, "partial streak preservation keeps some streak");
+        result.CurrentStreak.Should().BeLessThan(streakBefore, "streak is reduced on wrong answer");
+        result.ProductionInStreak.Should().Be(0, "no production attempts were made");
+        result.MasteryScore.Should().BeLessThan(masteryBefore, "mastery penalized on wrong answer");
+        result.MasteryScore.Should().BeGreaterThan(masteryBefore * 0.6f,
+            "scaled penalty is softer than flat 0.6 for words with history");
     }
 
     [Fact]
@@ -129,7 +132,7 @@ public class MasteryAlgorithmIntegrationTests : IClassFixture<PlanGenerationTest
         }
 
         // Assert
-        result!.CurrentStreak.Should().Be(7);
+        result!.CurrentStreak.Should().BeApproximately(7.0f, 0.01f);
         result.ProductionInStreak.Should().Be(0);
         // EffectiveStreak = 7 + 0 = 7 → MasteryScore = 7/7 = 1.0
         result.MasteryScore.Should().Be(1.0f);
@@ -225,16 +228,19 @@ public class MasteryAlgorithmIntegrationTests : IClassFixture<PlanGenerationTest
 
         var beforeWrong = await _progressService.GetProgressAsync(wordId, PlanGenerationTestFixture.TestUserId);
         beforeWrong.MasteryScore.Should().BeGreaterOrEqualTo(0.85f);
+        beforeWrong.IsKnown.Should().BeTrue("should be Known before wrong answer");
 
         // Act: wrong answer
         var result = await _progressService.RecordAttemptAsync(
             MakeAttempt(wordId, wasCorrect: false, inputMode: "Text"));
 
-        // Assert: mastery drops, streaks reset → no longer Known
-        result.CurrentStreak.Should().Be(0);
-        result.ProductionInStreak.Should().Be(0);
-        result.MasteryScore.Should().BeLessThan(0.85f, "40% penalty drops below threshold");
-        result.IsKnown.Should().BeFalse();
+        // Assert: Phase 0 — scaled penalty keeps mastery high but production streak
+        // drops below threshold, so IsKnown becomes false
+        result.CurrentStreak.Should().BeGreaterThan(0, "partial streak preservation");
+        result.ProductionInStreak.Should().BeLessThan(2,
+            "production streak drops below min threshold for Known");
+        result.IsKnown.Should().BeFalse(
+            "no longer Known because ProductionInStreak < 2 after partial preservation");
         result.Status.Should().Be(LearningStatus.Learning);
     }
 
@@ -336,15 +342,16 @@ public class MasteryAlgorithmIntegrationTests : IClassFixture<PlanGenerationTest
             await _progressService.RecordAttemptAsync(
                 MakeAttempt(wordId, wasCorrect: true, inputMode: "MultipleChoice"));
 
-        // Then 5 wrong answers: mastery *= 0.6 each time
+        // Then 5 wrong answers: scaled penalty each time
         for (int i = 0; i < 5; i++)
             await _progressService.RecordAttemptAsync(
                 MakeAttempt(wordId, wasCorrect: false, inputMode: "MultipleChoice"));
 
         var result = await _progressService.GetProgressAsync(wordId, PlanGenerationTestFixture.TestUserId);
-        // After 3 correct MC: EffStreak = 3/7 ≈ 0.4286
-        // After 5 wrong: 0.4286 * 0.6^5 ≈ 0.033
-        result.MasteryScore.Should().BeLessThan(0.05f, "multiple penalties should drive mastery near zero");
+        // Phase 0: scaled penalty is softer (~0.83x per wrong for 3 correct attempts)
+        // After 3 correct: mastery ≈ 0.429, then 5 wrongs at ~0.83x each ≈ 0.17
+        result.MasteryScore.Should().BeLessThan(0.25f,
+            "multiple penalties should drive mastery down significantly");
         result.MasteryScore.Should().BeGreaterOrEqualTo(0f, "mastery should not go negative");
     }
 

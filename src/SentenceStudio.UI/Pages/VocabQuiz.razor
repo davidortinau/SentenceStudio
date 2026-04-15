@@ -425,7 +425,7 @@ else
             <div class="row g-2 mb-3">
                 <div class="col-4">
                     <small class="text-secondary-ss d-block">CurrentStreak</small>
-                    <span class="ss-body2 fw-bold">@(p?.CurrentStreak ?? 0)</span>
+                    <span class="ss-body2 fw-bold">@(p?.CurrentStreak.ToString("F1") ?? "0")</span>
                 </div>
                 <div class="col-4">
                     <small class="text-secondary-ss d-block">ProductionInStreak</small>
@@ -1204,6 +1204,7 @@ else
         try
         {
             var updatedProgress = await ProgressService.RecordAttemptAsync(attempt);
+            if (currentItem != null) currentItem.Progress = updatedProgress;
 
             if (updatedProgress.IsFamiliar)
             {

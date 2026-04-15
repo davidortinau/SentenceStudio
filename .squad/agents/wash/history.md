@@ -575,3 +575,12 @@ services.AddSingleton<IActiveUserProvider>(new PreferencesActiveUserProvider(moc
 - `ApplicationDbContext` DbSet names: `VocabularyWords`, `VocabularyProgresses`, `LearningResources`, `UserProfiles` (plural)
 - Named HttpClient `"HttpClientToServer"` is registered in `ServiceCollectionExtentions.cs` and is the standard way to reach the API from UI code
 - `/health` endpoint exists in Aspire service defaults (`WebServiceDefaults/Extensions.cs`) — safe to ping for connectivity checks
+
+### Phase 0 — Scoring Engine Foundation (2026-04-15)
+
+- Changed VocabularyProgress.CurrentStreak from int to float — needed for weighted difficulty increments (MC=1.0, Text=1.5, Sentence=2.5)
+- EF migration CurrentStreakToFloat created manually for both SQLite and PostgreSQL (EF tooling has ResolvePackageAssets target issue with multi-target MAUI projects)
+- StreakInfo in IProgressService tracks daily practice streak (consecutive days) — NOT the same as VocabularyProgress.CurrentStreak (weighted correct answers). Do NOT change StreakInfo to float.
+- Scoring engine now uses 5 named constants: WRONG_ANSWER_FLOOR, MAX_WRONG_PENALTY, MAX_STREAK_PRESERVE, STREAK_PRESERVE_DIVISOR, RECOVERY_BOOST
+- VocabQuiz.razor RecordPendingAttemptAsync was missing write-back: currentItem.Progress = updatedProgress — this caused the quiz UI to show stale progress data
+- When updating scoring behavior, check test assertions in MasteryAlgorithmIntegrationTests, MultiDayLearningJourneyTests, and ScoringEngineTests — they assert specific numeric outcomes

@@ -232,13 +232,14 @@ public class MultiDayLearningJourneyTests : IClassFixture<PlanGenerationTestFixt
         for (int w = 0; w < 4; w++)
         {
             var p = await _progressService.GetProgressAsync(wordIds[w], PlanGenerationTestFixture.TestUserId);
-            p.CurrentStreak.Should().Be(4, $"word {w} should have 4-streak after 4 correct MC");
+            p.CurrentStreak.Should().BeApproximately(4.0f, 0.01f, $"word {w} should have 4-streak after 4 correct MC");
             p.MasteryScore.Should().BeApproximately(4.0f / 7.0f, 0.01f);
         }
         for (int w = 4; w < 6; w++)
         {
             var p = await _progressService.GetProgressAsync(wordIds[w], PlanGenerationTestFixture.TestUserId);
-            p.CurrentStreak.Should().Be(0, $"word {w} should have streak reset after wrong answer");
+            p.CurrentStreak.Should().BeGreaterOrEqualTo(0, $"word {w} should have reduced streak after wrong answer");
+            p.CurrentStreak.Should().BeLessThan(2.0f, $"word {w} streak should be much less than before");
         }
 
         // === Day 3: Top words switch to production mode (Text input) ===
@@ -263,7 +264,7 @@ public class MultiDayLearningJourneyTests : IClassFixture<PlanGenerationTestFixt
         for (int w = 0; w < 4; w++)
         {
             var p = await _progressService.GetProgressAsync(wordIds[w], PlanGenerationTestFixture.TestUserId);
-            p.CurrentStreak.Should().Be(6);
+            p.CurrentStreak.Should().BeApproximately(6.0f, 0.01f);
             p.ProductionInStreak.Should().Be(2);
             p.MasteryScore.Should().BeGreaterOrEqualTo(0.85f);
             p.IsKnown.Should().BeTrue(

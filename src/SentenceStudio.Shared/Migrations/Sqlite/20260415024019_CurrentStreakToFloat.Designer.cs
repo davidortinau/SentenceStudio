@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using SentenceStudio.Data;
 
@@ -10,12 +11,14 @@ using SentenceStudio.Data;
 namespace SentenceStudio.Shared.Migrations.Sqlite
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260415024019_CurrentStreakToFloat")]
+    partial class CurrentStreakToFloat
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.4");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.5");
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
                 {
@@ -394,9 +397,8 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.DailyPlanCompletion", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ActivityType")
                         .IsRequired()
@@ -446,6 +448,10 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                         .HasColumnType("TEXT");
 
                     b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserProfileId")
+                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -928,9 +934,8 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.UserActivity", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
 
                     b.Property<double>("Accuracy")
                         .HasColumnType("REAL");
@@ -951,6 +956,7 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                         .HasColumnType("TEXT");
 
                     b.Property<string>("UserProfileId")
+                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");

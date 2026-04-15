@@ -15,7 +15,13 @@ public class VocabularyProgressService : IVocabularyProgressService
     private const float MASTERY_THRESHOLD = 0.85f;                // MasteryScore threshold for "Known"
     private const int MIN_PRODUCTION_FOR_KNOWN = 2;               // Minimum production attempts to be "Known"
     private const float EFFECTIVE_STREAK_DIVISOR = 7.0f;          // EffectiveStreak / 7.0 = MasteryScore (capped at 1.0)
-    private const float WRONG_ANSWER_PENALTY = 0.6f;              // MasteryScore *= 0.6 on wrong answer
+
+    // Phase 0: Scoring engine constants
+    private const float WRONG_ANSWER_FLOOR = 0.6f;               // Scaled penalty never softer than this
+    private const float MAX_WRONG_PENALTY = 0.4f;                 // Maximum penalty portion for wrong answers
+    private const float MAX_STREAK_PRESERVE = 0.5f;               // Never keep more than half the streak on wrong answer
+    private const float STREAK_PRESERVE_DIVISOR = 8.0f;           // Divisor for streak preservation fraction
+    private const float RECOVERY_BOOST = 0.02f;                   // Small boost so correct answers always show progress
 
     // LEGACY: Old constants kept for reference during migration
     [Obsolete("Use EFFECTIVE_STREAK_DIVISOR instead")]
@@ -30,7 +36,7 @@ public class VocabularyProgressService : IVocabularyProgressService
     private const int MIN_CORRECT_RECOGNITION = 3;
     [Obsolete("Use MIN_PRODUCTION_FOR_KNOWN instead")]
     private const int MIN_CORRECT_PRODUCTION = 2;
-    [Obsolete("Use WRONG_ANSWER_PENALTY instead")]
+    [Obsolete("Use WRONG_ANSWER_FLOOR instead")]
     private const float INCORRECT_PENALTY = 0.15f;
 
     public VocabularyProgressService(
@@ -79,7 +85,7 @@ public class VocabularyProgressService : IVocabularyProgressService
             // CurrentStreak = RecognitionCorrect + ProductionCorrect (capped at 10)
 #pragma warning disable CS0618 // Suppress obsolete warnings during migration
             progress.CurrentStreak = Math.Min(10, progress.RecognitionCorrect + progress.ProductionCorrect);
-            progress.ProductionInStreak = Math.Min(progress.CurrentStreak, progress.ProductionCorrect);
+            progress.ProductionInStreak = Math.Min((int)progress.CurrentStreak, progress.ProductionCorrect);
 #pragma warning restore CS0618
 
             // Recalculate MasteryScore using new formula
@@ -121,29 +127,42 @@ public class VocabularyProgressService : IVocabularyProgressService
         // NEW: Streak-based scoring
         if (attempt.WasCorrect)
         {
-            // Correct answer: increment streaks
-            progress.CurrentStreak++;
+            // Correct answer: increment streak by DifficultyWeight
+            float weight = attempt.DifficultyWeight > 0 ? attempt.DifficultyWeight : 1.0f;
+            progress.CurrentStreak += weight;
             if (isProduction)
             {
                 progress.ProductionInStreak++;
             }
 
-            // Calculate new MasteryScore from EffectiveStreak
+            // Calculate new MasteryScore with recovery awareness
             float effectiveStreak = progress.CurrentStreak + (progress.ProductionInStreak * 0.5f);
-            progress.MasteryScore = Math.Min(effectiveStreak / EFFECTIVE_STREAK_DIVISOR, 1.0f);
+            float streakScore = MathF.Min(effectiveStreak / EFFECTIVE_STREAK_DIVISOR, 1.0f);
+            float recoveryBoost = (progress.MasteryScore > streakScore) ? RECOVERY_BOOST : 0f;
+            progress.MasteryScore = MathF.Max(streakScore, progress.MasteryScore) + recoveryBoost;
+            progress.MasteryScore = MathF.Min(progress.MasteryScore, 1.0f);
 
-            _logger.LogDebug("✅ Correct! Word {WordId}: Streak={Streak}, ProdInStreak={ProdStreak}, EffStreak={EffStreak:F1}, Mastery={Mastery:F2}",
-                progress.VocabularyWordId, progress.CurrentStreak, progress.ProductionInStreak, effectiveStreak, progress.MasteryScore);
+            _logger.LogDebug("Correct! Word {WordId}: Streak={Streak:F1}, Weight={Weight:F1}, ProdInStreak={ProdStreak}, EffStreak={EffStreak:F1}, Mastery={Mastery:F2}",
+                progress.VocabularyWordId, progress.CurrentStreak, weight, progress.ProductionInStreak, effectiveStreak, progress.MasteryScore);
         }
         else
         {
-            // Wrong answer: reset streaks and penalize MasteryScore
-            progress.CurrentStreak = 0;
-            progress.ProductionInStreak = 0;
-            progress.MasteryScore *= WRONG_ANSWER_PENALTY; // Reduce by 40%
+            // Wrong answer: scaled penalty and partial streak preservation
+            // Temporal weighting — established words penalized less
+            float penaltyFactor = MathF.Max(
+                WRONG_ANSWER_FLOOR,
+                1.0f - (MAX_WRONG_PENALTY / (1f + MathF.Log(1 + progress.CorrectAttempts))));
+            progress.MasteryScore *= penaltyFactor;
 
-            _logger.LogDebug("❌ Wrong! Word {WordId}: Streaks reset, Mastery reduced to {Mastery:F2}",
-                progress.VocabularyWordId, progress.MasteryScore);
+            // Partial streak preservation — experienced words keep some streak
+            float preserveFraction = MathF.Min(
+                MAX_STREAK_PRESERVE,
+                MathF.Log(1 + progress.CorrectAttempts) / STREAK_PRESERVE_DIVISOR);
+            progress.CurrentStreak = progress.CurrentStreak * preserveFraction;
+            progress.ProductionInStreak = (int)(progress.ProductionInStreak * preserveFraction);
+
+            _logger.LogDebug("Wrong! Word {WordId}: PenaltyFactor={Penalty:F2}, PreserveFrac={Preserve:F2}, Streak={Streak:F1}, Mastery={Mastery:F2}",
+                progress.VocabularyWordId, penaltyFactor, preserveFraction, progress.CurrentStreak, progress.MasteryScore);
         }
 
         // LEGACY: Update old phase-specific fields for backward compatibility during migration
@@ -462,7 +481,7 @@ public class VocabularyProgressService : IVocabularyProgressService
             {
                 // Reset mastery to zero — user says they don't know it
                 progress.MasteryScore = 0;
-                progress.CurrentStreak = 0;
+                progress.CurrentStreak = 0f;
                 progress.ProductionInStreak = 0;
                 progress.MasteredAt = null;
                 progress.NextReviewDate = null;
@@ -497,7 +516,7 @@ public class VocabularyProgressService : IVocabularyProgressService
             // Promote to Known
             progress.VerificationState = VerificationStatus.Confirmed;
             progress.MasteryScore = 1.0f;
-            progress.CurrentStreak = 7;
+            progress.CurrentStreak = 7f;
             progress.ProductionInStreak = MIN_PRODUCTION_FOR_KNOWN;
             progress.MasteredAt = DateTime.Now;
             progress.ReviewInterval = 60;
@@ -513,7 +532,7 @@ public class VocabularyProgressService : IVocabularyProgressService
             progress.VerificationState = VerificationStatus.Demoted;
             progress.IsUserDeclared = false;
             progress.MasteryScore = 0.3f;
-            progress.CurrentStreak = 0;
+            progress.CurrentStreak = 0f;
             progress.ProductionInStreak = 0;
             progress.ReviewInterval = 1;
             progress.NextReviewDate = DateTime.Now.AddDays(1);

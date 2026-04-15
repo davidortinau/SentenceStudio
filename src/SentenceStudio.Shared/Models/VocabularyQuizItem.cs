@@ -37,7 +37,7 @@ public class VocabularyQuizItem
     public const int RequiredCorrectAnswers = 3;
 
     // NEW: Streak-based progress indicators
-    public int CurrentStreak => Progress?.CurrentStreak ?? 0;
+    public float CurrentStreak => Progress?.CurrentStreak ?? 0f;
     public int ProductionInStreak => Progress?.ProductionInStreak ?? 0;
     public float EffectiveStreak => Progress?.EffectiveStreak ?? 0f;
     public float MasteryProgress => Progress?.MasteryScore ?? 0f;
