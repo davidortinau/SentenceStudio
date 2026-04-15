@@ -2,6 +2,12 @@ using Projects;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
+// Configure Azure Container Apps environment for deployment.
+// WithAzdResourceNaming() ensures resource names match the existing
+// azd-provisioned infrastructure in rg-sstudio-prod.
+var acaEnv = builder.AddAzureContainerAppEnvironment("aca-env")
+    .WithAzdResourceNaming();
+
 var openaikey = builder.AddParameter("openaikey", secret: true);
 var elevenlabskey = builder.AddParameter("elevenlabskey", secret: true);
 var jwtkey = builder.AddParameter("jwtkey", secret: true);
