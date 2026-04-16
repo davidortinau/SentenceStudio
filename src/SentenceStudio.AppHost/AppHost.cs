@@ -15,7 +15,11 @@ var githubpat = builder.AddParameter("githubpat", secret: true);
 
 // Managed Azure PostgreSQL Flexible Server in production;
 // local Docker container for dev (RunAsContainer).
+var dbUser = builder.AddParameter("dbUser");
+var dbPassword = builder.AddParameter("dbPassword", secret: true);
+
 var postgresServer = builder.AddAzurePostgresFlexibleServer("db")
+    .WithPasswordAuthentication(dbUser, dbPassword)
     .RunAsContainer(c => c
         .WithLifetime(ContainerLifetime.Persistent)
         .WithDataVolume());

@@ -7,6 +7,12 @@
 
 set -euo pipefail
 
+# Skip checks when migrating to managed database
+if [[ "${SKIP_PREDEPLOY_CHECK:-}" == "1" ]]; then
+  echo "⚠️  Pre-deploy checks SKIPPED (SKIP_PREDEPLOY_CHECK=1)"
+  exit 0
+fi
+
 RG="rg-sstudio-prod"
 DB_APP="db"
 STORAGE_ACCOUNT="vol3ovvqiybthkb6"
