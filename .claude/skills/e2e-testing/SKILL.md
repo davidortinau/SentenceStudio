@@ -162,3 +162,78 @@ Only mark a task done when ALL of these are true:
 - ✅ No errors in logs
 
 ❌ "It compiles" is NOT sufficient.
+
+## Post-Deploy Validation
+
+**`azd deploy` exit code 0 means the upload worked, NOT that the system works.**
+
+After EVERY deployment to Azure, run the post-deploy validation script:
+
+```bash
+./scripts/post-deploy-validate.sh
+```
+
+### Why This Is Mandatory
+
+The deploy command succeeds when files are uploaded. It does NOT verify:
+- The app starts without crashing
+- Database migrations applied correctly
+- Environment variables and secrets are configured
+- The specific change you deployed actually works
+
+### No /health Endpoint Exists
+
+SentenceStudio has no dedicated health endpoint. Instead, the validation script uses a proxy health check:
+
+```bash
+# POST with bad credentials → 400 or 401 = app is alive and processing requests
+curl -s -o /dev/null -w "%{http_code}" \
+  -X POST "$API_BASE/api/auth/login" \
+  -H "Content-Type: application/json" \
+  -d '{"email":"healthcheck@test.invalid","password":"x"}'
+```
+
+Expected: HTTP 400 or 401. If you get 503, 502, or timeout → the app is not running.
+
+### Verify the SPECIFIC Change
+
+Don't just check "app is up." Verify what you deployed:
+- If you deployed a migration → query the DB for the new column/table
+- If you deployed a bug fix → reproduce the original bug scenario and confirm it's fixed
+- If you deployed a new feature → exercise the feature end-to-end
+
+## Data Integrity Patterns
+
+### EF Core + SQLite Gotchas
+
+**NULL in non-nullable columns:** Phone-side SQLite databases may have NULL values in columns marked as `[Required]` or non-nullable when EF migrations weren't applied (e.g., offline-first apps where the schema drifted). Always check for this after data recovery:
+
+```sql
+-- Find rows with NULL in columns that should be non-null
+SELECT * FROM VocabularyWords WHERE UserId IS NULL;
+SELECT * FROM UserSentences WHERE LanguageId IS NULL;
+```
+
+**`[ObservableProperty]` source generator strips nullability:** CommunityToolkit MVVM source generators can strip `required` annotations. Fix by adding explicit configuration in `OnModelCreating`:
+
+```csharp
+entity.Property(e => e.OptionalField).IsRequired(false);
+```
+
+**`.AsSplitQuery()` for many-to-many Includes on SQLite:** SQLite has limited support for complex JOINs. Queries with multiple `.Include()` / `.ThenInclude()` on many-to-many relationships will fail or return incorrect results without split queries:
+
+```csharp
+var words = await context.VocabularyWords
+    .Include(w => w.Tags)
+    .Include(w => w.Progress)
+    .AsSplitQuery()          // REQUIRED for SQLite with multiple Includes
+    .Where(w => w.UserId == userId)
+    .ToListAsync();
+```
+
+### Sync/Retagging Data Recovery
+
+When retagging user IDs (e.g., merging anonymous → authenticated user data):
+1. **Clear CoreSync tracking tables** after retagging — sync won't upload retagged data if the old tracking entries still exist
+2. Handle `UNIQUE` constraint conflicts — the target user may already have some of the same data
+3. Use the `DataRecoveryService` pattern: scan all user-scoped tables, retag orphans, handle conflicts gracefully

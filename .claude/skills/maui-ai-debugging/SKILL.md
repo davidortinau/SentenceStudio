@@ -615,6 +615,11 @@ diagnose that instead.
 The broker is a background daemon that manages port assignments for all running agents.
 The CLI auto-starts the broker on first use — no manual setup needed.
 
+**⚠️ Broker Idle Timeout:** The broker shuts down automatically after a period of inactivity
+(no connected agents and no CLI commands). If you return to debugging after a break and get
+connection errors, the broker likely timed out. It will auto-restart on the next CLI command,
+but any previously connected agents will need to reconnect (restart the app).
+
 | Command | Description |
 |---------|-------------|
 | `list` | Show all registered agents (ID, app, platform, TFM, port, uptime) |
@@ -634,6 +639,25 @@ echo "MAUI fill textUsername user; MAUI fill textPassword pwd123; MAUI tap butto
 ```
 
 For full options, JSONL format, and streaming details, see [references/batch.md](references/batch.md).
+
+### Device Data Extraction (Physical Devices)
+
+Use `xcrun devicectl` to pull/push files from physical iOS devices — essential for debugging
+database issues, recovering user data, or inspecting app state on a real phone.
+
+```bash
+# Pull SQLite DB from app container
+xcrun devicectl device copy from \
+  --device <UDID> \
+  --domain-type appDataContainer \
+  --domain-identifier <BUNDLE_ID> \
+  --source Library/Application\ Support/sentencestudio/sentencestudio.db \
+  --destination ./pulled-db/
+```
+
+**⚠️ Always handle WAL files** when pulling/pushing SQLite databases. See
+[references/ios-and-mac.md](references/ios-and-mac.md#physical-device-data-extraction) for
+the complete workflow including WAL checkpoint and empty-file push.
 
 ## Platform Details
 

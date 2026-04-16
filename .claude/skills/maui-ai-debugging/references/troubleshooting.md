@@ -1,10 +1,27 @@
 # Troubleshooting
 
 ## Table of Contents
+- [Broker Idle Timeout](#broker-idle-timeout)
 - [Connection Refused](#connection-refused--cannot-connect)
 - [Build Failures](#build-failures)
 - [CDP Not Connecting](#cdp-not-connecting-blazor-hybrid)
 - [Mac Catalyst Permission Dialogs](#mac-catalyst-repeated-permission-dialogs-on-rebuild)
+
+## Broker Idle Timeout
+
+**Symptom:** Commands fail with connection errors after returning to debugging after a break.
+
+**Cause:** The broker daemon shuts down after a period of inactivity (no connected agents,
+no CLI commands). When you next run a CLI command, the broker auto-restarts, but any
+previously connected agents are gone — they were registered with the old broker instance.
+
+**Fix:**
+1. Run `maui-devflow broker status` to confirm the broker restarted.
+2. Restart the app (re-run `dotnet build -t:Run`) so the agent re-registers.
+3. `maui-devflow wait` to confirm reconnection.
+
+**Prevention:** For long debugging sessions with breaks, periodically run
+`maui-devflow list` or `maui-devflow broker status` to keep the broker alive.
 
 ## Connection Refused / Cannot Connect
 

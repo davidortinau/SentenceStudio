@@ -2,6 +2,7 @@
 
 ## Table of Contents
 - [Simulator Management](#simulator-management)
+- [Physical Device Data Extraction](#physical-device-data-extraction)
 - [Building and Deploying](#building-and-deploying)
 - [Apple CLI Tool](#apple-cli-tool)
 - [xcrun simctl Reference](#xcrun-simctl-reference)
@@ -85,6 +86,87 @@ xcrun simctl erase <UDID>                     # factory reset
 xcrun simctl delete <UDID>                    # permanently remove
 xcrun simctl delete unavailable               # clean up old sims
 ```
+
+## Physical Device Data Extraction
+
+Use `xcrun devicectl` to pull and push files from physical iOS devices. This is essential for debugging data issues, inspecting SQLite databases, or recovering user data from a phone.
+
+### Prerequisites
+- Device must be connected via USB or paired over WiFi
+- Device must be unlocked and trusted
+- Xcode 15+ required (devicectl was introduced in Xcode 15)
+
+### List connected devices
+```bash
+xcrun devicectl list devices
+```
+
+### Pull files from app container
+```bash
+# Pull a SQLite database from the app's data container
+xcrun devicectl device copy from \
+  --device <DEVICE_UDID> \
+  --domain-type appDataContainer \
+  --domain-identifier <BUNDLE_ID> \
+  --source Library/Application\ Support/sentencestudio/sentencestudio.db \
+  --destination ./pulled-db/
+
+# Pull the WAL and SHM files too (critical for complete data)
+xcrun devicectl device copy from \
+  --device <DEVICE_UDID> \
+  --domain-type appDataContainer \
+  --domain-identifier <BUNDLE_ID> \
+  --source Library/Application\ Support/sentencestudio/sentencestudio.db-wal \
+  --destination ./pulled-db/
+
+xcrun devicectl device copy from \
+  --device <DEVICE_UDID> \
+  --domain-type appDataContainer \
+  --domain-identifier <BUNDLE_ID> \
+  --source Library/Application\ Support/sentencestudio/sentencestudio.db-shm \
+  --destination ./pulled-db/
+```
+
+**Key parameters:**
+- `--domain-type appDataContainer` — access the app's sandboxed data directory
+- `--domain-identifier` — the app's bundle ID (e.g., `com.simplyprofound.sentencestudio`)
+- `--source` — path relative to the app container root
+
+### Push files to app container
+```bash
+xcrun devicectl device copy to \
+  --device <DEVICE_UDID> \
+  --domain-type appDataContainer \
+  --domain-identifier <BUNDLE_ID> \
+  --source ./modified.db \
+  --destination Library/Application\ Support/sentencestudio/sentencestudio.db
+```
+
+### ⚠️ WAL File Handling (CRITICAL)
+
+SQLite uses Write-Ahead Logging (WAL). When modifying and pushing a database back to the device:
+
+1. **Before pulling:** Ideally, close the app first to flush WAL to main DB.
+2. **After modifying:** Run `PRAGMA wal_checkpoint(TRUNCATE)` on the modified database to merge WAL into the main file and truncate the WAL:
+   ```bash
+   sqlite3 ./pulled-db/sentencestudio.db "PRAGMA wal_checkpoint(TRUNCATE);"
+   ```
+3. **After pushing the modified DB:** Push empty WAL and SHM files to prevent the app from reading stale WAL data:
+   ```bash
+   # Create empty WAL/SHM files
+   touch ./empty.wal ./empty.shm
+
+   # Push the modified database
+   xcrun devicectl device copy to ... --source ./modified.db --destination .../sentencestudio.db
+
+   # Push empty WAL to overwrite stale WAL
+   xcrun devicectl device copy to ... --source ./empty.wal --destination .../sentencestudio.db-wal
+
+   # Push empty SHM
+   xcrun devicectl device copy to ... --source ./empty.shm --destination .../sentencestudio.db-shm
+   ```
+
+**If you skip this step,** the app may read stale WAL entries on next launch, causing data corruption or reverting your changes.
 
 ## Building and Deploying
 

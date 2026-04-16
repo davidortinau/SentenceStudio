@@ -1,6 +1,6 @@
 ---
 name: aspire
-description: "**WORKFLOW SKILL** - Orchestrates Aspire applications using the Aspire CLI and MCP tools for running, debugging, and managing distributed apps. USE FOR: aspire run, aspire stop, start aspire app, aspire describe, list aspire integrations, debug aspire issues, view aspire logs, add aspire resource, aspire dashboard, update aspire apphost. DO NOT USE FOR: non-Aspire .NET apps (use dotnet CLI), container-only deployments (use docker/podman), Azure deployment after local testing (use azure-deploy skill). INVOKES: Aspire MCP tools (list_resources, list_integrations, list_structured_logs, get_doc, search_docs), bash for CLI commands. FOR SINGLE OPERATIONS: Use Aspire MCP tools directly for quick resource status or doc lookups."
+description: "**WORKFLOW SKILL** - Orchestrates Aspire applications using the Aspire CLI and MCP tools for running, debugging, deploying, and managing distributed apps. USE FOR: aspire run, aspire stop, aspire deploy, start aspire app, aspire describe, list aspire integrations, debug aspire issues, view aspire logs, add aspire resource, aspire dashboard, update aspire apphost, Azure Container Apps deployment, PostgreSQL production configuration. DO NOT USE FOR: non-Aspire .NET apps (use dotnet CLI), container-only deployments (use docker/podman). INVOKES: Aspire MCP tools (list_resources, list_integrations, list_structured_logs, get_doc, search_docs), bash for CLI commands. FOR SINGLE OPERATIONS: Use Aspire MCP tools directly for quick resource status or doc lookups."
 ---
 
 # Aspire Skill
@@ -98,6 +98,46 @@ The user may request that you update the Aspire apphost. You can do this using t
 ```bash
 dotnet tool install --global dotnet-outdated-tool
 ```
+
+## Deploying with Aspire
+
+### `aspire deploy` vs `azd deploy`
+
+**⚠️ NEVER mix `azd deploy` and `aspire deploy` in the same session.** They manage Azure resources differently and combining them causes volume mount loss, orphaned resources, and broken deployments. Pick one deployment tool per environment and stick with it.
+
+- `aspire deploy` — Aspire-native deployment to Azure Container Apps. Uses the Aspire manifest directly.
+- `azd deploy` — Azure Developer CLI deployment. Uses `azure.yaml` + infra templates.
+
+**CRITICAL:** `azd deploy` (or `aspire deploy`) exit code 0 means the **upload** succeeded, NOT that the system works. Always run post-deploy validation — see the e2e-testing skill and `scripts/post-deploy-validate.sh`.
+
+### PostgreSQL on Azure Container Apps
+
+**❌ Containerized Postgres on ACA does NOT work.** Azure Container Apps uses Azure File Shares for persistent volumes, which don't support `chmod`/`chown`. PostgreSQL requires these POSIX operations and will fail to start with permission errors. This is a known platform limitation — see [microsoft/aspire#9631](https://github.com/microsoft/aspire/issues/9631).
+
+**✅ Always use `AddAzurePostgresFlexibleServer` for production deployments:**
+
+```csharp
+var dbUser = builder.AddParameter("dbUser");
+var dbPassword = builder.AddParameter("dbPassword", secret: true);
+
+var postgresServer = builder.AddAzurePostgresFlexibleServer("db")
+    .WithPasswordAuthentication(dbUser, dbPassword)   // REQUIRED — see below
+    .RunAsContainer(c => c                             // Local dev uses Docker
+        .WithLifetime(ContainerLifetime.Persistent)
+        .WithDataVolume());
+
+var postgres = postgresServer.AddDatabase("sentencestudio");
+```
+
+**Key points:**
+- **`.WithPasswordAuthentication(dbUser, dbPassword)` is REQUIRED.** Without it, Aspire defaults to Entra-only authentication, which causes SCRAM authentication errors from EF Core / Npgsql.
+- **`.RunAsContainer()`** enables local development with Docker while using the managed Azure Postgres Flexible Server in production. This is the recommended dual-mode pattern.
+- **`ContainerLifetime.Persistent`** keeps the local dev container alive across `aspire run` restarts so you don't lose local data between sessions.
+
+### Known `aspire deploy` Issues
+
+- **CLI 13.3.0-preview.1 timeout bug:** `aspire run --detach` can timeout due to a backchannel socket hash mismatch. If you see timeout errors on detach, try running without `--detach` or update the CLI.
+- **ACA volume limitation (microsoft/aspire#9631):** Containers that need POSIX filesystem operations (PostgreSQL, MongoDB) cannot use ACA's Azure File Share volumes. Use managed Azure services instead.
 
 ## Persistent containers
 
