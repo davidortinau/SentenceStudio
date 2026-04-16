@@ -178,7 +178,6 @@ fi
 echo ""
 echo "--- 1.5 Endpoint Status Codes ---"
 check_endpoint "$WEBAPP_URL" GET "200" "WebApp homepage"
-check_endpoint "$API_BASE/weatherforecast" GET "200" "API weatherforecast"
 check_endpoint "$API_BASE/api/v1/auth/bootstrap" GET "401" "API bootstrap (auth guard)"
 check_endpoint "$API_BASE/api/auth/login" POST "400|401" "API login endpoint" '{"email":"x","password":"x"}'
 
@@ -271,7 +270,6 @@ else
   phase "Phase 4: Regression Check"
 
   echo "--- 4.1 Core API Endpoints ---"
-  check_endpoint "$API_BASE/weatherforecast" GET "200" "Weatherforecast (basic routing)"
   check_endpoint "$API_BASE/api/v1/auth/bootstrap" GET "401" "Bootstrap (auth guard)"
   check_endpoint "$API_BASE/api/auth/login" POST "400|401" "Login (auth endpoint)" '{"email":"x","password":"x"}'
   check_endpoint "$API_BASE/api/auth/register" POST "400" "Register (validation)" '{"email":"bad","password":"x"}'

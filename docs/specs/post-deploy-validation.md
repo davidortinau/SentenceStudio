@@ -118,7 +118,6 @@ Verify all public endpoints return expected status codes.
 | `https://webapp.livelyforest-b32e7d63.centralus.azurecontainerapps.io/` | GET | 200 (with redirect to /auth/login) | WebApp is alive |
 | `https://api.livelyforest-b32e7d63.centralus.azurecontainerapps.io/api/auth/login` | POST (bad creds) | 400 or 401 | API is alive, DB reachable |
 | `https://api.livelyforest-b32e7d63.centralus.azurecontainerapps.io/api/v1/auth/bootstrap` | GET (no JWT) | 401 | Auth middleware working |
-| `https://api.livelyforest-b32e7d63.centralus.azurecontainerapps.io/weatherforecast` | GET | 200 | API basic routing works |
 | `https://www.sentencestudio.com` | GET | 200 | Marketing site alive |
 
 ```bash
@@ -295,8 +294,7 @@ curl -s -o /dev/null -w "%{http_code}" \
 ```bash
 API_BASE="https://api.livelyforest-b32e7d63.centralus.azurecontainerapps.io"
 
-# These should all return expected codes even without auth
-check_endpoint "$API_BASE/weatherforecast" GET "200" "Weatherforecast (basic routing)"
+# These should all return expected codes
 check_endpoint "$API_BASE/api/v1/auth/bootstrap" GET "401" "Bootstrap (auth guard)"
 check_endpoint "$API_BASE/api/auth/login" POST "400|401" "Login (auth endpoint)" '{"email":"x","password":"x"}'
 check_endpoint "$API_BASE/api/auth/register" POST "400" "Register (validation)" '{"email":"bad","password":"x"}'
@@ -400,8 +398,11 @@ If validation fails:
 | `/api/v1/speech/synthesize` | POST | JWT | TTS via ElevenLabs |
 | `/api/v1/plans/generate` | POST | JWT | Generate learning plan |
 | `/api/v1/vocabulary/{wordId}/status` | POST | JWT | Update vocab status |
-| `/weatherforecast` | GET | No | Test endpoint |
 | `/api/channels/*` | Various | JWT | YouTube channel endpoints |
 | `/api/import/*` | Various | JWT | Import endpoints |
 | `/api/feedback/*` | POST | JWT | GitHub issue creation |
 | `/api/version/*` | GET | No | Version/release notes |
+
+## Removed Endpoints
+
+The `/weatherforecast` endpoint was removed as it was only used for basic routing validation during development. The login endpoint check (returning HTTP 401) now serves as the routing health indicator in post-deploy validation.
