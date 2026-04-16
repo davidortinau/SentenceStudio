@@ -79,10 +79,49 @@ az lock create --name do-not-delete-postgres \
 
 ## MANDATORY Post-Deploy Verification
 
-**Run these IMMEDIATELY after every deploy completes. Do not walk away until all pass.**
+**A deploy is NOT complete until validation passes. `azd deploy` exit code 0 means the upload worked — not that the system works.**
 
-### Post-1: Verify Flexible Server connectivity
+### Step 3: Run the automated validation script
 
+```bash
+./scripts/post-deploy-validate.sh
+```
+
+**This script covers:**
+- Phase 1: Infrastructure health (revision status, active=latest, no crash loops, DB connectivity, endpoint codes, EF migrations)
+- Phase 2: Functional smoke test (auth flow, protected endpoints, webapp renders)
+- Phase 4: Regression check (core API endpoints, marketing site)
+
+**Exit code 0 = PASS. Non-zero = FAIL — investigate immediately.**
+
+To skip the 30-second startup wait (e.g., if you've already waited):
+```bash
+./scripts/post-deploy-validate.sh --skip-wait
+```
+
+To run only infrastructure checks (faster):
+```bash
+./scripts/post-deploy-validate.sh --phase1-only
+```
+
+To enable auth flow tests, set the test account credentials:
+```bash
+DEPLOY_TEST_PASSWORD="..." ./scripts/post-deploy-validate.sh
+```
+
+### Step 4: Change-specific validation (manual)
+
+After the automated script passes, verify the **specific change you deployed**:
+
+1. What changed? (DB migration, new endpoint, UI change, config change?)
+2. Is the change live in the running system? (Query the DB, hit the endpoint, load the page)
+3. Does it behave correctly? (Expected data shape, correct UI, proper error handling)
+
+See `docs/specs/post-deploy-validation.md` Phase 3 for common validation patterns.
+
+### Legacy individual checks (still valid for manual spot-checking)
+
+**DB connectivity:**
 ```bash
 az postgres flexible-server execute \
   --name <flexible-server-name> --resource-group rg-sstudio-prod \
@@ -91,25 +130,20 @@ az postgres flexible-server execute \
   --querytext "SELECT count(*) FROM \"Users\";"
 ```
 
-**Pass condition:** Returns a row count (0 is OK for first deploy — schema created by EF Core migrations).
-
-### Post-2: API health check
-
+**API endpoint check:**
 ```bash
-curl -sf https://api.livelyforest-b32e7d63.centralus.azurecontainerapps.io/health && echo "OK"
+curl -s -o /dev/null -w "%{http_code}" \
+  -X POST https://api.livelyforest-b32e7d63.centralus.azurecontainerapps.io/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"x","password":"x"}'
+# Expected: 400 or 401 (API is alive, DB reachable)
+# Bad: 500/502/503 (API crashed or can't reach DB)
 ```
 
-**Pass condition:** Returns HTTP 200.
-
-### Post-3: Verify EF Core migrations ran
-
-Check API logs for migration output:
-
+**EF Core migrations:**
 ```bash
 az containerapp logs show --name api --resource-group rg-sstudio-prod --tail 50 | grep -i migrat
 ```
-
-**Pass condition:** Logs show "Applying migration" or "Database is up to date".
 
 ---
 

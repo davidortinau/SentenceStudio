@@ -9,6 +9,12 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+- `azd deploy` exit code 0 means the UPLOAD worked (images pushed, revisions created). It says NOTHING about whether the system actually works. Azure Container Apps can auto-route traffic to old healthy revisions while the new one crash-loops silently.
+- The API has NO explicit `/health` endpoint — the deploy runbook previously referenced one that doesn't exist. Use POST `/api/auth/login` with bad creds as an indirect health check: 400/401 = alive + DB reachable, 500/502/503 = broken.
+- When Azure Container Apps detects a failing new revision, it keeps traffic on the previous revision. This means "the app works" does NOT mean "the new code is running." Always verify the ACTIVE revision is the LATEST revision.
+- Deployed services are: api, webapp, marketing, workers. All 4 must be checked for revision health after deploy.
+- Post-deploy validation script lives at `scripts/post-deploy-validate.sh` — mirrors the pattern of `scripts/pre-deploy-check.sh`.
+
 - Phase 0+1 scoring engine review: LostKnownThisSession detection must happen AFTER RecordAttemptAsync (deferred), never eagerly in the immediate answer handler. Eager detection based on MasteredAt!=null fires even when temporal weighting keeps IsKnown intact, causing incorrect 14-day re-qualification.
 - When reviewing IsKnown loss detection, always trace the full deferred-persistence flow: immediate state changes → RecordPendingAttemptAsync → snapshot wasKnownBefore → RecordAttemptAsync → compare. The timing of flag-setting relative to DB recording is critical.
 - Spec pseudocode may contain casts (e.g., `(int)`) from before a type change (int→float). When the type has changed, the cast should be dropped. Review spec code as guidance, not copy-paste.
@@ -73,6 +79,32 @@
 - `ExtractAndScoreVocabularyAsync` shared method signature: (List<VocabularyAnalysis>?, List<VocabularyWord>, string userId, string activity, float difficultyWeight, float? penaltyOverride = null). All dedup + verification probe ordering lives inside — callers only pass parameters.
 
 ## Work Sessions
+
+### 2025-07-27 — Post-Deploy Validation Spec & Automation
+
+**Status:** Complete
+**Output:** `docs/specs/post-deploy-validation.md`, `scripts/post-deploy-validate.sh`, `.squad/decisions/inbox/zoe-post-deploy-validation.md`
+
+**What:**
+Designed comprehensive post-deploy validation after Captain identified critical process failure: deploys were declared successful based on `azd deploy` exit code 0 while the API was crash-looping for 15+ minutes undetected. Root cause: traffic auto-routed to old revision, making login appear to work.
+
+**Deliverables:**
+1. Full spec (4-phase validation: infrastructure, smoke test, change-specific, regression)
+2. Executable bash script (`post-deploy-validate.sh`) covering Phases 1, 2, and 4
+3. Updated deploy runbook with Step 3 (validation) and Step 4 (change-specific)
+4. Updated Publish Workflow in squad.agent.md — validation is mandatory before iOS build
+5. Decision document in inbox
+
+**Key Design Decisions:**
+- Indirect DB health check via login endpoint (no explicit /health endpoint exists)
+- 30-second startup wait before checks (container pull + migration time)
+- Active revision = latest revision check catches the specific bug from the incident
+- Phase 3 is intentionally manual — deployer must think about what changed and verify it
+
+**Open Items:**
+- Need dedicated deploy-test account for Phase 2 auth tests
+- API should add a proper /health endpoint (future work)
+- Consider `azure.yaml` post-deploy hook for automatic validation
 
 ### 2025-07-25 — Cross-Activity Mastery Spec (Option B)
 
