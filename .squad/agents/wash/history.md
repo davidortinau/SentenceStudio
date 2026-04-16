@@ -9,6 +9,8 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+- JWT claims contain email/name data that must be explicitly backfilled into local SQLite UserProfile on mobile — the webapp reads these from Identity server-side, but the mobile app only gets them via the JWT
+
 - When a model property is added, you MUST generate BOTH PostgreSQL and SQLite migrations — PatchMissingColumnsAsync in SyncService only covers SQLite mobile, not the Azure PostgreSQL database
 - Both API (Program.cs:213) and WebApp (Program.cs:151) call `MigrateAsync()` on startup — deploying new migration code auto-applies it on next container restart
 - NarrativeJson was added to DailyPlanCompletion model for plan narrative storage but the PG migration was missed — fixed in commit aa8dd3c
@@ -641,3 +643,17 @@ services.AddSingleton<IActiveUserProvider>(new PreferencesActiveUserProvider(moc
 - Both: Coordinated on 5-layer defense model
 
 **Next:** Monitor next deploy cycle; begin managed database migration planning (1 day effort, ~$17/month, eliminates vulnerability class)
+
+## Issue #162 — UserProfile Name/Email not populated on mobile after login
+
+**Date:** 2025-07-22
+**Scope:** `IdentityAuthService.StoreTokens()` — backfill local UserProfile from JWT claims
+
+**Problem:** Mobile app local SQLite UserProfile had empty Name/Email after login. Webapp showed them because it read from Identity claims server-side, but mobile never wrote JWT claim data into the local profile.
+
+**Fix:**
+- Injected `UserProfileRepository?` into `IdentityAuthService` (optional param, same pattern as `DataRecoveryService?`)
+- Added `BackfillProfileFromJwtAsync(token)` called after orphan recovery in `StoreTokens`
+- Extracts email and name from JWT claims (ClaimTypes.Email, "email", ClaimTypes.Name, "name", "unique_name")
+- Only sets fields that are currently empty (never overwrites user edits)
+- Non-fatal: wrapped in try/catch so login flow continues even if backfill fails

@@ -24,6 +24,7 @@ public sealed class IdentityAuthService : IAuthService
     private readonly ILogger<IdentityAuthService> _logger;
     private readonly ISyncService? _syncService;
     private readonly DataRecoveryService? _dataRecovery;
+    private readonly UserProfileRepository? _userProfileRepo;
 
     private string? _cachedToken;
     private DateTimeOffset _cachedExpires;
@@ -35,7 +36,8 @@ public sealed class IdentityAuthService : IAuthService
         IPreferencesService preferences,
         ILogger<IdentityAuthService> logger,
         ISyncService? syncService = null,
-        DataRecoveryService? dataRecovery = null)
+        DataRecoveryService? dataRecovery = null,
+        UserProfileRepository? userProfileRepo = null)
     {
         _http = httpClientFactory.CreateClient("AuthClient");
         _secureStorage = secureStorage;
@@ -43,6 +45,7 @@ public sealed class IdentityAuthService : IAuthService
         _logger = logger;
         _syncService = syncService;
         _dataRecovery = dataRecovery;
+        _userProfileRepo = userProfileRepo;
     }
 
     public bool IsSignedIn => _cachedToken is not null && _cachedExpires > DateTimeOffset.UtcNow;
@@ -353,6 +356,10 @@ public sealed class IdentityAuthService : IAuthService
                     _logger.LogWarning(ex, "Orphan data recovery failed — sync will proceed without recovery");
                 }
             }
+
+            // Backfill Name/Email on the local UserProfile from JWT claims
+            // so the mobile app shows them even though Identity lives server-side.
+            await BackfillProfileFromJwtAsync(response.Token);
         }
         else
         {
@@ -392,6 +399,61 @@ public sealed class IdentityAuthService : IAuthService
             response.Token,
             response.UserName ?? ExtractUserNameFromJwt(response.Token),
             new DateTimeOffset(response.ExpiresAt, TimeSpan.Zero));
+    }
+
+    /// <summary>
+    /// Extracts Name and Email from the JWT and updates the local UserProfile
+    /// if those fields are empty. This ensures the mobile app has the same
+    /// profile data the webapp reads from Identity claims server-side.
+    /// </summary>
+    private async Task BackfillProfileFromJwtAsync(string token)
+    {
+        if (_userProfileRepo is null)
+            return;
+
+        try
+        {
+            var handler = new JwtSecurityTokenHandler();
+            var jwt = handler.ReadJwtToken(token);
+
+            var email = jwt.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
+                     ?? jwt.Claims.FirstOrDefault(c => c.Type == "email")?.Value;
+
+            var name = jwt.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name)?.Value
+                    ?? jwt.Claims.FirstOrDefault(c => c.Type == "name")?.Value
+                    ?? jwt.Claims.FirstOrDefault(c => c.Type == "unique_name")?.Value;
+
+            if (string.IsNullOrEmpty(email) && string.IsNullOrEmpty(name))
+                return;
+
+            var profile = await _userProfileRepo.GetAsync();
+            if (profile is null)
+                return;
+
+            bool changed = false;
+
+            if (string.IsNullOrEmpty(profile.Name) && !string.IsNullOrEmpty(name))
+            {
+                profile.Name = name;
+                changed = true;
+            }
+
+            if (string.IsNullOrEmpty(profile.Email) && !string.IsNullOrEmpty(email))
+            {
+                profile.Email = email;
+                changed = true;
+            }
+
+            if (changed)
+            {
+                await _userProfileRepo.SaveAsync(profile);
+                _logger.LogInformation("Backfilled UserProfile Name/Email from JWT claims");
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Failed to backfill UserProfile from JWT — non-fatal");
+        }
     }
 
     private static string? ExtractUserNameFromJwt(string token)

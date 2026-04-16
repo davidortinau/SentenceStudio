@@ -147,9 +147,9 @@ done
 
 echo ""
 echo "--- 1.3 No Crash Loops ---"
-CRASH_INDICATORS=$(az containerapp logs show \
+CRASH_INDICATORS=$(( $(az containerapp logs show \
   --name api --resource-group "$RG" \
-  --tail 100 --type system 2>/dev/null | grep -ciE "backoff|crash|oom|killed|exit code [^0]|unhealthy" || echo "0")
+  --tail 100 --type system 2>/dev/null | grep -ciE "backoff|crash|oom|killed|exit code [^0]|unhealthy" || echo "0") ))
 
 if [ "$CRASH_INDICATORS" -eq 0 ] 2>/dev/null; then
   pass "No crash indicators in recent API system logs"
