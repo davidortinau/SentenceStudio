@@ -39,11 +39,14 @@ else if (sentences.Any())
         {
             <small class="text-secondary-ss fst-italic">@currentSentence.PronunciationNotes</small>
         }
-        <div class="mt-2">
-            <button class="btn btn-sm btn-link text-secondary-ss" @onclick="ToggleTranslation">
-                @(showTranslation ? "Hide" : "Show") translation
-            </button>
-        </div>
+        @if (!string.IsNullOrEmpty(currentSentence.NativeLanguageText))
+        {
+            <div class="mt-2">
+                <button class="btn btn-sm btn-link text-secondary-ss" @onclick="ToggleTranslation">
+                    @(showTranslation ? "Hide" : "Show") translation
+                </button>
+            </div>
+        }
     </div>
 
     @* Waveform display *@
@@ -147,6 +150,7 @@ else
     private List<ShadowingSentence> sentences = new();
     private ShadowingSentence currentSentence = new();
     private IAudioPlayer? audioPlayer;
+    private System.Threading.Timer? _playbackTimer;
 
     protected override async Task OnInitializedAsync()
     {
@@ -241,6 +245,7 @@ else
                 audioPlayer.PlaybackEnded += (s, e) =>
                 {
                     isAudioPlaying = false;
+                    StopPlaybackTimer();
                     InvokeAsync(StateHasChanged);
                 };
                 audioDuration = TimeSpan.FromSeconds(audioPlayer.Duration);
@@ -276,11 +281,13 @@ else
             if (!isAudioPlaying)
             {
                 await GenerateAudioForCurrent();
+                StartPlaybackTimer();
             }
             else
             {
                 await JS.InvokeVoidAsync("audioInterop.stop");
                 isAudioPlaying = false;
+                StopPlaybackTimer();
             }
             return;
         }
@@ -291,6 +298,7 @@ else
             if (audioPlayer is null) return;
             audioPlayer.Play();
             isAudioPlaying = true;
+            StartPlaybackTimer();
             return;
         }
 
@@ -298,6 +306,7 @@ else
         {
             audioPlayer.Pause();
             isAudioPlaying = false;
+            StopPlaybackTimer();
         }
         else
         {
@@ -308,6 +317,7 @@ else
             }
             audioPlayer.Play();
             isAudioPlaying = true;
+            StartPlaybackTimer();
         }
     }
 
@@ -318,12 +328,13 @@ else
         await GenerateAudioForCurrent();
         if (_useJsAudio)
         {
-            // Audio already playing from GenerateAudioForCurrent
+            StartPlaybackTimer();
         }
         else if (audioPlayer is not null)
         {
             audioPlayer.Play();
             isAudioPlaying = true;
+            StartPlaybackTimer();
         }
     }
 
@@ -361,10 +372,63 @@ else
         await GenerateAudioForCurrent();
     }
 
+    private void StartPlaybackTimer()
+    {
+        StopPlaybackTimer();
+        _playbackTimer = new System.Threading.Timer(async _ =>
+        {
+            try
+            {
+                if (audioPlayer is not null && isAudioPlaying)
+                {
+                    var duration = audioPlayer.Duration;
+                    if (duration > 0)
+                    {
+                        playbackPosition = audioPlayer.CurrentPosition / duration;
+
+                        // Auto-stop when playback reaches the end
+                        if (audioPlayer.CurrentPosition >= duration - 0.05)
+                        {
+                            isAudioPlaying = false;
+                            playbackPosition = 1.0;
+                            StopPlaybackTimer();
+                        }
+                    }
+                    await InvokeAsync(StateHasChanged);
+                }
+                else if (_useJsAudio && isAudioPlaying)
+                {
+                    // For JS audio, estimate position based on elapsed time
+                    if (audioDuration.TotalSeconds > 0)
+                    {
+                        playbackPosition = Math.Min(1.0, playbackPosition + (0.1 / audioDuration.TotalSeconds));
+                        if (playbackPosition >= 1.0)
+                        {
+                            isAudioPlaying = false;
+                            StopPlaybackTimer();
+                        }
+                        await InvokeAsync(StateHasChanged);
+                    }
+                }
+            }
+            catch (ObjectDisposedException)
+            {
+                // Component disposed during timer callback — ignore
+            }
+        }, null, 0, 100);
+    }
+
+    private void StopPlaybackTimer()
+    {
+        _playbackTimer?.Dispose();
+        _playbackTimer = null;
+    }
+
     private void ToggleTranslation() => showTranslation = !showTranslation;
 
     private void StopAudio()
     {
+        StopPlaybackTimer();
         if (_useJsAudio)
         {
             _ = JS.InvokeVoidAsync("audioInterop.stop");
@@ -384,6 +448,7 @@ else
     public ValueTask DisposeAsync()
     {
         if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
+        StopPlaybackTimer();
         StopAudio();
         return ValueTask.CompletedTask;
     }

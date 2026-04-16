@@ -127,29 +127,36 @@ public class ProgressCacheService
 
     public TodaysPlan? GetTodaysPlan()
     {
-        var key = UserId;
+        // Date-keyed cache: plan persists for the entire day, not just 5 minutes
+        var key = $"{UserId}:plan_{DateTime.Today:yyyy-MM-dd}";
         if (!_todaysPlanCache.TryGetValue(key, out var entry) || entry.IsExpired())
             return null;
 
-        _logger.LogDebug("Cache HIT: TodaysPlan for user {UserId}", key);
+        _logger.LogDebug("Cache HIT: TodaysPlan for user {UserId}, date {Date}", UserId, DateTime.Today);
         return entry.Data;
     }
 
     public void SetTodaysPlan(TodaysPlan data)
     {
-        _todaysPlanCache[UserId] = new CacheEntry<TodaysPlan>(data);
-        _logger.LogDebug("Cache SET: TodaysPlan for user {UserId}", UserId);
+        var key = $"{UserId}:plan_{DateTime.Today:yyyy-MM-dd}";
+        // Expire at the end of the current day (local midnight)
+        var untilMidnight = DateTime.Today.AddDays(1) - DateTime.Now;
+        _todaysPlanCache[key] = new CacheEntry<TodaysPlan>(data, untilMidnight);
+        _logger.LogDebug("Cache SET: TodaysPlan for user {UserId}, date {Date}, expires in {Minutes}min", UserId, DateTime.Today, (int)untilMidnight.TotalMinutes);
     }
 
     public void InvalidateTodaysPlan()
     {
-        _todaysPlanCache.Remove(UserId);
+        var key = $"{UserId}:plan_{DateTime.Today:yyyy-MM-dd}";
+        _todaysPlanCache.Remove(key);
     }
 
     public void UpdateTodaysPlan(TodaysPlan data)
     {
-        _todaysPlanCache[UserId] = new CacheEntry<TodaysPlan>(data);
-        _logger.LogDebug("Cache UPDATE: TodaysPlan for user {UserId}", UserId);
+        var key = $"{UserId}:plan_{DateTime.Today:yyyy-MM-dd}";
+        var untilMidnight = DateTime.Today.AddDays(1) - DateTime.Now;
+        _todaysPlanCache[key] = new CacheEntry<TodaysPlan>(data, untilMidnight);
+        _logger.LogDebug("Cache UPDATE: TodaysPlan for user {UserId}, date {Date}", UserId, DateTime.Today);
     }
 
     private class CacheEntry<T>

@@ -1,6 +1,39 @@
 ## Active Decisions
 ## Active Decisions
 
+### BUG-INVESTIGATION: Daily Plan Regenerates After Activity Completion (2026-07-27)
+
+**Status:** INVESTIGATION COMPLETE -- awaiting Captain's decision on fix approach  
+**Date:** 2026-07-27  
+**Author:** Wash (Backend Dev)
+
+**Context:** Captain reported that completing Shadowing caused the entire daily plan to change. Original plan had Listening and Reading as first two activities; after completing Shadowing and returning to dashboard, those were replaced with different activities.
+
+**Root Causes Found (3 contributing factors):**
+
+1. **5-minute cache TTL expiration** (`ProgressCacheService.cs:14`): The in-memory plan cache expires after 5 minutes. If an activity session lasts longer than 5 minutes, the cache entry is gone when the user returns to the dashboard. `GetCachedPlanAsync` then tries DB reconstruction.
+
+2. **DB reconstruction succeeds but ValidatePlanActivitiesAsync can remove items** (`ProgressService.cs:844-890`): After reconstructing from DB, `ValidatePlanActivitiesAsync` filters out activities whose resources lack required capabilities (e.g., Reading without transcript). If resource data changed or was incomplete, items get dropped. With fewer items, the plan looks different.
+
+3. **Non-deterministic tiebreakers in DeterministicPlanBuilder** (`DeterministicPlanBuilder.cs:743,769`): Both `SelectInputActivity` and `SelectOutputActivity` use `.ThenBy(a => Guid.NewGuid())` as a tiebreaker when multiple activities have equal "recently used" counts. This means if the plan IS regenerated (cache miss + DB reconstruction returns null or fails), the new plan will have randomly different activities even with identical input data. Also, `BuildActivitySequenceAsync` (line 439) queries `DailyPlanCompletions` from the last 3 days INCLUDING today -- so the newly-written completion record for the just-completed activity changes the frequency counts, shifting which activities get selected.
+
+**Most Likely Scenario for the Captain's Bug:**
+- Captain starts plan, begins Shadowing activity
+- Shadowing takes > 5 minutes, cache TTL expires
+- Captain completes Shadowing, completion record written to DB
+- Captain navigates back to dashboard, `OnInitializedAsync` calls `LoadPlanAsync`
+- `GetCachedPlanAsync` finds no cache entry, tries `ReconstructPlanFromDatabase`
+- DB reconstruction works (completion records exist), BUT `ValidatePlanActivitiesAsync` removes some items OR the reconstructed plan is subtly different
+- If reconstruction somehow fails or returns incomplete data, `GenerateTodaysPlanAsync` calls `_llmPlanService.GeneratePlanAsync` which runs `DeterministicPlanBuilder.BuildPlanAsync` fresh -- and with `Guid.NewGuid()` tiebreakers PLUS changed recent-activity counts, the new plan is completely different
+
+**Recommended Fix (3 parts):**
+
+1. **Remove random tiebreakers**: Replace `Guid.NewGuid()` with deterministic tiebreakers (e.g., hash of date + activity name) in `SelectInputActivity` and `SelectOutputActivity`
+
+2. **Extend cache TTL for plans**: Plans should not expire on a 5-minute TTL. Either use a much longer TTL (24 hours) or make the plan cache date-keyed so it never expires during the same calendar day
+
+3. **Exclude today's completions from activity selection**: `BuildActivitySequenceAsync` should filter `recentActivityTypes` to exclude today's date, since today's completions are FROM the current plan, not historical data that should influence a new plan
+
 ### 10. Production Web Validation Uses ACA Default Host Until Custom-Domain Cutover (2026-04-09)
 
 **Status:** ACTIVE  

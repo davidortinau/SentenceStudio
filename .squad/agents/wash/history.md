@@ -9,6 +9,16 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+- ProgressCacheService is a Singleton with 5-minute TTL on all cache entries — plan cache can expire during normal activity completion
+- DeterministicPlanBuilder uses `Guid.NewGuid()` tiebreakers in SelectInputActivity and SelectOutputActivity — this makes plan generation non-deterministic even with identical inputs
+- DailyPlanCompletion records are written to DB when plan is first generated (InitializePlanCompletionRecordsAsync) — these are the persistence mechanism for plan stability across restarts
+- LoadPlanAsync calls GetCachedPlanAsync first, then falls back to GenerateTodaysPlanAsync — if both cache and DB reconstruction fail, a completely new plan is generated
+- BuildActivitySequenceAsync queries DailyPlanCompletions for the last 3 days including TODAY — today's newly-written completion records change the input to activity selection
+
+- Shadowing page (Shadowing.razor) uses Plugin.Maui.Audio IAudioPlayer for native playback and JS interop for server-side Blazor — playbackPosition is a 0-1 normalized ratio passed to WaveformDisplay
+- Transcript-mode shadowing sentences have null NativeLanguageText (no translation); AI-generated mode populates translations via Scriban template. Translation toggle button must be conditionally shown.
+- Audio playback position requires a System.Threading.Timer polling at ~100ms to update the waveform/timer display in real-time; IAudioPlayer has no built-in position-changed event
+
 - JWT claims contain email/name data that must be explicitly backfilled into local SQLite UserProfile on mobile — the webapp reads these from Identity server-side, but the mobile app only gets them via the JWT
 
 - When a model property is added, you MUST generate BOTH PostgreSQL and SQLite migrations — PatchMissingColumnsAsync in SyncService only covers SQLite mobile, not the Azure PostgreSQL database
@@ -657,3 +667,7 @@ services.AddSingleton<IActiveUserProvider>(new PreferencesActiveUserProvider(moc
 - Extracts email and name from JWT claims (ClaimTypes.Email, "email", ClaimTypes.Name, "name", "unique_name")
 - Only sets fields that are currently empty (never overwrites user edits)
 - Non-fatal: wrapped in try/catch so login flow continues even if backfill fails
+- **Daily plan stability 3-part fix** (deterministic tiebreakers + date-keyed cache + exclude-today completions):
+  - `HashCode.Combine(DateTime.Today, activityName)` replaces `Guid.NewGuid()` tiebreakers in SelectInputActivity / SelectOutputActivity
+  - ProgressCacheService plan cache now keyed by `{userId}:plan_{yyyy-MM-dd}` with TTL until midnight, replacing the 5-minute TTL
+  - BuildActivitySequenceAsync recent-completions query now uses `c.Date < today` to exclude same-day records from influencing activity selection

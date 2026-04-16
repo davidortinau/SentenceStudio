@@ -436,8 +436,9 @@ public class DeterministicPlanBuilder
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
+        // Exclude today's completions so that completing an activity doesn't change what gets selected on regeneration
         var recentActivityTypes = await db.DailyPlanCompletions
-            .Where(c => c.Date >= today.AddDays(-3))
+            .Where(c => c.Date >= today.AddDays(-3) && c.Date < today)
             .Select(c => c.ActivityType)
             .ToListAsync(ct);
 
@@ -737,10 +738,10 @@ public class DeterministicPlanBuilder
         if (fresh.Any())
             inputActivities = fresh;
 
-        // Prefer least recently used
+        // Prefer least recently used, with deterministic tiebreaker so the same day always produces the same order
         var selected = inputActivities
             .OrderBy(a => recentActivities.Count(r => r == a))
-            .ThenBy(a => Guid.NewGuid())
+            .ThenBy(a => HashCode.Combine(DateTime.Today, a))
             .First();
 
         return selected;
@@ -762,10 +763,10 @@ public class DeterministicPlanBuilder
         if (fresh.Any())
             outputActivities = fresh;
 
-        // Prefer least recently used
+        // Prefer least recently used, with deterministic tiebreaker so the same day always produces the same order
         var selected = outputActivities
             .OrderBy(a => recentActivities.Count(r => r == a))
-            .ThenBy(a => Guid.NewGuid())
+            .ThenBy(a => HashCode.Combine(DateTime.Today, a))
             .First();
 
         return selected;

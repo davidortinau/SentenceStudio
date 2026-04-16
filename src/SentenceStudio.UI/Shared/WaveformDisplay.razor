@@ -88,7 +88,7 @@
         if (seconds < 0) seconds = 0;
         var ts = TimeSpan.FromSeconds(seconds);
         return ts.TotalHours >= 1
-            ? ts.ToString(@"h\:mm\:ss")
-            : ts.ToString(@"m\:ss");
+            ? ts.ToString(@"h\:mm\:ss\.f")
+            : ts.ToString(@"m\:ss\.f");
     }
 }
