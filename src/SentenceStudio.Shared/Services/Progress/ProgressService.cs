@@ -1219,4 +1219,237 @@ public class ProgressService : IProgressService
         _logger.LogDebug("🔑 Generated plan item ID: {Guid} for {Combined}", guid, combined);
         return guid.ToString();
     }
+
+    public async Task<List<ActivityLogWeek>> GetActivityLogAsync(DateTime fromUtc, DateTime toUtc, ActivityCategory? filter = null, CancellationToken ct = default)
+    {
+        _logger.LogDebug("📅 GetActivityLogAsync - from={From:yyyy-MM-dd}, to={To:yyyy-MM-dd}, filter={Filter}", fromUtc, toUtc, filter);
+
+        // Get user profile
+        var userProfile = await _userProfileRepo.GetAsync();
+        if (userProfile == null)
+        {
+            _logger.LogWarning("❌ No user profile found - cannot get activity log");
+            return new List<ActivityLogWeek>();
+        }
+
+        // Query all completions within the date range
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var completions = await db.DailyPlanCompletions
+            .Where(c => c.UserProfileId == userProfile.Id && c.Date >= fromUtc.Date && c.Date <= toUtc.Date)
+            .OrderBy(c => c.Date)
+            .ThenBy(c => c.CreatedAt)
+            .ToListAsync(ct);
+
+        if (!completions.Any())
+        {
+            _logger.LogDebug("ℹ️ No completions found in date range");
+            return new List<ActivityLogWeek>();
+        }
+
+        // Lookup resource and skill titles for enrichment (handle duplicates gracefully)
+        var resources = await _resourceRepo.GetAllResourcesLightweightAsync();
+        var resourceLookup = resources
+            .GroupBy(r => r.Id)
+            .ToDictionary(g => g.Key, g => g.First().Title ?? string.Empty);
+
+        var skills = await _skillRepo.ListAsync();
+        var skillLookup = skills
+            .GroupBy(s => s.Id)
+            .ToDictionary(g => g.Key, g => g.First().Title ?? string.Empty);
+
+        // Group by date
+        var dayGroups = completions
+            .GroupBy(c => c.Date.Date)
+            .OrderBy(g => g.Key)
+            .ToList();
+
+        var activityLogDays = new List<ActivityLogDay>();
+
+        foreach (var dayGroup in dayGroups)
+        {
+            var date = dayGroup.Key;
+            var dayCompletions = dayGroup.OrderBy(c => c.CreatedAt).ToList();
+
+            // Sub-group by plan generation (cluster items within 60 seconds)
+            var plans = new List<ActivityLogPlan>();
+            if (dayCompletions.Any())
+            {
+                var currentPlan = new List<DailyPlanCompletion> { dayCompletions[0] };
+
+                for (int i = 1; i < dayCompletions.Count; i++)
+                {
+                    if ((dayCompletions[i].CreatedAt - dayCompletions[i - 1].CreatedAt).TotalSeconds <= 60)
+                    {
+                        currentPlan.Add(dayCompletions[i]);
+                    }
+                    else
+                    {
+                        plans.Add(BuildActivityLogPlan(currentPlan, resourceLookup, skillLookup, filter));
+                        currentPlan = new List<DailyPlanCompletion> { dayCompletions[i] };
+                    }
+                }
+                plans.Add(BuildActivityLogPlan(currentPlan, resourceLookup, skillLookup, filter));
+            }
+
+            // Remove plans with no entries (all filtered out)
+            plans = plans.Where(p => p.Items.Any()).ToList();
+
+            if (!plans.Any())
+                continue; // Skip days with no matching activities after filtering
+
+            var totalMinutes = plans.Sum(p => p.TotalMinutesSpent);
+            var hasInput = plans.Any(p => p.Items.Any(i => i.Category == ActivityCategory.Input));
+            var hasOutput = plans.Any(p => p.Items.Any(i => i.Category == ActivityCategory.Output));
+            var allPlansCompleted = plans.All(p => p.IsFullyCompleted);
+
+            activityLogDays.Add(new ActivityLogDay(
+                Date: date,
+                Plans: plans,
+                TotalMinutes: totalMinutes,
+                HasInput: hasInput,
+                HasOutput: hasOutput,
+                AllPlansCompleted: allPlansCompleted
+            ));
+        }
+
+        // Build weeks (Monday-anchored)
+        var weeks = BuildWeeks(fromUtc.Date, toUtc.Date, activityLogDays);
+
+        _logger.LogDebug("✅ Built {WeekCount} weeks with {DayCount} active days", weeks.Count, activityLogDays.Count);
+
+        return weeks;
+    }
+
+    private ActivityLogPlan BuildActivityLogPlan(
+        List<DailyPlanCompletion> completions,
+        Dictionary<string, string> resourceLookup,
+        Dictionary<string, string> skillLookup,
+        ActivityCategory? filter)
+    {
+        var entries = new List<ActivityLogEntry>();
+
+        foreach (var completion in completions)
+        {
+            // Parse ActivityType
+            if (!Enum.TryParse<PlanActivityType>(completion.ActivityType, out var actType))
+            {
+                _logger.LogWarning("⚠️ Failed to parse ActivityType '{ActivityType}' for completion {Id}", completion.ActivityType, completion.Id);
+                continue;
+            }
+
+            var category = ActivityCategoryMapper.Categorize(actType);
+
+            // Apply filter
+            if (filter.HasValue && category != filter.Value)
+                continue;
+
+            var resourceTitle = !string.IsNullOrEmpty(completion.ResourceId) && resourceLookup.TryGetValue(completion.ResourceId, out var title)
+                ? title
+                : null;
+
+            var skillName = !string.IsNullOrEmpty(completion.SkillId) && skillLookup.TryGetValue(completion.SkillId, out var skill)
+                ? skill
+                : null;
+
+            entries.Add(new ActivityLogEntry(
+                PlanItemId: completion.PlanItemId,
+                ActivityType: actType,
+                Category: category,
+                MinutesSpent: completion.MinutesSpent,
+                EstimatedMinutes: completion.EstimatedMinutes,
+                IsCompleted: completion.IsCompleted,
+                CompletedAt: completion.CompletedAt,
+                ResourceTitle: resourceTitle,
+                SkillName: skillName,
+                TitleKey: completion.TitleKey,
+                DescriptionKey: completion.DescriptionKey
+            ));
+        }
+
+        var generatedAt = completions.FirstOrDefault()?.CreatedAt ?? DateTime.UtcNow;
+        var rationale = completions.FirstOrDefault()?.Rationale;
+        var narrativeJson = completions.FirstOrDefault()?.NarrativeJson;
+
+        return new ActivityLogPlan(
+            GeneratedAt: generatedAt,
+            Items: entries,
+            CompletedCount: entries.Count(e => e.IsCompleted),
+            TotalCount: entries.Count,
+            IsFullyCompleted: entries.Any() && entries.All(e => e.IsCompleted),
+            TotalMinutesSpent: entries.Sum(e => e.MinutesSpent),
+            TotalEstimatedMinutes: entries.Sum(e => e.EstimatedMinutes),
+            Rationale: rationale,
+            NarrativeJson: narrativeJson
+        );
+    }
+
+    private List<ActivityLogWeek> BuildWeeks(DateTime fromDate, DateTime toDate, List<ActivityLogDay> activityLogDays)
+    {
+        // Create a dictionary for fast lookup
+        var dayLookup = activityLogDays.ToDictionary(d => d.Date.Date, d => d);
+
+        // Find Monday-anchored weeks
+        var weeks = new List<ActivityLogWeek>();
+        var current = fromDate.Date;
+
+        // Align to Monday
+        while (current.DayOfWeek != DayOfWeek.Monday && current <= toDate)
+            current = current.AddDays(-1);
+
+        while (current <= toDate)
+        {
+            var weekStart = current;
+            var weekEnd = weekStart.AddDays(6);
+
+            var days = new ActivityLogDay[7];
+            for (int i = 0; i < 7; i++)
+            {
+                var date = weekStart.AddDays(i);
+                if (dayLookup.TryGetValue(date, out var day))
+                {
+                    days[i] = day;
+                }
+                else
+                {
+                    // Empty day
+                    days[i] = new ActivityLogDay(
+                        Date: date,
+                        Plans: new List<ActivityLogPlan>(),
+                        TotalMinutes: 0,
+                        HasInput: false,
+                        HasOutput: false,
+                        AllPlansCompleted: false
+                    );
+                }
+            }
+
+            var totalMinutes = days.Sum(d => d.TotalMinutes);
+            var inputMinutes = days.Sum(d => d.Plans.Sum(p => p.Items.Where(i => i.Category == ActivityCategory.Input).Sum(i => i.MinutesSpent)));
+            var outputMinutes = days.Sum(d => d.Plans.Sum(p => p.Items.Where(i => i.Category == ActivityCategory.Output).Sum(i => i.MinutesSpent)));
+            var activityCount = days.Sum(d => d.Plans.Sum(p => p.Items.Count));
+            var plansCompleted = days.Sum(d => d.Plans.Count(p => p.IsFullyCompleted));
+            var plansTotal = days.Sum(d => d.Plans.Count);
+
+            weeks.Add(new ActivityLogWeek(
+                WeekStart: weekStart,
+                WeekEnd: weekEnd,
+                Days: days,
+                TotalMinutes: totalMinutes,
+                InputMinutes: inputMinutes,
+                OutputMinutes: outputMinutes,
+                ActivityCount: activityCount,
+                PlansCompleted: plansCompleted,
+                PlansTotal: plansTotal
+            ));
+
+            current = weekEnd.AddDays(1);
+        }
+
+        // Return most recent week first
+        weeks.Reverse();
+
+        return weeks;
+    }
 }

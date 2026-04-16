@@ -1,0 +1,195 @@
+@page "/activity-log"
+@attribute [Authorize]
+@using SentenceStudio.Services.Progress
+@inject IProgressService ProgressService
+
+<PageHeader Title="Practice Log">
+    <ToolbarActions>
+        <button class="btn btn-sm btn-icon" @onclick="RefreshAsync" disabled="@_loading" title="Refresh">
+            <i class="bi bi-arrow-clockwise @(_loading ? "spin" : "")" style="font-size: 1.25rem;"></i>
+        </button>
+    </ToolbarActions>
+    <SecondaryActions>
+        <button class="dropdown-item" @onclick="() => FilterAsync(null)">
+            <i class="bi @(_filter == null ? "bi-check-circle-fill" : "bi-circle") me-2"></i>All Activities
+        </button>
+        <button class="dropdown-item" @onclick="() => FilterAsync(ActivityCategory.Input)">
+            <i class="bi @(_filter == ActivityCategory.Input ? "bi-check-circle-fill" : "bi-circle") me-2"></i>Input Only
+        </button>
+        <button class="dropdown-item" @onclick="() => FilterAsync(ActivityCategory.Output)">
+            <i class="bi @(_filter == ActivityCategory.Output ? "bi-check-circle-fill" : "bi-circle") me-2"></i>Output Only
+        </button>
+    </SecondaryActions>
+</PageHeader>
+
+@if (_loading && !_weeks.Any())
+{
+    <div class="d-flex justify-content-center align-items-center py-5">
+        <div class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+    </div>
+}
+else if (!_weeks.Any())
+{
+    <div class="text-center py-5 px-3">
+        <i class="bi bi-calendar-x fs-1 mb-3" style="color: var(--bs-secondary-color);"></i>
+        <p class="ss-body1 text-secondary-ss">No practice activity yet. Complete your first daily plan to see your practice log!</p>
+    </div>
+}
+else
+{
+    <!-- Legend -->
+    <div class="d-flex gap-3 mb-3 px-3">
+        <span class="d-flex align-items-center gap-1">
+            <span class="activity-dot activity-dot-sm activity-dot-input"></span>
+            <span class="ss-caption1">Input</span>
+        </span>
+        <span class="d-flex align-items-center gap-1">
+            <span class="activity-dot activity-dot-sm activity-dot-output"></span>
+            <span class="ss-caption1">Output</span>
+        </span>
+    </div>
+
+    <!-- Weekly rows -->
+    @foreach (var week in _weeks)
+    {
+        <div class="card card-ss mb-3">
+            <div class="card-body p-2 p-md-3">
+                <!-- Week header: date range + total minutes -->
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span class="ss-body1 fw-bold">@FormatWeekRange(week)</span>
+                    <span class="ss-caption1 text-secondary-ss">@week.TotalMinutes m</span>
+                </div>
+
+                <!-- 7-day grid -->
+                <div class="d-flex justify-content-between gap-1">
+                    @foreach (var day in week.Days)
+                    {
+                        <div class="text-center" style="flex: 1;">
+                            <div class="ss-caption1 text-secondary-ss mb-1">
+                                <!-- M, T, W, T, F, S, S on mobile; Mon, Tue, etc. on desktop -->
+                                <span class="d-md-none">@day.Date.ToString("ddd")[..1]</span>
+                                <span class="d-none d-md-inline">@day.Date.ToString("ddd")</span>
+                            </div>
+                            @if (day.TotalMinutes > 0)
+                            {
+                                <ActivityDot Day="day" OnClick="() => ToggleDayDetail(day)" />
+                            }
+                            else
+                            {
+                                <span class="d-none d-md-inline ss-caption1 text-secondary-ss" style="opacity: 0.4;">Rest</span>
+                            }
+                        </div>
+                    }
+                </div>
+
+                <!-- Expanded day detail (if selected) -->
+                @if (_selectedDay != null && week.Days.Any(d => d.Date.Date == _selectedDay.Date.Date))
+                {
+                    <PlanSummaryCard Day="_selectedDay" />
+                }
+            </div>
+        </div>
+    }
+
+    <!-- Load more button -->
+    @if (_hasMore)
+    {
+        <div class="text-center mb-3">
+            <button class="btn btn-ss-secondary" @onclick="LoadMoreAsync" disabled="@_loading">
+                @if (_loading)
+                {
+                    <span class="spinner-border spinner-border-sm me-1" role="status"></span>
+                    <span>Loading...</span>
+                }
+                else
+                {
+                    <span>Load More</span>
+                }
+            </button>
+        </div>
+    }
+}
+
+@code {
+    private List<ActivityLogWeek> _weeks = new();
+    private bool _loading = true;
+    private ActivityCategory? _filter = null;
+    private int _weeksLoaded = 8;
+    private ActivityLogDay? _selectedDay = null;
+    private bool _hasMore = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadDataAsync();
+    }
+
+    private async Task LoadDataAsync()
+    {
+        _loading = true;
+        try
+        {
+            var toUtc = DateTime.UtcNow;
+            var fromUtc = toUtc.AddDays(-(_weeksLoaded * 7));
+
+            _weeks = await ProgressService.GetActivityLogAsync(fromUtc, toUtc, _filter);
+
+            // If we got fewer weeks than requested, there's no more data
+            _hasMore = _weeks.Count >= _weeksLoaded;
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task RefreshAsync()
+    {
+        _weeksLoaded = 8;
+        _selectedDay = null;
+        await LoadDataAsync();
+    }
+
+    private async Task FilterAsync(ActivityCategory? category)
+    {
+        _filter = category;
+        _weeksLoaded = 8;
+        _selectedDay = null;
+        await LoadDataAsync();
+    }
+
+    private async Task LoadMoreAsync()
+    {
+        _weeksLoaded += 4;
+        await LoadDataAsync();
+    }
+
+    private void ToggleDayDetail(ActivityLogDay day)
+    {
+        if (_selectedDay?.Date.Date == day.Date.Date)
+        {
+            _selectedDay = null;
+        }
+        else
+        {
+            _selectedDay = day;
+        }
+    }
+
+    private string FormatWeekRange(ActivityLogWeek week)
+    {
+        // "Apr 13 – 19" format
+        var start = week.WeekStart.ToLocalTime();
+        var end = week.WeekEnd.ToLocalTime();
+
+        if (start.Month == end.Month)
+        {
+            return $"{start:MMM d} – {end:d}";
+        }
+        else
+        {
+            return $"{start:MMM d} – {end:MMM d}";
+        }
+    }
+}

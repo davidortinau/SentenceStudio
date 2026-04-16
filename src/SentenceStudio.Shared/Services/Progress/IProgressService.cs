@@ -124,6 +124,69 @@ public record StreakInfo
     DateTime? LastPracticeDate
 );
 
+public enum ActivityCategory { Input, Output }
+
+public record ActivityLogEntry(
+    string PlanItemId,
+    PlanActivityType ActivityType,
+    ActivityCategory Category,
+    int MinutesSpent,
+    int EstimatedMinutes,
+    bool IsCompleted,
+    DateTime? CompletedAt,
+    string? ResourceTitle,
+    string? SkillName,
+    string TitleKey,
+    string DescriptionKey
+);
+
+public record ActivityLogPlan(
+    DateTime GeneratedAt,
+    List<ActivityLogEntry> Items,
+    int CompletedCount,
+    int TotalCount,
+    bool IsFullyCompleted,
+    int TotalMinutesSpent,
+    int TotalEstimatedMinutes,
+    string? Rationale,
+    string? NarrativeJson
+);
+
+public record ActivityLogDay(
+    DateTime Date,
+    List<ActivityLogPlan> Plans,
+    int TotalMinutes,
+    bool HasInput,
+    bool HasOutput,
+    bool AllPlansCompleted
+);
+
+public record ActivityLogWeek(
+    DateTime WeekStart,
+    DateTime WeekEnd,
+    ActivityLogDay[] Days,
+    int TotalMinutes,
+    int InputMinutes,
+    int OutputMinutes,
+    int ActivityCount,
+    int PlansCompleted,
+    int PlansTotal
+);
+
+public static class ActivityCategoryMapper
+{
+    public static ActivityCategory Categorize(PlanActivityType type) => type switch
+    {
+        PlanActivityType.Reading or
+        PlanActivityType.Listening or
+        PlanActivityType.VideoWatching or
+        PlanActivityType.VocabularyReview or
+        PlanActivityType.VocabularyGame or
+        PlanActivityType.Cloze => ActivityCategory.Input,
+        _ => ActivityCategory.Output
+    };
+}
+
 public interface IProgressService
 {
     Task<List<ResourceProgress>> GetRecentResourceProgressAsync(DateTime fromUtc, int max = 3, CancellationToken ct = default);
@@ -137,4 +200,5 @@ public interface IProgressService
     Task ClearCachedPlanAsync(DateTime date, CancellationToken ct = default);
     Task MarkPlanItemCompleteAsync(string planItemId, int minutesSpent, CancellationToken ct = default);
     Task UpdatePlanItemProgressAsync(string planItemId, int minutesSpent, CancellationToken ct = default);
+    Task<List<ActivityLogWeek>> GetActivityLogAsync(DateTime fromUtc, DateTime toUtc, ActivityCategory? filter = null, CancellationToken ct = default);
 }

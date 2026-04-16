@@ -1740,3 +1740,28 @@ h3:focus,
     justify-content: center;
     padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
 }
+
+/* ============================================
+   ACTIVITY LOG — Dot styles
+   ============================================ */
+.activity-dot {
+    border-radius: 50%;
+    display: inline-block;
+    cursor: pointer;
+    transition: transform 0.15s ease;
+    position: relative;
+}
+.activity-dot:hover {
+    transform: scale(1.2);
+}
+.activity-dot-sm { width: 12px; height: 12px; }
+.activity-dot-md { width: 20px; height: 20px; }
+.activity-dot-lg { width: 28px; height: 28px; }
+.activity-dot-input { background-color: var(--bs-info); }
+.activity-dot-output { background-color: var(--bs-warning); }
+.activity-dot-split {
+    background: linear-gradient(135deg, var(--bs-info) 50%, var(--bs-warning) 50%);
+}
+.activity-dot-complete {
+    box-shadow: 0 0 0 2px var(--bs-success);
+}

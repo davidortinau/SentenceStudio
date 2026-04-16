@@ -20,6 +20,7 @@ public class NavigationMemoryService : IDisposable
             "/cloze", "/vocab-quiz", "/vocab-matching", "/how-do-you-say",
             "/shadowing", "/video-watching"
         ]),
+        ("activity", "/activity-log", ["/activity-log"]),
         ("resources", "/resources", ["/resources"]),
         ("vocabulary", "/vocabulary", ["/vocabulary"]),
         ("minimal-pairs", "/minimal-pairs", ["/minimal-pairs"]),

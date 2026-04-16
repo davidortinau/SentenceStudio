@@ -1,0 +1,28 @@
+@using SentenceStudio.Services.Progress
+
+<span class="activity-dot @GetSizeClass() @GetColorClass()" @onclick="OnClick" role="button"></span>
+
+@code {
+    [Parameter] public ActivityLogDay Day { get; set; } = default!;
+    [Parameter] public EventCallback OnClick { get; set; }
+
+    private string GetSizeClass()
+    {
+        if (Day.TotalMinutes < 10) return "activity-dot-sm";
+        if (Day.TotalMinutes < 25) return "activity-dot-md";
+        return "activity-dot-lg";
+    }
+
+    private string GetColorClass()
+    {
+        var color = (Day.HasInput, Day.HasOutput) switch
+        {
+            (true, false) => "activity-dot-input",
+            (false, true) => "activity-dot-output",
+            (true, true) => "activity-dot-split",
+            _ => ""
+        };
+
+        return Day.AllPlansCompleted ? $"{color} activity-dot-complete" : color;
+    }
+}
