@@ -13,9 +13,12 @@ var elevenlabskey = builder.AddParameter("elevenlabskey", secret: true);
 var jwtkey = builder.AddParameter("jwtkey", secret: true);
 var githubpat = builder.AddParameter("githubpat", secret: true);
 
-var postgresServer = builder.AddPostgres("db")
-    .WithLifetime(ContainerLifetime.Persistent)
-    .WithDataVolume();
+// Managed Azure PostgreSQL Flexible Server in production;
+// local Docker container for dev (RunAsContainer).
+var postgresServer = builder.AddAzurePostgresFlexibleServer("db")
+    .RunAsContainer(c => c
+        .WithLifetime(ContainerLifetime.Persistent)
+        .WithDataVolume());
 
 var postgres = postgresServer.AddDatabase("sentencestudio");
 

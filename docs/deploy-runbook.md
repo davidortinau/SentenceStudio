@@ -1,11 +1,12 @@
 # Deploy Runbook
 
-> **WARNING — READ THIS ENTIRE SECTION BEFORE RUNNING ANY DEPLOY COMMAND**
+> **Architecture: Azure PostgreSQL Flexible Server (managed)**
 >
-> On 2025-07-25, a production deploy destroyed all user data because the database
-> container was recreated without its volume mount and there was no backup.
-> The checklist below exists to prevent this from EVER happening again.
-> **Skipping any step is forbidden.**
+> As of 2025-07-26, production uses **Azure Database for PostgreSQL — Flexible Server**,
+> provisioned by the Aspire AppHost via `AddAzurePostgresFlexibleServer("db")`.
+> This eliminates the container + volume-mount data loss vulnerabilities that caused
+> the 2025-07-25 incident. The managed service provides automatic backups, point-in-time
+> restore, and is completely decoupled from container app deploys.
 
 ---
 
@@ -19,95 +20,57 @@
 **Use EITHER `azd deploy` OR `aspire deploy` — NEVER both in the same session.**
 
 Why: `azd` and `aspire deploy` manage Azure resources through different Bicep pipelines.
-When one tool recreates a container that the other tool provisioned, stateful configuration
-(like volume mounts) can be silently dropped. This is exactly what caused the 2025-07-25
-data loss incident. Pick one tool. Stick with it.
+Pick one tool. Stick with it.
 
 **Current recommendation:** Use `azd deploy` until `aspire deploy` exits preview.
+For infrastructure changes (like provisioning the Flexible Server), use `azd provision` first.
 
 ### Step 1: Back up the production database
 
 ```bash
-# Option A: pg_dump via container exec
-az containerapp exec \
-  --name db --resource-group rg-sstudio-prod \
-  --command "pg_dump -U postgres sentencestudio" > backup-$(date +%Y%m%d-%H%M%S).sql
+# pg_dump via the Flexible Server's public endpoint
+# (requires psql client and network access — use az postgres flexible-server connect)
+az postgres flexible-server execute \
+  --name <flexible-server-name> --resource-group rg-sstudio-prod \
+  --admin-user <admin> --admin-password <password> \
+  --database-name sentencestudio \
+  --querytext "SELECT count(*) FROM \"Users\";"
 
-# Verify the backup is real (not empty, contains table definitions)
-head -50 backup-*.sql   # Should show CREATE TABLE / COPY statements
-wc -l backup-*.sql      # Should be substantial (hundreds+ of lines)
+# Full backup: use az postgres flexible-server backup (built-in, daily, 35-day retention)
+az postgres flexible-server backup list \
+  --resource-group rg-sstudio-prod --server-name <flexible-server-name>
 ```
+
+**Pass condition:** Backup list is non-empty, or you've verified the built-in backup schedule is active.
+**If this fails:** STOP. Verify the Flexible Server is healthy before proceeding.
+
+### Step 2: Verify the Flexible Server is healthy
 
 ```bash
-# Option B: Download the Azure File share directly
-az storage file download-batch \
-  --account-name vol3ovvqiybthkb6 \
-  --source db-sentencestudioapphost8351ffded3dbdata \
-  --destination ./backup-$(date +%Y%m%d-%H%M%S)/
+az postgres flexible-server show \
+  --name <flexible-server-name> --resource-group rg-sstudio-prod \
+  --query "{name:name, state:state, version:version, sku:sku.name}" -o json
 ```
 
-**Pass condition:** Backup file is non-empty AND contains expected SQL/data.  
-**If this fails:** STOP. Fix the backup before proceeding. You cannot deploy without a backup.
+**Pass condition:** `state` is `Ready`.
 
-### Step 2: Verify stateful containers have volume mounts
-
-```bash
-az containerapp revision list \
-  --name db --resource-group rg-sstudio-prod \
-  --query "[0].{revision:name, volumes:properties.template.volumes}" -o json
-```
-
-**Pass condition:** The `volumes` array contains an entry with:
-- `storageType: AzureFile`
-- `storageName: db-sentencestudioapphost8351ffde`
-
-**If the volumes array is empty or null: DO NOT DEPLOY.** The DB container will lose all data.
-
-### Step 3: Verify the Azure File share exists and has data
-
-```bash
-az storage file list \
-  --account-name vol3ovvqiybthkb6 \
-  --share-name db-sentencestudioapphost8351ffded3dbdata \
-  --output table
-```
-
-**Pass condition:** File list is non-empty (PostgreSQL data files present).
-
-### Step 4: Verify the ACA environment storage mount exists
-
-```bash
-az containerapp env storage show \
-  --name cae-3ovvqiybthkb6 --resource-group rg-sstudio-prod \
-  --storage-name db-sentencestudioapphost8351ffde
-```
-
-**Pass condition:** Returns storage mount configuration (not a 404/error).
-
-### Step 5: Verify resource locks exist
+### Step 3: Verify resource locks exist
 
 ```bash
 az lock list --resource-group rg-sstudio-prod --output table
 ```
 
-**Pass condition:** Output shows at least two locks:
-- `do-not-delete-db` (CanNotDelete) on `Microsoft.App/containerApps/db`
-- `do-not-delete-db-storage` (CanNotDelete) on `Microsoft.Storage/storageAccounts/vol3ovvqiybthkb6`
+**Pass condition:** Output shows a lock on the Flexible Server resource (CanNotDelete).
 
-**If no locks found: STOP.** Create them before deploying:
+**If no lock on the Flexible Server:** Create one:
 
 ```bash
-az lock create --name do-not-delete-db \
+az lock create --name do-not-delete-postgres \
   --resource-group rg-sstudio-prod \
-  --resource db --resource-type Microsoft.App/containerApps \
+  --resource <flexible-server-name> \
+  --resource-type Microsoft.DBforPostgreSQL/flexibleServers \
   --lock-type CanNotDelete \
-  --notes "Protect production database from accidental deletion by deploy tools"
-
-az lock create --name do-not-delete-db-storage \
-  --resource-group rg-sstudio-prod \
-  --resource vol3ovvqiybthkb6 --resource-type Microsoft.Storage/storageAccounts \
-  --lock-type CanNotDelete \
-  --notes "Protect production database file share from accidental deletion"
+  --notes "Protect production managed PostgreSQL from accidental deletion"
 ```
 
 ### All checks passed? Proceed to deploy.
@@ -118,38 +81,35 @@ az lock create --name do-not-delete-db-storage \
 
 **Run these IMMEDIATELY after every deploy completes. Do not walk away until all pass.**
 
-### Post-1: Verify new revision has volume mount
+### Post-1: Verify Flexible Server connectivity
 
 ```bash
-az containerapp revision list \
-  --name db --resource-group rg-sstudio-prod \
-  --query "[0].{revision:name, volumes:properties.template.volumes}" -o json
+az postgres flexible-server execute \
+  --name <flexible-server-name> --resource-group rg-sstudio-prod \
+  --admin-user <admin> --admin-password <password> \
+  --database-name sentencestudio \
+  --querytext "SELECT count(*) FROM \"Users\";"
 ```
 
-**Pass condition:** Same as Step 2 — `AzureFile` volume with correct storage name.  
-**If this fails:** The deploy dropped the volume mount. The data on the file share is still intact
-but the container cannot see it. **Do not write any new data.** Fix the revision immediately
-by re-adding the volume mount via `az containerapp update` or redeploying with the correct
-AppHost configuration.
+**Pass condition:** Returns a row count (0 is OK for first deploy — schema created by EF Core migrations).
 
-### Post-2: Verify database is accessible and has data
-
-```bash
-az containerapp exec \
-  --name db --resource-group rg-sstudio-prod \
-  --command "psql -U postgres -d sentencestudio -c 'SELECT count(*) FROM \"Users\";'"
-```
-
-**Pass condition:** Returns a row count > 0 (or expected count based on known state).  
-**If this returns 0 or errors:** The database is empty or unreachable. Restore from backup immediately.
-
-### Post-3: API health check
+### Post-2: API health check
 
 ```bash
 curl -sf https://api.livelyforest-b32e7d63.centralus.azurecontainerapps.io/health && echo "OK"
 ```
 
 **Pass condition:** Returns HTTP 200.
+
+### Post-3: Verify EF Core migrations ran
+
+Check API logs for migration output:
+
+```bash
+az containerapp logs show --name api --resource-group rg-sstudio-prod --tail 50 | grep -i migrat
+```
+
+**Pass condition:** Logs show "Applying migration" or "Database is up to date".
 
 ---
 
@@ -250,85 +210,14 @@ dotnet build src/SentenceStudio.iOS/SentenceStudio.iOS.csproj \
   -f net10.0-ios -c Debug -p:RuntimeIdentifier=ios-arm64
 ```
 
----
 
-## Future: Managed Database Migration
-
-> **This is the RECOMMENDED long-term solution.** Migrating from the containerized Postgres +
-> Azure File share to Azure Database for PostgreSQL Flexible Server eliminates the entire class
-> of volume-mount data loss vulnerabilities.
-
-### Why Managed Postgres
-
-The current architecture is inherently fragile: any deploy tool that regenerates the `db` container
-revision without preserving the Azure File share volume mount will start an empty database. A managed
-database service is completely decoupled from container deployments — no file shares, no volume mounts,
-no risk of silent data loss from a routine deploy.
-
-### What You Get
-
-| Capability | Current (Container + File Share) | Managed (Flexible Server) |
-|------------|----------------------------------|---------------------------|
-| Automatic backups | None | Daily, 35-day retention, configurable |
-| Point-in-time restore | Impossible | Any second within retention window |
-| Deploy safety | Volume mount can be silently dropped | Not affected by app container deploys |
-| Scaling | Manual container limits | Built-in vertical/horizontal scaling |
-| High availability | None | Zone-redundant option |
-| Monitoring | Manual | Azure Monitor integration |
-
-### Estimated Cost
-
-~$17/month for Burstable B1ms (1 vCore, 2GB RAM, 32GB storage). Trivial compared to the value
-of production data.
-
-### AppHost Changes Required
-
-```csharp
-// BEFORE (current — fragile):
-var postgresServer = builder.AddPostgres("db")
-    .WithLifetime(ContainerLifetime.Persistent)
-    .WithDataVolume()
-    .PublishAsAzureContainerApp((infra, app) => { /* volume mount config */ });
-
-// AFTER (managed — durable):
-var postgresServer = builder.AddAzurePostgresFlexibleServer("db")
-    .RunAsContainer(c => c
-        .WithLifetime(ContainerLifetime.Persistent)
-        .WithDataVolume());
-
-var postgres = postgresServer.AddDatabase("sentencestudio");
-```
-
-- `.AddAzurePostgresFlexibleServer()` provisions a managed Azure PostgreSQL Flexible Server in production
-- `.RunAsContainer()` preserves the local dev experience (Docker container with named volume)
-- No file share, no volume mount callback, no `PublishAsAzureContainerApp` override needed
-- Connection string is automatically injected via Aspire service discovery
-
-### Defense in Depth
-
-Even with a managed database, resource locks should remain in place (defense in depth):
-- Lock the Flexible Server resource itself (`CanNotDelete`)
-- Lock the resource group if appropriate
-- Keep the preprovision hook in `azure.yaml` — adapt checks for the managed server
-
-### Migration Steps
-
-1. Provision the Flexible Server (can run in parallel with existing container)
-2. Export data: `pg_dump` via `az containerapp exec`
-3. Import to Flexible Server: `pg_restore` to the managed endpoint
-4. Update AppHost to use `AddAzurePostgresFlexibleServer`
-5. Deploy and verify
-6. Decommission old container + file share after 1 week of clean operation
-
-See `.squad/decisions/inbox/zoe-production-data-safety.md` for the full migration plan.
-
----
 
 ## Common Issues
 
 | Problem | Fix |
 |---------|-----|
 | `azd deploy` times out | Turn off VPN, retry |
+| `azd provision` fails on Flexible Server | Check subscription quota for PostgreSQL Flexible Servers in the region |
 | `aspire deploy` creates wrong RG | Check `~/.aspire/deployments/.../production.json` has `rg-sstudio-prod` |
 | `aspire deploy` principal error | Ensure AppHost has `AddAzureContainerAppEnvironment` |
 | `aspire deploy` stale state | Run `aspire deploy --clear-cache` to reset |
@@ -336,5 +225,14 @@ See `.squad/decisions/inbox/zoe-production-data-safety.md` for the full migratio
 | Device locked error on install | Unlock DX24, retry |
 | LOCAL ribbon on phone | Built with Debug config — rebuild with Release + env var (step 2b) |
 | Phone app can't reach API | Missing `services__api__https__0` env var at build time |
-| DB data lost after deploy | **CRITICAL**: Check Post-Deploy verification above. If volume mount is missing, data is likely still on the Azure File share — fix the revision ASAP. If empty, restore from backup. |
-| Mixed azd + aspire deploy | **NEVER do this.** See "NEVER mix deploy tools" warning above. If you already mixed them, run ALL pre-deploy checks before any further action. |
+| EF Core can't connect to Flexible Server | Check firewall rules allow ACA subnet; verify connection string in Aspire dashboard |
+| Mixed azd + aspire deploy | **NEVER do this.** See "NEVER mix deploy tools" warning above. |
+
+---
+
+## Legacy: Containerized Postgres (deprecated)
+
+> The old `db` container app and Azure File share (`vol3ovvqiybthkb6`) may still exist in
+> `rg-sstudio-prod` with CanNotDelete locks. They are no longer referenced by the AppHost.
+> Leave them in place until you're confident the managed Flexible Server is stable, then
+> remove the locks and delete them to avoid ongoing storage costs.
