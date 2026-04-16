@@ -5399,3 +5399,37 @@ Captain reviewed the spec with architect and skeptic reviewers. Three design que
 - **Section 6:** Updated AI grading table and Translation code sample
 
 No formula changes. No new activities added. The spec is structurally the same, just more precise.
+# Decision: Daily Plan Stability 3-Part Fix
+
+**Author:** Wash (Backend Dev)
+**Date:** 2025-07-26
+**Status:** Implemented
+
+## Context
+
+The daily plan was unstable -- navigating away and returning, or completing an activity, would regenerate a different plan for the same day. Three root causes were identified:
+
+1. **Random tiebreakers**: `SelectInputActivity` and `SelectOutputActivity` used `.ThenBy(a => Guid.NewGuid())` to break ties in activity ordering. Every regeneration shuffled the deck.
+2. **5-minute cache TTL**: `ProgressCacheService` cached the plan for only 5 minutes. After expiry, the plan was rebuilt from scratch (hitting cause #1).
+3. **Today's completions polluting the selection query**: `BuildActivitySequenceAsync` queried `DailyPlanCompletions` for the last 3 days *including today*. When a user completed an activity, new completion records changed the inputs to the selection algorithm, producing a different plan.
+
+## Decision
+
+### Fix 1: Deterministic tiebreakers
+Replace `Guid.NewGuid()` with `HashCode.Combine(DateTime.Today, activityName)`. The same date always produces the same ordering for the same set of activities.
+
+### Fix 2: Date-keyed plan cache
+Change the plan cache key from `{userId}` to `{userId}:plan_{yyyy-MM-dd}` and set TTL to expire at local midnight instead of after 5 minutes. Each new day gets a fresh plan automatically.
+
+### Fix 3: Exclude today from recent-activity query
+Change the completions query from `c.Date >= today.AddDays(-3)` to `c.Date >= today.AddDays(-3) && c.Date < today`. Today's completions only affect the "done" status in the UI, not which activities are selected.
+
+## Files Changed
+
+- `src/SentenceStudio.Shared/Services/PlanGeneration/DeterministicPlanBuilder.cs` (Fixes 1 and 3)
+- `src/SentenceStudio.Shared/Services/Progress/ProgressCacheService.cs` (Fix 2)
+
+## Risks
+
+- `HashCode.Combine` is not guaranteed stable across .NET versions or process restarts. This is acceptable because the plan only needs to be stable within a single day/process. If the app restarts, the DB-backed `DailyPlanCompletion` records reconstruct the same plan.
+- Date-keyed cache entries for previous days are never explicitly cleaned up. Since the dictionary is in-memory and the app restarts daily on mobile, this is a negligible leak. A future improvement could prune stale keys.

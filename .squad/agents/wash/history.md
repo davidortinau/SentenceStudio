@@ -671,3 +671,77 @@ services.AddSingleton<IActiveUserProvider>(new PreferencesActiveUserProvider(moc
   - `HashCode.Combine(DateTime.Today, activityName)` replaces `Guid.NewGuid()` tiebreakers in SelectInputActivity / SelectOutputActivity
   - ProgressCacheService plan cache now keyed by `{userId}:plan_{yyyy-MM-dd}` with TTL until midnight, replacing the 5-minute TTL
   - BuildActivitySequenceAsync recent-completions query now uses `c.Date < today` to exclude same-day records from influencing activity selection
+
+## Learnings
+
+### 2025-01-14: Activity Log Data Layer Implementation
+
+**Task**: Implement backend data layer for the Activity Log page - DTOs, category mapper, and service methods.
+
+**Key Implementation Details**:
+
+1. **DTOs Added to IProgressService.cs**:
+   - `ActivityCategory` enum (Input/Output)
+   - `ActivityLogEntry` - individual plan item with category, time, completion status
+   - `ActivityLogPlan` - cluster of items generated at the same time
+   - `ActivityLogDay` - all plans for a given date
+   - `ActivityLogWeek` - Monday-anchored week with 7 days (some may be empty)
+   - `ActivityCategoryMapper` static helper to categorize activities
+
+2. **GetActivityLogAsync Implementation**:
+   - Query pattern: Use `_serviceProvider.CreateScope()` to get fresh DbContext (matches existing patterns)
+   - User ID: Retrieved via `_userProfileRepo.GetAsync()` and use `userProfile.Id`
+   - Plan clustering: Items with CreatedAt within 60 seconds belong to same plan generation
+   - Week building: Monday-anchored, always 7 elements in Days array, fill empty days with zero values
+   - Filtering: Optional ActivityCategory filter applied at entry level
+   - Resource/Skill lookup: Used existing repositories to enrich entries with titles
+   - Order: Most recent week first (weeks.Reverse())
+
+3. **Patterns Followed**:
+   - Scoped DbContext pattern from `ClearCachedPlanAsync` and `ReconstructPlanFromDatabase`
+   - User profile retrieval from `_userProfileRepo.GetAsync()`
+   - Logging with emoji prefixes for visual parsing
+   - Graceful handling of empty data (return empty list, not null)
+   - Dictionary lookups for O(1) resource/skill title resolution
+
+4. **Gotchas Avoided**:
+   - SkillProfile.Title (not Name) - caught during build
+   - DailyPlanCompletion.ActivityType is string, requires Enum.TryParse
+   - Empty days must be filled in weeks to ensure 7-element array
+   - Filter applied after parsing, not at query level (cleaner logic)
+
+**Build Status**: ✅ Clean build, 0 errors (658 warnings are pre-existing)
+
+
+### Activity Log Data Service (2026-04-16)
+
+Implemented backend service for Activity Log feature (Strava-inspired Practice Calendar):
+
+**DTOs Added:**
+- `ActivityLogEntry`: Individual activity session (type, duration, resource/skill, timestamp)
+- `ActivityLogPlan`: Plan view with activities and completion metadata
+- `ActivityLogDay`: Day aggregation with completeness and total minutes
+- `ActivityLogWeek`: Week aggregation with 7 days (Monday-anchored)
+- `ActivityCategory` enum: Input, Output, Mixed, Rest
+- `ActivityCategoryMapper`: Deterministic categorization based on activity type
+
+**Service Implementation (ProgressService):**
+- `GetActivityLogAsync(userId, startDate, weeks)`: Main API
+- Temporal clustering: Groups completions by day, then week
+- Resource/skill enrichment: Joins with LearningResource and SkillProfile tables
+- Deterministic categorization: Uses ActivityCategoryMapper (not dynamic/user-driven)
+- Pagination: Returns N weeks from startDate
+- Null-safe: Handles deleted resources gracefully
+
+**Design Decisions:**
+- Monday-anchored weeks (ISO 8601) — first week of request may be partial
+- Input/Output determined by activity type, not user annotation
+- Service owns all filtering logic; Kaylee's UI layer calls GetActivityLogAsync with filters
+- ActivityCategory enum is definitive source for UI color/styling logic
+
+**Integration:**
+- Depends on existing DailyPlanCompletion and ActivityPlanItem models
+- No breaking changes to ProgressService public API
+- Data compatible with Kaylee's ActivityLog.razor + ActivityDot.razor components
+
+**Cross-Agent:** Kaylee integrated DTOs into UI layer; Coordinator fixed build errors
