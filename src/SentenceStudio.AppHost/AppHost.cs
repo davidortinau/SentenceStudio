@@ -2,21 +2,22 @@ using Projects;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
-// Configure Azure Container Apps environment for deployment.
-// WithAzdResourceNaming() ensures resource names match the existing
-// azd-provisioned infrastructure in rg-sstudio-prod.
-var acaEnv = builder.AddAzureContainerAppEnvironment("aca-env")
-    .WithAzdResourceNaming();
+// NOTE: AddAzureContainerAppEnvironment was removed because it changes azd's
+// manifest template generation to a format incompatible with existing azd env vars.
+// When migrating to aspire deploy as primary, re-add:
+//   builder.AddAzureContainerAppEnvironment("aca-env").WithAzdResourceNaming();
+// and run `aspire deploy` instead of `azd deploy`.
 
 var openaikey = builder.AddParameter("openaikey", secret: true);
 var elevenlabskey = builder.AddParameter("elevenlabskey", secret: true);
 var jwtkey = builder.AddParameter("jwtkey", secret: true);
 var githubpat = builder.AddParameter("githubpat", secret: true);
 
-var postgres = builder.AddPostgres("db")
+var postgresServer = builder.AddPostgres("db")
     .WithLifetime(ContainerLifetime.Persistent)
-    .WithDataVolume()
-    .AddDatabase("sentencestudio");
+    .WithDataVolume();
+
+var postgres = postgresServer.AddDatabase("sentencestudio");
 
 var redis = builder.AddRedis("cache");
 
