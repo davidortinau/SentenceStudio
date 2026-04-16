@@ -59,6 +59,16 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         
         modelBuilder.Entity<VocabularyWord>().ToTable("VocabularyWord").HasKey(e => e.Id);
         modelBuilder.Entity<VocabularyWord>().Property(e => e.Id).ValueGeneratedNever();
+        // Explicit nullable mapping — [ObservableProperty] source generator can strip
+        // nullability annotations, causing EF Core to skip IsDBNull checks on read.
+        modelBuilder.Entity<VocabularyWord>().Property(e => e.NativeLanguageTerm).IsRequired(false);
+        modelBuilder.Entity<VocabularyWord>().Property(e => e.TargetLanguageTerm).IsRequired(false);
+        modelBuilder.Entity<VocabularyWord>().Property(e => e.Lemma).IsRequired(false);
+        modelBuilder.Entity<VocabularyWord>().Property(e => e.Language).IsRequired(false);
+        modelBuilder.Entity<VocabularyWord>().Property(e => e.Tags).IsRequired(false);
+        modelBuilder.Entity<VocabularyWord>().Property(e => e.MnemonicText).IsRequired(false);
+        modelBuilder.Entity<VocabularyWord>().Property(e => e.MnemonicImageUri).IsRequired(false);
+        modelBuilder.Entity<VocabularyWord>().Property(e => e.AudioPronunciationUri).IsRequired(false);
         
         modelBuilder.Entity<VocabularyList>().ToTable("VocabularyList").HasKey(e => e.Id);
         modelBuilder.Entity<VocabularyList>().Property(e => e.Id).ValueGeneratedNever();

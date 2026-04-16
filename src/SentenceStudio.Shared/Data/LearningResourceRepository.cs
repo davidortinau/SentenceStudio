@@ -566,12 +566,14 @@ public class LearningResourceRepository
             return await db.VocabularyWords
                 .AsNoTracking()
                 .Include(vw => vw.LearningResources)
+                .AsSplitQuery()
                 .Where(w => userWordIds.Contains(w.Id))
                 .ToListAsync();
         }
         return await db.VocabularyWords
             .AsNoTracking()
             .Include(vw => vw.LearningResources)
+            .AsSplitQuery()
             .ToListAsync();
     }
 
@@ -596,6 +598,7 @@ public class LearningResourceRepository
                     m => m.ResourceId, r => r.Id, (m, r) => m.VocabularyWordId);
             return await db.VocabularyWords
                 .Include(vw => vw.LearningResources)
+                .AsSplitQuery()
                 .Where(vw => userWordIds.Contains(vw.Id))
                 .Where(vw =>
                     (vw.TargetLanguageTerm != null && vw.TargetLanguageTerm.ToLower().Contains(searchTerm)) ||
@@ -604,6 +607,7 @@ public class LearningResourceRepository
         }
         return await db.VocabularyWords
             .Include(vw => vw.LearningResources)
+            .AsSplitQuery()
             .Where(vw =>
                 (vw.TargetLanguageTerm != null && vw.TargetLanguageTerm.ToLower().Contains(searchTerm)) ||
                 (vw.NativeLanguageTerm != null && vw.NativeLanguageTerm.ToLower().Contains(searchTerm)))
@@ -633,6 +637,7 @@ public class LearningResourceRepository
 
         return await db.VocabularyWords
             .Include(vw => vw.LearningResources)
+            .AsSplitQuery()
             .Where(vw => db.ResourceVocabularyMappings.Any(rvm => rvm.VocabularyWordId == vw.Id))
             .ToListAsync();
     }
@@ -647,6 +652,7 @@ public class LearningResourceRepository
 
         return await db.VocabularyWords
             .Include(vw => vw.LearningResources)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(vw => vw.Id == wordId);
     }
 
