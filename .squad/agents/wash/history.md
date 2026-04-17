@@ -843,3 +843,39 @@ Option 2: Make Quiz global when VocabularyReview activity doesn't pass ResourceI
 
 
 - Quiz/LearningResource decoupling shipped (commit 88a0272) — VocabularyReview is vocabulary-driven, not resource-scoped. Root cause was Insights (global count) vs. Quiz (resource-filtered) mismatch. Fix: remove ResourceId from VocabularyReview plan items, always load from full user vocab pool.
+- **CRITICAL**: Persisted plan items from before the decoupling fix still contain ResourceId in the database — even after deploy, old plan items bypass PlanConverter logic. Fix requires guarding the LAUNCH path (Index.razor:LaunchPlanItem) not just the generation path.
+- Index.razor LaunchPlanItem (lines 922-954) reads item.ResourceId DIRECTLY and constructs query strings, bypassing PlanConverter.BuildRouteParameters — this was the second leak point after DeterministicPlanBuilder was fixed
+- VocabQuiz.razor LoadVocabulary must also implement defense-in-depth: when DueOnly=true (SRS mode from daily plan), ignore ResourceIds parameter even if passed
+- Two-layer fix: (1) Index.razor skips ResourceId for VocabularyReview activity type, (2) VocabQuiz.razor ignores ResourceIds when DueOnly=true — this ensures robustness at both the launch point and the loading point
+
+---
+
+## 2026-04-17 — VocabularyReview Persisted Plan Item Leak Fix (Verified on Device)
+
+**Status:** ✅ VERIFIED ON DEVICE
+
+**What:** After shipping the Quiz/LearningResource decoupling fix (commit 88a0272), Captain reported the quiz was still showing "All vocabulary in this resource are mastered." The fix addressed GENERATION paths but missed old PERSISTED plan items.
+
+**Root Cause:** DailyPlans generated BEFORE the deploy were persisted to the database with ResourceId stamped on VocabularyReview plan items. When Captain reopened the app after deploy, the Dashboard loaded these old plan items. **Index.razor's LaunchPlanItem method read item.ResourceId DIRECTLY**, bypassing the corrected PlanConverter logic entirely.
+
+**Two-Layer Fix:**
+
+1. **Index.razor (Line 928):** Added `item.ActivityType != PlanActivityType.VocabularyReview` guard before reading ResourceId
+   - Ensures VocabularyReview never passes ResourceId to quiz, even from old persisted plan items
+
+2. **VocabQuiz.razor (Line 634):** When `DueOnly=true` (SRS mode), ignore ResourceIds parameter
+   - Defense in depth: quiz loader itself knows to ignore ResourceIds when in SRS mode
+
+**Verification:**
+- ✅ Build clean: 0 errors
+- ✅ Code-review agent: PASS verdict
+- ✅ Commit: c081a63 merged to main
+- ✅ Azure deploy: ✅ SUCCESS (2m44s)
+- ✅ Post-deploy validation: 17/17 pass
+- ✅ iOS Release: Built and installed to DX24
+- ✅ **Captain verified on device:** "i see vocab now."
+
+**Key Learning:** Persisted data from before the fix can bypass corrected code paths if the LAUNCH point still reads the stale field directly. Always guard the launch/entry points, not just the generation/data creation points.
+
+**Report:** `.squad/decisions/inbox/wash-quiz-still-broken-fix.md` (now merged to decisions.md)
+
