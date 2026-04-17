@@ -92,6 +92,9 @@ else
     [SupplyParameterFromQuery(Name = "planItemId")]
     public string? PlanItemId { get; set; }
 
+    [SupplyParameterFromQuery(Name = "DueOnly")]
+    public bool DueOnly { get; set; }
+
     [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
     [Inject] private UserActivityRepository ActivityRepo { get; set; } = default!;
     [Inject] private VocabularyProgressService ProgressService { get; set; } = default!;
@@ -127,15 +130,29 @@ else
         isBusy = true;
         try
         {
-            var resourceIds = ParseResourceIds();
-            if (resourceIds.Length == 0) { isBusy = false; return; }
+            // DEFENSE IN DEPTH: When DueOnly=true (plan-initiated SRS mode), ignore ResourceIds
+            // and load from full user vocabulary pool, same pattern as VocabQuiz
+            var resourceIds = DueOnly ? Array.Empty<string>() : ParseResourceIds();
 
             var allWords = new List<VocabularyWord>();
-            foreach (var id in resourceIds)
+            
+            if (DueOnly)
             {
-                var resource = await ResourceRepo.GetResourceAsync(id);
-                if (resource?.Vocabulary?.Any() == true)
-                    allWords.AddRange(resource.Vocabulary);
+                // Load ALL user vocabulary when in DueOnly/plan mode (same pattern as VocabQuiz)
+                var words = await ResourceRepo.GetAllVocabularyWordsWithResourcesAsync();
+                allWords.AddRange(words);
+            }
+            else
+            {
+                // Resource-filtered mode (user-initiated from resource detail page)
+                if (resourceIds.Length == 0) { isBusy = false; return; }
+                
+                foreach (var id in resourceIds)
+                {
+                    var resource = await ResourceRepo.GetResourceAsync(id);
+                    if (resource?.Vocabulary?.Any() == true)
+                        allWords.AddRange(resource.Vocabulary);
+                }
             }
 
             // Deduplicate and filter

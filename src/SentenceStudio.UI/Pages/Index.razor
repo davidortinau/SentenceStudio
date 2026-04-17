@@ -926,9 +926,12 @@ else
         var query = new List<string>();
         var multiResourceRoutes = new HashSet<string> { "vocab-quiz", "vocab-matching" };
         
-        // CRITICAL: For VocabularyReview, NEVER pass ResourceId (even if persisted on the plan item)
-        // VocabularyReview is vocabulary-driven, NOT resource-driven
-        if (item.ActivityType != PlanActivityType.VocabularyReview && !string.IsNullOrEmpty(item.ResourceId))
+        // CRITICAL: For vocabulary-driven activities (VocabularyReview, VocabularyGame),
+        // NEVER pass ResourceId (even if persisted on the plan item)
+        // These activities are vocabulary-driven, NOT resource-driven
+        if (item.ActivityType != PlanActivityType.VocabularyReview 
+            && item.ActivityType != PlanActivityType.VocabularyGame 
+            && !string.IsNullOrEmpty(item.ResourceId))
         {
             if (multiResourceRoutes.Contains(route))
                 query.Add($"resourceIds={item.ResourceId}");

@@ -131,6 +131,9 @@ public static class PlanConverter
         }
         else if (activityType == PlanActivityType.VocabularyGame)
         {
+            parameters["DueOnly"] = true;
+            // VocabularyGame is vocabulary-driven, NOT resource-driven (like VocabularyReview)
+            // ResourceId is intentionally NOT passed to allow matching to load from full user vocab pool
             if (!string.IsNullOrEmpty(skillId))
                 parameters["SkillId"] = skillId;
         }
