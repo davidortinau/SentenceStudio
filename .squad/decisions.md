@@ -84,6 +84,91 @@ VocabularyReview Quiz now loads from global user vocabulary pool, matching what 
 
 ---
 
+### SHIPPED: Vocabulary Matching Decoupled from Resource Filtering (2026-01-29)
+
+**Status:** ✅ SHIPPED  
+**Date:** 2026-01-29  
+**Affected Components:** Daily Plan generation, VocabularyGame routing, Matching vocabulary loading  
+**Commit:** 0c8e197
+
+## Problem
+
+When launching **Vocabulary Matching** (`VocabularyGame` activity) from Today Plan on iOS DX24, the page displayed "no vocabulary available" — same root cause as the VocabQuiz decouple (commits 88a0272 + c081a63).
+
+**Root Cause:** VocabMatching was exiting early when `resourceIds.Length == 0`. The plan builder correctly set `ResourceId = null` for plan-initiated matching, but the page interpreted empty resource IDs as "no data" and returned without loading any vocabulary.
+
+## Architecture Decision
+
+Like VocabularyReview/Quiz, **VocabularyGame is vocabulary-driven, NOT resource-driven**. When launched from Today Plan:
+- Should pull from user's full due-vocabulary pool across ALL resources
+- Should prioritize words based on SRS state (low mastery, not in grace period)
+- ResourceId filtering should ONLY apply when user explicitly launches matching from a specific resource detail page
+
+## Four-Layer Fix Applied
+
+### Layer 1: DeterministicPlanBuilder (already correct ✅)
+**File:** `src/SentenceStudio.Shared/Services/PlanGeneration/DeterministicPlanBuilder.cs`  
+**Line 519:** `ResourceId = null` — Already set correctly for VocabularyGame activities
+
+### Layer 2: PlanConverter (FIXED ✅)
+**File:** `src/SentenceStudio.Shared/Services/PlanGeneration/PlanConverter.cs`  
+**Lines 132-138:** Extended BuildRouteParameters to handle VocabularyGame like VocabularyReview:
+- Added `DueOnly = true` parameter
+- ResourceId is intentionally NOT passed to route params
+
+### Layer 3: Index.razor LaunchPlanItem (FIXED ✅)
+**File:** `src/SentenceStudio.UI/Pages/Index.razor`  
+**Lines 929-936:** Extended ResourceId guard to cover both vocabulary activities:
+- Changed condition to: `item.ActivityType != PlanActivityType.VocabularyReview && item.ActivityType != PlanActivityType.VocabularyGame`
+
+### Layer 4: VocabMatching.razor (FIXED ✅)
+**File:** `src/SentenceStudio.UI/Pages/VocabMatching.razor`  
+**Changes:**
+- **Line 95:** Added `DueOnly` query parameter (bool)
+- **Lines 126-152:** Rewrote LoadVocabulary with defense-in-depth logic:
+  - When `DueOnly=true`: Ignore ResourceIds, load from ALL user resources
+  - When `DueOnly=false`: Use existing resource-filtered logic (user-initiated from resource page)
+  - Pattern mirrors VocabQuiz.razor lines 634-636
+
+## User-Initiated Resource-Filtered Matching Still Works
+
+The fix preserves existing behavior when users launch matching from a resource detail page:
+- `DueOnly=false` path is unchanged
+- ResourceIds are still parsed and honored
+- Only filters vocabulary to selected resources
+- No breaking changes to non-plan launches
+
+## Verification
+
+- ✅ Build clean (0 errors, 363 warnings — all pre-existing)
+- ✅ Azure deploy: SUCCESS
+- ✅ Post-deploy validation: 17/17 pass
+- ✅ iOS DX24: installed successfully
+
+## Deployment (Coordinator)
+
+- ✅ Commit: 0c8e197 merged to main
+- ✅ Azure deploy: ✅ SUCCESS
+  - Webapp: https://webapp.livelyforest-b32e7d63.centralus.azurecontainerapps.io
+  - API: https://api.livelyforest-b32e7d63.centralus.azurecontainerapps.io
+- ✅ Post-deploy validation: 17 pass / 0 fail
+- ✅ iOS installed to DX24 (CF4F94E3-A1C9-5617-A089-9ABB0110A09F)
+
+## Pattern Recognition
+
+This is the second vocabulary-driven activity (`VocabQuiz` → `VocabMatching`) to require the same four-layer decoupling pattern. Future vocabulary-driven activities should follow this template:
+
+1. **Plan builder:** Set ResourceId = null
+2. **PlanConverter:** Add DueOnly=true, skip ResourceId
+3. **Index.razor:** Guard ResourceId passing for activity type
+4. **Page:** Implement DueOnly defense-in-depth (load all resources when true, resource-filtered when false)
+
+---
+
+**Decision Chain:** Wash (diagnosis) → Wash (implementation) → code-review (approval) → Coordinator (deploy) → Scribe (verify + closeout)
+
+---
+
 ### BUG-INVESTIGATION: Daily Plan Regenerates After Activity Completion (2026-07-27)
 
 **Status:** INVESTIGATION COMPLETE -- awaiting Captain's decision on fix approach  

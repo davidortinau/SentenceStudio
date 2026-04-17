@@ -879,3 +879,49 @@ Option 2: Make Quiz global when VocabularyReview activity doesn't pass ResourceI
 
 **Report:** `.squad/decisions/inbox/wash-quiz-still-broken-fix.md` (now merged to decisions.md)
 
+
+---
+
+## 2025-01-29: Vocabulary Matching - Resource Decoupling
+
+**Task:** Fix "no vocabulary available" bug when launching Vocabulary Matching from Today Plan on iOS DX24  
+**Pattern:** Applied same four-layer fix used for VocabQuiz (commits 88a0272 + c081a63)
+
+### Investigation
+
+- **Activity type:** `PlanActivityType.VocabularyGame` → route `/vocabulary-matching`
+- **Root cause:** VocabMatching.razor line 131 exited early when `resourceIds.Length == 0`
+- **Philosophy:** VocabularyGame is vocabulary-driven, NOT resource-driven (like VocabularyReview)
+
+### Four-Layer Fix
+
+1. **DeterministicPlanBuilder** (already correct): Line 519 sets `ResourceId = null` for VocabularyGame
+2. **PlanConverter** (fixed): Lines 132-138 now add `DueOnly=true` and skip ResourceId for VocabularyGame
+3. **Index.razor** (fixed): Lines 929-936 guard extended to skip ResourceId for both VocabularyReview AND VocabularyGame
+4. **VocabMatching.razor** (fixed): Added DueOnly param, rewrote LoadVocabulary (lines 126-152) with defense-in-depth:
+   - `DueOnly=true` → load ALL user vocabulary across all resources
+   - `DueOnly=false` → use existing resource-filtered logic (preserves user-initiated launches)
+
+### Build Result
+
+✅ 0 errors, 363 warnings (all pre-existing)
+
+### Key Learning
+
+When vocabulary-testing activities share the same architectural pattern (global vocab pool for SRS, resource-filtered for manual), apply the same four-layer decoupling pattern consistently:
+1. Plan builder sets ResourceId = null
+2. PlanConverter adds DueOnly, skips ResourceId
+3. Index.razor guards ResourceId passing
+4. Page implements DueOnly defense-in-depth
+
+This ensures plan-initiated vocabulary activities work correctly while preserving user-initiated resource-filtered behavior.
+
+### Files Changed
+
+- `src/SentenceStudio.Shared/Services/PlanGeneration/PlanConverter.cs`
+- `src/SentenceStudio.UI/Pages/Index.razor`
+- `src/SentenceStudio.UI/Pages/VocabMatching.razor`
+
+### Decision Doc
+
+`.squad/decisions/inbox/wash-vocab-matching-decouple.md`
