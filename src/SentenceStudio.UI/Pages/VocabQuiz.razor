@@ -631,7 +631,9 @@ else
         isBusy = true;
         try
         {
-            var resourceIds = ParseResourceIds();
+            // DEFENSE IN DEPTH: When DueOnly=true (SRS mode), ignore ResourceIds even if passed
+            // This ensures VocabularyReview always loads from full user vocabulary pool
+            var resourceIds = DueOnly ? Array.Empty<string>() : ParseResourceIds();
             var allWords = new List<VocabularyWord>();
 
             if (resourceIds.Length > 0)
