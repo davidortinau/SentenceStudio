@@ -133,14 +133,17 @@ internal sealed class HelpKitService : IHelpKit
 
         // 4. Answer cache lookup (keyed by question + fingerprint).
         string fingerprint;
+        string? fingerprintError = null;
         try { fingerprint = _ingestion.GetCurrentFingerprint(); }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Could not compute pipeline fingerprint; ensure an IEmbeddingGenerator is registered.");
-            yield return new HelpKitMessage(
-                "assistant",
-                "Help is not fully configured yet. Register an IEmbeddingGenerator and an IChatClient, then call IngestAsync.",
-                Array.Empty<HelpKitCitation>());
+            fingerprint = string.Empty;
+            fingerprintError = "Help is not fully configured yet. Register an IEmbeddingGenerator and an IChatClient, then call IngestAsync.";
+        }
+        if (fingerprintError is not null)
+        {
+            yield return new HelpKitMessage("assistant", fingerprintError, Array.Empty<HelpKitCitation>());
             yield break;
         }
 
@@ -155,8 +158,9 @@ internal sealed class HelpKitService : IHelpKit
         HelpKitMetrics.Increment(HelpKitMetrics.AnswerCacheMisses);
 
         // 5. Resolve AI components.
-        IChatClient chat;
-        IEmbeddingGenerator<string, Embedding<float>> embeddings;
+        IChatClient chat = null!;
+        IEmbeddingGenerator<string, Embedding<float>> embeddings = null!;
+        string? aiError = null;
         try
         {
             chat = _ai.ResolveChatClient();
@@ -165,9 +169,12 @@ internal sealed class HelpKitService : IHelpKit
         catch (Exception ex)
         {
             _logger.LogError(ex, "AI resolution failed.");
-            var errorMsg = ex.Message;
-            await _messages.AppendAsync(convId!, "assistant", errorMsg, null, ct).ConfigureAwait(false);
-            yield return new HelpKitMessage("assistant", errorMsg, Array.Empty<HelpKitCitation>());
+            aiError = ex.Message;
+        }
+        if (aiError is not null)
+        {
+            await _messages.AppendAsync(convId!, "assistant", aiError, null, ct).ConfigureAwait(false);
+            yield return new HelpKitMessage("assistant", aiError, Array.Empty<HelpKitCitation>());
             yield break;
         }
 
@@ -203,7 +210,8 @@ internal sealed class HelpKitService : IHelpKit
         //    the citation validator + prompt-injection filter on the final
         //    response before persisting + caching.
         var buffer = new StringBuilder();
-        IAsyncEnumerable<ChatResponseUpdate> stream;
+        IAsyncEnumerable<ChatResponseUpdate>? stream = null;
+        bool streamFailed = false;
         try
         {
             stream = chat.GetStreamingResponseAsync(promptMessages, options: null, ct);
@@ -211,6 +219,10 @@ internal sealed class HelpKitService : IHelpKit
         catch (Exception ex)
         {
             _logger.LogError(ex, "Chat client failed.");
+            streamFailed = true;
+        }
+        if (streamFailed || stream is null)
+        {
             await _messages.AppendAsync(convId!, "assistant", "The help service is temporarily unavailable.", null, ct).ConfigureAwait(false);
             yield return new HelpKitMessage(
                 "assistant", "The help service is temporarily unavailable.", Array.Empty<HelpKitCitation>());

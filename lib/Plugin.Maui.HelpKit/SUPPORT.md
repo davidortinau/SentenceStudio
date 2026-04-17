@@ -2,15 +2,12 @@
 
 ## Supported target frameworks
 
-HelpKit ships binaries for these TFMs only:
+HelpKit ships binaries for these TFMs:
 
-- `net11.0-android`
-- `net11.0-ios`
-- `net11.0-maccatalyst`
-- `net11.0-windows10.0.19041.0`
+- `net10.0-android`, `net10.0-ios`, `net10.0-maccatalyst`, `net10.0-windows10.0.19041.0` — **transitional incubation grace target** so SentenceStudio dogfood (net10) can ProjectReference HelpKit. Will be dropped at Alpha extract; do not depend on these TFMs for community use.
+- `net11.0-android`, `net11.0-ios`, `net11.0-maccatalyst`, `net11.0-windows10.0.19041.0` — **forward-looking primary**. Opt-in at build time via `-p:IncludeNet11Targets=true` while we incubate against the net10 SDK.
 
-No `netstandard2.x`. No `net8.0`, `net9.0`, or `net10.0`. If net10 community
-demand surfaces at Alpha close, we may add `net10.0-*` TFMs — not before.
+No `netstandard2.x`. No `net8.0`, `net9.0`. The net10 grace target exists for one consumer (SentenceStudio incubation) and will be removed when HelpKit extracts to its own repo. See `.squad/decisions/inbox/zoe-helpkit-multitarget.md`.
 
 ## Supported host frameworks
 

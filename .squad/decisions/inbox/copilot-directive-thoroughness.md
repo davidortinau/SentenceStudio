@@ -1,4 +1,0 @@
-### 2026-04-14T01:55Z: Captain's standing order — thoroughness over speed
-**By:** David Ortinau (Captain)
-**What:** "I favor thoroughness and accuracy over speed of response or execution in our thinking, architecture, design, and development tasks. I have unlimited tokens, premium requests, and money. I do not want you to cut corners. When you're feeling pressure to respond and react quickly and go direct or cut corners, pause and ask me how you should proceed. I will probably tell you to take the thorough, responsible route so we can solve issues well rather than fast. We end up spending way too much time failing when you go fast, so in the end it's actually slower."
-**Why:** Recurring pattern of speed-optimized shortcuts causing rework, recurring bugs (userId), forgotten workflows (deploy), and neglected bookkeeping (decisions.md). Fast failures cost more than thorough first passes.

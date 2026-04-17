@@ -1,3 +1,4 @@
+using System.Reflection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.Maui.Controls;
@@ -76,10 +77,28 @@ internal sealed class HelpKitShellFlyoutInitializer : IMauiInitializeService
 
         try
         {
-            // MenuShellItem is the public wrapper MAUI uses when XAML parses
-            // a MenuItem as a direct Shell child. Using it from code gives
-            // us the same UX.
-            shell.Items.Add(new MenuShellItem(menuItem));
+            // MAUI's MenuShellItem is the internal wrapper used when XAML
+            // parses a MenuItem as a direct Shell child. It remains internal
+            // in MAUI 10, so we construct via reflection to preserve the same
+            // UX without binding to a non-public type at compile time. If the
+            // wrapper type is ever removed, we fall through to the catch
+            // below and log the documented workaround.
+            var menuShellItemType = typeof(Shell).Assembly
+                .GetType("Microsoft.Maui.Controls.MenuShellItem");
+            if (menuShellItemType is null)
+            {
+                throw new InvalidOperationException(
+                    "Microsoft.Maui.Controls.MenuShellItem not found in this MAUI version.");
+            }
+            var ctor = menuShellItemType.GetConstructor(
+                BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance,
+                binder: null,
+                types: new[] { typeof(MenuItem) },
+                modifiers: null)
+                ?? throw new InvalidOperationException(
+                    "MenuShellItem(MenuItem) constructor not found.");
+            var shellItem = (ShellItem)ctor.Invoke(new object[] { menuItem });
+            shell.Items.Add(shellItem);
         }
         catch (Exception ex)
         {

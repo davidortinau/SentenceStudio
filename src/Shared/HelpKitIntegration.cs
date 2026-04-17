@@ -1,18 +1,14 @@
-#if NET11_0_OR_GREATER
 // HelpKit integration for SentenceStudio.
 //
-// Dormant under net10 TFMs. Compiles and wires when the MAUI head project
-// targets net11.0-* AND has a ProjectReference to Plugin.Maui.HelpKit.
-//
-// TFM tension: SentenceStudio dev builds target net10, while HelpKit is
-// net11-only (per Zoe's locked API contract). Captain's iOS Release publish
-// workflow switches global.json to net11 preview; that is the path under
-// which this file activates today. See
-// .squad/decisions/inbox/wash-helpkit-ss-integration.md for the full
-// diagnosis and the options to unblock everyday dev builds.
+// HelpKit (Plugin.Maui.HelpKit) now multi-targets net10.0-* during
+// incubation so SentenceStudio's net10 dev builds dogfood the library.
+// At Alpha extract, HelpKit will drop net10 and ship net11-only; at that
+// point either bump SentenceStudio to net11 or pin to the last net10
+// HelpKit build. See .squad/decisions/inbox/zoe-helpkit-multitarget.md.
 
 using System.IO;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -196,4 +192,3 @@ public static class HelpKitIntegration
         });
     }
 }
-#endif

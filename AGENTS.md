@@ -46,6 +46,49 @@ Documentation via Context7 mcp is here:
 
 Always search Microsoft documentation (MS Learn) when working with .NET, Windows, or Microsoft features, or APIs. Use the `microsoft_docs_search` tool to find the most current information about capabilities, best practices, and implementation patterns before making changes.
 
+## .NET SDK Selection in This Repo
+
+**Before running any `dotnet` command, know which SDK the CLI will actually pick.** This is a 100-level fundamental — see `.squad/skills/dotnet-sdk-detection/SKILL.md` for the full diagnostic procedure (4-layer model: installed SDKs vs. selected SDK vs. workload manifests vs. project TFMs).
+
+### What this repo targets
+
+- Every project under `src/SentenceStudio*` targets `net10.0-*` TFMs (net10.0, net10.0-ios, net10.0-android, net10.0-maccatalyst, net10.0-macos, net10.0-windows10.0.19041.0).
+- Daily dev (Mac Catalyst debug, tests, Aspire AppHost, ASP.NET Core API, Blazor webapp) is happy on the net10 GA SDK + net10 MAUI workload.
+- Newer SDKs (net11 previews) CAN build these net10 TFMs in principle — the wrinkle is workload manifest alignment, not framework compatibility.
+
+### Why you may see a `global.json` here (and why it isn't committed)
+
+**`global.json` is explicitly gitignored** (see `.gitignore` lines 412–414: `src/global.json`, `global.json`, `_global.json`). It is **never in the repo**. If one exists on a contributor's machine, it is a per-developer artifact.
+
+Captain keeps a local `global.json` pinning to net10 (`10.0.101`, `rollForward: latestFeature`) because his default machine SDK is a net11 preview (he's all-in on previews for unrelated work). The pin forces `dotnet` commands inside this repo to use the matching net10 SDK + net10 MAUI workload, which is what the csprojs want.
+
+**Other contributors / CI / fresh checkouts do not need a `global.json`.** If the only installed SDK is net10 GA, the CLI selects it without a pin. If multiple SDKs are installed and you want to be explicit, create a local one — but **do not commit it**.
+
+### The publish workflow swap (iOS only, Xcode-driven)
+
+The ONLY documented reason this project ever swaps `global.json` is **iOS device publish to DX24** because Captain's Xcode is 26.3 and the net10 GA SDK ships expecting Xcode 26.2. The net11 preview 3 SDK knows about Xcode 26.3.
+
+`docs/deploy-runbook.md` Step 2a documents the temporary swap (net10 → net11p3 → build iOS Release → restore net10). **This has nothing to do with Azure** — Azure runs the net10 container produced by `azd deploy` which uses the standard net10 SDK.
+
+```bash
+# ONLY for iOS device publish — restore immediately after.
+cp global.json global.json.bak
+echo '{"sdk":{"version":"11.0.100-preview.3.26209.122","rollForward":"latestFeature","allowPrerelease":true}}' > global.json
+# ... build iOS Release ...
+cp global.json.bak global.json && rm global.json.bak
+```
+
+If you see a stray `global.json.bak` in `git status` (untracked), the publish workflow was interrupted — restore it before doing anything else.
+
+### Required diagnostic order before claiming "the SDK isn't installed"
+
+1. `find . -maxdepth 4 -name global.json` — does one exist on this machine?
+2. `dotnet --list-sdks` — what's actually installed?
+3. `dotnet --info | head -20` — what is the CLI **selecting** in this directory? (ground truth)
+4. `dotnet workload list` — workload manifests are pinned PER SDK band; switching SDKs changes available workloads silently.
+
+If any of those four turn up something unexpected, read `.squad/skills/dotnet-sdk-detection/SKILL.md` before changing csprojs, multi-targeting, or adding `#if` guards.
+
 ## Data Preservation Rules
 
 **CRITICAL: NEVER delete or lose user data!**

@@ -34,12 +34,11 @@
 	</ItemGroup>
 
 	<!--
-	  HelpKit integration (Plugin.Maui.HelpKit) — TFM-gated.
-	  HelpKit ships net11-only. Activates automatically when this head is
-	  bumped to net11. See .squad/decisions/inbox/wash-helpkit-ss-integration.md
-	  for the blocker diagnosis and unblock options.
+	  HelpKit integration (Plugin.Maui.HelpKit). Library now multi-targets
+	  net10.0-* during incubation, so this reference is no longer
+	  TFM-gated. See .squad/decisions/inbox/zoe-helpkit-multitarget.md.
 	-->
-	<ItemGroup Condition="$(TargetFramework.StartsWith('net11.0'))">
+	<ItemGroup>
 		<ProjectReference Include="..\..\lib\Plugin.Maui.HelpKit\src\Plugin.Maui.HelpKit\Plugin.Maui.HelpKit.csproj" />
 		<Compile Include="..\Shared\HelpKitIntegration.cs" Link="Setup\HelpKitIntegration.cs" />
 	</ItemGroup>

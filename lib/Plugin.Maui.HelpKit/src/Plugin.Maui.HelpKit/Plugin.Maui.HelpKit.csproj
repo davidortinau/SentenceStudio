@@ -1,8 +1,23 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <!--
+    Plugin.Maui.HelpKit — incubation TFM strategy:
+    - net10.0-* is the active dogfood target so SentenceStudio (net10) can
+      ProjectReference HelpKit during incubation.
+    - net11.0-* is the forward-looking primary, opt-in via
+      -p:IncludeNet11Targets=true (CI / Alpha publish path that has the
+      net11 preview SDK + workloads installed).
+    - At Alpha extract (per EXTRACT-RUNBOOK.md), drop net10.0-* and ship
+      net11.0-* only.
+    See: .squad/decisions.md "2026-04-17 — Plugin.Maui.HelpKit Alpha Build
+    Complete" → SentenceStudio dogfood, and
+    .squad/decisions/inbox/zoe-helpkit-multitarget.md.
+  -->
   <PropertyGroup>
-    <TargetFrameworks>net11.0-android;net11.0-ios;net11.0-maccatalyst</TargetFrameworks>
-    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net11.0-windows10.0.19041.0</TargetFrameworks>
+    <TargetFrameworks>net10.0-android;net10.0-ios;net10.0-maccatalyst</TargetFrameworks>
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net10.0-windows10.0.19041.0</TargetFrameworks>
+    <TargetFrameworks Condition=" '$(IncludeNet11Targets)' == 'true' ">$(TargetFrameworks);net11.0-android;net11.0-ios;net11.0-maccatalyst</TargetFrameworks>
+    <TargetFrameworks Condition=" '$(IncludeNet11Targets)' == 'true' AND $([MSBuild]::IsOSPlatform('windows')) ">$(TargetFrameworks);net11.0-windows10.0.19041.0</TargetFrameworks>
 
     <UseMaui>true</UseMaui>
     <SingleProject>true</SingleProject>
@@ -34,12 +49,18 @@
     <EmbeddedResource Include="Resources\Strings.ko.json" />
   </ItemGroup>
 
+  <!--
+    Package versions: bumped to GA 10.0.0 / preview 9.5.0 floors so the
+    net10.0-* TFMs do not see downgrade errors against MAUI 10.0.1's
+    transitive Microsoft.Extensions.* 10.0.0 references. net11 will
+    upgrade further; these are floors, not pins.
+  -->
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.AI.Abstractions" Version="9.4.0-preview.1.25207.5" />
-    <PackageReference Include="Microsoft.Extensions.VectorData.Abstractions" Version="9.4.0-preview.1.25207.5" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="9.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.0" />
+    <PackageReference Include="Microsoft.Extensions.AI.Abstractions" Version="9.5.0" />
+    <PackageReference Include="Microsoft.Extensions.VectorData.Abstractions" Version="9.5.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.0" />
     <PackageReference Include="sqlite-net-pcl" Version="1.9.172" />
   </ItemGroup>
 

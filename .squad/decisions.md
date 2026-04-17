@@ -60,3 +60,41 @@ Code staged dormant under `#if NET11_0_OR_GREATER`. Eleven help articles (Gettin
 - Zoe updates plan.md with net11 TFM and "app owns the model" framing.
 - README draft incorporates MIT + BYO-IChatClient.
 
+
+---
+
+## 2026-04-17 — .NET SDK Detection Skill (Reframed)
+
+**Author:** Squad Coordinator  
+**Captain Directive:** "the skill I wanted you to write was about how you should determine what version of .net you have installed to use, which ought to include awareness of global.json as a thing that you might encounter. So it should be useful in any .net project environment."
+
+### What Changed
+
+1. **Renamed:** `.squad/skills/dotnet-sdk-pinning/` → `.squad/skills/dotnet-sdk-detection/` with complete `SKILL.md` rewrite.
+   - New scope: generic 100-level skill for ANY .NET project — "which SDK is the CLI actually picking?"
+   - 4-layer mental model: installed SDKs vs. selected SDK vs. workload manifests vs. project TFMs
+   - `global.json` as ONE input among several (env vars, `.gitignore` status, walk-up behavior), not headline
+   - Includes "newer SDK can build older TFMs" rule with MAUI-workload + Xcode wrinkles
+   - Worked example anonymized (no agent names)
+
+2. **Corrected AGENTS.md:** Replaced "## SDK Pinning via global.json" with "## .NET SDK Selection in This Repo" — accurate facts:
+   - `global.json` is gitignored (`.gitignore:412–414`), per-machine, NOT a project convention
+   - Captain pins net10 locally because default machine SDK is net11 preview; pin makes `dotnet` commands use matching net10 SDK + workload
+   - Other contributors / CI / fresh checkouts do NOT need `global.json`
+   - Publish-workflow `global.json` swap is iOS-only, Xcode 26.3-driven (per `docs/deploy-runbook.md` Step 2a) — Azure uninvolved
+
+### Why Prior Version Was Wrong
+
+Earlier iterations guessed at rationale (workload alignment / Azure can't host preview). Captain rejected both with "if you cannot explain it, it's just an impediment we don't need." Real story found in `docs/deploy-runbook.md` Step 2a (Xcode 26.3 mismatch) and `.gitignore:412–414` (file never committed).
+
+### Scope
+
+- `.squad/skills/dotnet-sdk-detection/SKILL.md` — new file (rewrite)
+- `.squad/skills/dotnet-sdk-pinning/` — deleted (renamed)
+- `AGENTS.md` — section replaced
+- No code/csproj/global.json changes
+
+### Standing Rule (Enforced Going Forward)
+
+Before agents write "X SDK isn't installed" / "we need to multi-target" / "build using wrong framework," they MUST run diagnostic order in `.squad/skills/dotnet-sdk-detection/SKILL.md`. Routing-relevant skill — surface in spawn prompts when work touches `dotnet build/restore/test/publish`.
+

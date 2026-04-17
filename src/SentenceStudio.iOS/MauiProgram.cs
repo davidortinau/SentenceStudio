@@ -30,10 +30,8 @@ public static class MauiProgram
             .UseShiny()
             .UseSentenceStudioApp();
 
-#if NET11_0_OR_GREATER
-        // Wire HelpKit (Plugin.Maui.HelpKit) — net11-only, see TFM gate in .csproj.
+        // Wire HelpKit (Plugin.Maui.HelpKit) — multi-targeted net10/net11 during incubation.
         builder.UseHelpKit();
-#endif
 
         builder.AddAudio(
             playbackOptions =>
@@ -74,10 +72,8 @@ public static class MauiProgram
 
         var app = builder.Build();
 
-#if NET11_0_OR_GREATER
         // HelpKit ingest after services are built. Fire-and-forget; never blocks boot.
         SentenceStudio.HelpKitIntegration.TriggerBackgroundIngest(app.Services);
-#endif
 
         return SentenceStudioAppBuilder.InitializeApp(app);
     }

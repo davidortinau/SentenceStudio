@@ -51,7 +51,7 @@ internal sealed class ConversationRepository
     {
         lock (_db.SyncRoot)
         {
-            return Task.FromResult(_db.Connection.Find<ConversationRow>(conversationId));
+            return Task.FromResult<ConversationRow?>(_db.Connection.Find<ConversationRow>(conversationId));
         }
     }
 

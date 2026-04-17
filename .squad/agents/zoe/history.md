@@ -578,3 +578,21 @@ falsifiable and enforced — so it belongs in the README. The
 scanner, Blazor companion, sqlite-vec. Calling out what is absent
 prevents support-load spikes from consumers who assumed those features
 were there.
+
+## 2026-04-17 (later) — HelpKit multi-target to net10 (incubation grace target)
+
+**Decision.** Multi-targeted Plugin.Maui.HelpKit to add net10.0-* TFMs alongside the net11.0-* primary so SentenceStudio (locked to net10 by Captain's global.json) can ProjectReference HelpKit during incubation. net11 TFMs gated behind `-p:IncludeNet11Targets=true` because no net11 SDK/workload is installed locally and unconditional cross-targeting fails restore. Reversibility documented in SUPPORT.md and EXTRACT-RUNBOOK.md handoff: at Alpha extract, drop net10 and ship net11-only.
+
+**Net10 compatibility patches required.** HelpKit had never actually compiled — Wash developed against an uninstalled net11 preview SDK. Surfacing it on net10 / MAUI 10.0.1 GA exposed six real bugs, none of them public-API-surface:
+- `yield in catch` (CS1631) x3 in `HelpKitService.cs` — refactored to set sentinel/error string in catch, yield outside.
+- `Task.FromResult(...)` nullability mismatch in `ConversationRepository.GetAsync` — explicit `<ConversationRow?>` type arg.
+- `MenuShellItem` was made internal in MAUI 10 — replaced direct construction with reflection-based instantiation, preserving the existing try/catch fallback that already documented the XAML workaround.
+- `IView.SetBinding` no longer carries a string-path overload — cast to `BindableObject` before calling.
+
+**Package version floors bumped.** Microsoft.Extensions.AI.Abstractions 9.4.0-preview → 9.5.0; VectorData.Abstractions 9.4.0-preview → 9.5.0; DependencyInjection.Abstractions, Logging.Abstractions, Options 9.0.0 → 10.0.0. Required because MAUI 10.0.1 transitively pulls Microsoft.Extensions.* 10.0.0 and the previous floors triggered NU1605 downgrade-as-error. Floors only — net11 will resolve higher.
+
+**SentenceStudio activation.** Removed the `#if NET11_0_OR_GREATER` guards from `src/Shared/HelpKitIntegration.cs` and the `Condition="$(TargetFramework.StartsWith('net11.0'))"` from MacCatalyst + iOS heads. Removed the wrapping `#if` blocks in both MauiProgram.cs files. Added missing `using Microsoft.Extensions.Configuration;` for the `.Get<Settings>()` extension. SentenceStudio.MacCatalyst net10-maccatalyst build: **0 errors, 120 warnings**. None of the warnings are from HelpKit; the count is the per-head baseline (Wash's 563 was a different scope).
+
+**Learning.** "Estimated 5 minutes plus a restore" was wildly off. A library that has never actually compiled against the SDK its consumers will use is not green — it is structurally untested. Every multi-target should include a CI gate that builds at least one TFM the team can actually run, otherwise "the contract is frozen" hides real bugs. EXTRACT-RUNBOOK should require: HelpKit must build clean against the SentenceStudio SDK before any Alpha drop, even if net11 is the primary ship target.
+
+**Honest delta.** This took six source patches and a config bump beyond the planned csproj edit. None of them touched the public API, so the contract is intact. But the precedent is recorded: incubating a library against an uninstalled preview SDK is the same as not testing it.

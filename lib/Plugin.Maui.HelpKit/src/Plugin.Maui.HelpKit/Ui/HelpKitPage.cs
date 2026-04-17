@@ -363,7 +363,7 @@ internal sealed class HelpKitPage : ContentPage
                     FontAttributes = FontAttributes.Bold,
                     IsVisible = false, // bound below
                 });
-                stack.Children[stack.Children.Count - 1].SetBinding(
+                ((BindableObject)stack.Children[stack.Children.Count - 1]).SetBinding(
                     VisualElement.IsVisibleProperty,
                     new Binding(nameof(Ui.HelpKitMessageViewModel.HasCitations)));
 
