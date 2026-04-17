@@ -225,11 +225,28 @@ else
 
     private void SetCurrentChallenge(Challenge challenge)
     {
-        displaySentence = challenge.SentenceText?.Replace(challenge.VocabularyWordAsUsed ?? "", "______") ?? "";
+        var wordAsUsed = challenge.VocabularyWordAsUsed ?? "";
+        var sentence = challenge.SentenceText ?? "";
+        // If the conjugated form is a substring, blank it. Otherwise fall back to
+        // the dictionary form so the blank is at least visible.
+        if (!string.IsNullOrEmpty(wordAsUsed) && sentence.Contains(wordAsUsed))
+        {
+            displaySentence = sentence.Replace(wordAsUsed, "______");
+        }
+        else if (!string.IsNullOrEmpty(challenge.VocabularyWord) && sentence.Contains(challenge.VocabularyWord))
+        {
+            displaySentence = sentence.Replace(challenge.VocabularyWord, "______");
+        }
+        else
+        {
+            displaySentence = sentence;
+        }
         translationHint = challenge.RecommendedTranslation ?? "";
         correctWordAnswer = challenge.VocabularyWordAsUsed;
         guessOptions = challenge.VocabularyWordGuesses?
             .Split(",").Select(x => x.Trim())
+            .Where(x => !string.IsNullOrEmpty(x))
+            .Distinct()
             .OrderBy(_ => Random.Shared.Next()).ToArray();
         userInput = "";
         selectedOption = null;
@@ -246,7 +263,18 @@ else
         var answer = inputMode == "MultipleChoice" ? selectedOption : userInput;
         if (string.IsNullOrWhiteSpace(answer)) return;
 
-        var isCorrect = string.Equals(answer.Trim(), current.VocabularyWordAsUsed?.Trim(), StringComparison.OrdinalIgnoreCase);
+        // Use lenient equality so Korean particle mismatches (밥 vs 밥을) don't
+        // penalize a user who clearly knows the word. MultipleChoice keeps strict
+        // matching since the options are explicit.
+        bool isCorrect;
+        if (inputMode == "MultipleChoice")
+        {
+            isCorrect = string.Equals(answer.Trim(), current.VocabularyWordAsUsed?.Trim(), StringComparison.OrdinalIgnoreCase);
+        }
+        else
+        {
+            isCorrect = SentenceStudio.Shared.Services.ClozureAnswerHelper.AreAnswersEquivalent(answer, current.VocabularyWordAsUsed);
+        }
         hasBeenGraded = true;
         lastWasCorrect = isCorrect;
         showFeedback = true;

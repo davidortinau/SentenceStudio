@@ -3,16 +3,21 @@ Using the following {{ target_language }} vocabulary ({{ for t in terms }}{{- t.
 **CRITICAL REQUIREMENTS:**
 1. **Use EXACTLY one vocabulary word from the provided list in each sentence** - do not create new words
 2. **Create complete, natural {{ target_language }} sentences** using the vocabulary word appropriately conjugated/inflected
-3. Provide the vocabulary word in its exact dictionary form from the provided list
-4. Provide how the vocabulary word appears in the sentence (conjugated/inflected form)
-5. **Create exactly 5 comma-separated options for multiple choice:**
-   - Include the correct answer (same as the conjugated form used in sentence)
-   - Add 4 plausible {{ target_language }} distractors with similar patterns
-   - All options should make grammatical sense if inserted into the sentence
-6. Provide a natural {{ native_language }} translation of the complete sentence
+3. Provide the vocabulary word in its exact dictionary form from the provided list (vocabularyWord)
+4. **vocabularyWordAsUsed MUST appear VERBATIM as a contiguous substring of sentenceText.** The UI blanks it out with a literal string replace — if it is not present exactly, the exercise breaks.
+5. **vocabularyWordAsUsed MUST include any attached particles/markers** that follow the word in the sentence. For Korean: include 을/를/이/가/은/는/에/에서/의/도/만/와/과/로/으로 when they are directly attached. For example, if the sentence is "나는 밥을 먹어요", vocabularyWordAsUsed MUST be "밥을" (NOT "밥"). The blank must cover the word AND its particle so no dangling particle appears next to the blank.
+6. **Create exactly 5 options in vocabularyWordGuesses:**
+   - **The FIRST option MUST be the exact string of vocabularyWordAsUsed** (the correct answer, including particle).
+   - Add 4 plausible {{ target_language }} distractors that match the same grammatical pattern — if the correct answer includes a particle, distractors should also include matching particles so all options read naturally when placed in the blank.
+   - All 5 options must be unique. No duplicates.
+7. Provide a natural {{ native_language }} translation of the complete sentence
 
-**EXAMPLE FORMAT:**
-- SentenceText: "Natural {{ target_language }} sentence with vocabulary word." → Translation: "{{ native_language }} translation." → VocabularyWordAsUsed: "conjugated form" → VocabularyWord: "dictionary form" → VocabularyWordGuesses: ["option1", "option2", "option3", "option4", "option5"]
+**EXAMPLE (Korean):**
+- sentenceText: "나는 매일 아침에 밥을 먹어요."
+- recommendedTranslation: "I eat rice every morning."
+- vocabularyWord: "밥"
+- vocabularyWordAsUsed: "밥을"  (includes the 을 particle because it is attached in the sentence)
+- vocabularyWordGuesses: ["밥을", "국을", "빵을", "김치를", "과일을"]  (first entry is the correct answer; distractors also carry object-marker particles)
 
 {{ if skills }}
 Prioritize grammar patterns: {{ skills }}

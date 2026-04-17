@@ -122,18 +122,48 @@ public class ClozureService
                     _logger.LogDebug("DTO.VocabularyWordAsUsed: '{VocabularyWordAsUsed}'", clozureDto.VocabularyWordAsUsed);
                     _logger.LogDebug("DTO.VocabularyWordGuesses: {GuessCount} items", clozureDto.VocabularyWordGuesses?.Count ?? 0);
 
+                    // 🏴‍☠️ Normalize and self-heal the AI response so the UI never receives a broken cloze.
+                    // Two frequent AI failure modes are handled here:
+                    //   (1) vocabularyWordAsUsed isn't a verbatim substring of sentenceText (particles split, etc.)
+                    //   (2) the correct answer is missing from the guesses list
+                    var sentenceText = clozureDto.SentenceText ?? string.Empty;
+                    var wordAsUsed = (clozureDto.VocabularyWordAsUsed ?? string.Empty).Trim();
+                    var dictionaryForm = (clozureDto.VocabularyWord ?? string.Empty).Trim();
+
+                    // Repair wordAsUsed if it's not a substring of the sentence.
+                    if (!string.IsNullOrEmpty(sentenceText) && !string.IsNullOrEmpty(wordAsUsed)
+                        && !sentenceText.Contains(wordAsUsed, StringComparison.Ordinal))
+                    {
+                        var repaired = SentenceStudio.Shared.Services.ClozureAnswerHelper.TryRepairWordAsUsed(sentenceText, wordAsUsed, dictionaryForm);
+                        if (!string.IsNullOrEmpty(repaired) && !string.Equals(repaired, wordAsUsed, StringComparison.Ordinal))
+                        {
+                            _logger.LogWarning("Repaired VocabularyWordAsUsed '{Old}' -> '{New}' to match sentence '{Sentence}'",
+                                wordAsUsed, repaired, sentenceText);
+                            wordAsUsed = repaired;
+                        }
+                    }
+
+                    // Ensure the guesses list always includes the correct answer as an option, and is exactly 5 unique items.
+                    var repairedGuesses = SentenceStudio.Shared.Services.ClozureAnswerHelper.EnsureGuessesIncludeAnswer(
+                        clozureDto.VocabularyWordGuesses, wordAsUsed, out var guessesWereFixed);
+                    if (guessesWereFixed)
+                    {
+                        _logger.LogWarning("Repaired VocabularyWordGuesses: correct answer '{Answer}' was missing; final options=[{Options}]",
+                            wordAsUsed, string.Join(", ", repairedGuesses));
+                    }
+
                     // Convert the list of guesses to a comma-separated string for storage
-                    var guessesString = clozureDto.VocabularyWordGuesses != null && clozureDto.VocabularyWordGuesses.Any()
-                        ? string.Join(", ", clozureDto.VocabularyWordGuesses)
+                    var guessesString = repairedGuesses.Any()
+                        ? string.Join(", ", repairedGuesses)
                         : string.Empty;
 
                     // Create Challenge object from DTO - keep it simple
                     var challenge = new Challenge
                     {
-                        SentenceText = clozureDto.SentenceText,
+                        SentenceText = sentenceText,
                         RecommendedTranslation = clozureDto.RecommendedTranslation,
                         VocabularyWord = clozureDto.VocabularyWord,
-                        VocabularyWordAsUsed = clozureDto.VocabularyWordAsUsed,
+                        VocabularyWordAsUsed = wordAsUsed,
                         VocabularyWordGuesses = guessesString,
                         CreatedAt = DateTime.UtcNow,
                         UpdatedAt = DateTime.UtcNow
