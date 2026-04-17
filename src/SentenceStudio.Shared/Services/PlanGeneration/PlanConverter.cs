@@ -126,8 +126,8 @@ public static class PlanConverter
         {
             parameters["Mode"] = "SRS";
             parameters["DueOnly"] = true;
-            if (!string.IsNullOrEmpty(resourceId))
-                parameters["ResourceId"] = resourceId;
+            // VocabularyReview is vocabulary-driven, NOT resource-driven
+            // ResourceId is intentionally NOT passed to allow quiz to load from full user vocab pool
         }
         else if (activityType == PlanActivityType.VocabularyGame)
         {

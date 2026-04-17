@@ -75,10 +75,11 @@ public class DeterministicPlanBuilder
                     new PlannedActivity
                     {
                         ActivityType = "VocabularyReview",
-                        ResourceId = vocabReview.ResourceId,
+                        ResourceId = null,  // VocabularyReview is vocabulary-driven, NOT resource-scoped
                         SkillId = vocabReview.SkillId,
                         EstimatedMinutes = Math.Min(vocabReview.EstimatedMinutes, sessionMinutes),
-                        Priority = 1
+                        Priority = 1,
+                        Rationale = $"Review {vocabReview.WordCount} of {vocabReview.TotalDue} words due today"
                     }
                 };
 
@@ -455,13 +456,11 @@ public class DeterministicPlanBuilder
             activities.Add(new PlannedActivity
             {
                 ActivityType = "VocabularyReview",
-                ResourceId = vocabReview.ResourceId ?? resource.Id,
+                ResourceId = null,  // VocabularyReview is vocabulary-driven, NOT resource-scoped
                 SkillId = vocabReview.SkillId ?? skill?.Id,
                 EstimatedMinutes = vocabMinutes,
                 Priority = priority++,
-                Rationale = vocabReview.IsContextual
-                    ? $"Review {vocabReview.WordCount} words from this resource (contextual learning)"
-                    : $"Review {vocabReview.WordCount} of {vocabReview.TotalDue} words due today"
+                Rationale = $"Review {vocabReview.WordCount} of {vocabReview.TotalDue} words due today"
             });
             remainingMinutes -= vocabMinutes;
         }
