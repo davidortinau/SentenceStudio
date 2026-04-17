@@ -1292,12 +1292,29 @@ The GitHub Copilot coding agent (`@copilot`) can join the Squad as an autonomous
 
 **"Publish" = Azure webapp + iOS to DX24. ALWAYS do both. Both point at the same Azure API. See `docs/deploy-runbook.md` for full details.**
 
+**CRITICAL: A deploy is NOT complete until post-deploy validation passes. `azd deploy` exit code 0 means the UPLOAD worked, not that the SYSTEM works.**
+
 ### Step 1: Azure
 ```bash
 azd deploy   # VPN must be off
 ```
 
-### Step 2: iOS to DX24 (iPhone 15 Pro, CF4F94E3-A1C9-5617-A089-9ABB0110A09F)
+### Step 2: Post-Deploy Validation (MANDATORY)
+```bash
+# Wait 30s for containers to start, then validate everything
+./scripts/post-deploy-validate.sh
+
+# If validation FAILS: STOP. Do NOT proceed to iOS build.
+# Investigate, fix, re-deploy, re-validate.
+```
+
+**If any check fails, the deploy is FAILED.** Do not claim success. Do not proceed to Step 3.
+
+After the automated script passes, manually verify the **specific change** you deployed:
+- What changed? Is the change live? Does it behave correctly?
+- See `docs/specs/post-deploy-validation.md` Phase 3 for validation patterns.
+
+### Step 3: iOS to DX24 (iPhone 15 Pro, CF4F94E3-A1C9-5617-A089-9ABB0110A09F)
 ```bash
 # Switch SDK
 cp global.json global.json.bak

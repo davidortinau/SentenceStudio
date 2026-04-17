@@ -1431,11 +1431,38 @@ h3:focus,
 
 .matching-tile-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    grid-template-rows: repeat(4, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-rows: repeat(4, minmax(0, 1fr));
     gap: 0.5rem;
     min-height: 0;
+    min-width: 0;
     overflow: hidden;
+    flex: 1 1 0;
+}
+
+/* Make main a flex column only when the matching page is present, so the
+   matching-page-wrapper fills only the space below the sibling sticky PageHeader.
+   Without this, .activity-page-wrapper { height: calc(100% + 2rem) } takes main's
+   full padding-box height, overflowing main by the PageHeader's height. */
+main.main-content:has(.matching-page-wrapper) {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+}
+
+.matching-page-wrapper {
+    flex: 1 1 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    overflow: hidden;
+    box-sizing: border-box;
+}
+
+.matching-page-wrapper .activity-content {
+    overflow: hidden;
+    min-height: 0;
 }
 
 .matching-tile,
@@ -1462,22 +1489,10 @@ h3:focus,
 }
 
 @media (max-width: 768px) {
-    /* Lock the matching page to exactly the viewport — no scroll possible */
-    .matching-page-wrapper {
-        height: 100dvh;
-        max-height: 100dvh;
-        overflow: hidden;
-        box-sizing: border-box;
-    }
-
     .matching-tile-grid {
-        grid-template-columns: repeat(2, 1fr);
-        grid-template-rows: repeat(8, 1fr);
-        gap: 0.2rem;
-        flex: 1 1 0;
-        min-height: 0;
-        max-height: 100%;
-        overflow: hidden;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-rows: repeat(8, minmax(0, 1fr));
+        gap: 0.25rem;
     }
 
     .matching-tile,
@@ -1493,8 +1508,8 @@ h3:focus,
 
 @media (orientation: landscape) and (max-height: 500px) {
     .matching-tile-grid {
-        grid-template-columns: repeat(4, 1fr);
-        grid-template-rows: repeat(4, 1fr);
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        grid-template-rows: repeat(4, minmax(0, 1fr));
         gap: 0.25rem;
     }
 
