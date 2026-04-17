@@ -5,6 +5,11 @@
 - **Stack:** .NET 10, MAUI, Blazor Hybrid, MauiReactor (MVU), .NET Aspire, EF Core, SQLite, OpenAI
 - **Created:** 2026-03-07
 
+## Learnings
+
+- 2026-04-17: **Help Flyout Wiring Pattern** — Dynamic IHelpKit reflection to keep UI project portable (net10.0-browser, no MAUI refs). Runtime type detection via `Type.GetType()` + method invocation; graceful degrade if HelpKit absent (WebApp). Used in NavMenu.razor for both MAUI (Help visible) and WebApp (Help hidden).
+- 2026-04-17: **HelpKit Alpha shipped** — library, RAG pipeline, storage, 3 samples, eval harness, CI, docs all delivered.
+
 ## Core Context (Summarized from Sessions)
 
 **Architecture:**

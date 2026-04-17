@@ -4,6 +4,98 @@
 
 ---
 
+## 2026-04-17 — Help Flyout Menu Item for MAUI Hybrid
+
+**Date:** 2026-04-17  
+**Owner:** Zoe  
+**Status:** Implemented  
+**Commit:** 8d71a41
+
+### Context
+
+Captain ordered: "Wire the Help trigger into the SentenceStudio app as a flyout/sidebar menu item."
+
+SentenceStudio is a Blazor Hybrid app:
+- MAUI apps (iOS/MacCatalyst) use `BlazorWebView` hosting `SentenceStudio.UI` (Razor class library)
+- Standalone WebApp (ASP.NET Core) uses the same `SentenceStudio.UI` components
+- HelpKit (Plugin.Maui.HelpKit) is registered ONLY in MAUI apps via `UseHelpKit()` in `MauiProgram.cs`
+- WebApp does NOT have HelpKit (it's a MAUI-only library)
+
+The challenge: `SentenceStudio.UI` is a plain Razor class library (`<TargetFramework>net10.0</TargetFramework>`, `<SupportedPlatform>browser</SupportedPlatform>`) and CANNOT reference MAUI packages.
+
+### Decision
+
+1. **Add Help menu item to `SentenceStudio.UI/Layout/NavMenu.razor`** (used by both MAUI and WebApp)
+2. **Use dynamic type resolution** to keep the UI project portable:
+   - Check at runtime if `Plugin.Maui.HelpKit.IHelpKit` is registered
+   - Invoke `ShowAsync()` via reflection if available
+   - Gracefully hide the Help button when HelpKit is not registered (WebApp)
+3. **Add localization keys** ("Help" / "도움말") to `AppResources.resx` + Korean
+4. **Use Bootstrap icon** `bi-question-circle` (no custom icon needed)
+
+### Implementation
+
+```razor
+@inject IServiceProvider Services
+@inject BlazorLocalizationService Localize
+
+<a class="nav-link nav-link-ss rounded px-3 py-2"
+   href="" @onclick="ShowHelpAsync" @onclick:preventDefault>
+     <i class="bi bi-question-circle"></i> <span class="nav-label">@Localize["Help"]</span>
+</a>
+
+@code {
+    private bool _isHelpKitAvailable;
+
+    protected override void OnInitialized()
+    {
+        var helpKitType = Type.GetType("Plugin.Maui.HelpKit.IHelpKit, Plugin.Maui.HelpKit");
+        _isHelpKitAvailable = helpKitType is not null && Services.GetService(helpKitType) is not null;
+    }
+
+    private async Task ShowHelpAsync()
+    {
+        if (!_isHelpKitAvailable) return;
+        
+        var helpKitType = Type.GetType("Plugin.Maui.HelpKit.IHelpKit, Plugin.Maui.HelpKit");
+        var helpKit = Services.GetService(helpKitType);
+        var showMethod = helpKitType.GetMethod("ShowAsync");
+        await (Task)showMethod.Invoke(helpKit, [default(CancellationToken)])!;
+        await CloseOffcanvas();
+    }
+}
+```
+
+### Why Dynamic Resolution?
+
+**Alternative A (rejected):** Add MAUI package reference to `SentenceStudio.UI`
+- ❌ Breaks WebApp build (MAUI libs incompatible with browser target)
+- ❌ Forces UI project to become multi-targeted
+- ❌ Pollutes shared UI with platform concerns
+
+**Alternative B (chosen):** Dynamic resolution via reflection
+- ✅ UI project stays plain Razor class library (browser-only)
+- ✅ Works in both MAUI (HelpKit present) and WebApp (HelpKit absent)
+- ✅ No compile-time dependency on MAUI packages
+- ✅ Graceful degradation (Help button hidden when HelpKit not available)
+
+### Files Changed
+
+- `src/SentenceStudio.UI/Layout/NavMenu.razor` — Help button + reflection logic
+- `src/SentenceStudio.Shared/Resources/Strings/AppResources.resx` — "Help" key
+- `src/SentenceStudio.Shared/Resources/Strings/AppResources.ko-KR.resx` — "도움말" key
+
+### Result
+
+✅ Help menu item appears at bottom of sidebar in MAUI apps (iOS/MacCatalyst)  
+✅ Tapping it invokes `IHelpKit.ShowAsync()` → opens HelpKit overlay  
+✅ WebApp build unaffected (UI project remains browser-only)  
+✅ No emojis used (Bootstrap icon `bi-question-circle` only)  
+✅ Localized in English + Korean  
+✅ Build succeeded: 0 errors, 97 warnings (pre-existing)
+
+---
+
 ## 2026-04-17 — Plugin.Maui.HelpKit Alpha Build Complete
 
 ### Public API (Zoe)
