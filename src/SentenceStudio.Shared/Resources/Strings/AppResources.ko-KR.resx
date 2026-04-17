@@ -1813,4 +1813,8 @@
     <value>그건 {0}(으)로 어떻게 말해요?</value>
     <comment>Placeholder text for translation input, {0} is the target language</comment>
   </data>
+  <data name="Help" xml:space="preserve">
+    <value>도움말</value>
+    <comment>Help menu item label in sidebar navigation</comment>
+  </data>
 </root>

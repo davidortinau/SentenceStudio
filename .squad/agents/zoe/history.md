@@ -54,6 +54,7 @@
 ## Learnings
 
 - 2026-04-17: HelpKit Alpha — public API frozen at 0.1.0-alpha, CI workflow + docs landed, supervised the fleet end-to-end.
+- 2026-04-17: HelpKit status check — library is net10-multi-targeted and ready, SentenceStudio integration wired (UseHelpKit + background ingest + 11 help articles), but NO UI trigger exists yet. Three unpushed commits include the full Alpha build. All guard removal complete, builds should succeed. Alfred menu item and chat overlay are scaffolding-ready but need UI wiring. Captain will need to add a help button somewhere in the Blazor UI that injects IHelpKit and calls ShowAsync().
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 

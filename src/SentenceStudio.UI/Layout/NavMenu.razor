@@ -7,6 +7,8 @@
 @inject SentenceStudio.Services.Progress.ProgressCacheService CacheService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject IJSRuntime JS
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@inject IServiceProvider Services
 @implements IDisposable
 
 <nav class="nav flex-column p-2 gap-1">
@@ -34,6 +36,14 @@
        href="" @onclick="Logout" @onclick:preventDefault title="Logout">
         <i class="bi bi-box-arrow-left"></i> <span class="nav-label">Logout</span>
     </a>
+
+    @if (_isHelpKitAvailable)
+    {
+        <a class="nav-link nav-link-ss rounded px-3 py-2"
+           href="" @onclick="ShowHelpAsync" @onclick:preventDefault title="@Localize["Help"]">
+            <i class="bi bi-question-circle"></i> <span class="nav-label">@Localize["Help"]</span>
+        </a>
+    }
 </nav>
 
 @code {
@@ -57,9 +67,15 @@
         new("feedback", "bi-chat-dots", "Feedback"),
     ];
 
+    private bool _isHelpKitAvailable;
+
     protected override void OnInitialized()
     {
         Nav.LocationChanged += OnLocationChanged;
+        
+        // Check if HelpKit is registered (MAUI apps have it, WebApp doesn't)
+        var helpKitType = Type.GetType("Plugin.Maui.HelpKit.IHelpKit, Plugin.Maui.HelpKit");
+        _isHelpKitAvailable = helpKitType is not null && Services.GetService(helpKitType) is not null;
     }
 
     private async Task NavigateToSection(string sectionKey)
@@ -108,5 +124,29 @@
     public void Dispose()
     {
         Nav.LocationChanged -= OnLocationChanged;
+    }
+
+    private async Task ShowHelpAsync()
+    {
+        if (!_isHelpKitAvailable) return;
+        
+        try
+        {
+            var helpKitType = Type.GetType("Plugin.Maui.HelpKit.IHelpKit, Plugin.Maui.HelpKit");
+            if (helpKitType is null) return;
+            
+            var helpKit = Services.GetService(helpKitType);
+            if (helpKit is null) return;
+            
+            var showMethod = helpKitType.GetMethod("ShowAsync");
+            if (showMethod is null) return;
+            
+            await (Task)showMethod.Invoke(helpKit, [default(CancellationToken)])!;
+            await CloseOffcanvas();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[NavMenu] Failed to show HelpKit: {ex}");
+        }
     }
 }
