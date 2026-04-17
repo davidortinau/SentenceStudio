@@ -1,0 +1,305 @@
+{
+  "version": "1",
+  "items": [
+    {
+      "id": "qa-001",
+      "category": "dashboard.navigation",
+      "question": "Where do I start when I open SentenceStudio?",
+      "expected_answer_keywords": ["dashboard", "activities", "cards"],
+      "required_citation_paths": ["dashboard/overview.md"],
+      "language": "en",
+      "must_refuse": false,
+      "notes": "Landing page is the Dashboard."
+    },
+    {
+      "id": "qa-002",
+      "category": "dashboard.navigation",
+      "question": "How do I refresh the dashboard?",
+      "expected_answer_keywords": ["refresh", "toolbar", "arrow"],
+      "required_citation_paths": ["dashboard/overview.md"],
+      "language": "en",
+      "must_refuse": false,
+      "notes": "Circular arrow icon in the toolbar."
+    },
+    {
+      "id": "qa-003",
+      "category": "dashboard.navigation",
+      "question": "How do I regenerate my Today's Plan?",
+      "expected_answer_keywords": ["regenerate", "plan", "actions", "menu"],
+      "required_citation_paths": ["dashboard/overview.md"],
+      "language": "en",
+      "must_refuse": false,
+      "notes": "Actions menu on the Dashboard has Regenerate Plan."
+    },
+    {
+      "id": "qa-004",
+      "category": "activities.cloze",
+      "question": "How do I start a Cloze activity?",
+      "expected_answer_keywords": ["cloze", "dashboard", "select"],
+      "required_citation_paths": ["activities/cloze.md"],
+      "language": "en",
+      "must_refuse": false,
+      "notes": "User picks Cloze card from the Dashboard."
+    },
+    {
+      "id": "qa-005",
+      "category": "activities.cloze",
+      "question": "What does the Cloze session summary show?",
+      "expected_answer_keywords": ["correct", "incorrect", "accuracy"],
+      "required_citation_paths": ["activities/cloze.md"],
+      "language": "en",
+      "must_refuse": false,
+      "notes": "Summary card lists correct, incorrect, accuracy percentage."
+    },
+    {
+      "id": "qa-006",
+      "category": "activities.cloze",
+      "question": "After finishing a Cloze round, how do I keep practicing?",
+      "expected_answer_keywords": ["continue", "practice"],
+      "required_citation_paths": ["activities/cloze.md"],
+      "language": "en",
+      "must_refuse": false,
+      "notes": "Continue Practice button in session summary."
+    },
+    {
+      "id": "qa-007",
+      "category": "activities.writing",
+      "question": "How do I start the Writing activity?",
+      "expected_answer_keywords": ["writing", "dashboard", "card"],
+      "required_citation_paths": ["activities/writing.md"],
+      "language": "en",
+      "must_refuse": false,
+      "notes": "Select Writing card from Dashboard."
+    },
+    {
+      "id": "qa-008",
+      "category": "activities.writing",
+      "question": "How is a Writing submission graded?",
+      "expected_answer_keywords": ["accuracy", "fluency", "percentage"],
+      "required_citation_paths": ["activities/writing.md"],
+      "language": "en",
+      "must_refuse": false,
+      "notes": "Graded on accuracy and fluency as percentages."
+    },
+    {
+      "id": "qa-009",
+      "category": "activities.writing",
+      "question": "What does the Writing session summary display?",
+      "expected_answer_keywords": ["graded", "accuracy", "fluency"],
+      "required_citation_paths": ["activities/writing.md"],
+      "language": "en",
+      "must_refuse": false,
+      "notes": "Graded count, average accuracy, average fluency."
+    },
+    {
+      "id": "qa-010",
+      "category": "activities.translation",
+      "question": "How do I open the Translation activity?",
+      "expected_answer_keywords": ["translate", "dashboard", "card"],
+      "required_citation_paths": ["activities/translation.md"],
+      "language": "en",
+      "must_refuse": false,
+      "notes": "Translate card on Dashboard."
+    },
+    {
+      "id": "qa-011",
+      "category": "activities.translation",
+      "question": "What metrics does Translation use to grade me?",
+      "expected_answer_keywords": ["accuracy", "fluency"],
+      "required_citation_paths": ["activities/translation.md"],
+      "language": "en",
+      "must_refuse": false,
+      "notes": "Accuracy and fluency percentages."
+    },
+    {
+      "id": "qa-012",
+      "category": "activities.translation",
+      "question": "Any tips for scoring well on Translation?",
+      "expected_answer_keywords": ["meaning", "vocabulary"],
+      "required_citation_paths": ["activities/translation.md"],
+      "language": "en",
+      "must_refuse": false,
+      "notes": "Translate meaning, use known vocabulary."
+    },
+    {
+      "id": "qa-013",
+      "category": "vocabulary.manage",
+      "question": "How do I add a new vocabulary word?",
+      "expected_answer_keywords": ["add word", "vocabulary", "save"],
+      "required_citation_paths": ["vocabulary/managing-words.md"],
+      "language": "en",
+      "must_refuse": false,
+      "notes": "Add Word button on Vocabulary page."
+    },
+    {
+      "id": "qa-014",
+      "category": "vocabulary.manage",
+      "question": "How do I edit or delete a vocabulary word?",
+      "expected_answer_keywords": ["edit", "delete", "word"],
+      "required_citation_paths": ["vocabulary/managing-words.md"],
+      "language": "en",
+      "must_refuse": false,
+      "notes": "Tap word to edit, use delete action."
+    },
+    {
+      "id": "qa-015",
+      "category": "vocabulary.manage",
+      "question": "How do I find duplicate words in my vocabulary list?",
+      "expected_answer_keywords": ["find duplicates", "menu"],
+      "required_citation_paths": ["vocabulary/managing-words.md"],
+      "language": "en",
+      "must_refuse": false,
+      "notes": "Find Duplicates utility in secondary actions."
+    },
+    {
+      "id": "qa-016",
+      "category": "activities.word-association",
+      "question": "How is Word Association scored?",
+      "expected_answer_keywords": ["related", "not related", "score"],
+      "required_citation_paths": ["activities/word-association.md"],
+      "language": "en",
+      "must_refuse": false,
+      "notes": "Tap Related or Not Related, earn points."
+    },
+    {
+      "id": "qa-017",
+      "category": "activities.word-association",
+      "question": "Does Word Association track high scores?",
+      "expected_answer_keywords": ["weekly", "all-time", "high score"],
+      "required_citation_paths": ["activities/word-association.md"],
+      "language": "en",
+      "must_refuse": false,
+      "notes": "Tracks weekly and all-time high scores."
+    },
+    {
+      "id": "qa-018",
+      "category": "profiles",
+      "question": "How do I switch to a different user profile?",
+      "expected_answer_keywords": ["profile", "switcher", "menu"],
+      "required_citation_paths": ["profiles/switching.md"],
+      "language": "en",
+      "must_refuse": false,
+      "notes": "Profile page has profile switcher."
+    },
+    {
+      "id": "qa-019",
+      "category": "profiles",
+      "question": "How do I create a new profile for a different language?",
+      "expected_answer_keywords": ["create", "profile", "native", "target"],
+      "required_citation_paths": ["profiles/switching.md"],
+      "language": "en",
+      "must_refuse": false,
+      "notes": "Profile page supports creating a new profile."
+    },
+    {
+      "id": "qa-020",
+      "category": "resources",
+      "question": "How do I add a learning resource?",
+      "expected_answer_keywords": ["add resource", "title", "language"],
+      "required_citation_paths": ["resources/managing-resources.md"],
+      "language": "en",
+      "must_refuse": false,
+      "notes": "Add Resource button on Resources page."
+    },
+    {
+      "id": "qa-021",
+      "category": "resources",
+      "question": "How do I import content in bulk?",
+      "expected_answer_keywords": ["import", "file", "paste"],
+      "required_citation_paths": ["resources/managing-resources.md"],
+      "language": "en",
+      "must_refuse": false,
+      "notes": "Import page for bulk text."
+    },
+    {
+      "id": "qa-022",
+      "category": "settings",
+      "question": "How do I change the app theme?",
+      "expected_answer_keywords": ["settings", "theme", "light", "dark"],
+      "required_citation_paths": ["settings/preferences.md"],
+      "language": "en",
+      "must_refuse": false,
+      "notes": "Settings page includes Theme preference."
+    },
+    {
+      "id": "qa-023",
+      "category": "settings",
+      "question": "Do I need to press Save after changing a setting?",
+      "expected_answer_keywords": ["apply", "immediately"],
+      "required_citation_paths": ["settings/preferences.md"],
+      "language": "en",
+      "must_refuse": false,
+      "notes": "Changes apply immediately."
+    },
+    {
+      "id": "qa-024",
+      "category": "sync",
+      "question": "Can I use SentenceStudio without internet?",
+      "expected_answer_keywords": ["offline", "sqlite", "cached"],
+      "required_citation_paths": ["sync/offline.md"],
+      "language": "en",
+      "must_refuse": false,
+      "notes": "Data stored locally in SQLite; most activities work offline."
+    },
+    {
+      "id": "qa-025",
+      "category": "sync",
+      "question": "How does my progress sync between sessions?",
+      "expected_answer_keywords": ["sync", "automatic", "backend"],
+      "required_citation_paths": ["sync/offline.md"],
+      "language": "en",
+      "must_refuse": false,
+      "notes": "Automatic sync on launch and network changes."
+    },
+    {
+      "id": "qa-026",
+      "category": "refusal.out-of-scope",
+      "question": "What is the weather in Seoul today?",
+      "expected_answer_keywords": ["don't have", "documentation"],
+      "required_citation_paths": [],
+      "language": "en",
+      "must_refuse": true,
+      "notes": "Out of scope; weather is not a SentenceStudio feature."
+    },
+    {
+      "id": "qa-027",
+      "category": "refusal.out-of-scope",
+      "question": "Write me a Python script that downloads YouTube videos.",
+      "expected_answer_keywords": ["outside", "scope"],
+      "required_citation_paths": [],
+      "language": "en",
+      "must_refuse": true,
+      "notes": "Not a help question; unrelated code generation request."
+    },
+    {
+      "id": "qa-028",
+      "category": "refusal.out-of-scope",
+      "question": "Tell me a joke about Korean politics.",
+      "expected_answer_keywords": ["can't", "scope"],
+      "required_citation_paths": [],
+      "language": "en",
+      "must_refuse": true,
+      "notes": "Off-topic; should decline."
+    },
+    {
+      "id": "qa-029",
+      "category": "activities.cloze",
+      "question": "빈칸 채우기 활동을 어떻게 시작하나요?",
+      "expected_answer_keywords": ["대시보드", "빈칸", "선택"],
+      "required_citation_paths": ["activities/cloze-ko.md"],
+      "language": "ko",
+      "must_refuse": false,
+      "notes": "Korean version of qa-004."
+    },
+    {
+      "id": "qa-030",
+      "category": "vocabulary.manage",
+      "question": "어휘 목록에 새 단어를 어떻게 추가하나요?",
+      "expected_answer_keywords": ["단어", "추가", "저장"],
+      "required_citation_paths": ["vocabulary/managing-words-ko.md"],
+      "language": "ko",
+      "must_refuse": false,
+      "notes": "Korean version of qa-013."
+    }
+  ]
+}

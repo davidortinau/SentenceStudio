@@ -1,0 +1,37 @@
+<!--
+  Plugin.Maui.HelpKit scanner integration stub (Alpha).
+
+  Devs import this file explicitly from their project to wire the stub
+  scanner into a build. We deliberately do NOT auto-import from the NuGet
+  package so scanning stays opt-in. A Beta release will replace this with
+  a proper dotnet tool + MSBuild task.
+
+  Usage (inside a csproj):
+
+    <Import Project="$(PkgPlugin_Maui_HelpKit)\build\Plugin.Maui.HelpKit.Scanner.targets" />
+
+    <PropertyGroup>
+      <HelpKitScanOutputDir>$(MSBuildProjectDirectory)\HelpContent</HelpKitScanOutputDir>
+    </PropertyGroup>
+
+  Then run:
+
+    dotnet build /t:HelpKitScan
+-->
+<Project>
+
+  <PropertyGroup>
+    <HelpKitScanOutputDir Condition="'$(HelpKitScanOutputDir)' == ''">$(MSBuildProjectDirectory)\HelpContent</HelpKitScanOutputDir>
+    <HelpKitScanProjectRoot Condition="'$(HelpKitScanProjectRoot)' == ''">$(MSBuildProjectDirectory)</HelpKitScanProjectRoot>
+  </PropertyGroup>
+
+  <Target Name="HelpKitScan">
+    <Message Text="HelpKit scanner is an Alpha stub. Run the StubScanner.RunAsync API from a small console host (see Plugin.Maui.HelpKit docs). Beta will ship a native MSBuild task." Importance="high" />
+    <!--
+      TODO(Beta): replace with a <UsingTask> pointing at a real task
+      assembly that invokes StubScanner.RunAsync and participates in
+      incremental builds.
+    -->
+  </Target>
+
+</Project>

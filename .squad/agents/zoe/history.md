@@ -53,6 +53,8 @@
 
 ## Learnings
 
+- 2026-04-17: HelpKit Alpha — public API frozen at 0.1.0-alpha, CI workflow + docs landed, supervised the fleet end-to-end.
+
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
 - `azd deploy` exit code 0 means the UPLOAD worked (images pushed, revisions created). It says NOTHING about whether the system actually works. Azure Container Apps can auto-route traffic to old healthy revisions while the new one crash-loops silently.
@@ -500,3 +502,79 @@ Captain locked all 8 open questions from HelpKit plan v2:
 
 SPIKE-1 (native-first) and SPIKE-2 (presenter abstraction) now unblocked awaiting Captain go-ahead. Plan v2 needs net11 TFM + "app owns the model" framing incorporated.
 
+
+---
+
+## Session: 2026-04-17 — Plugin.Maui.HelpKit Wave 1 Scaffold + Public API
+
+**Task:** Scaffold `lib/Plugin.Maui.HelpKit/` and freeze the public API surface for Wave 2 crew (Wash, River, Kaylee, Jayne).
+
+### Delivered
+- Full project tree under `lib/Plugin.Maui.HelpKit/` (solution, library, 3 sample placeholders, 2 test projects, license, readme, changelog, gitignore, Directory.Build.props, global.json).
+- MAUI class library `src/Plugin.Maui.HelpKit/Plugin.Maui.HelpKit.csproj` pinned to `net11.0-{android,ios,maccatalyst,windows10.0.19041.0}` with MIT license, 0.1.0-alpha version, and required preview package refs (`Microsoft.Extensions.AI.Abstractions`, `Microsoft.Extensions.VectorData.Abstractions`, `sqlite-net-pcl`).
+- Public API: `HelpKitOptions`, `IHelpKit` (+ `HelpKitMessage`, `HelpKitCitation`), `IHelpKitPresenter` + three concrete presenters (Shell / Window / MauiReactor), `IHelpKitContentFilter` + `DefaultSecretRedactor`, `HelpKitServiceCollectionExtensions` (`AddHelpKit`, `AddHelpKitShellFlyout`), internal `HelpKitAiResolver` (keyed → unkeyed fallback).
+- `HelpKitService` wires `ShowAsync` / `HideAsync` via the presenter today; `ClearHistoryAsync` / `IngestAsync` / `StreamAskAsync` throw `NotImplementedException` with explicit `TODO(Wash)` / `TODO(River)` markers so Wave 2 owners know exactly where to plug in.
+- `HelpKitPage` placeholder ContentPage so presenters have something to push.
+- xUnit test project seeded with `DefaultSecretRedactorTests`.
+- Decision drop at `.squad/decisions/inbox/zoe-helpkit-public-api.md` documenting the contract for Wash/River/Kaylee/Jayne.
+
+### Key paths
+- Library: `lib/Plugin.Maui.HelpKit/src/Plugin.Maui.HelpKit/`
+- Solution: `lib/Plugin.Maui.HelpKit/Plugin.Maui.HelpKit.sln`
+- Decision drop: `.squad/decisions/inbox/zoe-helpkit-public-api.md`
+- Plan: `~/.copilot/session-state/03d1f22f-56b2-4651-9999-bd73f5a0aaf9/plan.md`
+
+### API design decisions
+1. **Presenter default = `MauiReactorPresenter`**, which internally prefers Shell when `Shell.Current` is non-null and falls back to `WindowPresenter`. This gives SentenceStudio (MauiReactor) the right path out of the box while keeping Shell and Plain hosts first-class. Hosts can override by registering their own `IHelpKitPresenter` after `AddHelpKit(...)` — all DI registrations use `TryAddSingleton`.
+2. **Keyed DI fallback in the resolver, not the registration.** `HelpKitAiResolver` does runtime keyed → unkeyed resolution. Rationale: attribute-based `[FromKeyedServices]` didn't fit the factory-delegate path for `HelpKitService`, and runtime resolution gives a much clearer error message when neither registration exists ("HelpKit deliberately ships no model — you bring the client").
+3. **Content filter default is implicit, not explicit.** If `HelpKitOptions.ContentFilter` is null, the DI registration substitutes `DefaultSecretRedactor`. Keeps `AddHelpKit()` zero-config while preserving the escape hatch.
+4. **`AddHelpKitShellFlyout` writes to a marker `HelpKitShellFlyoutOptions` type.** Kaylee reads it at app-ready time. No silent Shell mutation — matches the v2 "no silent Shell mutation" decision.
+5. **`IHelpKit.IngestAsync` as first-class.** Not just internal startup magic. Hosts will want to re-ingest after updating help content, and the eval harness will want a deterministic ingestion entry point.
+6. **Record types for `HelpKitMessage` / `HelpKitCitation`.** Value semantics, immutability, trivial to diff in tests — and they flow through an `IAsyncEnumerable`, so non-ref-equality is the right call.
+7. **Samples are TFM-pinned but otherwise empty placeholders with `TODO.md`.** Per task spec (Wave 3 scope — Kaylee fills in).
+
+### Issues hit
+- **net11 preview SDK not installed locally.** `dotnet restore` fails with `NETSDK1139: target platform android not recognized` because the workstation is on .NET SDK 10.0.101 (net10). The scaffold is correct per the locked net11-only decision; this is environmental. Documented in README (Prerequisites section) and in the decision drop. `global.json` pins `rollForward: latestFeature` + `allowPrerelease: true` so once the net11 preview SDK + MAUI workload land, restore + build are expected to succeed without changes.
+- **`Microsoft.Extensions.AI.Abstractions` / `Microsoft.Extensions.VectorData.Abstractions` are in preview** — I pinned `9.4.0-preview.1.25207.5`. Version may need bumping when Wash/River actually restore; the API shape is stable but preview serial numbers churn.
+
+### Learnings
+- Plugin scaffold convention nailed down: `src/` for library, `samples/` for hosts (one per presenter shape), `tests/` split into unit (`.Tests`) + eval (`.Eval`) so CI gates can target them separately. Keep incubating inside SentenceStudio until Alpha close, then `git subtree split` (locked in decisions 2026-04-17).
+- Always use `TryAddSingleton` in `AddHelpKit` so host apps can override ANY component by registering their own instance. Last-wins is easier to reason about than "did my registration fire before yours?".
+- For libraries that consume `IChatClient` / `IEmbeddingGenerator` from the host, prefer runtime keyed→unkeyed resolution over DI attribute magic. The error message quality matters more than the elegance when a dev forgets to register the client.
+- Plan v2 "Honest Messaging" copy (no "offline" / "zero hallucination") is carried verbatim into README and CHANGELOG. Every library touching LLMs should have this calibration from day 1.
+
+## Learnings
+
+### 2026-04-17 — HelpKit CI gating, extract runbook, honest-messaging discipline
+
+**CI gating strategy.** The eval harness is the only gate that actually
+protects users. Build matrix catches TFM regressions; unit tests catch
+behavior regressions; but the eval gate (>=85% correct AND 0 fabricated
+cites) is what keeps the honest-messaging pitch honest. Ran fake-client
+mode by default for speed and secret hygiene; live-mode is an opt-in env
+var flip for release gates. Everything else (build, tests, pack-preview)
+is table stakes. The pack-preview job intentionally does NOT publish to
+NuGet during Alpha — manual publish keeps the Captain in the loop for
+each alpha drop.
+
+**Extract-repo runbook.** `git subtree split --prefix=` is the right
+primitive; it preserves history and is non-destructive (the split branch
+can be regenerated freely). Key ordering: (1) CI green for 3+ consecutive
+runs, (2) scan for SentenceStudio leaks before splitting — a single
+`using SentenceStudio.X` line would forever live in the extracted repo's
+history, (3) switch SentenceStudio to NuGet BEFORE deleting the
+incubation folder, (4) keep squad `.squad/agents/*/history.md` entries in
+SentenceStudio for historical context, just mark them archived. Do not
+migrate them to the new repo.
+
+**Honest-messaging discipline.** Banned phrases: "offline-first", "no
+hallucination", "zero hallucination". These are not true and every
+consumer will discover that within a day of using the library. Replaced
+with a FAQ that says "no" directly. What IS true and we DO claim:
+"citations are validated before yielding; fabricated citations are
+stripped; the eval gate fails CI on fabricated cites." This is
+falsifiable and enforced — so it belongs in the README. The
+"What does NOT ship in Alpha" section is equally important: AI-enriched
+scanner, Blazor companion, sqlite-vec. Calling out what is absent
+prevents support-load spikes from consumers who assumed those features
+were there.

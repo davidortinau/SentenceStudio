@@ -188,3 +188,35 @@ Captain locked 8 decisions. Alpha scope frozen. Implications for River (RAG pipe
 
 README docs "bring your own IChatClient" with examples for OpenAI, Azure OpenAI, Foundry, Ollama. SPIKE-1 unblocked for embedding dimension handling validation.
 
+
+---
+
+## HelpKit RAG Pipeline — Wave 1 Code Landed (2026-04-17)
+
+**Session:** Parallel Wave-1 scaffold with Zoe. Landed pure-logic RAG helpers + design doc.
+**Files created under `lib/Plugin.Maui.HelpKit/src/Plugin.Maui.HelpKit/Rag/`:**
+- `MarkdownChunker.cs` — 512/128 token chunker, paragraph-boundary aware, heading breadcrumbs, GitHub-style slug anchors, content-hash IDs.
+- `PipelineFingerprint.cs` — SHA-256 of model+chunker+size+overlap+headingFormat.
+- `CitationValidator.cs` — regex-parses `[cite:path#anchor]`, validates vs retrieved chunks, strips invalid as `[cite unverified]`, renders clean bubbles.
+- `SimilarityThresholds.cs` — per-model default cosine thresholds.
+- `SystemPrompt.cs` — prompt builder with delimiter-fenced `<doc>` tags, grounding rules, citation format, language mirroring, instruction secrecy. Exposes `FingerprintPhrases` for the filter.
+- `PromptInjectionFilter.cs` — output-side leak detector using fingerprint phrases.
+- `IngestionOrchestrator.cs` (stub) — documents the ingest flow; `throw NotImplementedException("Wash: wire to storage")`.
+- `RetrievalService.cs` (stub) — embed → top-K → threshold gate → refusal signal. Includes tested `CosineSimilarity` helper.
+
+Plus `lib/Plugin.Maui.HelpKit/docs/rag-design.md` — full design reference.
+
+### Learnings
+
+- 2026-04-17: HelpKit Alpha — RAG pipeline complete (chunker, citation validator, injection defenses, per-model thresholds).
+
+- **Token approximation beats tokenizer deps.** 4 chars/token is within 15% on English + Korean mixed content. A tokenizer package would add platform-specific native bits for no retrieval-quality gain. Pipeline fingerprint absorbs any config drift.
+- **Heading breadcrumbs are the second-most-important chunk field after content.** Ship them prepended to the chunk text AND as a separate field for citation rendering. The LLM uses them; the UI uses them.
+- **Per-model thresholds are NOT STS benchmark numbers.** Retrieval-relevance and sentence-similarity have different cosine distributions. A 0.7 STS threshold rejects useful retrievals on OpenAI-3-small; 0.35 is correct. Documented the full table in `rag-design.md` §7.
+- **Pre-LLM refusal > post-LLM refusal.** Gate at top-score < threshold BEFORE the model call. Saves tokens, removes the model's temptation to confabulate from training data, and makes the refusal a UX guarantee rather than a prompt suggestion.
+- **Delimiter fencing + output fingerprint filter is a two-layer injection defence.** Input side: `<doc>` tags with the instruction to treat contents as untrusted data. Output side: fingerprint phrases from the system prompt. Keep the phrase list co-located with the prompt (`SystemPrompt.FingerprintPhrases`) so they cannot drift.
+- **Sanitize chunk content for `</doc>` inside content.** HTML-escape closing tags so an attacker cannot break the fence by pasting a closing tag into markdown.
+- **Citation validator should fall back to path-only match.** Models often cite the correct file with the enclosing heading's anchor instead of the exact section anchor. Stripping these is user-hostile; matching on path and recording the chunk's real anchor preserves utility while still blocking pure fabrications.
+- **Content-hash chunk IDs over sequential IDs.** Stable across re-ingest; enables incremental updates without re-embedding unchanged chunks.
+- **Fingerprint must include everything that changes retrieval shape.** Model id (encodes dimension), chunker version, chunk size, overlap, heading format. Missing any one = silent-failure class of bug where vectors mix incompatible spaces.
+- **Ingestion is a thin coordinator.** Actual vector-store I/O is Wash's. `IngestionOrchestrator` documents the flow with TODO comments; Wash implements the storage adapter and wires it in Wave 2. This keeps concerns separate.

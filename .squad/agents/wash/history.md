@@ -92,6 +92,8 @@
 
 ## Learnings
 
+- 2026-04-17: HelpKit Alpha — storage/ingestion/cache/rate-limit complete; SS integration blocked on TFM.
+
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
 - ProgressCacheService is a Singleton with 5-minute TTL on all cache entries — plan cache can expire during normal activity completion
@@ -1022,3 +1024,70 @@ Captain locked 8 decisions. Alpha scope frozen. Implications for Wash (SQLite + 
 
 SPIKE-1 unblocked focusing on in-memory VectorData validation and JSON serialization performance.
 
+
+## 2026-04-17 — HelpKit Alpha Wave 2: Storage + Ingestion + Rate Limit + Scanner
+
+Landed the backend layer end-to-end and wired HelpKitService.
+
+**Schema (sqlite-net-pcl, singular table names):**
+- `conversation` (Id PK GUID, UserId?, Title, CreatedAt, UpdatedAt)
+- `message` (Id PK GUID, ConversationId FK, Role, Content, CitationsJson, CreatedAt)
+- `schema_version` (single row)
+- `ingestion_fingerprint` (single row; full re-ingest when mismatched)
+- `answer_cache` (Key = SHA-256(lower(trim(question)) + "|" + fingerprint), ExpiresAt)
+- Migrations are forward-only: unknown higher version logs a warning and continues. **Never destroys user data.**
+- Citations stored as JSON blobs so field-order changes in the public record don't break the schema.
+
+**Fingerprint semantics (`PipelineFingerprint.Compute`):**
+- Inputs: embedder model id + chunker version + chunk size (512) + overlap (128) + heading format.
+- Any change = full re-ingest + `AnswerCache.InvalidateAllAsync()`. Conversations/messages untouched.
+
+**Retention:**
+- 30-day default purge on every `HelpKitService` construction (cheap no-op).
+- `ClearHistoryAsync` is `CurrentUserProvider`-scoped (never cross-user).
+
+**Rate limit:**
+- Per-user sliding 60s window, `ConcurrentDictionary<userKey, Queue<DateTime>>`.
+- Anonymous bucket keyed `"_anon"`. Disabled when `MaxQuestionsPerMinute <= 0`.
+- Rejection increments `helpkit.rate_limit.rejected` and yields a polite Alpha refusal line.
+
+**Vector store rationale:**
+- Hand-rolled in-memory store (`VectorStore` + `HelpKitChunkRecord`) over a concrete `M.E.VectorData` in-memory connector. Keeps dependency set at abstractions + sqlite-net-pcl + JSON. Matches Captain's Wave-2 minimal-deps mandate.
+- Persists to `{storagePath}/helpkit/vectors.json` (gzip, atomic .tmp+replace). Hydrates lazily.
+- Uses `RetrievalService.CosineSimilarity` for ranking; threshold via `SimilarityThresholds.DefaultFor(modelId)` unless `SimilarityThresholdOverride` is set.
+
+**Service wiring (`HelpKitService`):**
+- Ingest → `IngestionCoordinator.IngestAsync`.
+- StreamAsk → rate-limit → conversation touch/create → persist user turn → answer-cache lookup → embed query → `VectorStore.SearchAsync` → threshold check (refusal line if all below) → `SystemPrompt.Build` → `IChatClient.GetStreamingResponseAsync` → accumulate + yield progressively → `CitationValidator.Validate` + `PromptInjectionFilter.TryDetectLeak` on final → persist assistant turn → `AnswerCache.PutAsync` → yield final with validated citations.
+- Namespace collisions handled by keeping `Rag.HelpKitMessage`/`Rag.HelpKitCitation` fully qualified; public `HelpKitMessage`/`HelpKitCitation` live in root namespace unqualified.
+
+**Scanner:**
+- `Plugin.Maui.HelpKit.Scanner.StubScanner.RunAsync(projectRoot, outputDir, ct)` walks `*.xaml`, emits `{outputDir}/helpkit-scan/pages/{slug}.md` with frontmatter. Never overwrites existing files; idempotent re-runs. Skips bin/obj. AI enrichment marked `TODO(Beta)`.
+
+**Unshipped:**
+- `Plugin.Maui.HelpKit.Scanner.targets` is a stub (Message-only target). Real `UsingTask` + runtime invocation tagged `TODO(Beta)`.
+- `Rag.IngestionOrchestrator` and `Rag.RetrievalService.RetrieveAsync` still throw NotImplemented — Wash's new `IngestionCoordinator` and inline retrieval in `HelpKitService` supersede them for Alpha.
+
+Build NOT attempted — net11 preview SDK + MAUI workload aren't installed locally (Zoe flagged the same). Code intentionally compile-verified against public surface only; CI on a properly provisioned box is the next gate.
+
+---
+
+## Learnings — 2026-04-17 (SentenceStudio dogfood integration)
+
+**TFM tension is the dominant blocker, not DI.** SentenceStudio's entire project graph is `net10.0-*`; HelpKit ships `net11.0-*` only. A net10 head cannot ProjectReference a net11-only library — restore fails before compile. The integration approach must be additive and reversible until one side moves. I gated everything behind `$(TargetFramework.StartsWith('net11.0'))` (csproj `<ItemGroup>` condition) and `#if NET11_0_OR_GREATER` (C# preprocessor). Net10 dev build verified green after the changes (0 errors). When SentenceStudio bumps OR Zoe multi-targets HelpKit to also include `net10.0-*`, the integration activates with no further code work.
+
+**Single-source linked file beats per-head duplication.** Put the integration helper at `src/Shared/HelpKitIntegration.cs` and `<Compile Include="..\Shared\HelpKitIntegration.cs" Link="Setup\HelpKitIntegration.cs" />` from each MAUI head csproj that wants it. One copy, multiple TFMs, clear file location in IDE solution explorer thanks to `Link` metadata.
+
+**Keyed DI alias is opportunistic, not required.** Zoe's `HelpKitAiResolver` already falls back from keyed("helpkit") to unkeyed `IChatClient`. SentenceStudio has exactly one unkeyed `IChatClient` registration — the resolver picks it up automatically. I added the keyed alias too as belt-and-suspenders for a multi-provider future, but it's not load-bearing today.
+
+**Embedding generator must be host-app concern.** SentenceStudio had no `IEmbeddingGenerator` registered. I added one using the same `OpenAIClient` and same API key resolution path Captain already uses (env var on desktop, `Settings.OpenAIKey` elsewhere) so there's no second credential to manage. Defaulted model to `text-embedding-3-small` with a `TODO(Captain)` to confirm — cheap, ubiquitous, 1536 dims.
+
+**`CurrentUserProvider` reads preferences directly, not via service.** `UserProfileRepository.ActiveProfileIdKey == "active_profile_id"` is a static const, and `Preferences.Get` is sync — perfect match for HelpKit's sync `Func<IServiceProvider, string?>` delegate. Avoids dragging EF context into a getter that fires on every history query.
+
+**Help corpus authored against actual Razor pages.** Walked `src/SentenceStudio.UI/Pages/*.razor` to confirm activity names (Cloze, Writing, Translation, Vocabulary, Word Association, Conversation) and to keep article content accurate. Eleven articles, ~1KB each. Lives at `src/SentenceStudio.AppLib/Resources/Raw/sentencestudio-help/` and bundles automatically via existing `<MauiAsset Include="Resources\Raw\**" />` glob — no csproj edit needed for content.
+
+**No Shell flyout for SentenceStudio.** App is Blazor Hybrid hosted in a single `BlazorApp` content page. No MAUI Shell exists. Did NOT call `AddHelpKitShellFlyout`. UI trigger will be a Razor button (Kaylee's territory) once TFM unblocks.
+
+**Two-stage init: stage content from app package to AppData, then ingest.** `InitializeHelpContentAsync` copies bundled markdown to `FileSystem.AppDataDirectory/sentencestudio-help/` only if files are missing (preserves any per-install edits). Then `TriggerBackgroundIngest` fires-and-forgets `IHelpKit.IngestAsync()` — errors logged, never thrown, so help can never block app boot.
+
+**Build verification:** `dotnet build src/SentenceStudio.MacCatalyst -f net10.0-maccatalyst` → 0 errors, 563 pre-existing warnings. Net11 build not attempted (same SDK/workload absence Zoe flagged). Decision memo at `.squad/decisions/inbox/wash-helpkit-ss-integration.md` lists the three unblock options and recommends Zoe multi-target HelpKit to net10 for the incubation window.

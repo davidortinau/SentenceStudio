@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <PackageReference Include="coverlet.collector" Version="6.0.2" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Plugin.Maui.HelpKit\Plugin.Maui.HelpKit.csproj" />
+  </ItemGroup>
+
+  <!--
+    Reuse the Eval harness test-corpus as a shared fixture for unit tests so
+    chunker / validator behavior can be verified against the same source we
+    grade the AI on. Files are linked under Fixtures/test-corpus/** in the
+    test output directory.
+  -->
+  <ItemGroup>
+    <None Include="..\Plugin.Maui.HelpKit.Eval\test-corpus\**\*.md"
+          Link="Fixtures\test-corpus\%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

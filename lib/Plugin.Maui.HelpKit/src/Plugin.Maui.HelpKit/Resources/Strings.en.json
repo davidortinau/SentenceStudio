@@ -1,0 +1,18 @@
+{
+  "HelpKit.Title": "Help",
+  "HelpKit.Close": "Close",
+  "HelpKit.Clear": "Clear conversation",
+  "HelpKit.Send": "Send",
+  "HelpKit.Placeholder": "Ask a question about this app",
+  "HelpKit.EmptyMessage": "Ask me anything about this app.",
+  "HelpKit.ErrorGeneric": "Something went wrong. Please try again.",
+  "HelpKit.RateLimitExceeded": "You are asking too quickly. Please wait a moment and try again.",
+  "HelpKit.NoDocumentation": "I could not find anything about that in the app documentation.",
+  "HelpKit.Streaming": "Thinking...",
+  "HelpKit.FlyoutDefault": "Help",
+  "HelpKit.CitationsHeader": "Sources",
+  "HelpKit.InputAccessibility": "Type your question here",
+  "HelpKit.SendAccessibility": "Send question",
+  "HelpKit.ClearAccessibility": "Clear conversation",
+  "HelpKit.CloseAccessibility": "Close help"
+}

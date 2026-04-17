@@ -39,4 +39,15 @@
 		<ProjectReference Include="..\SentenceStudio.UI\SentenceStudio.UI.csproj" />
 		<ProjectReference Include="..\SentenceStudio.MauiServiceDefaults\SentenceStudio.MauiServiceDefaults.csproj" />
 	</ItemGroup>
+
+	<!--
+	  HelpKit integration (Plugin.Maui.HelpKit) — TFM-gated.
+	  HelpKit ships net11-only. Activates automatically when this head is
+	  bumped to net11 (e.g. for the iOS Release publish workflow).
+	  See .squad/decisions/inbox/wash-helpkit-ss-integration.md.
+	-->
+	<ItemGroup Condition="$(TargetFramework.StartsWith('net11.0'))">
+		<ProjectReference Include="..\..\lib\Plugin.Maui.HelpKit\src\Plugin.Maui.HelpKit\Plugin.Maui.HelpKit.csproj" />
+		<Compile Include="..\Shared\HelpKitIntegration.cs" Link="Setup\HelpKitIntegration.cs" />
+	</ItemGroup>
 </Project>

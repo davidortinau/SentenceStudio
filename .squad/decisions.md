@@ -4,6 +4,34 @@
 
 ---
 
+## 2026-04-17 — Plugin.Maui.HelpKit Alpha Build Complete
+
+### Public API (Zoe)
+Contract frozen at 0.1.0-alpha. `HelpKitOptions`, `IHelpKit` (five methods: Show/Hide/ClearHistory/Ingest/StreamAskAsync), `IHelpKitPresenter`, `IHelpKitContentFilter` (DefaultSecretRedactor). All registrations use `TryAddSingleton` for host customization.
+
+### RAG Pipeline (River)
+Wave 1 code landed: `MarkdownChunker` (512/128 token, paragraph-boundary, GitHub slug anchors), `PipelineFingerprint` (SHA-256 of model+chunker+size+overlap), `CitationValidator` (regex parse + fallback to path-only), `SimilarityThresholds` (per-model table, 0.35–0.75 cosine), `SystemPrompt` (delimiter-fenced docs, grounding rules, citation format), `PromptInjectionFilter` (output fingerprint leak detector). Chunker version, threshold table, and phrase set are locked into design doc.
+
+### Storage, Ingestion, Rate Limit & Diagnostics (Wash)
+SQLite via sqlite-net-pcl (singular table names, string GUID PKs, UTC ticks). Pipeline fingerprint gates re-ingest; answer cache (7-day TTL) invalidated wholesale on fingerprint change. Rate limiter: concurrent sliding window, 10 q/min default, per-user buckets. Vector store: hand-rolled in-memory + JSON persistence (no Microsoft.Extensions.VectorData concrete pkg in Alpha). Diagnostics: `HelpKitMetrics` exposes counters (ingest, retrieval, LLM tokens, cache, rate limit). Scanner: non-AI XAML walker emitting one `.md` per page (title, route, field names); AI enrichment deferred to Beta.
+
+### UI & Presenters (Kaylee)
+`HelpKitPage` (CollectionView chat, streaming mutation, auto-scroll). `DefaultPresenterSelector` resolves at call-time (Shell first, Window fallback). `HelpKitLocalizer` (embedded JSON, en/ko, fallback to key). Accessibility: SemanticProperties + AutomationProperties set; message bubbles include role in a11y name; input disabled while streaming; no color-only role distinction. Twelve localization keys shipped; runtime theme switching deferred. Shell flyout helper wired via `IMauiInitializeService`.
+
+### Samples (Kaylee)
+Three runnable projects (Shell, Plain, MauiReactor) with shared stubs. `StubChatClient` (deterministic 4-answer router, 30ms streaming delay, citation tokens). `StubEmbeddingGenerator` (32-dim FNV-1a hash vectors, stable). `SampleHelpContentInstaller` (copies bundled `.md` to AppData on first run). Each sample includes provider-migration comments (Azure OpenAI, OpenAI, Ollama, unkeyed).
+
+### Eval Harness & CI Gate (Jayne)
+30 golden Q/A over SentenceStudio help corpus. CI gate: **>= 85% correct AND 0 fabricated citations**. Two modes (deterministic `FakeChatClient` default, live opt-in `HELPKIT_EVAL_LIVE=1`). Seven unit-test files landed: CitationValidator, MarkdownChunker, PipelineFingerprint, PromptInjectionFilter, RateLimiter, AnswerCache, extended DefaultSecretRedactor. Four-TFM smoke-test checklists. 80% line coverage enforced on Rag, Storage, RateLimit, DefaultSecretRedactor folders.
+
+### CI + Documentation (Zoe)
+`.github/workflows/helpkit-ci.yml`: matrix build (macOS+iOS, Linux+Android, Windows), unit tests, eval gate. `DOTNET_ROLL_FORWARD=LatestMajor`, net11 preview SDK + prerelease flag. `README.md`: MIT license, honest FAQ (offline caveat, no-hallucination caveat, citations are validated), provider-neutral quickstart (four examples), explicit Alpha defects list. `SUPPORT.md`, `SECURITY.md`, `CONTRIBUTING.md` drafted. `EXTRACT-RUNBOOK.md`: post-Alpha path to standalone repo via `git subtree split`.
+
+### SentenceStudio Dogfood Integration (Wash) — BLOCKED
+Code staged dormant under `#if NET11_0_OR_GREATER`. Eleven help articles (Getting Started, Dashboard, Profile, Sync, Settings, six activities). DI wiring: unkeyed + keyed aliases (no-op today). Embedding model: `text-embedding-3-small` from existing OpenAI client. Per-profile history via `Preferences.Get("active_profile_id")`. Content in AppData, copied from bundle on first run. **Blocker: net10 head cannot reference net11-only library.** Three unblock options: (1) Bump SentenceStudio to net11 dev (counter to Captain's intent). (2) Multi-target HelpKit to also include net10 TFMs (Zoe's call; recommended by Wash). (3) Activate only on iOS Release publish path (dev loop dogfooding lost). **Wash recommends Option 2**: lowest-risk, keeps Captain's net10 workflow, enables dogfooding in real builds, reversible at Alpha close.
+
+---
+
 ## 2026-04-17 — Plugin.Maui.HelpKit Planning
 
 ### 2026-04-17T20:21Z: Plugin.Maui.HelpKit — Alpha scope locked (Captain verdicts)

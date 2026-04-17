@@ -1,0 +1,245 @@
+name: HelpKit CI
+
+on:
+  pull_request:
+    paths:
+      - 'lib/Plugin.Maui.HelpKit/**'
+      - '.github/workflows/helpkit-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'lib/Plugin.Maui.HelpKit/**'
+      - '.github/workflows/helpkit-ci.yml'
+
+env:
+  DOTNET_ROLL_FORWARD: LatestMajor
+  DOTNET_NOLOGO: 'true'
+  DOTNET_CLI_TELEMETRY_OPTOUT: 'true'
+  HELPKIT_ROOT: lib/Plugin.Maui.HelpKit
+  HELPKIT_CSPROJ: lib/Plugin.Maui.HelpKit/src/Plugin.Maui.HelpKit/Plugin.Maui.HelpKit.csproj
+  HELPKIT_TESTS_CSPROJ: lib/Plugin.Maui.HelpKit/tests/Plugin.Maui.HelpKit.Tests/Plugin.Maui.HelpKit.Tests.csproj
+  HELPKIT_EVAL_CSPROJ: lib/Plugin.Maui.HelpKit/tests/Plugin.Maui.HelpKit.Eval/Plugin.Maui.HelpKit.Eval.csproj
+
+jobs:
+  build-mac:
+    name: Build (macOS — iOS + MacCatalyst)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 11 preview
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.0.x'
+          include-prerelease: true
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-mac-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props', '**/Directory.Build.props') }}
+          restore-keys: nuget-mac-
+
+      - name: Cache .NET workload manifests
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.dotnet/sdk-manifests
+            ~/.dotnet/workloads
+          key: workloads-mac-net11-${{ runner.os }}
+
+      - name: Install MAUI workload
+        run: dotnet workload install maui --source https://api.nuget.org/v3/index.json
+
+      - name: Restore
+        working-directory: ${{ env.HELPKIT_ROOT }}
+        run: dotnet restore src/Plugin.Maui.HelpKit/Plugin.Maui.HelpKit.csproj
+
+      - name: Build (net11.0-maccatalyst)
+        working-directory: ${{ env.HELPKIT_ROOT }}
+        run: dotnet build src/Plugin.Maui.HelpKit/Plugin.Maui.HelpKit.csproj -c Release -f net11.0-maccatalyst --no-restore
+
+      - name: Build (net11.0-ios)
+        working-directory: ${{ env.HELPKIT_ROOT }}
+        run: dotnet build src/Plugin.Maui.HelpKit/Plugin.Maui.HelpKit.csproj -c Release -f net11.0-ios --no-restore
+
+  build-linux:
+    name: Build (Linux — Android)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 11 preview
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.0.x'
+          include-prerelease: true
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-linux-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props', '**/Directory.Build.props') }}
+          restore-keys: nuget-linux-
+
+      - name: Cache .NET workload manifests
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.dotnet/sdk-manifests
+            ~/.dotnet/workloads
+          key: workloads-linux-net11-${{ runner.os }}
+
+      - name: Install MAUI Android workload
+        run: dotnet workload install maui-android --source https://api.nuget.org/v3/index.json
+
+      - name: Restore
+        working-directory: ${{ env.HELPKIT_ROOT }}
+        run: dotnet restore src/Plugin.Maui.HelpKit/Plugin.Maui.HelpKit.csproj
+
+      - name: Build (net11.0-android)
+        working-directory: ${{ env.HELPKIT_ROOT }}
+        run: dotnet build src/Plugin.Maui.HelpKit/Plugin.Maui.HelpKit.csproj -c Release -f net11.0-android --no-restore
+
+  build-windows:
+    name: Build (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 11 preview
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.0.x'
+          include-prerelease: true
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~\.nuget\packages
+          key: nuget-windows-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props', '**/Directory.Build.props') }}
+          restore-keys: nuget-windows-
+
+      - name: Cache .NET workload manifests
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~\.dotnet\sdk-manifests
+            ~\.dotnet\workloads
+          key: workloads-windows-net11-${{ runner.os }}
+
+      - name: Install MAUI workload
+        run: dotnet workload install maui --source https://api.nuget.org/v3/index.json
+
+      - name: Restore
+        working-directory: ${{ env.HELPKIT_ROOT }}
+        run: dotnet restore src/Plugin.Maui.HelpKit/Plugin.Maui.HelpKit.csproj
+
+      - name: Build (net11.0-windows10.0.19041.0)
+        working-directory: ${{ env.HELPKIT_ROOT }}
+        run: dotnet build src/Plugin.Maui.HelpKit/Plugin.Maui.HelpKit.csproj -c Release -f net11.0-windows10.0.19041.0 --no-restore
+
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 11 preview
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.0.x'
+          include-prerelease: true
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-tests-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props', '**/Directory.Build.props') }}
+          restore-keys: nuget-tests-
+
+      - name: Restore + test
+        run: |
+          dotnet restore ${{ env.HELPKIT_TESTS_CSPROJ }}
+          dotnet test ${{ env.HELPKIT_TESTS_CSPROJ }} -c Release --no-restore --logger "trx;LogFileName=helpkit-tests.trx"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: helpkit-unit-test-results
+          path: '**/helpkit-tests.trx'
+
+  eval:
+    name: Eval gate (>=85% correct, 0 fabricated cites)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 11 preview
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.0.x'
+          include-prerelease: true
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-eval-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props', '**/Directory.Build.props') }}
+          restore-keys: nuget-eval-
+
+      - name: Restore + run eval (fake-client mode)
+        env:
+          HELPKIT_EVAL_LIVE: '0'
+        run: |
+          dotnet restore ${{ env.HELPKIT_EVAL_CSPROJ }}
+          dotnet test ${{ env.HELPKIT_EVAL_CSPROJ }} -c Release --no-restore \
+            --filter "FullyQualifiedName~CiGate_MustPass" \
+            --logger "trx;LogFileName=helpkit-eval.trx"
+
+      - name: Upload eval results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: helpkit-eval-results
+          path: '**/helpkit-eval.trx'
+
+  pack-preview:
+    name: Pack preview (main only)
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [build-mac, build-linux, build-windows, test, eval]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 11 preview
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.0.x'
+          include-prerelease: true
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-pack-${{ hashFiles('**/*.csproj', '**/Directory.Packages.props', '**/Directory.Build.props') }}
+          restore-keys: nuget-pack-
+
+      - name: Install MAUI workload
+        run: dotnet workload install maui --source https://api.nuget.org/v3/index.json
+
+      - name: Pack (alpha.${{ github.run_number }})
+        working-directory: ${{ env.HELPKIT_ROOT }}
+        run: |
+          dotnet pack src/Plugin.Maui.HelpKit/Plugin.Maui.HelpKit.csproj \
+            -c Release \
+            -o ./artifacts \
+            --version-suffix "alpha.${{ github.run_number }}"
+
+      - name: Upload NuGet artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Plugin.Maui.HelpKit-nupkg
+          path: ${{ env.HELPKIT_ROOT }}/artifacts/*.nupkg
+          retention-days: 30

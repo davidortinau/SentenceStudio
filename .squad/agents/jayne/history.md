@@ -7,6 +7,8 @@
 
 ## Learnings
 
+- 2026-04-17: HelpKit Alpha — 30 golden Q/A + eval gate (85%/0%) + cross-platform validation plan + 7 unit-test files.
+
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
 - E2E testing skill at `.claude/skills/e2e-testing/SKILL.md` — follow it religiously
@@ -407,3 +409,33 @@ Captain locked 8 decisions. Alpha scope frozen. Implications for Jayne (platform
 
 SPIKE-1 and SPIKE-2 ready for validation when Captain signals go-ahead.
 
+
+## Learnings
+
+### 2026-04-17 — HelpKit eval harness scaffold
+
+- **Golden set distribution (30 items):** dashboard 3, cloze 3, writing 3, translation 3, vocabulary 4 (incl. 1 Korean), word-association 2, profiles 2, resources 2, settings 2, sync 2, refusal/out-of-scope 3, Korean 1 additional in cloze. Balance: 25 answerable EN + 2 Korean + 3 must-refuse = 30.
+- **Gaps discovered in SentenceStudio help coverage:** SentenceStudio ships no user-facing help content today. Every corpus article I wrote for `test-corpus/` is a fresh draft grounded in Razor page source (Cloze, Writing, Translation, Vocabulary, Word Association, Profile, Resources, Settings, Index). Real help authoring will need deeper passes on: Shadowing, Conversation, Scene, HowDoYouSay, MinimalPairs, VideoWatching, Reading, Import (bulk flow), Onboarding, Channels, Skill profiles, Video watching / captions. None of these are in the golden set yet — add when Captain lands real help content.
+- **Features I confirmed from code, not assumed:** Cloze session summary shows correct/incorrect/accuracy; Writing and Translation grade on accuracy + fluency percentages; Word Association tracks weekly + all-time high scores; Vocabulary page has Find Duplicates, Populate Lemmas, Fix Swapped Languages, Assign Orphaned Words, Bulk Edit Status; Dashboard has Regenerate Plan action when a Today's Plan is configured.
+- **CI-gate enforcement ("0% fabricated citations"):** `EvalRunner` scans responses with a regex that captures bracketed `.md` paths, compares each against `HashSet<string>` of paths under `test-corpus/`, and marks the verdict `FabricatedCitation=true` if any cited path is absent. `CiGate_MustPass` asserts `fabricated == 0` separately from the 85% correctness threshold, so a run with 90% keyword coverage but one fabricated citation still fails the build. The two-mode design (fake default, live opt-in via `HELPKIT_EVAL_LIVE=1`) means CI PRs run deterministic and release tags run live — both paths go through the same gate.
+- **Refusal detection covers EN + KO:** markers include "outside my scope", "don't have documentation", Korean "문서가 없", "범위 밖". If Captain localizes to more languages, the marker list must grow with them or must-refuse tests will false-fail.
+
+## 2026-04-17 — HelpKit cross-platform validation plan + unit tests
+
+Shipped: `tests/VALIDATION-PLAN.md` (4 TFMs x 3 verification levels, 16 cross-cutting scenarios), `tests/smoke-tests/` (4 per-TFM checklists), 7 unit test files, `InternalsVisibleTo` shim, Eval-corpus linking into Tests project, `.claude/skills/e2e-testing/references/helpkit-flows.md`, Alpha gate memo `jayne-helpkit-validation.md`.
+
+### Learnings
+
+- **Cross-platform gotchas:**
+  - SQLite DB path differs four ways. Mac Catalyst hides it behind a sandbox container; iOS sim needs `xcrun simctl get_app_container`; Android requires `run-as <pkg>`; Windows differs between MSIX (`Packages\<PFN>\LocalState`) and unpackaged (`%LOCALAPPDATA%\<AppName>`). Smoke-tests bake all four paths.
+  - `MarkdownChunker.Slugify` strips non-ASCII — Korean headings produce empty anchors. Documented as known Alpha limitation in `MarkdownChunkerTests.Slugify_ProducesGitHubStyleSlugs` (the `한국어 Heading → ""` case). If Kaylee or i18n later requires Korean anchors, update the test and the slugifier in lockstep.
+  - `RateLimiter` and `AnswerCache` are `internal sealed` — added `InternalsVisibleTo` rather than weaken the public surface. `AnswerCache` also depends on `HelpKitDatabase` (real SQLite), so unit tests cover only `ComputeKey` (the deterministic, pure part); TTL + invalidation behavior is covered by smoke scenarios X02/X03.
+  - Vector store integrity is its own failure mode: `ingestion_fingerprint` row can exist while `vectors.json` is empty (e.g., write-fail mid-ingest). Smoke checklists assert both exist and `vectors.json > 0 bytes`. Don't trust just the fingerprint.
+  - Prompt-injection detection is string-match on `SystemPrompt.FingerprintPhrases` — paraphrased leaks slip through (River-acknowledged Alpha gap). Log-level grep at smoke time catches plain-text leaks but not semantic ones. Beta needs a semantic detector.
+  - Platform locale vs `options.Language` are independent. Setting Android device locale to Korean does NOT auto-select `Strings.ko.json` — host must explicitly pass `Language = "ko"` to `AddHelpKit()`. Smoke tests verify both paths.
+
+- **Unit-test coverage targets (Alpha gate):** 80% line coverage on `Rag/`, `Storage/`, `RateLimit/`, `DefaultSecretRedactor`. UI/Presenter/Scanner/Localization/ShellIntegration are smoke-tested rather than unit-tested for Alpha — too much MAUI ceremony for marginal unit value.
+
+- **Smoke-test pattern:** ~15 numbered steps per TFM. Each step has an explicit expected outcome AND a copy-pasteable command (sqlite3, adb, xcrun, etc.). Tester initials + UTC date on the bottom — discourages "looked OK" sign-offs. File a GitHub issue per failed line, not one big "smoke broken" issue — preserves regression trail.
+
+- **Fixture-sharing decision:** Eval `test-corpus/` is canonical. Tests project links the same files via MSBuild glob into `Fixtures/test-corpus/` rather than copying. Single source of truth means River's golden-set additions automatically light up in unit tests on next build.

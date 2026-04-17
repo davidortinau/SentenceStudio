@@ -1,0 +1,39 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFrameworks>net11.0-android;net11.0-ios;net11.0-maccatalyst</TargetFrameworks>
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('windows'))">$(TargetFrameworks);net11.0-windows10.0.19041.0</TargetFrameworks>
+
+    <UseMaui>true</UseMaui>
+    <SingleProject>true</SingleProject>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>HelpKitSample.Shell</RootNamespace>
+    <AssemblyName>HelpKitSample.Shell</AssemblyName>
+    <ApplicationTitle>HelpKit Shell Sample</ApplicationTitle>
+    <ApplicationId>com.plugin.maui.helpkit.sample.shell</ApplicationId>
+    <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+    <ApplicationVersion>1</ApplicationVersion>
+    <IsPackable>false</IsPackable>
+
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'ios'">15.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'maccatalyst'">15.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'android'">21.0</SupportedOSPlatformVersion>
+    <SupportedOSPlatformVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</SupportedOSPlatformVersion>
+    <TargetPlatformMinVersion Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == 'windows'">10.0.17763.0</TargetPlatformMinVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Plugin.Maui.HelpKit\Plugin.Maui.HelpKit.csproj" />
+  </ItemGroup>
+
+  <!-- Shared stub providers + content installer, linked (not copied) from ../SharedStubs. -->
+  <ItemGroup>
+    <Compile Include="..\SharedStubs\*.cs" LinkBase="SharedStubs" />
+  </ItemGroup>
+
+  <!-- Sample help-content markdown files are linked into the app package as MauiAssets. -->
+  <ItemGroup>
+    <MauiAsset Include="..\SampleHelpContent\*.md" LogicalName="help-content\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+</Project>
