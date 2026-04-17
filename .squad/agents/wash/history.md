@@ -745,3 +745,101 @@ Implemented backend service for Activity Log feature (Strava-inspired Practice C
 - Data compatible with Kaylee's ActivityLog.razor + ActivityDot.razor components
 
 **Cross-Agent:** Kaylee integrated DTOs into UI layer; Coordinator fixed build errors
+
+---
+
+## 2025-01-24: Quiz Resource Mismatch — Root Cause Diagnosis
+
+**Task:** Captain reported mismatch between Dashboard Insights panel (8 new, 12 review, 497 due words) and VocabQuiz page ("no vocabulary loaded" toast).
+
+**Investigation:**
+Traced two divergent code paths:
+
+1. **Insights Panel (Global Scope):**
+   - `DeterministicPlanBuilder.BuildNarrative()` → creates `VocabInsight` from `GetDueVocabularyAsync()`
+   - Query: `VocabularyProgressRepository.GetDueVocabularyAsync()` returns ALL due words for user (497 total)
+   - Filters: `NextReviewDate <= today` AND NOT Known (mastery < 0.85 OR production < 2)
+   - **NO resource filter** — global user scope
+
+2. **Quiz Vocabulary Loading (Resource-Scoped):**
+   - `VocabQuiz.razor.LoadVocabulary()` parses `resourceIds` query param
+   - Loads vocabulary from `LearningResourceRepository.GetResourceAsync(id)` for each resource
+   - Filters by `IsKnown`, `DueOnly`, `IsInGracePeriod`
+   - **ONLY words linked to specified LearningResourceId**
+
+**Root Cause:**
+Filter divergence at navigation boundary:
+- Plan builder picks a LearningResourceId (e.g., "daily review") based on most-common resource among due words (via `LearningContexts`)
+- Insights panel counts ALL 497 due words (global)
+- Plan converter passes `ResourceId` in route params (`PlanConverter.BuildRouteParameters`)
+- Dashboard navigation constructs `resourceIds={item.ResourceId}` query string
+- Quiz filters to ONLY words from that resource → may find 0 words if they're all mastered
+
+**Data Model Finding:**
+- `VocabularyProgress` → `LearningContext[]` → `LearningResourceId` (many-to-many)
+- A word can belong to multiple resources
+- "daily review" is likely a seed/default bucket for ungrouped vocabulary
+- Plan builder selects this resource because it has most due words, but NOT all 497 belong to it
+
+**Hypothesis Type:** FILTER BUG (scope mismatch)
+- Insights = global (user-level)
+- Quiz = resource-scoped
+- NOT a data bug or model bug — both are correct within their scope
+
+**Recommended Fix (for Zoe to decide):**
+Option 2: Make Quiz global when VocabularyReview activity doesn't pass ResourceId
+- Remove `parameters["ResourceId"]` from `PlanConverter` for VocabularyReview
+- Quiz falls back to `GetAllVocabularyWordsWithResourcesAsync()` (already exists)
+- Insights and Quiz now use same scope (global user due words)
+
+**Alternatives:**
+- Option 1: Scope Insights to ResourceId (hides full due count)
+- Option 3: Dual-mode quiz with spillover (contextual + backfill)
+- Option 4: Show both counts in UI ("497 total, 20 in today's focus")
+
+**Report:** `.squad/decisions/inbox/wash-quiz-resource-mismatch-trace.md`
+
+**Cross-Agent:** Zoe to review and assign fix strategy; may involve frontend changes (Kaylee) if Option 4 chosen
+
+
+---
+
+## 2025-01-24 — Quiz Resource Decoupling Implementation
+
+**Request:** Implement Option A/Option 2 (Clean Decoupling) from Zoe's architecture decision
+
+**Context:**
+- Captain confirmed: "For a quiz, it's all about the vocabulary. I don't see the point of a learning resource driving the Quiz."
+- Zoe's decision: VocabularyReview is vocabulary-driven, NOT resource-driven
+- Remove ResourceId from Quiz plan-item pathway so Quiz loader falls through to global user vocab pool
+
+**Implementation:**
+1. **PlanConverter.cs (Lines 125-131):** Removed `parameters["ResourceId"] = resourceId` for VocabularyReview. Added comment explaining vocabulary-driven nature.
+
+2. **DeterministicPlanBuilder.cs (Lines 455-467):** Set `ResourceId = null` for main plan VocabularyReview PlannedActivity. Simplified Rationale to always show global count (removed conditional "contextual learning" text).
+
+3. **DeterministicPlanBuilder.cs (Lines 73-83):** Set `ResourceId = null` for fallback plan VocabularyReview. Added consistent Rationale.
+
+**Verification:**
+- ✅ Build clean: `dotnet build src/SentenceStudio.Shared/SentenceStudio.Shared.csproj` (725 warnings, 0 errors)
+- ✅ VocabQuiz.razor already handles empty resourceIds correctly (falls through to `GetAllVocabularyWordsWithResourcesAsync()`)
+- ✅ Index.razor LaunchPlanItem correctly skips resourceIds parameter when `item.ResourceId` is null
+
+**Key Findings:**
+- VocabularyGame already decoupled (only passes SkillId, not ResourceId)
+- Contextual resource selection logic (lines 154-185) still runs but ResourceId is no longer used by PlannedActivity or Quiz loader — kept for future pedagogical features or diagnostics
+- No database changes needed — `DailyPlanCompletion.ResourceId` can be NULL
+
+**Changes:**
+- 3 surgical edits in 2 files
+- No schema changes, no migrations, no test changes
+- Historical plan items will have ResourceId populated until next regeneration
+
+**Outcome:** VocabularyReview now loads from full user vocabulary pool (497 words) instead of resource-scoped subset (20 words). Insights panel and Quiz are now consistent.
+
+**Report:** `.squad/decisions/inbox/wash-quiz-decouple-fix.md`
+
+**Next:** Jayne to verify via e2e-testing skill, then Squad coordinates commit
+
+
+- Quiz/LearningResource decoupling shipped (commit 88a0272) — VocabularyReview is vocabulary-driven, not resource-scoped. Root cause was Insights (global count) vs. Quiz (resource-filtered) mismatch. Fix: remove ResourceId from VocabularyReview plan items, always load from full user vocab pool.

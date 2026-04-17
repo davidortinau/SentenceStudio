@@ -26,6 +26,40 @@
 
 ## Work Sessions
 
+### 2025-01-24 — Quiz Decoupling Verification Plan
+
+**Status:** Verification Plan Ready (awaiting Wash implementation completion)  
+**Related Decisions:** 
+- `.squad/decisions/inbox/zoe-quiz-vocab-decoupling.md` (architecture)
+- `.squad/decisions/inbox/wash-quiz-resource-mismatch-trace.md` (root cause)
+- `.squad/decisions/inbox/jayne-quiz-decouple-verify.md` (THIS verification plan)
+
+**Assignment:** Draft comprehensive verification plan for Quiz decoupling fix
+
+**Learnings:**
+- Verification plans should cover ALL platforms: local (Aspire + Catalyst), Azure webapp, iOS DX24 device
+- Database sanity checks must verify NO unintended schema changes when fix is code-only
+- Regression checks must verify resource-driven activities (Reading, Shadowing) still work after decoupling vocabulary-driven activities (Quiz)
+- Explicit PASS/FAIL criteria prevent ambiguity — each test must have clear expected observations and failure modes
+- iOS DX24 builds require .NET 11 Preview 3 + specific device ID — document exact commands in verification plan
+- Open questions for implementer (e.g., VocabularyGame scoping, backwards compatibility) should be listed explicitly
+- Verification plans estimate time: local (15min), webapp (10min), iOS (20min), regression (15min), DB sanity (5min) = ~65min total
+- The fix decouples VocabularyReview from LearningResource scoping — Quiz should ALWAYS load from global user vocabulary pool, never filtered by ResourceId
+- Insights panel already showed global counts (497 due) — the bug was that Quiz filtered to resource-scoped subset (20 words) causing "no vocabulary loaded" toast
+
+**Key Pattern:** Filter divergence bugs (Insights shows global count, Quiz filters to subset) require verification that BOTH systems use same scope after fix
+
+**Tools for Execution (when Wash completes):**
+- Aspire CLI (`aspire run --detach`)
+- Playwright MCP (webapp testing)
+- SQLite CLI (database verification)
+- XCode CLI (`xcrun devicectl`) for iOS DX24 install
+- maui-ai-debugging skill (optional native inspection)
+
+**Next:** Execute plan when Wash reports fix complete. Verify all 6 sections PASS, no regressions.
+
+---
+
 ### 2026-03-13 — Cross-Agent Update: Azure Deployment Issues
 
 **Status:** In Progress  
@@ -359,3 +393,5 @@ Ran full test suite to find pre-existing failures from Phase 0 scoring changes. 
 - Playwright MCP can die permanently within a session — reload doesn't fix "Not connected". May need full CLI restart.
 - Scene activity uses "SceneDescription" as the Activity name (not "Scene") — matches pre-existing DB records
 - No Writing/Translation/Scene/Conversation records exist post-Phase-2-3 — code was deployed same day, nobody has exercised these activities via webapp yet. DB evidence is from PRE-phase implementations only.
+
+- Quiz decoupling verification plan prepared (2026-04-17) — comprehensive testing across local, Azure, iOS for VocabularyReview now loading from global vocabulary pool (ResourceId=null). 6 critical pass criteria, 3 regression checks, 2 database sanity checks. ~65 minutes estimated.

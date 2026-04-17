@@ -384,3 +384,55 @@ Merged Captain's 6 design decisions (from Jayne's skeptic review answers) into R
 - Sections 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 across both specs
 
 **Next:** Implementation phase — prioritize by risk and dependency order specified in section 6 of both specs.
+
+
+---
+
+## Session: 2026-04-11 - Quiz Vocabulary Decoupling Architecture Review
+
+**Task:** Investigate why Daily Plan Quiz shows "no vocabulary loaded" despite Insights panel showing 497 words due, and propose architectural fix.
+
+**Context:** Captain observed that the Quiz activity (VocabularyReview) on the Daily Plan was showing "All vocabulary in this resource are mastered" even though the Insights panel on the same plan item reported 497 words due, 12 in review, 8 new. Captain's product stance is clear: "Words to be studied are chosen first. For a quiz, it's all about the vocabulary. I don't see the point of a learning resource driving the Quiz."
+
+**Analysis Performed:**
+1. Categorized all activity types into vocabulary-driven vs resource-driven taxonomies
+2. Traced code paths: DeterministicPlanBuilder (plan generation), VocabQuiz.razor (loader), ProgressService (plan creation), and Insights panel rendering
+3. Identified root cause: VocabularyReview is assigned a ResourceId in plan generation, and VocabQuiz loader filters to only that resource's vocabulary, creating a mismatch between global insights (all due words) and scoped quiz pool (one resource's words)
+
+**Key Findings:**
+- VocabularyReview and VocabularyGame are vocabulary-driven activities (SRS-based word selection)
+- Reading, Listening, VideoWatching, Shadowing are resource-driven activities (media artifact required)
+- Translation, Cloze, Writing are hybrid but lean resource-driven (need source content)
+- The bug occurs when DeterministicPlanBuilder assigns vocabReview.ResourceId (line 458), which VocabQuiz treats as a hard filter (lines 637-651)
+- Insights panel computes stats from full due pool (VocabInsight from DueWords), creating the disconnect
+
+**Recommended Fix: Option A (Clean Decoupling)**
+- Remove ResourceId from VocabularyReview plan items entirely
+- VocabQuiz always loads from full user vocabulary pool (GetAllVocabularyWordsWithResourcesAsync)
+- SRS filtering (DueOnly, mastery, grace period) already handled by progress service
+- No migration needed (plan generation is ephemeral, completion records allow NULL ResourceId)
+- Aligns with Captain's product vision: vocabulary-driven activities should not be gated by resource state
+
+**Alternative Options Evaluated:**
+- Option B (soft hint with fallback): More complex, misleading UX
+- Option C (separate model types): Too invasive for this fix
+- Option D (fix fallback logic): Fragile, doesn't address conceptual coupling
+
+**Deliverables:**
+- Architecture recommendation document: .squad/decisions/inbox/zoe-quiz-vocab-decoupling.md
+- Activity taxonomy (vocabulary-driven vs resource-driven)
+- Root-cause explanation (1-2 sentences referencing Wash's parallel trace)
+- Implementation approach with code locations
+- Backwards compatibility analysis
+- Open questions for Captain (narrative display, contextual learning value, completion tracking)
+
+**Impact:**
+- Implementation effort: 3 edits (DeterministicPlanBuilder.cs, VocabQuiz.razor, narrative builder)
+- No schema changes or migrations required
+- Low risk, high clarity gain
+- Verification via e2e-testing skill to confirm Quiz loads words when insights show due count > 0
+
+**Learning:**
+This investigation reinforced the importance of separating vocabulary-driven activities (where words are the unit of work) from resource-driven activities (where media artifacts are the unit of work). The coupling between VocabularyReview and LearningResource was a conceptual mismatch that manifested as a UX bug. Clean architectural boundaries prevent such issues.
+
+- Activity taxonomy decision (2026-04-17): Categorized as vocabulary-driven (VocabularyReview, VocabularyGame, Writing, Translation, Cloze) vs resource-driven (Reading, Listening, VideoWatching, Shadowing, SceneDescription). VocabularyReview decoupled from LearningResource entirely — Option A (Clean Decoupling) adopted and shipped.

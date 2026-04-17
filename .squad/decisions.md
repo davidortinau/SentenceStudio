@@ -1,5 +1,88 @@
 ## Active Decisions
-## Active Decisions
+
+### SHIPPED: Quiz decoupled from LearningResource (vocabulary-driven) (2026-04-17)
+
+**Status:** ✅ SHIPPED  
+**Date:** 2026-04-17  
+**Affected Components:** Daily Plan generation, VocabularyReview activity routing, Quiz vocabulary loading  
+**Commit:** 88a0272 "Decouple VocabularyReview Quiz from LearningResource"  
+
+## Problem
+
+Daily Plan Dashboard's Insights panel showed 497 words due ("8 new, 12 review, 497 total"), but when user tapped the VocabularyReview Quiz activity, it displayed "no vocabulary loaded" with toast "All vocabulary in this resource are mastered."
+
+**Root Cause (Wash):** Resource filter mismatch
+- Insights panel counted **globally** across all user vocabulary (via `GetDueVocabularyAsync()`)
+- Quiz filtered by `ResourceId` (e.g., "daily review") → loaded only words linked to that resource
+- The "daily review" resource had <5 due words (all mastered), so Quiz showed empty state despite global pool having 497
+
+## Architecture Decision (Zoe)
+
+**Option A: Clean Decoupling** — Remove ResourceId from VocabularyReview entirely, always load Quiz from full user vocabulary pool
+
+### Rationale
+
+1. **Activity Taxonomy:** VocabularyReview is fundamentally **vocabulary-driven**, not resource-driven
+   - Vocabulary-driven: SRS query determines study pool (VocabularyReview, VocabularyGame, Writing, Translation, Cloze)
+   - Resource-driven: specific media artifact is unit of work (Reading, Listening, VideoWatching, Shadowing, SceneDescription)
+2. **Aligns with product vision:** "For a quiz, it's all about the vocabulary" (Captain)
+3. **Simplest fix:** 3 code edits, no schema changes, no migrations
+4. **Backwards compatible:** Plan records ephemeral, completion records allow NULL ResourceId
+5. **No regression risk:** VocabQuiz.razor already had fallback for null resourceIds
+
+## Implementation (Wash)
+
+**Files Changed:**
+- `PlanConverter.cs` (125-131): Removed ResourceId from VocabularyReview route parameters
+- `DeterministicPlanBuilder.cs` (455-467): Set ResourceId=null in main plan VocabularyReview
+- `DeterministicPlanBuilder.cs` (73-83): Set ResourceId=null in fallback plan VocabularyReview
+
+**Verification:**
+- ✅ Build clean (no new errors)
+- ✅ No database schema changes
+- ✅ No migration needed
+- ✅ Code review approved (code-review agent)
+
+## Deployment (Coordinator)
+
+- ✅ Commit: 88a0272 merged to main
+- ✅ Azure deploy: ✅ SUCCESS (2m36s)
+  - Webapp: https://webapp.livelyforest-b32e7d63.centralus.azurecontainerapps.io
+  - API: https://api.livelyforest-b32e7d63.centralus.azurecontainerapps.io
+- ✅ Post-deploy validation: 17 pass / 0 fail
+- ✅ iOS build succeeded, installed to DX24 (CF4F94E3-A1C9-5617-A089-9ABB0110A09F)
+
+## Verification Plan (Jayne)
+
+Comprehensive testing across:
+1. Local development (Mac Catalyst + Aspire)
+2. Azure WebApp (squad-test login, cross-account)
+3. iOS DX24 device (physical iPhone 15 Pro)
+4. Regression checks (resource-driven activities, VocabularyGame, Insights accuracy)
+5. Database sanity (no migrations, ResourceId=NULL for completions)
+
+**Critical Pass Criteria:**
+- Quiz loads words when Insights shows due count > 0
+- No "All vocabulary in this resource are mastered" toast
+- Quiz URL lacks `resourceIds=` parameter
+- DailyPlanItems.ResourceId=NULL for VocabularyReview
+- WebApp and iOS work identically to local
+
+## Outcome
+
+VocabularyReview Quiz now loads from global user vocabulary pool, matching what Insights panel shows. Bug fixed, architecture cleaned up, no schema changes.
+
+## Outstanding Questions
+
+1. **Insights narrative:** Should Insights panel mention "Resource" for VocabularyReview or just "Vocabulary Pool"?
+2. **Contextual learning value:** Retain or remove pedagogical preference for words from same resource?
+3. **Completion tracking:** Should DailyPlanCompletion track which resources contributed to words practiced?
+
+---
+
+**Decision Chain:** Wash (diagnosis) → Zoe (architecture) → Wash (implementation) → code-review (approval) → Coordinator (deploy) → Jayne (verify)
+
+---
 
 ### BUG-INVESTIGATION: Daily Plan Regenerates After Activity Completion (2026-07-27)
 
