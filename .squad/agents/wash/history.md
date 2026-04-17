@@ -5,6 +5,91 @@
 - **Stack:** .NET 10, MAUI, Blazor Hybrid, MauiReactor (MVU), .NET Aspire, EF Core, SQLite, OpenAI
 - **Created:** 2026-03-07
 
+## Core Context (Summarized from Sessions)
+
+**Backend Architecture:**
+- Aspire orchestrates: api, cache (Redis), db (PostgreSQL), marketing, workers, webapp (CoreSync server)
+- Production deploy: `azd deploy -e sstudio-prod --no-prompt` publishes to Azure Container Apps (Central US)
+- Post-deploy validation critical: active revision must = latest revision (traffic can auto-route to old healthy revision while new crashes)
+- Service discovery: `https+http://api` URI resolves via Aspire env vars, falls back to config Services section
+- DB migrations: both API (Program.cs:213) and WebApp (Program.cs:151) call MigrateAsync() on startup → auto-apply
+
+**Database & Models:**
+- Server DB: PostgreSQL in Aspire (Production: Azure Container Apps managed); mobile: SQLite with CoreSync sync
+- All synced entities: string GUID PKs (ValueGeneratedNever), UserProfileId for multi-user isolation, singular table names
+- Shared project multi-target: hand-write migrations, update Designer + Snapshot manually (dotnet ef fails on multi-target)
+- VocabularyProgress mastery = computed [NotMapped] property (uses MasteryScore, IsUserDeclared, VerificationState)
+- ALL VocabularyProgressRepository methods must resolve ActiveUserId when userId empty — inconsistency causes silent bugs
+- LearningResource cascade insertion bug: clear Vocabulary before Add, re-associate after SaveChanges (PG 23505 fix)
+- Starter resource creation needs duplicate guard (checks "starter" tag + language + user)
+
+**Activity & Progress Tracking:**
+- ActivityTimerService → UpdatePlanItemProgressAsync is the ONLY completion persistence path (fires every minute + Pause)
+- Activity pages GoBack(): Pause() → StopSession() → NavigateTo("/") — completion detected from time vs estimate
+- DailyPlanCompletion records: written when plan first generated (InitializePlanCompletionRecordsAsync) — persistence mechanism for stability
+- LoadPlanAsync: GetCachedPlanAsync first, falls back to GenerateTodaysPlanAsync; if both fail, new plan generated
+- ProgressCacheService: Singleton with 5-minute TTL on all entries — plan cache can expire during completion
+- DeterministicPlanBuilder: uses Guid.NewGuid() tiebreakers → non-deterministic (should be deterministic)
+- BuildActivitySequenceAsync queries DailyPlanCompletions for last 3 days INCLUDING TODAY — today's records change activity selection
+
+**Quiz & Vocabulary Scoring:**
+- Phase 1 quiz (commit 75fdfe9): global streak-based mode (≥3 streak OR ≥0.50 mastery = text), PendingRecognitionCheck forces MC until correct, tiered rotation (Tier1=1, Tier2=2w1text, Tier3=3MC+3text), cumulative session counters
+- DifficultyWeights: VocabMatching=0.8, WordAssociation=1.0, VocabQuiz MC=1.0, Cloze=1.2, VocabQuiz Text=1.5, Writing=1.0, VocabQuiz Sentence=2.5
+- Cross-activity mastery via ExtractAndScoreVocabularyAsync (shared pipeline), deduplicate by DictionaryForm, collect probes AFTER loop
+- Activity taxonomy: Writing/Translation/Scene=1.5 DW, Conversation=1.2, passive=0
+- PenaltyOverride on VocabularyAttempt: Conversation=0.8x, others omit
+- RecordPassiveExposureAsync for Reading lookups: updates LastExposedAt/ExposureCount, never touches mastery/streak
+- VocabQuiz stale-progress: RecordPendingAttemptAsync discards returned VocabularyProgress — not written back to currentItem.Progress (bug)
+- Translation bug: ProgressService injected but GradeMe() uses ad-hoc prompt not requesting vocabulary_analysis (fixed via GradeTranslation() switch)
+
+**Auth & Identity:**
+- JWT + refresh tokens: 120 min default (config Jwt:ExpiryMinutes), 90 days refresh (config RefreshToken:LifetimeDays)
+- Mobile IdentityAuthService: restores JWT from SecureStorage before network refresh, 10s timeout for silent refresh
+- CoreSync HTTP client: named `"HttpClientToServer"`, auth handler chains via AddHttpMessageHandler<AuthenticatedHttpMessageHandler>()
+- DevAuthHandler duplicated in both API/Web projects (future refactor to shared)
+- Web auth: same Auth:UseEntraId pattern as API, CoreSync middleware must run AFTER auth middleware
+- Microsoft.Identity.Web v3.8.2 for Entra ID Bearer auth, scope policies via authorization helpers
+- TenantContextMiddleware: maps Entra ID claims (tid, oid, name) and DevAuthHandler claims (tenant_id, NameIdentifier, Name)
+- Captain's requirement: never show login unless explicitly logged out, mobile auth keeps people signed in weeks (not multiple times/day)
+
+**Entra ID Configuration:**
+- Conditional auth via Auth:UseEntraId config flag (API + Web)
+- AzureAd public IDs safe to commit (TenantId, ClientId, Audience NOT secrets)
+- Scope policies (e.g., "user.read") enforced server-side
+- MauiAuthenticationStateProvider wraps IAuthService for Blazor auth framework (Scoped lifetime)
+
+**Data Sync & YouTube Integration:**
+- CoreSync: synced entities use string GUID PKs, UserProfileId required, TriggerSyncAsync() MUST be called explicitly after SaveChangesAsync()
+- SharedSyncRegistration source of truth: SQLite + PostgreSQL configs must match
+- YouTube: YoutubeExplode (no API key, scraper), handles transcript fetch + audio extract + caption discovery
+- TranscriptFormattingService: SmartCleanup (rules) + PolishWithAiAsync (AI) two-stage pipeline
+- VideoImportPipelineService: orchestrates fetch → clean → extract vocab → save LearningResource + VocabWords
+- MonitoredChannel + VideoImport: synced entities (string GUID PKs, UserProfileId)
+- VideoImportStatus: Pending → FetchingTranscript → CleaningTranscript → GeneratingVocabulary → SavingResource → Completed/Failed
+- Workers project (SentenceStudio.Workers): skeleton BackgroundService ready for ChannelPollingWorker
+
+**Scoring & Rules:**
+- Wrong-answer temporal weighting: penalty scales by track record (0.6–0.92), partial streak preservation (0–50%), correct-answer floor (Math.Max)
+- Tier 1 rotation requires BOTH text production AND cleared PendingRecognitionCheck
+- Recovery-aware mastery: +0.02 per correct when streak < mastery (eliminates plateau)
+- LostKnownThisSession detection AFTER RecordAttemptAsync (deferred), never eagerly
+- IsKnown re-qualification: 14-day review interval (not 60)
+- Words never repeat within round — rounds shrink as mastered words exit
+- OverriddenScoring ExpiresAt: validates on read, expired overrides silently disregarded
+
+**Coding Standards:**
+- EF tooling: multi-target csproj fails with "ResolvePackageAssets" → hand-write migration files + update Designer/Snapshot
+- Migrations: `dotnet ef migrations add <Name> --project src/SentenceStudio.Shared --startup-project src/SentenceStudio.Shared`
+- NEVER delete data; fix migrations instead
+- Build with TFM: `dotnet build -f net10.0-maccatalyst` or `dotnet build -t:Run -f net10.0-maccatalyst`
+- All CoreSync-synced entities: string GUID PKs with ValueGeneratedNever()
+- Aspire config: `builder.Configuration["AI:OpenAI:ApiKey"]` NOT `["AI__OpenAI__ApiKey"]`
+- IChatClient nullable pattern: inject as `IChatClient?`, fall back gracefully if null
+- GitHub HttpClient: named client "GitHub" with PAT set per-request from config
+- Feedback endpoints: HMAC-signed preview tokens (Base64Url + HMACSHA256), 10-min expiry
+
+## Learnings
+
 ## Learnings
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
@@ -98,6 +183,7 @@
 - **Translation.razor was a dead injection** — VocabularyProgressService was injected but GradeMe() used a raw ad-hoc AI prompt that didn't request vocabulary_analysis. Fixed by switching to TeacherSvc.GradeTranslation() which uses the GradeTranslation.scriban-txt template.
 - **RecordPassiveExposureAsync** — new method for Reading word lookups. Creates VocabularyLearningContext with InputMode="Passive", ContextType="Exposure". Updates LastExposedAt/ExposureCount on VocabularyProgress. Never touches mastery/streak/SRS.
 - **Phase 1 quiz behavior** (commit 75fdfe9): Mode selection now uses global `Progress.CurrentStreak >= 3 OR MasteryScore >= 0.50`, NOT session-local streaks. `PendingRecognitionCheck` flag on `VocabQuizItem` forces MC until correct MC clears it. Tiered rotation: Tier 1 (high mastery) = 1 text correct, Tier 2 (mid) = 2 correct w/ 1 text, Tier 3 (low) = 3 MC + 3 text. Session counters are CUMULATIVE (never reset on wrong). Words rotate out mid-round immediately. `UpdateProgressAsync` added to `IVocabularyProgressService` for SRS field persistence.
+
 - **IsKnown re-qualification**: `LostKnownThisSession` flag tracks words that lose IsKnown mid-session; on re-qualification, `ReviewInterval = 14` days (not 60). Detection in `RecordPendingAttemptAsync` via pre/post IsKnown snapshot.
 - **Repos use per-call scoped DbContext** — every repository method creates its own `IServiceProvider.CreateScope()`, so returned entities are detached POCOs. No tracking conflicts between quiz's in-memory reference and future DB operations.
 - **Only VocabQuiz displays live progress** — Cloze, Writing, VocabMatching all call RecordAttemptAsync fire-and-forget. Only VocabQuiz has a Learning Details panel reading `currentItem.Progress`. Other activities don't have this stale-data bug.
@@ -925,3 +1011,14 @@ This ensures plan-initiated vocabulary activities work correctly while preservin
 ### Decision Doc
 
 `.squad/decisions/inbox/wash-vocab-matching-decouple.md`
+
+## 2026-04-17 — Plugin.Maui.HelpKit Alpha Scope Locked
+
+Captain locked 8 decisions. Alpha scope frozen. Implications for Wash (SQLite + sqlite-vec):
+- **Deferred:** sqlite-vec fully deferred to v1 (weeks of native-build work; not Alpha-worthy)
+- **Alpha storage:** Microsoft.Extensions.VectorData in-memory + JSON disk persistence instead
+- **Simplification:** No native binary bundling, no vec0 virtual table complexity in Alpha
+- **Post-Alpha path:** v1 will revisit sqlite-vec if performance/scale demands justify the build complexity
+
+SPIKE-1 unblocked focusing on in-memory VectorData validation and JSON serialization performance.
+

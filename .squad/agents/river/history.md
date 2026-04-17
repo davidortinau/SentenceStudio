@@ -134,3 +134,57 @@
 - Line fragmentation is severe: myeasykorean has 77/218 lines that are mid-sentence continuations
 - Auto-captioner struggles with English loanwords in Korean context: "be터스" (bittersweet), "호라이 펜" (frying pan)
 - Test fixtures saved: `tests/SentenceStudio.UnitTests/TestData/YouTubeTranscripts/` (3 raw transcripts from target channels)
+
+---
+
+## HelpKit RAG Pipeline Design (2026-04-16)
+
+**Session:** Plugin.Maui.HelpKit Architecture Design  
+**Role:** AI/Prompt Engineer  
+**Status:** PROPOSED — Awaiting Captain & Zoe Review
+
+**Key Design Principles Established:**
+
+- **Provider-agnostic AI:** Dev supplies `IChatClient` + `IEmbeddingGenerator` (Microsoft.Extensions.AI) — library stays neutral to OpenAI/Ollama/ONNX/Azure choices
+- **Local-first vector store:** SQLite + vec extension (no cloud dependencies) — full offline operation possible
+- **Strict grounding philosophy:** NEVER hallucinate — refuse to answer if content not in vector store, always cite sources
+- **Dual content sources:** Static markdown docs + build-time AI source scanner (XAML/Razor/MauiReactor pages → auto-generated help)
+- **Embedding strategy:** Dev-provided `IEmbeddingGenerator` is non-negotiable (no sensible fallback). Recommended: `sentence-transformers/all-MiniLM-L6-v2` (384d, ~90MB) for offline mobile scenarios. Store embedding model fingerprint in DB metadata; require full re-ingestion on model swap.
+- **Chunking strategy:** 512-token chunks with 128-token overlap. Preserve heading hierarchy breadcrumbs in metadata. Split on paragraph boundaries, not mid-sentence.
+- **Retrieval:** Top-K=5, cosine similarity threshold=0.70. Per-turn retrieval (not accumulated context) to handle topic shifts in conversation.
+- **Context window management:** 8K token budget (3.5K system+chunks, 4K history, 0.5K query). Truncate oldest messages FIFO when budget exceeded.
+- **System prompt persona:** Friendly technical assistant. Conversational but professional. Short sentences, bullet points, step-by-step. Refusal template: "I don't have information about that in my help documentation."
+- **Citation format:** Every answer must cite sources: `[Based on: {Heading Hierarchy}, {SourcePath}#{SectionAnchor}]`. Enables future deep linking via custom URL scheme.
+- **Language matching:** Mirror user's language in response. Filter chunks by `LanguageCode`. Fallback to default (configurable, default: `en`) if no matches.
+- **Build-time source scanner:** dotnet tool + MSBuild task. Scans XAML ContentPages, Razor pages, MauiReactor Components, ViewModels. Extracts form fields, buttons, routes, validation rules. Uses AI to generate user-facing markdown help. Opt-in via `helpkit.json` config, opt-out via `[HelpKitIgnore]` attribute.
+- **Generated content storage decision:** Option A (commit to `Resources/Raw/HelpDocs/Generated/`) vs Option B (gitignore `obj/HelpKit/`). Recommended A for build predictability — requires Captain decision.
+- **Incremental ingestion:** Content-hash-based cache invalidation. Only re-embed changed files. Check `ContentHash` + `LastModified` on startup. Delete stale chunks from removed files.
+- **Fallback behavior:** No `IChatClient` or `IEmbeddingGenerator` → throw at registration/ingestion (no graceful degradation — RAG is core functionality). Empty content store → polite message ("no help content loaded yet"). Network failure (cloud embeddings) → error message ("check internet connection").
+
+**Open Questions for Captain:**
+1. Generated content: commit (A) or gitignore (B)?
+2. Bundle default ONNX model (+90MB) or require dev setup?
+3. Multi-language: single store with filtering or separate stores?
+4. Citations: in-app links, web URLs, or both?
+5. Chat UI: FAB+modal or embedded?
+
+**Open Questions for Zoe:**
+1. Abstract vector store (support Chroma/Qdrant) or lock to SQLite vec?
+2. `IHelpKitService` lifetime: singleton or scoped?
+3. Background ingestion with progress reporting?
+4. Incremental updates: re-embed full file or just changed chunks?
+5. Platform-specific optimizations (CoreML on iOS)?
+
+**Next:** Captain/Zoe review → prompt template creation → Wash implements storage → Kaylee builds scanner → Squad prototypes on SentenceStudio
+
+## 2026-04-17 — Plugin.Maui.HelpKit Alpha Scope Locked
+
+Captain locked 8 decisions. Alpha scope frozen. Implications for River (RAG pipeline):
+- **AI provider:** Host app brings IChatClient + IEmbeddingGenerator. HelpKit brings NOTHING (no bundled models, no MiniLM ONNX).
+- **Embedding dimension:** Dimension is NOT fixed at package time; must validate re-ingestion on model/dimension mismatch
+- **Stub scanner Alpha:** Non-AI page scanner ships in Alpha (emits .md per XAML page); AI-enriched scanner stays Beta
+- **Grounding:** Strict: refuse to answer if content not in vector store (unchanged from proposal)
+- **TFM:** net11.0-* targets
+
+README docs "bring your own IChatClient" with examples for OpenAI, Azure OpenAI, Foundry, Ollama. SPIKE-1 unblocked for embedding dimension handling validation.
+

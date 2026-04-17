@@ -395,3 +395,15 @@ Ran full test suite to find pre-existing failures from Phase 0 scoring changes. 
 - No Writing/Translation/Scene/Conversation records exist post-Phase-2-3 — code was deployed same day, nobody has exercised these activities via webapp yet. DB evidence is from PRE-phase implementations only.
 
 - Quiz decoupling verification plan prepared (2026-04-17) — comprehensive testing across local, Azure, iOS for VocabularyReview now loading from global vocabulary pool (ResourceId=null). 6 critical pass criteria, 3 regression checks, 2 database sanity checks. ~65 minutes estimated.
+
+## 2026-04-17 — Plugin.Maui.HelpKit Alpha Scope Locked
+
+Captain locked 8 decisions. Alpha scope frozen. Implications for Jayne (platform testing):
+- **Platform matrix reduced:** No sqlite-vec native binary complications → testing focuses on in-memory VectorData + JSON
+- **Stub scanner testing:** Non-AI page scanner in Alpha; validates .md generation for XAML/MauiReactor pages
+- **TFM testing:** net11.0-* targets; CI must use net11 preview SDK
+- **Rate limiting:** 10 q/min default; test configurable override via HelpKitOptions
+- **Streaming UI:** Native MAUI CollectionView + streaming text — test message rendering, retry states, error handling
+
+SPIKE-1 and SPIKE-2 ready for validation when Captain signals go-ahead.
+

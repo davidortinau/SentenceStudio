@@ -5,6 +5,52 @@
 - **Stack:** .NET 10, MAUI, Blazor Hybrid, MauiReactor (MVU), .NET Aspire, EF Core, SQLite, OpenAI
 - **Created:** 2026-03-07
 
+## Core Context (Summarized from Sessions)
+
+**Architecture:**
+- Multi-target csproj on Shared project for migrations: hand-write migrations + update Designer/Snapshot manually
+- Post-deploy validation requires: revision health check (active = latest), indirect DB check (login test), 4-phase validation (Wash: infra + smoke + change-specific + regression)
+- Phase 0-3 quiz behavior finalized: global streak-based mode selection, PendingRecognitionCheck flag, tiered rotation, cumulative session counters
+- Cross-activity mastery pipeline via ExtractAndScoreVocabularyAsync (shared on VocabularyProgressService), dedup by DictionaryForm, scoring loop → probe collection AFTER
+- Activity taxonomy: recognition vs production (Writing/Translation/Scene/Conversation production), DifficultyWeights established (VocabQuiz=1.0–2.5, Writing/Translation=1.5, Conversation=1.2)
+
+**Database & Migrations:**
+- All CoreSync-synced entities: string GUID PKs (ValueGeneratedNever), UserProfileId for multi-user isolation, singular table names
+- Migrations: `dotnet ef migrations add <Name> --project src/SentenceStudio.Shared --startup-project src/SentenceStudio.Shared`
+- NEVER delete data; fix migrations instead. Both API and WebApp call MigrateAsync() on startup.
+- NarrativeJson added to DailyPlanCompletion for plan narrative storage
+
+**Auth & Config:**
+- JWT + refresh token flow: API endpoints in AuthEndpoints.cs (API), AccountEndpoints.cs (WebApp), JwtTokenService.cs
+- Captain's preference: never show login unless explicitly logged out; mobile auth should keep people signed in weeks
+- Entra ID support: Microsoft.Identity.Web v3.8.2, conditional via Auth:UseEntraId config flag, TenantContextMiddleware maps both claim sets
+- Config: appsettings.json gitignored (local-only), appsettings.Production.json + appsettings.Development.json tracked
+- Service URLs: localhost-only in appsettings.json, production URLs in appsettings.Production.json, EnvironmentBadge shows RED/ORANGE/GREEN
+
+**Coding Standards:**
+- MauiReactor: VStart() not Top(), VEnd() not Bottom(), HStart()/HEnd() not Start()/End()
+- NEVER use emojis in UI — use Bootstrap icons (bi-*) or text
+- All entities synced via CoreSync use string GUID PKs
+- Database migrations MUST use `dotnet ef`, never raw SQL ALTER TABLE
+- NEVER delete user data or database files
+- Build with TFM: `dotnet build -f net10.0-maccatalyst`
+- E2E testing mandatory for every feature/fix
+
+**Activity Pages Pattern:**
+- Structure: `activity-page-wrapper` → `PageHeader` → `activity-content` → `activity-input-bar`
+- CRUD feedback: success/errors use toasts (auto-dismiss), destructive ops need Bootstrap modal confirmation BEFORE + toast AFTER
+- Timer integration: ActivityTimerService.SaveProgressAsync → UpdatePlanItemProgressAsync (sole completion path, fires every minute + on Pause)
+- GoBack() pattern: Pause() → StopSession() → NavigateTo("/") — no explicit signal, completion detected from accumulated time vs estimate
+
+**Known Bugs & Open Items:**
+- ProgressCacheService 5-minute TTL can expire during normal completion
+- DeterministicPlanBuilder uses Guid.NewGuid() tiebreakers → non-deterministic plan generation
+- VocabQuiz stale-progress: RecordPendingAttemptAsync doesn't write back returned VocabularyProgress to currentItem.Progress
+- Translation.razor: ProgressService injected but GradeMe() uses ad-hoc prompt (fixed via GradeTranslation() switch)
+- API lacks proper /health endpoint (currently use login as indirect check)
+
+## Learnings
+
 ## Learnings
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
@@ -79,6 +125,7 @@
 - `ExtractAndScoreVocabularyAsync` shared method signature: (List<VocabularyAnalysis>?, List<VocabularyWord>, string userId, string activity, float difficultyWeight, float? penaltyOverride = null). All dedup + verification probe ordering lives inside — callers only pass parameters.
 
 ## Work Sessions
+
 
 ### 2025-07-27 — Post-Deploy Validation Spec & Automation
 
@@ -436,3 +483,20 @@ Merged Captain's 6 design decisions (from Jayne's skeptic review answers) into R
 This investigation reinforced the importance of separating vocabulary-driven activities (where words are the unit of work) from resource-driven activities (where media artifacts are the unit of work). The coupling between VocabularyReview and LearningResource was a conceptual mismatch that manifested as a UX bug. Clean architectural boundaries prevent such issues.
 
 - Activity taxonomy decision (2026-04-17): Categorized as vocabulary-driven (VocabularyReview, VocabularyGame, Writing, Translation, Cloze) vs resource-driven (Reading, Listening, VideoWatching, Shadowing, SceneDescription). VocabularyReview decoupled from LearningResource entirely — Option A (Clean Decoupling) adopted and shipped.
+
+- Plugin.Maui.HelpKit architecture decision (2026-07-25): Designed AI-assisted in-app help NuGet library using BlazorWebView overlay (modal ContentPage, not popup), Microsoft.Extensions.VectorData + sqlite-vec for local RAG, and convention-over-config API (`AddHelpKit()` extension). Key insight: BlazorWebView works in ANY MAUI host (MauiReactor, XAML, C# Markup) — library adds it, host doesn't need to be Blazor Hybrid. Highest risk: sqlite-vec native binary bundling across 4 platforms. Alpha scope: conversation only, no tours/tooltips.
+
+## 2026-04-17 — Plugin.Maui.HelpKit Alpha Scope Locked
+
+Captain locked all 8 open questions from HelpKit plan v2:
+1. **UI:** Native MAUI chat (CollectionView + streaming) PRIMARY; BlazorWebView deferred
+2. **Incubation:** `lib/Plugin.Maui.HelpKit/` in SentenceStudio; extract via `git subtree split` at Alpha close
+3. **Storage:** Microsoft.Extensions.VectorData in-memory + JSON; sqlite-vec deferred to v1
+4. **License:** MIT
+5. **AI provider:** Host app brings IChatClient + IEmbeddingGenerator; HelpKit brings nothing
+6. **Scanner:** Stub scanner shipped in Alpha (non-AI); AI-enriched stays Beta
+7. **TFMs:** net11.0-* MAUI targets primary; net10 multi-target possible at Alpha close if demand
+8. **Rate limit:** 10 q/min default, configurable
+
+SPIKE-1 (native-first) and SPIKE-2 (presenter abstraction) now unblocked awaiting Captain go-ahead. Plan v2 needs net11 TFM + "app owns the model" framing incorporated.
+

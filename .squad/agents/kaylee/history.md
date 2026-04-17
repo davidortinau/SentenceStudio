@@ -67,3 +67,14 @@ Built complete Activity Log feature UI for SentenceStudio.UI (Strava-inspired Pr
 **Build Fixes (Coordinator):**
 - Fixed Razor switch expression HTML parsing bug (`< 10` → `&lt; 10`)
 - Fixed duplicate key in ToDictionary for resource/skill grouping
+
+## 2026-04-17 — Plugin.Maui.HelpKit Alpha Scope Locked
+
+Captain locked 8 decisions. Alpha scope frozen. Implications for Kaylee (BlazorWebView overlay):
+- **Deferred for now:** BlazorWebView chat UI deferred to post-Alpha optional companion. Primary UI is native MAUI CollectionView + streaming.
+- **SPIKE-2 unblocked:** Presenter abstraction spike ready to execute (native-first UI prototype)
+- **Storage decided:** Microsoft.Extensions.VectorData (in-memory) + JSON — no sqlite-vec native build complexity in Alpha
+- **TFM committed:** net11.0-* targets
+
+SPIKE-2 focuses on native MAUI chat components, streaming text handling, and retry/error states.
+
