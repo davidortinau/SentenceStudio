@@ -4,6 +4,43 @@
 
 ---
 
+## 2026-04-18 — Diagnosis: MacCatalyst Post-Login Splash Hang
+
+**Date:** 2026-04-18  
+**Owner:** Copilot (Coordinator)  
+**Status:** Pending Implementation  
+**Tracking:** `maccatalyst-forceload-fix` (todo)
+
+### Context
+
+Captain logged in via MacCatalyst, got stuck on dark-navy splash (translation icon only). Dashboard never loaded.
+
+### Root Cause
+
+`LoginPage.razor:130` and `RegisterPage.razor:172` call `NavManager.NavigateTo(returnUrl, forceLoad: true)` after successful login. In BlazorHybrid (MAUI), `forceLoad: true` forces a full WebView document reload of `app://0.0.0.0/`. The WebView reloads but the Blazor component tree does not cleanly re-bootstrap its auth state + cascade, leaving the user on a rendered-but-empty layout.
+
+### Evidence
+
+- API structured logs: `/api/auth/login` returned 200 with JWT; zero follow-up API calls from Dashboard → no component initialization
+- macOS unified log: WebKit alive and looping every 2s, but no Blazor component render events
+- Code inspection: `LoginPage.razor:126 & 130` and `RegisterPage.razor:172` all use `forceLoad: true`; pattern identical to `NavMenu.razor:106-107` (isWeb detection already established)
+
+### Fix (Durable, ~2 Files)
+
+1. `LoginPage.razor` + `RegisterPage.razor`: platform-gate `forceLoad` using `isWeb` pattern from `NavMenu.razor`
+2. MAUI branch: call `MauiAuthenticationStateProvider.LogInAsync()` (triggers `NotifyAuthenticationStateChanged`) + `NavigateTo(returnUrl)` WITHOUT `forceLoad`
+3. Web branch: keep existing `forceLoad: true` (cookie-backed auth survives reload)
+
+### Immediate Unblock (No Code Change)
+
+Restart `maccatalyst` resource from Aspire dashboard. On cold start, `MauiAuthenticationStateProvider` fast-paths to authenticated state from `SecureStorage` → Shell routes to Index normally → Dashboard loads.
+
+### Recommendation
+
+Apply durable fix in next session. High-risk changes (auth + nav) warrant full `/review` gate before merge.
+
+---
+
 ## 2026-04-17 — Help Flyout Menu Item for MAUI Hybrid
 
 **Date:** 2026-04-17  

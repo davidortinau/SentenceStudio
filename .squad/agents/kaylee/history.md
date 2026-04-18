@@ -1,11 +1,20 @@
 # Kaylee's History
 
+## Core Context
+
+**2025–2026 Overview:**
+- Shipped Activity Log feature: Strava-inspired Practice Calendar UI (ActivityLog.razor, ActivityDot, PlanSummaryCard), Bootstrap-based responsive styling, weekly pagination with expandable day details
+- Platforms: Both Blazor (SentenceStudio.UI) and native MAUI (HelpKit samples)
+- Key patterns: Responsive dot sizing by time (sm/md/lg), filtering via service layer (not client-side), CardStyle + Typography (ss-body1, ss-caption1), Bootstrap utilities for mobile/desktop
+- Role in HelpKit: Primary architect of native chat UI — `HelpKitPage` (CollectionView, streaming mutation, auto-scroll), `HelpKitMessageViewModel` (immutable user, mutable assistant messages), `DefaultPresenterSelector` (Transient for freshness), Shell/Window/MauiReactor presenters
+- HelpKit platform detection: Dynamic `Type.GetType()` reflection (NavMenu.razor) keeps UI portable; NavMenu.razor Help button shown only in MAUI via `IHelpKit` availability check
+
 ## Learnings
 
 - 2026-04-17: **Dynamic Platform Detection in Shared UI** — When wiring platform-specific features (HelpKit) into portable UI projects, use runtime type resolution via `Type.GetType()` + reflection to invoke methods. Keeps UI project browser-only (no MAUI refs), works in both MAUI and WebApp contexts, graceful degrade on missing types. Applied in NavMenu.razor for Help button.
 - 2026-04-17: HelpKit Alpha — native chat UI + 3 samples (Shell/Plain/MauiReactor) shipped.
 
-### Activity Log UI Implementation (2025-05-XX)
+## Recent Work
 
 Built the complete Activity Log feature (Strava-inspired Practice Calendar) for SentenceStudio.UI:
 
@@ -33,43 +42,9 @@ Built the complete Activity Log feature (Strava-inspired Practice Calendar) for 
 - Toggle day detail on tap (simpler than modal, keeps context visible)
 - Used hardcoded English strings with TODO comments for future localization (prioritized getting UI working)
 
+## Recent Work
+
 ### Activity Log UI Implementation (2026-04-16)
-
-Built complete Activity Log feature UI for SentenceStudio.UI (Strava-inspired Practice Calendar):
-
-**Components Created:**
-- **ActivityLog.razor**: Main page with All/Input/Output filtering, weekly card layout, expandable day details, "Load More" pagination (8 weeks initial, 4 at a time)
-- **ActivityDot.razor**: Visual indicator—size by minutes (sm <10, md 10-25, lg 25+), color by type (blue=Input, orange=Output, gradient=Both), green border for completion
-- **PlanSummaryCard.razor**: Expandable detail showing all day activities with resource title, minutes, completion status
-
-**Navigation & Routing:**
-- Added "Activity" as second nav item in NavMenu.razor (after Dashboard)
-- Registered `/activity-log` route in NavigationMemoryService at index 1
-
-**Styling (app.css):**
-- `.activity-dot` with size/color variants, hover effects, responsive spacing
-- Completion indicator styling (green border)
-
-**Layout Patterns:**
-- Responsive typography: single-char day names (mobile), full names (desktop)
-- PageHeader with ToolbarActions (refresh) + SecondaryActions (filter dropdown)
-- Card-based layout consistent with existing SentenceStudio.UI patterns (card-ss, ss-body1, ss-caption1)
-- Week header shows date range and total minutes; 7-day grid shows dots or "Rest"
-
-**Key Decisions:**
-- No year sidebar (mobile-first, week cards self-explanatory)
-- Service-owned filtering (no client-side filtering)
-- Toggle day detail on tap (simpler than modal)
-- Size-based dots show time investment at a glance
-
-**Integration with Wash's DTOs:**
-- Consumes ActivityLogWeek, ActivityLogDay, ActivityLogEntry from ProgressService
-- Uses ActivityCategory enum for color/sizing logic
-- 4-week pagination batches per UI spec
-
-**Build Fixes (Coordinator):**
-- Fixed Razor switch expression HTML parsing bug (`< 10` → `&lt; 10`)
-- Fixed duplicate key in ToDictionary for resource/skill grouping
 
 ## 2026-04-17 — Plugin.Maui.HelpKit Alpha Scope Locked
 
