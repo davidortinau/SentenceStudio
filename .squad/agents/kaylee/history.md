@@ -127,3 +127,32 @@ Shipped the native MAUI chat experience for HelpKit. Key implementation notes:
 - Each sample triggers the install + ingest at the right host-specific moment: AppShell `Loaded`, MainPage `OnAppearing`, MauiReactor `OnMounted`. All three swallow `NotImplementedException` so the Wave 2 ingest gap doesn't crash launches.
 
 **Build status:** Per Zoe's environmental note, the local box doesn't have the net11 preview SDK + MAUI workload, so `dotnet restore` will surface `NETSDK1139`. Documented in each sample README; not blocking. Once the workload is installed (or CI picks them up) restore should complete.
+
+## Learnings — Blazor locale recon (2026-04-18)
+
+Ground-truth recon for Zoe on why the Profile → Display Language selector is broken post-MauiReactor→Blazor migration. Report in `.squad/decisions/inbox/kaylee-blazor-locale-recon.md`. Key findings:
+
+- **Resx inventory:** Single pair `AppResources.resx` (488 keys, en) + `AppResources.ko-KR.resx` (427 keys — 61-key translation gap) wired as EmbeddedResource in `SentenceStudio.Shared.csproj:61-68` with strongly-typed designer. HelpKit has its own `Strings.{en,ko}.json` in `lib/`.
+- **Blazor usage:** ~99% hardcoded English literals. `grep Localize[...]` across `src/SentenceStudio.UI/` returns **2 call sites total**, both in `Layout/NavMenu.razor` for the "Help" label. Zero `@inject IStringLocalizer<T>` in the whole UI project. The resx is effectively orphaned from Blazor.
+- **The bug itself:** `Profile.razor:262 SaveProfile()` writes `profile.DisplayLanguage = displayLanguage` → `ProfileRepo.SaveAsync(profile)` and stops. It does NOT call `UserProfileRepository.SaveDisplayCultureAsync()` (which exists at `UserProfileRepository.cs:307` and *would* call `LocalizationManager.Instance.SetCulture(...)`) — `SaveDisplayCultureAsync` has zero callers anywhere in the solution.
+- **Startup wiring:** No `AddLocalization()`, no `SupportedCultures`, no `CultureInfo.DefaultThreadCurrentUICulture` at boot, no code path that reads `DisplayLanguage` back from the DB on launch. `LocalizationManager.Initialize(logger)` is also uncalled (dead).
+- **Legacy remnants still wired:** `LocalizationManager` still used by MauiReactor-era `AppLib` services (`ScenarioService`, `LocalizeExtension`, `FilterChip`) — so it can't just be deleted. Blazor side uses `BlazorLocalizationService` as a thin wrapper around `LocalizationManager.Instance` (registered Singleton in `BlazorUIServiceExtensions` + `MacOSMauiProgram`) but consumers = 1.
+- **Pattern for future fix (not applied):** Either (a) migrate Blazor UI to `IStringLocalizer<T>` idiomatically, or (b) wire `SaveDisplayCultureAsync` into `SaveProfile` AND add startup culture restore AND begin mass-converting hardcoded Razor strings to `@Localize["Key"]`. Either way, the hardcoded-string debt dwarfs the plumbing bug.
+
+- 2026-04-24: **Display Language restoration — Phase 1 delivered.** Wired the full pipeline end-to-end:
+  - `BlazorLocalizationService` → scoped per Blazor circuit, holds own CultureInfo, exposes `CultureChanged` event. No process-wide mutation in the WebApp (prevents cross-user bleed).
+  - `LocalizationManager.GetString(key, culture?)` public helper added so the scoped Blazor service can reach the internal `AppResources.ResourceManager` without InternalsVisibleTo.
+  - `WebApp/Program.cs`: `AddLocalization` + `UseRequestLocalization` with Cookie→AcceptLanguage providers; culture middleware runs BEFORE auth/static-assets.
+  - Added `/account-action/SetCulture?culture=ko&returnUrl=/profile` endpoint — Blazor Server circuits can't write cookies over WebSocket, so Profile save redirects through this.
+  - `LocalizationInitializer : IMauiInitializeService` registered in `SentenceStudioAppBuilder` applies the saved `UserProfile.DisplayLanguage` on MAUI launch — no more "OS culture wins" on cold start.
+  - NavMenu + Profile fully localized with `Nav_*` / `Profile_*` resource keys (56 new pairs in en + ko-KR). Components subscribe to `CultureChanged` and `StateHasChanged`.
+
+## Learnings
+
+- 2026-04-24: **Blazor Server culture: singletons are a bug trap.** The default `LocalizationManager` sets `DefaultThreadCurrentUICulture` globally — fine in a single-user MAUI client, fatal on a multi-user server (user A's language bleeds onto user B's next request on the same thread). On the WebApp side, localization services must be scoped (per circuit), hold their own `CultureInfo`, and never write process-wide statics.
+- 2026-04-24: **Blazor Server cookie writes require an HTTP endpoint.** Razor components running over SignalR cannot write Response cookies. Redirect through a MapGet endpoint with `forceLoad:true`; the endpoint writes the cookie and redirects back. See `AccountEndpoints.SetCulture` for the pattern — reuse for any "component wants to set a cookie" need.
+- 2026-04-24: **Detect WebApp vs MAUI Blazor Hybrid via `NavigationManager.BaseUri`.** The existing NavMenu uses `!baseUri.StartsWith("app://") && !baseUri.Contains("0.0.0.0")`. Reuse this check to decide between MAUI-style direct `LocalizationManager.Instance.SetCulture` and WebApp-style cookie-redirect.
+- 2026-04-24: **Resx access boundary.** `AppResources` is `internal` in `SentenceStudio.Shared`. Any cross-project consumer must go through `LocalizationManager` (same assembly) — don't add `InternalsVisibleTo`; expose a targeted public helper on the manager instead.
+
+- 2026-04-18: **Blazor Localization Skill Published** — Scoped BlazorLocalizationService per-circuit with CultureChanged event. GetString override on LocalizationManager to read resx without mutating statics. Cookie persistence via GET /account-action/SetCulture endpoint (pattern matches /SignOut, /AutoSignIn). Culture identifier alignment critical across DB/cookie/whitelist/resx (use neutral ko not ko-KR). Follow-ups: HttpOnly/Secure flags, CSRF on GET, toast timing, async init. Pattern documented in .squad/skills/blazor-localization/SKILL.md for Phase 2 mass-localization.
+

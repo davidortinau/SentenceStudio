@@ -1,4 +1,6 @@
 using ElevenLabs;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
@@ -13,6 +15,7 @@ using SentenceStudio.WebApp.Auth;
 using SentenceStudio.WebApp.Components;
 using SentenceStudio.WebApp.Platform;
 using SentenceStudio.WebUI.Services;
+using System.Globalization;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
@@ -44,6 +47,21 @@ if (!Directory.Exists(appLibRawAssets))
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
+
+// Localization — AppResources lives in SentenceStudio.Shared under Resources/Strings.
+builder.Services.AddLocalization(options => options.ResourcesPath = "Resources/Strings");
+
+var supportedCultures = new[] { new CultureInfo("en"), new CultureInfo("ko") };
+builder.Services.Configure<RequestLocalizationOptions>(options =>
+{
+    options.DefaultRequestCulture = new RequestCulture("en");
+    options.SupportedCultures = supportedCultures;
+    options.SupportedUICultures = supportedCultures;
+    // Cookie first (Profile save writes it); Accept-Language as fallback for new visitors.
+    options.RequestCultureProviders.Clear();
+    options.RequestCultureProviders.Add(new CookieRequestCultureProvider());
+    options.RequestCultureProviders.Add(new AcceptLanguageHeaderRequestCultureProvider());
+});
 
 builder.Services.AddHttpContextAccessor();
 
@@ -164,6 +182,9 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseSecurityHeaders();
+// Apply request localization BEFORE static assets / auth / routing so all downstream
+// components see the correct CurrentUICulture.
+app.UseRequestLocalization();
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();

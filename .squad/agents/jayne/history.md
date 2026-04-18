@@ -439,3 +439,162 @@ Shipped: `tests/VALIDATION-PLAN.md` (4 TFMs x 3 verification levels, 16 cross-cu
 - **Smoke-test pattern:** ~15 numbered steps per TFM. Each step has an explicit expected outcome AND a copy-pasteable command (sqlite3, adb, xcrun, etc.). Tester initials + UTC date on the bottom — discourages "looked OK" sign-offs. File a GitHub issue per failed line, not one big "smoke broken" issue — preserves regression trail.
 
 - **Fixture-sharing decision:** Eval `test-corpus/` is canonical. Tests project links the same files via MSBuild glob into `Fixtures/test-corpus/` rather than copying. Single source of truth means River's golden-set additions automatically light up in unit tests on next build.
+
+## 2026-04-18 — Display Language Phase 1 E2E (Kaylee's locale restoration)
+
+Verdict: ⚠️ APPROVE WITH NOTES. Code review clean. Runtime E2E blocked — couldn't start Docker Desktop daemon in non-interactive CLI session, so Aspire's postgres/redis/storage/media stayed `RuntimeUnhealthy`, API + webapp stayed `Waiting`, Playwright session never possible. Full decision at `.squad/decisions/inbox/jayne-locale-e2e-verdict.md`.
+
+### Learnings
+
+- **Docker Desktop will NOT come up headless on macOS.** `open -a Docker.app` starts `com.docker.backend` (visible in `ps`) but the socket `~/.docker/run/docker.sock` never appears without the GUI frontend finishing its handshake. In an agent-driven non-interactive session, this means Aspire E2E is dead-on-arrival unless Captain manually starts Docker first. If this becomes a recurring pattern, worth investigating `colima` (a lighter-weight CLI-controllable alternative — not installed on this box) or adding a Squad preflight check that aborts spawning a Tester when `docker ps` fails.
+- **Aspire MCP is more useful than `aspire run` TUI.** The CLI sat on a "Building AppHost" spinner for 8+ minutes while the orchestrator was actually already running and AppHost had started children. `aspire-list_resources` MCP tool gave me the real state (and identified the exact four `RuntimeUnhealthy` containers) in one call. Prefer the MCP for status checks — the TUI spinner is lying.
+- **Scoped services fix the cross-user leak PATTERN but only a live two-browser test confirms no regression.** The old code leaked `DefaultThreadCurrentUICulture` process-wide. The fix is to hold a per-circuit `CultureInfo` field in a scoped service. Code review can verify the shape (`AddScoped`, no `DefaultThread*` writes, AsyncLocal-only mutations in `SetCulture`). But static analysis cannot catch e.g., a downstream library that captures the scoped culture in a singleton, or a middleware ordering bug that runs `UseRequestLocalization` after something that caches the culture. The only verification that works is: two browsers, two users, set different languages, refresh both, observe no cross-contamination. When Docker is up, this becomes Scenario 3 in my next run.
+- **`LocalizationManager.GetString(key, CultureInfo?)` is the right seam.** Kaylee added a public helper so the new scoped service can look up `AppResources` without mutating the singleton's statics and without needing `InternalsVisibleTo`. Confirms the minimum-surface principle — extending the existing class was cleaner than friend-assembly tricks. Flag for future: if Phase 2 consumers also need this pattern (most will), make sure they go through this method and not through `LocalizationManager.Instance["key"]` (which reads `AppResources.Culture`, the legacy singleton-wide culture). Grep target: `LocalizationManager.Instance\[` outside of MauiReactor residue should trend to zero in Phase 2.
+- **Profile.razor's pre-navigation `Localize.SetCulture` call is a no-op on web.** It flips the circuit's culture, then immediately `forceLoad:true`s the page, killing the circuit. Harmless but dead code on the web path. Kept for symmetry with the MAUI branch where the same method-body runs without the reload. Worth remembering if we ever try to skip the reload (e.g., SignalR-only culture swap on web) — that's when the `Localize.SetCulture` call would start doing real work.
+- **Korean translations done without a human translator** (per Kaylee's impl note, item 5). I spot-checked the nav labels — 대시보드 / 활동 / 학습 자료 / 프로필 / 설정 / 로그아웃 are all idiomatic. The 45 `Profile_*` keys include full sentences which I did NOT verify for idiomaticity. If Korean native users report "robotic" or "mistranslated" Profile strings post-Phase-1, that's where to look.
+- **Reviewer rejection routing for this artifact:** Kaylee is locked out of revisions per strict protocol. If Captain's manual Scenarios 1–3 uncover issues, I specified Wash as the go-to for DI-lifetime / cookie / endpoint-routing bugs, and Zoe for architecture gaps or missing-key work. Never Kaylee on this feature's first revision cycle.
+
+---
+
+## 2026-04-18 (evening) — Runtime retest after Docker up
+
+### Outcome: REJECT (flipped from "⚠️ APPROVE WITH NOTES" after runtime exercise)
+
+### What changed vs. code-review-only pass
+- Code review still says clean; runtime behavior exposes a latent csproj/resx mismatch that Phase 1 makes P0.
+- **Completing onboarding → redirect to `/` → 500** `MissingManifestResourceException`.
+- Offending stack: `NavMenu.TopItems` → `BlazorLocalizationService.Get` → `LocalizationManager.GetString` → `AppResources.ResourceManager.GetString`.
+- Embedded stream name is `SentenceStudio.Shared.Resources.Strings.AppResources.resources`; Designer.cs constructs ResourceManager with `SentenceStudio.Resources.Strings.AppResources` (no `.Shared.` segment). Assembly name `SentenceStudio.Shared` is prepended to manifest path by MSBuild.
+- Root cause is a **pre-existing** embed/namespace mismatch; Phase 1 raised NavMenu `Localize["…"]` lookups from 2 → 14 per render and turned it from dormant to catastrophic.
+
+### Durable Jayne learnings
+1. **Don't stop at code review.** Even when the code is clean per spec, runtime can fail. Every P0 verdict needs an actual runtime exercise on at least one target.
+2. **Aspire TUI is unreliable signal.** The "Building AppHost" spinner can sit forever while the orchestrator is in fact running. Use `aspire-list_resources` MCP to see actual resource state — that is the truth source.
+3. **Aspire boot ≈ 180 s** from `aspire run` to webapp reachable *with healthy containers*. Budget accordingly.
+4. **Resource embedding gotcha for future reviews.** When a `.resx` sits under a Shared project whose assembly name differs from the namespace root, the manifest path is `{AssemblyName}.{FolderPath}.{Base}.resources`. `<StronglyTypedNamespace>` does NOT influence the embed path. If Designer.cs builds the ResourceManager with a hardcoded string that doesn't match, lookups throw `MissingManifestResourceException`. Fix = add `<LogicalName>…</LogicalName>` on the EmbeddedResource (and matching one on culture satellites).
+5. **Latent bugs surface when consumers change.** When a consumer change (adding nav items, adding fields) increases hit-rate on a code path, investigate whether that path was ever truly exercised before. A "working yesterday" codebase can have P0 bugs dormant behind sparse usage.
+6. **Playwright MCP limits.** I never got to the cross-user leak test (Scenario 3). When that unblocks, worth checking whether `browser_tabs action:new` creates an isolated cookie store; if not, fall back to curl with separate cookie jars.
+
+### Artifacts produced
+- `.squad/agents/jayne/artifacts/locale-e2e-20260418-152103/01-REJECT-500-missing-manifest-resource.png`
+- `.squad/decisions/inbox/jayne-locale-e2e-verdict.md` (rewritten to REJECT; includes Option A csproj fix for Wash)
+
+---
+
+## 2026-04-18 — Locale Phase 1 second retest (post-Wash-fix)
+
+**Context:** Wash added `<LogicalName>` to the two `EmbeddedResource` entries in `SentenceStudio.Shared.csproj` after my first REJECT. Re-ran Scenarios 1/2/3 from scratch.
+
+**Outcome:** ❌ REJECT again — different bug, surfaced because the manifest fix unblocked the render path.
+
+### The new failure
+
+Scenario 1 mechanical flow works end-to-end: dropdown save → forceLoad → `/account-action/SetCulture` writes `.AspNetCore.Culture=c=ko|uic=ko` → redirect → NavMenu re-renders. Cookie and DB both hold `ko`. But **every Localize[] call returns the English invariant.** No Korean text anywhere.
+
+### Durable learning: identifier mismatch between culture whitelist and resx filename
+
+`ResourceManager` satellite-assembly lookup walks **specific → parent → invariant**, never parent → child. A resx named `AppResources.ko-KR.resx` is tied to the regional culture `ko-KR`. If the running culture is neutral `ko`, ResourceManager looks for `AppResources.ko.resources`, misses, falls through to the invariant (English). It **never** tries `ko-KR`. This is a silent failure — no exception, just English everywhere.
+
+Conversely, whitelisting `ko-KR` while storing `ko` cookies means `RequestLocalizationMiddleware` rejects the cookie (not in SupportedUICultures) and the request runs under the default.
+
+**Rule for future reviews:** when you see localization that doesn't switch:
+1. Check what `CurrentUICulture` actually is in the request (log or debug)
+2. Check the exact resx filename — is it `.ko.resx`, `.ko-KR.resx`, or both?
+3. Check `Program.cs` `SupportedCultures` entries
+4. Check `AccountEndpoints.cs` (or equivalent) whitelist
+5. Check the cookie value on the browser
+6. ALL FOUR must use the same identifier (`ko` OR `ko-KR`, consistently)
+
+If the app was originally MAUI-only, it probably worked because MAUI's `SetCulture` set `CurrentUICulture = new CultureInfo("ko-KR", false)` directly — the combobox value in the old Profile page was `ko-KR`. When Kaylee added the Blazor Server middleware pipeline, she whitelisted the neutral `ko` (correct ASP.NET convention) but nobody renamed the resx. Both halves look right in isolation; they only fail when you run them end-to-end.
+
+### Testing technique that caught it
+
+Just doing the E2E flow wasn't enough to diagnose it — the save succeeded, the redirect succeeded, the cookie was written. The diagnostic step that nailed it was: manually set the browser cookie to `ko-KR` via `document.cookie` and reload. Still English. That ruled out "the cookie just hasn't propagated" and proved the whitelist-vs-resx mismatch. Keep this trick: when an E2E flow writes state correctly but has no observable effect, probe the state manually to rule out the transport layer.
+
+### Route for fix
+
+Recommended **Option A (rename resx from `ko-KR.resx` → `ko.resx`)** over Option B (widen whitelist). Reason: matches the existing neutral-culture convention already in Program.cs and the DB, minimizes changes, no DB migration. Wash is the natural assignee — it's a file rename + one `<LogicalName>` edit, same surface as his last fix.
+
+
+---
+
+## 2026-04-18 Round 3 — POST-RENAME RETEST: ✅ APPROVE
+
+### Setup
+
+- Wash completed resx rename (`ko-KR` → `ko`), LogicalName update, bin/obj cleanup, reflection smoke test all passed
+- Docker already up (db-84833ad0 from prior run), no lingering SentenceStudio processes
+- `aspire run` came healthy in ~180s, all resources Running + Healthy
+- Webapp 302 → auto-logged back in as jayne-test-a (cookie from prior session) with DB-persisted ko culture
+
+### Scenario 1 — Korean PASS
+
+Landing page load showed full Korean NavMenu on first paint:
+`대시보드 / 활동 / 학습 자료 / 어휘 / 최소 대립쌍 / 기술 / 가져오기 / 프로필 / 설정 / 피드백 / 로그아웃`
+
+Profile page 100% localized: headings (`프로필 / 개인 정보 / 언어 설정 / 학습 환경설정 / 비밀번호 변경 / 데이터 내보내기 / 위험 구역`), dropdowns (`영어 / 한국어`), buttons (`프로필 저장`), placeholders, section labels — all Hangul.
+
+Wash's resx rename was the silver bullet. `ResourceManager` fallback now resolves cleanly.
+
+### Scenario 2 — English revert PASS
+
+Switched Display Language dropdown to `영어`, clicked `프로필 저장`. ~3s later page rendered fully English:
+- NavMenu: Dashboard / Activity / Learning Resources / Vocabulary / Minimal Pairs / Skills / Import / Profile / Settings / Feedback / Logout
+- Profile: Personal Information / Language Settings / Learning Preferences / Save Profile / Change Password / Danger Zone
+
+forceLoad round-trip via `/account-action/SetCulture` worked cleanly — cookie rewritten, page re-rendered from scratch with new culture.
+
+### Scenario 3 — Cross-user isolation PASS (the crown jewel)
+
+**Technique:** Playwright held Browser A live with Korean circuit. Used `curl` with a fresh cookie jar as "Browser B" to avoid Playwright's shared browser context (globals don't persist across tool invocations, `run_code` newContext can't be reliably reused).
+
+- Browser A `/` → Korean NavMenu (verified via `document.querySelector('nav').innerText`)
+- Browser B (fresh jar, simultaneous) `/` → 302 to `/auth/login` → English login page:
+  - `"Sign In"`, `"Email"`, `"Password"`, `"Forgot your password?"` — 4 English strings
+  - Korean string count: 0 (`grep -c "로그인\|대시보드\|프로필"` returned 0)
+- Re-verified Browser A after Browser B fetch — still Korean, no bleed.
+
+The scoped service is doing its job. No process-wide `DefaultThread*` leak.
+
+### Scenario 4 — MAUI SKIP (justified)
+
+Same shared assembly, same `LocalizationManager.Instance.GetString(key, culture)` seam, and Wash's reflection test already proved `ResourceManager.GetString("Nav_Dashboard", CultureInfo("ko")) == "대시보드"`. No value in spinning up Mac Catalyst for a redundant check — Phase 2 should add a bUnit/xUnit resource-resolution test to make this a CI gate.
+
+### Scenario 5 — Informational findings (Phase 2 scope)
+
+Under Korean Display Language, the Dashboard welcome card remains English:
+- `"Welcome"`, `"Start Your Language Journey"`, `"Quick Start"`, `"Create Your Own"`, `"Create Starter Resource"`, `"Add a Resource"`, and associated paragraphs
+
+These are hardcoded literals in the welcome component — outside Phase 1 scope (NavMenu + Profile only). Documented in verdict as Phase 2 backlog item #1.
+
+### Learnings
+
+1. **Always do the culture-name alignment check before writing a resx file.** Five touchpoints must match: DB value, cookie value, whitelist entry, endpoint validator, resx filename + LogicalName. If even one is regional (`ko-KR`) while others are neutral (`ko`), fallback never hits the satellite. This bit me in round 2. Going forward: grep for the culture ID across `Program.cs`, `AccountEndpoints.cs`, `UserProfile.cs`, `*.resx`, `*.csproj` LogicalName — if any diverge, halt.
+
+2. **`DefaultThread*` is the scoped-service litmus test.** The only way Browser B could flip to Korean is if someone wrote `CultureInfo.DefaultThreadCurrentUICulture = ...`. Grep for that before approving any localization refactor. Kaylee's impl was clean — I checked during code review and confirmed at runtime.
+
+3. **curl + separate cookie jar is the cleanest "second user" setup** when Playwright's shared browser state is a problem. Globals don't persist across `run_code` calls. `browser.newContext()` works but can't be reused across tool calls unless done in one big script. For cross-circuit isolation verification, curl is surgical and reproducible.
+
+4. **Forcing forceLoad:true after a SetCulture save is correct for Blazor Server.** SignalR (the Blazor Server transport) can't set HTTP cookies directly; you need a round-trip through a minimal API endpoint. Kaylee's pattern (save DB → call scoped service → forceLoad redirect to `/account-action/SetCulture`) is the canonical shape. Document this for Phase 2 page work.
+
+5. **The `BlazorLocalizationService.CultureChanged` event enables reactive re-render** without forceLoad for per-component updates. But for a page-level language switch that affects Layout/NavMenu, forceLoad is simpler and more predictable than trying to cascade the event through every component. Pick the right tool.
+
+6. **Aspire startup time is ~180s, not 60s.** TUI spinner lies; trust `aspire-list_resources` MCP, not the spinner. For my own E2E scripts, I'll default to `sleep 180; curl 7071` for readiness check.
+
+### Final state
+
+- Verdict file rewritten with ✅ APPROVE + Phase 2 backlog
+- Artifacts directory: 8 screenshots + Browser B curl HTML + cookie jars
+- Three rounds of reject/approve loop documented end to end — this is the pattern for future multi-round verifications
+
+### Time cost
+
+- Round 1: blocked at Docker (0 runtime, pure code review)
+- Round 2: ~45 min runtime + 30 min diagnosis (culture-name mismatch)
+- Round 3: ~20 min runtime + 15 min writeup
+
+Total: ~2 hours across three rounds. Worth it — would have shipped a broken localization otherwise.
+
+
+- 2026-04-18: **Three-Round E2E with Reviewer Lockout Discipline** — Display Language Phase 1 required 3 Playwright test rounds: Round 1 blocked by MissingManifestResourceException (manifest stream name mismatch), Round 2 blocked by culture identifier misalignment (code/cookie use ko but resx is ko-KR, falls back to English), Round 3 all P0 scenarios pass (Korean NavMenu/Profile, English revert, cross-user isolation confirmed). Reviewer lockout enforced both rounds: Wash (not Kaylee) owned hotfixes. Live Playwright two-context isolation test pattern verified scoped service architecture: Browser A Korean circuit + Browser B fresh context both simultaneous, zero cross-circuit leak.
+

@@ -1095,3 +1095,65 @@ Build NOT attempted — net11 preview SDK + MAUI workload aren't installed local
 **Two-stage init: stage content from app package to AppData, then ingest.** `InitializeHelpContentAsync` copies bundled markdown to `FileSystem.AppDataDirectory/sentencestudio-help/` only if files are missing (preserves any per-install edits). Then `TriggerBackgroundIngest` fires-and-forgets `IHelpKit.IngestAsync()` — errors logged, never thrown, so help can never block app boot.
 
 **Build verification:** `dotnet build src/SentenceStudio.MacCatalyst -f net10.0-maccatalyst` → 0 errors, 563 pre-existing warnings. Net11 build not attempted (same SDK/workload absence Zoe flagged). Decision memo at `.squad/decisions/inbox/wash-helpkit-ss-integration.md` lists the three unblock options and recommends Zoe multi-target HelpKit to net10 for the incubation window.
+
+---
+
+## 2026-04-18 — Display Language DB Sanity Check (Kaylee Unblock)
+
+**Requested by:** David (Captain, AFK) for Kaylee to restore Display Language feature  
+**Task:** Confirm UserProfile.DisplayLanguage is a mapped, migrated column and SaveDisplayCultureAsync persists end-to-end
+
+### Findings
+
+✅ **Column exists + mapped:**
+- `UserProfile.cs:25`: `public string? DisplayLanguage { get; set; }` — no `[NotMapped]` attribute
+- `ApplicationDbContext.cs:79`: Entity mapped to `UserProfile` table, DisplayLanguage included by default
+
+✅ **Already migrated (both schemas):**
+- PostgreSQL: `20260320161534_InitialPostgreSQL.cs:286` — `DisplayLanguage` column added as nullable text
+- SQLite: `20260321133148_InitialSqlite.cs:285` — `DisplayLanguage` column added as nullable TEXT
+- `ApplicationDbContextModelSnapshot.cs`: Latest compiled model includes DisplayLanguage — **no pending delta**
+
+✅ **Persistence logic verified:**
+- `UserProfileRepository.SaveDisplayCultureAsync()` (line 307–329):
+  1. Maps culture code to "English" or "Korean"
+  2. Creates profile or retrieves existing one
+  3. Assigns `profile.DisplayLanguage = displayLanguage`
+  4. Calls `SaveAsync(profile)` → `DbSet.Update()` → `SaveChangesAsync()` → database commit
+  5. Updates `LocalizationManager` for immediate effect
+
+### Verdict
+
+✅ **PASS** — DisplayLanguage is fully mapped, already in both DB schemas since day 1 (Initial migrations 2026-03-20/03-21). Kaylee's save flow works end-to-end with zero friction:
+- Call `SaveDisplayCultureAsync("en")` → persists as "English" → app locale changes
+- Zero DB migration needed, zero schema risk, zero data loss
+- Ready to ship
+
+### Decision Memo
+
+`.squad/decisions/inbox/wash-displaylanguage-db-verify.md`
+
+
+## Learnings — 2026-04-18: RESX manifest name mismatch (Phase 1 locale P0)
+
+- **Symptom:** `MissingManifestResourceException` at first authenticated render; 500 on `/` after onboarding.
+- **Root cause:** `AppResources.Designer.cs` asks for `SentenceStudio.Resources.Strings.AppResources` (namespace-based, no assembly prefix), but MSBuild's default embedding prepended the assembly name → `SentenceStudio.Shared.Resources.Strings.AppResources.resources`. Latent bug; Phase 1 made NavMenu fire 14 lookups/render so it became catastrophic.
+- **Fix (Option A, surgical):** add `<LogicalName>` to EmbeddedResource entries in `src/SentenceStudio.Shared/SentenceStudio.Shared.csproj`:
+  - `AppResources.resx` → `SentenceStudio.Resources.Strings.AppResources.resources`
+  - `AppResources.ko-KR.resx` → `SentenceStudio.Resources.Strings.AppResources.ko-KR.resources` (satellite stream; culture lives in the satellite DLL path, but stream naming follows `{BaseName}.{CultureName}.resources`).
+- **Rule of thumb:** whenever a resx's logical namespace differs from `{AssemblyName}.{FolderPath}`, pin `<LogicalName>` explicitly. Don't regenerate Designer.cs to match the default — blast radius across MAUI/UI `using` statements is far larger than one csproj tweak.
+- **Verification pattern:** build → `Assembly.LoadFrom(...).GetManifestResourceNames()` + an actual `ResourceManager.GetString(key, culture)` call for both invariant and satellite culture. `strings` on the DLL confirms embedding; reflection confirms ResourceManager actually resolves it.
+- **Don't touch Designer.cs:** auto-generated, will be clobbered on next resx save. Fix belongs on the embed side.
+
+## Learnings — 2026-04-18 (round 2): resx culture identifier alignment
+
+- **Symptom:** After round-1 LogicalName fix, `MissingManifestResourceException` gone — but switching to Korean produced zero Korean. Cookie/whitelist/DB all used `ko`; resx filename used `ko-KR`.
+- **Root cause:** `ResourceManager` fallback walks **specific → parent → invariant**. A `CurrentUICulture=ko` request looks for `.ko.resources`, falls back to invariant (English). It never tries `ko-KR` because `ko-KR` is more specific than `ko`, not a parent of it. And the WebApp `SupportedCultures` whitelist rejected `ko-KR` so you can't just set the cookie that way either.
+- **Fix (Option A):** `git mv AppResources.ko-KR.resx AppResources.ko.resx`; update csproj `<LogicalName>` to `...AppResources.ko.resources`. Zero other code changes — all call sites already use `ko`.
+- **Why this is also safe for MAUI:** MAUI code paths that happen to use `CultureInfo("ko-KR")` still resolve correctly via the *other* direction of parent-chain fallback: `ko-KR` → parent `ko` → satellite. Neutral-culture resx is the more flexible choice; use specific `ko-KR` only if you actually need regional variants (you don't, there's no `ko-KP`).
+- **Clean build when changing satellite naming:** delete stale `obj/**/<old-culture>/` and `bin/**/<old-culture>/` directories before rebuilding, otherwise MSBuild incremental build leaves the wrong satellite sitting next to the new one.
+- **Verification pattern (reusable):** reflection smoke test that enumerates manifest resources AND calls `ResourceManager.GetString(key, CultureInfo)` across invariant / `en` / `ko` / `ko-KR` is the fastest way to catch both manifest-name bugs AND culture-matching bugs in a single run. Took ~5s, caught everything.
+- **Rule of thumb:** keep culture identifiers aligned across **all** five touchpoints: DB value, cookie value, `SupportedCultures` whitelist, resx filename, and `<LogicalName>`. Any mismatch and fallback silently returns invariant. No exception, just English.
+
+- 2026-04-18: **Resx Manifest & Culture Identifier Alignment** — <LogicalName> csproj override forces correct embed stream name (Designer hardcodes SentenceStudio.Resources.Strings.AppResources but MSBuild defaults to assembly-qualified path). Culture filename MUST match all five touchpoints: DB (ko), cookie (ko), whitelist (ko), endpoint validator (ko), resx file (ko). Rename ko-KR → ko: ResourceManager fallback walks specific → parent → invariant; ko is neutral (no regional variant needed), satellite resolution via parent fallback handles ko-KR requests. Two hotfixes applied as lockout-honors when Kaylee's code was rejected for revision: Round 1 manifest fix, Round 2 culture rename.
+

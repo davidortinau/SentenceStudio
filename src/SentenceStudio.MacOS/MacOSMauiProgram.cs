@@ -49,7 +49,7 @@ public static class MacOSMauiProgram
     {
         services.AddSingleton<ToastService>();
         services.AddSingleton<ModalService>();
-        services.AddSingleton<BlazorLocalizationService>();
+        services.AddScoped<BlazorLocalizationService>();
         services.AddSingleton<BlazorNavigationService>();
         services.AddScoped<NavigationMemoryService>();
         services.AddScoped<JsInteropService>();

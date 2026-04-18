@@ -2061,4 +2061,228 @@ Ready to practice? Say "yes" to start, or tell me what you'd like to change.</va
     <value>Help</value>
     <comment>Help menu item label in sidebar navigation</comment>
   </data>
+  <data name="Nav_Dashboard" xml:space="preserve">
+    <value>Dashboard</value>
+    <comment>Sidebar nav: Dashboard</comment>
+  </data>
+  <data name="Nav_Activity" xml:space="preserve">
+    <value>Activity</value>
+    <comment>Sidebar nav: Activity</comment>
+  </data>
+  <data name="Nav_LearningResources" xml:space="preserve">
+    <value>Learning Resources</value>
+    <comment>Sidebar nav: Learning Resources</comment>
+  </data>
+  <data name="Nav_Vocabulary" xml:space="preserve">
+    <value>Vocabulary</value>
+    <comment>Sidebar nav: Vocabulary</comment>
+  </data>
+  <data name="Nav_MinimalPairs" xml:space="preserve">
+    <value>Minimal Pairs</value>
+    <comment>Sidebar nav: Minimal Pairs</comment>
+  </data>
+  <data name="Nav_Skills" xml:space="preserve">
+    <value>Skills</value>
+    <comment>Sidebar nav: Skills</comment>
+  </data>
+  <data name="Nav_Import" xml:space="preserve">
+    <value>Import</value>
+    <comment>Sidebar nav: Import</comment>
+  </data>
+  <data name="Nav_Profile" xml:space="preserve">
+    <value>Profile</value>
+    <comment>Sidebar nav: Profile</comment>
+  </data>
+  <data name="Nav_Settings" xml:space="preserve">
+    <value>Settings</value>
+    <comment>Sidebar nav: Settings</comment>
+  </data>
+  <data name="Nav_Feedback" xml:space="preserve">
+    <value>Feedback</value>
+    <comment>Sidebar nav: Feedback</comment>
+  </data>
+  <data name="Nav_Logout" xml:space="preserve">
+    <value>Logout</value>
+    <comment>Sidebar nav: Logout</comment>
+  </data>
+  <data name="Profile_PageTitle" xml:space="preserve">
+    <value>Profile</value>
+    <comment>Profile page title</comment>
+  </data>
+  <data name="Profile_PersonalInformation" xml:space="preserve">
+    <value>Personal Information</value>
+    <comment>Profile: Personal info section</comment>
+  </data>
+  <data name="Profile_Name" xml:space="preserve">
+    <value>Name</value>
+    <comment>Profile: Name label</comment>
+  </data>
+  <data name="Profile_NamePlaceholder" xml:space="preserve">
+    <value>Your name</value>
+    <comment>Profile: Name placeholder</comment>
+  </data>
+  <data name="Profile_Email" xml:space="preserve">
+    <value>Email</value>
+    <comment>Profile: Email label</comment>
+  </data>
+  <data name="Profile_EmailPlaceholder" xml:space="preserve">
+    <value>Email address</value>
+    <comment>Profile: Email placeholder</comment>
+  </data>
+  <data name="Profile_LanguageSettings" xml:space="preserve">
+    <value>Language Settings</value>
+    <comment>Profile: Language settings section</comment>
+  </data>
+  <data name="Profile_NativeLanguage" xml:space="preserve">
+    <value>Native Language</value>
+    <comment>Profile: Native language label</comment>
+  </data>
+  <data name="Profile_TargetLanguage" xml:space="preserve">
+    <value>Target Language</value>
+    <comment>Profile: Target language label</comment>
+  </data>
+  <data name="Profile_DisplayLanguage" xml:space="preserve">
+    <value>Display Language</value>
+    <comment>Profile: Display language label</comment>
+  </data>
+  <data name="Profile_DisplayLanguage_English" xml:space="preserve">
+    <value>English</value>
+    <comment>Profile: English option</comment>
+  </data>
+  <data name="Profile_DisplayLanguage_Korean" xml:space="preserve">
+    <value>Korean</value>
+    <comment>Profile: Korean option</comment>
+  </data>
+  <data name="Profile_LearningPreferences" xml:space="preserve">
+    <value>Learning Preferences</value>
+    <comment>Profile: Learning prefs section</comment>
+  </data>
+  <data name="Profile_SessionDuration" xml:space="preserve">
+    <value>Session Duration (minutes)</value>
+    <comment>Profile: Session duration label</comment>
+  </data>
+  <data name="Profile_TargetCEFRLevel" xml:space="preserve">
+    <value>Target CEFR Level</value>
+    <comment>Profile: CEFR target label</comment>
+  </data>
+  <data name="Profile_SaveProfile" xml:space="preserve">
+    <value>Save Profile</value>
+    <comment>Profile: Save button</comment>
+  </data>
+  <data name="Profile_Saved" xml:space="preserve">
+    <value>Profile saved</value>
+    <comment>Profile: Save success toast</comment>
+  </data>
+  <data name="Profile_SaveFailed" xml:space="preserve">
+    <value>Failed to save profile: {0}</value>
+    <comment>Profile: Save failure toast</comment>
+  </data>
+  <data name="Profile_LoadFailed" xml:space="preserve">
+    <value>Failed to load profile.</value>
+    <comment>Profile: Load failure toast</comment>
+  </data>
+  <data name="Profile_ChangePassword" xml:space="preserve">
+    <value>Change Password</value>
+    <comment>Profile: Change password section</comment>
+  </data>
+  <data name="Profile_CurrentPassword" xml:space="preserve">
+    <value>Current Password</value>
+    <comment>Profile: Current password label</comment>
+  </data>
+  <data name="Profile_CurrentPasswordPlaceholder" xml:space="preserve">
+    <value>Enter current password</value>
+    <comment>Profile: Current password placeholder</comment>
+  </data>
+  <data name="Profile_NewPassword" xml:space="preserve">
+    <value>New Password</value>
+    <comment>Profile: New password label</comment>
+  </data>
+  <data name="Profile_NewPasswordPlaceholder" xml:space="preserve">
+    <value>Enter new password</value>
+    <comment>Profile: New password placeholder</comment>
+  </data>
+  <data name="Profile_ConfirmNewPassword" xml:space="preserve">
+    <value>Confirm New Password</value>
+    <comment>Profile: Confirm new password label</comment>
+  </data>
+  <data name="Profile_ConfirmNewPasswordPlaceholder" xml:space="preserve">
+    <value>Confirm new password</value>
+    <comment>Profile: Confirm new password placeholder</comment>
+  </data>
+  <data name="Profile_PasswordsDoNotMatch" xml:space="preserve">
+    <value>New passwords do not match.</value>
+    <comment>Profile: Password mismatch error</comment>
+  </data>
+  <data name="Profile_PasswordTooShort" xml:space="preserve">
+    <value>New password must be at least 8 characters.</value>
+    <comment>Profile: Password length error</comment>
+  </data>
+  <data name="Profile_PasswordChanged" xml:space="preserve">
+    <value>Password changed successfully.</value>
+    <comment>Profile: Password changed toast</comment>
+  </data>
+  <data name="Profile_PasswordChangeFailed" xml:space="preserve">
+    <value>Password change failed. Check your current password and try again.</value>
+    <comment>Profile: Password change failed toast</comment>
+  </data>
+  <data name="Profile_PasswordChangeError" xml:space="preserve">
+    <value>Password change failed: {0}</value>
+    <comment>Profile: Password change error toast</comment>
+  </data>
+  <data name="Profile_DataExport" xml:space="preserve">
+    <value>Data Export</value>
+    <comment>Profile: Data export section</comment>
+  </data>
+  <data name="Profile_ExportAllData" xml:space="preserve">
+    <value>Export All Data</value>
+    <comment>Profile: Export all data button</comment>
+  </data>
+  <data name="Profile_Exporting" xml:space="preserve">
+    <value>Exporting...</value>
+    <comment>Profile: Exporting progress</comment>
+  </data>
+  <data name="Profile_ExportSuccess" xml:space="preserve">
+    <value>Data exported successfully</value>
+    <comment>Profile: Export success toast</comment>
+  </data>
+  <data name="Profile_ExportFailed" xml:space="preserve">
+    <value>Export failed: {0}</value>
+    <comment>Profile: Export failure toast</comment>
+  </data>
+  <data name="Profile_DangerZone" xml:space="preserve">
+    <value>Danger Zone</value>
+    <comment>Profile: Danger zone section</comment>
+  </data>
+  <data name="Profile_DangerZoneDescription" xml:space="preserve">
+    <value>Permanently delete your account and all associated data.</value>
+    <comment>Profile: Danger zone description</comment>
+  </data>
+  <data name="Profile_DeleteMyAccount" xml:space="preserve">
+    <value>Delete My Account</value>
+    <comment>Profile: Delete account button</comment>
+  </data>
+  <data name="Profile_ConfirmDelete" xml:space="preserve">
+    <value>Confirm Delete</value>
+    <comment>Profile: Confirm delete modal title</comment>
+  </data>
+  <data name="Profile_DeleteConfirmationMessage" xml:space="preserve">
+    <value>Are you sure you want to delete your account? All your data will be permanently removed. This cannot be undone.</value>
+    <comment>Profile: Delete account confirmation</comment>
+  </data>
+  <data name="Profile_Cancel" xml:space="preserve">
+    <value>Cancel</value>
+    <comment>Profile: Cancel button</comment>
+  </data>
+  <data name="Profile_Delete" xml:space="preserve">
+    <value>Delete</value>
+    <comment>Profile: Delete button</comment>
+  </data>
+  <data name="Profile_AccountDeleted" xml:space="preserve">
+    <value>Account deleted.</value>
+    <comment>Profile: Account deleted toast</comment>
+  </data>
+  <data name="Profile_DeletionFailed" xml:space="preserve">
+    <value>Deletion failed: {0}</value>
+    <comment>Profile: Account deletion failure toast</comment>
+  </data>
 </root>

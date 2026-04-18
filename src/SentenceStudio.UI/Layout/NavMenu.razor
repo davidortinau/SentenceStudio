@@ -12,7 +12,7 @@
 @implements IDisposable
 
 <nav class="nav flex-column p-2 gap-1">
-    @foreach (var item in _topItems)
+    @foreach (var item in TopItems)
     {
         var key = item.Key;
         <a class="nav-link nav-link-ss rounded px-3 py-2 @(NavMemory.IsSectionActive(key) ? "active" : "")"
@@ -23,7 +23,7 @@
 
     <hr class="my-2" style="border-color: var(--bs-border-color);" />
 
-    @foreach (var item in _bottomItems)
+    @foreach (var item in BottomItems)
     {
         var key = item.Key;
         <a class="nav-link nav-link-ss rounded px-3 py-2 @(NavMemory.IsSectionActive(key) ? "active" : "")"
@@ -33,8 +33,8 @@
     }
 
     <a class="nav-link nav-link-ss rounded px-3 py-2 text-danger"
-       href="" @onclick="Logout" @onclick:preventDefault title="Logout">
-        <i class="bi bi-box-arrow-left"></i> <span class="nav-label">Logout</span>
+       href="" @onclick="Logout" @onclick:preventDefault title="@Localize["Nav_Logout"]">
+        <i class="bi bi-box-arrow-left"></i> <span class="nav-label">@Localize["Nav_Logout"]</span>
     </a>
 
     @if (_isHelpKitAvailable)
@@ -49,34 +49,37 @@
 @code {
     private record NavItem(string Key, string Icon, string Label);
 
-    private static readonly NavItem[] _topItems =
-    [
-        new("dashboard", "bi-house-door", "Dashboard"),
-        new("activity", "bi-calendar3", "Activity"),
-        new("resources", "bi-book", "Learning Resources"),
-        new("vocabulary", "bi-card-text", "Vocabulary"),
-        new("minimal-pairs", "bi-soundwave", "Minimal Pairs"),
-        new("skills", "bi-bullseye", "Skills"),
-        new("import", "bi-box-arrow-in-down", "Import"),
-    ];
+    private NavItem[] TopItems => new[]
+    {
+        new NavItem("dashboard",    "bi-house-door",         Localize["Nav_Dashboard"]),
+        new NavItem("activity",     "bi-calendar3",          Localize["Nav_Activity"]),
+        new NavItem("resources",    "bi-book",               Localize["Nav_LearningResources"]),
+        new NavItem("vocabulary",   "bi-card-text",          Localize["Nav_Vocabulary"]),
+        new NavItem("minimal-pairs","bi-soundwave",          Localize["Nav_MinimalPairs"]),
+        new NavItem("skills",       "bi-bullseye",           Localize["Nav_Skills"]),
+        new NavItem("import",       "bi-box-arrow-in-down",  Localize["Nav_Import"]),
+    };
 
-    private static readonly NavItem[] _bottomItems =
-    [
-        new("profile", "bi-person", "Profile"),
-        new("settings", "bi-gear", "Settings"),
-        new("feedback", "bi-chat-dots", "Feedback"),
-    ];
+    private NavItem[] BottomItems => new[]
+    {
+        new NavItem("profile",  "bi-person",    Localize["Nav_Profile"]),
+        new NavItem("settings", "bi-gear",      Localize["Nav_Settings"]),
+        new NavItem("feedback", "bi-chat-dots", Localize["Nav_Feedback"]),
+    };
 
     private bool _isHelpKitAvailable;
 
     protected override void OnInitialized()
     {
         Nav.LocationChanged += OnLocationChanged;
-        
+        Localize.CultureChanged += OnCultureChanged;
+
         // Check if HelpKit is registered (MAUI apps have it, WebApp doesn't)
         var helpKitType = Type.GetType("Plugin.Maui.HelpKit.IHelpKit, Plugin.Maui.HelpKit");
         _isHelpKitAvailable = helpKitType is not null && Services.GetService(helpKitType) is not null;
     }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
 
     private async Task NavigateToSection(string sectionKey)
     {
@@ -124,6 +127,7 @@
     public void Dispose()
     {
         Nav.LocationChanged -= OnLocationChanged;
+        Localize.CultureChanged -= OnCultureChanged;
     }
 
     private async Task ShowHelpAsync()

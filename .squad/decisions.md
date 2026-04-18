@@ -4,6 +4,110 @@
 
 ---
 
+## 2026-04-18 — Phase 1 Display Language Restoration (Complete)
+
+**Date:** 2026-04-18  
+**Owner:** Zoe (Lead), Kaylee (Frontend), Wash (Backend), Jayne (Tester)  
+**Status:** ✅ COMPLETE — All P0 scenarios pass E2E  
+**Tracking:** Phase 1 closed, Phase 2 & Phase 3 backlogged
+
+### Summary
+
+Display Language feature was broken after MauiReactor → Blazor migration. Captain reported: changing language on Profile doesn't update any app strings. Phase 1 scope: restore end-to-end localization infrastructure + localize NavMenu + Profile pages. Korean as priority language. Spanish/French deferred to Phase 2.
+
+**Root causes identified:**
+1. Profile save never calls `LocalizationManager.SetCulture` (dead code path)
+2. Blazor UI is ~99% hardcoded English literals; only "Help" in NavMenu uses localization
+3. No startup culture wiring (`AddLocalization()` / `UseRequestLocalization` missing)
+4. Resx file (488 keys) orphaned from Blazor rendering path
+
+### Phase 1 Architecture
+
+**Blazor WebApp path:** Scoped `BlazorLocalizationService` per-circuit (no cross-user leak). On startup, `UseRequestLocalization` reads `.AspNetCore.Culture` cookie (set by last Profile save). `BlazorLocalizationService` holds its own `CultureInfo`, reads resx via new `LocalizationManager.GetString(key, culture)` overload, raises `CultureChanged` event for components to re-render.
+
+When user saves Profile: (1) flips circuit's culture via `Localize.SetCulture`, (2) components subscribed to `CultureChanged` re-render immediately, (3) navigates with `forceLoad:true` to `/account-action/SetCulture?culture=ko&returnUrl=/profile`, which writes `.AspNetCore.Culture` cookie and redirects back—next request everything is Korean.
+
+**MAUI Blazor Hybrid path:** On launch, `LocalizationInitializer` (IMauiInitializeService) reads saved `UserProfile.DisplayLanguage`, calls `LocalizationManager.Instance.SetCulture(culture)`. This sets process-wide `DefaultThreadCurrentUICulture` (fine in single-user client). When user saves from Profile, same sequence runs without cookie redirect (single-user process).
+
+**Database:** `UserProfile.DisplayLanguage` column exists and is migrated (verified Round 1 of this session). No schema risk.
+
+**Culture identifier alignment (critical):** All five touchpoints use neutral `ko` (not `ko-KR`):
+- DB: `UserProfile.DisplayLanguage` stores `"ko"`
+- Cookie: `.AspNetCore.Culture=c=ko|uic=ko`
+- Whitelist: `Program.cs` `SupportedCultures = [new("en"), new("ko")]`
+- Endpoint validator: `/account-action/SetCulture` whitelist is `["en", "ko"]`
+- Resx: `AppResources.ko.resx` + `AppResources.ko-KR.resx` renamed to `AppResources.ko.resx` (via Wash Round 2)
+
+ResourceManager fallback chain: `ko` → invariant → throws. Previous state had `ko` in code/cookie/DB but `ko-KR` in resx, so fallback walked `ko` → invariant, missing the satellite. Wash's Round 2 fix aligns all five.
+
+**Resx manifest (`<LogicalName>` override, critical):** `AppResources.Designer.cs` hardcodes neutral resource path as `"SentenceStudio.Resources.Strings.AppResources"`, but MSBuild's default embeds as `"SentenceStudio.Shared.Resources.Strings.AppResources"` (includes assembly name). Mismatch → `MissingManifestResourceException` at runtime. Wash's Round 1 fix added `<LogicalName>` override to `.csproj` to force correct stream name. This latent bug was weaponized by Kaylee's increased use of `Localize[]`.
+
+### Files Changed
+
+**Code (Kaylee):**
+- `src/SentenceStudio.UI/Services/BlazorLocalizationService.cs` — rewritten scoped, holds `_culture`, raises `CultureChanged`, no process-wide mutation on web path
+- `src/SentenceStudio.UI/Services/BlazorUIServiceExtensions.cs` — Singleton → Scoped
+- `src/SentenceStudio.MacOS/MacOSMauiProgram.cs` — Singleton → Scoped
+- `src/SentenceStudio.Shared/Common/LocalizationManager.cs` — public `GetString(key, CultureInfo?)`
+- `src/SentenceStudio.AppLib/Setup/LocalizationInitializer.cs` (NEW)
+- `src/SentenceStudio.AppLib/Setup/SentenceStudioAppBuilder.cs`
+- `src/SentenceStudio.WebApp/Program.cs`
+- `src/SentenceStudio.WebApp/Auth/AccountEndpoints.cs`
+- `src/SentenceStudio.UI/Layout/NavMenu.razor` — 11 `Nav_*` keys
+- `src/SentenceStudio.UI/Pages/Profile.razor` — 30 `Profile_*` keys
+- `src/SentenceStudio.Shared/Resources/Strings/AppResources.resx` — +56 keys (en)
+- `src/SentenceStudio.Shared/Resources/Strings/AppResources.ko.resx` — +56 Korean (renamed)
+
+**Csproj (Wash):**
+- `src/SentenceStudio.Shared/SentenceStudio.Shared.csproj` — `<LogicalName>` overrides + culture filename rename
+
+**Squad artifacts:**
+- `.squad/skills/blazor-localization/SKILL.md` (NEW — Kaylee documented pattern for reuse)
+
+### E2E Testing (3 Rounds)
+
+**Round 1 (Jayne):** REJECT — `MissingManifestResourceException` on every page. Fixed by Wash (R1 manifest).
+
+**Round 2 (Jayne):** REJECT — Page loads, but UI stays English despite `ko` cookie. Fixed by Wash (R2 culture rename).
+
+**Round 3 (Jayne):** ✅ APPROVE — All P0 scenarios pass.
+- Scenario 1: Set Display Language → Korean, NavMenu + Profile flip to Hangul (대시보드 / 활동 / 학습 자료 / 어휘 / ... / 프로필 / 설정 / 피드백 / 로그아웃)
+- Scenario 2: Revert to English, UI reverts cleanly
+- Scenario 3 (P0): Cross-user isolation — Browser A (Korean circuit), Browser B (fresh cookie) stays English. Scoped service architecture confirmed sound. No cross-circuit leak.
+
+**Confidence:** 100% — live runtime validation, multiple language switches, simultaneous browser isolation.
+
+### Decisions
+
+1. **Use scoped `BlazorLocalizationService`** (not singleton) — each circuit gets its own `CultureInfo`, read from cookie at request start. MAUI path additionally calls `LocalizationManager.Instance.SetCulture` for process-wide state (acceptable in single-user client).
+2. **Cookie round-trip via `/account-action/SetCulture` endpoint** — SignalR cannot write HTTP cookies directly; endpoint pattern matches existing `/SignOut` / `/AutoSignIn` infrastructure.
+3. **Use neutral `ko` culture identifier everywhere** — all five touchpoints (DB, cookie, whitelist, endpoint, resx) must match. ResourceManager fallback chain expects parent-language resources.
+4. **`<LogicalName>` override in `.csproj` is required** — latent bug exposed by mass-localization. Designer hardcodes neutral resource path; csproj config forces correct embed stream name.
+5. **Phase 2 backlog: Dashboard + remaining pages + es/fr/ja/zh resx** — Phase 1 proves infrastructure, Phase 2 is content localization.
+6. **Tech debt (5 follow-ups):**
+   - Culture cookie needs `HttpOnly=true` + `Secure` flags
+   - `/SetCulture` GET endpoint is CSRF-able by construction (impact bounded, acceptable for Phase 1)
+   - `Toast.ShowSuccess` on web path swallowed by `forceLoad:true` redirect (UX nit)
+   - Startup `LocalizationInitializer` uses blocking sync-over-async (matches existing patterns)
+   - Legacy resx keys (`Dashboard`, `Settings`) orphaned after Phase 2 — Phase 3 cleanup
+7. **MauiReactor residue (LocalizationManager, LocalizeExtension, FilterChip) stays** — Phase 3 cleanup per Captain's "don't touch MauiReactor residue" directive.
+
+### Reviewer Lockout Enforcement
+
+Kaylee was locked out after Zoe's code review approval. Both Wash hotfixes honored the lockout:
+- Round 1 (manifest fix): Wash applied, Kaylee did NOT touch
+- Round 2 (culture rename): Wash applied, Kaylee did NOT touch
+
+Lockout was per-artifact (Phase 1 implementation code), not per-agent.
+
+### Next
+
+- Push Phase 1 to Captain for `/review` gate
+- Phase 2 tracking issue: localize Dashboard welcome card + remaining Blazor pages + add es/fr/ja/zh resx
+- Phase 3 tracking issue: retire orphaned keys + MauiReactor residue cleanup
+
+---
+
 ## 2026-04-18 — Diagnosis: MacCatalyst Post-Login Splash Hang
 
 **Date:** 2026-04-18  

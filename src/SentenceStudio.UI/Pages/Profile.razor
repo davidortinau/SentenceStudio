@@ -1,7 +1,9 @@
 @page "/profile"
 @attribute [Authorize]
+@implements IDisposable
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
 
-<PageHeader Title="Profile" />
+<PageHeader Title="@Localize["Profile_PageTitle"]" />
 
 @if (isLoading)
 {
@@ -13,25 +15,25 @@ else
 {
     @* Personal Info *@
     <div class="card card-ss p-4 mb-3">
-        <h5 class="ss-title3 mb-3">Personal Information</h5>
+        <h5 class="ss-title3 mb-3">@Localize["Profile_PersonalInformation"]</h5>
 
         <div class="mb-3">
-            <label class="form-label ss-body2 text-secondary-ss">Name</label>
-            <input type="text" class="form-control form-control-ss" @bind="name" placeholder="Your name" />
+            <label class="form-label ss-body2 text-secondary-ss">@Localize["Profile_Name"]</label>
+            <input type="text" class="form-control form-control-ss" @bind="name" placeholder="@Localize["Profile_NamePlaceholder"]" />
         </div>
 
         <div class="mb-3">
-            <label class="form-label ss-body2 text-secondary-ss">Email</label>
-            <input type="email" class="form-control form-control-ss" @bind="email" placeholder="Email address" />
+            <label class="form-label ss-body2 text-secondary-ss">@Localize["Profile_Email"]</label>
+            <input type="email" class="form-control form-control-ss" @bind="email" placeholder="@Localize["Profile_EmailPlaceholder"]" />
         </div>
     </div>
 
     @* Language Settings *@
     <div class="card card-ss p-4 mb-3">
-        <h5 class="ss-title3 mb-3">Language Settings</h5>
+        <h5 class="ss-title3 mb-3">@Localize["Profile_LanguageSettings"]</h5>
 
         <div class="mb-3">
-            <label class="form-label ss-body2 text-secondary-ss">Native Language</label>
+            <label class="form-label ss-body2 text-secondary-ss">@Localize["Profile_NativeLanguage"]</label>
             <select class="form-select form-control-ss" @bind="nativeLanguage">
                 @foreach (var lang in languages)
                 {
@@ -41,7 +43,7 @@ else
         </div>
 
         <div class="mb-3">
-            <label class="form-label ss-body2 text-secondary-ss">Target Language</label>
+            <label class="form-label ss-body2 text-secondary-ss">@Localize["Profile_TargetLanguage"]</label>
             <select class="form-select form-control-ss" @bind="targetLanguage">
                 @foreach (var lang in languages)
                 {
@@ -51,20 +53,20 @@ else
         </div>
 
         <div class="mb-3">
-            <label class="form-label ss-body2 text-secondary-ss">Display Language</label>
+            <label class="form-label ss-body2 text-secondary-ss">@Localize["Profile_DisplayLanguage"]</label>
             <select class="form-select form-control-ss" @bind="displayLanguage">
-                <option value="English">English</option>
-                <option value="Korean">Korean</option>
+                <option value="English">@Localize["Profile_DisplayLanguage_English"]</option>
+                <option value="Korean">@Localize["Profile_DisplayLanguage_Korean"]</option>
             </select>
         </div>
     </div>
 
     @* Learning Preferences *@
     <div class="card card-ss p-4 mb-3">
-        <h5 class="ss-title3 mb-3">Learning Preferences</h5>
+        <h5 class="ss-title3 mb-3">@Localize["Profile_LearningPreferences"]</h5>
 
         <div class="mb-3">
-            <label class="form-label ss-body2 text-secondary-ss">Session Duration (minutes)</label>
+            <label class="form-label ss-body2 text-secondary-ss">@Localize["Profile_SessionDuration"]</label>
             <div class="d-flex flex-column flex-md-row gap-2" role="group">
                 @foreach (var min in sessionOptions)
                 {
@@ -77,7 +79,7 @@ else
         </div>
 
         <div class="mb-3">
-            <label class="form-label ss-body2 text-secondary-ss">Target CEFR Level</label>
+            <label class="form-label ss-body2 text-secondary-ss">@Localize["Profile_TargetCEFRLevel"]</label>
             <div class="d-flex flex-column flex-md-row gap-2" role="group">
                 @foreach (var level in cefrLevels)
                 {
@@ -92,29 +94,29 @@ else
 
     @* Actions *@
     <div class="d-flex gap-2 mb-3">
-        <button class="btn btn-ss-primary flex-grow-1" @onclick="SaveProfile">Save Profile</button>
+        <button class="btn btn-ss-primary flex-grow-1" @onclick="SaveProfile">@Localize["Profile_SaveProfile"]</button>
     </div>
 
     @* Change Password *@
     <div class="card card-ss p-4 mb-3">
-        <h5 class="ss-title3 mb-3"><i class="bi bi-key me-2"></i>Change Password</h5>
+        <h5 class="ss-title3 mb-3"><i class="bi bi-key me-2"></i>@Localize["Profile_ChangePassword"]</h5>
 
         <div class="mb-3">
-            <label class="form-label ss-body2 text-secondary-ss">Current Password</label>
+            <label class="form-label ss-body2 text-secondary-ss">@Localize["Profile_CurrentPassword"]</label>
             <input type="password" class="form-control form-control-ss" @bind="currentPassword"
-                   @bind:event="oninput" placeholder="Enter current password" />
+                   @bind:event="oninput" placeholder="@Localize["Profile_CurrentPasswordPlaceholder"]" />
         </div>
 
         <div class="mb-3">
-            <label class="form-label ss-body2 text-secondary-ss">New Password</label>
+            <label class="form-label ss-body2 text-secondary-ss">@Localize["Profile_NewPassword"]</label>
             <input type="password" class="form-control form-control-ss" @bind="newPassword"
-                   @bind:event="oninput" placeholder="Enter new password" />
+                   @bind:event="oninput" placeholder="@Localize["Profile_NewPasswordPlaceholder"]" />
         </div>
 
         <div class="mb-3">
-            <label class="form-label ss-body2 text-secondary-ss">Confirm New Password</label>
+            <label class="form-label ss-body2 text-secondary-ss">@Localize["Profile_ConfirmNewPassword"]</label>
             <input type="password" class="form-control form-control-ss" @bind="confirmNewPassword"
-                   @bind:event="oninput" placeholder="Confirm new password" />
+                   @bind:event="oninput" placeholder="@Localize["Profile_ConfirmNewPasswordPlaceholder"]" />
         </div>
 
         <button class="btn btn-ss-primary w-100" @onclick="ChangePassword"
@@ -123,13 +125,13 @@ else
             {
                 <span class="spinner-border spinner-border-sm me-1"></span>
             }
-            <i class="bi bi-lock me-1"></i>Change Password
+            <i class="bi bi-lock me-1"></i>@Localize["Profile_ChangePassword"]
         </button>
     </div>
 
     @* Export *@
     <div class="card card-ss p-4 mb-3">
-        <h5 class="ss-title3 mb-3">Data Export</h5>
+        <h5 class="ss-title3 mb-3">@Localize["Profile_DataExport"]</h5>
         <button class="btn btn-ss-secondary w-100" @onclick="ExportData" disabled="@isExporting">
             @if (isExporting)
             {
@@ -138,18 +140,18 @@ else
             }
             else
             {
-                <span>Export All Data</span>
+                <span>@Localize["Profile_ExportAllData"]</span>
             }
         </button>
     </div>
 
     @* Danger Zone *@
     <div class="card card-ss p-4 border border-danger mb-5">
-        <h5 class="ss-title3 text-error-ss mb-3">Danger Zone</h5>
+        <h5 class="ss-title3 text-error-ss mb-3">@Localize["Profile_DangerZone"]</h5>
         <p class="ss-body2 text-secondary-ss mb-3">
-            Permanently delete your account and all associated data.
+            @Localize["Profile_DangerZoneDescription"]
         </p>
-        <button class="btn btn-ss-danger w-100" @onclick="RequestDelete">Delete My Account</button>
+        <button class="btn btn-ss-danger w-100" @onclick="RequestDelete">@Localize["Profile_DeleteMyAccount"]</button>
     </div>
 }
 
@@ -161,21 +163,21 @@ else
             <div class="modal-content bg-surface">
                 <div class="modal-header border-0">
                     <h5 class="modal-title text-error-ss">
-                        <i class="bi bi-exclamation-triangle-fill me-2"></i>Confirm Delete
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>@Localize["Profile_ConfirmDelete"]
                     </h5>
                     <button type="button" class="btn-close" @onclick="CancelDelete"></button>
                 </div>
                 <div class="modal-body">
-                    <p class="ss-body2">@deleteConfirmMessage</p>
+                    <p class="ss-body2">@Localize["Profile_DeleteConfirmationMessage"]</p>
                 </div>
                 <div class="modal-footer border-0">
-                    <button type="button" class="btn btn-ss-secondary" @onclick="CancelDelete">Cancel</button>
+                    <button type="button" class="btn btn-ss-secondary" @onclick="CancelDelete">@Localize["Profile_Cancel"]</button>
                     <button type="button" class="btn btn-ss-danger" @onclick="ConfirmDelete" disabled="@isDeleting">
                         @if (isDeleting)
                         {
                             <span class="spinner-border spinner-border-sm me-1"></span>
                         }
-                        Delete
+                        @Localize["Profile_Delete"]
                     </button>
                 </div>
             </div>
@@ -205,7 +207,6 @@ else
     private bool isExporting;
     private string exportProgressMessage = "";
     private bool showDeleteConfirm;
-    private string deleteConfirmMessage = "";
     private bool isDeleting;
 
     private string currentPassword = "";
@@ -224,7 +225,15 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        Localize.CultureChanged += OnCultureChanged;
         await LoadProfile();
+    }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnCultureChanged;
     }
 
     private async Task LoadProfile()
@@ -251,7 +260,7 @@ else
         catch (Exception ex)
         {
             Logger.LogError(ex, "LoadProfile failed");
-            Toast.ShowError("Failed to load profile.");
+            Toast.ShowError(Localize["Profile_LoadFailed"]);
         }
         finally
         {
@@ -274,27 +283,56 @@ else
 
             await ProfileRepo.SaveAsync(profile);
             AppState.CurrentUserProfile = profile;
-            Toast.ShowSuccess("Profile saved");
+
+            // Apply the new display culture end-to-end.
+            var culture = profile.DisplayCulture;
+            var cultureInfo = new System.Globalization.CultureInfo(culture);
+
+            // 1) Flip this Blazor circuit's culture so subscribed components re-render now.
+            Localize.SetCulture(cultureInfo);
+
+            // 2) Persist the choice.
+            var baseUri = NavManager.BaseUri;
+            var isWeb = !baseUri.StartsWith("app://") && !baseUri.Contains("0.0.0.0");
+            if (isWeb)
+            {
+                // WebApp: Blazor Server circuits can't write cookies over WebSocket.
+                // Redirect through an account endpoint that writes .AspNetCore.Culture
+                // and sends us back, so subsequent requests restore the language.
+                Toast.ShowSuccess(Localize["Profile_Saved"]);
+                NavManager.NavigateTo(
+                    $"/account-action/SetCulture?culture={Uri.EscapeDataString(culture)}&returnUrl=/profile",
+                    forceLoad: true);
+                return;
+            }
+            else
+            {
+                // MAUI Blazor Hybrid: apply process-wide culture via the singleton so
+                // MauiReactor views and any non-Blazor surfaces update too.
+                SentenceStudio.LocalizationManager.Instance.SetCulture(cultureInfo);
+            }
+
+            Toast.ShowSuccess(Localize["Profile_Saved"]);
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to save profile");
-            Toast.ShowError($"Failed to save profile: {ex.Message}");
+            Toast.ShowError(Localize.Get("Profile_SaveFailed", ex.Message));
         }
     }
 
     private async Task ExportData()
     {
         isExporting = true;
-        exportProgressMessage = "Exporting...";
+        exportProgressMessage = Localize["Profile_Exporting"];
         try
         {
             await ExportService.ExportAllDataAsZipAsync();
-            Toast.ShowSuccess("Data exported successfully");
+            Toast.ShowSuccess(Localize["Profile_ExportSuccess"]);
         }
         catch (Exception ex)
         {
-            Toast.ShowError($"Export failed: {ex.Message}");
+            Toast.ShowError(Localize.Get("Profile_ExportFailed", ex.Message));
         }
         finally
         {
@@ -307,13 +345,13 @@ else
     {
         if (newPassword != confirmNewPassword)
         {
-            Toast.ShowError("New passwords do not match.");
+            Toast.ShowError(Localize["Profile_PasswordsDoNotMatch"]);
             return;
         }
 
         if (newPassword.Length < 8)
         {
-            Toast.ShowError("New password must be at least 8 characters.");
+            Toast.ShowError(Localize["Profile_PasswordTooShort"]);
             return;
         }
 
@@ -326,17 +364,17 @@ else
                 currentPassword = "";
                 newPassword = "";
                 confirmNewPassword = "";
-                Toast.ShowSuccess("Password changed successfully.");
+                Toast.ShowSuccess(Localize["Profile_PasswordChanged"]);
             }
             else
             {
-                Toast.ShowError("Password change failed. Check your current password and try again.");
+                Toast.ShowError(Localize["Profile_PasswordChangeFailed"]);
             }
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Password change failed");
-            Toast.ShowError($"Password change failed: {ex.Message}");
+            Toast.ShowError(Localize.Get("Profile_PasswordChangeError", ex.Message));
         }
         finally
         {
@@ -346,7 +384,6 @@ else
 
     private void RequestDelete()
     {
-        deleteConfirmMessage = "Are you sure you want to delete your account? All your data will be permanently removed. This cannot be undone.";
         showDeleteConfirm = true;
     }
 
@@ -362,14 +399,14 @@ else
         {
             var profileId = Preferences.Get("active_profile_id", string.Empty);
             AppState.CurrentUserProfile = null;
-            Toast.ShowSuccess("Account deleted.");
+            Toast.ShowSuccess(Localize["Profile_AccountDeleted"]);
             // Redirect to HTTP endpoint that can properly sign out and delete
             NavManager.NavigateTo($"/account-action/DeleteAccount?profileId={Uri.EscapeDataString(profileId)}", forceLoad: true);
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Account deletion failed");
-            Toast.ShowError($"Deletion failed: {ex.Message}");
+            Toast.ShowError(Localize.Get("Profile_DeletionFailed", ex.Message));
         }
         finally
         {

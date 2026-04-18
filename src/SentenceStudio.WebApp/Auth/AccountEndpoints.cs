@@ -1,5 +1,7 @@
 using System.Security.Claims;
+using System.Globalization;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -33,6 +35,37 @@ public static class AccountEndpoints
         {
             await signInManager.SignOutAsync();
             return Results.Redirect("/auth/login");
+        });
+
+        // Writes the ASP.NET Core culture cookie so subsequent requests in this browser
+        // resolve under the chosen culture. Blazor Server circuits can't write cookies
+        // directly (WebSocket transport), so Profile.razor navigates here with forceLoad.
+        group.MapGet("/SetCulture", (
+            [FromQuery] string culture,
+            [FromQuery] string? returnUrl,
+            HttpContext httpContext) =>
+        {
+            // Restrict to the cultures we support; fall back silently otherwise.
+            var supported = new[] { "en", "ko" };
+            var normalized = supported.Contains(culture) ? culture : "en";
+            var cookieValue = CookieRequestCultureProvider.MakeCookieValue(
+                new RequestCulture(new CultureInfo(normalized)));
+            httpContext.Response.Cookies.Append(
+                CookieRequestCultureProvider.DefaultCookieName,
+                cookieValue,
+                new CookieOptions
+                {
+                    Expires = DateTimeOffset.UtcNow.AddYears(1),
+                    IsEssential = true,
+                    SameSite = SameSiteMode.Lax,
+                    HttpOnly = false
+                });
+
+            // Only allow local redirects — never follow external returnUrl values.
+            var target = !string.IsNullOrEmpty(returnUrl) && Uri.IsWellFormedUriString(returnUrl, UriKind.Relative)
+                ? returnUrl
+                : "/profile";
+            return Results.Redirect(target);
         });
 
         // One-time auto-sign-in via token (used by Blazor Server interactive pages

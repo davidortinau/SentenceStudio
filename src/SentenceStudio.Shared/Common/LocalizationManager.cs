@@ -24,6 +24,14 @@ public class LocalizationManager : INotifyPropertyChanged {
 
     public object this[string resourceKey] => AppResources.ResourceManager.GetObject(resourceKey, AppResources.Culture) ?? string.Empty;
 
+    /// <summary>
+    /// Returns a localized string for the given key under the specified culture (or the
+    /// manager's current culture if null). Exposed so Blazor Server's per-circuit
+    /// localization service can look up strings without mutating process-wide culture.
+    /// </summary>
+    public string GetString(string key, CultureInfo? culture = null)
+        => AppResources.ResourceManager.GetString(key, culture ?? AppResources.Culture) ?? key;
+
     public void SetCulture(CultureInfo culture)
     {
         try{

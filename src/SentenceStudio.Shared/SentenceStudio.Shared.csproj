@@ -65,6 +65,10 @@
 			<StronglyTypedLanguage>CSharp</StronglyTypedLanguage>
 			<StronglyTypedNamespace>SentenceStudio.Resources.Strings</StronglyTypedNamespace>
 			<StronglyTypedClassName>AppResources</StronglyTypedClassName>
+			<LogicalName>SentenceStudio.Resources.Strings.AppResources.resources</LogicalName>
+		</EmbeddedResource>
+		<EmbeddedResource Update="Resources\Strings\AppResources.ko.resx">
+			<LogicalName>SentenceStudio.Resources.Strings.AppResources.ko.resources</LogicalName>
 		</EmbeddedResource>
 	</ItemGroup>
 

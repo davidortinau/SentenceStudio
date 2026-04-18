@@ -2002,6 +2002,105 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Activity.
+        /// </summary>
+        internal static string Nav_Activity {
+            get {
+                return ResourceManager.GetString("Nav_Activity", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Dashboard.
+        /// </summary>
+        internal static string Nav_Dashboard {
+            get {
+                return ResourceManager.GetString("Nav_Dashboard", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Feedback.
+        /// </summary>
+        internal static string Nav_Feedback {
+            get {
+                return ResourceManager.GetString("Nav_Feedback", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Import.
+        /// </summary>
+        internal static string Nav_Import {
+            get {
+                return ResourceManager.GetString("Nav_Import", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Learning Resources.
+        /// </summary>
+        internal static string Nav_LearningResources {
+            get {
+                return ResourceManager.GetString("Nav_LearningResources", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Logout.
+        /// </summary>
+        internal static string Nav_Logout {
+            get {
+                return ResourceManager.GetString("Nav_Logout", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Minimal Pairs.
+        /// </summary>
+        internal static string Nav_MinimalPairs {
+            get {
+                return ResourceManager.GetString("Nav_MinimalPairs", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Profile.
+        /// </summary>
+        internal static string Nav_Profile {
+            get {
+                return ResourceManager.GetString("Nav_Profile", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Settings.
+        /// </summary>
+        internal static string Nav_Settings {
+            get {
+                return ResourceManager.GetString("Nav_Settings", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Skills.
+        /// </summary>
+        internal static string Nav_Skills {
+            get {
+                return ResourceManager.GetString("Nav_Skills", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Vocabulary.
+        /// </summary>
+        internal static string Nav_Vocabulary {
+            get {
+                return ResourceManager.GetString("Nav_Vocabulary", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to New Conversation.
         /// </summary>
         internal static string NewConversation {
@@ -2718,6 +2817,411 @@ namespace SentenceStudio.Resources.Strings {
         internal static string ProductionCount {
             get {
                 return ResourceManager.GetString("ProductionCount", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Account deleted..
+        /// </summary>
+        internal static string Profile_AccountDeleted {
+            get {
+                return ResourceManager.GetString("Profile_AccountDeleted", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Cancel.
+        /// </summary>
+        internal static string Profile_Cancel {
+            get {
+                return ResourceManager.GetString("Profile_Cancel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Change Password.
+        /// </summary>
+        internal static string Profile_ChangePassword {
+            get {
+                return ResourceManager.GetString("Profile_ChangePassword", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Confirm Delete.
+        /// </summary>
+        internal static string Profile_ConfirmDelete {
+            get {
+                return ResourceManager.GetString("Profile_ConfirmDelete", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Confirm New Password.
+        /// </summary>
+        internal static string Profile_ConfirmNewPassword {
+            get {
+                return ResourceManager.GetString("Profile_ConfirmNewPassword", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Confirm new password.
+        /// </summary>
+        internal static string Profile_ConfirmNewPasswordPlaceholder {
+            get {
+                return ResourceManager.GetString("Profile_ConfirmNewPasswordPlaceholder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Current Password.
+        /// </summary>
+        internal static string Profile_CurrentPassword {
+            get {
+                return ResourceManager.GetString("Profile_CurrentPassword", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Enter current password.
+        /// </summary>
+        internal static string Profile_CurrentPasswordPlaceholder {
+            get {
+                return ResourceManager.GetString("Profile_CurrentPasswordPlaceholder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Danger Zone.
+        /// </summary>
+        internal static string Profile_DangerZone {
+            get {
+                return ResourceManager.GetString("Profile_DangerZone", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Permanently delete your account and all associated data..
+        /// </summary>
+        internal static string Profile_DangerZoneDescription {
+            get {
+                return ResourceManager.GetString("Profile_DangerZoneDescription", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Data Export.
+        /// </summary>
+        internal static string Profile_DataExport {
+            get {
+                return ResourceManager.GetString("Profile_DataExport", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Delete.
+        /// </summary>
+        internal static string Profile_Delete {
+            get {
+                return ResourceManager.GetString("Profile_Delete", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Are you sure you want to delete your account? All your data will be permanently removed. This cannot be undone..
+        /// </summary>
+        internal static string Profile_DeleteConfirmationMessage {
+            get {
+                return ResourceManager.GetString("Profile_DeleteConfirmationMessage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Delete My Account.
+        /// </summary>
+        internal static string Profile_DeleteMyAccount {
+            get {
+                return ResourceManager.GetString("Profile_DeleteMyAccount", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Deletion failed: {0}.
+        /// </summary>
+        internal static string Profile_DeletionFailed {
+            get {
+                return ResourceManager.GetString("Profile_DeletionFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Display Language.
+        /// </summary>
+        internal static string Profile_DisplayLanguage {
+            get {
+                return ResourceManager.GetString("Profile_DisplayLanguage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to English.
+        /// </summary>
+        internal static string Profile_DisplayLanguage_English {
+            get {
+                return ResourceManager.GetString("Profile_DisplayLanguage_English", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Korean.
+        /// </summary>
+        internal static string Profile_DisplayLanguage_Korean {
+            get {
+                return ResourceManager.GetString("Profile_DisplayLanguage_Korean", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Email.
+        /// </summary>
+        internal static string Profile_Email {
+            get {
+                return ResourceManager.GetString("Profile_Email", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Email address.
+        /// </summary>
+        internal static string Profile_EmailPlaceholder {
+            get {
+                return ResourceManager.GetString("Profile_EmailPlaceholder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Export All Data.
+        /// </summary>
+        internal static string Profile_ExportAllData {
+            get {
+                return ResourceManager.GetString("Profile_ExportAllData", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Export failed: {0}.
+        /// </summary>
+        internal static string Profile_ExportFailed {
+            get {
+                return ResourceManager.GetString("Profile_ExportFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Exporting....
+        /// </summary>
+        internal static string Profile_Exporting {
+            get {
+                return ResourceManager.GetString("Profile_Exporting", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Data exported successfully.
+        /// </summary>
+        internal static string Profile_ExportSuccess {
+            get {
+                return ResourceManager.GetString("Profile_ExportSuccess", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Language Settings.
+        /// </summary>
+        internal static string Profile_LanguageSettings {
+            get {
+                return ResourceManager.GetString("Profile_LanguageSettings", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Learning Preferences.
+        /// </summary>
+        internal static string Profile_LearningPreferences {
+            get {
+                return ResourceManager.GetString("Profile_LearningPreferences", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to load profile..
+        /// </summary>
+        internal static string Profile_LoadFailed {
+            get {
+                return ResourceManager.GetString("Profile_LoadFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Name.
+        /// </summary>
+        internal static string Profile_Name {
+            get {
+                return ResourceManager.GetString("Profile_Name", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Your name.
+        /// </summary>
+        internal static string Profile_NamePlaceholder {
+            get {
+                return ResourceManager.GetString("Profile_NamePlaceholder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Native Language.
+        /// </summary>
+        internal static string Profile_NativeLanguage {
+            get {
+                return ResourceManager.GetString("Profile_NativeLanguage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to New Password.
+        /// </summary>
+        internal static string Profile_NewPassword {
+            get {
+                return ResourceManager.GetString("Profile_NewPassword", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Enter new password.
+        /// </summary>
+        internal static string Profile_NewPasswordPlaceholder {
+            get {
+                return ResourceManager.GetString("Profile_NewPasswordPlaceholder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Profile.
+        /// </summary>
+        internal static string Profile_PageTitle {
+            get {
+                return ResourceManager.GetString("Profile_PageTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Password changed successfully..
+        /// </summary>
+        internal static string Profile_PasswordChanged {
+            get {
+                return ResourceManager.GetString("Profile_PasswordChanged", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Password change failed: {0}.
+        /// </summary>
+        internal static string Profile_PasswordChangeError {
+            get {
+                return ResourceManager.GetString("Profile_PasswordChangeError", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Password change failed. Check your current password and try again..
+        /// </summary>
+        internal static string Profile_PasswordChangeFailed {
+            get {
+                return ResourceManager.GetString("Profile_PasswordChangeFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to New passwords do not match..
+        /// </summary>
+        internal static string Profile_PasswordsDoNotMatch {
+            get {
+                return ResourceManager.GetString("Profile_PasswordsDoNotMatch", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to New password must be at least 8 characters..
+        /// </summary>
+        internal static string Profile_PasswordTooShort {
+            get {
+                return ResourceManager.GetString("Profile_PasswordTooShort", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Personal Information.
+        /// </summary>
+        internal static string Profile_PersonalInformation {
+            get {
+                return ResourceManager.GetString("Profile_PersonalInformation", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Profile saved.
+        /// </summary>
+        internal static string Profile_Saved {
+            get {
+                return ResourceManager.GetString("Profile_Saved", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to save profile: {0}.
+        /// </summary>
+        internal static string Profile_SaveFailed {
+            get {
+                return ResourceManager.GetString("Profile_SaveFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Save Profile.
+        /// </summary>
+        internal static string Profile_SaveProfile {
+            get {
+                return ResourceManager.GetString("Profile_SaveProfile", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Session Duration (minutes).
+        /// </summary>
+        internal static string Profile_SessionDuration {
+            get {
+                return ResourceManager.GetString("Profile_SessionDuration", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Target CEFR Level.
+        /// </summary>
+        internal static string Profile_TargetCEFRLevel {
+            get {
+                return ResourceManager.GetString("Profile_TargetCEFRLevel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Target Language.
+        /// </summary>
+        internal static string Profile_TargetLanguage {
+            get {
+                return ResourceManager.GetString("Profile_TargetLanguage", resourceCulture);
             }
         }
         

@@ -72,6 +72,9 @@ public static class SentenceStudioAppBuilder
         builder.Services.AddScoped<SentenceStudio.Repositories.MinimalPairRepository>();
         builder.Services.AddScoped<SentenceStudio.Repositories.MinimalPairSessionRepository>();
 
+        // Apply saved DisplayLanguage from UserProfile at MAUI launch (client only — single-user process).
+        builder.Services.AddSingleton<IMauiInitializeService, LocalizationInitializer>();
+
         return builder;
     }
 
