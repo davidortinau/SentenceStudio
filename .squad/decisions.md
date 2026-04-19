@@ -514,3 +514,58 @@ Separate issue: Orphaned Aspire process tree on port 22070 (15 processes) was bl
 - **Document for future maintainers:** If developers complain about "unexpected culture change," check browser cookies and dev environment scope (localhost vs separate machines).
 - **Phase 3 tech debt:** Consider an environment flag to disable culture cookie for dev scenarios where strict isolation is preferred (ASPNETCORE_CULTURE_COOKIE_ENABLED or similar).
 
+
+---
+
+## 2026-04-19 — Phase 2 Localization Blocker Fix (Captain Review Pending)
+
+**Date:** 2026-04-19  
+**Owner:** Zoe (Lead)  
+**Commit:** `b56c1c1` (local, unpushed)  
+**Status:** ✅ Fixed locally; awaiting Captain's `/review` + push
+
+### Context
+
+Code review of 12 unpushed Phase 2 localization commits (f8ff7ad..ba84ada) by code-review agent surfaced 2 BLOCKING issues. Kaylee was locked out of revision per **Reviewer Rejection Protocol**. Lead (Zoe) took ownership.
+
+### Blocker 1 — Missing resx keys
+
+**Finding:** Grep diff over all `.razor` files against `AppResources.resx` found **30 missing keys**. (Reviewer memo reported 38; 8 had been added in late Phase 2 batch the reviewer hadn't rebased on.)
+
+**Fix:** Added 30 keys to both `AppResources.resx` (en) and `AppResources.ko.resx` via `scripts/i18n-work/add_keys.py`:
+- `Common_*` (9): Email/Password/RememberMe, Create button, error-toast formatters
+- `VocabWordEdit_*` (13): Language/Lemma/Tags labels, mnemonic UI, validation + toast
+- `ResourceEdit_*` (4): File import status, generation success/failure, skipped-duplicates count
+- `Vocabulary_*` (3): Stats badge, bulk-select count, no-match empty state
+- `SkillEdit_*` (1): Save-failure toast
+
+All Korean translations idiomatic for context (not literal), matching Phase 1/2 conventions.
+
+### Blocker 2 — Skills.razor missing CultureChanged subscription
+
+**Finding:** Skills.razor does not implement `IDisposable` or subscribe to `CultureChanged` event. Inconsistent with 39 other Phase 2 razor files.
+
+**Fix:** Added `@implements IDisposable`, subscribed in `OnInitializedAsync`, unsubscribed in `Dispose`. Matches pattern used throughout Phase 2.
+
+### Verification
+
+- Build: `dotnet build src/SentenceStudio.WebApp/SentenceStudio.WebApp.csproj -f net10.0` → **0 errors**, 377 warnings (pre-existing)
+- Resx XML validated via ET.parse on both files
+- Grep diff post-fix: 0 missing keys in en, 0 missing keys in ko
+- Designer.cs auto-regenerated (270 new lines), included in commit
+
+### Lockout Enforcement
+
+Kaylee did not touch any file in this revision. All changes authored by Zoe. Consistent with protocol: original author frozen out of fix cycle after reviewer rejection.
+
+### Follow-ups (non-blocking, Phase 3)
+
+1. **Lint rule:** Any `.razor` with `@inject ... BlazorLocalizationService` must have `@implements IDisposable` + `CultureChanged` pair. Roslyn analyzer or shell check in CI.
+2. **i18n-diff script:** Automate `grep 'Localize\["[^"]+"\]'` vs resx keys diff; run as commit hook.
+3. **ResourceEdit_GenerateFailed dual-use:** Intentionally left with zero `{0}` placeholder, used both bare and with `string.Format(Localize[...], ex.Message)` (extra args silently ignored). If exception detail wanted in future, add separate `ResourceEdit_GenerateFailedWithDetail` key.
+
+### Decision
+
+- Ship as `b56c1c1` on `main` (local only)
+- **Do NOT push** — Captain owns push gate via `/review`
+- Kaylee stays locked out; Phase 2 batch is Zoe-revised and ready for final review

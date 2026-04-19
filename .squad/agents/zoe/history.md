@@ -636,3 +636,36 @@ were there.
 
 **Handoff:** Phase 2 plan proved reusable and scalable. Phase 3 can reuse batch strategy, tooling (`add_keys.py`), and naming taxonomy for Spanish/French/Japanese/Chinese support.
 
+
+## 2026-04-19 (later) — Phase 2 Blocker Fix Under Reviewer Rejection Protocol
+
+Kaylee was locked out of Phase 2 revisions after code-review flagged 2
+blockers. Took ownership as Lead, fixed both, commit `b56c1c1`.
+
+### Learnings
+
+- **Trust grep over the review memo.** Code review claimed 38 missing
+  keys; actual grep over `Localize["..."]` across all .razor found 30.
+  Several of the review's listed keys were already present — probably
+  added in a late Phase 2 batch the reviewer hadn't rebased on. Always
+  rerun the diff (`used-keys` − `resx-keys`) before trusting a number.
+- **Broaden the grep pattern.** Initial pattern `@Localize\[` missed
+  C#-block usages like `string.Format(Localize["X"], arg)` and
+  `$"{Localize["X"]}"` inside `@code` blocks. Dropping the `@` caught
+  another 15 keys. Future i18n-diff scripts should use
+  `Localize\["[^"]+"\]` without the leading `@`.
+- **Format-string dual-use keys need care.** `ResourceEdit_GenerateFailed`
+  is called both standalone (`$"{Localize[...]}"`) and with
+  `string.Format(..., ex.Message)`. Solved by keeping the base string
+  with zero placeholders — `string.Format("Generation failed", arg)`
+  silently ignores extra args. Alternative would be two separate keys;
+  kept as one to match existing code.
+- **Skills.razor CultureChanged gap.** 39/40 Phase 2 files subscribed
+  correctly; Skills.razor was the straggler. The pattern is mechanical
+  enough that a lint rule (`@inject BlazorLocalizationService` ⟹ must
+  have `@implements IDisposable` + CultureChanged subscribe/unsubscribe)
+  would catch future regressions. Filed as Phase 3 tooling idea.
+- **AppResources.Designer.cs autogens on build.** Adding resx keys
+  triggers a 270-line diff to the Designer file on next build. Commit
+  it alongside the resx change — otherwise the next contributor's first
+  build produces a mystery diff.
