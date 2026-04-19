@@ -569,3 +569,71 @@ Kaylee did not touch any file in this revision. All changes authored by Zoe. Con
 - Ship as `b56c1c1` on `main` (local only)
 - **Do NOT push** — Captain owns push gate via `/review`
 - Kaylee stays locked out; Phase 2 batch is Zoe-revised and ready for final review
+
+---
+
+## 2026-04-19 — Production Observability for SentenceStudio API
+
+**Date:** 2026-04-19  
+**Author:** Wash (Backend Dev)  
+**Status:** Proposed — awaiting Captain review
+
+### Problem
+
+Captain reported intermittent production errors (quiz sentence scoring, feedback submission) and asked whether he can see them in "Aspire on Azure." He cannot — Aspire dashboard is a local-dev tool only. Today on Azure Container Apps we have:
+
+- ✅ stdout/stderr → `ContainerAppConsoleLogs_CL` in Log Analytics `law-3ovvqiybthkb6`
+- ✅ Default ASP.NET Core console logger (captures `ILogger<T>` writes)
+- ❌ No Application Insights
+- ❌ No `UseExceptionHandler` / ProblemDetails middleware
+- ❌ No `/health` endpoint mapped
+- ❌ OTLP exporter in `ServiceDefaults.ConfigureOpenTelemetry` is gated on `OTEL_EXPORTER_OTLP_ENDPOINT` — unset in prod → OpenTelemetry traces/metrics are generated but go nowhere
+- ❌ `/api/v1/ai/chat` and `/ai/chat-messages` return `Results.Problem(...)` with no `logger.LogError` on the catch path → OpenAI failures are invisible unless the ASP.NET Core pipeline emits an unhandled-exception log
+
+Consequence: Captain can't triage "quiz scoring failed this morning" without reading raw container logs and guessing.
+
+### Proposal
+
+Three-part change, landed together in one PR (Wash, ~1 day of work):
+
+**1. Wire Application Insights**
+   - Add `Aspire.Azure.Monitor.OpenTelemetry` package reference in `SentenceStudio.ServiceDefaults`
+   - In `ConfigureOpenTelemetry`, register `UseAzureMonitor()` if `APPLICATIONINSIGHTS_CONNECTION_STRING` is set
+   - In `AppHost.cs`, add `builder.AddAzureApplicationInsights("appinsights")` and `.WithReference(appinsights)` on `api`, `webapp`, and `workers`
+   - **Gain:** end-to-end request traces, dependency calls (OpenAI, ElevenLabs, Postgres), unhandled exceptions with stack traces, Application Map view
+
+**2. Unhandled exception middleware + ProblemDetails**
+   - In `Program.cs`, before auth: `builder.Services.AddProblemDetails()` + `app.UseExceptionHandler()` + `app.UseStatusCodePages()`
+   - **Gain:** every unhandled exception is logged with full stack + request context; clients get structured ProblemDetails
+
+**3. Try/catch + `LogError` in AI endpoints**
+   - `/api/v1/ai/chat`, `/ai/chat-messages`, `/ai/analyze-image` wrap `GetResponseAsync` call with try/catch + structured logging (prompt hash, user-profile-id)
+   - **Gain:** OpenAI failures correlated to specific users/requests
+
+**4. `/health` endpoint**
+   - `app.MapHealthChecks("/health")`
+   - **Gain:** ACA health probes become explicit; simple DB ping check
+
+### Cost
+
+App Insights in sampling mode: well under $5/month. LAW workspace already exists.
+
+### Immediate Workaround (while PR is in flight)
+
+```bash
+az containerapp logs tail -g rg-sstudio-prod -n api --follow --tail 200
+```
+
+KQL for retrospective search:
+```kusto
+ContainerAppConsoleLogs_CL
+| where TimeGenerated > ago(12h)
+| where ContainerAppName_s == "api"
+| where Log_s has_any ("error", "Exception", "fail", "Unhandled", "FeedbackEndpoints")
+| project TimeGenerated, Log_s
+| order by TimeGenerated desc
+```
+
+### Ask
+
+Approve the four items above. Wash implements in single PR, ~1 day including end-to-end verification (MAUI → API → OpenAI traces flow).

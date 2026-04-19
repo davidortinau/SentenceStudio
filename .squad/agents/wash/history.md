@@ -1157,3 +1157,52 @@ Build NOT attempted — net11 preview SDK + MAUI workload aren't installed local
 
 - 2026-04-18: **Resx Manifest & Culture Identifier Alignment** — <LogicalName> csproj override forces correct embed stream name (Designer hardcodes SentenceStudio.Resources.Strings.AppResources but MSBuild defaults to assembly-qualified path). Culture filename MUST match all five touchpoints: DB (ko), cookie (ko), whitelist (ko), endpoint validator (ko), resx file (ko). Rename ko-KR → ko: ResourceManager fallback walks specific → parent → invariant; ko is neutral (no regional variant needed), satellite resolution via parent fallback handles ko-KR requests. Two hotfixes applied as lockout-honors when Kaylee's code was rejected for revision: Round 1 manifest fix, Round 2 culture rename.
 
+
+---
+
+## 2026-04-19 — Observability Audit (Captain: "Can I see errors in Aspire on Azure?")
+
+**Short answer:** No Aspire dashboard on Azure. OTLP exporter in ServiceDefaults is gated on `OTEL_EXPORTER_OTLP_ENDPOINT`, which is unset in production ACA. No App Insights wired. No `UseExceptionHandler`. No `/health` endpoint mapped.
+
+**What production observability actually is today:**
+- stdout/stderr from each container → Container Apps system logs → Log Analytics workspace `law-3ovvqiybthkb6` in `rg-sstudio-prod` (table: `ContainerAppConsoleLogs_CL`).
+- Default ASP.NET Core console logger picks up `ILogger<T>` writes. `FeedbackEndpoints` does log warnings on AI failures and errors on GitHub API failures via `loggerFactory.CreateLogger("FeedbackEndpoints")`.
+- `/api/v1/ai/chat` returns `Results.Problem(...)` but does NOT log the underlying exception — failures there are invisible unless the ASP.NET Core pipeline logs the unhandled exception.
+
+**Quiz sentence scoring path:** clients POST to `/api/v1/ai/chat` or `/api/v1/ai/chat-messages` with a scoring prompt (River's prompts). No dedicated "score" endpoint. Any 5xx from these lands in container console logs as default Kestrel exception log.
+
+**Feedback path:** `/api/v1/feedback/preview` + `/submit`. Logs "FeedbackEndpoints" category. AI enrichment failures log warning + fall back; GitHub failures log error.
+
+**What's missing (and recommended):**
+1. Application Insights wired to API + WebApp containers (cheapest observability gain — request traces, dependencies, exceptions, end-to-end correlation).
+2. `app.UseExceptionHandler()` + `ProblemDetails` so unhandled exceptions are logged with context instead of silently swallowed.
+3. `/api/v1/health` endpoint (live + ready) so ACA probe failures are explicit.
+4. Wrap `/api/v1/ai/chat` handlers in try/catch → `logger.LogError(ex, ...)` so OpenAI failures appear with stack traces, not just 503s.
+
+**Azure resources from `.azure/sstudio-prod/.env`:**
+- Subscription: `a25bc5f2-e641-47b9-89a8-5e5fd428d9d6`
+- RG: `rg-sstudio-prod`
+- ACA env: `cae-3ovvqiybthkb6` (domain `livelyforest-b32e7d63.centralus.azurecontainerapps.io`)
+- LAW: `law-3ovvqiybthkb6`
+- Container app names follow Aspire resource names: `api`, `webapp`, `marketing`, `workers`.
+
+**Immediate command for Captain** — tail the API container now:
+`az containerapp logs tail -g rg-sstudio-prod -n api --follow --tail 200`
+
+And for retrospective KQL over this morning:
+```kusto
+ContainerAppConsoleLogs_CL
+| where TimeGenerated > ago(12h)
+| where ContainerAppName_s == "api"
+| where Log_s has_any ("error", "Exception", "fail", "Unhandled", "FeedbackEndpoints")
+| project TimeGenerated, Log_s
+| order by TimeGenerated desc
+```
+
+**Decision memo:** `.squad/decisions/inbox/wash-observability.md` — recommend wiring App Insights + exception handler + `/health` in next sprint.
+
+---
+
+**2026-04-19: Observability Audit Note**
+Captain reported intermittent prod errors (quiz scoring, feedback). Decision memo filed: wire App Insights, add exception handler + ProblemDetails, wrap AI endpoint failures with try/catch+LogError, add /health endpoint. Awaiting approval; ~1 day implement + e2e verify.
+
