@@ -892,33 +892,74 @@ else
             var updatedProgress = currentItem.Progress;
             var responseTimeMs = responseTimer.IsRunning ? (int)responseTimer.ElapsedMilliseconds : 0;
             var gradedResults = new List<SentenceShortcutResult>(sentenceEntries.Count);
+            var gradingFailureMessages = new List<string>();
 
             foreach (var sentenceText in sentenceEntries)
             {
-                var grade = await TeacherSvc.GradeTargetWordSentence(sentenceText, currentItem.Word, targetLanguage, nativeLanguage);
-                var targetAnalysis = GetTargetWordAnalysis(grade, currentItem.Word);
-                if (targetAnalysis == null)
+                try
                 {
-                    throw new InvalidOperationException($"Target-word grading was unavailable for \"{currentItem.Word.TargetLanguageTerm}\".");
+                    var grade = await TeacherSvc.GradeTargetWordSentence(sentenceText, currentItem.Word, targetLanguage, nativeLanguage);
+                    var targetAnalysis = GetTargetWordAnalysis(grade, currentItem.Word);
+                    if (targetAnalysis == null)
+                    {
+                        var guidance = $"We couldn't confirm how \"{currentItem.Word.TargetLanguageTerm}\" was used in this sentence. Try a clearer sentence that directly uses the target word.";
+                        gradingFailureMessages.Add(guidance);
+                        Logger.LogWarning(
+                            "Target-word grading was unavailable for word {Word} in sentence shortcut entry",
+                            currentItem.Word.TargetLanguageTerm);
+
+                        gradedResults.Add(new SentenceShortcutResult(
+                            sentenceText,
+                            false,
+                            guidance,
+                            grade?.Accuracy ?? 0,
+                            grade?.Fluency ?? 0,
+                            grade?.AccuracyExplanation ?? string.Empty,
+                            grade?.FluencyExplanation ?? string.Empty,
+                            grade?.GrammarNotes?.RecommendedTranslation ?? string.Empty,
+                            grade?.GrammarNotes?.Explanation ?? string.Empty));
+                        continue;
+                    }
+
+                    var usageCorrect = targetAnalysis.UsageCorrect;
+                    var usageExplanation = string.IsNullOrWhiteSpace(targetAnalysis.UsageExplanation)
+                        ? usageCorrect
+                            ? $"\"{currentItem.Word.TargetLanguageTerm}\" is used meaningfully here."
+                            : $"This doesn't yet show a clear, correct use of \"{currentItem.Word.TargetLanguageTerm}\"."
+                        : targetAnalysis.UsageExplanation;
+
+                    gradedResults.Add(new SentenceShortcutResult(
+                        sentenceText,
+                        usageCorrect,
+                        usageExplanation,
+                        grade?.Accuracy ?? 0,
+                        grade?.Fluency ?? 0,
+                        grade?.AccuracyExplanation ?? string.Empty,
+                        grade?.FluencyExplanation ?? string.Empty,
+                        grade?.GrammarNotes?.RecommendedTranslation ?? string.Empty,
+                        grade?.GrammarNotes?.Explanation ?? string.Empty));
                 }
+                catch (Exception sentenceEx)
+                {
+                    var actionableMessage = GetActionableGradingErrorMessage(sentenceEx);
+                    gradingFailureMessages.Add(actionableMessage);
+                    Logger.LogError(
+                        sentenceEx,
+                        "Failed to grade sentence shortcut entry for word {Word}. Sentence: {Sentence}",
+                        currentItem.Word.TargetLanguageTerm,
+                        sentenceText);
 
-                var usageCorrect = targetAnalysis.UsageCorrect;
-                var usageExplanation = string.IsNullOrWhiteSpace(targetAnalysis.UsageExplanation)
-                    ? usageCorrect
-                        ? $"\"{currentItem.Word.TargetLanguageTerm}\" is used meaningfully here."
-                        : $"This doesn't yet show a clear, correct use of \"{currentItem.Word.TargetLanguageTerm}\"."
-                    : targetAnalysis.UsageExplanation;
-
-                gradedResults.Add(new SentenceShortcutResult(
-                    sentenceText,
-                    usageCorrect,
-                    usageExplanation,
-                    grade?.Accuracy ?? 0,
-                    grade?.Fluency ?? 0,
-                    grade?.AccuracyExplanation ?? string.Empty,
-                    grade?.FluencyExplanation ?? string.Empty,
-                    grade?.GrammarNotes?.RecommendedTranslation ?? string.Empty,
-                    grade?.GrammarNotes?.Explanation ?? string.Empty));
+                    gradedResults.Add(new SentenceShortcutResult(
+                        sentenceText,
+                        false,
+                        actionableMessage,
+                        0,
+                        0,
+                        string.Empty,
+                        string.Empty,
+                        string.Empty,
+                        string.Empty));
+                }
             }
 
             var creditedResults = gradedResults
@@ -980,11 +1021,16 @@ else
             {
                 Toast.ShowWarning($"Not yet—try another sentence using {currentItem.Word.TargetLanguageTerm}.");
             }
+
+            if (gradingFailureMessages.Count > 0)
+            {
+                Toast.ShowWarning($"Some sentences could not be fully graded: {gradingFailureMessages[0]}");
+            }
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to grade sentence shortcut for word {Word}", currentItem.Word.TargetLanguageTerm);
-            Toast.ShowError("We couldn't grade that sentence right now. No progress was changed. Please try again.");
+            Toast.ShowError($"We couldn't grade that sentence right now. {GetActionableGradingErrorMessage(ex)}");
         }
         finally
         {
@@ -1050,6 +1096,23 @@ else
         }
 
         return builder.ToString().Trim();
+    }
+
+    private static string GetActionableGradingErrorMessage(Exception ex)
+    {
+        if (ex is OperationCanceledException)
+            return "The grading request timed out. Please try again.";
+
+        if (ex is HttpRequestException)
+            return "The grading service is unavailable. Check your internet connection and try again.";
+
+        if (ex is InvalidOperationException invalidOperationException
+            && invalidOperationException.Message.Contains("no response", StringComparison.OrdinalIgnoreCase))
+        {
+            return "The AI returned an empty response. Please try sending one sentence at a time.";
+        }
+
+        return $"Error details: {ex.Message}";
     }
 
     private QuizChoiceOption[] GenerateChoiceOptions(VocabularyQuizItem item)
