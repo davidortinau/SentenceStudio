@@ -1,5 +1,7 @@
 @page "/auth/register"
 @attribute [AllowAnonymous]
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@implements IDisposable
 
 <EnvironmentBadge />
 <div class="d-flex align-items-center justify-content-center" style="min-height: 100dvh; overflow-y: auto;">
@@ -11,18 +13,17 @@
         </div>
         <div class="card shadow-sm border-0">
             <div class="card-body p-4">
-        <h2 class="card-title text-center mb-4">Create Account</h2>
+        <h2 class="card-title text-center mb-4">@Localize["Register_CreateAccount"]</h2>
 
         @if (registrationComplete)
         {
             <div class="text-center py-4">
                 <i class="bi bi-envelope-check" style="font-size: 3rem; color: var(--bs-success);"></i>
-                <h2 class="ss-title2 mt-3 mb-2">Check your email</h2>
+                <h2 class="ss-title2 mt-3 mb-2">@Localize["Register_CheckYourEmail"]</h2>
                 <p class="ss-body2 text-secondary-ss mb-4">
-                    We sent a confirmation link to <strong>@email</strong>.
-                    Please verify your email address, then sign in.
+                    @string.Format(Localize["Register_VerificationSent"], email)
                 </p>
-                <a href="/auth/login" class="btn btn-primary w-100">Go to Sign In</a>
+                <a href="/auth/login" class="btn btn-primary w-100">@Localize["Register_GoToSignIn"]</a>
             </div>
         }
         else
@@ -35,22 +36,22 @@
             }
 
             <div class="mb-3">
-                <label class="form-label" for="displayName">Display Name</label>
+                <label class="form-label" for="displayName">@Localize["Register_DisplayName"]</label>
                 <input type="text" id="displayName" class="form-control"
-                       @bind="displayName" @bind:event="oninput" placeholder="Your name" disabled="@isBusy" />
+                       @bind="displayName" @bind:event="oninput" placeholder='@Localize["Register_YourName"]' disabled="@isBusy" />
             </div>
 
             <div class="mb-3">
-                <label class="form-label" for="email">Email</label>
+                <label class="form-label" for="email">@Localize["Common_Email"]</label>
                 <input type="email" id="email" class="form-control"
-                       @bind="email" @bind:event="oninput" placeholder="you@example.com" disabled="@isBusy" />
+                       @bind="email" @bind:event="oninput" placeholder='@Localize["Common_EmailPlaceholder"]' disabled="@isBusy" />
             </div>
 
             <div class="mb-3">
-                <label class="form-label" for="password">Password</label>
+                <label class="form-label" for="password">@Localize["Common_Password"]</label>
                 <div class="input-group">
                     <input type="@(showPassword ? "text" : "password")" id="password" class="form-control"
-                           @bind="password" @bind:event="oninput" placeholder="Password" disabled="@isBusy" />
+                           @bind="password" @bind:event="oninput" placeholder='@Localize["Common_PasswordPlaceholder"]' disabled="@isBusy" />
                     <button class="btn btn-outline-secondary" type="button" @onclick="() => showPassword = !showPassword" disabled="@isBusy">
                         <i class="bi @(showPassword ? "bi-eye-slash" : "bi-eye")"></i>
                     </button>
@@ -60,25 +61,25 @@
                     <div class="mt-1">
                         <small class="@(password.Length >= 8 ? "text-success" : "text-danger")">
                             <i class="bi @(password.Length >= 8 ? "bi-check-circle" : "bi-x-circle")"></i>
-                            At least 8 characters
+                            @Localize["Register_AtLeast8Chars"]
                         </small><br/>
                         <small class="@(password.Any(char.IsUpper) ? "text-success" : "text-danger")">
                             <i class="bi @(password.Any(char.IsUpper) ? "bi-check-circle" : "bi-x-circle")"></i>
-                            One uppercase letter
+                            @Localize["Register_OneUppercase"]
                         </small><br/>
                         <small class="@(password.Any(char.IsDigit) ? "text-success" : "text-danger")">
                             <i class="bi @(password.Any(char.IsDigit) ? "bi-check-circle" : "bi-x-circle")"></i>
-                            One number
+                            @Localize["Register_OneNumber"]
                         </small>
                     </div>
                 }
             </div>
 
             <div class="mb-3">
-                <label class="form-label" for="confirmPassword">Confirm Password</label>
+                <label class="form-label" for="confirmPassword">@Localize["Register_ConfirmPassword"]</label>
                 <div class="input-group">
                     <input type="@(showConfirmPassword ? "text" : "password")" id="confirmPassword" class="form-control"
-                           @bind="confirmPassword" @bind:event="oninput" placeholder="Confirm password" disabled="@isBusy" />
+                           @bind="confirmPassword" @bind:event="oninput" placeholder='@Localize["Register_ConfirmPasswordPlaceholder"]' disabled="@isBusy" />
                     <button class="btn btn-outline-secondary" type="button" @onclick="() => showConfirmPassword = !showConfirmPassword" disabled="@isBusy">
                         <i class="bi @(showConfirmPassword ? "bi-eye-slash" : "bi-eye")"></i>
                     </button>
@@ -88,7 +89,7 @@
             @if (!string.IsNullOrEmpty(password) && !string.IsNullOrEmpty(confirmPassword) && password != confirmPassword)
             {
                 <p class="text-danger ss-caption1 mb-3">
-                    <i class="bi bi-exclamation-triangle"></i> Passwords do not match.
+                    <i class="bi bi-exclamation-triangle"></i> @Localize["Register_PasswordsDoNotMatch"]
                 </p>
             }
 
@@ -97,11 +98,11 @@
                     @if (isBusy)
                     {
                         <span class="spinner-border spinner-border-sm me-2"></span>
-                        <span>Creating account...</span>
+                        <span>@Localize["Register_CreatingAccount"]</span>
                     }
                     else
                     {
-                        <span>Create Account</span>
+                        <span>@Localize["Register_CreateAccount"]</span>
                     }
                 </button>
             </div>
@@ -134,6 +135,13 @@
     private bool registrationComplete;
     private bool showPassword;
     private bool showConfirmPassword;
+
+    protected override void OnInitialized()
+    {
+        Localize.CultureChanged += OnCultureChanged;
+    }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
 
     private bool IsPasswordValid =>
         !string.IsNullOrEmpty(password)
@@ -185,7 +193,7 @@
         }
         catch (NotSupportedException)
         {
-            errorMessage = "Registration is not available with the current authentication configuration.";
+            errorMessage = Localize["Register_NotAvailable"];
         }
         catch (InvalidOperationException ex)
         {
@@ -194,12 +202,17 @@
         catch (Exception ex)
         {
             Logger.LogError(ex, "Registration failed");
-            errorMessage = "Registration failed. Please check your information and try again.";
+            errorMessage = Localize["Register_Failed"];
         }
         finally
         {
             isBusy = false;
             StateHasChanged();
         }
+    }
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnCultureChanged;
     }
 }

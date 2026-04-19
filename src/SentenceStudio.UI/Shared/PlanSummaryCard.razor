@@ -1,11 +1,13 @@
 @using SentenceStudio.Services.Progress
 @using SentenceStudio.Data
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@implements IDisposable
 
 <div class="mt-3 pt-3 border-top">
     <div class="d-flex justify-content-between mb-2">
         <span class="ss-body1 fw-bold">@Day.Date.ToString("ddd, MMM d")</span>
         <span class="badge @(Day.AllPlansCompleted ? "bg-success" : "bg-secondary")">
-            @GetCompletedCount()/@GetTotalCount() completed
+            @GetCompletedCount()/@GetTotalCount() @Localize["PlanSummary_Completed"]
         </span>
     </div>
 
@@ -17,7 +19,7 @@
         @if (Day.Plans.Count > 1)
         {
             <div class="ss-caption1 text-secondary-ss mt-2 mb-1">
-                Plan @planIndex (@plan.GeneratedAt.ToLocalTime().ToString("h:mm tt"))
+                @Localize["PlanSummary_Plan"] @planIndex (@plan.GeneratedAt.ToLocalTime().ToString("h:mm tt"))
             </div>
         }
 
@@ -37,7 +39,7 @@
         }
 
         <div class="d-flex justify-content-between mt-1 pt-1 border-top" style="border-color: var(--bs-border-color) !important;">
-            <span class="ss-caption1 text-secondary-ss">Total time</span>
+            <span class="ss-caption1 text-secondary-ss">@Localize["PlanSummary_TotalTime"]</span>
             <span class="ss-caption1 fw-bold">@plan.TotalMinutesSpent min</span>
         </div>
 
@@ -47,6 +49,13 @@
 
 @code {
     [Parameter] public ActivityLogDay Day { get; set; } = default!;
+
+    protected override void OnInitialized()
+    {
+        Localize.CultureChanged += OnCultureChanged;
+    }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
 
     private int GetCompletedCount() =>
         Day.Plans.Sum(p => p.CompletedCount);
@@ -76,4 +85,9 @@
         PlanActivityType.VocabularyGame => "Vocabulary Game",
         _ => type.ToString()
     };
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnCultureChanged;
+    }
 }

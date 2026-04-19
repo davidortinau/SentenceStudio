@@ -6,49 +6,51 @@
 @inject NavigationManager Nav
 @inject ToastService Toast
 @inject ILogger<Feedback> Logger
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@implements IDisposable
 
-<PageHeader Title="Feedback" />
+<PageHeader Title='@Localize["Feedback_Title"]' />
 
-<p class="ss-body2 text-secondary-ss mb-3">Help us improve SentenceStudio</p>
+<p class="ss-body2 text-secondary-ss mb-3">@Localize["Feedback_HelpImprove"]</p>
 
 @if (currentState == PageState.Form)
 {
     <div class="card card-ss p-4 mb-3">
-        <h5 class="ss-title3 mb-3">What kind of feedback?</h5>
+        <h5 class="ss-title3 mb-3">@Localize["Feedback_WhatKind"]</h5>
 
         <div class="btn-group w-100 mb-4" role="group">
             <input type="radio" class="btn-check" name="feedbackType" id="typeAutoDetect"
                    checked="@(selectedType == "auto-detect")"
                    @onchange="@(() => selectedType = "auto-detect")" />
-            <label class="btn btn-outline-secondary" for="typeAutoDetect">Auto-detect</label>
+            <label class="btn btn-outline-secondary" for="typeAutoDetect">@Localize["Feedback_AutoDetect"]</label>
 
             <input type="radio" class="btn-check" name="feedbackType" id="typeBug"
                    checked="@(selectedType == "bug")"
                    @onchange="@(() => selectedType = "bug")" />
             <label class="btn btn-outline-secondary" for="typeBug">
-                <i class="bi bi-bug me-1"></i> Bug Report
+                <i class="bi bi-bug me-1"></i> @Localize["Feedback_BugReport"]
             </label>
 
             <input type="radio" class="btn-check" name="feedbackType" id="typeFeature"
                    checked="@(selectedType == "enhancement")"
                    @onchange="@(() => selectedType = "enhancement")" />
             <label class="btn btn-outline-secondary" for="typeFeature">
-                <i class="bi bi-lightbulb me-1"></i> Feature Request
+                <i class="bi bi-lightbulb me-1"></i> @Localize["Feedback_FeatureRequest"]
             </label>
         </div>
 
         <div class="mb-3">
             <label class="form-label ss-body2 text-secondary-ss" for="feedbackDescription">
-                Description
+                @Localize["Feedback_Description"]
             </label>
             <textarea class="form-control form-control-ss" id="feedbackDescription"
                       rows="6" @bind="description"
-                      placeholder="Describe the issue or feature you'd like..."></textarea>
+                      placeholder='@Localize["Feedback_DescribePlaceholder"]'></textarea>
         </div>
 
         <p class="ss-caption1 text-secondary-ss mb-3">
             <i class="bi bi-info-circle me-1"></i>
-            Your feedback will be posted as a public GitHub issue on the SentenceStudio repository.
+            @Localize["Feedback_GitHubNotice"]
         </p>
 
         <button class="btn btn-ss-primary" type="button"
@@ -57,12 +59,12 @@
             @if (isPreviewing)
             {
                 <span class="spinner-border spinner-border-sm me-2" role="status"></span>
-                <span>Generating preview...</span>
+                <span>@Localize["Feedback_GeneratingPreview"]</span>
             }
             else
             {
                 <i class="bi bi-eye me-1"></i>
-                <span>Preview</span>
+                <span>@Localize["Feedback_Preview"]</span>
             }
         </button>
     </div>
@@ -86,7 +88,7 @@ else if (currentState == PageState.Preview)
         {
             <div class="alert alert-warning ss-body2 mb-3">
                 <i class="bi bi-exclamation-triangle me-1"></i>
-                AI enrichment unavailable — your feedback will be submitted as-is.
+                @Localize["Feedback_AIUnavailable"]
             </div>
         }
 
@@ -97,19 +99,19 @@ else if (currentState == PageState.Preview)
         <div class="d-flex gap-2">
             <button class="btn btn-ss-secondary" type="button" @onclick="BackToForm"
                     disabled="@isSubmitting">
-                <i class="bi bi-pencil me-1"></i> Edit
+                <i class="bi bi-pencil me-1"></i> @Localize["Feedback_Edit"]
             </button>
             <button class="btn btn-ss-primary" type="button" @onclick="SubmitFeedback"
                     disabled="@isSubmitting">
                 @if (isSubmitting)
                 {
                     <span class="spinner-border spinner-border-sm me-2" role="status"></span>
-                    <span>Submitting...</span>
+                    <span>@Localize["Feedback_Submitting"]</span>
                 }
                 else
                 {
                     <i class="bi bi-send me-1"></i>
-                    <span>Submit</span>
+                    <span>@Localize["Feedback_Submit"]</span>
                 }
             </button>
         </div>
@@ -121,18 +123,18 @@ else if (currentState == PageState.Success)
         <div class="mb-3">
             <i class="bi bi-check-circle fs-1 text-success"></i>
         </div>
-        <h5 class="ss-title3 mb-2">Feedback submitted successfully!</h5>
+        <h5 class="ss-title3 mb-2">@Localize["Feedback_SubmitSuccess"]</h5>
         <p class="ss-body2 text-secondary-ss mb-1">@submittedTitle</p>
         @if (!string.IsNullOrEmpty(submittedIssueUrl))
         {
             <p class="ss-body2 mb-3">
                 <a href="@submittedIssueUrl" target="_blank" rel="noopener noreferrer">
-                    <i class="bi bi-box-arrow-up-right me-1"></i> View on GitHub
+                    <i class="bi bi-box-arrow-up-right me-1"></i> @Localize["Feedback_ViewOnGitHub"]
                 </a>
             </p>
         }
         <button class="btn btn-ss-primary" type="button" @onclick="ResetForm">
-            <i class="bi bi-plus-lg me-1"></i> Submit Another
+            <i class="bi bi-plus-lg me-1"></i> @Localize["Feedback_SubmitAnother"]
         </button>
     </div>
 }
@@ -141,6 +143,13 @@ else if (currentState == PageState.Success)
     [Inject] private IFeedbackApiClient FeedbackApi { get; set; } = default!;
 
     private enum PageState { Form, Preview, Success }
+
+    protected override void OnInitialized()
+    {
+        Localize.CultureChanged += OnCultureChanged;
+    }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
 
     private PageState currentState = PageState.Form;
     private string selectedType = "auto-detect";
@@ -194,7 +203,7 @@ else if (currentState == PageState.Success)
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to preview feedback");
-            Toast.ShowError("Failed to generate preview. Please try again.");
+            Toast.ShowError(Localize["Feedback_PreviewFailed"]);
         }
         finally
         {
@@ -217,12 +226,12 @@ else if (currentState == PageState.Success)
             submittedTitle = result.Title;
             submittedIssueUrl = result.IssueUrl;
             currentState = PageState.Success;
-            Toast.ShowSuccess("Feedback submitted successfully!");
+            Toast.ShowSuccess(Localize["Feedback_SubmitSuccessToast"]);
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to submit feedback");
-            Toast.ShowError("Failed to submit feedback. Please try again.");
+            Toast.ShowError(Localize["Feedback_SubmitFailed"]);
         }
         finally
         {
@@ -328,5 +337,10 @@ else if (currentState == PageState.Success)
         }
 
         return result.ToString();
+    }
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnCultureChanged;
     }
 }

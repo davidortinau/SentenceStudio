@@ -4938,4 +4938,816 @@
     <value>활성 사용자 프로필이 없습니다. 먼저 프로필을 선택하세요.</value>
     <comment>Toast error</comment>
   </data>
+  <data name="Auth_Welcome" xml:space="preserve">
+    <value>환영합니다</value>
+    <comment>Auth page title</comment>
+  </data>
+  <data name="Auth_WelcomeToApp" xml:space="preserve">
+    <value>SentenceStudio에 오신 것을 환영합니다</value>
+    <comment>Auth page hero title</comment>
+  </data>
+  <data name="Auth_SignInOrSelectUser" xml:space="preserve">
+    <value>계정으로 로그인하거나 로컬 사용자를 선택하여 계속하세요.</value>
+    <comment>Auth instructions</comment>
+  </data>
+  <data name="Auth_SignIn" xml:space="preserve">
+    <value>로그인</value>
+    <comment>Sign In button</comment>
+  </data>
+  <data name="Auth_CreateAccount" xml:space="preserve">
+    <value>계정 만들기</value>
+    <comment>Create Account button</comment>
+  </data>
+  <data name="Auth_OrChooseLocalUser" xml:space="preserve">
+    <value>또는 로컬 사용자를 선택하세요</value>
+    <comment>Local user picker section title</comment>
+  </data>
+  <data name="Auth_DeleteProfile" xml:space="preserve">
+    <value>프로필 삭제</value>
+    <comment>Delete profile button title</comment>
+  </data>
+  <data name="Auth_NewUserCreateAccount" xml:space="preserve">
+    <value>새 사용자이신가요? 계정 만들기</value>
+    <comment>New user registration link</comment>
+  </data>
+  <data name="Auth_ConfirmDelete" xml:space="preserve">
+    <value>삭제 확인</value>
+    <comment>Delete confirmation modal title</comment>
+  </data>
+  <data name="Auth_Cancel" xml:space="preserve">
+    <value>취소</value>
+    <comment>Cancel button</comment>
+  </data>
+  <data name="Auth_Delete" xml:space="preserve">
+    <value>삭제</value>
+    <comment>Delete button</comment>
+  </data>
+  <data name="Auth_DeleteConfirmMessage" xml:space="preserve">
+    <value>프로필 "{0}"을(를) 삭제하시겠습니까? 사용자와 관련된 모든 데이터가 제거됩니다. 이 작업은 취소할 수 없습니다.</value>
+    <comment>Delete confirmation message with profile name</comment>
+  </data>
+  <data name="Auth_ServerAuthRequired" xml:space="preserve">
+    <value>서버 인증이 필요합니다. 먼저 로그인하세요.</value>
+    <comment>Auth error message</comment>
+  </data>
+  <data name="Login_SignIn" xml:space="preserve">
+    <value>로그인</value>
+    <comment>Login page title</comment>
+  </data>
+  <data name="Login_SigningIn" xml:space="preserve">
+    <value>로그인 중...</value>
+    <comment>Login in progress</comment>
+  </data>
+  <data name="Login_ForgotPassword" xml:space="preserve">
+    <value>비밀번호를 잊으셨나요?</value>
+    <comment>Forgot password link</comment>
+  </data>
+  <data name="Login_NoAccountCreateOne" xml:space="preserve">
+    <value>계정이 없으신가요?</value>
+    <comment>Create account prompt</comment>
+  </data>
+  <data name="Login_CreateOne" xml:space="preserve">
+    <value>계정 만들기</value>
+    <comment>Create account link</comment>
+  </data>
+  <data name="Login_InvalidCredentials" xml:space="preserve">
+    <value>이메일 또는 비밼번호가 잘못되었습니다. 다시 시도하세요.</value>
+    <comment>Invalid login error</comment>
+  </data>
+  <data name="Login_NotAvailable" xml:space="preserve">
+    <value>현재 인증 구성에서는 이메일/비밀번호 로그인을 사용할 수 없습니다.</value>
+    <comment>Auth config error</comment>
+  </data>
+  <data name="Login_ConnectionError" xml:space="preserve">
+    <value>서버에 연결할 수 없습니다. 연결을 확인하고 다시 시도하세요.</value>
+    <comment>Connection error</comment>
+  </data>
+  <data name="Login_UnexpectedError" xml:space="preserve">
+    <value>예기치 않은 오류가 발생했습니다. 다시 시도하세요.</value>
+    <comment>Generic error</comment>
+  </data>
+  <data name="Register_CreateAccount" xml:space="preserve">
+    <value>계정 만들기</value>
+    <comment>Register page title</comment>
+  </data>
+  <data name="Register_CheckYourEmail" xml:space="preserve">
+    <value>이메일을 확인하세요</value>
+    <comment>Email verification title</comment>
+  </data>
+  <data name="Register_VerificationSent" xml:space="preserve">
+    <value>{0}(으)로 확인 링크를 보냈습니다. 이메일 주소를 확인한 후 로그인하세요.</value>
+    <comment>Verification sent message</comment>
+  </data>
+  <data name="Register_GoToSignIn" xml:space="preserve">
+    <value>로그인으로 이동</value>
+    <comment>Go to sign in button</comment>
+  </data>
+  <data name="Register_DisplayName" xml:space="preserve">
+    <value>표시 이름</value>
+    <comment>Display name field label</comment>
+  </data>
+  <data name="Register_YourName" xml:space="preserve">
+    <value>이름</value>
+    <comment>Display name placeholder</comment>
+  </data>
+  <data name="Register_ConfirmPassword" xml:space="preserve">
+    <value>비밀번호 확인</value>
+    <comment>Confirm password field label</comment>
+  </data>
+  <data name="Register_ConfirmPasswordPlaceholder" xml:space="preserve">
+    <value>비밀번호 확인</value>
+    <comment>Confirm password placeholder</comment>
+  </data>
+  <data name="Register_AtLeast8Chars" xml:space="preserve">
+    <value>최소 8자</value>
+    <comment>Password requirement</comment>
+  </data>
+  <data name="Register_OneUppercase" xml:space="preserve">
+    <value>대문자 1개 이상</value>
+    <comment>Password requirement</comment>
+  </data>
+  <data name="Register_OneNumber" xml:space="preserve">
+    <value>숫자 1개 이상</value>
+    <comment>Password requirement</comment>
+  </data>
+  <data name="Register_PasswordsDoNotMatch" xml:space="preserve">
+    <value>비밀번호가 일치하지 않습니다.</value>
+    <comment>Password mismatch error</comment>
+  </data>
+  <data name="Register_CreatingAccount" xml:space="preserve">
+    <value>계정 생성 중...</value>
+    <comment>Registration in progress</comment>
+  </data>
+  <data name="Register_AlreadyHaveAccount" xml:space="preserve">
+    <value>이미 계정이 있으신가요?</value>
+    <comment>Sign in prompt</comment>
+  </data>
+  <data name="Register_NotAvailable" xml:space="preserve">
+    <value>현재 인증 구성에서는 회원가입을 사용할 수 없습니다.</value>
+    <comment>Registration config error</comment>
+  </data>
+  <data name="Register_Failed" xml:space="preserve">
+    <value>회원가입에 실패했습니다. 정보를 확인하고 다시 시도하세요.</value>
+    <comment>Registration error</comment>
+  </data>
+  <data name="ForgotPassword_Title" xml:space="preserve">
+    <value>비밀번호 찾기</value>
+    <comment>Forgot password page title</comment>
+  </data>
+  <data name="ForgotPassword_Instructions" xml:space="preserve">
+    <value>이메일 주소를 입력하시면 비밀번호 재설정 링크를 보내드립니다.</value>
+    <comment>Instructions</comment>
+  </data>
+  <data name="ForgotPassword_ResetSent" xml:space="preserve">
+    <value>해당 이메일로 계정이 존재하는 경우 비밀번호 재설정 링크가 전송되었습니다.</value>
+    <comment>Reset sent message</comment>
+  </data>
+  <data name="ForgotPassword_BackToSignIn" xml:space="preserve">
+    <value>로그인으로 돌아가기</value>
+    <comment>Back to sign in link</comment>
+  </data>
+  <data name="ForgotPassword_Sending" xml:space="preserve">
+    <value>전송 중...</value>
+    <comment>Sending in progress</comment>
+  </data>
+  <data name="ForgotPassword_SendResetLink" xml:space="preserve">
+    <value>재설정 링크 보내기</value>
+    <comment>Send reset link button</comment>
+  </data>
+  <data name="Onboarding_Welcome" xml:space="preserve">
+    <value>환영합니다</value>
+    <comment>Onboarding welcome title</comment>
+  </data>
+  <data name="Onboarding_SetupJourney" xml:space="preserve">
+    <value>언어 학습 여정을 설정해 보겠습니다.</value>
+    <comment>Setup instructions</comment>
+  </data>
+  <data name="Onboarding_GetStarted" xml:space="preserve">
+    <value>시작하기</value>
+    <comment>Get started button</comment>
+  </data>
+  <data name="Onboarding_NativeLanguage" xml:space="preserve">
+    <value>모국어는 무엇인가요?</value>
+    <comment>Native language question</comment>
+  </data>
+  <data name="Onboarding_TargetLanguage" xml:space="preserve">
+    <value>어떤 언어를 배우고 있나요?</value>
+    <comment>Target language question</comment>
+  </data>
+  <data name="Onboarding_YourName" xml:space="preserve">
+    <value>이름이 무엇인가요?</value>
+    <comment>Name question</comment>
+  </data>
+  <data name="Onboarding_EnterName" xml:space="preserve">
+    <value>이름을 입력하세요</value>
+    <comment>Name input placeholder</comment>
+  </data>
+  <data name="Onboarding_GeneratingNames" xml:space="preserve">
+    <value>이름 제안 생성 중...</value>
+    <comment>Name generation in progress</comment>
+  </data>
+  <data name="Onboarding_OrChooseSuggested" xml:space="preserve">
+    <value>또는 제안된 이름을 선택하세요:</value>
+    <comment>Suggested names prompt</comment>
+  </data>
+  <data name="Onboarding_LearningPreferences" xml:space="preserve">
+    <value>학습 설정</value>
+    <comment>Preferences section title</comment>
+  </data>
+  <data name="Onboarding_StudyDuration" xml:space="preserve">
+    <value>매일 얼마나 공부하고 싶으신가요?</value>
+    <comment>Daily study duration question</comment>
+  </data>
+  <data name="Onboarding_TargetLevel" xml:space="preserve">
+    <value>목표 레벨은 무엇인가요?</value>
+    <comment>Target level question</comment>
+  </data>
+  <data name="Onboarding_AllSet" xml:space="preserve">
+    <value>모두 완료되었습니다!</value>
+    <comment>Completion title</comment>
+  </data>
+  <data name="Onboarding_CreateStarterContent" xml:space="preserve">
+    <value>시작 학습 콘텐츠를 생성해 드릴까요?</value>
+    <comment>Starter content prompt</comment>
+  </data>
+  <data name="Onboarding_SavingProfile" xml:space="preserve">
+    <value>프로필 저장 중</value>
+    <comment>Saving profile step</comment>
+  </data>
+  <data name="Onboarding_GeneratingVocab" xml:space="preserve">
+    <value>시작 어휘 생성 중 (잠시 시간이 걸릴 수 있습니다)</value>
+    <comment>Generating vocab step</comment>
+  </data>
+  <data name="Onboarding_CreatingSkillProfile" xml:space="preserve">
+    <value>스킬 프로필 생성 중</value>
+    <comment>Creating skill profile step</comment>
+  </data>
+  <data name="Onboarding_CreateStarter" xml:space="preserve">
+    <value>시작 콘텐츠 생성</value>
+    <comment>Create starter content button</comment>
+  </data>
+  <data name="Onboarding_SkipSetup" xml:space="preserve">
+    <value>건너뛰기 -- 직접 설정하겠습니다</value>
+    <comment>Skip button</comment>
+  </data>
+  <data name="Onboarding_Back" xml:space="preserve">
+    <value>이전</value>
+    <comment>Back button</comment>
+  </data>
+  <data name="Onboarding_Next" xml:space="preserve">
+    <value>다음</value>
+    <comment>Next button</comment>
+  </data>
+  <data name="Import_YouTubeImport" xml:space="preserve">
+    <value>YouTube 가져오기</value>
+    <comment>Import page title</comment>
+  </data>
+  <data name="Import_AddChannel" xml:space="preserve">
+    <value>채널 추가</value>
+    <comment>Add channel button</comment>
+  </data>
+  <data name="Import_Refresh" xml:space="preserve">
+    <value>새로고침</value>
+    <comment>Refresh button</comment>
+  </data>
+  <data name="Import_MyChannels" xml:space="preserve">
+    <value>내 채널</value>
+    <comment>My Channels tab</comment>
+  </data>
+  <data name="Import_SingleVideo" xml:space="preserve">
+    <value>단일 비디오</value>
+    <comment>Single Video tab</comment>
+  </data>
+  <data name="Import_History" xml:space="preserve">
+    <value>가져오기 기록</value>
+    <comment>Import History tab</comment>
+  </data>
+  <data name="Import_NoChannelsYet" xml:space="preserve">
+    <value>모니터링 중인 채널이 없습니다</value>
+    <comment>Empty channels state</comment>
+  </data>
+  <data name="Import_AddFirstChannel" xml:space="preserve">
+    <value>첫 번째 채널 추가</value>
+    <comment>Add first channel button</comment>
+  </data>
+  <data name="Import_LastChecked" xml:space="preserve">
+    <value>마지막 확인:</value>
+    <comment>Last checked label</comment>
+  </data>
+  <data name="Import_Never" xml:space="preserve">
+    <value>없음</value>
+    <comment>Never checked value</comment>
+  </data>
+  <data name="Import_PauseMonitoring" xml:space="preserve">
+    <value>모니터링 일시정지</value>
+    <comment>Pause monitoring title</comment>
+  </data>
+  <data name="Import_ResumeMonitoring" xml:space="preserve">
+    <value>모니터링 재개</value>
+    <comment>Resume monitoring title</comment>
+  </data>
+  <data name="Import_YouTubeURL" xml:space="preserve">
+    <value>YouTube URL</value>
+    <comment>YouTube URL field label</comment>
+  </data>
+  <data name="Import_Fetch" xml:space="preserve">
+    <value>가져오기</value>
+    <comment>Fetch button</comment>
+  </data>
+  <data name="Import_TranscriptLanguage" xml:space="preserve">
+    <value>자막 언어</value>
+    <comment>Transcript language label</comment>
+  </data>
+  <data name="Import_Transcript" xml:space="preserve">
+    <value>자막</value>
+    <comment>Transcript field label</comment>
+  </data>
+  <data name="Import_PolishWithAI" xml:space="preserve">
+    <value>AI로 다듬기</value>
+    <comment>Polish with AI button</comment>
+  </data>
+  <data name="Import_SaveAsResource" xml:space="preserve">
+    <value>리소스로 저장</value>
+    <comment>Save as resource button</comment>
+  </data>
+  <data name="Import_DownloadingTranscript" xml:space="preserve">
+    <value>자막 다운로드 중...</value>
+    <comment>Downloading in progress</comment>
+  </data>
+  <data name="Import_ResourceSaved" xml:space="preserve">
+    <value>리소스가 성공적으로 저장되었습니다!</value>
+    <comment>Save success message</comment>
+  </data>
+  <data name="Import_ViewResource" xml:space="preserve">
+    <value>리소스 보기</value>
+    <comment>View resource button</comment>
+  </data>
+  <data name="Import_ImportAnother" xml:space="preserve">
+    <value>다른 항목 가져오기</value>
+    <comment>Import another button</comment>
+  </data>
+  <data name="Import_NoHistoryYet" xml:space="preserve">
+    <value>아직 가져오기 기록이 없습니다</value>
+    <comment>Empty history state</comment>
+  </data>
+  <data name="Import_ShowingCount" xml:space="preserve">
+    <value>{1}개 중 {0}개 가져오기 표시</value>
+    <comment>Showing count message</comment>
+  </data>
+  <data name="Import_ShowMore" xml:space="preserve">
+    <value>더 보기</value>
+    <comment>Show more button</comment>
+  </data>
+  <data name="Import_Retry" xml:space="preserve">
+    <value>재시도</value>
+    <comment>Retry button</comment>
+  </data>
+  <data name="Import_Pending" xml:space="preserve">
+    <value>대기 중</value>
+    <comment>Pending status</comment>
+  </data>
+  <data name="Import_Fetching" xml:space="preserve">
+    <value>가져오는 중...</value>
+    <comment>Fetching status</comment>
+  </data>
+  <data name="Import_Cleaning" xml:space="preserve">
+    <value>정리 중...</value>
+    <comment>Cleaning status</comment>
+  </data>
+  <data name="Import_Generating" xml:space="preserve">
+    <value>생성 중...</value>
+    <comment>Generating status</comment>
+  </data>
+  <data name="Import_Saving" xml:space="preserve">
+    <value>저장 중...</value>
+    <comment>Saving status</comment>
+  </data>
+  <data name="Import_Completed" xml:space="preserve">
+    <value>완료</value>
+    <comment>Completed status</comment>
+  </data>
+  <data name="Import_Failed" xml:space="preserve">
+    <value>실패</value>
+    <comment>Failed status</comment>
+  </data>
+  <data name="Import_ChannelResumed" xml:space="preserve">
+    <value>채널 모니터링이 재개되었습니다</value>
+    <comment>Channel resumed toast</comment>
+  </data>
+  <data name="Import_ChannelPaused" xml:space="preserve">
+    <value>채널 모니터링이 일시정지되었습니다</value>
+    <comment>Channel paused toast</comment>
+  </data>
+  <data name="Import_ImportsRefreshed" xml:space="preserve">
+    <value>가져오기 새로고침됨</value>
+    <comment>Imports refreshed toast</comment>
+  </data>
+  <data name="Import_NoTranscripts" xml:space="preserve">
+    <value>이 비디오에 대한 자막을 찾을 수 없습니다.</value>
+    <comment>No transcripts error</comment>
+  </data>
+  <data name="Import_TranscriptPolished" xml:space="preserve">
+    <value>자막이 다듬어졌습니다!</value>
+    <comment>Polish success toast</comment>
+  </data>
+  <data name="Import_PolishingFailed" xml:space="preserve">
+    <value>AI 다듬기에 실패했습니다. 현재 텍스트를 저장할 수 있습니다.</value>
+    <comment>Polish failed toast</comment>
+  </data>
+  <data name="Import_ManualImport" xml:space="preserve">
+    <value>수동 가져오기</value>
+    <comment>Manual import label</comment>
+  </data>
+  <data name="ChannelDetail_AddChannel" xml:space="preserve">
+    <value>채널 추가</value>
+    <comment>Add channel title</comment>
+  </data>
+  <data name="ChannelDetail_EditChannel" xml:space="preserve">
+    <value>채널 편집</value>
+    <comment>Edit channel title</comment>
+  </data>
+  <data name="ChannelDetail_ChannelURL" xml:space="preserve">
+    <value>채널 URL</value>
+    <comment>Channel URL field label</comment>
+  </data>
+  <data name="ChannelDetail_URLPlaceholder" xml:space="preserve">
+    <value>https://www.youtube.com/@My_easykorean</value>
+    <comment>URL placeholder (keep as-is)</comment>
+  </data>
+  <data name="ChannelDetail_EnterFullURL" xml:space="preserve">
+    <value>YouTube 채널의 전체 URL을 입력하세요 (예: https://www.youtube.com/@channelname)</value>
+    <comment>URL help text</comment>
+  </data>
+  <data name="ChannelDetail_Language" xml:space="preserve">
+    <value>언어</value>
+    <comment>Language field label</comment>
+  </data>
+  <data name="ChannelDetail_SelectLanguage" xml:space="preserve">
+    <value>-- 언어 선택 --</value>
+    <comment>Language dropdown placeholder</comment>
+  </data>
+  <data name="ChannelDetail_CheckInterval" xml:space="preserve">
+    <value>확인 간격</value>
+    <comment>Check interval field label</comment>
+  </data>
+  <data name="ChannelDetail_Every6Hours" xml:space="preserve">
+    <value>6시간마다</value>
+    <comment>Check interval option</comment>
+  </data>
+  <data name="ChannelDetail_Every12Hours" xml:space="preserve">
+    <value>12시간마다</value>
+    <comment>Check interval option</comment>
+  </data>
+  <data name="ChannelDetail_Every24Hours" xml:space="preserve">
+    <value>24시간마다</value>
+    <comment>Check interval option</comment>
+  </data>
+  <data name="ChannelDetail_Every48Hours" xml:space="preserve">
+    <value>48시간마다</value>
+    <comment>Check interval option</comment>
+  </data>
+  <data name="ChannelDetail_MonitorChannel" xml:space="preserve">
+    <value>이 채널 모니터링 (새 비디오 자동 확인)</value>
+    <comment>Monitor checkbox label</comment>
+  </data>
+  <data name="ChannelDetail_ResolvingChannel" xml:space="preserve">
+    <value>채널 정보 확인 중...</value>
+    <comment>Resolving in progress</comment>
+  </data>
+  <data name="ChannelDetail_SaveChannel" xml:space="preserve">
+    <value>채널 저장</value>
+    <comment>Save channel button</comment>
+  </data>
+  <data name="ChannelDetail_DiscoverVideos" xml:space="preserve">
+    <value>비디오 검색</value>
+    <comment>Discover videos section title</comment>
+  </data>
+  <data name="ChannelDetail_CheckForNewVideos" xml:space="preserve">
+    <value>새 비디오 확인</value>
+    <comment>Check for new videos button</comment>
+  </data>
+  <data name="ChannelDetail_Checking" xml:space="preserve">
+    <value>확인 중...</value>
+    <comment>Checking in progress</comment>
+  </data>
+  <data name="ChannelDetail_ImportSelected" xml:space="preserve">
+    <value>선택 항목 가져오기 ({0})</value>
+    <comment>Import selected button with count</comment>
+  </data>
+  <data name="ChannelDetail_Importing" xml:space="preserve">
+    <value>가져오는 중...</value>
+    <comment>Importing in progress</comment>
+  </data>
+  <data name="ChannelDetail_ChannelIDNotResolved" xml:space="preserve">
+    <value>YouTube 채널 ID를 확인할 수 없습니다. 비디오 검색에는 유효한 채널 ID가 필요합니다.</value>
+    <comment>Channel ID error</comment>
+  </data>
+  <data name="ChannelDetail_RetryResolve" xml:space="preserve">
+    <value>채널 다시 확인</value>
+    <comment>Retry resolve button</comment>
+  </data>
+  <data name="ChannelDetail_Resolving" xml:space="preserve">
+    <value>확인 중...</value>
+    <comment>Resolving in progress</comment>
+  </data>
+  <data name="ChannelDetail_VideosFound" xml:space="preserve">
+    <value>{0}개 비디오 발견</value>
+    <comment>Videos found count</comment>
+  </data>
+  <data name="ChannelDetail_SelectAllNew" xml:space="preserve">
+    <value>모든 새 항목 선택</value>
+    <comment>Select all new button</comment>
+  </data>
+  <data name="ChannelDetail_SelectNone" xml:space="preserve">
+    <value>선택 해제</value>
+    <comment>Select none button</comment>
+  </data>
+  <data name="ChannelDetail_Imported" xml:space="preserve">
+    <value>가져옴</value>
+    <comment>Imported badge</comment>
+  </data>
+  <data name="ChannelDetail_NoVideosFound" xml:space="preserve">
+    <value>비디오를 찾을 수 없습니다. 나중에 다시 시도하세요.</value>
+    <comment>No videos found message</comment>
+  </data>
+  <data name="ChannelDetail_ChannelAdded" xml:space="preserve">
+    <value>채널 추가됨: {0}</value>
+    <comment>Channel added toast</comment>
+  </data>
+  <data name="ChannelDetail_ChannelUpdated" xml:space="preserve">
+    <value>채널이 성공적으로 업데이트되었습니다!</value>
+    <comment>Channel updated toast</comment>
+  </data>
+  <data name="ChannelDetail_ImportStarted" xml:space="preserve">
+    <value>{0}개 비디오 가져오기를 시작했습니다. 가져오기 기록에서 진행 상황을 확인하세요.</value>
+    <comment>Import started toast</comment>
+  </data>
+  <data name="Feedback_Title" xml:space="preserve">
+    <value>피드백</value>
+    <comment>Feedback page title</comment>
+  </data>
+  <data name="Feedback_HelpImprove" xml:space="preserve">
+    <value>SentenceStudio를 개선할 수 있도록 도와주세요</value>
+    <comment>Help improve message</comment>
+  </data>
+  <data name="Feedback_WhatKind" xml:space="preserve">
+    <value>어떤 종류의 피드백인가요?</value>
+    <comment>Feedback type question</comment>
+  </data>
+  <data name="Feedback_AutoDetect" xml:space="preserve">
+    <value>자동 감지</value>
+    <comment>Auto-detect option</comment>
+  </data>
+  <data name="Feedback_BugReport" xml:space="preserve">
+    <value>버그 보고</value>
+    <comment>Bug report option</comment>
+  </data>
+  <data name="Feedback_FeatureRequest" xml:space="preserve">
+    <value>기능 요청</value>
+    <comment>Feature request option</comment>
+  </data>
+  <data name="Feedback_Description" xml:space="preserve">
+    <value>설명</value>
+    <comment>Description field label</comment>
+  </data>
+  <data name="Feedback_DescribePlaceholder" xml:space="preserve">
+    <value>문제나 원하는 기능을 설명하세요...</value>
+    <comment>Description placeholder</comment>
+  </data>
+  <data name="Feedback_GitHubNotice" xml:space="preserve">
+    <value>피드백은 SentenceStudio 저장소에 공개 GitHub 이슈로 게시됩니다.</value>
+    <comment>GitHub notice</comment>
+  </data>
+  <data name="Feedback_GeneratingPreview" xml:space="preserve">
+    <value>미리보기 생성 중...</value>
+    <comment>Generating preview in progress</comment>
+  </data>
+  <data name="Feedback_Preview" xml:space="preserve">
+    <value>미리보기</value>
+    <comment>Preview button</comment>
+  </data>
+  <data name="Feedback_Edit" xml:space="preserve">
+    <value>편집</value>
+    <comment>Edit button</comment>
+  </data>
+  <data name="Feedback_Submitting" xml:space="preserve">
+    <value>제출 중...</value>
+    <comment>Submitting in progress</comment>
+  </data>
+  <data name="Feedback_Submit" xml:space="preserve">
+    <value>제출</value>
+    <comment>Submit button</comment>
+  </data>
+  <data name="Feedback_AIUnavailable" xml:space="preserve">
+    <value>AI 보강을 사용할 수 없습니다. 피드백은 있는 그대로 제출됩니다.</value>
+    <comment>AI unavailable warning</comment>
+  </data>
+  <data name="Feedback_SubmitSuccess" xml:space="preserve">
+    <value>피드백이 성공적으로 제출되었습니다!</value>
+    <comment>Submit success title</comment>
+  </data>
+  <data name="Feedback_ViewOnGitHub" xml:space="preserve">
+    <value>GitHub에서 보기</value>
+    <comment>View on GitHub link</comment>
+  </data>
+  <data name="Feedback_SubmitAnother" xml:space="preserve">
+    <value>다른 피드백 제출</value>
+    <comment>Submit another button</comment>
+  </data>
+  <data name="Feedback_PreviewFailed" xml:space="preserve">
+    <value>미리보기 생성에 실패했습니다. 다시 시도하세요.</value>
+    <comment>Preview failed toast</comment>
+  </data>
+  <data name="Feedback_SubmitFailed" xml:space="preserve">
+    <value>피드백 제출에 실패했습니다. 다시 시도하세요.</value>
+    <comment>Submit failed toast</comment>
+  </data>
+  <data name="Feedback_SubmitSuccessToast" xml:space="preserve">
+    <value>피드백이 성공적으로 제출되었습니다!</value>
+    <comment>Submit success toast</comment>
+  </data>
+  <data name="DebugHealth_Title" xml:space="preserve">
+    <value>디버그 상태</value>
+    <comment>Debug Health page title</comment>
+  </data>
+  <data name="DebugHealth_DebugOnly" xml:space="preserve">
+    <value>이 페이지는 디버그 빌드에서만 사용할 수 있습니다.</value>
+    <comment>Debug only message</comment>
+  </data>
+  <data name="DebugHealth_Database" xml:space="preserve">
+    <value>데이터베이스</value>
+    <comment>Database section title</comment>
+  </data>
+  <data name="DebugHealth_CanConnect" xml:space="preserve">
+    <value>연결 가능</value>
+    <comment>Can connect label</comment>
+  </data>
+  <data name="DebugHealth_Provider" xml:space="preserve">
+    <value>제공자</value>
+    <comment>Provider label</comment>
+  </data>
+  <data name="DebugHealth_TableCount" xml:space="preserve">
+    <value>테이블 수</value>
+    <comment>Table count label</comment>
+  </data>
+  <data name="DebugHealth_Migrations" xml:space="preserve">
+    <value>EF 마이그레이션</value>
+    <comment>Migrations section title</comment>
+  </data>
+  <data name="DebugHealth_Applied" xml:space="preserve">
+    <value>적용됨</value>
+    <comment>Applied label</comment>
+  </data>
+  <data name="DebugHealth_Pending" xml:space="preserve">
+    <value>대기 중</value>
+    <comment>Pending label</comment>
+  </data>
+  <data name="DebugHealth_ShowApplied" xml:space="preserve">
+    <value>적용된 마이그레이션 표시</value>
+    <comment>Show applied migrations link</comment>
+  </data>
+  <data name="DebugHealth_UserProfile" xml:space="preserve">
+    <value>사용자 프로필</value>
+    <comment>User Profile section title</comment>
+  </data>
+  <data name="DebugHealth_SignedIn" xml:space="preserve">
+    <value>로그인됨</value>
+    <comment>Signed in label</comment>
+  </data>
+  <data name="DebugHealth_UserName" xml:space="preserve">
+    <value>사용자 이름</value>
+    <comment>User name label</comment>
+  </data>
+  <data name="DebugHealth_ActiveProfileID" xml:space="preserve">
+    <value>활성 프로필 ID</value>
+    <comment>Active profile ID label</comment>
+  </data>
+  <data name="DebugHealth_ProfileCount" xml:space="preserve">
+    <value>프로필 수</value>
+    <comment>Profile count label</comment>
+  </data>
+  <data name="DebugHealth_Vocabulary" xml:space="preserve">
+    <value>어휘</value>
+    <comment>Vocabulary section title</comment>
+  </data>
+  <data name="DebugHealth_TotalWords" xml:space="preserve">
+    <value>총 단어 수</value>
+    <comment>Total words label</comment>
+  </data>
+  <data name="DebugHealth_WordsWithProgress" xml:space="preserve">
+    <value>진행 중인 단어 수</value>
+    <comment>Words with progress label</comment>
+  </data>
+  <data name="DebugHealth_Resources" xml:space="preserve">
+    <value>학습 리소스</value>
+    <comment>Resources section title</comment>
+  </data>
+  <data name="DebugHealth_ResourceCount" xml:space="preserve">
+    <value>리소스 수</value>
+    <comment>Resource count label</comment>
+  </data>
+  <data name="DebugHealth_APIConnectivity" xml:space="preserve">
+    <value>API 연결</value>
+    <comment>API connectivity section title</comment>
+  </data>
+  <data name="DebugHealth_APIReachable" xml:space="preserve">
+    <value>API 연결 가능</value>
+    <comment>API reachable label</comment>
+  </data>
+  <data name="DebugHealth_APIBaseURL" xml:space="preserve">
+    <value>API 기본 URL</value>
+    <comment>API base URL label</comment>
+  </data>
+  <data name="DebugHealth_CoreSync" xml:space="preserve">
+    <value>CoreSync</value>
+    <comment>CoreSync section title</comment>
+  </data>
+  <data name="DebugHealth_SyncServiceRegistered" xml:space="preserve">
+    <value>동기화 서비스 등록됨</value>
+    <comment>Sync service registered label</comment>
+  </data>
+  <data name="DebugHealth_Yes" xml:space="preserve">
+    <value>예</value>
+    <comment>Yes value</comment>
+  </data>
+  <data name="DebugHealth_No" xml:space="preserve">
+    <value>아니오</value>
+    <comment>No value</comment>
+  </data>
+  <data name="MinimalPair_Create" xml:space="preserve">
+    <value>최소 대립쌍 만들기</value>
+    <comment>Create minimal pair page title</comment>
+  </data>
+  <data name="MinimalPair_SelectFirstWord" xml:space="preserve">
+    <value>첫 번째 단어 선택</value>
+    <comment>Select first word section title</comment>
+  </data>
+  <data name="MinimalPair_SelectSecondWord" xml:space="preserve">
+    <value>두 번째 단어 선택</value>
+    <comment>Select second word section title</comment>
+  </data>
+  <data name="MinimalPair_SearchVocab" xml:space="preserve">
+    <value>어휘 검색...</value>
+    <comment>Search vocabulary placeholder</comment>
+  </data>
+  <data name="MinimalPair_ContrastLabel" xml:space="preserve">
+    <value>대비 레이블 (선택사항)</value>
+    <comment>Contrast label field</comment>
+  </data>
+  <data name="MinimalPair_SelectBothWords" xml:space="preserve">
+    <value>두 단어를 모두 선택하세요.</value>
+    <comment>Select both words error</comment>
+  </data>
+  <data name="MinimalPair_SelectDifferent" xml:space="preserve">
+    <value>서로 다른 두 단어를 선택하세요.</value>
+    <comment>Select different words error</comment>
+  </data>
+  <data name="MinimalPair_Created" xml:space="preserve">
+    <value>최소 대립쌍이 생성되었습니다!</value>
+    <comment>Created success toast</comment>
+  </data>
+  <data name="MinimalPair_FailedToCreate" xml:space="preserve">
+    <value>쌍 생성에 실패했습니다. 이미 존재할 수 있습니다.</value>
+    <comment>Failed to create error</comment>
+  </data>
+  <data name="ActivityTimer_Pause" xml:space="preserve">
+    <value>일시정지</value>
+    <comment>Pause button title</comment>
+  </data>
+  <data name="ActivityTimer_Resume" xml:space="preserve">
+    <value>재개</value>
+    <comment>Resume button title</comment>
+  </data>
+  <data name="ActivityTimer_Stop" xml:space="preserve">
+    <value>중지</value>
+    <comment>Stop button title</comment>
+  </data>
+  <data name="WhatsNew_Title" xml:space="preserve">
+    <value>새로운 기능</value>
+    <comment>What's New modal title</comment>
+  </data>
+  <data name="WhatsNew_NoReleaseNotes" xml:space="preserve">
+    <value>릴리스 노트가 없습니다.</value>
+    <comment>No release notes message</comment>
+  </data>
+  <data name="WhatsNew_GotIt" xml:space="preserve">
+    <value>확인!</value>
+    <comment>Got it button</comment>
+  </data>
+  <data name="UpdateBanner_VersionAvailable" xml:space="preserve">
+    <value>버전 {0}을(를) 사용할 수 있습니다.</value>
+    <comment>Version available message</comment>
+  </data>
+  <data name="PlanSummary_Completed" xml:space="preserve">
+    <value>완료</value>
+    <comment>Completed badge text</comment>
+  </data>
+  <data name="PlanSummary_Plan" xml:space="preserve">
+    <value>계획</value>
+    <comment>Plan label</comment>
+  </data>
+  <data name="PlanSummary_TotalTime" xml:space="preserve">
+    <value>총 시간</value>
+    <comment>Total time label</comment>
+  </data>
 </root>

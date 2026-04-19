@@ -1,5 +1,7 @@
 @page "/auth/login"
 @attribute [AllowAnonymous]
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@implements IDisposable
 
 <EnvironmentBadge />
 <div class="d-flex vh-100 align-items-center justify-content-center">
@@ -11,7 +13,7 @@
         </div>
         <div class="card shadow-sm border-0">
             <div class="card-body p-4">
-        <h2 class="card-title text-center mb-4">Sign In</h2>
+        <h2 class="card-title text-center mb-4">@Localize["Login_SignIn"]</h2>
 
         @if (!string.IsNullOrEmpty(errorMessage))
         {
@@ -21,16 +23,16 @@
         }
 
         <div class="mb-3">
-            <label class="form-label" for="email">Email</label>
+            <label class="form-label" for="email">@Localize["Common_Email"]</label>
             <input type="email" id="email" class="form-control"
-                   @bind="email" @bind:event="oninput" placeholder="you@example.com" disabled="@isBusy" />
+                   @bind="email" @bind:event="oninput" placeholder='@Localize["Common_EmailPlaceholder"]' disabled="@isBusy" />
         </div>
 
         <div class="mb-3">
-            <label class="form-label" for="password">Password</label>
+            <label class="form-label" for="password">@Localize["Common_Password"]</label>
             <div class="input-group">
                 <input type="@(showPassword ? "text" : "password")" id="password" class="form-control"
-                       @bind="password" @bind:event="oninput" placeholder="Password" disabled="@isBusy" />
+                       @bind="password" @bind:event="oninput" placeholder='@Localize["Common_PasswordPlaceholder"]' disabled="@isBusy" />
                 <button class="btn btn-outline-secondary" type="button" @onclick="() => showPassword = !showPassword" disabled="@isBusy">
                     <i class="bi @(showPassword ? "bi-eye-slash" : "bi-eye")"></i>
                 </button>
@@ -40,7 +42,7 @@
         <div class="mb-3 form-check">
             <input type="checkbox" class="form-check-input" id="rememberMe" @bind="rememberMe" disabled="@isBusy" />
             <label class="form-check-label" for="rememberMe">
-                Remember me
+                @Localize["Common_RememberMe"]
             </label>
         </div>
 
@@ -49,11 +51,11 @@
                 @if (isBusy)
                 {
                     <span class="spinner-border spinner-border-sm me-2"></span>
-                    <span>Signing in...</span>
+                    <span>@Localize["Login_SigningIn"]</span>
                 }
                 else
                 {
-                    <span>Sign In</span>
+                    <span>@Localize["Login_SignIn"]</span>
                 }
             </button>
         </div>
@@ -61,11 +63,11 @@
         <hr />
         <div class="text-center">
             <p class="mb-2">
-                <a href="/auth/forgot-password">Forgot your password?</a>
+                <a href="/auth/forgot-password">@Localize["Login_ForgotPassword"]</a>
             </p>
             <p>
-                Don't have an account?
-                <a href="/auth/register">Create one</a>
+                @Localize["Login_NoAccountCreateOne"]
+                <a href="/auth/register">@Localize["Login_CreateOne"]</a>
             </p>
         </div>
             </div>
@@ -85,6 +87,13 @@
     private bool isBusy;
     private bool showPassword;
     private bool rememberMe;
+
+    protected override void OnInitialized()
+    {
+        Localize.CultureChanged += OnCultureChanged;
+    }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
 
     private bool CanSubmit => !isBusy
         && !string.IsNullOrWhiteSpace(email)
@@ -132,27 +141,32 @@
             }
             else
             {
-                errorMessage = "Invalid email or password. Please try again.";
+                errorMessage = Localize["Login_InvalidCredentials"];
             }
         }
         catch (NotSupportedException)
         {
-            errorMessage = "Email/password login is not available with the current authentication configuration.";
+            errorMessage = Localize["Login_NotAvailable"];
         }
         catch (HttpRequestException ex)
         {
             Logger.LogError(ex, "Login connectivity error");
-            errorMessage = "Cannot reach the server. Please check your connection and try again.";
+            errorMessage = Localize["Login_ConnectionError"];
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Login failed");
-            errorMessage = "An unexpected error occurred. Please try again.";
+            errorMessage = Localize["Login_UnexpectedError"];
         }
         finally
         {
             isBusy = false;
             StateHasChanged();
         }
+    }
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnCultureChanged;
     }
 }

@@ -1,17 +1,19 @@
 @page "/minimal-pairs/create"
 @attribute [Authorize]
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@implements IDisposable
 
-<PageHeader Title="Create Minimal Pair" ShowBack="true" OnBack="GoBack">
+<PageHeader Title='@Localize["MinimalPair_Create"]' ShowBack="true" OnBack="GoBack">
     <PrimaryActions>
         <button class="btn btn-ss-primary" @onclick="CreatePair"
                 disabled="@(isSaving || selectedWordAId == null || selectedWordBId == null)">
             @if (isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
-            Create
+            @Localize["Common_Create"]
         </button>
     </PrimaryActions>
     <SecondaryActions>
         <li><button class="dropdown-item" @onclick="CreatePair"
-                    disabled="@(isSaving || selectedWordAId == null || selectedWordBId == null)"><i class="bi bi-check-lg me-2"></i>Create</button></li>
+                    disabled="@(isSaving || selectedWordAId == null || selectedWordBId == null)"><i class="bi bi-check-lg me-2"></i>@Localize["Common_Create"]</button></li>
     </SecondaryActions>
 </PageHeader>
 
@@ -29,9 +31,9 @@ else
     }
 
     <div class="card card-ss p-4 mb-3">
-        <h5 class="ss-title3 mb-3">Select First Word</h5>
+        <h5 class="ss-title3 mb-3">@Localize["MinimalPair_SelectFirstWord"]</h5>
         <input type="text" class="form-control form-control-ss mb-2"
-               placeholder="Search vocabulary..."
+               placeholder='@Localize["MinimalPair_SearchVocab"]'
                @bind="searchA" @bind:event="oninput" />
         <select class="form-select form-control-ss" @bind="selectedWordAId" size="5">
             @foreach (var word in FilteredWordsA)
@@ -52,9 +54,9 @@ else
     </div>
 
     <div class="card card-ss p-4 mb-3">
-        <h5 class="ss-title3 mb-3">Select Second Word</h5>
+        <h5 class="ss-title3 mb-3">@Localize["MinimalPair_SelectSecondWord"]</h5>
         <input type="text" class="form-control form-control-ss mb-2"
-               placeholder="Search vocabulary..."
+               placeholder='@Localize["MinimalPair_SearchVocab"]'
                @bind="searchB" @bind:event="oninput" />
         <select class="form-select form-control-ss" @bind="selectedWordBId" size="5">
             @foreach (var word in FilteredWordsB)
@@ -75,7 +77,7 @@ else
     </div>
 
     <div class="card card-ss p-4 mb-3">
-        <h5 class="ss-title3 mb-3">Contrast Label (optional)</h5>
+        <h5 class="ss-title3 mb-3">@Localize["MinimalPair_ContrastLabel"]</h5>
         <input type="text" class="form-control form-control-ss"
                placeholder="e.g., ㅂ vs ㅃ"
                @bind="contrastLabel" />
@@ -114,6 +116,13 @@ else
                 (w.TargetLanguageTerm?.StartsWith(searchB, StringComparison.OrdinalIgnoreCase) == true) ||
                 (w.NativeLanguageTerm?.Contains(searchB, StringComparison.OrdinalIgnoreCase) == true));
 
+    protected override void OnInitialized()
+    {
+        Localize.CultureChanged += OnCultureChanged;
+    }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
+
     protected override async Task OnInitializedAsync()
     {
         isLoading = true;
@@ -138,13 +147,13 @@ else
 
         if (selectedWordAId == null || selectedWordBId == null)
         {
-            errorMessage = "Please select both words.";
+            errorMessage = Localize["MinimalPair_SelectBothWords"];
             return;
         }
 
         if (selectedWordAId == selectedWordBId)
         {
-            errorMessage = "Please select two different words.";
+            errorMessage = Localize["MinimalPair_SelectDifferent"];
             return;
         }
 
@@ -160,11 +169,11 @@ else
 
             if (pair == null)
             {
-                errorMessage = "Failed to create pair. It may already exist.";
+                errorMessage = Localize["MinimalPair_FailedToCreate"];
                 return;
             }
 
-            Toast.ShowSuccess("Minimal pair created!");
+            Toast.ShowSuccess(Localize["MinimalPair_Created"]);
             GoBack();
         }
         catch (Exception ex)
@@ -179,4 +188,9 @@ else
     }
 
     private void GoBack() => NavManager.NavigateTo("/minimal-pairs");
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnCultureChanged;
+    }
 }

@@ -5182,4 +5182,816 @@ For example: {0} ...</value>
     <value>No active user profile. Please select a profile first.</value>
     <comment>Toast error</comment>
   </data>
+  <data name="Auth_Welcome" xml:space="preserve">
+    <value>Welcome</value>
+    <comment>Auth page title</comment>
+  </data>
+  <data name="Auth_WelcomeToApp" xml:space="preserve">
+    <value>Welcome to SentenceStudio</value>
+    <comment>Auth page hero title</comment>
+  </data>
+  <data name="Auth_SignInOrSelectUser" xml:space="preserve">
+    <value>Sign in to your account or select a local user to continue.</value>
+    <comment>Auth instructions</comment>
+  </data>
+  <data name="Auth_SignIn" xml:space="preserve">
+    <value>Sign In</value>
+    <comment>Sign In button</comment>
+  </data>
+  <data name="Auth_CreateAccount" xml:space="preserve">
+    <value>Create Account</value>
+    <comment>Create Account button</comment>
+  </data>
+  <data name="Auth_OrChooseLocalUser" xml:space="preserve">
+    <value>Or choose a local user</value>
+    <comment>Local user picker section title</comment>
+  </data>
+  <data name="Auth_DeleteProfile" xml:space="preserve">
+    <value>Delete profile</value>
+    <comment>Delete profile button title</comment>
+  </data>
+  <data name="Auth_NewUserCreateAccount" xml:space="preserve">
+    <value>New User? Create Account</value>
+    <comment>New user registration link</comment>
+  </data>
+  <data name="Auth_ConfirmDelete" xml:space="preserve">
+    <value>Confirm Delete</value>
+    <comment>Delete confirmation modal title</comment>
+  </data>
+  <data name="Auth_Cancel" xml:space="preserve">
+    <value>Cancel</value>
+    <comment>Cancel button</comment>
+  </data>
+  <data name="Auth_Delete" xml:space="preserve">
+    <value>Delete</value>
+    <comment>Delete button</comment>
+  </data>
+  <data name="Auth_DeleteConfirmMessage" xml:space="preserve">
+    <value>Are you sure you want to delete profile "{0}"? This removes the user and all associated data. This cannot be undone.</value>
+    <comment>Delete confirmation message with profile name</comment>
+  </data>
+  <data name="Auth_ServerAuthRequired" xml:space="preserve">
+    <value>Server authentication required. Please sign in first.</value>
+    <comment>Auth error message</comment>
+  </data>
+  <data name="Login_SignIn" xml:space="preserve">
+    <value>Sign In</value>
+    <comment>Login page title</comment>
+  </data>
+  <data name="Login_SigningIn" xml:space="preserve">
+    <value>Signing in...</value>
+    <comment>Login in progress</comment>
+  </data>
+  <data name="Login_ForgotPassword" xml:space="preserve">
+    <value>Forgot your password?</value>
+    <comment>Forgot password link</comment>
+  </data>
+  <data name="Login_NoAccountCreateOne" xml:space="preserve">
+    <value>Don't have an account?</value>
+    <comment>Create account prompt</comment>
+  </data>
+  <data name="Login_CreateOne" xml:space="preserve">
+    <value>Create one</value>
+    <comment>Create account link</comment>
+  </data>
+  <data name="Login_InvalidCredentials" xml:space="preserve">
+    <value>Invalid email or password. Please try again.</value>
+    <comment>Invalid login error</comment>
+  </data>
+  <data name="Login_NotAvailable" xml:space="preserve">
+    <value>Email/password login is not available with the current authentication configuration.</value>
+    <comment>Auth config error</comment>
+  </data>
+  <data name="Login_ConnectionError" xml:space="preserve">
+    <value>Cannot reach the server. Please check your connection and try again.</value>
+    <comment>Connection error</comment>
+  </data>
+  <data name="Login_UnexpectedError" xml:space="preserve">
+    <value>An unexpected error occurred. Please try again.</value>
+    <comment>Generic error</comment>
+  </data>
+  <data name="Register_CreateAccount" xml:space="preserve">
+    <value>Create Account</value>
+    <comment>Register page title</comment>
+  </data>
+  <data name="Register_CheckYourEmail" xml:space="preserve">
+    <value>Check your email</value>
+    <comment>Email verification title</comment>
+  </data>
+  <data name="Register_VerificationSent" xml:space="preserve">
+    <value>We sent a confirmation link to {0}. Please verify your email address, then sign in.</value>
+    <comment>Verification sent message</comment>
+  </data>
+  <data name="Register_GoToSignIn" xml:space="preserve">
+    <value>Go to Sign In</value>
+    <comment>Go to sign in button</comment>
+  </data>
+  <data name="Register_DisplayName" xml:space="preserve">
+    <value>Display Name</value>
+    <comment>Display name field label</comment>
+  </data>
+  <data name="Register_YourName" xml:space="preserve">
+    <value>Your name</value>
+    <comment>Display name placeholder</comment>
+  </data>
+  <data name="Register_ConfirmPassword" xml:space="preserve">
+    <value>Confirm Password</value>
+    <comment>Confirm password field label</comment>
+  </data>
+  <data name="Register_ConfirmPasswordPlaceholder" xml:space="preserve">
+    <value>Confirm password</value>
+    <comment>Confirm password placeholder</comment>
+  </data>
+  <data name="Register_AtLeast8Chars" xml:space="preserve">
+    <value>At least 8 characters</value>
+    <comment>Password requirement</comment>
+  </data>
+  <data name="Register_OneUppercase" xml:space="preserve">
+    <value>One uppercase letter</value>
+    <comment>Password requirement</comment>
+  </data>
+  <data name="Register_OneNumber" xml:space="preserve">
+    <value>One number</value>
+    <comment>Password requirement</comment>
+  </data>
+  <data name="Register_PasswordsDoNotMatch" xml:space="preserve">
+    <value>Passwords do not match.</value>
+    <comment>Password mismatch error</comment>
+  </data>
+  <data name="Register_CreatingAccount" xml:space="preserve">
+    <value>Creating account...</value>
+    <comment>Registration in progress</comment>
+  </data>
+  <data name="Register_AlreadyHaveAccount" xml:space="preserve">
+    <value>Already have an account?</value>
+    <comment>Sign in prompt</comment>
+  </data>
+  <data name="Register_NotAvailable" xml:space="preserve">
+    <value>Registration is not available with the current authentication configuration.</value>
+    <comment>Registration config error</comment>
+  </data>
+  <data name="Register_Failed" xml:space="preserve">
+    <value>Registration failed. Please check your information and try again.</value>
+    <comment>Registration error</comment>
+  </data>
+  <data name="ForgotPassword_Title" xml:space="preserve">
+    <value>Forgot Password</value>
+    <comment>Forgot password page title</comment>
+  </data>
+  <data name="ForgotPassword_Instructions" xml:space="preserve">
+    <value>Enter your email address and we'll send you a link to reset your password.</value>
+    <comment>Instructions</comment>
+  </data>
+  <data name="ForgotPassword_ResetSent" xml:space="preserve">
+    <value>If an account with that email exists, a password reset link has been sent.</value>
+    <comment>Reset sent message</comment>
+  </data>
+  <data name="ForgotPassword_BackToSignIn" xml:space="preserve">
+    <value>Back to Sign In</value>
+    <comment>Back to sign in link</comment>
+  </data>
+  <data name="ForgotPassword_Sending" xml:space="preserve">
+    <value>Sending...</value>
+    <comment>Sending in progress</comment>
+  </data>
+  <data name="ForgotPassword_SendResetLink" xml:space="preserve">
+    <value>Send Reset Link</value>
+    <comment>Send reset link button</comment>
+  </data>
+  <data name="Onboarding_Welcome" xml:space="preserve">
+    <value>Welcome</value>
+    <comment>Onboarding welcome title</comment>
+  </data>
+  <data name="Onboarding_SetupJourney" xml:space="preserve">
+    <value>Let's set up your language learning journey.</value>
+    <comment>Setup instructions</comment>
+  </data>
+  <data name="Onboarding_GetStarted" xml:space="preserve">
+    <value>Get Started</value>
+    <comment>Get started button</comment>
+  </data>
+  <data name="Onboarding_NativeLanguage" xml:space="preserve">
+    <value>What's your native language?</value>
+    <comment>Native language question</comment>
+  </data>
+  <data name="Onboarding_TargetLanguage" xml:space="preserve">
+    <value>What language are you learning?</value>
+    <comment>Target language question</comment>
+  </data>
+  <data name="Onboarding_YourName" xml:space="preserve">
+    <value>What's your name?</value>
+    <comment>Name question</comment>
+  </data>
+  <data name="Onboarding_EnterName" xml:space="preserve">
+    <value>Enter your name</value>
+    <comment>Name input placeholder</comment>
+  </data>
+  <data name="Onboarding_GeneratingNames" xml:space="preserve">
+    <value>Generating name suggestions...</value>
+    <comment>Name generation in progress</comment>
+  </data>
+  <data name="Onboarding_OrChooseSuggested" xml:space="preserve">
+    <value>Or choose a suggested name:</value>
+    <comment>Suggested names prompt</comment>
+  </data>
+  <data name="Onboarding_LearningPreferences" xml:space="preserve">
+    <value>Learning Preferences</value>
+    <comment>Preferences section title</comment>
+  </data>
+  <data name="Onboarding_StudyDuration" xml:space="preserve">
+    <value>How long do you want to study each day?</value>
+    <comment>Daily study duration question</comment>
+  </data>
+  <data name="Onboarding_TargetLevel" xml:space="preserve">
+    <value>What's your target level?</value>
+    <comment>Target level question</comment>
+  </data>
+  <data name="Onboarding_AllSet" xml:space="preserve">
+    <value>You're all set!</value>
+    <comment>Completion title</comment>
+  </data>
+  <data name="Onboarding_CreateStarterContent" xml:space="preserve">
+    <value>Would you like us to create starter learning content for you?</value>
+    <comment>Starter content prompt</comment>
+  </data>
+  <data name="Onboarding_SavingProfile" xml:space="preserve">
+    <value>Saving your profile</value>
+    <comment>Saving profile step</comment>
+  </data>
+  <data name="Onboarding_GeneratingVocab" xml:space="preserve">
+    <value>Generating starter vocabulary (this may take a moment)</value>
+    <comment>Generating vocab step</comment>
+  </data>
+  <data name="Onboarding_CreatingSkillProfile" xml:space="preserve">
+    <value>Creating skill profile</value>
+    <comment>Creating skill profile step</comment>
+  </data>
+  <data name="Onboarding_CreateStarter" xml:space="preserve">
+    <value>Create Starter Content</value>
+    <comment>Create starter content button</comment>
+  </data>
+  <data name="Onboarding_SkipSetup" xml:space="preserve">
+    <value>Skip -- I'll set up my own</value>
+    <comment>Skip button</comment>
+  </data>
+  <data name="Onboarding_Back" xml:space="preserve">
+    <value>Back</value>
+    <comment>Back button</comment>
+  </data>
+  <data name="Onboarding_Next" xml:space="preserve">
+    <value>Next</value>
+    <comment>Next button</comment>
+  </data>
+  <data name="Import_YouTubeImport" xml:space="preserve">
+    <value>YouTube Import</value>
+    <comment>Import page title</comment>
+  </data>
+  <data name="Import_AddChannel" xml:space="preserve">
+    <value>Add Channel</value>
+    <comment>Add channel button</comment>
+  </data>
+  <data name="Import_Refresh" xml:space="preserve">
+    <value>Refresh</value>
+    <comment>Refresh button</comment>
+  </data>
+  <data name="Import_MyChannels" xml:space="preserve">
+    <value>My Channels</value>
+    <comment>My Channels tab</comment>
+  </data>
+  <data name="Import_SingleVideo" xml:space="preserve">
+    <value>Single Video</value>
+    <comment>Single Video tab</comment>
+  </data>
+  <data name="Import_History" xml:space="preserve">
+    <value>Import History</value>
+    <comment>Import History tab</comment>
+  </data>
+  <data name="Import_NoChannelsYet" xml:space="preserve">
+    <value>No channels monitored yet</value>
+    <comment>Empty channels state</comment>
+  </data>
+  <data name="Import_AddFirstChannel" xml:space="preserve">
+    <value>Add Your First Channel</value>
+    <comment>Add first channel button</comment>
+  </data>
+  <data name="Import_LastChecked" xml:space="preserve">
+    <value>Last checked:</value>
+    <comment>Last checked label</comment>
+  </data>
+  <data name="Import_Never" xml:space="preserve">
+    <value>Never</value>
+    <comment>Never checked value</comment>
+  </data>
+  <data name="Import_PauseMonitoring" xml:space="preserve">
+    <value>Pause monitoring</value>
+    <comment>Pause monitoring title</comment>
+  </data>
+  <data name="Import_ResumeMonitoring" xml:space="preserve">
+    <value>Resume monitoring</value>
+    <comment>Resume monitoring title</comment>
+  </data>
+  <data name="Import_YouTubeURL" xml:space="preserve">
+    <value>YouTube URL</value>
+    <comment>YouTube URL field label</comment>
+  </data>
+  <data name="Import_Fetch" xml:space="preserve">
+    <value>Fetch</value>
+    <comment>Fetch button</comment>
+  </data>
+  <data name="Import_TranscriptLanguage" xml:space="preserve">
+    <value>Transcript Language</value>
+    <comment>Transcript language label</comment>
+  </data>
+  <data name="Import_Transcript" xml:space="preserve">
+    <value>Transcript</value>
+    <comment>Transcript field label</comment>
+  </data>
+  <data name="Import_PolishWithAI" xml:space="preserve">
+    <value>Polish with AI</value>
+    <comment>Polish with AI button</comment>
+  </data>
+  <data name="Import_SaveAsResource" xml:space="preserve">
+    <value>Save as Resource</value>
+    <comment>Save as resource button</comment>
+  </data>
+  <data name="Import_DownloadingTranscript" xml:space="preserve">
+    <value>Downloading transcript...</value>
+    <comment>Downloading in progress</comment>
+  </data>
+  <data name="Import_ResourceSaved" xml:space="preserve">
+    <value>Resource saved successfully!</value>
+    <comment>Save success message</comment>
+  </data>
+  <data name="Import_ViewResource" xml:space="preserve">
+    <value>View Resource</value>
+    <comment>View resource button</comment>
+  </data>
+  <data name="Import_ImportAnother" xml:space="preserve">
+    <value>Import Another</value>
+    <comment>Import another button</comment>
+  </data>
+  <data name="Import_NoHistoryYet" xml:space="preserve">
+    <value>No import history yet</value>
+    <comment>Empty history state</comment>
+  </data>
+  <data name="Import_ShowingCount" xml:space="preserve">
+    <value>Showing {0} of {1} imports</value>
+    <comment>Showing count message</comment>
+  </data>
+  <data name="Import_ShowMore" xml:space="preserve">
+    <value>Show More</value>
+    <comment>Show more button</comment>
+  </data>
+  <data name="Import_Retry" xml:space="preserve">
+    <value>Retry</value>
+    <comment>Retry button</comment>
+  </data>
+  <data name="Import_Pending" xml:space="preserve">
+    <value>Pending</value>
+    <comment>Pending status</comment>
+  </data>
+  <data name="Import_Fetching" xml:space="preserve">
+    <value>Fetching...</value>
+    <comment>Fetching status</comment>
+  </data>
+  <data name="Import_Cleaning" xml:space="preserve">
+    <value>Cleaning...</value>
+    <comment>Cleaning status</comment>
+  </data>
+  <data name="Import_Generating" xml:space="preserve">
+    <value>Generating...</value>
+    <comment>Generating status</comment>
+  </data>
+  <data name="Import_Saving" xml:space="preserve">
+    <value>Saving...</value>
+    <comment>Saving status</comment>
+  </data>
+  <data name="Import_Completed" xml:space="preserve">
+    <value>Completed</value>
+    <comment>Completed status</comment>
+  </data>
+  <data name="Import_Failed" xml:space="preserve">
+    <value>Failed</value>
+    <comment>Failed status</comment>
+  </data>
+  <data name="Import_ChannelResumed" xml:space="preserve">
+    <value>Channel monitoring resumed</value>
+    <comment>Channel resumed toast</comment>
+  </data>
+  <data name="Import_ChannelPaused" xml:space="preserve">
+    <value>Channel monitoring paused</value>
+    <comment>Channel paused toast</comment>
+  </data>
+  <data name="Import_ImportsRefreshed" xml:space="preserve">
+    <value>Imports refreshed</value>
+    <comment>Imports refreshed toast</comment>
+  </data>
+  <data name="Import_NoTranscripts" xml:space="preserve">
+    <value>No transcripts found for this video.</value>
+    <comment>No transcripts error</comment>
+  </data>
+  <data name="Import_TranscriptPolished" xml:space="preserve">
+    <value>Transcript polished!</value>
+    <comment>Polish success toast</comment>
+  </data>
+  <data name="Import_PolishingFailed" xml:space="preserve">
+    <value>AI polishing failed. You can still save the current text.</value>
+    <comment>Polish failed toast</comment>
+  </data>
+  <data name="Import_ManualImport" xml:space="preserve">
+    <value>Manual import</value>
+    <comment>Manual import label</comment>
+  </data>
+  <data name="ChannelDetail_AddChannel" xml:space="preserve">
+    <value>Add Channel</value>
+    <comment>Add channel title</comment>
+  </data>
+  <data name="ChannelDetail_EditChannel" xml:space="preserve">
+    <value>Edit Channel</value>
+    <comment>Edit channel title</comment>
+  </data>
+  <data name="ChannelDetail_ChannelURL" xml:space="preserve">
+    <value>Channel URL</value>
+    <comment>Channel URL field label</comment>
+  </data>
+  <data name="ChannelDetail_URLPlaceholder" xml:space="preserve">
+    <value>https://www.youtube.com/@My_easykorean</value>
+    <comment>URL placeholder (keep as-is)</comment>
+  </data>
+  <data name="ChannelDetail_EnterFullURL" xml:space="preserve">
+    <value>Enter the full YouTube channel URL (e.g., https://www.youtube.com/@channelname)</value>
+    <comment>URL help text</comment>
+  </data>
+  <data name="ChannelDetail_Language" xml:space="preserve">
+    <value>Language</value>
+    <comment>Language field label</comment>
+  </data>
+  <data name="ChannelDetail_SelectLanguage" xml:space="preserve">
+    <value>-- Select Language --</value>
+    <comment>Language dropdown placeholder</comment>
+  </data>
+  <data name="ChannelDetail_CheckInterval" xml:space="preserve">
+    <value>Check Interval</value>
+    <comment>Check interval field label</comment>
+  </data>
+  <data name="ChannelDetail_Every6Hours" xml:space="preserve">
+    <value>Every 6 hours</value>
+    <comment>Check interval option</comment>
+  </data>
+  <data name="ChannelDetail_Every12Hours" xml:space="preserve">
+    <value>Every 12 hours</value>
+    <comment>Check interval option</comment>
+  </data>
+  <data name="ChannelDetail_Every24Hours" xml:space="preserve">
+    <value>Every 24 hours</value>
+    <comment>Check interval option</comment>
+  </data>
+  <data name="ChannelDetail_Every48Hours" xml:space="preserve">
+    <value>Every 48 hours</value>
+    <comment>Check interval option</comment>
+  </data>
+  <data name="ChannelDetail_MonitorChannel" xml:space="preserve">
+    <value>Monitor this channel (check for new videos automatically)</value>
+    <comment>Monitor checkbox label</comment>
+  </data>
+  <data name="ChannelDetail_ResolvingChannel" xml:space="preserve">
+    <value>Resolving channel information...</value>
+    <comment>Resolving in progress</comment>
+  </data>
+  <data name="ChannelDetail_SaveChannel" xml:space="preserve">
+    <value>Save Channel</value>
+    <comment>Save channel button</comment>
+  </data>
+  <data name="ChannelDetail_DiscoverVideos" xml:space="preserve">
+    <value>Discover Videos</value>
+    <comment>Discover videos section title</comment>
+  </data>
+  <data name="ChannelDetail_CheckForNewVideos" xml:space="preserve">
+    <value>Check for New Videos</value>
+    <comment>Check for new videos button</comment>
+  </data>
+  <data name="ChannelDetail_Checking" xml:space="preserve">
+    <value>Checking...</value>
+    <comment>Checking in progress</comment>
+  </data>
+  <data name="ChannelDetail_ImportSelected" xml:space="preserve">
+    <value>Import Selected ({0})</value>
+    <comment>Import selected button with count</comment>
+  </data>
+  <data name="ChannelDetail_Importing" xml:space="preserve">
+    <value>Importing...</value>
+    <comment>Importing in progress</comment>
+  </data>
+  <data name="ChannelDetail_ChannelIDNotResolved" xml:space="preserve">
+    <value>YouTube channel ID could not be resolved. Video discovery requires a valid channel ID.</value>
+    <comment>Channel ID error</comment>
+  </data>
+  <data name="ChannelDetail_RetryResolve" xml:space="preserve">
+    <value>Retry Resolve Channel</value>
+    <comment>Retry resolve button</comment>
+  </data>
+  <data name="ChannelDetail_Resolving" xml:space="preserve">
+    <value>Resolving...</value>
+    <comment>Resolving in progress</comment>
+  </data>
+  <data name="ChannelDetail_VideosFound" xml:space="preserve">
+    <value>{0} videos found</value>
+    <comment>Videos found count</comment>
+  </data>
+  <data name="ChannelDetail_SelectAllNew" xml:space="preserve">
+    <value>Select All New</value>
+    <comment>Select all new button</comment>
+  </data>
+  <data name="ChannelDetail_SelectNone" xml:space="preserve">
+    <value>Select None</value>
+    <comment>Select none button</comment>
+  </data>
+  <data name="ChannelDetail_Imported" xml:space="preserve">
+    <value>Imported</value>
+    <comment>Imported badge</comment>
+  </data>
+  <data name="ChannelDetail_NoVideosFound" xml:space="preserve">
+    <value>No videos found. Try again later.</value>
+    <comment>No videos found message</comment>
+  </data>
+  <data name="ChannelDetail_ChannelAdded" xml:space="preserve">
+    <value>Channel added: {0}</value>
+    <comment>Channel added toast</comment>
+  </data>
+  <data name="ChannelDetail_ChannelUpdated" xml:space="preserve">
+    <value>Channel updated successfully!</value>
+    <comment>Channel updated toast</comment>
+  </data>
+  <data name="ChannelDetail_ImportStarted" xml:space="preserve">
+    <value>Started import for {0} video(s). Check Import History for progress.</value>
+    <comment>Import started toast</comment>
+  </data>
+  <data name="Feedback_Title" xml:space="preserve">
+    <value>Feedback</value>
+    <comment>Feedback page title</comment>
+  </data>
+  <data name="Feedback_HelpImprove" xml:space="preserve">
+    <value>Help us improve SentenceStudio</value>
+    <comment>Help improve message</comment>
+  </data>
+  <data name="Feedback_WhatKind" xml:space="preserve">
+    <value>What kind of feedback?</value>
+    <comment>Feedback type question</comment>
+  </data>
+  <data name="Feedback_AutoDetect" xml:space="preserve">
+    <value>Auto-detect</value>
+    <comment>Auto-detect option</comment>
+  </data>
+  <data name="Feedback_BugReport" xml:space="preserve">
+    <value>Bug Report</value>
+    <comment>Bug report option</comment>
+  </data>
+  <data name="Feedback_FeatureRequest" xml:space="preserve">
+    <value>Feature Request</value>
+    <comment>Feature request option</comment>
+  </data>
+  <data name="Feedback_Description" xml:space="preserve">
+    <value>Description</value>
+    <comment>Description field label</comment>
+  </data>
+  <data name="Feedback_DescribePlaceholder" xml:space="preserve">
+    <value>Describe the issue or feature you'd like...</value>
+    <comment>Description placeholder</comment>
+  </data>
+  <data name="Feedback_GitHubNotice" xml:space="preserve">
+    <value>Your feedback will be posted as a public GitHub issue on the SentenceStudio repository.</value>
+    <comment>GitHub notice</comment>
+  </data>
+  <data name="Feedback_GeneratingPreview" xml:space="preserve">
+    <value>Generating preview...</value>
+    <comment>Generating preview in progress</comment>
+  </data>
+  <data name="Feedback_Preview" xml:space="preserve">
+    <value>Preview</value>
+    <comment>Preview button</comment>
+  </data>
+  <data name="Feedback_Edit" xml:space="preserve">
+    <value>Edit</value>
+    <comment>Edit button</comment>
+  </data>
+  <data name="Feedback_Submitting" xml:space="preserve">
+    <value>Submitting...</value>
+    <comment>Submitting in progress</comment>
+  </data>
+  <data name="Feedback_Submit" xml:space="preserve">
+    <value>Submit</value>
+    <comment>Submit button</comment>
+  </data>
+  <data name="Feedback_AIUnavailable" xml:space="preserve">
+    <value>AI enrichment unavailable — your feedback will be submitted as-is.</value>
+    <comment>AI unavailable warning</comment>
+  </data>
+  <data name="Feedback_SubmitSuccess" xml:space="preserve">
+    <value>Feedback submitted successfully!</value>
+    <comment>Submit success title</comment>
+  </data>
+  <data name="Feedback_ViewOnGitHub" xml:space="preserve">
+    <value>View on GitHub</value>
+    <comment>View on GitHub link</comment>
+  </data>
+  <data name="Feedback_SubmitAnother" xml:space="preserve">
+    <value>Submit Another</value>
+    <comment>Submit another button</comment>
+  </data>
+  <data name="Feedback_PreviewFailed" xml:space="preserve">
+    <value>Failed to generate preview. Please try again.</value>
+    <comment>Preview failed toast</comment>
+  </data>
+  <data name="Feedback_SubmitFailed" xml:space="preserve">
+    <value>Failed to submit feedback. Please try again.</value>
+    <comment>Submit failed toast</comment>
+  </data>
+  <data name="Feedback_SubmitSuccessToast" xml:space="preserve">
+    <value>Feedback submitted successfully!</value>
+    <comment>Submit success toast</comment>
+  </data>
+  <data name="DebugHealth_Title" xml:space="preserve">
+    <value>Debug Health</value>
+    <comment>Debug Health page title</comment>
+  </data>
+  <data name="DebugHealth_DebugOnly" xml:space="preserve">
+    <value>This page is only available in Debug builds.</value>
+    <comment>Debug only message</comment>
+  </data>
+  <data name="DebugHealth_Database" xml:space="preserve">
+    <value>Database</value>
+    <comment>Database section title</comment>
+  </data>
+  <data name="DebugHealth_CanConnect" xml:space="preserve">
+    <value>Can connect</value>
+    <comment>Can connect label</comment>
+  </data>
+  <data name="DebugHealth_Provider" xml:space="preserve">
+    <value>Provider</value>
+    <comment>Provider label</comment>
+  </data>
+  <data name="DebugHealth_TableCount" xml:space="preserve">
+    <value>Table count</value>
+    <comment>Table count label</comment>
+  </data>
+  <data name="DebugHealth_Migrations" xml:space="preserve">
+    <value>EF Migrations</value>
+    <comment>Migrations section title</comment>
+  </data>
+  <data name="DebugHealth_Applied" xml:space="preserve">
+    <value>Applied</value>
+    <comment>Applied label</comment>
+  </data>
+  <data name="DebugHealth_Pending" xml:space="preserve">
+    <value>Pending</value>
+    <comment>Pending label</comment>
+  </data>
+  <data name="DebugHealth_ShowApplied" xml:space="preserve">
+    <value>Show applied migrations</value>
+    <comment>Show applied migrations link</comment>
+  </data>
+  <data name="DebugHealth_UserProfile" xml:space="preserve">
+    <value>User Profile</value>
+    <comment>User Profile section title</comment>
+  </data>
+  <data name="DebugHealth_SignedIn" xml:space="preserve">
+    <value>Signed in</value>
+    <comment>Signed in label</comment>
+  </data>
+  <data name="DebugHealth_UserName" xml:space="preserve">
+    <value>User name</value>
+    <comment>User name label</comment>
+  </data>
+  <data name="DebugHealth_ActiveProfileID" xml:space="preserve">
+    <value>Active profile ID</value>
+    <comment>Active profile ID label</comment>
+  </data>
+  <data name="DebugHealth_ProfileCount" xml:space="preserve">
+    <value>Profile count</value>
+    <comment>Profile count label</comment>
+  </data>
+  <data name="DebugHealth_Vocabulary" xml:space="preserve">
+    <value>Vocabulary</value>
+    <comment>Vocabulary section title</comment>
+  </data>
+  <data name="DebugHealth_TotalWords" xml:space="preserve">
+    <value>Total words</value>
+    <comment>Total words label</comment>
+  </data>
+  <data name="DebugHealth_WordsWithProgress" xml:space="preserve">
+    <value>Words with progress</value>
+    <comment>Words with progress label</comment>
+  </data>
+  <data name="DebugHealth_Resources" xml:space="preserve">
+    <value>Learning Resources</value>
+    <comment>Resources section title</comment>
+  </data>
+  <data name="DebugHealth_ResourceCount" xml:space="preserve">
+    <value>Resource count</value>
+    <comment>Resource count label</comment>
+  </data>
+  <data name="DebugHealth_APIConnectivity" xml:space="preserve">
+    <value>API Connectivity</value>
+    <comment>API connectivity section title</comment>
+  </data>
+  <data name="DebugHealth_APIReachable" xml:space="preserve">
+    <value>API reachable</value>
+    <comment>API reachable label</comment>
+  </data>
+  <data name="DebugHealth_APIBaseURL" xml:space="preserve">
+    <value>API base URL</value>
+    <comment>API base URL label</comment>
+  </data>
+  <data name="DebugHealth_CoreSync" xml:space="preserve">
+    <value>CoreSync</value>
+    <comment>CoreSync section title</comment>
+  </data>
+  <data name="DebugHealth_SyncServiceRegistered" xml:space="preserve">
+    <value>Sync service registered</value>
+    <comment>Sync service registered label</comment>
+  </data>
+  <data name="DebugHealth_Yes" xml:space="preserve">
+    <value>Yes</value>
+    <comment>Yes value</comment>
+  </data>
+  <data name="DebugHealth_No" xml:space="preserve">
+    <value>No</value>
+    <comment>No value</comment>
+  </data>
+  <data name="MinimalPair_Create" xml:space="preserve">
+    <value>Create Minimal Pair</value>
+    <comment>Create minimal pair page title</comment>
+  </data>
+  <data name="MinimalPair_SelectFirstWord" xml:space="preserve">
+    <value>Select First Word</value>
+    <comment>Select first word section title</comment>
+  </data>
+  <data name="MinimalPair_SelectSecondWord" xml:space="preserve">
+    <value>Select Second Word</value>
+    <comment>Select second word section title</comment>
+  </data>
+  <data name="MinimalPair_SearchVocab" xml:space="preserve">
+    <value>Search vocabulary...</value>
+    <comment>Search vocabulary placeholder</comment>
+  </data>
+  <data name="MinimalPair_ContrastLabel" xml:space="preserve">
+    <value>Contrast Label (optional)</value>
+    <comment>Contrast label field</comment>
+  </data>
+  <data name="MinimalPair_SelectBothWords" xml:space="preserve">
+    <value>Please select both words.</value>
+    <comment>Select both words error</comment>
+  </data>
+  <data name="MinimalPair_SelectDifferent" xml:space="preserve">
+    <value>Please select two different words.</value>
+    <comment>Select different words error</comment>
+  </data>
+  <data name="MinimalPair_Created" xml:space="preserve">
+    <value>Minimal pair created!</value>
+    <comment>Created success toast</comment>
+  </data>
+  <data name="MinimalPair_FailedToCreate" xml:space="preserve">
+    <value>Failed to create pair. It may already exist.</value>
+    <comment>Failed to create error</comment>
+  </data>
+  <data name="ActivityTimer_Pause" xml:space="preserve">
+    <value>Pause</value>
+    <comment>Pause button title</comment>
+  </data>
+  <data name="ActivityTimer_Resume" xml:space="preserve">
+    <value>Resume</value>
+    <comment>Resume button title</comment>
+  </data>
+  <data name="ActivityTimer_Stop" xml:space="preserve">
+    <value>Stop</value>
+    <comment>Stop button title</comment>
+  </data>
+  <data name="WhatsNew_Title" xml:space="preserve">
+    <value>What's New</value>
+    <comment>What's New modal title</comment>
+  </data>
+  <data name="WhatsNew_NoReleaseNotes" xml:space="preserve">
+    <value>No release notes available.</value>
+    <comment>No release notes message</comment>
+  </data>
+  <data name="WhatsNew_GotIt" xml:space="preserve">
+    <value>Got it!</value>
+    <comment>Got it button</comment>
+  </data>
+  <data name="UpdateBanner_VersionAvailable" xml:space="preserve">
+    <value>Version {0} is available.</value>
+    <comment>Version available message</comment>
+  </data>
+  <data name="PlanSummary_Completed" xml:space="preserve">
+    <value>completed</value>
+    <comment>Completed badge text</comment>
+  </data>
+  <data name="PlanSummary_Plan" xml:space="preserve">
+    <value>Plan</value>
+    <comment>Plan label</comment>
+  </data>
+  <data name="PlanSummary_TotalTime" xml:space="preserve">
+    <value>Total time</value>
+    <comment>Total time label</comment>
+  </data>
 </root>

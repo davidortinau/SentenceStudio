@@ -1,21 +1,23 @@
 @page "/auth"
 @attribute [AllowAnonymous]
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@implements IDisposable
 
-<PageHeader Title="Welcome" ShowHamburger="false" />
+<PageHeader Title='@Localize["Auth_Welcome"]' ShowHamburger="false" />
 
 <div class="container" style="max-width: 600px;">
     <div class="card card-ss p-4 mt-4">
-        <h1 class="ss-title1 mb-2">Welcome to SentenceStudio</h1>
+        <h1 class="ss-title1 mb-2">@Localize["Auth_WelcomeToApp"]</h1>
         <p class="ss-body2 text-secondary-ss mb-4">
-            Sign in to your account or select a local user to continue.
+            @Localize["Auth_SignInOrSelectUser"]
         </p>
 
         <div class="d-grid gap-2 mb-4">
             <a href="/auth/login" class="btn btn-ss-primary btn-lg">
-                <i class="bi bi-box-arrow-in-right me-2"></i>Sign In
+                <i class="bi bi-box-arrow-in-right me-2"></i>@Localize["Auth_SignIn"]
             </a>
             <a href="/auth/register" class="btn btn-ss-secondary btn-lg">
-                <i class="bi bi-person-plus me-2"></i>Create Account
+                <i class="bi bi-person-plus me-2"></i>@Localize["Auth_CreateAccount"]
             </a>
         </div>
 
@@ -29,7 +31,7 @@
         @if (_profiles.Count > 0 && isDevEnvironment)
         {
             <hr class="my-3" />
-            <h2 class="ss-title3 mb-2">Or choose a local user</h2>
+            <h2 class="ss-title3 mb-2">@Localize["Auth_OrChooseLocalUser"]</h2>
             <div class="d-grid gap-2 mb-3">
                 @foreach (var profile in _profiles)
                 {
@@ -45,7 +47,7 @@
                             </div>
                         </button>
                         <button class="btn btn-outline-danger d-flex align-items-center"
-                                title="Delete profile"
+                                title='@Localize["Auth_DeleteProfile"]' 
                                 @onclick="() => RequestDelete(p)">
                             <i class="bi bi-trash"></i>
                         </button>
@@ -56,7 +58,7 @@
 
         <div class="d-grid gap-2">
             <button class="btn btn-outline-secondary btn-lg" @onclick="RegisterLocalAsync">
-                <i class="bi bi-plus-circle me-2"></i>New User? Create Account
+                <i class="bi bi-plus-circle me-2"></i>@Localize["Auth_NewUserCreateAccount"]
             </button>
         </div>
     </div>
@@ -70,7 +72,7 @@
             <div class="modal-content bg-surface">
                 <div class="modal-header border-0">
                     <h5 class="modal-title text-error-ss">
-                        <i class="bi bi-exclamation-triangle-fill me-2"></i>Confirm Delete
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>@Localize["Auth_ConfirmDelete"]
                     </h5>
                     <button type="button" class="btn-close" @onclick="CancelDelete"></button>
                 </div>
@@ -78,13 +80,13 @@
                     <p class="ss-body2">@deleteConfirmMessage</p>
                 </div>
                 <div class="modal-footer border-0">
-                    <button type="button" class="btn btn-ss-secondary" @onclick="CancelDelete">Cancel</button>
+                    <button type="button" class="btn btn-ss-secondary" @onclick="CancelDelete">@Localize["Auth_Cancel"]</button>
                     <button type="button" class="btn btn-ss-danger" @onclick="ConfirmDelete" disabled="@isDeleting">
                         @if (isDeleting)
                         {
                             <span class="spinner-border spinner-border-sm me-1"></span>
                         }
-                        Delete
+                        @Localize["Auth_Delete"]
                     </button>
                 </div>
             </div>
@@ -113,6 +115,13 @@
     private UserProfile? profileToDelete;
     private string? loginError;
     private bool isDevEnvironment;
+
+    protected override void OnInitialized()
+    {
+        Localize.CultureChanged += OnCultureChanged;
+    }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
 
     protected override async Task OnInitializedAsync()
     {
@@ -161,7 +170,7 @@
         else
         {
             // No valid server session — redirect to login
-            loginError = "Server authentication required. Please sign in first.";
+            loginError = Localize["Auth_ServerAuthRequired"];
             StateHasChanged();
         }
     }
@@ -249,5 +258,10 @@
     private void RegisterLocalAsync()
     {
         NavManager.NavigateTo("/auth/register");
+    }
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnCultureChanged;
     }
 }

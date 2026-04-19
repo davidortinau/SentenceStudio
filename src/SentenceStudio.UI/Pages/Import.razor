@@ -2,17 +2,18 @@
 @attribute [Authorize]
 @using SentenceStudio.Shared.Models
 @using SentenceStudio.Services
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
 @implements IDisposable
 
-<PageHeader Title="YouTube Import">
+<PageHeader Title='@Localize["Import_YouTubeImport"]' >
     <PrimaryActions>
         <button class="btn btn-ss-primary" @onclick="AddChannel">
-            <i class="bi bi-plus-lg me-1"></i> Add Channel
+            <i class="bi bi-plus-lg me-1"></i> @Localize["Import_AddChannel"]
         </button>
     </PrimaryActions>
     <SecondaryActions>
-        <li><button class="dropdown-item" @onclick="AddChannel"><i class="bi bi-plus-lg me-2"></i>Add Channel</button></li>
-        <li><button class="dropdown-item" @onclick="RefreshImports"><i class="bi bi-arrow-repeat me-2"></i>Refresh</button></li>
+        <li><button class="dropdown-item" @onclick="AddChannel"><i class="bi bi-plus-lg me-2"></i>@Localize["Import_AddChannel"]</button></li>
+        <li><button class="dropdown-item" @onclick="RefreshImports"><i class="bi bi-arrow-repeat me-2"></i>@Localize["Import_Refresh"]</button></li>
     </SecondaryActions>
 </PageHeader>
 
@@ -20,15 +21,15 @@
 <div class="btn-group w-100 mb-4" role="group">
     <button class="btn @(currentTab == Tab.Channels ? "btn-ss-primary" : "btn-outline-secondary")"
             @onclick="() => SwitchTab(Tab.Channels)">
-        <i class="bi bi-youtube me-1"></i> My Channels
+        <i class="bi bi-youtube me-1"></i> @Localize["Import_MyChannels"]
     </button>
     <button class="btn @(currentTab == Tab.SingleVideo ? "btn-ss-primary" : "btn-outline-secondary")"
             @onclick="() => SwitchTab(Tab.SingleVideo)">
-        <i class="bi bi-link-45deg me-1"></i> Single Video
+        <i class="bi bi-link-45deg me-1"></i> @Localize["Import_SingleVideo"]
     </button>
     <button class="btn @(currentTab == Tab.History ? "btn-ss-primary" : "btn-outline-secondary")"
             @onclick="() => SwitchTab(Tab.History)">
-        <i class="bi bi-clock-history me-1"></i> Import History
+        <i class="bi bi-clock-history me-1"></i> @Localize["Import_History"]
     </button>
 </div>
 
@@ -45,9 +46,9 @@
     {
         <div class="text-center p-5">
             <i class="bi bi-youtube fs-1 mb-3 text-secondary-ss"></i>
-            <p class="ss-body1 text-secondary-ss mb-4">No channels monitored yet</p>
+            <p class="ss-body1 text-secondary-ss mb-4">@Localize["Import_NoChannelsYet"]</p>
             <button class="btn btn-ss-primary" @onclick="AddChannel">
-                <i class="bi bi-plus-circle me-1"></i> Add Your First Channel
+                <i class="bi bi-plus-circle me-1"></i> @Localize["Import_AddFirstChannel"]
             </button>
         </div>
     }
@@ -77,7 +78,7 @@
                                         }
                                     </small>
                                     <small class="text-secondary-ss">
-                                        Last checked: @(channel.LastCheckedAt?.ToString("g") ?? "Never")
+                                        @Localize["Import_LastChecked"] @(channel.LastCheckedAt?.ToString("g") ?? Localize["Import_Never"])
                                     </small>
                                 </div>
                             </div>
@@ -85,7 +86,7 @@
                                 <input class="form-check-input" type="checkbox" role="switch"
                                        checked="@channel.IsActive"
                                        @onchange="() => ToggleChannelActive(channel)"
-                                       title="@(channel.IsActive ? "Pause monitoring" : "Resume monitoring")" />
+                                       title='@(channel.IsActive ? Localize["Import_PauseMonitoring"] : Localize["Import_ResumeMonitoring"])' />
                             </div>
                         </div>
                     </div>
@@ -100,7 +101,7 @@
 {
     @* Step 1: URL input *@
     <div class="card card-ss p-3 mb-4">
-        <label class="form-label text-secondary-ss">YouTube URL</label>
+        <label class="form-label text-secondary-ss">@Localize["Import_YouTubeURL"]</label>
         <div class="d-flex gap-2">
             <input type="text" class="form-control form-control-ss"
                    @bind="videoUrl" @bind:event="oninput"
@@ -112,7 +113,7 @@
                 {
                     <span class="spinner-border spinner-border-sm me-1"></span>
                 }
-                Fetch
+                @Localize["Import_Fetch"]
             </button>
         </div>
     </div>
@@ -125,7 +126,7 @@
             @if (availableTranscripts.Count > 1)
             {
                 <div class="mb-3">
-                    <label class="form-label text-secondary-ss">Transcript Language</label>
+                    <label class="form-label text-secondary-ss">@Localize["Import_TranscriptLanguage"]</label>
                     <select class="form-select form-control-ss" @onchange="OnTranscriptSelected">
                         @foreach (var track in availableTranscripts)
                         {
@@ -149,7 +150,7 @@
             @if (!string.IsNullOrEmpty(transcriptText))
             {
                 <div class="mb-3">
-                    <label class="form-label text-secondary-ss">Transcript</label>
+                    <label class="form-label text-secondary-ss">@Localize["Import_Transcript"]</label>
                     <textarea class="form-control form-control-ss" rows="12"
                               @bind="transcriptText" @bind:event="oninput"
                               style="font-size: 14px; line-height: 1.6;"></textarea>
@@ -162,7 +163,7 @@
                         {
                             <span class="spinner-border spinner-border-sm me-1"></span>
                         }
-                        <i class="bi bi-stars me-1"></i> Polish with AI
+                        <i class="bi bi-stars me-1"></i> @Localize["Import_PolishWithAI"]
                     </button>
                     <button class="btn btn-ss-primary flex-grow-1" @onclick="SaveAsResource"
                             disabled="@isSaving">
@@ -170,7 +171,7 @@
                         {
                             <span class="spinner-border spinner-border-sm me-1"></span>
                         }
-                        <i class="bi bi-save me-1"></i> Save as Resource
+                        <i class="bi bi-save me-1"></i> @Localize["Import_SaveAsResource"]
                     </button>
                 </div>
             }
@@ -178,7 +179,7 @@
             {
                 <div class="d-flex justify-content-center p-3">
                     <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
-                    <span class="ms-2 text-secondary-ss">Downloading transcript...</span>
+                    <span class="ms-2 text-secondary-ss">@Localize["Import_DownloadingTranscript"]</span>
                 </div>
             }
         </div>
@@ -188,9 +189,9 @@
     @if (!string.IsNullOrEmpty(savedResourceId))
     {
         <div class="alert alert-success d-flex align-items-center gap-2">
-            <span><i class="bi bi-check-circle-fill me-1"></i> Resource saved successfully!</span>
-            <button class="btn btn-sm btn-outline-success" @onclick="ViewSavedResource">View Resource</button>
-            <button class="btn btn-sm btn-outline-secondary" @onclick="Reset">Import Another</button>
+            <span><i class="bi bi-check-circle-fill me-1"></i> @Localize["Import_ResourceSaved"]</span>
+            <button class="btn btn-sm btn-outline-success" @onclick="ViewSavedResource">@Localize["Import_ViewResource"]</button>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="Reset">@Localize["Import_ImportAnother"]</button>
         </div>
     }
 
@@ -214,13 +215,13 @@
     {
         <div class="text-center p-5">
             <i class="bi bi-clock-history fs-1 mb-3 text-secondary-ss"></i>
-            <p class="ss-body1 text-secondary-ss">No import history yet</p>
+            <p class="ss-body1 text-secondary-ss">@Localize["Import_NoHistoryYet"]</p>
         </div>
     }
     else
     {
         <div class="d-flex align-items-center mb-3">
-            <small class="text-secondary-ss">Showing @displayedImports.Count of @imports.Count imports</small>
+            <small class="text-secondary-ss">@string.Format(Localize["Import_ShowingCount"], displayedImports.Count, imports.Count)</small>
         </div>
 
         <div class="list-group">
@@ -249,7 +250,7 @@
                             {
                                 <span class="spinner-border spinner-border-sm me-1"></span>
                             }
-                            <i class="bi bi-arrow-clockwise me-1"></i>Retry
+                            <i class="bi bi-arrow-clockwise me-1"></i>@Localize["Import_Retry"]
                         </button>
                     }
                 </div>
@@ -260,7 +261,7 @@
         {
             <div class="text-center mt-3">
                 <button class="btn btn-ss-secondary" @onclick="ShowMoreImports">
-                    <i class="bi bi-chevron-down me-1"></i> Show More
+                    <i class="bi bi-chevron-down me-1"></i> @Localize["Import_ShowMore"]
                 </button>
             </div>
         }
@@ -313,6 +314,13 @@
     private System.Threading.Timer? pollTimer;
     private bool isPolling;
     private string? retryingImportId;
+
+    protected override void OnInitialized()
+    {
+        Localize.CultureChanged += OnCultureChanged;
+    }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
 
     protected override async Task OnInitializedAsync()
     {
@@ -449,7 +457,7 @@
     private async Task RefreshImports()
     {
         await LoadImports();
-        Toast.ShowSuccess("Imports refreshed");
+        Toast.ShowSuccess(Localize["Import_ImportsRefreshed"]);
     }
 
     private void ViewResource(string resourceId)
@@ -459,7 +467,7 @@
 
     private string GetChannelName(string? monitoredChannelId)
     {
-        if (string.IsNullOrEmpty(monitoredChannelId)) return "Manual import";
+        if (string.IsNullOrEmpty(monitoredChannelId)) return Localize["Import_ManualImport"];
         var ch = channels.FirstOrDefault(c => c.Id == monitoredChannelId);
         return ch?.ChannelName ?? ch?.ChannelHandle ?? "Channel";
     }
@@ -568,24 +576,19 @@
         }, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
     }
 
-    public void Dispose()
-    {
-        pollTimer?.Dispose();
-    }
-
     // ============ STATUS BADGE RENDERING ============
 
     private RenderFragment RenderStatusBadge(VideoImportStatus status) => __builder =>
     {
         var (badgeClass, icon, text) = status switch
         {
-            VideoImportStatus.Pending => ("badge bg-warning", "bi-hourglass-split", "Pending"),
-            VideoImportStatus.FetchingTranscript => ("badge bg-info", "bi-download", "Fetching..."),
-            VideoImportStatus.CleaningTranscript => ("badge bg-info", "bi-stars", "Cleaning..."),
-            VideoImportStatus.GeneratingVocabulary => ("badge bg-info", "bi-card-text", "Generating..."),
-            VideoImportStatus.SavingResource => ("badge bg-info", "bi-save", "Saving..."),
-            VideoImportStatus.Completed => ("badge bg-success", "bi-check-circle", "Completed"),
-            VideoImportStatus.Failed => ("badge bg-danger", "bi-x-circle", "Failed"),
+            VideoImportStatus.Pending => ("badge bg-warning", "bi-hourglass-split", Localize["Import_Pending"]),
+            VideoImportStatus.FetchingTranscript => ("badge bg-info", "bi-download", Localize["Import_Fetching"]),
+            VideoImportStatus.CleaningTranscript => ("badge bg-info", "bi-stars", Localize["Import_Cleaning"]),
+            VideoImportStatus.GeneratingVocabulary => ("badge bg-info", "bi-card-text", Localize["Import_Generating"]),
+            VideoImportStatus.SavingResource => ("badge bg-info", "bi-save", Localize["Import_Saving"]),
+            VideoImportStatus.Completed => ("badge bg-success", "bi-check-circle", Localize["Import_Completed"]),
+            VideoImportStatus.Failed => ("badge bg-danger", "bi-x-circle", Localize["Import_Failed"]),
             _ => ("badge bg-secondary", "bi-question-circle", "Unknown")
         };
 
@@ -626,7 +629,7 @@
 
             if (!availableTranscripts.Any())
             {
-                errorMessage = "No transcripts found for this video.";
+                errorMessage = Localize["Import_NoTranscripts"];
                 return;
             }
 
@@ -688,12 +691,12 @@
         try
         {
             transcriptText = await FormattingSvc.PolishWithAiAsync(transcriptText, selectedTrack?.LanguageCode);
-            Toast.ShowSuccess("Transcript polished!");
+            Toast.ShowSuccess(Localize["Import_TranscriptPolished"]);
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Failed to polish transcript");
-            Toast.ShowError("AI polishing failed. You can still save the current text.");
+            Toast.ShowError(Localize["Import_PolishingFailed"]);
         }
         finally
         {
@@ -765,5 +768,11 @@
         if (parenIndex > 0)
             language = language[..parenIndex];
         return language.Trim();
+    }
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnCultureChanged;
+        pollTimer?.Dispose();
     }
 }

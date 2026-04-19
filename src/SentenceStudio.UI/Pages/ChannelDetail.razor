@@ -2,8 +2,10 @@
 @attribute [Authorize]
 @using SentenceStudio.Shared.Models
 @using SentenceStudio.Services
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@implements IDisposable
 
-<PageHeader Title="@(IsNewChannel ? "Add Channel" : "Edit Channel")" 
+<PageHeader Title='@(IsNewChannel ? Localize["ChannelDetail_AddChannel"] : Localize["ChannelDetail_EditChannel"])'  
             ShowBack="true" 
             OnBack="NavigateBack" />
 
@@ -17,7 +19,7 @@ else
 {
     <div class="card card-ss p-4">
         <div class="mb-3">
-            <label class="form-label text-secondary-ss">Channel URL *</label>
+            <label class="form-label text-secondary-ss">@Localize["ChannelDetail_ChannelURL"] *</label>
             <input type="text" class="form-control form-control-ss"
                    @bind="channelUrl" @bind:event="oninput"
                    placeholder="https://www.youtube.com/@@My_easykorean" />
@@ -27,9 +29,9 @@ else
         </div>
 
         <div class="mb-3">
-            <label class="form-label text-secondary-ss">Language *</label>
+            <label class="form-label text-secondary-ss">@Localize["ChannelDetail_Language"] *</label>
             <select class="form-select form-control-ss" @bind="language">
-                <option value="">-- Select Language --</option>
+                <option value="">@Localize["ChannelDetail_SelectLanguage"]</option>
                 @foreach (var lang in SentenceStudio.Common.Constants.Languages)
                 {
                     <option value="@lang">@lang</option>
@@ -38,12 +40,12 @@ else
         </div>
 
         <div class="mb-3">
-            <label class="form-label text-secondary-ss">Check Interval</label>
+            <label class="form-label text-secondary-ss">@Localize["ChannelDetail_CheckInterval"]</label>
             <select class="form-select form-control-ss" @bind="checkIntervalHours">
-                <option value="6">Every 6 hours</option>
-                <option value="12">Every 12 hours</option>
-                <option value="24">Every 24 hours</option>
-                <option value="48">Every 48 hours</option>
+                <option value="6">@Localize["ChannelDetail_Every6Hours"]</option>
+                <option value="12">@Localize["ChannelDetail_Every12Hours"]</option>
+                <option value="24">@Localize["ChannelDetail_Every24Hours"]</option>
+                <option value="48">@Localize["ChannelDetail_Every48Hours"]</option>
             </select>
         </div>
 
@@ -51,7 +53,7 @@ else
             <div class="form-check form-switch">
                 <input class="form-check-input" type="checkbox" id="activeToggle" @bind="isActive" />
                 <label class="form-check-label ss-body2" for="activeToggle">
-                    Monitor this channel (check for new videos automatically)
+                    @Localize["ChannelDetail_MonitorChannel"]
                 </label>
             </div>
         </div>
@@ -67,13 +69,13 @@ else
         {
             <div class="alert alert-info d-flex align-items-center gap-2">
                 <div class="spinner-border spinner-border-sm" role="status"></div>
-                <span>Resolving channel information...</span>
+                <span>@Localize["ChannelDetail_ResolvingChannel"]</span>
             </div>
         }
 
         <div class="d-flex gap-2">
             <button class="btn btn-ss-secondary" @onclick="NavigateBack" disabled="@isSaving">
-                Cancel
+                @Localize["Common_Cancel"]
             </button>
             <button class="btn btn-ss-primary flex-grow-1" @onclick="SaveChannel" 
                     disabled="@(isSaving || isResolving || string.IsNullOrWhiteSpace(channelUrl) || string.IsNullOrWhiteSpace(language))">
@@ -81,7 +83,7 @@ else
                 {
                     <span class="spinner-border spinner-border-sm me-1"></span>
                 }
-                <i class="bi bi-save me-1"></i> Save Channel
+                <i class="bi bi-save me-1"></i> @Localize["ChannelDetail_SaveChannel"]
             </button>
         </div>
     </div>
@@ -90,7 +92,7 @@ else
     @if (!IsNewChannel && channel != null)
     {
         <div class="card card-ss p-4 mt-4">
-            <h6 class="ss-title3 mb-3"><i class="bi bi-search me-1"></i> Discover Videos</h6>
+            <h6 class="ss-title3 mb-3"><i class="bi bi-search me-1"></i> @Localize["ChannelDetail_DiscoverVideos"]</h6>
 
             <div class="d-flex gap-2 mb-3">
                 <button class="btn btn-ss-secondary" @onclick="CheckForNewVideos"
@@ -98,12 +100,12 @@ else
                     @if (isCheckingVideos)
                     {
                         <span class="spinner-border spinner-border-sm me-1"></span>
-                        <span>Checking...</span>
+                        <span>@Localize["ChannelDetail_Checking"]</span>
                     }
                     else
                     {
                         <i class="bi bi-arrow-repeat me-1"></i>
-                        <span>Check for New Videos</span>
+                        <span>@Localize["ChannelDetail_CheckForNewVideos"]</span>
                     }
                 </button>
 
@@ -115,12 +117,12 @@ else
                         @if (isImportingVideos)
                         {
                             <span class="spinner-border spinner-border-sm me-1"></span>
-                            <span>Importing...</span>
+                            <span>@Localize["ChannelDetail_Importing"]</span>
                         }
                         else
                         {
                             <i class="bi bi-download me-1"></i>
-                            <span>Import Selected (@selectedCount)</span>
+                            <span>@string.Format(Localize["ChannelDetail_ImportSelected"], selectedCount)</span>
                         }
                     </button>
                 }
@@ -130,7 +132,7 @@ else
             {
                 <div class="alert alert-warning mb-3">
                     <i class="bi bi-exclamation-triangle me-1"></i>
-                    YouTube channel ID could not be resolved. Video discovery requires a valid channel ID.
+                    @Localize["ChannelDetail_ChannelIDNotResolved"]
                     @if (!string.IsNullOrEmpty(resolutionError))
                     {
                         <br /><small class="text-muted">Error: @resolutionError</small>
@@ -141,21 +143,21 @@ else
                     @if (isRetryingResolve)
                     {
                         <span class="spinner-border spinner-border-sm me-1"></span>
-                        <span>Resolving...</span>
+                        <span>@Localize["ChannelDetail_Resolving"]</span>
                     }
                     else
                     {
                         <i class="bi bi-arrow-repeat me-1"></i>
-                        <span>Retry Resolve Channel</span>
+                        <span>@Localize["ChannelDetail_RetryResolve"]</span>
                     }
                 </button>
             }
             else if (discoveredVideos.Count > 0)
             {
                 <div class="d-flex align-items-center gap-2 mb-2">
-                    <small class="text-secondary-ss">@discoveredVideos.Count videos found</small>
+                    <small class="text-secondary-ss">@string.Format(Localize["ChannelDetail_VideosFound"], discoveredVideos.Count)</small>
                     <button class="btn btn-sm btn-outline-secondary" @onclick="ToggleSelectAll">
-                        @(selectedVideoIds.Count == discoveredVideos.Count(v => v.CanSelect && !v.IsFailed) ? "Select None" : "Select All New")
+                        @(selectedVideoIds.Count == discoveredVideos.Count(v => v.CanSelect && !v.IsFailed) ? Localize["ChannelDetail_SelectNone"] : Localize["ChannelDetail_SelectAllNew"])
                     </button>
                 </div>
 
@@ -170,22 +172,22 @@ else
                                 <span class="flex-grow-1 text-truncate">@video.Title</span>
                                 @if (video.IsCompleted)
                                 {
-                                    <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Imported</span>
+                                    <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>@Localize["ChannelDetail_Imported"]</span>
                                 }
                                 else if (video.IsFailed)
                                 {
-                                    <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Failed</span>
+                                    <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>@Localize["Import_Failed"]</span>
                                     <button class="btn btn-sm btn-outline-warning" @onclick="() => RetryFailedVideo(video)" disabled="@isRetryingImport">
                                         @if (retryingVideoId == video.VideoId)
                                         {
                                             <span class="spinner-border spinner-border-sm me-1"></span>
                                         }
-                                        <i class="bi bi-arrow-clockwise me-1"></i>Retry
+                                        <i class="bi bi-arrow-clockwise me-1"></i>@Localize["Import_Retry"]
                                     </button>
                                 }
                                 else if (video.IsInProgress)
                                 {
-                                    <span class="badge bg-info"><i class="bi bi-hourglass-split me-1"></i>Importing...</span>
+                                    <span class="badge bg-info"><i class="bi bi-hourglass-split me-1"></i>@Localize["ChannelDetail_Importing"]</span>
                                 }
                             </div>
                         </Virtualize>
@@ -194,7 +196,7 @@ else
             }
             else if (hasCheckedVideos && !isCheckingVideos)
             {
-                <p class="text-secondary-ss ss-body2 mb-0">No videos found. Try again later.</p>
+                <p class="text-secondary-ss ss-body2 mb-0">@Localize["ChannelDetail_NoVideosFound"]</p>
             }
 
             @if (!string.IsNullOrEmpty(discoveryError))
@@ -255,6 +257,13 @@ else
     private bool isRetryingResolve;
     private bool isRetryingImport;
     private string? retryingVideoId;
+
+    protected override void OnInitialized()
+    {
+        Localize.CultureChanged += OnCultureChanged;
+    }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
 
     protected override async Task OnInitializedAsync()
     {
@@ -347,7 +356,7 @@ else
                         return;
                     }
                     
-                    Toast.ShowSuccess($"Channel added: {saved.ChannelName ?? saved.ChannelHandle}");
+                    Toast.ShowSuccess(string.Format(Localize["ChannelDetail_ChannelAdded"], saved.ChannelName ?? saved.ChannelHandle));
                 }
                 catch (Exception ex)
                 {
@@ -390,7 +399,7 @@ else
                 }
 
                 await ChannelMonitorSvc.UpdateAsync(channel);
-                Toast.ShowSuccess("Channel updated successfully!");
+                Toast.ShowSuccess(Localize["ChannelDetail_ChannelUpdated"]);
             }
 
             NavManager.NavigateTo("/import");
@@ -529,7 +538,7 @@ else
                 importCount++;
             }
 
-            Toast.ShowSuccess($"Started import for {importCount} video(s). Check Import History for progress.");
+            Toast.ShowSuccess(string.Format(Localize["ChannelDetail_ImportStarted"], importCount));
             selectedVideoIds.Clear();
 
             // Refresh the discovery list to show newly-importing videos
@@ -633,5 +642,10 @@ else
             isRetryingImport = false;
             retryingVideoId = null;
         }
+    }
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnCultureChanged;
     }
 }

@@ -1,7 +1,9 @@
 @page "/onboarding"
 @attribute [Authorize]
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@implements IDisposable
 
-<PageHeader Title="Welcome" />
+<PageHeader Title='@Localize["Onboarding_Welcome"]' />
 
 <div class="container" style="max-width: 600px;">
     @switch (currentStep)
@@ -9,16 +11,16 @@
         case 0:
             @* Welcome *@
             <div class="text-center py-5">
-                <h1 class="ss-display mb-3">Welcome</h1>
-                <p class="ss-body1 text-secondary-ss mb-4">Let's set up your language learning journey.</p>
-                <button class="btn btn-ss-primary btn-lg" @onclick="NextStep">Get Started</button>
+                <h1 class="ss-display mb-3">@Localize["Onboarding_Welcome"]</h1>
+                <p class="ss-body1 text-secondary-ss mb-4">@Localize["Onboarding_SetupJourney"]</p>
+                <button class="btn btn-ss-primary btn-lg" @onclick="NextStep">@Localize["Onboarding_GetStarted"]</button>
             </div>
             break;
 
         case 1:
             @* Native Language *@
             <div class="py-4">
-                <h2 class="ss-title1 mb-3">What's your native language?</h2>
+                <h2 class="ss-title1 mb-3">@Localize["Onboarding_NativeLanguage"]</h2>
                 <div class="d-grid gap-2">
                     @foreach (var lang in languages)
                     {
@@ -34,7 +36,7 @@
         case 2:
             @* Target Language *@
             <div class="py-4">
-                <h2 class="ss-title1 mb-3">What language are you learning?</h2>
+                <h2 class="ss-title1 mb-3">@Localize["Onboarding_TargetLanguage"]</h2>
                 <div class="d-grid gap-2">
                     @foreach (var lang in targetLanguages)
                     {
@@ -50,19 +52,19 @@
         case 3:
             @* Name *@
             <div class="py-4">
-                <h2 class="ss-title1 mb-3">What's your name?</h2>
+                <h2 class="ss-title1 mb-3">@Localize["Onboarding_YourName"]</h2>
                 <input type="text" class="form-control form-control-ss form-control-lg mb-3"
-                       @bind="name" placeholder="Enter your name" />
+                       @bind="name" placeholder='@Localize["Onboarding_EnterName"]' />
 
                 @if (isLoadingNames)
                 {
                     <p class="ss-caption1 text-muted-ss">
-                        <span class="spinner-border spinner-border-sm me-1"></span> Generating name suggestions...
+                        <span class="spinner-border spinner-border-sm me-1"></span> @Localize["Onboarding_GeneratingNames"]
                     </p>
                 }
                 else if (suggestedNames.Any())
                 {
-                    <p class="ss-caption1 text-muted-ss mb-2">Or choose a suggested name:</p>
+                    <p class="ss-caption1 text-muted-ss mb-2">@Localize["Onboarding_OrChooseSuggested"]</p>
                     <div class="row g-2">
                         @foreach (var sn in suggestedNames)
                         {
@@ -78,9 +80,9 @@
         case 4:
             @* Learning Preferences *@
             <div class="py-4">
-                <h2 class="ss-title1 mb-3">Learning Preferences</h2>
+                <h2 class="ss-title1 mb-3">@Localize["Onboarding_LearningPreferences"]</h2>
 
-                <p class="ss-body2 text-secondary-ss mb-2">How long do you want to study each day?</p>
+                <p class="ss-body2 text-secondary-ss mb-2">@Localize["Onboarding_StudyDuration"]</p>
                 <div class="btn-group flex-wrap mb-4" role="group">
                     @foreach (var min in sessionOptions)
                     {
@@ -91,7 +93,7 @@
                     }
                 </div>
 
-                <p class="ss-body2 text-secondary-ss mb-2">What's your target level?</p>
+                <p class="ss-body2 text-secondary-ss mb-2">@Localize["Onboarding_TargetLevel"]</p>
                 <div class="btn-group flex-wrap" role="group">
                     @foreach (var level in cefrLevels)
                     {
@@ -107,9 +109,9 @@
         case 5:
             @* Finish *@
             <div class="text-center py-5">
-                <h2 class="ss-title1 mb-3">You're all set!</h2>
+                <h2 class="ss-title1 mb-3">@Localize["Onboarding_AllSet"]</h2>
                 <p class="ss-body1 text-secondary-ss mb-4">
-                    Would you like us to create starter learning content for you?
+                    @Localize["Onboarding_CreateStarterContent"]
                 </p>
 
                 @if (isCreatingContent)
@@ -128,7 +130,7 @@
                             {
                                 <i class="bi bi-circle text-secondary me-2"></i>
                             }
-                            <span class="ss-body2">Saving your profile</span>
+                            <span class="ss-body2">@Localize["Onboarding_SavingProfile"]</span>
                         </div>
                         <div class="d-flex align-items-center mb-3">
                             @if (contentStepsDone >= 2)
@@ -143,7 +145,7 @@
                             {
                                 <i class="bi bi-circle text-secondary me-2"></i>
                             }
-                            <span class="ss-body2">Generating starter vocabulary (this may take a moment)</span>
+                            <span class="ss-body2">@Localize["Onboarding_GeneratingVocab"]</span>
                         </div>
                         <div class="d-flex align-items-center">
                             @if (contentStepsDone >= 3)
@@ -158,7 +160,7 @@
                             {
                                 <i class="bi bi-circle text-secondary me-2"></i>
                             }
-                            <span class="ss-body2">Creating skill profile</span>
+                            <span class="ss-body2">@Localize["Onboarding_CreatingSkillProfile"]</span>
                         </div>
                     </div>
                 }
@@ -166,10 +168,10 @@
                 {
                     <div class="d-grid gap-2">
                         <button class="btn btn-ss-primary btn-lg" @onclick="CreateStarterContent">
-                            Create Starter Content
+                            @Localize["Onboarding_CreateStarter"]
                         </button>
                         <button class="btn btn-ss-secondary btn-lg" @onclick="FinishOnboarding">
-                            Skip -- I'll set up my own
+                            @Localize["Onboarding_SkipSetup"]
                         </button>
                     </div>
                 }
@@ -181,8 +183,8 @@
     @if (currentStep > 0 && currentStep < 5)
     {
         <div class="d-flex justify-content-between mt-4 pb-4">
-            <button class="btn btn-ss-secondary" @onclick="PrevStep">Back</button>
-            <button class="btn btn-ss-primary" @onclick="NextStep" disabled="@(!CanProceed())">Next</button>
+            <button class="btn btn-ss-secondary" @onclick="PrevStep">@Localize["Onboarding_Back"]</button>
+            <button class="btn btn-ss-primary" @onclick="NextStep" disabled="@(!CanProceed())">@Localize["Onboarding_Next"]</button>
         </div>
     }
 
@@ -232,6 +234,13 @@
         3 => !string.IsNullOrWhiteSpace(name),
         _ => true
     };
+
+    protected override void OnInitialized()
+    {
+        Localize.CultureChanged += OnCultureChanged;
+    }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
 
     protected override async Task OnInitializedAsync()
     {
@@ -369,5 +378,10 @@
         Preferences.Set("is_onboarded", true);
         Preferences.Set("app_is_authenticated", true);
         NavManager.NavigateTo("/", forceLoad: true);
+    }
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnCultureChanged;
     }
 }

@@ -1,3 +1,6 @@
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@implements IDisposable
+
 @if (IsVisible)
 {
     <div class="modal fade show d-block" tabindex="-1" role="dialog" style="background-color: rgba(0,0,0,0.5);">
@@ -6,7 +9,7 @@
                 <div class="modal-header border-bottom" style="border-color: var(--bs-border-color) !important;">
                     <h5 class="modal-title d-flex align-items-center gap-2">
                         <i class="bi bi-megaphone text-primary-ss"></i>
-                        <span>@Title @(!string.IsNullOrEmpty(Version) ? $"in v{Version}" : "")</span>
+                        <span>@(string.IsNullOrEmpty(Title) ? Localize["WhatsNew_Title"] : Title) @(!string.IsNullOrEmpty(Version) ? $"in v{Version}" : "")</span>
                     </h5>
                     <button type="button" class="btn-close" @onclick="HandleDismiss"></button>
                 </div>
@@ -17,12 +20,12 @@
                     }
                     else
                     {
-                        <p class="text-muted-ss ss-body2">No release notes available.</p>
+                        <p class="text-muted-ss ss-body2">@Localize["WhatsNew_NoReleaseNotes"]</p>
                     }
                 </div>
                 <div class="modal-footer border-top" style="border-color: var(--bs-border-color) !important;">
                     <button type="button" class="btn btn-ss-primary" @onclick="HandleDismiss">
-                        <i class="bi bi-check-circle me-1"></i> Got it!
+                        <i class="bi bi-check-circle me-1"></i> @Localize["WhatsNew_GotIt"]
                     </button>
                 </div>
             </div>
@@ -33,12 +36,24 @@
 @code {
     [Parameter] public bool IsVisible { get; set; }
     [Parameter] public EventCallback OnDismissed { get; set; }
-    [Parameter] public string Title { get; set; } = "What's New";
+    [Parameter] public string Title { get; set; } = "";
     [Parameter] public string Version { get; set; } = "";
     [Parameter] public string Content { get; set; } = "";
+
+    protected override void OnInitialized()
+    {
+        Localize.CultureChanged += OnCultureChanged;
+    }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
 
     private async Task HandleDismiss()
     {
         await OnDismissed.InvokeAsync();
+    }
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnCultureChanged;
     }
 }

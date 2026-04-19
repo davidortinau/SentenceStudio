@@ -1,13 +1,15 @@
 @page "/debug/health"
 @using Microsoft.EntityFrameworkCore
 @using SentenceStudio.Abstractions
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@implements IDisposable
 
-<PageHeader Title="Debug Health" ShowBack="true" />
+<PageHeader Title='@Localize["DebugHealth_Title"]' ShowBack="true" />
 
 @if (!IsDebugBuild)
 {
     <div class="text-center p-5">
-        <p class="ss-body1 text-secondary-ss">This page is only available in Debug builds.</p>
+        <p class="ss-body1 text-secondary-ss">@Localize["DebugHealth_DebugOnly"]</p>
     </div>
 }
 else if (isLoading)
@@ -22,24 +24,24 @@ else
 
         @* Database *@
         <div class="card card-ss p-3 mb-3">
-            <h5 class="ss-title3 mb-2"><i class="bi bi-database me-2"></i>Database</h5>
+            <h5 class="ss-title3 mb-2"><i class="bi bi-database me-2"></i>@Localize["DebugHealth_Database"]</h5>
             <div class="d-flex flex-column gap-1">
-                <Row Label="Can connect" Value="@dbCanConnect" Ok="@dbCanConnect" />
-                <Row Label="Provider" Value="@dbProvider" />
-                <Row Label="Table count" Value="@dbTableCount.ToString()" />
+                <Row Label='@Localize["DebugHealth_CanConnect"]' Value="@dbCanConnect" Ok="@dbCanConnect" />
+                <Row Label='@Localize["DebugHealth_Provider"]' Value="@dbProvider" />
+                <Row Label='@Localize["DebugHealth_TableCount"]' Value="@dbTableCount.ToString()" />
             </div>
         </div>
 
         @* Migrations *@
         <div class="card card-ss p-3 mb-3">
-            <h5 class="ss-title3 mb-2"><i class="bi bi-arrow-repeat me-2"></i>EF Migrations</h5>
+            <h5 class="ss-title3 mb-2"><i class="bi bi-arrow-repeat me-2"></i>@Localize["DebugHealth_Migrations"]</h5>
             <div class="d-flex flex-column gap-1">
-                <Row Label="Applied" Value="@appliedMigrationCount.ToString()" />
-                <Row Label="Pending" Value="@pendingMigrationCount.ToString()" Ok="@(pendingMigrationCount == 0)" />
+                <Row Label='@Localize["DebugHealth_Applied"]' Value="@appliedMigrationCount.ToString()" />
+                <Row Label='@Localize["DebugHealth_Pending"]' Value="@pendingMigrationCount.ToString()" Ok="@(pendingMigrationCount == 0)" />
                 @if (appliedMigrations.Any())
                 {
                     <details class="mt-1">
-                        <summary class="ss-caption1 text-secondary-ss" style="cursor: pointer;">Show applied migrations</summary>
+                        <summary class="ss-caption1 text-secondary-ss" style="cursor: pointer;">@Localize["DebugHealth_ShowApplied"]</summary>
                         <ul class="list-unstyled mt-1 mb-0 ps-3">
                             @foreach (var m in appliedMigrations)
                             {
@@ -53,52 +55,52 @@ else
 
         @* User Profile *@
         <div class="card card-ss p-3 mb-3">
-            <h5 class="ss-title3 mb-2"><i class="bi bi-person me-2"></i>User Profile</h5>
+            <h5 class="ss-title3 mb-2"><i class="bi bi-person me-2"></i>@Localize["DebugHealth_UserProfile"]</h5>
             <div class="d-flex flex-column gap-1">
-                <Row Label="Signed in" Value="@isSignedIn" Ok="@isSignedIn" />
-                <Row Label="User name" Value="@userName" />
-                <Row Label="Active profile ID" Value="@activeProfileId" />
-                <Row Label="Profile count" Value="@profileCount.ToString()" />
+                <Row Label='@Localize["DebugHealth_SignedIn"]' Value="@isSignedIn" Ok="@isSignedIn" />
+                <Row Label='@Localize["DebugHealth_UserName"]' Value="@userName" />
+                <Row Label='@Localize["DebugHealth_ActiveProfileID"]' Value="@activeProfileId" />
+                <Row Label='@Localize["DebugHealth_ProfileCount"]' Value="@profileCount.ToString()" />
             </div>
         </div>
 
         @* Vocabulary *@
         <div class="card card-ss p-3 mb-3">
-            <h5 class="ss-title3 mb-2"><i class="bi bi-book me-2"></i>Vocabulary</h5>
+            <h5 class="ss-title3 mb-2"><i class="bi bi-book me-2"></i>@Localize["DebugHealth_Vocabulary"]</h5>
             <div class="d-flex flex-column gap-1">
-                <Row Label="Total words" Value="@totalWordCount.ToString()" />
-                <Row Label="Words with progress" Value="@wordsWithProgressCount.ToString()" />
+                <Row Label='@Localize["DebugHealth_TotalWords"]' Value="@totalWordCount.ToString()" />
+                <Row Label='@Localize["DebugHealth_WordsWithProgress"]' Value="@wordsWithProgressCount.ToString()" />
             </div>
         </div>
 
         @* Learning Resources *@
         <div class="card card-ss p-3 mb-3">
-            <h5 class="ss-title3 mb-2"><i class="bi bi-collection me-2"></i>Learning Resources</h5>
+            <h5 class="ss-title3 mb-2"><i class="bi bi-collection me-2"></i>@Localize["DebugHealth_Resources"]</h5>
             <div class="d-flex flex-column gap-1">
-                <Row Label="Resource count" Value="@resourceCount.ToString()" />
+                <Row Label='@Localize["DebugHealth_ResourceCount"]' Value="@resourceCount.ToString()" />
             </div>
         </div>
 
         @* API Connectivity *@
         <div class="card card-ss p-3 mb-3">
-            <h5 class="ss-title3 mb-2"><i class="bi bi-cloud me-2"></i>API Connectivity</h5>
+            <h5 class="ss-title3 mb-2"><i class="bi bi-cloud me-2"></i>@Localize["DebugHealth_APIConnectivity"]</h5>
             <div class="d-flex flex-column gap-1">
-                <Row Label="API reachable" Value="@apiReachable" Ok="@apiReachable" />
-                <Row Label="API base URL" Value="@apiBaseUrl" />
+                <Row Label='@Localize["DebugHealth_APIReachable"]' Value="@apiReachable" Ok="@apiReachable" />
+                <Row Label='@Localize["DebugHealth_APIBaseURL"]' Value="@apiBaseUrl" />
             </div>
         </div>
 
         @* CoreSync *@
         <div class="card card-ss p-3 mb-3">
-            <h5 class="ss-title3 mb-2"><i class="bi bi-arrow-left-right me-2"></i>CoreSync</h5>
+            <h5 class="ss-title3 mb-2"><i class="bi bi-arrow-left-right me-2"></i>@Localize["DebugHealth_CoreSync"]</h5>
             <div class="d-flex flex-column gap-1">
-                <Row Label="Sync service registered" Value="@syncServiceRegistered" Ok="@syncServiceRegistered" />
+                <Row Label='@Localize["DebugHealth_SyncServiceRegistered"]' Value="@syncServiceRegistered" Ok="@syncServiceRegistered" />
             </div>
         </div>
 
         <div class="text-center mb-4">
             <button class="btn btn-ss-secondary btn-sm" @onclick="LoadHealthData">
-                <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                <i class="bi bi-arrow-clockwise me-1"></i>@Localize["Common_Refresh"]
             </button>
         </div>
     </div>
@@ -150,6 +152,13 @@ else
 
     // Sync
     private bool syncServiceRegistered;
+
+    protected override void OnInitialized()
+    {
+        Localize.CultureChanged += OnCultureChanged;
+    }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
 
     protected override async Task OnInitializedAsync()
     {
@@ -301,5 +310,10 @@ else
     };
 
     private RenderFragment Row(string Label, bool Value, bool? Ok = null) =>
-        Row(Label, Value ? "Yes" : "No", Ok);
+        Row(Label, Value ? Localize["DebugHealth_Yes"] : Localize["DebugHealth_No"], Ok);
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnCultureChanged;
+    }
 }

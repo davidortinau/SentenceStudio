@@ -1,4 +1,6 @@
 @inject SentenceStudio.Abstractions.IPreferencesService Preferences
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@implements IDisposable
 
 @if (isVisible)
 {
@@ -6,10 +8,10 @@
          role="alert" style="font-size: 0.85rem;">
         <div class="d-flex align-items-center gap-2">
             <i class="bi bi-arrow-up-circle"></i>
-            <span>Version @LatestVersion is available.</span>
+            <span>@string.Format(Localize["UpdateBanner_VersionAvailable"], LatestVersion)</span>
         </div>
         <button type="button" class="btn-close btn-close-sm ms-2" 
-                @onclick="Dismiss" aria-label="Close"
+                @onclick="Dismiss" aria-label='@Localize["Common_Close"]'
                 style="font-size: 0.65rem;"></button>
     </div>
 }
@@ -20,6 +22,13 @@
 
     private bool isVisible;
     private bool isDismissed;
+
+    protected override void OnInitialized()
+    {
+        Localize.CultureChanged += OnCultureChanged;
+    }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
 
     protected override void OnParametersSet()
     {
@@ -32,5 +41,10 @@
     {
         Preferences.Set("dismissed_update_version", LatestVersion);
         isVisible = false;
+    }
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnCultureChanged;
     }
 }
