@@ -1,28 +1,30 @@
 @page "/skills/add"
 @attribute [Authorize]
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@implements IDisposable
 
-<PageHeader Title="Add Skill Profile" ShowBack="true" OnBack="Cancel">
+<PageHeader Title='@Localize["SkillAdd_Title"]' ShowBack="true" OnBack="Cancel">
     <PrimaryActions>
         <button class="btn btn-ss-primary" @onclick="SaveProfile" disabled="@isSaving">
             @if (isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
-            Save
+            @Localize["Common_Save"]
         </button>
     </PrimaryActions>
     <SecondaryActions>
-        <li><button class="dropdown-item" @onclick="SaveProfile" disabled="@isSaving"><i class="bi bi-check-lg me-2"></i>Save</button></li>
+        <li><button class="dropdown-item" @onclick="SaveProfile" disabled="@isSaving"><i class="bi bi-check-lg me-2"></i>@Localize["Common_Save"]</button></li>
     </SecondaryActions>
 </PageHeader>
 
 <div class="card card-ss p-4 mb-3">
     <div class="mb-3">
-        <label class="form-label ss-body2 text-secondary-ss">Title *</label>
-        <input type="text" class="form-control form-control-ss" @bind="title" placeholder="Skill profile title" />
+        <label class="form-label ss-body2 text-secondary-ss">@Localize["SkillAdd_TitleLabel"]</label>
+        <input type="text" class="form-control form-control-ss" @bind="title" placeholder='@Localize["SkillAdd_TitlePlaceholder"]' />
     </div>
 
     <div class="mb-3">
-        <label class="form-label ss-body2 text-secondary-ss">Skills Description</label>
+        <label class="form-label ss-body2 text-secondary-ss">@Localize["SkillAdd_DescriptionLabel"]</label>
         <textarea class="form-control form-control-ss" @bind="description" rows="6"
-                  placeholder="Describe the skills for this profile"></textarea>
+                  placeholder='@Localize["SkillAdd_DescriptionPlaceholder"]'></textarea>
     </div>
 </div>
 
@@ -32,7 +34,7 @@
         {
             <span class="spinner-border spinner-border-sm me-1"></span>
         }
-        Save Skill Profile
+        @Localize["SkillAdd_SaveSkillProfile"]
     </button>
 </div>
 
@@ -51,7 +53,7 @@
     {
         if (string.IsNullOrWhiteSpace(title))
         {
-            Toast.ShowError("Title is required.");
+            Toast.ShowError($"{Localize["SkillAdd_TitleRequired"]}");
             return;
         }
 
@@ -65,16 +67,28 @@
             };
 
             await SkillRepo.SaveAsync(profile);
-            Toast.ShowSuccess("Skill profile saved.");
+            Toast.ShowSuccess($"{Localize["SkillAdd_SavedSuccess"]}");
             NavManager.NavigateTo("/skills");
         }
         catch (Exception ex)
         {
-            Toast.ShowError($"Failed to save: {ex.Message}");
+            Toast.ShowError(string.Format(Localize["SkillAdd_SaveFailed"], ex.Message));
         }
         finally
         {
             isSaving = false;
         }
+    }
+
+    protected override void OnInitialized()
+    {
+        Localize.CultureChanged += OnCultureChanged;
+    }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnCultureChanged;
     }
 }

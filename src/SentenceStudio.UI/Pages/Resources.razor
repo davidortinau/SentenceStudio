@@ -1,14 +1,16 @@
 @page "/resources"
 @attribute [Authorize]
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@implements IDisposable
 
-<PageHeader Title="Learning Resources">
+<PageHeader Title='@Localize["Resources_Title"]'>
     <PrimaryActions>
         <button class="btn btn-ss-primary" @onclick="AddResource">
-            <i class="bi bi-plus-lg me-1"></i> Add Resource
+            <i class="bi bi-plus-lg me-1"></i> @Localize["Resources_AddResource"]
         </button>
     </PrimaryActions>
     <SecondaryActions>
-        <li><button class="dropdown-item" @onclick="AddResource"><i class="bi bi-plus-lg me-2"></i>Add Resource</button></li>
+        <li><button class="dropdown-item" @onclick="AddResource"><i class="bi bi-plus-lg me-2"></i>@Localize["Resources_AddResource"]</button></li>
     </SecondaryActions>
 </PageHeader>
 
@@ -24,12 +26,12 @@ else
     @* Search and filters *@
     <div class="d-flex flex-wrap gap-2 mb-4 align-items-center">
         <input type="text" class="form-control form-control-ss w-100 w-md-auto flex-md-grow-1"
-               placeholder="Search resources..."
+               placeholder='@Localize["Resources_SearchPlaceholder"]'
                @bind="searchText" @bind:after="SearchResources" />
 
         <select class="form-select form-control-ss" style="max-width: 180px;"
                 @bind="filterType" @bind:after="FilterResources">
-            <option value="All">All Types</option>
+            <option value="All">@Localize["Resources_AllTypes"]</option>
             @foreach (var type in mediaTypes)
             {
                 <option value="@type">@type</option>
@@ -38,7 +40,7 @@ else
 
         <select class="form-select form-control-ss" style="max-width: 180px;"
                 @bind="filterLanguage" @bind:after="FilterResources">
-            <option value="All">All Languages</option>
+            <option value="All">@Localize["Resources_AllLanguages"]</option>
             @foreach (var lang in languages)
             {
                 <option value="@lang">@lang</option>
@@ -46,10 +48,10 @@ else
         </select>
 
         <div class="ms-auto btn-group btn-group-sm flex-shrink-0" role="group">
-            <button class="btn @(viewMode == "grid" ? "btn-secondary" : "btn-outline-secondary")" @onclick='() => SetViewMode("grid")' title="Grid view">
+            <button class="btn @(viewMode == "grid" ? "btn-secondary" : "btn-outline-secondary")" @onclick='() => SetViewMode("grid")' title='@Localize["Resources_GridView"]'>
                 <i class="bi bi-grid-3x3-gap"></i>
             </button>
-            <button class="btn @(viewMode == "list" ? "btn-secondary" : "btn-outline-secondary")" @onclick='() => SetViewMode("list")' title="List view">
+            <button class="btn @(viewMode == "list" ? "btn-secondary" : "btn-outline-secondary")" @onclick='() => SetViewMode("list")' title='@Localize["Resources_ListView"]'>
                 <i class="bi bi-list-ul"></i>
             </button>
         </div>
@@ -58,15 +60,15 @@ else
     @if (resources.Count == 0)
     {
         <div class="text-center p-5">
-            <p class="ss-body1 text-secondary-ss mb-4">No resources found</p>
+            <p class="ss-body1 text-secondary-ss mb-4">@Localize["Resources_NoResourcesFound"]</p>
             <div class="d-flex gap-2 justify-content-center">
-                <button class="btn btn-ss-primary" @onclick="AddResource">Add Your First Resource</button>
+                <button class="btn btn-ss-primary" @onclick="AddResource">@Localize["Resources_AddFirstResource"]</button>
                 <button class="btn btn-ss-secondary" @onclick="CreateStarterResource" disabled="@isCreatingStarter">
                     @if (isCreatingStarter)
                     {
                         <span class="spinner-border spinner-border-sm me-1"></span>
                     }
-                    Create a Starter Resource
+                    @Localize["Resources_CreateStarter"]
                 </button>
             </div>
         </div>
@@ -74,7 +76,7 @@ else
     else
     {
         <div class="d-flex align-items-center mb-3">
-            <small class="text-secondary-ss">@resources.Count resource(s)</small>
+            <small class="text-secondary-ss">@string.Format(Localize["Resources_ResourcesCount"], resources.Count)</small>
         </div>
 
         @if (viewMode == "grid")
@@ -121,7 +123,7 @@ else
          style="background: rgba(0,0,0,0.6); z-index: 1050;">
         <div class="text-center">
             <div class="spinner-border text-primary mb-3" role="status"></div>
-            <p class="ss-body2 text-white">Creating starter vocabulary...</p>
+            <p class="ss-body2 text-white">@Localize["Resources_CreatingStarter"]</p>
         </div>
     </div>
 }
@@ -166,7 +168,7 @@ else
         }
         catch (Exception ex)
         {
-            Toast.ShowError($"Failed to load resources: {ex.Message}");
+            Toast.ShowError(string.Format(Localize["Resources_LoadFailed"], ex.Message));
         }
         finally
         {
@@ -196,7 +198,7 @@ else
         }
         catch (Exception ex)
         {
-            Toast.ShowError($"Search failed: {ex.Message}");
+            Toast.ShowError(string.Format(Localize["Resources_SearchFailed"], ex.Message));
         }
         finally
         {
@@ -223,7 +225,7 @@ else
             var profile = await UserProfileRepo.GetOrCreateDefaultAsync();
             if (string.IsNullOrEmpty(profile.NativeLanguage))
             {
-                Toast.ShowError("Please set up your native language in your profile first.");
+                Toast.ShowError($"{Localize["Resources_SetNativeLanguage"]}");
                 return;
             }
 
@@ -233,7 +235,7 @@ else
             // Guard: don't create duplicates
             if (await ResourceRepo.StarterResourceExistsAsync(targetLang))
             {
-                Toast.ShowSuccess("Starter resource already exists! Loading your resources…");
+                Toast.ShowSuccess($"{Localize["Resources_StarterExists"]}");
                 await LoadResources();
                 return;
             }
@@ -244,11 +246,11 @@ else
             await ResourceRepo.GetStarterVocabulary(profile.NativeLanguage, targetLang);
             await LoadResources();
 
-            Toast.ShowSuccess($"Starter resource created for {targetLang}!");
+            Toast.ShowSuccess(string.Format(Localize["Resources_StarterSuccess"], targetLang));
         }
         catch (Exception ex)
         {
-            Toast.ShowError($"Failed to create starter resource: {ex.Message}");
+            Toast.ShowError(string.Format(Localize["Resources_StarterFailed"], ex.Message));
         }
         finally
         {
@@ -273,4 +275,16 @@ else
     }
 
     private void ToggleSearch() => showSearch = !showSearch;
+
+    protected override void OnInitialized()
+    {
+        Localize.CultureChanged += OnCultureChanged;
+    }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnCultureChanged;
+    }
 }

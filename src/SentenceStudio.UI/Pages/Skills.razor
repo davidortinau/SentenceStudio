@@ -1,14 +1,15 @@
 @page "/skills"
 @attribute [Authorize]
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
 
-<PageHeader Title="Skill Profiles">
+<PageHeader Title='@Localize["Skills_Title"]'>
     <PrimaryActions>
         <button class="btn btn-ss-primary" @onclick="AddProfile">
-            <i class="bi bi-plus-lg me-1"></i> Add
+            <i class="bi bi-plus-lg me-1"></i> @Localize["Common_Add"]
         </button>
     </PrimaryActions>
     <SecondaryActions>
-        <li><button class="dropdown-item" @onclick="AddProfile"><i class="bi bi-plus-lg me-2"></i>Add Skill Profile</button></li>
+        <li><button class="dropdown-item" @onclick="AddProfile"><i class="bi bi-plus-lg me-2"></i>@Localize["Skills_AddSkillProfile"]</button></li>
     </SecondaryActions>
 </PageHeader>
 
@@ -21,8 +22,8 @@
 else if (profiles.Count == 0)
 {
     <div class="text-center p-5">
-        <p class="ss-body1 text-secondary-ss mb-4">No skill profiles yet</p>
-        <button class="btn btn-ss-primary" @onclick="AddProfile">Add Your First Skill Profile</button>
+        <p class="ss-body1 text-secondary-ss mb-4">@Localize["Skills_NoProfilesYet"]</p>
+        <button class="btn btn-ss-primary" @onclick="AddProfile">@Localize["Skills_AddFirstProfile"]</button>
     </div>
 }
 else

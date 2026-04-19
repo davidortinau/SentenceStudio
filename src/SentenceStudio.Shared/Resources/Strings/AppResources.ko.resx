@@ -3118,4 +3118,1252 @@
     <value>정답은 {0}이었습니다</value>
     <comment>Incorrect feedback with answer</comment>
   </data>
+  <data name="Skills_Title" xml:space="preserve">
+    <value>스킬 프로필</value>
+    <comment>Page title</comment>
+  </data>
+  <data name="Skills_NoProfilesYet" xml:space="preserve">
+    <value>아직 스킬 프로필이 없습니다</value>
+    <comment>Empty state</comment>
+  </data>
+  <data name="Skills_AddFirstProfile" xml:space="preserve">
+    <value>첫 번째 스킬 프로필 추가</value>
+    <comment>Empty state button</comment>
+  </data>
+  <data name="Skills_AddSkillProfile" xml:space="preserve">
+    <value>스킬 프로필 추가</value>
+    <comment>Menu item</comment>
+  </data>
+  <data name="SkillAdd_Title" xml:space="preserve">
+    <value>스킬 프로필 추가</value>
+    <comment>Page title</comment>
+  </data>
+  <data name="SkillAdd_TitleLabel" xml:space="preserve">
+    <value>제목 *</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="SkillAdd_TitlePlaceholder" xml:space="preserve">
+    <value>스킬 프로필 제목</value>
+    <comment>Input placeholder</comment>
+  </data>
+  <data name="SkillAdd_DescriptionLabel" xml:space="preserve">
+    <value>스킬 설명</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="SkillAdd_DescriptionPlaceholder" xml:space="preserve">
+    <value>이 프로필의 스킬을 설명하세요</value>
+    <comment>Textarea placeholder</comment>
+  </data>
+  <data name="SkillAdd_SaveSkillProfile" xml:space="preserve">
+    <value>스킬 프로필 저장</value>
+    <comment>Save button</comment>
+  </data>
+  <data name="SkillAdd_TitleRequired" xml:space="preserve">
+    <value>제목은 필수입니다.</value>
+    <comment>Validation error</comment>
+  </data>
+  <data name="SkillAdd_SavedSuccess" xml:space="preserve">
+    <value>스킬 프로필이 저장되었습니다.</value>
+    <comment>Toast success</comment>
+  </data>
+  <data name="SkillAdd_SaveFailed" xml:space="preserve">
+    <value>저장 실패: {0}</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="SkillEdit_Title" xml:space="preserve">
+    <value>스킬 프로필 편집</value>
+    <comment>Page title</comment>
+  </data>
+  <data name="SkillEdit_DetailsTitle" xml:space="preserve">
+    <value>세부정보</value>
+    <comment>Section heading</comment>
+  </data>
+  <data name="SkillEdit_Created" xml:space="preserve">
+    <value>생성일</value>
+    <comment>Detail label</comment>
+  </data>
+  <data name="SkillEdit_Updated" xml:space="preserve">
+    <value>업데이트일</value>
+    <comment>Detail label</comment>
+  </data>
+  <data name="SkillEdit_ConfirmDelete" xml:space="preserve">
+    <value>삭제 확인</value>
+    <comment>Modal title</comment>
+  </data>
+  <data name="SkillEdit_DeleteMessage" xml:space="preserve">
+    <value>이 스킬 프로필을 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.</value>
+    <comment>Delete confirmation message</comment>
+  </data>
+  <data name="SkillEdit_NotFound" xml:space="preserve">
+    <value>스킬 프로필을 찾을 수 없습니다.</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="SkillEdit_LoadFailed" xml:space="preserve">
+    <value>로드 실패: {0}</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="SkillEdit_SavedSuccess" xml:space="preserve">
+    <value>스킬 프로필이 저장되었습니다.</value>
+    <comment>Toast success</comment>
+  </data>
+  <data name="SkillEdit_DeletedSuccess" xml:space="preserve">
+    <value>스킬 프로필이 삭제되었습니다.</value>
+    <comment>Toast success</comment>
+  </data>
+  <data name="SkillEdit_DeleteFailed" xml:space="preserve">
+    <value>삭제 실패: {0}</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="Resources_Title" xml:space="preserve">
+    <value>학습 리소스</value>
+    <comment>Page title</comment>
+  </data>
+  <data name="Resources_AddResource" xml:space="preserve">
+    <value>리소스 추가</value>
+    <comment>Button text</comment>
+  </data>
+  <data name="Resources_SearchPlaceholder" xml:space="preserve">
+    <value>리소스 검색...</value>
+    <comment>Search input placeholder</comment>
+  </data>
+  <data name="Resources_AllTypes" xml:space="preserve">
+    <value>모든 유형</value>
+    <comment>Filter dropdown</comment>
+  </data>
+  <data name="Resources_AllLanguages" xml:space="preserve">
+    <value>모든 언어</value>
+    <comment>Filter dropdown</comment>
+  </data>
+  <data name="Resources_GridView" xml:space="preserve">
+    <value>그리드 보기</value>
+    <comment>View toggle title</comment>
+  </data>
+  <data name="Resources_ListView" xml:space="preserve">
+    <value>목록 보기</value>
+    <comment>View toggle title</comment>
+  </data>
+  <data name="Resources_NoResourcesFound" xml:space="preserve">
+    <value>리소스를 찾을 수 없습니다</value>
+    <comment>Empty state</comment>
+  </data>
+  <data name="Resources_AddFirstResource" xml:space="preserve">
+    <value>첫 번째 리소스 추가</value>
+    <comment>Empty state button</comment>
+  </data>
+  <data name="Resources_CreateStarter" xml:space="preserve">
+    <value>스타터 리소스 생성</value>
+    <comment>Empty state button</comment>
+  </data>
+  <data name="Resources_ResourcesCount" xml:space="preserve">
+    <value>{0}개의 리소스</value>
+    <comment>Count label</comment>
+  </data>
+  <data name="Resources_CreatingStarter" xml:space="preserve">
+    <value>스타터 어휘 생성 중...</value>
+    <comment>Loading message</comment>
+  </data>
+  <data name="Resources_LoadFailed" xml:space="preserve">
+    <value>리소스 로드 실패: {0}</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="Resources_SearchFailed" xml:space="preserve">
+    <value>검색 실패: {0}</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="Resources_SetNativeLanguage" xml:space="preserve">
+    <value>먼저 프로필에서 모국어를 설정하세요.</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="Resources_StarterExists" xml:space="preserve">
+    <value>스타터 리소스가 이미 존재합니다! 리소스 로딩 중...</value>
+    <comment>Toast success</comment>
+  </data>
+  <data name="Resources_StarterSuccess" xml:space="preserve">
+    <value>{0}용 스타터 리소스가 생성되었습니다!</value>
+    <comment>Toast success</comment>
+  </data>
+  <data name="Resources_StarterFailed" xml:space="preserve">
+    <value>스타터 리소스 생성 실패: {0}</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="ResourceAdd_Title" xml:space="preserve">
+    <value>리소스 추가</value>
+    <comment>Page title</comment>
+  </data>
+  <data name="ResourceAdd_BasicInfo" xml:space="preserve">
+    <value>기본 정보</value>
+    <comment>Section heading</comment>
+  </data>
+  <data name="ResourceAdd_TitleLabel" xml:space="preserve">
+    <value>제목 *</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="ResourceAdd_TitlePlaceholder" xml:space="preserve">
+    <value>리소스 제목</value>
+    <comment>Input placeholder</comment>
+  </data>
+  <data name="ResourceAdd_DescriptionLabel" xml:space="preserve">
+    <value>설명</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="ResourceAdd_DescriptionPlaceholder" xml:space="preserve">
+    <value>간단한 설명</value>
+    <comment>Textarea placeholder</comment>
+  </data>
+  <data name="ResourceAdd_MediaTypeLabel" xml:space="preserve">
+    <value>미디어 유형</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="ResourceAdd_LanguageLabel" xml:space="preserve">
+    <value>언어</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="ResourceAdd_TagsLabel" xml:space="preserve">
+    <value>태그 (쉼표로 구분)</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="ResourceAdd_TagsPlaceholder" xml:space="preserve">
+    <value>태그1, 태그2, 태그3</value>
+    <comment>Input placeholder</comment>
+  </data>
+  <data name="ResourceAdd_MediaContent" xml:space="preserve">
+    <value>미디어 콘텐츠</value>
+    <comment>Section heading</comment>
+  </data>
+  <data name="ResourceAdd_MediaUrlLabel" xml:space="preserve">
+    <value>미디어 URL</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="ResourceAdd_TranscriptLabel" xml:space="preserve">
+    <value>대본</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="ResourceAdd_TranscriptPlaceholder" xml:space="preserve">
+    <value>여기에 대본 붙여넣기</value>
+    <comment>Textarea placeholder</comment>
+  </data>
+  <data name="ResourceAdd_TranslationLabel" xml:space="preserve">
+    <value>번역</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="ResourceAdd_TranslationPlaceholder" xml:space="preserve">
+    <value>여기에 번역 붙여넣기</value>
+    <comment>Textarea placeholder</comment>
+  </data>
+  <data name="ResourceAdd_VocabularySection" xml:space="preserve">
+    <value>어휘</value>
+    <comment>Section heading</comment>
+  </data>
+  <data name="ResourceAdd_PasteVocabLabel" xml:space="preserve">
+    <value>어휘 붙여넣기 (한 줄에 한 쌍)</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="ResourceAdd_VocabPlaceholder" xml:space="preserve">
+    <value>대상어, 모국어\n한국어, Korean\n학교, school</value>
+    <comment>Textarea placeholder</comment>
+  </data>
+  <data name="ResourceAdd_CommaDelimiter" xml:space="preserve">
+    <value>쉼표</value>
+    <comment>Radio label</comment>
+  </data>
+  <data name="ResourceAdd_TabDelimiter" xml:space="preserve">
+    <value>탭</value>
+    <comment>Radio label</comment>
+  </data>
+  <data name="ResourceAdd_ImportVocabulary" xml:space="preserve">
+    <value>어휘 가져오기</value>
+    <comment>Button text</comment>
+  </data>
+  <data name="ResourceAdd_OrImportFile" xml:space="preserve">
+    <value>또는 파일에서 가져오기 (.txt, .csv)</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="ResourceAdd_ChooseFile" xml:space="preserve">
+    <value>파일 선택</value>
+    <comment>Button text</comment>
+  </data>
+  <data name="ResourceAdd_Importing" xml:space="preserve">
+    <value>가져오는 중...</value>
+    <comment>Status text</comment>
+  </data>
+  <data name="ResourceAdd_VocabWordsAdded" xml:space="preserve">
+    <value>{0}개의 어휘가 추가됨</value>
+    <comment>Status text</comment>
+  </data>
+  <data name="ResourceAdd_SaveResource" xml:space="preserve">
+    <value>리소스 저장</value>
+    <comment>Button text</comment>
+  </data>
+  <data name="ResourceAdd_TitleRequired" xml:space="preserve">
+    <value>제목은 필수입니다.</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="ResourceAdd_SavedSuccess" xml:space="preserve">
+    <value>리소스가 저장되었습니다.</value>
+    <comment>Toast success</comment>
+  </data>
+  <data name="ResourceAdd_SaveFailed" xml:space="preserve">
+    <value>저장 실패: {0}</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="ResourceAdd_NoVocabToImport" xml:space="preserve">
+    <value>가져올 어휘가 없습니다.</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="ResourceAdd_ImportedCount" xml:space="preserve">
+    <value>{0}개의 어휘를 가져왔습니다.</value>
+    <comment>Toast success</comment>
+  </data>
+  <data name="ResourceAdd_NoDuplicates" xml:space="preserve">
+    <value>새 어휘를 찾을 수 없습니다 (중복일 수 있음).</value>
+    <comment>Toast info</comment>
+  </data>
+  <data name="ResourceAdd_ImportFailed" xml:space="preserve">
+    <value>가져오기 실패: {0}</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="ResourceAdd_FileEmpty" xml:space="preserve">
+    <value>파일이 비어 있습니다.</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="ResourceAdd_ImportedFromFile" xml:space="preserve">
+    <value>파일에서 {0}개의 어휘를 가져왔습니다.</value>
+    <comment>Toast success</comment>
+  </data>
+  <data name="ResourceAdd_NoDuplicatesInFile" xml:space="preserve">
+    <value>파일에서 새 어휘를 찾을 수 없습니다 (중복이거나 잘못된 형식일 수 있음).</value>
+    <comment>Toast info</comment>
+  </data>
+  <data name="ResourceAdd_FileImportFailed" xml:space="preserve">
+    <value>파일 가져오기 실패: {0}</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="ResourceAdd_FileImportStatus" xml:space="preserve">
+    <value>{1}에서 {0}개 단어</value>
+    <comment>Status text (count from filename)</comment>
+  </data>
+  <data name="ResourceEdit_SmartResource" xml:space="preserve">
+    <value>스마트 리소스</value>
+    <comment>Badge label</comment>
+  </data>
+  <data name="ResourceEdit_AutoUpdated" xml:space="preserve">
+    <value>— 시스템에서 자동 업데이트됨</value>
+    <comment>Smart resource note</comment>
+  </data>
+  <data name="ResourceEdit_BasicInfo" xml:space="preserve">
+    <value>기본 정보</value>
+    <comment>Section heading</comment>
+  </data>
+  <data name="ResourceEdit_Title" xml:space="preserve">
+    <value>제목</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="ResourceEdit_Description" xml:space="preserve">
+    <value>설명</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="ResourceEdit_MediaType" xml:space="preserve">
+    <value>미디어 유형</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="ResourceEdit_Language" xml:space="preserve">
+    <value>언어</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="ResourceEdit_MediaUrl" xml:space="preserve">
+    <value>미디어 URL</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="ResourceEdit_Tags" xml:space="preserve">
+    <value>태그 (쉼표로 구분)</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="ResourceEdit_Created" xml:space="preserve">
+    <value>생성일</value>
+    <comment>Detail label</comment>
+  </data>
+  <data name="ResourceEdit_Updated" xml:space="preserve">
+    <value>업데이트일</value>
+    <comment>Detail label</comment>
+  </data>
+  <data name="ResourceEdit_Transcript" xml:space="preserve">
+    <value>대본</value>
+    <comment>Section heading</comment>
+  </data>
+  <data name="ResourceEdit_Translation" xml:space="preserve">
+    <value>번역</value>
+    <comment>Section heading</comment>
+  </data>
+  <data name="ResourceEdit_VocabularySection" xml:space="preserve">
+    <value>어휘 ({0}개 단어)</value>
+    <comment>Section heading with count</comment>
+  </data>
+  <data name="ResourceEdit_Generating" xml:space="preserve">
+    <value>생성 중...</value>
+    <comment>Button text when loading</comment>
+  </data>
+  <data name="ResourceEdit_GenerateFromTranscript" xml:space="preserve">
+    <value>대본에서 생성</value>
+    <comment>Button text</comment>
+  </data>
+  <data name="ResourceEdit_ImportVocabLabel" xml:space="preserve">
+    <value>어휘 가져오기 (한 줄에 한 쌍)</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="ResourceEdit_VocabPlaceholder" xml:space="preserve">
+    <value>대상어, 모국어</value>
+    <comment>Textarea placeholder</comment>
+  </data>
+  <data name="ResourceEdit_Comma" xml:space="preserve">
+    <value>쉼표</value>
+    <comment>Radio label</comment>
+  </data>
+  <data name="ResourceEdit_Tab" xml:space="preserve">
+    <value>탭</value>
+    <comment>Radio label</comment>
+  </data>
+  <data name="ResourceEdit_Import" xml:space="preserve">
+    <value>가져오기</value>
+    <comment>Button text</comment>
+  </data>
+  <data name="ResourceEdit_OrImportFile" xml:space="preserve">
+    <value>또는 파일에서 가져오기 (.txt, .csv)</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="ResourceEdit_ChooseFile" xml:space="preserve">
+    <value>파일 선택</value>
+    <comment>Button text</comment>
+  </data>
+  <data name="ResourceEdit_Importing" xml:space="preserve">
+    <value>가져오는 중...</value>
+    <comment>Status text</comment>
+  </data>
+  <data name="ResourceEdit_NoVocabYet" xml:space="preserve">
+    <value>아직 어휘가 없습니다.</value>
+    <comment>Empty state</comment>
+  </data>
+  <data name="ResourceEdit_ConfirmDelete" xml:space="preserve">
+    <value>삭제 확인</value>
+    <comment>Modal title</comment>
+  </data>
+  <data name="ResourceEdit_DeleteMessage" xml:space="preserve">
+    <value>이 리소스를 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.</value>
+    <comment>Delete confirmation message</comment>
+  </data>
+  <data name="ResourceEdit_LoadFailed" xml:space="preserve">
+    <value>리소스 로드 실패: {0}</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="ResourceEdit_TitleRequired" xml:space="preserve">
+    <value>제목은 필수입니다.</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="ResourceEdit_SavedSuccess" xml:space="preserve">
+    <value>리소스가 저장되었습니다.</value>
+    <comment>Toast success</comment>
+  </data>
+  <data name="ResourceEdit_SaveFailed" xml:space="preserve">
+    <value>저장 실패: {0}</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="ResourceEdit_DeletedSuccess" xml:space="preserve">
+    <value>리소스가 삭제되었습니다.</value>
+    <comment>Toast success</comment>
+  </data>
+  <data name="ResourceEdit_DeleteFailed" xml:space="preserve">
+    <value>삭제 실패: {0}</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="ResourceEdit_ImportedCount" xml:space="preserve">
+    <value>{0}개의 어휘를 가져왔습니다.</value>
+    <comment>Toast success</comment>
+  </data>
+  <data name="ResourceEdit_ImportFailed" xml:space="preserve">
+    <value>가져오기 실패: {0}</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="ResourceEdit_FileEmpty" xml:space="preserve">
+    <value>파일이 비어 있습니다.</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="ResourceEdit_ImportedFromFile" xml:space="preserve">
+    <value>파일에서 {0}개의 어휘를 가져왔습니다.</value>
+    <comment>Toast success</comment>
+  </data>
+  <data name="ResourceEdit_NoDuplicatesInFile" xml:space="preserve">
+    <value>파일에서 새 어휘를 찾을 수 없습니다 (중복이거나 잘못된 형식일 수 있음).</value>
+    <comment>Toast info</comment>
+  </data>
+  <data name="ResourceEdit_FileImportFailed" xml:space="preserve">
+    <value>파일 가져오기 실패: {0}</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="ResourceEdit_NoTranscript" xml:space="preserve">
+    <value>어휘를 생성할 대본이 없습니다.</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="ResourceEdit_NoVocabGenerated" xml:space="preserve">
+    <value>AI가 어휘를 생성하지 못했습니다. 다시 시도하세요.</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="ResourceEdit_GeneratedSuccess" xml:space="preserve">
+    <value>{0}개 단어 생성: {1}개 신규, {2}개 연결됨</value>
+    <comment>Toast success (with skipped)</comment>
+  </data>
+  <data name="ResourceEdit_GeneratedWithSkipped" xml:space="preserve">
+    <value>{0}개 단어 생성: {1}개 신규, {2}개 연결됨, {3}개 건너뜀 (이미 리소스에 있음)</value>
+    <comment>Toast success</comment>
+  </data>
+  <data name="ResourceEdit_VocabGenFailed" xml:space="preserve">
+    <value>어휘 생성 실패: {0}</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="VocabWordEdit_EditTitle" xml:space="preserve">
+    <value>어휘 편집</value>
+    <comment>Page title (edit mode)</comment>
+  </data>
+  <data name="VocabWordEdit_AddTitle" xml:space="preserve">
+    <value>어휘 추가</value>
+    <comment>Page title (add mode)</comment>
+  </data>
+  <data name="VocabWordEdit_AddButton" xml:space="preserve">
+    <value>추가</value>
+    <comment>Primary action button (add mode)</comment>
+  </data>
+  <data name="VocabWordEdit_FindDuplicates" xml:space="preserve">
+    <value>중복 찾기</value>
+    <comment>Menu item / button</comment>
+  </data>
+  <data name="VocabWordEdit_VocabularyTerms" xml:space="preserve">
+    <value>어휘 용어</value>
+    <comment>Section heading</comment>
+  </data>
+  <data name="VocabWordEdit_TargetLanguageTerm" xml:space="preserve">
+    <value>대상어</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="VocabWordEdit_TargetPlaceholder" xml:space="preserve">
+    <value>대상어 입력</value>
+    <comment>Input placeholder</comment>
+  </data>
+  <data name="VocabWordEdit_PlayAudio" xml:space="preserve">
+    <value>오디오 재생</value>
+    <comment>Button title</comment>
+  </data>
+  <data name="VocabWordEdit_NativeLanguageTerm" xml:space="preserve">
+    <value>모국어</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="VocabWordEdit_NativePlaceholder" xml:space="preserve">
+    <value>모국어 입력</value>
+    <comment>Input placeholder</comment>
+  </data>
+  <data name="VocabWordEdit_EncodingMemory" xml:space="preserve">
+    <value>인코딩 및 기억 보조 도구</value>
+    <comment>Section heading</comment>
+  </data>
+  <data name="VocabWordEdit_EncodingStrength" xml:space="preserve">
+    <value>인코딩 강도:</value>
+    <comment>Label</comment>
+  </data>
+  <data name="VocabWordEdit_LemmaLabel" xml:space="preserve">
+    <value>표제어 (사전 형태)</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="VocabWordEdit_LemmaPlaceholder" xml:space="preserve">
+    <value>예: 갔다, 가요 등의 기본형 가다</value>
+    <comment>Input placeholder</comment>
+  </data>
+  <data name="VocabWordEdit_LanguageLabel" xml:space="preserve">
+    <value>언어</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="VocabWordEdit_NotSet" xml:space="preserve">
+    <value>— 설정 안 됨 —</value>
+    <comment>Dropdown option</comment>
+  </data>
+  <data name="VocabWordEdit_TagsLabel" xml:space="preserve">
+    <value>태그 (쉼표로 구분)</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="VocabWordEdit_TagsPlaceholder" xml:space="preserve">
+    <value>예: 자연, 계절, 시각</value>
+    <comment>Input placeholder</comment>
+  </data>
+  <data name="VocabWordEdit_MnemonicStory" xml:space="preserve">
+    <value>연상 이야기</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="VocabWordEdit_MnemonicStoryPlaceholder" xml:space="preserve">
+    <value>이 단어를 기억하는 데 도움이 되는 재미있는 이야기나 기억 고리...</value>
+    <comment>Textarea placeholder</comment>
+  </data>
+  <data name="VocabWordEdit_MnemonicImage" xml:space="preserve">
+    <value>연상 이미지 URL</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="VocabWordEdit_MnemonicAlt" xml:space="preserve">
+    <value>연상</value>
+    <comment>Image alt text</comment>
+  </data>
+  <data name="VocabWordEdit_LearningProgress" xml:space="preserve">
+    <value>학습 진행 상황</value>
+    <comment>Section heading</comment>
+  </data>
+  <data name="VocabWordEdit_Status" xml:space="preserve">
+    <value>상태</value>
+    <comment>Label</comment>
+  </data>
+  <data name="VocabWordEdit_Known" xml:space="preserve">
+    <value>알고 있음</value>
+    <comment>Status badge</comment>
+  </data>
+  <data name="VocabWordEdit_KnownEarned" xml:space="preserve">
+    <value>(연습을 통해 획득)</value>
+    <comment>Known status note</comment>
+  </data>
+  <data name="VocabWordEdit_Unknown" xml:space="preserve">
+    <value>모름</value>
+    <comment>Status option</comment>
+  </data>
+  <data name="VocabWordEdit_Learning" xml:space="preserve">
+    <value>학습 중</value>
+    <comment>Status option</comment>
+  </data>
+  <data name="VocabWordEdit_Familiar" xml:space="preserve">
+    <value>익숙함</value>
+    <comment>Status option</comment>
+  </data>
+  <data name="VocabWordEdit_Details" xml:space="preserve">
+    <value>세부정보</value>
+    <comment>Label</comment>
+  </data>
+  <data name="VocabWordEdit_NextReview" xml:space="preserve">
+    <value>다음 복습</value>
+    <comment>Label</comment>
+  </data>
+  <data name="VocabWordEdit_NotScheduled" xml:space="preserve">
+    <value>예정 없음</value>
+    <comment>Next review default</comment>
+  </data>
+  <data name="VocabWordEdit_DueNow" xml:space="preserve">
+    <value>지금 복습</value>
+    <comment>Next review status</comment>
+  </data>
+  <data name="VocabWordEdit_Tomorrow" xml:space="preserve">
+    <value>내일</value>
+    <comment>Next review status</comment>
+  </data>
+  <data name="VocabWordEdit_DaysAway" xml:space="preserve">
+    <value>{0}일 후</value>
+    <comment>Next review status</comment>
+  </data>
+  <data name="VocabWordEdit_StartPracticing" xml:space="preserve">
+    <value>진행 상황을 추적하려면 연습을 시작하세요.</value>
+    <comment>Progress details empty state</comment>
+  </data>
+  <data name="VocabWordEdit_ResourceAssociations" xml:space="preserve">
+    <value>리소스 연결</value>
+    <comment>Section heading</comment>
+  </data>
+  <data name="VocabWordEdit_ResourcesSelected" xml:space="preserve">
+    <value>{0}개 선택됨</value>
+    <comment>Selection count</comment>
+  </data>
+  <data name="VocabWordEdit_SelectResourcesNote" xml:space="preserve">
+    <value>이 단어와 연결할 리소스를 선택하세요.</value>
+    <comment>Section note</comment>
+  </data>
+  <data name="VocabWordEdit_NoResourcesAvailable" xml:space="preserve">
+    <value>사용 가능한 리소스가 없습니다.</value>
+    <comment>Empty state</comment>
+  </data>
+  <data name="VocabWordEdit_UnknownResource" xml:space="preserve">
+    <value>알 수 없는 리소스</value>
+    <comment>Fallback resource title</comment>
+  </data>
+  <data name="VocabWordEdit_ConfirmDelete" xml:space="preserve">
+    <value>삭제 확인</value>
+    <comment>Modal title</comment>
+  </data>
+  <data name="VocabWordEdit_DeleteMessage" xml:space="preserve">
+    <value>'{0}'을(를) 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.</value>
+    <comment>Delete confirmation message</comment>
+  </data>
+  <data name="VocabWordEdit_NotFound" xml:space="preserve">
+    <value>어휘를 찾을 수 없습니다.</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="VocabWordEdit_LoadFailed" xml:space="preserve">
+    <value>로드 실패: {0}</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="VocabWordEdit_BothTermsRequired" xml:space="preserve">
+    <value>대상어와 모국어를 모두 입력해야 합니다.</value>
+    <comment>Validation error</comment>
+  </data>
+  <data name="VocabWordEdit_DuplicateExists" xml:space="preserve">
+    <value>이 용어를 가진 어휘가 이미 존재합니다.</value>
+    <comment>Validation error</comment>
+  </data>
+  <data name="VocabWordEdit_SaveFailed" xml:space="preserve">
+    <value>어휘 저장에 실패했습니다. 다시 시도하세요.</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="VocabWordEdit_SaveFailedWith" xml:space="preserve">
+    <value>저장 실패: {0}</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="VocabWordEdit_WordAdded" xml:space="preserve">
+    <value>어휘가 추가되었습니다!</value>
+    <comment>Toast success</comment>
+  </data>
+  <data name="VocabWordEdit_WordUpdated" xml:space="preserve">
+    <value>어휘가 업데이트되었습니다!</value>
+    <comment>Toast success</comment>
+  </data>
+  <data name="VocabWordEdit_WordDeleted" xml:space="preserve">
+    <value>어휘가 삭제되었습니다!</value>
+    <comment>Toast success</comment>
+  </data>
+  <data name="VocabWordEdit_DeleteFailed" xml:space="preserve">
+    <value>삭제 실패: {0}</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="VocabWordEdit_StatusUpdateFailed" xml:space="preserve">
+    <value>상태 업데이트 실패: {0}</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="VocabWordEdit_FamiliarNote" xml:space="preserve">
+    <value>알겠습니다 — 이번엔 믿겠습니다. 가끔씩 확인해서 기억을 새롭게 유지하겠습니다.</value>
+    <comment>Toast info for Familiar status</comment>
+  </data>
+  <data name="VocabWordEdit_AudioUnavailable" xml:space="preserve">
+    <value>오프라인에서는 오디오를 사용할 수 없습니다.</value>
+    <comment>Toast warning</comment>
+  </data>
+  <data name="Vocabulary_Title" xml:space="preserve">
+    <value>어휘</value>
+    <comment>Page title</comment>
+  </data>
+  <data name="Vocabulary_AddWord" xml:space="preserve">
+    <value>단어 추가</value>
+    <comment>Button text</comment>
+  </data>
+  <data name="Vocabulary_ToggleViewGrid" xml:space="preserve">
+    <value>목록 보기</value>
+    <comment>View toggle when in grid</comment>
+  </data>
+  <data name="Vocabulary_ToggleViewList" xml:space="preserve">
+    <value>그리드 보기</value>
+    <comment>View toggle when in list</comment>
+  </data>
+  <data name="Vocabulary_FindDuplicates" xml:space="preserve">
+    <value>중복 찾기</value>
+    <comment>Menu item</comment>
+  </data>
+  <data name="Vocabulary_PopulateLemmas" xml:space="preserve">
+    <value>표제어 채우기</value>
+    <comment>Menu item</comment>
+  </data>
+  <data name="Vocabulary_FixSwappedLanguages" xml:space="preserve">
+    <value>교환된 언어 수정</value>
+    <comment>Menu item</comment>
+  </data>
+  <data name="Vocabulary_AssignOrphanedWords" xml:space="preserve">
+    <value>고아 단어 할당</value>
+    <comment>Menu item</comment>
+  </data>
+  <data name="Vocabulary_BulkEditStatus" xml:space="preserve">
+    <value>일괄 상태 편집</value>
+    <comment>Menu item</comment>
+  </data>
+  <data name="Vocabulary_Unknown" xml:space="preserve">
+    <value>모름</value>
+    <comment>Status badge</comment>
+  </data>
+  <data name="Vocabulary_Learning" xml:space="preserve">
+    <value>학습 중</value>
+    <comment>Status badge</comment>
+  </data>
+  <data name="Vocabulary_Familiar" xml:space="preserve">
+    <value>익숙함</value>
+    <comment>Status badge</comment>
+  </data>
+  <data name="Vocabulary_Known" xml:space="preserve">
+    <value>알고 있음</value>
+    <comment>Status badge</comment>
+  </data>
+  <data name="Vocabulary_GridView" xml:space="preserve">
+    <value>그리드 보기</value>
+    <comment>View toggle title</comment>
+  </data>
+  <data name="Vocabulary_ListView" xml:space="preserve">
+    <value>목록 보기</value>
+    <comment>View toggle title</comment>
+  </data>
+  <data name="Vocabulary_SelectedCount" xml:space="preserve">
+    <value>{0}개 선택됨</value>
+    <comment>Bulk edit selection count</comment>
+  </data>
+  <data name="Vocabulary_SetStatus" xml:space="preserve">
+    <value>상태 설정...</value>
+    <comment>Bulk edit dropdown placeholder</comment>
+  </data>
+  <data name="Vocabulary_SelectAll" xml:space="preserve">
+    <value>모두 선택</value>
+    <comment>Button text</comment>
+  </data>
+  <data name="Vocabulary_SelectNone" xml:space="preserve">
+    <value>선택 해제</value>
+    <comment>Button text</comment>
+  </data>
+  <data name="Vocabulary_SearchPlaceholder" xml:space="preserve">
+    <value>검색... (예: tag:의류 status:learning resource:'Starter')</value>
+    <comment>Search input placeholder</comment>
+  </data>
+  <data name="Vocabulary_ClearFilters" xml:space="preserve">
+    <value>모든 필터 지우기</value>
+    <comment>Button title</comment>
+  </data>
+  <data name="Vocabulary_AllWords" xml:space="preserve">
+    <value>모든 단어</value>
+    <comment>Filter dropdown option</comment>
+  </data>
+  <data name="Vocabulary_Associated" xml:space="preserve">
+    <value>연결됨</value>
+    <comment>Filter dropdown option</comment>
+  </data>
+  <data name="Vocabulary_Orphaned" xml:space="preserve">
+    <value>고아 단어</value>
+    <comment>Filter dropdown option</comment>
+  </data>
+  <data name="Vocabulary_AllStatus" xml:space="preserve">
+    <value>모든 상태</value>
+    <comment>Filter dropdown option</comment>
+  </data>
+  <data name="Vocabulary_AllResources" xml:space="preserve">
+    <value>모든 리소스</value>
+    <comment>Filter dropdown option</comment>
+  </data>
+  <data name="Vocabulary_AllTags" xml:space="preserve">
+    <value>모든 태그</value>
+    <comment>Filter dropdown option</comment>
+  </data>
+  <data name="Vocabulary_AllLemmas" xml:space="preserve">
+    <value>모든 표제어</value>
+    <comment>Filter dropdown option</comment>
+  </data>
+  <data name="Vocabulary_AllLanguages" xml:space="preserve">
+    <value>모든 언어</value>
+    <comment>Filter dropdown option</comment>
+  </data>
+  <data name="Vocabulary_AllEncoding" xml:space="preserve">
+    <value>모든 인코딩</value>
+    <comment>Filter dropdown option</comment>
+  </data>
+  <data name="Vocabulary_Strong" xml:space="preserve">
+    <value>강함</value>
+    <comment>Encoding filter</comment>
+  </data>
+  <data name="Vocabulary_Good" xml:space="preserve">
+    <value>좋음</value>
+    <comment>Encoding filter</comment>
+  </data>
+  <data name="Vocabulary_Basic" xml:space="preserve">
+    <value>기본</value>
+    <comment>Encoding filter</comment>
+  </data>
+  <data name="Vocabulary_Filters" xml:space="preserve">
+    <value>필터</value>
+    <comment>Mobile offcanvas title</comment>
+  </data>
+  <data name="Vocabulary_Association" xml:space="preserve">
+    <value>연결</value>
+    <comment>Filter section label</comment>
+  </data>
+  <data name="Vocabulary_StatusLabel" xml:space="preserve">
+    <value>상태</value>
+    <comment>Filter section label</comment>
+  </data>
+  <data name="Vocabulary_ResourceLabel" xml:space="preserve">
+    <value>리소스</value>
+    <comment>Filter section label</comment>
+  </data>
+  <data name="Vocabulary_TagLabel" xml:space="preserve">
+    <value>태그</value>
+    <comment>Filter section label</comment>
+  </data>
+  <data name="Vocabulary_LemmaLabel" xml:space="preserve">
+    <value>표제어</value>
+    <comment>Filter section label</comment>
+  </data>
+  <data name="Vocabulary_LanguageLabel" xml:space="preserve">
+    <value>언어</value>
+    <comment>Filter section label</comment>
+  </data>
+  <data name="Vocabulary_EncodingStrength" xml:space="preserve">
+    <value>인코딩 강도</value>
+    <comment>Filter section label</comment>
+  </data>
+  <data name="Vocabulary_ClearAllFilters" xml:space="preserve">
+    <value>모든 필터 지우기</value>
+    <comment>Mobile button text</comment>
+  </data>
+  <data name="Vocabulary_Close" xml:space="preserve">
+    <value>닫기</value>
+    <comment>Mobile offcanvas close button aria-label</comment>
+  </data>
+  <data name="Vocabulary_OrphanedBadge" xml:space="preserve">
+    <value>고아 단어</value>
+    <comment>Card badge</comment>
+  </data>
+  <data name="Vocabulary_ResourcesCount" xml:space="preserve">
+    <value>{0}개 리소스</value>
+    <comment>Card detail</comment>
+  </data>
+  <data name="Vocabulary_LoadFailed" xml:space="preserve">
+    <value>어휘 로드 실패: {0}</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="Vocabulary_NoActiveProfile" xml:space="preserve">
+    <value>활성 사용자 프로필이 없습니다. 먼저 프로필을 선택하세요.</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="Vocabulary_BulkUpdateSuccess" xml:space="preserve">
+    <value>{0}개 단어를 {1}(으)로 업데이트했습니다</value>
+    <comment>Toast success</comment>
+  </data>
+  <data name="Vocabulary_BulkUpdatePartial" xml:space="preserve">
+    <value>{0}개 단어 업데이트, {1}개 실패</value>
+    <comment>Toast warning</comment>
+  </data>
+  <data name="Vocabulary_BulkUpdateFailed" xml:space="preserve">
+    <value>일괄 업데이트 실패: {0}</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="Vocabulary_DuplicatesTitle" xml:space="preserve">
+    <value>중복 찾기</value>
+    <comment>Cleanup panel title</comment>
+  </data>
+  <data name="Vocabulary_DuplicatesFor" xml:space="preserve">
+    <value>"{0}" 중복 찾기</value>
+    <comment>Cleanup panel title (focused)</comment>
+  </data>
+  <data name="Vocabulary_ScanningDuplicates" xml:space="preserve">
+    <value>중복 검색 중...</value>
+    <comment>Cleanup status</comment>
+  </data>
+  <data name="Vocabulary_ScanningDuplicatesFor" xml:space="preserve">
+    <value>"{0}"와 일치하는 중복 검색 중...</value>
+    <comment>Cleanup status (focused)</comment>
+  </data>
+  <data name="Vocabulary_DuplicatesFound" xml:space="preserve">
+    <value>{0}개 중복 그룹을 찾았습니다 ({1}개의 추가 레코드).</value>
+    <comment>Cleanup status</comment>
+  </data>
+  <data name="Vocabulary_NoDuplicates" xml:space="preserve">
+    <value>중복을 찾지 못했습니다.</value>
+    <comment>Cleanup status</comment>
+  </data>
+  <data name="Vocabulary_NoDuplicatesFor" xml:space="preserve">
+    <value>'{0}'에 대한 중복을 찾지 못했습니다.</value>
+    <comment>Cleanup status (focused)</comment>
+  </data>
+  <data name="Vocabulary_AutoMergeAll" xml:space="preserve">
+    <value>모두 자동 병합</value>
+    <comment>Button text</comment>
+  </data>
+  <data name="Vocabulary_Focused" xml:space="preserve">
+    <value>집중됨</value>
+    <comment>Duplicate group badge</comment>
+  </data>
+  <data name="Vocabulary_FocusedNote" xml:space="preserve">
+    <value>&lt;strong&gt;{0}&lt;/strong&gt;에 집중하여 이 단어의 사본을 더 빠르게 관리할 수 있습니다.</value>
+    <comment>Cleanup note</comment>
+  </data>
+  <data name="Vocabulary_CopiesLabel" xml:space="preserve">
+    <value>{0}개 사본</value>
+    <comment>Duplicate group badge</comment>
+  </data>
+  <data name="Vocabulary_ResourcesLabel" xml:space="preserve">
+    <value>{0}개 리소스</value>
+    <comment>Duplicate word badge</comment>
+  </data>
+  <data name="Vocabulary_RecommendedKeeper" xml:space="preserve">
+    <value>권장 유지</value>
+    <comment>Duplicate word badge</comment>
+  </data>
+  <data name="Vocabulary_MergeGroup" xml:space="preserve">
+    <value>그룹 병합</value>
+    <comment>Button text</comment>
+  </data>
+  <data name="Vocabulary_NoMatchingScan" xml:space="preserve">
+    <value>이 검색과 일치하는 중복 레코드가 없습니다.</value>
+    <comment>Empty cleanup state</comment>
+  </data>
+  <data name="Vocabulary_PopulateLemmasTitle" xml:space="preserve">
+    <value>표제어 채우기</value>
+    <comment>Cleanup panel title</comment>
+  </data>
+  <data name="Vocabulary_ProcessingLemmas" xml:space="preserve">
+    <value>표제어가 없는 {0}개 단어 처리 중...</value>
+    <comment>Cleanup status</comment>
+  </data>
+  <data name="Vocabulary_AllHaveLemmas" xml:space="preserve">
+    <value>모든 단어에 이미 표제어가 있습니다.</value>
+    <comment>Cleanup status</comment>
+  </data>
+  <data name="Vocabulary_ProcessingBatch" xml:space="preserve">
+    <value>배치 {0}/{1} 처리 중...</value>
+    <comment>Cleanup status</comment>
+  </data>
+  <data name="Vocabulary_LemmaComplete" xml:space="preserve">
+    <value>표제어 채우기 완료: {1}개 중 {0}개 단어 업데이트</value>
+    <comment>Cleanup result</comment>
+  </data>
+  <data name="Vocabulary_FixSwappedTitle" xml:space="preserve">
+    <value>교환된 언어 수정</value>
+    <comment>Cleanup panel title</comment>
+  </data>
+  <data name="Vocabulary_ScanningSwapped" xml:space="preserve">
+    <value>교환된 언어 항목 검색 중...</value>
+    <comment>Cleanup status</comment>
+  </data>
+  <data name="Vocabulary_FixingEntries" xml:space="preserve">
+    <value>{0}개 항목 수정 중...</value>
+    <comment>Cleanup status</comment>
+  </data>
+  <data name="Vocabulary_SwappedComplete" xml:space="preserve">
+    <value>{0}개 단어 교환, {1}개 중복 병합</value>
+    <comment>Cleanup result</comment>
+  </data>
+  <data name="Vocabulary_AssignOrphanedTitle" xml:space="preserve">
+    <value>고아 단어 할당</value>
+    <comment>Cleanup panel title</comment>
+  </data>
+  <data name="Vocabulary_FindingOrphaned" xml:space="preserve">
+    <value>고아 단어 검색 중...</value>
+    <comment>Cleanup status</comment>
+  </data>
+  <data name="Vocabulary_NoOrphaned" xml:space="preserve">
+    <value>고아 단어를 찾지 못했습니다.</value>
+    <comment>Cleanup status</comment>
+  </data>
+  <data name="Vocabulary_AssigningOrphaned" xml:space="preserve">
+    <value>{0}개 고아 단어 할당 중...</value>
+    <comment>Cleanup status</comment>
+  </data>
+  <data name="Vocabulary_AssignedToGeneral" xml:space="preserve">
+    <value>{0}개 고아 단어를 '일반 어휘'에 할당했습니다</value>
+    <comment>Cleanup result</comment>
+  </data>
+  <data name="Vocabulary_CleanupError" xml:space="preserve">
+    <value>오류: {0}</value>
+    <comment>Cleanup error</comment>
+  </data>
+  <data name="Vocabulary_BatchError" xml:space="preserve">
+    <value>배치 오류: {0}</value>
+    <comment>Cleanup error</comment>
+  </data>
+  <data name="Vocabulary_MergingGroup" xml:space="preserve">
+    <value>그룹 병합 중: {0}...</value>
+    <comment>Cleanup status</comment>
+  </data>
+  <data name="Vocabulary_MergedGroup" xml:space="preserve">
+    <value>'{0}' 병합됨: 1개 유지, {1}개 제거</value>
+    <comment>Cleanup result</comment>
+  </data>
+  <data name="Vocabulary_NoMergeNeeded" xml:space="preserve">
+    <value>'{0}'은(는) 병합이 필요하지 않았습니다.</value>
+    <comment>Toast info</comment>
+  </data>
+  <data name="Vocabulary_MergedSuccess" xml:space="preserve">
+    <value>'{1}'의 중복 레코드 {0}개를 병합했습니다.</value>
+    <comment>Toast success</comment>
+  </data>
+  <data name="Vocabulary_ErrorMerging" xml:space="preserve">
+    <value>'{0}' 병합 오류: {1}</value>
+    <comment>Cleanup error</comment>
+  </data>
+  <data name="Vocabulary_AutoMergingAll" xml:space="preserve">
+    <value>모든 중복 자동 병합 중...</value>
+    <comment>Cleanup status</comment>
+  </data>
+  <data name="Vocabulary_AutoMergeComplete" xml:space="preserve">
+    <value>자동 병합 완료: {0}개 중복 제거</value>
+    <comment>Cleanup result</comment>
+  </data>
+  <data name="Vocabulary_AutoMergeCompleteWithErrors" xml:space="preserve">
+    <value>자동 병합 완료: {0}개 중복 제거, {1}개 오류</value>
+    <comment>Cleanup result (with errors)</comment>
+  </data>
+  <data name="Vocabulary_AutoMergeSuccess" xml:space="preserve">
+    <value>자동 병합 완료: {0}개 중복 제거</value>
+    <comment>Toast success</comment>
+  </data>
+  <data name="Settings_Title" xml:space="preserve">
+    <value>설정</value>
+    <comment>Page title</comment>
+  </data>
+  <data name="Settings_Appearance" xml:space="preserve">
+    <value>모양</value>
+    <comment>Section heading</comment>
+  </data>
+  <data name="Settings_ThemeLabel" xml:space="preserve">
+    <value>테마</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="Settings_ModeLabel" xml:space="preserve">
+    <value>모드</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="Settings_Light" xml:space="preserve">
+    <value>밝은</value>
+    <comment>Mode option</comment>
+  </data>
+  <data name="Settings_Dark" xml:space="preserve">
+    <value>어두운</value>
+    <comment>Mode option</comment>
+  </data>
+  <data name="Settings_TextSizeLabel" xml:space="preserve">
+    <value>텍스트 크기: {0}%</value>
+    <comment>Form label with value</comment>
+  </data>
+  <data name="Settings_VoiceQuiz" xml:space="preserve">
+    <value>음성 및 퀴즈</value>
+    <comment>Section heading</comment>
+  </data>
+  <data name="Settings_LanguageLabel" xml:space="preserve">
+    <value>언어</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="Settings_VoiceLabel" xml:space="preserve">
+    <value>음성</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="Settings_PromptLanguageLabel" xml:space="preserve">
+    <value>프롬프트 언어</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="Settings_TargetLanguageOption" xml:space="preserve">
+    <value>대상어</value>
+    <comment>Radio option</comment>
+  </data>
+  <data name="Settings_NativeLanguageOption" xml:space="preserve">
+    <value>모국어</value>
+    <comment>Radio option</comment>
+  </data>
+  <data name="Settings_MixedOption" xml:space="preserve">
+    <value>혼합</value>
+    <comment>Radio option</comment>
+  </data>
+  <data name="Settings_PromptSideNote" xml:space="preserve">
+    <value>어휘 카드의 어느 쪽을 프롬프트로 표시할지 선택하세요.</value>
+    <comment>Form helper text</comment>
+  </data>
+  <data name="Settings_AutoplayAudio" xml:space="preserve">
+    <value>오디오 자동 재생</value>
+    <comment>Switch label</comment>
+  </data>
+  <data name="Settings_ShowMnemonics" xml:space="preserve">
+    <value>연상 표시</value>
+    <comment>Switch label</comment>
+  </data>
+  <data name="Settings_PromptModalities" xml:space="preserve">
+    <value>프롬프트 유형</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="Settings_Text" xml:space="preserve">
+    <value>텍스트</value>
+    <comment>Switch label</comment>
+  </data>
+  <data name="Settings_Audio" xml:space="preserve">
+    <value>오디오</value>
+    <comment>Switch label</comment>
+  </data>
+  <data name="Settings_Photo" xml:space="preserve">
+    <value>사진</value>
+    <comment>Switch label</comment>
+  </data>
+  <data name="Settings_ModalitiesNote" xml:space="preserve">
+    <value>프롬프트에 표시할 단서를 선택하세요. 사진이 없으면 퀴즈가 텍스트로 대체됩니다.</value>
+    <comment>Form helper text</comment>
+  </data>
+  <data name="Settings_AutoAdvanceDuration" xml:space="preserve">
+    <value>자동 진행 시간: {0}초</value>
+    <comment>Form label with value</comment>
+  </data>
+  <data name="Settings_SavePreferences" xml:space="preserve">
+    <value>환경설정 저장</value>
+    <comment>Button text</comment>
+  </data>
+  <data name="Settings_OneModalityRequired" xml:space="preserve">
+    <value>최소 하나의 질문 유형이 필요합니다. 텍스트로 대체합니다.</value>
+    <comment>Toast info</comment>
+  </data>
+  <data name="Settings_PreferencesSaved" xml:space="preserve">
+    <value>환경설정이 저장되었습니다</value>
+    <comment>Toast success</comment>
+  </data>
+  <data name="Settings_DataManagement" xml:space="preserve">
+    <value>데이터 관리</value>
+    <comment>Section heading</comment>
+  </data>
+  <data name="Settings_ExportData" xml:space="preserve">
+    <value>데이터 내보내기</value>
+    <comment>Button text</comment>
+  </data>
+  <data name="Settings_ExportedSuccess" xml:space="preserve">
+    <value>데이터를 성공적으로 내보냈습니다</value>
+    <comment>Toast success</comment>
+  </data>
+  <data name="Settings_ExportFailed" xml:space="preserve">
+    <value>내보내기 실패: {0}</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="Settings_DatabaseMigrations" xml:space="preserve">
+    <value>데이터베이스 마이그레이션</value>
+    <comment>Section heading</comment>
+  </data>
+  <data name="Settings_StreakMigrationComplete" xml:space="preserve">
+    <value>연속 기록 마이그레이션 완료</value>
+    <comment>Alert text</comment>
+  </data>
+  <data name="Settings_RunStreakMigration" xml:space="preserve">
+    <value>연속 기록 마이그레이션 실행</value>
+    <comment>Button text</comment>
+  </data>
+  <data name="Settings_RunningMigration" xml:space="preserve">
+    <value>마이그레이션 실행 중...</value>
+    <comment>Status message</comment>
+  </data>
+  <data name="Settings_MigrationSuccess" xml:space="preserve">
+    <value>마이그레이션이 성공적으로 완료되었습니다</value>
+    <comment>Status message</comment>
+  </data>
+  <data name="Settings_MigrationFailed" xml:space="preserve">
+    <value>마이그레이션 실패: {0}</value>
+    <comment>Status message</comment>
+  </data>
+  <data name="Settings_StreakMigrationCompleteToast" xml:space="preserve">
+    <value>연속 기록 마이그레이션 완료</value>
+    <comment>Toast success</comment>
+  </data>
+  <data name="Settings_About" xml:space="preserve">
+    <value>정보</value>
+    <comment>Section heading</comment>
+  </data>
+  <data name="Settings_WhatsNew" xml:space="preserve">
+    <value>새로운 기능</value>
+    <comment>Button text</comment>
+  </data>
+  <data name="Settings_NoReleaseNotes" xml:space="preserve">
+    <value>이 버전에 대한 릴리스 노트가 없습니다</value>
+    <comment>Toast info</comment>
+  </data>
+  <data name="Settings_ReleaseNotesFailed" xml:space="preserve">
+    <value>릴리스 노트 로드 실패: {0}</value>
+    <comment>Toast error</comment>
+  </data>
 </root>
