@@ -591,6 +591,7 @@ else
     private string sentenceShortcutInput = "";
     private int sentenceShortcutSuccessCount;
     private List<SentenceShortcutResult> sentenceShortcutResults = new();
+    private const int MaxDisplayedGradingFailureMessages = 2;
 
     private readonly Random random = new();
     private System.Diagnostics.Stopwatch responseTimer = new();
@@ -902,8 +903,8 @@ else
                     var targetAnalysis = GetTargetWordAnalysis(grade, currentItem.Word);
                     if (targetAnalysis == null)
                     {
-                        var guidance = $"We couldn't confirm how \"{currentItem.Word.TargetLanguageTerm}\" was used in this sentence. Try a clearer sentence that directly uses the target word.";
-                        gradingFailureMessages.Add(guidance);
+                        var targetWordNotFoundMessage = $"We couldn't confirm how \"{currentItem.Word.TargetLanguageTerm}\" was used in this sentence. Try a clearer sentence that directly uses the target word.";
+                        gradingFailureMessages.Add(targetWordNotFoundMessage);
                         Logger.LogWarning(
                             "Target-word grading was unavailable for word {Word} in sentence shortcut entry",
                             currentItem.Word.TargetLanguageTerm);
@@ -911,7 +912,7 @@ else
                         gradedResults.Add(new SentenceShortcutResult(
                             sentenceText,
                             false,
-                            guidance,
+                            targetWordNotFoundMessage,
                             grade?.Accuracy ?? 0,
                             grade?.Fluency ?? 0,
                             grade?.AccuracyExplanation ?? string.Empty,
@@ -1024,7 +1025,7 @@ else
 
             if (gradingFailureMessages.Count > 0)
             {
-                Toast.ShowWarning($"Some sentences could not be fully graded: {gradingFailureMessages[0]}");
+                Toast.ShowWarning(FormatGradingFailureMessage(gradingFailureMessages));
             }
         }
         catch (Exception ex)
@@ -1112,7 +1113,25 @@ else
             return "The AI returned an empty response. Please try sending one sentence at a time.";
         }
 
-        return $"Error details: {ex.Message}";
+        return "An unexpected grading error occurred. Please try again.";
+    }
+
+    private static string FormatGradingFailureMessage(List<string> gradingFailureMessages)
+    {
+        var uniqueMessages = gradingFailureMessages
+            .Where(message => !string.IsNullOrWhiteSpace(message))
+            .Distinct(StringComparer.Ordinal)
+            .Take(MaxDisplayedGradingFailureMessages)
+            .ToList();
+        var detailParts = new List<string>(uniqueMessages.Count);
+        for (var index = 0; index < uniqueMessages.Count; index++)
+        {
+            detailParts.Add($"{index + 1}) {uniqueMessages[index]}");
+        }
+
+        var details = string.Join(" ", detailParts);
+        var noun = gradingFailureMessages.Count == 1 ? "sentence" : "sentences";
+        return $"{gradingFailureMessages.Count} {noun} could not be fully graded. {details}";
     }
 
     private QuizChoiceOption[] GenerateChoiceOptions(VocabularyQuizItem item)
