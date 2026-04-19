@@ -93,7 +93,9 @@ public sealed class IdentityAuthService : IAuthService
                 _cachedExpires = storedExpires;
                 _cachedUserName = ExtractUserNameFromJwt(storedJwt);
 
-                // Restore active profile from preferences if available
+                // Apply saved locale if active_profile_id is set
+                await ApplyLocaleFromActiveProfileAsync();
+
                 _logger.LogInformation("Restored session from stored JWT, expires {Expires}", storedExpires);
                 return new AuthResult(storedJwt, _cachedUserName, storedExpires);
             }
@@ -360,6 +362,11 @@ public sealed class IdentityAuthService : IAuthService
             // Backfill Name/Email on the local UserProfile from JWT claims
             // so the mobile app shows them even though Identity lives server-side.
             await BackfillProfileFromJwtAsync(response.Token);
+
+            // Apply the user's saved locale now that active_profile_id is set.
+            // This ensures fresh login flow (and JWT restore flow) immediately applies
+            // the correct culture without waiting for app relaunch.
+            await ApplyLocaleFromActiveProfileAsync();
         }
         else
         {
@@ -470,6 +477,30 @@ public sealed class IdentityAuthService : IAuthService
         catch
         {
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Applies the user's saved DisplayLanguage to the process-wide culture after
+    /// active_profile_id is set. Called from StoreTokens to ensure fresh login flow
+    /// and JWT restore flow both apply the correct locale immediately.
+    /// </summary>
+    private async Task ApplyLocaleFromActiveProfileAsync()
+    {
+        if (_userProfileRepo is null)
+        {
+            _logger.LogDebug("ApplyLocaleFromActiveProfileAsync: UserProfileRepository not available, skipping locale application.");
+            return;
+        }
+
+        try
+        {
+            var profile = await _userProfileRepo.GetAsync();
+            LocalizationInitializer.ApplyLocaleFromProfile(profile, _logger);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "ApplyLocaleFromActiveProfileAsync: failed to apply locale — non-fatal");
         }
     }
 

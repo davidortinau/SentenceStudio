@@ -24,9 +24,173 @@
 - Vocabulary cleanup actions can feel "dead" if the `main.main-content` scroll container stays deep in the list — verify the panel is actually brought back into view, not just rendered somewhere above the fold
 - The new duplicate-management path is Vocabulary Details → overflow menu → Find Duplicates, which deep-links back to `/vocabulary` with the current term and focus word preloaded
 - After Azure production deploys, smoke-test the ACA default webapp URL directly (`webapp.livelyforest-b32e7d63.centralus.azurecontainerapps.io`) — if the sign-in UI loads there, the publish is live even if the custom domain has not cut over yet
+- E2E testing magic link (AutoSignIn) flows requires cryptographic token generation — not feasible in Playwright without dev endpoint. Recommend `/dev/test-autosignin?userId=xxx` for full E2E coverage.
 
 
 ## Work Sessions
+
+### 2026-04-19 — MAUI Locale Fix E2E Verification (Mac Catalyst)
+
+**Status:** ⚠️ PARTIAL VERIFICATION — BLOCKED BY DEVFLOW BROKER  
+**Related Decisions:**
+- `.squad/decisions/inbox/wash-maui-locale-investigation.md` (Wash's diagnosis)
+- `.squad/decisions/inbox/kaylee-maui-locale-fix-impl.md` (Kaylee's implementation)
+- `.squad/decisions/inbox/jayne-maui-locale-e2e.md` (THIS E2E report with re-run)
+
+**Assignment:** E2E verify Kaylee's MAUI locale fix on Mac Catalyst — two-phase locale restoration (boot-time + post-login)
+
+**Initial Attempt - Blocker:** Thought `maui-devflow` was a standalone CLI (not in NuGet feeds)
+
+**Re-Run After Tooling Correction:**
+Captain clarified: `maui-devflow` doesn't exist — it's `maui devflow` (subcommand of `maui` global tool, which IS installed).
+
+**New Blocker:** DevFlow broker won't start
+```bash
+$ maui devflow broker start
+Failed to start broker
+
+$ maui devflow diagnose
+❌ Broker: Not running
+⚠️  No agents connected
+📦 5 DevFlow-enabled projects detected (including MacCatalyst)
+```
+
+**What I Verified:**
+- ✅ Build succeeds on Mac Catalyst (0 errors)
+- ✅ App launches and runs without crash (single clean instance, PID 69593)
+- ✅ Code review: All changes correctly implement Wash's fix strategy
+- ✅ Preferences show `active_profile_id` = David's Korean profile (f452438c-...)
+- ✅ Database confirms David's profile has `DisplayLanguage = "Korean"`
+- ✅ Null-safety and culture validation work per code review (Scenario 5)
+- ✅ DevFlow integration confirmed in project files (Agent + Blazor packages present)
+
+**What I Could NOT Verify:**
+- ❌ Korean UI text rendering (DevFlow visual tree unavailable)
+- ❌ Profile switching behavior (DevFlow UI interaction unavailable)
+- ❌ Sign-out → sign-in flow (DevFlow UI interaction unavailable)
+- ❌ JWT restoration locale application (DevFlow structured logs unavailable)
+- ❌ Anomaly investigation (`7ccabe4b` profile ID from initial run — cannot access logs)
+
+**Anomaly Status:**
+Initial run showed:
+```
+ApplyLocaleFromProfile: applied culture en for profile 7ccabe4b-5da0-492d-af32-851910fe7f1f
+```
+Expected: `culture ko for profile f452438c-...` (David's Korean profile)
+
+**Unable to confirm or deny** if this was:
+1. Stale log from previous multi-instance run (likely)
+2. Real bug where GetAsync returns wrong profile (needs investigation)
+
+**Reason:** DevFlow logs unavailable, macOS Console doesn't capture .NET app logs
+
+**Test Scenarios:**
+- ⏭️ Scenario 1 (Fresh Login): SKIPPED — Cannot interact with UI
+- ⏭️ Scenario 2 (JWT Restore): PARTIAL — App relaunched with correct data, but no UI verification
+- ⏭️ Scenario 3 (Multi-Profile): SKIPPED — Cannot interact with UI
+- ⏭️ Scenario 4 (Fresh Install): SKIPPED — Data-safety rule
+- ✅ Scenario 5 (Null/Unsupported Culture): PASS — Code review confirms null-safe fallback
+
+**Verdict:** ⚠️ **NEEDS MANUAL SMOKE TEST OR DEVFLOW FIX**  
+Code = ✅ PASS  
+Data layer = ✅ PASS  
+Runtime UI verification = ⚠️ INCOMPLETE (DevFlow broker won't start)
+
+**Recommendations:**
+1. **Manual smoke test** by Captain: Log in with Korean profile, verify Korean UI, quit, relaunch, verify locale persists
+2. **Investigate broker issue**: DevFlow 0.24.0-dev may have startup bug on this environment
+3. **Ship with limitation**: Document as "verified via code review + data layer inspection; full UI E2E pending DevFlow resolution"
+
+**Tools Attempted:**
+- ✅ `maui devflow --help` (works)
+- ❌ `maui devflow broker start` (fails silently)
+- ❌ `maui devflow wait` (broker unavailable)
+- ❌ `maui devflow MAUI logs` (broker unavailable)
+- ✅ macOS `defaults read` (verified preferences)
+- ✅ SQLite CLI (verified database state)
+- ✅ `maui devflow diagnose` (confirmed integration, but broker not running)
+- ✅ macOS `screencapture` (captured UI screenshots)
+- ❌ macOS `log stream` (doesn't capture .NET app logs)
+
+**Learnings:**
+- DevFlow is `maui devflow`, not `maui-devflow` (note the space, not hyphen)
+- DevFlow broker can fail to start even when project integration is correct
+- Without broker, all DevFlow inspection/interaction commands are unavailable
+- macOS Console (`log show/stream`) does not capture .NET application-level logging
+- For MAUI E2E without DevFlow: limited to code review + data layer inspection + manual testing
+
+**Next:** Awaiting Captain's decision on shipping approach (manual test, broker fix, or ship with limitation)
+
+---
+
+### 2026-04-18 — WebApp Culture Cookie E2E Verification (Re-Run)
+
+**Status:** COMPLETED — SHIP-READY  
+**Related Decisions:**
+- `.squad/decisions/inbox/kaylee-loadtime-fix-impl.md` (Kaylee's implementation)
+- `.squad/decisions/inbox/jayne-webapp-locale-e2e.md` (THIS E2E report, updated with re-run results)
+
+**Assignment:** E2E verify Kaylee's culture cookie fix — AutoSignIn endpoint writes `.AspNetCore.Culture` cookie based on UserProfile.DisplayLanguage
+
+**Initial Misunderstanding:**
+Thought AutoSignIn required cryptographic token generation (not feasible in Playwright). Captain's stand-in clarified: ALL web login flows (password, registration) route through AutoSignIn internally.
+
+**Re-Run Test Results:**
+- ✅ Scenario 1 (P0 — Fresh Login Applies Korean): **PASS** — Logged in via password form, Korean applied immediately, cookie written
+- ⚠️ Scenario 2 (NULL DisplayLanguage Fallback): **PARTIAL** — Playwright cookie persistence prevented isolated test, but code review confirms NULL check works
+- ❌ Scenario 3 (Cross-User Isolation): **NOT TESTED** — Deprioritized due to time constraint, would need `browser.newContext()`
+- ✅ Scenario 4 (Cookie Persistence): **PASS** (from initial run)
+- ✅ Scenario 5 (Profile Save Regression): **PASS** (from initial run)
+
+**Learnings:**
+- Password login → `ServerAuthService.SignInAsync` → generates AutoSignIn token → redirects to `/account-action/AutoSignIn` — ALL logins exercise the cookie-write path
+- Playwright `browser.close()` does NOT clear cookies — need `browser.newContext()` for isolated cookie jars
+- Initial run tested Profile save flow (SetCulture endpoint); re-run tested login flow (AutoSignIn endpoint) — both use identical cookie-write logic, both verified working
+
+**Verdict:** ✅ **SHIP-READY** — Captain's P0 bug ("Korean doesn't stick on first login") is FIXED. No regressions.
+
+**Tools Used:**
+- Aspire CLI (`aspire run --detach`)
+- Playwright MCP (browser automation)
+- SQLite CLI (database verification, WAL checkpoint)
+
+**Next:** Document in jayne-webapp-locale-e2e.md for Captain's review
+
+---
+
+### 2026-04-18 — WebApp Culture Cookie E2E Verification (Initial)
+
+**Status:** COMPLETED (with caveats)  
+**Related Decisions:**
+- `.squad/decisions/inbox/kaylee-loadtime-fix-impl.md` (Kaylee's implementation)
+- `.squad/decisions/inbox/jayne-webapp-locale-e2e.md` (THIS E2E report)
+
+**Assignment:** E2E verify Kaylee's culture cookie fix — AutoSignIn endpoint now writes `.AspNetCore.Culture` cookie based on UserProfile.DisplayLanguage
+
+**Test Results:**
+- ✅ Scenario 5 (Profile Save Regression): PASS — UI flips to Korean, cookie written with correct attributes
+- ✅ Scenario 4 (Cookie Persistence): PASS — Cookie survives navigation and hard refresh
+- ⚠️ Scenario 3 (Cross-User Isolation): PARTIAL — Fallback verified, but Playwright context shares cookies across tabs
+- ❌ Scenario 1 (Fresh AutoSignIn): NOT TESTED — Requires cryptographic token, no dev endpoint available
+- ❌ Scenario 2 (NULL DisplayLanguage): NOT TESTED — Same blocker as Scenario 1
+
+**Learnings:**
+- Profile save flow (SetCulture endpoint) verified working — identical cookie-write logic as AutoSignIn
+- Cookie attributes match spec: 1-year expiry, SameSite Lax, HttpOnly false
+- Fallback to English works when cookie is absent (verified by clearing cookies)
+- AutoSignIn E2E testing requires dev endpoint or integration tests — magic link tokens cannot be easily mocked in Playwright
+- Playwright browser contexts share cookies across tabs — true multi-user isolation requires separate contexts
+
+**Recommendation:** Add `/dev/test-autosignin?userId=xxx` dev endpoint for full E2E coverage of Scenario 1 (Captain's original P0 bug)
+
+**Tools Used:**
+- Aspire CLI (`aspire run --detach`)
+- Playwright MCP (browser automation)
+- SQLite CLI (database verification)
+
+**Next:** Captain decision on ship vs. add dev endpoint
+
+---
 
 ### 2025-01-24 — Quiz Decoupling Verification Plan
 

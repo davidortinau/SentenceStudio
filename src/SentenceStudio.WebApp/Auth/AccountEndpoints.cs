@@ -16,6 +16,9 @@ public static class AccountEndpoints
 {
     // Logger category for password reset logging
     private class PasswordResetLogger { }
+    
+    // Supported cultures for localization (used by SetCulture and AutoSignIn)
+    private static readonly string[] SupportedCultures = { "en", "ko" };
 
     public static void MapAccountEndpoints(this WebApplication app)
     {
@@ -46,8 +49,7 @@ public static class AccountEndpoints
             HttpContext httpContext) =>
         {
             // Restrict to the cultures we support; fall back silently otherwise.
-            var supported = new[] { "en", "ko" };
-            var normalized = supported.Contains(culture) ? culture : "en";
+            var normalized = SupportedCultures.Contains(culture) ? culture : "en";
             var cookieValue = CookieRequestCultureProvider.MakeCookieValue(
                 new RequestCulture(new CultureInfo(normalized)));
             httpContext.Response.Cookies.Append(
@@ -141,6 +143,33 @@ public static class AccountEndpoints
                         profile.Id, userEmail, await db.UserProfiles.CountAsync());
                 }
                 await userManager.UpdateAsync(user);
+            }
+
+            // Write culture cookie from saved DisplayLanguage so the user's preferred locale
+            // applies immediately on login, without requiring a Profile re-save.
+            if (!string.IsNullOrEmpty(user.UserProfileId))
+            {
+                var db3 = httpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
+                var profile = await db3.UserProfiles.FindAsync(user.UserProfileId);
+                if (profile?.DisplayLanguage is not null)
+                {
+                    var cultureCode = profile.DisplayCulture;
+                    if (SupportedCultures.Contains(cultureCode))
+                    {
+                        var cookieValue = CookieRequestCultureProvider.MakeCookieValue(
+                            new RequestCulture(new CultureInfo(cultureCode)));
+                        httpContext.Response.Cookies.Append(
+                            CookieRequestCultureProvider.DefaultCookieName,
+                            cookieValue,
+                            new CookieOptions
+                            {
+                                Expires = DateTimeOffset.UtcNow.AddYears(1),
+                                IsEssential = true,
+                                SameSite = SameSiteMode.Lax,
+                                HttpOnly = false
+                            });
+                    }
+                }
             }
 
             await signInManager.SignInAsync(user, isPersistent: true);
