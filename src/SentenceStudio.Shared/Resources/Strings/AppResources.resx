@@ -5994,4 +5994,124 @@ For example: {0} ...</value>
     <value>Total time</value>
     <comment>Total time label</comment>
   </data>
+  <data name="Common_Create" xml:space="preserve">
+    <value>Create</value>
+    <comment>Common: Create button</comment>
+  </data>
+  <data name="Common_Email" xml:space="preserve">
+    <value>Email</value>
+    <comment>Common: Email field label</comment>
+  </data>
+  <data name="Common_EmailPlaceholder" xml:space="preserve">
+    <value>name@example.com</value>
+    <comment>Common: Email input placeholder</comment>
+  </data>
+  <data name="Common_Password" xml:space="preserve">
+    <value>Password</value>
+    <comment>Common: Password field label</comment>
+  </data>
+  <data name="Common_PasswordPlaceholder" xml:space="preserve">
+    <value>Enter your password</value>
+    <comment>Common: Password input placeholder</comment>
+  </data>
+  <data name="Common_RememberMe" xml:space="preserve">
+    <value>Remember me</value>
+    <comment>Common: Remember-me checkbox</comment>
+  </data>
+  <data name="Common_LoadFailed" xml:space="preserve">
+    <value>Failed to load: {0}</value>
+    <comment>Common: Load error toast (arg0 = exception message)</comment>
+  </data>
+  <data name="Common_SaveFailed" xml:space="preserve">
+    <value>Failed to save: {0}</value>
+    <comment>Common: Save error toast (arg0 = exception message)</comment>
+  </data>
+  <data name="Common_DeleteFailed" xml:space="preserve">
+    <value>Failed to delete: {0}</value>
+    <comment>Common: Delete error toast (arg0 = exception message)</comment>
+  </data>
+  <data name="ResourceEdit_FileImportStatus" xml:space="preserve">
+    <value>Imported {0} words from {1}</value>
+    <comment>ResourceEdit: File import progress (arg0 = count, arg1 = filename)</comment>
+  </data>
+  <data name="ResourceEdit_GenerateFailed" xml:space="preserve">
+    <value>Generation failed</value>
+    <comment>ResourceEdit: Vocab generation failure (also used with string.Format; trailing args ignored when no placeholder)</comment>
+  </data>
+  <data name="ResourceEdit_GenerateSuccess" xml:space="preserve">
+    <value>Generated {0} words ({1} new, {2} linked)</value>
+    <comment>ResourceEdit: Vocab generation success</comment>
+  </data>
+  <data name="ResourceEdit_SkippedDuplicates" xml:space="preserve">
+    <value>skipped {0} duplicates</value>
+    <comment>ResourceEdit: Duplicate skip count (appended to success message)</comment>
+  </data>
+  <data name="Vocabulary_StatsTotal" xml:space="preserve">
+    <value>{0} of {1} words</value>
+    <comment>Vocabulary: Stats badge (arg0 = filtered count, arg1 = total)</comment>
+  </data>
+  <data name="Vocabulary_BulkSelected" xml:space="preserve">
+    <value>{0} selected</value>
+    <comment>Vocabulary: Bulk-select count</comment>
+  </data>
+  <data name="Vocabulary_NoMatchFilter" xml:space="preserve">
+    <value>No words match the current filter</value>
+    <comment>Vocabulary: Empty-state when filter excludes all</comment>
+  </data>
+  <data name="SkillEdit_SaveFailed" xml:space="preserve">
+    <value>Failed to save skill: {0}</value>
+    <comment>SkillEdit: Save error toast</comment>
+  </data>
+  <data name="VocabWordEdit_Language" xml:space="preserve">
+    <value>Language</value>
+    <comment>VocabWordEdit: Language field label</comment>
+  </data>
+  <data name="VocabWordEdit_Lemma" xml:space="preserve">
+    <value>Lemma</value>
+    <comment>VocabWordEdit: Lemma field label</comment>
+  </data>
+  <data name="VocabWordEdit_Tags" xml:space="preserve">
+    <value>Tags</value>
+    <comment>VocabWordEdit: Tags field label</comment>
+  </data>
+  <data name="VocabWordEdit_MnemonicPlaceholder" xml:space="preserve">
+    <value>Optional memory aid</value>
+    <comment>VocabWordEdit: Mnemonic text placeholder</comment>
+  </data>
+  <data name="VocabWordEdit_MnemonicImageUrl" xml:space="preserve">
+    <value>Mnemonic image URL</value>
+    <comment>VocabWordEdit: Mnemonic image URL field label</comment>
+  </data>
+  <data name="VocabWordEdit_EncodingMemoryAids" xml:space="preserve">
+    <value>Encoding &amp; Memory Aids</value>
+    <comment>VocabWordEdit: Section header for encoding / mnemonic inputs</comment>
+  </data>
+  <data name="VocabWordEdit_EarnedThrough" xml:space="preserve">
+    <value>earned through study</value>
+    <comment>VocabWordEdit: Note next to 'Known' badge</comment>
+  </data>
+  <data name="VocabWordEdit_NoResources" xml:space="preserve">
+    <value>No resources available to associate</value>
+    <comment>VocabWordEdit: Empty state for resource-associations list</comment>
+  </data>
+  <data name="VocabWordEdit_SelectResources" xml:space="preserve">
+    <value>Select the resources this word appears in.</value>
+    <comment>VocabWordEdit: Resource-associations helper text</comment>
+  </data>
+  <data name="VocabWordEdit_SelectedCount" xml:space="preserve">
+    <value>{0} selected</value>
+    <comment>VocabWordEdit: Selected resource count</comment>
+  </data>
+  <data name="VocabWordEdit_BothRequired" xml:space="preserve">
+    <value>Both target and native terms are required.</value>
+    <comment>VocabWordEdit: Validation error when one term is missing</comment>
+  </data>
+  <data name="VocabWordEdit_AudioOffline" xml:space="preserve">
+    <value>Audio is unavailable while offline.</value>
+    <comment>VocabWordEdit: Audio-playback offline warning</comment>
+  </data>
+  <data name="VocabWordEdit_FamiliarMessage" xml:space="preserve">
+    <value>Marked as familiar. Keep reviewing to promote to Known.</value>
+    <comment>VocabWordEdit: Info toast when learning status set to Familiar</comment>
+  </data>
 </root>

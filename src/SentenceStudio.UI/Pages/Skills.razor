@@ -1,6 +1,7 @@
 @page "/skills"
 @attribute [Authorize]
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@implements IDisposable
 
 <PageHeader Title='@Localize["Skills_Title"]'>
     <PrimaryActions>
@@ -56,7 +57,15 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        Localize.CultureChanged += OnCultureChanged;
         await LoadProfiles();
+    }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnCultureChanged;
     }
 
     private async Task LoadProfiles()

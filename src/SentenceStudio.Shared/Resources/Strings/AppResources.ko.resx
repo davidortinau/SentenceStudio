@@ -5750,4 +5750,124 @@
     <value>총 시간</value>
     <comment>Total time label</comment>
   </data>
+  <data name="Common_Create" xml:space="preserve">
+    <value>만들기</value>
+    <comment>Common: Create button</comment>
+  </data>
+  <data name="Common_Email" xml:space="preserve">
+    <value>이메일</value>
+    <comment>Common: Email field label</comment>
+  </data>
+  <data name="Common_EmailPlaceholder" xml:space="preserve">
+    <value>name@example.com</value>
+    <comment>Common: Email input placeholder</comment>
+  </data>
+  <data name="Common_Password" xml:space="preserve">
+    <value>비밀번호</value>
+    <comment>Common: Password field label</comment>
+  </data>
+  <data name="Common_PasswordPlaceholder" xml:space="preserve">
+    <value>비밀번호를 입력하세요</value>
+    <comment>Common: Password input placeholder</comment>
+  </data>
+  <data name="Common_RememberMe" xml:space="preserve">
+    <value>로그인 상태 유지</value>
+    <comment>Common: Remember-me checkbox</comment>
+  </data>
+  <data name="Common_LoadFailed" xml:space="preserve">
+    <value>불러오기 실패: {0}</value>
+    <comment>Common: Load error toast (arg0 = exception message)</comment>
+  </data>
+  <data name="Common_SaveFailed" xml:space="preserve">
+    <value>저장 실패: {0}</value>
+    <comment>Common: Save error toast (arg0 = exception message)</comment>
+  </data>
+  <data name="Common_DeleteFailed" xml:space="preserve">
+    <value>삭제 실패: {0}</value>
+    <comment>Common: Delete error toast (arg0 = exception message)</comment>
+  </data>
+  <data name="ResourceEdit_FileImportStatus" xml:space="preserve">
+    <value>{1}에서 {0}개 단어 가져옴</value>
+    <comment>ResourceEdit: File import progress (arg0 = count, arg1 = filename)</comment>
+  </data>
+  <data name="ResourceEdit_GenerateFailed" xml:space="preserve">
+    <value>생성 실패</value>
+    <comment>ResourceEdit: Vocab generation failure (also used with string.Format; trailing args ignored when no placeholder)</comment>
+  </data>
+  <data name="ResourceEdit_GenerateSuccess" xml:space="preserve">
+    <value>{0}개 단어 생성됨 ({1}개 신규, {2}개 연결)</value>
+    <comment>ResourceEdit: Vocab generation success</comment>
+  </data>
+  <data name="ResourceEdit_SkippedDuplicates" xml:space="preserve">
+    <value>중복 {0}개 건너뜀</value>
+    <comment>ResourceEdit: Duplicate skip count (appended to success message)</comment>
+  </data>
+  <data name="Vocabulary_StatsTotal" xml:space="preserve">
+    <value>단어 {0} / {1}개</value>
+    <comment>Vocabulary: Stats badge (arg0 = filtered count, arg1 = total)</comment>
+  </data>
+  <data name="Vocabulary_BulkSelected" xml:space="preserve">
+    <value>{0}개 선택됨</value>
+    <comment>Vocabulary: Bulk-select count</comment>
+  </data>
+  <data name="Vocabulary_NoMatchFilter" xml:space="preserve">
+    <value>현재 필터와 일치하는 단어가 없습니다</value>
+    <comment>Vocabulary: Empty-state when filter excludes all</comment>
+  </data>
+  <data name="SkillEdit_SaveFailed" xml:space="preserve">
+    <value>기술 저장 실패: {0}</value>
+    <comment>SkillEdit: Save error toast</comment>
+  </data>
+  <data name="VocabWordEdit_Language" xml:space="preserve">
+    <value>언어</value>
+    <comment>VocabWordEdit: Language field label</comment>
+  </data>
+  <data name="VocabWordEdit_Lemma" xml:space="preserve">
+    <value>표제어</value>
+    <comment>VocabWordEdit: Lemma field label</comment>
+  </data>
+  <data name="VocabWordEdit_Tags" xml:space="preserve">
+    <value>태그</value>
+    <comment>VocabWordEdit: Tags field label</comment>
+  </data>
+  <data name="VocabWordEdit_MnemonicPlaceholder" xml:space="preserve">
+    <value>선택적 암기 도우미</value>
+    <comment>VocabWordEdit: Mnemonic text placeholder</comment>
+  </data>
+  <data name="VocabWordEdit_MnemonicImageUrl" xml:space="preserve">
+    <value>암기 이미지 URL</value>
+    <comment>VocabWordEdit: Mnemonic image URL field label</comment>
+  </data>
+  <data name="VocabWordEdit_EncodingMemoryAids" xml:space="preserve">
+    <value>기억 부호화 및 암기 도우미</value>
+    <comment>VocabWordEdit: Section header for encoding / mnemonic inputs</comment>
+  </data>
+  <data name="VocabWordEdit_EarnedThrough" xml:space="preserve">
+    <value>학습으로 획득함</value>
+    <comment>VocabWordEdit: Note next to 'Known' badge</comment>
+  </data>
+  <data name="VocabWordEdit_NoResources" xml:space="preserve">
+    <value>연결할 수 있는 리소스가 없습니다</value>
+    <comment>VocabWordEdit: Empty state for resource-associations list</comment>
+  </data>
+  <data name="VocabWordEdit_SelectResources" xml:space="preserve">
+    <value>이 단어가 포함된 리소스를 선택하세요.</value>
+    <comment>VocabWordEdit: Resource-associations helper text</comment>
+  </data>
+  <data name="VocabWordEdit_SelectedCount" xml:space="preserve">
+    <value>{0}개 선택됨</value>
+    <comment>VocabWordEdit: Selected resource count</comment>
+  </data>
+  <data name="VocabWordEdit_BothRequired" xml:space="preserve">
+    <value>대상 언어와 모국어 단어를 모두 입력해야 합니다.</value>
+    <comment>VocabWordEdit: Validation error when one term is missing</comment>
+  </data>
+  <data name="VocabWordEdit_AudioOffline" xml:space="preserve">
+    <value>오프라인 상태에서는 오디오를 사용할 수 없습니다.</value>
+    <comment>VocabWordEdit: Audio-playback offline warning</comment>
+  </data>
+  <data name="VocabWordEdit_FamiliarMessage" xml:space="preserve">
+    <value>익숙함으로 표시했습니다. 계속 복습하여 '알고 있음'으로 승급하세요.</value>
+    <comment>VocabWordEdit: Info toast when learning status set to Familiar</comment>
+  </data>
 </root>

@@ -1399,11 +1399,29 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Create.
+        /// </summary>
+        internal static string Common_Create {
+            get {
+                return ResourceManager.GetString("Common_Create", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Delete.
         /// </summary>
         internal static string Common_Delete {
             get {
                 return ResourceManager.GetString("Common_Delete", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to delete: {0}.
+        /// </summary>
+        internal static string Common_DeleteFailed {
+            get {
+                return ResourceManager.GetString("Common_DeleteFailed", resourceCulture);
             }
         }
         
@@ -1422,6 +1440,24 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Common_Edit {
             get {
                 return ResourceManager.GetString("Common_Edit", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Email.
+        /// </summary>
+        internal static string Common_Email {
+            get {
+                return ResourceManager.GetString("Common_Email", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to name@example.com.
+        /// </summary>
+        internal static string Common_EmailPlaceholder {
+            get {
+                return ResourceManager.GetString("Common_EmailPlaceholder", resourceCulture);
             }
         }
         
@@ -1467,6 +1503,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Common_Incorrect {
             get {
                 return ResourceManager.GetString("Common_Incorrect", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to load: {0}.
+        /// </summary>
+        internal static string Common_LoadFailed {
+            get {
+                return ResourceManager.GetString("Common_LoadFailed", resourceCulture);
             }
         }
         
@@ -1534,6 +1579,24 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Password.
+        /// </summary>
+        internal static string Common_Password {
+            get {
+                return ResourceManager.GetString("Common_Password", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Enter your password.
+        /// </summary>
+        internal static string Common_PasswordPlaceholder {
+            get {
+                return ResourceManager.GetString("Common_PasswordPlaceholder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Play Again.
         /// </summary>
         internal static string Common_PlayAgain {
@@ -1570,6 +1633,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Remember me.
+        /// </summary>
+        internal static string Common_RememberMe {
+            get {
+                return ResourceManager.GetString("Common_RememberMe", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Retry.
         /// </summary>
         internal static string Common_Retry {
@@ -1584,6 +1656,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Common_Save {
             get {
                 return ResourceManager.GetString("Common_Save", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to save: {0}.
+        /// </summary>
+        internal static string Common_SaveFailed {
+            get {
+                return ResourceManager.GetString("Common_SaveFailed", resourceCulture);
             }
         }
         
@@ -7213,6 +7294,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Imported {0} words from {1}.
+        /// </summary>
+        internal static string ResourceEdit_FileImportStatus {
+            get {
+                return ResourceManager.GetString("ResourceEdit_FileImportStatus", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Generated {0} words: {1} new, {2} linked.
         /// </summary>
         internal static string ResourceEdit_GeneratedSuccess {
@@ -7231,11 +7321,29 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Generation failed.
+        /// </summary>
+        internal static string ResourceEdit_GenerateFailed {
+            get {
+                return ResourceManager.GetString("ResourceEdit_GenerateFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Generate from Transcript.
         /// </summary>
         internal static string ResourceEdit_GenerateFromTranscript {
             get {
                 return ResourceManager.GetString("ResourceEdit_GenerateFromTranscript", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Generated {0} words ({1} new, {2} linked).
+        /// </summary>
+        internal static string ResourceEdit_GenerateSuccess {
+            get {
+                return ResourceManager.GetString("ResourceEdit_GenerateSuccess", resourceCulture);
             }
         }
         
@@ -7416,6 +7524,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string ResourceEdit_SaveFailed {
             get {
                 return ResourceManager.GetString("ResourceEdit_SaveFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to skipped {0} duplicates.
+        /// </summary>
+        internal static string ResourceEdit_SkippedDuplicates {
+            get {
+                return ResourceManager.GetString("ResourceEdit_SkippedDuplicates", resourceCulture);
             }
         }
         
@@ -9146,6 +9263,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Failed to save skill: {0}.
+        /// </summary>
+        internal static string SkillEdit_SaveFailed {
+            get {
+                return ResourceManager.GetString("SkillEdit_SaveFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Edit Skill Profile.
         /// </summary>
         internal static string SkillEdit_Title {
@@ -10515,6 +10641,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to {0} selected.
+        /// </summary>
+        internal static string Vocabulary_BulkSelected {
+            get {
+                return ResourceManager.GetString("Vocabulary_BulkSelected", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Bulk update failed: {0}.
         /// </summary>
         internal static string Vocabulary_BulkUpdateFailed {
@@ -11361,6 +11496,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to No words match the current filter.
+        /// </summary>
+        internal static string Vocabulary_NoMatchFilter {
+            get {
+                return ResourceManager.GetString("Vocabulary_NoMatchFilter", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to No duplicate records matched this scan..
         /// </summary>
         internal static string Vocabulary_NoMatchingScan {
@@ -11658,6 +11802,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to {0} of {1} words.
+        /// </summary>
+        internal static string Vocabulary_StatsTotal {
+            get {
+                return ResourceManager.GetString("Vocabulary_StatsTotal", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Unknown: {0}.
         /// </summary>
         internal static string Vocabulary_StatsUnknown {
@@ -11901,6 +12054,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Audio is unavailable while offline..
+        /// </summary>
+        internal static string VocabWordEdit_AudioOffline {
+            get {
+                return ResourceManager.GetString("VocabWordEdit_AudioOffline", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Audio unavailable offline..
         /// </summary>
         internal static string VocabWordEdit_AudioUnavailable {
@@ -11915,6 +12077,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string VocabWordEdit_AudioUnavailableOffline {
             get {
                 return ResourceManager.GetString("VocabWordEdit_AudioUnavailableOffline", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Both target and native terms are required..
+        /// </summary>
+        internal static string VocabWordEdit_BothRequired {
+            get {
+                return ResourceManager.GetString("VocabWordEdit_BothRequired", resourceCulture);
             }
         }
         
@@ -12018,6 +12189,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to earned through study.
+        /// </summary>
+        internal static string VocabWordEdit_EarnedThrough {
+            get {
+                return ResourceManager.GetString("VocabWordEdit_EarnedThrough", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Edit Vocabulary Word.
         /// </summary>
         internal static string VocabWordEdit_EditTitle {
@@ -12032,6 +12212,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string VocabWordEdit_EncodingMemory {
             get {
                 return ResourceManager.GetString("VocabWordEdit_EncodingMemory", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Encoding &amp; Memory Aids.
+        /// </summary>
+        internal static string VocabWordEdit_EncodingMemoryAids {
+            get {
+                return ResourceManager.GetString("VocabWordEdit_EncodingMemoryAids", resourceCulture);
             }
         }
         
@@ -12059,6 +12248,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string VocabWordEdit_Familiar {
             get {
                 return ResourceManager.GetString("VocabWordEdit_Familiar", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Marked as familiar. Keep reviewing to promote to Known..
+        /// </summary>
+        internal static string VocabWordEdit_FamiliarMessage {
+            get {
+                return ResourceManager.GetString("VocabWordEdit_FamiliarMessage", resourceCulture);
             }
         }
         
@@ -12110,6 +12308,15 @@ namespace SentenceStudio.Resources.Strings {
         /// <summary>
         ///   Looks up a localized string similar to Language.
         /// </summary>
+        internal static string VocabWordEdit_Language {
+            get {
+                return ResourceManager.GetString("VocabWordEdit_Language", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Language.
+        /// </summary>
         internal static string VocabWordEdit_LanguageLabel {
             get {
                 return ResourceManager.GetString("VocabWordEdit_LanguageLabel", resourceCulture);
@@ -12131,6 +12338,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string VocabWordEdit_LearningProgress {
             get {
                 return ResourceManager.GetString("VocabWordEdit_LearningProgress", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Lemma.
+        /// </summary>
+        internal static string VocabWordEdit_Lemma {
+            get {
+                return ResourceManager.GetString("VocabWordEdit_Lemma", resourceCulture);
             }
         }
         
@@ -12185,6 +12401,24 @@ namespace SentenceStudio.Resources.Strings {
         internal static string VocabWordEdit_MnemonicImageLabel {
             get {
                 return ResourceManager.GetString("VocabWordEdit_MnemonicImageLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Mnemonic image URL.
+        /// </summary>
+        internal static string VocabWordEdit_MnemonicImageUrl {
+            get {
+                return ResourceManager.GetString("VocabWordEdit_MnemonicImageUrl", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Optional memory aid.
+        /// </summary>
+        internal static string VocabWordEdit_MnemonicPlaceholder {
+            get {
+                return ResourceManager.GetString("VocabWordEdit_MnemonicPlaceholder", resourceCulture);
             }
         }
         
@@ -12266,6 +12500,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string VocabWordEdit_NextReviewLabel {
             get {
                 return ResourceManager.GetString("VocabWordEdit_NextReviewLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No resources available to associate.
+        /// </summary>
+        internal static string VocabWordEdit_NoResources {
+            get {
+                return ResourceManager.GetString("VocabWordEdit_NoResources", resourceCulture);
             }
         }
         
@@ -12387,6 +12630,24 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to {0} selected.
+        /// </summary>
+        internal static string VocabWordEdit_SelectedCount {
+            get {
+                return ResourceManager.GetString("VocabWordEdit_SelectedCount", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Select the resources this word appears in..
+        /// </summary>
+        internal static string VocabWordEdit_SelectResources {
+            get {
+                return ResourceManager.GetString("VocabWordEdit_SelectResources", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Select resources to associate with this word..
         /// </summary>
         internal static string VocabWordEdit_SelectResourcesNote {
@@ -12473,6 +12734,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string VocabWordEdit_StatusUpdateFailed {
             get {
                 return ResourceManager.GetString("VocabWordEdit_StatusUpdateFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Tags.
+        /// </summary>
+        internal static string VocabWordEdit_Tags {
+            get {
+                return ResourceManager.GetString("VocabWordEdit_Tags", resourceCulture);
             }
         }
         
