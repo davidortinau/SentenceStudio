@@ -4610,4 +4610,576 @@ For example: {0} ...</value>
     <value>Failed to load release notes: {0}</value>
     <comment>Toast error</comment>
   </data>
+  <data name="ResourceEdit_TranscriptSection" xml:space="preserve">
+    <value>Transcript</value>
+    <comment>Section heading</comment>
+  </data>
+  <data name="ResourceEdit_TranslationSection" xml:space="preserve">
+    <value>Translation</value>
+    <comment>Section heading</comment>
+  </data>
+  <data name="ResourceEdit_ImportButton" xml:space="preserve">
+    <value>Import</value>
+    <comment>Button text</comment>
+  </data>
+  <data name="ResourceEdit_ConfirmDeleteTitle" xml:space="preserve">
+    <value>Confirm Delete</value>
+    <comment>Modal title</comment>
+  </data>
+  <data name="ResourceEdit_FileImportedCount" xml:space="preserve">
+    <value>Imported {0} vocabulary words from file.</value>
+    <comment>Toast success</comment>
+  </data>
+  <data name="ResourceEdit_NoTranscriptForVocab" xml:space="preserve">
+    <value>No transcript available to generate vocabulary from.</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="ResourceEdit_VocabGenSuccess" xml:space="preserve">
+    <value>Generated {0} words: {1} new, {2} linked</value>
+    <comment>Toast success (param order: total, new, linked)</comment>
+  </data>
+  <data name="ResourceEdit_VocabGenSuccessWithDuplicates" xml:space="preserve">
+    <value>Generated {0} words: {1} new, {2} linked, {3} skipped (already in resource)</value>
+    <comment>Toast success</comment>
+  </data>
+  <data name="ResourceEdit_VocabGenError" xml:space="preserve">
+    <value>Vocabulary generation failed: {0}</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="Settings_AppearanceSection" xml:space="preserve">
+    <value>Appearance</value>
+    <comment>Section heading</comment>
+  </data>
+  <data name="Settings_LightMode" xml:space="preserve">
+    <value>Light</value>
+    <comment>Radio label</comment>
+  </data>
+  <data name="Settings_DarkMode" xml:space="preserve">
+    <value>Dark</value>
+    <comment>Radio label</comment>
+  </data>
+  <data name="Settings_VoiceQuizSection" xml:space="preserve">
+    <value>Voice &amp; Quiz</value>
+    <comment>Section heading</comment>
+  </data>
+  <data name="Settings_TargetLanguage" xml:space="preserve">
+    <value>Target language</value>
+    <comment>Radio label</comment>
+  </data>
+  <data name="Settings_NativeLanguage" xml:space="preserve">
+    <value>Native language</value>
+    <comment>Radio label</comment>
+  </data>
+  <data name="Settings_Mixed" xml:space="preserve">
+    <value>Mixed</value>
+    <comment>Radio label</comment>
+  </data>
+  <data name="Settings_PromptLanguageHelp" xml:space="preserve">
+    <value>Choose which side of the vocab card is shown as the prompt.</value>
+    <comment>Help text</comment>
+  </data>
+  <data name="Settings_PromptModalitiesLabel" xml:space="preserve">
+    <value>Prompt Modalities</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="Settings_TextModality" xml:space="preserve">
+    <value>Text</value>
+    <comment>Switch label</comment>
+  </data>
+  <data name="Settings_AudioModality" xml:space="preserve">
+    <value>Audio</value>
+    <comment>Switch label</comment>
+  </data>
+  <data name="Settings_PhotoModality" xml:space="preserve">
+    <value>Photo</value>
+    <comment>Switch label</comment>
+  </data>
+  <data name="Settings_ModalitiesHelp" xml:space="preserve">
+    <value>Choose which cues to show for the prompt. If a photo isn't available, the quiz falls back to text.</value>
+    <comment>Help text</comment>
+  </data>
+  <data name="Settings_AutoAdvanceDurationLabel" xml:space="preserve">
+    <value>Auto-Advance Duration: {0} s</value>
+    <comment>Slider label</comment>
+  </data>
+  <data name="Settings_DataManagementSection" xml:space="preserve">
+    <value>Data Management</value>
+    <comment>Section heading</comment>
+  </data>
+  <data name="Settings_DatabaseMigrationsSection" xml:space="preserve">
+    <value>Database Migrations</value>
+    <comment>Section heading (dev only)</comment>
+  </data>
+  <data name="Settings_AboutSection" xml:space="preserve">
+    <value>About</value>
+    <comment>Section heading</comment>
+  </data>
+  <data name="Settings_VersionLabel" xml:space="preserve">
+    <value>SentenceStudio v{0}</value>
+    <comment>Version display</comment>
+  </data>
+  <data name="Settings_ModalityRequired" xml:space="preserve">
+    <value>At least one question modality is required. Falling back to text.</value>
+    <comment>Toast info</comment>
+  </data>
+  <data name="Settings_ExportSuccess" xml:space="preserve">
+    <value>Data exported successfully</value>
+    <comment>Toast success</comment>
+  </data>
+  <data name="Settings_MigrationComplete" xml:space="preserve">
+    <value>Streak migration complete</value>
+    <comment>Toast success</comment>
+  </data>
+  <data name="VocabWordEdit_VocabTermsSection" xml:space="preserve">
+    <value>Vocabulary Terms</value>
+    <comment>Section heading</comment>
+  </data>
+  <data name="VocabWordEdit_TargetTermLabel" xml:space="preserve">
+    <value>Target Language Term</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="VocabWordEdit_TargetTermPlaceholder" xml:space="preserve">
+    <value>Enter target language term</value>
+    <comment>Input placeholder</comment>
+  </data>
+  <data name="VocabWordEdit_PlayAudioTitle" xml:space="preserve">
+    <value>Play audio</value>
+    <comment>Button title</comment>
+  </data>
+  <data name="VocabWordEdit_NativeTermLabel" xml:space="preserve">
+    <value>Native Language Term</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="VocabWordEdit_NativeTermPlaceholder" xml:space="preserve">
+    <value>Enter native language term</value>
+    <comment>Input placeholder</comment>
+  </data>
+  <data name="VocabWordEdit_EncodingSection" xml:space="preserve">
+    <value>Encoding &amp; Memory Aids</value>
+    <comment>Section heading</comment>
+  </data>
+  <data name="VocabWordEdit_MnemonicStoryLabel" xml:space="preserve">
+    <value>Mnemonic Story</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="VocabWordEdit_MnemonicImageLabel" xml:space="preserve">
+    <value>Mnemonic Image URL</value>
+    <comment>Form label</comment>
+  </data>
+  <data name="VocabWordEdit_ProgressSection" xml:space="preserve">
+    <value>Learning Progress</value>
+    <comment>Section heading</comment>
+  </data>
+  <data name="VocabWordEdit_StatusLabel" xml:space="preserve">
+    <value>Status</value>
+    <comment>Detail label</comment>
+  </data>
+  <data name="VocabWordEdit_StatusKnown" xml:space="preserve">
+    <value>Known</value>
+    <comment>Badge text</comment>
+  </data>
+  <data name="VocabWordEdit_StatusKnownNote" xml:space="preserve">
+    <value>(earned through practice)</value>
+    <comment>Note text</comment>
+  </data>
+  <data name="VocabWordEdit_StatusUnknown" xml:space="preserve">
+    <value>Unknown</value>
+    <comment>Select option</comment>
+  </data>
+  <data name="VocabWordEdit_StatusLearning" xml:space="preserve">
+    <value>Learning</value>
+    <comment>Select option</comment>
+  </data>
+  <data name="VocabWordEdit_StatusFamiliar" xml:space="preserve">
+    <value>Familiar</value>
+    <comment>Select option</comment>
+  </data>
+  <data name="VocabWordEdit_DetailsLabel" xml:space="preserve">
+    <value>Details</value>
+    <comment>Detail label</comment>
+  </data>
+  <data name="VocabWordEdit_NextReviewLabel" xml:space="preserve">
+    <value>Next Review</value>
+    <comment>Detail label</comment>
+  </data>
+  <data name="VocabWordEdit_AssociationsSection" xml:space="preserve">
+    <value>Resource Associations</value>
+    <comment>Section heading</comment>
+  </data>
+  <data name="VocabWordEdit_AssociationsSelected" xml:space="preserve">
+    <value>{0} selected</value>
+    <comment>Count label</comment>
+  </data>
+  <data name="VocabWordEdit_AssociationsHelp" xml:space="preserve">
+    <value>Select resources to associate with this word.</value>
+    <comment>Help text</comment>
+  </data>
+  <data name="VocabWordEdit_ConfirmDeleteTitle" xml:space="preserve">
+    <value>Confirm Delete</value>
+    <comment>Modal title</comment>
+  </data>
+  <data name="VocabWordEdit_TermsRequired" xml:space="preserve">
+    <value>Both target and native language terms are required.</value>
+    <comment>Error message</comment>
+  </data>
+  <data name="VocabWordEdit_AddedSuccess" xml:space="preserve">
+    <value>Vocabulary word added!</value>
+    <comment>Toast success</comment>
+  </data>
+  <data name="VocabWordEdit_UpdatedSuccess" xml:space="preserve">
+    <value>Vocabulary word updated!</value>
+    <comment>Toast success</comment>
+  </data>
+  <data name="VocabWordEdit_SaveErrorMessage" xml:space="preserve">
+    <value>Failed to save: {0}</value>
+    <comment>Error message</comment>
+  </data>
+  <data name="VocabWordEdit_DeletedSuccess" xml:space="preserve">
+    <value>Vocabulary word deleted!</value>
+    <comment>Toast success</comment>
+  </data>
+  <data name="VocabWordEdit_FamiliarTrust" xml:space="preserve">
+    <value>Got it -- we trust you on this one. We will check in occasionally to keep it fresh.</value>
+    <comment>Toast info</comment>
+  </data>
+  <data name="VocabWordEdit_AudioUnavailableOffline" xml:space="preserve">
+    <value>Audio unavailable offline.</value>
+    <comment>Toast warning</comment>
+  </data>
+  <data name="VocabWordEdit_ProgressStartPracticing" xml:space="preserve">
+    <value>Start practicing to track progress.</value>
+    <comment>Progress detail placeholder</comment>
+  </data>
+  <data name="Vocabulary_StatsOfTotal" xml:space="preserve">
+    <value>{0} of {1}</value>
+    <comment>Stats badge</comment>
+  </data>
+  <data name="Vocabulary_StatsUnknown" xml:space="preserve">
+    <value>Unknown: {0}</value>
+    <comment>Stats badge</comment>
+  </data>
+  <data name="Vocabulary_StatsLearning" xml:space="preserve">
+    <value>Learning: {0}</value>
+    <comment>Stats badge</comment>
+  </data>
+  <data name="Vocabulary_StatsFamiliar" xml:space="preserve">
+    <value>Familiar: {0}</value>
+    <comment>Stats badge</comment>
+  </data>
+  <data name="Vocabulary_StatsKnown" xml:space="preserve">
+    <value>Known: {0}</value>
+    <comment>Stats badge</comment>
+  </data>
+  <data name="Vocabulary_ToggleViewMode" xml:space="preserve">
+    <value>List View</value>
+    <comment>Menu item (grid→list)</comment>
+  </data>
+  <data name="Vocabulary_ToggleViewModeAlt" xml:space="preserve">
+    <value>Grid View</value>
+    <comment>Menu item (list→grid)</comment>
+  </data>
+  <data name="Vocabulary_BulkEditSelected" xml:space="preserve">
+    <value>{0} selected</value>
+    <comment>Bulk edit label</comment>
+  </data>
+  <data name="Vocabulary_BulkEditSetStatus" xml:space="preserve">
+    <value>Set Status...</value>
+    <comment>Select placeholder</comment>
+  </data>
+  <data name="Vocabulary_BulkEditSave" xml:space="preserve">
+    <value>Save</value>
+    <comment>Button text</comment>
+  </data>
+  <data name="Vocabulary_BulkEditCancel" xml:space="preserve">
+    <value>Cancel</value>
+    <comment>Button text</comment>
+  </data>
+  <data name="Vocabulary_BulkEditSelectAll" xml:space="preserve">
+    <value>Select All</value>
+    <comment>Button text</comment>
+  </data>
+  <data name="Vocabulary_BulkEditSelectNone" xml:space="preserve">
+    <value>Select None</value>
+    <comment>Button text</comment>
+  </data>
+  <data name="Vocabulary_FilterAllWords" xml:space="preserve">
+    <value>All Words</value>
+    <comment>Filter dropdown</comment>
+  </data>
+  <data name="Vocabulary_FilterAssociated" xml:space="preserve">
+    <value>Associated</value>
+    <comment>Filter dropdown</comment>
+  </data>
+  <data name="Vocabulary_FilterOrphaned" xml:space="preserve">
+    <value>Orphaned</value>
+    <comment>Filter dropdown</comment>
+  </data>
+  <data name="Vocabulary_FilterAllStatus" xml:space="preserve">
+    <value>All Status</value>
+    <comment>Filter dropdown</comment>
+  </data>
+  <data name="Vocabulary_FilterAllResources" xml:space="preserve">
+    <value>All Resources</value>
+    <comment>Filter dropdown</comment>
+  </data>
+  <data name="Vocabulary_FilterAllTags" xml:space="preserve">
+    <value>All Tags</value>
+    <comment>Filter dropdown</comment>
+  </data>
+  <data name="Vocabulary_FilterAllLemmas" xml:space="preserve">
+    <value>All Lemmas</value>
+    <comment>Filter dropdown</comment>
+  </data>
+  <data name="Vocabulary_FilterAllLanguages" xml:space="preserve">
+    <value>All Languages</value>
+    <comment>Filter dropdown</comment>
+  </data>
+  <data name="Vocabulary_FilterAllEncoding" xml:space="preserve">
+    <value>All Encoding</value>
+    <comment>Filter dropdown</comment>
+  </data>
+  <data name="Vocabulary_FilterEncodingStrong" xml:space="preserve">
+    <value>Strong</value>
+    <comment>Filter dropdown</comment>
+  </data>
+  <data name="Vocabulary_FilterEncodingGood" xml:space="preserve">
+    <value>Good</value>
+    <comment>Filter dropdown</comment>
+  </data>
+  <data name="Vocabulary_FilterEncodingBasic" xml:space="preserve">
+    <value>Basic</value>
+    <comment>Filter dropdown</comment>
+  </data>
+  <data name="Vocabulary_FiltersTitle" xml:space="preserve">
+    <value>Filters</value>
+    <comment>Offcanvas title</comment>
+  </data>
+  <data name="Vocabulary_FilterLabelAssociation" xml:space="preserve">
+    <value>Association</value>
+    <comment>Filter label</comment>
+  </data>
+  <data name="Vocabulary_FilterLabelStatus" xml:space="preserve">
+    <value>Status</value>
+    <comment>Filter label</comment>
+  </data>
+  <data name="Vocabulary_FilterLabelResource" xml:space="preserve">
+    <value>Resource</value>
+    <comment>Filter label</comment>
+  </data>
+  <data name="Vocabulary_FilterLabelTag" xml:space="preserve">
+    <value>Tag</value>
+    <comment>Filter label</comment>
+  </data>
+  <data name="Vocabulary_FilterLabelLemma" xml:space="preserve">
+    <value>Lemma</value>
+    <comment>Filter label</comment>
+  </data>
+  <data name="Vocabulary_FilterLabelLanguage" xml:space="preserve">
+    <value>Language</value>
+    <comment>Filter label</comment>
+  </data>
+  <data name="Vocabulary_FilterLabelEncoding" xml:space="preserve">
+    <value>Encoding Strength</value>
+    <comment>Filter label</comment>
+  </data>
+  <data name="Vocabulary_CleanupPanelClose" xml:space="preserve">
+    <value>Close</value>
+    <comment>Button title</comment>
+  </data>
+  <data name="Vocabulary_DuplicatesTitleForTerm" xml:space="preserve">
+    <value>Find Duplicates for "{0}"</value>
+    <comment>Cleanup panel title</comment>
+  </data>
+  <data name="Vocabulary_DuplicatesScanning" xml:space="preserve">
+    <value>Scanning for duplicates...</value>
+    <comment>Status text</comment>
+  </data>
+  <data name="Vocabulary_DuplicatesScanningForTerm" xml:space="preserve">
+    <value>Scanning for duplicates matching "{0}"...</value>
+    <comment>Status text</comment>
+  </data>
+  <data name="Vocabulary_DuplicatesFocused" xml:space="preserve">
+    <value>Focused on &lt;strong&gt;{0}&lt;/strong&gt; so you can manage this word's copies faster.</value>
+    <comment>Status text</comment>
+  </data>
+  <data name="Vocabulary_DuplicatesAutoMergeAll" xml:space="preserve">
+    <value>Auto-merge All</value>
+    <comment>Button text</comment>
+  </data>
+  <data name="Vocabulary_DuplicatesNoRecords" xml:space="preserve">
+    <value>No duplicate records matched this scan.</value>
+    <comment>Alert text</comment>
+  </data>
+  <data name="Vocabulary_DuplicatesCopies" xml:space="preserve">
+    <value>{0} copies</value>
+    <comment>Badge text</comment>
+  </data>
+  <data name="Vocabulary_DuplicatesFocusedBadge" xml:space="preserve">
+    <value>Focused</value>
+    <comment>Badge text</comment>
+  </data>
+  <data name="Vocabulary_DuplicatesResourceCount" xml:space="preserve">
+    <value>{0} resources</value>
+    <comment>Badge text</comment>
+  </data>
+  <data name="Vocabulary_DuplicatesRecommendedKeeper" xml:space="preserve">
+    <value>Recommended keeper</value>
+    <comment>Badge text</comment>
+  </data>
+  <data name="Vocabulary_DuplicatesCurrentWord" xml:space="preserve">
+    <value>Current word</value>
+    <comment>Badge text</comment>
+  </data>
+  <data name="Vocabulary_DuplicatesEdit" xml:space="preserve">
+    <value>Edit</value>
+    <comment>Button text</comment>
+  </data>
+  <data name="Vocabulary_DuplicatesMergeKeepBest" xml:space="preserve">
+    <value>Merge (keep best)</value>
+    <comment>Button text</comment>
+  </data>
+  <data name="Vocabulary_DuplicatesShowMore" xml:space="preserve">
+    <value>Show more ({0} remaining)</value>
+    <comment>Button text</comment>
+  </data>
+  <data name="Vocabulary_DuplicatesFoundCount" xml:space="preserve">
+    <value>Found {0} group(s) of duplicate words with {1} extra record(s).</value>
+    <comment>Status text</comment>
+  </data>
+  <data name="Vocabulary_DuplicatesNone" xml:space="preserve">
+    <value>No duplicates found.</value>
+    <comment>Status text</comment>
+  </data>
+  <data name="Vocabulary_DuplicatesNoneForTerm" xml:space="preserve">
+    <value>No duplicates found for '{0}'.</value>
+    <comment>Status text</comment>
+  </data>
+  <data name="Vocabulary_DuplicatesMergedCount" xml:space="preserve">
+    <value>Merged '{0}': kept 1, removed {1}</value>
+    <comment>Result text</comment>
+  </data>
+  <data name="Vocabulary_DuplicatesMergedSuccess" xml:space="preserve">
+    <value>Merged {0} duplicate record(s) for '{1}'.</value>
+    <comment>Toast success</comment>
+  </data>
+  <data name="Vocabulary_DuplicatesNoMergeNeeded" xml:space="preserve">
+    <value>No merge was needed for '{0}'.</value>
+    <comment>Toast info</comment>
+  </data>
+  <data name="Vocabulary_DuplicatesMergeError" xml:space="preserve">
+    <value>Error merging '{0}': {1}</value>
+    <comment>Result text</comment>
+  </data>
+  <data name="Vocabulary_DuplicatesAutoMergeComplete" xml:space="preserve">
+    <value>Auto-merge complete: removed {0} duplicate(s)</value>
+    <comment>Result text</comment>
+  </data>
+  <data name="Vocabulary_DuplicatesAutoMergeWithErrors" xml:space="preserve">
+    <value>Auto-merge complete: removed {0} duplicate(s), {1} error(s)</value>
+    <comment>Result text</comment>
+  </data>
+  <data name="Vocabulary_PopulateLemmasProcessing" xml:space="preserve">
+    <value>Processing {0} words missing lemmas...</value>
+    <comment>Status text</comment>
+  </data>
+  <data name="Vocabulary_PopulateLemmasAllDone" xml:space="preserve">
+    <value>All words already have lemmas.</value>
+    <comment>Result text</comment>
+  </data>
+  <data name="Vocabulary_PopulateLemmasBatchProgress" xml:space="preserve">
+    <value>Processing batch {0} of {1}...</value>
+    <comment>Status text</comment>
+  </data>
+  <data name="Vocabulary_PopulateLemmasComplete" xml:space="preserve">
+    <value>Lemma population complete: updated {0} of {1} words</value>
+    <comment>Result text</comment>
+  </data>
+  <data name="Vocabulary_PopulateLemmasBatchError" xml:space="preserve">
+    <value>Batch error: {0}</value>
+    <comment>Result text</comment>
+  </data>
+  <data name="Vocabulary_PopulateLemmasError" xml:space="preserve">
+    <value>Error: {0}</value>
+    <comment>Result text</comment>
+  </data>
+  <data name="Vocabulary_FixSwappedScanning" xml:space="preserve">
+    <value>Scanning for swapped language entries...</value>
+    <comment>Status text</comment>
+  </data>
+  <data name="Vocabulary_FixSwappedFixing" xml:space="preserve">
+    <value>Fixing {0} entries...</value>
+    <comment>Status text</comment>
+  </data>
+  <data name="Vocabulary_FixSwappedComplete" xml:space="preserve">
+    <value>Swapped {0} word(s), merged {1} duplicate(s)</value>
+    <comment>Result text</comment>
+  </data>
+  <data name="Vocabulary_FixSwappedError" xml:space="preserve">
+    <value>Error: {0}</value>
+    <comment>Result text</comment>
+  </data>
+  <data name="Vocabulary_AssignOrphanedFinding" xml:space="preserve">
+    <value>Finding orphaned words...</value>
+    <comment>Status text</comment>
+  </data>
+  <data name="Vocabulary_AssignOrphanedNone" xml:space="preserve">
+    <value>No orphaned words found.</value>
+    <comment>Result text</comment>
+  </data>
+  <data name="Vocabulary_AssignOrphanedAssigning" xml:space="preserve">
+    <value>Assigning {0} orphaned words...</value>
+    <comment>Status text</comment>
+  </data>
+  <data name="Vocabulary_AssignOrphanedComplete" xml:space="preserve">
+    <value>Assigned {0} orphaned word(s) to 'General Vocabulary'</value>
+    <comment>Result text</comment>
+  </data>
+  <data name="Vocabulary_AssignOrphanedError" xml:space="preserve">
+    <value>Error: {0}</value>
+    <comment>Result text</comment>
+  </data>
+  <data name="Vocabulary_NoWordsMatch" xml:space="preserve">
+    <value>No words match the current filter.</value>
+    <comment>Empty state</comment>
+  </data>
+  <data name="Vocabulary_NoWordsYet" xml:space="preserve">
+    <value>No vocabulary words yet.</value>
+    <comment>Empty state</comment>
+  </data>
+  <data name="Vocabulary_AddFirstWord" xml:space="preserve">
+    <value>Add Your First Word</value>
+    <comment>Button text</comment>
+  </data>
+  <data name="Vocabulary_CardOrphaned" xml:space="preserve">
+    <value>Orphaned</value>
+    <comment>Card badge</comment>
+  </data>
+  <data name="Vocabulary_CardResourcesCount" xml:space="preserve">
+    <value>{0} resource(s)</value>
+    <comment>Card text</comment>
+  </data>
+  <data name="Vocabulary_CardKnown" xml:space="preserve">
+    <value>Known</value>
+    <comment>Badge text</comment>
+  </data>
+  <data name="Vocabulary_CardKnownTooltip" xml:space="preserve">
+    <value>Mastered through practice and verified</value>
+    <comment>Badge title</comment>
+  </data>
+  <data name="Vocabulary_CardFamiliarTooltip" xml:space="preserve">
+    <value>Marked familiar — verification pending</value>
+    <comment>Badge title</comment>
+  </data>
+  <data name="Vocabulary_CardLearningTooltip" xml:space="preserve">
+    <value>Currently studying</value>
+    <comment>Badge title</comment>
+  </data>
+  <data name="Vocabulary_CardUnknownTooltip" xml:space="preserve">
+    <value>Not yet studied</value>
+    <comment>Badge title</comment>
+  </data>
+  <data name="Vocabulary_BulkUpdateNoProfile" xml:space="preserve">
+    <value>No active user profile. Please select a profile first.</value>
+    <comment>Toast error</comment>
+  </data>
 </root>

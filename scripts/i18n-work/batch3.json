@@ -1,325 +1,4481 @@
 {
-  "comment": "Phase 2 Batch 3 — Management pages (9 files)",
+  "comment": "Phase 2 Batch 3 — Complete (Part 1 + Part 2)",
   "keys": [
-    {"key": "Skills_Title", "en": "Skill Profiles", "ko": "스킬 프로필", "comment": "Page title"},
-    {"key": "Skills_NoProfilesYet", "en": "No skill profiles yet", "ko": "아직 스킬 프로필이 없습니다", "comment": "Empty state"},
-    {"key": "Skills_AddFirstProfile", "en": "Add Your First Skill Profile", "ko": "첫 번째 스킬 프로필 추가", "comment": "Empty state button"},
-    {"key": "Skills_AddSkillProfile", "en": "Add Skill Profile", "ko": "스킬 프로필 추가", "comment": "Menu item"},
-    
-    {"key": "SkillAdd_Title", "en": "Add Skill Profile", "ko": "스킬 프로필 추가", "comment": "Page title"},
-    {"key": "SkillAdd_TitleLabel", "en": "Title *", "ko": "제목 *", "comment": "Form label"},
-    {"key": "SkillAdd_TitlePlaceholder", "en": "Skill profile title", "ko": "스킬 프로필 제목", "comment": "Input placeholder"},
-    {"key": "SkillAdd_DescriptionLabel", "en": "Skills Description", "ko": "스킬 설명", "comment": "Form label"},
-    {"key": "SkillAdd_DescriptionPlaceholder", "en": "Describe the skills for this profile", "ko": "이 프로필의 스킬을 설명하세요", "comment": "Textarea placeholder"},
-    {"key": "SkillAdd_SaveSkillProfile", "en": "Save Skill Profile", "ko": "스킬 프로필 저장", "comment": "Save button"},
-    {"key": "SkillAdd_TitleRequired", "en": "Title is required.", "ko": "제목은 필수입니다.", "comment": "Validation error"},
-    {"key": "SkillAdd_SavedSuccess", "en": "Skill profile saved.", "ko": "스킬 프로필이 저장되었습니다.", "comment": "Toast success"},
-    {"key": "SkillAdd_SaveFailed", "en": "Failed to save: {0}", "ko": "저장 실패: {0}", "comment": "Toast error"},
-    
-    {"key": "SkillEdit_Title", "en": "Edit Skill Profile", "ko": "스킬 프로필 편집", "comment": "Page title"},
-    {"key": "SkillEdit_DetailsTitle", "en": "Details", "ko": "세부정보", "comment": "Section heading"},
-    {"key": "SkillEdit_Created", "en": "Created", "ko": "생성일", "comment": "Detail label"},
-    {"key": "SkillEdit_Updated", "en": "Updated", "ko": "업데이트일", "comment": "Detail label"},
-    {"key": "SkillEdit_ConfirmDelete", "en": "Confirm Delete", "ko": "삭제 확인", "comment": "Modal title"},
-    {"key": "SkillEdit_DeleteMessage", "en": "Are you sure you want to delete this skill profile? This cannot be undone.", "ko": "이 스킬 프로필을 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.", "comment": "Delete confirmation message"},
-    {"key": "SkillEdit_NotFound", "en": "Skill profile not found.", "ko": "스킬 프로필을 찾을 수 없습니다.", "comment": "Toast error"},
-    {"key": "SkillEdit_LoadFailed", "en": "Failed to load: {0}", "ko": "로드 실패: {0}", "comment": "Toast error"},
-    {"key": "SkillEdit_SavedSuccess", "en": "Skill profile saved.", "ko": "스킬 프로필이 저장되었습니다.", "comment": "Toast success"},
-    {"key": "SkillEdit_DeletedSuccess", "en": "Skill profile deleted.", "ko": "스킬 프로필이 삭제되었습니다.", "comment": "Toast success"},
-    {"key": "SkillEdit_DeleteFailed", "en": "Failed to delete: {0}", "ko": "삭제 실패: {0}", "comment": "Toast error"},
-    
-    {"key": "Resources_Title", "en": "Learning Resources", "ko": "학습 리소스", "comment": "Page title"},
-    {"key": "Resources_AddResource", "en": "Add Resource", "ko": "리소스 추가", "comment": "Button text"},
-    {"key": "Resources_SearchPlaceholder", "en": "Search resources...", "ko": "리소스 검색...", "comment": "Search input placeholder"},
-    {"key": "Resources_AllTypes", "en": "All Types", "ko": "모든 유형", "comment": "Filter dropdown"},
-    {"key": "Resources_AllLanguages", "en": "All Languages", "ko": "모든 언어", "comment": "Filter dropdown"},
-    {"key": "Resources_GridView", "en": "Grid view", "ko": "그리드 보기", "comment": "View toggle title"},
-    {"key": "Resources_ListView", "en": "List view", "ko": "목록 보기", "comment": "View toggle title"},
-    {"key": "Resources_NoResourcesFound", "en": "No resources found", "ko": "리소스를 찾을 수 없습니다", "comment": "Empty state"},
-    {"key": "Resources_AddFirstResource", "en": "Add Your First Resource", "ko": "첫 번째 리소스 추가", "comment": "Empty state button"},
-    {"key": "Resources_CreateStarter", "en": "Create a Starter Resource", "ko": "스타터 리소스 생성", "comment": "Empty state button"},
-    {"key": "Resources_ResourcesCount", "en": "{0} resource(s)", "ko": "{0}개의 리소스", "comment": "Count label"},
-    {"key": "Resources_CreatingStarter", "en": "Creating starter vocabulary...", "ko": "스타터 어휘 생성 중...", "comment": "Loading message"},
-    {"key": "Resources_LoadFailed", "en": "Failed to load resources: {0}", "ko": "리소스 로드 실패: {0}", "comment": "Toast error"},
-    {"key": "Resources_SearchFailed", "en": "Search failed: {0}", "ko": "검색 실패: {0}", "comment": "Toast error"},
-    {"key": "Resources_SetNativeLanguage", "en": "Please set up your native language in your profile first.", "ko": "먼저 프로필에서 모국어를 설정하세요.", "comment": "Toast error"},
-    {"key": "Resources_StarterExists", "en": "Starter resource already exists! Loading your resources…", "ko": "스타터 리소스가 이미 존재합니다! 리소스 로딩 중...", "comment": "Toast success"},
-    {"key": "Resources_StarterSuccess", "en": "Starter resource created for {0}!", "ko": "{0}용 스타터 리소스가 생성되었습니다!", "comment": "Toast success"},
-    {"key": "Resources_StarterFailed", "en": "Failed to create starter resource: {0}", "ko": "스타터 리소스 생성 실패: {0}", "comment": "Toast error"},
-    
-    {"key": "ResourceAdd_Title", "en": "Add Resource", "ko": "리소스 추가", "comment": "Page title"},
-    {"key": "ResourceAdd_BasicInfo", "en": "Basic Information", "ko": "기본 정보", "comment": "Section heading"},
-    {"key": "ResourceAdd_TitleLabel", "en": "Title *", "ko": "제목 *", "comment": "Form label"},
-    {"key": "ResourceAdd_TitlePlaceholder", "en": "Resource title", "ko": "리소스 제목", "comment": "Input placeholder"},
-    {"key": "ResourceAdd_DescriptionLabel", "en": "Description", "ko": "설명", "comment": "Form label"},
-    {"key": "ResourceAdd_DescriptionPlaceholder", "en": "Brief description", "ko": "간단한 설명", "comment": "Textarea placeholder"},
-    {"key": "ResourceAdd_MediaTypeLabel", "en": "Media Type", "ko": "미디어 유형", "comment": "Form label"},
-    {"key": "ResourceAdd_LanguageLabel", "en": "Language", "ko": "언어", "comment": "Form label"},
-    {"key": "ResourceAdd_TagsLabel", "en": "Tags (comma separated)", "ko": "태그 (쉼표로 구분)", "comment": "Form label"},
-    {"key": "ResourceAdd_TagsPlaceholder", "en": "tag1, tag2, tag3", "ko": "태그1, 태그2, 태그3", "comment": "Input placeholder"},
-    {"key": "ResourceAdd_MediaContent", "en": "Media Content", "ko": "미디어 콘텐츠", "comment": "Section heading"},
-    {"key": "ResourceAdd_MediaUrlLabel", "en": "Media URL", "ko": "미디어 URL", "comment": "Form label"},
-    {"key": "ResourceAdd_TranscriptLabel", "en": "Transcript", "ko": "대본", "comment": "Form label"},
-    {"key": "ResourceAdd_TranscriptPlaceholder", "en": "Paste transcript here", "ko": "여기에 대본 붙여넣기", "comment": "Textarea placeholder"},
-    {"key": "ResourceAdd_TranslationLabel", "en": "Translation", "ko": "번역", "comment": "Form label"},
-    {"key": "ResourceAdd_TranslationPlaceholder", "en": "Paste translation here", "ko": "여기에 번역 붙여넣기", "comment": "Textarea placeholder"},
-    {"key": "ResourceAdd_VocabularySection", "en": "Vocabulary", "ko": "어휘", "comment": "Section heading"},
-    {"key": "ResourceAdd_PasteVocabLabel", "en": "Paste vocabulary (one pair per line)", "ko": "어휘 붙여넣기 (한 줄에 한 쌍)", "comment": "Form label"},
-    {"key": "ResourceAdd_VocabPlaceholder", "en": "target, native\\n한국어, Korean\\n학교, school", "ko": "대상어, 모국어\\n한국어, Korean\\n학교, school", "comment": "Textarea placeholder"},
-    {"key": "ResourceAdd_CommaDelimiter", "en": "Comma", "ko": "쉼표", "comment": "Radio label"},
-    {"key": "ResourceAdd_TabDelimiter", "en": "Tab", "ko": "탭", "comment": "Radio label"},
-    {"key": "ResourceAdd_ImportVocabulary", "en": "Import Vocabulary", "ko": "어휘 가져오기", "comment": "Button text"},
-    {"key": "ResourceAdd_OrImportFile", "en": "Or import from a file (.txt, .csv)", "ko": "또는 파일에서 가져오기 (.txt, .csv)", "comment": "Form label"},
-    {"key": "ResourceAdd_ChooseFile", "en": "Choose File", "ko": "파일 선택", "comment": "Button text"},
-    {"key": "ResourceAdd_Importing", "en": "Importing...", "ko": "가져오는 중...", "comment": "Status text"},
-    {"key": "ResourceAdd_VocabWordsAdded", "en": "{0} vocabulary words added", "ko": "{0}개의 어휘가 추가됨", "comment": "Status text"},
-    {"key": "ResourceAdd_SaveResource", "en": "Save Resource", "ko": "리소스 저장", "comment": "Button text"},
-    {"key": "ResourceAdd_TitleRequired", "en": "Title is required.", "ko": "제목은 필수입니다.", "comment": "Toast error"},
-    {"key": "ResourceAdd_SavedSuccess", "en": "Resource saved.", "ko": "리소스가 저장되었습니다.", "comment": "Toast success"},
-    {"key": "ResourceAdd_SaveFailed", "en": "Failed to save: {0}", "ko": "저장 실패: {0}", "comment": "Toast error"},
-    {"key": "ResourceAdd_NoVocabToImport", "en": "No vocabulary to import.", "ko": "가져올 어휘가 없습니다.", "comment": "Toast error"},
-    {"key": "ResourceAdd_ImportedCount", "en": "Imported {0} vocabulary words.", "ko": "{0}개의 어휘를 가져왔습니다.", "comment": "Toast success"},
-    {"key": "ResourceAdd_NoDuplicates", "en": "No new vocabulary words found (may be duplicates).", "ko": "새 어휘를 찾을 수 없습니다 (중복일 수 있음).", "comment": "Toast info"},
-    {"key": "ResourceAdd_ImportFailed", "en": "Import failed: {0}", "ko": "가져오기 실패: {0}", "comment": "Toast error"},
-    {"key": "ResourceAdd_FileEmpty", "en": "File is empty.", "ko": "파일이 비어 있습니다.", "comment": "Toast error"},
-    {"key": "ResourceAdd_ImportedFromFile", "en": "Imported {0} vocabulary words from file.", "ko": "파일에서 {0}개의 어휘를 가져왔습니다.", "comment": "Toast success"},
-    {"key": "ResourceAdd_NoDuplicatesInFile", "en": "No new vocabulary words found in file (may be duplicates or wrong format).", "ko": "파일에서 새 어휘를 찾을 수 없습니다 (중복이거나 잘못된 형식일 수 있음).", "comment": "Toast info"},
-    {"key": "ResourceAdd_FileImportFailed", "en": "File import failed: {0}", "ko": "파일 가져오기 실패: {0}", "comment": "Toast error"},
-    {"key": "ResourceAdd_FileImportStatus", "en": "{0} words from {1}", "ko": "{1}에서 {0}개 단어", "comment": "Status text (count from filename)"},
-    
-    {"key": "ResourceEdit_SmartResource", "en": "Smart Resource", "ko": "스마트 리소스", "comment": "Badge label"},
-    {"key": "ResourceEdit_AutoUpdated", "en": "— Auto-updated by the system", "ko": "— 시스템에서 자동 업데이트됨", "comment": "Smart resource note"},
-    {"key": "ResourceEdit_BasicInfo", "en": "Basic Information", "ko": "기본 정보", "comment": "Section heading"},
-    {"key": "ResourceEdit_Title", "en": "Title", "ko": "제목", "comment": "Form label"},
-    {"key": "ResourceEdit_Description", "en": "Description", "ko": "설명", "comment": "Form label"},
-    {"key": "ResourceEdit_MediaType", "en": "Media Type", "ko": "미디어 유형", "comment": "Form label"},
-    {"key": "ResourceEdit_Language", "en": "Language", "ko": "언어", "comment": "Form label"},
-    {"key": "ResourceEdit_MediaUrl", "en": "Media URL", "ko": "미디어 URL", "comment": "Form label"},
-    {"key": "ResourceEdit_Tags", "en": "Tags (comma separated)", "ko": "태그 (쉼표로 구분)", "comment": "Form label"},
-    {"key": "ResourceEdit_Created", "en": "Created", "ko": "생성일", "comment": "Detail label"},
-    {"key": "ResourceEdit_Updated", "en": "Updated", "ko": "업데이트일", "comment": "Detail label"},
-    {"key": "ResourceEdit_Transcript", "en": "Transcript", "ko": "대본", "comment": "Section heading"},
-    {"key": "ResourceEdit_Translation", "en": "Translation", "ko": "번역", "comment": "Section heading"},
-    {"key": "ResourceEdit_VocabularySection", "en": "Vocabulary ({0} words)", "ko": "어휘 ({0}개 단어)", "comment": "Section heading with count"},
-    {"key": "ResourceEdit_Generating", "en": "Generating...", "ko": "생성 중...", "comment": "Button text when loading"},
-    {"key": "ResourceEdit_GenerateFromTranscript", "en": "Generate from Transcript", "ko": "대본에서 생성", "comment": "Button text"},
-    {"key": "ResourceEdit_ImportVocabLabel", "en": "Import vocabulary (one pair per line)", "ko": "어휘 가져오기 (한 줄에 한 쌍)", "comment": "Form label"},
-    {"key": "ResourceEdit_VocabPlaceholder", "en": "target, native", "ko": "대상어, 모국어", "comment": "Textarea placeholder"},
-    {"key": "ResourceEdit_Comma", "en": "Comma", "ko": "쉼표", "comment": "Radio label"},
-    {"key": "ResourceEdit_Tab", "en": "Tab", "ko": "탭", "comment": "Radio label"},
-    {"key": "ResourceEdit_Import", "en": "Import", "ko": "가져오기", "comment": "Button text"},
-    {"key": "ResourceEdit_OrImportFile", "en": "Or import from a file (.txt, .csv)", "ko": "또는 파일에서 가져오기 (.txt, .csv)", "comment": "Form label"},
-    {"key": "ResourceEdit_ChooseFile", "en": "Choose File", "ko": "파일 선택", "comment": "Button text"},
-    {"key": "ResourceEdit_Importing", "en": "Importing...", "ko": "가져오는 중...", "comment": "Status text"},
-    {"key": "ResourceEdit_NoVocabYet", "en": "No vocabulary words yet.", "ko": "아직 어휘가 없습니다.", "comment": "Empty state"},
-    {"key": "ResourceEdit_ConfirmDelete", "en": "Confirm Delete", "ko": "삭제 확인", "comment": "Modal title"},
-    {"key": "ResourceEdit_DeleteMessage", "en": "Are you sure you want to delete this resource? This cannot be undone.", "ko": "이 리소스를 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.", "comment": "Delete confirmation message"},
-    {"key": "ResourceEdit_LoadFailed", "en": "Failed to load resource: {0}", "ko": "리소스 로드 실패: {0}", "comment": "Toast error"},
-    {"key": "ResourceEdit_TitleRequired", "en": "Title is required.", "ko": "제목은 필수입니다.", "comment": "Toast error"},
-    {"key": "ResourceEdit_SavedSuccess", "en": "Resource saved.", "ko": "리소스가 저장되었습니다.", "comment": "Toast success"},
-    {"key": "ResourceEdit_SaveFailed", "en": "Failed to save: {0}", "ko": "저장 실패: {0}", "comment": "Toast error"},
-    {"key": "ResourceEdit_DeletedSuccess", "en": "Resource deleted.", "ko": "리소스가 삭제되었습니다.", "comment": "Toast success"},
-    {"key": "ResourceEdit_DeleteFailed", "en": "Failed to delete: {0}", "ko": "삭제 실패: {0}", "comment": "Toast error"},
-    {"key": "ResourceEdit_ImportedCount", "en": "Imported {0} vocabulary words.", "ko": "{0}개의 어휘를 가져왔습니다.", "comment": "Toast success"},
-    {"key": "ResourceEdit_ImportFailed", "en": "Import failed: {0}", "ko": "가져오기 실패: {0}", "comment": "Toast error"},
-    {"key": "ResourceEdit_FileEmpty", "en": "File is empty.", "ko": "파일이 비어 있습니다.", "comment": "Toast error"},
-    {"key": "ResourceEdit_ImportedFromFile", "en": "Imported {0} vocabulary words from file.", "ko": "파일에서 {0}개의 어휘를 가져왔습니다.", "comment": "Toast success"},
-    {"key": "ResourceEdit_NoDuplicatesInFile", "en": "No new vocabulary words found in file (may be duplicates or wrong format).", "ko": "파일에서 새 어휘를 찾을 수 없습니다 (중복이거나 잘못된 형식일 수 있음).", "comment": "Toast info"},
-    {"key": "ResourceEdit_FileImportFailed", "en": "File import failed: {0}", "ko": "파일 가져오기 실패: {0}", "comment": "Toast error"},
-    {"key": "ResourceEdit_NoTranscript", "en": "No transcript available to generate vocabulary from.", "ko": "어휘를 생성할 대본이 없습니다.", "comment": "Toast error"},
-    {"key": "ResourceEdit_NoVocabGenerated", "en": "AI did not generate any vocabulary. Try again.", "ko": "AI가 어휘를 생성하지 못했습니다. 다시 시도하세요.", "comment": "Toast error"},
-    {"key": "ResourceEdit_GeneratedSuccess", "en": "Generated {0} words: {1} new, {2} linked", "ko": "{0}개 단어 생성: {1}개 신규, {2}개 연결됨", "comment": "Toast success (with skipped)"},
-    {"key": "ResourceEdit_GeneratedWithSkipped", "en": "Generated {0} words: {1} new, {2} linked, {3} skipped (already in resource)", "ko": "{0}개 단어 생성: {1}개 신규, {2}개 연결됨, {3}개 건너뜀 (이미 리소스에 있음)", "comment": "Toast success"},
-    {"key": "ResourceEdit_VocabGenFailed", "en": "Vocabulary generation failed: {0}", "ko": "어휘 생성 실패: {0}", "comment": "Toast error"},
-    
-    {"key": "VocabWordEdit_EditTitle", "en": "Edit Vocabulary Word", "ko": "어휘 편집", "comment": "Page title (edit mode)"},
-    {"key": "VocabWordEdit_AddTitle", "en": "Add Vocabulary Word", "ko": "어휘 추가", "comment": "Page title (add mode)"},
-    {"key": "VocabWordEdit_AddButton", "en": "Add", "ko": "추가", "comment": "Primary action button (add mode)"},
-    {"key": "VocabWordEdit_FindDuplicates", "en": "Find Duplicates", "ko": "중복 찾기", "comment": "Menu item / button"},
-    {"key": "VocabWordEdit_VocabularyTerms", "en": "Vocabulary Terms", "ko": "어휘 용어", "comment": "Section heading"},
-    {"key": "VocabWordEdit_TargetLanguageTerm", "en": "Target Language Term", "ko": "대상어", "comment": "Form label"},
-    {"key": "VocabWordEdit_TargetPlaceholder", "en": "Enter target language term", "ko": "대상어 입력", "comment": "Input placeholder"},
-    {"key": "VocabWordEdit_PlayAudio", "en": "Play audio", "ko": "오디오 재생", "comment": "Button title"},
-    {"key": "VocabWordEdit_NativeLanguageTerm", "en": "Native Language Term", "ko": "모국어", "comment": "Form label"},
-    {"key": "VocabWordEdit_NativePlaceholder", "en": "Enter native language term", "ko": "모국어 입력", "comment": "Input placeholder"},
-    {"key": "VocabWordEdit_EncodingMemory", "en": "Encoding & Memory Aids", "ko": "인코딩 및 기억 보조 도구", "comment": "Section heading"},
-    {"key": "VocabWordEdit_EncodingStrength", "en": "Encoding Strength:", "ko": "인코딩 강도:", "comment": "Label"},
-    {"key": "VocabWordEdit_LemmaLabel", "en": "Lemma (Dictionary Form)", "ko": "표제어 (사전 형태)", "comment": "Form label"},
-    {"key": "VocabWordEdit_LemmaPlaceholder", "en": "e.g., 가다 for 갔다, 가요, etc.", "ko": "예: 갔다, 가요 등의 기본형 가다", "comment": "Input placeholder"},
-    {"key": "VocabWordEdit_LanguageLabel", "en": "Language", "ko": "언어", "comment": "Form label"},
-    {"key": "VocabWordEdit_NotSet", "en": "— Not set —", "ko": "— 설정 안 됨 —", "comment": "Dropdown option"},
-    {"key": "VocabWordEdit_TagsLabel", "en": "Tags (comma-separated)", "ko": "태그 (쉼표로 구분)", "comment": "Form label"},
-    {"key": "VocabWordEdit_TagsPlaceholder", "en": "e.g., nature, season, visual", "ko": "예: 자연, 계절, 시각", "comment": "Input placeholder"},
-    {"key": "VocabWordEdit_MnemonicStory", "en": "Mnemonic Story", "ko": "연상 이야기", "comment": "Form label"},
-    {"key": "VocabWordEdit_MnemonicStoryPlaceholder", "en": "A silly story or memory hook to help recall this word...", "ko": "이 단어를 기억하는 데 도움이 되는 재미있는 이야기나 기억 고리...", "comment": "Textarea placeholder"},
-    {"key": "VocabWordEdit_MnemonicImage", "en": "Mnemonic Image URL", "ko": "연상 이미지 URL", "comment": "Form label"},
-    {"key": "VocabWordEdit_MnemonicAlt", "en": "Mnemonic", "ko": "연상", "comment": "Image alt text"},
-    {"key": "VocabWordEdit_LearningProgress", "en": "Learning Progress", "ko": "학습 진행 상황", "comment": "Section heading"},
-    {"key": "VocabWordEdit_Status", "en": "Status", "ko": "상태", "comment": "Label"},
-    {"key": "VocabWordEdit_Known", "en": "Known", "ko": "알고 있음", "comment": "Status badge"},
-    {"key": "VocabWordEdit_KnownEarned", "en": "(earned through practice)", "ko": "(연습을 통해 획득)", "comment": "Known status note"},
-    {"key": "VocabWordEdit_Unknown", "en": "Unknown", "ko": "모름", "comment": "Status option"},
-    {"key": "VocabWordEdit_Learning", "en": "Learning", "ko": "학습 중", "comment": "Status option"},
-    {"key": "VocabWordEdit_Familiar", "en": "Familiar", "ko": "익숙함", "comment": "Status option"},
-    {"key": "VocabWordEdit_Details", "en": "Details", "ko": "세부정보", "comment": "Label"},
-    {"key": "VocabWordEdit_NextReview", "en": "Next Review", "ko": "다음 복습", "comment": "Label"},
-    {"key": "VocabWordEdit_NotScheduled", "en": "Not scheduled", "ko": "예정 없음", "comment": "Next review default"},
-    {"key": "VocabWordEdit_DueNow", "en": "Due now", "ko": "지금 복습", "comment": "Next review status"},
-    {"key": "VocabWordEdit_Tomorrow", "en": "Tomorrow", "ko": "내일", "comment": "Next review status"},
-    {"key": "VocabWordEdit_DaysAway", "en": "{0} days away", "ko": "{0}일 후", "comment": "Next review status"},
-    {"key": "VocabWordEdit_StartPracticing", "en": "Start practicing to track progress.", "ko": "진행 상황을 추적하려면 연습을 시작하세요.", "comment": "Progress details empty state"},
-    {"key": "VocabWordEdit_ResourceAssociations", "en": "Resource Associations", "ko": "리소스 연결", "comment": "Section heading"},
-    {"key": "VocabWordEdit_ResourcesSelected", "en": "{0} selected", "ko": "{0}개 선택됨", "comment": "Selection count"},
-    {"key": "VocabWordEdit_SelectResourcesNote", "en": "Select resources to associate with this word.", "ko": "이 단어와 연결할 리소스를 선택하세요.", "comment": "Section note"},
-    {"key": "VocabWordEdit_NoResourcesAvailable", "en": "No resources available.", "ko": "사용 가능한 리소스가 없습니다.", "comment": "Empty state"},
-    {"key": "VocabWordEdit_UnknownResource", "en": "Unknown Resource", "ko": "알 수 없는 리소스", "comment": "Fallback resource title"},
-    {"key": "VocabWordEdit_ConfirmDelete", "en": "Confirm Delete", "ko": "삭제 확인", "comment": "Modal title"},
-    {"key": "VocabWordEdit_DeleteMessage", "en": "Are you sure you want to delete '{0}'? This cannot be undone.", "ko": "'{0}'을(를) 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.", "comment": "Delete confirmation message"},
-    {"key": "VocabWordEdit_NotFound", "en": "Vocabulary word not found.", "ko": "어휘를 찾을 수 없습니다.", "comment": "Toast error"},
-    {"key": "VocabWordEdit_LoadFailed", "en": "Failed to load: {0}", "ko": "로드 실패: {0}", "comment": "Toast error"},
-    {"key": "VocabWordEdit_BothTermsRequired", "en": "Both target and native language terms are required.", "ko": "대상어와 모국어를 모두 입력해야 합니다.", "comment": "Validation error"},
-    {"key": "VocabWordEdit_DuplicateExists", "en": "A vocabulary word with these terms already exists.", "ko": "이 용어를 가진 어휘가 이미 존재합니다.", "comment": "Validation error"},
-    {"key": "VocabWordEdit_SaveFailed", "en": "Failed to save the vocabulary word. Please try again.", "ko": "어휘 저장에 실패했습니다. 다시 시도하세요.", "comment": "Toast error"},
-    {"key": "VocabWordEdit_SaveFailedWith", "en": "Failed to save: {0}", "ko": "저장 실패: {0}", "comment": "Toast error"},
-    {"key": "VocabWordEdit_WordAdded", "en": "Vocabulary word added!", "ko": "어휘가 추가되었습니다!", "comment": "Toast success"},
-    {"key": "VocabWordEdit_WordUpdated", "en": "Vocabulary word updated!", "ko": "어휘가 업데이트되었습니다!", "comment": "Toast success"},
-    {"key": "VocabWordEdit_WordDeleted", "en": "Vocabulary word deleted!", "ko": "어휘가 삭제되었습니다!", "comment": "Toast success"},
-    {"key": "VocabWordEdit_DeleteFailed", "en": "Failed to delete: {0}", "ko": "삭제 실패: {0}", "comment": "Toast error"},
-    {"key": "VocabWordEdit_StatusUpdateFailed", "en": "Failed to update status: {0}", "ko": "상태 업데이트 실패: {0}", "comment": "Toast error"},
-    {"key": "VocabWordEdit_FamiliarNote", "en": "Got it -- we trust you on this one. We will check in occasionally to keep it fresh.", "ko": "알겠습니다 — 이번엔 믿겠습니다. 가끔씩 확인해서 기억을 새롭게 유지하겠습니다.", "comment": "Toast info for Familiar status"},
-    {"key": "VocabWordEdit_AudioUnavailable", "en": "Audio unavailable offline.", "ko": "오프라인에서는 오디오를 사용할 수 없습니다.", "comment": "Toast warning"},
-    
-    {"key": "Vocabulary_Title", "en": "Vocabulary", "ko": "어휘", "comment": "Page title"},
-    {"key": "Vocabulary_AddWord", "en": "Add Word", "ko": "단어 추가", "comment": "Button text"},
-    {"key": "Vocabulary_ToggleViewGrid", "en": "List View", "ko": "목록 보기", "comment": "View toggle when in grid"},
-    {"key": "Vocabulary_ToggleViewList", "en": "Grid View", "ko": "그리드 보기", "comment": "View toggle when in list"},
-    {"key": "Vocabulary_FindDuplicates", "en": "Find Duplicates", "ko": "중복 찾기", "comment": "Menu item"},
-    {"key": "Vocabulary_PopulateLemmas", "en": "Populate Lemmas", "ko": "표제어 채우기", "comment": "Menu item"},
-    {"key": "Vocabulary_FixSwappedLanguages", "en": "Fix Swapped Languages", "ko": "교환된 언어 수정", "comment": "Menu item"},
-    {"key": "Vocabulary_AssignOrphanedWords", "en": "Assign Orphaned Words", "ko": "고아 단어 할당", "comment": "Menu item"},
-    {"key": "Vocabulary_BulkEditStatus", "en": "Bulk Edit Status", "ko": "일괄 상태 편집", "comment": "Menu item"},
-    {"key": "Vocabulary_Unknown", "en": "Unknown", "ko": "모름", "comment": "Status badge"},
-    {"key": "Vocabulary_Learning", "en": "Learning", "ko": "학습 중", "comment": "Status badge"},
-    {"key": "Vocabulary_Familiar", "en": "Familiar", "ko": "익숙함", "comment": "Status badge"},
-    {"key": "Vocabulary_Known", "en": "Known", "ko": "알고 있음", "comment": "Status badge"},
-    {"key": "Vocabulary_GridView", "en": "Grid view", "ko": "그리드 보기", "comment": "View toggle title"},
-    {"key": "Vocabulary_ListView", "en": "List view", "ko": "목록 보기", "comment": "View toggle title"},
-    {"key": "Vocabulary_SelectedCount", "en": "{0} selected", "ko": "{0}개 선택됨", "comment": "Bulk edit selection count"},
-    {"key": "Vocabulary_SetStatus", "en": "Set Status...", "ko": "상태 설정...", "comment": "Bulk edit dropdown placeholder"},
-    {"key": "Vocabulary_SelectAll", "en": "Select All", "ko": "모두 선택", "comment": "Button text"},
-    {"key": "Vocabulary_SelectNone", "en": "Select None", "ko": "선택 해제", "comment": "Button text"},
-    {"key": "Vocabulary_SearchPlaceholder", "en": "Search... (try tag:clothing status:learning resource:'Starter')", "ko": "검색... (예: tag:의류 status:learning resource:'Starter')", "comment": "Search input placeholder"},
-    {"key": "Vocabulary_ClearFilters", "en": "Clear all filters", "ko": "모든 필터 지우기", "comment": "Button title"},
-    {"key": "Vocabulary_AllWords", "en": "All Words", "ko": "모든 단어", "comment": "Filter dropdown option"},
-    {"key": "Vocabulary_Associated", "en": "Associated", "ko": "연결됨", "comment": "Filter dropdown option"},
-    {"key": "Vocabulary_Orphaned", "en": "Orphaned", "ko": "고아 단어", "comment": "Filter dropdown option"},
-    {"key": "Vocabulary_AllStatus", "en": "All Status", "ko": "모든 상태", "comment": "Filter dropdown option"},
-    {"key": "Vocabulary_AllResources", "en": "All Resources", "ko": "모든 리소스", "comment": "Filter dropdown option"},
-    {"key": "Vocabulary_AllTags", "en": "All Tags", "ko": "모든 태그", "comment": "Filter dropdown option"},
-    {"key": "Vocabulary_AllLemmas", "en": "All Lemmas", "ko": "모든 표제어", "comment": "Filter dropdown option"},
-    {"key": "Vocabulary_AllLanguages", "en": "All Languages", "ko": "모든 언어", "comment": "Filter dropdown option"},
-    {"key": "Vocabulary_AllEncoding", "en": "All Encoding", "ko": "모든 인코딩", "comment": "Filter dropdown option"},
-    {"key": "Vocabulary_Strong", "en": "Strong", "ko": "강함", "comment": "Encoding filter"},
-    {"key": "Vocabulary_Good", "en": "Good", "ko": "좋음", "comment": "Encoding filter"},
-    {"key": "Vocabulary_Basic", "en": "Basic", "ko": "기본", "comment": "Encoding filter"},
-    {"key": "Vocabulary_Filters", "en": "Filters", "ko": "필터", "comment": "Mobile offcanvas title"},
-    {"key": "Vocabulary_Association", "en": "Association", "ko": "연결", "comment": "Filter section label"},
-    {"key": "Vocabulary_StatusLabel", "en": "Status", "ko": "상태", "comment": "Filter section label"},
-    {"key": "Vocabulary_ResourceLabel", "en": "Resource", "ko": "리소스", "comment": "Filter section label"},
-    {"key": "Vocabulary_TagLabel", "en": "Tag", "ko": "태그", "comment": "Filter section label"},
-    {"key": "Vocabulary_LemmaLabel", "en": "Lemma", "ko": "표제어", "comment": "Filter section label"},
-    {"key": "Vocabulary_LanguageLabel", "en": "Language", "ko": "언어", "comment": "Filter section label"},
-    {"key": "Vocabulary_EncodingStrength", "en": "Encoding Strength", "ko": "인코딩 강도", "comment": "Filter section label"},
-    {"key": "Vocabulary_ClearAllFilters", "en": "Clear All Filters", "ko": "모든 필터 지우기", "comment": "Mobile button text"},
-    {"key": "Vocabulary_Close", "en": "Close", "ko": "닫기", "comment": "Mobile offcanvas close button aria-label"},
-    {"key": "Vocabulary_OrphanedBadge", "en": "Orphaned", "ko": "고아 단어", "comment": "Card badge"},
-    {"key": "Vocabulary_ResourcesCount", "en": "{0} resource(s)", "ko": "{0}개 리소스", "comment": "Card detail"},
-    {"key": "Vocabulary_LoadFailed", "en": "Failed to load vocabulary: {0}", "ko": "어휘 로드 실패: {0}", "comment": "Toast error"},
-    {"key": "Vocabulary_NoActiveProfile", "en": "No active user profile. Please select a profile first.", "ko": "활성 사용자 프로필이 없습니다. 먼저 프로필을 선택하세요.", "comment": "Toast error"},
-    {"key": "Vocabulary_BulkUpdateSuccess", "en": "Updated {0} word(s) to {1}", "ko": "{0}개 단어를 {1}(으)로 업데이트했습니다", "comment": "Toast success"},
-    {"key": "Vocabulary_BulkUpdatePartial", "en": "Updated {0} word(s), {1} failed", "ko": "{0}개 단어 업데이트, {1}개 실패", "comment": "Toast warning"},
-    {"key": "Vocabulary_BulkUpdateFailed", "en": "Bulk update failed: {0}", "ko": "일괄 업데이트 실패: {0}", "comment": "Toast error"},
-    {"key": "Vocabulary_DuplicatesTitle", "en": "Find Duplicates", "ko": "중복 찾기", "comment": "Cleanup panel title"},
-    {"key": "Vocabulary_DuplicatesFor", "en": "Find Duplicates for \"{0}\"", "ko": "\"{0}\" 중복 찾기", "comment": "Cleanup panel title (focused)"},
-    {"key": "Vocabulary_ScanningDuplicates", "en": "Scanning for duplicates...", "ko": "중복 검색 중...", "comment": "Cleanup status"},
-    {"key": "Vocabulary_ScanningDuplicatesFor", "en": "Scanning for duplicates matching \"{0}\"...", "ko": "\"{0}\"와 일치하는 중복 검색 중...", "comment": "Cleanup status (focused)"},
-    {"key": "Vocabulary_DuplicatesFound", "en": "Found {0} group(s) of duplicate words with {1} extra record(s).", "ko": "{0}개 중복 그룹을 찾았습니다 ({1}개의 추가 레코드).", "comment": "Cleanup status"},
-    {"key": "Vocabulary_NoDuplicates", "en": "No duplicates found.", "ko": "중복을 찾지 못했습니다.", "comment": "Cleanup status"},
-    {"key": "Vocabulary_NoDuplicatesFor", "en": "No duplicates found for '{0}'.", "ko": "'{0}'에 대한 중복을 찾지 못했습니다.", "comment": "Cleanup status (focused)"},
-    {"key": "Vocabulary_AutoMergeAll", "en": "Auto-merge All", "ko": "모두 자동 병합", "comment": "Button text"},
-    {"key": "Vocabulary_Focused", "en": "Focused", "ko": "집중됨", "comment": "Duplicate group badge"},
-    {"key": "Vocabulary_FocusedNote", "en": "Focused on <strong>{0}</strong> so you can manage this word's copies faster.", "ko": "<strong>{0}</strong>에 집중하여 이 단어의 사본을 더 빠르게 관리할 수 있습니다.", "comment": "Cleanup note"},
-    {"key": "Vocabulary_CopiesLabel", "en": "{0} copies", "ko": "{0}개 사본", "comment": "Duplicate group badge"},
-    {"key": "Vocabulary_ResourcesLabel", "en": "{0} resources", "ko": "{0}개 리소스", "comment": "Duplicate word badge"},
-    {"key": "Vocabulary_RecommendedKeeper", "en": "Recommended keeper", "ko": "권장 유지", "comment": "Duplicate word badge"},
-    {"key": "Vocabulary_MergeGroup", "en": "Merge Group", "ko": "그룹 병합", "comment": "Button text"},
-    {"key": "Vocabulary_NoMatchingScan", "en": "No duplicate records matched this scan.", "ko": "이 검색과 일치하는 중복 레코드가 없습니다.", "comment": "Empty cleanup state"},
-    {"key": "Vocabulary_PopulateLemmasTitle", "en": "Populate Lemmas", "ko": "표제어 채우기", "comment": "Cleanup panel title"},
-    {"key": "Vocabulary_ProcessingLemmas", "en": "Processing {0} words missing lemmas...", "ko": "표제어가 없는 {0}개 단어 처리 중...", "comment": "Cleanup status"},
-    {"key": "Vocabulary_AllHaveLemmas", "en": "All words already have lemmas.", "ko": "모든 단어에 이미 표제어가 있습니다.", "comment": "Cleanup status"},
-    {"key": "Vocabulary_ProcessingBatch", "en": "Processing batch {0} of {1}...", "ko": "배치 {0}/{1} 처리 중...", "comment": "Cleanup status"},
-    {"key": "Vocabulary_LemmaComplete", "en": "Lemma population complete: updated {0} of {1} words", "ko": "표제어 채우기 완료: {1}개 중 {0}개 단어 업데이트", "comment": "Cleanup result"},
-    {"key": "Vocabulary_FixSwappedTitle", "en": "Fix Swapped Languages", "ko": "교환된 언어 수정", "comment": "Cleanup panel title"},
-    {"key": "Vocabulary_ScanningSwapped", "en": "Scanning for swapped language entries...", "ko": "교환된 언어 항목 검색 중...", "comment": "Cleanup status"},
-    {"key": "Vocabulary_FixingEntries", "en": "Fixing {0} entries...", "ko": "{0}개 항목 수정 중...", "comment": "Cleanup status"},
-    {"key": "Vocabulary_SwappedComplete", "en": "Swapped {0} word(s), merged {1} duplicate(s)", "ko": "{0}개 단어 교환, {1}개 중복 병합", "comment": "Cleanup result"},
-    {"key": "Vocabulary_AssignOrphanedTitle", "en": "Assign Orphaned Words", "ko": "고아 단어 할당", "comment": "Cleanup panel title"},
-    {"key": "Vocabulary_FindingOrphaned", "en": "Finding orphaned words...", "ko": "고아 단어 검색 중...", "comment": "Cleanup status"},
-    {"key": "Vocabulary_NoOrphaned", "en": "No orphaned words found.", "ko": "고아 단어를 찾지 못했습니다.", "comment": "Cleanup status"},
-    {"key": "Vocabulary_AssigningOrphaned", "en": "Assigning {0} orphaned words...", "ko": "{0}개 고아 단어 할당 중...", "comment": "Cleanup status"},
-    {"key": "Vocabulary_AssignedToGeneral", "en": "Assigned {0} orphaned word(s) to 'General Vocabulary'", "ko": "{0}개 고아 단어를 '일반 어휘'에 할당했습니다", "comment": "Cleanup result"},
-    {"key": "Vocabulary_CleanupError", "en": "Error: {0}", "ko": "오류: {0}", "comment": "Cleanup error"},
-    {"key": "Vocabulary_BatchError", "en": "Batch error: {0}", "ko": "배치 오류: {0}", "comment": "Cleanup error"},
-    {"key": "Vocabulary_MergingGroup", "en": "Merging group: {0}...", "ko": "그룹 병합 중: {0}...", "comment": "Cleanup status"},
-    {"key": "Vocabulary_MergedGroup", "en": "Merged '{0}': kept 1, removed {1}", "ko": "'{0}' 병합됨: 1개 유지, {1}개 제거", "comment": "Cleanup result"},
-    {"key": "Vocabulary_NoMergeNeeded", "en": "No merge was needed for '{0}'.", "ko": "'{0}'은(는) 병합이 필요하지 않았습니다.", "comment": "Toast info"},
-    {"key": "Vocabulary_MergedSuccess", "en": "Merged {0} duplicate record(s) for '{1}'.", "ko": "'{1}'의 중복 레코드 {0}개를 병합했습니다.", "comment": "Toast success"},
-    {"key": "Vocabulary_ErrorMerging", "en": "Error merging '{0}': {1}", "ko": "'{0}' 병합 오류: {1}", "comment": "Cleanup error"},
-    {"key": "Vocabulary_AutoMergingAll", "en": "Auto-merging all duplicates...", "ko": "모든 중복 자동 병합 중...", "comment": "Cleanup status"},
-    {"key": "Vocabulary_AutoMergeComplete", "en": "Auto-merge complete: removed {0} duplicate(s)", "ko": "자동 병합 완료: {0}개 중복 제거", "comment": "Cleanup result"},
-    {"key": "Vocabulary_AutoMergeCompleteWithErrors", "en": "Auto-merge complete: removed {0} duplicate(s), {1} error(s)", "ko": "자동 병합 완료: {0}개 중복 제거, {1}개 오류", "comment": "Cleanup result (with errors)"},
-    {"key": "Vocabulary_AutoMergeSuccess", "en": "Auto-merge complete: removed {0} duplicate(s).", "ko": "자동 병합 완료: {0}개 중복 제거", "comment": "Toast success"},
-    
-    {"key": "Settings_Title", "en": "Settings", "ko": "설정", "comment": "Page title"},
-    {"key": "Settings_Appearance", "en": "Appearance", "ko": "모양", "comment": "Section heading"},
-    {"key": "Settings_ThemeLabel", "en": "Theme", "ko": "테마", "comment": "Form label"},
-    {"key": "Settings_ModeLabel", "en": "Mode", "ko": "모드", "comment": "Form label"},
-    {"key": "Settings_Light", "en": "Light", "ko": "밝은", "comment": "Mode option"},
-    {"key": "Settings_Dark", "en": "Dark", "ko": "어두운", "comment": "Mode option"},
-    {"key": "Settings_TextSizeLabel", "en": "Text Size: {0}%", "ko": "텍스트 크기: {0}%", "comment": "Form label with value"},
-    {"key": "Settings_VoiceQuiz", "en": "Voice & Quiz", "ko": "음성 및 퀴즈", "comment": "Section heading"},
-    {"key": "Settings_LanguageLabel", "en": "Language", "ko": "언어", "comment": "Form label"},
-    {"key": "Settings_VoiceLabel", "en": "Voice", "ko": "음성", "comment": "Form label"},
-    {"key": "Settings_PromptLanguageLabel", "en": "Prompt Language", "ko": "프롬프트 언어", "comment": "Form label"},
-    {"key": "Settings_TargetLanguageOption", "en": "Target language", "ko": "대상어", "comment": "Radio option"},
-    {"key": "Settings_NativeLanguageOption", "en": "Native language", "ko": "모국어", "comment": "Radio option"},
-    {"key": "Settings_MixedOption", "en": "Mixed", "ko": "혼합", "comment": "Radio option"},
-    {"key": "Settings_PromptSideNote", "en": "Choose which side of the vocab card is shown as the prompt.", "ko": "어휘 카드의 어느 쪽을 프롬프트로 표시할지 선택하세요.", "comment": "Form helper text"},
-    {"key": "Settings_AutoplayAudio", "en": "Autoplay Audio", "ko": "오디오 자동 재생", "comment": "Switch label"},
-    {"key": "Settings_ShowMnemonics", "en": "Show Mnemonics", "ko": "연상 표시", "comment": "Switch label"},
-    {"key": "Settings_PromptModalities", "en": "Prompt Modalities", "ko": "프롬프트 유형", "comment": "Form label"},
-    {"key": "Settings_Text", "en": "Text", "ko": "텍스트", "comment": "Switch label"},
-    {"key": "Settings_Audio", "en": "Audio", "ko": "오디오", "comment": "Switch label"},
-    {"key": "Settings_Photo", "en": "Photo", "ko": "사진", "comment": "Switch label"},
-    {"key": "Settings_ModalitiesNote", "en": "Choose which cues to show for the prompt. If a photo isn't available, the quiz falls back to text.", "ko": "프롬프트에 표시할 단서를 선택하세요. 사진이 없으면 퀴즈가 텍스트로 대체됩니다.", "comment": "Form helper text"},
-    {"key": "Settings_AutoAdvanceDuration", "en": "Auto-Advance Duration: {0} s", "ko": "자동 진행 시간: {0}초", "comment": "Form label with value"},
-    {"key": "Settings_SavePreferences", "en": "Save Preferences", "ko": "환경설정 저장", "comment": "Button text"},
-    {"key": "Settings_OneModalityRequired", "en": "At least one question modality is required. Falling back to text.", "ko": "최소 하나의 질문 유형이 필요합니다. 텍스트로 대체합니다.", "comment": "Toast info"},
-    {"key": "Settings_PreferencesSaved", "en": "Preferences saved", "ko": "환경설정이 저장되었습니다", "comment": "Toast success"},
-    {"key": "Settings_DataManagement", "en": "Data Management", "ko": "데이터 관리", "comment": "Section heading"},
-    {"key": "Settings_ExportData", "en": "Export Data", "ko": "데이터 내보내기", "comment": "Button text"},
-    {"key": "Settings_ExportedSuccess", "en": "Data exported successfully", "ko": "데이터를 성공적으로 내보냈습니다", "comment": "Toast success"},
-    {"key": "Settings_ExportFailed", "en": "Export failed: {0}", "ko": "내보내기 실패: {0}", "comment": "Toast error"},
-    {"key": "Settings_DatabaseMigrations", "en": "Database Migrations", "ko": "데이터베이스 마이그레이션", "comment": "Section heading"},
-    {"key": "Settings_StreakMigrationComplete", "en": "Streak migration complete", "ko": "연속 기록 마이그레이션 완료", "comment": "Alert text"},
-    {"key": "Settings_RunStreakMigration", "en": "Run Streak Migration", "ko": "연속 기록 마이그레이션 실행", "comment": "Button text"},
-    {"key": "Settings_RunningMigration", "en": "Running migration...", "ko": "마이그레이션 실행 중...", "comment": "Status message"},
-    {"key": "Settings_MigrationSuccess", "en": "Migration completed successfully", "ko": "마이그레이션이 성공적으로 완료되었습니다", "comment": "Status message"},
-    {"key": "Settings_MigrationFailed", "en": "Migration failed: {0}", "ko": "마이그레이션 실패: {0}", "comment": "Status message"},
-    {"key": "Settings_StreakMigrationCompleteToast", "en": "Streak migration complete", "ko": "연속 기록 마이그레이션 완료", "comment": "Toast success"},
-    {"key": "Settings_About", "en": "About", "ko": "정보", "comment": "Section heading"},
-    {"key": "Settings_WhatsNew", "en": "What's New", "ko": "새로운 기능", "comment": "Button text"},
-    {"key": "Settings_NoReleaseNotes", "en": "No release notes available for this version", "ko": "이 버전에 대한 릴리스 노트가 없습니다", "comment": "Toast info"},
-    {"key": "Settings_ReleaseNotesFailed", "en": "Failed to load release notes: {0}", "ko": "릴리스 노트 로드 실패: {0}", "comment": "Toast error"}
+    {
+      "key": "Skills_Title",
+      "en": "Skill Profiles",
+      "ko": "스킬 프로필",
+      "comment": "Page title"
+    },
+    {
+      "key": "Skills_NoProfilesYet",
+      "en": "No skill profiles yet",
+      "ko": "아직 스킬 프로필이 없습니다",
+      "comment": "Empty state"
+    },
+    {
+      "key": "Skills_AddFirstProfile",
+      "en": "Add Your First Skill Profile",
+      "ko": "첫 번째 스킬 프로필 추가",
+      "comment": "Empty state button"
+    },
+    {
+      "key": "Skills_AddSkillProfile",
+      "en": "Add Skill Profile",
+      "ko": "스킬 프로필 추가",
+      "comment": "Menu item"
+    },
+    {
+      "key": "SkillAdd_Title",
+      "en": "Add Skill Profile",
+      "ko": "스킬 프로필 추가",
+      "comment": "Page title"
+    },
+    {
+      "key": "SkillAdd_TitleLabel",
+      "en": "Title *",
+      "ko": "제목 *",
+      "comment": "Form label"
+    },
+    {
+      "key": "SkillAdd_TitlePlaceholder",
+      "en": "Skill profile title",
+      "ko": "스킬 프로필 제목",
+      "comment": "Input placeholder"
+    },
+    {
+      "key": "SkillAdd_DescriptionLabel",
+      "en": "Skills Description",
+      "ko": "스킬 설명",
+      "comment": "Form label"
+    },
+    {
+      "key": "SkillAdd_DescriptionPlaceholder",
+      "en": "Describe the skills for this profile",
+      "ko": "이 프로필의 스킬을 설명하세요",
+      "comment": "Textarea placeholder"
+    },
+    {
+      "key": "SkillAdd_SaveSkillProfile",
+      "en": "Save Skill Profile",
+      "ko": "스킬 프로필 저장",
+      "comment": "Save button"
+    },
+    {
+      "key": "SkillAdd_TitleRequired",
+      "en": "Title is required.",
+      "ko": "제목은 필수입니다.",
+      "comment": "Validation error"
+    },
+    {
+      "key": "SkillAdd_SavedSuccess",
+      "en": "Skill profile saved.",
+      "ko": "스킬 프로필이 저장되었습니다.",
+      "comment": "Toast success"
+    },
+    {
+      "key": "SkillAdd_SaveFailed",
+      "en": "Failed to save: {0}",
+      "ko": "저장 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "SkillEdit_Title",
+      "en": "Edit Skill Profile",
+      "ko": "스킬 프로필 편집",
+      "comment": "Page title"
+    },
+    {
+      "key": "SkillEdit_DetailsTitle",
+      "en": "Details",
+      "ko": "세부정보",
+      "comment": "Section heading"
+    },
+    {
+      "key": "SkillEdit_Created",
+      "en": "Created",
+      "ko": "생성일",
+      "comment": "Detail label"
+    },
+    {
+      "key": "SkillEdit_Updated",
+      "en": "Updated",
+      "ko": "업데이트일",
+      "comment": "Detail label"
+    },
+    {
+      "key": "SkillEdit_ConfirmDelete",
+      "en": "Confirm Delete",
+      "ko": "삭제 확인",
+      "comment": "Modal title"
+    },
+    {
+      "key": "SkillEdit_DeleteMessage",
+      "en": "Are you sure you want to delete this skill profile? This cannot be undone.",
+      "ko": "이 스킬 프로필을 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.",
+      "comment": "Delete confirmation message"
+    },
+    {
+      "key": "SkillEdit_NotFound",
+      "en": "Skill profile not found.",
+      "ko": "스킬 프로필을 찾을 수 없습니다.",
+      "comment": "Toast error"
+    },
+    {
+      "key": "SkillEdit_LoadFailed",
+      "en": "Failed to load: {0}",
+      "ko": "로드 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "SkillEdit_SavedSuccess",
+      "en": "Skill profile saved.",
+      "ko": "스킬 프로필이 저장되었습니다.",
+      "comment": "Toast success"
+    },
+    {
+      "key": "SkillEdit_DeletedSuccess",
+      "en": "Skill profile deleted.",
+      "ko": "스킬 프로필이 삭제되었습니다.",
+      "comment": "Toast success"
+    },
+    {
+      "key": "SkillEdit_DeleteFailed",
+      "en": "Failed to delete: {0}",
+      "ko": "삭제 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "Resources_Title",
+      "en": "Learning Resources",
+      "ko": "학습 리소스",
+      "comment": "Page title"
+    },
+    {
+      "key": "Resources_AddResource",
+      "en": "Add Resource",
+      "ko": "리소스 추가",
+      "comment": "Button text"
+    },
+    {
+      "key": "Resources_SearchPlaceholder",
+      "en": "Search resources...",
+      "ko": "리소스 검색...",
+      "comment": "Search input placeholder"
+    },
+    {
+      "key": "Resources_AllTypes",
+      "en": "All Types",
+      "ko": "모든 유형",
+      "comment": "Filter dropdown"
+    },
+    {
+      "key": "Resources_AllLanguages",
+      "en": "All Languages",
+      "ko": "모든 언어",
+      "comment": "Filter dropdown"
+    },
+    {
+      "key": "Resources_GridView",
+      "en": "Grid view",
+      "ko": "그리드 보기",
+      "comment": "View toggle title"
+    },
+    {
+      "key": "Resources_ListView",
+      "en": "List view",
+      "ko": "목록 보기",
+      "comment": "View toggle title"
+    },
+    {
+      "key": "Resources_NoResourcesFound",
+      "en": "No resources found",
+      "ko": "리소스를 찾을 수 없습니다",
+      "comment": "Empty state"
+    },
+    {
+      "key": "Resources_AddFirstResource",
+      "en": "Add Your First Resource",
+      "ko": "첫 번째 리소스 추가",
+      "comment": "Empty state button"
+    },
+    {
+      "key": "Resources_CreateStarter",
+      "en": "Create a Starter Resource",
+      "ko": "스타터 리소스 생성",
+      "comment": "Empty state button"
+    },
+    {
+      "key": "Resources_ResourcesCount",
+      "en": "{0} resource(s)",
+      "ko": "{0}개의 리소스",
+      "comment": "Count label"
+    },
+    {
+      "key": "Resources_CreatingStarter",
+      "en": "Creating starter vocabulary...",
+      "ko": "스타터 어휘 생성 중...",
+      "comment": "Loading message"
+    },
+    {
+      "key": "Resources_LoadFailed",
+      "en": "Failed to load resources: {0}",
+      "ko": "리소스 로드 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "Resources_SearchFailed",
+      "en": "Search failed: {0}",
+      "ko": "검색 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "Resources_SetNativeLanguage",
+      "en": "Please set up your native language in your profile first.",
+      "ko": "먼저 프로필에서 모국어를 설정하세요.",
+      "comment": "Toast error"
+    },
+    {
+      "key": "Resources_StarterExists",
+      "en": "Starter resource already exists! Loading your resources…",
+      "ko": "스타터 리소스가 이미 존재합니다! 리소스 로딩 중...",
+      "comment": "Toast success"
+    },
+    {
+      "key": "Resources_StarterSuccess",
+      "en": "Starter resource created for {0}!",
+      "ko": "{0}용 스타터 리소스가 생성되었습니다!",
+      "comment": "Toast success"
+    },
+    {
+      "key": "Resources_StarterFailed",
+      "en": "Failed to create starter resource: {0}",
+      "ko": "스타터 리소스 생성 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "ResourceAdd_Title",
+      "en": "Add Resource",
+      "ko": "리소스 추가",
+      "comment": "Page title"
+    },
+    {
+      "key": "ResourceAdd_BasicInfo",
+      "en": "Basic Information",
+      "ko": "기본 정보",
+      "comment": "Section heading"
+    },
+    {
+      "key": "ResourceAdd_TitleLabel",
+      "en": "Title *",
+      "ko": "제목 *",
+      "comment": "Form label"
+    },
+    {
+      "key": "ResourceAdd_TitlePlaceholder",
+      "en": "Resource title",
+      "ko": "리소스 제목",
+      "comment": "Input placeholder"
+    },
+    {
+      "key": "ResourceAdd_DescriptionLabel",
+      "en": "Description",
+      "ko": "설명",
+      "comment": "Form label"
+    },
+    {
+      "key": "ResourceAdd_DescriptionPlaceholder",
+      "en": "Brief description",
+      "ko": "간단한 설명",
+      "comment": "Textarea placeholder"
+    },
+    {
+      "key": "ResourceAdd_MediaTypeLabel",
+      "en": "Media Type",
+      "ko": "미디어 유형",
+      "comment": "Form label"
+    },
+    {
+      "key": "ResourceAdd_LanguageLabel",
+      "en": "Language",
+      "ko": "언어",
+      "comment": "Form label"
+    },
+    {
+      "key": "ResourceAdd_TagsLabel",
+      "en": "Tags (comma separated)",
+      "ko": "태그 (쉼표로 구분)",
+      "comment": "Form label"
+    },
+    {
+      "key": "ResourceAdd_TagsPlaceholder",
+      "en": "tag1, tag2, tag3",
+      "ko": "태그1, 태그2, 태그3",
+      "comment": "Input placeholder"
+    },
+    {
+      "key": "ResourceAdd_MediaContent",
+      "en": "Media Content",
+      "ko": "미디어 콘텐츠",
+      "comment": "Section heading"
+    },
+    {
+      "key": "ResourceAdd_MediaUrlLabel",
+      "en": "Media URL",
+      "ko": "미디어 URL",
+      "comment": "Form label"
+    },
+    {
+      "key": "ResourceAdd_TranscriptLabel",
+      "en": "Transcript",
+      "ko": "대본",
+      "comment": "Form label"
+    },
+    {
+      "key": "ResourceAdd_TranscriptPlaceholder",
+      "en": "Paste transcript here",
+      "ko": "여기에 대본 붙여넣기",
+      "comment": "Textarea placeholder"
+    },
+    {
+      "key": "ResourceAdd_TranslationLabel",
+      "en": "Translation",
+      "ko": "번역",
+      "comment": "Form label"
+    },
+    {
+      "key": "ResourceAdd_TranslationPlaceholder",
+      "en": "Paste translation here",
+      "ko": "여기에 번역 붙여넣기",
+      "comment": "Textarea placeholder"
+    },
+    {
+      "key": "ResourceAdd_VocabularySection",
+      "en": "Vocabulary",
+      "ko": "어휘",
+      "comment": "Section heading"
+    },
+    {
+      "key": "ResourceAdd_PasteVocabLabel",
+      "en": "Paste vocabulary (one pair per line)",
+      "ko": "어휘 붙여넣기 (한 줄에 한 쌍)",
+      "comment": "Form label"
+    },
+    {
+      "key": "ResourceAdd_VocabPlaceholder",
+      "en": "target, native\\n한국어, Korean\\n학교, school",
+      "ko": "대상어, 모국어\\n한국어, Korean\\n학교, school",
+      "comment": "Textarea placeholder"
+    },
+    {
+      "key": "ResourceAdd_CommaDelimiter",
+      "en": "Comma",
+      "ko": "쉼표",
+      "comment": "Radio label"
+    },
+    {
+      "key": "ResourceAdd_TabDelimiter",
+      "en": "Tab",
+      "ko": "탭",
+      "comment": "Radio label"
+    },
+    {
+      "key": "ResourceAdd_ImportVocabulary",
+      "en": "Import Vocabulary",
+      "ko": "어휘 가져오기",
+      "comment": "Button text"
+    },
+    {
+      "key": "ResourceAdd_OrImportFile",
+      "en": "Or import from a file (.txt, .csv)",
+      "ko": "또는 파일에서 가져오기 (.txt, .csv)",
+      "comment": "Form label"
+    },
+    {
+      "key": "ResourceAdd_ChooseFile",
+      "en": "Choose File",
+      "ko": "파일 선택",
+      "comment": "Button text"
+    },
+    {
+      "key": "ResourceAdd_Importing",
+      "en": "Importing...",
+      "ko": "가져오는 중...",
+      "comment": "Status text"
+    },
+    {
+      "key": "ResourceAdd_VocabWordsAdded",
+      "en": "{0} vocabulary words added",
+      "ko": "{0}개의 어휘가 추가됨",
+      "comment": "Status text"
+    },
+    {
+      "key": "ResourceAdd_SaveResource",
+      "en": "Save Resource",
+      "ko": "리소스 저장",
+      "comment": "Button text"
+    },
+    {
+      "key": "ResourceAdd_TitleRequired",
+      "en": "Title is required.",
+      "ko": "제목은 필수입니다.",
+      "comment": "Toast error"
+    },
+    {
+      "key": "ResourceAdd_SavedSuccess",
+      "en": "Resource saved.",
+      "ko": "리소스가 저장되었습니다.",
+      "comment": "Toast success"
+    },
+    {
+      "key": "ResourceAdd_SaveFailed",
+      "en": "Failed to save: {0}",
+      "ko": "저장 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "ResourceAdd_NoVocabToImport",
+      "en": "No vocabulary to import.",
+      "ko": "가져올 어휘가 없습니다.",
+      "comment": "Toast error"
+    },
+    {
+      "key": "ResourceAdd_ImportedCount",
+      "en": "Imported {0} vocabulary words.",
+      "ko": "{0}개의 어휘를 가져왔습니다.",
+      "comment": "Toast success"
+    },
+    {
+      "key": "ResourceAdd_NoDuplicates",
+      "en": "No new vocabulary words found (may be duplicates).",
+      "ko": "새 어휘를 찾을 수 없습니다 (중복일 수 있음).",
+      "comment": "Toast info"
+    },
+    {
+      "key": "ResourceAdd_ImportFailed",
+      "en": "Import failed: {0}",
+      "ko": "가져오기 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "ResourceAdd_FileEmpty",
+      "en": "File is empty.",
+      "ko": "파일이 비어 있습니다.",
+      "comment": "Toast error"
+    },
+    {
+      "key": "ResourceAdd_ImportedFromFile",
+      "en": "Imported {0} vocabulary words from file.",
+      "ko": "파일에서 {0}개의 어휘를 가져왔습니다.",
+      "comment": "Toast success"
+    },
+    {
+      "key": "ResourceAdd_NoDuplicatesInFile",
+      "en": "No new vocabulary words found in file (may be duplicates or wrong format).",
+      "ko": "파일에서 새 어휘를 찾을 수 없습니다 (중복이거나 잘못된 형식일 수 있음).",
+      "comment": "Toast info"
+    },
+    {
+      "key": "ResourceAdd_FileImportFailed",
+      "en": "File import failed: {0}",
+      "ko": "파일 가져오기 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "ResourceAdd_FileImportStatus",
+      "en": "{0} words from {1}",
+      "ko": "{1}에서 {0}개 단어",
+      "comment": "Status text (count from filename)"
+    },
+    {
+      "key": "ResourceEdit_SmartResource",
+      "en": "Smart Resource",
+      "ko": "스마트 리소스",
+      "comment": "Badge label"
+    },
+    {
+      "key": "ResourceEdit_AutoUpdated",
+      "en": "— Auto-updated by the system",
+      "ko": "— 시스템에서 자동 업데이트됨",
+      "comment": "Smart resource note"
+    },
+    {
+      "key": "ResourceEdit_BasicInfo",
+      "en": "Basic Information",
+      "ko": "기본 정보",
+      "comment": "Section heading"
+    },
+    {
+      "key": "ResourceEdit_Title",
+      "en": "Title",
+      "ko": "제목",
+      "comment": "Form label"
+    },
+    {
+      "key": "ResourceEdit_Description",
+      "en": "Description",
+      "ko": "설명",
+      "comment": "Form label"
+    },
+    {
+      "key": "ResourceEdit_MediaType",
+      "en": "Media Type",
+      "ko": "미디어 유형",
+      "comment": "Form label"
+    },
+    {
+      "key": "ResourceEdit_Language",
+      "en": "Language",
+      "ko": "언어",
+      "comment": "Form label"
+    },
+    {
+      "key": "ResourceEdit_MediaUrl",
+      "en": "Media URL",
+      "ko": "미디어 URL",
+      "comment": "Form label"
+    },
+    {
+      "key": "ResourceEdit_Tags",
+      "en": "Tags (comma separated)",
+      "ko": "태그 (쉼표로 구분)",
+      "comment": "Form label"
+    },
+    {
+      "key": "ResourceEdit_Created",
+      "en": "Created",
+      "ko": "생성일",
+      "comment": "Detail label"
+    },
+    {
+      "key": "ResourceEdit_Updated",
+      "en": "Updated",
+      "ko": "업데이트일",
+      "comment": "Detail label"
+    },
+    {
+      "key": "ResourceEdit_Transcript",
+      "en": "Transcript",
+      "ko": "대본",
+      "comment": "Section heading"
+    },
+    {
+      "key": "ResourceEdit_Translation",
+      "en": "Translation",
+      "ko": "번역",
+      "comment": "Section heading"
+    },
+    {
+      "key": "ResourceEdit_VocabularySection",
+      "en": "Vocabulary ({0} words)",
+      "ko": "어휘 ({0}개 단어)",
+      "comment": "Section heading with count"
+    },
+    {
+      "key": "ResourceEdit_Generating",
+      "en": "Generating...",
+      "ko": "생성 중...",
+      "comment": "Button text when loading"
+    },
+    {
+      "key": "ResourceEdit_GenerateFromTranscript",
+      "en": "Generate from Transcript",
+      "ko": "대본에서 생성",
+      "comment": "Button text"
+    },
+    {
+      "key": "ResourceEdit_ImportVocabLabel",
+      "en": "Import vocabulary (one pair per line)",
+      "ko": "어휘 가져오기 (한 줄에 한 쌍)",
+      "comment": "Form label"
+    },
+    {
+      "key": "ResourceEdit_VocabPlaceholder",
+      "en": "target, native",
+      "ko": "대상어, 모국어",
+      "comment": "Textarea placeholder"
+    },
+    {
+      "key": "ResourceEdit_Comma",
+      "en": "Comma",
+      "ko": "쉼표",
+      "comment": "Radio label"
+    },
+    {
+      "key": "ResourceEdit_Tab",
+      "en": "Tab",
+      "ko": "탭",
+      "comment": "Radio label"
+    },
+    {
+      "key": "ResourceEdit_Import",
+      "en": "Import",
+      "ko": "가져오기",
+      "comment": "Button text"
+    },
+    {
+      "key": "ResourceEdit_OrImportFile",
+      "en": "Or import from a file (.txt, .csv)",
+      "ko": "또는 파일에서 가져오기 (.txt, .csv)",
+      "comment": "Form label"
+    },
+    {
+      "key": "ResourceEdit_ChooseFile",
+      "en": "Choose File",
+      "ko": "파일 선택",
+      "comment": "Button text"
+    },
+    {
+      "key": "ResourceEdit_Importing",
+      "en": "Importing...",
+      "ko": "가져오는 중...",
+      "comment": "Status text"
+    },
+    {
+      "key": "ResourceEdit_NoVocabYet",
+      "en": "No vocabulary words yet.",
+      "ko": "아직 어휘가 없습니다.",
+      "comment": "Empty state"
+    },
+    {
+      "key": "ResourceEdit_ConfirmDelete",
+      "en": "Confirm Delete",
+      "ko": "삭제 확인",
+      "comment": "Modal title"
+    },
+    {
+      "key": "ResourceEdit_DeleteMessage",
+      "en": "Are you sure you want to delete this resource? This cannot be undone.",
+      "ko": "이 리소스를 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.",
+      "comment": "Delete confirmation message"
+    },
+    {
+      "key": "ResourceEdit_LoadFailed",
+      "en": "Failed to load resource: {0}",
+      "ko": "리소스 로드 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "ResourceEdit_TitleRequired",
+      "en": "Title is required.",
+      "ko": "제목은 필수입니다.",
+      "comment": "Toast error"
+    },
+    {
+      "key": "ResourceEdit_SavedSuccess",
+      "en": "Resource saved.",
+      "ko": "리소스가 저장되었습니다.",
+      "comment": "Toast success"
+    },
+    {
+      "key": "ResourceEdit_SaveFailed",
+      "en": "Failed to save: {0}",
+      "ko": "저장 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "ResourceEdit_DeletedSuccess",
+      "en": "Resource deleted.",
+      "ko": "리소스가 삭제되었습니다.",
+      "comment": "Toast success"
+    },
+    {
+      "key": "ResourceEdit_DeleteFailed",
+      "en": "Failed to delete: {0}",
+      "ko": "삭제 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "ResourceEdit_ImportedCount",
+      "en": "Imported {0} vocabulary words.",
+      "ko": "{0}개의 어휘를 가져왔습니다.",
+      "comment": "Toast success"
+    },
+    {
+      "key": "ResourceEdit_ImportFailed",
+      "en": "Import failed: {0}",
+      "ko": "가져오기 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "ResourceEdit_FileEmpty",
+      "en": "File is empty.",
+      "ko": "파일이 비어 있습니다.",
+      "comment": "Toast error"
+    },
+    {
+      "key": "ResourceEdit_ImportedFromFile",
+      "en": "Imported {0} vocabulary words from file.",
+      "ko": "파일에서 {0}개의 어휘를 가져왔습니다.",
+      "comment": "Toast success"
+    },
+    {
+      "key": "ResourceEdit_NoDuplicatesInFile",
+      "en": "No new vocabulary words found in file (may be duplicates or wrong format).",
+      "ko": "파일에서 새 어휘를 찾을 수 없습니다 (중복이거나 잘못된 형식일 수 있음).",
+      "comment": "Toast info"
+    },
+    {
+      "key": "ResourceEdit_FileImportFailed",
+      "en": "File import failed: {0}",
+      "ko": "파일 가져오기 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "ResourceEdit_NoTranscript",
+      "en": "No transcript available to generate vocabulary from.",
+      "ko": "어휘를 생성할 대본이 없습니다.",
+      "comment": "Toast error"
+    },
+    {
+      "key": "ResourceEdit_NoVocabGenerated",
+      "en": "AI did not generate any vocabulary. Try again.",
+      "ko": "AI가 어휘를 생성하지 못했습니다. 다시 시도하세요.",
+      "comment": "Toast error"
+    },
+    {
+      "key": "ResourceEdit_GeneratedSuccess",
+      "en": "Generated {0} words: {1} new, {2} linked",
+      "ko": "{0}개 단어 생성: {1}개 신규, {2}개 연결됨",
+      "comment": "Toast success (with skipped)"
+    },
+    {
+      "key": "ResourceEdit_GeneratedWithSkipped",
+      "en": "Generated {0} words: {1} new, {2} linked, {3} skipped (already in resource)",
+      "ko": "{0}개 단어 생성: {1}개 신규, {2}개 연결됨, {3}개 건너뜀 (이미 리소스에 있음)",
+      "comment": "Toast success"
+    },
+    {
+      "key": "ResourceEdit_VocabGenFailed",
+      "en": "Vocabulary generation failed: {0}",
+      "ko": "어휘 생성 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "VocabWordEdit_EditTitle",
+      "en": "Edit Vocabulary Word",
+      "ko": "어휘 편집",
+      "comment": "Page title (edit mode)"
+    },
+    {
+      "key": "VocabWordEdit_AddTitle",
+      "en": "Add Vocabulary Word",
+      "ko": "어휘 추가",
+      "comment": "Page title (add mode)"
+    },
+    {
+      "key": "VocabWordEdit_AddButton",
+      "en": "Add",
+      "ko": "추가",
+      "comment": "Primary action button (add mode)"
+    },
+    {
+      "key": "VocabWordEdit_FindDuplicates",
+      "en": "Find Duplicates",
+      "ko": "중복 찾기",
+      "comment": "Menu item / button"
+    },
+    {
+      "key": "VocabWordEdit_VocabularyTerms",
+      "en": "Vocabulary Terms",
+      "ko": "어휘 용어",
+      "comment": "Section heading"
+    },
+    {
+      "key": "VocabWordEdit_TargetLanguageTerm",
+      "en": "Target Language Term",
+      "ko": "대상어",
+      "comment": "Form label"
+    },
+    {
+      "key": "VocabWordEdit_TargetPlaceholder",
+      "en": "Enter target language term",
+      "ko": "대상어 입력",
+      "comment": "Input placeholder"
+    },
+    {
+      "key": "VocabWordEdit_PlayAudio",
+      "en": "Play audio",
+      "ko": "오디오 재생",
+      "comment": "Button title"
+    },
+    {
+      "key": "VocabWordEdit_NativeLanguageTerm",
+      "en": "Native Language Term",
+      "ko": "모국어",
+      "comment": "Form label"
+    },
+    {
+      "key": "VocabWordEdit_NativePlaceholder",
+      "en": "Enter native language term",
+      "ko": "모국어 입력",
+      "comment": "Input placeholder"
+    },
+    {
+      "key": "VocabWordEdit_EncodingMemory",
+      "en": "Encoding & Memory Aids",
+      "ko": "인코딩 및 기억 보조 도구",
+      "comment": "Section heading"
+    },
+    {
+      "key": "VocabWordEdit_EncodingStrength",
+      "en": "Encoding Strength:",
+      "ko": "인코딩 강도:",
+      "comment": "Label"
+    },
+    {
+      "key": "VocabWordEdit_LemmaLabel",
+      "en": "Lemma (Dictionary Form)",
+      "ko": "표제어 (사전 형태)",
+      "comment": "Form label"
+    },
+    {
+      "key": "VocabWordEdit_LemmaPlaceholder",
+      "en": "e.g., 가다 for 갔다, 가요, etc.",
+      "ko": "예: 갔다, 가요 등의 기본형 가다",
+      "comment": "Input placeholder"
+    },
+    {
+      "key": "VocabWordEdit_LanguageLabel",
+      "en": "Language",
+      "ko": "언어",
+      "comment": "Form label"
+    },
+    {
+      "key": "VocabWordEdit_NotSet",
+      "en": "— Not set —",
+      "ko": "— 설정 안 됨 —",
+      "comment": "Dropdown option"
+    },
+    {
+      "key": "VocabWordEdit_TagsLabel",
+      "en": "Tags (comma-separated)",
+      "ko": "태그 (쉼표로 구분)",
+      "comment": "Form label"
+    },
+    {
+      "key": "VocabWordEdit_TagsPlaceholder",
+      "en": "e.g., nature, season, visual",
+      "ko": "예: 자연, 계절, 시각",
+      "comment": "Input placeholder"
+    },
+    {
+      "key": "VocabWordEdit_MnemonicStory",
+      "en": "Mnemonic Story",
+      "ko": "연상 이야기",
+      "comment": "Form label"
+    },
+    {
+      "key": "VocabWordEdit_MnemonicStoryPlaceholder",
+      "en": "A silly story or memory hook to help recall this word...",
+      "ko": "이 단어를 기억하는 데 도움이 되는 재미있는 이야기나 기억 고리...",
+      "comment": "Textarea placeholder"
+    },
+    {
+      "key": "VocabWordEdit_MnemonicImage",
+      "en": "Mnemonic Image URL",
+      "ko": "연상 이미지 URL",
+      "comment": "Form label"
+    },
+    {
+      "key": "VocabWordEdit_MnemonicAlt",
+      "en": "Mnemonic",
+      "ko": "연상",
+      "comment": "Image alt text"
+    },
+    {
+      "key": "VocabWordEdit_LearningProgress",
+      "en": "Learning Progress",
+      "ko": "학습 진행 상황",
+      "comment": "Section heading"
+    },
+    {
+      "key": "VocabWordEdit_Status",
+      "en": "Status",
+      "ko": "상태",
+      "comment": "Label"
+    },
+    {
+      "key": "VocabWordEdit_Known",
+      "en": "Known",
+      "ko": "알고 있음",
+      "comment": "Status badge"
+    },
+    {
+      "key": "VocabWordEdit_KnownEarned",
+      "en": "(earned through practice)",
+      "ko": "(연습을 통해 획득)",
+      "comment": "Known status note"
+    },
+    {
+      "key": "VocabWordEdit_Unknown",
+      "en": "Unknown",
+      "ko": "모름",
+      "comment": "Status option"
+    },
+    {
+      "key": "VocabWordEdit_Learning",
+      "en": "Learning",
+      "ko": "학습 중",
+      "comment": "Status option"
+    },
+    {
+      "key": "VocabWordEdit_Familiar",
+      "en": "Familiar",
+      "ko": "익숙함",
+      "comment": "Status option"
+    },
+    {
+      "key": "VocabWordEdit_Details",
+      "en": "Details",
+      "ko": "세부정보",
+      "comment": "Label"
+    },
+    {
+      "key": "VocabWordEdit_NextReview",
+      "en": "Next Review",
+      "ko": "다음 복습",
+      "comment": "Label"
+    },
+    {
+      "key": "VocabWordEdit_NotScheduled",
+      "en": "Not scheduled",
+      "ko": "예정 없음",
+      "comment": "Next review default"
+    },
+    {
+      "key": "VocabWordEdit_DueNow",
+      "en": "Due now",
+      "ko": "지금 복습",
+      "comment": "Next review status"
+    },
+    {
+      "key": "VocabWordEdit_Tomorrow",
+      "en": "Tomorrow",
+      "ko": "내일",
+      "comment": "Next review status"
+    },
+    {
+      "key": "VocabWordEdit_DaysAway",
+      "en": "{0} days away",
+      "ko": "{0}일 후",
+      "comment": "Next review status"
+    },
+    {
+      "key": "VocabWordEdit_StartPracticing",
+      "en": "Start practicing to track progress.",
+      "ko": "진행 상황을 추적하려면 연습을 시작하세요.",
+      "comment": "Progress details empty state"
+    },
+    {
+      "key": "VocabWordEdit_ResourceAssociations",
+      "en": "Resource Associations",
+      "ko": "리소스 연결",
+      "comment": "Section heading"
+    },
+    {
+      "key": "VocabWordEdit_ResourcesSelected",
+      "en": "{0} selected",
+      "ko": "{0}개 선택됨",
+      "comment": "Selection count"
+    },
+    {
+      "key": "VocabWordEdit_SelectResourcesNote",
+      "en": "Select resources to associate with this word.",
+      "ko": "이 단어와 연결할 리소스를 선택하세요.",
+      "comment": "Section note"
+    },
+    {
+      "key": "VocabWordEdit_NoResourcesAvailable",
+      "en": "No resources available.",
+      "ko": "사용 가능한 리소스가 없습니다.",
+      "comment": "Empty state"
+    },
+    {
+      "key": "VocabWordEdit_UnknownResource",
+      "en": "Unknown Resource",
+      "ko": "알 수 없는 리소스",
+      "comment": "Fallback resource title"
+    },
+    {
+      "key": "VocabWordEdit_ConfirmDelete",
+      "en": "Confirm Delete",
+      "ko": "삭제 확인",
+      "comment": "Modal title"
+    },
+    {
+      "key": "VocabWordEdit_DeleteMessage",
+      "en": "Are you sure you want to delete '{0}'? This cannot be undone.",
+      "ko": "'{0}'을(를) 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.",
+      "comment": "Delete confirmation message"
+    },
+    {
+      "key": "VocabWordEdit_NotFound",
+      "en": "Vocabulary word not found.",
+      "ko": "어휘를 찾을 수 없습니다.",
+      "comment": "Toast error"
+    },
+    {
+      "key": "VocabWordEdit_LoadFailed",
+      "en": "Failed to load: {0}",
+      "ko": "로드 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "VocabWordEdit_BothTermsRequired",
+      "en": "Both target and native language terms are required.",
+      "ko": "대상어와 모국어를 모두 입력해야 합니다.",
+      "comment": "Validation error"
+    },
+    {
+      "key": "VocabWordEdit_DuplicateExists",
+      "en": "A vocabulary word with these terms already exists.",
+      "ko": "이 용어를 가진 어휘가 이미 존재합니다.",
+      "comment": "Validation error"
+    },
+    {
+      "key": "VocabWordEdit_SaveFailed",
+      "en": "Failed to save the vocabulary word. Please try again.",
+      "ko": "어휘 저장에 실패했습니다. 다시 시도하세요.",
+      "comment": "Toast error"
+    },
+    {
+      "key": "VocabWordEdit_SaveFailedWith",
+      "en": "Failed to save: {0}",
+      "ko": "저장 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "VocabWordEdit_WordAdded",
+      "en": "Vocabulary word added!",
+      "ko": "어휘가 추가되었습니다!",
+      "comment": "Toast success"
+    },
+    {
+      "key": "VocabWordEdit_WordUpdated",
+      "en": "Vocabulary word updated!",
+      "ko": "어휘가 업데이트되었습니다!",
+      "comment": "Toast success"
+    },
+    {
+      "key": "VocabWordEdit_WordDeleted",
+      "en": "Vocabulary word deleted!",
+      "ko": "어휘가 삭제되었습니다!",
+      "comment": "Toast success"
+    },
+    {
+      "key": "VocabWordEdit_DeleteFailed",
+      "en": "Failed to delete: {0}",
+      "ko": "삭제 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "VocabWordEdit_StatusUpdateFailed",
+      "en": "Failed to update status: {0}",
+      "ko": "상태 업데이트 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "VocabWordEdit_FamiliarNote",
+      "en": "Got it -- we trust you on this one. We will check in occasionally to keep it fresh.",
+      "ko": "알겠습니다 — 이번엔 믿겠습니다. 가끔씩 확인해서 기억을 새롭게 유지하겠습니다.",
+      "comment": "Toast info for Familiar status"
+    },
+    {
+      "key": "VocabWordEdit_AudioUnavailable",
+      "en": "Audio unavailable offline.",
+      "ko": "오프라인에서는 오디오를 사용할 수 없습니다.",
+      "comment": "Toast warning"
+    },
+    {
+      "key": "Vocabulary_Title",
+      "en": "Vocabulary",
+      "ko": "어휘",
+      "comment": "Page title"
+    },
+    {
+      "key": "Vocabulary_AddWord",
+      "en": "Add Word",
+      "ko": "단어 추가",
+      "comment": "Button text"
+    },
+    {
+      "key": "Vocabulary_ToggleViewGrid",
+      "en": "List View",
+      "ko": "목록 보기",
+      "comment": "View toggle when in grid"
+    },
+    {
+      "key": "Vocabulary_ToggleViewList",
+      "en": "Grid View",
+      "ko": "그리드 보기",
+      "comment": "View toggle when in list"
+    },
+    {
+      "key": "Vocabulary_FindDuplicates",
+      "en": "Find Duplicates",
+      "ko": "중복 찾기",
+      "comment": "Menu item"
+    },
+    {
+      "key": "Vocabulary_PopulateLemmas",
+      "en": "Populate Lemmas",
+      "ko": "표제어 채우기",
+      "comment": "Menu item"
+    },
+    {
+      "key": "Vocabulary_FixSwappedLanguages",
+      "en": "Fix Swapped Languages",
+      "ko": "교환된 언어 수정",
+      "comment": "Menu item"
+    },
+    {
+      "key": "Vocabulary_AssignOrphanedWords",
+      "en": "Assign Orphaned Words",
+      "ko": "고아 단어 할당",
+      "comment": "Menu item"
+    },
+    {
+      "key": "Vocabulary_BulkEditStatus",
+      "en": "Bulk Edit Status",
+      "ko": "일괄 상태 편집",
+      "comment": "Menu item"
+    },
+    {
+      "key": "Vocabulary_Unknown",
+      "en": "Unknown",
+      "ko": "모름",
+      "comment": "Status badge"
+    },
+    {
+      "key": "Vocabulary_Learning",
+      "en": "Learning",
+      "ko": "학습 중",
+      "comment": "Status badge"
+    },
+    {
+      "key": "Vocabulary_Familiar",
+      "en": "Familiar",
+      "ko": "익숙함",
+      "comment": "Status badge"
+    },
+    {
+      "key": "Vocabulary_Known",
+      "en": "Known",
+      "ko": "알고 있음",
+      "comment": "Status badge"
+    },
+    {
+      "key": "Vocabulary_GridView",
+      "en": "Grid view",
+      "ko": "그리드 보기",
+      "comment": "View toggle title"
+    },
+    {
+      "key": "Vocabulary_ListView",
+      "en": "List view",
+      "ko": "목록 보기",
+      "comment": "View toggle title"
+    },
+    {
+      "key": "Vocabulary_SelectedCount",
+      "en": "{0} selected",
+      "ko": "{0}개 선택됨",
+      "comment": "Bulk edit selection count"
+    },
+    {
+      "key": "Vocabulary_SetStatus",
+      "en": "Set Status...",
+      "ko": "상태 설정...",
+      "comment": "Bulk edit dropdown placeholder"
+    },
+    {
+      "key": "Vocabulary_SelectAll",
+      "en": "Select All",
+      "ko": "모두 선택",
+      "comment": "Button text"
+    },
+    {
+      "key": "Vocabulary_SelectNone",
+      "en": "Select None",
+      "ko": "선택 해제",
+      "comment": "Button text"
+    },
+    {
+      "key": "Vocabulary_SearchPlaceholder",
+      "en": "Search... (try tag:clothing status:learning resource:'Starter')",
+      "ko": "검색... (예: tag:의류 status:learning resource:'Starter')",
+      "comment": "Search input placeholder"
+    },
+    {
+      "key": "Vocabulary_ClearFilters",
+      "en": "Clear all filters",
+      "ko": "모든 필터 지우기",
+      "comment": "Button title"
+    },
+    {
+      "key": "Vocabulary_AllWords",
+      "en": "All Words",
+      "ko": "모든 단어",
+      "comment": "Filter dropdown option"
+    },
+    {
+      "key": "Vocabulary_Associated",
+      "en": "Associated",
+      "ko": "연결됨",
+      "comment": "Filter dropdown option"
+    },
+    {
+      "key": "Vocabulary_Orphaned",
+      "en": "Orphaned",
+      "ko": "고아 단어",
+      "comment": "Filter dropdown option"
+    },
+    {
+      "key": "Vocabulary_AllStatus",
+      "en": "All Status",
+      "ko": "모든 상태",
+      "comment": "Filter dropdown option"
+    },
+    {
+      "key": "Vocabulary_AllResources",
+      "en": "All Resources",
+      "ko": "모든 리소스",
+      "comment": "Filter dropdown option"
+    },
+    {
+      "key": "Vocabulary_AllTags",
+      "en": "All Tags",
+      "ko": "모든 태그",
+      "comment": "Filter dropdown option"
+    },
+    {
+      "key": "Vocabulary_AllLemmas",
+      "en": "All Lemmas",
+      "ko": "모든 표제어",
+      "comment": "Filter dropdown option"
+    },
+    {
+      "key": "Vocabulary_AllLanguages",
+      "en": "All Languages",
+      "ko": "모든 언어",
+      "comment": "Filter dropdown option"
+    },
+    {
+      "key": "Vocabulary_AllEncoding",
+      "en": "All Encoding",
+      "ko": "모든 인코딩",
+      "comment": "Filter dropdown option"
+    },
+    {
+      "key": "Vocabulary_Strong",
+      "en": "Strong",
+      "ko": "강함",
+      "comment": "Encoding filter"
+    },
+    {
+      "key": "Vocabulary_Good",
+      "en": "Good",
+      "ko": "좋음",
+      "comment": "Encoding filter"
+    },
+    {
+      "key": "Vocabulary_Basic",
+      "en": "Basic",
+      "ko": "기본",
+      "comment": "Encoding filter"
+    },
+    {
+      "key": "Vocabulary_Filters",
+      "en": "Filters",
+      "ko": "필터",
+      "comment": "Mobile offcanvas title"
+    },
+    {
+      "key": "Vocabulary_Association",
+      "en": "Association",
+      "ko": "연결",
+      "comment": "Filter section label"
+    },
+    {
+      "key": "Vocabulary_StatusLabel",
+      "en": "Status",
+      "ko": "상태",
+      "comment": "Filter section label"
+    },
+    {
+      "key": "Vocabulary_ResourceLabel",
+      "en": "Resource",
+      "ko": "리소스",
+      "comment": "Filter section label"
+    },
+    {
+      "key": "Vocabulary_TagLabel",
+      "en": "Tag",
+      "ko": "태그",
+      "comment": "Filter section label"
+    },
+    {
+      "key": "Vocabulary_LemmaLabel",
+      "en": "Lemma",
+      "ko": "표제어",
+      "comment": "Filter section label"
+    },
+    {
+      "key": "Vocabulary_LanguageLabel",
+      "en": "Language",
+      "ko": "언어",
+      "comment": "Filter section label"
+    },
+    {
+      "key": "Vocabulary_EncodingStrength",
+      "en": "Encoding Strength",
+      "ko": "인코딩 강도",
+      "comment": "Filter section label"
+    },
+    {
+      "key": "Vocabulary_ClearAllFilters",
+      "en": "Clear All Filters",
+      "ko": "모든 필터 지우기",
+      "comment": "Mobile button text"
+    },
+    {
+      "key": "Vocabulary_Close",
+      "en": "Close",
+      "ko": "닫기",
+      "comment": "Mobile offcanvas close button aria-label"
+    },
+    {
+      "key": "Vocabulary_OrphanedBadge",
+      "en": "Orphaned",
+      "ko": "고아 단어",
+      "comment": "Card badge"
+    },
+    {
+      "key": "Vocabulary_ResourcesCount",
+      "en": "{0} resource(s)",
+      "ko": "{0}개 리소스",
+      "comment": "Card detail"
+    },
+    {
+      "key": "Vocabulary_LoadFailed",
+      "en": "Failed to load vocabulary: {0}",
+      "ko": "어휘 로드 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "Vocabulary_NoActiveProfile",
+      "en": "No active user profile. Please select a profile first.",
+      "ko": "활성 사용자 프로필이 없습니다. 먼저 프로필을 선택하세요.",
+      "comment": "Toast error"
+    },
+    {
+      "key": "Vocabulary_BulkUpdateSuccess",
+      "en": "Updated {0} word(s) to {1}",
+      "ko": "{0}개 단어를 {1}(으)로 업데이트했습니다",
+      "comment": "Toast success"
+    },
+    {
+      "key": "Vocabulary_BulkUpdatePartial",
+      "en": "Updated {0} word(s), {1} failed",
+      "ko": "{0}개 단어 업데이트, {1}개 실패",
+      "comment": "Toast warning"
+    },
+    {
+      "key": "Vocabulary_BulkUpdateFailed",
+      "en": "Bulk update failed: {0}",
+      "ko": "일괄 업데이트 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "Vocabulary_DuplicatesTitle",
+      "en": "Find Duplicates",
+      "ko": "중복 찾기",
+      "comment": "Cleanup panel title"
+    },
+    {
+      "key": "Vocabulary_DuplicatesFor",
+      "en": "Find Duplicates for \"{0}\"",
+      "ko": "\"{0}\" 중복 찾기",
+      "comment": "Cleanup panel title (focused)"
+    },
+    {
+      "key": "Vocabulary_ScanningDuplicates",
+      "en": "Scanning for duplicates...",
+      "ko": "중복 검색 중...",
+      "comment": "Cleanup status"
+    },
+    {
+      "key": "Vocabulary_ScanningDuplicatesFor",
+      "en": "Scanning for duplicates matching \"{0}\"...",
+      "ko": "\"{0}\"와 일치하는 중복 검색 중...",
+      "comment": "Cleanup status (focused)"
+    },
+    {
+      "key": "Vocabulary_DuplicatesFound",
+      "en": "Found {0} group(s) of duplicate words with {1} extra record(s).",
+      "ko": "{0}개 중복 그룹을 찾았습니다 ({1}개의 추가 레코드).",
+      "comment": "Cleanup status"
+    },
+    {
+      "key": "Vocabulary_NoDuplicates",
+      "en": "No duplicates found.",
+      "ko": "중복을 찾지 못했습니다.",
+      "comment": "Cleanup status"
+    },
+    {
+      "key": "Vocabulary_NoDuplicatesFor",
+      "en": "No duplicates found for '{0}'.",
+      "ko": "'{0}'에 대한 중복을 찾지 못했습니다.",
+      "comment": "Cleanup status (focused)"
+    },
+    {
+      "key": "Vocabulary_AutoMergeAll",
+      "en": "Auto-merge All",
+      "ko": "모두 자동 병합",
+      "comment": "Button text"
+    },
+    {
+      "key": "Vocabulary_Focused",
+      "en": "Focused",
+      "ko": "집중됨",
+      "comment": "Duplicate group badge"
+    },
+    {
+      "key": "Vocabulary_FocusedNote",
+      "en": "Focused on <strong>{0}</strong> so you can manage this word's copies faster.",
+      "ko": "<strong>{0}</strong>에 집중하여 이 단어의 사본을 더 빠르게 관리할 수 있습니다.",
+      "comment": "Cleanup note"
+    },
+    {
+      "key": "Vocabulary_CopiesLabel",
+      "en": "{0} copies",
+      "ko": "{0}개 사본",
+      "comment": "Duplicate group badge"
+    },
+    {
+      "key": "Vocabulary_ResourcesLabel",
+      "en": "{0} resources",
+      "ko": "{0}개 리소스",
+      "comment": "Duplicate word badge"
+    },
+    {
+      "key": "Vocabulary_RecommendedKeeper",
+      "en": "Recommended keeper",
+      "ko": "권장 유지",
+      "comment": "Duplicate word badge"
+    },
+    {
+      "key": "Vocabulary_MergeGroup",
+      "en": "Merge Group",
+      "ko": "그룹 병합",
+      "comment": "Button text"
+    },
+    {
+      "key": "Vocabulary_NoMatchingScan",
+      "en": "No duplicate records matched this scan.",
+      "ko": "이 검색과 일치하는 중복 레코드가 없습니다.",
+      "comment": "Empty cleanup state"
+    },
+    {
+      "key": "Vocabulary_PopulateLemmasTitle",
+      "en": "Populate Lemmas",
+      "ko": "표제어 채우기",
+      "comment": "Cleanup panel title"
+    },
+    {
+      "key": "Vocabulary_ProcessingLemmas",
+      "en": "Processing {0} words missing lemmas...",
+      "ko": "표제어가 없는 {0}개 단어 처리 중...",
+      "comment": "Cleanup status"
+    },
+    {
+      "key": "Vocabulary_AllHaveLemmas",
+      "en": "All words already have lemmas.",
+      "ko": "모든 단어에 이미 표제어가 있습니다.",
+      "comment": "Cleanup status"
+    },
+    {
+      "key": "Vocabulary_ProcessingBatch",
+      "en": "Processing batch {0} of {1}...",
+      "ko": "배치 {0}/{1} 처리 중...",
+      "comment": "Cleanup status"
+    },
+    {
+      "key": "Vocabulary_LemmaComplete",
+      "en": "Lemma population complete: updated {0} of {1} words",
+      "ko": "표제어 채우기 완료: {1}개 중 {0}개 단어 업데이트",
+      "comment": "Cleanup result"
+    },
+    {
+      "key": "Vocabulary_FixSwappedTitle",
+      "en": "Fix Swapped Languages",
+      "ko": "교환된 언어 수정",
+      "comment": "Cleanup panel title"
+    },
+    {
+      "key": "Vocabulary_ScanningSwapped",
+      "en": "Scanning for swapped language entries...",
+      "ko": "교환된 언어 항목 검색 중...",
+      "comment": "Cleanup status"
+    },
+    {
+      "key": "Vocabulary_FixingEntries",
+      "en": "Fixing {0} entries...",
+      "ko": "{0}개 항목 수정 중...",
+      "comment": "Cleanup status"
+    },
+    {
+      "key": "Vocabulary_SwappedComplete",
+      "en": "Swapped {0} word(s), merged {1} duplicate(s)",
+      "ko": "{0}개 단어 교환, {1}개 중복 병합",
+      "comment": "Cleanup result"
+    },
+    {
+      "key": "Vocabulary_AssignOrphanedTitle",
+      "en": "Assign Orphaned Words",
+      "ko": "고아 단어 할당",
+      "comment": "Cleanup panel title"
+    },
+    {
+      "key": "Vocabulary_FindingOrphaned",
+      "en": "Finding orphaned words...",
+      "ko": "고아 단어 검색 중...",
+      "comment": "Cleanup status"
+    },
+    {
+      "key": "Vocabulary_NoOrphaned",
+      "en": "No orphaned words found.",
+      "ko": "고아 단어를 찾지 못했습니다.",
+      "comment": "Cleanup status"
+    },
+    {
+      "key": "Vocabulary_AssigningOrphaned",
+      "en": "Assigning {0} orphaned words...",
+      "ko": "{0}개 고아 단어 할당 중...",
+      "comment": "Cleanup status"
+    },
+    {
+      "key": "Vocabulary_AssignedToGeneral",
+      "en": "Assigned {0} orphaned word(s) to 'General Vocabulary'",
+      "ko": "{0}개 고아 단어를 '일반 어휘'에 할당했습니다",
+      "comment": "Cleanup result"
+    },
+    {
+      "key": "Vocabulary_CleanupError",
+      "en": "Error: {0}",
+      "ko": "오류: {0}",
+      "comment": "Cleanup error"
+    },
+    {
+      "key": "Vocabulary_BatchError",
+      "en": "Batch error: {0}",
+      "ko": "배치 오류: {0}",
+      "comment": "Cleanup error"
+    },
+    {
+      "key": "Vocabulary_MergingGroup",
+      "en": "Merging group: {0}...",
+      "ko": "그룹 병합 중: {0}...",
+      "comment": "Cleanup status"
+    },
+    {
+      "key": "Vocabulary_MergedGroup",
+      "en": "Merged '{0}': kept 1, removed {1}",
+      "ko": "'{0}' 병합됨: 1개 유지, {1}개 제거",
+      "comment": "Cleanup result"
+    },
+    {
+      "key": "Vocabulary_NoMergeNeeded",
+      "en": "No merge was needed for '{0}'.",
+      "ko": "'{0}'은(는) 병합이 필요하지 않았습니다.",
+      "comment": "Toast info"
+    },
+    {
+      "key": "Vocabulary_MergedSuccess",
+      "en": "Merged {0} duplicate record(s) for '{1}'.",
+      "ko": "'{1}'의 중복 레코드 {0}개를 병합했습니다.",
+      "comment": "Toast success"
+    },
+    {
+      "key": "Vocabulary_ErrorMerging",
+      "en": "Error merging '{0}': {1}",
+      "ko": "'{0}' 병합 오류: {1}",
+      "comment": "Cleanup error"
+    },
+    {
+      "key": "Vocabulary_AutoMergingAll",
+      "en": "Auto-merging all duplicates...",
+      "ko": "모든 중복 자동 병합 중...",
+      "comment": "Cleanup status"
+    },
+    {
+      "key": "Vocabulary_AutoMergeComplete",
+      "en": "Auto-merge complete: removed {0} duplicate(s)",
+      "ko": "자동 병합 완료: {0}개 중복 제거",
+      "comment": "Cleanup result"
+    },
+    {
+      "key": "Vocabulary_AutoMergeCompleteWithErrors",
+      "en": "Auto-merge complete: removed {0} duplicate(s), {1} error(s)",
+      "ko": "자동 병합 완료: {0}개 중복 제거, {1}개 오류",
+      "comment": "Cleanup result (with errors)"
+    },
+    {
+      "key": "Vocabulary_AutoMergeSuccess",
+      "en": "Auto-merge complete: removed {0} duplicate(s).",
+      "ko": "자동 병합 완료: {0}개 중복 제거",
+      "comment": "Toast success"
+    },
+    {
+      "key": "Settings_Title",
+      "en": "Settings",
+      "ko": "설정",
+      "comment": "Page title"
+    },
+    {
+      "key": "Settings_Appearance",
+      "en": "Appearance",
+      "ko": "모양",
+      "comment": "Section heading"
+    },
+    {
+      "key": "Settings_ThemeLabel",
+      "en": "Theme",
+      "ko": "테마",
+      "comment": "Form label"
+    },
+    {
+      "key": "Settings_ModeLabel",
+      "en": "Mode",
+      "ko": "모드",
+      "comment": "Form label"
+    },
+    {
+      "key": "Settings_Light",
+      "en": "Light",
+      "ko": "밝은",
+      "comment": "Mode option"
+    },
+    {
+      "key": "Settings_Dark",
+      "en": "Dark",
+      "ko": "어두운",
+      "comment": "Mode option"
+    },
+    {
+      "key": "Settings_TextSizeLabel",
+      "en": "Text Size: {0}%",
+      "ko": "텍스트 크기: {0}%",
+      "comment": "Form label with value"
+    },
+    {
+      "key": "Settings_VoiceQuiz",
+      "en": "Voice & Quiz",
+      "ko": "음성 및 퀴즈",
+      "comment": "Section heading"
+    },
+    {
+      "key": "Settings_LanguageLabel",
+      "en": "Language",
+      "ko": "언어",
+      "comment": "Form label"
+    },
+    {
+      "key": "Settings_VoiceLabel",
+      "en": "Voice",
+      "ko": "음성",
+      "comment": "Form label"
+    },
+    {
+      "key": "Settings_PromptLanguageLabel",
+      "en": "Prompt Language",
+      "ko": "프롬프트 언어",
+      "comment": "Form label"
+    },
+    {
+      "key": "Settings_TargetLanguageOption",
+      "en": "Target language",
+      "ko": "대상어",
+      "comment": "Radio option"
+    },
+    {
+      "key": "Settings_NativeLanguageOption",
+      "en": "Native language",
+      "ko": "모국어",
+      "comment": "Radio option"
+    },
+    {
+      "key": "Settings_MixedOption",
+      "en": "Mixed",
+      "ko": "혼합",
+      "comment": "Radio option"
+    },
+    {
+      "key": "Settings_PromptSideNote",
+      "en": "Choose which side of the vocab card is shown as the prompt.",
+      "ko": "어휘 카드의 어느 쪽을 프롬프트로 표시할지 선택하세요.",
+      "comment": "Form helper text"
+    },
+    {
+      "key": "Settings_AutoplayAudio",
+      "en": "Autoplay Audio",
+      "ko": "오디오 자동 재생",
+      "comment": "Switch label"
+    },
+    {
+      "key": "Settings_ShowMnemonics",
+      "en": "Show Mnemonics",
+      "ko": "연상 표시",
+      "comment": "Switch label"
+    },
+    {
+      "key": "Settings_PromptModalities",
+      "en": "Prompt Modalities",
+      "ko": "프롬프트 유형",
+      "comment": "Form label"
+    },
+    {
+      "key": "Settings_Text",
+      "en": "Text",
+      "ko": "텍스트",
+      "comment": "Switch label"
+    },
+    {
+      "key": "Settings_Audio",
+      "en": "Audio",
+      "ko": "오디오",
+      "comment": "Switch label"
+    },
+    {
+      "key": "Settings_Photo",
+      "en": "Photo",
+      "ko": "사진",
+      "comment": "Switch label"
+    },
+    {
+      "key": "Settings_ModalitiesNote",
+      "en": "Choose which cues to show for the prompt. If a photo isn't available, the quiz falls back to text.",
+      "ko": "프롬프트에 표시할 단서를 선택하세요. 사진이 없으면 퀴즈가 텍스트로 대체됩니다.",
+      "comment": "Form helper text"
+    },
+    {
+      "key": "Settings_AutoAdvanceDuration",
+      "en": "Auto-Advance Duration: {0} s",
+      "ko": "자동 진행 시간: {0}초",
+      "comment": "Form label with value"
+    },
+    {
+      "key": "Settings_SavePreferences",
+      "en": "Save Preferences",
+      "ko": "환경설정 저장",
+      "comment": "Button text"
+    },
+    {
+      "key": "Settings_OneModalityRequired",
+      "en": "At least one question modality is required. Falling back to text.",
+      "ko": "최소 하나의 질문 유형이 필요합니다. 텍스트로 대체합니다.",
+      "comment": "Toast info"
+    },
+    {
+      "key": "Settings_PreferencesSaved",
+      "en": "Preferences saved",
+      "ko": "환경설정이 저장되었습니다",
+      "comment": "Toast success"
+    },
+    {
+      "key": "Settings_DataManagement",
+      "en": "Data Management",
+      "ko": "데이터 관리",
+      "comment": "Section heading"
+    },
+    {
+      "key": "Settings_ExportData",
+      "en": "Export Data",
+      "ko": "데이터 내보내기",
+      "comment": "Button text"
+    },
+    {
+      "key": "Settings_ExportedSuccess",
+      "en": "Data exported successfully",
+      "ko": "데이터를 성공적으로 내보냈습니다",
+      "comment": "Toast success"
+    },
+    {
+      "key": "Settings_ExportFailed",
+      "en": "Export failed: {0}",
+      "ko": "내보내기 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "Settings_DatabaseMigrations",
+      "en": "Database Migrations",
+      "ko": "데이터베이스 마이그레이션",
+      "comment": "Section heading"
+    },
+    {
+      "key": "Settings_StreakMigrationComplete",
+      "en": "Streak migration complete",
+      "ko": "연속 기록 마이그레이션 완료",
+      "comment": "Alert text"
+    },
+    {
+      "key": "Settings_RunStreakMigration",
+      "en": "Run Streak Migration",
+      "ko": "연속 기록 마이그레이션 실행",
+      "comment": "Button text"
+    },
+    {
+      "key": "Settings_RunningMigration",
+      "en": "Running migration...",
+      "ko": "마이그레이션 실행 중...",
+      "comment": "Status message"
+    },
+    {
+      "key": "Settings_MigrationSuccess",
+      "en": "Migration completed successfully",
+      "ko": "마이그레이션이 성공적으로 완료되었습니다",
+      "comment": "Status message"
+    },
+    {
+      "key": "Settings_MigrationFailed",
+      "en": "Migration failed: {0}",
+      "ko": "마이그레이션 실패: {0}",
+      "comment": "Status message"
+    },
+    {
+      "key": "Settings_StreakMigrationCompleteToast",
+      "en": "Streak migration complete",
+      "ko": "연속 기록 마이그레이션 완료",
+      "comment": "Toast success"
+    },
+    {
+      "key": "Settings_About",
+      "en": "About",
+      "ko": "정보",
+      "comment": "Section heading"
+    },
+    {
+      "key": "Settings_WhatsNew",
+      "en": "What's New",
+      "ko": "새로운 기능",
+      "comment": "Button text"
+    },
+    {
+      "key": "Settings_NoReleaseNotes",
+      "en": "No release notes available for this version",
+      "ko": "이 버전에 대한 릴리스 노트가 없습니다",
+      "comment": "Toast info"
+    },
+    {
+      "key": "Settings_ReleaseNotesFailed",
+      "en": "Failed to load release notes: {0}",
+      "ko": "릴리스 노트 로드 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "ResourceEdit_TranscriptSection",
+      "en": "Transcript",
+      "ko": "대본",
+      "comment": "Section heading"
+    },
+    {
+      "key": "ResourceEdit_TranslationSection",
+      "en": "Translation",
+      "ko": "번역",
+      "comment": "Section heading"
+    },
+    {
+      "key": "ResourceEdit_VocabularySection",
+      "en": "Vocabulary ({0} words)",
+      "ko": "어휘 ({0}개 단어)",
+      "comment": "Section heading with count"
+    },
+    {
+      "key": "ResourceEdit_GenerateFromTranscript",
+      "en": "Generate from Transcript",
+      "ko": "대본에서 생성",
+      "comment": "Button text"
+    },
+    {
+      "key": "ResourceEdit_Generating",
+      "en": "Generating...",
+      "ko": "생성 중...",
+      "comment": "Button text while generating"
+    },
+    {
+      "key": "ResourceEdit_ImportVocabLabel",
+      "en": "Import vocabulary (one pair per line)",
+      "ko": "어휘 가져오기 (한 줄에 한 쌍)",
+      "comment": "Form label"
+    },
+    {
+      "key": "ResourceEdit_ImportButton",
+      "en": "Import",
+      "ko": "가져오기",
+      "comment": "Button text"
+    },
+    {
+      "key": "ResourceEdit_NoVocabYet",
+      "en": "No vocabulary words yet.",
+      "ko": "아직 어휘 단어가 없습니다.",
+      "comment": "Empty state"
+    },
+    {
+      "key": "ResourceEdit_ConfirmDeleteTitle",
+      "en": "Confirm Delete",
+      "ko": "삭제 확인",
+      "comment": "Modal title"
+    },
+    {
+      "key": "ResourceEdit_DeleteMessage",
+      "en": "Are you sure you want to delete this resource? This cannot be undone.",
+      "ko": "이 리소스를 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.",
+      "comment": "Confirm message"
+    },
+    {
+      "key": "ResourceEdit_TitleRequired",
+      "en": "Title is required.",
+      "ko": "제목은 필수입니다.",
+      "comment": "Toast error"
+    },
+    {
+      "key": "ResourceEdit_SavedSuccess",
+      "en": "Resource saved.",
+      "ko": "리소스가 저장되었습니다.",
+      "comment": "Toast success"
+    },
+    {
+      "key": "ResourceEdit_SaveFailed",
+      "en": "Failed to save: {0}",
+      "ko": "저장 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "ResourceEdit_LoadFailed",
+      "en": "Failed to load resource: {0}",
+      "ko": "리소스 로드 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "ResourceEdit_ImportedCount",
+      "en": "Imported {0} vocabulary words.",
+      "ko": "{0}개의 어휘를 가져왔습니다.",
+      "comment": "Toast success"
+    },
+    {
+      "key": "ResourceEdit_ImportFailed",
+      "en": "Import failed: {0}",
+      "ko": "가져오기 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "ResourceEdit_FileImportedCount",
+      "en": "Imported {0} vocabulary words from file.",
+      "ko": "파일에서 {0}개의 어휘를 가져왔습니다.",
+      "comment": "Toast success"
+    },
+    {
+      "key": "ResourceEdit_NoDuplicatesInFile",
+      "en": "No new vocabulary words found in file (may be duplicates or wrong format).",
+      "ko": "파일에서 새 어휘를 찾을 수 없습니다 (중복이거나 잘못된 형식일 수 있음).",
+      "comment": "Toast info"
+    },
+    {
+      "key": "ResourceEdit_FileImportFailed",
+      "en": "File import failed: {0}",
+      "ko": "파일 가져오기 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "ResourceEdit_DeletedSuccess",
+      "en": "Resource deleted.",
+      "ko": "리소스가 삭제되었습니다.",
+      "comment": "Toast success"
+    },
+    {
+      "key": "ResourceEdit_DeleteFailed",
+      "en": "Failed to delete: {0}",
+      "ko": "삭제 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "ResourceEdit_NoTranscriptForVocab",
+      "en": "No transcript available to generate vocabulary from.",
+      "ko": "어휘를 생성할 대본이 없습니다.",
+      "comment": "Toast error"
+    },
+    {
+      "key": "ResourceEdit_VocabGenFailed",
+      "en": "AI did not generate any vocabulary. Try again.",
+      "ko": "AI가 어휘를 생성하지 못했습니다. 다시 시도하세요.",
+      "comment": "Toast error"
+    },
+    {
+      "key": "ResourceEdit_VocabGenSuccess",
+      "en": "Generated {0} words: {1} new, {2} linked",
+      "ko": "{0}개의 단어 생성: {1}개 신규, {2}개 연결됨",
+      "comment": "Toast success (param order: total, new, linked)"
+    },
+    {
+      "key": "ResourceEdit_VocabGenSuccessWithDuplicates",
+      "en": "Generated {0} words: {1} new, {2} linked, {3} skipped (already in resource)",
+      "ko": "{0}개의 단어 생성: {1}개 신규, {2}개 연결됨, {3}개 건너뜀 (이미 리소스에 있음)",
+      "comment": "Toast success"
+    },
+    {
+      "key": "ResourceEdit_VocabGenError",
+      "en": "Vocabulary generation failed: {0}",
+      "ko": "어휘 생성 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "Settings_AppearanceSection",
+      "en": "Appearance",
+      "ko": "모양",
+      "comment": "Section heading"
+    },
+    {
+      "key": "Settings_ThemeLabel",
+      "en": "Theme",
+      "ko": "테마",
+      "comment": "Form label"
+    },
+    {
+      "key": "Settings_ModeLabel",
+      "en": "Mode",
+      "ko": "모드",
+      "comment": "Form label"
+    },
+    {
+      "key": "Settings_LightMode",
+      "en": "Light",
+      "ko": "밝은",
+      "comment": "Radio label"
+    },
+    {
+      "key": "Settings_DarkMode",
+      "en": "Dark",
+      "ko": "어두운",
+      "comment": "Radio label"
+    },
+    {
+      "key": "Settings_TextSizeLabel",
+      "en": "Text Size: {0}%",
+      "ko": "텍스트 크기: {0}%",
+      "comment": "Slider label"
+    },
+    {
+      "key": "Settings_VoiceQuizSection",
+      "en": "Voice & Quiz",
+      "ko": "음성 및 퀴즈",
+      "comment": "Section heading"
+    },
+    {
+      "key": "Settings_LanguageLabel",
+      "en": "Language",
+      "ko": "언어",
+      "comment": "Form label"
+    },
+    {
+      "key": "Settings_VoiceLabel",
+      "en": "Voice",
+      "ko": "음성",
+      "comment": "Form label"
+    },
+    {
+      "key": "Settings_PromptLanguageLabel",
+      "en": "Prompt Language",
+      "ko": "프롬프트 언어",
+      "comment": "Form label"
+    },
+    {
+      "key": "Settings_TargetLanguage",
+      "en": "Target language",
+      "ko": "대상 언어",
+      "comment": "Radio label"
+    },
+    {
+      "key": "Settings_NativeLanguage",
+      "en": "Native language",
+      "ko": "모국어",
+      "comment": "Radio label"
+    },
+    {
+      "key": "Settings_Mixed",
+      "en": "Mixed",
+      "ko": "혼합",
+      "comment": "Radio label"
+    },
+    {
+      "key": "Settings_PromptLanguageHelp",
+      "en": "Choose which side of the vocab card is shown as the prompt.",
+      "ko": "어휘 카드의 어느 면을 프롬프트로 표시할지 선택하세요.",
+      "comment": "Help text"
+    },
+    {
+      "key": "Settings_AutoplayAudio",
+      "en": "Autoplay Audio",
+      "ko": "오디오 자동 재생",
+      "comment": "Switch label"
+    },
+    {
+      "key": "Settings_ShowMnemonics",
+      "en": "Show Mnemonics",
+      "ko": "니모닉 표시",
+      "comment": "Switch label"
+    },
+    {
+      "key": "Settings_PromptModalitiesLabel",
+      "en": "Prompt Modalities",
+      "ko": "프롬프트 방식",
+      "comment": "Form label"
+    },
+    {
+      "key": "Settings_TextModality",
+      "en": "Text",
+      "ko": "텍스트",
+      "comment": "Switch label"
+    },
+    {
+      "key": "Settings_AudioModality",
+      "en": "Audio",
+      "ko": "오디오",
+      "comment": "Switch label"
+    },
+    {
+      "key": "Settings_PhotoModality",
+      "en": "Photo",
+      "ko": "사진",
+      "comment": "Switch label"
+    },
+    {
+      "key": "Settings_ModalitiesHelp",
+      "en": "Choose which cues to show for the prompt. If a photo isn't available, the quiz falls back to text.",
+      "ko": "프롬프트에 표시할 단서를 선택하세요. 사진이 없으면 텍스트로 대체됩니다.",
+      "comment": "Help text"
+    },
+    {
+      "key": "Settings_AutoAdvanceDurationLabel",
+      "en": "Auto-Advance Duration: {0} s",
+      "ko": "자동 진행 시간: {0}초",
+      "comment": "Slider label"
+    },
+    {
+      "key": "Settings_SavePreferences",
+      "en": "Save Preferences",
+      "ko": "환경설정 저장",
+      "comment": "Button text"
+    },
+    {
+      "key": "Settings_DataManagementSection",
+      "en": "Data Management",
+      "ko": "데이터 관리",
+      "comment": "Section heading"
+    },
+    {
+      "key": "Settings_ExportData",
+      "en": "Export Data",
+      "ko": "데이터 내보내기",
+      "comment": "Button text"
+    },
+    {
+      "key": "Settings_DatabaseMigrationsSection",
+      "en": "Database Migrations",
+      "ko": "데이터베이스 마이그레이션",
+      "comment": "Section heading (dev only)"
+    },
+    {
+      "key": "Settings_StreakMigrationComplete",
+      "en": "Streak migration complete",
+      "ko": "스트릭 마이그레이션 완료",
+      "comment": "Alert text"
+    },
+    {
+      "key": "Settings_RunStreakMigration",
+      "en": "Run Streak Migration",
+      "ko": "스트릭 마이그레이션 실행",
+      "comment": "Button text"
+    },
+    {
+      "key": "Settings_AboutSection",
+      "en": "About",
+      "ko": "정보",
+      "comment": "Section heading"
+    },
+    {
+      "key": "Settings_VersionLabel",
+      "en": "SentenceStudio v{0}",
+      "ko": "SentenceStudio v{0}",
+      "comment": "Version display"
+    },
+    {
+      "key": "Settings_WhatsNew",
+      "en": "What's New",
+      "ko": "새로운 기능",
+      "comment": "Button text"
+    },
+    {
+      "key": "Settings_PreferencesSaved",
+      "en": "Preferences saved",
+      "ko": "환경설정이 저장되었습니다",
+      "comment": "Toast success"
+    },
+    {
+      "key": "Settings_ModalityRequired",
+      "en": "At least one question modality is required. Falling back to text.",
+      "ko": "적어도 하나의 질문 방식이 필요합니다. 텍스트로 대체됩니다.",
+      "comment": "Toast info"
+    },
+    {
+      "key": "Settings_ExportSuccess",
+      "en": "Data exported successfully",
+      "ko": "데이터가 성공적으로 내보내졌습니다",
+      "comment": "Toast success"
+    },
+    {
+      "key": "Settings_ExportFailed",
+      "en": "Export failed: {0}",
+      "ko": "내보내기 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "Settings_MigrationComplete",
+      "en": "Streak migration complete",
+      "ko": "스트릭 마이그레이션 완료",
+      "comment": "Toast success"
+    },
+    {
+      "key": "Settings_MigrationFailed",
+      "en": "Migration failed: {0}",
+      "ko": "마이그레이션 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "Settings_NoReleaseNotes",
+      "en": "No release notes available for this version",
+      "ko": "이 버전에 대한 릴리스 노트가 없습니다",
+      "comment": "Toast info"
+    },
+    {
+      "key": "Settings_ReleaseNotesFailed",
+      "en": "Failed to load release notes: {0}",
+      "ko": "릴리스 노트 로드 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "VocabWordEdit_EditTitle",
+      "en": "Edit Vocabulary Word",
+      "ko": "어휘 단어 편집",
+      "comment": "Page title"
+    },
+    {
+      "key": "VocabWordEdit_AddTitle",
+      "en": "Add Vocabulary Word",
+      "ko": "어휘 단어 추가",
+      "comment": "Page title"
+    },
+    {
+      "key": "VocabWordEdit_VocabTermsSection",
+      "en": "Vocabulary Terms",
+      "ko": "어휘 용어",
+      "comment": "Section heading"
+    },
+    {
+      "key": "VocabWordEdit_FindDuplicates",
+      "en": "Find Duplicates",
+      "ko": "중복 찾기",
+      "comment": "Button text"
+    },
+    {
+      "key": "VocabWordEdit_TargetTermLabel",
+      "en": "Target Language Term",
+      "ko": "대상 언어 용어",
+      "comment": "Form label"
+    },
+    {
+      "key": "VocabWordEdit_TargetTermPlaceholder",
+      "en": "Enter target language term",
+      "ko": "대상 언어 용어 입력",
+      "comment": "Input placeholder"
+    },
+    {
+      "key": "VocabWordEdit_PlayAudioTitle",
+      "en": "Play audio",
+      "ko": "오디오 재생",
+      "comment": "Button title"
+    },
+    {
+      "key": "VocabWordEdit_NativeTermLabel",
+      "en": "Native Language Term",
+      "ko": "모국어 용어",
+      "comment": "Form label"
+    },
+    {
+      "key": "VocabWordEdit_NativeTermPlaceholder",
+      "en": "Enter native language term",
+      "ko": "모국어 용어 입력",
+      "comment": "Input placeholder"
+    },
+    {
+      "key": "VocabWordEdit_EncodingSection",
+      "en": "Encoding & Memory Aids",
+      "ko": "인코딩 및 기억 보조",
+      "comment": "Section heading"
+    },
+    {
+      "key": "VocabWordEdit_EncodingStrength",
+      "en": "Encoding Strength:",
+      "ko": "인코딩 강도:",
+      "comment": "Label prefix"
+    },
+    {
+      "key": "VocabWordEdit_LemmaLabel",
+      "en": "Lemma (Dictionary Form)",
+      "ko": "Lemma (사전 형태)",
+      "comment": "Form label"
+    },
+    {
+      "key": "VocabWordEdit_LemmaPlaceholder",
+      "en": "e.g., 가다 for 갔다, 가요, etc.",
+      "ko": "예: 갔다, 가요 등에 대해 가다",
+      "comment": "Input placeholder"
+    },
+    {
+      "key": "VocabWordEdit_LanguageLabel",
+      "en": "Language",
+      "ko": "언어",
+      "comment": "Form label"
+    },
+    {
+      "key": "VocabWordEdit_NotSet",
+      "en": "— Not set —",
+      "ko": "— 설정되지 않음 —",
+      "comment": "Select option"
+    },
+    {
+      "key": "VocabWordEdit_TagsLabel",
+      "en": "Tags (comma-separated)",
+      "ko": "태그 (쉼표로 구분)",
+      "comment": "Form label"
+    },
+    {
+      "key": "VocabWordEdit_TagsPlaceholder",
+      "en": "e.g., nature, season, visual",
+      "ko": "예: 자연, 계절, 시각",
+      "comment": "Input placeholder"
+    },
+    {
+      "key": "VocabWordEdit_MnemonicStoryLabel",
+      "en": "Mnemonic Story",
+      "ko": "니모닉 이야기",
+      "comment": "Form label"
+    },
+    {
+      "key": "VocabWordEdit_MnemonicStoryPlaceholder",
+      "en": "A silly story or memory hook to help recall this word...",
+      "ko": "이 단어를 기억하는 데 도움이 되는 우스꽝스러운 이야기나 기억 힌트...",
+      "comment": "Textarea placeholder"
+    },
+    {
+      "key": "VocabWordEdit_MnemonicImageLabel",
+      "en": "Mnemonic Image URL",
+      "ko": "니모닉 이미지 URL",
+      "comment": "Form label"
+    },
+    {
+      "key": "VocabWordEdit_ProgressSection",
+      "en": "Learning Progress",
+      "ko": "학습 진행 상황",
+      "comment": "Section heading"
+    },
+    {
+      "key": "VocabWordEdit_StatusLabel",
+      "en": "Status",
+      "ko": "상태",
+      "comment": "Detail label"
+    },
+    {
+      "key": "VocabWordEdit_StatusKnown",
+      "en": "Known",
+      "ko": "알고 있음",
+      "comment": "Badge text"
+    },
+    {
+      "key": "VocabWordEdit_StatusKnownNote",
+      "en": "(earned through practice)",
+      "ko": "(연습을 통해 획득)",
+      "comment": "Note text"
+    },
+    {
+      "key": "VocabWordEdit_StatusUnknown",
+      "en": "Unknown",
+      "ko": "모름",
+      "comment": "Select option"
+    },
+    {
+      "key": "VocabWordEdit_StatusLearning",
+      "en": "Learning",
+      "ko": "학습 중",
+      "comment": "Select option"
+    },
+    {
+      "key": "VocabWordEdit_StatusFamiliar",
+      "en": "Familiar",
+      "ko": "익숙함",
+      "comment": "Select option"
+    },
+    {
+      "key": "VocabWordEdit_DetailsLabel",
+      "en": "Details",
+      "ko": "세부정보",
+      "comment": "Detail label"
+    },
+    {
+      "key": "VocabWordEdit_NextReviewLabel",
+      "en": "Next Review",
+      "ko": "다음 복습",
+      "comment": "Detail label"
+    },
+    {
+      "key": "VocabWordEdit_AssociationsSection",
+      "en": "Resource Associations",
+      "ko": "리소스 연결",
+      "comment": "Section heading"
+    },
+    {
+      "key": "VocabWordEdit_AssociationsSelected",
+      "en": "{0} selected",
+      "ko": "{0}개 선택됨",
+      "comment": "Count label"
+    },
+    {
+      "key": "VocabWordEdit_AssociationsHelp",
+      "en": "Select resources to associate with this word.",
+      "ko": "이 단어와 연결할 리소스를 선택하세요.",
+      "comment": "Help text"
+    },
+    {
+      "key": "VocabWordEdit_NoResourcesAvailable",
+      "en": "No resources available.",
+      "ko": "사용 가능한 리소스가 없습니다.",
+      "comment": "Empty state"
+    },
+    {
+      "key": "VocabWordEdit_UnknownResource",
+      "en": "Unknown Resource",
+      "ko": "알 수 없는 리소스",
+      "comment": "Fallback resource name"
+    },
+    {
+      "key": "VocabWordEdit_ConfirmDeleteTitle",
+      "en": "Confirm Delete",
+      "ko": "삭제 확인",
+      "comment": "Modal title"
+    },
+    {
+      "key": "VocabWordEdit_DeleteMessage",
+      "en": "Are you sure you want to delete '{0}'? This cannot be undone.",
+      "ko": "'{0}'을(를) 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.",
+      "comment": "Confirm message"
+    },
+    {
+      "key": "VocabWordEdit_NotFound",
+      "en": "Vocabulary word not found.",
+      "ko": "어휘 단어를 찾을 수 없습니다.",
+      "comment": "Toast error"
+    },
+    {
+      "key": "VocabWordEdit_LoadFailed",
+      "en": "Failed to load: {0}",
+      "ko": "로드 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "VocabWordEdit_TermsRequired",
+      "en": "Both target and native language terms are required.",
+      "ko": "대상 언어와 모국어 용어가 모두 필요합니다.",
+      "comment": "Error message"
+    },
+    {
+      "key": "VocabWordEdit_DuplicateExists",
+      "en": "A vocabulary word with these terms already exists.",
+      "ko": "이러한 용어를 가진 어휘 단어가 이미 존재합니다.",
+      "comment": "Error message"
+    },
+    {
+      "key": "VocabWordEdit_SaveFailed",
+      "en": "Failed to save the vocabulary word. Please try again.",
+      "ko": "어휘 단어를 저장하지 못했습니다. 다시 시도하세요.",
+      "comment": "Error message"
+    },
+    {
+      "key": "VocabWordEdit_AddedSuccess",
+      "en": "Vocabulary word added!",
+      "ko": "어휘 단어가 추가되었습니다!",
+      "comment": "Toast success"
+    },
+    {
+      "key": "VocabWordEdit_UpdatedSuccess",
+      "en": "Vocabulary word updated!",
+      "ko": "어휘 단어가 업데이트되었습니다!",
+      "comment": "Toast success"
+    },
+    {
+      "key": "VocabWordEdit_SaveErrorMessage",
+      "en": "Failed to save: {0}",
+      "ko": "저장 실패: {0}",
+      "comment": "Error message"
+    },
+    {
+      "key": "VocabWordEdit_DeletedSuccess",
+      "en": "Vocabulary word deleted!",
+      "ko": "어휘 단어가 삭제되었습니다!",
+      "comment": "Toast success"
+    },
+    {
+      "key": "VocabWordEdit_DeleteFailed",
+      "en": "Failed to delete: {0}",
+      "ko": "삭제 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "VocabWordEdit_StatusUpdateFailed",
+      "en": "Failed to update status: {0}",
+      "ko": "상태 업데이트 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "VocabWordEdit_FamiliarTrust",
+      "en": "Got it -- we trust you on this one. We will check in occasionally to keep it fresh.",
+      "ko": "알겠습니다 -- 이 건에 대해서는 믿습니다. 때때로 확인하여 신선하게 유지하겠습니다.",
+      "comment": "Toast info"
+    },
+    {
+      "key": "VocabWordEdit_AudioUnavailableOffline",
+      "en": "Audio unavailable offline.",
+      "ko": "오프라인에서 오디오를 사용할 수 없습니다.",
+      "comment": "Toast warning"
+    },
+    {
+      "key": "VocabWordEdit_ProgressStartPracticing",
+      "en": "Start practicing to track progress.",
+      "ko": "진행 상황을 추적하려면 연습을 시작하세요.",
+      "comment": "Progress detail placeholder"
+    },
+    {
+      "key": "Vocabulary_Title",
+      "en": "Vocabulary",
+      "ko": "어휘",
+      "comment": "Page title"
+    },
+    {
+      "key": "Vocabulary_AddWord",
+      "en": "Add Word",
+      "ko": "단어 추가",
+      "comment": "Button text"
+    },
+    {
+      "key": "Vocabulary_StatsOfTotal",
+      "en": "{0} of {1}",
+      "ko": "{1}개 중 {0}개",
+      "comment": "Stats badge"
+    },
+    {
+      "key": "Vocabulary_StatsUnknown",
+      "en": "Unknown: {0}",
+      "ko": "모름: {0}개",
+      "comment": "Stats badge"
+    },
+    {
+      "key": "Vocabulary_StatsLearning",
+      "en": "Learning: {0}",
+      "ko": "학습 중: {0}개",
+      "comment": "Stats badge"
+    },
+    {
+      "key": "Vocabulary_StatsFamiliar",
+      "en": "Familiar: {0}",
+      "ko": "익숙함: {0}개",
+      "comment": "Stats badge"
+    },
+    {
+      "key": "Vocabulary_StatsKnown",
+      "en": "Known: {0}",
+      "ko": "알고 있음: {0}개",
+      "comment": "Stats badge"
+    },
+    {
+      "key": "Vocabulary_GridView",
+      "en": "Grid view",
+      "ko": "그리드 보기",
+      "comment": "View toggle title"
+    },
+    {
+      "key": "Vocabulary_ListView",
+      "en": "List view",
+      "ko": "목록 보기",
+      "comment": "View toggle title"
+    },
+    {
+      "key": "Vocabulary_ToggleViewMode",
+      "en": "List View",
+      "ko": "목록 보기",
+      "comment": "Menu item (grid→list)"
+    },
+    {
+      "key": "Vocabulary_ToggleViewModeAlt",
+      "en": "Grid View",
+      "ko": "그리드 보기",
+      "comment": "Menu item (list→grid)"
+    },
+    {
+      "key": "Vocabulary_FindDuplicates",
+      "en": "Find Duplicates",
+      "ko": "중복 찾기",
+      "comment": "Menu item"
+    },
+    {
+      "key": "Vocabulary_PopulateLemmas",
+      "en": "Populate Lemmas",
+      "ko": "Lemma 채우기",
+      "comment": "Menu item"
+    },
+    {
+      "key": "Vocabulary_FixSwappedLanguages",
+      "en": "Fix Swapped Languages",
+      "ko": "바뀐 언어 수정",
+      "comment": "Menu item"
+    },
+    {
+      "key": "Vocabulary_AssignOrphanedWords",
+      "en": "Assign Orphaned Words",
+      "ko": "고아 단어 할당",
+      "comment": "Menu item"
+    },
+    {
+      "key": "Vocabulary_BulkEditStatus",
+      "en": "Bulk Edit Status",
+      "ko": "일괄 상태 편집",
+      "comment": "Menu item"
+    },
+    {
+      "key": "Vocabulary_BulkEditSelected",
+      "en": "{0} selected",
+      "ko": "{0}개 선택됨",
+      "comment": "Bulk edit label"
+    },
+    {
+      "key": "Vocabulary_BulkEditSetStatus",
+      "en": "Set Status...",
+      "ko": "상태 설정...",
+      "comment": "Select placeholder"
+    },
+    {
+      "key": "Vocabulary_BulkEditSave",
+      "en": "Save",
+      "ko": "저장",
+      "comment": "Button text"
+    },
+    {
+      "key": "Vocabulary_BulkEditCancel",
+      "en": "Cancel",
+      "ko": "취소",
+      "comment": "Button text"
+    },
+    {
+      "key": "Vocabulary_BulkEditSelectAll",
+      "en": "Select All",
+      "ko": "모두 선택",
+      "comment": "Button text"
+    },
+    {
+      "key": "Vocabulary_BulkEditSelectNone",
+      "en": "Select None",
+      "ko": "선택 안 함",
+      "comment": "Button text"
+    },
+    {
+      "key": "Vocabulary_SearchPlaceholder",
+      "en": "Search... (try tag:clothing status:learning resource:'Starter')",
+      "ko": "검색... (예: tag:clothing status:learning resource:'Starter')",
+      "comment": "Search input placeholder"
+    },
+    {
+      "key": "Vocabulary_ClearFilters",
+      "en": "Clear all filters",
+      "ko": "모든 필터 지우기",
+      "comment": "Button title"
+    },
+    {
+      "key": "Vocabulary_FilterAllWords",
+      "en": "All Words",
+      "ko": "모든 단어",
+      "comment": "Filter dropdown"
+    },
+    {
+      "key": "Vocabulary_FilterAssociated",
+      "en": "Associated",
+      "ko": "연결됨",
+      "comment": "Filter dropdown"
+    },
+    {
+      "key": "Vocabulary_FilterOrphaned",
+      "en": "Orphaned",
+      "ko": "고아",
+      "comment": "Filter dropdown"
+    },
+    {
+      "key": "Vocabulary_FilterAllStatus",
+      "en": "All Status",
+      "ko": "모든 상태",
+      "comment": "Filter dropdown"
+    },
+    {
+      "key": "Vocabulary_FilterAllResources",
+      "en": "All Resources",
+      "ko": "모든 리소스",
+      "comment": "Filter dropdown"
+    },
+    {
+      "key": "Vocabulary_FilterAllTags",
+      "en": "All Tags",
+      "ko": "모든 태그",
+      "comment": "Filter dropdown"
+    },
+    {
+      "key": "Vocabulary_FilterAllLemmas",
+      "en": "All Lemmas",
+      "ko": "모든 Lemma",
+      "comment": "Filter dropdown"
+    },
+    {
+      "key": "Vocabulary_FilterAllLanguages",
+      "en": "All Languages",
+      "ko": "모든 언어",
+      "comment": "Filter dropdown"
+    },
+    {
+      "key": "Vocabulary_FilterAllEncoding",
+      "en": "All Encoding",
+      "ko": "모든 인코딩",
+      "comment": "Filter dropdown"
+    },
+    {
+      "key": "Vocabulary_FilterEncodingStrong",
+      "en": "Strong",
+      "ko": "강함",
+      "comment": "Filter dropdown"
+    },
+    {
+      "key": "Vocabulary_FilterEncodingGood",
+      "en": "Good",
+      "ko": "좋음",
+      "comment": "Filter dropdown"
+    },
+    {
+      "key": "Vocabulary_FilterEncodingBasic",
+      "en": "Basic",
+      "ko": "기본",
+      "comment": "Filter dropdown"
+    },
+    {
+      "key": "Vocabulary_FiltersTitle",
+      "en": "Filters",
+      "ko": "필터",
+      "comment": "Offcanvas title"
+    },
+    {
+      "key": "Vocabulary_FilterLabelAssociation",
+      "en": "Association",
+      "ko": "연결",
+      "comment": "Filter label"
+    },
+    {
+      "key": "Vocabulary_FilterLabelStatus",
+      "en": "Status",
+      "ko": "상태",
+      "comment": "Filter label"
+    },
+    {
+      "key": "Vocabulary_FilterLabelResource",
+      "en": "Resource",
+      "ko": "리소스",
+      "comment": "Filter label"
+    },
+    {
+      "key": "Vocabulary_FilterLabelTag",
+      "en": "Tag",
+      "ko": "태그",
+      "comment": "Filter label"
+    },
+    {
+      "key": "Vocabulary_FilterLabelLemma",
+      "en": "Lemma",
+      "ko": "Lemma",
+      "comment": "Filter label"
+    },
+    {
+      "key": "Vocabulary_FilterLabelLanguage",
+      "en": "Language",
+      "ko": "언어",
+      "comment": "Filter label"
+    },
+    {
+      "key": "Vocabulary_FilterLabelEncoding",
+      "en": "Encoding Strength",
+      "ko": "인코딩 강도",
+      "comment": "Filter label"
+    },
+    {
+      "key": "Vocabulary_CleanupPanelClose",
+      "en": "Close",
+      "ko": "닫기",
+      "comment": "Button title"
+    },
+    {
+      "key": "Vocabulary_DuplicatesTitle",
+      "en": "Find Duplicates",
+      "ko": "중복 찾기",
+      "comment": "Cleanup panel title"
+    },
+    {
+      "key": "Vocabulary_DuplicatesTitleForTerm",
+      "en": "Find Duplicates for \"{0}\"",
+      "ko": "\"{0}\"에 대한 중복 찾기",
+      "comment": "Cleanup panel title"
+    },
+    {
+      "key": "Vocabulary_DuplicatesScanning",
+      "en": "Scanning for duplicates...",
+      "ko": "중복 검색 중...",
+      "comment": "Status text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesScanningForTerm",
+      "en": "Scanning for duplicates matching \"{0}\"...",
+      "ko": "\"{0}\"과 일치하는 중복 검색 중...",
+      "comment": "Status text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesFocused",
+      "en": "Focused on <strong>{0}</strong> so you can manage this word's copies faster.",
+      "ko": "이 단어의 복사본을 더 빨리 관리할 수 있도록 <strong>{0}</strong>에 초점을 맞췄습니다.",
+      "comment": "Status text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesAutoMergeAll",
+      "en": "Auto-merge All",
+      "ko": "모두 자동 병합",
+      "comment": "Button text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesNoRecords",
+      "en": "No duplicate records matched this scan.",
+      "ko": "이 검색과 일치하는 중복 레코드가 없습니다.",
+      "comment": "Alert text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesCopies",
+      "en": "{0} copies",
+      "ko": "{0}개 복사본",
+      "comment": "Badge text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesFocusedBadge",
+      "en": "Focused",
+      "ko": "초점",
+      "comment": "Badge text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesResourceCount",
+      "en": "{0} resources",
+      "ko": "{0}개 리소스",
+      "comment": "Badge text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesRecommendedKeeper",
+      "en": "Recommended keeper",
+      "ko": "권장 보존 대상",
+      "comment": "Badge text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesCurrentWord",
+      "en": "Current word",
+      "ko": "현재 단어",
+      "comment": "Badge text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesEdit",
+      "en": "Edit",
+      "ko": "편집",
+      "comment": "Button text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesMergeKeepBest",
+      "en": "Merge (keep best)",
+      "ko": "병합 (최선 유지)",
+      "comment": "Button text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesShowMore",
+      "en": "Show more ({0} remaining)",
+      "ko": "더 보기 ({0}개 남음)",
+      "comment": "Button text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesFoundCount",
+      "en": "Found {0} group(s) of duplicate words with {1} extra record(s).",
+      "ko": "{0}개의 중복 단어 그룹에서 {1}개의 추가 레코드를 찾았습니다.",
+      "comment": "Status text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesNone",
+      "en": "No duplicates found.",
+      "ko": "중복이 없습니다.",
+      "comment": "Status text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesNoneForTerm",
+      "en": "No duplicates found for '{0}'.",
+      "ko": "'{0}'에 대한 중복이 없습니다.",
+      "comment": "Status text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesMergedCount",
+      "en": "Merged '{0}': kept 1, removed {1}",
+      "ko": "'{0}' 병합: 1개 유지, {1}개 제거됨",
+      "comment": "Result text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesMergedSuccess",
+      "en": "Merged {0} duplicate record(s) for '{1}'.",
+      "ko": "'{1}'에 대한 {0}개의 중복 레코드를 병합했습니다.",
+      "comment": "Toast success"
+    },
+    {
+      "key": "Vocabulary_DuplicatesNoMergeNeeded",
+      "en": "No merge was needed for '{0}'.",
+      "ko": "'{0}'에 대한 병합이 필요하지 않습니다.",
+      "comment": "Toast info"
+    },
+    {
+      "key": "Vocabulary_DuplicatesMergeError",
+      "en": "Error merging '{0}': {1}",
+      "ko": "'{0}' 병합 오류: {1}",
+      "comment": "Result text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesAutoMergeComplete",
+      "en": "Auto-merge complete: removed {0} duplicate(s)",
+      "ko": "자동 병합 완료: {0}개의 중복 제거됨",
+      "comment": "Result text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesAutoMergeWithErrors",
+      "en": "Auto-merge complete: removed {0} duplicate(s), {1} error(s)",
+      "ko": "자동 병합 완료: {0}개의 중복 제거됨, {1}개 오류",
+      "comment": "Result text"
+    },
+    {
+      "key": "Vocabulary_PopulateLemmasTitle",
+      "en": "Populate Lemmas",
+      "ko": "Lemma 채우기",
+      "comment": "Cleanup panel title"
+    },
+    {
+      "key": "Vocabulary_PopulateLemmasProcessing",
+      "en": "Processing {0} words missing lemmas...",
+      "ko": "Lemma가 없는 {0}개의 단어 처리 중...",
+      "comment": "Status text"
+    },
+    {
+      "key": "Vocabulary_PopulateLemmasAllDone",
+      "en": "All words already have lemmas.",
+      "ko": "모든 단어에 이미 Lemma가 있습니다.",
+      "comment": "Result text"
+    },
+    {
+      "key": "Vocabulary_PopulateLemmasBatchProgress",
+      "en": "Processing batch {0} of {1}...",
+      "ko": "{1}개 중 {0}번째 배치 처리 중...",
+      "comment": "Status text"
+    },
+    {
+      "key": "Vocabulary_PopulateLemmasComplete",
+      "en": "Lemma population complete: updated {0} of {1} words",
+      "ko": "Lemma 채우기 완료: {1}개 단어 중 {0}개 업데이트됨",
+      "comment": "Result text"
+    },
+    {
+      "key": "Vocabulary_PopulateLemmasBatchError",
+      "en": "Batch error: {0}",
+      "ko": "배치 오류: {0}",
+      "comment": "Result text"
+    },
+    {
+      "key": "Vocabulary_PopulateLemmasError",
+      "en": "Error: {0}",
+      "ko": "오류: {0}",
+      "comment": "Result text"
+    },
+    {
+      "key": "Vocabulary_FixSwappedTitle",
+      "en": "Fix Swapped Languages",
+      "ko": "바뀐 언어 수정",
+      "comment": "Cleanup panel title"
+    },
+    {
+      "key": "Vocabulary_FixSwappedScanning",
+      "en": "Scanning for swapped language entries...",
+      "ko": "바뀐 언어 항목 검색 중...",
+      "comment": "Status text"
+    },
+    {
+      "key": "Vocabulary_FixSwappedFixing",
+      "en": "Fixing {0} entries...",
+      "ko": "{0}개 항목 수정 중...",
+      "comment": "Status text"
+    },
+    {
+      "key": "Vocabulary_FixSwappedComplete",
+      "en": "Swapped {0} word(s), merged {1} duplicate(s)",
+      "ko": "{0}개 단어 바꿈, {1}개 중복 병합됨",
+      "comment": "Result text"
+    },
+    {
+      "key": "Vocabulary_FixSwappedError",
+      "en": "Error: {0}",
+      "ko": "오류: {0}",
+      "comment": "Result text"
+    },
+    {
+      "key": "Vocabulary_AssignOrphanedTitle",
+      "en": "Assign Orphaned Words",
+      "ko": "고아 단어 할당",
+      "comment": "Cleanup panel title"
+    },
+    {
+      "key": "Vocabulary_AssignOrphanedFinding",
+      "en": "Finding orphaned words...",
+      "ko": "고아 단어 찾는 중...",
+      "comment": "Status text"
+    },
+    {
+      "key": "Vocabulary_AssignOrphanedNone",
+      "en": "No orphaned words found.",
+      "ko": "고아 단어를 찾을 수 없습니다.",
+      "comment": "Result text"
+    },
+    {
+      "key": "Vocabulary_AssignOrphanedAssigning",
+      "en": "Assigning {0} orphaned words...",
+      "ko": "{0}개의 고아 단어 할당 중...",
+      "comment": "Status text"
+    },
+    {
+      "key": "Vocabulary_AssignOrphanedComplete",
+      "en": "Assigned {0} orphaned word(s) to 'General Vocabulary'",
+      "ko": "{0}개의 고아 단어를 '일반 어휘'에 할당함",
+      "comment": "Result text"
+    },
+    {
+      "key": "Vocabulary_AssignOrphanedError",
+      "en": "Error: {0}",
+      "ko": "오류: {0}",
+      "comment": "Result text"
+    },
+    {
+      "key": "Vocabulary_NoWordsMatch",
+      "en": "No words match the current filter.",
+      "ko": "현재 필터와 일치하는 단어가 없습니다.",
+      "comment": "Empty state"
+    },
+    {
+      "key": "Vocabulary_NoWordsYet",
+      "en": "No vocabulary words yet.",
+      "ko": "아직 어휘 단어가 없습니다.",
+      "comment": "Empty state"
+    },
+    {
+      "key": "Vocabulary_AddFirstWord",
+      "en": "Add Your First Word",
+      "ko": "첫 번째 단어 추가",
+      "comment": "Button text"
+    },
+    {
+      "key": "Vocabulary_CardOrphaned",
+      "en": "Orphaned",
+      "ko": "고아",
+      "comment": "Card badge"
+    },
+    {
+      "key": "Vocabulary_CardResourcesCount",
+      "en": "{0} resource(s)",
+      "ko": "{0}개 리소스",
+      "comment": "Card text"
+    },
+    {
+      "key": "Vocabulary_CardKnown",
+      "en": "Known",
+      "ko": "알고 있음",
+      "comment": "Badge text"
+    },
+    {
+      "key": "Vocabulary_CardKnownTooltip",
+      "en": "Mastered through practice and verified",
+      "ko": "연습을 통해 숙달되고 검증됨",
+      "comment": "Badge title"
+    },
+    {
+      "key": "Vocabulary_CardFamiliarTooltip",
+      "en": "Marked familiar — verification pending",
+      "ko": "익숙함으로 표시됨 — 확인 대기 중",
+      "comment": "Badge title"
+    },
+    {
+      "key": "Vocabulary_CardLearningTooltip",
+      "en": "Currently studying",
+      "ko": "현재 학습 중",
+      "comment": "Badge title"
+    },
+    {
+      "key": "Vocabulary_CardUnknownTooltip",
+      "en": "Not yet studied",
+      "ko": "아직 학습하지 않음",
+      "comment": "Badge title"
+    },
+    {
+      "key": "Vocabulary_LoadFailed",
+      "en": "Failed to load vocabulary: {0}",
+      "ko": "어휘 로드 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "Vocabulary_BulkUpdateNoProfile",
+      "en": "No active user profile. Please select a profile first.",
+      "ko": "활성 사용자 프로필이 없습니다. 먼저 프로필을 선택하세요.",
+      "comment": "Toast error"
+    },
+    {
+      "key": "Vocabulary_BulkUpdateSuccess",
+      "en": "Updated {0} word(s) to {1}.",
+      "ko": "{0}개의 단어를 {1}(으)로 업데이트했습니다.",
+      "comment": "Toast success"
+    },
+    {
+      "key": "Vocabulary_BulkUpdatePartial",
+      "en": "Updated {0} word(s). {1} failed.",
+      "ko": "{0}개의 단어를 업데이트했습니다. {1}개 실패.",
+      "comment": "Toast warning"
+    },
+    {
+      "key": "Vocabulary_BulkUpdateFailed",
+      "en": "Bulk update failed: {0}",
+      "ko": "일괄 업데이트 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "ResourceEdit_TranscriptSection",
+      "en": "Transcript",
+      "ko": "대본",
+      "comment": "Section heading"
+    },
+    {
+      "key": "ResourceEdit_TranslationSection",
+      "en": "Translation",
+      "ko": "번역",
+      "comment": "Section heading"
+    },
+    {
+      "key": "ResourceEdit_VocabularySection",
+      "en": "Vocabulary ({0} words)",
+      "ko": "어휘 ({0}개 단어)",
+      "comment": "Section heading with count"
+    },
+    {
+      "key": "ResourceEdit_GenerateFromTranscript",
+      "en": "Generate from Transcript",
+      "ko": "대본에서 생성",
+      "comment": "Button text"
+    },
+    {
+      "key": "ResourceEdit_Generating",
+      "en": "Generating...",
+      "ko": "생성 중...",
+      "comment": "Button text while generating"
+    },
+    {
+      "key": "ResourceEdit_ImportVocabLabel",
+      "en": "Import vocabulary (one pair per line)",
+      "ko": "어휘 가져오기 (한 줄에 한 쌍)",
+      "comment": "Form label"
+    },
+    {
+      "key": "ResourceEdit_ImportButton",
+      "en": "Import",
+      "ko": "가져오기",
+      "comment": "Button text"
+    },
+    {
+      "key": "ResourceEdit_NoVocabYet",
+      "en": "No vocabulary words yet.",
+      "ko": "아직 어휘 단어가 없습니다.",
+      "comment": "Empty state"
+    },
+    {
+      "key": "ResourceEdit_ConfirmDeleteTitle",
+      "en": "Confirm Delete",
+      "ko": "삭제 확인",
+      "comment": "Modal title"
+    },
+    {
+      "key": "ResourceEdit_DeleteMessage",
+      "en": "Are you sure you want to delete this resource? This cannot be undone.",
+      "ko": "이 리소스를 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.",
+      "comment": "Confirm message"
+    },
+    {
+      "key": "ResourceEdit_TitleRequired",
+      "en": "Title is required.",
+      "ko": "제목은 필수입니다.",
+      "comment": "Toast error"
+    },
+    {
+      "key": "ResourceEdit_SavedSuccess",
+      "en": "Resource saved.",
+      "ko": "리소스가 저장되었습니다.",
+      "comment": "Toast success"
+    },
+    {
+      "key": "ResourceEdit_SaveFailed",
+      "en": "Failed to save: {0}",
+      "ko": "저장 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "ResourceEdit_LoadFailed",
+      "en": "Failed to load resource: {0}",
+      "ko": "리소스 로드 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "ResourceEdit_ImportedCount",
+      "en": "Imported {0} vocabulary words.",
+      "ko": "{0}개의 어휘를 가져왔습니다.",
+      "comment": "Toast success"
+    },
+    {
+      "key": "ResourceEdit_ImportFailed",
+      "en": "Import failed: {0}",
+      "ko": "가져오기 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "ResourceEdit_FileImportedCount",
+      "en": "Imported {0} vocabulary words from file.",
+      "ko": "파일에서 {0}개의 어휘를 가져왔습니다.",
+      "comment": "Toast success"
+    },
+    {
+      "key": "ResourceEdit_NoDuplicatesInFile",
+      "en": "No new vocabulary words found in file (may be duplicates or wrong format).",
+      "ko": "파일에서 새 어휘를 찾을 수 없습니다 (중복이거나 잘못된 형식일 수 있음).",
+      "comment": "Toast info"
+    },
+    {
+      "key": "ResourceEdit_FileImportFailed",
+      "en": "File import failed: {0}",
+      "ko": "파일 가져오기 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "ResourceEdit_DeletedSuccess",
+      "en": "Resource deleted.",
+      "ko": "리소스가 삭제되었습니다.",
+      "comment": "Toast success"
+    },
+    {
+      "key": "ResourceEdit_DeleteFailed",
+      "en": "Failed to delete: {0}",
+      "ko": "삭제 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "ResourceEdit_NoTranscriptForVocab",
+      "en": "No transcript available to generate vocabulary from.",
+      "ko": "어휘를 생성할 대본이 없습니다.",
+      "comment": "Toast error"
+    },
+    {
+      "key": "ResourceEdit_VocabGenFailed",
+      "en": "AI did not generate any vocabulary. Try again.",
+      "ko": "AI가 어휘를 생성하지 못했습니다. 다시 시도하세요.",
+      "comment": "Toast error"
+    },
+    {
+      "key": "ResourceEdit_VocabGenSuccess",
+      "en": "Generated {0} words: {1} new, {2} linked",
+      "ko": "{0}개의 단어 생성: {1}개 신규, {2}개 연결됨",
+      "comment": "Toast success (param order: total, new, linked)"
+    },
+    {
+      "key": "ResourceEdit_VocabGenSuccessWithDuplicates",
+      "en": "Generated {0} words: {1} new, {2} linked, {3} skipped (already in resource)",
+      "ko": "{0}개의 단어 생성: {1}개 신규, {2}개 연결됨, {3}개 건너뜀 (이미 리소스에 있음)",
+      "comment": "Toast success"
+    },
+    {
+      "key": "ResourceEdit_VocabGenError",
+      "en": "Vocabulary generation failed: {0}",
+      "ko": "어휘 생성 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "Settings_AppearanceSection",
+      "en": "Appearance",
+      "ko": "모양",
+      "comment": "Section heading"
+    },
+    {
+      "key": "Settings_ThemeLabel",
+      "en": "Theme",
+      "ko": "테마",
+      "comment": "Form label"
+    },
+    {
+      "key": "Settings_ModeLabel",
+      "en": "Mode",
+      "ko": "모드",
+      "comment": "Form label"
+    },
+    {
+      "key": "Settings_LightMode",
+      "en": "Light",
+      "ko": "밝은",
+      "comment": "Radio label"
+    },
+    {
+      "key": "Settings_DarkMode",
+      "en": "Dark",
+      "ko": "어두운",
+      "comment": "Radio label"
+    },
+    {
+      "key": "Settings_TextSizeLabel",
+      "en": "Text Size: {0}%",
+      "ko": "텍스트 크기: {0}%",
+      "comment": "Slider label"
+    },
+    {
+      "key": "Settings_VoiceQuizSection",
+      "en": "Voice & Quiz",
+      "ko": "음성 및 퀴즈",
+      "comment": "Section heading"
+    },
+    {
+      "key": "Settings_LanguageLabel",
+      "en": "Language",
+      "ko": "언어",
+      "comment": "Form label"
+    },
+    {
+      "key": "Settings_VoiceLabel",
+      "en": "Voice",
+      "ko": "음성",
+      "comment": "Form label"
+    },
+    {
+      "key": "Settings_PromptLanguageLabel",
+      "en": "Prompt Language",
+      "ko": "프롬프트 언어",
+      "comment": "Form label"
+    },
+    {
+      "key": "Settings_TargetLanguage",
+      "en": "Target language",
+      "ko": "대상 언어",
+      "comment": "Radio label"
+    },
+    {
+      "key": "Settings_NativeLanguage",
+      "en": "Native language",
+      "ko": "모국어",
+      "comment": "Radio label"
+    },
+    {
+      "key": "Settings_Mixed",
+      "en": "Mixed",
+      "ko": "혼합",
+      "comment": "Radio label"
+    },
+    {
+      "key": "Settings_PromptLanguageHelp",
+      "en": "Choose which side of the vocab card is shown as the prompt.",
+      "ko": "어휘 카드의 어느 면을 프롬프트로 표시할지 선택하세요.",
+      "comment": "Help text"
+    },
+    {
+      "key": "Settings_AutoplayAudio",
+      "en": "Autoplay Audio",
+      "ko": "오디오 자동 재생",
+      "comment": "Switch label"
+    },
+    {
+      "key": "Settings_ShowMnemonics",
+      "en": "Show Mnemonics",
+      "ko": "니모닉 표시",
+      "comment": "Switch label"
+    },
+    {
+      "key": "Settings_PromptModalitiesLabel",
+      "en": "Prompt Modalities",
+      "ko": "프롬프트 방식",
+      "comment": "Form label"
+    },
+    {
+      "key": "Settings_TextModality",
+      "en": "Text",
+      "ko": "텍스트",
+      "comment": "Switch label"
+    },
+    {
+      "key": "Settings_AudioModality",
+      "en": "Audio",
+      "ko": "오디오",
+      "comment": "Switch label"
+    },
+    {
+      "key": "Settings_PhotoModality",
+      "en": "Photo",
+      "ko": "사진",
+      "comment": "Switch label"
+    },
+    {
+      "key": "Settings_ModalitiesHelp",
+      "en": "Choose which cues to show for the prompt. If a photo isn't available, the quiz falls back to text.",
+      "ko": "프롬프트에 표시할 단서를 선택하세요. 사진이 없으면 텍스트로 대체됩니다.",
+      "comment": "Help text"
+    },
+    {
+      "key": "Settings_AutoAdvanceDurationLabel",
+      "en": "Auto-Advance Duration: {0} s",
+      "ko": "자동 진행 시간: {0}초",
+      "comment": "Slider label"
+    },
+    {
+      "key": "Settings_SavePreferences",
+      "en": "Save Preferences",
+      "ko": "환경설정 저장",
+      "comment": "Button text"
+    },
+    {
+      "key": "Settings_DataManagementSection",
+      "en": "Data Management",
+      "ko": "데이터 관리",
+      "comment": "Section heading"
+    },
+    {
+      "key": "Settings_ExportData",
+      "en": "Export Data",
+      "ko": "데이터 내보내기",
+      "comment": "Button text"
+    },
+    {
+      "key": "Settings_DatabaseMigrationsSection",
+      "en": "Database Migrations",
+      "ko": "데이터베이스 마이그레이션",
+      "comment": "Section heading (dev only)"
+    },
+    {
+      "key": "Settings_StreakMigrationComplete",
+      "en": "Streak migration complete",
+      "ko": "스트릭 마이그레이션 완료",
+      "comment": "Alert text"
+    },
+    {
+      "key": "Settings_RunStreakMigration",
+      "en": "Run Streak Migration",
+      "ko": "스트릭 마이그레이션 실행",
+      "comment": "Button text"
+    },
+    {
+      "key": "Settings_AboutSection",
+      "en": "About",
+      "ko": "정보",
+      "comment": "Section heading"
+    },
+    {
+      "key": "Settings_VersionLabel",
+      "en": "SentenceStudio v{0}",
+      "ko": "SentenceStudio v{0}",
+      "comment": "Version display"
+    },
+    {
+      "key": "Settings_WhatsNew",
+      "en": "What's New",
+      "ko": "새로운 기능",
+      "comment": "Button text"
+    },
+    {
+      "key": "Settings_PreferencesSaved",
+      "en": "Preferences saved",
+      "ko": "환경설정이 저장되었습니다",
+      "comment": "Toast success"
+    },
+    {
+      "key": "Settings_ModalityRequired",
+      "en": "At least one question modality is required. Falling back to text.",
+      "ko": "적어도 하나의 질문 방식이 필요합니다. 텍스트로 대체됩니다.",
+      "comment": "Toast info"
+    },
+    {
+      "key": "Settings_ExportSuccess",
+      "en": "Data exported successfully",
+      "ko": "데이터가 성공적으로 내보내졌습니다",
+      "comment": "Toast success"
+    },
+    {
+      "key": "Settings_ExportFailed",
+      "en": "Export failed: {0}",
+      "ko": "내보내기 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "Settings_MigrationComplete",
+      "en": "Streak migration complete",
+      "ko": "스트릭 마이그레이션 완료",
+      "comment": "Toast success"
+    },
+    {
+      "key": "Settings_MigrationFailed",
+      "en": "Migration failed: {0}",
+      "ko": "마이그레이션 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "Settings_NoReleaseNotes",
+      "en": "No release notes available for this version",
+      "ko": "이 버전에 대한 릴리스 노트가 없습니다",
+      "comment": "Toast info"
+    },
+    {
+      "key": "Settings_ReleaseNotesFailed",
+      "en": "Failed to load release notes: {0}",
+      "ko": "릴리스 노트 로드 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "VocabWordEdit_EditTitle",
+      "en": "Edit Vocabulary Word",
+      "ko": "어휘 단어 편집",
+      "comment": "Page title"
+    },
+    {
+      "key": "VocabWordEdit_AddTitle",
+      "en": "Add Vocabulary Word",
+      "ko": "어휘 단어 추가",
+      "comment": "Page title"
+    },
+    {
+      "key": "VocabWordEdit_VocabTermsSection",
+      "en": "Vocabulary Terms",
+      "ko": "어휘 용어",
+      "comment": "Section heading"
+    },
+    {
+      "key": "VocabWordEdit_FindDuplicates",
+      "en": "Find Duplicates",
+      "ko": "중복 찾기",
+      "comment": "Button text"
+    },
+    {
+      "key": "VocabWordEdit_TargetTermLabel",
+      "en": "Target Language Term",
+      "ko": "대상 언어 용어",
+      "comment": "Form label"
+    },
+    {
+      "key": "VocabWordEdit_TargetTermPlaceholder",
+      "en": "Enter target language term",
+      "ko": "대상 언어 용어 입력",
+      "comment": "Input placeholder"
+    },
+    {
+      "key": "VocabWordEdit_PlayAudioTitle",
+      "en": "Play audio",
+      "ko": "오디오 재생",
+      "comment": "Button title"
+    },
+    {
+      "key": "VocabWordEdit_NativeTermLabel",
+      "en": "Native Language Term",
+      "ko": "모국어 용어",
+      "comment": "Form label"
+    },
+    {
+      "key": "VocabWordEdit_NativeTermPlaceholder",
+      "en": "Enter native language term",
+      "ko": "모국어 용어 입력",
+      "comment": "Input placeholder"
+    },
+    {
+      "key": "VocabWordEdit_EncodingSection",
+      "en": "Encoding & Memory Aids",
+      "ko": "인코딩 및 기억 보조",
+      "comment": "Section heading"
+    },
+    {
+      "key": "VocabWordEdit_EncodingStrength",
+      "en": "Encoding Strength:",
+      "ko": "인코딩 강도:",
+      "comment": "Label prefix"
+    },
+    {
+      "key": "VocabWordEdit_LemmaLabel",
+      "en": "Lemma (Dictionary Form)",
+      "ko": "Lemma (사전 형태)",
+      "comment": "Form label"
+    },
+    {
+      "key": "VocabWordEdit_LemmaPlaceholder",
+      "en": "e.g., 가다 for 갔다, 가요, etc.",
+      "ko": "예: 갔다, 가요 등에 대해 가다",
+      "comment": "Input placeholder"
+    },
+    {
+      "key": "VocabWordEdit_LanguageLabel",
+      "en": "Language",
+      "ko": "언어",
+      "comment": "Form label"
+    },
+    {
+      "key": "VocabWordEdit_NotSet",
+      "en": "— Not set —",
+      "ko": "— 설정되지 않음 —",
+      "comment": "Select option"
+    },
+    {
+      "key": "VocabWordEdit_TagsLabel",
+      "en": "Tags (comma-separated)",
+      "ko": "태그 (쉼표로 구분)",
+      "comment": "Form label"
+    },
+    {
+      "key": "VocabWordEdit_TagsPlaceholder",
+      "en": "e.g., nature, season, visual",
+      "ko": "예: 자연, 계절, 시각",
+      "comment": "Input placeholder"
+    },
+    {
+      "key": "VocabWordEdit_MnemonicStoryLabel",
+      "en": "Mnemonic Story",
+      "ko": "니모닉 이야기",
+      "comment": "Form label"
+    },
+    {
+      "key": "VocabWordEdit_MnemonicStoryPlaceholder",
+      "en": "A silly story or memory hook to help recall this word...",
+      "ko": "이 단어를 기억하는 데 도움이 되는 우스꽝스러운 이야기나 기억 힌트...",
+      "comment": "Textarea placeholder"
+    },
+    {
+      "key": "VocabWordEdit_MnemonicImageLabel",
+      "en": "Mnemonic Image URL",
+      "ko": "니모닉 이미지 URL",
+      "comment": "Form label"
+    },
+    {
+      "key": "VocabWordEdit_ProgressSection",
+      "en": "Learning Progress",
+      "ko": "학습 진행 상황",
+      "comment": "Section heading"
+    },
+    {
+      "key": "VocabWordEdit_StatusLabel",
+      "en": "Status",
+      "ko": "상태",
+      "comment": "Detail label"
+    },
+    {
+      "key": "VocabWordEdit_StatusKnown",
+      "en": "Known",
+      "ko": "알고 있음",
+      "comment": "Badge text"
+    },
+    {
+      "key": "VocabWordEdit_StatusKnownNote",
+      "en": "(earned through practice)",
+      "ko": "(연습을 통해 획득)",
+      "comment": "Note text"
+    },
+    {
+      "key": "VocabWordEdit_StatusUnknown",
+      "en": "Unknown",
+      "ko": "모름",
+      "comment": "Select option"
+    },
+    {
+      "key": "VocabWordEdit_StatusLearning",
+      "en": "Learning",
+      "ko": "학습 중",
+      "comment": "Select option"
+    },
+    {
+      "key": "VocabWordEdit_StatusFamiliar",
+      "en": "Familiar",
+      "ko": "익숙함",
+      "comment": "Select option"
+    },
+    {
+      "key": "VocabWordEdit_DetailsLabel",
+      "en": "Details",
+      "ko": "세부정보",
+      "comment": "Detail label"
+    },
+    {
+      "key": "VocabWordEdit_NextReviewLabel",
+      "en": "Next Review",
+      "ko": "다음 복습",
+      "comment": "Detail label"
+    },
+    {
+      "key": "VocabWordEdit_AssociationsSection",
+      "en": "Resource Associations",
+      "ko": "리소스 연결",
+      "comment": "Section heading"
+    },
+    {
+      "key": "VocabWordEdit_AssociationsSelected",
+      "en": "{0} selected",
+      "ko": "{0}개 선택됨",
+      "comment": "Count label"
+    },
+    {
+      "key": "VocabWordEdit_AssociationsHelp",
+      "en": "Select resources to associate with this word.",
+      "ko": "이 단어와 연결할 리소스를 선택하세요.",
+      "comment": "Help text"
+    },
+    {
+      "key": "VocabWordEdit_NoResourcesAvailable",
+      "en": "No resources available.",
+      "ko": "사용 가능한 리소스가 없습니다.",
+      "comment": "Empty state"
+    },
+    {
+      "key": "VocabWordEdit_UnknownResource",
+      "en": "Unknown Resource",
+      "ko": "알 수 없는 리소스",
+      "comment": "Fallback resource name"
+    },
+    {
+      "key": "VocabWordEdit_ConfirmDeleteTitle",
+      "en": "Confirm Delete",
+      "ko": "삭제 확인",
+      "comment": "Modal title"
+    },
+    {
+      "key": "VocabWordEdit_DeleteMessage",
+      "en": "Are you sure you want to delete '{0}'? This cannot be undone.",
+      "ko": "'{0}'을(를) 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.",
+      "comment": "Confirm message"
+    },
+    {
+      "key": "VocabWordEdit_NotFound",
+      "en": "Vocabulary word not found.",
+      "ko": "어휘 단어를 찾을 수 없습니다.",
+      "comment": "Toast error"
+    },
+    {
+      "key": "VocabWordEdit_LoadFailed",
+      "en": "Failed to load: {0}",
+      "ko": "로드 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "VocabWordEdit_TermsRequired",
+      "en": "Both target and native language terms are required.",
+      "ko": "대상 언어와 모국어 용어가 모두 필요합니다.",
+      "comment": "Error message"
+    },
+    {
+      "key": "VocabWordEdit_DuplicateExists",
+      "en": "A vocabulary word with these terms already exists.",
+      "ko": "이러한 용어를 가진 어휘 단어가 이미 존재합니다.",
+      "comment": "Error message"
+    },
+    {
+      "key": "VocabWordEdit_SaveFailed",
+      "en": "Failed to save the vocabulary word. Please try again.",
+      "ko": "어휘 단어를 저장하지 못했습니다. 다시 시도하세요.",
+      "comment": "Error message"
+    },
+    {
+      "key": "VocabWordEdit_AddedSuccess",
+      "en": "Vocabulary word added!",
+      "ko": "어휘 단어가 추가되었습니다!",
+      "comment": "Toast success"
+    },
+    {
+      "key": "VocabWordEdit_UpdatedSuccess",
+      "en": "Vocabulary word updated!",
+      "ko": "어휘 단어가 업데이트되었습니다!",
+      "comment": "Toast success"
+    },
+    {
+      "key": "VocabWordEdit_SaveErrorMessage",
+      "en": "Failed to save: {0}",
+      "ko": "저장 실패: {0}",
+      "comment": "Error message"
+    },
+    {
+      "key": "VocabWordEdit_DeletedSuccess",
+      "en": "Vocabulary word deleted!",
+      "ko": "어휘 단어가 삭제되었습니다!",
+      "comment": "Toast success"
+    },
+    {
+      "key": "VocabWordEdit_DeleteFailed",
+      "en": "Failed to delete: {0}",
+      "ko": "삭제 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "VocabWordEdit_StatusUpdateFailed",
+      "en": "Failed to update status: {0}",
+      "ko": "상태 업데이트 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "VocabWordEdit_FamiliarTrust",
+      "en": "Got it -- we trust you on this one. We will check in occasionally to keep it fresh.",
+      "ko": "알겠습니다 -- 이 건에 대해서는 믿습니다. 때때로 확인하여 신선하게 유지하겠습니다.",
+      "comment": "Toast info"
+    },
+    {
+      "key": "VocabWordEdit_AudioUnavailableOffline",
+      "en": "Audio unavailable offline.",
+      "ko": "오프라인에서 오디오를 사용할 수 없습니다.",
+      "comment": "Toast warning"
+    },
+    {
+      "key": "VocabWordEdit_ProgressStartPracticing",
+      "en": "Start practicing to track progress.",
+      "ko": "진행 상황을 추적하려면 연습을 시작하세요.",
+      "comment": "Progress detail placeholder"
+    },
+    {
+      "key": "Vocabulary_Title",
+      "en": "Vocabulary",
+      "ko": "어휘",
+      "comment": "Page title"
+    },
+    {
+      "key": "Vocabulary_AddWord",
+      "en": "Add Word",
+      "ko": "단어 추가",
+      "comment": "Button text"
+    },
+    {
+      "key": "Vocabulary_StatsOfTotal",
+      "en": "{0} of {1}",
+      "ko": "{1}개 중 {0}개",
+      "comment": "Stats badge"
+    },
+    {
+      "key": "Vocabulary_StatsUnknown",
+      "en": "Unknown: {0}",
+      "ko": "모름: {0}개",
+      "comment": "Stats badge"
+    },
+    {
+      "key": "Vocabulary_StatsLearning",
+      "en": "Learning: {0}",
+      "ko": "학습 중: {0}개",
+      "comment": "Stats badge"
+    },
+    {
+      "key": "Vocabulary_StatsFamiliar",
+      "en": "Familiar: {0}",
+      "ko": "익숙함: {0}개",
+      "comment": "Stats badge"
+    },
+    {
+      "key": "Vocabulary_StatsKnown",
+      "en": "Known: {0}",
+      "ko": "알고 있음: {0}개",
+      "comment": "Stats badge"
+    },
+    {
+      "key": "Vocabulary_GridView",
+      "en": "Grid view",
+      "ko": "그리드 보기",
+      "comment": "View toggle title"
+    },
+    {
+      "key": "Vocabulary_ListView",
+      "en": "List view",
+      "ko": "목록 보기",
+      "comment": "View toggle title"
+    },
+    {
+      "key": "Vocabulary_ToggleViewMode",
+      "en": "List View",
+      "ko": "목록 보기",
+      "comment": "Menu item (grid→list)"
+    },
+    {
+      "key": "Vocabulary_ToggleViewModeAlt",
+      "en": "Grid View",
+      "ko": "그리드 보기",
+      "comment": "Menu item (list→grid)"
+    },
+    {
+      "key": "Vocabulary_FindDuplicates",
+      "en": "Find Duplicates",
+      "ko": "중복 찾기",
+      "comment": "Menu item"
+    },
+    {
+      "key": "Vocabulary_PopulateLemmas",
+      "en": "Populate Lemmas",
+      "ko": "Lemma 채우기",
+      "comment": "Menu item"
+    },
+    {
+      "key": "Vocabulary_FixSwappedLanguages",
+      "en": "Fix Swapped Languages",
+      "ko": "바뀐 언어 수정",
+      "comment": "Menu item"
+    },
+    {
+      "key": "Vocabulary_AssignOrphanedWords",
+      "en": "Assign Orphaned Words",
+      "ko": "고아 단어 할당",
+      "comment": "Menu item"
+    },
+    {
+      "key": "Vocabulary_BulkEditStatus",
+      "en": "Bulk Edit Status",
+      "ko": "일괄 상태 편집",
+      "comment": "Menu item"
+    },
+    {
+      "key": "Vocabulary_BulkEditSelected",
+      "en": "{0} selected",
+      "ko": "{0}개 선택됨",
+      "comment": "Bulk edit label"
+    },
+    {
+      "key": "Vocabulary_BulkEditSetStatus",
+      "en": "Set Status...",
+      "ko": "상태 설정...",
+      "comment": "Select placeholder"
+    },
+    {
+      "key": "Vocabulary_BulkEditSave",
+      "en": "Save",
+      "ko": "저장",
+      "comment": "Button text"
+    },
+    {
+      "key": "Vocabulary_BulkEditCancel",
+      "en": "Cancel",
+      "ko": "취소",
+      "comment": "Button text"
+    },
+    {
+      "key": "Vocabulary_BulkEditSelectAll",
+      "en": "Select All",
+      "ko": "모두 선택",
+      "comment": "Button text"
+    },
+    {
+      "key": "Vocabulary_BulkEditSelectNone",
+      "en": "Select None",
+      "ko": "선택 안 함",
+      "comment": "Button text"
+    },
+    {
+      "key": "Vocabulary_SearchPlaceholder",
+      "en": "Search... (try tag:clothing status:learning resource:'Starter')",
+      "ko": "검색... (예: tag:clothing status:learning resource:'Starter')",
+      "comment": "Search input placeholder"
+    },
+    {
+      "key": "Vocabulary_ClearFilters",
+      "en": "Clear all filters",
+      "ko": "모든 필터 지우기",
+      "comment": "Button title"
+    },
+    {
+      "key": "Vocabulary_FilterAllWords",
+      "en": "All Words",
+      "ko": "모든 단어",
+      "comment": "Filter dropdown"
+    },
+    {
+      "key": "Vocabulary_FilterAssociated",
+      "en": "Associated",
+      "ko": "연결됨",
+      "comment": "Filter dropdown"
+    },
+    {
+      "key": "Vocabulary_FilterOrphaned",
+      "en": "Orphaned",
+      "ko": "고아",
+      "comment": "Filter dropdown"
+    },
+    {
+      "key": "Vocabulary_FilterAllStatus",
+      "en": "All Status",
+      "ko": "모든 상태",
+      "comment": "Filter dropdown"
+    },
+    {
+      "key": "Vocabulary_FilterAllResources",
+      "en": "All Resources",
+      "ko": "모든 리소스",
+      "comment": "Filter dropdown"
+    },
+    {
+      "key": "Vocabulary_FilterAllTags",
+      "en": "All Tags",
+      "ko": "모든 태그",
+      "comment": "Filter dropdown"
+    },
+    {
+      "key": "Vocabulary_FilterAllLemmas",
+      "en": "All Lemmas",
+      "ko": "모든 Lemma",
+      "comment": "Filter dropdown"
+    },
+    {
+      "key": "Vocabulary_FilterAllLanguages",
+      "en": "All Languages",
+      "ko": "모든 언어",
+      "comment": "Filter dropdown"
+    },
+    {
+      "key": "Vocabulary_FilterAllEncoding",
+      "en": "All Encoding",
+      "ko": "모든 인코딩",
+      "comment": "Filter dropdown"
+    },
+    {
+      "key": "Vocabulary_FilterEncodingStrong",
+      "en": "Strong",
+      "ko": "강함",
+      "comment": "Filter dropdown"
+    },
+    {
+      "key": "Vocabulary_FilterEncodingGood",
+      "en": "Good",
+      "ko": "좋음",
+      "comment": "Filter dropdown"
+    },
+    {
+      "key": "Vocabulary_FilterEncodingBasic",
+      "en": "Basic",
+      "ko": "기본",
+      "comment": "Filter dropdown"
+    },
+    {
+      "key": "Vocabulary_FiltersTitle",
+      "en": "Filters",
+      "ko": "필터",
+      "comment": "Offcanvas title"
+    },
+    {
+      "key": "Vocabulary_FilterLabelAssociation",
+      "en": "Association",
+      "ko": "연결",
+      "comment": "Filter label"
+    },
+    {
+      "key": "Vocabulary_FilterLabelStatus",
+      "en": "Status",
+      "ko": "상태",
+      "comment": "Filter label"
+    },
+    {
+      "key": "Vocabulary_FilterLabelResource",
+      "en": "Resource",
+      "ko": "리소스",
+      "comment": "Filter label"
+    },
+    {
+      "key": "Vocabulary_FilterLabelTag",
+      "en": "Tag",
+      "ko": "태그",
+      "comment": "Filter label"
+    },
+    {
+      "key": "Vocabulary_FilterLabelLemma",
+      "en": "Lemma",
+      "ko": "Lemma",
+      "comment": "Filter label"
+    },
+    {
+      "key": "Vocabulary_FilterLabelLanguage",
+      "en": "Language",
+      "ko": "언어",
+      "comment": "Filter label"
+    },
+    {
+      "key": "Vocabulary_FilterLabelEncoding",
+      "en": "Encoding Strength",
+      "ko": "인코딩 강도",
+      "comment": "Filter label"
+    },
+    {
+      "key": "Vocabulary_CleanupPanelClose",
+      "en": "Close",
+      "ko": "닫기",
+      "comment": "Button title"
+    },
+    {
+      "key": "Vocabulary_DuplicatesTitle",
+      "en": "Find Duplicates",
+      "ko": "중복 찾기",
+      "comment": "Cleanup panel title"
+    },
+    {
+      "key": "Vocabulary_DuplicatesTitleForTerm",
+      "en": "Find Duplicates for \"{0}\"",
+      "ko": "\"{0}\"에 대한 중복 찾기",
+      "comment": "Cleanup panel title"
+    },
+    {
+      "key": "Vocabulary_DuplicatesScanning",
+      "en": "Scanning for duplicates...",
+      "ko": "중복 검색 중...",
+      "comment": "Status text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesScanningForTerm",
+      "en": "Scanning for duplicates matching \"{0}\"...",
+      "ko": "\"{0}\"과 일치하는 중복 검색 중...",
+      "comment": "Status text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesFocused",
+      "en": "Focused on <strong>{0}</strong> so you can manage this word's copies faster.",
+      "ko": "이 단어의 복사본을 더 빨리 관리할 수 있도록 <strong>{0}</strong>에 초점을 맞췄습니다.",
+      "comment": "Status text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesAutoMergeAll",
+      "en": "Auto-merge All",
+      "ko": "모두 자동 병합",
+      "comment": "Button text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesNoRecords",
+      "en": "No duplicate records matched this scan.",
+      "ko": "이 검색과 일치하는 중복 레코드가 없습니다.",
+      "comment": "Alert text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesCopies",
+      "en": "{0} copies",
+      "ko": "{0}개 복사본",
+      "comment": "Badge text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesFocusedBadge",
+      "en": "Focused",
+      "ko": "초점",
+      "comment": "Badge text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesResourceCount",
+      "en": "{0} resources",
+      "ko": "{0}개 리소스",
+      "comment": "Badge text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesRecommendedKeeper",
+      "en": "Recommended keeper",
+      "ko": "권장 보존 대상",
+      "comment": "Badge text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesCurrentWord",
+      "en": "Current word",
+      "ko": "현재 단어",
+      "comment": "Badge text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesEdit",
+      "en": "Edit",
+      "ko": "편집",
+      "comment": "Button text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesMergeKeepBest",
+      "en": "Merge (keep best)",
+      "ko": "병합 (최선 유지)",
+      "comment": "Button text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesShowMore",
+      "en": "Show more ({0} remaining)",
+      "ko": "더 보기 ({0}개 남음)",
+      "comment": "Button text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesFoundCount",
+      "en": "Found {0} group(s) of duplicate words with {1} extra record(s).",
+      "ko": "{0}개의 중복 단어 그룹에서 {1}개의 추가 레코드를 찾았습니다.",
+      "comment": "Status text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesNone",
+      "en": "No duplicates found.",
+      "ko": "중복이 없습니다.",
+      "comment": "Status text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesNoneForTerm",
+      "en": "No duplicates found for '{0}'.",
+      "ko": "'{0}'에 대한 중복이 없습니다.",
+      "comment": "Status text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesMergedCount",
+      "en": "Merged '{0}': kept 1, removed {1}",
+      "ko": "'{0}' 병합: 1개 유지, {1}개 제거됨",
+      "comment": "Result text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesMergedSuccess",
+      "en": "Merged {0} duplicate record(s) for '{1}'.",
+      "ko": "'{1}'에 대한 {0}개의 중복 레코드를 병합했습니다.",
+      "comment": "Toast success"
+    },
+    {
+      "key": "Vocabulary_DuplicatesNoMergeNeeded",
+      "en": "No merge was needed for '{0}'.",
+      "ko": "'{0}'에 대한 병합이 필요하지 않습니다.",
+      "comment": "Toast info"
+    },
+    {
+      "key": "Vocabulary_DuplicatesMergeError",
+      "en": "Error merging '{0}': {1}",
+      "ko": "'{0}' 병합 오류: {1}",
+      "comment": "Result text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesAutoMergeComplete",
+      "en": "Auto-merge complete: removed {0} duplicate(s)",
+      "ko": "자동 병합 완료: {0}개의 중복 제거됨",
+      "comment": "Result text"
+    },
+    {
+      "key": "Vocabulary_DuplicatesAutoMergeWithErrors",
+      "en": "Auto-merge complete: removed {0} duplicate(s), {1} error(s)",
+      "ko": "자동 병합 완료: {0}개의 중복 제거됨, {1}개 오류",
+      "comment": "Result text"
+    },
+    {
+      "key": "Vocabulary_PopulateLemmasTitle",
+      "en": "Populate Lemmas",
+      "ko": "Lemma 채우기",
+      "comment": "Cleanup panel title"
+    },
+    {
+      "key": "Vocabulary_PopulateLemmasProcessing",
+      "en": "Processing {0} words missing lemmas...",
+      "ko": "Lemma가 없는 {0}개의 단어 처리 중...",
+      "comment": "Status text"
+    },
+    {
+      "key": "Vocabulary_PopulateLemmasAllDone",
+      "en": "All words already have lemmas.",
+      "ko": "모든 단어에 이미 Lemma가 있습니다.",
+      "comment": "Result text"
+    },
+    {
+      "key": "Vocabulary_PopulateLemmasBatchProgress",
+      "en": "Processing batch {0} of {1}...",
+      "ko": "{1}개 중 {0}번째 배치 처리 중...",
+      "comment": "Status text"
+    },
+    {
+      "key": "Vocabulary_PopulateLemmasComplete",
+      "en": "Lemma population complete: updated {0} of {1} words",
+      "ko": "Lemma 채우기 완료: {1}개 단어 중 {0}개 업데이트됨",
+      "comment": "Result text"
+    },
+    {
+      "key": "Vocabulary_PopulateLemmasBatchError",
+      "en": "Batch error: {0}",
+      "ko": "배치 오류: {0}",
+      "comment": "Result text"
+    },
+    {
+      "key": "Vocabulary_PopulateLemmasError",
+      "en": "Error: {0}",
+      "ko": "오류: {0}",
+      "comment": "Result text"
+    },
+    {
+      "key": "Vocabulary_FixSwappedTitle",
+      "en": "Fix Swapped Languages",
+      "ko": "바뀐 언어 수정",
+      "comment": "Cleanup panel title"
+    },
+    {
+      "key": "Vocabulary_FixSwappedScanning",
+      "en": "Scanning for swapped language entries...",
+      "ko": "바뀐 언어 항목 검색 중...",
+      "comment": "Status text"
+    },
+    {
+      "key": "Vocabulary_FixSwappedFixing",
+      "en": "Fixing {0} entries...",
+      "ko": "{0}개 항목 수정 중...",
+      "comment": "Status text"
+    },
+    {
+      "key": "Vocabulary_FixSwappedComplete",
+      "en": "Swapped {0} word(s), merged {1} duplicate(s)",
+      "ko": "{0}개 단어 바꿈, {1}개 중복 병합됨",
+      "comment": "Result text"
+    },
+    {
+      "key": "Vocabulary_FixSwappedError",
+      "en": "Error: {0}",
+      "ko": "오류: {0}",
+      "comment": "Result text"
+    },
+    {
+      "key": "Vocabulary_AssignOrphanedTitle",
+      "en": "Assign Orphaned Words",
+      "ko": "고아 단어 할당",
+      "comment": "Cleanup panel title"
+    },
+    {
+      "key": "Vocabulary_AssignOrphanedFinding",
+      "en": "Finding orphaned words...",
+      "ko": "고아 단어 찾는 중...",
+      "comment": "Status text"
+    },
+    {
+      "key": "Vocabulary_AssignOrphanedNone",
+      "en": "No orphaned words found.",
+      "ko": "고아 단어를 찾을 수 없습니다.",
+      "comment": "Result text"
+    },
+    {
+      "key": "Vocabulary_AssignOrphanedAssigning",
+      "en": "Assigning {0} orphaned words...",
+      "ko": "{0}개의 고아 단어 할당 중...",
+      "comment": "Status text"
+    },
+    {
+      "key": "Vocabulary_AssignOrphanedComplete",
+      "en": "Assigned {0} orphaned word(s) to 'General Vocabulary'",
+      "ko": "{0}개의 고아 단어를 '일반 어휘'에 할당함",
+      "comment": "Result text"
+    },
+    {
+      "key": "Vocabulary_AssignOrphanedError",
+      "en": "Error: {0}",
+      "ko": "오류: {0}",
+      "comment": "Result text"
+    },
+    {
+      "key": "Vocabulary_NoWordsMatch",
+      "en": "No words match the current filter.",
+      "ko": "현재 필터와 일치하는 단어가 없습니다.",
+      "comment": "Empty state"
+    },
+    {
+      "key": "Vocabulary_NoWordsYet",
+      "en": "No vocabulary words yet.",
+      "ko": "아직 어휘 단어가 없습니다.",
+      "comment": "Empty state"
+    },
+    {
+      "key": "Vocabulary_AddFirstWord",
+      "en": "Add Your First Word",
+      "ko": "첫 번째 단어 추가",
+      "comment": "Button text"
+    },
+    {
+      "key": "Vocabulary_CardOrphaned",
+      "en": "Orphaned",
+      "ko": "고아",
+      "comment": "Card badge"
+    },
+    {
+      "key": "Vocabulary_CardResourcesCount",
+      "en": "{0} resource(s)",
+      "ko": "{0}개 리소스",
+      "comment": "Card text"
+    },
+    {
+      "key": "Vocabulary_CardKnown",
+      "en": "Known",
+      "ko": "알고 있음",
+      "comment": "Badge text"
+    },
+    {
+      "key": "Vocabulary_CardKnownTooltip",
+      "en": "Mastered through practice and verified",
+      "ko": "연습을 통해 숙달되고 검증됨",
+      "comment": "Badge title"
+    },
+    {
+      "key": "Vocabulary_CardFamiliarTooltip",
+      "en": "Marked familiar — verification pending",
+      "ko": "익숙함으로 표시됨 — 확인 대기 중",
+      "comment": "Badge title"
+    },
+    {
+      "key": "Vocabulary_CardLearningTooltip",
+      "en": "Currently studying",
+      "ko": "현재 학습 중",
+      "comment": "Badge title"
+    },
+    {
+      "key": "Vocabulary_CardUnknownTooltip",
+      "en": "Not yet studied",
+      "ko": "아직 학습하지 않음",
+      "comment": "Badge title"
+    },
+    {
+      "key": "Vocabulary_LoadFailed",
+      "en": "Failed to load vocabulary: {0}",
+      "ko": "어휘 로드 실패: {0}",
+      "comment": "Toast error"
+    },
+    {
+      "key": "Vocabulary_BulkUpdateNoProfile",
+      "en": "No active user profile. Please select a profile first.",
+      "ko": "활성 사용자 프로필이 없습니다. 먼저 프로필을 선택하세요.",
+      "comment": "Toast error"
+    },
+    {
+      "key": "Vocabulary_BulkUpdateSuccess",
+      "en": "Updated {0} word(s) to {1}.",
+      "ko": "{0}개의 단어를 {1}(으)로 업데이트했습니다.",
+      "comment": "Toast success"
+    },
+    {
+      "key": "Vocabulary_BulkUpdatePartial",
+      "en": "Updated {0} word(s). {1} failed.",
+      "ko": "{0}개의 단어를 업데이트했습니다. {1}개 실패.",
+      "comment": "Toast warning"
+    },
+    {
+      "key": "Vocabulary_BulkUpdateFailed",
+      "en": "Bulk update failed: {0}",
+      "ko": "일괄 업데이트 실패: {0}",
+      "comment": "Toast error"
+    }
   ]
 }

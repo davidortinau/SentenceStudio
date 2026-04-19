@@ -4,15 +4,17 @@
 @inject ThemeService ThemeService
 @inject IJSRuntime JS
 @inject SentenceStudio.Services.ReleaseNotesService ReleaseNotesService
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@implements IDisposable
 
-<PageHeader Title="Settings" />
+<PageHeader Title='@Localize["Settings_Title"]' />
 
 @* Appearance *@
 <div class="card card-ss p-4 mb-3">
-    <h5 class="ss-title3 mb-3">Appearance</h5>
+    <h5 class="ss-title3 mb-3">@Localize["Settings_AppearanceSection"]</h5>
 
     <div class="mb-3">
-        <label class="form-label ss-body2 text-secondary-ss">Theme</label>
+        <label class="form-label ss-body2 text-secondary-ss">@Localize["Settings_ThemeLabel"]</label>
         <div class="d-flex flex-wrap gap-2">
             @foreach (var theme in ThemeService.AvailableThemes)
             {
@@ -34,27 +36,27 @@
     </div>
 
     <div class="mb-3">
-        <label class="form-label ss-body2 text-secondary-ss">Mode</label>
+        <label class="form-label ss-body2 text-secondary-ss">@Localize["Settings_ModeLabel"]</label>
         <div class="btn-group w-100" role="group">
             <input type="radio" class="btn-check" name="themeMode" id="modeLight" 
                    checked="@(!ThemeService.IsDarkMode)" 
                    @onchange="@(() => OnModeChanged("light"))" />
             <label class="btn btn-outline-secondary" for="modeLight">
-                <i class="bi bi-sun me-1"></i> Light
+                <i class="bi bi-sun me-1"></i> @Localize["Settings_LightMode"]
             </label>
             
             <input type="radio" class="btn-check" name="themeMode" id="modeDark" 
                    checked="@ThemeService.IsDarkMode" 
                    @onchange="@(() => OnModeChanged("dark"))" />
             <label class="btn btn-outline-secondary" for="modeDark">
-                <i class="bi bi-moon me-1"></i> Dark
+                <i class="bi bi-moon me-1"></i> @Localize["Settings_DarkMode"]
             </label>
         </div>
     </div>
 
     <div class="mb-3">
         <label class="form-label ss-body2 text-secondary-ss">
-            Text Size: @((int)(fontScale * 100))%
+            @string.Format(Localize["Settings_TextSizeLabel"], (int)(fontScale * 100))
         </label>
         <input type="range" class="form-range" min="0.85" max="1.5" step="0.05"
                value="@fontScale" @oninput="OnFontScaleInput" />
@@ -67,10 +69,10 @@
 
 @* Voice & Quiz Settings *@
 <div class="card card-ss p-4 mb-3">
-    <h5 class="ss-title3 mb-3">Voice & Quiz</h5>
+    <h5 class="ss-title3 mb-3">@Localize["Settings_VoiceQuizSection"]</h5>
 
     <div class="mb-3">
-        <label class="form-label ss-body2 text-secondary-ss">Language</label>
+        <label class="form-label ss-body2 text-secondary-ss">@Localize["Settings_LanguageLabel"]</label>
         <select class="form-select form-control-ss" @bind="selectedLanguage" @bind:after="OnLanguageChanged">
             <option value="Korean">Korean</option>
             <option value="English">English</option>
@@ -81,7 +83,7 @@
     </div>
 
     <div class="mb-3">
-        <label class="form-label ss-body2 text-secondary-ss">Voice</label>
+        <label class="form-label ss-body2 text-secondary-ss">@Localize["Settings_VoiceLabel"]</label>
         @if (isLoadingVoices)
         {
             <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
@@ -98,66 +100,66 @@
     </div>
 
     <div class="mb-3">
-        <label class="form-label ss-body2 text-secondary-ss">Prompt Language</label>
+        <label class="form-label ss-body2 text-secondary-ss">@Localize["Settings_PromptLanguageLabel"]</label>
         <div class="btn-group w-100" role="group">
             <input type="radio" class="btn-check" name="quizDir" id="dirForward" value="TargetToNative" @onchange="@(() => SetQuizDirection("TargetToNative"))" checked="@(quizDirection == "TargetToNative")" />
-            <label class="btn btn-outline-secondary" for="dirForward">Target language</label>
+            <label class="btn btn-outline-secondary" for="dirForward">@Localize["Settings_TargetLanguage"]</label>
             <input type="radio" class="btn-check" name="quizDir" id="dirReverse" value="NativeToTarget" @onchange="@(() => SetQuizDirection("NativeToTarget"))" checked="@(quizDirection == "NativeToTarget")" />
-            <label class="btn btn-outline-secondary" for="dirReverse">Native language</label>
+            <label class="btn btn-outline-secondary" for="dirReverse">@Localize["Settings_NativeLanguage"]</label>
             <input type="radio" class="btn-check" name="quizDir" id="dirMixed" value="Mixed" @onchange="@(() => SetQuizDirection("Mixed"))" checked="@(quizDirection == "Mixed")" />
-            <label class="btn btn-outline-secondary" for="dirMixed">Mixed</label>
+            <label class="btn btn-outline-secondary" for="dirMixed">@Localize["Settings_Mixed"]</label>
         </div>
-        <div class="ss-caption1 text-secondary-ss mt-2">Choose which side of the vocab card is shown as the prompt.</div>
+        <div class="ss-caption1 text-secondary-ss mt-2">@Localize["Settings_PromptLanguageHelp"]</div>
     </div>
 
     <div class="form-check form-switch mb-2">
         <input class="form-check-input" type="checkbox" id="autoplay" @bind="quizAutoplay" />
-        <label class="form-check-label ss-body2" for="autoplay">Autoplay Audio</label>
+        <label class="form-check-label ss-body2" for="autoplay">@Localize["Settings_AutoplayAudio"]</label>
     </div>
 
     <div class="form-check form-switch mb-2">
         <input class="form-check-input" type="checkbox" id="showMnemonic" @bind="quizShowMnemonic" />
-        <label class="form-check-label ss-body2" for="showMnemonic">Show Mnemonics</label>
+        <label class="form-check-label ss-body2" for="showMnemonic">@Localize["Settings_ShowMnemonics"]</label>
     </div>
 
     <div class="mb-3 mt-3">
-        <label class="form-label ss-body2 text-secondary-ss">Prompt Modalities</label>
+        <label class="form-label ss-body2 text-secondary-ss">@Localize["Settings_PromptModalitiesLabel"]</label>
         <div class="form-check form-switch mb-2">
             <input class="form-check-input" type="checkbox" id="useTextPrompt" @bind="quizUseTextPrompt" />
-            <label class="form-check-label ss-body2" for="useTextPrompt">Text</label>
+            <label class="form-check-label ss-body2" for="useTextPrompt">@Localize["Settings_TextModality"]</label>
         </div>
         <div class="form-check form-switch mb-2">
             <input class="form-check-input" type="checkbox" id="useAudioPrompt" @bind="quizUseAudioPrompt" />
-            <label class="form-check-label ss-body2" for="useAudioPrompt">Audio</label>
+            <label class="form-check-label ss-body2" for="useAudioPrompt">@Localize["Settings_AudioModality"]</label>
         </div>
         <div class="form-check form-switch mb-2">
             <input class="form-check-input" type="checkbox" id="usePhotoPrompt" @bind="quizUsePhotoPrompt" />
-            <label class="form-check-label ss-body2" for="usePhotoPrompt">Photo</label>
+            <label class="form-check-label ss-body2" for="usePhotoPrompt">@Localize["Settings_PhotoModality"]</label>
         </div>
-        <div class="ss-caption1 text-secondary-ss">Choose which cues to show for the prompt. If a photo isn't available, the quiz falls back to text.</div>
+        <div class="ss-caption1 text-secondary-ss">@Localize["Settings_ModalitiesHelp"]</div>
     </div>
 
     <div class="mb-3">
         <label class="form-label ss-body2 text-secondary-ss">
-            Auto-Advance Duration: @quizAutoAdvanceDuration s
+            @string.Format(Localize["Settings_AutoAdvanceDurationLabel"], quizAutoAdvanceDuration)
         </label>
         <input type="range" class="form-range" min="1" max="10" step="0.5"
                @bind="quizAutoAdvanceDuration" @bind:event="oninput" />
     </div>
 
-    <button class="btn btn-ss-primary" @onclick="SavePreferences">Save Preferences</button>
+    <button class="btn btn-ss-primary" @onclick="SavePreferences">@Localize["Settings_SavePreferences"]</button>
 </div>
 
 @* Data Management *@
 <div class="card card-ss p-4 mb-3">
-    <h5 class="ss-title3 mb-3">Data Management</h5>
+    <h5 class="ss-title3 mb-3">@Localize["Settings_DataManagementSection"]</h5>
 
     <button class="btn btn-ss-secondary w-100" @onclick="ExportData" disabled="@isExporting">
         @if (isExporting)
         {
             <span class="spinner-border spinner-border-sm me-2"></span>
         }
-        Export Data
+        @Localize["Settings_ExportData"]
     </button>
 </div>
 
@@ -165,11 +167,11 @@
 {
     @* Database Migrations - Dev Only *@
     <div class="card card-ss p-4 mb-3">
-        <h5 class="ss-title3 mb-3">Database Migrations</h5>
+        <h5 class="ss-title3 mb-3">@Localize["Settings_DatabaseMigrationsSection"]</h5>
 
         @if (streakMigrationComplete)
         {
-            <div class="alert alert-success ss-body2">Streak migration complete</div>
+            <div class="alert alert-success ss-body2">@Localize["Settings_StreakMigrationComplete"]</div>
         }
         else
         {
@@ -178,7 +180,7 @@
                 {
                     <span class="spinner-border spinner-border-sm me-2"></span>
                 }
-                Run Streak Migration
+                @Localize["Settings_RunStreakMigration"]
             </button>
         }
 
@@ -191,10 +193,10 @@
 
 @* About *@
 <div class="card card-ss p-4 mb-3">
-    <h5 class="ss-title3 mb-2">About</h5>
-    <p class="ss-caption1 text-muted-ss">SentenceStudio v@(currentVersion)</p>
+    <h5 class="ss-title3 mb-2">@Localize["Settings_AboutSection"]</h5>
+    <p class="ss-caption1 text-muted-ss">@string.Format(Localize["Settings_VersionLabel"], currentVersion)</p>
     <button class="btn btn-sm btn-outline-secondary mt-2" @onclick="ShowReleaseNotes">
-        <i class="bi bi-megaphone me-1"></i> What's New
+        <i class="bi bi-megaphone me-1"></i> @Localize["Settings_WhatsNew"]
     </button>
 </div>
 
@@ -241,6 +243,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        Localize.CultureChanged += OnCultureChanged;
         fontScale = ThemeService.FontScale;
         var asm = typeof(Settings).Assembly;
         var infoVersion = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
@@ -336,7 +339,7 @@
         if (!quizUseTextPrompt && !quizUseAudioPrompt && !quizUsePhotoPrompt)
         {
             quizUseTextPrompt = true;
-            Toast.ShowInfo("At least one question modality is required. Falling back to text.");
+            Toast.ShowInfo($"{Localize["Settings_ModalityRequired"]}");
         }
 
         QuizPrefs.DisplayDirection = quizDirection;
@@ -347,7 +350,7 @@
         QuizPrefs.UsePhotoPrompt = quizUsePhotoPrompt;
         QuizPrefs.AutoAdvanceDuration = (int)(quizAutoAdvanceDuration * 1000);
         VoicePrefs.SetVoiceForLanguage(selectedLanguage, selectedVoiceId);
-        Toast.ShowSuccess("Preferences saved");
+        Toast.ShowSuccess($"{Localize["Settings_PreferencesSaved"]}");
     }
 
     private void SetQuizDirection(string direction)
@@ -361,11 +364,11 @@
         try
         {
             await ExportService.ExportAllDataAsZipAsync();
-            Toast.ShowSuccess("Data exported successfully");
+            Toast.ShowSuccess($"{Localize["Settings_ExportSuccess"]}");
         }
         catch (Exception ex)
         {
-            Toast.ShowError($"Export failed: {ex.Message}");
+            Toast.ShowError($"{string.Format(Localize["Settings_ExportFailed"], ex.Message)}");
         }
         finally
         {
@@ -382,11 +385,11 @@
             await VocabProgressService.MigrateToStreakBasedScoringAsync();
             streakMigrationComplete = true;
             statusMessage = "Migration completed successfully";
-            Toast.ShowSuccess("Streak migration complete");
+            Toast.ShowSuccess($"{Localize["Settings_MigrationComplete"]}");
         }
         catch (Exception ex)
         {
-            statusMessage = $"Migration failed: {ex.Message}";
+            statusMessage = $"{string.Format(Localize["Settings_MigrationFailed"], ex.Message)}";
             Toast.ShowError(statusMessage);
         }
         finally
@@ -403,18 +406,18 @@
             if (releaseNote != null)
             {
                 whatsNewVersion = releaseNote.Version;
-                whatsNewTitle = "What's New";
+                whatsNewTitle = $"{Localize["Settings_WhatsNew"]}";
                 whatsNewContent = ConvertMarkdownToHtml(releaseNote.MarkdownContent);
                 showWhatsNew = true;
             }
             else
             {
-                Toast.ShowInfo("No release notes available for this version");
+                Toast.ShowInfo($"{Localize["Settings_NoReleaseNotes"]}");
             }
         }
         catch (Exception ex)
         {
-            Toast.ShowError($"Failed to load release notes: {ex.Message}");
+            Toast.ShowError($"{string.Format(Localize["Settings_ReleaseNotesFailed"], ex.Message)}");
         }
     }
 
@@ -422,6 +425,13 @@
     {
         showWhatsNew = false;
         await InvokeAsync(StateHasChanged);
+    }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnCultureChanged;
     }
 
     private string ConvertMarkdownToHtml(string markdown)
