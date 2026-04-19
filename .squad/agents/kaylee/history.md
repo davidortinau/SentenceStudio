@@ -163,3 +163,33 @@ Ground-truth recon for Zoe on why the Profile → Display Language selector is b
 
 - 2026-04-18: **Phase 1 Follow-Up: Load-Time Culture Cookie Fix** — Fixed P0 bug where saved `DisplayLanguage` didn't apply on login. Added culture cookie write to `AccountEndpoints.AutoSignIn` endpoint (after `UserProfileId` link, before `SignInAsync`). Extracted `SupportedCultures` array to DRY the whitelist across `SetCulture` and `AutoSignIn`. Cookie options match Phase 1 pattern exactly (1-year expiry, `IsEssential=true`, `SameSite=Lax`, `HttpOnly=false`). Edge cases handled: NULL DisplayLanguage (skip write, fallback to Accept-Language), unsupported culture (skip write), anonymous users (gated by UserProfileId check). Build verified (0 errors). Handoff to Jayne for E2E: fresh login applies locale, cross-user isolation, cookie persistence, Profile save regression check. Phase 3 tech debt: HttpOnly/Secure hardening deferred per Zoe's earlier review.
 
+
+---
+
+## 2025 — Phase 2 Blazor localization (Batch 1 of 4 shipped)
+
+**Commit:** `9543146` — Dashboard/ActivityLog/MainLayout → Korean (118 keys, 3 files).
+
+**Patterns locked in:**
+- Naming: `PageName_*` per file; promote to `Common_*` only at 3+ uses.
+- Enum-over-string: switch on typed enums (`PlanActivityType`), not AI-generated `TitleKey` strings — avoids snake_case/PascalCase mismatches.
+- `ActivityInfo` record refactor: rename field `Label → LabelKey`, store resx key, look up via `@Localize[activity.LabelKey]`.
+- CultureChanged wiring: every localized component needs `@implements IDisposable` + `OnInitialized { Localize.CultureChanged += OnCultureChanged; }` + `OnCultureChanged => InvokeAsync(StateHasChanged)` + `Dispose { Localize.CultureChanged -= OnCultureChanged; }`.
+- `whatsNewTitle` pattern: expression-bodied property `=> Localize["MainLayout_WhatsNew"]` beats mutable field + reassignment.
+- Legacy unprefixed keys (`Save`, `Reading`, `OK`, `Refresh`) stay — still bound to MauiReactor. Blazor uses prefixed variants only. `Common_OKButton` used to dodge `OK` collision.
+
+**Gotcha — Razor attribute quote nesting:**
+Edit tool mangles `title="@Localize["Key"]"` → `title="@Localize[" Key "]"`. Always use single-quoted outer attribute: `title='@Localize["Key"]'`. Also fine inside `@(...)` C# expressions.
+
+**Tooling:** `scripts/i18n-work/add_keys.py` + `batchN.json` — bulk append to both resx files. De-dupes by key. Reusable.
+
+**Build gate:** `dotnet build src/SentenceStudio.WebApp/SentenceStudio.WebApp.csproj` — clean per batch before commit.
+
+**Commit format (per Captain):**
+```
+feat(i18n): Phase 2 Batch N — {area} strings to Korean
+- Adds {N} keys…
+- Localizes {files}…
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+```
+Never push — Captain runs `/review` first.
