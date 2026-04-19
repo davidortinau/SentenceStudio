@@ -6,6 +6,7 @@
 @using SentenceStudio.Services.Speech
 @using SentenceStudio.Services.Timer
 @using Plugin.Maui.Audio
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
 @implements IAsyncDisposable
 
 <div class="activity-page-wrapper">
@@ -17,7 +18,7 @@
 {
     <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 40vh;">
         <div class="spinner-border text-primary mb-3" role="status"></div>
-        <p class="ss-body1 text-secondary-ss">Generating sentences...</p>
+        <p class="ss-body1 text-secondary-ss">@Localize["Shadowing_GeneratingSentences"]</p>
     </div>
 }
 else if (sentences.Any())
@@ -43,7 +44,7 @@ else if (sentences.Any())
         {
             <div class="mt-2">
                 <button class="btn btn-sm btn-link text-secondary-ss" @onclick="ToggleTranslation">
-                    @(showTranslation ? "Hide" : "Show") translation
+                    @(showTranslation ? Localize["Shadowing_HideTranslation"] : Localize["Shadowing_ShowTranslation"]) @Localize["Shadowing_Translation"]
                 </button>
             </div>
         }
@@ -62,8 +63,8 @@ else if (sentences.Any())
 else
 {
     <div class="text-center p-5">
-        <p class="ss-body1 text-secondary-ss">No sentences available for shadowing.</p>
-        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
+        <p class="ss-body1 text-secondary-ss">@Localize["Shadowing_NoSentences"]</p>
+        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">@Localize["Common_GoBack"]</button>
     </div>
 }
 </div> @* end activity-content *@
@@ -73,11 +74,11 @@ else
     <div class="activity-footer">
         <div class="d-flex justify-content-between align-items-center mb-2">
             <button class="btn btn-sm btn-ss-secondary" @onclick="PreviousSentence" disabled="@(currentIndex <= 0)">
-                <i class="bi bi-chevron-left me-1"></i> Prev
+                <i class="bi bi-chevron-left me-1"></i> @Localize["Shadowing_Prev"]
             </button>
             <div class="d-flex align-items-center gap-2">
                 <button class="btn btn-sm @(playbackSpeed == 0.6f ? "btn-ss-primary" : "btn-ss-secondary")" @onclick="() => SetPlaybackSpeed(0.6f)"
-                        disabled="@isBuffering">Slow</button>
+                        disabled="@isBuffering">@Localize["Shadowing_Slow"]</button>
                 <button class="btn btn-ss-primary px-4" @onclick="TogglePlayback"
                         disabled="@isBuffering">
                     @if (isBuffering)
@@ -90,10 +91,10 @@ else
                     }
                 </button>
                 <button class="btn btn-sm @(playbackSpeed == 1.0f ? "btn-ss-primary" : "btn-ss-secondary")" @onclick="() => SetPlaybackSpeed(1.0f)"
-                        disabled="@isBuffering">Normal</button>
+                        disabled="@isBuffering">@Localize["Shadowing_Normal"]</button>
             </div>
             <button class="btn btn-sm btn-ss-secondary" @onclick="NextSentence" disabled="@(currentIndex >= sentences.Count - 1)">
-                Next <i class="bi bi-chevron-right ms-1"></i>
+                @Localize["Shadowing_Next"] <i class="bi bi-chevron-right ms-1"></i>
             </button>
         </div>
         <div class="text-center">
@@ -154,6 +155,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        Localize.CultureChanged += OnCultureChanged;
         Logger.LogInformation("🎯 Shadowing initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
         if (!string.IsNullOrEmpty(PlanItemId))
             ActivityTimer.StartSession("Shadowing", PlanItemId);
@@ -439,6 +441,8 @@ else
         isAudioPlaying = false;
     }
 
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
+
     private void GoBack()
     {
         if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
@@ -447,6 +451,7 @@ else
 
     public ValueTask DisposeAsync()
     {
+        Localize.CultureChanged -= OnCultureChanged;
         if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
         StopPlaybackTimer();
         StopAudio();

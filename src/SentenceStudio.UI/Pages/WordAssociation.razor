@@ -1,5 +1,7 @@
 @page "/word-association"
 @attribute [Authorize]
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@implements IDisposable
 
 <div class="activity-page-wrapper">
 
@@ -9,20 +11,20 @@
 @if (showSessionSummary)
 {
     <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 60vh;">
-        <h2 class="ss-title1 mb-4"><i class="bi bi-trophy me-2"></i>Round Complete!</h2>
+        <h2 class="ss-title1 mb-4"><i class="bi bi-trophy me-2"></i>@Localize["WordAssoc_RoundComplete"]</h2>
         <div class="card card-ss p-4" style="min-width: 340px;">
             <div class="d-flex justify-content-around mb-3">
                 <div class="text-center">
                     <div class="ss-title2 text-success">@totalRelated</div>
-                    <small class="text-secondary-ss">Related</small>
+                    <small class="text-secondary-ss">@Localize["WordAssoc_Related"]</small>
                 </div>
                 <div class="text-center">
                     <div class="ss-title2 text-danger">@(totalClueCount - totalRelated)</div>
-                    <small class="text-secondary-ss">Not Related</small>
+                    <small class="text-secondary-ss">@Localize["WordAssoc_NotRelated"]</small>
                 </div>
                 <div class="text-center">
                     <div class="ss-title2" style="color: var(--bs-primary);">@totalScore</div>
-                    <small class="text-secondary-ss">Score</small>
+                    <small class="text-secondary-ss">@Localize["WordAssoc_Score"]</small>
                 </div>
             </div>
         </div>
@@ -30,31 +32,31 @@
         @if (highScoreType == "alltime")
         {
             <div class="alert alert-success mt-3 text-center">
-                <i class="bi bi-star-fill me-1"></i> NEW ALL-TIME HIGH SCORE!
+                <i class="bi bi-star-fill me-1"></i> @Localize["WordAssoc_NewAllTimeHigh"]
             </div>
         }
         else if (highScoreType == "weekly")
         {
             <div class="alert alert-info mt-3 text-center">
-                <i class="bi bi-calendar-star me-1"></i> Best score this week!
+                <i class="bi bi-calendar-star me-1"></i> @Localize["WordAssoc_BestWeek"]
             </div>
         }
 
-        <button class="btn btn-ss-primary mt-4" @onclick="PlayAgain">Play Again</button>
-        <button class="btn btn-ss-secondary mt-2" @onclick="GoBack">Done</button>
+        <button class="btn btn-ss-primary mt-4" @onclick="PlayAgain">@Localize["Common_PlayAgain"]</button>
+        <button class="btn btn-ss-secondary mt-2" @onclick="GoBack">@Localize["Common_Done"]</button>
     </div>
 }
 else if (isBusy)
 {
     <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 40vh;">
         <div class="spinner-border text-primary mb-3" role="status"></div>
-        <p class="ss-body1 text-secondary-ss">Loading vocabulary...</p>
+        <p class="ss-body1 text-secondary-ss">@Localize["WordAssoc_LoadingVocab"]</p>
     </div>
 }
 else if (words.Any())
 {
     <div class="mb-4 px-3">
-        <p class="ss-body2 text-secondary-ss mb-1">Word @(currentWordIndex + 1) of @words.Count</p>
+        <p class="ss-body2 text-secondary-ss mb-1">@string.Format(Localize["WordAssoc_Word"], currentWordIndex + 1, words.Count)</p>
         <p class="ss-display" style="line-height: 1.3;">@currentWord?.TargetLanguageTerm</p>
         @if (!string.IsNullOrEmpty(currentWord?.NativeLanguageTerm))
         {
@@ -67,8 +69,8 @@ else if (words.Any())
         @if (currentClues.Count == 0 && !isGrading)
         {
             <p class="ss-body2 text-secondary-ss fst-italic">
-                Write clues related to this word — synonyms, categories, sentences, anything connected!
-                <br /><small class="text-secondary-ss">Each related clue earns 1 point. Full sentences earn 2 points.</small>
+                @Localize["WordAssoc_WriteClues"]
+                <br /><small class="text-secondary-ss">@Localize["WordAssoc_ClueBonus"]</small>
             </p>
         }
 
@@ -114,7 +116,7 @@ else if (words.Any())
         {
             <div class="d-flex align-items-center gap-2 mt-2">
                 <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
-                <span class="ss-body2 text-secondary-ss">Grading clues...</span>
+                <span class="ss-body2 text-secondary-ss">@Localize["WordAssoc_GradingClues"]</span>
             </div>
         }
 
@@ -123,7 +125,7 @@ else if (words.Any())
             var wordScore = currentClues.Where(c => c.Graded).Sum(c => c.Related ? (c.IsCloze ? 2 : 1) : 0);
             var wordMax = currentClues.Where(c => c.Graded).Sum(c => c.IsCloze ? 2 : 1);
             <div class="mt-3 ss-body1-strong">
-                Word score: @wordScore of @wordMax possible points
+                @string.Format(Localize["WordAssoc_WordScore"], wordScore, wordMax)
             </div>
         }
     </div>
@@ -131,8 +133,8 @@ else if (words.Any())
 else
 {
     <div class="text-center p-5">
-        <p class="ss-body1 text-secondary-ss">No vocabulary available. Select a Learning Resource first.</p>
-        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
+        <p class="ss-body1 text-secondary-ss">@Localize["WordAssoc_NoVocab"]</p>
+        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">@Localize["Common_GoBack"]</button>
     </div>
 }
 </div>
@@ -145,7 +147,7 @@ else
                @bind="userInput"
                @bind:event="oninput"
                disabled="@isGrading"
-               placeholder="Type a clue, word, or sentence..." />
+               placeholder='@Localize["WordAssoc_TypeClue"]' />
         <button type="submit" class="btn btn-ss-primary">
             <i class="bi bi-plus-lg"></i>
         </button>
@@ -155,7 +157,7 @@ else
     {
         <div class="d-flex justify-content-center mb-2">
             <button class="btn btn-ss-primary w-100" @onclick="GradeCurrentWord" disabled="@isGrading">
-                <i class="bi bi-check2-all me-1"></i> Grade Clues
+                <i class="bi bi-check2-all me-1"></i> @Localize["WordAssoc_GradeClues"]
             </button>
         </div>
     }
@@ -168,13 +170,13 @@ else
         @if (currentWordIndex < words.Count - 1)
         {
             <button class="btn btn-sm btn-ss-secondary" @onclick="NextWord" disabled="@(isGrading || currentClues.Any(c => !c.Graded))">
-                Next <i class="bi bi-chevron-right"></i>
+                @Localize["WordAssoc_Next"]
             </button>
         }
         else
         {
             <button class="btn btn-sm btn-ss-primary" @onclick="FinishRound" disabled="@(isGrading || currentClues.Any(c => !c.Graded))">
-                Finish Round
+                @Localize["WordAssoc_FinishRound"]
             </button>
         }
     </div>
@@ -223,8 +225,11 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        Localize.CultureChanged += OnCultureChanged;
         await LoadWords();
     }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
 
     private async Task LoadWords()
     {
@@ -424,6 +429,11 @@ else
     }
 
     private void GoBack() => NavManager.NavigateTo("/");
+
+    void IDisposable.Dispose()
+    {
+        Localize.CultureChanged -= OnCultureChanged;
+    }
 
     private class ClueEntry
     {

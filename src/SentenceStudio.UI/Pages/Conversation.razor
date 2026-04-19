@@ -5,6 +5,7 @@
 @using SentenceStudio.Services.Speech
 @using SentenceStudio.Services.Timer
 @using Plugin.Maui.Audio
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
 @implements IAsyncDisposable
 
 <div class="d-flex flex-column h-100">
@@ -36,7 +37,7 @@
 {
     <div class="d-flex flex-column align-items-center justify-content-center flex-grow-1">
         <div class="spinner-border text-primary mb-3" role="status"></div>
-        <p class="ss-body1 text-secondary-ss">Starting conversation...</p>
+        <p class="ss-body1 text-secondary-ss">@Localize["Conversation_StartingConversation"]</p>
     </div>
 }
 else
@@ -53,7 +54,7 @@ else
     @if (scenarios.Any())
     {
         <div class="d-flex align-items-center gap-2 mb-3 flex-shrink-0">
-            <label class="ss-caption1 text-secondary-ss mb-0">Scenario:</label>
+            <label class="ss-caption1 text-secondary-ss mb-0">@Localize["Conversation_Scenario"]</label>
             <select class="form-select form-select-sm" style="width: auto;" @onchange="OnScenarioChanged">
                 @foreach (var s in scenarios)
                 {
@@ -95,14 +96,14 @@ else
                     @if (chunk.Comprehension > 0)
                     {
                         <div class="mt-1">
-                            <small class="text-secondary-ss">Comprehension: @((int)chunk.Comprehension)%</small>
+                            <small class="text-secondary-ss">@string.Format(Localize["Conversation_Comprehension"], (int)chunk.Comprehension)</small>
                         </div>
                     }
 
                     @if (!isUser)
                     {
                         <button class="btn btn-sm btn-link p-0 mt-1 text-start" @onclick="() => PlayChunkAudio(chunk)">
-                            <i class="bi bi-volume-up me-1"></i> Listen
+                            <i class="bi bi-volume-up me-1"></i> @Localize["Conversation_Listen"]
                         </button>
                     }
                 </div>
@@ -128,8 +129,8 @@ else
     {
         <div class="card card-ss p-2 mb-2 flex-shrink-0">
             <div class="d-flex align-items-center gap-2">
-                <button class="btn btn-sm btn-ss-secondary" @onclick="StopAudio"><i class="bi bi-stop-fill me-1"></i> Stop</button>
-                <span class="ss-caption1 text-secondary-ss">Playing audio...</span>
+                <button class="btn btn-sm btn-ss-secondary" @onclick="StopAudio"><i class="bi bi-stop-fill me-1"></i> @Localize["Conversation_Stop"]</button>
+                <span class="ss-caption1 text-secondary-ss">@Localize["Conversation_PlayingAudio"]</span>
             </div>
         </div>
     }
@@ -151,15 +152,15 @@ else
                    value="@userInput"
                    @oninput="OnInput"
                    @onkeydown="HandleKeyDown"
-                   placeholder="Type your message..."
+                   placeholder='@Localize["Conversation_TypeMessage"]'
                    disabled="@isWaitingForReply" />
             <button class="btn btn-ss-secondary btn-sm px-2" @onclick="ToggleQuickPhrases"
-                    title="Quick phrases" disabled="@isWaitingForReply">
+                    title='@Localize["Conversation_TypeMessage"]' disabled="@isWaitingForReply">
                 <i class="bi bi-chat-quote"></i>
             </button>
             <button class="btn btn-ss-primary px-4 text-nowrap" @onclick="SendMessage"
                     disabled="@(isWaitingForReply || string.IsNullOrWhiteSpace(userInput))">
-                Send
+                @Localize["Conversation_Send"]
             </button>
         </div>
     </div>
@@ -242,6 +243,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        Localize.CultureChanged += OnCultureChanged;
         Logger.LogInformation("🎯 Conversation initialized — planItemId={PlanItemId}, resourceId={ResourceId}, skillId={SkillId}",
             PlanItemId ?? "(none)", ResourceIdParam ?? "(none)", SkillIdParam ?? "(none)");
         if (!string.IsNullOrEmpty(PlanItemId))
@@ -432,6 +434,8 @@ else
         if (e.Key == "Enter") await SendMessage();
     }
 
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
+
     private void StopAudio()
     {
         audioPlayer?.Stop();
@@ -442,6 +446,7 @@ else
 
     public ValueTask DisposeAsync()
     {
+        Localize.CultureChanged -= OnCultureChanged;
         if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
         StopAudio();
         return ValueTask.CompletedTask;

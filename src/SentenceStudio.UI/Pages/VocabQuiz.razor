@@ -2,6 +2,7 @@
 @attribute [Authorize]
 @using Plugin.Maui.Audio
 @using SentenceStudio.Shared.Services
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
 @implements IAsyncDisposable
 
 <div class="activity-page-wrapper">
@@ -27,24 +28,24 @@ else
 @if (showSessionSummary)
 {
     <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 60vh;">
-        <h2 class="ss-title1 mb-4"><i class="bi bi-journal-check me-2"></i>Session Summary</h2>
+        <h2 class="ss-title1 mb-4"><i class="bi bi-journal-check me-2"></i>@Localize["VocabQuiz_SessionSummary"]</h2>
         <div class="card card-ss p-4" style="min-width: 340px;">
             <div class="d-flex justify-content-around mb-3">
                 <div class="text-center">
                     <div class="ss-title2 text-success">@correctCount</div>
-                    <small class="text-secondary-ss">Correct</small>
+                    <small class="text-secondary-ss">@Localize["Common_Correct"]</small>
                 </div>
                 <div class="text-center">
                     <div class="ss-title2">@totalTurns</div>
-                    <small class="text-secondary-ss">Total</small>
+                    <small class="text-secondary-ss">@Localize["VocabQuiz_Total"]</small>
                 </div>
                 <div class="text-center">
                     <div class="ss-title2 text-success">@wordsMastered</div>
-                    <small class="text-secondary-ss">Mastered</small>
+                    <small class="text-secondary-ss">@Localize["VocabQuiz_Mastered"]</small>
                 </div>
                 <div class="text-center">
                     <div class="ss-title2">@roundsCompleted</div>
-                    <small class="text-secondary-ss">Rounds</small>
+                    <small class="text-secondary-ss">@Localize["VocabQuiz_Rounds"]</small>
                 </div>
             </div>
             @if (sessionItems.Any())
@@ -64,8 +65,8 @@ else
                 }
             }
         </div>
-        <button class="btn btn-ss-primary mt-4" @onclick="SetupNewRound">Continue</button>
-        <button class="btn btn-ss-secondary mt-2" @onclick="GoBack">Done</button>
+        <button class="btn btn-ss-primary mt-4" @onclick="SetupNewRound">@Localize["VocabQuiz_ContinueQuiz"]</button>
+        <button class="btn btn-ss-secondary mt-2" @onclick="GoBack">@Localize["Common_Done"]</button>
     </div>
 }
 else if (isBusy)
@@ -82,7 +83,7 @@ else if (currentItem != null)
             <div class="card card-ss p-4 mb-3">
                 <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-start gap-3 mb-3">
                     <div>
-                        <span class="badge bg-primary-subtle text-primary-emphasis mb-2">Sentence shortcut</span>
+                        <span class="badge bg-primary-subtle text-primary-emphasis mb-2">@Localize["VocabQuiz_SentenceShortcut"]</span>
                         <h2 class="ss-title2 mb-1" style="color: var(--bs-primary);">@currentItem.Word.TargetLanguageTerm</h2>
                         <p class="ss-body2 text-secondary-ss mb-0">@currentItem.Word.NativeLanguageTerm</p>
                     </div>
@@ -92,7 +93,7 @@ else if (currentItem != null)
                                 class="btn btn-sm btn-ss-secondary align-self-start"
                                 disabled="@isSentenceShortcutSubmitting"
                                 @onclick="ContinueAfterSentenceShortcut">
-                            <i class="bi bi-arrow-right me-1"></i>Continue quiz
+                            <i class="bi bi-arrow-right me-1"></i>@Localize["VocabQuiz_ContinueQuiz"]
                         </button>
                     }
                     else
@@ -101,16 +102,16 @@ else if (currentItem != null)
                                 class="btn btn-sm btn-ss-secondary align-self-start"
                                 disabled="@isSentenceShortcutSubmitting"
                                 @onclick="CancelSentenceShortcut">
-                            <i class="bi bi-x-lg me-1"></i>Cancel
+                            <i class="bi bi-x-lg me-1"></i>@Localize["Common_Cancel"]
                         </button>
                     }
                 </div>
 
                 <p class="ss-body1 mb-2">
-                    Write one or more sentences using <strong>@currentItem.Word.TargetLanguageTerm</strong>.
+                    @string.Format(Localize["VocabQuiz_WriteOneSentence"], currentItem.Word.TargetLanguageTerm)
                 </p>
                 <p class="ss-body2 text-secondary-ss mb-3">
-                    Only meaningful usage of the target word counts toward mastery. Broader grammar feedback is still shown, but it won't penalize you by itself.
+                    @Localize["VocabQuiz_OnlyMeaningful"]
                 </p>
 
                 <form @onsubmit="SubmitSentenceShortcut" @onsubmit:preventDefault>
@@ -122,7 +123,7 @@ else if (currentItem != null)
                               placeholder="@GetSentenceShortcutPlaceholder()"></textarea>
 
                     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
-                        <span class="ss-caption1 text-secondary-ss">Separate multiple sentences with a new line or punctuation.</span>
+                        <span class="ss-caption1 text-secondary-ss">@Localize["VocabQuiz_SeparateMultiple"]</span>
                         <button type="submit"
                                 class="btn btn-ss-primary"
                                 disabled="@(isSentenceShortcutSubmitting || string.IsNullOrWhiteSpace(sentenceShortcutInput))">
@@ -132,7 +133,7 @@ else if (currentItem != null)
                             }
                             else
                             {
-                                <span><i class="bi bi-send me-1"></i>Grade sentences</span>
+                                <span><i class="bi bi-send me-1"></i>@Localize["VocabQuiz_GradeSentences"]</span>
                             }
                         </button>
                     </div>
@@ -153,16 +154,16 @@ else if (currentItem != null)
                             <div class="flex-grow-1">
                                 <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
                                     <span class="badge @(result.UsageCorrect ? "bg-success" : "bg-warning text-dark")">
-                                        @(result.UsageCorrect ? "Counts toward mastery" : "Needs another try")
+                                        @(result.UsageCorrect ? Localize["VocabQuiz_CountsTowardMastery"] : Localize["VocabQuiz_NeedsAnotherTry"])
                                     </span>
                                     <span class="ss-caption1 text-secondary-ss">@((int)result.Accuracy)% accuracy • @((int)result.Fluency)% fluency</span>
                                 </div>
                                 <p class="ss-body1 mb-1">@result.Sentence</p>
-                                <small class="d-block text-secondary-ss"><strong>Target-word feedback:</strong> @result.UsageExplanation</small>
+                                <small class="d-block text-secondary-ss"><strong>@Localize["VocabQuiz_TargetWordFeedback"]</strong> @result.UsageExplanation</small>
 
                                 @if (!string.IsNullOrWhiteSpace(result.RecommendedSentence))
                                 {
-                                    <small class="d-block text-secondary-ss mt-1"><strong>Suggested:</strong> @result.RecommendedSentence</small>
+                                    <small class="d-block text-secondary-ss mt-1"><strong>@Localize["Common_Suggested"]</strong> @result.RecommendedSentence</small>
                                 }
                             </div>
 
@@ -174,19 +175,19 @@ else if (currentItem != null)
                             || !string.IsNullOrWhiteSpace(result.GrammarNotes))
                         {
                             <details class="mt-2">
-                                <summary class="ss-caption1 text-secondary-ss" style="cursor: pointer;">Show details</summary>
+                                <summary class="ss-caption1 text-secondary-ss" style="cursor: pointer;">@Localize["Writing_ShowDetails"]</summary>
                                 <div class="mt-1">
                                     @if (!string.IsNullOrWhiteSpace(result.AccuracyExplanation))
                                     {
-                                        <small class="d-block text-secondary-ss"><strong>Accuracy:</strong> @result.AccuracyExplanation</small>
+                                        <small class="d-block text-secondary-ss"><strong>@Localize["Common_Accuracy"]:</strong> @result.AccuracyExplanation</small>
                                     }
                                     @if (!string.IsNullOrWhiteSpace(result.FluencyExplanation))
                                     {
-                                        <small class="d-block text-secondary-ss"><strong>Fluency:</strong> @result.FluencyExplanation</small>
+                                        <small class="d-block text-secondary-ss"><strong>@Localize["Writing_Fluency"]:</strong> @result.FluencyExplanation</small>
                                     }
                                     @if (!string.IsNullOrWhiteSpace(result.GrammarNotes))
                                     {
-                                        <small class="d-block text-secondary-ss"><strong>Notes:</strong> @result.GrammarNotes</small>
+                                        <small class="d-block text-secondary-ss"><strong>@Localize["Writing_Notes"]</strong> @result.GrammarNotes</small>
                                     }
                                 </div>
                             </details>
@@ -332,11 +333,11 @@ else if (currentItem != null)
         else
         {
             <form @onsubmit="SubmitTextInput" @onsubmit:preventDefault class="mx-auto" style="max-width: 500px;">
-                <label class="form-label text-secondary-ss">Type the translation</label>
+                <label class="form-label text-secondary-ss">@Localize["VocabQuiz_TypeTranslation"]</label>
                 <input id="quiz-text-input" type="text" class="form-control form-control-ss form-control-lg"
                        @bind="userInput"
                        disabled="@(showAnswer && !requireCorrectTyping)"
-                       placeholder="@(requireCorrectTyping ? "Type the correct answer to continue" : "Type your answer")" />
+                       placeholder='@(requireCorrectTyping ? Localize["VocabQuiz_TypeCorrect"] : Localize["VocabQuiz_TypeAnswer"])' />
             </form>
         }
 
@@ -344,14 +345,14 @@ else if (currentItem != null)
         @if (showAnswer && !requireCorrectTyping)
         {
             <div class="text-center mt-4">
-                <button class="btn btn-ss-primary px-5" @onclick="NextItem">Next <i class="bi bi-chevron-right ms-1"></i></button>
+                <button class="btn btn-ss-primary px-5" @onclick="NextItem">@Localize["VocabQuiz_Next"] <i class="bi bi-chevron-right ms-1"></i></button>
             </div>
         }
         else if (showAnswer && requireCorrectTyping)
         {
             <div class="text-center mt-3">
                 <button class="btn btn-outline-success btn-sm" @onclick="OverrideAsCorrect">
-                    <i class="bi bi-check2 me-1"></i>I was correct
+                    <i class="bi bi-check2 me-1"></i>@Localize["VocabQuiz_IWasCorrect"]
                 </button>
             </div>
         }
@@ -360,8 +361,8 @@ else if (currentItem != null)
 else
 {
     <div class="text-center p-5">
-        <p class="ss-body1 text-secondary-ss">No vocabulary loaded.</p>
-        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
+        <p class="ss-body1 text-secondary-ss">@Localize["VocabQuiz_NoVocab"]</p>
+        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">@Localize["Common_GoBack"]</button>
     </div>
 }
 </div> @* end activity-content *@
@@ -370,7 +371,7 @@ else
 {
     <div class="activity-footer d-flex justify-content-between align-items-center">
         <span id="quiz-progress" class="ss-body1 text-secondary-ss">@(currentTurnInRound + 1) / @roundWordOrder.Count</span>
-        <span id="quiz-correct-count" class="badge bg-success rounded-pill px-3"><i class="bi bi-check-lg me-1"></i>@correctCount correct</span>
+        <span id="quiz-correct-count" class="badge bg-success rounded-pill px-3"><i class="bi bi-check-lg me-1"></i>@string.Format(Localize["VocabQuiz_CorrectCount"], correctCount)</span>
     </div>
 }
 
@@ -380,7 +381,7 @@ else
     <div id="quiz-info-panel" class="offcanvas offcanvas-bottom show" tabindex="-1"
          style="height: auto; max-height: 70vh; border-radius: var(--bs-border-radius-xl) var(--bs-border-radius-xl) 0 0; z-index: 1050;">
         <div class="offcanvas-header pb-1 border-bottom">
-            <h5 class="ss-title3 mb-0"><i class="bi bi-info-circle me-2"></i>Learning Details</h5>
+            <h5 class="ss-title3 mb-0"><i class="bi bi-info-circle me-2"></i>@Localize["VocabQuiz_LearningDetails"]</h5>
             <button type="button" class="btn-close" @onclick="() => showInfoPanel = false"></button>
         </div>
         <div class="offcanvas-body pt-2" style="overflow-y: auto;">
@@ -403,12 +404,12 @@ else
 
             <div class="row g-2 mb-3">
                 <div class="col-6">
-                    <small class="text-secondary-ss d-block">IsKnown</small>
-                    <span class="ss-body2 fw-bold">@(p?.IsKnown == true ? "Yes" : "No")</span>
+                    <small class="text-secondary-ss d-block">@Localize["VocabQuiz_IsKnown"]</small>
+                    <span class="ss-body2 fw-bold">@(p?.IsKnown == true ? Localize["VocabQuiz_Yes"] : Localize["VocabQuiz_No"])</span>
                 </div>
                 <div class="col-6">
                     <small class="text-secondary-ss d-block">IsUserDeclared</small>
-                    <span class="ss-body2 fw-bold">@(p?.IsUserDeclared == true ? "Yes" : "No")</span>
+                    <span class="ss-body2 fw-bold">@(p?.IsUserDeclared == true ? Localize["VocabQuiz_Yes"] : Localize["VocabQuiz_No"])</span>
                 </div>
                 <div class="col-6">
                     <small class="text-secondary-ss d-block">VerificationState</small>
@@ -616,6 +617,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        Localize.CultureChanged += OnCultureChanged;
         Logger.LogInformation("🎯 VocabQuiz initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
         if (!string.IsNullOrEmpty(PlanItemId))
             ActivityTimer.StartSession("VocabularyReview", PlanItemId);
@@ -866,7 +868,7 @@ else
     private string GetSentenceShortcutPlaceholder()
     {
         var targetWord = currentItem?.Word?.TargetLanguageTerm ?? "the word";
-        return $"Write one or more sentences using \"{targetWord}\".\nFor example: {targetWord} ...";
+        return string.Format(Localize["VocabQuiz_SentencePlaceholder"], targetWord);
     }
 
     private async Task SubmitSentenceShortcut()
@@ -1368,6 +1370,8 @@ else
     private void GoBack()
     {
         if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
+        audioPlayer?.Stop();
+        audioPlayer?.Dispose();
         NavManager.NavigateTo("/");
     }
 
@@ -1451,6 +1455,7 @@ else
 
     public async ValueTask DisposeAsync()
     {
+        Localize.CultureChanged -= OnCultureChanged;
         await RecordPendingAttemptAsync();
         if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
         autoAdvanceCts?.Cancel();
@@ -1476,10 +1481,10 @@ else
         promptTitle = showTextPrompt
             ? questionText
             : showPhotoPromptControl && showAudioPromptControl
-                ? "Listen and look, then answer"
+                ? Localize["VocabQuiz_ListenLookAnswer"]
                 : showPhotoPromptControl
-                    ? "Look and answer"
-                    : "Listen and answer";
+                    ? Localize["VocabQuiz_LookAndAnswer"]
+                    : Localize["VocabQuiz_ListenAndAnswer"];
     }
 
     private bool HasPromptImage => !string.IsNullOrWhiteSpace(currentItem?.Word?.MnemonicImageUri);
@@ -1532,6 +1537,8 @@ else
         "Mixed" => random.Next(2) == 0,
         _ => false
     };
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
 
     private string GetPromptText(VocabularyWord word) => promptUsesNativeLanguage
         ? word.NativeLanguageTerm ?? ""

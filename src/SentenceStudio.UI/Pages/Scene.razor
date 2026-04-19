@@ -3,6 +3,7 @@
 @using SentenceStudio.Shared.Models
 @using SentenceStudio.Services
 @using SentenceStudio.Services.Timer
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
 @implements IAsyncDisposable
 
 <div class="activity-page-wrapper">
@@ -19,7 +20,7 @@
 {
     <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 40vh;">
         <div class="spinner-border text-primary mb-3" role="status"></div>
-        <p class="ss-body1 text-secondary-ss">Loading scene...</p>
+        <p class="ss-body1 text-secondary-ss">@Localize["Scene_LoadingScene"]</p>
     </div>
 }
 else if (!string.IsNullOrEmpty(imageUrl))
@@ -41,7 +42,7 @@ else if (!string.IsNullOrEmpty(imageUrl))
 
             @* Graded sentences *@
             <div class="col-md-6">
-                <h3 class="ss-title3 mb-3">Results</h3>
+                <h3 class="ss-title3 mb-3">@Localize["Scene_Results"]</h3>
                 @if (gradedSentences.Any())
                 {
                     <div class="d-flex flex-column gap-2">
@@ -69,7 +70,7 @@ else if (!string.IsNullOrEmpty(imageUrl))
                                     <div class="mt-2 pt-2 border-top border-secondary-subtle">
                                         @if (sentence.Fluency > 0)
                                         {
-                                            <small class="d-block text-secondary-ss">Fluency: @((int)sentence.Fluency)%</small>
+                                            <small class="d-block text-secondary-ss">@Localize["Writing_Fluency"]: @((int)sentence.Fluency)%</small>
                                         }
                                         @if (!string.IsNullOrEmpty(sentence.FluencyExplanation))
                                         {
@@ -92,7 +93,7 @@ else if (!string.IsNullOrEmpty(imageUrl))
                 }
                 else
                 {
-                    <p class="text-secondary-ss ss-body2">Submit a description to see your score here.</p>
+                    <p class="text-secondary-ss ss-body2">@Localize["Scene_SubmitDescription"]</p>
                 }
             </div>
         </div>
@@ -103,8 +104,8 @@ else if (!string.IsNullOrEmpty(imageUrl))
         <form @onsubmit="SubmitDescription" @onsubmit:preventDefault class="d-flex gap-2 align-items-center">
             <input type="text" class="form-control form-control-ss flex-grow-1"
                    @bind="userInput"
-                   placeholder="Describe what you see..." />
-            <button type="button" class="btn btn-ss-secondary btn-sm" @onclick="LoadNewScene" title="New scene">
+                   placeholder='@Localize["Scene_DescribeWhatYouSee"]' />
+            <button type="button" class="btn btn-ss-secondary btn-sm" @onclick="LoadNewScene" title='@Localize["Scene_LoadingScene"]'>
                 <i class="bi bi-arrow-clockwise"></i>
             </button>
             <button type="submit" class="btn btn-ss-primary"
@@ -124,9 +125,9 @@ else if (!string.IsNullOrEmpty(imageUrl))
 else
 {
     <div class="text-center p-5">
-        <p class="ss-body1 text-secondary-ss">No scene images available.</p>
-        <button class="btn btn-ss-primary mt-2" @onclick="OpenGallery"><i class="bi bi-images me-1"></i> Browse Gallery</button>
-        <button class="btn btn-ss-secondary mt-2 ms-2" @onclick="GoBack">Go Back</button>
+        <p class="ss-body1 text-secondary-ss">@Localize["Scene_NoSceneImages"]</p>
+        <button class="btn btn-ss-primary mt-2" @onclick="OpenGallery"><i class="bi bi-images me-1"></i> @Localize["Scene_BrowseGallery"]</button>
+        <button class="btn btn-ss-secondary mt-2 ms-2" @onclick="GoBack">@Localize["Common_GoBack"]</button>
     </div>
 }
 
@@ -139,19 +140,19 @@ else
     <div class="scene-gallery-overlay">
         @* Header *@
         <div class="d-flex justify-content-between align-items-center p-3 border-bottom">
-            <h2 class="ss-title2 mb-0">Image Gallery</h2>
+            <h2 class="ss-title2 mb-0">@Localize["Scene_ImageGallery"]</h2>
             <div class="d-flex gap-1">
                 @if (isSelecting)
                 {
                     <button class="btn btn-sm btn-ss-danger" @onclick="DeleteSelectedImages"
                             disabled="@(!selectedImageIds.Any())">
-                        <i class="bi bi-trash me-1"></i> Delete (@selectedImageIds.Count)
+                        <i class="bi bi-trash me-1"></i> @string.Format(Localize["Scene_Delete"], selectedImageIds.Count)
                     </button>
                 }
                 <button class="btn btn-sm btn-icon text-secondary-ss" @onclick="ToggleSelectMode" title="Select multiple">
                     <i class="bi bi-check2-square" style="font-size: 1.25rem;"></i>
                 </button>
-                <button class="btn btn-sm btn-icon text-secondary-ss" @onclick="CloseGallery" title="Close">
+                <button class="btn btn-sm btn-icon text-secondary-ss" @onclick="CloseGallery" title='@Localize["Common_Cancel"]'>
                     <i class="bi bi-x-lg" style="font-size: 1.25rem;"></i>
                 </button>
             </div>
@@ -160,10 +161,10 @@ else
         @* Add image bar *@
         <div class="d-flex gap-2 p-3 border-bottom">
             <input type="url" class="form-control form-control-ss flex-grow-1"
-                   @bind="newImageUrl" placeholder="Paste image URL to add..." />
+                   @bind="newImageUrl" placeholder='@Localize["Scene_PasteImageURL"]' />
             <button class="btn btn-ss-primary" @onclick="AddImage"
                     disabled="@string.IsNullOrWhiteSpace(newImageUrl)">
-                <i class="bi bi-plus-lg me-1"></i> Add
+                <i class="bi bi-plus-lg me-1"></i> @Localize["Scene_AddImage"]
             </button>
         </div>
 
@@ -192,7 +193,7 @@ else
                         <img src="@img.Url" alt="@(img.Description ?? "Scene")" loading="lazy" />
                         @if (isActive)
                         {
-                            <span class="scene-gallery-active-badge">Current</span>
+                            <span class="scene-gallery-active-badge">@Localize["Scene_Current"]</span>
                         }
                         @if (isSelecting)
                         {
@@ -262,6 +263,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        Localize.CultureChanged += OnCultureChanged;
         Logger.LogInformation("🎯 Scene initialized — planItemId={PlanItemId}, resourceId={ResourceId}, skillId={SkillId}",
             PlanItemId ?? "(none)", ResourceIdParam ?? "(none)", SkillIdParam ?? "(none)");
         if (!string.IsNullOrEmpty(PlanItemId))
@@ -485,6 +487,8 @@ else
         }
     }
 
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
+
     private void GoBack()
     {
         if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
@@ -493,6 +497,7 @@ else
 
     public ValueTask DisposeAsync()
     {
+        Localize.CultureChanged -= OnCultureChanged;
         if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
         return ValueTask.CompletedTask;
     }

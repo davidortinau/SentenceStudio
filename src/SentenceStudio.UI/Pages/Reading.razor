@@ -6,6 +6,7 @@
 @using SentenceStudio.Services.Speech
 @using SentenceStudio.Services.Timer
 @using Plugin.Maui.Audio
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
 @implements IAsyncDisposable
 
 <div class="reading-page">
@@ -26,7 +27,7 @@
         {
             <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 40vh;">
                 <div class="spinner-border text-primary mb-3" role="status"></div>
-                <p class="ss-body1 text-secondary-ss">Loading passage...</p>
+                <p class="ss-body1 text-secondary-ss">@Localize["Reading_LoadingPassage"]</p>
             </div>
         }
         else if (!string.IsNullOrEmpty(errorMessage))
@@ -34,7 +35,7 @@
             <div class="text-center p-5">
                 <i class="bi bi-exclamation-triangle fs-1 text-warning-ss d-block mb-3"></i>
                 <p class="ss-body1 text-secondary-ss">@errorMessage</p>
-                <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
+                <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">@Localize["Common_GoBack"]</button>
             </div>
         }
         else if (resource is not null && sentences.Any())
@@ -77,8 +78,8 @@
         else
         {
             <div class="text-center p-5">
-                <p class="ss-body1 text-secondary-ss">No reading content available.</p>
-                <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
+                <p class="ss-body1 text-secondary-ss">@Localize["Reading_NoContent"]</p>
+                <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">@Localize["Common_GoBack"]</button>
             </div>
         }
     </div>
@@ -97,7 +98,7 @@
                 {
                     <div class="d-flex align-items-center gap-2">
                         <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
-                        <span class="ss-body2 text-secondary-ss">Looking up definition...</span>
+                        <span class="ss-body2 text-secondary-ss">@Localize["Reading_LookingUpDef"]</span>
                     </div>
                 }
                 else if (!string.IsNullOrEmpty(wordDefinition))
@@ -107,7 +108,7 @@
                 @if (selectedVocabWord is not null)
                 {
                     <span class="badge bg-success text-white mb-2">
-                        <i class="bi bi-check-circle me-1"></i>In your vocabulary
+                        <i class="bi bi-check-circle me-1"></i>@Localize["Reading_InYourVocab"]
                     </span>
                 }
                 else if (!isTranslating && !string.IsNullOrEmpty(wordDefinition) && wordDefinition != "(translation unavailable)")
@@ -116,13 +117,13 @@
                     {
                         <div class="d-flex align-items-center gap-2">
                             <div class="spinner-border spinner-border-sm" role="status"></div>
-                            <span class="ss-body2">Saving...</span>
+                            <span class="ss-body2">@Localize["Reading_Saving"]</span>
                         </div>
                     }
                     else
                     {
                         <button class="btn btn-sm btn-ss-primary" @onclick="SaveWordToVocabulary">
-                            <i class="bi bi-bookmark-plus me-1"></i> Remember This Word
+                            <i class="bi bi-bookmark-plus me-1"></i> @Localize["Reading_RememberThisWord"]
                         </button>
                     }
                 }
@@ -755,6 +756,8 @@
         isSavingWord = false;
     }
 
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
+
     // ── Navigation ──
 
     private async Task GoBack()
@@ -803,6 +806,7 @@
 
     public ValueTask DisposeAsync()
     {
+        Localize.CultureChanged -= OnCultureChanged;
         if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
         if (_audioManager is not null)
         {
