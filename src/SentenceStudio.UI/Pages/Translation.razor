@@ -1,5 +1,6 @@
 @page "/translation"
 @attribute [Authorize]
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
 @implements IAsyncDisposable
 
 <div class="activity-page-wrapper">
@@ -10,36 +11,36 @@
 @if (showSessionSummary)
 {
     <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 60vh;">
-        <h2 class="ss-title1 mb-4"><i class="bi bi-journal-check me-2"></i>Session Complete!</h2>
+        <h2 class="ss-title1 mb-4"><i class="bi bi-journal-check me-2"></i>@Localize["Common_SessionComplete"]</h2>
         <div class="card card-ss p-4" style="min-width: 340px;">
             <div class="d-flex justify-content-around mb-3">
                 <div class="text-center">
                     <div class="ss-title2 text-success">@sessionGradedCount</div>
-                    <small class="text-secondary-ss">Graded</small>
+                    <small class="text-secondary-ss">@Localize["Common_Graded"]</small>
                 </div>
                 <div class="text-center">
                     <div class="ss-title2" style="color: var(--bs-primary);">
                         @(sessionGradedCount > 0 ? (int)(sessionAccuracySum / sessionGradedCount) : 0)%
                     </div>
-                    <small class="text-secondary-ss">Avg Accuracy</small>
+                    <small class="text-secondary-ss">@Localize["Common_AvgAccuracy"]</small>
                 </div>
                 <div class="text-center">
                     <div class="ss-title2" style="color: var(--bs-info);">
                         @(sessionGradedCount > 0 ? (int)(sessionFluencySum / sessionGradedCount) : 0)%
                     </div>
-                    <small class="text-secondary-ss">Avg Fluency</small>
+                    <small class="text-secondary-ss">@Localize["Common_AvgFluency"]</small>
                 </div>
             </div>
         </div>
-        <button class="btn btn-ss-primary mt-4" @onclick="ContinueAfterSummary">Continue Practice</button>
-        <button class="btn btn-ss-secondary mt-2" @onclick="GoBack">Done</button>
+        <button class="btn btn-ss-primary mt-4" @onclick="ContinueAfterSummary">@Localize["Common_ContinuePractice"]</button>
+        <button class="btn btn-ss-secondary mt-2" @onclick="GoBack">@Localize["Common_Done"]</button>
     </div>
 }
 else if (isBusy)
 {
     <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 40vh;">
         <div class="spinner-border text-primary mb-3" role="status"></div>
-        <p class="ss-body1 text-secondary-ss">Loading sentences...</p>
+        <p class="ss-body1 text-secondary-ss">@Localize["Translation_LoadingSentences"]</p>
     </div>
 }
 else if (sentences.Any())
@@ -57,7 +58,7 @@ else if (sentences.Any())
             @if (!string.IsNullOrEmpty(recommendedTranslation))
             {
                 <small class="text-secondary-ss mt-1 d-block">
-                    <strong>Suggested:</strong> @recommendedTranslation
+                    <strong>@Localize["Common_Suggested"]</strong> @recommendedTranslation
                 </small>
             }
         </div>
@@ -66,8 +67,8 @@ else if (sentences.Any())
 else
 {
     <div class="text-center p-5">
-        <p class="ss-body1 text-secondary-ss">No sentences available.</p>
-        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
+        <p class="ss-body1 text-secondary-ss">@Localize["Translation_NoSentences"]</p>
+        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">@Localize["Common_GoBack"]</button>
     </div>
 }
 </div>
@@ -91,9 +92,9 @@ else
     <form @onsubmit="SubmitInput" @onsubmit:preventDefault class="d-flex gap-2 mb-2">
         <input type="text" class="form-control form-control-ss form-control-lg flex-grow-1"
                @bind="userInput"
-               placeholder="Translate to @targetLanguage..." />
+               placeholder='@string.Format(Localize["Translation_TranslateTo"], targetLanguage)' />
         <button type="button" class="btn btn-ss-secondary" @onclick="ToggleInputMode">
-            @(inputMode == "Text" ? "Blocks" : "Type")
+            @(inputMode == "Text" ? Localize["Translation_Blocks"] : Localize["Translation_Type"])
         </button>
         <button type="submit" class="btn btn-ss-primary"
                 disabled="@isGrading">
@@ -103,7 +104,7 @@ else
             }
             else
             {
-                <span>Grade</span>
+                <span>@Localize["Translation_Grade"]</span>
             }
         </button>
     </form>
@@ -168,11 +169,14 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        Localize.CultureChanged += OnCultureChanged;
         Logger.LogInformation("🎯 Translation initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
         if (!string.IsNullOrEmpty(PlanItemId))
             ActivityTimer.StartSession("Translation", PlanItemId);
         await LoadSentences();
     }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
 
     private async Task LoadSentences()
     {
@@ -377,6 +381,7 @@ else
 
     public ValueTask DisposeAsync()
     {
+        Localize.CultureChanged -= OnCultureChanged;
         if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
         return ValueTask.CompletedTask;
     }

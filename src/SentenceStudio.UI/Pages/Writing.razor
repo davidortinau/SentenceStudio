@@ -1,5 +1,6 @@
 @page "/writing"
 @attribute [Authorize]
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
 @implements IAsyncDisposable
 
 <div class="activity-page-wrapper">
@@ -10,36 +11,36 @@
 @if (showSessionSummary)
 {
     <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 60vh;">
-        <h2 class="ss-title1 mb-4"><i class="bi bi-journal-check me-2"></i>Session Complete!</h2>
+        <h2 class="ss-title1 mb-4"><i class="bi bi-journal-check me-2"></i>@Localize["Common_SessionComplete"]</h2>
         <div class="card card-ss p-4" style="min-width: 340px;">
             <div class="d-flex justify-content-around mb-3">
                 <div class="text-center">
                     <div class="ss-title2 text-success">@sessionGradedCount</div>
-                    <small class="text-secondary-ss">Graded</small>
+                    <small class="text-secondary-ss">@Localize["Common_Graded"]</small>
                 </div>
                 <div class="text-center">
                     <div class="ss-title2" style="color: var(--bs-primary);">
                         @(sessionGradedCount > 0 ? (int)(sessionAccuracySum / sessionGradedCount) : 0)%
                     </div>
-                    <small class="text-secondary-ss">Avg Accuracy</small>
+                    <small class="text-secondary-ss">@Localize["Common_AvgAccuracy"]</small>
                 </div>
                 <div class="text-center">
                     <div class="ss-title2" style="color: var(--bs-info);">
                         @(sessionGradedCount > 0 ? (int)(sessionFluencySum / sessionGradedCount) : 0)%
                     </div>
-                    <small class="text-secondary-ss">Avg Fluency</small>
+                    <small class="text-secondary-ss">@Localize["Common_AvgFluency"]</small>
                 </div>
             </div>
         </div>
-        <button class="btn btn-ss-primary mt-4" @onclick="ContinueAfterSummary">Continue Practice</button>
-        <button class="btn btn-ss-secondary mt-2" @onclick="GoBack">Done</button>
+        <button class="btn btn-ss-primary mt-4" @onclick="ContinueAfterSummary">@Localize["Common_ContinuePractice"]</button>
+        <button class="btn btn-ss-secondary mt-2" @onclick="GoBack">@Localize["Common_Done"]</button>
     </div>
 }
 else if (isBusy)
 {
     <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 40vh;">
         <div class="spinner-border text-primary mb-3" role="status"></div>
-        <p class="ss-body1 text-secondary-ss">Loading vocabulary...</p>
+        <p class="ss-body1 text-secondary-ss">@Localize["Writing_LoadingVocab"]</p>
     </div>
 }
 else if (vocabBlocks.Any())
@@ -57,7 +58,7 @@ else if (vocabBlocks.Any())
                             @if (!string.IsNullOrEmpty(sentence.RecommendedSentence))
                             {
                                 <small class="text-secondary-ss d-block">
-                                    <strong>Suggested:</strong> @sentence.RecommendedSentence
+                                    <strong>@Localize["Common_Suggested"]</strong> @sentence.RecommendedSentence
                                 </small>
                             }
                         </div>
@@ -66,14 +67,14 @@ else if (vocabBlocks.Any())
                             {
                                 <div class="text-center">
                                     <div class="ss-body2" style="color: @GetScoreColor(sentence.Accuracy);">@((int)sentence.Accuracy)%</div>
-                                    <small class="text-secondary-ss">Accuracy</small>
+                                    <small class="text-secondary-ss">@Localize["Common_Accuracy"]</small>
                                 </div>
                             }
                             @if (sentence.Fluency > 0)
                             {
                                 <div class="text-center">
                                     <div class="ss-body2" style="color: @GetScoreColor(sentence.Fluency);">@((int)sentence.Fluency)%</div>
-                                    <small class="text-secondary-ss">Fluency</small>
+                                    <small class="text-secondary-ss">@Localize["Writing_Fluency"]</small>
                                 </div>
                             }
                         </div>
@@ -81,19 +82,19 @@ else if (vocabBlocks.Any())
                     @if (!string.IsNullOrEmpty(sentence.GrammarNotes))
                     {
                         <details class="mt-2">
-                            <summary class="ss-caption1 text-secondary-ss" style="cursor: pointer;">Show details</summary>
+                            <summary class="ss-caption1 text-secondary-ss" style="cursor: pointer;">@Localize["Writing_ShowDetails"]</summary>
                             <div class="mt-1">
                                 @if (!string.IsNullOrEmpty(sentence.AccuracyExplanation))
                                 {
-                                    <small class="d-block text-secondary-ss"><strong>Accuracy:</strong> @sentence.AccuracyExplanation</small>
+                                    <small class="d-block text-secondary-ss"><strong>@Localize["Common_Accuracy"]:</strong> @sentence.AccuracyExplanation</small>
                                 }
                                 @if (!string.IsNullOrEmpty(sentence.FluencyExplanation))
                                 {
-                                    <small class="d-block text-secondary-ss"><strong>Fluency:</strong> @sentence.FluencyExplanation</small>
+                                    <small class="d-block text-secondary-ss"><strong>@Localize["Writing_Fluency"]:</strong> @sentence.FluencyExplanation</small>
                                 }
                                 @if (!string.IsNullOrEmpty(sentence.GrammarNotes))
                                 {
-                                    <small class="d-block text-secondary-ss"><strong>Notes:</strong> @sentence.GrammarNotes</small>
+                                    <small class="d-block text-secondary-ss"><strong>@Localize["Writing_Notes"]</strong> @sentence.GrammarNotes</small>
                                 }
                             </div>
                         </details>
@@ -105,7 +106,7 @@ else if (vocabBlocks.Any())
 
     @* Vocabulary blocks *@
     <div class="mb-3">
-        <p class="ss-body2 text-secondary-ss mb-2">Choose vocabulary to use:</p>
+        <p class="ss-body2 text-secondary-ss mb-2">@Localize["Writing_ChooseVocab"]</p>
         <div class="d-flex flex-wrap gap-2">
             @foreach (var word in vocabBlocks)
             {
@@ -123,8 +124,8 @@ else if (vocabBlocks.Any())
 else
 {
     <div class="text-center p-5">
-        <p class="ss-body1 text-secondary-ss">No vocabulary available. Select a resource with vocabulary first.</p>
-        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
+        <p class="ss-body1 text-secondary-ss">@Localize["Writing_NoVocab"]</p>
+        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">@Localize["Common_GoBack"]</button>
     </div>
 }
 </div>
@@ -135,7 +136,7 @@ else
     <form @onsubmit="SubmitInput" @onsubmit:preventDefault class="d-flex gap-2 mb-2">
         <input type="text" class="form-control form-control-ss form-control-lg flex-grow-1"
                @bind="userInput"
-               placeholder="Write a sentence using the vocabulary..." />
+               placeholder='@Localize["Writing_WriteSentence"]' />
         <button type="button" class="btn btn-ss-secondary" @onclick="TranslateInput"
                 disabled="@(string.IsNullOrWhiteSpace(userInput))">
             <i class="bi bi-translate"></i>
@@ -149,16 +150,16 @@ else
             else
             {
                 <i class="bi bi-send d-md-none"></i>
-                <span class="d-none d-md-inline">Grade</span>
+                <span class="d-none d-md-inline">@Localize["Writing_Grade"]</span>
             }
         </button>
     </form>
 
     <div class="d-flex justify-content-between align-items-center">
-        <span class="ss-body2 text-secondary-ss">@sentences.Count sentence(s) written</span>
+        <span class="ss-body2 text-secondary-ss">@string.Format(Localize["Writing_SentencesWritten"], sentences.Count)</span>
         @if (sentences.Count >= 3)
         {
-            <button class="btn btn-sm btn-ss-secondary" @onclick="ShowSummary">End Session</button>
+            <button class="btn btn-sm btn-ss-secondary" @onclick="ShowSummary">@Localize["Writing_EndSession"]</button>
         }
     </div>
 </div>
@@ -203,12 +204,15 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        Localize.CultureChanged += OnCultureChanged;
         Logger.LogInformation("🎯 Writing initialized — planItemId={PlanItemId}, resourceId={ResourceId}, skillId={SkillId}",
             PlanItemId ?? "(none)", ResourceIdParam ?? "(none)", SkillIdParam ?? "(none)");
         if (!string.IsNullOrEmpty(PlanItemId))
             ActivityTimer.StartSession("Writing", PlanItemId);
         await LoadVocabulary();
     }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
 
     private async Task LoadVocabulary()
     {
@@ -390,6 +394,7 @@ else
 
     public ValueTask DisposeAsync()
     {
+        Localize.CultureChanged -= OnCultureChanged;
         if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
         return ValueTask.CompletedTask;
     }

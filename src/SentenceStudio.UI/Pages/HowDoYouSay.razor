@@ -3,6 +3,7 @@
 @using Plugin.Maui.Audio
 @using SentenceStudio.Services.Speech
 @using Microsoft.JSInterop
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
 @implements IDisposable
 
 <PageHeader Title="How Do You Say...?" ShowBack="true" OnBack="GoBack" />
@@ -10,17 +11,17 @@
 @* Input area *@
 <div class="card card-ss p-3 mb-4">
     <div class="mb-3">
-        <label class="form-label text-secondary-ss">Enter a phrase in @targetLanguage</label>
+        <label class="form-label text-secondary-ss">@string.Format(Localize["HowDoYouSay_EnterPhrase"], targetLanguage)</label>
         <input type="text" class="form-control form-control-ss form-control-lg"
                @bind="phrase" @bind:event="oninput"
                @onkeydown="HandleKeyDown"
-               placeholder="Type a phrase to hear..." />
+               placeholder='@Localize["HowDoYouSay_TypePhrase"]' />
     </div>
 
     @if (availableVoices.Any())
     {
         <div class="mb-3">
-            <label class="form-label text-secondary-ss">Voice</label>
+            <label class="form-label text-secondary-ss">@Localize["HowDoYouSay_Voice"]</label>
             <select class="form-select form-control-ss" @onchange="OnVoiceChanged">
                 @foreach (var voice in availableVoices)
                 {
@@ -37,11 +38,11 @@
         @if (isBusy)
         {
             <span class="spinner-border spinner-border-sm me-1"></span>
-            <span>Generating...</span>
+            <span>@Localize["HowDoYouSay_Generating"]</span>
         }
         else
         {
-            <span><i class="bi bi-volume-up me-1"></i> Speak</span>
+            <span><i class="bi bi-volume-up me-1"></i> @Localize["HowDoYouSay_Speak"]</span>
         }
     </button>
 </div>
@@ -55,7 +56,7 @@
 }
 else if (history.Any())
 {
-    <h3 class="ss-title3 mb-3">History</h3>
+    <h3 class="ss-title3 mb-3">@Localize["HowDoYouSay_History"]</h3>
     <div class="d-flex flex-column gap-2">
         @foreach (var item in history)
         {
@@ -112,6 +113,7 @@ else if (history.Any())
 
     protected override async Task OnInitializedAsync()
     {
+        Localize.CultureChanged += OnCultureChanged;
         _useJsAudio = JS.GetType().Name.Contains("Remote", StringComparison.OrdinalIgnoreCase);
         var profile = await ProfileRepo.GetAsync();
         targetLanguage = profile?.TargetLanguage ?? "Korean";
@@ -121,6 +123,8 @@ else if (history.Any())
             LoadHistory()
         );
     }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
 
     private async Task LoadVoices()
     {
@@ -318,6 +322,7 @@ else if (history.Any())
 
     public void Dispose()
     {
+        Localize.CultureChanged -= OnCultureChanged;
         StopAudio();
     }
 

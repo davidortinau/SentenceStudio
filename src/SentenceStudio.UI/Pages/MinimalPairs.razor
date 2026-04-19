@@ -1,37 +1,39 @@
 @page "/minimal-pairs"
 @attribute [Authorize]
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@implements IDisposable
 
 <PageHeader Title="Minimal Pairs" ShowBack="true" OnBack="GoBack">
     <PrimaryActions>
         <button class="btn btn-ss-primary" @onclick="CreatePair">
-            <i class="bi bi-plus-lg me-1"></i>Create Pair
+            <i class="bi bi-plus-lg me-1"></i>@Localize["MinimalPairs_CreatePair"]
         </button>
     </PrimaryActions>
     <SecondaryActions>
-        <li><button class="dropdown-item" @onclick="CreatePair"><i class="bi bi-plus-lg me-2"></i>Create Pair</button></li>
+        <li><button class="dropdown-item" @onclick="CreatePair"><i class="bi bi-plus-lg me-2"></i>@Localize["MinimalPairs_CreatePair"]</button></li>
     </SecondaryActions>
 </PageHeader>
 
 @* Mode selector *@
 <div class="d-flex align-items-center gap-3 mb-4">
-    <span class="ss-body1 fw-bold">Mode:</span>
+    <span class="ss-body1 fw-bold">@Localize["MinimalPairs_Mode"]</span>
     <div class="btn-group" role="group">
         <button class="btn @(selectedMode == "Focus" ? "btn-ss-primary" : "btn-ss-secondary")"
-                @onclick='() => SetMode("Focus")'>Focus</button>
+                @onclick='() => SetMode("Focus")'>@Localize["MinimalPairs_Focus"]</button>
         <button class="btn @(selectedMode == "Mixed" ? "btn-ss-primary" : "btn-ss-secondary")"
-                @onclick='() => SetMode("Mixed")'>Mixed</button>
+                @onclick='() => SetMode("Mixed")'>@Localize["MinimalPairs_Mixed"]</button>
     </div>
     @if (selectedMode == "Focus" && pairs.Count > 0)
     {
         <button class="btn btn-ss-primary" @onclick="StartSession"
                 disabled="@(selectedPairId == null)">
-            Start Session
+            @Localize["MinimalPairs_StartSession"]
         </button>
     }
     else if (selectedMode == "Mixed" && pairs.Count > 0)
     {
         <button class="btn btn-ss-primary" @onclick="StartSession">
-            Start Session (@pairs.Count pairs)
+            @Localize["MinimalPairs_StartSession"] (@pairs.Count pairs)
         </button>
     }
 </div>
@@ -45,8 +47,8 @@
 else if (pairs.Count == 0)
 {
     <div class="text-center p-5">
-        <p class="ss-body1 text-secondary-ss mb-4">No minimal pairs yet. Create your first pair to start practicing!</p>
-        <button class="btn btn-ss-primary" @onclick="CreatePair">Create Your First Pair</button>
+        <p class="ss-body1 text-secondary-ss mb-4">@Localize["MinimalPairs_NoPairs"]</p>
+        <button class="btn btn-ss-primary" @onclick="CreatePair">@Localize["MinimalPairs_CreateFirstPair"]</button>
     </div>
 }
 else
@@ -63,7 +65,7 @@ else
                         <div class="flex-grow-1">
                             <div class="d-flex align-items-center gap-2 mb-1">
                                 <span class="ss-title3">@(pair.VocabularyWordA?.TargetLanguageTerm ?? "")</span>
-                                <small class="text-secondary-ss">vs</small>
+                                <small class="text-secondary-ss">@Localize["MinimalPairs_Vs"]</small>
                                 <span class="ss-title3">@(pair.VocabularyWordB?.TargetLanguageTerm ?? "")</span>
                             </div>
                             @if (!string.IsNullOrEmpty(pair.ContrastLabel))
@@ -90,7 +92,7 @@ else
             <div class="modal-content bg-surface">
                 <div class="modal-header border-0">
                     <h5 class="modal-title text-error-ss">
-                        <i class="bi bi-exclamation-triangle-fill me-2"></i>Confirm Delete
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>@Localize["MinimalPairs_ConfirmDelete"]
                     </h5>
                     <button type="button" class="btn-close" @onclick="CancelDelete"></button>
                 </div>
@@ -98,13 +100,13 @@ else
                     <p class="ss-body2">@deleteConfirmMessage</p>
                 </div>
                 <div class="modal-footer border-0">
-                    <button type="button" class="btn btn-ss-secondary" @onclick="CancelDelete">Cancel</button>
+                    <button type="button" class="btn btn-ss-secondary" @onclick="CancelDelete">@Localize["Common_Cancel"]</button>
                     <button type="button" class="btn btn-ss-danger" @onclick="ConfirmDelete" disabled="@isDeleting">
                         @if (isDeleting)
                         {
                             <span class="spinner-border spinner-border-sm me-1"></span>
                         }
-                        Delete
+                        @Localize["Common_Delete"]
                     </button>
                 </div>
             </div>
@@ -130,8 +132,11 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        Localize.CultureChanged += OnCultureChanged;
         await LoadPairs();
     }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
 
     private async Task LoadPairs()
     {
@@ -229,4 +234,9 @@ else
     private void CreatePair() => NavManager.NavigateTo("/minimal-pairs/create");
 
     private void GoBack() => NavManager.NavigateTo("/");
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnCultureChanged;
+    }
 }

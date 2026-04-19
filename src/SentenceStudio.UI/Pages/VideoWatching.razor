@@ -3,6 +3,7 @@
 @using SentenceStudio.Shared.Models
 @using SentenceStudio.Services
 @using SentenceStudio.Services.Timer
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
 @implements IAsyncDisposable
 
 <PageHeader Title="Video Watching" ShowBack="true" OnBack="GoBack" />
@@ -11,7 +12,7 @@
 {
     <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 40vh;">
         <div class="spinner-border text-primary mb-3" role="status"></div>
-        <p class="ss-body1 text-secondary-ss">Loading video...</p>
+        <p class="ss-body1 text-secondary-ss">@Localize["VideoWatching_LoadingVideo"]</p>
     </div>
 }
 else if (!string.IsNullOrEmpty(embedUrl))
@@ -28,7 +29,7 @@ else if (!string.IsNullOrEmpty(embedUrl))
         @if (!string.IsNullOrEmpty(resource?.MediaUrl))
         {
             <a href="@resource.MediaUrl" target="_blank" class="btn btn-sm btn-ss-secondary">
-                ↗ Open in YouTube
+                @Localize["VideoWatching_OpenInYouTube"]
             </a>
         }
     </div>
@@ -46,9 +47,9 @@ else if (!string.IsNullOrEmpty(embedUrl))
     {
         <div class="card card-ss p-3">
             <div class="d-flex justify-content-between align-items-center mb-2">
-                <h3 class="ss-title3 mb-0">Transcript</h3>
+                <h3 class="ss-title3 mb-0">@Localize["VideoWatching_Transcript"]</h3>
                 <button class="btn btn-sm btn-link text-secondary-ss" @onclick="ToggleTranscript">
-                    @(showTranscript ? "Hide ▲" : "Show ▼")
+                    @(showTranscript ? Localize["VideoWatching_Hide"] : Localize["VideoWatching_Show"])
                 </button>
             </div>
             @if (showTranscript)
@@ -64,14 +65,14 @@ else if (!string.IsNullOrEmpty(errorMessage))
 {
     <div class="text-center p-5">
         <p class="ss-body1 text-danger">@errorMessage</p>
-        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
+        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">@Localize["Common_GoBack"]</button>
     </div>
 }
 else
 {
     <div class="text-center p-5">
-        <p class="ss-body1 text-secondary-ss">No video resource found.</p>
-        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
+        <p class="ss-body1 text-secondary-ss">@Localize["VideoWatching_NoVideo"]</p>
+        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">@Localize["Common_GoBack"]</button>
     </div>
 }
 
@@ -106,6 +107,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        Localize.CultureChanged += OnCultureChanged;
         Logger.LogInformation("🎯 VideoWatching initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
         if (!string.IsNullOrEmpty(PlanItemId))
             ActivityTimer.StartSession("VideoWatching", PlanItemId);
@@ -113,6 +115,8 @@ else
         targetMinutes = TargetMinutesParam ?? 20;
         await LoadVideo();
     }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
 
     private async Task LoadVideo()
     {
@@ -162,6 +166,7 @@ else
 
     public ValueTask DisposeAsync()
     {
+        Localize.CultureChanged -= OnCultureChanged;
         if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
         return ValueTask.CompletedTask;
     }

@@ -2757,4 +2757,609 @@ Ready to practice? Say "yes" to start, or tell me what you'd like to change.</va
     <value>Collapse sidebar</value>
     <comment>MainLayout: collapse sidebar tooltip</comment>
   </data>
+  <data name="Common_SessionComplete" xml:space="preserve">
+    <value>Session Complete!</value>
+    <comment>Shared across all activity summaries</comment>
+  </data>
+  <data name="Common_Correct" xml:space="preserve">
+    <value>Correct</value>
+    <comment>Success label</comment>
+  </data>
+  <data name="Common_Incorrect" xml:space="preserve">
+    <value>Incorrect</value>
+    <comment>Failure label</comment>
+  </data>
+  <data name="Common_Accuracy" xml:space="preserve">
+    <value>Accuracy</value>
+    <comment>Accuracy metric label</comment>
+  </data>
+  <data name="Common_ContinuePractice" xml:space="preserve">
+    <value>Continue Practice</value>
+    <comment>Resume button</comment>
+  </data>
+  <data name="Common_PlayAgain" xml:space="preserve">
+    <value>Play Again</value>
+    <comment>Restart button</comment>
+  </data>
+  <data name="Common_Graded" xml:space="preserve">
+    <value>Graded</value>
+    <comment>Graded count label</comment>
+  </data>
+  <data name="Common_AvgAccuracy" xml:space="preserve">
+    <value>Avg Accuracy</value>
+    <comment>Average accuracy label</comment>
+  </data>
+  <data name="Common_AvgFluency" xml:space="preserve">
+    <value>Avg Fluency</value>
+    <comment>Average fluency label</comment>
+  </data>
+  <data name="Common_Suggested" xml:space="preserve">
+    <value>Suggested:</value>
+    <comment>Suggested answer prefix</comment>
+  </data>
+  <data name="Common_GoLabel" xml:space="preserve">
+    <value>GO</value>
+    <comment>Submit button label</comment>
+  </data>
+  <data name="Cloze_LoadingSentences" xml:space="preserve">
+    <value>Loading sentences...</value>
+    <comment>Loading spinner</comment>
+  </data>
+  <data name="Cloze_TypeMissingWord" xml:space="preserve">
+    <value>Type the missing word...</value>
+    <comment>Input placeholder</comment>
+  </data>
+  <data name="Cloze_Choices" xml:space="preserve">
+    <value>Choices</value>
+    <comment>Toggle button to MC mode</comment>
+  </data>
+  <data name="Cloze_Type" xml:space="preserve">
+    <value>Type</value>
+    <comment>Toggle button to text mode</comment>
+  </data>
+  <data name="Cloze_NoSentences" xml:space="preserve">
+    <value>No cloze sentences available.</value>
+    <comment>Empty state</comment>
+  </data>
+  <data name="Writing_LoadingVocab" xml:space="preserve">
+    <value>Loading vocabulary...</value>
+    <comment>Loading spinner</comment>
+  </data>
+  <data name="Writing_ChooseVocab" xml:space="preserve">
+    <value>Choose vocabulary to use:</value>
+    <comment>Vocab blocks label</comment>
+  </data>
+  <data name="Writing_WriteSentence" xml:space="preserve">
+    <value>Write a sentence using the vocabulary...</value>
+    <comment>Input placeholder</comment>
+  </data>
+  <data name="Writing_Grade" xml:space="preserve">
+    <value>Grade</value>
+    <comment>Submit button</comment>
+  </data>
+  <data name="Writing_SentencesWritten" xml:space="preserve">
+    <value>{0} sentence(s) written</value>
+    <comment>Progress counter</comment>
+  </data>
+  <data name="Writing_EndSession" xml:space="preserve">
+    <value>End Session</value>
+    <comment>Finish button</comment>
+  </data>
+  <data name="Writing_ShowDetails" xml:space="preserve">
+    <value>Show details</value>
+    <comment>Expand details button</comment>
+  </data>
+  <data name="Writing_Fluency" xml:space="preserve">
+    <value>Fluency</value>
+    <comment>Fluency label</comment>
+  </data>
+  <data name="Writing_Notes" xml:space="preserve">
+    <value>Notes:</value>
+    <comment>Grammar notes prefix</comment>
+  </data>
+  <data name="Writing_NoVocab" xml:space="preserve">
+    <value>No vocabulary available. Select a resource with vocabulary first.</value>
+    <comment>Empty state</comment>
+  </data>
+  <data name="Translation_LoadingSentences" xml:space="preserve">
+    <value>Loading sentences...</value>
+    <comment>Loading spinner</comment>
+  </data>
+  <data name="Translation_TranslateTo" xml:space="preserve">
+    <value>Translate to {0}...</value>
+    <comment>Input placeholder with target language</comment>
+  </data>
+  <data name="Translation_Blocks" xml:space="preserve">
+    <value>Blocks</value>
+    <comment>Toggle to vocab blocks mode</comment>
+  </data>
+  <data name="Translation_Type" xml:space="preserve">
+    <value>Type</value>
+    <comment>Toggle to text mode</comment>
+  </data>
+  <data name="Translation_Grade" xml:space="preserve">
+    <value>Grade</value>
+    <comment>Submit button</comment>
+  </data>
+  <data name="Translation_NoSentences" xml:space="preserve">
+    <value>No sentences available.</value>
+    <comment>Empty state</comment>
+  </data>
+  <data name="WordAssoc_RoundComplete" xml:space="preserve">
+    <value>Round Complete!</value>
+    <comment>Summary header</comment>
+  </data>
+  <data name="WordAssoc_Related" xml:space="preserve">
+    <value>Related</value>
+    <comment>Related clues label</comment>
+  </data>
+  <data name="WordAssoc_NotRelated" xml:space="preserve">
+    <value>Not Related</value>
+    <comment>Unrelated clues label</comment>
+  </data>
+  <data name="WordAssoc_Score" xml:space="preserve">
+    <value>Score</value>
+    <comment>Score label</comment>
+  </data>
+  <data name="WordAssoc_NewAllTimeHigh" xml:space="preserve">
+    <value>NEW ALL-TIME HIGH SCORE!</value>
+    <comment>High score alert</comment>
+  </data>
+  <data name="WordAssoc_BestWeek" xml:space="preserve">
+    <value>Best score this week!</value>
+    <comment>Weekly high alert</comment>
+  </data>
+  <data name="WordAssoc_LoadingVocab" xml:space="preserve">
+    <value>Loading vocabulary...</value>
+    <comment>Loading spinner</comment>
+  </data>
+  <data name="WordAssoc_Word" xml:space="preserve">
+    <value>Word {0} of {1}</value>
+    <comment>Progress counter</comment>
+  </data>
+  <data name="WordAssoc_WriteClues" xml:space="preserve">
+    <value>Write clues related to this word — synonyms, categories, sentences, anything connected!</value>
+    <comment>Instructions</comment>
+  </data>
+  <data name="WordAssoc_ClueBonus" xml:space="preserve">
+    <value>Each related clue earns 1 point. Full sentences earn 2 points.</value>
+    <comment>Scoring instructions</comment>
+  </data>
+  <data name="WordAssoc_TypeClue" xml:space="preserve">
+    <value>Type a clue, word, or sentence...</value>
+    <comment>Input placeholder</comment>
+  </data>
+  <data name="WordAssoc_GradeClues" xml:space="preserve">
+    <value>Grade Clues</value>
+    <comment>Submit button</comment>
+  </data>
+  <data name="WordAssoc_GradingClues" xml:space="preserve">
+    <value>Grading clues...</value>
+    <comment>Grading spinner</comment>
+  </data>
+  <data name="WordAssoc_WordScore" xml:space="preserve">
+    <value>Word score: {0} of {1} possible points</value>
+    <comment>Score display</comment>
+  </data>
+  <data name="WordAssoc_Next" xml:space="preserve">
+    <value>Next</value>
+    <comment>Next button</comment>
+  </data>
+  <data name="WordAssoc_FinishRound" xml:space="preserve">
+    <value>Finish Round</value>
+    <comment>Finish button</comment>
+  </data>
+  <data name="WordAssoc_NoVocab" xml:space="preserve">
+    <value>No vocabulary available. Select a Learning Resource first.</value>
+    <comment>Empty state</comment>
+  </data>
+  <data name="VocabQuiz_SessionSummary" xml:space="preserve">
+    <value>Session Summary</value>
+    <comment>Summary header</comment>
+  </data>
+  <data name="VocabQuiz_Total" xml:space="preserve">
+    <value>Total</value>
+    <comment>Total count label</comment>
+  </data>
+  <data name="VocabQuiz_Mastered" xml:space="preserve">
+    <value>Mastered</value>
+    <comment>Mastered count label</comment>
+  </data>
+  <data name="VocabQuiz_Rounds" xml:space="preserve">
+    <value>Rounds</value>
+    <comment>Rounds count label</comment>
+  </data>
+  <data name="VocabQuiz_SentenceShortcut" xml:space="preserve">
+    <value>Sentence shortcut</value>
+    <comment>Badge label</comment>
+  </data>
+  <data name="VocabQuiz_ContinueQuiz" xml:space="preserve">
+    <value>Continue quiz</value>
+    <comment>Resume button</comment>
+  </data>
+  <data name="VocabQuiz_WriteOneSentence" xml:space="preserve">
+    <value>Write one or more sentences using {0}.</value>
+    <comment>Instructions</comment>
+  </data>
+  <data name="VocabQuiz_OnlyMeaningful" xml:space="preserve">
+    <value>Only meaningful usage of the target word counts toward mastery. Broader grammar feedback is still shown, but it won't penalize you by itself.</value>
+    <comment>Usage instructions</comment>
+  </data>
+  <data name="VocabQuiz_SentencePlaceholder" xml:space="preserve">
+    <value>Write one or more sentences using "{0}".
+For example: {0} ...</value>
+    <comment>Textarea placeholder</comment>
+  </data>
+  <data name="VocabQuiz_SeparateMultiple" xml:space="preserve">
+    <value>Separate multiple sentences with a new line or punctuation.</value>
+    <comment>Help text</comment>
+  </data>
+  <data name="VocabQuiz_GradeSentences" xml:space="preserve">
+    <value>Grade sentences</value>
+    <comment>Submit button</comment>
+  </data>
+  <data name="VocabQuiz_CountsTowardMastery" xml:space="preserve">
+    <value>Counts toward mastery</value>
+    <comment>Success badge</comment>
+  </data>
+  <data name="VocabQuiz_NeedsAnotherTry" xml:space="preserve">
+    <value>Needs another try</value>
+    <comment>Warning badge</comment>
+  </data>
+  <data name="VocabQuiz_TargetWordFeedback" xml:space="preserve">
+    <value>Target-word feedback:</value>
+    <comment>Feedback label</comment>
+  </data>
+  <data name="VocabQuiz_TypeTranslation" xml:space="preserve">
+    <value>Type the translation</value>
+    <comment>Input label</comment>
+  </data>
+  <data name="VocabQuiz_TypeAnswer" xml:space="preserve">
+    <value>Type your answer</value>
+    <comment>Input placeholder</comment>
+  </data>
+  <data name="VocabQuiz_TypeCorrect" xml:space="preserve">
+    <value>Type the correct answer to continue</value>
+    <comment>Retry placeholder</comment>
+  </data>
+  <data name="VocabQuiz_Next" xml:space="preserve">
+    <value>Next</value>
+    <comment>Next button</comment>
+  </data>
+  <data name="VocabQuiz_IWasCorrect" xml:space="preserve">
+    <value>I was correct</value>
+    <comment>Override button</comment>
+  </data>
+  <data name="VocabQuiz_CorrectCount" xml:space="preserve">
+    <value>{0} correct</value>
+    <comment>Footer counter</comment>
+  </data>
+  <data name="VocabQuiz_LearningDetails" xml:space="preserve">
+    <value>Learning Details</value>
+    <comment>Info panel header</comment>
+  </data>
+  <data name="VocabQuiz_IsKnown" xml:space="preserve">
+    <value>IsKnown</value>
+    <comment>Status field label</comment>
+  </data>
+  <data name="VocabQuiz_Yes" xml:space="preserve">
+    <value>Yes</value>
+    <comment>Yes value</comment>
+  </data>
+  <data name="VocabQuiz_No" xml:space="preserve">
+    <value>No</value>
+    <comment>No value</comment>
+  </data>
+  <data name="VocabQuiz_ListenLookAnswer" xml:space="preserve">
+    <value>Listen and look, then answer</value>
+    <comment>Audio+photo prompt title</comment>
+  </data>
+  <data name="VocabQuiz_LookAndAnswer" xml:space="preserve">
+    <value>Look and answer</value>
+    <comment>Photo-only prompt title</comment>
+  </data>
+  <data name="VocabQuiz_ListenAndAnswer" xml:space="preserve">
+    <value>Listen and answer</value>
+    <comment>Audio-only prompt title</comment>
+  </data>
+  <data name="VocabQuiz_NoVocab" xml:space="preserve">
+    <value>No vocabulary loaded.</value>
+    <comment>Empty state</comment>
+  </data>
+  <data name="VocabMatching_NewGame" xml:space="preserve">
+    <value>New Game</value>
+    <comment>Toolbar button</comment>
+  </data>
+  <data name="VocabMatching_ShowAll" xml:space="preserve">
+    <value>Show All</value>
+    <comment>Toggle show mode</comment>
+  </data>
+  <data name="VocabMatching_HideNative" xml:space="preserve">
+    <value>Hide Native</value>
+    <comment>Toggle hide mode</comment>
+  </data>
+  <data name="VocabMatching_Congratulations" xml:space="preserve">
+    <value>Congratulations!</value>
+    <comment>Win header</comment>
+  </data>
+  <data name="VocabMatching_AllPairsMatched" xml:space="preserve">
+    <value>All pairs matched!</value>
+    <comment>Win message</comment>
+  </data>
+  <data name="VocabMatching_Matched" xml:space="preserve">
+    <value>Matched</value>
+    <comment>Success count label</comment>
+  </data>
+  <data name="VocabMatching_Misses" xml:space="preserve">
+    <value>Misses</value>
+    <comment>Failure count label</comment>
+  </data>
+  <data name="VocabMatching_LoadingVocab" xml:space="preserve">
+    <value>Loading vocabulary...</value>
+    <comment>Loading spinner</comment>
+  </data>
+  <data name="VocabMatching_NoVocab" xml:space="preserve">
+    <value>No vocabulary available for matching.</value>
+    <comment>Empty state</comment>
+  </data>
+  <data name="Shadowing_GeneratingSentences" xml:space="preserve">
+    <value>Generating sentences...</value>
+    <comment>Loading spinner</comment>
+  </data>
+  <data name="Shadowing_HideTranslation" xml:space="preserve">
+    <value>Hide</value>
+    <comment>Toggle hide</comment>
+  </data>
+  <data name="Shadowing_ShowTranslation" xml:space="preserve">
+    <value>Show</value>
+    <comment>Toggle show</comment>
+  </data>
+  <data name="Shadowing_Translation" xml:space="preserve">
+    <value>translation</value>
+    <comment>Label for show/hide toggle</comment>
+  </data>
+  <data name="Shadowing_Prev" xml:space="preserve">
+    <value>Prev</value>
+    <comment>Previous button</comment>
+  </data>
+  <data name="Shadowing_Slow" xml:space="preserve">
+    <value>Slow</value>
+    <comment>Slow speed button</comment>
+  </data>
+  <data name="Shadowing_Normal" xml:space="preserve">
+    <value>Normal</value>
+    <comment>Normal speed button</comment>
+  </data>
+  <data name="Shadowing_Next" xml:space="preserve">
+    <value>Next</value>
+    <comment>Next button</comment>
+  </data>
+  <data name="Shadowing_NoSentences" xml:space="preserve">
+    <value>No sentences available for shadowing.</value>
+    <comment>Empty state</comment>
+  </data>
+  <data name="Reading_LoadingPassage" xml:space="preserve">
+    <value>Loading passage...</value>
+    <comment>Loading spinner</comment>
+  </data>
+  <data name="Reading_LookingUpDef" xml:space="preserve">
+    <value>Looking up definition...</value>
+    <comment>Word panel loading</comment>
+  </data>
+  <data name="Reading_InYourVocab" xml:space="preserve">
+    <value>In your vocabulary</value>
+    <comment>Word already saved badge</comment>
+  </data>
+  <data name="Reading_RememberThisWord" xml:space="preserve">
+    <value>Remember This Word</value>
+    <comment>Save word button</comment>
+  </data>
+  <data name="Reading_Saving" xml:space="preserve">
+    <value>Saving...</value>
+    <comment>Save spinner</comment>
+  </data>
+  <data name="Reading_NoContent" xml:space="preserve">
+    <value>No reading content available.</value>
+    <comment>Empty state</comment>
+  </data>
+  <data name="Scene_LoadingScene" xml:space="preserve">
+    <value>Loading scene...</value>
+    <comment>Loading spinner</comment>
+  </data>
+  <data name="Scene_Results" xml:space="preserve">
+    <value>Results</value>
+    <comment>Results section header</comment>
+  </data>
+  <data name="Scene_SubmitDescription" xml:space="preserve">
+    <value>Submit a description to see your score here.</value>
+    <comment>Empty results message</comment>
+  </data>
+  <data name="Scene_DescribeWhatYouSee" xml:space="preserve">
+    <value>Describe what you see...</value>
+    <comment>Input placeholder</comment>
+  </data>
+  <data name="Scene_NoSceneImages" xml:space="preserve">
+    <value>No scene images available.</value>
+    <comment>Empty state</comment>
+  </data>
+  <data name="Scene_BrowseGallery" xml:space="preserve">
+    <value>Browse Gallery</value>
+    <comment>Gallery button</comment>
+  </data>
+  <data name="Scene_ImageGallery" xml:space="preserve">
+    <value>Image Gallery</value>
+    <comment>Gallery header</comment>
+  </data>
+  <data name="Scene_Delete" xml:space="preserve">
+    <value>Delete ({0})</value>
+    <comment>Delete selected button</comment>
+  </data>
+  <data name="Scene_AddImage" xml:space="preserve">
+    <value>Add</value>
+    <comment>Add image button</comment>
+  </data>
+  <data name="Scene_PasteImageURL" xml:space="preserve">
+    <value>Paste image URL to add...</value>
+    <comment>Add image input placeholder</comment>
+  </data>
+  <data name="Scene_Current" xml:space="preserve">
+    <value>Current</value>
+    <comment>Active image badge</comment>
+  </data>
+  <data name="Conversation_StartingConversation" xml:space="preserve">
+    <value>Starting conversation...</value>
+    <comment>Loading spinner</comment>
+  </data>
+  <data name="Conversation_Scenario" xml:space="preserve">
+    <value>Scenario:</value>
+    <comment>Scenario selector label</comment>
+  </data>
+  <data name="Conversation_TypeMessage" xml:space="preserve">
+    <value>Type your message...</value>
+    <comment>Input placeholder</comment>
+  </data>
+  <data name="Conversation_Send" xml:space="preserve">
+    <value>Send</value>
+    <comment>Send button</comment>
+  </data>
+  <data name="Conversation_Listen" xml:space="preserve">
+    <value>Listen</value>
+    <comment>Audio playback button</comment>
+  </data>
+  <data name="Conversation_Comprehension" xml:space="preserve">
+    <value>Comprehension: {0}%</value>
+    <comment>Comprehension score</comment>
+  </data>
+  <data name="Conversation_Stop" xml:space="preserve">
+    <value>Stop</value>
+    <comment>Stop audio button</comment>
+  </data>
+  <data name="Conversation_PlayingAudio" xml:space="preserve">
+    <value>Playing audio...</value>
+    <comment>Audio status</comment>
+  </data>
+  <data name="HowDoYouSay_EnterPhrase" xml:space="preserve">
+    <value>Enter a phrase in {0}</value>
+    <comment>Input label with language</comment>
+  </data>
+  <data name="HowDoYouSay_TypePhrase" xml:space="preserve">
+    <value>Type a phrase to hear...</value>
+    <comment>Input placeholder</comment>
+  </data>
+  <data name="HowDoYouSay_Voice" xml:space="preserve">
+    <value>Voice</value>
+    <comment>Voice selector label</comment>
+  </data>
+  <data name="HowDoYouSay_Generating" xml:space="preserve">
+    <value>Generating...</value>
+    <comment>Generation spinner</comment>
+  </data>
+  <data name="HowDoYouSay_Speak" xml:space="preserve">
+    <value>Speak</value>
+    <comment>Submit button</comment>
+  </data>
+  <data name="HowDoYouSay_History" xml:space="preserve">
+    <value>History</value>
+    <comment>History section header</comment>
+  </data>
+  <data name="MinimalPairs_CreatePair" xml:space="preserve">
+    <value>Create Pair</value>
+    <comment>Create button</comment>
+  </data>
+  <data name="MinimalPairs_Mode" xml:space="preserve">
+    <value>Mode:</value>
+    <comment>Mode selector label</comment>
+  </data>
+  <data name="MinimalPairs_Focus" xml:space="preserve">
+    <value>Focus</value>
+    <comment>Focus mode</comment>
+  </data>
+  <data name="MinimalPairs_Mixed" xml:space="preserve">
+    <value>Mixed</value>
+    <comment>Mixed mode</comment>
+  </data>
+  <data name="MinimalPairs_StartSession" xml:space="preserve">
+    <value>Start Session</value>
+    <comment>Start button</comment>
+  </data>
+  <data name="MinimalPairs_NoPairs" xml:space="preserve">
+    <value>No minimal pairs yet. Create your first pair to start practicing!</value>
+    <comment>Empty state</comment>
+  </data>
+  <data name="MinimalPairs_CreateFirstPair" xml:space="preserve">
+    <value>Create Your First Pair</value>
+    <comment>Create first button</comment>
+  </data>
+  <data name="MinimalPairs_Vs" xml:space="preserve">
+    <value>vs</value>
+    <comment>Versus label</comment>
+  </data>
+  <data name="MinimalPairs_ConfirmDelete" xml:space="preserve">
+    <value>Confirm Delete</value>
+    <comment>Delete dialog header</comment>
+  </data>
+  <data name="MinimalPairSession_SessionSummary" xml:space="preserve">
+    <value>Session Summary</value>
+    <comment>Summary header</comment>
+  </data>
+  <data name="MinimalPairSession_Correct" xml:space="preserve">
+    <value>Correct:</value>
+    <comment>Correct count label</comment>
+  </data>
+  <data name="MinimalPairSession_Incorrect" xml:space="preserve">
+    <value>Incorrect:</value>
+    <comment>Incorrect count label</comment>
+  </data>
+  <data name="MinimalPairSession_Duration" xml:space="preserve">
+    <value>Duration:</value>
+    <comment>Duration label</comment>
+  </data>
+  <data name="MinimalPairSession_Trial" xml:space="preserve">
+    <value>Trial {0} / {1}</value>
+    <comment>Trial counter</comment>
+  </data>
+  <data name="MinimalPairSession_Replay" xml:space="preserve">
+    <value>Replay</value>
+    <comment>Replay button</comment>
+  </data>
+  <data name="MinimalPairSession_CheckAnswer" xml:space="preserve">
+    <value>Check Answer</value>
+    <comment>Submit button</comment>
+  </data>
+  <data name="MinimalPairSession_NoPairs" xml:space="preserve">
+    <value>No pairs available for this session.</value>
+    <comment>Empty state</comment>
+  </data>
+  <data name="VideoWatching_LoadingVideo" xml:space="preserve">
+    <value>Loading video...</value>
+    <comment>Loading spinner</comment>
+  </data>
+  <data name="VideoWatching_OpenInYouTube" xml:space="preserve">
+    <value>↗ Open in YouTube</value>
+    <comment>External link button</comment>
+  </data>
+  <data name="VideoWatching_Transcript" xml:space="preserve">
+    <value>Transcript</value>
+    <comment>Transcript section header</comment>
+  </data>
+  <data name="VideoWatching_Hide" xml:space="preserve">
+    <value>Hide ▲</value>
+    <comment>Collapse transcript</comment>
+  </data>
+  <data name="VideoWatching_Show" xml:space="preserve">
+    <value>Show ▼</value>
+    <comment>Expand transcript</comment>
+  </data>
+  <data name="VideoWatching_NoVideo" xml:space="preserve">
+    <value>No video resource found.</value>
+    <comment>Empty state</comment>
+  </data>
+  <data name="Cloze_CorrectExclamation" xml:space="preserve">
+    <value>Correct!</value>
+    <comment>Success feedback</comment>
+  </data>
+  <data name="Cloze_AnswerWas" xml:space="preserve">
+    <value>The answer was: {0}</value>
+    <comment>Incorrect feedback with answer</comment>
+  </data>
 </root>

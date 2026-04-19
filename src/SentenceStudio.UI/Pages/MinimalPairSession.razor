@@ -1,6 +1,7 @@
 @page "/minimal-pairs/session/{Id}"
 @attribute [Authorize]
 @using Plugin.Maui.Audio
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
 @implements IDisposable
 
 <PageHeader Title="Minimal Pairs" ShowBack="true" OnBack="GoBack" />
@@ -9,26 +10,26 @@
 {
     @* Session summary *@
     <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 60vh;">
-        <h2 class="ss-title1 mb-4">Session Summary</h2>
+        <h2 class="ss-title1 mb-4">@Localize["MinimalPairSession_SessionSummary"]</h2>
         <div class="card card-ss p-4" style="min-width: 300px;">
             <div class="mb-3">
-                <span class="ss-body1">Correct:</span>
+                <span class="ss-body1">@Localize["MinimalPairSession_Correct"]</span>
                 <span class="ss-title2 text-success ms-2">@correctCount</span>
             </div>
             <div class="mb-3">
-                <span class="ss-body1">Incorrect:</span>
+                <span class="ss-body1">@Localize["MinimalPairSession_Incorrect"]</span>
                 <span class="ss-title2 text-danger ms-2">@incorrectCount</span>
             </div>
             <div class="mb-3">
-                <span class="ss-body1">Accuracy:</span>
+                <span class="ss-body1">@Localize["Common_Accuracy"]</span>
                 <span class="ss-title2 ms-2">@($"{Accuracy:F1}")%</span>
             </div>
             <div class="mb-3">
-                <span class="ss-body1">Duration:</span>
+                <span class="ss-body1">@Localize["MinimalPairSession_Duration"]</span>
                 <span class="ss-title2 ms-2">@($"{Duration:F1}") min</span>
             </div>
         </div>
-        <button class="btn btn-ss-primary mt-4" @onclick="GoBack">Done</button>
+        <button class="btn btn-ss-primary mt-4" @onclick="GoBack">@Localize["Common_Done"]</button>
     </div>
 }
 else if (isInitializing)
@@ -41,7 +42,7 @@ else if (promptWord != null && leftWord != null && rightWord != null)
 {
     @* Session header *@
     <div class="text-center mb-4">
-        <p class="ss-body2 text-secondary-ss mb-2">Trial @(currentTrialIndex + 1) / @totalTrials</p>
+        <p class="ss-body2 text-secondary-ss mb-2">@string.Format(Localize["MinimalPairSession_Trial"], currentTrialIndex + 1, totalTrials)</p>
         <div class="d-flex justify-content-center gap-4">
             <span class="ss-title3 text-success"><i class="bi bi-check-lg"></i> @correctCount</span>
             <span class="ss-title3 text-danger"><i class="bi bi-x-lg"></i> @incorrectCount</span>
@@ -62,19 +63,19 @@ else if (promptWord != null && leftWord != null && rightWord != null)
     <div class="d-flex justify-content-center gap-3">
         <button class="btn btn-ss-secondary" @onclick="ReplayAudio"
                 disabled="@(isPlayingAudio || hasCheckedAnswer)">
-            <i class="bi bi-volume-up me-1"></i> Replay
+            <i class="bi bi-volume-up me-1"></i> @Localize["MinimalPairSession_Replay"]
         </button>
         <button class="btn btn-ss-primary" @onclick="CheckAnswer"
                 disabled="@(selectedWordId == null || isDebouncing || hasCheckedAnswer)">
-            Check Answer
+            @Localize["MinimalPairSession_CheckAnswer"]
         </button>
     </div>
 }
 else
 {
     <div class="text-center p-5">
-        <p class="ss-body1 text-secondary-ss">No pairs available for this session.</p>
-        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">Go Back</button>
+        <p class="ss-body1 text-secondary-ss">@Localize["MinimalPairSession_NoPairs"]</p>
+        <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">@Localize["Common_GoBack"]</button>
     </div>
 }
 
@@ -137,9 +138,12 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        Localize.CultureChanged += OnCultureChanged;
         _useJsAudio = JS.GetType().Name.Contains("Remote", StringComparison.OrdinalIgnoreCase);
         await InitializeSession();
     }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
 
     private async Task InitializeSession()
     {
@@ -384,6 +388,7 @@ else
 
     public void Dispose()
     {
+        Localize.CultureChanged -= OnCultureChanged;
         audioPlayer?.Stop();
         audioPlayer?.Dispose();
         audioPlayer = null;
