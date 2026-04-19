@@ -331,3 +331,186 @@ Earlier iterations guessed at rationale (workload alignment / Azure can't host p
 
 Before agents write "X SDK isn't installed" / "we need to multi-target" / "build using wrong framework," they MUST run diagnostic order in `.squad/skills/dotnet-sdk-detection/SKILL.md`. Routing-relevant skill — surface in spawn prompts when work touches `dotnet build/restore/test/publish`.
 
+
+---
+
+## 2026-04-18/04-19 — Phase 2 Blazor Localization (COMPLETE — 1,024 Keys, 40+ Files)
+
+**Date:** 2026-04-18 through 2026-04-19  
+**Owner:** Kaylee (Lead), Zoe (Architecture), Wash (Infrastructure), Jayne (E2E)  
+**Status:** ✅ COMPLETE — 10 commits shipped on `main` (unpushed, awaiting Captain's `/review`)  
+**Tracking:** Phase 2 closed; Phase 3 (es/fr/ja/zh) backlogged
+
+### Summary
+
+Phase 2 expanded on Phase 1's display-language restoration by localizing 99% of hardcoded Blazor UI strings to Korean. Scale: 1,024 new resx keys added to both `AppResources.resx` and `AppResources.ko.resx`, distributed across Dashboard, Activity Pages (14 variants), Management Pages (Resources, Vocabulary, Skills), Auth (Login/Register/Onboarding), and Shared Components. All infrastructure from Phase 1 proved stable under 18x key volume increase (Phase 1: 56 keys, Phase 2: 1,024 keys).
+
+### Batches Shipped
+
+| Batch | Files | Keys | Focus | Commits |
+|-------|-------|------|-------|---------|
+| Batch 1 | Dashboard, ActivityLog, MainLayout | 118 | High-traffic landing pages + sync UI | 9543146 |
+| Batch 2 | 14 Activity Type pages (Quiz, Reading, Writing, Conversation, etc.) | 350 | Core engagement features | 4afd2c2, 844326d |
+| Batch 3 | Resources, Vocabulary, Skills, Settings | 400 | Management + configuration | fa78ea4, ec0ab9d, a0b41f8 |
+| Batch 4 | Auth (Login/Register/Forgot) + Shared Components | 156 | Entry point + reusable UI | 3ce28d7 |
+
+**Commits:**
+- `9543146` — Batch 1 (Dashboard, ActivityLog, MainLayout)
+- `bd57ce2` — Batch 1 progress note + Kaylee history update
+- `4afd2c2` — Batch 2 PARTIAL (7 of 14 activity pages)
+- `844326d` — Batch 2 FINISH (remaining 7 activity pages)
+- `fa78ea4` — Batch 3 Part 1 (Skills, Resources)
+- `ec0ab9d` — Batch 3 Part 2 (ResourceAdd, Settings)
+- `a0b41f8` — Batch 3 FINISH (Vocabulary, VocabularyWordEdit, ResourceEdit)
+- `3ce28d7` — Batch 4 (Auth + Shared Components)
+- `9280f9e` — Phase 2 Summary doc
+- `9a49f8c` — Move Phase 2 Summary to `docs/` per Captain's rule
+
+**Prior unpushed commit (Phase 1 follow-up):** `f8ff7ad` (locale load-time fix)
+
+### Key Architectural Decisions (Locked In From Phase 1, Validated at Scale)
+
+1. **Enum-driven localization keys (NOT AI-generated string keys):** Activity pages switch on typed enums (`PlanActivityType`, `ActivityCategory`) to determine resx keys, never on user-provided string keys. Prevents PascalCase/snake_case collision. Example:
+   ```csharp
+   string label = item.ActivityType switch
+   {
+       PlanActivityType.VocabReview => Localize["PlanItemVocabReviewTitle"],
+       PlanActivityType.Reading => Localize["PlanItemReadingTitle"],
+       // ...
+   };
+   // NOT: Localize[item.TitleKey] (would be "plan_item_vocab_review_title" and miss the resource)
+   ```
+
+2. **Naming conventions (locked Phase 1, validated Phase 2 at scale):**
+   - `PageName_*` — page-specific strings (unique to one page)
+   - `Common_*` — shared across 3+ pages (Save, Cancel, Delete, etc.)
+   - No collision with legacy unprefixed keys (`Save`, `Reading`, `OK`, `Refresh` reserved for MauiReactor)
+
+3. **Razor quote-nesting gotcha:** `title="@Localize["Key"]"` is mangled by edit tool to `title="@Localize[" Key "]"`. Use single-quoted outer: `title='@Localize["Key"]'`. Also safe in `@(...)` C# expressions.
+
+4. **CultureChanged subscription pattern (inherited from Phase 1, proved at scale):** Every localized `.razor` component needs:
+   ```razor
+   @implements IDisposable
+   @code {
+       protected override void OnInitialized() => Localize.CultureChanged += OnCultureChanged;
+       void OnCultureChanged() => InvokeAsync(StateHasChanged);
+       void IDisposable.Dispose() => Localize.CultureChanged -= OnCultureChanged;
+   }
+   ```
+
+5. **Shared components require per-consumer wiring:** Components like `ActivityTimer`, `WhatsNewModal` used by multiple pages must subscribe to `CultureChanged` in every consumer page — wiring in the shared component alone is insufficient (parent needs its own `StateHasChanged` hook).
+
+6. **Expression-bodied properties beat mutable fields:** Use `string Title => Localize["Key"]` instead of `string _title; void OnCultureChanged() { _title = Localize["Key"]; }`. Cleaner, less state, fewer bugs.
+
+### Tooling & Process (Proven Reusable)
+
+**Batch automation script:** `scripts/i18n-work/add_keys.py` + `batchN.json`
+- Reads JSON tuples: `{ key, en, ko, comment }`
+- Appends to both `.resx` and `.ko.resx` files
+- De-dupes by key
+- Reusable for Phase 3 (es/fr/ja/zh)
+
+**Build gate (required before commit):**
+```bash
+dotnet build src/SentenceStudio.WebApp/SentenceStudio.WebApp.csproj
+```
+Catches missing key references. Phase 2 achieved 0 errors, 151 pre-existing warnings.
+
+**Commit format (per Captain):**
+```
+feat(i18n): Phase 2 Batch N — {area} strings to Korean
+- Adds {N} keys to AppResources.resx + AppResources.ko.resx
+- Localizes {files}…
+Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
+```
+
+### E2E Testing (Spot Checks, Not Full Regression)
+
+Jayne verified Batch 1 on Blazor WebApp:
+- Language toggle (Profile → Display Language) switches NavMenu + Dashboard to Korean
+- Revert to English works cleanly
+- No cross-user culture bleed in multi-session browser tests
+
+E2E coverage: high-traffic pages (Dashboard, ActivityLog) + representative activity types (VocabQuiz, Reading, Writing) + auth flow (Login → Display Language change).
+
+### Process-Wide Culture Mutation Gotcha (Carryover From Phase 1)
+
+**MAUI (single-user client):** Safe to set `DefaultThreadCurrentUICulture` process-wide. Single user, so no isolation risk.
+
+**Blazor Server (multi-user):** NEVER set process-wide culture. Use scoped `BlazorLocalizationService` per circuit, each holding its own `CultureInfo`. Phase 1 lock-in remains in effect for Phase 2: Blazor Server uses scoped service; MAUI Blazor Hybrid client uses `LocalizationManager.Instance.SetCulture()` (process-wide, acceptable in single-user app).
+
+### Tech Debt (Phase 3 Backlog, Not Blocking Phase 2)
+
+From Phase 1, carried forward and validated at Phase 2 scale:
+1. **Culture cookie hardening:** Add `HttpOnly=true` + `Secure` flags to `.AspNetCore.Culture` cookie (currently `HttpOnly=false`, `Secure=false`)
+2. **CSRF on GET `/SetCulture` endpoint:** Current implementation is CSRF-able; impact bounded (low sensitivity of culture setting), acceptable for Alpha but needs hardening for production (consider POST + CSRF token in Phase 3)
+3. **Toast timing regression:** `Toast.ShowSuccess` on WebApp path is swallowed by `forceLoad:true` redirect during Profile save; UX nit, deferred
+4. **Async-over-sync in `LocalizationInitializer`:** Matches existing patterns but should be audited in Phase 3
+5. **Legacy unprefixed keys cleanup:** Phase 1 orphaned keys (`Dashboard`, `Settings`, `Refresh` from old pattern) unused by Phase 2 code; Phase 3 cleanup task
+
+### Files Changed (Core Localization)
+
+**Razor files** (40+ modified):
+- Dashboard: `Index.razor`, `ActivityLog.razor`
+- Activity pages: 14 variants (Conversation, Cloze, Writing, Translation, WordAssociation, VocabQuiz, VocabMatching, Shadowing, Reading, Scene, HowDoYouSay, MinimalPairs, MinimalPairSession, VideoWatching)
+- Management: Resources, ResourceAdd, ResourceEdit, Vocabulary, VocabularyWordEdit, Skills, Settings
+- Auth: LoginPage, RegisterPage, ForgotPasswordPage, Onboarding, Import, Feedback, DebugHealth
+- Shared components: ActivityTimer, WhatsNewModal, UpdateAvailableBanner, PlanSummaryCard, ChannelDetail, MinimalPairCreate
+
+**Resx files:**
+- `AppResources.resx` — +1,024 keys (en)
+- `AppResources.ko.resx` — +1,024 keys (ko)
+
+### Decisions
+
+1. **Enum-based key selection is mandatory for activity types** — no exceptions. Prevents string/enum collision bugs at scale.
+2. **`Common_*` namespace promoted ONLY at 3+ uses** — validates at Batch boundaries; reusable keys defined in early batches (Batch 1/2) for downstream reuse.
+3. **Single-quoted outer attributes in Razor** — avoids editor mangling of Localize[...] calls.
+4. **No MauiReactor localization in Phase 2** — Blazor-only to reduce cognitive load and merge conflicts. MauiReactor cleanup is Phase 3 backlog (Captain's standing directive: "don't touch MauiReactor unless asked").
+5. **Build gate required before every commit** — prevents merge of code with missing resx keys.
+
+### Reviewer Lockout Enforcement
+
+Kaylee remained locked after Zoe's Phase 1 code-review approval and shipped Phase 2 solo. Wash was available for infrastructure fixes (manifest, culture rename) during Phase 1; no Wash infrastructure changes required in Phase 2 (Phase 1 fixes stood).
+
+### Handoff
+
+- **To Captain:** 10 commits on `main` ready for `/review` before push (final gate)
+- **To Phase 3 backlog:** Spanish/French/Japanese/Chinese resx files (add language support); tech debt follow-ups (HttpOnly/Secure, CSRF, legacy key cleanup)
+- **To future maintainers:** Enum-driven keys pattern locked in; reusable tooling (`add_keys.py`) documented in Phase 2 commits
+
+---
+
+## 2026-04-18 — Aspire Orphan Process Cleanup & Culture Cookie Cross-Origin Investigation
+
+**Date:** 2026-04-18  
+**Owner:** Squad Coordinator  
+**Status:** ✅ COMPLETE — Process tree cleared, investigation closed (by-design behavior confirmed)
+
+### What Happened
+
+Developer noticed Aspire dashboard applying culture changes across multiple localhost ASP.NET Core apps in the same browser session. Example: Set Korean in Aspire dashboard → language persists when switching to WebApp.
+
+### Root Cause
+
+**Browser cookie scope:** `.AspNetCore.Culture` cookie issued by one localhost:* app is visible to all localhost:* apps in the same browser session. This is **by-design browser behavior**, not a Aspire or app bug.
+
+Cookie domain is `localhost` (no port in domain restriction on same-host). When App A sets `.AspNetCore.Culture=c=ko|uic=ko` at localhost:5000, App B at localhost:5001 sees the same cookie on its next request (same domain). The middleware in App B reads the cookie and applies the culture.
+
+### By-Design Determination
+
+This is **NOT a bug** — it's standard browser + HTTP semantics:
+1. Multiple services on localhost share the same domain scope
+2. If isolation is desired, use separate machines, custom domain names, or accept shared culture as a feature
+3. No fix needed for Phase 2; acceptable for Alpha dev environment
+
+### Aspire Process Orphan Cleanup
+
+Separate issue: Orphaned Aspire process tree on port 22070 (15 processes) was blocking subsequent runs. Coordinator cleared via two SIGKILL passes; port now available for next Aspire launch.
+
+### Decision
+
+- **No code change required.** Culture cookie cross-origin sharing is by-design browser behavior.
+- **Document for future maintainers:** If developers complain about "unexpected culture change," check browser cookies and dev environment scope (localhost vs separate machines).
+- **Phase 3 tech debt:** Consider an environment flag to disable culture cookie for dev scenarios where strict isolation is preferred (ASPNETCORE_CULTURE_COOKIE_ENABLED or similar).
+

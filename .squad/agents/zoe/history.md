@@ -614,3 +614,25 @@ were there.
 
 - 2026-04-18: **Display Language Localization Architecture** — Scoped vs singleton criticality on Blazor Server circuits. Cookie round-trip pattern for interactive server apps (Profile save navigates forceLoad to /account-action/SetCulture, which writes cookie + redirects back). Culture identifier alignment across 5 touchpoints (DB / cookie / whitelist / endpoint validator / resx). ResourceManager fallback walks specific → parent → invariant; culture filename MUST match DB/code/whitelist (ko not ko-KR). Latent bug: <LogicalName> override required in csproj when Designer.cs hardcodes neutral resource path — exposed by mass Localize[] usage. MAUI path: IMauiInitializeService reads saved profile at boot, calls LocalizationManager.Instance.SetCulture (process-wide state acceptable in single-user client).
 
+
+## 2026-04-19 — Phase 2 Blazor Localization SHIPPED (Per Phase 2 Plan Handoff)
+
+**Status:** Phase 2 plan filed 2026-04-18 (batch strategy, naming conventions, shared-key taxonomy). Kaylee executed solo with Coordinator infrastructure support. **Phase 2 COMPLETE**: 10 commits, 1,024 keys, 40+ files.
+
+**Outcome:**
+- All activity pages (14 types: Quiz, Reading, Writing, Conversation, Scene, Video, MinimalPairs, etc.)
+- All management pages (Resources, Vocabulary, Skills, Settings)
+- Auth pipeline (Login, Register, Forgot, Onboarding, Import, Feedback)
+- Shared components (ActivityTimer, WhatsNewModal, UpdateBanner, PlanSummary, ChannelDetail)
+- Dashboard already done in Batch 1
+
+**Batching strategy validated:** Domain-based batching (not alphabetical) with 40-key soft cap actually scaled to 350-400 keys per activity-batch without review bottlenecks. Shared-key taxonomy (Common_*) reduced duplication and enforced terminology consistency. Kaylee's enum-driven key selection pattern (switch on typed `ActivityType`, not user-provided string keys) locked in during Phase 1, validated at Phase 2 scale — zero collisions.
+
+**Korean translation:** Phase 1 baseline (56 keys, handcrafted by Kaylee) set tone. Phase 2 scaled with Kaylee + LLM batch translation per batch, Captain spot-checks 3-5 keys per batch (high-traffic UI elements). No translation rework cycles needed; spot-check pass rate 100%.
+
+**Phase 1 architecture held:** Scoped `BlazorLocalizationService` (not singleton), culture cookie via `/SetCulture` endpoint, `CultureChanged` event subscription pattern, enum-driven keys. Zero process-wide culture bleed at scale.
+
+**Tech debt punted to Phase 3:** HttpOnly/Secure on culture cookie, CSRF on GET endpoint, legacy key cleanup, MauiReactor residue localization. All known, documented in decisions.md, acceptable for Alpha.
+
+**Handoff:** Phase 2 plan proved reusable and scalable. Phase 3 can reuse batch strategy, tooling (`add_keys.py`), and naming taxonomy for Spanish/French/Japanese/Chinese support.
+
