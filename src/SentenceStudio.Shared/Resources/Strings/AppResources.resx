@@ -2285,4 +2285,476 @@ Ready to practice? Say "yes" to start, or tell me what you'd like to change.</va
     <value>Deletion failed: {0}</value>
     <comment>Profile: Account deletion failure toast</comment>
   </data>
+  <data name="Common_Refresh" xml:space="preserve">
+    <value>Refresh</value>
+    <comment>Common: refresh action</comment>
+  </data>
+  <data name="Common_Loading" xml:space="preserve">
+    <value>Loading...</value>
+    <comment>Common: generic loading state</comment>
+  </data>
+  <data name="Common_LoadMore" xml:space="preserve">
+    <value>Load More</value>
+    <comment>Common: load more button</comment>
+  </data>
+  <data name="Common_GoBack" xml:space="preserve">
+    <value>Go Back</value>
+    <comment>Common: go back button</comment>
+  </data>
+  <data name="Common_Back" xml:space="preserve">
+    <value>Back</value>
+    <comment>Common: back button</comment>
+  </data>
+  <data name="Common_Next" xml:space="preserve">
+    <value>Next</value>
+    <comment>Common: next button</comment>
+  </data>
+  <data name="Common_Prev" xml:space="preserve">
+    <value>Prev</value>
+    <comment>Common: previous button (short)</comment>
+  </data>
+  <data name="Common_Previous" xml:space="preserve">
+    <value>Previous</value>
+    <comment>Common: previous button</comment>
+  </data>
+  <data name="Common_Save" xml:space="preserve">
+    <value>Save</value>
+    <comment>Common: save button</comment>
+  </data>
+  <data name="Common_Cancel" xml:space="preserve">
+    <value>Cancel</value>
+    <comment>Common: cancel button</comment>
+  </data>
+  <data name="Common_Done" xml:space="preserve">
+    <value>Done</value>
+    <comment>Common: done button</comment>
+  </data>
+  <data name="Common_Close" xml:space="preserve">
+    <value>Close</value>
+    <comment>Common: close button</comment>
+  </data>
+  <data name="Common_Delete" xml:space="preserve">
+    <value>Delete</value>
+    <comment>Common: delete button</comment>
+  </data>
+  <data name="Common_ConfirmDelete" xml:space="preserve">
+    <value>Confirm Delete</value>
+    <comment>Common: confirm delete title</comment>
+  </data>
+  <data name="Common_Add" xml:space="preserve">
+    <value>Add</value>
+    <comment>Common: add button</comment>
+  </data>
+  <data name="Common_Edit" xml:space="preserve">
+    <value>Edit</value>
+    <comment>Common: edit button</comment>
+  </data>
+  <data name="Common_Submit" xml:space="preserve">
+    <value>Submit</value>
+    <comment>Common: submit button</comment>
+  </data>
+  <data name="Common_Retry" xml:space="preserve">
+    <value>Retry</value>
+    <comment>Common: retry button</comment>
+  </data>
+  <data name="Common_Continue" xml:space="preserve">
+    <value>Continue</value>
+    <comment>Common: continue button</comment>
+  </data>
+  <data name="Common_OKButton" xml:space="preserve">
+    <value>OK</value>
+    <comment>Common: OK button</comment>
+  </data>
+  <data name="Common_Search" xml:space="preserve">
+    <value>Search</value>
+    <comment>Common: search</comment>
+  </data>
+  <data name="Common_Clear" xml:space="preserve">
+    <value>Clear</value>
+    <comment>Common: clear button</comment>
+  </data>
+  <data name="Common_NoResults" xml:space="preserve">
+    <value>No results found</value>
+    <comment>Common: no search results</comment>
+  </data>
+  <data name="Common_Error" xml:space="preserve">
+    <value>Error</value>
+    <comment>Common: error label</comment>
+  </data>
+  <data name="Common_Success" xml:space="preserve">
+    <value>Success</value>
+    <comment>Common: success label</comment>
+  </data>
+  <data name="Common_NetworkError" xml:space="preserve">
+    <value>Network error. Please check your connection.</value>
+    <comment>Common: network error</comment>
+  </data>
+  <data name="Common_TryAgain" xml:space="preserve">
+    <value>Please try again.</value>
+    <comment>Common: try again suffix</comment>
+  </data>
+  <data name="Common_MinutesShort" xml:space="preserve">
+    <value>min</value>
+    <comment>Common: minutes abbreviation</comment>
+  </data>
+  <data name="Common_Words" xml:space="preserve">
+    <value>words</value>
+    <comment>Common: words label</comment>
+  </data>
+  <data name="Dashboard_Title" xml:space="preserve">
+    <value>Dashboard</value>
+    <comment>Dashboard: page title</comment>
+  </data>
+  <data name="Dashboard_Welcome" xml:space="preserve">
+    <value>Welcome</value>
+    <comment>Dashboard: welcome header</comment>
+  </data>
+  <data name="Dashboard_WelcomeGreeting" xml:space="preserve">
+    <value>Welcome, {0}!</value>
+    <comment>Dashboard: personalized welcome. {0}=name</comment>
+  </data>
+  <data name="Dashboard_Mode" xml:space="preserve">
+    <value>Dashboard mode</value>
+    <comment>Dashboard: aria label for mode toggle</comment>
+  </data>
+  <data name="Dashboard_TodaysPlan" xml:space="preserve">
+    <value>Today's Plan</value>
+    <comment>Dashboard: today's plan mode</comment>
+  </data>
+  <data name="Dashboard_ChooseMyOwn" xml:space="preserve">
+    <value>Choose My Own</value>
+    <comment>Dashboard: choose own mode</comment>
+  </data>
+  <data name="Dashboard_RegeneratePlan" xml:space="preserve">
+    <value>Regenerate Plan</value>
+    <comment>Dashboard: regenerate plan menu item</comment>
+  </data>
+  <data name="Dashboard_NewUserTitle" xml:space="preserve">
+    <value>Start Your Language Journey</value>
+    <comment>Dashboard: new user hero title</comment>
+  </data>
+  <data name="Dashboard_NewUserDescription" xml:space="preserve">
+    <value>Set up your first learning resource and vocabulary so you can dive into activities like quizzes, conversation practice, and writing exercises.</value>
+    <comment>Dashboard: new user onboarding description</comment>
+  </data>
+  <data name="Dashboard_QuickStart" xml:space="preserve">
+    <value>Quick Start</value>
+    <comment>Dashboard: quick start card title</comment>
+  </data>
+  <data name="Dashboard_QuickStartDescription" xml:space="preserve">
+    <value>Create a starter Korean resource with 20 common vocabulary words so you can begin practicing immediately.</value>
+    <comment>Dashboard: quick start description</comment>
+  </data>
+  <data name="Dashboard_SettingUp" xml:space="preserve">
+    <value>Setting up...</value>
+    <comment>Dashboard: starter resource creating state</comment>
+  </data>
+  <data name="Dashboard_CreateStarterResource" xml:space="preserve">
+    <value>Create Starter Resource</value>
+    <comment>Dashboard: create starter resource button</comment>
+  </data>
+  <data name="Dashboard_CreateYourOwn" xml:space="preserve">
+    <value>Create Your Own</value>
+    <comment>Dashboard: create own card title</comment>
+  </data>
+  <data name="Dashboard_CreateYourOwnDescription" xml:space="preserve">
+    <value>Choose your own language, add custom vocabulary, or import from a podcast transcript or article.</value>
+    <comment>Dashboard: create own description</comment>
+  </data>
+  <data name="Dashboard_AddAResource" xml:space="preserve">
+    <value>Add a Resource</value>
+    <comment>Dashboard: add resource link</comment>
+  </data>
+  <data name="Dashboard_StarterCreateFailed" xml:space="preserve">
+    <value>Failed to create the starter resource. Please try again.</value>
+    <comment>Dashboard: starter creation error</comment>
+  </data>
+  <data name="Dashboard_StarterAlreadyExists" xml:space="preserve">
+    <value>A starter resource already exists. Refreshing your dashboard…</value>
+    <comment>Dashboard: starter duplicate error</comment>
+  </data>
+  <data name="Dashboard_StarterGenericError" xml:space="preserve">
+    <value>Something went wrong creating the starter resource. Please try again.</value>
+    <comment>Dashboard: starter generic error</comment>
+  </data>
+  <data name="Dashboard_DayStreak" xml:space="preserve">
+    <value>{0} day streak</value>
+    <comment>Dashboard: current streak badge. {0}=days</comment>
+  </data>
+  <data name="Dashboard_BestStreak" xml:space="preserve">
+    <value>Best: {0} days</value>
+    <comment>Dashboard: longest streak. {0}=days</comment>
+  </data>
+  <data name="Dashboard_TodaysProgress" xml:space="preserve">
+    <value>Today's Progress</value>
+    <comment>Dashboard: progress section header</comment>
+  </data>
+  <data name="Dashboard_ProgressCounts" xml:space="preserve">
+    <value>{0} / {1} activities · {2} / {3} min</value>
+    <comment>Dashboard: activities and minutes progress</comment>
+  </data>
+  <data name="Dashboard_TodaysInsight" xml:space="preserve">
+    <value>Today's Study Insight</value>
+    <comment>Dashboard: insight panel header</comment>
+  </data>
+  <data name="Dashboard_InsightNew" xml:space="preserve">
+    <value>new</value>
+    <comment>Dashboard: insight new count label</comment>
+  </data>
+  <data name="Dashboard_InsightReview" xml:space="preserve">
+    <value>review</value>
+    <comment>Dashboard: insight review count label</comment>
+  </data>
+  <data name="Dashboard_InsightTotalDue" xml:space="preserve">
+    <value>total due</value>
+    <comment>Dashboard: insight total due label</comment>
+  </data>
+  <data name="Dashboard_InsightMastery" xml:space="preserve">
+    <value>{0}% mastery</value>
+    <comment>Dashboard: mastery percent. {0}=percent</comment>
+  </data>
+  <data name="Dashboard_StrugglingWith" xml:space="preserve">
+    <value>Struggling with:</value>
+    <comment>Dashboard: struggling tags label</comment>
+  </data>
+  <data name="Dashboard_NewToYou" xml:space="preserve">
+    <value>New to you:</value>
+    <comment>Dashboard: new tags label</comment>
+  </data>
+  <data name="Dashboard_WordsToReview" xml:space="preserve">
+    <value>Words to review: {0}</value>
+    <comment>Dashboard: words to review. {0}=list</comment>
+  </data>
+  <data name="Dashboard_WordsToDiscover" xml:space="preserve">
+    <value>Words to discover: {0}</value>
+    <comment>Dashboard: words to discover. {0}=list</comment>
+  </data>
+  <data name="Dashboard_FocusAreas" xml:space="preserve">
+    <value>Focus Areas</value>
+    <comment>Dashboard: focus areas header</comment>
+  </data>
+  <data name="Dashboard_NoPlanYet" xml:space="preserve">
+    <value>No plan for today yet.</value>
+    <comment>Dashboard: empty plan state</comment>
+  </data>
+  <data name="Dashboard_GeneratePlan" xml:space="preserve">
+    <value>Generate Plan</value>
+    <comment>Dashboard: generate plan button</comment>
+  </data>
+  <data name="Dashboard_UnableToLoadPlan" xml:space="preserve">
+    <value>Unable to load plan: {0}</value>
+    <comment>Dashboard: load plan error. {0}=message</comment>
+  </data>
+  <data name="Dashboard_UnableToGeneratePlan" xml:space="preserve">
+    <value>Unable to generate plan. Please try again.</value>
+    <comment>Dashboard: generate plan error</comment>
+  </data>
+  <data name="Dashboard_UnableToGeneratePlanLater" xml:space="preserve">
+    <value>Unable to generate plan. Please try again later.</value>
+    <comment>Dashboard: generate plan error later</comment>
+  </data>
+  <data name="Dashboard_NetworkErrorTryAgain" xml:space="preserve">
+    <value>Network error. Please check your connection and try again.</value>
+    <comment>Dashboard: generate plan network error</comment>
+  </data>
+  <data name="Dashboard_LearningResourcesLabel" xml:space="preserve">
+    <value>Learning Resources</value>
+    <comment>Dashboard: choose-own learning resources label</comment>
+  </data>
+  <data name="Dashboard_SkillProfileLabel" xml:space="preserve">
+    <value>Skill Profile</value>
+    <comment>Dashboard: choose-own skill profile label</comment>
+  </data>
+  <data name="Dashboard_Activities" xml:space="preserve">
+    <value>Activities</value>
+    <comment>Dashboard: activities section header</comment>
+  </data>
+  <data name="Dashboard_ShowLess" xml:space="preserve">
+    <value>Show Less</value>
+    <comment>Dashboard: collapse activities</comment>
+  </data>
+  <data name="Dashboard_SeeAll" xml:space="preserve">
+    <value>See All</value>
+    <comment>Dashboard: expand activities</comment>
+  </data>
+  <data name="Dashboard_VocabularyHeader" xml:space="preserve">
+    <value>Vocabulary</value>
+    <comment>Dashboard: vocabulary section header</comment>
+  </data>
+  <data name="Dashboard_VocabNew" xml:space="preserve">
+    <value>New</value>
+    <comment>Dashboard: vocab status New</comment>
+  </data>
+  <data name="Dashboard_VocabLearning" xml:space="preserve">
+    <value>Learning</value>
+    <comment>Dashboard: vocab status Learning</comment>
+  </data>
+  <data name="Dashboard_VocabFamiliar" xml:space="preserve">
+    <value>Familiar</value>
+    <comment>Dashboard: vocab status Familiar</comment>
+  </data>
+  <data name="Dashboard_VocabReview" xml:space="preserve">
+    <value>Review</value>
+    <comment>Dashboard: vocab status Review</comment>
+  </data>
+  <data name="Dashboard_VocabKnown" xml:space="preserve">
+    <value>Known</value>
+    <comment>Dashboard: vocab status Known</comment>
+  </data>
+  <data name="Dashboard_TotalWordsLabel" xml:space="preserve">
+    <value>Total words:</value>
+    <comment>Dashboard: total words label</comment>
+  </data>
+  <data name="Dashboard_WeeklyAccuracyLabel" xml:space="preserve">
+    <value>7-day accuracy:</value>
+    <comment>Dashboard: weekly accuracy label</comment>
+  </data>
+  <data name="Dashboard_NoVocabData" xml:space="preserve">
+    <value>No vocabulary data yet. Start practicing!</value>
+    <comment>Dashboard: empty vocab state</comment>
+  </data>
+  <data name="Dashboard_EstimateMinutes" xml:space="preserve">
+    <value>~{0} min</value>
+    <comment>Dashboard: estimated minutes for item</comment>
+  </data>
+  <data name="Dashboard_SpentOfEstimate" xml:space="preserve">
+    <value>{0} / {1} min</value>
+    <comment>Dashboard: spent of estimate minutes</comment>
+  </data>
+  <data name="Dashboard_VocabDueCount" xml:space="preserve">
+    <value>{0} words</value>
+    <comment>Dashboard: vocab due count for plan item</comment>
+  </data>
+  <data name="Activity_Conversation" xml:space="preserve">
+    <value>Conversation</value>
+    <comment>Activity label: Conversation</comment>
+  </data>
+  <data name="Activity_DescribeScene" xml:space="preserve">
+    <value>Describe a Scene</value>
+    <comment>Activity label: Describe a Scene</comment>
+  </data>
+  <data name="Activity_Translate" xml:space="preserve">
+    <value>Translate</value>
+    <comment>Activity label: Translate</comment>
+  </data>
+  <data name="Activity_Cloze" xml:space="preserve">
+    <value>Cloze</value>
+    <comment>Activity label: Cloze</comment>
+  </data>
+  <data name="Activity_Writing" xml:space="preserve">
+    <value>Writing</value>
+    <comment>Activity label: Writing</comment>
+  </data>
+  <data name="Activity_Reading" xml:space="preserve">
+    <value>Reading</value>
+    <comment>Activity label: Reading</comment>
+  </data>
+  <data name="Activity_VocabQuiz" xml:space="preserve">
+    <value>Vocabulary Quiz</value>
+    <comment>Activity label: Vocabulary Quiz</comment>
+  </data>
+  <data name="Activity_VocabMatching" xml:space="preserve">
+    <value>Vocabulary Matching</value>
+    <comment>Activity label: Vocabulary Matching</comment>
+  </data>
+  <data name="Activity_Shadowing" xml:space="preserve">
+    <value>Shadowing</value>
+    <comment>Activity label: Shadowing</comment>
+  </data>
+  <data name="Activity_HowDoYouSay" xml:space="preserve">
+    <value>How Do You Say</value>
+    <comment>Activity label: How Do You Say</comment>
+  </data>
+  <data name="Activity_MinimalPairs" xml:space="preserve">
+    <value>Minimal Pairs</value>
+    <comment>Activity label: Minimal Pairs</comment>
+  </data>
+  <data name="Activity_WordAssociation" xml:space="preserve">
+    <value>Word Association</value>
+    <comment>Activity label: Word Association</comment>
+  </data>
+  <data name="Activity_VocabularyReview" xml:space="preserve">
+    <value>Vocabulary Review</value>
+    <comment>Activity label: Vocabulary Review</comment>
+  </data>
+  <data name="Activity_Listening" xml:space="preserve">
+    <value>Listening</value>
+    <comment>Activity label: Listening</comment>
+  </data>
+  <data name="Activity_ClozeExercise" xml:space="preserve">
+    <value>Cloze Exercise</value>
+    <comment>Activity label: Cloze Exercise</comment>
+  </data>
+  <data name="Activity_VideoWatching" xml:space="preserve">
+    <value>Video Watching</value>
+    <comment>Activity label: Video Watching</comment>
+  </data>
+  <data name="Activity_Generic" xml:space="preserve">
+    <value>Activity</value>
+    <comment>Activity label: Generic fallback</comment>
+  </data>
+  <data name="ActivityLog_Title" xml:space="preserve">
+    <value>Practice Log</value>
+    <comment>ActivityLog: page title</comment>
+  </data>
+  <data name="ActivityLog_AllActivities" xml:space="preserve">
+    <value>All Activities</value>
+    <comment>ActivityLog: all filter</comment>
+  </data>
+  <data name="ActivityLog_InputOnly" xml:space="preserve">
+    <value>Input Only</value>
+    <comment>ActivityLog: input filter</comment>
+  </data>
+  <data name="ActivityLog_OutputOnly" xml:space="preserve">
+    <value>Output Only</value>
+    <comment>ActivityLog: output filter</comment>
+  </data>
+  <data name="ActivityLog_EmptyState" xml:space="preserve">
+    <value>No practice activity yet. Complete your first daily plan to see your practice log!</value>
+    <comment>ActivityLog: empty state</comment>
+  </data>
+  <data name="ActivityLog_Input" xml:space="preserve">
+    <value>Input</value>
+    <comment>ActivityLog: input legend</comment>
+  </data>
+  <data name="ActivityLog_Output" xml:space="preserve">
+    <value>Output</value>
+    <comment>ActivityLog: output legend</comment>
+  </data>
+  <data name="ActivityLog_Rest" xml:space="preserve">
+    <value>Rest</value>
+    <comment>ActivityLog: rest day label</comment>
+  </data>
+  <data name="ActivityLog_WeekMinutes" xml:space="preserve">
+    <value>{0} m</value>
+    <comment>ActivityLog: week total minutes. {0}=minutes</comment>
+  </data>
+  <data name="MainLayout_Syncing" xml:space="preserve">
+    <value>Syncing...</value>
+    <comment>MainLayout: syncing hidden label</comment>
+  </data>
+  <data name="MainLayout_SyncingProfile" xml:space="preserve">
+    <value>Syncing Your Profile</value>
+    <comment>MainLayout: syncing overlay title</comment>
+  </data>
+  <data name="MainLayout_SyncingDescription" xml:space="preserve">
+    <value>Downloading your vocabulary, resources, and progress.</value>
+    <comment>MainLayout: syncing overlay body</comment>
+  </data>
+  <data name="MainLayout_ThisMayTakeAMoment" xml:space="preserve">
+    <value>This may take a moment.</value>
+    <comment>MainLayout: syncing overlay second line</comment>
+  </data>
+  <data name="MainLayout_WhatsNew" xml:space="preserve">
+    <value>What's New</value>
+    <comment>MainLayout: what's new modal title</comment>
+  </data>
+  <data name="MainLayout_ExpandSidebar" xml:space="preserve">
+    <value>Expand sidebar</value>
+    <comment>MainLayout: expand sidebar tooltip</comment>
+  </data>
+  <data name="MainLayout_CollapseSidebar" xml:space="preserve">
+    <value>Collapse sidebar</value>
+    <comment>MainLayout: collapse sidebar tooltip</comment>
+  </data>
 </root>

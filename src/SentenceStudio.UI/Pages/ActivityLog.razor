@@ -1,23 +1,25 @@
 @page "/activity-log"
 @attribute [Authorize]
 @using SentenceStudio.Services.Progress
+@implements IDisposable
 @inject IProgressService ProgressService
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
 
-<PageHeader Title="Practice Log">
+<PageHeader Title='@Localize["ActivityLog_Title"]'>
     <ToolbarActions>
-        <button class="btn btn-sm btn-icon" @onclick="RefreshAsync" disabled="@_loading" title="Refresh">
+        <button class="btn btn-sm btn-icon" @onclick="RefreshAsync" disabled="@_loading" title='@Localize["Common_Refresh"]'>
             <i class="bi bi-arrow-clockwise @(_loading ? "spin" : "")" style="font-size: 1.25rem;"></i>
         </button>
     </ToolbarActions>
     <SecondaryActions>
         <button class="dropdown-item" @onclick="() => FilterAsync(null)">
-            <i class="bi @(_filter == null ? "bi-check-circle-fill" : "bi-circle") me-2"></i>All Activities
+            <i class="bi @(_filter == null ? "bi-check-circle-fill" : "bi-circle") me-2"></i>@Localize["ActivityLog_AllActivities"]
         </button>
         <button class="dropdown-item" @onclick="() => FilterAsync(ActivityCategory.Input)">
-            <i class="bi @(_filter == ActivityCategory.Input ? "bi-check-circle-fill" : "bi-circle") me-2"></i>Input Only
+            <i class="bi @(_filter == ActivityCategory.Input ? "bi-check-circle-fill" : "bi-circle") me-2"></i>@Localize["ActivityLog_InputOnly"]
         </button>
         <button class="dropdown-item" @onclick="() => FilterAsync(ActivityCategory.Output)">
-            <i class="bi @(_filter == ActivityCategory.Output ? "bi-check-circle-fill" : "bi-circle") me-2"></i>Output Only
+            <i class="bi @(_filter == ActivityCategory.Output ? "bi-check-circle-fill" : "bi-circle") me-2"></i>@Localize["ActivityLog_OutputOnly"]
         </button>
     </SecondaryActions>
 </PageHeader>
@@ -26,7 +28,7 @@
 {
     <div class="d-flex justify-content-center align-items-center py-5">
         <div class="spinner-border text-primary" role="status">
-            <span class="visually-hidden">Loading...</span>
+            <span class="visually-hidden">@Localize["Common_Loading"]</span>
         </div>
     </div>
 }
@@ -34,7 +36,7 @@ else if (!_weeks.Any())
 {
     <div class="text-center py-5 px-3">
         <i class="bi bi-calendar-x fs-1 mb-3" style="color: var(--bs-secondary-color);"></i>
-        <p class="ss-body1 text-secondary-ss">No practice activity yet. Complete your first daily plan to see your practice log!</p>
+        <p class="ss-body1 text-secondary-ss">@Localize["ActivityLog_EmptyState"]</p>
     </div>
 }
 else
@@ -43,11 +45,11 @@ else
     <div class="d-flex gap-3 mb-3 px-3">
         <span class="d-flex align-items-center gap-1">
             <span class="activity-dot activity-dot-sm activity-dot-input"></span>
-            <span class="ss-caption1">Input</span>
+            <span class="ss-caption1">@Localize["ActivityLog_Input"]</span>
         </span>
         <span class="d-flex align-items-center gap-1">
             <span class="activity-dot activity-dot-sm activity-dot-output"></span>
-            <span class="ss-caption1">Output</span>
+            <span class="ss-caption1">@Localize["ActivityLog_Output"]</span>
         </span>
     </div>
 
@@ -122,7 +124,15 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        Localize.CultureChanged += OnCultureChanged;
         await LoadDataAsync();
+    }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnCultureChanged;
     }
 
     private async Task LoadDataAsync()

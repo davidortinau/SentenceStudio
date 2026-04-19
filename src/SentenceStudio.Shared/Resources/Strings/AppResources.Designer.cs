@@ -103,11 +103,245 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Cloze.
+        /// </summary>
+        internal static string Activity_Cloze {
+            get {
+                return ResourceManager.GetString("Activity_Cloze", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Cloze Exercise.
+        /// </summary>
+        internal static string Activity_ClozeExercise {
+            get {
+                return ResourceManager.GetString("Activity_ClozeExercise", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Conversation.
+        /// </summary>
+        internal static string Activity_Conversation {
+            get {
+                return ResourceManager.GetString("Activity_Conversation", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Describe a Scene.
+        /// </summary>
+        internal static string Activity_DescribeScene {
+            get {
+                return ResourceManager.GetString("Activity_DescribeScene", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Activity.
+        /// </summary>
+        internal static string Activity_Generic {
+            get {
+                return ResourceManager.GetString("Activity_Generic", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to How Do You Say.
+        /// </summary>
+        internal static string Activity_HowDoYouSay {
+            get {
+                return ResourceManager.GetString("Activity_HowDoYouSay", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Listening.
+        /// </summary>
+        internal static string Activity_Listening {
+            get {
+                return ResourceManager.GetString("Activity_Listening", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Minimal Pairs.
+        /// </summary>
+        internal static string Activity_MinimalPairs {
+            get {
+                return ResourceManager.GetString("Activity_MinimalPairs", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Reading.
+        /// </summary>
+        internal static string Activity_Reading {
+            get {
+                return ResourceManager.GetString("Activity_Reading", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Shadowing.
+        /// </summary>
+        internal static string Activity_Shadowing {
+            get {
+                return ResourceManager.GetString("Activity_Shadowing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Translate.
+        /// </summary>
+        internal static string Activity_Translate {
+            get {
+                return ResourceManager.GetString("Activity_Translate", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Video Watching.
+        /// </summary>
+        internal static string Activity_VideoWatching {
+            get {
+                return ResourceManager.GetString("Activity_VideoWatching", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Vocabulary Matching.
+        /// </summary>
+        internal static string Activity_VocabMatching {
+            get {
+                return ResourceManager.GetString("Activity_VocabMatching", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Vocabulary Quiz.
+        /// </summary>
+        internal static string Activity_VocabQuiz {
+            get {
+                return ResourceManager.GetString("Activity_VocabQuiz", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Vocabulary Review.
+        /// </summary>
+        internal static string Activity_VocabularyReview {
+            get {
+                return ResourceManager.GetString("Activity_VocabularyReview", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Word Association.
+        /// </summary>
+        internal static string Activity_WordAssociation {
+            get {
+                return ResourceManager.GetString("Activity_WordAssociation", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Writing.
+        /// </summary>
+        internal static string Activity_Writing {
+            get {
+                return ResourceManager.GetString("Activity_Writing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Complete!.
         /// </summary>
         internal static string ActivityCompleteLabel {
             get {
                 return ResourceManager.GetString("ActivityCompleteLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to All Activities.
+        /// </summary>
+        internal static string ActivityLog_AllActivities {
+            get {
+                return ResourceManager.GetString("ActivityLog_AllActivities", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No practice activity yet. Complete your first daily plan to see your practice log!.
+        /// </summary>
+        internal static string ActivityLog_EmptyState {
+            get {
+                return ResourceManager.GetString("ActivityLog_EmptyState", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Input.
+        /// </summary>
+        internal static string ActivityLog_Input {
+            get {
+                return ResourceManager.GetString("ActivityLog_Input", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Input Only.
+        /// </summary>
+        internal static string ActivityLog_InputOnly {
+            get {
+                return ResourceManager.GetString("ActivityLog_InputOnly", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Output.
+        /// </summary>
+        internal static string ActivityLog_Output {
+            get {
+                return ResourceManager.GetString("ActivityLog_Output", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Output Only.
+        /// </summary>
+        internal static string ActivityLog_OutputOnly {
+            get {
+                return ResourceManager.GetString("ActivityLog_OutputOnly", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Rest.
+        /// </summary>
+        internal static string ActivityLog_Rest {
+            get {
+                return ResourceManager.GetString("ActivityLog_Rest", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Practice Log.
+        /// </summary>
+        internal static string ActivityLog_Title {
+            get {
+                return ResourceManager.GetString("ActivityLog_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} m.
+        /// </summary>
+        internal static string ActivityLog_WeekMinutes {
+            get {
+                return ResourceManager.GetString("ActivityLog_WeekMinutes", resourceCulture);
             }
         }
         
@@ -571,6 +805,267 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Add.
+        /// </summary>
+        internal static string Common_Add {
+            get {
+                return ResourceManager.GetString("Common_Add", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Back.
+        /// </summary>
+        internal static string Common_Back {
+            get {
+                return ResourceManager.GetString("Common_Back", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Cancel.
+        /// </summary>
+        internal static string Common_Cancel {
+            get {
+                return ResourceManager.GetString("Common_Cancel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Clear.
+        /// </summary>
+        internal static string Common_Clear {
+            get {
+                return ResourceManager.GetString("Common_Clear", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Close.
+        /// </summary>
+        internal static string Common_Close {
+            get {
+                return ResourceManager.GetString("Common_Close", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Confirm Delete.
+        /// </summary>
+        internal static string Common_ConfirmDelete {
+            get {
+                return ResourceManager.GetString("Common_ConfirmDelete", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Continue.
+        /// </summary>
+        internal static string Common_Continue {
+            get {
+                return ResourceManager.GetString("Common_Continue", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Delete.
+        /// </summary>
+        internal static string Common_Delete {
+            get {
+                return ResourceManager.GetString("Common_Delete", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Done.
+        /// </summary>
+        internal static string Common_Done {
+            get {
+                return ResourceManager.GetString("Common_Done", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Edit.
+        /// </summary>
+        internal static string Common_Edit {
+            get {
+                return ResourceManager.GetString("Common_Edit", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Error.
+        /// </summary>
+        internal static string Common_Error {
+            get {
+                return ResourceManager.GetString("Common_Error", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Go Back.
+        /// </summary>
+        internal static string Common_GoBack {
+            get {
+                return ResourceManager.GetString("Common_GoBack", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Loading....
+        /// </summary>
+        internal static string Common_Loading {
+            get {
+                return ResourceManager.GetString("Common_Loading", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Load More.
+        /// </summary>
+        internal static string Common_LoadMore {
+            get {
+                return ResourceManager.GetString("Common_LoadMore", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to min.
+        /// </summary>
+        internal static string Common_MinutesShort {
+            get {
+                return ResourceManager.GetString("Common_MinutesShort", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Network error. Please check your connection..
+        /// </summary>
+        internal static string Common_NetworkError {
+            get {
+                return ResourceManager.GetString("Common_NetworkError", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Next.
+        /// </summary>
+        internal static string Common_Next {
+            get {
+                return ResourceManager.GetString("Common_Next", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No results found.
+        /// </summary>
+        internal static string Common_NoResults {
+            get {
+                return ResourceManager.GetString("Common_NoResults", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to OK.
+        /// </summary>
+        internal static string Common_OKButton {
+            get {
+                return ResourceManager.GetString("Common_OKButton", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Prev.
+        /// </summary>
+        internal static string Common_Prev {
+            get {
+                return ResourceManager.GetString("Common_Prev", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Previous.
+        /// </summary>
+        internal static string Common_Previous {
+            get {
+                return ResourceManager.GetString("Common_Previous", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Refresh.
+        /// </summary>
+        internal static string Common_Refresh {
+            get {
+                return ResourceManager.GetString("Common_Refresh", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Retry.
+        /// </summary>
+        internal static string Common_Retry {
+            get {
+                return ResourceManager.GetString("Common_Retry", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Save.
+        /// </summary>
+        internal static string Common_Save {
+            get {
+                return ResourceManager.GetString("Common_Save", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Search.
+        /// </summary>
+        internal static string Common_Search {
+            get {
+                return ResourceManager.GetString("Common_Search", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Submit.
+        /// </summary>
+        internal static string Common_Submit {
+            get {
+                return ResourceManager.GetString("Common_Submit", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Success.
+        /// </summary>
+        internal static string Common_Success {
+            get {
+                return ResourceManager.GetString("Common_Success", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Please try again..
+        /// </summary>
+        internal static string Common_TryAgain {
+            get {
+                return ResourceManager.GetString("Common_TryAgain", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to words.
+        /// </summary>
+        internal static string Common_Words {
+            get {
+                return ResourceManager.GetString("Common_Words", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Confirmation Display.
         /// </summary>
         internal static string ConfirmationDisplay {
@@ -747,6 +1242,510 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Dashboard {
             get {
                 return ResourceManager.GetString("Dashboard", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Activities.
+        /// </summary>
+        internal static string Dashboard_Activities {
+            get {
+                return ResourceManager.GetString("Dashboard_Activities", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Add a Resource.
+        /// </summary>
+        internal static string Dashboard_AddAResource {
+            get {
+                return ResourceManager.GetString("Dashboard_AddAResource", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Best: {0} days.
+        /// </summary>
+        internal static string Dashboard_BestStreak {
+            get {
+                return ResourceManager.GetString("Dashboard_BestStreak", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Choose My Own.
+        /// </summary>
+        internal static string Dashboard_ChooseMyOwn {
+            get {
+                return ResourceManager.GetString("Dashboard_ChooseMyOwn", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Create Starter Resource.
+        /// </summary>
+        internal static string Dashboard_CreateStarterResource {
+            get {
+                return ResourceManager.GetString("Dashboard_CreateStarterResource", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Create Your Own.
+        /// </summary>
+        internal static string Dashboard_CreateYourOwn {
+            get {
+                return ResourceManager.GetString("Dashboard_CreateYourOwn", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Choose your own language, add custom vocabulary, or import from a podcast transcript or article..
+        /// </summary>
+        internal static string Dashboard_CreateYourOwnDescription {
+            get {
+                return ResourceManager.GetString("Dashboard_CreateYourOwnDescription", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} day streak.
+        /// </summary>
+        internal static string Dashboard_DayStreak {
+            get {
+                return ResourceManager.GetString("Dashboard_DayStreak", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to ~{0} min.
+        /// </summary>
+        internal static string Dashboard_EstimateMinutes {
+            get {
+                return ResourceManager.GetString("Dashboard_EstimateMinutes", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Focus Areas.
+        /// </summary>
+        internal static string Dashboard_FocusAreas {
+            get {
+                return ResourceManager.GetString("Dashboard_FocusAreas", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Generate Plan.
+        /// </summary>
+        internal static string Dashboard_GeneratePlan {
+            get {
+                return ResourceManager.GetString("Dashboard_GeneratePlan", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0}% mastery.
+        /// </summary>
+        internal static string Dashboard_InsightMastery {
+            get {
+                return ResourceManager.GetString("Dashboard_InsightMastery", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to new.
+        /// </summary>
+        internal static string Dashboard_InsightNew {
+            get {
+                return ResourceManager.GetString("Dashboard_InsightNew", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to review.
+        /// </summary>
+        internal static string Dashboard_InsightReview {
+            get {
+                return ResourceManager.GetString("Dashboard_InsightReview", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to total due.
+        /// </summary>
+        internal static string Dashboard_InsightTotalDue {
+            get {
+                return ResourceManager.GetString("Dashboard_InsightTotalDue", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Learning Resources.
+        /// </summary>
+        internal static string Dashboard_LearningResourcesLabel {
+            get {
+                return ResourceManager.GetString("Dashboard_LearningResourcesLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Dashboard mode.
+        /// </summary>
+        internal static string Dashboard_Mode {
+            get {
+                return ResourceManager.GetString("Dashboard_Mode", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Network error. Please check your connection and try again..
+        /// </summary>
+        internal static string Dashboard_NetworkErrorTryAgain {
+            get {
+                return ResourceManager.GetString("Dashboard_NetworkErrorTryAgain", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to New to you:.
+        /// </summary>
+        internal static string Dashboard_NewToYou {
+            get {
+                return ResourceManager.GetString("Dashboard_NewToYou", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Set up your first learning resource and vocabulary so you can dive into activities like quizzes, conversation practice, and writing exercises..
+        /// </summary>
+        internal static string Dashboard_NewUserDescription {
+            get {
+                return ResourceManager.GetString("Dashboard_NewUserDescription", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Start Your Language Journey.
+        /// </summary>
+        internal static string Dashboard_NewUserTitle {
+            get {
+                return ResourceManager.GetString("Dashboard_NewUserTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No plan for today yet..
+        /// </summary>
+        internal static string Dashboard_NoPlanYet {
+            get {
+                return ResourceManager.GetString("Dashboard_NoPlanYet", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No vocabulary data yet. Start practicing!.
+        /// </summary>
+        internal static string Dashboard_NoVocabData {
+            get {
+                return ResourceManager.GetString("Dashboard_NoVocabData", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} / {1} activities · {2} / {3} min.
+        /// </summary>
+        internal static string Dashboard_ProgressCounts {
+            get {
+                return ResourceManager.GetString("Dashboard_ProgressCounts", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Quick Start.
+        /// </summary>
+        internal static string Dashboard_QuickStart {
+            get {
+                return ResourceManager.GetString("Dashboard_QuickStart", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Create a starter Korean resource with 20 common vocabulary words so you can begin practicing immediately..
+        /// </summary>
+        internal static string Dashboard_QuickStartDescription {
+            get {
+                return ResourceManager.GetString("Dashboard_QuickStartDescription", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Regenerate Plan.
+        /// </summary>
+        internal static string Dashboard_RegeneratePlan {
+            get {
+                return ResourceManager.GetString("Dashboard_RegeneratePlan", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to See All.
+        /// </summary>
+        internal static string Dashboard_SeeAll {
+            get {
+                return ResourceManager.GetString("Dashboard_SeeAll", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Setting up....
+        /// </summary>
+        internal static string Dashboard_SettingUp {
+            get {
+                return ResourceManager.GetString("Dashboard_SettingUp", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Show Less.
+        /// </summary>
+        internal static string Dashboard_ShowLess {
+            get {
+                return ResourceManager.GetString("Dashboard_ShowLess", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Skill Profile.
+        /// </summary>
+        internal static string Dashboard_SkillProfileLabel {
+            get {
+                return ResourceManager.GetString("Dashboard_SkillProfileLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} / {1} min.
+        /// </summary>
+        internal static string Dashboard_SpentOfEstimate {
+            get {
+                return ResourceManager.GetString("Dashboard_SpentOfEstimate", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to A starter resource already exists. Refreshing your dashboard….
+        /// </summary>
+        internal static string Dashboard_StarterAlreadyExists {
+            get {
+                return ResourceManager.GetString("Dashboard_StarterAlreadyExists", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to create the starter resource. Please try again..
+        /// </summary>
+        internal static string Dashboard_StarterCreateFailed {
+            get {
+                return ResourceManager.GetString("Dashboard_StarterCreateFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Something went wrong creating the starter resource. Please try again..
+        /// </summary>
+        internal static string Dashboard_StarterGenericError {
+            get {
+                return ResourceManager.GetString("Dashboard_StarterGenericError", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Struggling with:.
+        /// </summary>
+        internal static string Dashboard_StrugglingWith {
+            get {
+                return ResourceManager.GetString("Dashboard_StrugglingWith", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Dashboard.
+        /// </summary>
+        internal static string Dashboard_Title {
+            get {
+                return ResourceManager.GetString("Dashboard_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Today&apos;s Study Insight.
+        /// </summary>
+        internal static string Dashboard_TodaysInsight {
+            get {
+                return ResourceManager.GetString("Dashboard_TodaysInsight", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Today&apos;s Plan.
+        /// </summary>
+        internal static string Dashboard_TodaysPlan {
+            get {
+                return ResourceManager.GetString("Dashboard_TodaysPlan", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Today&apos;s Progress.
+        /// </summary>
+        internal static string Dashboard_TodaysProgress {
+            get {
+                return ResourceManager.GetString("Dashboard_TodaysProgress", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Total words:.
+        /// </summary>
+        internal static string Dashboard_TotalWordsLabel {
+            get {
+                return ResourceManager.GetString("Dashboard_TotalWordsLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Unable to generate plan. Please try again..
+        /// </summary>
+        internal static string Dashboard_UnableToGeneratePlan {
+            get {
+                return ResourceManager.GetString("Dashboard_UnableToGeneratePlan", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Unable to generate plan. Please try again later..
+        /// </summary>
+        internal static string Dashboard_UnableToGeneratePlanLater {
+            get {
+                return ResourceManager.GetString("Dashboard_UnableToGeneratePlanLater", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Unable to load plan: {0}.
+        /// </summary>
+        internal static string Dashboard_UnableToLoadPlan {
+            get {
+                return ResourceManager.GetString("Dashboard_UnableToLoadPlan", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} words.
+        /// </summary>
+        internal static string Dashboard_VocabDueCount {
+            get {
+                return ResourceManager.GetString("Dashboard_VocabDueCount", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Familiar.
+        /// </summary>
+        internal static string Dashboard_VocabFamiliar {
+            get {
+                return ResourceManager.GetString("Dashboard_VocabFamiliar", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Known.
+        /// </summary>
+        internal static string Dashboard_VocabKnown {
+            get {
+                return ResourceManager.GetString("Dashboard_VocabKnown", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Learning.
+        /// </summary>
+        internal static string Dashboard_VocabLearning {
+            get {
+                return ResourceManager.GetString("Dashboard_VocabLearning", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to New.
+        /// </summary>
+        internal static string Dashboard_VocabNew {
+            get {
+                return ResourceManager.GetString("Dashboard_VocabNew", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Review.
+        /// </summary>
+        internal static string Dashboard_VocabReview {
+            get {
+                return ResourceManager.GetString("Dashboard_VocabReview", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Vocabulary.
+        /// </summary>
+        internal static string Dashboard_VocabularyHeader {
+            get {
+                return ResourceManager.GetString("Dashboard_VocabularyHeader", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to 7-day accuracy:.
+        /// </summary>
+        internal static string Dashboard_WeeklyAccuracyLabel {
+            get {
+                return ResourceManager.GetString("Dashboard_WeeklyAccuracyLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Welcome.
+        /// </summary>
+        internal static string Dashboard_Welcome {
+            get {
+                return ResourceManager.GetString("Dashboard_Welcome", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Welcome, {0}!.
+        /// </summary>
+        internal static string Dashboard_WelcomeGreeting {
+            get {
+                return ResourceManager.GetString("Dashboard_WelcomeGreeting", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Words to discover: {0}.
+        /// </summary>
+        internal static string Dashboard_WordsToDiscover {
+            get {
+                return ResourceManager.GetString("Dashboard_WordsToDiscover", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Words to review: {0}.
+        /// </summary>
+        internal static string Dashboard_WordsToReview {
+            get {
+                return ResourceManager.GetString("Dashboard_WordsToReview", resourceCulture);
             }
         }
         
@@ -1638,6 +2637,69 @@ namespace SentenceStudio.Resources.Strings {
         internal static string LookingUpDefinition {
             get {
                 return ResourceManager.GetString("LookingUpDefinition", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Collapse sidebar.
+        /// </summary>
+        internal static string MainLayout_CollapseSidebar {
+            get {
+                return ResourceManager.GetString("MainLayout_CollapseSidebar", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Expand sidebar.
+        /// </summary>
+        internal static string MainLayout_ExpandSidebar {
+            get {
+                return ResourceManager.GetString("MainLayout_ExpandSidebar", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Syncing....
+        /// </summary>
+        internal static string MainLayout_Syncing {
+            get {
+                return ResourceManager.GetString("MainLayout_Syncing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Downloading your vocabulary, resources, and progress..
+        /// </summary>
+        internal static string MainLayout_SyncingDescription {
+            get {
+                return ResourceManager.GetString("MainLayout_SyncingDescription", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Syncing Your Profile.
+        /// </summary>
+        internal static string MainLayout_SyncingProfile {
+            get {
+                return ResourceManager.GetString("MainLayout_SyncingProfile", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to This may take a moment..
+        /// </summary>
+        internal static string MainLayout_ThisMayTakeAMoment {
+            get {
+                return ResourceManager.GetString("MainLayout_ThisMayTakeAMoment", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to What&apos;s New.
+        /// </summary>
+        internal static string MainLayout_WhatsNew {
+            get {
+                return ResourceManager.GetString("MainLayout_WhatsNew", resourceCulture);
             }
         }
         

@@ -8,6 +8,7 @@
 @inject SentenceStudio.Services.ReleaseNotesService ReleaseNotesService
 @inject IServiceProvider ServiceProvider
 @inject SentenceStudio.Services.ISyncService SyncService
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
 @implements IDisposable
 
 <div class="d-flex vh-100">
@@ -22,7 +23,7 @@
             </div>
             <div class="p-2 border-top" style="border-color: var(--bs-border-color) !important;">
                 <button class="btn btn-sm btn-icon d-flex align-items-center @(sidebarCollapsed ? "justify-content-center w-100" : "ms-auto")"
-                        title="@(sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar")"
+                        title='@(sidebarCollapsed ? Localize["MainLayout_ExpandSidebar"] : Localize["MainLayout_CollapseSidebar"])'
                         @onclick="ToggleSidebar">
                     <i class="bi @(sidebarCollapsed ? "bi-chevron-right" : "bi-chevron-left")"></i>
                 </button>
@@ -71,10 +72,10 @@
         <div class="sync-overlay">
             <div class="text-center">
                 <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;" role="status">
-                    <span class="visually-hidden">Syncing...</span>
+                    <span class="visually-hidden">@Localize["MainLayout_Syncing"]</span>
                 </div>
-                <h4 class="text-white mb-2">Syncing Your Profile</h4>
-                <p class="text-white-50 mb-0">Downloading your vocabulary, resources, and progress.<br/>This may take a moment.</p>
+                <h4 class="text-white mb-2">@Localize["MainLayout_SyncingProfile"]</h4>
+                <p class="text-white-50 mb-0">@Localize["MainLayout_SyncingDescription"]<br/>@Localize["MainLayout_ThisMayTakeAMoment"]</p>
             </div>
         </div>
     }
@@ -89,7 +90,7 @@
     private bool isOnboarding;
     private bool isAuthenticated;
     private bool showWhatsNew;
-    private string whatsNewTitle = "What's New";
+    private string whatsNewTitle => Localize["MainLayout_WhatsNew"];
     private string whatsNewVersion = "";
     private string whatsNewContent = "";
     private bool isUpdateAvailable;
@@ -98,6 +99,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        Localize.CultureChanged += OnCultureChanged;
         NavigationManager.LocationChanged += OnLocationChanged;
         
         isSyncing = SyncService.IsInitialSyncInProgress;
@@ -168,7 +170,6 @@
                 if (releaseNote != null)
                 {
                     whatsNewVersion = releaseNote.Version;
-                    whatsNewTitle = "What's New";
                     whatsNewContent = ConvertMarkdownToHtml(releaseNote.MarkdownContent);
                     showWhatsNew = true;
                     await InvokeAsync(StateHasChanged);
@@ -295,11 +296,14 @@
 
     public void Dispose()
     {
+        Localize.CultureChanged -= OnCultureChanged;
         ThemeService.ThemeChanged -= OnThemeChanged;
         NavigationManager.LocationChanged -= OnLocationChanged;
         SyncService.InitialSyncCompleted -= OnInitialSyncCompleted;
         jsModule?.DisposeAsync();
     }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
 
     private void OnInitialSyncCompleted()
     {

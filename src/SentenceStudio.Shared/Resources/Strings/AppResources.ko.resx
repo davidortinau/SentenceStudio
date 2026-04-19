@@ -2041,4 +2041,476 @@
     <value>삭제 실패: {0}</value>
     <comment>Profile: Account deletion failure toast</comment>
   </data>
+  <data name="Common_Refresh" xml:space="preserve">
+    <value>새로고침</value>
+    <comment>Common: refresh action</comment>
+  </data>
+  <data name="Common_Loading" xml:space="preserve">
+    <value>로딩 중...</value>
+    <comment>Common: generic loading state</comment>
+  </data>
+  <data name="Common_LoadMore" xml:space="preserve">
+    <value>더 보기</value>
+    <comment>Common: load more button</comment>
+  </data>
+  <data name="Common_GoBack" xml:space="preserve">
+    <value>뒤로</value>
+    <comment>Common: go back button</comment>
+  </data>
+  <data name="Common_Back" xml:space="preserve">
+    <value>뒤로</value>
+    <comment>Common: back button</comment>
+  </data>
+  <data name="Common_Next" xml:space="preserve">
+    <value>다음</value>
+    <comment>Common: next button</comment>
+  </data>
+  <data name="Common_Prev" xml:space="preserve">
+    <value>이전</value>
+    <comment>Common: previous button (short)</comment>
+  </data>
+  <data name="Common_Previous" xml:space="preserve">
+    <value>이전</value>
+    <comment>Common: previous button</comment>
+  </data>
+  <data name="Common_Save" xml:space="preserve">
+    <value>저장</value>
+    <comment>Common: save button</comment>
+  </data>
+  <data name="Common_Cancel" xml:space="preserve">
+    <value>취소</value>
+    <comment>Common: cancel button</comment>
+  </data>
+  <data name="Common_Done" xml:space="preserve">
+    <value>완료</value>
+    <comment>Common: done button</comment>
+  </data>
+  <data name="Common_Close" xml:space="preserve">
+    <value>닫기</value>
+    <comment>Common: close button</comment>
+  </data>
+  <data name="Common_Delete" xml:space="preserve">
+    <value>삭제</value>
+    <comment>Common: delete button</comment>
+  </data>
+  <data name="Common_ConfirmDelete" xml:space="preserve">
+    <value>삭제 확인</value>
+    <comment>Common: confirm delete title</comment>
+  </data>
+  <data name="Common_Add" xml:space="preserve">
+    <value>추가</value>
+    <comment>Common: add button</comment>
+  </data>
+  <data name="Common_Edit" xml:space="preserve">
+    <value>편집</value>
+    <comment>Common: edit button</comment>
+  </data>
+  <data name="Common_Submit" xml:space="preserve">
+    <value>제출</value>
+    <comment>Common: submit button</comment>
+  </data>
+  <data name="Common_Retry" xml:space="preserve">
+    <value>다시 시도</value>
+    <comment>Common: retry button</comment>
+  </data>
+  <data name="Common_Continue" xml:space="preserve">
+    <value>계속</value>
+    <comment>Common: continue button</comment>
+  </data>
+  <data name="Common_OKButton" xml:space="preserve">
+    <value>확인</value>
+    <comment>Common: OK button</comment>
+  </data>
+  <data name="Common_Search" xml:space="preserve">
+    <value>검색</value>
+    <comment>Common: search</comment>
+  </data>
+  <data name="Common_Clear" xml:space="preserve">
+    <value>지우기</value>
+    <comment>Common: clear button</comment>
+  </data>
+  <data name="Common_NoResults" xml:space="preserve">
+    <value>결과 없음</value>
+    <comment>Common: no search results</comment>
+  </data>
+  <data name="Common_Error" xml:space="preserve">
+    <value>오류</value>
+    <comment>Common: error label</comment>
+  </data>
+  <data name="Common_Success" xml:space="preserve">
+    <value>성공</value>
+    <comment>Common: success label</comment>
+  </data>
+  <data name="Common_NetworkError" xml:space="preserve">
+    <value>네트워크 오류. 연결을 확인해 주세요.</value>
+    <comment>Common: network error</comment>
+  </data>
+  <data name="Common_TryAgain" xml:space="preserve">
+    <value>다시 시도해 주세요.</value>
+    <comment>Common: try again suffix</comment>
+  </data>
+  <data name="Common_MinutesShort" xml:space="preserve">
+    <value>분</value>
+    <comment>Common: minutes abbreviation</comment>
+  </data>
+  <data name="Common_Words" xml:space="preserve">
+    <value>단어</value>
+    <comment>Common: words label</comment>
+  </data>
+  <data name="Dashboard_Title" xml:space="preserve">
+    <value>대시보드</value>
+    <comment>Dashboard: page title</comment>
+  </data>
+  <data name="Dashboard_Welcome" xml:space="preserve">
+    <value>환영합니다</value>
+    <comment>Dashboard: welcome header</comment>
+  </data>
+  <data name="Dashboard_WelcomeGreeting" xml:space="preserve">
+    <value>환영합니다, {0}님!</value>
+    <comment>Dashboard: personalized welcome. {0}=name</comment>
+  </data>
+  <data name="Dashboard_Mode" xml:space="preserve">
+    <value>대시보드 모드</value>
+    <comment>Dashboard: aria label for mode toggle</comment>
+  </data>
+  <data name="Dashboard_TodaysPlan" xml:space="preserve">
+    <value>오늘의 계획</value>
+    <comment>Dashboard: today's plan mode</comment>
+  </data>
+  <data name="Dashboard_ChooseMyOwn" xml:space="preserve">
+    <value>직접 선택</value>
+    <comment>Dashboard: choose own mode</comment>
+  </data>
+  <data name="Dashboard_RegeneratePlan" xml:space="preserve">
+    <value>계획 다시 생성</value>
+    <comment>Dashboard: regenerate plan menu item</comment>
+  </data>
+  <data name="Dashboard_NewUserTitle" xml:space="preserve">
+    <value>언어 학습 여정을 시작하세요</value>
+    <comment>Dashboard: new user hero title</comment>
+  </data>
+  <data name="Dashboard_NewUserDescription" xml:space="preserve">
+    <value>첫 번째 학습 자료와 어휘를 설정하고 퀴즈, 회화 연습, 작문 연습 같은 활동을 바로 시작해 보세요.</value>
+    <comment>Dashboard: new user onboarding description</comment>
+  </data>
+  <data name="Dashboard_QuickStart" xml:space="preserve">
+    <value>빠른 시작</value>
+    <comment>Dashboard: quick start card title</comment>
+  </data>
+  <data name="Dashboard_QuickStartDescription" xml:space="preserve">
+    <value>자주 쓰는 어휘 20개가 포함된 한국어 학습 자료를 만들어 바로 연습을 시작하세요.</value>
+    <comment>Dashboard: quick start description</comment>
+  </data>
+  <data name="Dashboard_SettingUp" xml:space="preserve">
+    <value>설정 중...</value>
+    <comment>Dashboard: starter resource creating state</comment>
+  </data>
+  <data name="Dashboard_CreateStarterResource" xml:space="preserve">
+    <value>스타터 자료 만들기</value>
+    <comment>Dashboard: create starter resource button</comment>
+  </data>
+  <data name="Dashboard_CreateYourOwn" xml:space="preserve">
+    <value>직접 만들기</value>
+    <comment>Dashboard: create own card title</comment>
+  </data>
+  <data name="Dashboard_CreateYourOwnDescription" xml:space="preserve">
+    <value>원하는 언어를 선택하고 직접 어휘를 추가하거나 팟캐스트 대본이나 기사에서 가져오세요.</value>
+    <comment>Dashboard: create own description</comment>
+  </data>
+  <data name="Dashboard_AddAResource" xml:space="preserve">
+    <value>자료 추가</value>
+    <comment>Dashboard: add resource link</comment>
+  </data>
+  <data name="Dashboard_StarterCreateFailed" xml:space="preserve">
+    <value>스타터 자료를 만들지 못했습니다. 다시 시도해 주세요.</value>
+    <comment>Dashboard: starter creation error</comment>
+  </data>
+  <data name="Dashboard_StarterAlreadyExists" xml:space="preserve">
+    <value>이미 스타터 자료가 존재합니다. 대시보드를 새로 고치는 중…</value>
+    <comment>Dashboard: starter duplicate error</comment>
+  </data>
+  <data name="Dashboard_StarterGenericError" xml:space="preserve">
+    <value>스타터 자료를 만드는 중 문제가 발생했습니다. 다시 시도해 주세요.</value>
+    <comment>Dashboard: starter generic error</comment>
+  </data>
+  <data name="Dashboard_DayStreak" xml:space="preserve">
+    <value>{0}일 연속</value>
+    <comment>Dashboard: current streak badge. {0}=days</comment>
+  </data>
+  <data name="Dashboard_BestStreak" xml:space="preserve">
+    <value>최고: {0}일</value>
+    <comment>Dashboard: longest streak. {0}=days</comment>
+  </data>
+  <data name="Dashboard_TodaysProgress" xml:space="preserve">
+    <value>오늘의 진행 상황</value>
+    <comment>Dashboard: progress section header</comment>
+  </data>
+  <data name="Dashboard_ProgressCounts" xml:space="preserve">
+    <value>활동 {0} / {1} · {2} / {3}분</value>
+    <comment>Dashboard: activities and minutes progress</comment>
+  </data>
+  <data name="Dashboard_TodaysInsight" xml:space="preserve">
+    <value>오늘의 학습 인사이트</value>
+    <comment>Dashboard: insight panel header</comment>
+  </data>
+  <data name="Dashboard_InsightNew" xml:space="preserve">
+    <value>신규</value>
+    <comment>Dashboard: insight new count label</comment>
+  </data>
+  <data name="Dashboard_InsightReview" xml:space="preserve">
+    <value>복습</value>
+    <comment>Dashboard: insight review count label</comment>
+  </data>
+  <data name="Dashboard_InsightTotalDue" xml:space="preserve">
+    <value>전체 예정</value>
+    <comment>Dashboard: insight total due label</comment>
+  </data>
+  <data name="Dashboard_InsightMastery" xml:space="preserve">
+    <value>숙련도 {0}%</value>
+    <comment>Dashboard: mastery percent. {0}=percent</comment>
+  </data>
+  <data name="Dashboard_StrugglingWith" xml:space="preserve">
+    <value>어려워하는 항목:</value>
+    <comment>Dashboard: struggling tags label</comment>
+  </data>
+  <data name="Dashboard_NewToYou" xml:space="preserve">
+    <value>새로운 항목:</value>
+    <comment>Dashboard: new tags label</comment>
+  </data>
+  <data name="Dashboard_WordsToReview" xml:space="preserve">
+    <value>복습할 단어: {0}</value>
+    <comment>Dashboard: words to review. {0}=list</comment>
+  </data>
+  <data name="Dashboard_WordsToDiscover" xml:space="preserve">
+    <value>새로 배울 단어: {0}</value>
+    <comment>Dashboard: words to discover. {0}=list</comment>
+  </data>
+  <data name="Dashboard_FocusAreas" xml:space="preserve">
+    <value>집중 영역</value>
+    <comment>Dashboard: focus areas header</comment>
+  </data>
+  <data name="Dashboard_NoPlanYet" xml:space="preserve">
+    <value>아직 오늘의 계획이 없습니다.</value>
+    <comment>Dashboard: empty plan state</comment>
+  </data>
+  <data name="Dashboard_GeneratePlan" xml:space="preserve">
+    <value>계획 생성</value>
+    <comment>Dashboard: generate plan button</comment>
+  </data>
+  <data name="Dashboard_UnableToLoadPlan" xml:space="preserve">
+    <value>계획을 불러올 수 없습니다: {0}</value>
+    <comment>Dashboard: load plan error. {0}=message</comment>
+  </data>
+  <data name="Dashboard_UnableToGeneratePlan" xml:space="preserve">
+    <value>계획을 생성할 수 없습니다. 다시 시도해 주세요.</value>
+    <comment>Dashboard: generate plan error</comment>
+  </data>
+  <data name="Dashboard_UnableToGeneratePlanLater" xml:space="preserve">
+    <value>계획을 생성할 수 없습니다. 나중에 다시 시도해 주세요.</value>
+    <comment>Dashboard: generate plan error later</comment>
+  </data>
+  <data name="Dashboard_NetworkErrorTryAgain" xml:space="preserve">
+    <value>네트워크 오류. 연결을 확인하고 다시 시도해 주세요.</value>
+    <comment>Dashboard: generate plan network error</comment>
+  </data>
+  <data name="Dashboard_LearningResourcesLabel" xml:space="preserve">
+    <value>학습 자료</value>
+    <comment>Dashboard: choose-own learning resources label</comment>
+  </data>
+  <data name="Dashboard_SkillProfileLabel" xml:space="preserve">
+    <value>스킬 프로필</value>
+    <comment>Dashboard: choose-own skill profile label</comment>
+  </data>
+  <data name="Dashboard_Activities" xml:space="preserve">
+    <value>활동</value>
+    <comment>Dashboard: activities section header</comment>
+  </data>
+  <data name="Dashboard_ShowLess" xml:space="preserve">
+    <value>접기</value>
+    <comment>Dashboard: collapse activities</comment>
+  </data>
+  <data name="Dashboard_SeeAll" xml:space="preserve">
+    <value>모두 보기</value>
+    <comment>Dashboard: expand activities</comment>
+  </data>
+  <data name="Dashboard_VocabularyHeader" xml:space="preserve">
+    <value>어휘</value>
+    <comment>Dashboard: vocabulary section header</comment>
+  </data>
+  <data name="Dashboard_VocabNew" xml:space="preserve">
+    <value>신규</value>
+    <comment>Dashboard: vocab status New</comment>
+  </data>
+  <data name="Dashboard_VocabLearning" xml:space="preserve">
+    <value>학습 중</value>
+    <comment>Dashboard: vocab status Learning</comment>
+  </data>
+  <data name="Dashboard_VocabFamiliar" xml:space="preserve">
+    <value>익숙함</value>
+    <comment>Dashboard: vocab status Familiar</comment>
+  </data>
+  <data name="Dashboard_VocabReview" xml:space="preserve">
+    <value>복습</value>
+    <comment>Dashboard: vocab status Review</comment>
+  </data>
+  <data name="Dashboard_VocabKnown" xml:space="preserve">
+    <value>습득</value>
+    <comment>Dashboard: vocab status Known</comment>
+  </data>
+  <data name="Dashboard_TotalWordsLabel" xml:space="preserve">
+    <value>전체 단어:</value>
+    <comment>Dashboard: total words label</comment>
+  </data>
+  <data name="Dashboard_WeeklyAccuracyLabel" xml:space="preserve">
+    <value>7일 정확도:</value>
+    <comment>Dashboard: weekly accuracy label</comment>
+  </data>
+  <data name="Dashboard_NoVocabData" xml:space="preserve">
+    <value>아직 어휘 데이터가 없습니다. 연습을 시작하세요!</value>
+    <comment>Dashboard: empty vocab state</comment>
+  </data>
+  <data name="Dashboard_EstimateMinutes" xml:space="preserve">
+    <value>약 {0}분</value>
+    <comment>Dashboard: estimated minutes for item</comment>
+  </data>
+  <data name="Dashboard_SpentOfEstimate" xml:space="preserve">
+    <value>{0} / {1}분</value>
+    <comment>Dashboard: spent of estimate minutes</comment>
+  </data>
+  <data name="Dashboard_VocabDueCount" xml:space="preserve">
+    <value>단어 {0}개</value>
+    <comment>Dashboard: vocab due count for plan item</comment>
+  </data>
+  <data name="Activity_Conversation" xml:space="preserve">
+    <value>회화</value>
+    <comment>Activity label: Conversation</comment>
+  </data>
+  <data name="Activity_DescribeScene" xml:space="preserve">
+    <value>장면 묘사</value>
+    <comment>Activity label: Describe a Scene</comment>
+  </data>
+  <data name="Activity_Translate" xml:space="preserve">
+    <value>번역</value>
+    <comment>Activity label: Translate</comment>
+  </data>
+  <data name="Activity_Cloze" xml:space="preserve">
+    <value>빈칸 채우기</value>
+    <comment>Activity label: Cloze</comment>
+  </data>
+  <data name="Activity_Writing" xml:space="preserve">
+    <value>쓰기</value>
+    <comment>Activity label: Writing</comment>
+  </data>
+  <data name="Activity_Reading" xml:space="preserve">
+    <value>읽기</value>
+    <comment>Activity label: Reading</comment>
+  </data>
+  <data name="Activity_VocabQuiz" xml:space="preserve">
+    <value>어휘 퀴즈</value>
+    <comment>Activity label: Vocabulary Quiz</comment>
+  </data>
+  <data name="Activity_VocabMatching" xml:space="preserve">
+    <value>어휘 매칭</value>
+    <comment>Activity label: Vocabulary Matching</comment>
+  </data>
+  <data name="Activity_Shadowing" xml:space="preserve">
+    <value>섀도잉</value>
+    <comment>Activity label: Shadowing</comment>
+  </data>
+  <data name="Activity_HowDoYouSay" xml:space="preserve">
+    <value>어떻게 말하나요</value>
+    <comment>Activity label: How Do You Say</comment>
+  </data>
+  <data name="Activity_MinimalPairs" xml:space="preserve">
+    <value>최소 대립쌍</value>
+    <comment>Activity label: Minimal Pairs</comment>
+  </data>
+  <data name="Activity_WordAssociation" xml:space="preserve">
+    <value>단어 연상</value>
+    <comment>Activity label: Word Association</comment>
+  </data>
+  <data name="Activity_VocabularyReview" xml:space="preserve">
+    <value>어휘 복습</value>
+    <comment>Activity label: Vocabulary Review</comment>
+  </data>
+  <data name="Activity_Listening" xml:space="preserve">
+    <value>듣기</value>
+    <comment>Activity label: Listening</comment>
+  </data>
+  <data name="Activity_ClozeExercise" xml:space="preserve">
+    <value>빈칸 채우기 연습</value>
+    <comment>Activity label: Cloze Exercise</comment>
+  </data>
+  <data name="Activity_VideoWatching" xml:space="preserve">
+    <value>영상 시청</value>
+    <comment>Activity label: Video Watching</comment>
+  </data>
+  <data name="Activity_Generic" xml:space="preserve">
+    <value>활동</value>
+    <comment>Activity label: Generic fallback</comment>
+  </data>
+  <data name="ActivityLog_Title" xml:space="preserve">
+    <value>연습 기록</value>
+    <comment>ActivityLog: page title</comment>
+  </data>
+  <data name="ActivityLog_AllActivities" xml:space="preserve">
+    <value>모든 활동</value>
+    <comment>ActivityLog: all filter</comment>
+  </data>
+  <data name="ActivityLog_InputOnly" xml:space="preserve">
+    <value>입력만</value>
+    <comment>ActivityLog: input filter</comment>
+  </data>
+  <data name="ActivityLog_OutputOnly" xml:space="preserve">
+    <value>출력만</value>
+    <comment>ActivityLog: output filter</comment>
+  </data>
+  <data name="ActivityLog_EmptyState" xml:space="preserve">
+    <value>아직 연습 활동이 없습니다. 첫 번째 일일 계획을 완료하면 연습 기록이 표시됩니다!</value>
+    <comment>ActivityLog: empty state</comment>
+  </data>
+  <data name="ActivityLog_Input" xml:space="preserve">
+    <value>입력</value>
+    <comment>ActivityLog: input legend</comment>
+  </data>
+  <data name="ActivityLog_Output" xml:space="preserve">
+    <value>출력</value>
+    <comment>ActivityLog: output legend</comment>
+  </data>
+  <data name="ActivityLog_Rest" xml:space="preserve">
+    <value>휴식</value>
+    <comment>ActivityLog: rest day label</comment>
+  </data>
+  <data name="ActivityLog_WeekMinutes" xml:space="preserve">
+    <value>{0}분</value>
+    <comment>ActivityLog: week total minutes. {0}=minutes</comment>
+  </data>
+  <data name="MainLayout_Syncing" xml:space="preserve">
+    <value>동기화 중...</value>
+    <comment>MainLayout: syncing hidden label</comment>
+  </data>
+  <data name="MainLayout_SyncingProfile" xml:space="preserve">
+    <value>프로필 동기화 중</value>
+    <comment>MainLayout: syncing overlay title</comment>
+  </data>
+  <data name="MainLayout_SyncingDescription" xml:space="preserve">
+    <value>어휘, 자료, 진행 상황을 다운로드하고 있습니다.</value>
+    <comment>MainLayout: syncing overlay body</comment>
+  </data>
+  <data name="MainLayout_ThisMayTakeAMoment" xml:space="preserve">
+    <value>잠시 시간이 걸릴 수 있습니다.</value>
+    <comment>MainLayout: syncing overlay second line</comment>
+  </data>
+  <data name="MainLayout_WhatsNew" xml:space="preserve">
+    <value>새로운 기능</value>
+    <comment>MainLayout: what's new modal title</comment>
+  </data>
+  <data name="MainLayout_ExpandSidebar" xml:space="preserve">
+    <value>사이드바 펼치기</value>
+    <comment>MainLayout: expand sidebar tooltip</comment>
+  </data>
+  <data name="MainLayout_CollapseSidebar" xml:space="preserve">
+    <value>사이드바 접기</value>
+    <comment>MainLayout: collapse sidebar tooltip</comment>
+  </data>
 </root>

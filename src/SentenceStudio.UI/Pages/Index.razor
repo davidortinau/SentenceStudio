@@ -3,31 +3,32 @@
 @using SentenceStudio.Services.Progress
 @using SentenceStudio.Data
 @implements IAsyncDisposable
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
 
 @if (isNewUser)
 {
-    <PageHeader Title="Welcome" />
+    <PageHeader Title='@Localize["Dashboard_Welcome"]' />
 }
 else if (isTodaysPlanMode)
 {
-    <PageHeader Title="Dashboard">
+    <PageHeader Title='@Localize["Dashboard_Title"]'>
         <ToolbarActions>
-            <button class="btn btn-sm btn-icon" @onclick="RefreshDashboardAsync" disabled="@isRefreshing" title="Refresh">
+            <button class="btn btn-sm btn-icon" @onclick="RefreshDashboardAsync" disabled="@isRefreshing" title='@Localize["Common_Refresh"]'>
                 <i class="bi bi-arrow-clockwise @(isRefreshing ? "spin" : "")" style="font-size: 1.25rem;"></i>
             </button>
         </ToolbarActions>
         <SecondaryActions>
             <button class="dropdown-item" @onclick="RegeneratePlanAsync">
-                <i class="bi bi-arrow-clockwise me-2"></i>Regenerate Plan
+                <i class="bi bi-arrow-clockwise me-2"></i>@Localize["Dashboard_RegeneratePlan"]
             </button>
         </SecondaryActions>
     </PageHeader>
 }
 else
 {
-    <PageHeader Title="Dashboard">
+    <PageHeader Title='@Localize["Dashboard_Title"]'>
         <ToolbarActions>
-            <button class="btn btn-sm btn-icon" @onclick="RefreshDashboardAsync" disabled="@isRefreshing" title="Refresh">
+            <button class="btn btn-sm btn-icon" @onclick="RefreshDashboardAsync" disabled="@isRefreshing" title='@Localize["Common_Refresh"]'>
                 <i class="bi bi-arrow-clockwise @(isRefreshing ? "spin" : "")" style="font-size: 1.25rem;"></i>
             </button>
         </ToolbarActions>
@@ -39,10 +40,9 @@ else
 {
     <div class="d-flex flex-column align-items-center text-center px-3" style="max-width: 640px; margin: 0 auto;">
         <i class="bi bi-translate fs-1 mb-3" style="color: var(--bs-primary);"></i>
-        <h1 class="ss-title1 mb-2">Start Your Language Journey</h1>
+        <h1 class="ss-title1 mb-2">@Localize["Dashboard_NewUserTitle"]</h1>
         <p class="ss-body1 text-secondary-ss mb-4">
-            Set up your first learning resource and vocabulary so you can dive into
-            activities like quizzes, conversation practice, and writing exercises.
+            @Localize["Dashboard_NewUserDescription"]
         </p>
 
         @if (!string.IsNullOrEmpty(starterError))
@@ -56,21 +56,20 @@ else
             <div class="col-12 col-md-6">
                 <div class="card card-ss p-4 h-100 text-center">
                     <i class="bi bi-rocket-takeoff fs-2 mb-2" style="color: var(--bs-primary);"></i>
-                    <h2 class="ss-title3 mb-2">Quick Start</h2>
+                    <h2 class="ss-title3 mb-2">@Localize["Dashboard_QuickStart"]</h2>
                     <p class="text-secondary-ss small mb-3">
-                        Create a starter Korean resource with 20 common vocabulary words
-                        so you can begin practicing immediately.
+                        @Localize["Dashboard_QuickStartDescription"]
                     </p>
                     <button class="btn btn-ss-primary mt-auto" @onclick="CreateStarterResourceAsync" disabled="@isCreatingStarter">
                         @if (isCreatingStarter)
                         {
                             <span class="spinner-border spinner-border-sm me-1" role="status"></span>
-                            <span>Setting up...</span>
+                            <span>@Localize["Dashboard_SettingUp"]</span>
                         }
                         else
                         {
                             <i class="bi bi-plus-circle me-1"></i>
-                            <span>Create Starter Resource</span>
+                            <span>@Localize["Dashboard_CreateStarterResource"]</span>
                         }
                     </button>
                 </div>
@@ -78,14 +77,13 @@ else
             <div class="col-12 col-md-6">
                 <div class="card card-ss p-4 h-100 text-center">
                     <i class="bi bi-pencil-square fs-2 mb-2" style="color: var(--bs-primary);"></i>
-                    <h2 class="ss-title3 mb-2">Create Your Own</h2>
+                    <h2 class="ss-title3 mb-2">@Localize["Dashboard_CreateYourOwn"]</h2>
                     <p class="text-secondary-ss small mb-3">
-                        Choose your own language, add custom vocabulary, or import from
-                        a podcast transcript or article.
+                        @Localize["Dashboard_CreateYourOwnDescription"]
                     </p>
                     <a class="btn btn-outline-secondary mt-auto" href="/resources/add">
                         <i class="bi bi-arrow-right me-1"></i>
-                        <span>Add a Resource</span>
+                        <span>@Localize["Dashboard_AddAResource"]</span>
                     </a>
                 </div>
             </div>
@@ -103,16 +101,16 @@ else
 }
 
 @* ============ MODE SWITCHER ============ *@
-<div class="btn-group w-100 mb-4" role="group" aria-label="Dashboard mode">
+<div class="btn-group w-100 mb-4" role="group" aria-label='@Localize["Dashboard_Mode"]'>
     <button type="button"
             class="btn @(isTodaysPlanMode ? "btn-ss-primary" : "btn-outline-secondary")"
             @onclick="() => SetMode(true)">
-        <i class="bi bi-calendar-check me-1"></i>Today's Plan
+        <i class="bi bi-calendar-check me-1"></i>@Localize["Dashboard_TodaysPlan"]
     </button>
     <button type="button"
             class="btn @(!isTodaysPlanMode ? "btn-ss-primary" : "btn-outline-secondary")"
             @onclick="() => SetMode(false)">
-        <i class="bi bi-sliders me-1"></i>Choose My Own
+        <i class="bi bi-sliders me-1"></i>@Localize["Dashboard_ChooseMyOwn"]
     </button>
 </div>
 
@@ -132,11 +130,11 @@ else
         {
             <div class="d-flex align-items-center gap-2 mb-3">
                 <span class="badge bg-warning text-dark fs-6">
-                    <i class="bi bi-fire me-1"></i>@streak.CurrentStreak day streak
+                    <i class="bi bi-fire me-1"></i>@string.Format(Localize["Dashboard_DayStreak"], streak.CurrentStreak)
                 </span>
                 @if (streak.LongestStreak > streak.CurrentStreak)
                 {
-                    <span class="text-secondary-ss small">Best: @streak.LongestStreak days</span>
+                    <span class="text-secondary-ss small">@string.Format(Localize["Dashboard_BestStreak"], streak.LongestStreak)</span>
                 }
             </div>
         }
@@ -144,10 +142,11 @@ else
         @* Progress summary *@
         <div class="card card-ss p-3 mb-3">
             <div class="d-flex justify-content-between align-items-center mb-2">
-                <span class="ss-body1 fw-semibold">Today's Progress</span>
+                <span class="ss-body1 fw-semibold">@Localize["Dashboard_TodaysProgress"]</span>
                 <span class="text-secondary-ss small">
-                    @todaysPlan.CompletedCount / @todaysPlan.TotalCount activities
-                    &middot; @(todaysPlan.Items.Sum(i => i.MinutesSpent)) / @todaysPlan.EstimatedTotalMinutes min
+                    @string.Format(Localize["Dashboard_ProgressCounts"],
+                        todaysPlan.CompletedCount, todaysPlan.TotalCount,
+                        todaysPlan.Items.Sum(i => i.MinutesSpent), todaysPlan.EstimatedTotalMinutes)
                 </span>
             </div>
             <div class="progress" style="height: 8px;">
@@ -166,7 +165,7 @@ else
                      role="button" @onclick="() => isNarrativeExpanded = !isNarrativeExpanded">
                     <div class="d-flex align-items-center gap-2">
                         <i class="bi bi-lightbulb text-primary"></i>
-                        <span class="ss-body2">Today's Study Insight</span>
+                        <span class="ss-body2">@Localize["Dashboard_TodaysInsight"]</span>
                     </div>
                     <i class="bi @(isNarrativeExpanded ? "bi-chevron-up" : "bi-chevron-down")"></i>
                 </div>
@@ -200,21 +199,21 @@ else
                                 <div class="d-flex align-items-center gap-3 mb-2 flex-wrap">
                                     <span class="d-flex align-items-center gap-1">
                                         <i class="bi bi-star text-warning"></i>
-                                        <span class="small fw-semibold">@insight.NewCount new</span>
+                                        <span class="small fw-semibold">@insight.NewCount @Localize["Dashboard_InsightNew"]</span>
                                     </span>
                                     <span class="d-flex align-items-center gap-1">
                                         <i class="bi bi-arrow-repeat text-primary"></i>
-                                        <span class="small fw-semibold">@insight.ReviewCount review</span>
+                                        <span class="small fw-semibold">@insight.ReviewCount @Localize["Dashboard_InsightReview"]</span>
                                     </span>
                                     <span class="d-flex align-items-center gap-1">
                                         <i class="bi bi-card-checklist"></i>
-                                        <span class="small fw-semibold">@insight.TotalDue total due</span>
+                                        <span class="small fw-semibold">@insight.TotalDue @Localize["Dashboard_InsightTotalDue"]</span>
                                     </span>
                                     @if (insight.AverageMastery > 0)
                                     {
                                         <span class="d-flex align-items-center gap-1">
                                             <i class="bi bi-graph-up text-success"></i>
-                                            <span class="small">@((insight.AverageMastery * 100).ToString("F0"))% mastery</span>
+                                            <span class="small">@string.Format(Localize["Dashboard_InsightMastery"], (insight.AverageMastery * 100).ToString("F0"))</span>
                                         </span>
                                     }
                                 </div>
@@ -232,7 +231,7 @@ else
                                     {
                                         <div class="mb-2">
                                             <span class="text-secondary-ss small me-2">
-                                                <i class="bi bi-exclamation-triangle me-1"></i>Struggling with:
+                                                <i class="bi bi-exclamation-triangle me-1"></i>@Localize["Dashboard_StrugglingWith"]
                                             </span>
                                             @foreach (var tag in strugglingCategories)
                                             {
@@ -247,7 +246,7 @@ else
                                     {
                                         <div class="mb-2">
                                             <span class="text-secondary-ss small me-2">
-                                                <i class="bi bi-stars me-1"></i>New to you:
+                                                <i class="bi bi-stars me-1"></i>@Localize["Dashboard_NewToYou"]
                                             </span>
                                             @foreach (var tag in newCategories)
                                             {
@@ -286,12 +285,12 @@ else
                                         @if (hasStruggling)
                                         {
                                             <i class="bi bi-arrow-return-right me-1"></i>
-                                            <span>Words to review: @string.Join(", ", insight.SampleStrugglingWords)</span>
+                                            <span>@string.Format(Localize["Dashboard_WordsToReview"], string.Join(", ", insight.SampleStrugglingWords))</span>
                                         }
                                         else
                                         {
                                             <i class="bi bi-stars me-1"></i>
-                                            <span>Words to discover: @string.Join(", ", insight.SampleStrugglingWords)</span>
+                                            <span>@string.Format(Localize["Dashboard_WordsToDiscover"], string.Join(", ", insight.SampleStrugglingWords))</span>
                                         }
                                     </div>
                                 }
@@ -303,7 +302,7 @@ else
                         {
                             <div class="border-top pt-3">
                                 <div class="ss-body2 fw-semibold mb-2">
-                                    <i class="bi bi-bullseye me-1"></i>Focus Areas
+                                    <i class="bi bi-bullseye me-1"></i>@Localize["Dashboard_FocusAreas"]
                                 </div>
                                 <ul class="mb-0 ps-3">
                                     @foreach (var focus in todaysPlan.Narrative.FocusAreas)
@@ -368,16 +367,16 @@ else
                                 }
                                 @if (item.MinutesSpent > 0)
                                 {
-                                    <span class="@(item.IsCompleted ? "text-success" : "")">@item.MinutesSpent / @item.EstimatedMinutes min</span>
+                                    <span class="@(item.IsCompleted ? "text-success" : "")">@string.Format(Localize["Dashboard_SpentOfEstimate"], item.MinutesSpent, item.EstimatedMinutes)</span>
                                 }
                                 else
                                 {
-                                    <span>~@(item.EstimatedMinutes) min</span>
+                                    <span>@string.Format(Localize["Dashboard_EstimateMinutes"], item.EstimatedMinutes)</span>
                                 }
                                 @if (item.VocabDueCount.HasValue && item.VocabDueCount > 0)
                                 {
                                     <span class="mx-1">&middot;</span>
-                                    <span>@item.VocabDueCount words</span>
+                                    <span>@string.Format(Localize["Dashboard_VocabDueCount"], item.VocabDueCount)</span>
                                 }
                             </div>
                             @if (item.MinutesSpent > 0 && !item.IsCompleted)
@@ -398,7 +397,7 @@ else
     {
         <div class="card card-ss p-4 mb-4 text-center">
             <i class="bi bi-calendar-plus fs-1 text-secondary-ss mb-2"></i>
-            <p class="ss-body1 mb-3">No plan for today yet.</p>
+            <p class="ss-body1 mb-3">@Localize["Dashboard_NoPlanYet"]</p>
             @if (!string.IsNullOrEmpty(planError))
             {
                 <div class="alert alert-warning mb-3" role="alert">
@@ -410,7 +409,7 @@ else
                 {
                     <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
                 }
-                <i class="bi bi-magic me-1"></i>Generate Plan
+                <i class="bi bi-magic me-1"></i>@Localize["Dashboard_GeneratePlan"]
             </button>
         </div>
     }
@@ -420,26 +419,26 @@ else
     @* ============ CHOOSE MY OWN MODE ============ *@
     <div class="card card-ss p-3 mb-4">
         <div class="mb-3">
-            <label class="ss-body2 fw-semibold mb-1">Learning Resources</label>
+            <label class="ss-body2 fw-semibold mb-1">@Localize["Dashboard_LearningResourcesLabel"]</label>
             <select id="resourceSelect" multiple></select>
         </div>
         <div>
-            <label class="ss-body2 fw-semibold mb-1">Skill Profile</label>
+            <label class="ss-body2 fw-semibold mb-1">@Localize["Dashboard_SkillProfileLabel"]</label>
             <select id="skillSelect"></select>
         </div>
     </div>
 
     @* Activity cards *@
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h2 class="ss-title2 mb-0">Activities</h2>
+        <h2 class="ss-title2 mb-0">@Localize["Dashboard_Activities"]</h2>
         <button class="btn btn-sm btn-outline-secondary d-md-none" @onclick="ToggleActivitiesExpanded">
             @if (showAllActivities)
             {
-                <span>Show Less <i class="bi bi-chevron-up"></i></span>
+                <span>@Localize["Dashboard_ShowLess"] <i class="bi bi-chevron-up"></i></span>
             }
             else
             {
-                <span>See All <i class="bi bi-chevron-down"></i></span>
+                <span>@Localize["Dashboard_SeeAll"] <i class="bi bi-chevron-down"></i></span>
             }
         </button>
     </div>
@@ -452,7 +451,7 @@ else
                 <div class="card card-ss p-3 text-center h-100" role="button"
                      @onclick="() => NavigateToActivity(activity.Route)">
                     <div class="fs-2 mb-2"><i class="bi @activity.Icon"></i></div>
-                    <div class="ss-body1 fw-semibold">@activity.Label</div>
+                    <div class="ss-body1 fw-semibold">@Localize[activity.LabelKey]</div>
                 </div>
             </div>
         }
@@ -460,7 +459,7 @@ else
 }
 
 @* ============ VOCABULARY STATS ============ *@
-<h2 class="ss-title2 mb-3">Vocabulary</h2>
+<h2 class="ss-title2 mb-3">@Localize["Dashboard_VocabularyHeader"]</h2>
 
 @if (isLoading)
 {
@@ -475,31 +474,31 @@ else if (vocabSummary is not null)
         <div class="col-6 col-md">
             <div class="card card-ss p-3 text-center">
                 <div class="fs-3 fw-bold" style="color: var(--bs-primary);">@vocabSummary.New</div>
-                <div class="text-secondary-ss small">New</div>
+                <div class="text-secondary-ss small">@Localize["Dashboard_VocabNew"]</div>
             </div>
         </div>
         <div class="col-6 col-md">
             <div class="card card-ss p-3 text-center">
                 <div class="fs-3 fw-bold text-warning-ss">@vocabSummary.Learning</div>
-                <div class="text-secondary-ss small">Learning</div>
+                <div class="text-secondary-ss small">@Localize["Dashboard_VocabLearning"]</div>
             </div>
         </div>
         <div class="col-6 col-md">
             <div class="card card-ss p-3 text-center">
                 <div class="fs-3 fw-bold" style="color: var(--bs-info);">@vocabSummary.Familiar</div>
-                <div class="text-secondary-ss small"><i class="bi bi-star me-1"></i>Familiar</div>
+                <div class="text-secondary-ss small"><i class="bi bi-star me-1"></i>@Localize["Dashboard_VocabFamiliar"]</div>
             </div>
         </div>
         <div class="col-6 col-md">
             <div class="card card-ss p-3 text-center">
                 <div class="fs-3 fw-bold text-warning-ss">@vocabSummary.Review</div>
-                <div class="text-secondary-ss small">Review</div>
+                <div class="text-secondary-ss small">@Localize["Dashboard_VocabReview"]</div>
             </div>
         </div>
         <div class="col-6 col-md">
             <div class="card card-ss p-3 text-center">
                 <div class="fs-3 fw-bold text-success-ss">@vocabSummary.Known</div>
-                <div class="text-secondary-ss small">Known</div>
+                <div class="text-secondary-ss small">@Localize["Dashboard_VocabKnown"]</div>
             </div>
         </div>
     </div>
@@ -508,8 +507,8 @@ else if (vocabSummary is not null)
     {
         <div class="card card-ss p-3 mb-4">
             <div class="d-flex justify-content-between align-items-center">
-                <span class="ss-body1">Total words: <strong>@total</strong></span>
-                <span class="text-secondary-ss">7-day accuracy: <strong>@(Math.Round(vocabSummary.SuccessRate7d * 100))%</strong></span>
+                <span class="ss-body1">@Localize["Dashboard_TotalWordsLabel"] <strong>@total</strong></span>
+                <span class="text-secondary-ss">@Localize["Dashboard_WeeklyAccuracyLabel"] <strong>@(Math.Round(vocabSummary.SuccessRate7d * 100))%</strong></span>
             </div>
         </div>
     }
@@ -517,7 +516,7 @@ else if (vocabSummary is not null)
 else
 {
     <div class="card card-ss p-4 mb-4 text-center">
-        <p class="text-secondary-ss mb-0">No vocabulary data yet. Start practicing!</p>
+        <p class="text-secondary-ss mb-0">@Localize["Dashboard_NoVocabData"]</p>
     </div>
 }
 
@@ -563,29 +562,30 @@ else
 
     private string WelcomeMessage =>
         AppState?.CurrentUserProfile?.Name is { Length: > 0 } name
-            ? $"Welcome, {name}!"
-            : "Dashboard";
+            ? string.Format(Localize["Dashboard_WelcomeGreeting"], name)
+            : Localize["Dashboard_Title"];
 
-    private readonly record struct ActivityInfo(string Label, string Icon, string Route);
+    private readonly record struct ActivityInfo(string LabelKey, string Icon, string Route);
 
     private static readonly ActivityInfo[] activities =
     [
-        new("Conversation", "bi-chat-dots", "conversation"),
-        new("Describe a Scene", "bi-image", "scene"),
-        new("Translate", "bi-translate", "translation"),
-        new("Cloze", "bi-puzzle", "cloze"),
-        new("Writing", "bi-pencil-square", "writing"),
-        new("Reading", "bi-book", "reading"),
-        new("Vocabulary Quiz", "bi-card-checklist", "vocab-quiz"),
-        new("Vocabulary Matching", "bi-grid-3x3-gap", "vocab-matching"),
-        new("Shadowing", "bi-soundwave", "shadowing"),
-        new("How Do You Say", "bi-chat-left-dots", "how-do-you-say"),
-        new("Minimal Pairs", "bi-ear", "minimal-pairs"),
-        new("Word Association", "bi-lightbulb", "word-association"),
+        new("Activity_Conversation", "bi-chat-dots", "conversation"),
+        new("Activity_DescribeScene", "bi-image", "scene"),
+        new("Activity_Translate", "bi-translate", "translation"),
+        new("Activity_Cloze", "bi-puzzle", "cloze"),
+        new("Activity_Writing", "bi-pencil-square", "writing"),
+        new("Activity_Reading", "bi-book", "reading"),
+        new("Activity_VocabQuiz", "bi-card-checklist", "vocab-quiz"),
+        new("Activity_VocabMatching", "bi-grid-3x3-gap", "vocab-matching"),
+        new("Activity_Shadowing", "bi-soundwave", "shadowing"),
+        new("Activity_HowDoYouSay", "bi-chat-left-dots", "how-do-you-say"),
+        new("Activity_MinimalPairs", "bi-ear", "minimal-pairs"),
+        new("Activity_WordAssociation", "bi-lightbulb", "word-association"),
     ];
 
     protected override async Task OnInitializedAsync()
     {
+        Localize.CultureChanged += OnCultureChanged;
         await CheckNewUserAsync();
 
         // If authenticated but no local data, sync from server first.
@@ -735,7 +735,7 @@ else
             var savedId = await ResourceRepo.SaveResourceAsync(resource);
             if (string.IsNullOrEmpty(savedId))
             {
-                starterError = "Failed to create the starter resource. Please try again.";
+                starterError = Localize["Dashboard_StarterCreateFailed"];
                 return;
             }
 
@@ -756,12 +756,12 @@ else
                 || ex.Message.Contains("unique", StringComparison.OrdinalIgnoreCase)
                 || ex.Message.Contains("duplicate", StringComparison.OrdinalIgnoreCase))
             {
-                starterError = "A starter resource already exists. Refreshing your dashboard…";
+                starterError = Localize["Dashboard_StarterAlreadyExists"];
                 isNewUser = false;
             }
             else
             {
-                starterError = "Something went wrong creating the starter resource. Please try again.";
+                starterError = Localize["Dashboard_StarterGenericError"];
             }
         }
         finally
@@ -818,12 +818,12 @@ else
         catch (HttpRequestException ex)
         {
             Logger.LogWarning(ex, "Failed to load today's plan - network error");
-            planError = "Network error. Please check your connection.";
+            planError = Localize["Common_NetworkError"];
         }
         catch (Exception ex)
         {
             Logger.LogWarning(ex, "Failed to load today's plan: {Message}", ex.Message);
-            planError = $"Unable to load plan: {ex.Message}";
+            planError = string.Format(Localize["Dashboard_UnableToLoadPlan"], ex.Message);
         }
         finally
         {
@@ -842,18 +842,18 @@ else
             todaysPlan = await ProgressService.GenerateTodaysPlanAsync();
             if (todaysPlan == null)
             {
-                planError = "Unable to generate plan. Please try again.";
+                planError = Localize["Dashboard_UnableToGeneratePlan"];
             }
         }
         catch (HttpRequestException ex)
         {
             Logger.LogWarning(ex, "Failed to generate plan - network error");
-            planError = "Network error. Please check your connection and try again.";
+            planError = Localize["Dashboard_NetworkErrorTryAgain"];
         }
         catch (Exception ex)
         {
             Logger.LogWarning(ex, "Failed to generate plan");
-            planError = "Unable to generate plan. Please try again later.";
+            planError = Localize["Dashboard_UnableToGeneratePlanLater"];
         }
         finally
         {
@@ -1069,6 +1069,8 @@ else
         showAllActivities = !showAllActivities;
     }
 
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
+
     private static string MapActivityRoute(PlanActivityType type) => type switch
     {
         PlanActivityType.VocabularyReview => "vocab-quiz",
@@ -1101,20 +1103,20 @@ else
         _ => "bi-check-circle"
     };
 
-    private static string GetActivityLabel(PlanActivityType type) => type switch
+    private string GetActivityLabel(PlanActivityType type) => type switch
     {
-        PlanActivityType.VocabularyReview => "Vocabulary Review",
-        PlanActivityType.Reading => "Reading",
-        PlanActivityType.Listening => "Listening",
-        PlanActivityType.Shadowing => "Shadowing",
-        PlanActivityType.Cloze => "Cloze Exercise",
-        PlanActivityType.Translation => "Translate",
-        PlanActivityType.Writing => "Writing",
-        PlanActivityType.SceneDescription => "Describe a Scene",
-        PlanActivityType.Conversation => "Conversation",
-        PlanActivityType.VocabularyGame => "Vocabulary Matching",
-        PlanActivityType.VideoWatching => "Video Watching",
-        _ => "Activity"
+        PlanActivityType.VocabularyReview => Localize["Activity_VocabularyReview"],
+        PlanActivityType.Reading => Localize["Activity_Reading"],
+        PlanActivityType.Listening => Localize["Activity_Listening"],
+        PlanActivityType.Shadowing => Localize["Activity_Shadowing"],
+        PlanActivityType.Cloze => Localize["Activity_ClozeExercise"],
+        PlanActivityType.Translation => Localize["Activity_Translate"],
+        PlanActivityType.Writing => Localize["Activity_Writing"],
+        PlanActivityType.SceneDescription => Localize["Activity_DescribeScene"],
+        PlanActivityType.Conversation => Localize["Activity_Conversation"],
+        PlanActivityType.VocabularyGame => Localize["Activity_VocabMatching"],
+        PlanActivityType.VideoWatching => Localize["Activity_VideoWatching"],
+        _ => Localize["Activity_Generic"]
     };
 
     private static string GetMediaTypeIcon(string mediaType) => mediaType switch
@@ -1128,6 +1130,7 @@ else
 
     public async ValueTask DisposeAsync()
     {
+        Localize.CultureChanged -= OnCultureChanged;
         if (jsModule is not null)
         {
             try
