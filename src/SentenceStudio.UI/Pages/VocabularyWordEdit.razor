@@ -1,6 +1,7 @@
 @page "/vocabulary/edit/{Id}"
 @attribute [Authorize]
 @using Plugin.Maui.Audio
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
 @implements IDisposable
 
 @if (isLoading)
@@ -13,32 +14,32 @@ else
 {
     @if (!string.IsNullOrEmpty(Id) && Id != "0")
     {
-        <PageHeader Title="Edit Vocabulary Word" ShowBack="true" OnBack="GoBack">
+        <PageHeader Title='@Localize["VocabWordEdit_EditTitle"]' ShowBack="true" OnBack="GoBack">
             <PrimaryActions>
                 <button class="btn btn-ss-primary" @onclick="SaveWord" disabled="@(isSaving || !IsFormValid)">
                     @if (isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
-                    Save
+                    @Localize["Common_Save"]
                 </button>
             </PrimaryActions>
             <SecondaryActions>
-                <li><button class="dropdown-item" @onclick="SaveWord" disabled="@(isSaving || !IsFormValid)"><i class="bi bi-check-lg me-2"></i>Save</button></li>
-                <li><button class="dropdown-item" @onclick="OpenDuplicateManager" disabled="@isSaving"><i class="bi bi-files me-2"></i>Find Duplicates</button></li>
+                <li><button class="dropdown-item" @onclick="SaveWord" disabled="@(isSaving || !IsFormValid)"><i class="bi bi-check-lg me-2"></i>@Localize["Common_Save"]</button></li>
+                <li><button class="dropdown-item" @onclick="OpenDuplicateManager" disabled="@isSaving"><i class="bi bi-files me-2"></i>@Localize["VocabWordEdit_FindDuplicates"]</button></li>
                 <li><hr class="dropdown-divider" /></li>
-                <li><button class="dropdown-item text-danger" @onclick="RequestDelete" disabled="@isSaving"><i class="bi bi-trash me-2"></i>Delete</button></li>
+                <li><button class="dropdown-item text-danger" @onclick="RequestDelete" disabled="@isSaving"><i class="bi bi-trash me-2"></i>@Localize["Common_Delete"]</button></li>
             </SecondaryActions>
         </PageHeader>
     }
     else
     {
-        <PageHeader Title="Add Vocabulary Word" ShowBack="true" OnBack="GoBack">
+        <PageHeader Title='@Localize["VocabWordEdit_AddTitle"]' ShowBack="true" OnBack="GoBack">
             <PrimaryActions>
                 <button class="btn btn-ss-primary" @onclick="SaveWord" disabled="@(isSaving || !IsFormValid)">
                     @if (isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
-                    Add
+                    @Localize["Common_Add"]
                 </button>
             </PrimaryActions>
             <SecondaryActions>
-                <li><button class="dropdown-item" @onclick="SaveWord" disabled="@(isSaving || !IsFormValid)"><i class="bi bi-check-lg me-2"></i>Add</button></li>
+                <li><button class="dropdown-item" @onclick="SaveWord" disabled="@(isSaving || !IsFormValid)"><i class="bi bi-check-lg me-2"></i>@Localize["Common_Add"]</button></li>
             </SecondaryActions>
         </PageHeader>
     }
@@ -51,23 +52,23 @@ else
     @* Vocabulary Terms *@
     <div class="card card-ss p-4 mb-3">
         <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3">
-            <h5 class="ss-title3 mb-0">Vocabulary Terms</h5>
+            <h5 class="ss-title3 mb-0">@Localize["VocabWordEdit_VocabularyTerms"]</h5>
             @if (IsExistingWord)
             {
                 <button class="btn btn-sm btn-outline-secondary" type="button"
                         @onclick="OpenDuplicateManager" disabled="@isSaving">
-                    <i class="bi bi-files me-1"></i>Find Duplicates
+                    <i class="bi bi-files me-1"></i>@Localize["VocabWordEdit_FindDuplicates"]
                 </button>
             }
         </div>
 
         <div class="mb-3">
-            <label class="form-label ss-body2 text-secondary-ss">Target Language Term</label>
+            <label class="form-label ss-body2 text-secondary-ss">@Localize["VocabWordEdit_TargetLanguageTerm"]</label>
             <div class="input-group">
                 <input type="text" class="form-control form-control-ss" @bind="targetLanguageTerm"
-                       placeholder="Enter target language term" />
+                       placeholder='@Localize["VocabWordEdit_TargetPlaceholder"]' />
                 <button class="btn btn-outline-secondary" type="button"
-                        title="Play audio" disabled="@(isPlayingAudio || string.IsNullOrWhiteSpace(targetLanguageTerm))"
+                        title='@Localize["VocabWordEdit_PlayAudio"]' disabled="@(isPlayingAudio || string.IsNullOrWhiteSpace(targetLanguageTerm))"
                         @onclick="PlayTermAudio">
                     <i class="bi @(isPlayingAudio ? "bi-volume-up-fill" : "bi-volume-up")"></i>
                 </button>
@@ -75,34 +76,34 @@ else
         </div>
 
         <div class="mb-3">
-            <label class="form-label ss-body2 text-secondary-ss">Native Language Term</label>
+            <label class="form-label ss-body2 text-secondary-ss">@Localize["VocabWordEdit_NativeLanguageTerm"]</label>
             <input type="text" class="form-control form-control-ss" @bind="nativeLanguageTerm"
-                   placeholder="Enter native language term" />
+                   placeholder='@Localize["VocabWordEdit_NativePlaceholder"]' />
         </div>
     </div>
 
     @* Encoding & Memory Aids *@
     <div class="card card-ss p-4 mb-3">
-        <h5 class="ss-title3 mb-3">Encoding &amp; Memory Aids</h5>
+        <h5 class="ss-title3 mb-3">@Localize["VocabWordEdit_EncodingMemoryAids"]</h5>
 
         @if (!string.IsNullOrEmpty(Id) && Id != "0")
         {
             <p class="ss-body2 mb-3">
-                Encoding Strength:
+                @Localize["VocabWordEdit_EncodingStrength"]:
                 <span class="@GetEncodingClass()">@encodingStrengthLabel</span>
             </p>
         }
 
         <div class="mb-3">
-            <label class="form-label ss-body2 text-secondary-ss">Lemma (Dictionary Form)</label>
+            <label class="form-label ss-body2 text-secondary-ss">@Localize["VocabWordEdit_Lemma"]</label>
             <input type="text" class="form-control form-control-ss" @bind="lemma"
-                   placeholder="e.g., 가다 for 갔다, 가요, etc." />
+                   placeholder='@Localize["VocabWordEdit_LemmaPlaceholder"]' />
         </div>
 
         <div class="mb-3">
-            <label class="form-label ss-body2 text-secondary-ss">Language</label>
+            <label class="form-label ss-body2 text-secondary-ss">@Localize["VocabWordEdit_Language"]</label>
             <select class="form-select form-control-ss" @bind="wordLanguage">
-                <option value="">— Not set —</option>
+                <option value="">@Localize["VocabWordEdit_NotSet"]</option>
                 @foreach (var lang in languages)
                 {
                     <option value="@lang">@lang</option>
@@ -111,19 +112,19 @@ else
         </div>
 
         <div class="mb-3">
-            <label class="form-label ss-body2 text-secondary-ss">Tags (comma-separated)</label>
+            <label class="form-label ss-body2 text-secondary-ss">@Localize["VocabWordEdit_Tags"]</label>
             <input type="text" class="form-control form-control-ss" @bind="tags"
-                   placeholder="e.g., nature, season, visual" />
+                   placeholder='@Localize["VocabWordEdit_TagsPlaceholder"]' />
         </div>
 
         <div class="mb-3">
-            <label class="form-label ss-body2 text-secondary-ss">Mnemonic Story</label>
+            <label class="form-label ss-body2 text-secondary-ss">@Localize["VocabWordEdit_MnemonicStory"]</label>
             <textarea class="form-control form-control-ss" @bind="mnemonicText" @bind:event="oninput" rows="3"
-                      placeholder="A silly story or memory hook to help recall this word..."></textarea>
+                      placeholder='@Localize["VocabWordEdit_MnemonicPlaceholder"]'></textarea>
         </div>
 
         <div class="mb-3">
-            <label class="form-label ss-body2 text-secondary-ss">Mnemonic Image URL</label>
+            <label class="form-label ss-body2 text-secondary-ss">@Localize["VocabWordEdit_MnemonicImageUrl"]</label>
             <input type="url" class="form-control form-control-ss" @bind="mnemonicImageUri"
                    placeholder="https://example.com/image.jpg" />
             @if (!string.IsNullOrWhiteSpace(mnemonicImageUri))
@@ -138,16 +139,16 @@ else
     @if (!string.IsNullOrEmpty(Id) && Id != "0")
     {
         <div class="card card-ss p-4 mb-3">
-            <h5 class="ss-title3 mb-3">Learning Progress</h5>
+            <h5 class="ss-title3 mb-3">@Localize["VocabWordEdit_LearningProgress"]</h5>
             <div class="row g-2">
-                <div class="col-4 col-md-2"><strong class="ss-body2">Status</strong></div>
+                <div class="col-4 col-md-2"><strong class="ss-body2">@Localize["VocabWordEdit_Status"]</strong></div>
                 <div class="col-8 col-md-4 ss-body2">
                     @if (progress?.IsKnown == true)
                     {
                         <span class="badge bg-success">
-                            <i class="bi bi-check-circle-fill me-1"></i>Known
+                            <i class="bi bi-check-circle-fill me-1"></i>@Localize["VocabWordEdit_Known"]
                         </span>
-                        <small class="text-secondary-ss ms-1">(earned through practice)</small>
+                        <small class="text-secondary-ss ms-1">@Localize["VocabWordEdit_EarnedThrough"]</small>
                     }
                     else
                     {
@@ -155,9 +156,9 @@ else
                             <select class="form-select form-select-sm" style="max-width: 200px;"
                                     disabled="@isSettingStatus"
                                     @onchange="OnStatusSelectChanged">
-                                <option value="Unknown" selected="@(currentLearningStatus == LearningStatus.Unknown)">Unknown</option>
-                                <option value="Learning" selected="@(currentLearningStatus == LearningStatus.Learning)">Learning</option>
-                                <option value="Familiar" selected="@(currentLearningStatus == LearningStatus.Familiar)">Familiar</option>
+                                <option value="Unknown" selected="@(currentLearningStatus == LearningStatus.Unknown)">@Localize["VocabWordEdit_Unknown"]</option>
+                                <option value="Learning" selected="@(currentLearningStatus == LearningStatus.Learning)">@Localize["VocabWordEdit_Learning"]</option>
+                                <option value="Familiar" selected="@(currentLearningStatus == LearningStatus.Familiar)">@Localize["VocabWordEdit_Familiar"]</option>
                             </select>
                             @if (isSettingStatus)
                             {
@@ -166,9 +167,9 @@ else
                         </div>
                     }
                 </div>
-                <div class="col-4 col-md-2"><strong class="ss-body2">Details</strong></div>
+                <div class="col-4 col-md-2"><strong class="ss-body2">@Localize["VocabWordEdit_Details"]</strong></div>
                 <div class="col-8 col-md-4 ss-body2" style="white-space: pre-line;">@progressDetails</div>
-                <div class="col-4 col-md-2"><strong class="ss-body2">Next Review</strong></div>
+                <div class="col-4 col-md-2"><strong class="ss-body2">@Localize["VocabWordEdit_NextReview"]</strong></div>
                 <div class="col-8 col-md-4 ss-body2">@reviewDateText</div>
             </div>
         </div>
@@ -177,14 +178,14 @@ else
     @* Resource Associations *@
     <div class="card card-ss p-4 mb-3">
         <div class="d-flex justify-content-between align-items-center mb-3">
-            <h5 class="ss-title3 mb-0">Resource Associations</h5>
-            <small class="text-secondary-ss">@selectedResourceIds.Count selected</small>
+            <h5 class="ss-title3 mb-0">@Localize["VocabWordEdit_ResourceAssociations"]</h5>
+            <small class="text-secondary-ss">@string.Format(Localize["VocabWordEdit_SelectedCount"], selectedResourceIds.Count)</small>
         </div>
-        <p class="ss-body2 text-secondary-ss mb-3">Select resources to associate with this word.</p>
+        <p class="ss-body2 text-secondary-ss mb-3">@Localize["VocabWordEdit_SelectResources"]</p>
 
         @if (availableResources.Count == 0)
         {
-            <p class="text-secondary-ss ss-body2 mb-0 fst-italic">No resources available.</p>
+            <p class="text-secondary-ss ss-body2 mb-0 fst-italic">@Localize["VocabWordEdit_NoResources"]</p>
         }
         else
         {
@@ -214,7 +215,7 @@ else
             <div class="modal-content bg-surface">
                 <div class="modal-header border-0">
                     <h5 class="modal-title text-error-ss">
-                        <i class="bi bi-exclamation-triangle-fill me-2"></i>Confirm Delete
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>@Localize["VocabWordEdit_ConfirmDelete"]
                     </h5>
                     <button type="button" class="btn-close" @onclick="CancelDelete"></button>
                 </div>
@@ -222,13 +223,13 @@ else
                     <p class="ss-body2">@deleteConfirmMessage</p>
                 </div>
                 <div class="modal-footer border-0">
-                    <button type="button" class="btn btn-ss-secondary" @onclick="CancelDelete">Cancel</button>
+                    <button type="button" class="btn btn-ss-secondary" @onclick="CancelDelete">@Localize["Common_Cancel"]</button>
                     <button type="button" class="btn btn-ss-danger" @onclick="ConfirmDelete" disabled="@isDeleting">
                         @if (isDeleting)
                         {
                             <span class="spinner-border spinner-border-sm me-1"></span>
                         }
-                        Delete
+                        @Localize["Common_Delete"]
                     </button>
                 </div>
             </div>
@@ -304,8 +305,11 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        Localize.CultureChanged += OnCultureChanged;
         await LoadData();
     }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
 
     private async Task LoadData()
     {
@@ -317,7 +321,7 @@ else
                 var loadedWord = await ResourceRepo.GetVocabularyWordByIdAsync(Id);
                 if (loadedWord == null)
                 {
-                    Toast.ShowError("Vocabulary word not found.");
+                    Toast.ShowError($"{Localize["VocabWordEdit_NotFound"]}");
                     GoBack();
                     return;
                 }
@@ -356,7 +360,7 @@ else
         }
         catch (Exception ex)
         {
-            Toast.ShowError($"Failed to load: {ex.Message}");
+            Toast.ShowError($"{string.Format(Localize["Common_LoadFailed"], ex.Message)}");
             Logger.LogError(ex, "Failed to load vocabulary word data");
         }
         finally
@@ -439,7 +443,7 @@ else
 
             if (string.IsNullOrEmpty(target) || string.IsNullOrEmpty(native))
             {
-                errorMessage = "Both target and native language terms are required.";
+                errorMessage = $"{Localize["VocabWordEdit_BothRequired"]}";
                 return;
             }
 
@@ -447,7 +451,7 @@ else
             var existing = await ResourceRepo.FindDuplicateVocabularyWordAsync(target, native);
             if (existing != null && existing.Id != word.Id)
             {
-                errorMessage = "A vocabulary word with these terms already exists.";
+                errorMessage = $"{Localize["VocabWordEdit_DuplicateExists"]}";
                 return;
             }
 
@@ -463,7 +467,7 @@ else
             var saveResult = await ResourceRepo.SaveWordAsync(word);
             if (saveResult < 0)
             {
-                errorMessage = "Failed to save the vocabulary word. Please try again.";
+                errorMessage = $"{Localize["VocabWordEdit_SaveFailed"]}";
                 return;
             }
 
@@ -482,12 +486,12 @@ else
                     await ResourceRepo.AddVocabularyToResourceAsync(resourceId, word.Id);
             }
 
-            Toast.ShowSuccess(string.IsNullOrEmpty(Id) || Id == "0" ? "Vocabulary word added!" : "Vocabulary word updated!");
+            Toast.ShowSuccess(string.IsNullOrEmpty(Id) || Id == "0" ? $"{Localize["VocabWordEdit_AddedSuccess"]}" : $"{Localize["VocabWordEdit_UpdatedSuccess"]}");
             GoBack();
         }
         catch (Exception ex)
         {
-            errorMessage = $"Failed to save: {ex.Message}";
+            errorMessage = $"{string.Format(Localize["Common_SaveFailed"], ex.Message)}";
             Logger.LogError(ex, "Failed to save vocabulary word");
         }
         finally
@@ -498,7 +502,7 @@ else
 
     private void RequestDelete()
     {
-        deleteConfirmMessage = $"Are you sure you want to delete '{word.TargetLanguageTerm}'? This cannot be undone.";
+        deleteConfirmMessage = $"{string.Format(Localize["VocabWordEdit_DeleteMessage"], word.TargetLanguageTerm)}";
         showDeleteConfirm = true;
     }
 
@@ -513,12 +517,12 @@ else
         try
         {
             await ResourceRepo.DeleteVocabularyWordAsync(word.Id);
-            Toast.ShowSuccess("Vocabulary word deleted!");
+            Toast.ShowSuccess($"{Localize["VocabWordEdit_DeletedSuccess"]}");
             GoBack();
         }
         catch (Exception ex)
         {
-            Toast.ShowError($"Failed to delete: {ex.Message}");
+            Toast.ShowError($"{string.Format(Localize["Common_DeleteFailed"], ex.Message)}");
             Logger.LogError(ex, "Failed to delete vocabulary word");
         }
         finally
@@ -579,11 +583,11 @@ else
             UpdateProgressDisplay();
 
             if (status == SentenceStudio.Shared.Models.LearningStatus.Familiar)
-                Toast.ShowInfo("Got it -- we trust you on this one. We will check in occasionally to keep it fresh.");
+                Toast.ShowInfo($"{Localize["VocabWordEdit_FamiliarMessage"]}");
         }
         catch (Exception ex)
         {
-            Toast.ShowError($"Failed to update status: {ex.Message}");
+            Toast.ShowError($"{string.Format(Localize["VocabWordEdit_StatusUpdateFailed"], ex.Message)}");
             Logger.LogError(ex, "Failed to set word status for {WordId}", Id);
         }
         finally
@@ -648,7 +652,7 @@ else
             }
             else
             {
-                Toast.ShowWarning("Audio unavailable offline.");
+                Toast.ShowWarning($"{Localize["VocabWordEdit_AudioOffline"]}");
                 return;
             }
 
@@ -680,6 +684,7 @@ else
 
     public void Dispose()
     {
+        Localize.CultureChanged -= OnCultureChanged;
         audioPlayer?.Stop();
         audioPlayer?.Dispose();
         audioPlayer = null;

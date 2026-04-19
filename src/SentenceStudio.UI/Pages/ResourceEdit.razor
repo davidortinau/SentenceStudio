@@ -1,6 +1,8 @@
 @page "/resources/edit/{Id}"
 @attribute [Authorize]
 @using SentenceStudio.Services
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@implements IDisposable
 
 @if (isLoading)
 {
@@ -14,13 +16,13 @@ else
         <PrimaryActions>
             <button class="btn btn-ss-primary" @onclick="SaveResource" disabled="@isSaving">
                 @if (isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
-                Save
+                @Localize["Common_Save"]
             </button>
         </PrimaryActions>
         <SecondaryActions>
-            <li><button class="dropdown-item" @onclick="SaveResource" disabled="@isSaving"><i class="bi bi-check-lg me-2"></i>Save</button></li>
+            <li><button class="dropdown-item" @onclick="SaveResource" disabled="@isSaving"><i class="bi bi-check-lg me-2"></i>@Localize["Common_Save"]</button></li>
             <li><hr class="dropdown-divider" /></li>
-            <li><button class="dropdown-item text-danger" @onclick="RequestDelete"><i class="bi bi-trash me-2"></i>Delete</button></li>
+            <li><button class="dropdown-item text-danger" @onclick="RequestDelete"><i class="bi bi-trash me-2"></i>@Localize["Common_Delete"]</button></li>
         </SecondaryActions>
     </PageHeader>
 
@@ -28,27 +30,27 @@ else
     {
         <div class="alert alert-info d-flex align-items-center gap-2 mb-3">
             <i class="bi bi-robot"></i>
-            <strong>Smart Resource</strong>
-            <span class="text-secondary-ss">— Auto-updated by the system</span>
+            <strong>@Localize["ResourceEdit_SmartResource"]</strong>
+            <span class="text-secondary-ss">@Localize["ResourceEdit_AutoUpdated"]</span>
         </div>
     }
 
     <div class="card card-ss p-4 mb-3">
-        <h5 class="ss-title3 mb-3">Basic Information</h5>
+        <h5 class="ss-title3 mb-3">@Localize["ResourceEdit_BasicInfo"]</h5>
 
         <div class="mb-3">
-            <label class="form-label ss-body2 text-secondary-ss">Title</label>
+            <label class="form-label ss-body2 text-secondary-ss">@Localize["ResourceEdit_Title"]</label>
             <input type="text" class="form-control form-control-ss" @bind="resource.Title" />
         </div>
 
         <div class="mb-3">
-            <label class="form-label ss-body2 text-secondary-ss">Description</label>
+            <label class="form-label ss-body2 text-secondary-ss">@Localize["ResourceEdit_Description"]</label>
             <textarea class="form-control form-control-ss" @bind="resource.Description" rows="3"></textarea>
         </div>
 
         <div class="row">
             <div class="col-md-6 mb-3">
-                <label class="form-label ss-body2 text-secondary-ss">Media Type</label>
+                <label class="form-label ss-body2 text-secondary-ss">@Localize["ResourceEdit_MediaType"]</label>
                 <select class="form-select form-control-ss" @bind="resource.MediaType">
                     @foreach (var type in mediaTypes)
                     {
@@ -57,7 +59,7 @@ else
                 </select>
             </div>
             <div class="col-md-6 mb-3">
-                <label class="form-label ss-body2 text-secondary-ss">Language</label>
+                <label class="form-label ss-body2 text-secondary-ss">@Localize["ResourceEdit_Language"]</label>
                 <select class="form-select form-control-ss" @bind="resource.Language">
                     @foreach (var lang in languages)
                     {
@@ -68,38 +70,38 @@ else
         </div>
 
         <div class="mb-3">
-            <label class="form-label ss-body2 text-secondary-ss">Media URL</label>
+            <label class="form-label ss-body2 text-secondary-ss">@Localize["ResourceEdit_MediaUrl"]</label>
             <input type="url" class="form-control form-control-ss" @bind="resource.MediaUrl" />
         </div>
 
         <div class="mb-3">
-            <label class="form-label ss-body2 text-secondary-ss">Tags (comma separated)</label>
+            <label class="form-label ss-body2 text-secondary-ss">@Localize["ResourceEdit_Tags"]</label>
             <input type="text" class="form-control form-control-ss" @bind="resource.Tags" />
         </div>
 
         <div class="row g-2 mt-2">
-            <div class="col-4 col-md-2"><strong class="ss-body2 text-secondary-ss">Created</strong></div>
+            <div class="col-4 col-md-2"><strong class="ss-body2 text-secondary-ss">@Localize["ResourceEdit_Created"]</strong></div>
             <div class="col-8 col-md-4 ss-body2">@resource.CreatedAt.ToString("g")</div>
 
-            <div class="col-4 col-md-2"><strong class="ss-body2 text-secondary-ss">Updated</strong></div>
+            <div class="col-4 col-md-2"><strong class="ss-body2 text-secondary-ss">@Localize["ResourceEdit_Updated"]</strong></div>
             <div class="col-8 col-md-4 ss-body2">@resource.UpdatedAt.ToString("g")</div>
         </div>
     </div>
 
     <div class="card card-ss p-4 mb-3">
-        <h5 class="ss-title3 mb-3">Transcript</h5>
+        <h5 class="ss-title3 mb-3">@Localize["ResourceEdit_Transcript"]</h5>
         <textarea class="form-control form-control-ss" @bind="resource.Transcript" rows="6"></textarea>
     </div>
 
     <div class="card card-ss p-4 mb-3">
-        <h5 class="ss-title3 mb-3">Translation</h5>
+        <h5 class="ss-title3 mb-3">@Localize["ResourceEdit_Translation"]</h5>
         <textarea class="form-control form-control-ss" @bind="resource.Translation" rows="6"></textarea>
     </div>
 
     @* Vocabulary *@
     <div class="card card-ss p-4 mb-3">
         <div class="d-flex justify-content-between align-items-center mb-3">
-            <h5 class="ss-title3 mb-0">Vocabulary (@(resource.Vocabulary?.Count ?? 0) words)</h5>
+            <h5 class="ss-title3 mb-0">@string.Format(Localize["ResourceEdit_VocabularySection"], resource.Vocabulary?.Count ?? 0)</h5>
             @if (!string.IsNullOrWhiteSpace(resource.Transcript))
             {
                 <button class="btn btn-ss-secondary btn-sm" @onclick="GenerateVocabulary"
@@ -107,51 +109,51 @@ else
                     @if (isGeneratingVocabulary)
                     {
                         <span class="spinner-border spinner-border-sm me-1"></span>
-                        <span>Generating...</span>
+                        <span>@Localize["ResourceEdit_Generating"]</span>
                     }
                     else
                     {
                         <i class="bi bi-stars me-1"></i>
-                        <span>Generate from Transcript</span>
+                        <span>@Localize["ResourceEdit_GenerateFromTranscript"]</span>
                     }
                 </button>
             }
         </div>
 
         <div class="mb-3">
-            <label class="form-label ss-body2 text-secondary-ss">Import vocabulary (one pair per line)</label>
+            <label class="form-label ss-body2 text-secondary-ss">@Localize["ResourceEdit_ImportVocabLabel"]</label>
             <textarea class="form-control form-control-ss" @bind="vocabList" rows="4"
-                      placeholder="target, native"></textarea>
+                      placeholder='@Localize["ResourceEdit_VocabPlaceholder"]'></textarea>
         </div>
 
         <div class="d-flex align-items-center gap-3 mb-3">
             <div class="form-check">
                 <input class="form-check-input" type="radio" name="editDelimiter" id="editDelimComma"
                        checked="@(delimiter == "comma")" @onchange="SetDelimiterComma" />
-                <label class="form-check-label ss-body2" for="editDelimComma">Comma</label>
+                <label class="form-check-label ss-body2" for="editDelimComma">@Localize["ResourceEdit_Comma"]</label>
             </div>
             <div class="form-check">
                 <input class="form-check-input" type="radio" name="editDelimiter" id="editDelimTab"
                        checked="@(delimiter == "tab")" @onchange="SetDelimiterTab" />
-                <label class="form-check-label ss-body2" for="editDelimTab">Tab</label>
+                <label class="form-check-label ss-body2" for="editDelimTab">@Localize["ResourceEdit_Tab"]</label>
             </div>
             <button class="btn btn-ss-secondary btn-sm ms-auto" @onclick="ImportVocabulary"
                     disabled="@string.IsNullOrWhiteSpace(vocabList)">
-                Import
+                @Localize["ResourceEdit_Import"]
             </button>
         </div>
 
         <div class="mb-3">
-            <label class="form-label ss-body2 text-secondary-ss">Or import from a file (.txt, .csv)</label>
+            <label class="form-label ss-body2 text-secondary-ss">@Localize["ResourceEdit_OrImportFile"]</label>
             <div class="d-flex align-items-center gap-2">
                 <label class="btn btn-ss-secondary btn-sm mb-0" for="fileImportEdit" role="button" style="cursor:pointer">
-                    <i class="bi bi-file-earmark-arrow-up me-1"></i>Choose File
+                    <i class="bi bi-file-earmark-arrow-up me-1"></i>@Localize["ResourceEdit_ChooseFile"]
                 </label>
                 <InputFile id="fileImportEdit" OnChange="HandleFileImport" accept=".txt,.csv" class="d-none" />
                 @if (isImportingFile)
                 {
                     <span class="spinner-border spinner-border-sm text-primary"></span>
-                    <span class="ss-body2 text-secondary-ss">Importing...</span>
+                    <span class="ss-body2 text-secondary-ss">@Localize["ResourceEdit_Importing"]</span>
                 }
                 @if (!string.IsNullOrEmpty(fileImportStatus))
                 {
@@ -176,7 +178,7 @@ else
         }
         else
         {
-            <p class="text-secondary-ss ss-body2 mb-0">No vocabulary words yet.</p>
+            <p class="text-secondary-ss ss-body2 mb-0">@Localize["ResourceEdit_NoVocabYet"]</p>
         }
     </div>
 }
@@ -189,7 +191,7 @@ else
             <div class="modal-content bg-surface">
                 <div class="modal-header border-0">
                     <h5 class="modal-title text-error-ss">
-                        <i class="bi bi-exclamation-triangle-fill me-2"></i>Confirm Delete
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>@Localize["ResourceEdit_ConfirmDelete"]
                     </h5>
                     <button type="button" class="btn-close" @onclick="CancelDelete"></button>
                 </div>
@@ -197,13 +199,13 @@ else
                     <p class="ss-body2">@deleteConfirmMessage</p>
                 </div>
                 <div class="modal-footer border-0">
-                    <button type="button" class="btn btn-ss-secondary" @onclick="CancelDelete">Cancel</button>
+                    <button type="button" class="btn btn-ss-secondary" @onclick="CancelDelete">@Localize["Common_Cancel"]</button>
                     <button type="button" class="btn btn-ss-danger" @onclick="ConfirmDelete" disabled="@isDeleting">
                         @if (isDeleting)
                         {
                             <span class="spinner-border spinner-border-sm me-1"></span>
                         }
-                        Delete
+                        @Localize["Common_Delete"]
                     </button>
                 </div>
             </div>
@@ -242,8 +244,11 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        Localize.CultureChanged += OnCultureChanged;
         await LoadResource();
     }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
 
     private async Task LoadResource()
     {
@@ -254,7 +259,7 @@ else
         }
         catch (Exception ex)
         {
-            Toast.ShowError($"Failed to load resource: {ex.Message}");
+            Toast.ShowError($"{string.Format(Localize["ResourceEdit_LoadFailed"], ex.Message)}");
         }
         finally
         {
@@ -268,7 +273,7 @@ else
     {
         if (string.IsNullOrWhiteSpace(resource.Title))
         {
-            Toast.ShowError("Title is required.");
+            Toast.ShowError($"{Localize["ResourceEdit_TitleRequired"]}");
             return;
         }
 
@@ -282,11 +287,11 @@ else
         {
             resource.UpdatedAt = DateTime.UtcNow;
             await ResourceRepo.SaveResourceAsync(resource);
-            Toast.ShowSuccess("Resource saved.");
+            Toast.ShowSuccess($"{Localize["ResourceEdit_SavedSuccess"]}");
         }
         catch (Exception ex)
         {
-            Toast.ShowError($"Failed to save: {ex.Message}");
+            Toast.ShowError($"{string.Format(Localize["Common_SaveFailed"], ex.Message)}");
         }
         finally
         {
@@ -296,7 +301,7 @@ else
 
     private void RequestDelete()
     {
-        deleteConfirmMessage = "Are you sure you want to delete this resource? This cannot be undone.";
+        deleteConfirmMessage = $"{Localize["ResourceEdit_DeleteMessage"]}";
         showDeleteConfirm = true;
     }
 
@@ -311,12 +316,12 @@ else
         try
         {
             await ResourceRepo.DeleteResourceAsync(resource);
-            Toast.ShowSuccess("Resource deleted.");
+            Toast.ShowSuccess($"{Localize["ResourceEdit_DeletedSuccess"]}");
             NavManager.NavigateTo("/resources");
         }
         catch (Exception ex)
         {
-            Toast.ShowError($"Failed to delete: {ex.Message}");
+            Toast.ShowError($"{string.Format(Localize["Common_DeleteFailed"], ex.Message)}");
         }
         finally
         {
@@ -355,12 +360,12 @@ else
             await ResourceRepo.SaveResourceAsync(resource);
 
             vocabList = "";
-            Toast.ShowSuccess($"Imported {added} vocabulary words.");
+            Toast.ShowSuccess($"{string.Format(Localize["ResourceEdit_ImportedCount"], added)}");
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "ImportVocabulary error");
-            Toast.ShowError($"Import failed: {ex.Message}");
+            Toast.ShowError($"{string.Format(Localize["ResourceEdit_ImportFailed"], ex.Message)}");
         }
     }
 
@@ -381,7 +386,7 @@ else
 
             if (string.IsNullOrWhiteSpace(content))
             {
-                Toast.ShowError("File is empty.");
+                Toast.ShowError($"{Localize["ResourceEdit_FileEmpty"]}");
                 return;
             }
 
@@ -407,18 +412,18 @@ else
             if (added > 0)
             {
                 await ResourceRepo.SaveResourceAsync(resource);
-                fileImportStatus = $"{added} words from {file.Name}";
-                Toast.ShowSuccess($"Imported {added} vocabulary words from file.");
+                fileImportStatus = $"{string.Format(Localize["ResourceEdit_FileImportStatus"], added, file.Name)}";
+                Toast.ShowSuccess($"{string.Format(Localize["ResourceEdit_ImportedFromFile"], added)}");
             }
             else
             {
-                Toast.ShowInfo("No new vocabulary words found in file (may be duplicates or wrong format).");
+                Toast.ShowInfo($"{Localize["ResourceEdit_NoDuplicatesInFile"]}");
             }
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "HandleFileImport error");
-            Toast.ShowError($"File import failed: {ex.Message}");
+            Toast.ShowError($"{string.Format(Localize["ResourceEdit_FileImportFailed"], ex.Message)}");
         }
         finally
         {
@@ -430,7 +435,7 @@ else
     {
         if (string.IsNullOrWhiteSpace(resource.Transcript))
         {
-            Toast.ShowError("No transcript available to generate vocabulary from.");
+            Toast.ShowError($"{Localize["ResourceEdit_NoTranscript"]}");
             return;
         }
 
@@ -464,7 +469,7 @@ Transcript:
 
             if (vocabulary == null || !vocabulary.Any())
             {
-                Toast.ShowError("AI did not generate any vocabulary. Try again.");
+                Toast.ShowError($"{Localize["ResourceEdit_GenerateFailed"]}");
                 return;
             }
 
@@ -524,15 +529,15 @@ Transcript:
             // Save resource with new vocabulary associations
             await ResourceRepo.SaveResourceAsync(resource);
 
-            var msg = $"Generated {vocabulary.Count} words: {newWordsCreated} new, {existingWordsLinked} linked";
+            var msg = $"{string.Format(Localize["ResourceEdit_GenerateSuccess"], vocabulary.Count, newWordsCreated, existingWordsLinked)}";
             if (duplicatesSkipped > 0)
-                msg += $", {duplicatesSkipped} skipped (already in resource)";
+                msg += $", {string.Format(Localize["ResourceEdit_SkippedDuplicates"], duplicatesSkipped)}";
             Toast.ShowSuccess(msg);
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "GenerateVocabulary error");
-            Toast.ShowError($"Vocabulary generation failed: {ex.Message}");
+            Toast.ShowError($"{string.Format(Localize["ResourceEdit_GenerateFailed"], ex.Message)}");
         }
         finally
         {
@@ -615,5 +620,10 @@ Transcript:
         if (parenIndex > 0)
             normalized = language[..parenIndex].Trim();
         return latinLanguages.Contains(normalized);
+    }
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnCultureChanged;
     }
 }

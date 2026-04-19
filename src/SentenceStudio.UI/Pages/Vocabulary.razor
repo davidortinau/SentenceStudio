@@ -4,8 +4,10 @@
 @using SentenceStudio.Shared.Models
 @using SentenceStudio.Data
 @using SentenceStudio.Services
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@implements IDisposable
 
-<PageHeader Title="Vocabulary">
+<PageHeader Title='@Localize["Vocabulary_Title"]'>
     <ToolbarActions>
         <button class="btn btn-sm btn-icon text-primary-ss d-md-none"
                 data-bs-toggle="offcanvas" data-bs-target="#vocabFilterPanel">
@@ -14,21 +16,21 @@
     </ToolbarActions>
     <PrimaryActions>
         <button class="btn btn-ss-primary" @onclick="AddWord">
-            <i class="bi bi-plus-lg me-1"></i> Add Word
+            <i class="bi bi-plus-lg me-1"></i> @Localize["Vocabulary_AddWord"]
         </button>
     </PrimaryActions>
     <SecondaryActions>
-        <li><button class="dropdown-item" @onclick="AddWord"><i class="bi bi-plus-lg me-2"></i>Add Word</button></li>
+        <li><button class="dropdown-item" @onclick="AddWord"><i class="bi bi-plus-lg me-2"></i>@Localize["Vocabulary_AddWord"]</button></li>
         <li><hr class="dropdown-divider"></li>
         <li><button class="dropdown-item" @onclick="ToggleViewMode">
             <i class="bi @ViewToggleIcon me-2"></i>@ViewToggleLabel</button></li>
         <li><hr class="dropdown-divider"></li>
-        <li><button class="dropdown-item" @onclick="FindDuplicates"><i class="bi bi-files me-2"></i>Find Duplicates</button></li>
-        <li><button class="dropdown-item" @onclick="PopulateLemmas"><i class="bi bi-book me-2"></i>Populate Lemmas</button></li>
-        <li><button class="dropdown-item" @onclick="FixSwappedLanguages"><i class="bi bi-arrow-left-right me-2"></i>Fix Swapped Languages</button></li>
-        <li><button class="dropdown-item" @onclick="AssignOrphanedWords"><i class="bi bi-box-arrow-in-right me-2"></i>Assign Orphaned Words</button></li>
+        <li><button class="dropdown-item" @onclick="FindDuplicates"><i class="bi bi-files me-2"></i>@Localize["Vocabulary_FindDuplicates"]</button></li>
+        <li><button class="dropdown-item" @onclick="PopulateLemmas"><i class="bi bi-book me-2"></i>@Localize["Vocabulary_PopulateLemmas"]</button></li>
+        <li><button class="dropdown-item" @onclick="FixSwappedLanguages"><i class="bi bi-arrow-left-right me-2"></i>@Localize["Vocabulary_FixSwappedLanguages"]</button></li>
+        <li><button class="dropdown-item" @onclick="AssignOrphanedWords"><i class="bi bi-box-arrow-in-right me-2"></i>@Localize["Vocabulary_AssignOrphanedWords"]</button></li>
         <li><hr class="dropdown-divider"></li>
-        <li><button class="dropdown-item" @onclick="EnterBulkEditMode"><i class="bi bi-check2-square me-2"></i>Bulk Edit Status</button></li>
+        <li><button class="dropdown-item" @onclick="EnterBulkEditMode"><i class="bi bi-check2-square me-2"></i>@Localize["Vocabulary_BulkEditStatus"]</button></li>
     </SecondaryActions>
 </PageHeader>
 
@@ -43,11 +45,11 @@ else
 {
     @* Stats bar — hidden on mobile *@
     <div class="d-none d-md-flex gap-3 mb-3 overflow-auto flex-nowrap align-items-center" style="-webkit-overflow-scrolling: touch;">
-        <span class="badge bg-dark rounded-pill flex-shrink-0">@filteredWords.Count of @statTotal</span>
-        <span class="badge bg-secondary rounded-pill flex-shrink-0">Unknown: @statUnknown</span>
-        <span class="badge bg-primary rounded-pill flex-shrink-0">Learning: @statLearning</span>
-        <span class="badge bg-warning text-dark rounded-pill flex-shrink-0">Familiar: @statFamiliar</span>
-        <span class="badge bg-success rounded-pill flex-shrink-0">Known: @statKnown</span>
+        <span class="badge bg-dark rounded-pill flex-shrink-0">@string.Format(Localize["Vocabulary_StatsTotal"], filteredWords.Count, statTotal)</span>
+        <span class="badge bg-secondary rounded-pill flex-shrink-0">@string.Format(Localize["Vocabulary_StatsUnknown"], statUnknown)</span>
+        <span class="badge bg-primary rounded-pill flex-shrink-0">@string.Format(Localize["Vocabulary_StatsLearning"], statLearning)</span>
+        <span class="badge bg-warning text-dark rounded-pill flex-shrink-0">@string.Format(Localize["Vocabulary_StatsFamiliar"], statFamiliar)</span>
+        <span class="badge bg-success rounded-pill flex-shrink-0">@string.Format(Localize["Vocabulary_StatsKnown"], statKnown)</span>
         <div class="ms-auto btn-group btn-group-sm flex-shrink-0" role="group">
             <button class="btn @(viewMode == "grid" ? "btn-secondary" : "btn-outline-secondary")" @onclick='() => SetViewMode("grid")' title="Grid view">
                 <i class="bi bi-grid-3x3-gap"></i>
@@ -61,24 +63,24 @@ else
     @if (isBulkEditMode)
     {
         <div class="d-flex flex-wrap gap-2 mb-3 align-items-center bg-body-tertiary rounded p-2 border">
-            <span class="fw-semibold">@selectedWordIds.Count selected</span>
+            <span class="fw-semibold">@string.Format(Localize["Vocabulary_BulkSelected"], selectedWordIds.Count)</span>
             <select class="form-select form-select-sm" style="max-width:160px;" @bind="bulkStatus">
-                <option value="">Set Status...</option>
-                <option value="Unknown">Unknown</option>
-                <option value="Learning">Learning</option>
-                <option value="Familiar">Familiar</option>
+                <option value="">@Localize["Vocabulary_SetStatus"]</option>
+                <option value="Unknown">@Localize["VocabWordEdit_Unknown"]</option>
+                <option value="Learning">@Localize["VocabWordEdit_Learning"]</option>
+                <option value="Familiar">@Localize["VocabWordEdit_Familiar"]</option>
             </select>
             <button class="btn btn-sm btn-primary" disabled="@(selectedWordIds.Count == 0 || string.IsNullOrEmpty(bulkStatus) || isBulkSaving)" @onclick="SaveBulkStatus">
                 @if (isBulkSaving)
                 {
                     <span class="spinner-border spinner-border-sm me-1"></span>
                 }
-                Save
+                @Localize["Common_Save"]
             </button>
-            <button class="btn btn-sm btn-outline-secondary" @onclick="ExitBulkEditMode" disabled="@isBulkSaving">Cancel</button>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="ExitBulkEditMode" disabled="@isBulkSaving">@Localize["Common_Cancel"]</button>
             <div class="w-100 d-flex gap-2 d-md-inline-flex w-md-auto">
-                <button class="btn btn-sm btn-outline-secondary" @onclick="SelectAll">Select All</button>
-                <button class="btn btn-sm btn-outline-secondary" @onclick="SelectNone">Select None</button>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="SelectAll">@Localize["Vocabulary_SelectAll"]</button>
+                <button class="btn btn-sm btn-outline-secondary" @onclick="SelectNone">@Localize["Vocabulary_SelectNone"]</button>
             </div>
         </div>
     }
@@ -87,7 +89,7 @@ else
     <div class="d-flex gap-2 mb-2">
         <div class="flex-grow-1 position-relative">
             <input type="text" class="form-control form-control-ss"
-                   placeholder="Search... (try tag:clothing status:learning resource:'Starter')"
+                   placeholder='@Localize["Vocabulary_SearchPlaceholder"]'
                    @bind="searchQuery" @bind:event="oninput" @bind:after="OnSearchChanged" />
 
             @* Autocomplete dropdown *@
@@ -458,11 +460,11 @@ else
     {
         <div class="text-center p-5">
             <p class="ss-body1 text-secondary-ss mb-4">
-                @(allWords.Count > 0 ? "No words match the current filter." : "No vocabulary words yet.")
+                @(allWords.Count > 0 ? $"{Localize["Vocabulary_NoMatchFilter"]}" : $"{Localize["Vocabulary_NoWordsYet"]}")
             </p>
             @if (allWords.Count == 0)
             {
-                <button class="btn btn-ss-primary" @onclick="AddWord">Add Your First Word</button>
+                <button class="btn btn-ss-primary" @onclick="AddWord">@Localize["Vocabulary_AddFirstWord"]</button>
             }
         </div>
     }
@@ -630,6 +632,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        Localize.CultureChanged += OnCultureChanged;
         if (!string.IsNullOrWhiteSpace(QueryFromUrl))
         {
             searchQuery = QueryFromUrl;
@@ -642,6 +645,8 @@ else
             await OpenDuplicateManagerAsync(DuplicateTermFromUrl, FocusWordIdFromUrl);
         }
     }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
 
     private async Task LoadData()
     {
@@ -707,7 +712,7 @@ else
         }
         catch (Exception ex)
         {
-            Toast.ShowError($"Failed to load vocabulary: {ex.Message}");
+            Toast.ShowError($"{string.Format(Localize["Vocabulary_LoadFailed"], ex.Message)}");
             Logger.LogError(ex, "Failed to load vocabulary data");
         }
         finally
@@ -967,7 +972,7 @@ else
             var userId = Preferences.Get("active_profile_id", "");
             if (string.IsNullOrEmpty(userId))
             {
-                Toast.ShowError("No active user profile. Please select a profile first.");
+                Toast.ShowError($"{Localize["Vocabulary_NoActiveProfile"]}");
                 return;
             }
 
@@ -991,16 +996,16 @@ else
             await LoadData();
 
             if (failCount == 0)
-                Toast.ShowSuccess($"Updated {successCount} word(s) to {bulkStatus}.");
+                Toast.ShowSuccess($"{string.Format(Localize["Vocabulary_BulkUpdateSuccess"], successCount, bulkStatus)}");
             else
-                Toast.ShowWarning($"Updated {successCount} word(s). {failCount} failed.");
+                Toast.ShowWarning($"{string.Format(Localize["Vocabulary_BulkUpdatePartial"], successCount, failCount)}");
 
             ExitBulkEditMode();
         }
         catch (Exception ex)
         {
             Logger.LogError(ex, "Bulk status update failed");
-            Toast.ShowError($"Bulk update failed: {ex.Message}");
+            Toast.ShowError($"{string.Format(Localize["Vocabulary_BulkUpdateFailed"], ex.Message)}");
         }
         finally
         {
@@ -1009,7 +1014,7 @@ else
     }
 
     private string ViewToggleIcon => viewMode == "grid" ? "bi-list-ul" : "bi-grid-3x3-gap";
-    private string ViewToggleLabel => viewMode == "grid" ? "List View" : "Grid View";
+    private string ViewToggleLabel => viewMode == "grid" ? $"{Localize["Vocabulary_ListView"]}" : $"{Localize["Vocabulary_GridView"]}";
 
     private Task ToggleViewMode() => SetViewMode(viewMode == "grid" ? "list" : "grid");
 
@@ -1645,5 +1650,10 @@ Return JSON like: {{""lemmas"": [{{""id"": 1, ""lemma"": ""dictionary form""}}, 
     private record DuplicateGroup(string NormalizedTerm, string DisplayTerm, List<DuplicateWordInfo> Words)
     {
         public string RecommendedKeeperId => Words.FirstOrDefault()?.Word.Id ?? "";
+    }
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnCultureChanged;
     }
 }
