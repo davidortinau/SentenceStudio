@@ -771,3 +771,97 @@ if (!string.IsNullOrWhiteSpace(aiConnString))
 
 - Approve full 1-day plan OR small-slice 3-hour proof-of-concept?
 - Answer the four open questions above (drives implementation order)?
+# Mobile App Insights — Follow-up Answers
+
+**Author:** Wash (Backend Dev)
+**Date:** 2026-04-20
+**Companion:** `.squad/decisions/inbox/wash-mobile-observability.md` (original scope)
+**Questions from Captain:** 1 (one vs two resources), 2 (connection string security), + evaluate `TinyInsights.Maui`
+
+---
+
+## A. One App Insights resource vs two
+
+**What a "resource" is.** In Azure, an Application Insights resource is a billable instance that holds a bucket of telemetry. It has one **connection string** (endpoint + InstrumentationKey) that tells a client where to send data, a daily ingestion cap, a retention period, and its own KQL query surface. One resource = one scope for billing, alerts, dashboards, and queries.
+
+**Options:**
+- **ONE shared resource** — MAUI client and API both emit to the same resource with the same connection string (client bundled, server from env var).
+- **TWO resources** — `ai-sstudio-mobile` + `ai-sstudio-api`, each with its own connection string, billing, and dashboards.
+
+**Recommendation: ONE resource.** Reasons:
+1. **End-to-end traces in a single query.** OpenTelemetry injects a W3C `traceparent` header automatically. Both tiers land in the same `requests`/`dependencies`/`exceptions` tables, so one KQL query walks the whole call.
+2. **Concrete example — Quiz "Score" fails.** With ONE resource:
+   ```kusto
+   union customEvents, dependencies, requests, exceptions
+   | where operation_Id == "<trace-id>"
+   | order by timestamp asc
+   ```
+   You see: `QuizScoreTapped` event (MAUI) → outgoing HTTP `POST /api/v1/ai/chat` (MAUI) → incoming request (API) → OpenAI dependency call → the exception, with stack trace. One timeline. With TWO resources you'd run two KQL queries and correlate by hand.
+3. **Simpler billing + one daily cap** to protect cost.
+4. `cloud_RoleName` already distinguishes "MAUI" from "api"/"webapp" for filtering when you want tier-specific dashboards.
+
+**When TWO would win:** different retention/access control per tier, or you give the mobile team access while keeping server telemetry siloed. Neither applies here — Captain owns both.
+
+---
+
+## B. Connection string security
+
+**What it actually is.** `InstrumentationKey=…;IngestionEndpoint=https://…` — a **write-only token** for Azure Monitor's ingestion endpoint. It cannot read telemetry, list resources, or touch anything else in your Azure subscription. Reading telemetry requires an Entra identity with `Reader` on the resource (your Azure login).
+
+**Embedding in the app bundle is the standard.** Microsoft's own App Insights and Azure Monitor docs tell mobile/desktop/JS clients to ship the connection string in the app. The SDK cannot exist without it and the key's blast radius is bounded to "someone pushes fake telemetry at your resource".
+
+**Threat model + mitigations:**
+| Risk | Mitigation |
+|---|---|
+| Attacker extracts key, spams fake telemetry | **Daily data cap** ($5–10/day) — App Insights stops accepting once hit, no overage bill |
+| Same attacker floods you with noise | **Sampling** (10–25%) — exporter drops most repeat traces before send |
+| You want to rotate after abuse | Regenerate connection string in Azure portal; ship next app build |
+
+Daily cap is the single most important knob. Set it at resource creation.
+
+**Alternatives and why they're worse for a mobile app:**
+- **Fetch from authenticated API at startup** — chicken-and-egg: if the app can't reach the API you get zero telemetry about that exact outage. Also adds a mandatory network hop before any crash from boot can be reported.
+- **Per-user keys** — massive complexity, no security win (key is still write-only).
+- **Key Vault** — requires an Azure identity the app doesn't have; granting one would be *worse* than the write-only key.
+
+**Recommendation: embed the connection string in `appsettings.Production.json` inside the MAUI app bundle.** Set daily cap to $5/day, sampling to 10% for dependencies/requests, 100% for exceptions/crashes. Rotate only if abuse is observed.
+
+---
+
+## C. TinyInsights.Maui evaluation
+
+**Source:** https://github.com/dhindrik/TinyInsights.Maui (Daniel Hindrikes, Microsoft MVP; active — last commit 2026-04-15 including net10 support, crash-handling improvements).
+
+**What it is.** A thin wrapper over the **classic `Microsoft.ApplicationInsights` 2.23.0 SDK** (NOT OpenTelemetry). Provides:
+- `UseTinyInsights(connectionString)` one-liner in `MauiProgram.cs`
+- `IInsights` interface for `TrackEventAsync`, `TrackPageViewAsync`, `TrackErrorAsync`, `TrackDependencyTracker`
+- Automatic crash capture (hooks the platform exception pipelines) with store-and-forward on next launch
+- `InsightsMessageHandler` for HttpClient dependency tracking
+- `UseTinyInsightsAsILogger` variant — `ILogger` calls become telemetry
+- A companion web UI for mobile-friendly viewing
+
+**Verdict: Do NOT adopt. Stick with `Azure.Monitor.OpenTelemetry.Exporter`.**
+
+**Why:**
+1. **Wrong SDK family.** TinyInsights depends on the **legacy** `Microsoft.ApplicationInsights.*` SDK. Our API side is OpenTelemetry + Azure Monitor exporter. The two emit to the same resource but **don't share Activity context** — W3C `traceparent` correlation between MAUI and API would be fragile or broken. The whole point of Section A (one resource, one query) collapses.
+2. **Fights our existing wiring.** `SentenceStudio.MauiServiceDefaults.ConfigureOpenTelemetry` already builds the OTel pipeline (HttpClient + Runtime instrumentation, logging, metrics, tracing). TinyInsights would run in parallel — double telemetry cost, two exporters, two code paths for the same signals.
+3. **Conveniences we don't need.** Auto page-view tracking is Shell/MAUI XAML-centric; SentenceStudio is Blazor Hybrid (one MAUI page, all navigation inside Blazor). The `InsightsMessageHandler` duplicates what OTel HttpClient instrumentation already does. Crash auto-capture is ~30 lines we already have MauiExceptions for.
+4. **Single-maintainer risk for a core dependency.** Active now, but one-person projects stall. OTel + Azure Monitor exporter is Microsoft-maintained and tracks .NET 10/11/12 automatically.
+5. **Null positive: crash store-and-forward.** That's the one nice feature TinyInsights ships that the exporter doesn't give you for free — but `Azure.Monitor.OpenTelemetry.Exporter` has a built-in 48-hour local file cache for offline ingestion, which covers the same scenario.
+
+**Where TinyInsights WOULD be right:** a greenfield MAUI app with no OTel, no server-side correlation needs, and a dev who wants `insights.TrackEventAsync("ButtonTap")` without reading OTel docs. Not us.
+
+---
+
+## First Increment (unchanged from original memo)
+
+~3 hours on Mac Catalyst:
+1. `<PackageReference Include="Azure.Monitor.OpenTelemetry.Exporter" Version="1.3.0" />` in `SentenceStudio.MauiServiceDefaults`.
+2. In `ConfigureOpenTelemetry`, call `.UseAzureMonitor(o => o.ConnectionString = cfg["ApplicationInsights:ConnectionString"])` only when the value is present AND build is Release.
+3. Subscribe `ILogger<AppCrash>` to `MauiExceptions.UnhandledException` so crashes land as exception telemetry.
+4. Embed connection string in `appsettings.Production.json` shipped inside `SentenceStudio.AppLib`.
+5. Ship in parallel with the server-side App Insights PR so the first trace you query already spans both tiers.
+
+Daily cap $5, sampling 10% (requests/dependencies), 100% (exceptions).
+
+**Ready for approval — no blockers.**

@@ -1236,3 +1236,16 @@ Captain reported intermittent prod errors (quiz scoring, feedback). Decision mem
 **Memo filed:** `.squad/decisions/inbox/wash-mobile-observability.md`.
 
 **Rule of thumb learned:** Before proposing new infrastructure, always inventory what's already wired. `MauiServiceDefaults` had the whole OTel pipeline sitting there, gated on an env var. The real gap was an exporter + a subscriber, not a rebuild.
+
+
+---
+
+## Learnings — 2026-04-20 (Mobile App Insights follow-up: TinyInsights eval + security stance)
+
+**Connection string is write-only; embed it.** InstrumentationKey authorizes ingestion push only — can't read telemetry or touch other Azure resources. Microsoft's own docs tell mobile/desktop/JS clients to ship it in the app bundle. Worst case is fake-telemetry spam, bounded by daily ingestion cap ($5/day) + sampling. All the "secure" alternatives (fetch from API at startup, per-user keys, Key Vault) are **strictly worse** for a mobile app — chicken-and-egg (no telemetry if API is down, which is exactly when you need it), massive complexity for zero security gain, or require an Azure identity the app doesn't have. Rule: write-only keys with bounded blast radius belong in the client. Read-capable secrets never do.
+
+**TinyInsights.Maui evaluated — REJECTED for this project.** Active project (Daniel Hindrikes, MVP, net10 support Jan 2026, crash improvements Apr 2026), nice developer ergonomics. BUT it depends on the **legacy `Microsoft.ApplicationInsights` 2.23.0** SDK, not OpenTelemetry. Our `SentenceStudio.MauiServiceDefaults` already has an OTel pipeline, and the API side is planning Azure Monitor OTel exporter. Mixing SDK families breaks W3C `traceparent` correlation between MAUI and API — which is the whole reason we want ONE App Insights resource in the first place. Would also duplicate telemetry (double HttpClient tracking, double exporters, double cost). Stuck with `Azure.Monitor.OpenTelemetry.Exporter` 1.3.0.
+
+**Rule of thumb: SDK family consistency > convenience.** When the server tier commits to OpenTelemetry, the client tier has to stay on OpenTelemetry too — or correlation is theater. Check the `<PackageReference>` before adopting any MAUI observability library: if it pulls `Microsoft.ApplicationInsights.*` (classic SDK) and your server uses `Azure.Monitor.OpenTelemetry.Exporter`, walk away no matter how good the DX looks.
+
+**First-increment plan UNCHANGED.** TinyInsights rejection doesn't alter the 3-hour Mac Catalyst slice: add exporter package, wire `UseAzureMonitor` in `ConfigureOpenTelemetry` guarded on Release+connection-string-present, subscribe `ILogger` to `MauiExceptions.UnhandledException`, embed connection string in `appsettings.Production.json`. Ship in parallel with server memo's PR so day-one traces already span both tiers.
