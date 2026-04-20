@@ -5,6 +5,10 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using OpenAI;
 using ElevenLabs;
+using OpenTelemetry;
+using OpenTelemetry.Logs;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
 using SentenceStudio.Abstractions;
 
 namespace SentenceStudio;
@@ -82,6 +86,31 @@ public static class SentenceStudioAppBuilder
     {
         var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("MauiProgram");
         logger.LogDebug("✅ MauiApp built successfully");
+
+        // Wire unhandled-exception capture → OTel log pipeline (→ Azure Monitor in Release).
+        // MauiExceptions normalizes iOS/MacCatalyst/Android/Windows/Desktop platform handlers into a single
+        // event; we attach ONE subscriber here. Best-effort ForceFlush on the three OTel providers so
+        // the crash record has a chance to reach the exporter before the process dies.
+        var crashLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("SentenceStudio.UnhandledException");
+        var loggerProvider = app.Services.GetService<LoggerProvider>();
+        var tracerProvider = app.Services.GetService<TracerProvider>();
+        var meterProvider = app.Services.GetService<MeterProvider>();
+        MauiExceptions.UnhandledException += (sender, args) =>
+        {
+            try
+            {
+                var ex = args.ExceptionObject as Exception;
+                crashLogger.LogCritical(ex, "Unhandled exception (isTerminating={IsTerminating})", args.IsTerminating);
+
+                try { loggerProvider?.ForceFlush(3000); } catch { }
+                try { tracerProvider?.ForceFlush(3000); } catch { }
+                try { meterProvider?.ForceFlush(3000); } catch { }
+            }
+            catch
+            {
+                // Never throw from the last-chance handler.
+            }
+        };
 
         // CRITICAL: Initialize database schema SYNCHRONOUSLY before app starts
         logger.LogDebug("🚀 CHECKPOINT 1: About to get ISyncService");

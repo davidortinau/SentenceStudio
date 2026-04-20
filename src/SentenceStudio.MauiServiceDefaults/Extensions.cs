@@ -1,4 +1,6 @@
+using Azure.Monitor.OpenTelemetry.Exporter;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -6,6 +8,7 @@ using Microsoft.Maui;
 using OpenTelemetry;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
+using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using System.Text.RegularExpressions;
 
@@ -52,6 +55,15 @@ public static class Extensions
 
     public static TBuilder ConfigureOpenTelemetry<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
     {
+        // Tag every signal with a stable service name so App Insights cloud_RoleName
+        // clearly identifies the mobile client (not just "SentenceStudio").
+        var platform = DeviceInfo.Platform != DevicePlatform.Unknown
+            ? DeviceInfo.Platform.ToString()
+            : "Unknown";
+        var serviceName = $"SentenceStudio.Mobile.{platform}";
+        builder.Services.AddOpenTelemetry()
+            .ConfigureResource(resource => resource.AddService(serviceName: serviceName));
+
         builder.Logging.AddOpenTelemetry(logging =>
         {
             logging.IncludeFormattedMessage = true;
@@ -101,6 +113,26 @@ public static class Extensions
         {
             builder.Services.AddOpenTelemetry().UseOtlpExporter();
         }
+
+        // Azure Monitor (Application Insights) exporter.
+        // - DEBUG builds: compile-time disabled so simulator/dev runs never ship telemetry to prod.
+        // - Release builds: enabled iff AzureMonitor:ConnectionString is present in embedded appsettings.
+        //   Connection string is write-only (push-only ingestion auth). See
+        //   .squad/agents/wash/history.md "Mobile App Insights follow-up" for the security rationale.
+#if !DEBUG
+        var azureMonitorConnectionString = builder.Configuration["AzureMonitor:ConnectionString"];
+        if (!string.IsNullOrWhiteSpace(azureMonitorConnectionString))
+        {
+            builder.Logging.AddOpenTelemetry(o =>
+                o.AddAzureMonitorLogExporter(options => options.ConnectionString = azureMonitorConnectionString));
+
+            builder.Services.AddOpenTelemetry()
+                .WithMetrics(metrics =>
+                    metrics.AddAzureMonitorMetricExporter(options => options.ConnectionString = azureMonitorConnectionString))
+                .WithTracing(tracing =>
+                    tracing.AddAzureMonitorTraceExporter(options => options.ConnectionString = azureMonitorConnectionString));
+        }
+#endif
 
         return builder;
     }
