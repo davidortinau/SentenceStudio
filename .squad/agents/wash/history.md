@@ -1206,3 +1206,33 @@ ContainerAppConsoleLogs_CL
 **2026-04-19: Observability Audit Note**
 Captain reported intermittent prod errors (quiz scoring, feedback). Decision memo filed: wire App Insights, add exception handler + ProblemDetails, wrap AI endpoint failures with try/catch+LogError, add /health endpoint. Awaiting approval; ~1 day implement + e2e verify.
 
+
+---
+
+## 2026-04-19 — Mobile Observability Plan (Captain: "what are you gonna do to add App Insights to the mobile app?")
+
+**Key finding:** Mobile side is 80% already done. Didn't expect that going in.
+
+**Inventory:**
+- `SentenceStudio.MauiServiceDefaults/Extensions.cs` already calls `ConfigureOpenTelemetry()` with Logging + Metrics (HttpClient, Runtime) + Tracing (HttpClient). OTLP exporter is gated on `OTEL_EXPORTER_OTLP_ENDPOINT` (unset for mobile — works in local Aspire dev only).
+- `MauiExceptions.cs` already handles the platform gauntlet: AppDomain, TaskScheduler, iOS MarshalManagedException with `UnwindNativeCode`, Android `UnhandledExceptionRaiser`, WinUI 3 FirstChance+Application.UnhandledException. But **no subscriber is attached** anywhere → crashes die silently today.
+- `AddEmbeddedAppSettings()` loads invariant + Production/Development JSON from `SentenceStudio.AppLib` assembly manifest resources. Natural home for Azure Monitor connection string.
+- Typed HttpClients (`AiApiClient`, `FeedbackApiClient`, `SpeechApiClient`, `PlansApiClient`) already flow through `AddStandardResilienceHandler` + service discovery. OTel HttpClient instrumentation already captures them.
+- Zero `Microsoft.ApplicationInsights.*` refs anywhere. Clean slate.
+
+**Plan delivered (memo):** Add `Azure.Monitor.OpenTelemetry.Exporter` 1.3.0 (NOT classic AI SDK — MS .NET 10+ recommended path), plug into existing OTel pipeline via `AddOpenTelemetry().UseAzureMonitor(...)`, subscribe `ILogger` sink to `MauiExceptions.UnhandledException`, add a tiny `wwwroot/js/error-bridge.js` + `[JSInvokable] JsErrorBridge` for BlazorWebView JS errors, DEBUG-guard the connection string load so dev/simulator builds emit nothing.
+
+**Correlation:** Automatic via W3C `traceparent` header injection by OTel HttpClient instrumentation — works end-to-end once API side also emits OTel → App Insights. **Therefore server memo must ship first or in parallel** for correlation to be real.
+
+**iOS gotchas to remember for implementation:**
+- Full-link Release builds will strip `Azure.Monitor.OpenTelemetry.Exporter` reflection targets → need `Properties/LinkerConfig.xml` preserve directive.
+- `PrivacyInfo.xcprivacy` needs "Crash Data" + "Performance Data" entries for App Store — not needed for DX24 sideload.
+- Exporter has built-in 24h local file cache; don't disable it (handles offline).
+
+**PII discipline:** UserProfileId (GUID) yes. Email/display name/Korean user text NO. Scrub at log sites, not via a processor (easier). OTel doesn't capture HTTP bodies by default — don't opt in.
+
+**Effort:** ~1 day total. Recommended first-increment slice is ~3 hours: exporter + MauiExceptions subscriber only, Mac Catalyst first, prove the pipe works before investing in JS bridge / custom events / iOS AOT work.
+
+**Memo filed:** `.squad/decisions/inbox/wash-mobile-observability.md`.
+
+**Rule of thumb learned:** Before proposing new infrastructure, always inventory what's already wired. `MauiServiceDefaults` had the whole OTel pipeline sitting there, gated on an env var. The real gap was an exporter + a subscriber, not a rebuild.

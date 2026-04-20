@@ -637,3 +637,137 @@ ContainerAppConsoleLogs_CL
 ### Ask
 
 Approve the four items above. Wash implements in single PR, ~1 day including end-to-end verification (MAUI → API → OpenAI traces flow).
+
+---
+
+## 2026-04-20 — Mobile Observability via Azure Monitor OpenTelemetry (App Insights)
+
+**Date:** 2026-04-20  
+**Author:** Wash (Backend Dev)  
+**Status:** 🔵 PROPOSED — awaiting Captain decisions  
+**Companion:** `.squad/decisions/inbox/wash-observability.md` (API side)
+
+### TL;DR
+
+OpenTelemetry is **already wired** in `SentenceStudio.MauiServiceDefaults` (HttpClient + Runtime instrumentation). `MauiExceptions.cs` already normalizes crashes. We need to: (1) add Azure Monitor exporter NuGet, (2) subscribe `ILogger` to unhandled exceptions, (3) add Blazor JS error bridge, (4) ship connection string in embedded `appsettings.Production.json`, (5) suppress telemetry in DEBUG builds by default.
+
+**Estimated effort:** ~1 day full path; ~3 hours small-slice (exporter + subscriber + Mac Catalyst proof-of-concept).
+
+**Blocker:** API-side memo must ship first for end-to-end correlation.
+
+### Current State Inventory
+
+| Component | Status |
+|---|---|
+| OTel Logging + Metrics + Tracing in `SentenceStudio.MauiServiceDefaults` | ✅ Configured; OTLP exporter gated on env var |
+| `MauiExceptions.cs` normalization (all platforms) | ✅ Wired; **no subscriber attached** |
+| Blazor WebView JS error capture | ❌ Missing |
+| Connection string transport | — Ready to embed in `appsettings.Production.json` |
+| Classic `Microsoft.ApplicationInsights.*` refs | ✅ None (clean slate) |
+
+### Implementation Plan — Five Hooks
+
+| Hook | Where | Impact |
+|---|---|---|
+| Unhandled .NET exceptions | Subscribe `ILogger` to `MauiExceptions.UnhandledException` in `AddMauiServiceDefaults` | iOS/Mac/Android/Windows unified crash capture |
+| Blazor component errors | Already captured by OTel Logging (default Warnings+) | Component render/event handler failures |
+| JS exceptions in WebView | New `wwwroot/js/error-bridge.js` + `[JSInvokable]` service | Third-party script failures, Blazor JS errors |
+| HTTP failures to API | Already captured via OTel HttpClient instrumentation | 5xx responses, timeouts (auto spans with status codes) |
+| Custom business events | New extension methods: `LogQuizScoringFailed`, `LogFeedbackSubmitFailed` in catch sites | Sliceable failure analytics |
+
+### NuGet & Configuration
+
+**Package:**
+```xml
+<PackageReference Include="Azure.Monitor.OpenTelemetry.Exporter" Version="1.3.0" />
+```
+
+**Connection string location:**
+```json
+// src/SentenceStudio.AppLib/appsettings.Production.json
+{
+  "AzureMonitor": {
+    "ConnectionString": "InstrumentationKey=...;IngestionEndpoint=...;LiveEndpoint=..."
+  }
+}
+```
+
+**Dev vs. Prod Toggle (C# code in `AddMauiServiceDefaults`):**
+```csharp
+var aiConnString = builder.Configuration["AzureMonitor:ConnectionString"];
+#if DEBUG
+aiConnString = null;  // Never send telemetry from Debug builds
+#endif
+if (!string.IsNullOrWhiteSpace(aiConnString))
+{
+    builder.Services.AddOpenTelemetry()
+        .UseAzureMonitor(o => o.ConnectionString = aiConnString);
+}
+```
+
+### iOS-Specific Gotchas
+
+1. **Linker/AOT stripping:** Add `Properties/LinkerConfig.xml` preserve directive for `Azure.Monitor.OpenTelemetry.Exporter` and `OpenTelemetry.Exporter.*`
+2. **Startup cost:** ~50-150ms amortized (acceptable)
+3. **Offline buffering:** Built-in 24h local cache; enabled by default (don't disable)
+4. **Privacy manifest (iOS 17+):** Need `PrivacyInfo.xcprivacy` declaring "Crash Data" + "Performance Data" — ~15 min task; required before next App Store submission
+5. **No DiagnosticSource reflection issues** on net10 (resolved in .NET 9 era)
+
+### Correlation (Client ↔ Server)
+
+**Automatic once both sides emit OTel.** OpenTelemetry's `HttpClientInstrumentation` injects `traceparent` header; ASP.NET Core picks it up. Same `Operation-Id` spans both sides. Zero code.
+
+**Prerequisite:** API-side memo must ship first (or simultaneously).
+
+### PII / Privacy
+
+- **HTTP bodies:** Not captured by default; don't opt in
+- **User IDs:** OK to include `UserProfileId` (GUID) as baggage; **never** log emails, names, user sentences
+- **Device IDs:** Use `DeviceInfo.Idiom` + `DeviceInfo.Platform`; avoid `DeviceInfo.Name` (may contain personal data)
+- **Exception messages:** Discipline at log sites — don't log user text inline with exceptions
+- **TelemetryProcessor:** Optional tag truncation for values > 256 chars (lower priority, address if telemetry exceeds quota)
+
+### Sequencing
+
+1. **First (Day 1):** API-side memo ships (retrospective visibility on current prod errors)
+2. **Second (Day 2):** MAUI client side (this memo)
+3. **Third (Day 3, optional):** Custom dashboards + alert rules in App Insights
+
+**Parallel opportunity:** Kaylee could own Blazor JS error bridge independently while Wash does .NET wiring.
+
+### Ballpark Effort Breakdown
+
+- ~2h — NuGet + exporter + connection string + DEBUG toggle in `MauiServiceDefaults`
+- ~1h — `MauiExceptions` subscriber + `ILogger<App>` wiring
+- ~1.5h — JS error bridge (`error-bridge.js` + `JsErrorBridge.cs` + JSInterop)
+- ~1h — Custom business event extensions (`LogQuizScoringFailed`, `LogFeedbackSubmitFailed`)
+- ~1h — iOS linker preserve config + Release-to-device smoke test
+- ~1h — `PrivacyInfo.xcprivacy` update (can defer if not submitting this cycle)
+- ~0.5h — Controlled exception smoke test on each platform
+- ~1h — End-to-end correlation smoke test (tap quiz → client span → server span under same `operation_Id`)
+
+**Total: ~1 day.** Small-slice (proof-of-concept): ~3 hours.
+
+### Recommended First Increment
+
+**Wire Azure Monitor exporter + `MauiExceptions` subscriber only. Mac Catalyst DEBUG with connection string forced on. Skip Blazor JS bridge, custom events, iOS AOT work.**
+
+**Proves:**
+- Package compatibility with OTel setup ✓
+- Connection string loading from embedded `appsettings` ✓
+- Unhandled crashes reach App Insights ✓
+- End-to-end correlation with API ✓ (if API memo lands first)
+
+**Effort:** ~3 hours. Green-light the rest if successful; kill if blockers emerge before 1-day investment.
+
+### Open Questions for Captain
+
+1. **One App Insights resource or two (client vs server)?** One is simpler + correlation just works. Two gives separation but doubles setup. **Recommendation: One.**
+2. **OK with `appsettings.Production.json` shipping the connection string in app bundle?** Standard practice; low risk. Alternative (fetch from API at startup) creates chicken-and-egg problem.
+3. **When is next App Store submission?** Drives whether `PrivacyInfo.xcprivacy` update is urgent or can slip.
+4. **Include Marketing site?** Out of this memo's scope but trivial to add via API-side path.
+
+### Decision Required
+
+- Approve full 1-day plan OR small-slice 3-hour proof-of-concept?
+- Answer the four open questions above (drives implementation order)?
