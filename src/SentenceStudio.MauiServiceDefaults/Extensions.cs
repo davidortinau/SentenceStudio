@@ -19,9 +19,9 @@ namespace Microsoft.Extensions.Hosting;
 // To learn more about using this project, see https://aka.ms/dotnet/aspire/service-defaults
 public static class Extensions
 {
-    public static TBuilder AddMauiServiceDefaults<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
+    public static TBuilder AddMauiServiceDefaults<TBuilder>(this TBuilder builder, string platformName = "Unknown") where TBuilder : IHostApplicationBuilder
     {
-        builder.ConfigureOpenTelemetry();
+        builder.ConfigureOpenTelemetry(platformName);
 
         builder.Services.AddServiceDiscovery();
 
@@ -53,13 +53,14 @@ public static class Extensions
         return builder;
     }
 
-    public static TBuilder ConfigureOpenTelemetry<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
+    public static TBuilder ConfigureOpenTelemetry<TBuilder>(this TBuilder builder, string platformName = "Unknown") where TBuilder : IHostApplicationBuilder
     {
         // Tag every signal with a stable service name so App Insights cloud_RoleName
         // clearly identifies the mobile client (not just "SentenceStudio").
-        var platform = DeviceInfo.Platform != DevicePlatform.Unknown
-            ? DeviceInfo.Platform.ToString()
-            : "Unknown";
+        // Platform is threaded in from the platform head's MauiProgram.cs because
+        // `DeviceInfo.Platform` is not guaranteed to be populated while the host
+        // builder is still configuring (pre-`MauiApp.Build()`).
+        var platform = string.IsNullOrWhiteSpace(platformName) ? "Unknown" : platformName;
         var serviceName = $"SentenceStudio.Mobile.{platform}";
         builder.Services.AddOpenTelemetry()
             .ConfigureResource(resource => resource.AddService(serviceName: serviceName));

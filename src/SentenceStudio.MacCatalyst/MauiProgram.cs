@@ -32,7 +32,7 @@ public static class MauiProgram
         // Wire HelpKit (Plugin.Maui.HelpKit) — multi-targeted net10/net11 during incubation.
         builder.UseHelpKit();
 
-        builder.AddMauiServiceDefaults();
+        builder.AddMauiServiceDefaults("MacCatalyst");
 
         builder.AddAudio(
             playbackOptions =>
