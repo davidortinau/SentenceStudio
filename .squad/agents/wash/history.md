@@ -1157,3 +1157,130 @@ Build NOT attempted — net11 preview SDK + MAUI workload aren't installed local
 
 - 2026-04-18: **Resx Manifest & Culture Identifier Alignment** — <LogicalName> csproj override forces correct embed stream name (Designer hardcodes SentenceStudio.Resources.Strings.AppResources but MSBuild defaults to assembly-qualified path). Culture filename MUST match all five touchpoints: DB (ko), cookie (ko), whitelist (ko), endpoint validator (ko), resx file (ko). Rename ko-KR → ko: ResourceManager fallback walks specific → parent → invariant; ko is neutral (no regional variant needed), satellite resolution via parent fallback handles ko-KR requests. Two hotfixes applied as lockout-honors when Kaylee's code was rejected for revision: Round 1 manifest fix, Round 2 culture rename.
 
+
+---
+
+## 2026-04-19 — Observability Audit (Captain: "Can I see errors in Aspire on Azure?")
+
+**Short answer:** No Aspire dashboard on Azure. OTLP exporter in ServiceDefaults is gated on `OTEL_EXPORTER_OTLP_ENDPOINT`, which is unset in production ACA. No App Insights wired. No `UseExceptionHandler`. No `/health` endpoint mapped.
+
+**What production observability actually is today:**
+- stdout/stderr from each container → Container Apps system logs → Log Analytics workspace `law-3ovvqiybthkb6` in `rg-sstudio-prod` (table: `ContainerAppConsoleLogs_CL`).
+- Default ASP.NET Core console logger picks up `ILogger<T>` writes. `FeedbackEndpoints` does log warnings on AI failures and errors on GitHub API failures via `loggerFactory.CreateLogger("FeedbackEndpoints")`.
+- `/api/v1/ai/chat` returns `Results.Problem(...)` but does NOT log the underlying exception — failures there are invisible unless the ASP.NET Core pipeline logs the unhandled exception.
+
+**Quiz sentence scoring path:** clients POST to `/api/v1/ai/chat` or `/api/v1/ai/chat-messages` with a scoring prompt (River's prompts). No dedicated "score" endpoint. Any 5xx from these lands in container console logs as default Kestrel exception log.
+
+**Feedback path:** `/api/v1/feedback/preview` + `/submit`. Logs "FeedbackEndpoints" category. AI enrichment failures log warning + fall back; GitHub failures log error.
+
+**What's missing (and recommended):**
+1. Application Insights wired to API + WebApp containers (cheapest observability gain — request traces, dependencies, exceptions, end-to-end correlation).
+2. `app.UseExceptionHandler()` + `ProblemDetails` so unhandled exceptions are logged with context instead of silently swallowed.
+3. `/api/v1/health` endpoint (live + ready) so ACA probe failures are explicit.
+4. Wrap `/api/v1/ai/chat` handlers in try/catch → `logger.LogError(ex, ...)` so OpenAI failures appear with stack traces, not just 503s.
+
+**Azure resources from `.azure/sstudio-prod/.env`:**
+- Subscription: `a25bc5f2-e641-47b9-89a8-5e5fd428d9d6`
+- RG: `rg-sstudio-prod`
+- ACA env: `cae-3ovvqiybthkb6` (domain `livelyforest-b32e7d63.centralus.azurecontainerapps.io`)
+- LAW: `law-3ovvqiybthkb6`
+- Container app names follow Aspire resource names: `api`, `webapp`, `marketing`, `workers`.
+
+**Immediate command for Captain** — tail the API container now:
+`az containerapp logs tail -g rg-sstudio-prod -n api --follow --tail 200`
+
+And for retrospective KQL over this morning:
+```kusto
+ContainerAppConsoleLogs_CL
+| where TimeGenerated > ago(12h)
+| where ContainerAppName_s == "api"
+| where Log_s has_any ("error", "Exception", "fail", "Unhandled", "FeedbackEndpoints")
+| project TimeGenerated, Log_s
+| order by TimeGenerated desc
+```
+
+**Decision memo:** `.squad/decisions/inbox/wash-observability.md` — recommend wiring App Insights + exception handler + `/health` in next sprint.
+
+---
+
+**2026-04-19: Observability Audit Note**
+Captain reported intermittent prod errors (quiz scoring, feedback). Decision memo filed: wire App Insights, add exception handler + ProblemDetails, wrap AI endpoint failures with try/catch+LogError, add /health endpoint. Awaiting approval; ~1 day implement + e2e verify.
+
+
+---
+
+## 2026-04-19 — Mobile Observability Plan (Captain: "what are you gonna do to add App Insights to the mobile app?")
+
+**Key finding:** Mobile side is 80% already done. Didn't expect that going in.
+
+**Inventory:**
+- `SentenceStudio.MauiServiceDefaults/Extensions.cs` already calls `ConfigureOpenTelemetry()` with Logging + Metrics (HttpClient, Runtime) + Tracing (HttpClient). OTLP exporter is gated on `OTEL_EXPORTER_OTLP_ENDPOINT` (unset for mobile — works in local Aspire dev only).
+- `MauiExceptions.cs` already handles the platform gauntlet: AppDomain, TaskScheduler, iOS MarshalManagedException with `UnwindNativeCode`, Android `UnhandledExceptionRaiser`, WinUI 3 FirstChance+Application.UnhandledException. But **no subscriber is attached** anywhere → crashes die silently today.
+- `AddEmbeddedAppSettings()` loads invariant + Production/Development JSON from `SentenceStudio.AppLib` assembly manifest resources. Natural home for Azure Monitor connection string.
+- Typed HttpClients (`AiApiClient`, `FeedbackApiClient`, `SpeechApiClient`, `PlansApiClient`) already flow through `AddStandardResilienceHandler` + service discovery. OTel HttpClient instrumentation already captures them.
+- Zero `Microsoft.ApplicationInsights.*` refs anywhere. Clean slate.
+
+**Plan delivered (memo):** Add `Azure.Monitor.OpenTelemetry.Exporter` 1.3.0 (NOT classic AI SDK — MS .NET 10+ recommended path), plug into existing OTel pipeline via `AddOpenTelemetry().UseAzureMonitor(...)`, subscribe `ILogger` sink to `MauiExceptions.UnhandledException`, add a tiny `wwwroot/js/error-bridge.js` + `[JSInvokable] JsErrorBridge` for BlazorWebView JS errors, DEBUG-guard the connection string load so dev/simulator builds emit nothing.
+
+**Correlation:** Automatic via W3C `traceparent` header injection by OTel HttpClient instrumentation — works end-to-end once API side also emits OTel → App Insights. **Therefore server memo must ship first or in parallel** for correlation to be real.
+
+**iOS gotchas to remember for implementation:**
+- Full-link Release builds will strip `Azure.Monitor.OpenTelemetry.Exporter` reflection targets → need `Properties/LinkerConfig.xml` preserve directive.
+- `PrivacyInfo.xcprivacy` needs "Crash Data" + "Performance Data" entries for App Store — not needed for DX24 sideload.
+- Exporter has built-in 24h local file cache; don't disable it (handles offline).
+
+**PII discipline:** UserProfileId (GUID) yes. Email/display name/Korean user text NO. Scrub at log sites, not via a processor (easier). OTel doesn't capture HTTP bodies by default — don't opt in.
+
+**Effort:** ~1 day total. Recommended first-increment slice is ~3 hours: exporter + MauiExceptions subscriber only, Mac Catalyst first, prove the pipe works before investing in JS bridge / custom events / iOS AOT work.
+
+**Memo filed:** `.squad/decisions/inbox/wash-mobile-observability.md`.
+
+**Rule of thumb learned:** Before proposing new infrastructure, always inventory what's already wired. `MauiServiceDefaults` had the whole OTel pipeline sitting there, gated on an env var. The real gap was an exporter + a subscriber, not a rebuild.
+
+
+---
+
+## Learnings — 2026-04-20 (Mobile App Insights follow-up: TinyInsights eval + security stance)
+
+**Connection string is write-only; embed it.** InstrumentationKey authorizes ingestion push only — can't read telemetry or touch other Azure resources. Microsoft's own docs tell mobile/desktop/JS clients to ship it in the app bundle. Worst case is fake-telemetry spam, bounded by daily ingestion cap ($5/day) + sampling. All the "secure" alternatives (fetch from API at startup, per-user keys, Key Vault) are **strictly worse** for a mobile app — chicken-and-egg (no telemetry if API is down, which is exactly when you need it), massive complexity for zero security gain, or require an Azure identity the app doesn't have. Rule: write-only keys with bounded blast radius belong in the client. Read-capable secrets never do.
+
+**TinyInsights.Maui evaluated — REJECTED for this project.** Active project (Daniel Hindrikes, MVP, net10 support Jan 2026, crash improvements Apr 2026), nice developer ergonomics. BUT it depends on the **legacy `Microsoft.ApplicationInsights` 2.23.0** SDK, not OpenTelemetry. Our `SentenceStudio.MauiServiceDefaults` already has an OTel pipeline, and the API side is planning Azure Monitor OTel exporter. Mixing SDK families breaks W3C `traceparent` correlation between MAUI and API — which is the whole reason we want ONE App Insights resource in the first place. Would also duplicate telemetry (double HttpClient tracking, double exporters, double cost). Stuck with `Azure.Monitor.OpenTelemetry.Exporter` 1.3.0.
+
+**Rule of thumb: SDK family consistency > convenience.** When the server tier commits to OpenTelemetry, the client tier has to stay on OpenTelemetry too — or correlation is theater. Check the `<PackageReference>` before adopting any MAUI observability library: if it pulls `Microsoft.ApplicationInsights.*` (classic SDK) and your server uses `Azure.Monitor.OpenTelemetry.Exporter`, walk away no matter how good the DX looks.
+
+**First-increment plan UNCHANGED.** TinyInsights rejection doesn't alter the 3-hour Mac Catalyst slice: add exporter package, wire `UseAzureMonitor` in `ConfigureOpenTelemetry` guarded on Release+connection-string-present, subscribe `ILogger` to `MauiExceptions.UnhandledException`, embed connection string in `appsettings.Production.json`. Ship in parallel with server memo's PR so day-one traces already span both tiers.
+
+---
+
+## 2026-04-19 — Mobile App Insights Slice Shipped (Path 1, Mac Catalyst, PR #165)
+
+**Captain approved "path 1 go".** Shipped the ~3-hour small slice on branch `squad/mobile-appinsights-slice` as draft PR #165.
+
+**What landed**
+- Azure resource `sstudio-mobile-ai` in `rg-sstudio-prod` (centralus), workspace-linked to `law-3ovvqiybthkb6`, daily cap 0.5 GB, notification-on-cap on.
+- `Azure.Monitor.OpenTelemetry.Exporter` 1.7.0 in `SentenceStudio.MauiServiceDefaults`. AddAzureMonitor{Log,Metric,Trace}Exporter gated on `#if !DEBUG` + non-empty `AzureMonitor:ConnectionString`.
+- `ResourceBuilder.AddService("SentenceStudio.Mobile.{DeviceInfo.Platform}")` so `cloud_RoleName` identifies the client.
+- Single subscriber on `MauiExceptions.UnhandledException` in `SentenceStudioAppBuilder.InitializeApp` → `ILogger.LogCritical` → best-effort 3s `ForceFlush` on Logger/Tracer/Meter providers.
+- Connection string committed to `appsettings.Production.json` (write-only key, bounded by cap — consistent with `wash-mobile-appinsights-answers` memo).
+
+**Validated.** Forced `InvalidOperationException` via temp `Thread` in `InitializeApp` (env-var-gated) → KQL confirmed the record landed with `cloud_RoleName = SentenceStudio.Mobile.MacCatalyst` in ~5 minutes. Bonus finding: pipeline also captures *caught* exceptions that are logged via `ILogger.LogError(ex, ...)` — during startup we saw EF Core NativeAOT model-build warnings and HelpKit presenter init errors show up in App Insights automatically. That's free coverage.
+
+## Learnings
+
+- **Resource/ARN pattern.** `rg-sstudio-prod` / `sstudio-mobile-ai` / AppId `74e94530-d17f-404a-8726-b7266724b70f`. Connection string lives in `src/SentenceStudio.AppLib/appsettings.Production.json` under key `AzureMonitor:ConnectionString`. The file is tracked in git (not gitignored despite appsettings.json being ignored — the `.Production.json` suffix variant is explicitly tracked).
+- **Package floor matters.** `Azure.Monitor.OpenTelemetry.Exporter` 1.7.0 requires `OpenTelemetry.Extensions.Hosting >= 1.15.1`. `MauiServiceDefaults` had the whole OTel stack pinned at 1.9.0 and the restore failed with NU1605 until I bumped Extensions.Hosting + Exporter.OTLP to 1.15.1 and Instrumentation.Http to 1.15.0 (1.15.1 doesn't exist for that one — watch for `NU1102 Unable to find package`). Runtime instrumentation bumped to 1.12.0 for consistency.
+- **`cloud_RoleName` strategy.** Use `AddService(serviceName: ...)` on the `ResourceBuilder` inside `ConfigureResource`, BEFORE the `WithLogging/WithMetrics/WithTracing` chain. Using `DeviceInfo.Platform.ToString()` at runtime works cleanly because `MauiServiceDefaults` has `<UseMaui>true</UseMaui>` — `DeviceInfo` is available. I initially tried `#if MACCATALYST`/`#if IOS` compile-time detection but `MauiServiceDefaults` targets plain `net10.0` with no platform TFMs, so those symbols were never defined. Runtime detection was required.
+- **Can't reference `MauiExceptions` from `MauiServiceDefaults`.** `MauiExceptions` lives in `SentenceStudio.AppLib`, and `MauiServiceDefaults` can't reference AppLib (that'd be a dependency inversion — AppLib references MauiServiceDefaults transitively via platform heads). Solution: put the subscriber in `SentenceStudioAppBuilder.InitializeApp` (AppLib) where `MauiExceptions` is directly accessible and resolve `LoggerProvider/TracerProvider/MeterProvider` from `app.Services` for the ForceFlush. AppLib already had `OpenTelemetry.Extensions.Hosting 1.11.2` — no new package needed. Minor version mismatch between AppLib (1.11.2) and MauiServiceDefaults (1.15.x) was source-compatible for the provider types.
+- **Forcing an unhandled exception for validation — gotcha.** `Task.Run(() => throw …)` → `UnobservedTaskException` fires only on GC (unreliable timing). `new Timer(_ => throw …)` → timer can be GC'd before firing even when locally captured. `new Thread(() => Sleep; throw).Start()` with `IsBackground=true` → reliably crashes on the thread pool, fires `AppDomain.UnhandledException`, and `MauiExceptions` catches it. Use that for any future mobile telemetry validation.
+- **Mac Catalyst pre-existing Release break.** `src/SentenceStudio.MacCatalyst/MauiProgram.cs` had unguarded `using Microsoft.Maui.DevFlow.{Agent,Blazor};` but those `<PackageReference>` are `Condition='$(Configuration)'=='Debug'`. Release-config compile fails with `CS0234`. Fixed with `#if DEBUG` around the usings. This has probably been broken for anyone building Release locally for a while — iOS device publish uses the Release config but pulls `src/SentenceStudio.iOS` which has its own `MauiProgram.cs` (so that path was unaffected).
+- **`appsettings.Production.json` is tracked.** `.gitignore` line 411 ignores `appsettings.json` (bare), but `.Production.json` and `.Development.json` are tracked. Adding secrets there commits them. For write-only keys like the App Insights connection string, that's consistent with the rationale in my earlier `wash-mobile-appinsights-answers` memo — read-capable secrets still go to env vars / Key Vault.
+- **Free bonus: caught `ILogger` exceptions also reach App Insights.** Because `Logging.AddOpenTelemetry()` registers OTel as a logging provider and `AddAzureMonitorLogExporter` exports it, every `logger.LogError(ex, ...)` / `LogCritical(ex, ...)` call in the codebase now sends exception telemetry — not just unhandled crashes. Validation showed existing code paths already flowing through.
+
+## Learnings — 2026-04-21 (PR #165 review-fix follow-up)
+
+- **Platform-string threading beats `DeviceInfo` at host-builder time.** The prior slice used `DeviceInfo.Platform` inside `ConfigureOpenTelemetry` to build `cloud_RoleName`. Code review flagged that correctly: `MauiServiceDefaults.ConfigureOpenTelemetry` runs while the host builder is still configuring, before `MauiApp.Build()`. MAUI Essentials may not be fully initialized then — risk of `Unknown` or throw. Fix that shipped: added `string platformName = "Unknown"` parameter to `AddMauiServiceDefaults` / `ConfigureOpenTelemetry`, and each platform head passes the literal (`"MacCatalyst"`, `"iOS"`, `"Android"`) from its `MauiProgram.cs` where the per-TFM context is unambiguous. No `IMauiInitializeService` needed. Deterministic, zero-runtime-surface, works even pre-Essentials. Windows head doesn't call `AddMauiServiceDefaults` at all today — left alone.
+- **`open --env` propagates env vars to Mac Catalyst apps correctly.** Validated `SENTENCESTUDIO_CRASH_TEST=1` flowing via `open -n --env SENTENCESTUDIO_CRASH_TEST=1 SentenceStudio.app`. Do NOT run the binary directly (`Contents/MacOS/SentenceStudio.MacCatalyst`) — MAUI Mac Catalyst aborts in `load_aot_module` when launched outside LaunchServices. Use `open`.
+- **Stale `obj/Release` causes ghost `Failed to load AOT module 'Azure.Core'`.** Incremental Release builds after package bumps can produce an .app that aborts at AOT load with no useful managed stack. Clean `src/*/obj/Release` + rebuild fixes it. First debugging checkpoint if a fresh Release bundle crashes before reaching your managed `Main`.
+- **Parallel bounded flush on last-chance handlers is the right shape for any mobile OTel pipeline.** Serial `ForceFlush(3000)` across logger + tracer + meter can approach 9s worst case — iOS watchdog kills at ~5–10s. Three `Task.Run` calls (each with their own 2500ms internal timeout) wrapped in a single `Task.WaitAll(..., 3000ms)` holds a hard 3s ceiling regardless of per-provider stalls. Captured in `.squad/skills/maui-azure-monitor/SKILL.md`.
+- **Idempotent event subscription via `Interlocked.Exchange` + static int flag.** Don't use a plain `bool` — hot-reload + dual-init paths can race. `Interlocked.Exchange(ref _flag, 1) == 0` is the cheap race-safe gate. Applied to `MauiExceptions.UnhandledException` so repeated `InitializeApp` calls (hot reload, test harnesses) can't double-fire the crash handler.
+

@@ -569,3 +569,299 @@ Kaylee did not touch any file in this revision. All changes authored by Zoe. Con
 - Ship as `b56c1c1` on `main` (local only)
 - **Do NOT push** — Captain owns push gate via `/review`
 - Kaylee stays locked out; Phase 2 batch is Zoe-revised and ready for final review
+
+---
+
+## 2026-04-19 — Production Observability for SentenceStudio API
+
+**Date:** 2026-04-19  
+**Author:** Wash (Backend Dev)  
+**Status:** Proposed — awaiting Captain review
+
+### Problem
+
+Captain reported intermittent production errors (quiz sentence scoring, feedback submission) and asked whether he can see them in "Aspire on Azure." He cannot — Aspire dashboard is a local-dev tool only. Today on Azure Container Apps we have:
+
+- ✅ stdout/stderr → `ContainerAppConsoleLogs_CL` in Log Analytics `law-3ovvqiybthkb6`
+- ✅ Default ASP.NET Core console logger (captures `ILogger<T>` writes)
+- ❌ No Application Insights
+- ❌ No `UseExceptionHandler` / ProblemDetails middleware
+- ❌ No `/health` endpoint mapped
+- ❌ OTLP exporter in `ServiceDefaults.ConfigureOpenTelemetry` is gated on `OTEL_EXPORTER_OTLP_ENDPOINT` — unset in prod → OpenTelemetry traces/metrics are generated but go nowhere
+- ❌ `/api/v1/ai/chat` and `/ai/chat-messages` return `Results.Problem(...)` with no `logger.LogError` on the catch path → OpenAI failures are invisible unless the ASP.NET Core pipeline emits an unhandled-exception log
+
+Consequence: Captain can't triage "quiz scoring failed this morning" without reading raw container logs and guessing.
+
+### Proposal
+
+Three-part change, landed together in one PR (Wash, ~1 day of work):
+
+**1. Wire Application Insights**
+   - Add `Aspire.Azure.Monitor.OpenTelemetry` package reference in `SentenceStudio.ServiceDefaults`
+   - In `ConfigureOpenTelemetry`, register `UseAzureMonitor()` if `APPLICATIONINSIGHTS_CONNECTION_STRING` is set
+   - In `AppHost.cs`, add `builder.AddAzureApplicationInsights("appinsights")` and `.WithReference(appinsights)` on `api`, `webapp`, and `workers`
+   - **Gain:** end-to-end request traces, dependency calls (OpenAI, ElevenLabs, Postgres), unhandled exceptions with stack traces, Application Map view
+
+**2. Unhandled exception middleware + ProblemDetails**
+   - In `Program.cs`, before auth: `builder.Services.AddProblemDetails()` + `app.UseExceptionHandler()` + `app.UseStatusCodePages()`
+   - **Gain:** every unhandled exception is logged with full stack + request context; clients get structured ProblemDetails
+
+**3. Try/catch + `LogError` in AI endpoints**
+   - `/api/v1/ai/chat`, `/ai/chat-messages`, `/ai/analyze-image` wrap `GetResponseAsync` call with try/catch + structured logging (prompt hash, user-profile-id)
+   - **Gain:** OpenAI failures correlated to specific users/requests
+
+**4. `/health` endpoint**
+   - `app.MapHealthChecks("/health")`
+   - **Gain:** ACA health probes become explicit; simple DB ping check
+
+### Cost
+
+App Insights in sampling mode: well under $5/month. LAW workspace already exists.
+
+### Immediate Workaround (while PR is in flight)
+
+```bash
+az containerapp logs tail -g rg-sstudio-prod -n api --follow --tail 200
+```
+
+KQL for retrospective search:
+```kusto
+ContainerAppConsoleLogs_CL
+| where TimeGenerated > ago(12h)
+| where ContainerAppName_s == "api"
+| where Log_s has_any ("error", "Exception", "fail", "Unhandled", "FeedbackEndpoints")
+| project TimeGenerated, Log_s
+| order by TimeGenerated desc
+```
+
+### Ask
+
+Approve the four items above. Wash implements in single PR, ~1 day including end-to-end verification (MAUI → API → OpenAI traces flow).
+
+---
+
+## 2026-04-20 — Mobile Observability via Azure Monitor OpenTelemetry (App Insights)
+
+**Date:** 2026-04-20  
+**Author:** Wash (Backend Dev)  
+**Status:** 🔵 PROPOSED — awaiting Captain decisions  
+**Companion:** `.squad/decisions/inbox/wash-observability.md` (API side)
+
+### TL;DR
+
+OpenTelemetry is **already wired** in `SentenceStudio.MauiServiceDefaults` (HttpClient + Runtime instrumentation). `MauiExceptions.cs` already normalizes crashes. We need to: (1) add Azure Monitor exporter NuGet, (2) subscribe `ILogger` to unhandled exceptions, (3) add Blazor JS error bridge, (4) ship connection string in embedded `appsettings.Production.json`, (5) suppress telemetry in DEBUG builds by default.
+
+**Estimated effort:** ~1 day full path; ~3 hours small-slice (exporter + subscriber + Mac Catalyst proof-of-concept).
+
+**Blocker:** API-side memo must ship first for end-to-end correlation.
+
+### Current State Inventory
+
+| Component | Status |
+|---|---|
+| OTel Logging + Metrics + Tracing in `SentenceStudio.MauiServiceDefaults` | ✅ Configured; OTLP exporter gated on env var |
+| `MauiExceptions.cs` normalization (all platforms) | ✅ Wired; **no subscriber attached** |
+| Blazor WebView JS error capture | ❌ Missing |
+| Connection string transport | — Ready to embed in `appsettings.Production.json` |
+| Classic `Microsoft.ApplicationInsights.*` refs | ✅ None (clean slate) |
+
+### Implementation Plan — Five Hooks
+
+| Hook | Where | Impact |
+|---|---|---|
+| Unhandled .NET exceptions | Subscribe `ILogger` to `MauiExceptions.UnhandledException` in `AddMauiServiceDefaults` | iOS/Mac/Android/Windows unified crash capture |
+| Blazor component errors | Already captured by OTel Logging (default Warnings+) | Component render/event handler failures |
+| JS exceptions in WebView | New `wwwroot/js/error-bridge.js` + `[JSInvokable]` service | Third-party script failures, Blazor JS errors |
+| HTTP failures to API | Already captured via OTel HttpClient instrumentation | 5xx responses, timeouts (auto spans with status codes) |
+| Custom business events | New extension methods: `LogQuizScoringFailed`, `LogFeedbackSubmitFailed` in catch sites | Sliceable failure analytics |
+
+### NuGet & Configuration
+
+**Package:**
+```xml
+<PackageReference Include="Azure.Monitor.OpenTelemetry.Exporter" Version="1.3.0" />
+```
+
+**Connection string location:**
+```json
+// src/SentenceStudio.AppLib/appsettings.Production.json
+{
+  "AzureMonitor": {
+    "ConnectionString": "InstrumentationKey=...;IngestionEndpoint=...;LiveEndpoint=..."
+  }
+}
+```
+
+**Dev vs. Prod Toggle (C# code in `AddMauiServiceDefaults`):**
+```csharp
+var aiConnString = builder.Configuration["AzureMonitor:ConnectionString"];
+#if DEBUG
+aiConnString = null;  // Never send telemetry from Debug builds
+#endif
+if (!string.IsNullOrWhiteSpace(aiConnString))
+{
+    builder.Services.AddOpenTelemetry()
+        .UseAzureMonitor(o => o.ConnectionString = aiConnString);
+}
+```
+
+### iOS-Specific Gotchas
+
+1. **Linker/AOT stripping:** Add `Properties/LinkerConfig.xml` preserve directive for `Azure.Monitor.OpenTelemetry.Exporter` and `OpenTelemetry.Exporter.*`
+2. **Startup cost:** ~50-150ms amortized (acceptable)
+3. **Offline buffering:** Built-in 24h local cache; enabled by default (don't disable)
+4. **Privacy manifest (iOS 17+):** Need `PrivacyInfo.xcprivacy` declaring "Crash Data" + "Performance Data" — ~15 min task; required before next App Store submission
+5. **No DiagnosticSource reflection issues** on net10 (resolved in .NET 9 era)
+
+### Correlation (Client ↔ Server)
+
+**Automatic once both sides emit OTel.** OpenTelemetry's `HttpClientInstrumentation` injects `traceparent` header; ASP.NET Core picks it up. Same `Operation-Id` spans both sides. Zero code.
+
+**Prerequisite:** API-side memo must ship first (or simultaneously).
+
+### PII / Privacy
+
+- **HTTP bodies:** Not captured by default; don't opt in
+- **User IDs:** OK to include `UserProfileId` (GUID) as baggage; **never** log emails, names, user sentences
+- **Device IDs:** Use `DeviceInfo.Idiom` + `DeviceInfo.Platform`; avoid `DeviceInfo.Name` (may contain personal data)
+- **Exception messages:** Discipline at log sites — don't log user text inline with exceptions
+- **TelemetryProcessor:** Optional tag truncation for values > 256 chars (lower priority, address if telemetry exceeds quota)
+
+### Sequencing
+
+1. **First (Day 1):** API-side memo ships (retrospective visibility on current prod errors)
+2. **Second (Day 2):** MAUI client side (this memo)
+3. **Third (Day 3, optional):** Custom dashboards + alert rules in App Insights
+
+**Parallel opportunity:** Kaylee could own Blazor JS error bridge independently while Wash does .NET wiring.
+
+### Ballpark Effort Breakdown
+
+- ~2h — NuGet + exporter + connection string + DEBUG toggle in `MauiServiceDefaults`
+- ~1h — `MauiExceptions` subscriber + `ILogger<App>` wiring
+- ~1.5h — JS error bridge (`error-bridge.js` + `JsErrorBridge.cs` + JSInterop)
+- ~1h — Custom business event extensions (`LogQuizScoringFailed`, `LogFeedbackSubmitFailed`)
+- ~1h — iOS linker preserve config + Release-to-device smoke test
+- ~1h — `PrivacyInfo.xcprivacy` update (can defer if not submitting this cycle)
+- ~0.5h — Controlled exception smoke test on each platform
+- ~1h — End-to-end correlation smoke test (tap quiz → client span → server span under same `operation_Id`)
+
+**Total: ~1 day.** Small-slice (proof-of-concept): ~3 hours.
+
+### Recommended First Increment
+
+**Wire Azure Monitor exporter + `MauiExceptions` subscriber only. Mac Catalyst DEBUG with connection string forced on. Skip Blazor JS bridge, custom events, iOS AOT work.**
+
+**Proves:**
+- Package compatibility with OTel setup ✓
+- Connection string loading from embedded `appsettings` ✓
+- Unhandled crashes reach App Insights ✓
+- End-to-end correlation with API ✓ (if API memo lands first)
+
+**Effort:** ~3 hours. Green-light the rest if successful; kill if blockers emerge before 1-day investment.
+
+### Open Questions for Captain
+
+1. **One App Insights resource or two (client vs server)?** One is simpler + correlation just works. Two gives separation but doubles setup. **Recommendation: One.**
+2. **OK with `appsettings.Production.json` shipping the connection string in app bundle?** Standard practice; low risk. Alternative (fetch from API at startup) creates chicken-and-egg problem.
+3. **When is next App Store submission?** Drives whether `PrivacyInfo.xcprivacy` update is urgent or can slip.
+4. **Include Marketing site?** Out of this memo's scope but trivial to add via API-side path.
+
+### Decision Required
+
+- Approve full 1-day plan OR small-slice 3-hour proof-of-concept?
+- Answer the four open questions above (drives implementation order)?
+# Mobile App Insights — Follow-up Answers
+
+**Author:** Wash (Backend Dev)
+**Date:** 2026-04-20
+**Companion:** `.squad/decisions/inbox/wash-mobile-observability.md` (original scope)
+**Questions from Captain:** 1 (one vs two resources), 2 (connection string security), + evaluate `TinyInsights.Maui`
+
+---
+
+## A. One App Insights resource vs two
+
+**What a "resource" is.** In Azure, an Application Insights resource is a billable instance that holds a bucket of telemetry. It has one **connection string** (endpoint + InstrumentationKey) that tells a client where to send data, a daily ingestion cap, a retention period, and its own KQL query surface. One resource = one scope for billing, alerts, dashboards, and queries.
+
+**Options:**
+- **ONE shared resource** — MAUI client and API both emit to the same resource with the same connection string (client bundled, server from env var).
+- **TWO resources** — `ai-sstudio-mobile` + `ai-sstudio-api`, each with its own connection string, billing, and dashboards.
+
+**Recommendation: ONE resource.** Reasons:
+1. **End-to-end traces in a single query.** OpenTelemetry injects a W3C `traceparent` header automatically. Both tiers land in the same `requests`/`dependencies`/`exceptions` tables, so one KQL query walks the whole call.
+2. **Concrete example — Quiz "Score" fails.** With ONE resource:
+   ```kusto
+   union customEvents, dependencies, requests, exceptions
+   | where operation_Id == "<trace-id>"
+   | order by timestamp asc
+   ```
+   You see: `QuizScoreTapped` event (MAUI) → outgoing HTTP `POST /api/v1/ai/chat` (MAUI) → incoming request (API) → OpenAI dependency call → the exception, with stack trace. One timeline. With TWO resources you'd run two KQL queries and correlate by hand.
+3. **Simpler billing + one daily cap** to protect cost.
+4. `cloud_RoleName` already distinguishes "MAUI" from "api"/"webapp" for filtering when you want tier-specific dashboards.
+
+**When TWO would win:** different retention/access control per tier, or you give the mobile team access while keeping server telemetry siloed. Neither applies here — Captain owns both.
+
+---
+
+## B. Connection string security
+
+**What it actually is.** `InstrumentationKey=…;IngestionEndpoint=https://…` — a **write-only token** for Azure Monitor's ingestion endpoint. It cannot read telemetry, list resources, or touch anything else in your Azure subscription. Reading telemetry requires an Entra identity with `Reader` on the resource (your Azure login).
+
+**Embedding in the app bundle is the standard.** Microsoft's own App Insights and Azure Monitor docs tell mobile/desktop/JS clients to ship the connection string in the app. The SDK cannot exist without it and the key's blast radius is bounded to "someone pushes fake telemetry at your resource".
+
+**Threat model + mitigations:**
+| Risk | Mitigation |
+|---|---|
+| Attacker extracts key, spams fake telemetry | **Daily data cap** ($5–10/day) — App Insights stops accepting once hit, no overage bill |
+| Same attacker floods you with noise | **Sampling** (10–25%) — exporter drops most repeat traces before send |
+| You want to rotate after abuse | Regenerate connection string in Azure portal; ship next app build |
+
+Daily cap is the single most important knob. Set it at resource creation.
+
+**Alternatives and why they're worse for a mobile app:**
+- **Fetch from authenticated API at startup** — chicken-and-egg: if the app can't reach the API you get zero telemetry about that exact outage. Also adds a mandatory network hop before any crash from boot can be reported.
+- **Per-user keys** — massive complexity, no security win (key is still write-only).
+- **Key Vault** — requires an Azure identity the app doesn't have; granting one would be *worse* than the write-only key.
+
+**Recommendation: embed the connection string in `appsettings.Production.json` inside the MAUI app bundle.** Set daily cap to $5/day, sampling to 10% for dependencies/requests, 100% for exceptions/crashes. Rotate only if abuse is observed.
+
+---
+
+## C. TinyInsights.Maui evaluation
+
+**Source:** https://github.com/dhindrik/TinyInsights.Maui (Daniel Hindrikes, Microsoft MVP; active — last commit 2026-04-15 including net10 support, crash-handling improvements).
+
+**What it is.** A thin wrapper over the **classic `Microsoft.ApplicationInsights` 2.23.0 SDK** (NOT OpenTelemetry). Provides:
+- `UseTinyInsights(connectionString)` one-liner in `MauiProgram.cs`
+- `IInsights` interface for `TrackEventAsync`, `TrackPageViewAsync`, `TrackErrorAsync`, `TrackDependencyTracker`
+- Automatic crash capture (hooks the platform exception pipelines) with store-and-forward on next launch
+- `InsightsMessageHandler` for HttpClient dependency tracking
+- `UseTinyInsightsAsILogger` variant — `ILogger` calls become telemetry
+- A companion web UI for mobile-friendly viewing
+
+**Verdict: Do NOT adopt. Stick with `Azure.Monitor.OpenTelemetry.Exporter`.**
+
+**Why:**
+1. **Wrong SDK family.** TinyInsights depends on the **legacy** `Microsoft.ApplicationInsights.*` SDK. Our API side is OpenTelemetry + Azure Monitor exporter. The two emit to the same resource but **don't share Activity context** — W3C `traceparent` correlation between MAUI and API would be fragile or broken. The whole point of Section A (one resource, one query) collapses.
+2. **Fights our existing wiring.** `SentenceStudio.MauiServiceDefaults.ConfigureOpenTelemetry` already builds the OTel pipeline (HttpClient + Runtime instrumentation, logging, metrics, tracing). TinyInsights would run in parallel — double telemetry cost, two exporters, two code paths for the same signals.
+3. **Conveniences we don't need.** Auto page-view tracking is Shell/MAUI XAML-centric; SentenceStudio is Blazor Hybrid (one MAUI page, all navigation inside Blazor). The `InsightsMessageHandler` duplicates what OTel HttpClient instrumentation already does. Crash auto-capture is ~30 lines we already have MauiExceptions for.
+4. **Single-maintainer risk for a core dependency.** Active now, but one-person projects stall. OTel + Azure Monitor exporter is Microsoft-maintained and tracks .NET 10/11/12 automatically.
+5. **Null positive: crash store-and-forward.** That's the one nice feature TinyInsights ships that the exporter doesn't give you for free — but `Azure.Monitor.OpenTelemetry.Exporter` has a built-in 48-hour local file cache for offline ingestion, which covers the same scenario.
+
+**Where TinyInsights WOULD be right:** a greenfield MAUI app with no OTel, no server-side correlation needs, and a dev who wants `insights.TrackEventAsync("ButtonTap")` without reading OTel docs. Not us.
+
+---
+
+## First Increment (unchanged from original memo)
+
+~3 hours on Mac Catalyst:
+1. `<PackageReference Include="Azure.Monitor.OpenTelemetry.Exporter" Version="1.3.0" />` in `SentenceStudio.MauiServiceDefaults`.
+2. In `ConfigureOpenTelemetry`, call `.UseAzureMonitor(o => o.ConnectionString = cfg["ApplicationInsights:ConnectionString"])` only when the value is present AND build is Release.
+3. Subscribe `ILogger<AppCrash>` to `MauiExceptions.UnhandledException` so crashes land as exception telemetry.
+4. Embed connection string in `appsettings.Production.json` shipped inside `SentenceStudio.AppLib`.
+5. Ship in parallel with the server-side App Insights PR so the first trace you query already spans both tiers.
+
+Daily cap $5, sampling 10% (requests/dependencies), 100% (exceptions).
+
+**Ready for approval — no blockers.**

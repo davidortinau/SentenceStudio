@@ -194,3 +194,22 @@ feat(i18n): Phase 2 Batch N — {area} strings to Korean
 Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
 ```
 Never push — Captain runs `/review` first.
+
+---
+
+## 2026-04-20 — Potential Parallel Opportunity: Blazor JS Error Bridge (Mobile App Insights)
+
+**Cross-agent note from Scribe (Wash spawn context)**
+
+Wash's mobile observability memo identifies capturing Blazor WebView JavaScript errors as one of five telemetry hooks for App Insights integration. Current scope: Wash handles `.NET-side` wiring (Azure exporter, `MauiExceptions` subscriber, business event extensions).
+
+**Blazor JS error bridge** (separate piece):
+- `wwwroot/js/error-bridge.js`: global `window.onerror` + `unhandledrejection` handler
+- `JsErrorBridge.cs` service: `[JSInvokable]` method to receive errors from JS layer
+- JSInterop registration in DI
+
+**If Captain approves parallel work,** Kaylee could own this independently while Wash does the .NET wiring. Minimal merge conflict surface (JS file + one new service class). Leaves Wash free to focus on HTTP instrumentation + `MauiExceptions` plumbing.
+
+**Current status:** Awaiting Captain decision on full 1-day plan vs. 3-hour small-slice PoC, and answers to open questions. Will be documented in `.squad/decisions.md` once merged.
+
+**Reference:** `.squad/decisions/inbox/wash-mobile-observability.md` (now merged into decisions.md as of 2026-04-20).

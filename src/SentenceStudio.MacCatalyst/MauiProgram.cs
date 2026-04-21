@@ -1,7 +1,9 @@
 using CommunityToolkit.Maui;
 using CommunityToolkit.Maui.Storage;
+#if DEBUG
 using Microsoft.Maui.DevFlow.Agent;
 using Microsoft.Maui.DevFlow.Blazor;
+#endif
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Plugin.Maui.Audio;
@@ -30,7 +32,7 @@ public static class MauiProgram
         // Wire HelpKit (Plugin.Maui.HelpKit) — multi-targeted net10/net11 during incubation.
         builder.UseHelpKit();
 
-        builder.AddMauiServiceDefaults();
+        builder.AddMauiServiceDefaults("MacCatalyst");
 
         builder.AddAudio(
             playbackOptions =>

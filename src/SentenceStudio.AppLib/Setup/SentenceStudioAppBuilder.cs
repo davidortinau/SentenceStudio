@@ -5,6 +5,10 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using OpenAI;
 using ElevenLabs;
+using OpenTelemetry;
+using OpenTelemetry.Logs;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
 using SentenceStudio.Abstractions;
 
 namespace SentenceStudio;
@@ -78,10 +82,51 @@ public static class SentenceStudioAppBuilder
         return builder;
     }
 
+    // Gate the UnhandledException subscription so hot-reload / re-init cannot double-wire
+    // the handler. Interlocked.Exchange makes this safe even if two init paths race.
+    private static int _unhandledExceptionWired;
+
     public static MauiApp InitializeApp(MauiApp app)
     {
         var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("MauiProgram");
         logger.LogDebug("✅ MauiApp built successfully");
+
+        // Wire unhandled-exception capture → OTel log pipeline (→ Azure Monitor in Release).
+        // MauiExceptions normalizes iOS/MacCatalyst/Android/Windows/Desktop platform handlers into a single
+        // event; we attach ONE subscriber here. Best-effort ForceFlush on the three OTel providers so
+        // the crash record has a chance to reach the exporter before the process dies.
+        if (Interlocked.Exchange(ref _unhandledExceptionWired, 1) == 0)
+        {
+            var crashLogger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("SentenceStudio.UnhandledException");
+            var loggerProvider = app.Services.GetService<LoggerProvider>();
+            var tracerProvider = app.Services.GetService<TracerProvider>();
+            var meterProvider = app.Services.GetService<MeterProvider>();
+            MauiExceptions.UnhandledException += (sender, args) =>
+            {
+                try
+                {
+                    var ex = args.ExceptionObject as Exception;
+                    crashLogger.LogCritical(ex, "Unhandled exception (isTerminating={IsTerminating})", args.IsTerminating);
+
+                    // Parallel flush bounded by a shared ~3s deadline. Serial 3s+3s+3s risked a 9s
+                    // worst case that exceeds the iOS watchdog (~5-10s) on a crash path. Each
+                    // provider gets 2.5s of its own (hard ceiling), then the WaitAll caps the
+                    // total wall time at 3s regardless. All exceptions swallowed — exception-in-
+                    // handler is worse than missed telemetry.
+                    var flushTasks = new[]
+                    {
+                        Task.Run(() => { try { loggerProvider?.ForceFlush(2500); } catch { } }),
+                        Task.Run(() => { try { tracerProvider?.ForceFlush(2500); } catch { } }),
+                        Task.Run(() => { try { meterProvider?.ForceFlush(2500); } catch { } }),
+                    };
+                    try { Task.WaitAll(flushTasks, TimeSpan.FromMilliseconds(3000)); } catch { }
+                }
+                catch
+                {
+                    // Never throw from the last-chance handler.
+                }
+            };
+        }
 
         // CRITICAL: Initialize database schema SYNCHRONOUSLY before app starts
         logger.LogDebug("🚀 CHECKPOINT 1: About to get ISyncService");

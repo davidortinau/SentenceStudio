@@ -22,7 +22,7 @@ public static class MauiProgram
     {
         var builder = MauiApp.CreateBuilder();
         builder.Configuration.AddEmbeddedAppSettings();
-        builder.AddMauiServiceDefaults();
+        builder.AddMauiServiceDefaults("iOS");
 
         builder
             .UseMauiApp<BlazorApp>()
