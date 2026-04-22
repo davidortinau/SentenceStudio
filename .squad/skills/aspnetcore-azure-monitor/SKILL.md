@@ -132,16 +132,60 @@ requests
 
 Rows with non-empty `client_role` = correlated spans. If you get zero after a known mobile → API hit, check (in order): connection string matches on both sides; `cloud_RoleName` literal is non-empty; HttpClient instrumentation registered on client; AspNetCore instrumentation registered on server; wait 2–5 min for ingestion.
 
-## Exception telemetry — no bespoke middleware needed
+## Exception telemetry — `UseExceptionHandler` + `ILogger.LogError` is required
 
-`OpenTelemetry.Instrumentation.AspNetCore` captures unhandled request exceptions as span events + `Microsoft.AspNetCore.Hosting.Diagnostics` log events automatically. With the log exporter wired, they land as `exceptions` rows in App Insights for free.
+**`OpenTelemetry.Instrumentation.AspNetCore` alone does NOT produce `exceptions` table rows in App Insights.** It tags the request span with exception events and flips `requests.success = false`, which is valuable — but the `exceptions` table is populated **only** from `ILogger` log records that carry an `Exception`. Without an explicit handler, an unhandled controller/minimal-API throw yields a `requests` row with `success=false` and nothing in `exceptions`. KQL like `exceptions | where cloud_RoleName == "MyApi"` returns empty.
 
-What AspNetCore instrumentation does **NOT** catch:
-- `BackgroundService` startup failures (before host fully starts).
+**Fix:** wire `UseExceptionHandler` as the **first middleware** (before auth, CORS, custom middleware — wraps them all), log the exception via an `ILogger`, and write a ProblemDetails-shaped 500 body.
+
+```csharp
+using Microsoft.AspNetCore.Diagnostics;  // IExceptionHandlerFeature
+
+var app = builder.Build();
+
+app.UseExceptionHandler(exceptionHandlerApp =>
+{
+    exceptionHandlerApp.Run(async context =>
+    {
+        var feature = context.Features.Get<IExceptionHandlerFeature>();
+        if (feature?.Error is { } ex)
+        {
+            var logger = context.RequestServices
+                .GetRequiredService<ILoggerFactory>()
+                .CreateLogger("UnhandledException");
+
+            logger.LogError(ex,
+                "Unhandled exception in {Method} {Path}",
+                context.Request.Method,
+                context.Request.Path);
+        }
+
+        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        context.Response.ContentType = "application/problem+json";
+        await context.Response.WriteAsync("""
+            {"type":"about:blank","title":"Internal Server Error","status":500,"detail":"An unexpected error occurred."}
+            """);
+    });
+});
+
+// ... UseAuthentication, UseAuthorization, endpoints, etc.
+```
+
+**Placement matters.** Must be BEFORE `UseAuthentication` / `UseAuthorization` / `UseCors` / any custom middleware — exceptions thrown in auth handlers die silently otherwise. First middleware in the pipeline, no exceptions.
+
+**No new NuGet.** `IExceptionHandlerFeature` lives in `Microsoft.AspNetCore.Diagnostics` which is in the ASP.NET Core shared framework.
+
+**What AspNetCore instrumentation DOES still catch (without this middleware):**
+- Span-event on the `requests` row with the exception type + message.
+- `requests.success = false` + non-2xx `resultCode`.
+
+**What it does NOT catch (requires this middleware + log exporter):**
+- A row in the `exceptions` table with outerType, outerMessage, details, operation_Id joinable to the parent request.
+
+**Still doesn't catch either way** (wrap with explicit `try/catch + LogCritical`):
+- `BackgroundService` startup failures.
 - Fire-and-forget `Task.Run` without await.
 - `AppDomain.UnhandledException` / `TaskScheduler.UnobservedTaskException` — timing-dependent.
-
-For those paths, wrap with `try/catch + ILogger.LogCritical(ex, "…")`. The OTel logging provider exports via `AddAzureMonitorLogExporter`.
 
 ## Secret placement for the connection string
 
@@ -153,7 +197,22 @@ Write-only ingestion key. Three reasonable homes, pick one per environment:
 | `builder.AddParameter("aiConnString")` in Aspire AppHost + `.WithEnvironment("AzureMonitor__ConnectionString", …)` | Multi-env, rotating, or staging-vs-prod differentiation. |
 | Env var `APPLICATIONINSIGHTS_CONNECTION_STRING` on the Container App | Matches Azure Monitor SDK's default name; `UseAzureMonitor()` reads it automatically. |
 
-Worst case with a leaked connection string is fake telemetry spam, bounded by the daily ingestion cap. Set a cap (`az monitor app-insights component billing update … --cap 0.5 -s true`) and move on.
+Worst case with a leaked connection string is fake telemetry spam, bounded by the daily ingestion cap. Set a cap and move on:
+
+```bash
+# Set / raise the daily ingestion cap (GB/day). --stop controls stopSendNotificationWhenHitCap.
+az monitor app-insights component billing update \
+  --app <resource-name> --resource-group <rg> \
+  --cap <gb> --stop false
+
+# Read back the full dataVolumeCap object (cap, warningThreshold, stop flags, maxHistoryCap, resetTime).
+az monitor app-insights component billing show \
+  --app <resource-name> --resource-group <rg>
+```
+
+**CLI quirk:** `--stop` / `-s` only exposes `stopSendNotificationWhenHitCap`. There is no CLI flag for `stopSendNotificationWhenHitThreshold` (the "% warning" notification) — it stays at whatever value is on the resource. `--stop-sending-notification-when-hitting-threshold` is NOT a valid argument despite what some docs / LLMs claim — the CLI rejects it.
+
+**Sizing rule of thumb:** start at `0.5` GB/day for a mobile-only emitter. When adding N server emitters (API, WebApp, Workers, Marketing), multiply by roughly `1 + N × 0.3` (servers generate less traffic than mobile but request spans are larger). For SentenceStudio's full stack (1 mobile + 4 server) 2 GB/day was sized with ~4× headroom over the baseline.
 
 ## Gotchas
 

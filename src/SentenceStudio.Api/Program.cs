@@ -12,6 +12,7 @@ using ElevenLabs.TextToSpeech;
 using ElevenLabs.Voices;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.AI;
@@ -271,6 +272,36 @@ if (!skipDatabaseInitialization)
     var syncProvider = app.Services.GetRequiredService<ISyncProvider>();
     await syncProvider.ApplyProvisionAsync();
 }
+
+// Global unhandled-exception handler — MUST be the first middleware in the pipeline so it
+// catches exceptions from auth, CORS, CoreSync, and endpoint code alike. ASP.NET Core OTel
+// instrumentation tags exceptions on the request span but does NOT emit them as `exceptions`
+// telemetry rows. Logging via ILogger.LogError pushes them through the OTel log exporter,
+// which DOES land them in App Insights' `exceptions` table for KQL.
+app.UseExceptionHandler(exceptionHandlerApp =>
+{
+    exceptionHandlerApp.Run(async context =>
+    {
+        var feature = context.Features.Get<IExceptionHandlerFeature>();
+        if (feature?.Error is { } ex)
+        {
+            var logger = context.RequestServices
+                .GetRequiredService<ILoggerFactory>()
+                .CreateLogger("UnhandledException");
+
+            logger.LogError(ex,
+                "Unhandled exception in {Method} {Path}",
+                context.Request.Method,
+                context.Request.Path);
+        }
+
+        context.Response.StatusCode = StatusCodes.Status500InternalServerError;
+        context.Response.ContentType = "application/problem+json";
+        await context.Response.WriteAsync("""
+            {"type":"about:blank","title":"Internal Server Error","status":500,"detail":"An unexpected error occurred."}
+            """);
+    });
+});
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
