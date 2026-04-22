@@ -9,7 +9,7 @@ using SentenceStudio.Workers;
 using SentenceStudio.Workers.Platform;
 
 var builder = Host.CreateApplicationBuilder(args);
-builder.AddServiceDefaults();
+builder.AddServiceDefaults("SentenceStudio.Workers");
 
 // PostgreSQL requires UTC DateTimes — enable legacy mode for SQLite-era DateTime.Now values
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);

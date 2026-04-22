@@ -18,7 +18,7 @@ using SentenceStudio.WebUI.Services;
 using System.Globalization;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.AddServiceDefaults();
+builder.AddServiceDefaults("SentenceStudio.WebApp");
 
 // PostgreSQL requires UTC DateTimes — enable legacy mode for SQLite-era DateTime.Now values
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);

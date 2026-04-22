@@ -1,7 +1,7 @@
 using SentenceStudio.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.AddServiceDefaults();
+builder.AddServiceDefaults("SentenceStudio.Marketing");
 
 // Add services to the container.
 builder.Services.AddRazorPages();
