@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net.Http;
+using System.Net.Http.Headers;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
@@ -84,6 +85,31 @@ public sealed class ApiActivityHandler : DelegatingHandler
         if (!uri.IsDefaultPort)
         {
             activity.SetTag("server.port", uri.Port);
+        }
+
+        // Explicit W3C traceparent propagation. HttpClient's built-in DiagnosticsHandler
+        // normally injects traceparent automatically, but ONLY when an OTel-style
+        // ActivityListener is attached to "System.Net.Http". On MAUI the listener never
+        // attaches because IHostedService doesn't run (see issue #171). Without this
+        // block, the API sees every request as a root operation and the App Insights
+        // correlation join against mobile dependencies returns zero rows — the exact
+        // symptom PR #172 partially fixed (spans emit) but couldn't close out.
+        //
+        // We only inject if no traceparent already exists on the request so that a
+        // deliberate upstream caller can override (and so repeated retries via the
+        // standard resilience handler don't duplicate the header).
+        if (!request.Headers.Contains("traceparent"))
+        {
+            DistributedContextPropagator.Current.Inject(
+                activity,
+                request.Headers,
+                static (carrier, name, value) =>
+                {
+                    if (carrier is HttpRequestHeaders headers && !string.IsNullOrEmpty(value))
+                    {
+                        headers.TryAddWithoutValidation(name, value);
+                    }
+                });
         }
 
         try
