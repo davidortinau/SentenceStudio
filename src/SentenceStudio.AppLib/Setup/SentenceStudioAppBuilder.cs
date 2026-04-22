@@ -2,6 +2,7 @@ using CommunityToolkit.Maui;
 using CommunityToolkit.Maui.Storage;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using OpenAI;
 using ElevenLabs;
@@ -214,9 +215,11 @@ public static class SentenceStudioAppBuilder
         services.AddSingleton<ReleaseNotesService>();
 
         // Version check service — calls API to detect available updates (mobile only)
+        services.TryAddApiActivityHandler();
         services.AddHttpClient<VersionCheckService>(client =>
         {
             client.BaseAddress = new Uri("https+http://api");
-        });
+        })
+        .AddHttpMessageHandler<SentenceStudio.Services.Observability.ApiActivityHandler>();
     }
 }

@@ -4,10 +4,12 @@ using CoreSync.Sqlite;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Services;
 using SentenceStudio.Services.Api;
 using SentenceStudio.Services.Agents;
+using SentenceStudio.Services.Observability;
 using SentenceStudio.Shared.Models;
 
 
@@ -37,11 +39,17 @@ public static class ServiceCollectionExtentions
             return new SqliteSyncProvider(configurationBuilder.Build(), ProviderMode.Local, new SyncLogger(serviceProvider.GetRequiredService<ILogger<SyncLogger>>()));
         });
 
+        services.TryAddApiActivityHandler();
+
         services.AddHttpClient("HttpClientToServer", httpClient =>
         {
             httpClient.BaseAddress = serverUri;
             httpClient.Timeout = TimeSpan.FromMinutes(10);
         })
+        // ApiActivityHandler goes FIRST so the Activity wraps the full request including
+        // auth token attachment — gives us accurate latency and a single span per call.
+        // With the Activity current, HttpClient's DiagnosticsHandler auto-injects traceparent.
+        .AddHttpMessageHandler<ApiActivityHandler>()
         .AddHttpMessageHandler<AuthenticatedHttpMessageHandler>();
 
         services.AddCoreSyncHttpClient(options =>
@@ -57,6 +65,8 @@ public static class ServiceCollectionExtentions
         services.AddAuthorizationCore();
         services.AddScoped<AuthenticationStateProvider, MauiAuthenticationStateProvider>();
 
+        services.TryAddApiActivityHandler();
+
         // Register a named HttpClient for auth endpoints (login, register, refresh).
         // Uses the same API base URL as other clients but without the auth handler
         // to avoid a circular dependency (auth client cannot require auth).
@@ -67,7 +77,8 @@ public static class ServiceCollectionExtentions
             {
                 client.BaseAddress = apiBaseUri;
                 client.Timeout = TimeSpan.FromSeconds(15);
-            });
+            })
+            .AddHttpMessageHandler<ApiActivityHandler>();
         }
 
         services.AddTransient<AuthenticatedHttpMessageHandler>();
@@ -76,16 +87,35 @@ public static class ServiceCollectionExtentions
 
     public static void AddApiClients(this IServiceCollection services, Uri baseUri)
     {
+        services.TryAddApiActivityHandler();
+
         services.AddHttpClient<IAiApiClient, AiApiClient>(client => client.BaseAddress = baseUri)
+            .AddHttpMessageHandler<ApiActivityHandler>()
             .AddHttpMessageHandler<AuthenticatedHttpMessageHandler>();
         services.AddHttpClient<ISpeechApiClient, SpeechApiClient>(client => client.BaseAddress = baseUri)
+            .AddHttpMessageHandler<ApiActivityHandler>()
             .AddHttpMessageHandler<AuthenticatedHttpMessageHandler>();
         services.AddHttpClient<IPlansApiClient, PlansApiClient>(client => client.BaseAddress = baseUri)
+            .AddHttpMessageHandler<ApiActivityHandler>()
             .AddHttpMessageHandler<AuthenticatedHttpMessageHandler>();
         services.AddHttpClient<IFeedbackApiClient, FeedbackApiClient>(client => client.BaseAddress = baseUri)
+            .AddHttpMessageHandler<ApiActivityHandler>()
             .AddHttpMessageHandler<AuthenticatedHttpMessageHandler>();
         services.AddSingleton<IAiGatewayClient, AiGatewayClient>();
         services.AddSingleton<ISpeechGatewayClient, SpeechGatewayClient>();
+    }
+
+    /// <summary>
+    /// Registers <see cref="ApiActivityHandler"/> as transient (the required lifetime
+    /// for <see cref="DelegatingHandler"/>s consumed by <c>HttpClientFactory</c>).
+    /// Safe to call multiple times — uses TryAdd semantics so the several
+    /// entry points (<c>AddApiClients</c>, <c>AddAuthServices</c>, <c>AddSyncServices</c>,
+    /// and the <c>VersionCheckService</c> registration) don't step on each other.
+    /// </summary>
+    internal static IServiceCollection TryAddApiActivityHandler(this IServiceCollection services)
+    {
+        services.TryAddTransient<ApiActivityHandler>();
+        return services;
     }
 
     class SyncLogger(ILogger<SyncLogger> logger) : ISyncLogger
