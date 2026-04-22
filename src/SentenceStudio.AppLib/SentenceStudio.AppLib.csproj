@@ -59,10 +59,10 @@
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
 		</PackageReference>
-		<PackageReference Include="OpenTelemetry" Version="1.11.2" />
-		<PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.11.2" />
-		<PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.11.2" />
-		<PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.11.1" />
+		<PackageReference Include="OpenTelemetry" Version="1.15.1" />
+		<PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.15.1" />
+		<PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.15.1" />
+		<PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.15.0" />
 		<PackageReference Include="CoreSync.Http.Client" Version="0.1.127" />
 		<PackageReference Include="CoreSync.Sqlite" Version="0.1.127" />
 		<PackageReference Include="Syncfusion.Maui.Inputs" Version="31.1.17" />

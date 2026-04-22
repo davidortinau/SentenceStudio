@@ -17,6 +17,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.AI;
 using Microsoft.IdentityModel.Tokens;
 using OpenAI;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
 using SentenceStudio;
 using SentenceStudio.Abstractions;
 using SentenceStudio.Api;
@@ -35,7 +37,15 @@ using SentenceStudio.Services.LanguageSegmentation;
 using SentenceStudio.Shared.Models;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.AddServiceDefaults();
+builder.AddServiceDefaults("SentenceStudio.Api");
+
+// ASP.NET Core request instrumentation — added here (not in ServiceDefaults) because the
+// `OpenTelemetry.Instrumentation.AspNetCore` package references `Microsoft.AspNetCore.App`,
+// which has no runtime pack for MAUI RIDs (maccatalyst/ios/android). ServiceDefaults stays
+// MAUI-safe; each web host opts in locally.
+builder.Services.AddOpenTelemetry()
+    .WithMetrics(m => m.AddAspNetCoreInstrumentation())
+    .WithTracing(t => t.AddAspNetCoreInstrumentation());
 
 // PostgreSQL requires UTC DateTimes — enable legacy mode for SQLite-era DateTime.Now values
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
