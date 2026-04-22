@@ -86,6 +86,12 @@ public static class Extensions
                 //tracing.AddSource("Microsoft.Maui");
                 
                 tracing.AddSource(builder.Environment.ApplicationName)
+                    // Manual API-call activities from ApiActivityHandler. Needed because
+                    // MAUI doesn't run IHostedService, which means the OTel auto-
+                    // instrumentation for HttpClient may not start its ActivitySource
+                    // listeners. See SentenceStudio.Services.Observability.ApiActivityHandler
+                    // for the full rationale + follow-up issue link.
+                    .AddSource("SentenceStudio.Mobile.HttpClient")
                     // Uncomment the following line to enable gRPC instrumentation (requires the OpenTelemetry.Instrumentation.GrpcNetClient package)
                     //.AddGrpcClientInstrumentation()
                     .AddHttpClientInstrumentation();
@@ -100,9 +106,14 @@ public static class Extensions
     {
         public void Initialize(IServiceProvider services)
         {
-            services.GetService<MeterProvider>();
-            services.GetService<TracerProvider>();
-            services.GetService<LoggerProvider>();
+            // GetRequiredService (vs GetService) guarantees construction — if the provider
+            // isn't registered we want a hard failure at startup instead of silently-broken
+            // telemetry later. MAUI doesn't run IHostedService, so this forced resolution
+            // is what actually materialises the providers. See ApiActivityHandler docs for
+            // the full story and the tracked framework-level follow-up.
+            services.GetRequiredService<MeterProvider>();
+            services.GetRequiredService<TracerProvider>();
+            services.GetRequiredService<LoggerProvider>();
         }
     }
 
