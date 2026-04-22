@@ -1300,3 +1300,95 @@ Captain reported intermittent prod errors (quiz scoring, feedback). Decision mem
 - **`UseExceptionHandler` + `ILogger.LogError` is required on top of `AddAspNetCoreInstrumentation` for App Insights `exceptions` rows.** Previously assumed ASP.NET Core OTel instrumentation alone covered this (see PR #165 follow-up note). It doesn't. The instrumentation **tags the request span with exception events and sets the span status to Error**, which populates the `requests` row's `success=false` + the `customDimensions.exception.*` attributes. But it does **NOT** emit a separate record to the `exceptions` table — Azure Monitor's OTel exporter only produces an `exceptions` row when it receives an `ILogger` log record carrying an `Exception`. AspNetCore's own `ExceptionHandlerMiddleware` logs one at `Error` level (`Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddleware[1]`), but you only get that if `UseExceptionHandler` is wired. Without it, Captain's `exceptions | where cloud_RoleName == 'SentenceStudio.Api'` KQL returns empty for any unhandled controller/minimal-API throw. Explicit `UseExceptionHandler` → `feature.Error` → `logger.LogError(ex, ...)` closes the gap and produces a `UnhandledException` category log record that maps to an `exceptions` row. Pattern now captured in `.squad/skills/aspnetcore-azure-monitor/SKILL.md` (the previous version of that skill incorrectly claimed the middleware was unnecessary — corrected in the same commit).
 - **`UseExceptionHandler` must land BEFORE `UseAuthentication` / `UseAuthorization` / `UseCors` / custom middleware** to wrap them all. First in the pipeline. If it's placed after auth, an exception in the auth handler dies with a raw 500 and no log record, skipping the handler entirely.
 - **Smoke validation without full `aspire run`.** `aspire run` takes 90+ seconds even on warm caches because it has to build the AppHost graph + start Postgres container + wait on all downstream resources. For a one-off middleware smoke test, running the API directly with `ConnectionStrings__sentencestudio=<bogus> Jwt__SigningKey=<32-char-dummy> Database__SkipMigrateOnStartup=true dotnet run --no-build --project src/SentenceStudio.Api` is 20 seconds to first request. The DB skip flag prevents `MigrateAsync` from hanging on the bogus connection; the SigningKey length has to be ≥32 chars for `SymmetricSecurityKey` to accept it. Anonymous endpoints like `/__debug/boom` served fine without real auth/DB. Use this pattern for any future API-only pipeline smoke test.
+
+---
+
+## 2026-04-22 — PR #166 dress rehearsal (Release-build, local, no `azd deploy`)
+
+**Requested by:** Captain — validate the full PR #166 pipeline against real App Insights before risking a production deploy. The `#if !DEBUG` guard means `aspire run` can't test Azure Monitor, so the API had to be built Release and run Production standalone.
+
+### Setup that worked
+
+Went straight to **Option B (Docker Postgres)** — `aspire run` + dashboard-kill-resource felt higher-friction for a single-API validation. Worked first try:
+
+```bash
+docker run -d --name sstudio-pg-rehearsal \
+  -e POSTGRES_PASSWORD=devpass -e POSTGRES_USER=postgres -e POSTGRES_DB=sentencestudio \
+  -p 5433:5432 postgres:16        # 5433 avoids clash with Aspire's 5432 if it's running
+
+dotnet build src/SentenceStudio.Api/SentenceStudio.Api.csproj -c Release
+
+ASPNETCORE_ENVIRONMENT=Production \
+  ASPNETCORE_URLS="https://localhost:7801;http://localhost:7802" \
+  ConnectionStrings__sentencestudio="Host=localhost;Port=5433;Database=sentencestudio;Username=postgres;Password=devpass" \
+  Jwt__SigningKey="dress-rehearsal-key-at-least-32-characters-long-xxxx" \
+  dotnet run --project src/SentenceStudio.Api -c Release --no-build --no-launch-profile
+```
+
+**Critical: `--no-launch-profile`.** Without it, `src/SentenceStudio.Api/Properties/launchSettings.json` wins and force-sets `ASPNETCORE_ENVIRONMENT=Development` + overrides `ASPNETCORE_URLS` to its own ports. In Development, `appsettings.Production.json` isn't loaded, so `AzureMonitor:ConnectionString` comes back null and the exporters don't register — telemetry goes nowhere. First attempt showed `Hosting environment: Development` on port 5081 despite env vars; `--no-launch-profile` fixed it cleanly.
+
+**Which env vars are minimum to bind in Production config:**
+- `ASPNETCORE_ENVIRONMENT=Production` (loads appsettings.Production.json where AzureMonitor:ConnectionString lives)
+- `ASPNETCORE_URLS` (override launchSettings)
+- `ConnectionStrings__sentencestudio` (EF migration + CoreSync)
+- `Jwt__SigningKey` (Program.cs:130 throws in non-Development without it)
+
+Not required: `AI:OpenAI:ApiKey`, `ElevenLabsKey`, `GitHub:Pat`, email config — all gated by null checks.
+
+### Boom-endpoint recipe (same as the review-fix smoke)
+
+Added at end of `Program.cs`, uncommitted:
+```csharp
+app.MapGet("/__debug/boom", () => { throw new InvalidOperationException("Dress rehearsal: server-side AppInsights exception capture"); });
+```
+Rebuilt, hit it twice, confirmed 500 + `application/problem+json` body AND `fail: UnhandledException[0]` ILogger record in the console (full stack trace, exception carried). Removed before stopping.
+
+### KQL proof — all three green at +4 min ingestion
+
+- **Query A (exceptions):** 4 rows, `cloud_RoleName=SentenceStudio.Api`, outerMessage matches "Dress rehearsal". Each boom hit emitted 2 log records (one from my `UnhandledException` logger, one from ASP.NET Core's `Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddleware` ID 1) — both reach the `exceptions` table. Fine.
+- **Query B (requests):** 4 rows — 2× auth-login 401, 2× boom 500 — all role=SentenceStudio.Api. `AddAspNetCoreInstrumentation` + Azure Monitor trace exporter working.
+- **Query C (traceparent):** simulated a mobile-originated call by injecting `traceparent: 00-5c4324bba96c15b5da00f712ac863982-d96513170a11dd97-01`. Server request AND child Postgres dependency both carry `operation_Id == 5c4324bba96c15b5da00f712ac863982` and the request row's `operation_ParentId == d96513170a11dd97`. Proves W3C propagation: when deployed mobile traffic arrives, the `requests` × `dependencies` join in `SKILL.md`'s correlation KQL will light up automatically.
+
+### Latency surprise: none
+
+`az monitor app-insights query` returned results ~4 min after emit. Within the 2–5 min window the skill documents. No retries, no surprise.
+
+### Learnings
+
+- **`--no-launch-profile` is non-negotiable** when running a launchSettings-owning web host Release/Production standalone for Azure Monitor validation. Silent telemetry drop if you miss it.
+- **Docker Postgres on a non-5432 port** sidesteps any collision with a parallel Aspire session. `5433` is the polite choice.
+- **Port choice tip:** picking `7801`/`7802` avoided the Kestrel dev-cert complaint chain that kicks in on `7012`/`5081` (the launchSettings defaults). Even so, `curl -k` is fine for localhost smoke.
+- **Two exception log rows per boom is expected.** Both my `UnhandledException` `ILogger.LogError` AND ASP.NET Core's built-in `ExceptionHandlerMiddleware` EventId 1 emit an exception log record. Both land in the `exceptions` table. Not a bug — it's how the framework is wired. Do NOT try to deduplicate.
+
+### Zero commits on squad/server-appinsights
+
+Validation-only, as briefed. Boom endpoint removed; working tree clean at end of task. PR body updated with a `## Dress rehearsal (Release-build, local)` section containing the three KQL tables. PR stays draft for Captain to flip ready-for-review.
+
+## 2026-04-22 — PR #166 server-side App Insights shipped
+
+### Big learning (write-in-stone)
+
+**ALWAYS read `AppHost.cs` before recommending a deploy-tool flip.** This session, I endorsed switching from `azd deploy` → `aspire deploy` based on Captain's verbal briefing that the AppHost registered `AddAzureContainerAppEnvironment("aca-env").WithAzdResourceNaming()`. It doesn't — lines 5–9 contain an explicit comment saying that registration was removed because it broke azd compatibility. Session summaries drift from code reality. The AppHost source is authoritative for deploy-tool feasibility. Verify, don't trust recap.
+
+### Stale safety checks are worse than no safety checks
+
+The pre-existing `scripts/pre-deploy-check.sh` was built for the pre-migration container-Postgres + AzureFile-volume architecture. Post-Flexible-Server migration, 2 of 5 checks were false negatives. The cultural failure mode: people bypass with `SKIP_PREDEPLOY_CHECK=1` because "the script is always wrong now," and a real failure gets missed. **Rewrite stale safety scripts in the same PR that exposes them; don't leave them to rot.**
+
+### Production-specific KQL gotcha
+
+Azure Container Apps prepends the ACA env name to `cloud_RoleName`: `[cae-3ovvqiybthkb6]/SentenceStudio.Api` not `SentenceStudio.Api`. Local dress rehearsals (the service running on `localhost`) emit the plain name. Any KQL committed during rehearsal needs `endswith "SentenceStudio.Api"` or a bracket-strip to work in prod. Document this in dress-rehearsal runbooks going forward.
+
+### `azd deploy` on Flexible-Server architecture — works cleanly
+
+- 2m 18s for all 5 services (api, cache, marketing, webapp, workers), incremental container image push
+- Zero database interaction (Flexible Server is independent of the deploy tool)
+- `azd env list` confirmed `sstudio-prod` as the default local env
+- `azd deploy --no-prompt` is the non-interactive variant and worked first try
+
+### `post-deploy-validate.sh` is MANDATORY, not decorative
+
+Phase 1 (infra health) + Phase 4 (regression) are the gates — 17 PASS, 0 FAIL. Phase 2 auth tests skipped (no `DEPLOY_TEST_PASSWORD` in env — configure this for future deploys; it would have tested the login proxy). Phase 3 (change-specific) is manual and was done via the KQL queries in the PR body.
+
+### Follow-up issues filed from this deploy
+
+#167 aspire-deploy migration · #168 Managed Identity for AI auth · #169 Blazor WebView JS exception bridge · #170 OTel linker preserve configs
