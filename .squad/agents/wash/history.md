@@ -1392,3 +1392,21 @@ Phase 1 (infra health) + Phase 4 (regression) are the gates — 17 PASS, 0 FAIL.
 ### Follow-up issues filed from this deploy
 
 #167 aspire-deploy migration · #168 Managed Identity for AI auth · #169 Blazor WebView JS exception bridge · #170 OTel linker preserve configs
+
+## Learnings — 2026-04-22 iOS publish to DX24
+
+### Build
+- **net11 preview 3 SDK (`11.0.100-preview.3.26209.122`) builds iOS Release on Xcode 26.3 cleanly.** net10 GA (10.0.101) expects Xcode 26.2 and fails validation. Swap via `global.json` at repo root — MUST restore after or Mac Catalyst daily loop breaks.
+- Build was 40 seconds (incremental from prior work). 0 errors, 571 pre-existing warnings. Full Release + ios-arm64 AOT did NOT require `obj/Release` clean.
+- `global.json` is gitignored — swapping and restoring leaves no git diff.
+
+### Deploy to DX24
+- **`xcrun devicectl device install` first attempt may fail with "Socket is not connected" / NWError 57** even when device shows `available (paired)` in `devicectl list devices`. Retry after 5s almost always succeeds — the control channel just needs a moment to reestablish.
+- **`xcrun devicectl device process launch` fails with FBSOpenApplicationErrorDomain error 7 (Locked)** if the iPhone is locked. Captain must physically unlock (Face ID / passcode) before launch. Install works while locked; launch does not.
+- **NEVER `devicectl device uninstall` on DX24** — it's Captain's daily iPhone. `install` upgrades in place and preserves app sandbox (SQLite, Preferences, Keychain). Uninstalling would wipe production user data.
+
+### Production App Insights correlation gotcha
+- **Mobile emits traces, NOT dependencies.** The original runbook KQL joined `requests` (mobile) to `requests` (api). Wrong on both sides. Correct shape: `dependencies` (mobile outbound HTTP) to `requests` (api inbound HTTP), joined on `operation_Id`.
+- **BUT**: with PR #165's current mobile OTel setup, mobile emits neither `dependencies` nor `requests` — only `traces`. HttpClient calls show up as log messages like `"Sending HTTP request GET https://..."` because the logging provider is wired, but `AddHttpClientInstrumentation()` on the TracerProvider is missing. That means no client spans are created, no W3C `traceparent` header is injected, and the API starts a fresh root trace for every incoming call (`operation_Id == operation_ParentId`).
+- **Diagnostic tell:** if API's `operation_Id == operation_ParentId` for mobile-called endpoints, the mobile side is not propagating trace context. Check the mobile TracerProvider registration.
+- **Production prefixes ACA role name:** `[cae-3ovvqiybthkb6]/SentenceStudio.Api`. Always use `endswith "SentenceStudio.Api"` in KQL, never `==`.

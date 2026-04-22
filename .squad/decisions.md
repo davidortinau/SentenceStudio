@@ -865,3 +865,102 @@ Daily cap is the single most important knob. Set it at resource creation.
 Daily cap $5, sampling 10% (requests/dependencies), 100% (exceptions).
 
 **Ready for approval — no blockers.**
+
+---
+
+## 2026-04-22 — Mobile↔API Distributed Tracing Correlation — COMPLETE
+
+**Date:** 2026-04-22  
+**Owner:** Wash (Backend Observability)  
+**Status:** ✅ COMPLETE — Production verified on DX24 iOS  
+**Tracking:** PRs #165, #166, #172, #173 shipped; issue #171 downgraded to lower priority
+
+### Summary
+
+End-to-end mobile↔API distributed tracing is now working on production DX24. Mobile iOS app propagates W3C `traceparent` headers through 7 HttpClients via `ApiActivityHandler` DelegatingHandler. API receives and correlates incoming requests to the originating mobile operation. Single-user-action tracing from iOS app → ACA API is operationalized for production diagnosis.
+
+**KQL verification** (AppId `74e94530-d17f-404a-8726-b7266724b70f`, 15m window):
+- Q1 (mobile deps): 39 rows, `HTTP` type to ACA target, non-empty `operation_Id`
+- Q2 (mobile→api join): 20 joined rows, 200 statuses across chat + sync flows
+- **Result:** ✅ Correlation working end-to-end
+
+### Delivery Arc
+
+1. **PR #165** — Mobile App Insights bootstrap (Azure.Monitor.OpenTelemetry.Exporter wired, Mac Catalyst validated)
+2. **PR #166** — Server-side companion for mobile role name handling (OTel exporter + role name on API side)
+3. **PR #172** — Manual `ApiActivityHandler` DelegatingHandler on all 7 HttpClients + `GetRequiredService<T>()` hardening in `OpenTelemetryInitializer` to force TracerProvider materialization
+4. **PR #173** — Explicit `DistributedContextPropagator.Current.Inject(...)` in `ApiActivityHandler.SendAsync` before `base.SendAsync` — **this closed the loop**
+
+### Root Cause Identified
+
+**Framework gap:** MAUI's `MauiApp` doesn't run `IHostedService`, so OTel's `TelemetryHostedService.StartAsync` never executes. This means `AddHttpClientInstrumentation()` wiring is effectively a no-op on MAUI, and `HttpClient`'s `DiagnosticsHandler` never auto-injects traceparent. User-space workaround (PR #172+#173) is sufficient for now.
+
+**Eliminated hypotheses (for future diagnosticians):**
+- ❌ Missing `AddHttpClientInstrumentation()` — already wired (commit 216a2da1)
+- ❌ IL trimming strips listeners — disproved via `<MtouchLink>None</MtouchLink>` build (136MB/333 DLLs, same zero-correlation)
+- ✅ IHostedService doesn't run on MAUI — root cause, worked around in user space
+
+### Handler Ordering & DI Lifetime
+
+- **Placement:** `ApiActivityHandler` is first in every `AddHttpMessageHandler` chain (outermost) so the Activity wraps auth token attachment and its context is current for any downstream header injection
+- **DI lifetime:** DelegatingHandlers consumed by HttpClientFactory MUST be transient. Registered via internal `TryAddApiActivityHandler()` helper — idempotent across 4 entry points (ServiceCollectionExtensions + SentenceStudioAppBuilder)
+
+### Known Follow-Ups (Not in Scope)
+
+- Raw `new HttpClient()` in `src/SentenceStudio.Shared/Services/AiService.cs:93` bypasses the factory and won't get correlation — separate refactor
+- `docs/deploy-runbook.md` KQL still has the wrong requests-to-requests join — separate docs PR
+- Issue #171 remains open as lower-priority framework improvement
+
+### Verification Details
+
+**Device:** iPhone 15 Pro (DX24), production API endpoint  
+**Build:** `SentenceStudio.iOS` Release (net10.0-ios, arm64)  
+**Duration:** 15m observation window  
+**Confidence:** 100% — live production data
+
+**Q1 query (mobile deps):**
+```
+dependencies 
+| where timestamp > ago(15m) 
+| where cloud_RoleName startswith "SentenceStudio.Mobile" 
+| where target contains "azurecontainerapps.io" 
+| where isnotempty(operation_Id) 
+| summarize count()
+```
+**Result:** 39 rows
+
+**Q2 query (mobile→api join):**
+```
+let mobile_deps = dependencies 
+  | where timestamp > ago(15m) 
+  | where cloud_RoleName startswith "SentenceStudio.Mobile" 
+  | where target contains "azurecontainerapps.io" 
+  | where isnotempty(operation_Id);
+requests 
+  | where timestamp > ago(15m) 
+  | where cloud_RoleName startswith "SentenceStudio" 
+  | where isnotempty(operation_Id) 
+  | join kind=inner (mobile_deps) on operation_Id 
+  | summarize count()
+```
+**Result:** 20 joined rows, all 200 statuses
+
+### Decisions
+
+1. **Use `ApiActivityHandler` DelegatingHandler** in user space (not OTel framework auto-injection) until MAUI `MauiApp` supports `IHostedService`
+2. **Handler ordering matters:** Place `ApiActivityHandler` outermost in chain, before auth handlers
+3. **DelegatingHandler DI lifetime must be transient** — idempotent registration via `TryAddApiActivityHandler()` helper
+4. **W3C `traceparent` must be injected explicitly** via `DistributedContextPropagator.Current.Inject()` before sending the HTTP request
+5. **Framework issue #171 downgraded to lower-priority improvement** — user-space workaround proved sufficient and operationalized
+
+### Tech Debt & Follow-Ups
+
+- Mobile correlation working, but `AiService.cs:93` raw `HttpClient()` creation is a bypass — track as separate refactor
+- `docs/deploy-runbook.md` KQL queries need requests-to-requests join fix — separate docs PR
+- Raw `HttpClient()` bypass affects crash+chat flows when they use direct API calls — low priority but note it
+
+### Reviewer Notes
+
+- Correlation is now operational for production diagnosis — Captain can trace mobile actions to API tier
+- Framework gap (issue #171) identified but worked around; no blocker for this PR
+- All 4 PRs shipped; iOS production validation complete
