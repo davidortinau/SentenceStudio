@@ -113,9 +113,10 @@ public sealed class ApiActivityHandler : DelegatingHandler
         }
         catch (Exception ex)
         {
+            // RecordException emits a standard OTel "exception" event with type/message/stacktrace,
+            // which surfaces in App Insights' exception timeline. Keep status error for queryability.
+            activity.AddException(ex);
             activity.SetStatus(ActivityStatusCode.Error, ex.Message);
-            activity.SetTag("exception.type", ex.GetType().FullName);
-            activity.SetTag("exception.message", ex.Message);
             _logger?.LogDebug(ex, "API HttpClient call failed: {Method} {Uri}", method, uri);
             throw;
         }
