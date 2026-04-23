@@ -11,7 +11,7 @@
 
 <div class="activity-page-wrapper">
 
-<PageHeader Title="Shadowing" ShowBack="true" OnBack="GoBack" />
+<PageHeader Title='@Localize["Activity_Shadowing"]' ShowBack="true" OnBack="GoBack" />
 
 <div class="activity-content">
 @if (isBusy)
@@ -157,8 +157,7 @@ else
     {
         Localize.CultureChanged += OnCultureChanged;
         Logger.LogInformation("🎯 Shadowing initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
-        if (!string.IsNullOrEmpty(PlanItemId))
-            ActivityTimer.StartSession("Shadowing", PlanItemId);
+        ActivityTimer.StartSession("Shadowing", PlanItemId, ResourceIdParam, SkillIdParam);
         _useJsAudio = JS.GetType().Name.Contains("Remote", StringComparison.OrdinalIgnoreCase);
         fromPlan = FromPlanParam;
         targetMinutes = TargetMinutesParam ?? 15;

@@ -9,7 +9,7 @@
 @implements IAsyncDisposable
 
 <div class="d-flex flex-column h-100">
-<PageHeader Title="Conversation" ShowBack="true" OnBack="GoBack">
+<PageHeader Title='@Localize["Activity_Conversation"]' ShowBack="true" OnBack="GoBack">
     <ToolbarActions>
         <div class="dropdown">
             <button class="btn btn-sm btn-outline-secondary d-flex align-items-center gap-1"
@@ -246,8 +246,7 @@ else
         Localize.CultureChanged += OnCultureChanged;
         Logger.LogInformation("🎯 Conversation initialized — planItemId={PlanItemId}, resourceId={ResourceId}, skillId={SkillId}",
             PlanItemId ?? "(none)", ResourceIdParam ?? "(none)", SkillIdParam ?? "(none)");
-        if (!string.IsNullOrEmpty(PlanItemId))
-            ActivityTimer.StartSession("Conversation", PlanItemId);
+        ActivityTimer.StartSession("Conversation", PlanItemId, ResourceIdParam, SkillIdParam);
         fromPlan = FromPlanParam;
         targetMinutes = TargetMinutesParam ?? 15;
 

@@ -4,7 +4,7 @@
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
 @implements IAsyncDisposable
 
-<PageHeader Title="Vocabulary Matching" ShowBack="true" OnBack="GoBack">
+<PageHeader Title='@Localize["Activity_VocabMatching"]' ShowBack="true" OnBack="GoBack">
     <PrimaryActions>
         <button class="btn btn-sm btn-ss-secondary" @onclick="RestartGame"><i class="bi bi-arrow-clockwise me-1"></i><span class="d-none d-sm-inline">@Localize["VocabMatching_NewGame"]</span></button>
     </PrimaryActions>
@@ -122,8 +122,8 @@ else
     {
         Localize.CultureChanged += OnCultureChanged;
         Logger.LogInformation("🎯 VocabMatching initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
-        if (!string.IsNullOrEmpty(PlanItemId))
-            ActivityTimer.StartSession("VocabularyMatching", PlanItemId);
+        var firstResourceId = ResourceIdsParam?.Split(',', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+        ActivityTimer.StartSession("VocabularyGame", PlanItemId, firstResourceId, null);
         await LoadVocabulary();
     }
 
@@ -231,8 +231,6 @@ else
             incorrectGuesses = 0;
             isGameComplete = false;
             selectedTiles.Clear();
-            var hint = hideNativeWordsMode ? "Tap a target word to reveal native words" : "Match the pairs!";
-            Toast.ShowInfo(hint, 2000);
         }
         catch (Exception ex)
         {
@@ -274,9 +272,7 @@ else
                 t.IsVisible = true;
         }
 
-        if (selectedTiles.Count == 1)
-            Toast.ShowInfo("Now pick the match", 1500);
-        else if (selectedTiles.Count == 2)
+        if (selectedTiles.Count == 2)
         {
             _ = CheckMatchWithDelay();
         }
@@ -340,10 +336,6 @@ else
                 {
                     await ProgressService.HandleVerificationProbeResultAsync(
                         matchedWord.Id, activeUserId, isMatch);
-                    if (isMatch)
-                        Toast.ShowSuccess("Confirmed! This one is solid.");
-                    else
-                        Toast.ShowInfo("This one is tricky in context. A few more reps will help.");
                 }
 
                 CacheService.InvalidateVocabSummary();
@@ -362,7 +354,6 @@ else
             tile2.IsSelected = false;
             selectedTiles.Clear();
             matchedPairs++;
-            Toast.ShowSuccess("Great match!", 1500);
 
             if (hideNativeWordsMode)
             {
@@ -374,7 +365,6 @@ else
             {
                 isGameComplete = true;
                 foreach (var t in tiles) t.IsVisible = true;
-                Toast.ShowSuccess("All pairs matched!");
             }
         }
         else
@@ -383,7 +373,6 @@ else
             tile2.IsSelected = false;
             selectedTiles.Clear();
             incorrectGuesses++;
-            Toast.ShowWarning("Not a match — try again!", 1500);
 
             if (hideNativeWordsMode)
             {

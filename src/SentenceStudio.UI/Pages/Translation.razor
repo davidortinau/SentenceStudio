@@ -5,7 +5,7 @@
 
 <div class="activity-page-wrapper">
 
-<PageHeader Title="Translate" ShowBack="true" OnBack="GoBack" />
+<PageHeader Title='@Localize["Activity_Translate"]' ShowBack="true" OnBack="GoBack" />
 
 <div class="activity-content">
 @if (showSessionSummary)
@@ -45,21 +45,57 @@ else if (isBusy)
 }
 else if (sentences.Any())
 {
-    @* Sentence display *@
-    <div class="mb-4 px-3">
-        <p class="ss-display" style="line-height: 1.3;">@currentSentence</p>
-    </div>
-
-    @* Feedback *@
-    @if (showFeedback)
+    @* Feedback — minimal chips + collapsible details (matches Writing activity) *@
+    @if (showFeedback && lastFeedback != null)
     {
-        <div class="card card-ss p-3 mb-3" style="border-left: 4px solid @GetFeedbackColor();">
-            <p class="ss-body1 mb-0">@feedbackMessage</p>
+        <div class="card card-ss p-3 mb-3">
+            @if (!string.IsNullOrWhiteSpace(lastSubmittedInput))
+            {
+                <p class="ss-body1 mb-2"><i class="bi bi-chat-quote me-2 text-secondary-ss"></i>@lastSubmittedInput</p>
+            }
+            <div class="d-flex gap-3 justify-content-end mb-2">
+                @if (lastFeedback.Accuracy > 0)
+                {
+                    <div class="text-center">
+                        <div class="ss-body2" style="color: @GetScoreColor(lastFeedback.Accuracy);">@((int)lastFeedback.Accuracy)%</div>
+                        <small class="text-secondary-ss">@Localize["Common_Accuracy"]</small>
+                    </div>
+                }
+                @if (lastFeedback.Fluency > 0)
+                {
+                    <div class="text-center">
+                        <div class="ss-body2" style="color: @GetScoreColor(lastFeedback.Fluency);">@((int)lastFeedback.Fluency)%</div>
+                        <small class="text-secondary-ss">@Localize["Writing_Fluency"]</small>
+                    </div>
+                }
+            </div>
             @if (!string.IsNullOrEmpty(recommendedTranslation))
             {
-                <small class="text-secondary-ss mt-1 d-block">
+                <small class="text-secondary-ss d-block">
                     <strong>@Localize["Common_Suggested"]</strong> @recommendedTranslation
                 </small>
+            }
+            @if (!string.IsNullOrEmpty(lastFeedback.AccuracyExplanation)
+                || !string.IsNullOrEmpty(lastFeedback.FluencyExplanation)
+                || !string.IsNullOrEmpty(lastFeedback.GrammarNotes?.Explanation))
+            {
+                <details class="mt-2">
+                    <summary class="ss-caption1 text-secondary-ss" style="cursor: pointer;">@Localize["Writing_ShowDetails"]</summary>
+                    <div class="mt-1">
+                        @if (!string.IsNullOrEmpty(lastFeedback.AccuracyExplanation))
+                        {
+                            <small class="d-block text-secondary-ss"><strong>@Localize["Common_Accuracy"]:</strong> @lastFeedback.AccuracyExplanation</small>
+                        }
+                        @if (!string.IsNullOrEmpty(lastFeedback.FluencyExplanation))
+                        {
+                            <small class="d-block text-secondary-ss"><strong>@Localize["Writing_Fluency"]:</strong> @lastFeedback.FluencyExplanation</small>
+                        }
+                        @if (!string.IsNullOrEmpty(lastFeedback.GrammarNotes?.Explanation))
+                        {
+                            <small class="d-block text-secondary-ss"><strong>@Localize["Writing_Notes"]</strong> @lastFeedback.GrammarNotes.Explanation</small>
+                        }
+                    </div>
+                </details>
             }
         </div>
     }
@@ -76,6 +112,11 @@ else
 @if (sentences.Any() && !showSessionSummary && !isBusy)
 {
 <div class="activity-input-bar">
+    @* Prompt sentence — pinned with input so it remains visible when keyboard is open *@
+    <div class="activity-prompt mb-2">
+        <p class="ss-title3 mb-0" style="line-height: 1.3;">@currentSentence</p>
+    </div>
+
     @* Input mode: vocab blocks *@
     @if (inputMode == "MultipleChoice" && vocabBlocks.Any())
     {
@@ -152,9 +193,8 @@ else
     private bool showFeedback;
     private bool showSessionSummary;
     private string userInput = "";
+    private string lastSubmittedInput = "";
     private string currentSentence = "";
-    private string feedbackMessage = "";
-    private string feedbackType = "";
     private string recommendedTranslation = "";
     private string targetLanguage = "Korean";
     private string inputMode = "Text";
@@ -162,6 +202,7 @@ else
     private int sessionGradedCount;
     private double sessionAccuracySum;
     private double sessionFluencySum;
+    private GradeResponse? lastFeedback;
 
     private List<Challenge> sentences = new();
     private List<VocabularyWord>? currentVocabulary;
@@ -171,8 +212,7 @@ else
     {
         Localize.CultureChanged += OnCultureChanged;
         Logger.LogInformation("🎯 Translation initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
-        if (!string.IsNullOrEmpty(PlanItemId))
-            ActivityTimer.StartSession("Translation", PlanItemId);
+        ActivityTimer.StartSession("Translation", PlanItemId, ResourceIdParam, SkillIdParam);
         await LoadSentences();
     }
 
@@ -217,8 +257,9 @@ else
         currentVocabulary = challenge.Vocabulary;
         recommendedTranslation = "";
         userInput = "";
+        lastSubmittedInput = "";
         showFeedback = false;
-        feedbackMessage = "";
+        lastFeedback = null;
         inputMode = "Text";
 
         vocabBlocks = challenge.Vocabulary?
@@ -239,6 +280,7 @@ else
 
         isGrading = true;
         showFeedback = false;
+        lastSubmittedInput = userInput;
         StateHasChanged();
 
         try
@@ -252,12 +294,13 @@ else
                 originalSentence: currentSentence,
                 recommendedTranslation: challenge.SentenceText ?? "");
 
-            recommendedTranslation = feedback.RecommendedTranslation ?? "";
+            // The AI typically writes the suggested translation into GrammarNotes.RecommendedTranslation.
+            // Fall back there if the top-level property is empty.
+            recommendedTranslation = !string.IsNullOrWhiteSpace(feedback.RecommendedTranslation)
+                ? feedback.RecommendedTranslation
+                : (feedback.GrammarNotes?.RecommendedTranslation ?? "");
+            lastFeedback = feedback;
             var accuracy = (int)feedback.Accuracy;
-            feedbackType = accuracy >= 80 ? "success" : accuracy >= 50 ? "hint" : "info";
-            feedbackMessage = $"Accuracy: {accuracy}% | Fluency: {(int)feedback.Fluency}%";
-            if (!string.IsNullOrEmpty(feedback.AccuracyExplanation))
-                feedbackMessage += $"\n{feedback.AccuracyExplanation}";
 
             showFeedback = true;
 
@@ -365,12 +408,11 @@ else
         inputMode = inputMode == "Text" ? "MultipleChoice" : "Text";
     }
 
-    private string GetFeedbackColor() => feedbackType switch
+    private string GetScoreColor(double score) => score switch
     {
-        "success" => "var(--bs-success)",
-        "achievement" => "var(--bs-warning)",
-        "hint" => "var(--bs-info)",
-        _ => "var(--bs-secondary)"
+        >= 80 => "var(--bs-success)",
+        >= 50 => "var(--bs-warning)",
+        _ => "var(--bs-danger)"
     };
 
     private void GoBack()

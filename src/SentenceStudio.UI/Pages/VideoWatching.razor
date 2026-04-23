@@ -6,7 +6,7 @@
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
 @implements IAsyncDisposable
 
-<PageHeader Title="Video Watching" ShowBack="true" OnBack="GoBack" />
+<PageHeader Title='@Localize["Activity_VideoWatching"]' ShowBack="true" OnBack="GoBack" />
 
 @if (isBusy)
 {
@@ -109,8 +109,7 @@ else
     {
         Localize.CultureChanged += OnCultureChanged;
         Logger.LogInformation("🎯 VideoWatching initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
-        if (!string.IsNullOrEmpty(PlanItemId))
-            ActivityTimer.StartSession("VideoWatching", PlanItemId);
+        ActivityTimer.StartSession("VideoWatching", PlanItemId, ResourceIdParam, null);
         fromPlan = FromPlanParam;
         targetMinutes = TargetMinutesParam ?? 20;
         await LoadVideo();

@@ -5,7 +5,7 @@
 
 <div class="activity-page-wrapper">
 
-<PageHeader Title="Writing" ShowBack="true" OnBack="GoBack" />
+<PageHeader Title='@Localize["Activity_Writing"]' ShowBack="true" OnBack="GoBack" />
 
 <div class="activity-content">
 @if (showSessionSummary)
@@ -207,8 +207,8 @@ else
         Localize.CultureChanged += OnCultureChanged;
         Logger.LogInformation("🎯 Writing initialized — planItemId={PlanItemId}, resourceId={ResourceId}, skillId={SkillId}",
             PlanItemId ?? "(none)", ResourceIdParam ?? "(none)", SkillIdParam ?? "(none)");
-        if (!string.IsNullOrEmpty(PlanItemId))
-            ActivityTimer.StartSession("Writing", PlanItemId);
+        ActivityTimer.StartSession("Writing", PlanItemId, ResourceIdParam, SkillIdParam);
+
         await LoadVocabulary();
     }
 

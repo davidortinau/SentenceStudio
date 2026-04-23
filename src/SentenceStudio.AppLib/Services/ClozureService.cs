@@ -72,11 +72,29 @@ public class ClozureService
         var allVocab = resource.Vocabulary.ToList();
         var wordIds = allVocab.Select(w => w.Id).ToList();
         var progressDict = await _progressService.GetProgressForWordsAsync(wordIds);
-        _words = allVocab
+        var eligibleWords = allVocab
             .Where(w => !progressDict.ContainsKey(w.Id) || !progressDict[w.Id].IsInGracePeriod)
             .ToList();
-        _logger.LogDebug("Sending {WordCount} vocabulary words to AI ({Excluded} excluded for grace period)",
-            _words.Count, allVocab.Count - _words.Count);
+
+        // Cap vocab sample sent to AI. Dynamic resources (e.g. "New Words") can return
+        // thousands of eligible words, which blows past Scriban's 1000-iteration loop limit
+        // and would overwhelm the LLM context anyway. A random sample keeps variety.
+        const int MaxVocabSample = 40;
+        if (eligibleWords.Count > MaxVocabSample)
+        {
+            _words = eligibleWords
+                .OrderBy(_ => Random.Shared.Next())
+                .Take(MaxVocabSample)
+                .ToList();
+            _logger.LogDebug("Sampled {SampleCount} of {EligibleCount} eligible vocabulary words for AI prompt ({Excluded} excluded for grace period)",
+                _words.Count, eligibleWords.Count, allVocab.Count - eligibleWords.Count);
+        }
+        else
+        {
+            _words = eligibleWords;
+            _logger.LogDebug("Sending {WordCount} vocabulary words to AI ({Excluded} excluded for grace period)",
+                _words.Count, allVocab.Count - _words.Count);
+        }
 
         var skillProfile = await _skillRepository.GetSkillProfileAsync(skillID);
         _logger.LogDebug("Skill profile retrieved: {SkillTitle}", skillProfile?.Title ?? "null");

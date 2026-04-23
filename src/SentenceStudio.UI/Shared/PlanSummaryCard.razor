@@ -16,10 +16,22 @@
     }
     @foreach (var plan in Day.Plans)
     {
-        @if (Day.Plans.Count > 1)
+        var isAdHoc = plan.Items.Any() && plan.Items.All(i => i.PlanItemId.StartsWith("adhoc-", StringComparison.Ordinal));
+
+        @if (Day.Plans.Count > 1 || isAdHoc)
         {
             <div class="ss-caption1 text-secondary-ss mt-2 mb-1">
-                @Localize["PlanSummary_Plan"] @planIndex (@plan.GeneratedAt.ToLocalTime().ToString("h:mm tt"))
+                @{
+                    var label = isAdHoc
+                        ? Localize["PlanSummary_Freeform"].ToString()
+                        : $"{Localize["PlanSummary_Plan"]} {planIndex}";
+                    var timeLabel = plan.GeneratedAt.ToLocalTime().ToString("h:mm tt");
+                }
+                @if (isAdHoc)
+                {
+                    <i class="bi bi-stars me-1"></i>
+                }
+                <span>@label (@timeLabel)</span>
             </div>
         }
 
@@ -29,11 +41,37 @@
                 <i class="bi @(item.IsCompleted ? "bi-check-circle-fill text-success" : "bi-circle text-secondary-ss")"
                    style="font-size: 0.8rem;"></i>
                 <span class="activity-dot activity-dot-sm @GetDotClass(item.Category)"></span>
-                <span class="ss-body2 @(!item.IsCompleted ? "text-secondary-ss" : "")">
-                    @GetActivityDisplayName(item.ActivityType)
-                </span>
+                <div class="d-flex flex-column flex-grow-1 min-width-0">
+                    <span class="ss-body2 @(!item.IsCompleted ? "text-secondary-ss" : "")">
+                        @GetActivityDisplayName(item.ActivityType)
+                    </span>
+                    @if (!string.IsNullOrWhiteSpace(item.ResourceTitle) || !string.IsNullOrWhiteSpace(item.SkillName))
+                    {
+                        <span class="ss-caption1 text-secondary-ss text-truncate">
+                            @if (!string.IsNullOrWhiteSpace(item.ResourceTitle))
+                            {
+                                <i class="bi bi-book me-1"></i>@item.ResourceTitle
+                            }
+                            @if (!string.IsNullOrWhiteSpace(item.ResourceTitle) && !string.IsNullOrWhiteSpace(item.SkillName))
+                            {
+                                <span class="mx-1">·</span>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(item.SkillName))
+                            {
+                                <i class="bi bi-mortarboard me-1"></i>@item.SkillName
+                            }
+                        </span>
+                    }
+                </div>
                 <span class="ms-auto ss-caption1 text-secondary-ss">
-                    @item.MinutesSpent/@item.EstimatedMinutes min
+                    @if (isAdHoc)
+                    {
+                        @($"{item.MinutesSpent} min")
+                    }
+                    else
+                    {
+                        @($"{item.MinutesSpent}/{item.EstimatedMinutes} min")
+                    }
                 </span>
             </div>
         }
@@ -43,7 +81,10 @@
             <span class="ss-caption1 fw-bold">@plan.TotalMinutesSpent min</span>
         </div>
 
-        planIndex++;
+        if (!isAdHoc)
+        {
+            planIndex++;
+        }
     }
 </div>
 

@@ -9,7 +9,7 @@
 
 @if (!isSentenceShortcutMode && !showAnswer && !requireCorrectTyping)
 {
-    <PageHeader Title="Vocabulary Quiz" ShowBack="true" OnBack="GoBack">
+    <PageHeader Title='@Localize["Activity_VocabQuiz"]' ShowBack="true" OnBack="GoBack">
         <SecondaryActions>
             <li>
                 <button class="dropdown-item" @onclick="OpenSentenceShortcut">
@@ -21,7 +21,7 @@
 }
 else
 {
-    <PageHeader Title="Vocabulary Quiz" ShowBack="true" OnBack="GoBack" />
+    <PageHeader Title='@Localize["Activity_VocabQuiz"]' ShowBack="true" OnBack="GoBack" />
 }
 
 <div class="activity-content">
@@ -619,8 +619,8 @@ else
     {
         Localize.CultureChanged += OnCultureChanged;
         Logger.LogInformation("🎯 VocabQuiz initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
-        if (!string.IsNullOrEmpty(PlanItemId))
-            ActivityTimer.StartSession("VocabularyReview", PlanItemId);
+        var firstResourceId = ResourceIdsParam?.Split(',', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+        ActivityTimer.StartSession("VocabularyReview", PlanItemId, firstResourceId, SkillIdParam);
 
         var userProfile = await UserProfileRepo.GetAsync();
         nativeLanguage = userProfile?.NativeLanguage ?? "English";

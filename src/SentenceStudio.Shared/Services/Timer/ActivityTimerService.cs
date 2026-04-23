@@ -40,9 +40,10 @@ public class ActivityTimerService : IActivityTimerService
         _tickTimer.AutoReset = true;
     }
 
-    public void StartSession(string activityType, string? activityId = null)
+    public void StartSession(string activityType, string? activityId = null, string? resourceId = null, string? skillId = null)
     {
-        _logger.LogDebug("⏱️ ActivityTimerService.StartSession - activityType={ActivityType}, activityId={ActivityId}", activityType, activityId);
+        _logger.LogDebug("⏱️ ActivityTimerService.StartSession - activityType={ActivityType}, activityId={ActivityId}, resourceId={ResourceId}, skillId={SkillId}",
+            activityType, activityId, resourceId, skillId);
 
         // Save and stop any existing session (Pause saves unsaved progress before clearing)
         if (IsActive)
@@ -55,13 +56,83 @@ public class ActivityTimerService : IActivityTimerService
         _activityId = activityId;
         _previousProgressLoaded = false;
 
-        // Load existing progress, then start the stopwatch once loaded.
-        // This prevents a race where saves could overwrite prior progress
-        // if the user leaves before loading completes.
-        _ = LoadThenStartAsync();
+        // If no plan item id was provided this is an ad-hoc ("choose my own") session.
+        // Create a DailyPlanCompletion record so the activity shows up in the Activity Log.
+        if (string.IsNullOrEmpty(activityId))
+        {
+            _ = StartAdHocThenLoadAsync(activityType, resourceId, skillId);
+        }
+        else
+        {
+            // Load existing progress, then start the stopwatch once loaded.
+            // This prevents a race where saves could overwrite prior progress
+            // if the user leaves before loading completes.
+            _ = LoadThenStartAsync();
+        }
 
         TimerStateChanged?.Invoke(this, EventArgs.Empty);
         _logger.LogDebug("✅ Timer session starting (loading previous progress)");
+    }
+
+    /// <summary>
+    /// For ad-hoc sessions: create the DailyPlanCompletion record, capture its synthetic PlanItemId,
+    /// then start the stopwatch. No previous progress to load — ad-hoc sessions are always fresh.
+    /// </summary>
+    private async Task StartAdHocThenLoadAsync(string activityType, string? resourceId, string? skillId)
+    {
+        if (_progressService == null)
+        {
+            _logger.LogWarning("⚠️ No IProgressService — cannot persist ad-hoc session, timer will run but not save");
+            _pausedElapsed = TimeSpan.Zero;
+            _lastSavedMinutes = 0;
+            if (!IsActive) return;
+            _previousProgressLoaded = true;
+            _stopwatch.Restart();
+            _tickTimer?.Start();
+            TimerStateChanged?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+
+        if (!Enum.TryParse<SentenceStudio.Services.Progress.PlanActivityType>(activityType, out var parsedType))
+        {
+            _logger.LogWarning("⚠️ Could not parse activityType '{ActivityType}' as PlanActivityType — ad-hoc session not persisted", activityType);
+            _pausedElapsed = TimeSpan.Zero;
+            _lastSavedMinutes = 0;
+            if (!IsActive) return;
+            _previousProgressLoaded = true;
+            _stopwatch.Restart();
+            _tickTimer?.Start();
+            TimerStateChanged?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+
+        try
+        {
+            var adhocId = await _progressService.StartAdHocSessionAsync(parsedType, resourceId, skillId);
+            _activityId = adhocId;
+            _pausedElapsed = TimeSpan.Zero;
+            _lastSavedMinutes = 0;
+
+            // Guard: session may have been stopped while we were creating the record
+            if (!IsActive) return;
+
+            _previousProgressLoaded = true;
+            _stopwatch.Restart();
+            _tickTimer?.Start();
+            TimerStateChanged?.Invoke(this, EventArgs.Empty);
+            _logger.LogDebug("✅ Ad-hoc session '{AdhocId}' created, stopwatch started", adhocId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "❌ Failed to create ad-hoc session — timer will run but not save");
+            _pausedElapsed = TimeSpan.Zero;
+            _lastSavedMinutes = 0;
+            if (!IsActive) return;
+            _previousProgressLoaded = true;
+            _stopwatch.Restart();
+            _tickTimer?.Start();
+            TimerStateChanged?.Invoke(this, EventArgs.Empty);
+        }
     }
 
     /// <summary>

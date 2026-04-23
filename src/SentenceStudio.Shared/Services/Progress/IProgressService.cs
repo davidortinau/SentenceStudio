@@ -200,5 +200,14 @@ public interface IProgressService
     Task ClearCachedPlanAsync(DateTime date, CancellationToken ct = default);
     Task MarkPlanItemCompleteAsync(string planItemId, int minutesSpent, CancellationToken ct = default);
     Task UpdatePlanItemProgressAsync(string planItemId, int minutesSpent, CancellationToken ct = default);
+
+    /// <summary>
+    /// Creates a new ad-hoc ("choose my own") activity completion record and returns its synthetic PlanItemId.
+    /// Use the returned id with <see cref="UpdatePlanItemProgressAsync"/> / <see cref="IActivityTimerService"/>
+    /// so unplanned practice sessions show up in the Activity Log alongside plan items.
+    /// PlanItemIds produced here are prefixed with <c>adhoc-</c> and are filtered out of the dashboard's "today's plan".
+    /// </summary>
+    Task<string> StartAdHocSessionAsync(PlanActivityType activityType, string? resourceId, string? skillId, int estimatedMinutes = 10, CancellationToken ct = default);
+
     Task<List<ActivityLogWeek>> GetActivityLogAsync(DateTime fromUtc, DateTime toUtc, ActivityCategory? filter = null, CancellationToken ct = default);
 }

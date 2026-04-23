@@ -1407,6 +1407,11 @@ h3:focus,
     min-height: 2.5rem;
 }
 
+.activity-input-bar .activity-prompt {
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--bs-border-color);
+}
+
 .activity-footer {
     flex-shrink: 0;
     background: var(--bs-body-bg);

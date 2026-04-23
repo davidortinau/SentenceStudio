@@ -754,6 +754,58 @@ public class ProgressService : IProgressService
         return _progressRepo.GetDueVocabCountAsync(date);
     }
 
+    public async Task<string> StartAdHocSessionAsync(
+        PlanActivityType activityType,
+        string? resourceId,
+        string? skillId,
+        int estimatedMinutes = 10,
+        CancellationToken ct = default)
+    {
+        var userProfile = await _userProfileRepo.GetAsync();
+        if (userProfile == null)
+        {
+            _logger.LogWarning("❌ No user profile found - cannot start ad-hoc session");
+            // Still return an id so callers (e.g. timer) have something to key off — just won't persist.
+            return $"adhoc-{Guid.NewGuid()}";
+        }
+
+        var today = DateTime.UtcNow.Date;
+        var planItemId = $"adhoc-{Guid.NewGuid()}";
+
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var completion = new DailyPlanCompletion
+        {
+            Id = Guid.NewGuid().ToString(),
+            UserProfileId = userProfile.Id,
+            Date = today,
+            PlanItemId = planItemId,
+            ActivityType = activityType.ToString(),
+            ResourceId = resourceId,
+            SkillId = skillId,
+            IsCompleted = false,
+            CompletedAt = null,
+            MinutesSpent = 0,
+            EstimatedMinutes = estimatedMinutes,
+            Priority = 999, // sort after plan items
+            TitleKey = $"Activity_{activityType}",
+            DescriptionKey = string.Empty,
+            Rationale = string.Empty,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        await db.DailyPlanCompletions.AddAsync(completion, ct);
+        await db.SaveChangesAsync(ct);
+        if (_syncService != null) await _syncService.TriggerSyncAsync();
+
+        _logger.LogInformation("🎯 Started ad-hoc session '{PlanItemId}' for {ActivityType} (resource={ResourceId}, skill={SkillId})",
+            planItemId, activityType, resourceId ?? "none", skillId ?? "none");
+
+        return planItemId;
+    }
+
     private async Task<TodaysPlan> EnrichPlanWithCompletionDataAsync(TodaysPlan plan, CancellationToken ct)
     {
         _logger.LogDebug("🔧 Enriching plan with completion data for {Date:yyyy-MM-dd}", plan.GeneratedForDate);
@@ -1094,7 +1146,9 @@ public class ProgressService : IProgressService
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         var completions = await db.DailyPlanCompletions
-            .Where(c => c.Date == date.Date && c.UserProfileId == userProfile.Id)
+            .Where(c => c.Date == date.Date
+                && c.UserProfileId == userProfile.Id
+                && !c.PlanItemId.StartsWith("adhoc-"))
             .OrderBy(c => c.Priority)
             .ToListAsync(ct);
 

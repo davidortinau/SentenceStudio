@@ -4,6 +4,75 @@
 
 ---
 
+## 2026-04-23 — Ad-hoc activity tracking via synthetic plan completions
+
+**Date:** 2026-04-23
+**Owner:** David (Captain) + Copilot
+**Status:** ✅ Shipped to DX24
+
+### Problem
+
+`ActivityLog` (dashboard day-detail) only showed `DailyPlanItem` completions — "choose my own" sessions (user navigates directly to Translation/Writing/etc. without a plan) produced zero tracking. Captain wanted duration + resource + skill surfaced for freeform practice too.
+
+### Decision
+
+Persist ad-hoc sessions as synthetic `DailyPlanCompletion` rows with `PlanItemId = "adhoc-{guid}"`. Reuse the existing ActivityLog pipeline unchanged, and filter the `adhoc-*` prefix out of plan reconstruction so they don't pollute "Today's Plan" on the dashboard.
+
+### Implementation
+
+- `IProgressService.StartAdHocSessionAsync(PlanActivityType, resourceId, skillId, estimatedMinutes=10)` creates the record. Priority=999, TitleKey=`Activity_{type}`.
+- `ProgressService.ReconstructPlanFromDatabase` filters `!c.PlanItemId.StartsWith("adhoc-")` so the dashboard only sees real plan items.
+- `GetActivityLogAsync` intentionally reads ALL completions so ad-hoc rows show up in day detail.
+- `IActivityTimerService.StartSession(activityType, activityId?, resourceId?, skillId?)` — when `activityId` is null/empty, auto-creates the ad-hoc record and starts the stopwatch.
+- `PlanSummaryCard` detects `plan.Items.All(i => i.PlanItemId.StartsWith("adhoc-"))` and renders the cluster with a ✨ icon + "Freeform practice" label instead of "Plan N". Duration shown as `N min` (no estimate denominator since ad-hoc has no committed target).
+- All 10 activity razor pages now call `StartSession` unconditionally (was `if (!string.IsNullOrEmpty(PlanItemId)) …`).
+
+### Gotchas / lessons
+
+- **`PlanActivityType` enum values** are narrower than the activity page set. Valid: `VocabularyReview, Reading, Listening, VideoWatching, Shadowing, Cloze, Translation, Writing, SceneDescription, Conversation, VocabularyGame`. **No** `VocabularyMatching, HowDoYouSay, WordAssociation, MinimalPairs`. VocabMatching was passing `"VocabularyMatching"` which silently failed `Enum.Parse` — fix was to use `"VocabularyGame"` (matches the `/vocabulary-matching` route's enum mapping).
+- HowDoYouSay / WordAssociation / MinimalPairs pages still exist; they won't record ad-hoc rows because there's no enum value. `ActivityTimerService.StartAdHocThenLoadAsync` logs a warning and runs the timer without persistence in that case — acceptable fallback until the enum is widened.
+- Plan clustering groups completions within 60s of each other. An ad-hoc session started mid-day will form its own cluster — hence the visual differentiator. Don't try to force ad-hoc rows into the user's morning plan cluster.
+- **Resource/skill query param naming is NOT uniform** across pages. Captured:
+  - `ResourceIdParam` (singular): Translation, Writing, Cloze, Reading, Shadowing, Conversation, Scene, VideoWatching
+  - `ResourceIdsParam` (plural, comma-separated): VocabQuiz, VocabMatching
+  - No skill: VocabMatching, VideoWatching
+  - For ad-hoc persistence of plural-resource activities, take the **first** id: `ResourceIdsParam?.Split(',').FirstOrDefault()`.
+
+### Razor parser quirk (worth remembering)
+
+Nested `@if/@else` with string-interpolated text containing parens around a method chain (e.g. `@Localize["Key"] (@plan.GeneratedAt.ToLocalTime().ToString("h:mm tt"))`) throws `CS1002: ; expected`. Workaround: pre-compute strings in a `@{ }` block and emit `<span>@label (@timeLabel)</span>`. Don't fight the parser.
+
+---
+
+## 2026-04-23 — DX24 deploy playbook: pack version trumps folder name
+
+**Date:** 2026-04-23
+**Owner:** David (Captain) + Copilot
+**Status:** ✅ Documented in `docs/deploy-runbook.md`
+
+### Context
+
+Hit a false "blocker" during DX24 publish: build errored with `This version of .NET for iOS (26.2.10191) requires Xcode 26.2. The current version of Xcode is 26.3` even after swapping `global.json` to .NET 11 preview 3. I concluded (wrong) that no Xcode-26.3-compatible pack existed because every iOS SDK folder was named `*_26.2`. Captain correctly pointed out this setup HAD just worked earlier in the same session.
+
+### What was actually true
+
+- Folder name (`Microsoft.iOS.Sdk.net11.0_26.2`) reports SDK GENERATION, not Xcode requirement.
+- The **pack version** inside it tells the real story:
+  - `26.2.10xxx` (no suffix) = net10 pack, Xcode 26.2 only
+  - `26.2.11xxx-net11-pN` = net11 preview pack, Xcode 26.3 compatible (e.g. `26.2.11588-net11-p3`)
+- The error referenced `26.2.10191` — a net10 pack — which means SDK resolution had fallen back to the net10 workload for `net10.0-ios` TFM. The fix was to simply retry the build under net11 preview 3 SDK; it picked the correct net11-p3 pack on the second try.
+
+### Rules going forward
+
+1. **Don't declare "blocker" when an environment previously worked in the same session** — retry and verify first.
+2. When reading iOS SDK pack errors, read the **full version string**, including the `-net11-pN` suffix. Pack version disambiguates; folder name doesn't.
+3. Transient `devicectl` errors (`Socket is not connected`, `ControlChannelConnectionError`) — wait a few seconds and retry. Don't treat as a hard failure.
+4. `FBSOpenApplicationErrorDomain error 7 (Locked)` on launch = phone is locked. Install succeeded; tell Captain to unlock and tap the icon. Not a build/install failure.
+
+`docs/deploy-runbook.md` step 2a now documents the pack-version vs folder-name distinction, and the Common Issues table covers the transient/locked cases.
+
+---
+
 ## 2026-04-18 — Phase 1 Display Language Restoration (Complete)
 
 **Date:** 2026-04-18  

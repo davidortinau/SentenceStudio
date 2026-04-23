@@ -42,11 +42,15 @@ public interface IActivityTimerService
     event EventHandler<TimeSpan>? TimerTick;
 
     /// <summary>
-    /// Start a new timer session for an activity
+    /// Start a new timer session for an activity.
+    /// When <paramref name="activityId"/> is null/empty, an ad-hoc DailyPlanCompletion record is created
+    /// (via IProgressService.StartAdHocSessionAsync) so "choose my own" practice shows up in the Activity Log.
     /// </summary>
-    /// <param name="activityType">Type of activity being timed</param>
-    /// <param name="activityId">Optional ID for specific activity instance</param>
-    void StartSession(string activityType, string? activityId = null);
+    /// <param name="activityType">Type of activity being timed (must match <see cref="PlanActivityType"/>)</param>
+    /// <param name="activityId">Optional plan item ID. Omit for ad-hoc ("choose my own") sessions.</param>
+    /// <param name="resourceId">Optional learning resource id — stored on the ad-hoc completion record.</param>
+    /// <param name="skillId">Optional skill id — stored on the ad-hoc completion record.</param>
+    void StartSession(string activityType, string? activityId = null, string? resourceId = null, string? skillId = null);
 
     /// <summary>
     /// Pause the current timer session

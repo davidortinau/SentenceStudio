@@ -8,7 +8,7 @@
 
 <div class="activity-page-wrapper">
 
-<PageHeader Title="Scene Description" ShowBack="true" OnBack="GoBack">
+<PageHeader Title='@Localize["Activity_DescribeScene"]' ShowBack="true" OnBack="GoBack">
     <ToolbarActions>
         <button class="btn btn-sm btn-icon text-secondary-ss" @onclick="OpenGallery" title="Image gallery">
             <i class="bi bi-images" style="font-size: 1.25rem;"></i>
@@ -266,8 +266,7 @@ else
         Localize.CultureChanged += OnCultureChanged;
         Logger.LogInformation("🎯 Scene initialized — planItemId={PlanItemId}, resourceId={ResourceId}, skillId={SkillId}",
             PlanItemId ?? "(none)", ResourceIdParam ?? "(none)", SkillIdParam ?? "(none)");
-        if (!string.IsNullOrEmpty(PlanItemId))
-            ActivityTimer.StartSession("SceneDescription", PlanItemId);
+        ActivityTimer.StartSession("SceneDescription", PlanItemId, ResourceIdParam, SkillIdParam);
         fromPlan = FromPlanParam;
         targetMinutes = TargetMinutesParam ?? 10;
 

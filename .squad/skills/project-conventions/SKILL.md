@@ -88,6 +88,17 @@ dotnet test
 - Default/null returns for external API failures (TTS, image)
 - Connectivity resilience via `ConnectivityChangedMessage`
 
+## Activity tracking (ad-hoc + plan items)
+
+- Every activity page calls `ActivityTimer.StartSession(activityType, PlanItemId, resourceId, skillId)` **unconditionally** — when `PlanItemId` is null/empty the service creates a synthetic `DailyPlanCompletion` with `PlanItemId = "adhoc-{guid}"` so freeform sessions get duration tracking.
+- `activityType` string must parse to a `PlanActivityType` enum value or the ad-hoc row is silently dropped. **Valid enum values** (see `IProgressService.cs`): `VocabularyReview, Reading, Listening, VideoWatching, Shadowing, Cloze, Translation, Writing, SceneDescription, Conversation, VocabularyGame`. **NOT valid**: `VocabularyMatching` (use `VocabularyGame`), `HowDoYouSay`, `WordAssociation`, `MinimalPairs`.
+- `ReconstructPlanFromDatabase` filters `adhoc-*` so they don't show up in "Today's Plan"; `GetActivityLogAsync` includes them so day-detail shows freeform practice with its own "Freeform practice" cluster.
+- Query param naming is NOT uniform: most pages use singular `ResourceIdParam`; `VocabQuiz`/`VocabMatching` use plural `ResourceIdsParam` (comma-separated — take `.Split(',').FirstOrDefault()` for ad-hoc persistence).
+
+## Scriban prompt loops
+
+Default iteration limit is 1000. Dynamic learning resources ("New Words") can return thousands of unpracticed terms. Any service rendering `{{ for t in terms }}` must cap the collection before passing to the template — current cap is **40 random words** in `TranslationService` and `ClozureService`. If adding a new activity that loops vocab, apply the same cap.
+
 ## MauiReactor Conventions
 
 - Use `VStart()` / `VEnd()` not `Top()` / `Bottom()`

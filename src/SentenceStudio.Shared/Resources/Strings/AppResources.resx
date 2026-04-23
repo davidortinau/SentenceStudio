@@ -5990,6 +5990,10 @@ For example: {0} ...</value>
     <value>Plan</value>
     <comment>Plan label</comment>
   </data>
+  <data name="PlanSummary_Freeform" xml:space="preserve">
+    <value>Freeform practice</value>
+    <comment>Label for ad-hoc (non-plan) activity cluster in day summary</comment>
+  </data>
   <data name="PlanSummary_TotalTime" xml:space="preserve">
     <value>Total time</value>
     <comment>Total time label</comment>

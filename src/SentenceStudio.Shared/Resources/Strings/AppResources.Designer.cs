@@ -5899,6 +5899,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Freeform practice.
+        /// </summary>
+        internal static string PlanSummary_Freeform {
+            get {
+                return ResourceManager.GetString("PlanSummary_Freeform", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Plan.
         /// </summary>
         internal static string PlanSummary_Plan {
