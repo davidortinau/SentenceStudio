@@ -1,0 +1,59 @@
+{
+  "tables": [
+    {
+      "columns": [
+        {
+          "name": "timestamp",
+          "type": "datetime"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "resultCode",
+          "type": "string"
+        },
+        {
+          "name": "duration",
+          "type": "real"
+        },
+        {
+          "name": "operation_Id",
+          "type": "string"
+        }
+      ],
+      "name": "PrimaryResult",
+      "rows": [
+        [
+          "2026-04-22T01:44:30.834154Z",
+          "POST /api/auth/login",
+          "401",
+          5.528,
+          "5c4324bba96c15b5da00f712ac863982"
+        ],
+        [
+          "2026-04-22T01:44:30.661627Z",
+          "GET /__debug/boom",
+          "500",
+          1.85,
+          "f024e18789cefa6595e8d17a3addf15b"
+        ],
+        [
+          "2026-04-22T01:44:30.612819Z",
+          "GET /__debug/boom",
+          "500",
+          15.023,
+          "41700dd3f0449dce514423173427f4b9"
+        ],
+        [
+          "2026-04-22T01:44:30.371703Z",
+          "POST /api/auth/login",
+          "401",
+          207.482,
+          "87dc748e91e149db7bab784a52ef54cf"
+        ]
+      ]
+    }
+  ]
+}

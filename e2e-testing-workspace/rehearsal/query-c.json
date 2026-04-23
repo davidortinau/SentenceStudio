@@ -1,0 +1,51 @@
+{
+  "tables": [
+    {
+      "columns": [
+        {
+          "name": "timestamp",
+          "type": "datetime"
+        },
+        {
+          "name": "itemType",
+          "type": "string"
+        },
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "cloud_RoleName",
+          "type": "string"
+        },
+        {
+          "name": "operation_Id",
+          "type": "string"
+        },
+        {
+          "name": "operation_ParentId",
+          "type": "string"
+        }
+      ],
+      "name": "PrimaryResult",
+      "rows": [
+        [
+          "2026-04-22T01:44:30.834154Z",
+          "request",
+          "POST /api/auth/login",
+          "SentenceStudio.Api",
+          "5c4324bba96c15b5da00f712ac863982",
+          "d96513170a11dd97"
+        ],
+        [
+          "2026-04-22T01:44:30.838081Z",
+          "dependency",
+          "postgresql",
+          "SentenceStudio.Api",
+          "5c4324bba96c15b5da00f712ac863982",
+          "ab809153d6e3145d"
+        ]
+      ]
+    }
+  ]
+}

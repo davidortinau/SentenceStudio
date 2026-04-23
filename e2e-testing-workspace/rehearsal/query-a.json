@@ -1,0 +1,59 @@
+{
+  "tables": [
+    {
+      "columns": [
+        {
+          "name": "timestamp",
+          "type": "datetime"
+        },
+        {
+          "name": "type",
+          "type": "string"
+        },
+        {
+          "name": "outerMessage",
+          "type": "string"
+        },
+        {
+          "name": "cloud_RoleName",
+          "type": "string"
+        },
+        {
+          "name": "operation_Id",
+          "type": "string"
+        }
+      ],
+      "name": "PrimaryResult",
+      "rows": [
+        [
+          "2026-04-22T01:44:30.66344Z",
+          "System.InvalidOperationException",
+          "Dress rehearsal: server-side AppInsights exception capture",
+          "SentenceStudio.Api",
+          "f024e18789cefa6595e8d17a3addf15b"
+        ],
+        [
+          "2026-04-22T01:44:30.663304Z",
+          "System.InvalidOperationException",
+          "Dress rehearsal: server-side AppInsights exception capture",
+          "SentenceStudio.Api",
+          "f024e18789cefa6595e8d17a3addf15b"
+        ],
+        [
+          "2026-04-22T01:44:30.627562Z",
+          "System.InvalidOperationException",
+          "Dress rehearsal: server-side AppInsights exception capture",
+          "SentenceStudio.Api",
+          "41700dd3f0449dce514423173427f4b9"
+        ],
+        [
+          "2026-04-22T01:44:30.627123Z",
+          "System.InvalidOperationException",
+          "Dress rehearsal: server-side AppInsights exception capture",
+          "SentenceStudio.Api",
+          "41700dd3f0449dce514423173427f4b9"
+        ]
+      ]
+    }
+  ]
+}
