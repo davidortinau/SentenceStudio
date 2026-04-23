@@ -442,3 +442,6 @@ src/.claude/settings.local.json
 .playwright-mcp/
 *.png
 *.lscache
+
+# e2e testing scratch/rehearsal artifacts
+e2e-testing-workspace/rehearsal/
