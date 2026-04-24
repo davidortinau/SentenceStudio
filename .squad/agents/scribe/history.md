@@ -11,6 +11,7 @@ Agent Scribe initialized and ready for work.
 
 📌 Team initialized on 2026-03-07
 📌 Squad — Word/Phrase Plan Review checkpoint logged 2026-07-26 (5-agent consensus, 3 Captain decisions, implementation ready)
+📌 **2026-04-24** Bookkeeping pass: Merged 3 Wash decisions from inbox (DB reconcile Option A + smart-resource idempotency + wireup), logged session for WoC push (7cddc6e, ff0bb25), pushed to origin/main
 
 ## Learnings
 
