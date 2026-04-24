@@ -1822,11 +1822,11 @@ No new database tables. No migrations. No background infrastructure. One new ser
 
 | Current | Proposed | Route | Icon |
 |---|---|---|---|
-| Import | **Video Subscriptions** | `/video-subscriptions` | `bi-youtube` (or `bi-camera-video`) |
+| Import | **Video Subscriptions** | `/video-subscriptions` | `bi-youtube` (or `bi-camera-video`) | *(superseded — see Final Rulings 2026-04-24)* |
 | _(new)_ | **Import Content** | `/import-content` | `bi-box-arrow-in-down` |
 
 Rationale for the names:
-- "Video Subscriptions" says exactly what it is: YouTube channel monitoring and single-video import. The word "Import" was always too generic for what is really a subscription manager.
+- "Video Subscriptions" says exactly what it is: YouTube channel monitoring and single-video import. The word "Import" was always too generic for what is really a subscription manager. *(superseded — see Final Rulings 2026-04-24)*
 - "Import Content" is the new generic data import. "Content" scopes it to learning material (not settings, not backups). The route `/import-content` avoids collision with the existing `/import` route during migration.
 
 ### Nav order in `NavMenu.razor`
@@ -1835,26 +1835,24 @@ Rationale for the names:
 new NavItem("resources",           "bi-book",               Localize["Nav_LearningResources"]),
 new NavItem("vocabulary",          "bi-card-text",           Localize["Nav_Vocabulary"]),
 new NavItem("import-content",      "bi-box-arrow-in-down",   Localize["Nav_ImportContent"]),
-new NavItem("video-subscriptions", "bi-camera-video",        Localize["Nav_VideoSubscriptions"]),
+new NavItem("media-import",        "bi-film",               Localize["Nav_MediaImport"]), // (superseded — see Final Rulings 2026-04-24)
 ```
 
-Import Content sits next to Resources and Vocabulary (data management cluster). Video Subscriptions follows — related but distinct.
+Import Content sits next to Resources and Vocabulary (data management cluster). Media Import (renamed from Video Subscriptions per Captain ruling) follows — related but distinct.
 
 ### What happens to existing `/import`
 
 Two options, recommend Option A:
 
-**Option A (clean break):** Rename `Import.razor` to `VideoSubscriptions.razor`, change `@page "/import"` to `@page "/video-subscriptions"`. Add a redirect from `/import` to `/video-subscriptions` (one-line middleware or `@page "/import"` kept as a secondary route) so bookmarks don't break. Update `NavMenu.razor` with the new key, icon, and label.
+**Original Options A/B:** (superseded — see Final Rulings 2026-04-24)
 
-**Option B (minimal touch):** Keep `Import.razor` as-is at `/import`, just rename the nav label to "Video Subscriptions" and change the icon. Less churn, but the route name stays misleading.
-
-Recommend A. The route rename is low-risk (no external consumers of `/import` — it is an authenticated SPA page, not a public URL). The secondary `@page "/import"` attribute handles any stale navigation state.
+**Final Ruling:** Rename `Import.razor` to `MediaImport.razor`, change `@page "/import"` to `@page "/media-import"`. Keep `@page "/import"` as a secondary route for backward compatibility redirect. Update `NavMenu.razor` with new label "Media Import" and icon `bi-film`. The route rename is low-risk (no external consumers of `/import` — it is an authenticated SPA page, not a public URL).
 
 ### Does Import.razor need refactoring?
 
 No structural refactoring needed. It is already focused on YouTube concerns (channels, single video, history). Renaming the file and route is sufficient. The three tabs (Channels, Single Video, History) remain as they are.
 
-The only code-level change: update localization keys from `Import_*` to `VideoSub_*` (or keep the old keys and just change the display values — cheaper, no functional difference). Recommend keeping the old keys for MVP to avoid a localization churn; rename in a cleanup pass.
+The only code-level change: update localization keys from `Import_*` to `MediaImport_*` (or keep the old keys and just change the display values — cheaper, no functional difference). Recommend keeping the old keys for MVP to avoid a localization churn; rename in a cleanup pass. *(superseded — see Final Rulings 2026-04-24)*
 
 ---
 
@@ -1872,7 +1870,7 @@ This page is not tabbed. It is a single-purpose form:
 - Preview table
 - Commit button
 
-No relationship to the YouTube/Video Subscriptions page. No shared tabs or parent component.
+No relationship to the YouTube/Media Import page. No shared tabs or parent component. *(superseded — see Final Rulings 2026-04-24)*
 
 Blazor webapp is the primary surface. MAUI Hybrid gets it via the shared UI project. Native MauiReactor page deferred to v2.
 
@@ -1880,19 +1878,48 @@ Blazor webapp is the primary surface. MAUI Hybrid gets it via the shared UI proj
 
 **UI layer:**
 - New file: `src/SentenceStudio.UI/Pages/ImportContent.razor` — the form + preview.
-- New component: `src/SentenceStudio.UI/Pages/ImportPreviewTable.razor` — the editable preview grid (can be shared with Video Subscriptions later if needed).
-- `NavMenu.razor`: Add `import-content` entry, rename `import` to `video-subscriptions`.
-- Localization: Add `Nav_ImportContent` and `Nav_VideoSubscriptions` keys. Add `ImportContent_*` keys for the new page. Existing `Import_*` keys remain untouched (they serve Video Subscriptions).
+- New component: `src/SentenceStudio.UI/Pages/ImportPreviewTable.razor` — the editable preview grid (can be shared with Media Import later if needed).
+- `NavMenu.razor`: Add `import-content` entry, rename `import` to `media-import`. *(superseded — see Final Rulings 2026-04-24)*
+- Localization: Add `Nav_ImportContent` and `Nav_MediaImport` keys. Add `ImportContent_*` keys for the new page. Existing `Import_*` keys remain untouched (they serve Media Import). *(superseded — see Final Rulings 2026-04-24)*
 
 **Service layer:** No change from original plan. `ContentImportService` in Shared, no API endpoint for MVP.
 
-**Existing `Import.razor`:** Rename to `VideoSubscriptions.razor`, route to `/video-subscriptions`, keep `@page "/import"` as secondary route for backward compat. No structural changes to its internals.
+**Existing `Import.razor`:** Rename to `MediaImport.razor`, route to `/media-import`, keep `@page "/import"` as secondary route for backward compat. No structural changes to its internals. *(superseded — see Final Rulings 2026-04-24)*
 
 ---
 
 ## Summary
 
-Separate pages. "Import Content" at `/import-content` for the new feature. "Video Subscriptions" at `/video-subscriptions` for YouTube. Clean names, clean growth paths, no shared complexity. The rest of the architecture plan (Sections 2-5, 7-9) is unaffected.
+Separate pages. "Import Content" at `/import-content` for the new feature. "Media Import" (renamed from "Video Subscriptions" per Captain ruling) at `/media-import` for YouTube. Clean names, clean growth paths, no shared complexity. The rest of the architecture plan (Sections 2-5, 7-9) is unaffected.
+
+---
+
+## 2026-04-24 — Captain's Final Rulings — Data Import
+
+**Date:** 2026-04-24  
+**Respondent:** David Ortinau (Captain)  
+**Context:** Ruling on 7 open questions from Zoe's architecture proposal  
+**Status:** ✅ Final  
+
+### Rulings
+
+1. **Dedup default behavior:** Skip and reuse existing. When importing vocabulary that already exists in the database, the default is "skip and reuse existing" (matches YouTube pipeline pattern). Safest path: prevents accidental mutation of shared words.
+
+2. **Source attribution field:** Deferred to v2. Not included in MVP. Can be added post-launch as an optional field on `LearningResource.Description` or a dedicated tag.
+
+3. **Single-column imports (target language terms only):** Use AI to translate on import. **New MVP work item: `mvp-single-column-translate`.** Reuses existing `GetTranslations`-style prompt pattern. Editable AI-filled cells in preview, badged to indicate AI-filled, never silently committed blank. User can edit or delete cells before commit.
+
+4. **Mobile clipboard paste shortcut:** Not needed for MVP. The textarea on ImportContent is sufficient. Shortcut can be added in v2 if users request it.
+
+5. **"Replace all vocabulary" mode:** Deferred to v2. MVP only supports append-only merge. v2 will add "replace all words on this resource" option behind confirmation modal.
+
+6. **Renamed YouTube import page:** Label is **"Media Import"**, route is **/media-import** (NOT "Video Subscriptions" / `/video-subscriptions` as originally proposed). Primary route is `/media-import`. Keep `/import` as secondary `@page` attribute for backward-compatibility redirect. This clarifies the page scope without using "video" which may confuse users when transcripts or other media are added.
+
+7. **Separate-page placement:** Confirmed. New import feature lives at `/import-content` (separate from `/media-import`). No shared tabs. Clean separation enables independent growth.
+
+### MVP Work Items Added
+
+- **mvp-single-column-translate:** Add AI prompt task to translate single-column vocabulary imports. Produces editable preview with AI-filled cells (badged), user can edit or delete before commit.
 # Import Data Layer Scout — Findings for Zoe
 
 **Date:** 2026-05-30  
