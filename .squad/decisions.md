@@ -1369,3 +1369,111 @@ ShadowingUnknownTerm: WordId={WordId} Term={Term} needs classification
 
 **Action:** Awaits Captain decision. Scribe cannot proceed without explicit guidance.
 
+
+---
+
+## 2026-04-24 — DX24 LexicalUnitType Production Hotfix
+
+**Date:** 2026-04-24  
+**Agent:** Wash (Backend Dev)  
+**Status:** Implemented, code-reviewed, shipped  
+**Type:** Production Emergency Fix
+
+### Problem
+
+DX24 Release iOS build crash. Symptom: "no such column: LexicalUnitType" on Vocabulary page and all activity pages.
+
+### Root Cause
+
+Migration `20260423213242_AddLexicalUnitTypeAndConstituents` failed silently on DX24. The schema was incomplete (column never added). EF entity property expects `LexicalUnitType` to exist and be non-nullable. Query fails on schema mismatch.
+
+Pattern: SQLite on mobile can silently fail migrations. `SyncService.InitializeDatabaseAsync` had catch-all exception handler that logged and continued (degraded mode).
+
+### Solution
+
+Two-file hotfix (SQLite provider only; PostgreSQL migration unchanged on Azure):
+
+1. **SQLite Migration** — Convert Up() to empty, idempotent no-op
+   - File: `src/SentenceStudio.Shared/Migrations/Sqlite/20260423213242_AddLexicalUnitTypeAndConstituents.cs`
+   - Pattern: Exact match to `AddMissingVocabularyWordLanguageColumn.cs` precedent
+   - Leave Down() functional for rollback
+
+2. **SyncService** — Extend PatchMissingColumnsAsync
+   - File: `src/SentenceStudio.Shared/Services/SyncService.cs`
+   - Add LexicalUnitType column patch + PhraseConstituent table patch
+   - Both use IF NOT EXISTS / pragma checks (idempotent)
+   - Runs BEFORE and AFTER MigrateAsync (defense-in-depth)
+
+### Verification
+
+- Build: ✅ 0 errors
+- Code review: ✅ SHIP IT (5/5 checks passed)
+- DX24 deployment: ExposureCount NULL count 1871 → 0; vocab + activities load
+
+### Rule for Future Migrations
+
+**REQUIRED for all new SQLite schema changes:**
+1. Make SQLite migration Up() empty with doc comment explaining pattern
+2. Add corresponding entry to `PatchMissingColumnsAsync` at the SAME TIME
+3. Use IF NOT EXISTS / pragma checks for idempotency
+4. Leave Down() functional for rollback
+
+---
+
+## 2026-04-24 — Mobile Migration Validation Strategy
+
+**Status:** Active  
+**Date:** 2026-04-24  
+**Context:** DX24 production emergency — migration schema mismatches on iOS/Android.  
+**Participants:** Captain, Wash
+
+### Problem
+
+**Migration test architecture is wrong.** xUnit projects target `net10.0` (server TFM). Conditional compilation in `SentenceStudio.Shared.csproj` excludes SQLite migrations from server TFMs. Tests tried to apply PostgreSQL migrations to SQLite database → "near ALTER" syntax error. Tests don't validate mobile.
+
+### Solution: Three-Layer Defense
+
+**Layer 1: Runtime schema sanity check (mobile DEBUG only)**
+- File: `src/SentenceStudio.Shared/Services/MigrationSanityCheckService.cs`
+- Validates critical tables + columns post-migration using `pragma_table_info`
+- DEBUG: Throws `InvalidOperationException` (fail-fast for devs)
+- Release: Logs `LogCritical` (don't brick user apps)
+
+**Layer 2: Automated Mac Catalyst validation (pre-deploy gate)**
+- File: `scripts/validate-mobile-migrations.sh`
+- Builds Mac Catalyst Debug + launches app via `maui devflow`
+- Fetches logs, greps for SQLite errors
+- Run BEFORE any migration-touching PR merge
+
+**Layer 3: Hardened exception handling**
+- File: `src/SentenceStudio.Shared/Services/SyncService.cs`
+- Split try/catch: migration failures → `LogCritical` + re-throw (FATAL)
+- Background tasks → `LogError` + continue (degraded OK)
+
+**Layer 4: Defense-in-depth patching (existing, keep)**
+- File: `SyncService.PatchMissingColumnsAsync`
+- Runs BEFORE and AFTER MigrateAsync on mobile
+- Patches missing columns/tables with IF NOT EXISTS
+
+### Why NOT xUnit for mobile migrations
+
+xUnit can't target mobile TFMs (no test runner on iOS simulator). SQLite migrations aren't compiled into `net10.0` test projects. Would need duplicate migration code or MSBuild hacks. **Rejected.** Use runtime + script validation instead.
+
+### What We Learned
+
+SQLite has severe ALTER TABLE limits (no type changes, no drops, no renames on old iOS versions). Exceptions on mobile are silent (caught and logged). Conditional compilation makes unit tests misleading. Only real validation is on actual mobile build.
+
+---
+
+## 2026-04-24T15:54:33Z — User Directive
+
+**By:** David Ortinau (via Copilot)
+
+**Directive:** Agents MUST drive physical-device verification themselves (tap, navigate, screenshot, read errors). NOT ask Captain to tap buttons or read errors on DX24 Release builds.
+
+**Rationale:** Captain explicitly stated twice: "you should be logging these in debug so you can read them yourself. I'm not your error reading monkey" and "you need to be doing this e2e yourself. There's no excuse for asking me to tap buttons."
+
+**Tools available:** `appium-automation` skill, `xcrun devicectl`, Appium. MauiDevFlow being `#if DEBUG` is not an excuse — use another tool.
+
+**Scope:** Applies to all device work, not just Debug builds. Agents own the full e2e cycle.
+

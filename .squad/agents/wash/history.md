@@ -1558,3 +1558,46 @@ None. Exact match to Captain's specification.
 
 
 - 2026-04-24: **DX24 LexicalUnitType Hotfix (Production Emergency)** — Captain installed Release iOS build (feat/vocab Word-vs-Phrase, commit ff0bb25) to DX24 (iPhone) but app errored on every activity page with "no such column: LexicalUnitType". Root cause: `SyncService.InitializeDatabaseAsync` has a catch-all at lines 227-230 that logs MigrateAsync exceptions and continues, so the new migration `20260423213242_AddLexicalUnitTypeAndConstituents` failed silently on device. Established pattern from `AddMissingVocabularyWordLanguageColumn.cs`: SQLite migrations for mobile must be idempotent via `PatchMissingColumnsAsync` because MigrateAsync failures are swallowed. Fix: (1) Made SQLite migration Up() empty with doc comment explaining snapshot-only advancement + PatchMissingColumnsAsync pre-migration patching pattern. (2) Extended `PatchMissingColumnsAsync` to add `LexicalUnitType INTEGER NOT NULL DEFAULT 0` column to VocabularyWord if missing AND create `PhraseConstituent` table with all 3 indexes (FK1, FK2, unique composite) using `CREATE TABLE IF NOT EXISTS` + `CREATE INDEX IF NOT EXISTS` for idempotency. Pattern confirmed: future SQLite migrations adding columns/tables must pair migration file with PatchMissingColumnsAsync entries at landing time or risk silent schema drift on mobile. Build green (Shared Release). Decision: `.squad/decisions/inbox/wash-dx24-lexical-patch.md`.
+
+---
+
+## CRITICAL RULE: SQLite Migration Defense-in-Depth (2026-04-24)
+
+**Context:** DX24 vocab-page crash (NULL at ordinal 8, then LexicalUnitType missing column).
+
+**Pattern:** Defensive ALTER TABLE patches MUST include DEFAULT clauses for non-nullable entity properties, PLUS an idempotent backfill UPDATE for databases patched before the fix shipped.
+
+**Example:**
+```csharp
+// In migration: add NOT NULL DEFAULT when possible
+migrationBuilder.AddColumn<int>(
+    name: "ExposureCount",
+    table: "VocabularyProgress",
+    nullable: false,
+    defaultValue: 0);
+
+// In SyncService.PatchMissingColumnsAsync: idempotent backfill
+var result = await connection.ExecuteAsync(
+    "UPDATE VocabularyProgress SET ExposureCount = 0 WHERE ExposureCount IS NULL");
+_logger.LogWarning($"Patched {result} rows: ExposureCount NULL → 0");
+```
+
+**When migration can't use DEFAULT** (e.g., computed column, complex logic):
+1. Still add the column with a safe default (NULL if nullable, 0 if int, empty string if text, etc.)
+2. Implement idempotent post-migration backfill in `PatchMissingColumnsAsync` using `WHERE ... IS NULL` or `WHERE ... = <old_value>`
+3. Log at WARNING level with row count
+4. Non-fatal on error (log + continue, user app must not crash)
+
+**Why this matters:**
+- SQLite on iOS/Android can have legacy migration history seeded without schema applied
+- `MigrateAsync` failures are caught + logged in `SyncService.InitializeDatabaseAsync` (non-fatal, degraded mode)
+- Silent schema drift means NULLs in non-nullable EF entity properties → `SqliteException` on every query
+- User sees crash only when navigating to a page that queries the incomplete schema (very late in session)
+
+**For all future SQLite migrations (mobile):**
+1. Make the SQLite migration Up() idempotent (either empty with doc comment explaining PatchMissingColumnsAsync handles it, or use SQL that works on repeat)
+2. Add corresponding entry to `PatchMissingColumnsAsync` at the same time the migration lands
+3. Use IF NOT EXISTS / pragma checks for idempotency
+4. Reference: `AddMissingVocabularyWordLanguageColumn.cs` (empty Up() + patch pattern) and commit c9b1d0a (ExposureCount example)
+
+**Verification:** Always test on Mac Catalyst Debug build (via `scripts/validate-mobile-migrations.sh`) and device before merge.
