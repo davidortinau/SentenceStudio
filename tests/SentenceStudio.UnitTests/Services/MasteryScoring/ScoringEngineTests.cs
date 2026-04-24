@@ -79,6 +79,7 @@ public class ScoringEngineTests : IDisposable
             progressRepo,
             contextRepo,
             NullLogger<VocabularyProgressService>.Instance,
+            _serviceProvider,
             _mockPreferences.Object);
     }
 

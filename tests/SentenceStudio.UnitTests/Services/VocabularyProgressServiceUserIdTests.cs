@@ -69,6 +69,7 @@ public class VocabularyProgressServiceUserIdTests : IDisposable
             progressRepo,
             contextRepo,
             NullLogger<VocabularyProgressService>.Instance,
+            _serviceProvider,
             _mockPreferences.Object);
     }
 

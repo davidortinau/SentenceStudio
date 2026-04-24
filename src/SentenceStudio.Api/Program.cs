@@ -266,6 +266,13 @@ if (!skipDatabaseInitialization)
     {
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await db.Database.MigrateAsync();
+
+        // Run vocabulary classification backfill (idempotent)
+        var backfillService = scope.ServiceProvider.GetRequiredService<VocabularyClassificationBackfillService>();
+        await backfillService.BackfillLexicalUnitTypesAsync();
+        
+        // Run phrase constituent backfill (idempotent, after classification)
+        await backfillService.BackfillPhraseConstituentsAsync();
     }
 
     // Apply CoreSync provisioning (creates change-tracking tables if missing)

@@ -8,14 +8,42 @@
 - Key patterns: Responsive dot sizing by time (sm/md/lg), filtering via service layer (not client-side), CardStyle + Typography (ss-body1, ss-caption1), Bootstrap utilities for mobile/desktop
 - Role in HelpKit: Primary architect of native chat UI — `HelpKitPage` (CollectionView, streaming mutation, auto-scroll), `HelpKitMessageViewModel` (immutable user, mutable assistant messages), `DefaultPresenterSelector` (Transient for freshness), Shell/Window/MauiReactor presenters
 - HelpKit platform detection: Dynamic `Type.GetType()` reflection (NavMenu.razor) keeps UI portable; NavMenu.razor Help button shown only in MAUI via `IHelpKit` availability check
+- **2025-01-24:** Vocabulary Classification & Constituents — Added Word/Phrase/Sentence picker and autocomplete constituent editor to VocabularyWordEdit.razor and bulk-add preview table to ResourceAdd.razor. Applied heuristic classification on paste/import. EF Core-based PhraseConstituent persistence. See `.squad/decisions/inbox/kaylee-ui-import-edit.md`
 
 ## Learnings
 
+- 2026-04-23: **Word/Phrase Feature Completed** — Completed ui-import-edit todo: added LexicalUnitType dropdown (Word/Phrase/Sentence) to VocabularyWordEdit.razor with constituent word editor (search-as-you-type autocomplete, badge display, remove buttons). Updated ResourceAdd.razor with preview table showing classification + override per row. Applied VocabularyClassificationBackfillService.ClassifyHeuristic() on paste/import. 14 new UI strings pending localization. Feature shipped, 147 tests passing. Documented in `.squad/log/2026-04-23T2219Z-wordphrase-squad-wrap.md`.
 - 2026-04-19: **Phase 2 Localization Review Lockout (Reviewer Rejection Protocol)** — After code review rejection, you were frozen from the fix cycle per protocol. Lead (Zoe) took ownership and found 30 missing resx keys + Skills.razor missing IDisposable/CultureChanged. **Key takeaway:** Run grep-all-keys verification before declaring resx batches complete. Verify all Blazor components with `@inject BlazorLocalizationService` have `@implements IDisposable` + event subscription pattern. This would have caught both blockers pre-review.
 - 2026-04-17: **Dynamic Platform Detection in Shared UI** — When wiring platform-specific features (HelpKit) into portable UI projects, use runtime type resolution via `Type.GetType()` + reflection to invoke methods. Keeps UI project browser-only (no MAUI refs), works in both MAUI and WebApp contexts, graceful degrade on missing types. Applied in NavMenu.razor for Help button.
 - 2026-04-17: HelpKit Alpha — native chat UI + 3 samples (Shell/Plain/MauiReactor) shipped.
+- **2025-01-24:** **Blazor Autocomplete Pattern** — Reused Vocabulary.razor's search-as-you-type autocomplete pattern for constituent word picker. Key: debounce on `oninput`, clear suggestions on select, `showAutocomplete` flag for dropdown visibility, scoped queries (language filter + exclude self + already-selected).
 
 ## Recent Work
+
+### Vocabulary Classification & Constituents (2025-01-24)
+
+**Scope:** Blazor-only UI update for Word/Phrase/Sentence classification + constituent word editing.
+
+**VocabularyWordEdit.razor:**
+- Added LexicalUnitType dropdown (Word/Phrase/Sentence, hiding Unknown) in Encoding & Memory Aids card
+- Added constituent editor card (shown only for Phrase/Sentence types):
+  - Search-as-you-type autocomplete (2+ chars, filters by language, excludes current word + already-selected)
+  - Bootstrap badge display with `bi-x` remove buttons
+  - Warning message when changing Phrase/Sentence → Word with existing constituents
+- Persistence via EF Core: LoadConstituentsAsync, diff insert/delete, clear all when changed to Word
+- Injected `IServiceProvider` for DbContext access to `PhraseConstituents`
+
+**ResourceAdd.razor:**
+- Replaced simple count display with preview table (Target/Native/Type/Tags/Remove)
+- LexicalUnitType dropdown per row (pre-filled with heuristic classification, user can override)
+- Applied `VocabularyClassificationBackfillService.ClassifyHeuristic()` on paste/file import
+
+**Heuristic:** Priority: tags check → terminal punctuation → whitespace/length → default Word. No local duplication — used public static method from Shared.Services.
+
+**Deliverables:**
+- `.squad/decisions/inbox/kaylee-ui-import-edit.md` — full writeup with strings-to-localize list
+- Build green (SentenceStudio.UI + AppHost)
+- No MauiReactor changes (per spec)
 
 Built the complete Activity Log feature (Strava-inspired Practice Calendar) for SentenceStudio.UI:
 
@@ -213,3 +241,28 @@ Wash's mobile observability memo identifies capturing Blazor WebView JavaScript 
 **Current status:** Awaiting Captain decision on full 1-day plan vs. 3-hour small-slice PoC, and answers to open questions. Will be documented in `.squad/decisions.md` once merged.
 
 **Reference:** `.squad/decisions/inbox/wash-mobile-observability.md` (now merged into decisions.md as of 2026-04-20).
+
+## 2026-04-23 — Vocabulary LexicalUnitType UI Review
+
+**Task:** Evaluate UI surfaces for word/phrase plan — LexicalUnitType picker + constituent editor.
+
+**Pages Reviewed:**
+- `src/SentenceStudio.UI/Pages/VocabularyWordEdit.razor` — Single word edit form
+- `src/SentenceStudio.UI/Pages/Vocabulary.razor` — Vocabulary list with advanced search/filter
+- `src/SentenceStudio.UI/Pages/ResourceAdd.razor` — Bulk CSV/tab-delimited vocab import
+- `src/SentenceStudio.Shared/Models/VocabularyWord.cs` — Current model (no LexicalUnitType yet)
+- `src/SentenceStudio.Shared/Models/AutocompleteSuggestion.cs` — Existing autocomplete pattern
+
+**Findings:**
+1. **UI surfaces to touch:** Two Blazor pages only (no MauiReactor vocab editing surfaces found):
+   - `VocabularyWordEdit.razor` — add LexicalUnitType picker in "Encoding & Memory Aids" section
+   - `ResourceAdd.razor` — add auto-classification + override UI in bulk import flow
+   
+2. **Existing autocomplete pattern:** `Vocabulary.razor` already has full search-as-you-type autocomplete with dropdown suggestions (tag/resource/lemma/status). Reusable for constituent picker.
+
+3. **Constituent editor interaction:** For Phrase/Sentence types, need inline autocomplete to add constituent words from user's existing vocab. Pattern: search-as-you-type → dropdown → click to add → show as removable chip/badge. Similar to existing tag filter chips in Vocabulary.razor but with add/remove within the form.
+
+4. **No MauiReactor surfaces:** All vocabulary editing is Blazor-only. Native app uses embedded Blazor WebView for vocab management.
+
+5. **Bootstrap icon + styling conventions:** Existing pages use `bi-*` icons consistently, `form-control-ss` for inputs, `card-ss` for sections, `ss-body2`/`ss-title3` typography.
+

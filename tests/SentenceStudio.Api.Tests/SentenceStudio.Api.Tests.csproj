@@ -26,6 +26,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\SentenceStudio.Api\SentenceStudio.Api.csproj" />
+    <ProjectReference Include="..\..\src\SentenceStudio.Shared\SentenceStudio.Shared.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -28,6 +28,24 @@ You are a Korean language learning specialist. Extract vocabulary from this tran
    Focus on words at or slightly above TOPIK level {{ proficiency_level }}.
 {{ end }}
 
+**LEXICAL UNIT CLASSIFICATION:**
+For each vocabulary item, classify it as:
+- **Word**: Single dictionary entry. This includes:
+  - Simple nouns (책, 학교)
+  - Sino-Korean compound verbs with 하다 (공부하다, 운동하다, 시작하다) — treat as ONE word
+  - Single adjectives/adverbs (예쁘다, 빨리)
+  - When extracting the term, strip particles (이/가/을/를/은/는/에/의/로/와/과) to get the base form, but present the base form
+- **Phrase**: Multi-word collocation or idiom that functions as a unit:
+  - Verb phrases (비가 오다, 시간이 없다)
+  - Noun phrases (한국 음식, 이번 주)
+  - Idiomatic expressions (마음에 들다)
+  - For Phrases, populate "relatedTerms" with the constituent words in dictionary form
+- **Sentence**: Complete utterance with subject + predicate:
+  - Must end with sentence-final endings (다/요/까/네/군요) + terminal punctuation
+  - Punctuation alone without semantic completeness is NOT a sentence
+  - For Sentences, populate "relatedTerms" with the key content words
+- **When in doubt**, prefer Word and leave relatedTerms empty.
+
 **RESPONSE FORMAT — Return a JSON object exactly like this:**
 {
   "vocabulary": [
@@ -41,7 +59,9 @@ You are a Korean language learning specialist. Extract vocabulary from this tran
       "frequencyInTranscript": 3,
       "exampleSentence": "A complete sentence FROM the transcript containing this word",
       "exampleSentenceTranslation": "{{ native_language }} translation of that sentence",
-      "tags": "comma-separated context tags from the video topic"
+      "tags": "comma-separated context tags from the video topic",
+      "lexicalUnitType": "Word | Phrase | Sentence",
+      "relatedTerms": ["constituent1", "constituent2"]
     }
   ]
 }

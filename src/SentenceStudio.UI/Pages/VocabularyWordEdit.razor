@@ -1,6 +1,8 @@
 @page "/vocabulary/edit/{Id}"
 @attribute [Authorize]
 @using Plugin.Maui.Audio
+@using Microsoft.EntityFrameworkCore
+@using SentenceStudio.Data
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
 @implements IDisposable
 
@@ -112,6 +114,21 @@ else
         </div>
 
         <div class="mb-3">
+            <label class="form-label ss-body2 text-secondary-ss">Type</label>
+            <select class="form-select form-control-ss" @bind="selectedLexicalUnitType" @bind:after="OnTypeChanged">
+                <option value="@LexicalUnitType.Word">
+                    <i class="bi bi-fonts"></i> Word
+                </option>
+                <option value="@LexicalUnitType.Phrase">
+                    <i class="bi bi-chat-square-text"></i> Phrase
+                </option>
+                <option value="@LexicalUnitType.Sentence">
+                    <i class="bi bi-file-earmark-text"></i> Sentence
+                </option>
+            </select>
+        </div>
+
+        <div class="mb-3">
             <label class="form-label ss-body2 text-secondary-ss">@Localize["VocabWordEdit_Tags"]</label>
             <input type="text" class="form-control form-control-ss" @bind="tags"
                    placeholder='@Localize["VocabWordEdit_TagsPlaceholder"]' />
@@ -134,6 +151,69 @@ else
             }
         </div>
     </div>
+
+    @* Constituent Editor (Phrase/Sentence only) *@
+    @if (selectedLexicalUnitType == LexicalUnitType.Phrase || selectedLexicalUnitType == LexicalUnitType.Sentence)
+    {
+        <div class="card card-ss p-4 mb-3">
+            <h5 class="ss-title3 mb-3">Constituent Words</h5>
+            <p class="ss-body2 text-secondary-ss mb-3">Build this @(selectedLexicalUnitType.ToString().ToLower()) from individual words</p>
+
+            @if (!string.IsNullOrEmpty(typeChangeWarning))
+            {
+                <div class="alert alert-warning py-2 mb-3">
+                    <i class="bi bi-exclamation-triangle me-2"></i>@typeChangeWarning
+                </div>
+            }
+
+            <div class="mb-3 position-relative">
+                <label class="form-label ss-body2 text-secondary-ss">Search and add words</label>
+                <input type="text" class="form-control form-control-ss"
+                       placeholder="Type to search words..."
+                       @bind="constituentSearchQuery" @bind:event="oninput" @bind:after="OnConstituentSearchChanged" />
+
+                @* Autocomplete dropdown *@
+                @if (showConstituentAutocomplete && constituentSuggestions.Count > 0)
+                {
+                    <div class="dropdown-menu show w-100 shadow-sm" style="max-height: 250px; overflow-y: auto;">
+                        @foreach (var suggestion in constituentSuggestions)
+                        {
+                            <button class="dropdown-item" type="button" @onclick="() => AddConstituent(suggestion)">
+                                <strong>@suggestion.TargetLanguageTerm</strong>
+                                <small class="text-secondary-ss ms-2">@suggestion.NativeLanguageTerm</small>
+                            </button>
+                        }
+                    </div>
+                }
+            </div>
+
+            @* Selected constituents as badges *@
+            @if (selectedConstituents.Count > 0)
+            {
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                    @foreach (var constituent in selectedConstituents)
+                    {
+                        <span class="badge bg-secondary d-inline-flex align-items-center gap-2" style="font-size: 0.875rem;">
+                            @constituent.TargetLanguageTerm
+                            <button type="button" class="btn-close btn-close-white" style="font-size: 0.625rem;"
+                                    @onclick="() => RemoveConstituent(constituent.Id)"
+                                    aria-label="Remove"></button>
+                        </span>
+                    }
+                </div>
+            }
+            else
+            {
+                <p class="text-secondary-ss ss-body2 mb-0 fst-italic">No constituent words added yet</p>
+            }
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(typeChangeWarning))
+    {
+        <div class="alert alert-warning mb-3">
+            <i class="bi bi-exclamation-triangle me-2"></i>@typeChangeWarning
+        </div>
+    }
 
     @* Progress Section (existing words only) *@
     @if (!string.IsNullOrEmpty(Id) && Id != "0")
@@ -263,6 +343,7 @@ else
     [Inject] private SentenceStudio.Abstractions.IFileSystemService FileSystemService { get; set; } = default!;
     [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
     [Inject] private SentenceStudio.Services.Progress.ProgressCacheService CacheService { get; set; } = default!;
+    [Inject] private IServiceProvider _serviceProvider { get; set; } = default!;
 
     private VocabularyWord word = new();
     private bool isLoading = true;
@@ -283,6 +364,16 @@ else
     private string mnemonicImageUri = "";
     private string wordLanguage = "";
     private readonly string[] languages = SentenceStudio.Common.Constants.Languages;
+
+    // Lexical unit type and constituents
+    private LexicalUnitType selectedLexicalUnitType = LexicalUnitType.Unknown;
+    private LexicalUnitType previousLexicalUnitType = LexicalUnitType.Unknown;
+    private string typeChangeWarning = "";
+    private List<VocabularyWord> selectedConstituents = new();
+    private List<VocabularyWord> originalConstituents = new();
+    private string constituentSearchQuery = "";
+    private List<VocabularyWord> constituentSuggestions = new();
+    private bool showConstituentAutocomplete;
 
     // Resources
     private List<LearningResource> availableResources = new();
@@ -334,20 +425,26 @@ else
                 wordLanguage = word.Language ?? "";
                 mnemonicText = word.MnemonicText ?? "";
                 mnemonicImageUri = word.MnemonicImageUri ?? "";
+                selectedLexicalUnitType = word.LexicalUnitType;
+                previousLexicalUnitType = word.LexicalUnitType;
 
                 // Load resources independently so one failure doesn't block others
                 var progressTask = SafeLoadAsync(() => ProgressService.GetProgressAsync(Id));
                 var associatedTask = SafeLoadAsync(() => ResourceRepo.GetResourcesForVocabularyWordAsync(Id));
                 var resourcesTask = SafeLoadAsync(() => ResourceRepo.GetAllResourcesLightweightAsync());
+                var constituentsTask = SafeLoadAsync(() => LoadConstituentsAsync(Id));
 
-                await Task.WhenAll(progressTask, associatedTask, resourcesTask);
+                await Task.WhenAll(progressTask, associatedTask, resourcesTask, constituentsTask);
 
                 progress = await progressTask;
                 var associatedResources = await associatedTask ?? new();
                 availableResources = await resourcesTask ?? new();
+                var constituentWords = await constituentsTask ?? new();
 
                 selectedResourceIds = new HashSet<string>(associatedResources.Select(r => r.Id));
                 originalResourceIds = new HashSet<string>(selectedResourceIds);
+                selectedConstituents = constituentWords;
+                originalConstituents = new List<VocabularyWord>(constituentWords);
 
                 UpdateProgressDisplay();
                 UpdateEncodingStrength();
@@ -356,6 +453,8 @@ else
             {
                 word = new VocabularyWord { CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
                 availableResources = await ResourceRepo.GetAllResourcesLightweightAsync();
+                selectedLexicalUnitType = LexicalUnitType.Word; // Default for new words
+                previousLexicalUnitType = LexicalUnitType.Word;
             }
         }
         catch (Exception ex)
@@ -431,6 +530,94 @@ else
             selectedResourceIds.Add(resourceId);
     }
 
+    private async Task<List<VocabularyWord>> LoadConstituentsAsync(string phraseWordId)
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var constituents = await db.PhraseConstituents
+            .Where(pc => pc.PhraseWordId == phraseWordId && pc.ConstituentWordId != null)
+            .Include(pc => pc.ConstituentWord)
+            .Select(pc => pc.ConstituentWord!)
+            .ToListAsync();
+
+        return constituents;
+    }
+
+    private void OnTypeChanged()
+    {
+        if (previousLexicalUnitType != selectedLexicalUnitType)
+        {
+            // Show warning if changing FROM phrase/sentence to word and there are constituents
+            if ((previousLexicalUnitType == LexicalUnitType.Phrase || previousLexicalUnitType == LexicalUnitType.Sentence) 
+                && selectedLexicalUnitType == LexicalUnitType.Word 
+                && selectedConstituents.Count > 0)
+            {
+                typeChangeWarning = $"Changing to Word will remove {selectedConstituents.Count} constituent link(s) on save.";
+            }
+            else
+            {
+                typeChangeWarning = "";
+            }
+            previousLexicalUnitType = selectedLexicalUnitType;
+        }
+    }
+
+    private async void OnConstituentSearchChanged()
+    {
+        constituentSuggestions.Clear();
+        showConstituentAutocomplete = false;
+
+        if (string.IsNullOrWhiteSpace(constituentSearchQuery) || constituentSearchQuery.Length < 2)
+            return;
+
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+            var query = constituentSearchQuery.ToLower();
+            var currentLanguage = wordLanguage;
+
+            var suggestions = await db.VocabularyWords
+                .Where(w => w.Id != word.Id) // Don't suggest the current word
+                .Where(w => string.IsNullOrEmpty(currentLanguage) || w.Language == currentLanguage) // Same language
+                .Where(w => (w.TargetLanguageTerm != null && w.TargetLanguageTerm.ToLower().Contains(query)) ||
+                            (w.NativeLanguageTerm != null && w.NativeLanguageTerm.ToLower().Contains(query)))
+                .OrderBy(w => w.TargetLanguageTerm)
+                .Take(10)
+                .ToListAsync();
+
+            // Filter out already selected
+            constituentSuggestions = suggestions
+                .Where(s => !selectedConstituents.Any(c => c.Id == s.Id))
+                .ToList();
+
+            showConstituentAutocomplete = constituentSuggestions.Count > 0;
+            StateHasChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to search constituent words");
+        }
+    }
+
+    private void AddConstituent(VocabularyWord constituent)
+    {
+        if (!selectedConstituents.Any(c => c.Id == constituent.Id))
+        {
+            selectedConstituents.Add(constituent);
+            constituentSearchQuery = "";
+            constituentSuggestions.Clear();
+            showConstituentAutocomplete = false;
+        }
+    }
+
+    private void RemoveConstituent(string constituentId)
+    {
+        selectedConstituents.RemoveAll(c => c.Id == constituentId);
+    }
+
     private async Task SaveWord()
     {
         isSaving = true;
@@ -462,6 +649,7 @@ else
             word.Language = string.IsNullOrWhiteSpace(wordLanguage) ? null : wordLanguage.Trim();
             word.MnemonicText = mnemonicText.Trim();
             word.MnemonicImageUri = mnemonicImageUri.Trim();
+            word.LexicalUnitType = selectedLexicalUnitType;
             word.UpdatedAt = DateTime.UtcNow;
 
             var saveResult = await ResourceRepo.SaveWordAsync(word);
@@ -484,6 +672,61 @@ else
             {
                 foreach (var resourceId in selectedResourceIds)
                     await ResourceRepo.AddVocabularyToResourceAsync(resourceId, word.Id);
+            }
+
+            // Handle constituents (only for Phrase/Sentence types)
+            if (!string.IsNullOrEmpty(word.Id))
+            {
+                if (selectedLexicalUnitType == LexicalUnitType.Phrase || selectedLexicalUnitType == LexicalUnitType.Sentence)
+                {
+                    using var scope = _serviceProvider.CreateScope();
+                    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+                    // Get existing constituents
+                    var existingConstituents = await db.PhraseConstituents
+                        .Where(pc => pc.PhraseWordId == word.Id)
+                        .ToListAsync();
+
+                    var existingIds = new HashSet<string>(existingConstituents
+                        .Where(pc => pc.ConstituentWordId != null)
+                        .Select(pc => pc.ConstituentWordId!));
+                    var selectedIds = new HashSet<string>(selectedConstituents.Select(c => c.Id));
+
+                    // Remove deleted constituents
+                    foreach (var toRemove in existingConstituents.Where(ec => ec.ConstituentWordId != null && !selectedIds.Contains(ec.ConstituentWordId!)))
+                    {
+                        db.PhraseConstituents.Remove(toRemove);
+                    }
+
+                    // Add new constituents
+                    foreach (var newId in selectedIds.Except(existingIds))
+                    {
+                        db.PhraseConstituents.Add(new PhraseConstituent
+                        {
+                            PhraseWordId = word.Id,
+                            ConstituentWordId = newId,
+                            CreatedAt = DateTime.UtcNow
+                        });
+                    }
+
+                    await db.SaveChangesAsync();
+                }
+                else if (selectedLexicalUnitType == LexicalUnitType.Word)
+                {
+                    // Remove all constituents if changed to Word type
+                    using var scope = _serviceProvider.CreateScope();
+                    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+                    var existingConstituents = await db.PhraseConstituents
+                        .Where(pc => pc.PhraseWordId == word.Id)
+                        .ToListAsync();
+
+                    if (existingConstituents.Count > 0)
+                    {
+                        db.PhraseConstituents.RemoveRange(existingConstituents);
+                        await db.SaveChangesAsync();
+                    }
+                }
             }
 
             Toast.ShowSuccess(string.IsNullOrEmpty(Id) || Id == "0" ? $"{Localize["VocabWordEdit_AddedSuccess"]}" : $"{Localize["VocabWordEdit_UpdatedSuccess"]}");

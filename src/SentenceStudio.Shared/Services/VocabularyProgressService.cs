@@ -1,4 +1,7 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Data;
 using SentenceStudio.Shared.Models;
 using SentenceStudio.Abstractions;
 
@@ -10,6 +13,7 @@ public class VocabularyProgressService : IVocabularyProgressService
     private readonly VocabularyLearningContextRepository _contextRepo;
     private readonly ILogger<VocabularyProgressService> _logger;
     private readonly IPreferencesService? _preferences;
+    private readonly IServiceProvider _serviceProvider;
 
     // NEW: Streak-based scoring constants
     private const float MASTERY_THRESHOLD = 0.85f;                // MasteryScore threshold for "Known"
@@ -43,11 +47,13 @@ public class VocabularyProgressService : IVocabularyProgressService
         VocabularyProgressRepository progressRepo,
         VocabularyLearningContextRepository contextRepo,
         ILogger<VocabularyProgressService> logger,
+        IServiceProvider serviceProvider,
         IPreferencesService? preferences = null)
     {
         _progressRepo = progressRepo;
         _contextRepo = contextRepo;
         _logger = logger;
+        _serviceProvider = serviceProvider;
         _preferences = preferences;
     }
 
@@ -204,6 +210,52 @@ public class VocabularyProgressService : IVocabularyProgressService
 
         // Save progress
         progress = await _progressRepo.SaveAsync(progress);
+
+        // CASCADE: Passive exposure for phrase/sentence constituents
+        // Runs AFTER phrase's own mastery commits — best-effort per constituent
+        using (var scope = _serviceProvider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var word = await db.VocabularyWords
+                .AsNoTracking()
+                .FirstOrDefaultAsync(w => w.Id == attempt.VocabularyWordId);
+
+            if (word != null &&
+                (word.LexicalUnitType == LexicalUnitType.Phrase ||
+                 word.LexicalUnitType == LexicalUnitType.Sentence))
+            {
+                var constituents = await db.PhraseConstituents
+                    .AsNoTracking()
+                    .Where(pc => pc.PhraseWordId == word.Id && pc.ConstituentWordId != null)
+                    .Select(pc => pc.ConstituentWordId!)
+                    .ToListAsync();
+
+                _logger.LogInformation(
+                    "PhraseCascade start: PhraseId={PhraseId} UserId={UserId} ConstituentCount={Count}",
+                    word.Id, attempt.UserId, constituents.Count);
+
+                // Tag cascaded activity with correctness suffix for analytics
+                var correctnessSuffix = attempt.WasCorrect ? "" : ":Incorrect";
+                var cascadeActivity = $"PhraseCascade:{attempt.Activity}{correctnessSuffix}";
+
+                foreach (var constituentId in constituents)
+                {
+                    try
+                    {
+                        // Defense in depth: ensure progress row exists before passive exposure
+                        await GetOrCreateProgressAsync(constituentId, attempt.UserId);
+                        await RecordPassiveExposureAsync(constituentId, attempt.UserId, cascadeActivity);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex,
+                            "PhraseCascade constituent exposure failed. PhraseId={PhraseId} ConstituentId={ConstituentId} UserId={UserId}",
+                            word.Id, constituentId, attempt.UserId);
+                        // swallow — best effort
+                    }
+                }
+            }
+        }
 
         // Record detailed context
         await RecordLearningContextAsync(progress.Id, attempt);

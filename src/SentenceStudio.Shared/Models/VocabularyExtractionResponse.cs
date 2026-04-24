@@ -59,18 +59,35 @@ public class ExtractedVocabularyItem
     [Description("Comma-separated context tags")]
     public string? Tags { get; set; }
 
+    [JsonPropertyName("lexicalUnitType")]
+    [Description("Classification of this lexical unit. Word = single dictionary entry (including Korean compounds like 공부하다). Phrase = multi-word unit or fragment (noun phrase, idiom, collocation). Sentence = complete utterance, typically ending in terminal punctuation. Be conservative — if uncertain between Word and Phrase, choose Word.")]
+    public LexicalUnitType LexicalUnitType { get; set; } = LexicalUnitType.Word;
+
+    [JsonPropertyName("relatedTerms")]
+    [Description("If this item is a Phrase or Sentence, list the target-language words that compose it as they should appear as separate vocabulary entries. Use dictionary/lemma form (e.g. 공부하다, not 공부하고). Empty array for single Words.")]
+    public List<string> RelatedTerms { get; set; } = new();
+
     /// <summary>
     /// Converts this extraction DTO into a persistable VocabularyWord.
     /// </summary>
     public VocabularyWord ToVocabularyWord(string language = "Korean")
     {
+        // Build tags including RelatedTerms hint if present
+        var tagsList = new List<string>();
+        if (!string.IsNullOrWhiteSpace(Tags))
+            tagsList.Add(Tags);
+        
+        if (RelatedTerms.Any())
+            tagsList.Add($"constituents:{string.Join(",", RelatedTerms)}");
+
         return new VocabularyWord
         {
             TargetLanguageTerm = TargetLanguageTerm,
             NativeLanguageTerm = NativeLanguageTerm,
             Lemma = string.IsNullOrWhiteSpace(Lemma) ? TargetLanguageTerm : Lemma,
             Language = language,
-            Tags = Tags
+            Tags = tagsList.Any() ? string.Join("; ", tagsList) : null,
+            LexicalUnitType = LexicalUnitType
         };
     }
 }

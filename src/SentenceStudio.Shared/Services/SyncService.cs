@@ -205,6 +205,13 @@ public class SyncService : ISyncService
             _logger.LogInformation("EF Core database migrated");
 #endif
 
+            // Run vocabulary classification backfill (idempotent)
+            var backfillService = scope.ServiceProvider.GetRequiredService<VocabularyClassificationBackfillService>();
+            await backfillService.BackfillLexicalUnitTypesAsync();
+            
+            // Run phrase constituent backfill (idempotent, after classification)
+            await backfillService.BackfillPhraseConstituentsAsync();
+
             // One-time data fix: Known words with near-term review dates
             // PR #155 fixed the code path, this retroactively fixes existing records
             await FixKnownWordSchedulesAsync(dbContext);

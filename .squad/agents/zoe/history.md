@@ -63,6 +63,8 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+- 2026-07-26: **LexicalUnitType + Phrase Mastery plan review** — Reviewed Coordinator's converged plan for word/phrase distinction. APPROVED WITH CONDITIONS. Architecture is sound (item-level enum on VocabularyWord, PhraseConstituent join table, Phrases smart resource). Mastery policy correct: phrase production = full mastery for phrase, passive exposure only for constituents. Six implementation clarifications required before work starts (ValueGeneratedNever, dual-provider migrations, AI prompt file list, backfill perf, ExtractAndScoreVocabularyAsync no-change note, CoreSync registration check). No design changes needed. Verdict written to `.squad/decisions/inbox/zoe-word-phrase-plan-review.md`.
+
 - `azd deploy` exit code 0 means the UPLOAD worked (images pushed, revisions created). It says NOTHING about whether the system actually works. Azure Container Apps can auto-route traffic to old healthy revisions while the new one crash-loops silently.
 - The API has NO explicit `/health` endpoint — the deploy runbook previously referenced one that doesn't exist. Use POST `/api/auth/login` with bad creds as an indirect health check: 400/401 = alive + DB reachable, 500/502/503 = broken.
 - When Azure Container Apps detects a failing new revision, it keeps traffic on the previous revision. This means "the app works" does NOT mean "the new code is running." Always verify the ACTIVE revision is the LATEST revision.

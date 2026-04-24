@@ -1,0 +1,802 @@
+[
+  {
+    "t": "2026-04-24T02:23:23.794652Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "      Ending HttpMessageHandler cleanup cycle after 0.013ms - processed: 0 items - remaining: 4 items",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:23:23.794613Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "dbug: Microsoft.Extensions.Http.DefaultHttpClientFactory[101]",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:23:23.794569Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.013ms - processed: 0 items - remaining: 4 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-24T02:23:23.794544Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "      Starting HttpMessageHandler cleanup cycle with 4 items",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:23:23.794494Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "dbug: Microsoft.Extensions.Http.DefaultHttpClientFactory[100]",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:23:23.794357Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 4 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-24T02:23:13.792804Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "      Ending HttpMessageHandler cleanup cycle after 0.0212ms - processed: 0 items - remaining: 4 items",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:23:13.792759Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "dbug: Microsoft.Extensions.Http.DefaultHttpClientFactory[101]",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:23:13.792694Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0212ms - processed: 0 items - remaining: 4 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-24T02:23:13.792625Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "      Starting HttpMessageHandler cleanup cycle with 4 items",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:23:13.792568Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "dbug: Microsoft.Extensions.Http.DefaultHttpClientFactory[100]",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:23:13.792351Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 4 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-24T02:23:03.790187Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "      Ending HttpMessageHandler cleanup cycle after 0.0225ms - processed: 0 items - remaining: 4 items",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:23:03.790131Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "dbug: Microsoft.Extensions.Http.DefaultHttpClientFactory[101]",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:23:03.789766Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0225ms - processed: 0 items - remaining: 4 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-24T02:23:03.789599Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "      Starting HttpMessageHandler cleanup cycle with 4 items",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:23:03.789533Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "dbug: Microsoft.Extensions.Http.DefaultHttpClientFactory[100]",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:23:03.789309Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 4 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-24T02:22:53.787151Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "      Ending HttpMessageHandler cleanup cycle after 0.0106ms - processed: 0 items - remaining: 4 items",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:53.787085Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "dbug: Microsoft.Extensions.Http.DefaultHttpClientFactory[101]",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:53.78701Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0106ms - processed: 0 items - remaining: 4 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-24T02:22:53.786814Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "      Starting HttpMessageHandler cleanup cycle with 4 items",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:53.786779Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "dbug: Microsoft.Extensions.Http.DefaultHttpClientFactory[100]",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:53.786673Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 4 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-24T02:22:49.184834Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "[BlazorDevFlow] SendCdpCommand got response after 1 poll(s)",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:49.132745Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "      Rendering component 14 of type SentenceStudio.WebUI.Shared.WhatsNewModal",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:49.132724Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "dbug: Microsoft.AspNetCore.Components.RenderTree.Renderer[3]",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:49.132702Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Rendering component 14 of type SentenceStudio.WebUI.Shared.WhatsNewModal",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-24T02:22:49.132593Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "      Rendering component 8 of type SentenceStudio.WebUI.Layout.MainLayout",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:49.132576Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "dbug: Microsoft.AspNetCore.Components.RenderTree.Renderer[3]",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:49.13255Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Rendering component 8 of type SentenceStudio.WebUI.Layout.MainLayout",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-24T02:22:49.132377Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "      Rendering component 8 of type SentenceStudio.WebUI.Layout.MainLayout",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:49.132357Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "dbug: Microsoft.AspNetCore.Components.RenderTree.Renderer[3]",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:49.132327Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Rendering component 8 of type SentenceStudio.WebUI.Layout.MainLayout",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-24T02:22:49.131919Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "      Rendering component 14 of type SentenceStudio.WebUI.Shared.WhatsNewModal",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:49.131901Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "dbug: Microsoft.AspNetCore.Components.RenderTree.Renderer[3]",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:49.131878Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Rendering component 14 of type SentenceStudio.WebUI.Shared.WhatsNewModal",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-24T02:22:49.131801Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "      Rendering component 8 of type SentenceStudio.WebUI.Layout.MainLayout",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:49.13174Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "dbug: Microsoft.AspNetCore.Components.RenderTree.Renderer[3]",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:49.13168Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Rendering component 8 of type SentenceStudio.WebUI.Layout.MainLayout",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-24T02:22:49.129426Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "      Handling event 43 of type \u0027MouseEventArgs\u0027",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:49.129387Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "dbug: Microsoft.AspNetCore.Components.RenderTree.Renderer[5]",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:49.129195Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Handling event 43 of type \u0027MouseEventArgs\u0027",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-24T02:22:49.123297Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "[BlazorDevFlow] SendCdpCommand: method=Runtime.evaluate",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:43.785667Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "      Ending HttpMessageHandler cleanup cycle after 0.0118ms - processed: 0 items - remaining: 4 items",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:43.785431Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "dbug: Microsoft.Extensions.Http.DefaultHttpClientFactory[101]",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:43.785361Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0118ms - processed: 0 items - remaining: 4 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-24T02:22:43.785337Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "      Starting HttpMessageHandler cleanup cycle with 4 items",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:43.785286Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "dbug: Microsoft.Extensions.Http.DefaultHttpClientFactory[100]",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:43.785175Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 4 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-24T02:22:36.978606Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "[BlazorDevFlow] SendCdpCommand got response after 1 poll(s)",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:36.919329Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "[BlazorDevFlow] SendCdpCommand: method=Runtime.evaluate",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:33.783631Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "      Ending HttpMessageHandler cleanup cycle after 0.0165ms - processed: 0 items - remaining: 4 items",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:33.7836Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "dbug: Microsoft.Extensions.Http.DefaultHttpClientFactory[101]",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:33.783519Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0165ms - processed: 0 items - remaining: 4 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-24T02:22:33.783453Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "      Starting HttpMessageHandler cleanup cycle with 4 items",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:33.783407Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "dbug: Microsoft.Extensions.Http.DefaultHttpClientFactory[100]",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:33.783205Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 4 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-24T02:22:31.612749Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "      Rendering component 18 of type SentenceStudio.WebUI.Shared.WaveformDisplay",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:31.612731Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "dbug: Microsoft.AspNetCore.Components.RenderTree.Renderer[3]",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:31.61271Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Rendering component 18 of type SentenceStudio.WebUI.Shared.WaveformDisplay",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-24T02:22:31.612126Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "      Initializing component 18 (SentenceStudio.WebUI.Shared.WaveformDisplay) as child of 16 (SentenceStudio.WebUI.Pages.Shadowing)",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:31.612101Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "dbug: Microsoft.AspNetCore.Components.RenderTree.Renderer[1]",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:31.612072Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Initializing component 18 (SentenceStudio.WebUI.Shared.WaveformDisplay) as child of 16 (SentenceStudio.WebUI.Pages.Shadowing)",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-24T02:22:31.611345Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "      Rendering component 16 of type SentenceStudio.WebUI.Pages.Shadowing",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:31.611319Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "dbug: Microsoft.AspNetCore.Components.RenderTree.Renderer[3]",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:31.611261Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Rendering component 16 of type SentenceStudio.WebUI.Pages.Shadowing",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-24T02:22:31.327711Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "      \uD83C\uDF99\uFE0F TextToSpeech: Generated 46437 bytes of audio",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:31.327671Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "dbug: SentenceStudio.Services.ElevenLabsSpeechService[0]",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:31.327527Z",
+    "l": "Debug",
+    "c": "SentenceStudio.Services.ElevenLabsSpeechService",
+    "m": "\uD83C\uDF99\uFE0F TextToSpeech: Generated 46437 bytes of audio",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-24T02:22:30.042624Z",
+    "l": "Warning",
+    "c": "console.error",
+    "m": "\u2705 Got voice: JiYoung",
+    "e": null,
+    "s": "console.error"
+  },
+  {
+    "t": "2026-04-24T02:22:29.753131Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "      Rendering component 8 of type SentenceStudio.WebUI.Layout.MainLayout",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:29.753107Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "dbug: Microsoft.AspNetCore.Components.RenderTree.Renderer[3]",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:29.753058Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Rendering component 8 of type SentenceStudio.WebUI.Layout.MainLayout",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-24T02:22:29.748322Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "[BlazorDevFlow] SendCdpCommand got response after 1 poll(s)",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:29.74789Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "      Rendering component 12 of type SentenceStudio.WebUI.Layout.NavMenu",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:29.74787Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "dbug: Microsoft.AspNetCore.Components.RenderTree.Renderer[3]",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:29.747849Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Rendering component 12 of type SentenceStudio.WebUI.Layout.NavMenu",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-24T02:22:29.747573Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "      Rendering component 10 of type SentenceStudio.WebUI.Layout.NavMenu",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:29.747555Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "dbug: Microsoft.AspNetCore.Components.RenderTree.Renderer[3]",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:29.747531Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Rendering component 10 of type SentenceStudio.WebUI.Layout.NavMenu",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-24T02:22:29.746428Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "      Rendering component 17 of type SentenceStudio.WebUI.Shared.PageHeader",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:29.746413Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "dbug: Microsoft.AspNetCore.Components.RenderTree.Renderer[3]",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:29.746395Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Rendering component 17 of type SentenceStudio.WebUI.Shared.PageHeader",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-24T02:22:29.746346Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "      Initializing component 17 (SentenceStudio.WebUI.Shared.PageHeader) as child of 16 (SentenceStudio.WebUI.Pages.Shadowing)",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:29.74633Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "dbug: Microsoft.AspNetCore.Components.RenderTree.Renderer[1]",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:29.746311Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Initializing component 17 (SentenceStudio.WebUI.Shared.PageHeader) as child of 16 (SentenceStudio.WebUI.Pages.Shadowing)",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-24T02:22:29.746014Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "      Rendering component 16 of type SentenceStudio.WebUI.Pages.Shadowing",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:29.746Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "dbug: Microsoft.AspNetCore.Components.RenderTree.Renderer[3]",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:29.745987Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Rendering component 16 of type SentenceStudio.WebUI.Pages.Shadowing",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-24T02:22:29.745973Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "      Disposing component 15 of type SentenceStudio.WebUI.Shared.PageHeader",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:29.745952Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "dbug: Microsoft.AspNetCore.Components.RenderTree.Renderer[4]",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:29.74593Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Disposing component 15 of type SentenceStudio.WebUI.Shared.PageHeader",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-24T02:22:29.745445Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "      Disposing component 11 of type SentenceStudio.WebUI.Pages.Index",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:29.745427Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "dbug: Microsoft.AspNetCore.Components.RenderTree.Renderer[4]",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:29.745406Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Disposing component 11 of type SentenceStudio.WebUI.Pages.Index",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-24T02:22:29.744069Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "      \uD83C\uDF99\uFE0F TextToSpeech: Fetching voice AW5wrnG1jVizOYY7R1Oo for text \u0027\uADF8\uAC8C \uBC14\uB85C \uC720\uCC3D\uD568\uC774 \uB9CC\uB4E4\uC5B4\uC9C0\uB294 \uBC29\uBC95\uC774\uC5D0\uC694.\u0027",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:29.744047Z",
+    "l": "Information",
+    "c": "console.out",
+    "m": "dbug: SentenceStudio.Services.ElevenLabsSpeechService[0]",
+    "e": null,
+    "s": "console.out"
+  },
+  {
+    "t": "2026-04-24T02:22:29.744026Z",
+    "l": "Debug",
+    "c": "SentenceStudio.Services.ElevenLabsSpeechService",
+    "m": "\uD83C\uDF99\uFE0F TextToSpeech: Fetching voice AW5wrnG1jVizOYY7R1Oo for text \u0027\uADF8\uAC8C \uBC14\uB85C \uC720\uCC3D\uD568\uC774 \uB9CC\uB4E4\uC5B4\uC9C0\uB294 \uBC29\uBC95\uC774\uC5D0\uC694.\u0027",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-24T02:22:29.743944Z",
+    "l": "Warning",
+    "c": "console.error",
+    "m": "\uD83C\uDF99\uFE0F TextToSpeech: Fetching voice AW5wrnG1jVizOYY7R1Oo",
+    "e": null,
+    "s": "console.error"
+  }
+]

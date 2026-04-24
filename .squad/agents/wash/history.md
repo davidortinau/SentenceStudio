@@ -7,6 +7,10 @@
 
 ## Learnings
 
+- 2026-04-23: **Word/Phrase Feature Completed** — Delivered 9 todos: model-enum (LexicalUnitType), model-constituent (PhraseConstituent), migration-schema (dual-provider), backfill-classification (heuristic), backfill-constituents (lemma tokenization), progress-cascade (passive exposure), shadowing-consumer (LexicalUnitType branching), smart-resource-phrases (new type), smart-resource-phrases-fix (scope bug). Total: 147 tests passing, feature complete, e2e blocked on SQLite migration history mismatch (Captain decision needed). Documented in `.squad/log/2026-04-23T2219Z-wordphrase-squad-wrap.md`.
+- 2026-05-20: **Smart Resource: Phrases** — Added `Phrases` smart resource type for practicing all phrase/sentence vocabulary. Uses `LexicalUnitType.Phrase | Sentence` filter with user scoping via `VocabularyProgress.UserId` join (VocabularyWord has no UserProfileId). Intent-driven like Struggling (excluded from planner via `.Where(r => !r.IsSmartResource)` in DeterministicPlanBuilder). Initialization creates 4th smart resource (DailyReview, NewWords, Struggling, Phrases). ResourceVocabularyMapping population via same refresh/bulk-associate pattern. Empty on new users (populates after backfill classification). Build green (Shared, MacCatalyst, Api). Doc: `.squad/decisions/inbox/wash-smart-resource-phrases.md`
+- 2025-01-24: **Shadowing LexicalUnitType Consumer** — Modified `ShadowingService.GenerateSentencesAsync()` to branch on `VocabularyWord.LexicalUnitType`: only `Word` entries trigger AI carrier-sentence generation via Scriban template; `Phrase | Sentence | Unknown` use `TargetLanguageTerm` as-is (no AI round-trip). Unknown entries emit structured log `ShadowingUnknownTerm` (Information level, WordId+Term fields) for downstream UI reclassification. As-is sentences populate same `ShadowingSentence` DTO shape (TargetLanguageText=term, NativeLanguageText=translation, PronunciationNotes=null). No public API changes, no Scriban template changes. All target projects (Shared, MacCatalyst, Api) build green. No external call sites — all routing internal to ShadowingService. Doc: `.squad/decisions/inbox/wash-shadowing-consumer.md`
+- 2025-01-21: **Phrase Constituent Backfill Service** — Extended `VocabularyClassificationBackfillService` with `BackfillPhraseConstituentsAsync()` to populate `PhraseConstituent` join rows for existing phrases/sentences. Key discovery: VocabularyWord is NOT user-scoped directly — must query through `VocabularyProgress.UserId` with `.Include(vp => vp.VocabularyWord)` to get user-specific vocabulary. Tokenization with Korean particle stripping (`이, 가, 을, 를, 은, 는, 에, 의, 로, 으로, 와, 과, 에서, 에게, 도, 만, 부터, 까지`). Lemma dictionary pre-built once per user (no N+1). Idempotent via existing-constituent guard. Substring fallback for unmatched tokens 2+ chars. Wired into startup after classification backfill in API/WebApp/MAUI (SyncService). Public static `TokenizePhrase(string, string)` for unit testing. Doc: `.squad/decisions/inbox/wash-backfill-constituents.md`
 - 2026-04-17: **Help Flyout Integration Pattern (MAUI Hybrid)** — HelpKit library (Plugin.Maui.HelpKit 0.1.0-alpha) now wired into SentenceStudio UI as Help menu item in NavMenu.razor. Used dynamic reflection pattern (Type.GetType() + method invocation) to keep UI project browser-only. MAUI apps see Help button (invokes HelpKit overlay), WebApp doesn't (graceful degrade). Reflects HelpKit portability: library complete, UI trigger now operational.
 
 ## Core Context (Summarized from Sessions)
@@ -1410,3 +1414,145 @@ Phase 1 (infra health) + Phase 4 (regression) are the gates — 17 PASS, 0 FAIL.
 - **BUT**: with PR #165's current mobile OTel setup, mobile emits neither `dependencies` nor `requests` — only `traces`. HttpClient calls show up as log messages like `"Sending HTTP request GET https://..."` because the logging provider is wired, but `AddHttpClientInstrumentation()` on the TracerProvider is missing. That means no client spans are created, no W3C `traceparent` header is injected, and the API starts a fresh root trace for every incoming call (`operation_Id == operation_ParentId`).
 - **Diagnostic tell:** if API's `operation_Id == operation_ParentId` for mobile-called endpoints, the mobile side is not propagating trace context. Check the mobile TracerProvider registration.
 - **Production prefixes ACA role name:** `[cae-3ovvqiybthkb6]/SentenceStudio.Api`. Always use `endswith "SentenceStudio.Api"` in KQL, never `==`.
+
+- 2026-07-26: **Word/Phrase Schema Review** — Reviewed plan for `LexicalUnitType` enum + `PhraseConstituent` join table + mastery cascade policy. Found 5 blockers: (1) enum needs explicit `.HasConversion<int>().HasDefaultValue(0)` for backfill safety, (2) `ConstituentWordId` must be nullable for `SetNull` cascade + needs index + unique constraint on pair, (3) backfill must move to dedicated service/startup hook NOT hot path in GetAsync, (4) cascade needs explicit userId scoping + logging for visibility, (5) SQLite migration must be hand-written (multi-target dotnet ef broken). All changes preserve existing data — no user-data risk, but missing these will cause prod incidents (silent enum breakage, perf crater on backfill, cascade to wrong user). Approved with changes. Verdict in `.squad/decisions/inbox/wash-word-phrase-schema-review.md`.
+
+- 2026-07-26: **LexicalUnitType Model Added (Todo `model-enum`)** — Created `LexicalUnitType` enum (Unknown=0, Word=1, Phrase=2, Sentence=3) in new file `Models/LexicalUnitType.cs`. Added non-nullable `LexicalUnitType` property to `VocabularyWord` using `[ObservableProperty]` pattern with default `LexicalUnitType.Unknown`. Configured EF Core in `ApplicationDbContext.OnModelCreating` with explicit `.HasConversion<int>().HasDefaultValue(LexicalUnitType.Unknown)` for reliable 0-storage on backfill across PostgreSQL (server) and SQLite (MAUI). Codebase conventions discovered: (1) Enums defined in separate files in Models/ folder, (2) Enum properties on entities use `[ObservableProperty]` with private field + default value (matches VideoImport.Status pattern), (3) ApplicationDbContext entity configuration is in one massive OnModelCreating method with inline builder calls (no separate config classes), (4) This is the FIRST enum with explicit HasConversion<int> — other enums (LearningPhase, VideoImportStatus) rely on EF Core's default integer storage. Build green on both Shared project (net10.0) and MacCatalyst head (net10.0-maccatalyst). Migration NOT created yet (that's todo `migration-schema`). EF Core WILL warn about PendingModelChanges until migration is applied — this is EXPECTED intermediate state.
+
+- 2026-07-26: **PhraseConstituent Join Entity Created (Todo `model-constituent`)** — Created `PhraseConstituent` join entity (new file `Models/PhraseConstituent.cs`) linking phrase words to their constituent words via nullable FK (`ConstituentWordId` allows `SetNull` cascade). Added DbSet + OnModelCreating fluent config to `ApplicationDbContext`: PhraseWordId FK with Cascade delete, ConstituentWordId FK with SetNull delete, single-column indexes on both FKs, and unique composite index on (PhraseWordId, ConstituentWordId) to prevent duplicate constituent links. Both FKs target VocabularyWord — used explicit `.HasForeignKey()` + `.WithMany()` to disambiguate (no inverse nav collection on VocabularyWord). Registered in `SharedSyncRegistration.cs` for CoreSync (both SQLite and PostgreSQL providers). Model follows house conventions: string GUID ID with `Guid.NewGuid().ToString()` + `ValueGeneratedNever()`, plain class (no ObservableObject for join entities), `[JsonIgnore]` on nav props. Build green on both Shared (net10.0) and MacCatalyst (net10.0-maccatalyst). Migration NOT created yet (that's next todo). EF Core WILL continue warning about PendingModelChanges — this is EXPECTED.
+
+- 2026-04-23: **EF Migration for LexicalUnitType + PhraseConstituent (Todo `migration-schema`)** — Generated dual-provider EF Core migration `AddLexicalUnitTypeAndConstituents` (timestamp 20260423213242) adding `LexicalUnitType` integer column (default 0) to `VocabularyWord` and creating `PhraseConstituent` table with two VocabularyWord FKs (Cascade + SetNull), 3 indexes (FK1, FK2, unique composite). **EF tooling workaround discovered:** `dotnet ef migrations add` fails on multi-targeted csproj (`<TargetFrameworks>net10.0;net10.0-ios;...`) with `MSB4057: target "ResolvePackageAssets" does not exist`. Solution: temporarily switch to `<TargetFramework>net10.0</TargetFramework>` (singular), generate migration, restore multi-targeting. PostgreSQL migration auto-generated via `dotnet ef`, SQLite migration hand-written by converting PG migration (type substitution: `integer`→`INTEGER`, `text`→`TEXT`, `timestamp with time zone`→`TEXT`) and removing Npgsql-specific extension calls (`NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn`). Both snapshots updated. **Table naming validated:** EF respected singular names (`VocabularyWord`, `PhraseConstituent`) from explicit `.ToTable()` calls in DbContext — no plural gotcha. **SQLite SetNull confirmed:** SQLite migrations use `ReferentialAction.SetNull` identically to PostgreSQL (no special handling). Both builds green (Shared + MacCatalyst). No `PendingModelChangesWarning` after snapshot update. Migration will auto-apply at runtime via `MigrateAsync()` in `UserProfileRepository.GetAsync()`. Full writeup in `.squad/decisions/inbox/wash-migration-schema.md`.
+
+---
+
+## 2025-05-02: Vocabulary Classification Backfill Service
+
+**Task:** Implement dedicated startup service to backfill `LexicalUnitType` for existing `VocabularyWord` rows where `LexicalUnitType == Unknown`.
+
+**Implementation:**
+- Created `VocabularyClassificationBackfillService.cs` in `src/SentenceStudio.Shared/Services/`
+- Registered as singleton in `CoreServiceExtensions.AddSentenceStudioCoreServices()`
+- Wired to run after `MigrateAsync()` in:
+  - API: `Program.cs` (line ~268, inside `!skipDatabaseInitialization` block)
+  - WebApp: `Program.cs` (line ~169, after migrations)
+  - MAUI: `SyncService.InitializeDatabaseAsync()` (line ~208, before CoreSync provisioning)
+
+**Classification Heuristic (Priority Order):**
+1. **Tags check** (case-insensitive): "phrase" → Phrase; "sentence" → Sentence
+2. **Terminal punctuation**: ends with `. ? ! 。 ？ ！` → Sentence
+3. **Whitespace OR length > 12**: contains whitespace (including CJK U+3000) OR length exceeds threshold → Phrase
+4. **Default**: Word
+5. **Guard**: single non-ASCII char (CJK ambiguous) → Unknown
+
+**Key Decisions:**
+- **Length threshold = 12 chars:** Balances Korean compounds (공부하다 = 4 chars stays Word) vs. longer phrases. CJK density means 12 is moderate but effective.
+- **Static test method:** `ClassifyHeuristic(string, string?)` exposed for Jayne's unit tests without DB dependency
+- **Idempotent:** Only touches rows where `LexicalUnitType == Unknown`, safe to run repeatedly
+- **NOT in hot path:** Runs once at startup, NOT inside `UserProfileRepository.GetAsync()` request loop
+- **Logging:** Counts per classification bucket + total + elapsed ms for observability
+
+**Pattern Match:**
+- Mirrors `BackfillUserProfileIdsAsync` structure (idempotent, batch, logging, one transaction)
+- Runs AFTER `MigrateAsync()` but BEFORE CoreSync provisioning (MAUI) or request handling (web)
+- No migration file needed — operates on existing column with default `Unknown` value
+
+**Korean-Specific Notes:**
+- **NOT using sentence-ender detection:** 다/요/까 alone insufficient (many verb forms end in 다 without being sentences)
+- **NOT stripping particles:** Too brittle for heuristic — whitespace/length catches most cases
+- **CJK ideographic space (U+3000):** Explicitly checked in whitespace detection
+
+**Edge Cases:**
+- Empty/null term → Unknown
+- Single non-ASCII char → Unknown (could be abbreviation, particle, incomplete entry)
+- CJK ideographic space → treated as whitespace
+
+**Files Modified:**
+- Created: `src/SentenceStudio.Shared/Services/VocabularyClassificationBackfillService.cs`
+- Modified: `CoreServiceExtensions.cs`, `Program.cs` (API + WebApp), `SyncService.cs` (MAUI)
+- Documented: `docs/wash-backfill-classification.md`
+
+**Verification:**
+- ✅ Shared project builds
+- ✅ MacCatalyst project builds
+- ✅ Static method exposed for unit testing
+- ✅ Wired in all startup paths
+- ✅ Logging includes counts per bucket + elapsed time
+
+**Next Steps (Future):**
+- AI-based classification for ambiguous cases (single-char CJK, complex compounds)
+- User override UI (already possible via Tags as workaround)
+- Telemetry to track accuracy via user corrections
+
+---
+
+## 2025-06-01: Progress Cascade for Phrase Constituents
+
+**Task**: `progress-cascade`  
+**Status**: ✅ Complete  
+**PR**: (pending)
+
+### Summary
+Implemented passive exposure cascade in `VocabularyProgressService.RecordAttemptAsync` so that when a user practices a phrase/sentence, each constituent word receives a passive exposure record (no streak/mastery change). This allows the mastery algorithm to reflect that the user saw those words.
+
+### Key changes
+- Added `IServiceProvider` to `VocabularyProgressService` constructor to enable scoped `ApplicationDbContext` queries
+- Inserted cascade block after phrase mastery commits, before recording detailed context
+- Query `VocabularyWords` to check `LexicalUnitType` (Phrase/Sentence)
+- Query `PhraseConstituents` to get constituent word IDs
+- For each constituent: `GetOrCreateProgressAsync` → `RecordPassiveExposureAsync`
+- Best-effort per constituent with structured logging (failures swallowed, don't roll back phrase mastery)
+- Cascade regardless of attempt correctness (activity tag includes `:Incorrect` suffix for analytics)
+
+### Design decisions honored
+1. **Transaction policy**: Best-effort with logging — phrase mastery commits independently from constituents
+2. **Defense in depth**: Explicit `GetOrCreateProgressAsync` before `RecordPassiveExposureAsync`
+3. **One level only**: No recursive cascade (guarded by `LexicalUnitType` check)
+4. **Explicit userId**: Pass `attempt.UserId` to all methods, no ambient context
+5. **Cascade on incorrect attempts**: User still saw the words (per Captain's call)
+
+### Technical notes
+- Used existing `GetOrCreateProgressAsync(wordId, userId)` at line 433
+- Used existing `RecordPassiveExposureAsync(wordId, userId, activity)` at line 737
+- Activity naming: `"PhraseCascade:{activity}"` or `"PhraseCascade:{activity}:Incorrect"`
+- Structured logs: `PhraseCascade start` (Info), `PhraseCascade constituent exposure failed` (Error)
+- No new migrations, no DB resets, no schema changes
+- Builds green: Shared, MacCatalyst, API (warnings are pre-existing)
+
+### Deviations
+None. Exact match to Captain's specification.
+
+### Deliverables
+- ✅ Edited `VocabularyProgressService.RecordAttemptAsync`
+- ✅ Build green (Shared + MacCatalyst + Api)
+- ✅ Writeup: `docs/decisions/inbox/wash-progress-cascade.md`
+- ✅ History: `.squad/agents/wash/history.md` (this entry)
+- ⏳ Unit tests: Jayne owns `tests-mastery-cascade` (parallel todo)
+
+### Files modified
+- `src/SentenceStudio.Shared/Services/VocabularyProgressService.cs` (added IServiceProvider, using statements, cascade block)
+
+**Ready for Jayne's testing and Captain's review.**
+
+- 2025-01-25: **SmartResourceService Scope Bug Fix** — Fixed `GetPhrasesVocabularyIdsAsync()` ActiveUserId scope bug that returned 0 mappings (6 of 12 tests failed). Root cause: called `GetAllVocabularyWordsAsync()` which depends on ActiveUserId, but SmartResourceService never sets it. Solution: replaced with direct EF query via scoped ApplicationDbContext — fetch user's word IDs from VocabularyProgress (already filtered by userId param), then query VocabularyWords with `.Where(w => userWordIds.Contains(w.Id))`. Added IServiceProvider ctor dependency. Fixed one test EF tracking conflict (used Find() guard before Remove()). Build: 0 errors, 149 warnings (pre-existing). Tests: 12/12 pass. Follow-up: DailyReview/Struggling methods may have same pattern (not in scope). Doc: `.squad/decisions/inbox/wash-smart-resource-phrases-fix.md`
+
+- 2026-04-23: **SQLite migration history reconciliation (local MacCatalyst dev DB drift)** — procedure: find DB in `~/Library/Containers/<GUID>/Data/Library/`, back up first (`cp -a` + size check), inspect `.tables`/`.schema` vs each migration's `Up()`, insert `__EFMigrationsHistory` rows only for migrations whose effects are already present, leave the target migration (and any truly-unapplied migrations) unlisted so EF applies them on next launch. Legacy orphan history rows are ignored by EF — preserve them. ProductVersion comes from each migration's Designer.cs `HasAnnotation("ProductVersion", ...)`. Codified in `.squad/skills/sqlite-migration-history-reconcile/SKILL.md`.
+
+- 2026-04-24: **SmartResource per-type idempotency fix (Phrases missing for upgraded users)** — `InitializeSmartResourcesAsync` previously short-circuited whenever any smart resource existed (`if (existingSmartResources.Any()) return;`), so users who pre-dated the `Phrases` addition never got that entry seeded. Refactored to per-type idempotency: build a HashSet of existing `SmartResourceType` values, iterate an ordered seed-definition array (Daily Review → New Words → Struggling → Phrases), and create only the types that are missing. Refresh only newly-created resources this pass (existing ones refresh via `RefreshAllSmartResourcesAsync` on launch). No schema change, no migration, no duplicate/delete/reorder. Seed titles/descriptions/tags/enum values untouched. Build: 0 errors (MacCatalyst, 541 pre-existing warnings). Decision: `.squad/decisions/inbox/wash-smartresource-idempotency.md`. Uncommitted — awaiting Captain's `/review`.
+
+- 2026-04-24: **Wired SmartResourceService into UserProfileRepository.GetAsync** — prior fix had zero production callers (only `SmartResourcePhrasesTests`). Added `EnsureSmartResourcesAsync(UserProfile)` to `UserProfileRepository`, invoked from `GetAsync` immediately after profile load / `DisplayLanguage` normalization. Pattern mirrors the existing `EnsureMultiUserBackfillAsync` "once per session" flag, but keyed per `profile.Id` via static `HashSet<string>` + lock (multi-profile safe). Resolves `SmartResourceService` via `GetService<T>` (no-op if not registered), passes `profile.TargetLanguage ?? "Korean"` and `profile.Id`. Exceptions caught + logged Warning — never blocks profile load. The in-session guard sets in `finally` so transient failures can retry on next launch. DB-layer per-type idempotency from prior turn is unchanged. Build: 0 errors (MacCatalyst, 541 pre-existing warnings). Decision: `.squad/decisions/inbox/wash-smartresource-wireup.md`. Uncommitted — awaiting Captain's `/review`.
+
+---
+
+## Session: 2026-04-24 — Word vs Phrase (WoC) Final Batch Consolidation
+
+**Focus:** DB reconciliation (Option A), smart-resource seeding fix (per-type idempotency), smart-resource wire-up (GetAsync hook), migration file renames (git-mv 4 files, PG+SQLite pairs).
+
+**Decisions made:**
+- Per-type idempotent smart-resource seed: `HashSet<SmartResourceType>` check, append-only seed array for future types
+- Wire `InitializeSmartResourcesAsync` into `UserProfileRepository.GetAsync` with per-profile in-session guard + non-fatal exception handling
+- Migration file renames (20260725230000 → 20260415024019) after Coordinator confirmed prod PG already had [Migration] attribute; DB backfill `__EFMigrationsHistory`
+
+**E2E outcome:** Step 5 re-run PASS — Phrases smart resource present, 4 total resources in DB, UI Phrases card rendered, 403-item payload (dynamic, by design).
+
+**Artifacts:** `.squad/decisions/inbox/wash-smartresource-idempotency.md`, `wash-smartresource-wireup.md`, `wash-db-reconcile-option-a.md` (consolidated to `.squad/decisions.md`). Build green. No code changes outside of smart-resource + migration wire-up committed.
+

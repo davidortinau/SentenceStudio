@@ -7,8 +7,7 @@
 
 ## Learnings
 
-<!-- Append new learnings below. Each entry is something lasting about the project. -->
-
+- 2026-04-23: **Word/Phrase Feature Completed** — Completed ai-generation-emit todo: updated ExtractVocabularyFromTranscript.scriban-txt prompts with LexicalUnitType classification guidance (Korean-specific rules for Word vs. Phrase vs. Sentence). Added LexicalUnitType + RelatedTerms fields to ExtractedVocabularyItem DTO with [Description] attributes. Updated ToVocabularyWord() mapper to copy classification to entity and encode RelatedTerms as `constituents:term1,term2` hint in Tags. Feature shipped, 147 tests passing. Documented in `.squad/log/2026-04-23T2219Z-wordphrase-squad-wrap.md`.
 - `GradeMyDescription.scriban-txt` already includes `vocabulary_analysis` in its JSON schema — no template change needed when wiring Scene vocabulary scoring
 - Conversation templates (`ContinueConversation.scriban-txt`, `ContinueConversation.scenario.scriban-txt`) previously had NO JSON output format definition — the AI was inferring the `Reply` model structure from `[Description]` attributes alone. Adding explicit JSON schema improves reliability.
 - Scene and Conversation don't have resource-specific vocabulary context — they load the full user vocabulary via `LearningResourceRepository.GetAllVocabularyWordsAsync()` which scopes by user profile
@@ -220,3 +219,149 @@ Plus `lib/Plugin.Maui.HelpKit/docs/rag-design.md` — full design reference.
 - **Content-hash chunk IDs over sequential IDs.** Stable across re-ingest; enables incremental updates without re-embedding unchanged chunks.
 - **Fingerprint must include everything that changes retrieval shape.** Model id (encodes dimension), chunker version, chunk size, overlap, heading format. Missing any one = silent-failure class of bug where vectors mix incompatible spaces.
 - **Ingestion is a thin coordinator.** Actual vector-store I/O is Wash's. `IngestionOrchestrator` documents the flow with TODO comments; Wash implements the storage adapter and wires it in Wave 2. This keeps concerns separate.
+
+---
+
+## 2026-04-23 — Word/Phrase Distinction AI Review
+
+**Session:** AI/prompt review of vocabulary word-vs-phrase plan
+**Date:** 2026-04-23
+**Context:** Reviewed plan for adding `LexicalUnitType` enum to `VocabularyWord` (Unknown/Word/Phrase/Sentence) + constituent tracking + dynamic Phrases resource + mastery cascade policy.
+
+### Prompts Reviewed
+
+1. **GetShadowingSentences.scriban-txt** — Currently generates carrier sentences around vocab words. No classification awareness. Simple list-based input (`terms` variable).
+2. **ExtractVocabularyFromTranscript.scriban-txt** — AI vocab extraction from YouTube transcripts. Emits structured JSON via `VocabularyExtractionResponse` DTO. Says "words/phrases" in line 15 but has no explicit guidance on WHEN to classify as phrase vs word.
+
+### Key Findings
+
+**Shadowing consumer policy** — The plan's split (Phrase/Sentence → use as-is; Word → generate carrier; Unknown → generate carrier fallback) is directionally CORRECT but overly optimistic about Unknown. When `LexicalUnitType == Unknown`, the safer fallback is to **flag for manual classification UI** and use the text **as-is** in Shadowing rather than wrapping it in an AI-generated sentence. Why? Unknown could BE a full sentence already — wrapping a sentence inside another sentence breaks practice quality.
+
+**Shadowing prompt changes** — Minimal. Current template operates on a word list; after the change it should receive ONLY `LexicalUnitType.Word` rows (filtering happens in `ShadowingService.GenerateSentencesAsync`, not in the template). The template itself needs NO edit — the filter upstream ensures it only sees true single words. **Grading side**: Shadowing currently has NO grading/scoring. It's pure pronunciation practice with no mastery recording. If/when grading is added (pronunciation accuracy, fluency), the grading prompt WILL need to know the unit type so it can adjust expectations (phrase pronunciation uses different prosody than isolated-word pronunciation).
+
+**AI vocab generation — LexicalUnitType emission** — Two touch points found:
+
+1. **ExtractVocabularyFromTranscript.scriban-txt** (line 15: "words/phrases") → wired to `VideoImportPipelineService.ExtractVocabularyAsync()` → returns `VocabularyExtractionResponse` (typed DTO). This is the PRIMARY AI generation path. **Needs change**: Add `lexicalUnitType` field to `ExtractedVocabularyItem` DTO + explicit classification guidance in the prompt. For Korean specifically, the prompt must handle: single morpheme (→ Word), inflected single word with sentence ender like -요/-습니다 (→ Sentence if contextually complete, Word if fragment), multi-word chunk (→ Phrase), full sentence with punctuation (→ Sentence).
+2. **GetStarterVocabulary.scriban-txt** — Beginner word-list generator (100 words, comma-separated). Currently plain-text output, NOT a typed DTO. This path is low-priority (starter words are always single dictionary-form words by definition). Can default to `LexicalUnitType.Word` at import time without prompt changes.
+
+**Constituent extraction via AI** — Plan lists this as source #2 for `PhraseConstituent` rows (after explicit UI selection, before lemma heuristic). **Recommendation:** Piggyback on the EXISTING `ExtractVocabularyFromTranscript` prompt rather than creating a new one. Add a **second output field** to the response DTO: `relatedTerms: ["term1", "term2"]` (array of constituent `TargetLanguageTerm` strings the phrase contains). The AI already has full transcript context and is emitting the phrase — asking it to emit constituents in the same pass is zero additional API cost. The service layer can then match `relatedTerms` back to existing user vocab and create `PhraseConstituent` rows. This keeps constituent extraction co-located with the vocab that triggers it.
+
+**Korean-specific classification concerns** — The plan mentions 어절 count (spacing) and sentence-final punctuation (。？！) for the HEURISTIC backfill. For the AI side, the prompt needs explicit Korean guidance:
+
+- **Sentence vs Phrase** — Contextual completeness matters more than punctuation. "먹었어요" (I ate) is a complete sentence even without a period. "학교에서" (at school) is a phrase fragment. The AI must classify by semantic completeness, not just punctuation presence.
+- **Inflected single-word sentences** — Korean sentence-enders (-요, -습니다, -ㅂ니다, -어요, etc.) can make a single morpheme a grammatically complete sentence. The prompt should instruct: "If the term is a single word root + sentence-final ending and expresses a complete thought, classify as Sentence. If it's the same structure but used as part of a larger sentence pattern, classify as Word."
+- **Compound verbs** — Korean 하다-verbs (공부하다, 운동하다) are single lexical units even though they appear multi-morpheme. These are `Word`, not `Phrase`.
+- **Particles attached** — "학교에서는" might be extracted with particles. The template already says "base noun without particles" (line 24) — reaffirm this for classification logic: strip particles before deciding if it's a standalone word or a phrase.
+
+Prompt guidance sketch for `ExtractVocabularyFromTranscript.scriban-txt`:
+
+```
+"lexicalUnitType": "word | phrase | sentence",
+  // Classify each term:
+  // - "word": Single morpheme or dictionary-form compound (e.g. 먹다, 공부하다, 학교)
+  // - "sentence": Contextually complete utterance, even if short (e.g. 먹었어요 = "I ate", 안녕하세요 = "Hello")
+  // - "phrase": Multi-word fragment or single word + particles used mid-sentence (e.g. 학교에서, 먹고 싶어)
+  // For Korean: sentence-enders (-요/-습니다) signal sentence if the meaning is complete; otherwise word.
+"relatedTerms": ["word1", "word2"],
+  // (Optional) If lexicalUnitType is "phrase" or "sentence", list the constituent base words it contains.
+  // Use dictionary forms. Leave empty if it's a standalone word.
+```
+
+### Verdict Summary
+
+1. **Shadowing consumer**: Change Unknown fallback from "generate carrier sentence" to "use as-is + flag for manual classification". Prevents wrapping-a-sentence-in-a-sentence failures.
+2. **Shadowing prompt**: No change needed NOW (filtering happens upstream). Future grading prompt WILL need unit-type awareness for prosody expectations.
+3. **AI vocab generation**: Add `lexicalUnitType` + `relatedTerms` fields to `ExtractedVocabularyItem` DTO. Update `ExtractVocabularyFromTranscript.scriban-txt` with explicit classification rules + Korean-specific guidance (sentence-enders, completeness, particles, compounds).
+4. **Constituent extraction**: Piggyback on existing vocab extraction prompt via `relatedTerms` array. No new prompt needed.
+5. **Korean classification**: Prompt must handle inflected single-word sentences (먹었어요 = sentence), compounds (공부하다 = word), particles (strip before classifying), and semantic completeness over punctuation.
+
+---
+
+## 2026-04-31 — AI Generation Emit: LexicalUnitType + Constituents
+
+**Session:** Implement AI vocab extraction enhancement  
+**Date:** 2026-04-31  
+**Status:** ✅ Complete — All builds green
+
+### What Changed
+
+Updated `ExtractVocabularyFromTranscript.scriban-txt` (both AppLib and Workers copies) with classification guidance + constituent tracking. The AI now emits:
+
+1. **`lexicalUnitType`** — Word / Phrase / Sentence classification with Korean-specific rules:
+   - Word: single dictionary entry (including Sino-Korean 하다 compounds like 공부하다)
+   - Phrase: multi-word collocation (비가 오다, 마음에 들다)
+   - Sentence: complete utterance with sentence-final ending (다/요/까) + terminal punctuation
+   - Conservative fallback: when in doubt → Word
+
+2. **`relatedTerms`** — Array of constituent words in dictionary form (e.g. for phrase "시간이 없다" → `["시간", "없다"]`). Empty for Word type.
+
+### DTO Changes
+
+**File:** `src/SentenceStudio.Shared/Models/VocabularyExtractionResponse.cs`
+
+Added to `ExtractedVocabularyItem`:
+```csharp
+[JsonPropertyName("lexicalUnitType")]
+[Description("Classification of this lexical unit...")]
+public LexicalUnitType LexicalUnitType { get; set; } = LexicalUnitType.Word;
+
+[JsonPropertyName("relatedTerms")]
+[Description("If this item is a Phrase or Sentence, list the target-language words...")]
+public List<string> RelatedTerms { get; set; } = new();
+```
+
+Updated `ToVocabularyWord()`:
+- Copies `LexicalUnitType` to the entity
+- Appends `RelatedTerms` as a tagged hint: `constituents:word1,word2` in the `Tags` field
+- No schema changes — RelatedTerms live as a hint for future constituent-hydration step
+
+### Prompts Updated
+
+- `src/SentenceStudio.AppLib/Resources/Raw/ExtractVocabularyFromTranscript.scriban-txt`
+- `src/SentenceStudio.Workers/Resources/Raw/ExtractVocabularyFromTranscript.scriban-txt`
+
+Added **"LEXICAL UNIT CLASSIFICATION"** section with:
+- Word classification rules (Sino-Korean compounds, particle stripping)
+- Phrase classification rules (collocations, verb phrases)
+- Sentence classification rules (sentence-final endings + punctuation)
+- Conservative fallback guidance
+
+### Service Layer Wiring
+
+**File:** `src/SentenceStudio.Shared/Services/VideoImportPipelineService.cs`
+
+No changes needed! Existing `ToVocabularyWord()` call (line 334) already wires the new fields through automatically.
+
+### Other Vocab Generation Reviewed
+
+- ✅ `GetStarterVocabulary.scriban-txt` — returns simple CSV, no DTO → out of scope
+- ✅ Other prompts (GetSentences, GetClozures, GetTranslations, etc.) — generate ephemeral content, not persisted vocabulary → out of scope
+
+**Conclusion:** `ExtractVocabularyFromTranscript` is the ONLY prompt that generates structured vocab for persistence. All touched.
+
+### Build Verification
+
+✅ `dotnet build src/SentenceStudio.Shared/SentenceStudio.Shared.csproj` — Success  
+✅ `dotnet build src/SentenceStudio.AppLib/SentenceStudio.AppLib.csproj` — Success  
+✅ `dotnet build src/SentenceStudio.Api/SentenceStudio.Api.csproj` — Success
+
+### Learnings
+
+- **RelatedTerms storage strategy:** Persisted as transient hint in `Tags` field (`constituents:term1,term2`) rather than requiring schema changes. Allows future constituent-resolution step (likely Wash) to parse and hydrate `PhraseConstituent` rows. If hint missing/malformed, backfill can fall back to heuristics.
+- **Microsoft.Extensions.AI pattern confirmed:** DTOs with `[Description]` attributes drive AI response schema automatically. No manual JSON schema in templates. Keep template guidance focused on business logic (Korean classification rules), not structure.
+- **Conservative classification default:** When uncertain, prompt instructs AI to classify as Word with empty RelatedTerms. Prevents false-positive phrase classification that would require constituent resolution when not needed.
+- **Sino-Korean 하다 compounds are Words:** Guidance explicitly calls out 공부하다, 운동하다 as single dictionary entries, not phrases. Critical for Korean because learners often think "study" (공부) + "do" (하다) = phrase, but linguistically it's a lexicalized compound verb.
+- **Sentence-final endings matter:** Not all punctuation makes a sentence. "안녕하세요." is a sentence (요 ending + period). "학교에서." is NOT (에서 is a particle, not a sentence ender). Prompt encodes this explicitly.
+- **Particle stripping in Word classification:** When extracting Words, strip particles (이/가/을/를/은/는/에/의/로/와/과) to get base form. Example: "학교에서" in transcript → extract "학교" as the term.
+
+### Decision Doc
+
+Full analysis and design rationale captured in:  
+`.squad/decisions/inbox/river-ai-generation-emit.md`
+
+### Next Steps
+
+1. **Wash:** Implement constituent hydration service that parses `constituents:` hint from Tags and creates `PhraseConstituent` rows linking phrases to component words.
+2. **Testing:** After next video import, verify AI returns proper `lexicalUnitType` + `relatedTerms` in response JSON. Check DB to confirm values flow through.
+3. **Monitoring:** Log LexicalUnitType distribution (Word/Phrase/Sentence ratio) to validate AI classifies sensibly. If too many Unknown, refine prompt guidance.
+

@@ -252,6 +252,7 @@ public class DeterministicPlanBuilder
         var candidates = resources
             .Where(r => !string.IsNullOrEmpty(r.Id) && !string.IsNullOrEmpty(r.Title))
             .Where(r => r.MediaType != "Other") // Skip test/invalid resources
+            .Where(r => !r.IsSmartResource) // Exclude smart resources (intent-driven, not auto-selected)
             .Select(r => new ResourceCandidate
             {
                 Resource = r,

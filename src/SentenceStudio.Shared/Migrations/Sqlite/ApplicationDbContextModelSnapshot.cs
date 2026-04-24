@@ -3,6 +3,7 @@ using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+
 using SentenceStudio.Data;
 
 #nullable disable
@@ -15,7 +16,7 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.4");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.5");
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
                 {
@@ -49,6 +50,7 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+
                     b.Property<string>("ClaimType")
                         .HasColumnType("TEXT");
 
@@ -71,6 +73,7 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
+
 
                     b.Property<string>("ClaimType")
                         .HasColumnType("TEXT");
@@ -165,10 +168,10 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("EmailConfirmed")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("LockoutEnabled")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("boolean");
 
                     b.Property<DateTimeOffset?>("LockoutEnd")
                         .HasColumnType("TEXT");
@@ -188,13 +191,13 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("PhoneNumberConfirmed")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("boolean");
 
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("TwoFactorEnabled")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("boolean");
 
                     b.Property<string>("UserName")
                         .HasMaxLength(256)
@@ -277,7 +280,7 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                         .HasColumnType("TEXT");
 
                     b.Property<double>("Comprehension")
-                        .HasColumnType("REAL");
+                        .HasColumnType("double precision");
 
                     b.Property<string>("ComprehensionNotes")
                         .HasColumnType("TEXT");
@@ -310,6 +313,7 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
+
 
                     b.Property<string>("ConversationId")
                         .IsRequired()
@@ -348,6 +352,7 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+
                     b.Property<int>("ConversationType")
                         .HasColumnType("INTEGER");
 
@@ -355,7 +360,7 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("IsPredefined")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("boolean");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -394,9 +399,8 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.DailyPlanCompletion", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("ActivityType")
                         .IsRequired()
@@ -419,10 +423,13 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                         .HasColumnType("INTEGER");
 
                     b.Property<bool>("IsCompleted")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("boolean");
 
                     b.Property<int>("MinutesSpent")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("NarrativeJson")
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("PlanItemId")
                         .IsRequired()
@@ -448,6 +455,10 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("UserProfileId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.ToTable("DailyPlanCompletion", (string)null);
@@ -459,6 +470,7 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+
                     b.Property<string>("AudioUri")
                         .HasMaxLength(2000)
                         .HasColumnType("TEXT");
@@ -467,7 +479,7 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("IsCore")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("boolean");
 
                     b.Property<string>("LearningResourceId")
                         .HasColumnType("TEXT");
@@ -503,8 +515,9 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+
                     b.Property<double>("Accuracy")
-                        .HasColumnType("REAL")
+                        .HasColumnType("double precision")
                         .HasJsonPropertyName("accuracy_score");
 
                     b.Property<string>("AccuracyExplanation")
@@ -519,7 +532,7 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                         .HasColumnType("TEXT");
 
                     b.Property<double>("Fluency")
-                        .HasColumnType("REAL")
+                        .HasColumnType("double precision")
                         .HasJsonPropertyName("fluency_score");
 
                     b.Property<string>("FluencyExplanation")
@@ -546,7 +559,7 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("IsSmartResource")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("boolean");
 
                     b.Property<string>("Language")
                         .HasColumnType("TEXT");
@@ -595,6 +608,7 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+
                     b.Property<string>("ContrastLabel")
                         .HasColumnType("TEXT");
 
@@ -634,11 +648,12 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("IsCorrect")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("boolean");
 
                     b.Property<int>("PairId")
                         .HasColumnType("INTEGER");
@@ -679,6 +694,7 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
+
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
@@ -729,7 +745,7 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("boolean");
 
                     b.Property<string>("Language")
                         .HasColumnType("TEXT");
@@ -753,11 +769,39 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                     b.ToTable("MonitoredChannel", (string)null);
                 });
 
+            modelBuilder.Entity("SentenceStudio.Shared.Models.PhraseConstituent", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ConstituentWordId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PhraseWordId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ConstituentWordId");
+
+                    b.HasIndex("PhraseWordId");
+
+                    b.HasIndex("PhraseWordId", "ConstituentWordId")
+                        .IsUnique();
+
+                    b.ToTable("PhraseConstituent", (string)null);
+                });
+
             modelBuilder.Entity("SentenceStudio.Shared.Models.RefreshToken", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
+
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("TEXT");
@@ -814,11 +858,12 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+
                     b.Property<string>("Description")
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("IsSelected")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("boolean");
 
                     b.Property<string>("Url")
                         .HasColumnType("TEXT");
@@ -863,6 +908,7 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+
                     b.Property<string>("Body")
                         .HasColumnType("TEXT");
 
@@ -891,6 +937,7 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+
                     b.Property<string>("AudioFilePath")
                         .HasColumnType("TEXT");
 
@@ -898,7 +945,7 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                         .HasColumnType("TEXT");
 
                     b.Property<double>("Duration")
-                        .HasColumnType("REAL");
+                        .HasColumnType("double precision");
 
                     b.Property<string>("FileName")
                         .HasColumnType("TEXT");
@@ -928,12 +975,11 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.UserActivity", b =>
                 {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
 
                     b.Property<double>("Accuracy")
-                        .HasColumnType("REAL");
+                        .HasColumnType("double precision");
 
                     b.Property<string>("Activity")
                         .HasColumnType("TEXT");
@@ -942,7 +988,7 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                         .HasColumnType("TEXT");
 
                     b.Property<double>("Fluency")
-                        .HasColumnType("REAL");
+                        .HasColumnType("double precision");
 
                     b.Property<string>("Input")
                         .HasColumnType("TEXT");
@@ -951,6 +997,7 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                         .HasColumnType("TEXT");
 
                     b.Property<string>("UserProfileId")
+                        .IsRequired()
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
@@ -1074,7 +1121,7 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                         .HasColumnType("TEXT");
 
                     b.Property<float>("DifficultyScore")
-                        .HasColumnType("REAL");
+                        .HasColumnType("real");
 
                     b.Property<string>("ExpectedAnswer")
                         .HasColumnType("TEXT");
@@ -1096,7 +1143,7 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                         .HasColumnType("TEXT");
 
                     b.Property<float?>("UserConfidence")
-                        .HasColumnType("REAL");
+                        .HasColumnType("real");
 
                     b.Property<string>("UserInput")
                         .HasColumnType("TEXT");
@@ -1106,7 +1153,7 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("WasCorrect")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("boolean");
 
                     b.HasKey("Id");
 
@@ -1157,10 +1204,10 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                         .HasColumnType("INTEGER");
 
                     b.Property<float>("CurrentStreak")
-                        .HasColumnType("REAL");
+                        .HasColumnType("real");
 
                     b.Property<float>("EaseFactor")
-                        .HasColumnType("REAL");
+                        .HasColumnType("real");
 
                     b.Property<int>("ExposureCount")
                         .HasColumnType("INTEGER");
@@ -1169,13 +1216,13 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                         .HasColumnType("TEXT");
 
                     b.Property<bool>("IsCompleted")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("IsPromoted")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("IsUserDeclared")
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("boolean");
 
                     b.Property<DateTime?>("LastExposedAt")
                         .HasColumnType("TEXT");
@@ -1187,7 +1234,7 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                         .HasColumnType("TEXT");
 
                     b.Property<float>("MasteryScore")
-                        .HasColumnType("REAL");
+                        .HasColumnType("real");
 
                     b.Property<int>("MultipleChoiceCorrect")
                         .HasColumnType("INTEGER");
@@ -1260,6 +1307,11 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
 
                     b.Property<string>("Lemma")
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("LexicalUnitType")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER")
+                        .HasDefaultValue(0);
 
                     b.Property<string>("MnemonicImageUri")
                         .HasColumnType("TEXT");
@@ -1467,6 +1519,24 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                     b.Navigation("SelectedWord");
 
                     b.Navigation("Session");
+                });
+
+            modelBuilder.Entity("SentenceStudio.Shared.Models.PhraseConstituent", b =>
+                {
+                    b.HasOne("SentenceStudio.Shared.Models.VocabularyWord", "ConstituentWord")
+                        .WithMany()
+                        .HasForeignKey("ConstituentWordId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("SentenceStudio.Shared.Models.VocabularyWord", "PhraseWord")
+                        .WithMany()
+                        .HasForeignKey("PhraseWordId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ConstituentWord");
+
+                    b.Navigation("PhraseWord");
                 });
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.RefreshToken", b =>

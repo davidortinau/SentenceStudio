@@ -44,6 +44,55 @@ public class UserProfileRepository
         _backfillDone = true;
     }
 
+    // Tracks which user profiles have had smart resources seeded this session.
+    // SmartResourceService.InitializeSmartResourcesAsync is per-type idempotent
+    // at the DB level, so this set is purely an in-process optimization to
+    // avoid re-running the HashSet check on every GetAsync call.
+    private static readonly HashSet<string> _smartResourcesEnsured = new(StringComparer.Ordinal);
+    private static readonly object _smartResourcesLock = new();
+
+    /// <summary>
+    /// Ensures smart resources (Daily Review, New Words, Struggling Words, Phrases)
+    /// are seeded for the given profile. Safe to call repeatedly — the underlying
+    /// service performs per-type idempotency against existing DB rows, so upgraded
+    /// users receive newly-added smart resource types without duplicating existing
+    /// ones. Failures are swallowed with a warning so profile load is never blocked.
+    /// </summary>
+    public async Task EnsureSmartResourcesAsync(UserProfile profile)
+    {
+        if (profile == null || string.IsNullOrEmpty(profile.Id)) return;
+
+        lock (_smartResourcesLock)
+        {
+            if (_smartResourcesEnsured.Contains(profile.Id)) return;
+        }
+
+        try
+        {
+            var smartResources = _serviceProvider.GetService<SentenceStudio.Services.SmartResourceService>();
+            if (smartResources == null)
+            {
+                _logger.LogDebug("SmartResourceService not registered; skipping smart-resource ensure for profile {ProfileId}", profile.Id);
+            }
+            else
+            {
+                var targetLanguage = string.IsNullOrWhiteSpace(profile.TargetLanguage) ? "Korean" : profile.TargetLanguage;
+                await smartResources.InitializeSmartResourcesAsync(targetLanguage, profile.Id);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Smart resource ensure failed for profile {ProfileId} (non-fatal)", profile.Id);
+        }
+        finally
+        {
+            lock (_smartResourcesLock)
+            {
+                _smartResourcesEnsured.Add(profile.Id);
+            }
+        }
+    }
+
     public async Task<UserProfile> GetAsync()
     {
         using var scope = _serviceProvider.CreateScope();
@@ -73,6 +122,13 @@ public class UserProfileRepository
         if (profile != null && string.IsNullOrEmpty(profile.DisplayLanguage))
         {
             profile.DisplayLanguage = "English";
+        }
+
+        // Ensure smart resources exist for this user (per-type idempotent,
+        // sibling to EnsureMultiUserBackfillAsync — seeds Phrases etc. for upgraded users).
+        if (profile != null)
+        {
+            await EnsureSmartResourcesAsync(profile);
         }
 
         return profile; // Return null if no profile exists

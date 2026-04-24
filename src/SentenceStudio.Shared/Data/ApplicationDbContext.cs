@@ -69,6 +69,9 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.Entity<VocabularyWord>().Property(e => e.MnemonicText).IsRequired(false);
         modelBuilder.Entity<VocabularyWord>().Property(e => e.MnemonicImageUri).IsRequired(false);
         modelBuilder.Entity<VocabularyWord>().Property(e => e.AudioPronunciationUri).IsRequired(false);
+        // LexicalUnitType enum: explicit int conversion + default value (0 = Unknown)
+        // Required for reliable 0-storage on backfill across both PostgreSQL (server) and SQLite (MAUI)
+        modelBuilder.Entity<VocabularyWord>().Property(e => e.LexicalUnitType).HasConversion<int>().HasDefaultValue(LexicalUnitType.Unknown);
         
         modelBuilder.Entity<VocabularyList>().ToTable("VocabularyList").HasKey(e => e.Id);
         modelBuilder.Entity<VocabularyList>().Property(e => e.Id).ValueGeneratedNever();
@@ -282,6 +285,35 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             .HasIndex(rt => rt.Token)
             .IsUnique();
 
+        // PhraseConstituent — join entity for phrase-to-constituent relationships
+        modelBuilder.Entity<PhraseConstituent>().ToTable("PhraseConstituent").HasKey(e => e.Id);
+        modelBuilder.Entity<PhraseConstituent>().Property(e => e.Id).ValueGeneratedNever();
+        
+        // Both FKs target VocabularyWord — must disambiguate with explicit HasForeignKey
+        modelBuilder.Entity<PhraseConstituent>()
+            .HasOne(pc => pc.PhraseWord)
+            .WithMany()
+            .HasForeignKey(pc => pc.PhraseWordId)
+            .OnDelete(DeleteBehavior.Cascade);
+        
+        modelBuilder.Entity<PhraseConstituent>()
+            .HasOne(pc => pc.ConstituentWord)
+            .WithMany()
+            .HasForeignKey(pc => pc.ConstituentWordId)
+            .OnDelete(DeleteBehavior.SetNull);
+        
+        // Indexes for efficient lookups
+        modelBuilder.Entity<PhraseConstituent>()
+            .HasIndex(pc => pc.PhraseWordId);
+        
+        modelBuilder.Entity<PhraseConstituent>()
+            .HasIndex(pc => pc.ConstituentWordId);
+        
+        // Unique constraint: one constituent link per phrase-constituent pair
+        modelBuilder.Entity<PhraseConstituent>()
+            .HasIndex(pc => new { pc.PhraseWordId, pc.ConstituentWordId })
+            .IsUnique();
+
         // Ignore entities that shouldn't be in the database
         modelBuilder.Ignore<Reply>();
         modelBuilder.Ignore<GrammarNotes>();
@@ -322,5 +354,6 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<MonitoredChannel> MonitoredChannels => Set<MonitoredChannel>();
     public DbSet<VideoImport> VideoImports => Set<VideoImport>();
+    public DbSet<PhraseConstituent> PhraseConstituents => Set<PhraseConstituent>();
 
 }

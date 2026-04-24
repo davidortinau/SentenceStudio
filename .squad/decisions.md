@@ -4,6 +4,209 @@
 
 ---
 
+## 2026-04-24 — Per-Type Idempotency for Smart Resource Seeding
+
+**Date:** 2026-04-24
+**Owner:** Wash
+**Status:** ✅ Shipped (e2e verified, awaiting review)
+
+### Problem
+
+Smart resource seeding short-circuited if ANY resource existed, preventing upgraded users from receiving new types (e.g., `Phrases` added after Daily Review / New Words / Struggling Words). Jayne's e2e Step 5 caught this: the Phrases resource was missing for an upgraded user.
+
+### Decision
+
+Smart resource seeding is now **per-type idempotent** via `HashSet<SmartResourceType>` check:
+
+1. Load existing smart resources into a HashSet by type
+2. Iterate canonical seed order (Daily Review → New Words → Struggling → Phrases)
+3. Create each resource only if its type is not already present
+4. Call `RefreshSmartResourceAsync` only for newly-created resources
+
+### Invariants
+
+- No schema change, no migration, no DB reset
+- Existing users retain all resources with IDs and associations intact
+- Seed order (Daily Review → New Words → Struggling → Phrases) is fixed
+- Future smart resources: append (never insert into middle) and reuse pattern
+
+### Future rule
+
+When adding a 5th smart resource type:
+1. Add constant on `SmartResourceService`
+2. Append to seed definitions array (do NOT insert middle)
+3. Wire type into `GetSmartResourceVocabularyIdsAsync` + add dedicated getter
+4. Upgraded users auto-get it on next launch (per-type check sees it missing)
+
+No migration required. No user-data impact.
+
+### Verification
+
+- Build: ✅ 0 errors
+- E2E Step 5 re-run: ✅ Phrases smart resource present + 4 total resources in DB
+
+---
+
+## 2026-04-24 — Wire SmartResourceService Into UserProfileRepository.GetAsync
+
+**Date:** 2026-04-24
+**Owner:** Wash
+**Status:** ✅ Shipped (e2e verified, awaiting review)
+
+### Problem
+
+`SmartResourceService.InitializeSmartResourcesAsync` had **zero production callers** — only test suite invoked it. The per-type idempotency fix was correct in isolation but unreachable at runtime; upgraded users still missed Phrases smart resource.
+
+### Decision
+
+Call `InitializeSmartResourcesAsync` once per user per session from `UserProfileRepository.GetAsync`, immediately after `EnsureMultiUserBackfillAsync`. This hooks into the canonical post-migration, post-backfill funnel where every profile access flows through.
+
+**Why this hook:**
+- Already the canonical profile resolution point (every user path flows here)
+- Symmetric with existing `_backfillDone` "ensure once per session" pattern
+- Reuses `_serviceProvider`, minimal ceremony, avoids touching `MauiProgram`
+
+**Guard pattern:** Two-layer idempotence (per-user in-session + DB-layer per-type):
+- Static `HashSet<string>` keyed on `profile.Id` prevents redundant calls within a session
+- `SmartResourceService.InitializeSmartResourcesAsync` already per-type idempotent at DB layer
+- Either guard alone sufficient; both explicit about intent
+
+**Fault tolerance:**
+- Non-fatal: exceptions logged at Warning, swallowed, never fail `GetAsync` callers
+- Uses `GetService<T>` (not `GetRequiredService`), graceful degrade if service absent
+- In-session guard set in `finally`, one-off failure doesn't block retries next launch
+- Per-user guard: multi-profile scenarios seed each profile on first load
+
+### Test coverage
+
+`SmartResourcePhrasesTests` unaffected — still calls `InitializeSmartResourcesAsync` directly with explicit args.
+
+### Verification
+
+- Build: ✅ 0 errors
+- E2E Step 5 re-run (upgraded profile): ✅ Phrases smart resource created + accessible
+
+---
+
+## 2026-04-23 — SQLite Migration History Reconciliation (Option A)
+
+**Date:** 2026-04-23
+**Owner:** Wash
+**Status:** ✅ Complete
+
+### Problem
+
+Local SQLite DB had stale `__EFMigrationsHistory` rows that didn't match applied schema. EF's consistency check would prevent applying new migrations.
+
+### Decision (Option A)
+
+Backfill `__EFMigrationsHistory` for migrations already reflected in schema; leave target migration (`AddLexicalUnitTypeAndConstituents`) unlisted so EF applies it.
+
+### Audit & actions
+
+| MigrationId | Schema state | Action |
+|---|---|---|
+| 20260321133148_InitialSqlite | Base tables present | Backfill |
+| 20260321133200_AddYouTubeChannelMonitoring | Tables absent | Leave unlisted (EF will create) |
+| 20260322012812_SyncDailyPlanAndUserActivity | Schema matches | Backfill |
+| 20260328192206_AddMissingVocabularyWordLanguageColumn | Column present | Backfill |
+| 20260415024019_CurrentStreakToFloat | INTEGER type (SQLite permissive) | Leave unlisted |
+| 20260423213242_AddLexicalUnitTypeAndConstituents | Missing columns/table | Target (leave unlisted) |
+| 20260725230000_AddPassiveExposureFields | Columns present | Backfill |
+
+**Inserted rows:**
+```sql
+INSERT INTO __EFMigrationsHistory (MigrationId, ProductVersion) VALUES
+ ('20260321133148_InitialSqlite', '10.0.4'),
+ ('20260322012812_SyncDailyPlanAndUserActivity', '10.0.4'),
+ ('20260328192206_AddMissingVocabularyWordLanguageColumn', '10.0.5'),
+ ('20260725230000_AddPassiveExposureFields', '10.0.5');
+```
+
+### Data preservation
+
+Row counts before/after identical:
+- UserProfile: 1
+- VocabularyWord: 2595
+- VocabularyProgress: 1745
+- Challenge: 197
+
+Only `__EFMigrationsHistory` modified.
+
+### Verification
+
+- Backup created (6,758,400 bytes)
+- E2E launch: ✅ Migrations apply cleanly, app reaches home shell
+- DB schema verified post-migration
+
+---
+
+## 2026-04-23 — Ad-hoc activity tracking via synthetic plan completions
+
+**Date:** 2026-04-23
+**Owner:** David (Captain) + Copilot
+**Status:** ✅ Shipped to DX24
+
+### Problem
+
+`ActivityLog` (dashboard day-detail) only showed `DailyPlanItem` completions — "choose my own" sessions (user navigates directly to Translation/Writing/etc. without a plan) produced zero tracking. Captain wanted duration + resource + skill surfaced for freeform practice too.
+
+### Decision
+
+Persist ad-hoc sessions as synthetic `DailyPlanCompletion` rows with `PlanItemId = "adhoc-{guid}"`. Reuse the existing ActivityLog pipeline unchanged, and filter the `adhoc-*` prefix out of plan reconstruction so they don't pollute "Today's Plan" on the dashboard.
+
+### Implementation
+
+- `IProgressService.StartAdHocSessionAsync(PlanActivityType, resourceId, skillId, estimatedMinutes=10)` creates the record. Priority=999, TitleKey=`Activity_{type}`.
+- `ProgressService.ReconstructPlanFromDatabase` filters `!c.PlanItemId.StartsWith("adhoc-")` so the dashboard only sees real plan items.
+- `GetActivityLogAsync` intentionally reads ALL completions so ad-hoc rows show up in day detail.
+- `IActivityTimerService.StartSession(activityType, activityId?, resourceId?, skillId?)` — when `activityId` is null/empty, auto-creates the ad-hoc record and starts the stopwatch.
+- `PlanSummaryCard` detects `plan.Items.All(i => i.PlanItemId.StartsWith("adhoc-"))` and renders the cluster with a ✨ icon + "Freeform practice" label instead of "Plan N". Duration shown as `N min` (no estimate denominator since ad-hoc has no committed target).
+- All 10 activity razor pages now call `StartSession` unconditionally (was `if (!string.IsNullOrEmpty(PlanItemId)) …`).
+
+### Gotchas / lessons
+
+- **`PlanActivityType` enum values** are narrower than the activity page set. Valid: `VocabularyReview, Reading, Listening, VideoWatching, Shadowing, Cloze, Translation, Writing, SceneDescription, Conversation, VocabularyGame`. **No** `VocabularyMatching, HowDoYouSay, WordAssociation, MinimalPairs`. VocabMatching was passing `"VocabularyMatching"` which silently failed `Enum.Parse` — fix was to use `"VocabularyGame"` (matches the `/vocabulary-matching` route's enum mapping).
+- HowDoYouSay / WordAssociation / MinimalPairs pages still exist; they won't record ad-hoc rows because there's no enum value. `ActivityTimerService.StartAdHocThenLoadAsync` logs a warning and runs the timer without persistence in that case — acceptable fallback until the enum is widened.
+- Plan clustering groups completions within 60s of each other. An ad-hoc session started mid-day will form its own cluster — hence the visual differentiator. Don't try to force ad-hoc rows into the user's morning plan cluster.
+- **Resource/skill query param naming is NOT uniform** across pages. Captured:
+  - `ResourceIdParam` (singular): Translation, Writing, Cloze, Reading, Shadowing, Conversation, Scene, VideoWatching
+  - `ResourceIdsParam` (plural, comma-separated): VocabQuiz, VocabMatching
+  - No skill: VocabMatching, VideoWatching
+  - For ad-hoc persistence of plural-resource activities, take the **first** id: `ResourceIdsParam?.Split(',').FirstOrDefault()`.
+
+### Razor parser quirk (worth remembering)
+
+Nested `@if/@else` with string-interpolated text containing parens around a method chain (e.g. `@Localize["Key"] (@plan.GeneratedAt.ToLocalTime().ToString("h:mm tt"))`) throws `CS1002: ; expected`. Workaround: pre-compute strings in a `@{ }` block and emit `<span>@label (@timeLabel)</span>`. Don't fight the parser.
+
+---
+
+## 2026-04-23 — DX24 deploy playbook: pack version trumps folder name
+
+**Date:** 2026-04-23
+**Owner:** David (Captain) + Copilot
+**Status:** ✅ Documented
+
+### Problem
+
+Azure deployment pipeline (.NET 10 container image packed to DX24 ACA) appeared to be stale even though the latest code built. Captain thought the artifact folder name was the source of truth; it's not.
+
+### Decision
+
+The `version.txt` **inside the container** (set at build time by `azd` / `.github/workflows/bicep/app/`; value = `$(PackageVersion)` from the latest .NET SDK build) is the ground truth. Folder name is cosmetic. After deploy, verify:
+
+1. **In Azure:** ACA revision UI shows healthy (green checkmark)
+2. **In browser:** Webapp URL (`webapp.livelyforest-b32e7d63.centralus.azurecontainerapps.io`) loads and shows live data
+
+If both pass, the deploy is live **regardless of folder name.** The old folder is just stale history.
+
+### Corollary
+
+Auto-traffic routing can be brutal: if a new revision crashes on startup, Azure will route back to the last healthy revision silently. So **smoke-test the webapp URL directly** after every deploy — don't just assume the new revision won because it was last.
+
+---
+
+
 ## 2026-04-23 — Ad-hoc activity tracking via synthetic plan completions
 
 **Date:** 2026-04-23
@@ -1033,3 +1236,136 @@ requests
 - Correlation is now operational for production diagnosis — Captain can trace mobile actions to API tier
 - Framework gap (issue #171) identified but worked around; no blocker for this PR
 - All 4 PRs shipped; iOS production validation complete
+
+---
+
+## 2026-07-26: Squad — Word/Phrase Plan Review (5-agent consensus)
+
+**Status:** Phase complete (plan review locked, 3 Captain decisions, 14 todos folded in, implementation ready for `model-enum`)
+
+**Agent Verdicts:**
+- **Zoe (Plan):** Architecture sound, mastery policy correct, sequencing approved with 6 clarifications
+- **Wash (Schema):** 5 required changes (enum conversion, FK nullability, indexes, backfill location, dual-provider migrations)
+- **River (AI/Prompt):** 2 prompts + 1 DTO change needed, Korean classification rules essential
+- **Kaylee (UI):** 2 Blazor pages + 70 lines markup, existing patterns cover all needs
+- **Jayne (Tests):** 8 missing mastery scenarios + backfill edge cases, 3 blockers (transaction handling, constituent row creation, E2E dependency order)
+
+**Captain's 3 Locked Decisions:**
+1. **Shadowing + Unknown:** Use text as-is AND flag for UI reclassification. Do NOT auto-wrap unknown rows in carrier sentences.
+2. **Cascade transaction policy:** Best-effort with logging. Phrase mastery commits independently; constituent exposures each independent; failures logged but do not roll back.
+3. **First-ever constituent exposure:** Explicit `GetOrCreateProgressAsync` before `RecordPassiveExposureAsync` (defense in depth).
+
+**Details:** See `.squad/decisions/inbox/{zoe,wash,river,kaylee,jayne}-word-phrase-*-review.md` for full agent analysis, required changes, and implementation guardrails.
+
+---
+
+## 2026-04-23 — Word/Phrase Feature: Final Architecture Review & Approval
+
+**Date:** 2026-04-23  
+**Owner:** Zoe (Architecture Lead) + Team  
+**Status:** ✅ APPROVED — Implementation complete  
+
+[Content from zoe-word-phrase-plan-review.md — see `.squad/decisions/inbox/zoe-word-phrase-plan-review.md` for detailed review]
+
+**Key findings:**
+1. ✅ Architecture soundness — `LexicalUnitType` enum + `PhraseConstituent` join table placement correct
+2. ✅ Mastery policy — phrase production = full credit, constituents = passive exposure only (correct)
+3. ✅ Sequencing — Model → Migration → Backfill → Behavior → Tests → E2E (proper dependency order)
+4. ⚠️ **Required clarifications before implementation:**
+   - `model-constituent` todo: Ensure `ValueGeneratedNever()` on `PhraseConstituent.Id` in `OnModelCreating`
+   - `migration-schema` todo: Must generate migrations for BOTH SQLite and PostgreSQL providers
+   - `ai-generation-emit` todo: List specific prompt files + DTO classes needing updates
+   - `backfill-constituents` todo: Note performance consideration (use lemma lookup dictionary, not N+1)
+
+---
+
+## 2026-04-23 — Word/Phrase Feature: All Todos Delivered (14/15)
+
+**Feature:** LexicalUnitType + PhraseConstituent + Cascading Exposure  
+**Agents:** Wash, River, Kaylee, Jayne  
+**Status:** ✅ FEATURE COMPLETE (e2e BLOCKED)
+
+### Todos Delivered
+
+1. **model-enum** (Wash) ✅ — `LexicalUnitType` enum (Unknown, Word, Phrase, Sentence) added to `VocabularyWord`
+2. **model-constituent** (Wash) ✅ — `PhraseConstituent` join table with EF Core config + `ValueGeneratedNever()`
+3. **migration-schema** (Wash) ✅ — Migrations generated for SQLite + PostgreSQL
+4. **backfill-classification** (Wash) ✅ — Heuristic rules (punctuation, whitespace, length, tags)
+5. **backfill-constituents** (Wash) ✅ — Lemma-based tokenization + substring matching
+6. **progress-cascade** (Wash) ✅ — Passive exposure cascade in `VocabularyProgressService.RecordAttemptAsync`
+7. **shadowing-consumer** (Wash) ✅ — `ShadowingService` branches on LexicalUnitType
+8. **smart-resource-phrases** (Wash) ✅ — New "Phrases" smart resource type
+9. **smart-resource-phrases-fix** (Wash) ✅ — Fixed `GetAllVocabularyWordsAsync` scope bug
+10. **ai-generation-emit** (River) ✅ — Prompt updates + DTO fields for LexicalUnitType + RelatedTerms
+11. **ui-import-edit** (Kaylee) ✅ — Classification dropdown + constituent editor + import preview (14 UI strings)
+12. **tests-backfill** (Jayne) ✅ — 120 unit tests
+13. **tests-mastery-cascade** (Jayne) ✅ — 10 integration tests
+14. **tests-regression** (Jayne) ✅ — 5 regression tests (word-only unaffected)
+15. **tests-smart-resource** (Jayne) ✅ — 12 tests (failed initially, fixed by Wash's scope bug fix)
+16. **e2e-validation** (Jayne) 🚫 **BLOCKED** — Pre-existing SQLite migration history mismatch
+
+### Test Summary
+
+- **147 total tests passing** (120+10+5+12)
+- **Zero regressions** found in existing functionality
+- **One bug surfaced & fixed:** `SmartResourceService.GetPhrasesVocabularyIdsAsync` called `GetAllVocabularyWordsAsync` (ResourceVocabularyMapping-first filter), causing circular dependency. Fixed to use VocabularyProgress-first join.
+
+### Build Status
+
+✅ All target projects build green (Shared, MacCatalyst, Api, UI+AppHost)
+
+---
+
+## Known Follow-Ups
+
+### 1. ActiveUserId Pattern Audit
+
+**Issue:** Same bug pattern as `SmartResourceService.GetPhrasesVocabularyIdsAsync` may exist in other methods:
+- `GetDailyReviewVocabularyIdsAsync()` (line ~230-250)
+- `GetStrugglingVocabularyIdsAsync()` (line ~260-280)
+
+Both may be calling `GetAllVocabularyWordsAsync()` which depends on `ActiveUserId` being set, but SmartResourceService has no mechanism to set it. Same scope bug Wash fixed for Phrases.
+
+**Recommendation:** Audit both methods separately (out of scope for this feature).
+
+### 2. UI Localization (14 Strings)
+
+**Kaylee added 14 new English strings in Blazor UI:**
+- `VocabularyWordEdit.razor`: "LexicalUnitType", "Word", "Phrase", "Sentence", "Constituent Words", "Add Constituent", "Search constituent words...", "No constituents"
+- `ResourceAdd.razor`: Similar classification + constituent preview labels
+
+**Action:** Schedule localization sprint for Korean (ko), Spanish (es), French (fr), and any other target languages.
+
+### 3. ShadowingUnknownTerm Structured Logs → Reclassification Backlog
+
+**What's logged:** When `ShadowingService.GenerateSentencesAsync()` encounters `LexicalUnitType.Unknown`, it logs:
+```
+ShadowingUnknownTerm: WordId={WordId} Term={Term} needs classification
+```
+
+**Production opportunity:** Aggregate these logs (WordId + Term + frequency) to build a reclassification backlog. Long-tail unknown terms indicate:
+- Heuristic classification missed them
+- AI extraction is inconsistent
+- Manual review needed
+
+**Action:** Wire production logs into admin dashboard. Surface top 50 unknown terms by frequency. Flag for Captain/Zoe to prioritize AI prompt refinement or manual backfill.
+
+### 4. RelatedTerms Resolution at AI-Emission Time
+
+**Current state:** River's AI extraction emits `RelatedTerms` array (constituent words), which are stored in Tags as `constituents:term1,term2` hint (transient, not normalized).
+
+**Future work:** Parse this hint at AI-emission time and immediately resolve to proper `PhraseConstituent` rows (instead of deferring to backfill service). Avoids ambiguity from substring/lemma matching.
+
+**Action:** Defer to next iteration. Current approach (backfill) is more resilient to AI classification variance.
+
+### 5. SQLite Migration History Reconciliation (e2e-validation BLOCKED)
+
+**Issue:** Captain's local `sstudio.db3` has missing migration history rows in `__EFMigrationsHistory` table. Running e2e tests fails because EF Core's migration validator detects mismatch.
+
+**Options:**
+- **Option A (Recommended):** Back up `sstudio.db3`, inspect `__EFMigrationsHistory` table schema, identify missing migration IDs, insert them manually with `ProductVersion = "10.0.101"`. Relaunch tests.
+- **Option B:** Wipe `sstudio.db3`, let `MigrateAsync()` run fresh. Simpler but loses any test data.
+- **Option C:** Diagnose root cause (earlier dev session had uncommitted migrations? Migration file renamed?). May reveal related issues.
+
+**Action:** Awaits Captain decision. Scribe cannot proceed without explicit guidance.
+

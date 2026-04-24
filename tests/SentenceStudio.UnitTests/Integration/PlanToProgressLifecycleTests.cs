@@ -38,7 +38,8 @@ public class PlanToProgressLifecycleTests : IClassFixture<PlanGenerationTestFixt
         _progressService = new VocabularyProgressService(
             _progressRepo,
             contextRepo,
-            scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger<VocabularyProgressService>());
+            scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger<VocabularyProgressService>(),
+            fixture.ServiceProvider);
     }
 
     public void Dispose() { }

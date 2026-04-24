@@ -1,0 +1,49 @@
+[
+  {
+    "id": "d1d81199eb28",
+    "type": "Window",
+    "fullType": "Microsoft.Maui.Controls.Window",
+    "isVisible": false,
+    "isEnabled": false,
+    "isFocused": false,
+    "opacity": 1,
+    "children": [
+      {
+        "id": "6c4381b39aa4",
+        "parentId": "d1d81199eb28",
+        "type": "BlazorHostPage",
+        "fullType": "SentenceStudio.BlazorHostPage",
+        "isVisible": true,
+        "isEnabled": true,
+        "isFocused": false,
+        "opacity": 1,
+        "bounds": {
+          "x": 0,
+          "y": 41,
+          "width": 929,
+          "height": 778
+        },
+        "nativeType": "Microsoft.Maui.Platform.ContentView",
+        "children": [
+          {
+            "id": "deaff70f1b38",
+            "parentId": "6c4381b39aa4",
+            "type": "BlazorWebView",
+            "fullType": "Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebView",
+            "isVisible": true,
+            "isEnabled": true,
+            "isFocused": false,
+            "opacity": 1,
+            "bounds": {
+              "x": 0,
+              "y": 41,
+              "width": 929,
+              "height": 778
+            },
+            "nativeType": "WebKit.WKWebView"
+          }
+        ]
+      }
+    ]
+  }
+]

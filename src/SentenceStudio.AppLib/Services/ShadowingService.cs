@@ -87,28 +87,70 @@ public class ShadowingService
         // Use resource's language as target (supports multi-language learning)
         string targetLanguage = resource.Language ?? userProfile?.TargetLanguage ?? "Korean";
         
-        var prompt = string.Empty;     
-        using Stream templateStream = await _fileSystem.OpenAppPackageFileAsync("GetShadowingSentences.scriban-txt");
-        using (StreamReader reader = new StreamReader(templateStream))
+        // Separate words that need AI generation from those that use term as-is
+        var wordsNeedingAi = _words.Where(w => w.LexicalUnitType == LexicalUnitType.Word).ToList();
+        var wordsAsIs = _words.Where(w => w.LexicalUnitType == LexicalUnitType.Phrase 
+                                        || w.LexicalUnitType == LexicalUnitType.Sentence 
+                                        || w.LexicalUnitType == LexicalUnitType.Unknown).ToList();
+        
+        _logger.LogDebug("Shadowing generation: {WordCount} Words (need AI), {AsIsCount} Phrase/Sentence/Unknown (as-is)",
+            wordsNeedingAi.Count, wordsAsIs.Count);
+        
+        // Log Unknown terms for UI reclassification
+        foreach (var unknownWord in wordsAsIs.Where(w => w.LexicalUnitType == LexicalUnitType.Unknown))
         {
-            var template = Template.Parse(await reader.ReadToEndAsync());
-            prompt = await template.RenderAsync(new { 
-                terms = _words,
-                native_language = nativeLanguage,
-                target_language = targetLanguage
-            });
+            _logger.LogInformation(
+                "ShadowingUnknownTerm: WordId={WordId} Term={Term} needs classification",
+                unknownWord.Id, unknownWord.TargetLanguageTerm);
         }
         
-        try
+        // Create as-is sentences for Phrase/Sentence/Unknown (no AI round-trip)
+        var asIsSentences = wordsAsIs.Select(word =>
         {
-            var response = await _aiService.SendPrompt<ShadowingSentencesResponse>(prompt);
-            return response?.Sentences ?? new List<ShadowingSentence>();
-        }
-        catch (Exception ex)
+            _logger.LogDebug("ShadowingAsIs: WordId={WordId} LexicalUnitType={Type} Term={Term}",
+                word.Id, word.LexicalUnitType, word.TargetLanguageTerm);
+            
+            return new ShadowingSentence
+            {
+                TargetLanguageText = word.TargetLanguageTerm,
+                NativeLanguageText = word.NativeLanguageTerm,
+                PronunciationNotes = null
+            };
+        }).ToList();
+        
+        // Generate AI sentences only for Words
+        List<ShadowingSentence> aiSentences = new();
+        if (wordsNeedingAi.Any())
         {
-            _logger.LogError(ex, "❌ An error occurred in GenerateSentencesAsync");
-            return new List<ShadowingSentence>();
+            var prompt = string.Empty;     
+            using Stream templateStream = await _fileSystem.OpenAppPackageFileAsync("GetShadowingSentences.scriban-txt");
+            using (StreamReader reader = new StreamReader(templateStream))
+            {
+                var template = Template.Parse(await reader.ReadToEndAsync());
+                prompt = await template.RenderAsync(new { 
+                    terms = wordsNeedingAi,
+                    native_language = nativeLanguage,
+                    target_language = targetLanguage
+                });
+            }
+            
+            try
+            {
+                var response = await _aiService.SendPrompt<ShadowingSentencesResponse>(prompt);
+                aiSentences = response?.Sentences ?? new List<ShadowingSentence>();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "❌ An error occurred in GenerateSentencesAsync");
+            }
         }
+        
+        // Combine both sets and return
+        var allSentences = asIsSentences.Concat(aiSentences).ToList();
+        _logger.LogDebug("Shadowing result: {AsIsCount} as-is + {AiCount} AI-generated = {TotalCount} total",
+            asIsSentences.Count, aiSentences.Count, allSentences.Count);
+        
+        return allSentences;
     }
 
     /// <summary>

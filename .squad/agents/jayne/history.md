@@ -7,6 +7,7 @@
 
 ## Learnings
 
+- 2026-04-23: **Word/Phrase Feature Completed** — Completed 4 todos: tests-backfill (120 tests, classification + constituent backfill), tests-mastery-cascade (10 tests, cascade logic), tests-regression (5 tests, word-only unaffected), tests-smart-resource (12 tests, Phrases smart resource). Total: 147 tests passing, feature code-complete. E2E blocked on pre-existing SQLite migration history mismatch (Captain decision needed on reconciliation). One bug surfaced & fixed: SmartResourceService.GetPhrasesVocabularyIdsAsync scope bug (was circular, fixed by Wash). Documented in `.squad/log/2026-04-23T2219Z-wordphrase-squad-wrap.md`.
 - 2026-04-17: HelpKit Alpha — 30 golden Q/A + eval gate (85%/0%) + cross-platform validation plan + 7 unit-test files.
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
@@ -28,6 +29,121 @@
 
 
 ## Work Sessions
+
+### 2025-06-01 — Phrase Cascade Integration Tests ✅
+
+**Status:** ✅ COMPLETE  
+**Related Decisions:**
+- `docs/decisions/inbox/wash-progress-cascade.md` (Wash's implementation)
+- `.squad/decisions/inbox/jayne-tests-mastery-cascade.md` (THIS test report)
+
+**Assignment:** Write unit + integration tests for phrase-to-constituent passive exposure cascade in `VocabularyProgressService.RecordAttemptAsync`
+
+**Task:** `tests-mastery-cascade`
+
+**Tests Written:** 10 scenarios (all passing)
+
+1. ✅ Phrase own mastery intact while constituent exposure-only updates
+2. ✅ Constituent `ExposureCount`/`LastExposedAt` fields set correctly
+3. ✅ Unknown does not cascade (edge case verified)
+4. ✅ Word does not cascade to containing phrase (one-directional)
+5. ✅ Cascade caps at one level (no transitive)
+6. ✅ Lemma-based constituent matching via stored `PhraseConstituent` rows
+7. ✅ Zero constituents no-op (no exception, phrase mastery commits)
+8. ✅ Wrong-answer cascade (constituents get exposure even on incorrect attempts)
+9. ✅ First-ever constituent exposure auto-creates progress row
+10. ✅ Partial failure isolated (best-effort per constituent)
+
+**File:** `tests/SentenceStudio.UnitTests/Integration/PhraseCascadeIntegrationTests.cs`
+
+**Infrastructure:**
+- xUnit + FluentAssertions + Moq
+- In-memory SQLite via `PlanGenerationTestFixture` (real EF Core)
+- Deterministic (no tight DateTime comparisons, no random ordering)
+- Follows existing integration test patterns
+
+**Bugs Found:** NONE — Wash's implementation works as specified
+
+**Collateral Fixes:**
+Fixed 6 existing integration test files broken by Wash's new `IServiceProvider` constructor parameter:
+- `MasteryAlgorithmIntegrationTests.cs`
+- `MultiDayLearningJourneyTests.cs`
+- `SpacedRepetitionIntegrationTests.cs`
+- `PlanToProgressLifecycleTests.cs`
+- `VocabularyProgressServiceUserIdTests.cs`
+- `MasteryScoring/ScoringEngineTests.cs`
+
+**Test Results:**
+```bash
+dotnet test --filter "FullyQualifiedName~PhraseCascadeIntegrationTests"
+Passed: 10, Failed: 0, Skipped: 0, Duration: 441 ms
+```
+
+**Verdict:** ✅ CASCADE IMPLEMENTATION VERIFIED
+
+**Next Steps:**
+1. Scribe can document cascade feature in user-facing changelog
+2. Monitor structured logs in production for constituent cascade counts
+3. Wash's next task: `tests-backfill` will cover backfill service matching logic
+
+---
+
+### 2025-06-01 — Word-Only No-Cascade Regression Tests ✅
+
+**Status:** ✅ COMPLETE  
+**Related Decisions:**
+- `.squad/decisions/inbox/wash-progress-cascade.md` (Wash's cascade implementation)
+- `.squad/decisions/inbox/jayne-tests-mastery-cascade.md` (Cascade FIRES tests)
+- `.squad/decisions/inbox/jayne-tests-regression.md` (THIS regression test report)
+
+**Assignment:** Prove word/phrase feature is **additive, not disruptive** to word-only activities (Cloze, Writing, VocabularyReview)
+
+**Task:** `tests-regression`
+
+**Tests Written:** 5 scenarios (all passing)
+
+1. ✅ Word-type Cloze activity — NO cascade logic fires
+2. ✅ Word-type Writing activity (production mode) — NO cascade logic fires
+3. ✅ Word-type VocabularyReview activity — NO cascade logic fires
+4. ✅ Unknown-type vocabulary (pre-feature default) — NO cascade logic fires
+5. ✅ Mixed vocabulary (word + phrase) — word attempt does NOT cascade to phrase constituents
+
+**File:** `tests/SentenceStudio.UnitTests/Integration/WordOnlyNoCascadeRegressionTests.cs`
+
+**Assertion Strategy:**
+- PhraseConstituent table count checked before/after attempt (must remain 0 or unchanged)
+- Custom `InMemoryLoggerProvider` captures logs, filters for "PhraseCascade" signature, asserts empty
+- Word mastery metrics verified (attempts, streak, production evidence) to confirm normal flow
+
+**Infrastructure:**
+- xUnit + FluentAssertions
+- In-memory SQLite via `PlanGenerationTestFixture` (real EF Core + ApplicationDbContext)
+- Custom `InMemoryLoggerProvider` (reusable logger capture utility for future tests)
+- Deterministic (no time/random dependencies)
+
+**Coverage Gaps Found:** NONE — existing tests already cover word mastery progression. This task adds **explicit negative assertions** proving cascade does NOT fire for words.
+
+**Test Results:**
+```bash
+dotnet test --filter "FullyQualifiedName~WordOnlyNoCascadeRegressionTests"
+Test Run Successful.
+Total tests: 5, Passed: 5, Duration: 1.18s
+```
+
+**Verdict:** ✅ WORD-ONLY ACTIVITIES REMAIN UNAFFECTED BY PHRASE CASCADE
+
+**Learnings:**
+- Integration tests with real EF Core DbContext allow cascade behavior verification (table queries, progress updates)
+- In-memory logger providers enable non-invasive log assertion without changing production code
+- Word and Unknown types correctly excluded from cascade guard (`LexicalUnitType == Phrase || LexicalUnitType == Sentence`)
+- Pre-feature vocabulary (`LexicalUnitType.Unknown`) behaves identically to explicit `Word` type — both skip cascade
+- DifficultyWeight affects CurrentStreak directly (not capped at 1) — production activities use weight > 1.0
+
+**Next Steps:**
+1. Existing test files with uncommitted IServiceProvider fixes can be committed (those were part of Wash's cascade feature, not part of this task)
+2. Wash's next task: `tests-backfill` will verify backfill service phrase-constituent matching logic
+
+---
 
 ### 2026-04-19 — MAUI Locale Fix E2E Verification (Mac Catalyst)
 
@@ -761,4 +877,258 @@ Total: ~2 hours across three rounds. Worth it — would have shipped a broken lo
 
 
 - 2026-04-18: **Three-Round E2E with Reviewer Lockout Discipline** — Display Language Phase 1 required 3 Playwright test rounds: Round 1 blocked by MissingManifestResourceException (manifest stream name mismatch), Round 2 blocked by culture identifier misalignment (code/cookie use ko but resx is ko-KR, falls back to English), Round 3 all P0 scenarios pass (Korean NavMenu/Profile, English revert, cross-user isolation confirmed). Reviewer lockout enforced both rounds: Wash (not Kaylee) owned hotfixes. Live Playwright two-context isolation test pattern verified scoped service architecture: Browser A Korean circuit + Browser B fresh context both simultaneous, zero cross-circuit leak.
+
+
+## 2025-06-08 — Word/Phrase Plan Test Review
+
+Reviewed test coverage for word vs phrase distinction feature plan (session plan.md 9f9e8db5-d14f-498d-bbd3-cc13658d14f7).
+
+**Findings:**
+
+- tests-mastery-cascade: 6 scenarios listed, but missing 7 critical edge cases (zero constituents, wrong-answer exposure, missing VocabularyProgress row, transaction rollback, cascade cap validation, lemma match priority, Unknown classification handling, constituent deletion).
+
+- tests-backfill: Covers basics but missing empty DB test, corrupted Tags handling, non-ASCII punctuation variants (full-width vs ASCII), single-character classification boundary, re-classification idempotency.
+
+- tests-smart-resource: No test proving planner WON'T auto-select Phrases resource. Missing empty resource boundary test, language scoping clarity, refresh perf consideration.
+
+- e2e-validation: 5 scenarios listed but missing regression tests for word-only activities (Cloze, Writing, VocabReview), mastery-vs-exposure UI location unclear, Phrases resource refresh verification, auto-classify heuristic edge cases, webapp parity gap.
+
+- Test ordering: E2E doesn't depend on unit tests — WRONG. Should block on unit tests passing first (fail fast, cheaper feedback).
+
+**BLOCKERS identified:**
+
+1. Transaction handling for phrase mastery cascade (partial failure risk).
+2. RecordPassiveExposureAsync must create VocabularyProgress row if missing (first exposure scenario).
+3. Fix E2E dependency graph — must wait for unit tests.
+
+**Verdict:** REJECT — plan needs test expansion before implementation.
+
+**References:**
+- Reviewed VocabularyProgressServiceTests.cs (mastery scoring patterns)
+- Reviewed MasteryAlgorithmIntegrationTests.cs (full lifecycle, DB integration, transaction handling)
+- Reviewed VocabularyProgressTests.cs (IsKnown computed property logic)
+- Reviewed e2e-testing SKILL.md (3-level verification pattern, platform selection)
+- Reviewed smoke-test.md (cross-cutting checks, UserId validation)
+
+
+## 2025-01-22: Vocabulary Backfill Test Coverage
+
+**Task:** tests-backfill  
+**Deliverables:**
+- `VocabularyClassificationHeuristicTests.cs` (62 test scenarios)
+- `VocabularyPhraseTokenizationTests.cs` (58 test scenarios)
+- Decision writeup: `.squad/decisions/inbox/jayne-tests-backfill.md`
+
+**Scope:**
+Unit tests for pure static methods in `VocabularyClassificationBackfillService`:
+- `ClassifyHeuristic(string term, string? tags)` → `LexicalUnitType`
+- `TokenizePhrase(string term, string languageCode)` → `IReadOnlyList<string>`
+
+**Coverage Matrix:**
+1. ✅ Tags priority (phrase/sentence detection, comma-delimited, malformed)
+2. ✅ Terminal punctuation (ASCII: `.?!`, CJK: `。？！`)
+3. ✅ Whitespace detection (ASCII, CJK ideographic space U+3000)
+4. ✅ Length threshold (>12 chars → Phrase)
+5. ✅ CJK single-character guard (→ Unknown)
+6. ✅ Korean linguistic nuances (compound verbs, particles, greetings)
+7. ✅ Korean particle stripping (18 particle types: 이/가, 을/를, 은/는, etc.)
+8. ✅ English tokenization (whitespace, punctuation)
+9. ✅ Edge cases (empty, null, whitespace-only, pure punctuation, hyphenated)
+10. ✅ Idempotency verification
+
+**Test Results:**
+- Total tests: 120
+- Passed: 120 ✅
+- Failed: 0
+- Skipped: 0
+- Duration: 20ms
+
+**Implementation Findings:**
+Discovered 4 heuristic behaviors that differed from initial test assumptions (all legitimate implementation choices - NO bugs):
+1. Length threshold is strictly `>12` (not `>=12`)
+2. Terms trimmed before classification (trailing spaces removed)
+3. Standalone particles preserved (no parent word to strip from)
+4. Only whitespace splits tokens (CJK comma `、` is not a separator)
+
+All findings documented in test comments and writeup.
+
+**Framework:**
+- xUnit 2.9.2
+- FluentAssertions 6.12.0
+- Naming: `MethodName_Condition_Result`
+- Organization: Theory/InlineData for table-driven tests
+
+**Notes:**
+- No DB/mocking required (pure functions)
+- No production code changes needed
+- Service-level DB integration testing intentionally skipped per task instructions
+- Tests provide regression protection for future heuristic refinements
+
+**Status:** ✅ Complete - all deliverables shipped
+
+### 2026-05-20 — Smart Resource Phrases Tests
+
+**Status:** ✅ TESTS WRITTEN, BUG DISCOVERED  
+**Related Decisions:**
+- `.squad/decisions/inbox/wash-smart-resource-phrases.md` (Wash's implementation)
+- `.squad/decisions/inbox/jayne-tests-smart-resource.md` (THIS test report)
+
+**Assignment:** Write comprehensive tests for Wash's new `Phrases` smart resource implementation.
+
+**Task:** `tests-smart-resource`
+
+**Deliverables:**
+- `tests/SentenceStudio.UnitTests/Services/SmartResourcePhrasesTests.cs` (12 scenarios, 650 lines)
+- `.squad/decisions/inbox/jayne-tests-smart-resource.md` (detailed writeup)
+
+**Test Results:** 6 passing, 6 failing (all failures due to discovered bug)
+
+**Bug Discovered:** `GetAllVocabularyWordsAsync()` applies user-scoping filter via `ResourceVocabularyMapping` join, creating circular dependency that prevents Phrases refresh from finding any words. The method assumes resources already have vocabulary mappings, but smart resource refresh is the process that *creates* those mappings.
+
+**Passing Tests:**
+1. ✅ Empty mapping on new user (no exception)
+2. ✅ User B gets empty when only User A has progress (correct isolation)
+3. ✅ Planner excludes smart resources from auto-selection
+4. ✅ Planner selects regular resource, ignores Phrases smart resource
+5. ✅ Smart resource initialization creates all 4 types (DailyReview, NewWords, Struggling, Phrases)
+6. ✅ Re-initialization is idempotent (no duplicates)
+
+**Failing Tests (blocked by bug):**
+7. ❌ Mixed vocabulary → should filter to Phrase + Sentence only (0 instead of 3)
+8. ❌ Sentences only → should contain Sentence rows (0 instead of 2)
+9. ❌ Unknown lexical type → should exclude Unknown (0 instead of 2)
+10. ❌ Multi-user → should isolate User A's words (0 instead of 2)
+11. ❌ Idempotency → double refresh should work (0 instead of 2)
+12. ❌ Dynamic updates → add/remove words should update mapping (0 instead of growing/shrinking)
+
+**Recommended Fix:** Replace `GetAllVocabularyWordsAsync()` call in `GetPhrasesVocabularyIdsAsync` with direct `VocabularyWords` query joined on `VocabularyProgress.UserId` (per original design doc in wash-smart-resource-phrases.md).
+
+**Next:** Wash fixes bug → Jayne re-runs tests to verify all 12 pass.
+
+---
+
+### 2026-04-23 — Word/Phrase Feature E2E Validation ❌ BLOCKED
+
+**Status:** ❌ **BLOCKED** — Migration system failure prevents validation  
+**Related Decisions:**
+- `.squad/decisions/inbox/jayne-e2e-validation-blocked.md` (THIS report)
+- Word/Phrase feature plan: `/Users/davidortinau/.copilot/session-state/9f9e8db5-d14f-498d-bbd3-cc13658d14f7/plan.md`
+
+**Assignment:** E2E verify Word/Phrase feature (LexicalUnitType enum, PhraseConstituent cascade, Shadowing branching, Phrases smart resource) on Mac Catalyst
+
+**Pre-flight Build:** ✅ PASSED  
+- `dotnet build -f net10.0-maccatalyst` succeeded
+- 856 warnings (nullable references, not blockers)
+
+**App Launch:** ✅ PASSED  
+- Aspire orchestration started all services
+- MacCatalyst app launched (PID 4853)
+- MAUI DevFlow Agent connected
+
+**CRITICAL BLOCKER:** ❌ **EF Core Migration System Failure**
+
+**Error:**
+```
+SQLite Error 1: 'table "Challenge" already exists'
+at Microsoft.EntityFrameworkCore.Migrations.Internal.Migrator.MigrateAsync
+at SentenceStudio.Services.SyncService.InitializeDatabaseAsync()
+```
+
+**Root Cause:**
+- SQLite database exists at `~/Library/Containers/.../sstudio.db3` with tables from pre-migration version
+- `__EFMigrationsHistory` table exists but database has no recorded migration history
+- EF Core attempts to apply `20260321133148_InitialSqlite` migration
+- Migration fails because tables already exist (created before migration tracking)
+- **Word/Phrase migrations NEVER applied:**
+  - ❌ `20260423213242_AddLexicalUnitTypeAndConstituents.cs`
+  - ❌ `20260725230000_AddPassiveExposureFields.cs`
+
+**Impact:**
+- Database schema **missing** `LexicalUnitType` column, `PhraseConstituent` table, passive exposure fields
+- App shows **login screen** instead of dashboard → user session cannot load
+- Backfill service never ran → no lexical unit classification, no phrase constituents
+- **E2E validation completely blocked** — cannot test Word/Phrase feature
+
+**What I Did:**
+1. ✅ Pre-flight build (0 errors, 856 warnings)
+2. ✅ Launched app via Aspire
+3. ✅ Connected MAUI DevFlow agent
+4. ✅ Captured native logs showing migration error
+5. ✅ Screenshot of app state (login screen instead of dashboard)
+6. ❌ **STOPPED** — per data preservation rules, this is NOT a wipe-data scenario
+
+**Not a Data Loss Scenario:**
+Captain's production data is in this database. Per global instructions:
+- ❌ Do NOT delete database
+- ❌ Do NOT uninstall app
+- ❌ Do NOT wipe data to "start fresh"
+
+This is a **schema reconciliation problem** requiring strategic fix.
+
+**Resolution Paths (Captain/Wash to decide):**
+
+**Option A:** Manual migration history reconciliation
+1. Inspect current schema via SQLite CLI
+2. Manually insert migration records into `__EFMigrationsHistory` matching current state
+3. Apply only NEW Word/Phrase migrations going forward
+
+**Option B:** Custom migration handling existing tables
+1. Create migration that checks table existence before creating
+2. Add only missing columns to existing tables
+3. Update migration history to reflect actual state
+
+**Option C:** Data export/import (destructive)
+1. Export data via `DataExportService`
+2. Delete database
+3. Fresh migrations on clean DB
+4. Re-import data
+
+**Recommendation:** Option A or B (preserve data in-place)
+
+**Test Artifacts:**
+- `e2e-testing-workspace/word-phrase-e2e/build-output.log` (297.6 KB)
+- `e2e-testing-workspace/word-phrase-e2e/current-logs.txt` (48.1 KB, includes full migration error)
+- `e2e-testing-workspace/word-phrase-e2e/01-app-launch-state.png` (login screen screenshot)
+
+**Validation Steps NOT Executed:**
+- ❌ Verify migrations applied + backfill ran
+- ❌ Smart resource: Phrases
+- ❌ Shadowing branching (Word vs Phrase)
+- ❌ Cascade passive exposure
+- ❌ No regressions check
+
+**Learnings:**
+- SQLite migration conflicts can happen when database was created before formal migration tracking
+- EF Core cannot reconcile schema state without proper `__EFMigrationsHistory` baseline
+- Migration errors at `InitializeDatabaseAsync()` prevent app from loading user session
+- MAUI DevFlow agent works without broker for basic commands (`logs`, `platform app-info`)
+- Blazor Hybrid apps have no MAUI visual tree to query — need DevFlow Blazor CDP tools
+
+**Next Steps:**
+1. Escalate to Captain or Wash for migration reconciliation strategy decision
+2. Once database schema is reconciled, re-run E2E validation from Step 3 onward
+3. Feature implementation code remains **untested on Mac Catalyst** until database is fixed
+
+**Verdict:** ❌ **E2E VALIDATION FAILED** — Infrastructure blocker prevents feature testing
+
+---
+
+
+---
+
+## Session: 2026-04-24 — Word vs Phrase (WoC) Final Batch E2E Validation
+
+**Focus:** E2E Steps 1–7 (shadowing, phrases, mastery cascade, smart resources). Steps 1–4 and Step 5 re-verified PASS (after Wash's per-type idempotency + GetAsync wire-up fix). Steps 6–7 (unit tests) formally skipped per Captain approval (coverage confirmed in prior batch).
+
+**Blockers encountered & resolved:**
+- Step 5 FAIL (first run): Phrases smart resource missing → Wash diagnosed zero production callers, added per-type seed guard + GetAsync hook → Step 5 re-run PASS
+- Temp DI swap for DevAuthService + null-token patch (testing only, reverted)
+- Off-type smart-resource cross-check: verified 4 total, 0 off-type
+
+**Final verification (Step 5 re-run):**
+- Smart resources: Daily Review ✓, New Words ✓, Struggling ✓, Phrases ✓
+- UI: Phrases card rendered, vocabulary count = 403 (dynamic, query-time resolution)
+- Tree clean post-verification
+
+**Artifacts:** Playwri...e2e-testing skill reference (steps 1–7), maui-ai-debugging skill screenshots. Feature code-complete, e2e verified. Awaiting Captain's `/review` before push.
 

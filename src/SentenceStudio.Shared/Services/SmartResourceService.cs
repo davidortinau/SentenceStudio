@@ -1,3 +1,5 @@
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Data;
 using SentenceStudio.Shared.Models;
@@ -13,11 +15,13 @@ public class SmartResourceService
     private readonly LearningResourceRepository _resourceRepo;
     private readonly VocabularyProgressRepository _progressRepo;
     private readonly ILogger<SmartResourceService> _logger;
+    private readonly IServiceProvider _serviceProvider;
 
     // Smart resource type constants
     public const string SmartResourceType_DailyReview = "DailyReview";
     public const string SmartResourceType_NewWords = "NewWords";
     public const string SmartResourceType_Struggling = "Struggling";
+    public const string SmartResourceType_Phrases = "Phrases";
 
     // Threshold for "struggling" words
     private const int STRUGGLING_MIN_ATTEMPTS = 5;
@@ -29,11 +33,13 @@ public class SmartResourceService
     public SmartResourceService(
         LearningResourceRepository resourceRepo,
         VocabularyProgressRepository progressRepo,
-        ILogger<SmartResourceService> logger)
+        ILogger<SmartResourceService> logger,
+        IServiceProvider serviceProvider)
     {
         _resourceRepo = resourceRepo;
         _progressRepo = progressRepo;
         _logger = logger;
+        _serviceProvider = serviceProvider;
     }
 
     /// <summary>
@@ -46,69 +52,96 @@ public class SmartResourceService
 
         try
         {
-            // Check if smart resources already exist
+            // Per-type idempotency: check each smart resource type independently so
+            // upgraded users who pre-date a newly-added type (e.g. Phrases) still
+            // get the missing entry seeded without duplicating existing ones.
             var existingSmartResources = await _resourceRepo.GetSmartResourcesAsync();
-            if (existingSmartResources.Any())
+            var existingTypes = new HashSet<string>(
+                existingSmartResources
+                    .Where(r => !string.IsNullOrEmpty(r.SmartResourceType))
+                    .Select(r => r.SmartResourceType!),
+                StringComparer.Ordinal);
+
+            // Seed definitions for each smart resource type. Order preserved.
+            var definitions = new[]
             {
-                _logger.LogInformation("✅ Smart resources already exist, skipping initialization");
+                new LearningResource
+                {
+                    Title = "Daily Review",
+                    Description = "Practice vocabulary due for review today based on spaced repetition",
+                    MediaType = "Smart Vocabulary List",
+                    Language = targetLanguage,
+                    Tags = "system-generated,dynamic,srs",
+                    IsSmartResource = true,
+                    SmartResourceType = SmartResourceType_DailyReview,
+                    CreatedAt = DateTime.Now,
+                    UpdatedAt = DateTime.Now
+                },
+                new LearningResource
+                {
+                    Title = "New Words Practice",
+                    Description = "Focus on vocabulary you haven't practiced yet",
+                    MediaType = "Smart Vocabulary List",
+                    Language = targetLanguage,
+                    Tags = "system-generated,dynamic,new",
+                    IsSmartResource = true,
+                    SmartResourceType = SmartResourceType_NewWords,
+                    CreatedAt = DateTime.Now,
+                    UpdatedAt = DateTime.Now
+                },
+                new LearningResource
+                {
+                    Title = "Struggling Words",
+                    Description = "Target vocabulary that needs extra attention",
+                    MediaType = "Smart Vocabulary List",
+                    Language = targetLanguage,
+                    Tags = "system-generated,dynamic,review",
+                    IsSmartResource = true,
+                    SmartResourceType = SmartResourceType_Struggling,
+                    CreatedAt = DateTime.Now,
+                    UpdatedAt = DateTime.Now
+                },
+                new LearningResource
+                {
+                    Title = "Phrases",
+                    Description = "Practice all your phrase and sentence vocabulary",
+                    MediaType = "Smart Vocabulary List",
+                    Language = targetLanguage,
+                    Tags = "system-generated,dynamic,phrases",
+                    IsSmartResource = true,
+                    SmartResourceType = SmartResourceType_Phrases,
+                    CreatedAt = DateTime.Now,
+                    UpdatedAt = DateTime.Now
+                }
+            };
+
+            var createdResources = new List<LearningResource>();
+            foreach (var def in definitions)
+            {
+                if (existingTypes.Contains(def.SmartResourceType!))
+                {
+                    _logger.LogDebug("↪️ Smart resource type '{Type}' already exists, skipping create", def.SmartResourceType);
+                    continue;
+                }
+
+                await _resourceRepo.SaveResourceAsync(def);
+                createdResources.Add(def);
+                _logger.LogInformation("✅ Created smart resource: {Title} ({Type})", def.Title, def.SmartResourceType);
+            }
+
+            if (createdResources.Count == 0)
+            {
+                _logger.LogInformation("✅ All smart resources already exist, no seeding required");
                 return;
             }
 
-            // Create Daily Review resource
-            var dailyReview = new LearningResource
+            // Perform initial refresh to populate vocabulary for newly created resources only.
+            foreach (var created in createdResources)
             {
-                Title = "Daily Review",
-                Description = "Practice vocabulary due for review today based on spaced repetition",
-                MediaType = "Smart Vocabulary List",
-                Language = targetLanguage,
-                Tags = "system-generated,dynamic,srs",
-                IsSmartResource = true,
-                SmartResourceType = SmartResourceType_DailyReview,
-                CreatedAt = DateTime.Now,
-                UpdatedAt = DateTime.Now
-            };
+                await RefreshSmartResourceAsync(created.Id, userId);
+            }
 
-            // Create New Words resource
-            var newWords = new LearningResource
-            {
-                Title = "New Words Practice",
-                Description = "Focus on vocabulary you haven't practiced yet",
-                MediaType = "Smart Vocabulary List",
-                Language = targetLanguage,
-                Tags = "system-generated,dynamic,new",
-                IsSmartResource = true,
-                SmartResourceType = SmartResourceType_NewWords,
-                CreatedAt = DateTime.Now,
-                UpdatedAt = DateTime.Now
-            };
-
-            // Create Struggling Words resource
-            var strugglingWords = new LearningResource
-            {
-                Title = "Struggling Words",
-                Description = "Target vocabulary that needs extra attention",
-                MediaType = "Smart Vocabulary List",
-                Language = targetLanguage,
-                Tags = "system-generated,dynamic,review",
-                IsSmartResource = true,
-                SmartResourceType = SmartResourceType_Struggling,
-                CreatedAt = DateTime.Now,
-                UpdatedAt = DateTime.Now
-            };
-
-            // Save resources
-            await _resourceRepo.SaveResourceAsync(dailyReview);
-            await _resourceRepo.SaveResourceAsync(newWords);
-            await _resourceRepo.SaveResourceAsync(strugglingWords);
-
-            _logger.LogInformation("✅ Created 3 smart resources: Daily Review, New Words, Struggling Words");
-
-            // Perform initial refresh to populate vocabulary
-            await RefreshSmartResourceAsync(dailyReview.Id, userId);
-            await RefreshSmartResourceAsync(newWords.Id, userId);
-            await RefreshSmartResourceAsync(strugglingWords.Id, userId);
-
-            _logger.LogInformation("✅ Smart resources initialized and refreshed");
+            _logger.LogInformation("✅ Smart resources initialized and refreshed ({Count} new)", createdResources.Count);
         }
         catch (Exception ex)
         {
@@ -200,6 +233,7 @@ public class SmartResourceService
             SmartResourceType_DailyReview => await GetDailyReviewVocabularyIdsAsync(userId),
             SmartResourceType_NewWords => await GetNewWordsVocabularyIdsAsync(userId),
             SmartResourceType_Struggling => await GetStrugglingWordsVocabularyIdsAsync(userId),
+            SmartResourceType_Phrases => await GetPhrasesVocabularyIdsAsync(userId),
             _ => new List<string>()
         };
     }
@@ -262,5 +296,38 @@ public class SmartResourceService
 
         _logger.LogDebug("💪 Struggling Words found {Count} words needing attention", strugglingWordIds.Count);
         return strugglingWordIds;
+    }
+
+    /// <summary>
+    /// Get vocabulary IDs for Phrases: all phrase and sentence vocabulary.
+    /// Selection: LexicalUnitType = Phrase OR Sentence, scoped by user via VocabularyProgress.
+    /// </summary>
+    private async Task<List<string>> GetPhrasesVocabularyIdsAsync(string userId = "")
+    {
+        var allProgress = await _progressRepo.ListAsync();
+        var userWordIds = allProgress
+            .Where(vp => vp.UserId == userId)
+            .Select(vp => vp.VocabularyWordId)
+            .Distinct()
+            .ToList();
+
+        if (userWordIds.Count == 0)
+        {
+            _logger.LogDebug("📝 Phrases found 0 phrase/sentence entries (no user progress)");
+            return new List<string>();
+        }
+
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var phraseWordIds = await db.VocabularyWords
+            .Where(w => userWordIds.Contains(w.Id))
+            .Where(w => w.LexicalUnitType == LexicalUnitType.Phrase
+                     || w.LexicalUnitType == LexicalUnitType.Sentence)
+            .Select(w => w.Id)
+            .ToListAsync();
+
+        _logger.LogDebug("📝 Phrases found {Count} phrase/sentence entries", phraseWordIds.Count);
+        return phraseWordIds;
     }
 }

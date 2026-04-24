@@ -131,6 +131,48 @@ else
 
         @if (resource.Vocabulary?.Count > 0)
         {
+            <div class="table-responsive mb-3">
+                <table class="table table-sm table-hover">
+                    <thead>
+                        <tr>
+                            <th>Target Term</th>
+                            <th>Native Term</th>
+                            <th>Type</th>
+                            <th>Tags</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var word in resource.Vocabulary)
+                        {
+                            <tr>
+                                <td class="align-middle">@word.TargetLanguageTerm</td>
+                                <td class="align-middle">@word.NativeLanguageTerm</td>
+                                <td class="align-middle">
+                                    <select class="form-select form-select-sm" style="min-width: 120px;"
+                                            @bind="word.LexicalUnitType">
+                                        <option value="@LexicalUnitType.Word">
+                                            Word
+                                        </option>
+                                        <option value="@LexicalUnitType.Phrase">
+                                            Phrase
+                                        </option>
+                                        <option value="@LexicalUnitType.Sentence">
+                                            Sentence
+                                        </option>
+                                    </select>
+                                </td>
+                                <td class="align-middle"><small class="text-secondary-ss">@(string.IsNullOrEmpty(word.Tags) ? "—" : word.Tags)</small></td>
+                                <td class="align-middle">
+                                    <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => RemoveVocabularyWord(word)">
+                                        <i class="bi bi-x"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
             <small class="text-secondary-ss">@string.Format(Localize["ResourceAdd_VocabWordsAdded"], resource.Vocabulary.Count)</small>
         }
     </div>
@@ -258,12 +300,21 @@ else
             {
                 word.CreatedAt = DateTime.UtcNow;
                 word.UpdatedAt = DateTime.UtcNow;
+                // Apply heuristic classification
+                word.LexicalUnitType = SentenceStudio.Services.VocabularyClassificationBackfillService.ClassifyHeuristic(
+                    word.TargetLanguageTerm ?? string.Empty,
+                    word.Tags);
                 resource.Vocabulary.Add(word);
                 added++;
             }
         }
 
         return added;
+    }
+
+    private void RemoveVocabularyWord(VocabularyWord word)
+    {
+        resource.Vocabulary?.Remove(word);
     }
 
     private async Task HandleFileImport(InputFileChangeEventArgs e)
@@ -301,6 +352,10 @@ else
                 {
                     word.CreatedAt = DateTime.UtcNow;
                     word.UpdatedAt = DateTime.UtcNow;
+                    // Apply heuristic classification
+                    word.LexicalUnitType = SentenceStudio.Services.VocabularyClassificationBackfillService.ClassifyHeuristic(
+                        word.TargetLanguageTerm ?? string.Empty,
+                        word.Tags);
                     resource.Vocabulary.Add(word);
                     added++;
                 }

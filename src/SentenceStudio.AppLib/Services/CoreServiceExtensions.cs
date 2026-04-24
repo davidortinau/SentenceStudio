@@ -104,6 +104,9 @@ public static class CoreServiceExtensions
         // App state
         services.AddSingleton<IAppState, AppState>();
 
+        // Backfill services
+        services.AddSingleton<VocabularyClassificationBackfillService>();
+
         return services;
     }
 }

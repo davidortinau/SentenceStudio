@@ -1,0 +1,4002 @@
+[
+  {
+    "t": "2026-04-23T22:14:57.729239Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0128ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:14:57.728673Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:14:47.727173Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0857ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:14:47.726247Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:14:37.724595Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "HttpMessageHandler expired after 120000ms for client \u0027AuthClient\u0027",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.806956Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler",
+    "m": "Request for app://0.0.0.1/_content/SentenceStudio.UI/js/app.js was not handled.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.806612Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler",
+    "m": "Response content being sent for web request to URI \u0027app://0.0.0.1/_content/SentenceStudio.UI/js/app.js\u0027 with HTTP status code 200.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.79979Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler",
+    "m": "Handling web request to URI \u0027app://0.0.0.1/_content/SentenceStudio.UI/js/app.js\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.799656Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler",
+    "m": "Intercepting request for app://0.0.0.1/_content/SentenceStudio.UI/js/app.js.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.778615Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Rendering component 8 of type SentenceStudio.WebUI.Layout.MainLayout",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.776701Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Rendering component 14 of type SentenceStudio.WebUI.Components.EnvironmentBadge",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.776393Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Initializing component 14 (SentenceStudio.WebUI.Components.EnvironmentBadge) as child of 13 (SentenceStudio.WebUI.Pages.LoginPage)",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.775031Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Rendering component 13 of type SentenceStudio.WebUI.Pages.LoginPage",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.774807Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Disposing component 10 of type SentenceStudio.WebUI.Shared.RedirectToLogin",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.774565Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Initializing component 13 (SentenceStudio.WebUI.Pages.LoginPage) as child of 8 (SentenceStudio.WebUI.Layout.MainLayout)",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.773443Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Rendering component 8 of type SentenceStudio.WebUI.Layout.MainLayout",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.773361Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Rendering component 7 of type Microsoft.AspNetCore.Components.LayoutView",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.773127Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Rendering component 6 of type Microsoft.AspNetCore.Components.Authorization.AuthorizeRouteView\u002BAuthorizeRouteViewCore",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.77302Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Rendering component 5 of type Microsoft.AspNetCore.Components.Routing.FocusOnNavigate",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.772859Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Rendering component 4 of type Microsoft.AspNetCore.Components.Authorization.AuthorizeRouteView",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.772393Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Rendering component 3 of type Microsoft.AspNetCore.Components.Routing.Router",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.772323Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.Routing.Router",
+    "m": "Navigating to component SentenceStudio.WebUI.Pages.LoginPage in response to path \u0027/auth/login\u0027 with base URI \u0027app://0.0.0.1/\u0027",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.772231Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Routing.Tree.TreeRouter",
+    "m": "Request successfully matched the route with name \u0027(null)\u0027 and template \u0027/auth/login\u0027",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.757494Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Rendering component 12 of type SentenceStudio.WebUI.Shared.WhatsNewModal",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.757319Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Rendering component 11 of type SentenceStudio.WebUI.Shared.ToastContainer",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.757265Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Rendering component 10 of type SentenceStudio.WebUI.Shared.RedirectToLogin",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.757167Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Rendering component 9 of type SentenceStudio.WebUI.Components.EnvironmentBadge",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.756803Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Initializing component 12 (SentenceStudio.WebUI.Shared.WhatsNewModal) as child of 8 (SentenceStudio.WebUI.Layout.MainLayout)",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.756395Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Initializing component 11 (SentenceStudio.WebUI.Shared.ToastContainer) as child of 8 (SentenceStudio.WebUI.Layout.MainLayout)",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.753626Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Initializing component 10 (SentenceStudio.WebUI.Shared.RedirectToLogin) as child of 8 (SentenceStudio.WebUI.Layout.MainLayout)",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.753211Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Initializing component 9 (SentenceStudio.WebUI.Components.EnvironmentBadge) as child of 8 (SentenceStudio.WebUI.Layout.MainLayout)",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.751678Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Rendering component 8 of type SentenceStudio.WebUI.Layout.MainLayout",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.750842Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Initializing component 8 (SentenceStudio.WebUI.Layout.MainLayout) as child of 7 (Microsoft.AspNetCore.Components.LayoutView)",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.748671Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Rendering component 7 of type Microsoft.AspNetCore.Components.LayoutView",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.748344Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Initializing component 7 (Microsoft.AspNetCore.Components.LayoutView) as child of 6 (Microsoft.AspNetCore.Components.Authorization.AuthorizeRouteView\u002BAuthorizeRouteViewCore)",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.747951Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Rendering component 6 of type Microsoft.AspNetCore.Components.Authorization.AuthorizeRouteView\u002BAuthorizeRouteViewCore",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.7478Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Rendering component 5 of type Microsoft.AspNetCore.Components.Routing.FocusOnNavigate",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.747613Z",
+    "l": "Information",
+    "c": "Microsoft.AspNetCore.Authorization.DefaultAuthorizationService",
+    "m": "Authorization failed. These requirements were not met:\nDenyAnonymousAuthorizationRequirement: Requires an authenticated user.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.744553Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Initializing component 6 (Microsoft.AspNetCore.Components.Authorization.AuthorizeRouteView\u002BAuthorizeRouteViewCore) as child of 4 (Microsoft.AspNetCore.Components.Authorization.AuthorizeRouteView)",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.742303Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Rendering component 4 of type Microsoft.AspNetCore.Components.Authorization.AuthorizeRouteView",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.742073Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Initializing component 5 (Microsoft.AspNetCore.Components.Routing.FocusOnNavigate) as child of 3 (Microsoft.AspNetCore.Components.Routing.Router)",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.741406Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Initializing component 4 (Microsoft.AspNetCore.Components.Authorization.AuthorizeRouteView) as child of 3 (Microsoft.AspNetCore.Components.Routing.Router)",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.740526Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Rendering component 3 of type Microsoft.AspNetCore.Components.Routing.Router",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.740319Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.Routing.Router",
+    "m": "Navigating to component SentenceStudio.WebUI.Pages.Index in response to path \u0027/\u0027 with base URI \u0027app://0.0.0.1/\u0027",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.739511Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Routing.Tree.TreeRouter",
+    "m": "Request successfully matched the route with name \u0027(null)\u0027 and template \u0027/\u0027",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.728786Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Initializing component 3 (Microsoft.AspNetCore.Components.Routing.Router) as child of 2 (Microsoft.AspNetCore.Components.CascadingValue\u00601[System.Threading.Tasks.Task\u00601[Microsoft.AspNetCore.Components.Authorization.AuthenticationState]])",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.727912Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Rendering component 2 of type Microsoft.AspNetCore.Components.CascadingValue\u00601[System.Threading.Tasks.Task\u00601[Microsoft.AspNetCore.Components.Authorization.AuthenticationState]]",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.727732Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Initializing component 2 (Microsoft.AspNetCore.Components.CascadingValue\u00601[System.Threading.Tasks.Task\u00601[Microsoft.AspNetCore.Components.Authorization.AuthenticationState]]) as child of 1 (Microsoft.AspNetCore.Components.Authorization.CascadingAuthenticationState)",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.727414Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Rendering component 1 of type Microsoft.AspNetCore.Components.Authorization.CascadingAuthenticationState",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.719859Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Initializing component 1 (Microsoft.AspNetCore.Components.Authorization.CascadingAuthenticationState) as child of 0 (SentenceStudio.WebUI.Routes)",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.681939Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Rendering component 0 of type SentenceStudio.WebUI.Routes",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.677607Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.RenderTree.Renderer",
+    "m": "Initializing root component 0 (SentenceStudio.WebUI.Routes)",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.614349Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler",
+    "m": "Request for app://0.0.0.1/Microsoft.Maui.DevFlow.Blazor.lib.module.js was not handled.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.614029Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler",
+    "m": "Response content being sent for web request to URI \u0027app://0.0.0.1/Microsoft.Maui.DevFlow.Blazor.lib.module.js\u0027 with HTTP status code 200.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.610978Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler",
+    "m": "Handling web request to URI \u0027app://0.0.0.1/Microsoft.Maui.DevFlow.Blazor.lib.module.js\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.61085Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler",
+    "m": "Intercepting request for app://0.0.0.1/Microsoft.Maui.DevFlow.Blazor.lib.module.js.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.582634Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler",
+    "m": "Request for app://0.0.0.1/_framework/blazor.modules.json was not handled.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.582331Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler",
+    "m": "Response content being sent for web request to URI \u0027app://0.0.0.1/_framework/blazor.modules.json\u0027 with HTTP status code 200.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.580416Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler",
+    "m": "Handling web request to URI \u0027app://0.0.0.1/_framework/blazor.modules.json\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.580309Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler",
+    "m": "Intercepting request for app://0.0.0.1/_framework/blazor.modules.json.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.571366Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler",
+    "m": "Request for app://0.0.0.1/chobitsu.js was not handled.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.570875Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler",
+    "m": "Response content being sent for web request to URI \u0027app://0.0.0.1/chobitsu.js\u0027 with HTTP status code 200.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.508077Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler",
+    "m": "Handling web request to URI \u0027app://0.0.0.1/chobitsu.js\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.50798Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler",
+    "m": "Intercepting request for app://0.0.0.1/chobitsu.js.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.507657Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler",
+    "m": "Request for app://0.0.0.1/_framework/blazor.webview.js was not handled.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.507145Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler",
+    "m": "Response content being sent for web request to URI \u0027app://0.0.0.1/_framework/blazor.webview.js\u0027 with HTTP status code 200.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.496778Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler",
+    "m": "Handling web request to URI \u0027app://0.0.0.1/_framework/blazor.webview.js\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.496687Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler",
+    "m": "Intercepting request for app://0.0.0.1/_framework/blazor.webview.js.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.496461Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler",
+    "m": "Request for app://0.0.0.1/_content/SentenceStudio.UI/css/app.css was not handled.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.496182Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler",
+    "m": "Response content being sent for web request to URI \u0027app://0.0.0.1/_content/SentenceStudio.UI/css/app.css\u0027 with HTTP status code 200.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.493853Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler",
+    "m": "Handling web request to URI \u0027app://0.0.0.1/_content/SentenceStudio.UI/css/app.css\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.493737Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler",
+    "m": "Intercepting request for app://0.0.0.1/_content/SentenceStudio.UI/css/app.css.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.486982Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler",
+    "m": "Request for app://0.0.0.1/ was not handled.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.485773Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler",
+    "m": "Response content being sent for web request to URI \u0027app://0.0.0.1/\u0027 with HTTP status code 200.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.479424Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler",
+    "m": "Handling web request to URI \u0027app://0.0.0.1/\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.479003Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler",
+    "m": "Intercepting request for app://0.0.0.1/.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.393824Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler",
+    "m": "Navigation event for URI \u0027app://0.0.0.1/\u0027 with URL loading strategy \u0027OpenInWebView\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.022995Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler",
+    "m": "Navigating to app://0.0.0.1/.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.02174Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler",
+    "m": "Starting initial navigation to \u0027/\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.009955Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler",
+    "m": "Creating file provider at content root \u0027wwwroot\u0027, using host page relative path \u0027index.html\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:37.006767Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler",
+    "m": "Created WebKit WKWebView.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.927722Z",
+    "l": "Debug",
+    "c": "Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler",
+    "m": "Creating WebKit WKWebView...",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.902863Z",
+    "l": "Information",
+    "c": "MauiProgram",
+    "m": "[CoreSync] Background sync completed successfully",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.901728Z",
+    "l": "Error",
+    "c": "SentenceStudio.Services.SyncService",
+    "m": "Sync failed: Unable to configure table \u0027MonitoredChannel\u0027: does it exist with at least one column?",
+    "e": "System.InvalidOperationException: Unable to configure table \u0027MonitoredChannel\u0027: does it exist with at least one column?\n   at CoreSync.Sqlite.SqliteSyncProvider.InitializeStoreAsync(CancellationToken cancellationToken)\n   at CoreSync.Sqlite.SqliteSyncProvider.ApplyProvisionAsync(CancellationToken cancellationToken)\n   at SentenceStudio.Services.SyncService.TriggerSyncAsync() in /Users/davidortinau/work/SentenceStudio/src/SentenceStudio.Shared/Services/SyncService.cs:line 243",
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.898506Z",
+    "l": "Debug",
+    "c": "MauiProgram",
+    "m": "\u2705 Conversation scenarios seeded",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.898472Z",
+    "l": "Debug",
+    "c": "SentenceStudio.Services.ScenarioService",
+    "m": "Predefined scenarios already exist, skipping seed",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.898403Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Disposed connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.898346Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Disposing connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.898292Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Infrastructure",
+    "m": "\u0027ApplicationDbContext\u0027 disposed.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.898209Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Closed connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.898086Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Closing connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.898012Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "A data reader for \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027 is being disposed after spending 0ms reading results.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.897939Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Closing data reader to \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.897706Z",
+    "l": "Information",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executed DbCommand (0ms) [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nSELECT EXISTS (\n    SELECT 1\n    FROM \u0022ConversationScenario\u0022 AS \u0022c\u0022\n    WHERE \u0022c\u0022.\u0022IsPredefined\u0022)",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.897367Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executing DbCommand [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nSELECT EXISTS (\n    SELECT 1\n    FROM \u0022ConversationScenario\u0022 AS \u0022c\u0022\n    WHERE \u0022c\u0022.\u0022IsPredefined\u0022)",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.897296Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Initialized DbCommand for \u0027ExecuteReader\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.897242Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Created DbCommand for \u0027ExecuteReader\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.897183Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Creating DbCommand for \u0027ExecuteReader\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.897118Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opened connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.896977Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opening connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.896922Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Created DbConnection. (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.896737Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Creating DbConnection.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.895833Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Query",
+    "m": "Generated query execution expression: \n\u0027queryContext =\u003E ShapedQueryCompilingExpressionVisitor.SingleAsync\u003Cbool\u003E(\n    asyncEnumerable: SingleQueryingEnumerable.Create\u003Cbool\u003E(\n        relationalQueryContext: (RelationalQueryContext)queryContext, \n        relationalCommandResolver: parameters =\u003E [LIFTABLE Constant: RelationalCommandCache.QueryExpression(\n            Projection Mapping:\n                EmptyProjectionMember -\u003E 0\n            SELECT EXISTS (\n                SELECT 1\n                FROM ConversationScenario AS c\n                WHERE c.IsPredefined)) | Resolver: c =\u003E new RelationalCommandCache(\n            c.Dependencies.MemoryCache, \n            c.RelationalDependencies.QuerySqlGeneratorFactory, \n            c.RelationalDependencies.RelationalParameterBasedSqlProcessorFactory, \n            Projection Mapping:\n                EmptyProjectionMember -\u003E 0\n            SELECT EXISTS (\n                SELECT 1\n                FROM ConversationScenario AS c\n                WHERE c.IsPredefined), \n            False, \n            MultipleParameters\n        )].GetRelationalCommandTemplate(parameters), \n        readerColumns: null, \n        shaper: (queryContext, dataReader, resultContext, resultCoordinator) =\u003E \n        {\n            bool? value1;\n            value1 = dataReader.IsDBNull(0) ? default(bool?) : (bool?)dataReader.GetBoolean(0);\n            return (bool)value1;\n        }, \n        contextType: SentenceStudio.Data.ApplicationDbContext, \n        standAloneStateManager: False, \n        detailedErrorsEnabled: False, \n        threadSafetyChecksEnabled: True), \n    cancellationToken: queryContext.CancellationToken)\u0027",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.893258Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Query",
+    "m": "Compiling query expression: \n\u0027DbSet\u003CConversationScenario\u003E()\n    .Any(s =\u003E s.IsPredefined)\u0027",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.892043Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Infrastructure",
+    "m": "Entity Framework Core 10.0.5 initialized \u0027ApplicationDbContext\u0027 using provider \u0027Microsoft.EntityFrameworkCore.Sqlite:10.0.5\u0027 with options: None",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.889463Z",
+    "l": "Debug",
+    "c": "MauiProgram",
+    "m": "\u2705 Database initialization complete",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.888274Z",
+    "l": "Error",
+    "c": "SentenceStudio.Services.SyncService",
+    "m": "Failed to initialize CoreSync: SQLite Error 1: \u0027table \u0022Challenge\u0022 already exists\u0027.",
+    "e": "Microsoft.Data.Sqlite.SqliteException (0x80004005): SQLite Error 1: \u0027table \u0022Challenge\u0022 already exists\u0027.\n   at Microsoft.Data.Sqlite.SqliteException.ThrowExceptionForRC(Int32 rc, sqlite3 db)\n   at Microsoft.Data.Sqlite.SqliteCommand.PrepareAndEnumerateStatements()\u002BMoveNext()\n   at Microsoft.Data.Sqlite.SqliteCommand.GetStatements()\u002BMoveNext()\n   at Microsoft.Data.Sqlite.SqliteDataReader.NextResult()\n   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteReader(CommandBehavior behavior)\n   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteReader()\n   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteNonQuery()\n   at System.Data.Common.DbCommand.ExecuteNonQueryAsync(CancellationToken cancellationToken)\n--- End of stack trace from previous location ---\n   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteNonQueryAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)\n   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteNonQueryAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)\n   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteNonQueryAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)\n   at Microsoft.EntityFrameworkCore.Migrations.Internal.MigrationCommandExecutor.ExecuteAsync(IReadOnlyList\u00601 migrationCommands, IRelationalConnection connection, MigrationExecutionState executionState, Boolean beginTransaction, Boolean commitTransaction, Nullable\u00601 isolationLevel, CancellationToken cancellationToken)\n   at Microsoft.EntityFrameworkCore.Migrations.Internal.MigrationCommandExecutor.ExecuteAsync(IReadOnlyList\u00601 migrationCommands, IRelationalConnection connection, MigrationExecutionState executionState, Boolean beginTransaction, Boolean commitTransaction, Nullable\u00601 isolationLevel, CancellationToken cancellationToken)\n   at Microsoft.EntityFrameworkCore.Migrations.Internal.MigrationCommandExecutor.ExecuteNonQueryAsync(IReadOnlyList\u00601 migrationCommands, IRelationalConnection connection, MigrationExecutionState executionState, Boolean commitTransaction, Nullable\u00601 isolationLevel, CancellationToken cancellationToken)\n   at Microsoft.EntityFrameworkCore.Migrations.Internal.Migrator.MigrateImplementationAsync(DbContext context, String targetMigration, MigrationExecutionState state, Boolean useTransaction, CancellationToken cancellationToken)\n   at Microsoft.EntityFrameworkCore.Migrations.Internal.Migrator.MigrateImplementationAsync(DbContext context, String targetMigration, MigrationExecutionState state, Boolean useTransaction, CancellationToken cancellationToken)\n   at Microsoft.EntityFrameworkCore.Migrations.Internal.Migrator.\u003C\u003Ec.\u003C\u003CMigrateAsync\u003Eb__22_1\u003Ed.MoveNext()\n--- End of stack trace from previous location ---\n   at Microsoft.EntityFrameworkCore.Migrations.Internal.Migrator.MigrateAsync(String targetMigration, CancellationToken cancellationToken)\n   at Microsoft.EntityFrameworkCore.Migrations.Internal.Migrator.MigrateAsync(String targetMigration, CancellationToken cancellationToken)\n   at SentenceStudio.Services.SyncService.InitializeDatabaseAsync() in /Users/davidortinau/work/SentenceStudio/src/SentenceStudio.Shared/Services/SyncService.cs:line 187",
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.886885Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Disposed connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.886822Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Disposing connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.886763Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Infrastructure",
+    "m": "\u0027ApplicationDbContext\u0027 disposed.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.886613Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Closed connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.886482Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Closing connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.886254Z",
+    "l": "Information",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executed DbCommand (0ms) [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nDELETE FROM \u0022__EFMigrationsLock\u0022;",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.885788Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executing DbCommand [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nDELETE FROM \u0022__EFMigrationsLock\u0022;",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.885716Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Initialized DbCommand for \u0027ExecuteScalar\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.885486Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Created DbCommand for \u0027ExecuteScalar\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.885432Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Creating DbCommand for \u0027ExecuteScalar\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.885314Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Transaction",
+    "m": "Disposing transaction.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.884934Z",
+    "l": "Error",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Failed executing DbCommand (0ms) [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nCREATE TABLE \u0022Challenge\u0022 (\n    \u0022Id\u0022 TEXT NOT NULL CONSTRAINT \u0022PK_Challenge\u0022 PRIMARY KEY,\n    \u0022CreatedAt\u0022 TEXT NOT NULL,\n    \u0022UpdatedAt\u0022 TEXT NOT NULL,\n    \u0022SentenceText\u0022 TEXT NULL,\n    \u0022RecommendedTranslation\u0022 TEXT NULL,\n    \u0022VocabularyWord\u0022 TEXT NULL,\n    \u0022VocabularyWordAsUsed\u0022 TEXT NULL,\n    \u0022VocabularyWordGuesses\u0022 TEXT NULL\n);",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.884726Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executing DbCommand [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nCREATE TABLE \u0022Challenge\u0022 (\n    \u0022Id\u0022 TEXT NOT NULL CONSTRAINT \u0022PK_Challenge\u0022 PRIMARY KEY,\n    \u0022CreatedAt\u0022 TEXT NOT NULL,\n    \u0022UpdatedAt\u0022 TEXT NOT NULL,\n    \u0022SentenceText\u0022 TEXT NULL,\n    \u0022RecommendedTranslation\u0022 TEXT NULL,\n    \u0022VocabularyWord\u0022 TEXT NULL,\n    \u0022VocabularyWordAsUsed\u0022 TEXT NULL,\n    \u0022VocabularyWordGuesses\u0022 TEXT NULL\n);",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.884647Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Initialized DbCommand for \u0027ExecuteNonQuery\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.884594Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Created DbCommand for \u0027ExecuteNonQuery\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.884537Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Creating DbCommand for \u0027ExecuteNonQuery\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.884434Z",
+    "l": "Information",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executed DbCommand (1ms) [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nCREATE TABLE \u0022AspNetUsers\u0022 (\n    \u0022Id\u0022 TEXT NOT NULL CONSTRAINT \u0022PK_AspNetUsers\u0022 PRIMARY KEY,\n    \u0022DisplayName\u0022 TEXT NULL,\n    \u0022UserProfileId\u0022 TEXT NULL,\n    \u0022UserName\u0022 TEXT NULL,\n    \u0022NormalizedUserName\u0022 TEXT NULL,\n    \u0022Email\u0022 TEXT NULL,\n    \u0022NormalizedEmail\u0022 TEXT NULL,\n    \u0022EmailConfirmed\u0022 INTEGER NOT NULL,\n    \u0022PasswordHash\u0022 TEXT NULL,\n    \u0022SecurityStamp\u0022 TEXT NULL,\n    \u0022ConcurrencyStamp\u0022 TEXT NULL,\n    \u0022PhoneNumber\u0022 TEXT NULL,\n    \u0022PhoneNumberConfirmed\u0022 INTEGER NOT NULL,\n    \u0022TwoFactorEnabled\u0022 INTEGER NOT NULL,\n    \u0022LockoutEnd\u0022 TEXT NULL,\n    \u0022LockoutEnabled\u0022 INTEGER NOT NULL,\n    \u0022AccessFailedCount\u0022 INTEGER NOT NULL\n);",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.884226Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executing DbCommand [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nCREATE TABLE \u0022AspNetUsers\u0022 (\n    \u0022Id\u0022 TEXT NOT NULL CONSTRAINT \u0022PK_AspNetUsers\u0022 PRIMARY KEY,\n    \u0022DisplayName\u0022 TEXT NULL,\n    \u0022UserProfileId\u0022 TEXT NULL,\n    \u0022UserName\u0022 TEXT NULL,\n    \u0022NormalizedUserName\u0022 TEXT NULL,\n    \u0022Email\u0022 TEXT NULL,\n    \u0022NormalizedEmail\u0022 TEXT NULL,\n    \u0022EmailConfirmed\u0022 INTEGER NOT NULL,\n    \u0022PasswordHash\u0022 TEXT NULL,\n    \u0022SecurityStamp\u0022 TEXT NULL,\n    \u0022ConcurrencyStamp\u0022 TEXT NULL,\n    \u0022PhoneNumber\u0022 TEXT NULL,\n    \u0022PhoneNumberConfirmed\u0022 INTEGER NOT NULL,\n    \u0022TwoFactorEnabled\u0022 INTEGER NOT NULL,\n    \u0022LockoutEnd\u0022 TEXT NULL,\n    \u0022LockoutEnabled\u0022 INTEGER NOT NULL,\n    \u0022AccessFailedCount\u0022 INTEGER NOT NULL\n);",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.88308Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Initialized DbCommand for \u0027ExecuteNonQuery\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.883005Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Created DbCommand for \u0027ExecuteNonQuery\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.882949Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Creating DbCommand for \u0027ExecuteNonQuery\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.882862Z",
+    "l": "Information",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executed DbCommand (0ms) [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nCREATE TABLE \u0022AspNetRoles\u0022 (\n    \u0022Id\u0022 TEXT NOT NULL CONSTRAINT \u0022PK_AspNetRoles\u0022 PRIMARY KEY,\n    \u0022Name\u0022 TEXT NULL,\n    \u0022NormalizedName\u0022 TEXT NULL,\n    \u0022ConcurrencyStamp\u0022 TEXT NULL\n);",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.88264Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executing DbCommand [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nCREATE TABLE \u0022AspNetRoles\u0022 (\n    \u0022Id\u0022 TEXT NOT NULL CONSTRAINT \u0022PK_AspNetRoles\u0022 PRIMARY KEY,\n    \u0022Name\u0022 TEXT NULL,\n    \u0022NormalizedName\u0022 TEXT NULL,\n    \u0022ConcurrencyStamp\u0022 TEXT NULL\n);",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.882555Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Initialized DbCommand for \u0027ExecuteNonQuery\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.882489Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Created DbCommand for \u0027ExecuteNonQuery\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.882406Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Creating DbCommand for \u0027ExecuteNonQuery\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.853603Z",
+    "l": "Information",
+    "c": "Microsoft.EntityFrameworkCore.Migrations",
+    "m": "Applying migration \u002720260321133148_InitialSqlite\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.853273Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "A data reader for \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027 is being disposed after spending 0ms reading results.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.853201Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Closing data reader to \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.853108Z",
+    "l": "Information",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executed DbCommand (0ms) [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nSELECT \u0022MigrationId\u0022, \u0022ProductVersion\u0022\nFROM \u0022__EFMigrationsHistory\u0022\nORDER BY \u0022MigrationId\u0022;",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.852987Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executing DbCommand [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nSELECT \u0022MigrationId\u0022, \u0022ProductVersion\u0022\nFROM \u0022__EFMigrationsHistory\u0022\nORDER BY \u0022MigrationId\u0022;",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.852918Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Initialized DbCommand for \u0027ExecuteReader\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.852866Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Created DbCommand for \u0027ExecuteReader\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.852811Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Creating DbCommand for \u0027ExecuteReader\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.852695Z",
+    "l": "Information",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executed DbCommand (0ms) [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nSELECT COUNT(*) FROM \u0022sqlite_master\u0022 WHERE \u0022name\u0022 = \u0027__EFMigrationsHistory\u0027 AND \u0022type\u0022 = \u0027table\u0027;",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.852541Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executing DbCommand [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nSELECT COUNT(*) FROM \u0022sqlite_master\u0022 WHERE \u0022name\u0022 = \u0027__EFMigrationsHistory\u0027 AND \u0022type\u0022 = \u0027table\u0027;",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.852464Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Initialized DbCommand for \u0027ExecuteScalar\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.852413Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Created DbCommand for \u0027ExecuteScalar\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.852354Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Creating DbCommand for \u0027ExecuteScalar\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.852268Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Disposed connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.852205Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Disposing connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.852108Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opened connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.851873Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opening connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.85182Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Created DbConnection. (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.851727Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Creating DbConnection.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.850522Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Transaction",
+    "m": "Began transaction with isolation level \u0027Serializable\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.850439Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Transaction",
+    "m": "Beginning transaction with isolation level \u0027Unspecified\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.850365Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Transaction",
+    "m": "Disposing transaction.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.850318Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Transaction",
+    "m": "Committed transaction.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.850249Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Transaction",
+    "m": "Committing transaction.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.850173Z",
+    "l": "Information",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executed DbCommand (0ms) [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nCREATE TABLE IF NOT EXISTS \u0022__EFMigrationsHistory\u0022 (\n    \u0022MigrationId\u0022 TEXT NOT NULL CONSTRAINT \u0022PK___EFMigrationsHistory\u0022 PRIMARY KEY,\n    \u0022ProductVersion\u0022 TEXT NOT NULL\n);",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.849985Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executing DbCommand [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nCREATE TABLE IF NOT EXISTS \u0022__EFMigrationsHistory\u0022 (\n    \u0022MigrationId\u0022 TEXT NOT NULL CONSTRAINT \u0022PK___EFMigrationsHistory\u0022 PRIMARY KEY,\n    \u0022ProductVersion\u0022 TEXT NOT NULL\n);",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.849904Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Initialized DbCommand for \u0027ExecuteNonQuery\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.849853Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Created DbCommand for \u0027ExecuteNonQuery\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.849795Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Creating DbCommand for \u0027ExecuteNonQuery\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.849731Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Transaction",
+    "m": "Began transaction with isolation level \u0027Serializable\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.849613Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Transaction",
+    "m": "Beginning transaction with isolation level \u0027Unspecified\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.846542Z",
+    "l": "Information",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executed DbCommand (0ms) [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nINSERT OR IGNORE INTO \u0022__EFMigrationsLock\u0022(\u0022Id\u0022, \u0022Timestamp\u0022) VALUES(1, \u00272026-04-23 22:12:36.846018\u002B00:00\u0027);\r\nSELECT changes();",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.846282Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executing DbCommand [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nINSERT OR IGNORE INTO \u0022__EFMigrationsLock\u0022(\u0022Id\u0022, \u0022Timestamp\u0022) VALUES(1, \u00272026-04-23 22:12:36.846018\u002B00:00\u0027);\r\nSELECT changes();",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.846208Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Initialized DbCommand for \u0027ExecuteScalar\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.846157Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Created DbCommand for \u0027ExecuteScalar\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.846099Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Creating DbCommand for \u0027ExecuteScalar\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.845962Z",
+    "l": "Information",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executed DbCommand (0ms) [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nCREATE TABLE IF NOT EXISTS \u0022__EFMigrationsLock\u0022 (\r\n    \u0022Id\u0022 INTEGER NOT NULL CONSTRAINT \u0022PK___EFMigrationsLock\u0022 PRIMARY KEY,\r\n    \u0022Timestamp\u0022 TEXT NOT NULL\r\n);",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.84566Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executing DbCommand [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nCREATE TABLE IF NOT EXISTS \u0022__EFMigrationsLock\u0022 (\r\n    \u0022Id\u0022 INTEGER NOT NULL CONSTRAINT \u0022PK___EFMigrationsLock\u0022 PRIMARY KEY,\r\n    \u0022Timestamp\u0022 TEXT NOT NULL\r\n);",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.845581Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Initialized DbCommand for \u0027ExecuteNonQuery\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.845515Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Created DbCommand for \u0027ExecuteNonQuery\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.845459Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Creating DbCommand for \u0027ExecuteNonQuery\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.845366Z",
+    "l": "Information",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executed DbCommand (0ms) [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nSELECT COUNT(*) FROM \u0022sqlite_master\u0022 WHERE \u0022name\u0022 = \u0027__EFMigrationsLock\u0027 AND \u0022type\u0022 = \u0027table\u0027;",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.845203Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executing DbCommand [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nSELECT COUNT(*) FROM \u0022sqlite_master\u0022 WHERE \u0022name\u0022 = \u0027__EFMigrationsLock\u0027 AND \u0022type\u0022 = \u0027table\u0027;",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.845114Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Initialized DbCommand for \u0027ExecuteScalar\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.845058Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Created DbCommand for \u0027ExecuteScalar\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.844998Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Creating DbCommand for \u0027ExecuteScalar\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.844914Z",
+    "l": "Information",
+    "c": "Microsoft.EntityFrameworkCore.Migrations",
+    "m": "Acquiring an exclusive lock for migration application. See https://aka.ms/efcore-docs-migrations-lock for more information if this takes too long.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.844858Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opened connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.844734Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opening connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.844674Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Disposed connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.844609Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Disposing connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.844513Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opened connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.844295Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opening connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.844243Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Created DbConnection. (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.84416Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Creating DbConnection.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.843793Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Migrations",
+    "m": "Migrating using database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.840091Z",
+    "l": "Debug",
+    "c": "SentenceStudio.Services.SyncService",
+    "m": "Cleared any stale __EFMigrationsLock table",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.839648Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Created DbConnection. (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.839558Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Creating DbConnection.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.839423Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Infrastructure",
+    "m": "Entity Framework Core 10.0.5 initialized \u0027ApplicationDbContext\u0027 using provider \u0027Microsoft.EntityFrameworkCore.Sqlite:10.0.5\u0027 with options: None",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.838502Z",
+    "l": "Debug",
+    "c": "SentenceStudio.Services.SyncService",
+    "m": "Running EF Core migrations on mobile...",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.837791Z",
+    "l": "Information",
+    "c": "SentenceStudio.Services.SyncService",
+    "m": "Initializing CoreSync provider...",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.837738Z",
+    "l": "Debug",
+    "c": "MauiProgram",
+    "m": "\uD83D\uDE80 Starting async database initialization",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.837482Z",
+    "l": "Debug",
+    "c": "MauiProgram",
+    "m": "\u2705 CHECKPOINT 4: Database initialization complete",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.836251Z",
+    "l": "Error",
+    "c": "SentenceStudio.Services.SyncService",
+    "m": "Failed to initialize CoreSync: SQLite Error 1: \u0027table \u0022Challenge\u0022 already exists\u0027.",
+    "e": "Microsoft.Data.Sqlite.SqliteException (0x80004005): SQLite Error 1: \u0027table \u0022Challenge\u0022 already exists\u0027.\n   at Microsoft.Data.Sqlite.SqliteException.ThrowExceptionForRC(Int32 rc, sqlite3 db)\n   at Microsoft.Data.Sqlite.SqliteCommand.PrepareAndEnumerateStatements()\u002BMoveNext()\n   at Microsoft.Data.Sqlite.SqliteCommand.GetStatements()\u002BMoveNext()\n   at Microsoft.Data.Sqlite.SqliteDataReader.NextResult()\n   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteReader(CommandBehavior behavior)\n   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteReader()\n   at Microsoft.Data.Sqlite.SqliteCommand.ExecuteNonQuery()\n   at System.Data.Common.DbCommand.ExecuteNonQueryAsync(CancellationToken cancellationToken)\n--- End of stack trace from previous location ---\n   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteNonQueryAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)\n   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteNonQueryAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)\n   at Microsoft.EntityFrameworkCore.Storage.RelationalCommand.ExecuteNonQueryAsync(RelationalCommandParameterObject parameterObject, CancellationToken cancellationToken)\n   at Microsoft.EntityFrameworkCore.Migrations.Internal.MigrationCommandExecutor.ExecuteAsync(IReadOnlyList\u00601 migrationCommands, IRelationalConnection connection, MigrationExecutionState executionState, Boolean beginTransaction, Boolean commitTransaction, Nullable\u00601 isolationLevel, CancellationToken cancellationToken)\n   at Microsoft.EntityFrameworkCore.Migrations.Internal.MigrationCommandExecutor.ExecuteAsync(IReadOnlyList\u00601 migrationCommands, IRelationalConnection connection, MigrationExecutionState executionState, Boolean beginTransaction, Boolean commitTransaction, Nullable\u00601 isolationLevel, CancellationToken cancellationToken)\n   at Microsoft.EntityFrameworkCore.Migrations.Internal.MigrationCommandExecutor.ExecuteNonQueryAsync(IReadOnlyList\u00601 migrationCommands, IRelationalConnection connection, MigrationExecutionState executionState, Boolean commitTransaction, Nullable\u00601 isolationLevel, CancellationToken cancellationToken)\n   at Microsoft.EntityFrameworkCore.Migrations.Internal.Migrator.MigrateImplementationAsync(DbContext context, String targetMigration, MigrationExecutionState state, Boolean useTransaction, CancellationToken cancellationToken)\n   at Microsoft.EntityFrameworkCore.Migrations.Internal.Migrator.MigrateImplementationAsync(DbContext context, String targetMigration, MigrationExecutionState state, Boolean useTransaction, CancellationToken cancellationToken)\n   at Microsoft.EntityFrameworkCore.Migrations.Internal.Migrator.\u003C\u003Ec.\u003C\u003CMigrateAsync\u003Eb__22_1\u003Ed.MoveNext()\n--- End of stack trace from previous location ---\n   at Microsoft.EntityFrameworkCore.Migrations.Internal.Migrator.MigrateAsync(String targetMigration, CancellationToken cancellationToken)\n   at Microsoft.EntityFrameworkCore.Migrations.Internal.Migrator.MigrateAsync(String targetMigration, CancellationToken cancellationToken)\n   at SentenceStudio.Services.SyncService.InitializeDatabaseAsync() in /Users/davidortinau/work/SentenceStudio/src/SentenceStudio.Shared/Services/SyncService.cs:line 187",
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.834616Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Disposed connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.834559Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Disposing connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.834501Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Infrastructure",
+    "m": "\u0027ApplicationDbContext\u0027 disposed.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.834373Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Closed connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027 (1ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.83321Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Closing connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.829742Z",
+    "l": "Information",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executed DbCommand (0ms) [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nDELETE FROM \u0022__EFMigrationsLock\u0022;",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.829243Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executing DbCommand [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nDELETE FROM \u0022__EFMigrationsLock\u0022;",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.829096Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Initialized DbCommand for \u0027ExecuteScalar\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.82903Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Created DbCommand for \u0027ExecuteScalar\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.828958Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Creating DbCommand for \u0027ExecuteScalar\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.828722Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Transaction",
+    "m": "Disposing transaction.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.819308Z",
+    "l": "Error",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Failed executing DbCommand (1ms) [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nCREATE TABLE \u0022Challenge\u0022 (\n    \u0022Id\u0022 TEXT NOT NULL CONSTRAINT \u0022PK_Challenge\u0022 PRIMARY KEY,\n    \u0022CreatedAt\u0022 TEXT NOT NULL,\n    \u0022UpdatedAt\u0022 TEXT NOT NULL,\n    \u0022SentenceText\u0022 TEXT NULL,\n    \u0022RecommendedTranslation\u0022 TEXT NULL,\n    \u0022VocabularyWord\u0022 TEXT NULL,\n    \u0022VocabularyWordAsUsed\u0022 TEXT NULL,\n    \u0022VocabularyWordGuesses\u0022 TEXT NULL\n);",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.818411Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executing DbCommand [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nCREATE TABLE \u0022Challenge\u0022 (\n    \u0022Id\u0022 TEXT NOT NULL CONSTRAINT \u0022PK_Challenge\u0022 PRIMARY KEY,\n    \u0022CreatedAt\u0022 TEXT NOT NULL,\n    \u0022UpdatedAt\u0022 TEXT NOT NULL,\n    \u0022SentenceText\u0022 TEXT NULL,\n    \u0022RecommendedTranslation\u0022 TEXT NULL,\n    \u0022VocabularyWord\u0022 TEXT NULL,\n    \u0022VocabularyWordAsUsed\u0022 TEXT NULL,\n    \u0022VocabularyWordGuesses\u0022 TEXT NULL\n);",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.818324Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Initialized DbCommand for \u0027ExecuteNonQuery\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.818247Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Created DbCommand for \u0027ExecuteNonQuery\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.81818Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Creating DbCommand for \u0027ExecuteNonQuery\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.817641Z",
+    "l": "Information",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executed DbCommand (0ms) [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nCREATE TABLE \u0022AspNetUsers\u0022 (\n    \u0022Id\u0022 TEXT NOT NULL CONSTRAINT \u0022PK_AspNetUsers\u0022 PRIMARY KEY,\n    \u0022DisplayName\u0022 TEXT NULL,\n    \u0022UserProfileId\u0022 TEXT NULL,\n    \u0022UserName\u0022 TEXT NULL,\n    \u0022NormalizedUserName\u0022 TEXT NULL,\n    \u0022Email\u0022 TEXT NULL,\n    \u0022NormalizedEmail\u0022 TEXT NULL,\n    \u0022EmailConfirmed\u0022 INTEGER NOT NULL,\n    \u0022PasswordHash\u0022 TEXT NULL,\n    \u0022SecurityStamp\u0022 TEXT NULL,\n    \u0022ConcurrencyStamp\u0022 TEXT NULL,\n    \u0022PhoneNumber\u0022 TEXT NULL,\n    \u0022PhoneNumberConfirmed\u0022 INTEGER NOT NULL,\n    \u0022TwoFactorEnabled\u0022 INTEGER NOT NULL,\n    \u0022LockoutEnd\u0022 TEXT NULL,\n    \u0022LockoutEnabled\u0022 INTEGER NOT NULL,\n    \u0022AccessFailedCount\u0022 INTEGER NOT NULL\n);",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.817407Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executing DbCommand [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nCREATE TABLE \u0022AspNetUsers\u0022 (\n    \u0022Id\u0022 TEXT NOT NULL CONSTRAINT \u0022PK_AspNetUsers\u0022 PRIMARY KEY,\n    \u0022DisplayName\u0022 TEXT NULL,\n    \u0022UserProfileId\u0022 TEXT NULL,\n    \u0022UserName\u0022 TEXT NULL,\n    \u0022NormalizedUserName\u0022 TEXT NULL,\n    \u0022Email\u0022 TEXT NULL,\n    \u0022NormalizedEmail\u0022 TEXT NULL,\n    \u0022EmailConfirmed\u0022 INTEGER NOT NULL,\n    \u0022PasswordHash\u0022 TEXT NULL,\n    \u0022SecurityStamp\u0022 TEXT NULL,\n    \u0022ConcurrencyStamp\u0022 TEXT NULL,\n    \u0022PhoneNumber\u0022 TEXT NULL,\n    \u0022PhoneNumberConfirmed\u0022 INTEGER NOT NULL,\n    \u0022TwoFactorEnabled\u0022 INTEGER NOT NULL,\n    \u0022LockoutEnd\u0022 TEXT NULL,\n    \u0022LockoutEnabled\u0022 INTEGER NOT NULL,\n    \u0022AccessFailedCount\u0022 INTEGER NOT NULL\n);",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.817305Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Initialized DbCommand for \u0027ExecuteNonQuery\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.817244Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Created DbCommand for \u0027ExecuteNonQuery\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.817174Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Creating DbCommand for \u0027ExecuteNonQuery\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.81707Z",
+    "l": "Information",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executed DbCommand (0ms) [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nCREATE TABLE \u0022AspNetRoles\u0022 (\n    \u0022Id\u0022 TEXT NOT NULL CONSTRAINT \u0022PK_AspNetRoles\u0022 PRIMARY KEY,\n    \u0022Name\u0022 TEXT NULL,\n    \u0022NormalizedName\u0022 TEXT NULL,\n    \u0022ConcurrencyStamp\u0022 TEXT NULL\n);",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.816777Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executing DbCommand [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nCREATE TABLE \u0022AspNetRoles\u0022 (\n    \u0022Id\u0022 TEXT NOT NULL CONSTRAINT \u0022PK_AspNetRoles\u0022 PRIMARY KEY,\n    \u0022Name\u0022 TEXT NULL,\n    \u0022NormalizedName\u0022 TEXT NULL,\n    \u0022ConcurrencyStamp\u0022 TEXT NULL\n);",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.816675Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Initialized DbCommand for \u0027ExecuteNonQuery\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.816607Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Created DbCommand for \u0027ExecuteNonQuery\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.816509Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Creating DbCommand for \u0027ExecuteNonQuery\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.769813Z",
+    "l": "Information",
+    "c": "Microsoft.EntityFrameworkCore.Migrations",
+    "m": "Applying migration \u002720260321133148_InitialSqlite\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.767744Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "A data reader for \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027 is being disposed after spending 0ms reading results.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.767663Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Closing data reader to \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.76752Z",
+    "l": "Information",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executed DbCommand (0ms) [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nSELECT \u0022MigrationId\u0022, \u0022ProductVersion\u0022\nFROM \u0022__EFMigrationsHistory\u0022\nORDER BY \u0022MigrationId\u0022;",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.767385Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executing DbCommand [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nSELECT \u0022MigrationId\u0022, \u0022ProductVersion\u0022\nFROM \u0022__EFMigrationsHistory\u0022\nORDER BY \u0022MigrationId\u0022;",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.767304Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Initialized DbCommand for \u0027ExecuteReader\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.767241Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Created DbCommand for \u0027ExecuteReader\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.76717Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Creating DbCommand for \u0027ExecuteReader\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.766986Z",
+    "l": "Information",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executed DbCommand (0ms) [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nSELECT COUNT(*) FROM \u0022sqlite_master\u0022 WHERE \u0022name\u0022 = \u0027__EFMigrationsHistory\u0027 AND \u0022type\u0022 = \u0027table\u0027;",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.766824Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executing DbCommand [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nSELECT COUNT(*) FROM \u0022sqlite_master\u0022 WHERE \u0022name\u0022 = \u0027__EFMigrationsHistory\u0027 AND \u0022type\u0022 = \u0027table\u0027;",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.766716Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Initialized DbCommand for \u0027ExecuteScalar\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.766644Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Created DbCommand for \u0027ExecuteScalar\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.766279Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Creating DbCommand for \u0027ExecuteScalar\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.766176Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Disposed connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.7661Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Disposing connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.765998Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opened connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.765761Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opening connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.765696Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Created DbConnection. (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.765602Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Creating DbConnection.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.764916Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Transaction",
+    "m": "Began transaction with isolation level \u0027Serializable\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.764818Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Transaction",
+    "m": "Beginning transaction with isolation level \u0027Unspecified\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.764116Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Transaction",
+    "m": "Disposing transaction.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.763711Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Transaction",
+    "m": "Committed transaction.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.763532Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Transaction",
+    "m": "Committing transaction.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.763228Z",
+    "l": "Information",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executed DbCommand (0ms) [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nCREATE TABLE IF NOT EXISTS \u0022__EFMigrationsHistory\u0022 (\n    \u0022MigrationId\u0022 TEXT NOT NULL CONSTRAINT \u0022PK___EFMigrationsHistory\u0022 PRIMARY KEY,\n    \u0022ProductVersion\u0022 TEXT NOT NULL\n);",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.763087Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executing DbCommand [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nCREATE TABLE IF NOT EXISTS \u0022__EFMigrationsHistory\u0022 (\n    \u0022MigrationId\u0022 TEXT NOT NULL CONSTRAINT \u0022PK___EFMigrationsHistory\u0022 PRIMARY KEY,\n    \u0022ProductVersion\u0022 TEXT NOT NULL\n);",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.762993Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Initialized DbCommand for \u0027ExecuteNonQuery\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.762903Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Created DbCommand for \u0027ExecuteNonQuery\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.762829Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Creating DbCommand for \u0027ExecuteNonQuery\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.762505Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Transaction",
+    "m": "Began transaction with isolation level \u0027Serializable\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.761596Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Transaction",
+    "m": "Beginning transaction with isolation level \u0027Unspecified\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.738512Z",
+    "l": "Information",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executed DbCommand (0ms) [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nINSERT OR IGNORE INTO \u0022__EFMigrationsLock\u0022(\u0022Id\u0022, \u0022Timestamp\u0022) VALUES(1, \u00272026-04-23 22:12:36.737242\u002B00:00\u0027);\r\nSELECT changes();",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.738255Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executing DbCommand [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nINSERT OR IGNORE INTO \u0022__EFMigrationsLock\u0022(\u0022Id\u0022, \u0022Timestamp\u0022) VALUES(1, \u00272026-04-23 22:12:36.737242\u002B00:00\u0027);\r\nSELECT changes();",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.738172Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Initialized DbCommand for \u0027ExecuteScalar\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.738102Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Created DbCommand for \u0027ExecuteScalar\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.738033Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Creating DbCommand for \u0027ExecuteScalar\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.737132Z",
+    "l": "Information",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executed DbCommand (0ms) [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nCREATE TABLE IF NOT EXISTS \u0022__EFMigrationsLock\u0022 (\r\n    \u0022Id\u0022 INTEGER NOT NULL CONSTRAINT \u0022PK___EFMigrationsLock\u0022 PRIMARY KEY,\r\n    \u0022Timestamp\u0022 TEXT NOT NULL\r\n);",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.736803Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executing DbCommand [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nCREATE TABLE IF NOT EXISTS \u0022__EFMigrationsLock\u0022 (\r\n    \u0022Id\u0022 INTEGER NOT NULL CONSTRAINT \u0022PK___EFMigrationsLock\u0022 PRIMARY KEY,\r\n    \u0022Timestamp\u0022 TEXT NOT NULL\r\n);",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.736715Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Initialized DbCommand for \u0027ExecuteNonQuery\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.736649Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Created DbCommand for \u0027ExecuteNonQuery\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.73658Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Creating DbCommand for \u0027ExecuteNonQuery\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.736392Z",
+    "l": "Information",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executed DbCommand (1ms) [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nSELECT COUNT(*) FROM \u0022sqlite_master\u0022 WHERE \u0022name\u0022 = \u0027__EFMigrationsLock\u0027 AND \u0022type\u0022 = \u0027table\u0027;",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.735665Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executing DbCommand [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nSELECT COUNT(*) FROM \u0022sqlite_master\u0022 WHERE \u0022name\u0022 = \u0027__EFMigrationsLock\u0027 AND \u0022type\u0022 = \u0027table\u0027;",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.735532Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Initialized DbCommand for \u0027ExecuteScalar\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.735465Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Created DbCommand for \u0027ExecuteScalar\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.735392Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Creating DbCommand for \u0027ExecuteScalar\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.734728Z",
+    "l": "Information",
+    "c": "Microsoft.EntityFrameworkCore.Migrations",
+    "m": "Acquiring an exclusive lock for migration application. See https://aka.ms/efcore-docs-migrations-lock for more information if this takes too long.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.734302Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opened connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.734114Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opening connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.734041Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Disposed connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.733965Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Disposing connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.733497Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opened connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.733171Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opening connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.73304Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Created DbConnection. (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.732563Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Creating DbConnection.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.731353Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Migrations",
+    "m": "Migrating using database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.727517Z",
+    "l": "Warning",
+    "c": "HelpKitIngest",
+    "m": "HelpKit ingest failed (non-fatal).",
+    "e": "System.InvalidOperationException: HelpKit could not select a presenter automatically: no Shell is active and no window exists yet. Call IHelpKit.ShowAsync() after the app window is created, or register your own IHelpKitPresenter via AddHelpKit().\n   at Plugin.Maui.HelpKit.Presenters.DefaultPresenterSelector.Resolve(IServiceProvider services) in /Users/davidortinau/work/SentenceStudio/lib/Plugin.Maui.HelpKit/src/Plugin.Maui.HelpKit/Presenters/DefaultPresenterSelector.cs:line 29\n   at Plugin.Maui.HelpKit.HelpKitServiceCollectionExtensions.\u003C\u003Ec.\u003CAddHelpKit\u003Eb__0_1(IServiceProvider sp) in /Users/davidortinau/work/SentenceStudio/lib/Plugin.Maui.HelpKit/src/Plugin.Maui.HelpKit/HelpKitServiceCollectionExtensions.cs:line 60\n   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteRuntimeResolver.VisitFactory(FactoryCallSite factoryCallSite, RuntimeResolverContext context)\n   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteVisitor\u00602[[Microsoft.Extensions.DependencyInjection.ServiceLookup.RuntimeResolverContext, Microsoft.Extensions.DependencyInjection, Version=10.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60],[System.Object, System.Private.CoreLib, Version=10.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]].VisitCallSiteMain(ServiceCallSite callSite, RuntimeResolverContext argument)\n   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteRuntimeResolver.VisitDisposeCache(ServiceCallSite transientCallSite, RuntimeResolverContext context)\n   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteVisitor\u00602[[Microsoft.Extensions.DependencyInjection.ServiceLookup.RuntimeResolverContext, Microsoft.Extensions.DependencyInjection, Version=10.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60],[System.Object, System.Private.CoreLib, Version=10.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]].VisitCallSite(ServiceCallSite callSite, RuntimeResolverContext argument)\n   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteRuntimeResolver.VisitConstructor(ConstructorCallSite constructorCallSite, RuntimeResolverContext context)\n   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteVisitor\u00602[[Microsoft.Extensions.DependencyInjection.ServiceLookup.RuntimeResolverContext, Microsoft.Extensions.DependencyInjection, Version=10.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60],[System.Object, System.Private.CoreLib, Version=10.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]].VisitCallSiteMain(ServiceCallSite callSite, RuntimeResolverContext argument)\n   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteRuntimeResolver.VisitRootCache(ServiceCallSite callSite, RuntimeResolverContext context)\n   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteVisitor\u00602[[Microsoft.Extensions.DependencyInjection.ServiceLookup.RuntimeResolverContext, Microsoft.Extensions.DependencyInjection, Version=10.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60],[System.Object, System.Private.CoreLib, Version=10.0.0.0, Culture=neutral, PublicKeyToken=7cec85d7bea7798e]].VisitCallSite(ServiceCallSite callSite, RuntimeResolverContext argument)\n   at Microsoft.Extensions.DependencyInjection.ServiceLookup.CallSiteRuntimeResolver.Resolve(ServiceCallSite callSite, ServiceProviderEngineScope scope)\n   at Microsoft.Extensions.DependencyInjection.ServiceProvider.CreateServiceAccessor(ServiceIdentifier serviceIdentifier)\n   at System.Collections.Concurrent.ConcurrentDictionary\u00602[[Microsoft.Extensions.DependencyInjection.ServiceLookup.ServiceIdentifier, Microsoft.Extensions.DependencyInjection, Version=10.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60],[Microsoft.Extensions.DependencyInjection.ServiceProvider.ServiceAccessor, Microsoft.Extensions.DependencyInjection, Version=10.0.0.0, Culture=neutral, PublicKeyToken=adb9793829ddae60]].GetOrAdd(ServiceIdentifier key, Func\u00602 valueFactory)\n   at Microsoft.Extensions.DependencyInjection.ServiceProvider.GetService(ServiceIdentifier serviceIdentifier, ServiceProviderEngineScope serviceProviderEngineScope)\n   at Microsoft.Extensions.DependencyInjection.ServiceProvider.GetService(Type serviceType)\n   at Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetService[IHelpKit](IServiceProvider provider)\n   at SentenceStudio.HelpKitIntegration.\u003C\u003Ec__DisplayClass2_0.\u003C\u003CTriggerBackgroundIngest\u003Eb__0\u003Ed.MoveNext() in /Users/davidortinau/work/SentenceStudio/src/Shared/HelpKitIntegration.cs:line 179",
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.722492Z",
+    "l": "Debug",
+    "c": "SentenceStudio.Services.SyncService",
+    "m": "Cleared any stale __EFMigrationsLock table",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.721715Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Created DbConnection. (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.721622Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Creating DbConnection.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.721462Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Infrastructure",
+    "m": "Entity Framework Core 10.0.5 initialized \u0027ApplicationDbContext\u0027 using provider \u0027Microsoft.EntityFrameworkCore.Sqlite:10.0.5\u0027 with options: None",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.720409Z",
+    "l": "Debug",
+    "c": "SentenceStudio.Services.SyncService",
+    "m": "Running EF Core migrations on mobile...",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.719763Z",
+    "l": "Information",
+    "c": "SentenceStudio.Services.SyncService",
+    "m": "Initializing CoreSync provider...",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.719229Z",
+    "l": "Debug",
+    "c": "MauiProgram",
+    "m": "\uD83D\uDE80 CHECKPOINT 3: Starting InitializeDatabaseAsync with Wait()",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.719173Z",
+    "l": "Debug",
+    "c": "MauiProgram",
+    "m": "\u2705 CHECKPOINT 2: Got ISyncService successfully",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.7191Z",
+    "l": "Debug",
+    "c": "MauiProgram",
+    "m": "\uD83D\uDE80 CHECKPOINT 1: About to get ISyncService",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.71853Z",
+    "l": "Debug",
+    "c": "MauiProgram",
+    "m": "\u2705 MauiApp built successfully",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.705112Z",
+    "l": "Information",
+    "c": "SentenceStudio.LocalizationInitializer",
+    "m": "ApplyLocaleFromProfile: applied culture en for profile 7ccabe4b-5da0-492d-af32-851910fe7f1f",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.703832Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Disposed connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.703767Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Disposing connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.703686Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Infrastructure",
+    "m": "\u0027ApplicationDbContext\u0027 disposed.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.703549Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Closed connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.703412Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Closing connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.703313Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "A data reader for \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027 is being disposed after spending 17ms reading results.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.703209Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Closing data reader to \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.693306Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.ChangeTracking",
+    "m": "Context \u0027ApplicationDbContext\u0027 started tracking \u0027UserProfile\u0027 entity. Consider using \u0027DbContextOptionsBuilder.EnableSensitiveDataLogging\u0027 to see key values.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.685794Z",
+    "l": "Information",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executed DbCommand (1ms) [Parameters=[@activeId=\u0027?\u0027 (Size = 36)], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nSELECT \u0022u\u0022.\u0022Id\u0022, \u0022u\u0022.\u0022CreatedAt\u0022, \u0022u\u0022.\u0022DisplayLanguage\u0022, \u0022u\u0022.\u0022Email\u0022, \u0022u\u0022.\u0022Name\u0022, \u0022u\u0022.\u0022NativeLanguage\u0022, \u0022u\u0022.\u0022OpenAI_APIKey\u0022, \u0022u\u0022.\u0022PreferredSessionMinutes\u0022, \u0022u\u0022.\u0022TargetCEFRLevel\u0022, \u0022u\u0022.\u0022TargetLanguage\u0022, \u0022u\u0022.\u0022TargetLanguages\u0022\nFROM \u0022UserProfile\u0022 AS \u0022u\u0022\nWHERE \u0022u\u0022.\u0022Id\u0022 = @activeId\nLIMIT 1",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.684981Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executing DbCommand [Parameters=[@activeId=\u0027?\u0027 (Size = 36)], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nSELECT \u0022u\u0022.\u0022Id\u0022, \u0022u\u0022.\u0022CreatedAt\u0022, \u0022u\u0022.\u0022DisplayLanguage\u0022, \u0022u\u0022.\u0022Email\u0022, \u0022u\u0022.\u0022Name\u0022, \u0022u\u0022.\u0022NativeLanguage\u0022, \u0022u\u0022.\u0022OpenAI_APIKey\u0022, \u0022u\u0022.\u0022PreferredSessionMinutes\u0022, \u0022u\u0022.\u0022TargetCEFRLevel\u0022, \u0022u\u0022.\u0022TargetLanguage\u0022, \u0022u\u0022.\u0022TargetLanguages\u0022\nFROM \u0022UserProfile\u0022 AS \u0022u\u0022\nWHERE \u0022u\u0022.\u0022Id\u0022 = @activeId\nLIMIT 1",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.684641Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Initialized DbCommand for \u0027ExecuteReader\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.684353Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Created DbCommand for \u0027ExecuteReader\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.684279Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Creating DbCommand for \u0027ExecuteReader\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.684198Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opened connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.683484Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opening connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.680732Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Query",
+    "m": "Generated query execution expression: \n\u0027queryContext =\u003E ShapedQueryCompilingExpressionVisitor.SingleOrDefaultAsync\u003CUserProfile\u003E(\n    asyncEnumerable: SingleQueryingEnumerable.Create\u003CUserProfile\u003E(\n        relationalQueryContext: (RelationalQueryContext)queryContext, \n        relationalCommandResolver: parameters =\u003E [LIFTABLE Constant: RelationalCommandCache.QueryExpression(\n            Projection Mapping:\n                EmptyProjectionMember -\u003E Dictionary\u003CIPropertyBase, int\u003E { [Property: UserProfile.Id (string) Required PK AfterSave:Throw, 0], [Property: UserProfile.CreatedAt (DateTime) Required, 1], [Property: UserProfile.DisplayLanguage (string), 2], [Property: UserProfile.Email (string), 3], [Property: UserProfile.Name (string), 4], [Property: UserProfile.NativeLanguage (string) Required, 5], [Property: UserProfile.OpenAI_APIKey (string), 6], [Property: UserProfile.PreferredSessionMinutes (int) Required, 7], [Property: UserProfile.TargetCEFRLevel (string), 8], [Property: UserProfile.TargetLanguage (string) Required, 9], [Property: UserProfile.TargetLanguages (string), 10] }\n            SELECT TOP(1) u.Id, u.CreatedAt, u.DisplayLanguage, u.Email, u.Name, u.NativeLanguage, u.OpenAI_APIKey, u.PreferredSessionMinutes, u.TargetCEFRLevel, u.TargetLanguage, u.TargetLanguages\n            FROM UserProfile AS u\n            WHERE u.Id == @activeId) | Resolver: c =\u003E new RelationalCommandCache(\n            c.Dependencies.MemoryCache, \n            c.RelationalDependencies.QuerySqlGeneratorFactory, \n            c.RelationalDependencies.RelationalParameterBasedSqlProcessorFactory, \n            Projection Mapping:\n                EmptyProjectionMember -\u003E Dictionary\u003CIPropertyBase, int\u003E { [Property: UserProfile.Id (string) Required PK AfterSave:Throw, 0], [Property: UserProfile.CreatedAt (DateTime) Required, 1], [Property: UserProfile.DisplayLanguage (string), 2], [Property: UserProfile.Email (string), 3], [Property: UserProfile.Name (string), 4], [Property: UserProfile.NativeLanguage (string) Required, 5], [Property: UserProfile.OpenAI_APIKey (string), 6], [Property: UserProfile.PreferredSessionMinutes (int) Required, 7], [Property: UserProfile.TargetCEFRLevel (string), 8], [Property: UserProfile.TargetLanguage (string) Required, 9], [Property: UserProfile.TargetLanguages (string), 10] }\n            SELECT TOP(1) u.Id, u.CreatedAt, u.DisplayLanguage, u.Email, u.Name, u.NativeLanguage, u.OpenAI_APIKey, u.PreferredSessionMinutes, u.TargetCEFRLevel, u.TargetLanguage, u.TargetLanguages\n            FROM UserProfile AS u\n            WHERE u.Id == @activeId, \n            False, \n            MultipleParameters\n        )].GetRelationalCommandTemplate(parameters), \n        readerColumns: null, \n        shaper: (queryContext, dataReader, resultContext, resultCoordinator) =\u003E \n        {\n            UserProfile entity;\n            entity = \n            {\n                MaterializationContext materializationContext1;\n                IEntityType entityType1;\n                UserProfile instance1;\n                InternalEntityEntry entry1;\n                bool hasNullKey1;\n                materializationContext1 = new MaterializationContext(\n                    [LIFTABLE Constant: ValueBuffer | Resolver: _ =\u003E (object)ValueBuffer.Empty], \n                    queryContext.Context\n                );\n                instance1 = default(UserProfile);\n                entry1 = queryContext.TryGetEntry(\n                    key: [LIFTABLE Constant: Key: UserProfile.Id PK | Resolver: c =\u003E c.Dependencies.Model.FindEntityType(\u0022SentenceStudio.Shared.Models.UserProfile\u0022).FindPrimaryKey()], \n                    keyValues: new object[]{ (object)dataReader.GetString(0) }, \n                    throwOnNullKey: True, \n                    hasNullKey: hasNullKey1);\n                !(hasNullKey1) ? entry1 != default(InternalEntityEntry) ? \n                {\n                    entityType1 = entry1.EntityType;\n                    return instance1 = (UserProfile)entry1.Entity;\n                } : \n                {\n                    ISnapshot shadowSnapshot1;\n                    shadowSnapshot1 = [LIFTABLE Constant: Snapshot | Resolver: _ =\u003E Snapshot.Empty];\n                    entityType1 = [LIFTABLE Constant: EntityType: UserProfile | Resolver: namelessParameter{0} =\u003E namelessParameter{0}.Dependencies.Model.FindEntityType(\u0022SentenceStudio.Shared.Models.UserProfile\u0022)];\n                    instance1 = switch (entityType1)\n                    {\n                        case [LIFTABLE Constant: EntityType: UserProfile | Resolver: namelessParameter{1} =\u003E namelessParameter{1}.Dependencies.Model.FindEntityType(\u0022SentenceStudio.Shared.Models.UserProfile\u0022)]: \n                            {\n                                return \n                                {\n                                    UserProfile instance;\n                                    instance = new UserProfile();\n                                    instance.\u003CId\u003Ek__BackingField = dataReader.GetString(0);\n                                    instance.\u003CCreatedAt\u003Ek__BackingField = dataReader.GetDateTime(1);\n                                    instance.\u003CDisplayLanguage\u003Ek__BackingField = dataReader.IsDBNull(2) ? default(string) : dataReader.GetString(2);\n                                    instance.\u003CEmail\u003Ek__BackingField = dataReader.IsDBNull(3) ? default(string) : dataReader.GetString(3);\n                                    instance.\u003CName\u003Ek__BackingField = dataReader.IsDBNull(4) ? default(string) : dataReader.GetString(4);\n                                    instance.\u003CNativeLanguage\u003Ek__BackingField = dataReader.GetString(5);\n                                    instance.\u003COpenAI_APIKey\u003Ek__BackingField = dataReader.IsDBNull(6) ? default(string) : dataReader.GetString(6);\n                                    instance.\u003CPreferredSessionMinutes\u003Ek__BackingField = dataReader.GetInt32(7);\n                                    instance.\u003CTargetCEFRLevel\u003Ek__BackingField = dataReader.IsDBNull(8) ? default(string) : dataReader.GetString(8);\n                                    instance.\u003CTargetLanguage\u003Ek__BackingField = dataReader.GetString(9);\n                                    instance.\u003CTargetLanguages\u003Ek__BackingField = dataReader.IsDBNull(10) ? default(string) : dataReader.GetString(10);\n                                    (instance is IInjectableService) ? ((IInjectableService)instance).Injected(\n                                        context: materializationContext1.Context, \n                                        entity: instance, \n                                        queryTrackingBehavior: TrackAll, \n                                        structuralType: [LIFTABLE Constant: EntityType: UserProfile | Resolver: namelessParameter{2} =\u003E namelessParameter{2}.Dependencies.Model.FindEntityType(\u0022SentenceStudio.Shared.Models.UserProfile\u0022)]) : default(void);\n                                    return instance;\n                                }}\n                        default: \n                            default(UserProfile)\n                    }\n                    ;\n                    entry1 = entityType1 == default(IEntityType) ? default(InternalEntityEntry) : queryContext.StartTracking(\n                        entityType: entityType1, \n                        entity: instance1, \n                        snapshot: shadowSnapshot1);\n                    return instance1;\n                } : default(void);\n                return instance1;\n            };\n            return entity;\n        }, \n        contextType: SentenceStudio.Data.ApplicationDbContext, \n        standAloneStateManager: False, \n        detailedErrorsEnabled: False, \n        threadSafetyChecksEnabled: True), \n    cancellationToken: queryContext.CancellationToken)\u0027",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.606377Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Query",
+    "m": "Compiling query expression: \n\u0027DbSet\u003CUserProfile\u003E()\n    .FirstOrDefault(p =\u003E p.Id == @activeId)\u0027",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.602934Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Disposed connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.602775Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Disposing connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.602485Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Infrastructure",
+    "m": "\u0027ApplicationDbContext\u0027 disposed.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.602194Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Closed connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.601998Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Closing connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.601849Z",
+    "l": "Information",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executed DbCommand (6ms) [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\n\n                UPDATE VocabularyWord SET Language = (\n                    SELECT LR.Language FROM ResourceVocabularyMapping RVM\n                    JOIN LearningResource LR ON LR.Id = RVM.ResourceId\n                    WHERE RVM.VocabularyWordId = VocabularyWord.Id\n                    AND LR.Language IS NOT NULL AND LR.Language != \u0027\u0027\n                    LIMIT 1\n                ) WHERE Language IS NULL OR Language = \u0027\u0027",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.596044Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executing DbCommand [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\n\n                UPDATE VocabularyWord SET Language = (\n                    SELECT LR.Language FROM ResourceVocabularyMapping RVM\n                    JOIN LearningResource LR ON LR.Id = RVM.ResourceId\n                    WHERE RVM.VocabularyWordId = VocabularyWord.Id\n                    AND LR.Language IS NOT NULL AND LR.Language != \u0027\u0027\n                    LIMIT 1\n                ) WHERE Language IS NULL OR Language = \u0027\u0027",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.595827Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opened connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.595679Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opening connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.595613Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Initialized DbCommand for \u0027ExecuteNonQuery\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.595545Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Created DbCommand for \u0027ExecuteNonQuery\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.595477Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Creating DbCommand for \u0027ExecuteNonQuery\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.595376Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Closed connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.595234Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Closing connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.595074Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "A data reader for \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027 is being disposed after spending 0ms reading results.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.594989Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Closing data reader to \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.594871Z",
+    "l": "Information",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executed DbCommand (0ms) [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nSELECT name FROM pragma_table_info(\u0027VocabularyWord\u0027) WHERE name = \u0027Language\u0027",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.594733Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executing DbCommand [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nSELECT name FROM pragma_table_info(\u0027VocabularyWord\u0027) WHERE name = \u0027Language\u0027",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.594647Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Initialized DbCommand for \u0027ExecuteReader\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.594579Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Created DbCommand for \u0027ExecuteReader\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.594511Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Creating DbCommand for \u0027ExecuteReader\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.594439Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opened connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.594307Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opening connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.594073Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Query",
+    "m": "Generated query execution expression: \n\u0027queryContext =\u003E FromSqlQueryingEnumerable.Create\u003Cstring\u003E(\n    relationalQueryContext: (RelationalQueryContext)queryContext, \n    relationalCommandResolver: parameters =\u003E [LIFTABLE Constant: RelationalCommandCache.QueryExpression(\n        Projection Mapping:\n            EmptyProjectionMember -\u003E 0\n        SELECT s.Value\n        FROM SELECT name FROM pragma_table_info(\u0027VocabularyWord\u0027) WHERE name = \u0027Language\u0027) | Resolver: c =\u003E new RelationalCommandCache(\n        c.Dependencies.MemoryCache, \n        c.RelationalDependencies.QuerySqlGeneratorFactory, \n        c.RelationalDependencies.RelationalParameterBasedSqlProcessorFactory, \n        Projection Mapping:\n            EmptyProjectionMember -\u003E 0\n        SELECT s.Value\n        FROM SELECT name FROM pragma_table_info(\u0027VocabularyWord\u0027) WHERE name = \u0027Language\u0027, \n        False, \n        MultipleParameters\n    )].GetRelationalCommandTemplate(parameters), \n    readerColumns: null, \n    columnNames: [LIFTABLE Constant: string[] { \u0022Value\u0022 } | Resolver: _ =\u003E new string[]{ \u0022Value\u0022 }], \n    shaper: (queryContext, dataReader, indexMap) =\u003E \n    {\n        string value1;\n        value1 = dataReader.IsDBNull(indexMap[0]) ? default(string) : dataReader.GetString(indexMap[0]);\n        return value1;\n    }, \n    contextType: SentenceStudio.Data.ApplicationDbContext, \n    standAloneStateManager: False, \n    detailedErrorsEnabled: False, \n    threadSafetyChecksEnabled: True)\u0027",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.592936Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Query",
+    "m": "Compiling query expression: \n\u0027SqlQuery\u003Cstring\u003E(SELECT name FROM pragma_table_info(\u0027VocabularyWord\u0027) WHERE name = \u0027Language\u0027, @p)\n\u0027",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.592733Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Closed connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.59258Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Closing connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.592489Z",
+    "l": "Information",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executed DbCommand (0ms) [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\n\n            UPDATE UserActivity SET UserProfileId = (\n                SELECT Id FROM UserProfile ORDER BY Id LIMIT 1\n            ) WHERE UserProfileId IS NULL",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.592187Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executing DbCommand [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\n\n            UPDATE UserActivity SET UserProfileId = (\n                SELECT Id FROM UserProfile ORDER BY Id LIMIT 1\n            ) WHERE UserProfileId IS NULL",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.592095Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opened connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.591931Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opening connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.591864Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Initialized DbCommand for \u0027ExecuteNonQuery\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.591796Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Created DbCommand for \u0027ExecuteNonQuery\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.591727Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Creating DbCommand for \u0027ExecuteNonQuery\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.591631Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Closed connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.59134Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Closing connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.591247Z",
+    "l": "Information",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executed DbCommand (0ms) [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\n\n            UPDATE LearningResource SET UserProfileId = (\n                SELECT Id FROM UserProfile ORDER BY Id LIMIT 1\n            ) WHERE UserProfileId IS NULL",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.591098Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executing DbCommand [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\n\n            UPDATE LearningResource SET UserProfileId = (\n                SELECT Id FROM UserProfile ORDER BY Id LIMIT 1\n            ) WHERE UserProfileId IS NULL",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.591004Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opened connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.590818Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opening connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.590751Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Initialized DbCommand for \u0027ExecuteNonQuery\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.590683Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Created DbCommand for \u0027ExecuteNonQuery\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.590613Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Creating DbCommand for \u0027ExecuteNonQuery\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.590507Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Closed connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.59036Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Closing connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.590261Z",
+    "l": "Information",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executed DbCommand (1ms) [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\n\n            UPDATE LearningResource SET UserProfileId = (\n                SELECT UP.Id FROM UserProfile UP WHERE UP.TargetLanguage = LearningResource.Language LIMIT 1\n            ) WHERE UserProfileId IS NULL",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.588838Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executing DbCommand [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\n\n            UPDATE LearningResource SET UserProfileId = (\n                SELECT UP.Id FROM UserProfile UP WHERE UP.TargetLanguage = LearningResource.Language LIMIT 1\n            ) WHERE UserProfileId IS NULL",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.588738Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opened connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.588582Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opening connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.588514Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Initialized DbCommand for \u0027ExecuteNonQuery\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.588443Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Created DbCommand for \u0027ExecuteNonQuery\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.588374Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Creating DbCommand for \u0027ExecuteNonQuery\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.588265Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Closed connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.58812Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Closing connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.588012Z",
+    "l": "Information",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executed DbCommand (0ms) [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\n\n            UPDATE SkillProfile SET UserProfileId = (\n                SELECT UP.Id FROM UserProfile UP WHERE UP.TargetLanguage = SkillProfile.Language LIMIT 1\n            ) WHERE UserProfileId IS NULL",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.587493Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executing DbCommand [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\n\n            UPDATE SkillProfile SET UserProfileId = (\n                SELECT UP.Id FROM UserProfile UP WHERE UP.TargetLanguage = SkillProfile.Language LIMIT 1\n            ) WHERE UserProfileId IS NULL",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.587174Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opened connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.587021Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opening connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.586351Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Initialized DbCommand for \u0027ExecuteNonQuery\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.586272Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Created DbCommand for \u0027ExecuteNonQuery\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.586195Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Creating DbCommand for \u0027ExecuteNonQuery\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.585997Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Closed connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.58585Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Closing connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.585731Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "A data reader for \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027 is being disposed after spending 1ms reading results.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.585489Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Closing data reader to \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.583772Z",
+    "l": "Information",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executed DbCommand (1ms) [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nSELECT name FROM pragma_table_info(\u0027SkillProfile\u0027) WHERE name = \u0027UserProfileId\u0027",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.583119Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executing DbCommand [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nSELECT name FROM pragma_table_info(\u0027SkillProfile\u0027) WHERE name = \u0027UserProfileId\u0027",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.582979Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Initialized DbCommand for \u0027ExecuteReader\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.582868Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Created DbCommand for \u0027ExecuteReader\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.582785Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Creating DbCommand for \u0027ExecuteReader\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.582704Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opened connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.582538Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opening connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.582467Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Created DbConnection. (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.582336Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Creating DbConnection.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.578708Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Query",
+    "m": "Generated query execution expression: \n\u0027queryContext =\u003E FromSqlQueryingEnumerable.Create\u003Cstring\u003E(\n    relationalQueryContext: (RelationalQueryContext)queryContext, \n    relationalCommandResolver: parameters =\u003E [LIFTABLE Constant: RelationalCommandCache.QueryExpression(\n        Projection Mapping:\n            EmptyProjectionMember -\u003E 0\n        SELECT s.Value\n        FROM SELECT name FROM pragma_table_info(\u0027SkillProfile\u0027) WHERE name = \u0027UserProfileId\u0027) | Resolver: c =\u003E new RelationalCommandCache(\n        c.Dependencies.MemoryCache, \n        c.RelationalDependencies.QuerySqlGeneratorFactory, \n        c.RelationalDependencies.RelationalParameterBasedSqlProcessorFactory, \n        Projection Mapping:\n            EmptyProjectionMember -\u003E 0\n        SELECT s.Value\n        FROM SELECT name FROM pragma_table_info(\u0027SkillProfile\u0027) WHERE name = \u0027UserProfileId\u0027, \n        False, \n        MultipleParameters\n    )].GetRelationalCommandTemplate(parameters), \n    readerColumns: null, \n    columnNames: [LIFTABLE Constant: string[] { \u0022Value\u0022 } | Resolver: _ =\u003E new string[]{ \u0022Value\u0022 }], \n    shaper: (queryContext, dataReader, indexMap) =\u003E \n    {\n        string value1;\n        value1 = dataReader.IsDBNull(indexMap[0]) ? default(string) : dataReader.GetString(indexMap[0]);\n        return value1;\n    }, \n    contextType: SentenceStudio.Data.ApplicationDbContext, \n    standAloneStateManager: False, \n    detailedErrorsEnabled: False, \n    threadSafetyChecksEnabled: True)\u0027",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.543556Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Query",
+    "m": "Compiling query expression: \n\u0027SqlQuery\u003Cstring\u003E(SELECT name FROM pragma_table_info(\u0027SkillProfile\u0027) WHERE name = \u0027UserProfileId\u0027, @p)\n\u0027",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.537998Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Infrastructure",
+    "m": "Entity Framework Core 10.0.5 initialized \u0027ApplicationDbContext\u0027 using provider \u0027Microsoft.EntityFrameworkCore.Sqlite:10.0.5\u0027 with options: None",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.532523Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Closed connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.53237Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Closing connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.532267Z",
+    "l": "Information",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executed DbCommand (0ms) [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nCREATE INDEX IF NOT EXISTS \u0022IX_ResourceVocabularyMapping_VocabularyWordId\u0022 ON \u0022ResourceVocabularyMapping\u0022(\u0022VocabularyWordId\u0022)",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.532122Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executing DbCommand [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nCREATE INDEX IF NOT EXISTS \u0022IX_ResourceVocabularyMapping_VocabularyWordId\u0022 ON \u0022ResourceVocabularyMapping\u0022(\u0022VocabularyWordId\u0022)",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.532018Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opened connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.531863Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opening connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.531784Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Initialized DbCommand for \u0027ExecuteNonQuery\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.531706Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Created DbCommand for \u0027ExecuteNonQuery\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.531627Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Creating DbCommand for \u0027ExecuteNonQuery\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.531522Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Closed connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.531289Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Closing connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.531184Z",
+    "l": "Information",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executed DbCommand (0ms) [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nCREATE INDEX IF NOT EXISTS \u0022IX_VocabularyWord_NativeLanguageTerm\u0022 ON \u0022VocabularyWord\u0022(\u0022NativeLanguageTerm\u0022)",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.530962Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executing DbCommand [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nCREATE INDEX IF NOT EXISTS \u0022IX_VocabularyWord_NativeLanguageTerm\u0022 ON \u0022VocabularyWord\u0022(\u0022NativeLanguageTerm\u0022)",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.530858Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opened connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.530684Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opening connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.530604Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Initialized DbCommand for \u0027ExecuteNonQuery\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.530524Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Created DbCommand for \u0027ExecuteNonQuery\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.530435Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Creating DbCommand for \u0027ExecuteNonQuery\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.53023Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Closed connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027 (0ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.529145Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Closing connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.52852Z",
+    "l": "Information",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executed DbCommand (5ms) [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nCREATE INDEX IF NOT EXISTS \u0022IX_VocabularyWord_TargetLanguageTerm\u0022 ON \u0022VocabularyWord\u0022(\u0022TargetLanguageTerm\u0022)",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.524003Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Executing DbCommand [Parameters=[], CommandType=\u0027Text\u0027, CommandTimeout=\u002730\u0027]\nCREATE INDEX IF NOT EXISTS \u0022IX_VocabularyWord_TargetLanguageTerm\u0022 ON \u0022VocabularyWord\u0022(\u0022TargetLanguageTerm\u0022)",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.522018Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opened connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.514733Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Opening connection to database \u0027main\u0027 on server \u0027/Users/davidortinau/Library/Containers/C5750C50-4CF5-448D-8B79-E5695B8EE653/Data/Library/sstudio.db3\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.513838Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Initialized DbCommand for \u0027ExecuteNonQuery\u0027 (6ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.513611Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Created DbCommand for \u0027ExecuteNonQuery\u0027 (5ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.512518Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Created DbConnection. (3ms).",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.50899Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Connection",
+    "m": "Creating DbConnection.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.508672Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Database.Command",
+    "m": "Creating DbCommand for \u0027ExecuteNonQuery\u0027.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.504143Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Infrastructure",
+    "m": "Entity Framework Core 10.0.5 initialized \u0027ApplicationDbContext\u0027 using provider \u0027Microsoft.EntityFrameworkCore.Sqlite:10.0.5\u0027 with options: None",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.373408Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Model",
+    "m": "The index {\u0027VocabularyWordId\u0027} was not created on entity type \u0027VocabularyProgress\u0027 as the properties are already covered by the index {\u0027VocabularyWordId\u0027, \u0027UserId\u0027}.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.373177Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Model",
+    "m": "The index {\u0027PhraseWordId\u0027} was not created on entity type \u0027PhraseConstituent\u0027 as the properties are already covered by the index {\u0027PhraseWordId\u0027, \u0027ConstituentWordId\u0027}.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.373052Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Model",
+    "m": "The index {\u0027SessionId\u0027} was not created on entity type \u0027MinimalPairAttempt\u0027 as the properties are already covered by the index {\u0027SessionId\u0027, \u0027SequenceNumber\u0027}.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.372846Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Model",
+    "m": "The index {\u0027PairId\u0027} was not created on entity type \u0027MinimalPairAttempt\u0027 as the properties are already covered by the index {\u0027PairId\u0027, \u0027CreatedAt\u0027}.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.053083Z",
+    "l": "Debug",
+    "c": "Microsoft.EntityFrameworkCore.Infrastructure",
+    "m": "An \u0027IServiceProvider\u0027 was created for internal use by Entity Framework.",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-23T22:12:36.02345Z",
+    "l": "Debug",
+    "c": "Shiny.Hosting.Host",
+    "m": "Startup task \u0027Shiny.Hosting.IosLifecycleExecutor\u0027 ran successfully",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:45:13.306231Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0192ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:45:13.30582Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:45:03.303772Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0127ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:45:03.303456Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:44:53.298705Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0205ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:44:53.298042Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:44:43.293198Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0126ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:44:43.292924Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:44:33.290877Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0168ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:44:33.29041Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:44:23.288444Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0063ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:44:23.288309Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:44:13.286689Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.3698ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:44:13.285833Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:44:03.283494Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0074ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:44:03.282974Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:43:53.281662Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0071ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:43:53.28149Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:43:43.279928Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0185ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:43:43.279546Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:43:33.278246Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0204ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:43:33.277847Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:43:23.276097Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0071ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:43:23.275925Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:43:13.273282Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0119ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:43:13.273008Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:43:03.271354Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.006ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:43:03.271219Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:42:53.268196Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0073ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:42:53.267991Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:42:43.266599Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0071ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:42:43.266413Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:42:33.263945Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.006ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:42:33.263768Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:42:23.260361Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0059ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:42:23.260227Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:42:13.256787Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.006ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:42:13.256659Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:42:03.254727Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0092ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:42:03.254428Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:41:53.251694Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0075ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:41:53.251528Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:41:43.248872Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0077ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:41:43.248713Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:41:33.247143Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0075ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:41:33.24689Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:41:23.245481Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0068ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:41:23.245314Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:41:13.243363Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0069ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:41:13.243199Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:41:03.241847Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0075ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:41:03.241696Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:40:53.239064Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0072ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:40:53.23891Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:40:43.236644Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.009ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:40:43.236444Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:40:33.233747Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0065ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:40:33.233606Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:40:23.231319Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0072ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:40:23.231172Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:40:13.228709Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0066ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:40:13.228509Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:40:03.225522Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0075ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:40:03.225369Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:39:53.224246Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0068ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:39:53.224101Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:39:43.221663Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.007ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:39:43.221517Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:39:33.220784Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.007ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:39:33.220639Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:39:23.217843Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0072ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:39:23.217688Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:39:13.217025Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0068ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:39:13.216871Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:39:03.213304Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0072ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:39:03.213161Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:38:53.21065Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Ending HttpMessageHandler cleanup cycle after 0.0092ms - processed: 0 items - remaining: 1 items",
+    "e": null,
+    "s": "native"
+  },
+  {
+    "t": "2026-04-19T00:38:53.210438Z",
+    "l": "Debug",
+    "c": "Microsoft.Extensions.Http.DefaultHttpClientFactory",
+    "m": "Starting HttpMessageHandler cleanup cycle with 1 items",
+    "e": null,
+    "s": "native"
+  }
+]

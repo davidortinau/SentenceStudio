@@ -48,6 +48,10 @@ public partial class VocabularyWord : ObservableObject
     [ObservableProperty]
     private string? audioPronunciationUri;
 
+    [Description("Whether this entry is a single word, a phrase fragment, or a full sentence.")]
+    [ObservableProperty]
+    private LexicalUnitType lexicalUnitType = LexicalUnitType.Unknown;
+
     [JsonIgnore]
     [NotMapped]
     public List<VocabularyList>? VocabularyLists { get; set; }
