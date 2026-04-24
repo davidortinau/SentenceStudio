@@ -3486,3 +3486,111 @@ private NavItem[] BottomItems => new[]
 **References:** ExtractVocabularyFromTranscript.scriban-txt (lines 1-75), GetTranslations.scriban-txt (lines 1-24), VocabularyExtractionResponse.cs, TranslationDto.cs
 
 ---
+
+## Data Import MVP — Wave 3 Implementation — 2026-04-24
+
+### Wash: IAiService Extraction + ContentImportService Refactor
+
+**Date:** 2026-05-01  
+**Status:** ✅ Complete  
+**Scope:** Unblock unit testing via interface extraction; zero behavioral changes; dual DI registration preserves 16 existing consumers
+
+**Key Decisions:**
+- **IAiService Interface:** Extracted from `AiService` with 3 public method signatures + comprehensive XML docs
+- **Dual DI Registration:** Both concrete (`services.AddSingleton<AiService>()`) and interface alias (`services.AddSingleton<IAiService>(sp => sp.GetRequiredService<AiService>())`) — same singleton instance, zero duplication
+- **ContentImportService Migrated:** Constructor parameter changed from `AiService` to `IAiService` — only migrated consumer in scope (future tech-debt: migrate ~16 others)
+- **Blast Radius:** Minimal — no existing consumers affected; they continue to resolve concrete type
+
+**Why Dual Registration is Safe:**
+- DI resolver aliases: both service types resolve to same instance
+- No instance duplication, no state divergence
+- Existing consumers get concrete directly; new code (tests, future services) get interface
+- Pattern used throughout .NET ecosystem for safe API evolution
+
+**Files Created:** `src/SentenceStudio.Shared/Services/IAiService.cs` (interface + XML docs)
+
+**Files Modified:**
+- `src/SentenceStudio.Shared/Services/AiService.cs` (added `: IAiService`)
+- `src/SentenceStudio.AppLib/Services/CoreServiceExtensions.cs` (dual DI registration)
+- `src/SentenceStudio.Shared/Services/ContentImportService.cs` (constructor: `AiService` → `IAiService`)
+
+**Build:** ✅ 0 errors (406 pre-existing warnings)
+
+**Tech Debt:** Migrate ~16 existing consumers (TeacherService, StudentRepository, etc.) from `AiService` to `IAiService` in future PR — low priority, no functional impact
+
+---
+
+### Jayne: ContentImportService Unit Tests + E2E Script
+
+**Date:** 2026-05-01  
+**Status:** ✅ Complete — 18/18 Passing, 0 Bugs Found  
+**Scope:** Comprehensive unit test suite + 15-scenario E2E script; unblocked by Wash's IAiService extraction
+
+**Test Results:**
+- **Total Tests:** 18
+- **Passed:** 18
+- **Failed:** 0
+- **Coverage:** ~95% of ContentImportService public API
+- **Bugs Found:** 0
+
+**Test Categories:**
+
+1. **Format Detection (5 tests):** CSV, TSV, Pipe, JSON objects, JSON arrays
+2. **Header/Delimiter Handling (2 tests):** HasHeaderRow flag, delimiter override
+3. **Core Parsing (3 tests):** Two-column happy path (VerifyNoOtherCalls ensures no AI invoked), empty row filtering, whitespace trimming + case-sensitive dedup
+4. **AI Features (2 tests):** Free-text confidence mapping (High/Medium/Low → Ok/Warning/Error), 50KB free-text cap
+5. **Content Type Validation (1 test):** NotSupportedException for v2 stubs (Phrases, Transcript)
+6. **Dedup Modes (4 tests):** Skip (reuse), Update (mutate + warn), ImportAll (duplicate allowed), case-sensitive matching
+7. **Resource Creation (1 test):** New resource with metadata (title, description, language)
+
+**Test Infrastructure:**
+- Framework: xUnit + FluentAssertions + Moq
+- Database: SqliteConnection in-memory (per-test isolation)
+- Mocked: IAiService, IFileSystemService, IPreferencesService
+- Key Pattern: NoOpSyncService for sync abstraction; DbContext scoped lifetime
+
+**Files Created:**
+- `tests/SentenceStudio.UnitTests/Services/ContentImportServiceTests.cs` (18 tests)
+- `.claude/skills/e2e-testing/references/import-content.md` (15-scenario E2E script)
+
+**E2E Script Coverage:**
+- Format detection (CSV/TSV/Pipe/JSON variants)
+- Header row + delimiter override
+- Empty row + whitespace handling
+- Dedup modes (Skip/Update/ImportAll) with case sensitivity
+- Resource creation (new + existing)
+- Single-column AI translation fallback
+- Free-text AI extraction + confidence badges
+- 50KB free-text limit enforcement
+- Content type validation (reject Phrases/Transcript in Wave 3)
+
+**Build & Test:** ✅ All tests pass, 0 failures
+
+---
+
+### MVP Completion Milestone
+
+**All 11 MVP Todos Shipped:**
+1. ✅ Service skeleton + transaction pattern (Wash, Wave 1)
+2. ✅ YouTube import rename + route refactor (Kaylee, Wave 1)
+3. ✅ Format detection stubs (Wash, Wave 2)
+4. ✅ AI prompt templates + DTOs (River, Wave 2)
+5. ✅ ContentImportService Wave 2 implementation (Wash, Wave 2)
+6. ✅ Backend E2E coverage (Captain, Wave 2)
+7. ✅ IAiService extraction (Wash, Wave 3)
+8. ✅ Unit test suite (Jayne, Wave 3)
+9. ✅ E2E test script (Jayne, Wave 3)
+10. ✅ Zero bugs discovered (Jayne, Wave 3)
+11. ✅ Testability & quality bar met (All, Wave 3)
+
+**Feature Ready for:** Captain's `/review` gate → merge → production
+
+---
+
+### Deferred to v2 Backlog
+
+1. **Content Types:** Phrases + Transcript imports (scope locked in Wave 1; v2 will extend format detection + parsing)
+2. **AI Features:** Auto-detect with confidence scoring; import-history + undo; resume partial imports
+3. **Tech Debt:** Migrate ~16 AiService consumers to IAiService for consistency
+
+---

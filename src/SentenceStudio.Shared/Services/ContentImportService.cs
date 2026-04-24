@@ -48,14 +48,14 @@ public class ContentImportService : IContentImportService
     private readonly IServiceProvider _serviceProvider;
     private readonly LearningResourceRepository _resourceRepo;
     private readonly ILogger<ContentImportService> _logger;
-    private readonly AiService _aiService;
+    private readonly IAiService _aiService;
     private readonly IFileSystemService _fileSystem;
 
     public ContentImportService(
         IServiceProvider serviceProvider,
         LearningResourceRepository resourceRepo,
         ILogger<ContentImportService> logger,
-        AiService aiService,
+        IAiService aiService,
         IFileSystemService fileSystem)
     {
         _serviceProvider = serviceProvider;

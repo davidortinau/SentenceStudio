@@ -23,6 +23,7 @@ public static class CoreServiceExtensions
         services.AddSingleton<TeacherService>();
         services.AddSingleton<ConversationService>();
         services.AddSingleton<AiService>();
+        services.AddSingleton<IAiService>(sp => sp.GetRequiredService<AiService>());
         services.AddSingleton<SceneImageService>();
         services.AddSingleton<ClozureService>();
         services.AddSingleton<WordAssociationService>();

@@ -42,3 +42,28 @@ Scribed multi-agent session for data-import-architecture-plan. Deployed Zoe (arc
 
 **Next:** Implementation team begins service + UI build. River engineers prompts.
 
+
+---
+
+## 2026-05-01 — Data Import MVP Wave 3 Final Merge
+
+**Status:** ✅ Complete — MVP ready for Captain's `/review` gate
+
+**Final merge tasks completed:**
+1. ✅ Verified 4 inbox files exist (wash, jayne x3)
+2. ✅ Merged Wave 3 decisions into `.squad/decisions.md` with comprehensive sections:
+   - Wash: IAiService extraction rationale + dual DI registration safety
+   - Jayne: 18/18 unit tests passing, ~95% coverage, 0 bugs found
+   - MVP completion milestone: all 11 todos shipped
+3. ✅ Deleted merged inbox files (4 files removed)
+4. ✅ Added Wave 3 decision section to decisions.md
+5. ✅ Prepared commit with comprehensive message + trailers
+
+**Wave 3 Summary:**
+- IAiService extraction: unblocked unit testing with zero behavioral impact (16 existing consumers untouched via dual DI)
+- ContentImportService: 18 unit tests + 15-scenario E2E script, 0 bugs
+- Quality bar: 100% test pass rate, ~95% API coverage, comprehensive E2E scenarios
+- MVP complete: 11/11 todos shipped on `feature/import-content-mvp`
+- Ready for: Captain's `/review` gate → merge → production
+
+**Next:** Captain runs `/review`, resolves any feedback, merges to main.

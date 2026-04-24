@@ -1734,3 +1734,5 @@ Conducted data layer survey for new import feature. Identified YouTube pipeline 
 
 **Decision docs:**
 - `.squad/decisions/inbox/wash-format-detector-ai-wiring.md` — Wave 2 implementation details, format detection strategy, AI wiring, dedup audit findings
+
+- 2026-05-01: **IAiService Interface Extraction** — Unblocked Jayne's unit tests for ContentImportService by extracting IAiService interface from concrete AiService class. Implemented dual DI registration strategy (concrete + interface alias) to preserve existing consumers while enabling mockability for new code. Zero blast radius — only ContentImportService migrated. Build clean (UI + tests). Full details in `.squad/decisions/inbox/wash-iaiservice-extraction.md`.
