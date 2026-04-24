@@ -73,6 +73,25 @@ az lock create --name do-not-delete-postgres \
   --notes "Protect production managed PostgreSQL from accidental deletion"
 ```
 
+### Step 4: Validate mobile migrations (if PR includes migration changes)
+
+**If the deploy includes a new or modified EF Core migration, RUN THIS:**
+
+```bash
+bash scripts/validate-mobile-migrations.sh
+```
+
+**Pass condition:** Script exits with code 0 and prints `✅ Mobile migrations validated`.
+
+**If this fails:** DO NOT DEPLOY. Fix the migration. Common failures:
+- Unsupported SQLite operation (e.g., ALTER COLUMN) → use PatchMissingColumnsAsync pattern
+- Missing column/table after migration → migration threw exception or was silently skipped
+- Sanity check failed → critical schema piece missing
+
+This gate catches iOS/Android-specific migration failures that desktop/server builds may not exhibit. It builds Mac Catalyst DEBUG, launches via `maui devflow`, and scans startup logs for migration errors.
+
+**Skip this step ONLY if:** The deploy contains NO changes to files under `src/SentenceStudio.Shared/Migrations/`.
+
 ### All checks passed? Proceed to deploy.
 
 ---
@@ -81,7 +100,7 @@ az lock create --name do-not-delete-postgres \
 
 **A deploy is NOT complete until validation passes. `azd deploy` exit code 0 means the upload worked — not that the system works.**
 
-### Step 3: Run the automated validation script
+### Step 5: Run the automated validation script
 
 ```bash
 ./scripts/post-deploy-validate.sh
@@ -109,7 +128,7 @@ To enable auth flow tests, set the test account credentials:
 DEPLOY_TEST_PASSWORD="..." ./scripts/post-deploy-validate.sh
 ```
 
-### Step 4: Change-specific validation (manual)
+### Step 6: Change-specific validation (manual)
 
 After the automated script passes, verify the **specific change you deployed**:
 

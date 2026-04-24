@@ -237,3 +237,35 @@ When retagging user IDs (e.g., merging anonymous → authenticated user data):
 1. **Clear CoreSync tracking tables** after retagging — sync won't upload retagged data if the old tracking entries still exist
 2. Handle `UNIQUE` constraint conflicts — the target user may already have some of the same data
 3. Use the `DataRecoveryService` pattern: scan all user-scoped tables, retag orphans, handle conflicts gracefully
+
+---
+
+## Migration validation gate (REQUIRED before mobile deploy)
+
+**Any PR that adds or modifies an EF Core migration MUST pass `scripts/validate-mobile-migrations.sh` before the author can claim the work item complete.**
+
+This script:
+- Builds the Mac Catalyst Debug head
+- Launches it via `maui devflow`
+- Scans the first 15s of native logs for migration failures or schema sanity check errors
+- Fails with exit code 1 if any migration errors are detected
+
+**If the script reports failures, FIX THE MIGRATION — do not deploy.** Schema integrity is non-negotiable.
+
+Run it from the repo root:
+```bash
+bash scripts/validate-mobile-migrations.sh
+```
+
+Expected output on success:
+```
+✅ Mobile migrations validated on net10.0-maccatalyst — no errors found
+```
+
+On failure, the script will print the full native log showing the error context. Common failure modes:
+- `SQLite Error X: 'near "ALTER": syntax error'` — migration uses unsupported SQLite operation
+- `no such column: TableName.ColumnName` — migration failed silently, `PatchMissingColumnsAsync` didn't run, or column name mismatch
+- `sanity check failed` — critical schema piece missing after migration (DEBUG builds throw, Release logs Critical)
+- `MigrateAsync failed` — migration threw an exception (now FATAL with hardened SyncService catch)
+
+The validation runs in DEBUG mode, so the in-app `MigrationSanityCheckService` will throw immediately if schema is incomplete — this is by design to surface issues during development.

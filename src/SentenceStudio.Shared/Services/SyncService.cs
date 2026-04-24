@@ -184,8 +184,21 @@ public class SyncService : ISyncService
                 await conn.CloseAsync();
             }
 
-            await dbContext.Database.MigrateAsync();
-            _logger.LogInformation("Mobile database migrated successfully");
+            // CRITICAL: Migration failures are FATAL — must re-throw.
+            // Silently continuing with stale schema causes "column doesn't exist" errors
+            // at runtime that are hard to diagnose. Fail fast at startup instead.
+            try
+            {
+                await dbContext.Database.MigrateAsync();
+                _logger.LogInformation("Mobile database migrated successfully");
+            }
+            catch (Exception migrationEx)
+            {
+                _logger.LogCritical(migrationEx, 
+                    "FATAL: Database migration failed. App cannot continue with stale schema. " +
+                    "Uninstall and reinstall may be required, or contact support.");
+                throw; // Re-throw to surface migration failures immediately
+            }
 
             // Run patch AGAIN after MigrateAsync — on fresh installs, the table didn't
             // exist before MigrateAsync, so the pre-migration patch skipped it. Now the
@@ -201,32 +214,65 @@ public class SyncService : ISyncService
             }
 #else
             _logger.LogDebug("Running EF Core migrations...");
-            await dbContext.Database.MigrateAsync();
-            _logger.LogInformation("EF Core database migrated");
+            
+            // CRITICAL: Migration failures are FATAL — must re-throw.
+            try
+            {
+                await dbContext.Database.MigrateAsync();
+                _logger.LogInformation("EF Core database migrated");
+            }
+            catch (Exception migrationEx)
+            {
+                _logger.LogCritical(migrationEx, 
+                    "FATAL: Database migration failed on server. Check connection string and database state.");
+                throw; // Re-throw to surface migration failures immediately
+            }
 #endif
 
-            // Run vocabulary classification backfill (idempotent)
-            var backfillService = scope.ServiceProvider.GetRequiredService<VocabularyClassificationBackfillService>();
-            await backfillService.BackfillLexicalUnitTypesAsync();
-            
-            // Run phrase constituent backfill (idempotent, after classification)
-            await backfillService.BackfillPhraseConstituentsAsync();
+#if DEBUG && (IOS || ANDROID || MACCATALYST)
+            // Mobile schema sanity check — validates critical columns/tables exist after migration.
+            // In Debug: throws on failure to surface schema drift immediately.
+            // In Release: logs Critical but continues (don't brick user apps).
+            var sanityCheckService = scope.ServiceProvider.GetRequiredService<MigrationSanityCheckService>();
+            await sanityCheckService.ValidateSchemaAsync(dbContext);
+#endif
 
-            // One-time data fix: Known words with near-term review dates
-            // PR #155 fixed the code path, this retroactively fixes existing records
-            await FixKnownWordSchedulesAsync(dbContext);
+            // Background initialization tasks below can fail non-fatally.
+            // If backfill or sync provisioning fails, app can still run (degraded).
+            try
+            {
+                // Run vocabulary classification backfill (idempotent)
+                var backfillService = scope.ServiceProvider.GetRequiredService<VocabularyClassificationBackfillService>();
+                await backfillService.BackfillLexicalUnitTypesAsync();
+                
+                // Run phrase constituent backfill (idempotent, after classification)
+                await backfillService.BackfillPhraseConstituentsAsync();
 
-            // Then: Apply CoreSync provisioning to create sync tracking tables
-            _logger.LogDebug("Applying CoreSync provisioning...");
-            await _localSyncProvider.ApplyProvisionAsync();
-            _logger.LogInformation("CoreSync provisioning applied");
+                // One-time data fix: Known words with near-term review dates
+                // PR #155 fixed the code path, this retroactively fixes existing records
+                await FixKnownWordSchedulesAsync(dbContext);
 
-            _isInitialized = true;
-            _logger.LogInformation("SyncService initialization complete");
+                // Then: Apply CoreSync provisioning to create sync tracking tables
+                _logger.LogDebug("Applying CoreSync provisioning...");
+                await _localSyncProvider.ApplyProvisionAsync();
+                _logger.LogInformation("CoreSync provisioning applied");
+
+                _isInitialized = true;
+                _logger.LogInformation("SyncService initialization complete");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Non-fatal initialization failure (backfill/sync): {Message}", ex.Message);
+                // Continue — app can run with degraded sync capability
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to initialize CoreSync: {Message}", ex.Message);
+            // This outer catch should now only catch initialization failures OUTSIDE
+            // of the migration path (e.g., service provider issues, scope creation).
+            // Migration failures re-throw above and won't reach here.
+            _logger.LogCritical(ex, "FATAL: SyncService initialization failed completely: {Message}", ex.Message);
+            throw;
         }
     }
 
@@ -394,6 +440,58 @@ public class SyncService : ISyncService
                 using var alterCmd = conn.CreateCommand();
                 alterCmd.CommandText = $"ALTER TABLE \"{table}\" ADD COLUMN \"{column}\" {sqlType}";
                 await alterCmd.ExecuteNonQueryAsync();
+            }
+        }
+
+        // Patch for LexicalUnitType column (NOT NULL with DEFAULT 0 — SQLite requires special handling)
+        using (var vocabTableCmd = conn.CreateCommand())
+        {
+            vocabTableCmd.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='VocabularyWord'";
+            if (Convert.ToInt64(await vocabTableCmd.ExecuteScalarAsync()) > 0)
+            {
+                using var checkLexicalCmd = conn.CreateCommand();
+                checkLexicalCmd.CommandText = "SELECT COUNT(*) FROM pragma_table_info('VocabularyWord') WHERE name='LexicalUnitType'";
+                var lexicalExists = Convert.ToInt64(await checkLexicalCmd.ExecuteScalarAsync()) > 0;
+
+                if (!lexicalExists)
+                {
+                    _logger.LogWarning("Legacy schema patch: adding missing column VocabularyWord.LexicalUnitType");
+                    using var alterLexicalCmd = conn.CreateCommand();
+                    alterLexicalCmd.CommandText = "ALTER TABLE \"VocabularyWord\" ADD COLUMN \"LexicalUnitType\" INTEGER NOT NULL DEFAULT 0";
+                    await alterLexicalCmd.ExecuteNonQueryAsync();
+                }
+            }
+        }
+
+        // Patch for PhraseConstituent table + indexes (idempotent via IF NOT EXISTS)
+        using (var vocabTableCmd = conn.CreateCommand())
+        {
+            vocabTableCmd.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='VocabularyWord'";
+            if (Convert.ToInt64(await vocabTableCmd.ExecuteScalarAsync()) > 0)
+            {
+                using var checkPhraseTableCmd = conn.CreateCommand();
+                checkPhraseTableCmd.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='PhraseConstituent'";
+                var phraseTableExists = Convert.ToInt64(await checkPhraseTableCmd.ExecuteScalarAsync()) > 0;
+
+                if (!phraseTableExists)
+                {
+                    _logger.LogWarning("Legacy schema patch: creating missing table PhraseConstituent with indexes");
+                    using var createTableCmd = conn.CreateCommand();
+                    createTableCmd.CommandText = @"
+                        CREATE TABLE IF NOT EXISTS ""PhraseConstituent"" (
+                            ""Id"" TEXT NOT NULL CONSTRAINT ""PK_PhraseConstituent"" PRIMARY KEY,
+                            ""PhraseWordId"" TEXT NOT NULL,
+                            ""ConstituentWordId"" TEXT NULL,
+                            ""CreatedAt"" TEXT NOT NULL,
+                            CONSTRAINT ""FK_PhraseConstituent_VocabularyWord_PhraseWordId"" FOREIGN KEY (""PhraseWordId"") REFERENCES ""VocabularyWord"" (""Id"") ON DELETE CASCADE,
+                            CONSTRAINT ""FK_PhraseConstituent_VocabularyWord_ConstituentWordId"" FOREIGN KEY (""ConstituentWordId"") REFERENCES ""VocabularyWord"" (""Id"") ON DELETE SET NULL
+                        );
+                        CREATE INDEX IF NOT EXISTS ""IX_PhraseConstituent_ConstituentWordId"" ON ""PhraseConstituent"" (""ConstituentWordId"");
+                        CREATE INDEX IF NOT EXISTS ""IX_PhraseConstituent_PhraseWordId"" ON ""PhraseConstituent"" (""PhraseWordId"");
+                        CREATE UNIQUE INDEX IF NOT EXISTS ""IX_PhraseConstituent_PhraseWordId_ConstituentWordId"" ON ""PhraseConstituent"" (""PhraseWordId"", ""ConstituentWordId"");
+                    ";
+                    await createTableCmd.ExecuteNonQueryAsync();
+                }
             }
         }
     }

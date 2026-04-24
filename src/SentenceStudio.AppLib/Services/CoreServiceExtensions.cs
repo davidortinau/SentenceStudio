@@ -106,6 +106,9 @@ public static class CoreServiceExtensions
 
         // Backfill services
         services.AddSingleton<VocabularyClassificationBackfillService>();
+        
+        // Mobile schema sanity check service (DEBUG only on mobile)
+        services.AddSingleton<MigrationSanityCheckService>();
 
         return services;
     }
