@@ -92,6 +92,9 @@ public static class CoreServiceExtensions
 
         services.AddSingleton<ISearchQueryParser, SearchQueryParser>();
 
+        // Content import
+        services.AddScoped<IContentImportService, ContentImportService>();
+
         // Progress & timing
         services.AddSingleton<ProgressCacheService>();
         services.AddSingleton<IProgressService, ProgressService>();

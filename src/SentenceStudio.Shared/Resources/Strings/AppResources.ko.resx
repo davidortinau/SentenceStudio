@@ -1845,6 +1845,10 @@
     <value>가져오기</value>
     <comment>Sidebar nav: Import</comment>
   </data>
+  <data name="Nav_MediaImport" xml:space="preserve">
+    <value>미디어 가져오기</value>
+    <comment>Sidebar nav: Media Import (YouTube videos)</comment>
+  </data>
   <data name="Nav_Profile" xml:space="preserve">
     <value>프로필</value>
     <comment>Sidebar nav: Profile</comment>

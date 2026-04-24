@@ -3077,3 +3077,114 @@ private NavItem[] BottomItems => new[]
 **By:** David Ortinau (Captain, via Copilot)
 **What:** The existing Import.razor (YouTube subscription / video transcript pipeline) should be considered SEPARATELY from the new generic data import feature. The new feature should not be designed around the YouTube flow. Captain is open to being convinced otherwise.
 **Why:** Scope clarification — keeps the new import feature focused on text/file → vocabulary/phrases/transcript without coupling to video subscription concerns.
+---
+
+## Data Import MVP — Wave 1 Implementation — 2026-04-24
+
+### Wash: ContentImportService API Surface + Transaction Pattern
+
+**Date:** 2026-04-24  
+**Status:** ✅ Complete  
+**Scope:** Backend service skeleton with production-quality commit logic, scoped DI registration, locked API surface for Wave 1
+
+**Key Decisions:**
+- **CommitImportAsync:** Full transaction pattern mirroring `LearningResourceRepository.SaveResourceAsync`; all words + mappings + resource update in single SaveChangesAsync
+- **Dedup Rule:** Case-sensitive, whitespace-trimmed on `TargetLanguageTerm` only; `NativeLanguageTerm` explicitly excluded (allows multiple English definitions for same Korean word)
+- **Dedup Modes:** Skip (default/safest), Update (mutates shared word, affects all resources), ImportAll (creates duplicate)
+- **DI Lifetime:** Scoped (transient operations, no shared state)
+- **Transaction Safety:** Detach nav props on Update mode to prevent EF Core cascade-insert errors; HashSet check prevents duplicate mappings within single import
+- **Wave 1 Scope:** CommitImportAsync body, DI registration, dedup logic, DTO surface locked
+- **Wave 2 Placeholders:** Format detection (MVP stubs), AI fallback (free-form text, phrases, transcripts), single-column translation
+
+**MVP API Surface:**
+- `ParseContentAsync(ContentImportRequest, CancellationToken)` → `ContentImportPreview` (rows + validation errors)
+- `DetectContentType(string, string?)` → `ContentTypeDetectionResult` (MVP: stub, returns explicit type)
+- `CommitImportAsync(ContentImportCommit, CancellationToken)` → `ContentImportResult` (counts + warnings)
+
+**DTOs:** `ContentImportRequest`, `ContentImportPreview`, `ImportRow`, `ContentImportCommit`, `ImportTarget`, `DedupMode`, `ContentImportResult`, `ContentType`, `RowStatus`, `ImportTargetMode` — all with `[Description]` attributes per Microsoft.Extensions.AI conventions
+
+**Files Created:** `src/SentenceStudio.Shared/Services/ContentImportService.cs` (566 lines)
+
+**Files Modified:** `src/SentenceStudio.AppLib/Services/CoreServiceExtensions.cs` (scoped registration, line ~96)
+
+**Build:** ✅ 0 errors, 164 warnings (pre-existing)
+
+---
+
+### Kaylee: Media Import Rename Strategy
+
+**Date:** 2026-04-24  
+**Status:** ✅ Implemented  
+**Scope:** Rename YouTube import → Media Import, move `/import` → `/media-import`, free up `/import` namespace for Wave 2+ generic content-import
+
+**Key Decisions:**
+- **Dual @page directives** (Option 1) — simpler, no redirect hops, immediate resolution, both routes work transparently
+- **Routes:** `MediaImport.razor` owns both `/media-import` (primary) + `/import` (back-compat); child routes (`ChannelDetail`) updated similarly
+- **Navigation:** `NavigationMemoryService` section key changed to `media-import`; icon changed to `bi-camera-video` (was `bi-box-arrow-in-down`); label → `Localize["Nav_MediaImport"]`
+- **Localization:** Added `Nav_MediaImport` (EN: "Media Import", KO: "미디어 가져오기"); kept `Nav_Import` for future generic import page
+- **Bookmarks/Deep-links:** All `/import*` routes continue to work (no breaking changes for existing users)
+
+**Alternatives Considered:**
+- Redirect middleware (rejected: more complex, extra hop, UX inconsistency)
+
+**Future Constraints:**
+- Wave 3 must NOT create `/import` route (already owned by MediaImport)
+- New page will use `/import-content` instead per Captain's ruling
+
+**Files Modified:**
+1. `src/SentenceStudio.UI/Pages/Import.razor` → `MediaImport.razor` (component rename + dual routes)
+2. `src/SentenceStudio.UI/Pages/ChannelDetail.razor` (routes + NavigateTo calls)
+3. `src/SentenceStudio.UI/Layout/NavMenu.razor` (section key, icon, label)
+4. `src/SentenceStudio.UI/Services/NavigationMemoryService.cs` (section definition)
+5. `src/SentenceStudio.Shared/Resources/Strings/AppResources.resx` + `.ko.resx` (Nav_MediaImport)
+
+**Build:** ✅ 267 warnings, 0 errors
+
+---
+
+### River: FreeTextToVocab AI Prompt — Behavior Contract
+
+**Date:** 2026-04-28  
+**Status:** ✅ Template + DTO Complete — Ready for Wave 2 Wiring  
+**Scope:** Two Scriban templates + response DTOs for AI fallback paths in content import
+
+**Key Decisions:**
+- **FreeTextToVocab:** Extracts vocabulary from free-form pasted text (mixed languages, prose, typos, etc.); returns confidence-scored items (high/medium/low); deduplicates within response
+- **TranslateMissingNativeTerms:** Bulk-translates target-language terms list (single-column CSV fallback); returns translations in same order; validates with `[unknown]` for gibberish
+- **Output Guarantees:** Never drops rows silently; uncertain items get confidence flag + notes instead of being skipped
+- **Confidence Scoring:** `"high"` (clearly extractable), `"medium"` (term correct, definition uncertain), `"low"` (uncertain if should extract); UI will badge each level
+- **Lexical Units:** Word/Phrase/Sentence classification per existing `ExtractVocabularyFromTranscript` logic
+- **Dictionary Form Normalization:** Verbs → `-다` form, nouns → no particles, compounds like `공부하다` as single Word
+- **Related Terms:** List of constituent words in dictionary form for Phrases/Sentences
+
+**Template: FreeTextToVocab.scriban-txt**
+- Inputs: `source_text`, `target_language`, `native_language`, optional `format_hint`, `topik_level`
+- Output: JSON array of extracted items with confidence, part-of-speech, lexical unit type, notes, related terms
+
+**Template: TranslateMissingNativeTerms.scriban-txt**
+- Inputs: `terms` (list), `target_language`, `native_language`
+- Output: JSON array of translation pairs in input order, with unknown-term safeguard
+
+**DTO Converter Pattern:** `.ToVocabularyWord()` method on extraction response to convert AI DTOs into persistable `VocabularyWord` entities (tags include confidence/notes/constituents if not all defaults)
+
+**Files Created:**
+1. `src/SentenceStudio.AppLib/Resources/Raw/FreeTextToVocab.scriban-txt`
+2. `src/SentenceStudio.Shared/Models/FreeTextVocabularyExtractionResponse.cs` + nested `ExtractedVocabularyItemWithConfidence`
+3. `src/SentenceStudio.AppLib/Resources/Raw/TranslateMissingNativeTerms.scriban-txt`
+4. `src/SentenceStudio.Shared/Models/BulkTranslationResponse.cs` + nested `TranslationPair`
+
+**Cost Estimate:** Free-text (~$0.01-0.02), translation-fill (~$0.005-0.01) → total ~$0.01-0.03 per messy import (acceptable per plan)
+
+**Wave 2 Integration Guidance for Wash:**
+- Call `ExtractVocabularyFromFreeTextAsync()` during ParseContentAsync
+- Call `TranslateMissingNativeTermsAsync()` for single-column imports
+- Apply Wash's dedup logic afterward
+
+**Wave 3 Integration Guidance for Kaylee:**
+- Confidence badges: green (high), yellow (medium), red (low) with notes tooltip
+- Editable preview: override confidence, edit native term, delete rows
+- Translation-fill UI: single-column CSV detected → show "Translate missing definitions?" checkbox
+
+**References:** ExtractVocabularyFromTranscript.scriban-txt (lines 1-75), GetTranslations.scriban-txt (lines 1-24), VocabularyExtractionResponse.cs, TranslationDto.cs
+
+---

@@ -25,7 +25,7 @@ public class NavigationMemoryService : IDisposable
         ("vocabulary", "/vocabulary", ["/vocabulary"]),
         ("minimal-pairs", "/minimal-pairs", ["/minimal-pairs"]),
         ("skills", "/skills", ["/skills"]),
-        ("import", "/import", ["/import"]),
+        ("media-import", "/media-import", ["/media-import", "/import"]), // "/import" kept for back-compat
         ("profile", "/profile", ["/profile"]),
         ("settings", "/settings", ["/settings"]),
         ("feedback", "/feedback", ["/feedback"]),

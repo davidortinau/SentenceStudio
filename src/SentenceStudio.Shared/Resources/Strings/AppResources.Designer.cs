@@ -5071,6 +5071,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Media Import.
+        /// </summary>
+        internal static string Nav_MediaImport {
+            get {
+                return ResourceManager.GetString("Nav_MediaImport", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Minimal Pairs.
         /// </summary>
         internal static string Nav_MinimalPairs {
