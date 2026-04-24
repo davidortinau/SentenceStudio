@@ -407,21 +407,23 @@ public class SyncService : ISyncService
     /// </summary>
     private async Task PatchMissingColumnsAsync(System.Data.Common.DbConnection conn)
     {
-        // (table, column, SQLite type, nullable)
-        var expectedColumns = new (string Table, string Column, string SqlType)[]
+        // (table, column, SQLite type + constraints, backfillExpr for existing NULLs on pre-patched DBs)
+        // NOTE: If column was already added nullable by a prior patch, backfillExpr is applied via UPDATE
+        // to populate NULL rows (needed because our original patch didn't include DEFAULT clauses).
+        var expectedColumns = new (string Table, string Column, string SqlType, string? BackfillSql)[]
         {
-            ("VocabularyWord", "Language", "TEXT"),
-            ("VocabularyWord", "Lemma", "TEXT"),
-            ("VocabularyWord", "Tags", "TEXT"),
-            ("VocabularyWord", "MnemonicText", "TEXT"),
-            ("VocabularyWord", "MnemonicImageUri", "TEXT"),
-            ("VocabularyWord", "AudioPronunciationUri", "TEXT"),
-            ("DailyPlanCompletion", "NarrativeJson", "TEXT"),
-            ("VocabularyProgress", "LastExposedAt", "TEXT"),
-            ("VocabularyProgress", "ExposureCount", "INTEGER"),
+            ("VocabularyWord", "Language", "TEXT", null),                           // nullable in model, NULL OK
+            ("VocabularyWord", "Lemma", "TEXT", null),                              // nullable in model, NULL OK
+            ("VocabularyWord", "Tags", "TEXT", null),                               // nullable in model, NULL OK
+            ("VocabularyWord", "MnemonicText", "TEXT", null),                       // nullable in model, NULL OK
+            ("VocabularyWord", "MnemonicImageUri", "TEXT", null),                   // nullable in model, NULL OK
+            ("VocabularyWord", "AudioPronunciationUri", "TEXT", null),              // nullable in model, NULL OK
+            ("DailyPlanCompletion", "NarrativeJson", "TEXT", null),                 // nullable in model, NULL OK
+            ("VocabularyProgress", "LastExposedAt", "TEXT", null),                  // nullable in model, NULL OK
+            ("VocabularyProgress", "ExposureCount", "INTEGER NOT NULL DEFAULT 0", "UPDATE \"VocabularyProgress\" SET \"ExposureCount\" = 0 WHERE \"ExposureCount\" IS NULL"),
         };
 
-        foreach (var (table, column, sqlType) in expectedColumns)
+        foreach (var (table, column, sqlType, backfillSql) in expectedColumns)
         {
             // On a fresh database the table won't exist yet — skip patching;
             // MigrateAsync() will create it with all columns.
@@ -441,9 +443,27 @@ public class SyncService : ISyncService
                 alterCmd.CommandText = $"ALTER TABLE \"{table}\" ADD COLUMN \"{column}\" {sqlType}";
                 await alterCmd.ExecuteNonQueryAsync();
             }
+
+            // Always run backfill if specified — handles databases that were patched BEFORE
+            // we started using DEFAULT clauses (those existing rows are NULL and need fixing).
+            if (!string.IsNullOrEmpty(backfillSql))
+            {
+                try
+                {
+                    using var backfillCmd = conn.CreateCommand();
+                    backfillCmd.CommandText = backfillSql;
+                    var updated = await backfillCmd.ExecuteNonQueryAsync();
+                    if (updated > 0)
+                        _logger.LogWarning("Legacy schema backfill: populated {Count} NULL rows in {Table}.{Column}", updated, table, column);
+                }
+                catch (Exception bex)
+                {
+                    _logger.LogError(bex, "Legacy schema backfill failed for {Table}.{Column}", table, column);
+                }
+            }
         }
 
-        // Patch for LexicalUnitType column (NOT NULL with DEFAULT 0 — SQLite requires special handling)
+        // Patch for LexicalUnitType column (NOT NULL with DEFAULT 0 — separate from main loop because it has DEFAULT clause)
         using (var vocabTableCmd = conn.CreateCommand())
         {
             vocabTableCmd.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='VocabularyWord'";
@@ -493,6 +513,118 @@ public class SyncService : ISyncService
                     await createTableCmd.ExecuteNonQueryAsync();
                 }
             }
+        }
+
+        // Reconcile __EFMigrationsHistory against actual DB schema.
+        // For each known migration whose artifacts are already present in the DB
+        // (either from a previous release or from our defensive patches above),
+        // INSERT OR IGNORE a stamp row so EF's MigrateAsync() treats it as applied
+        // and doesn't crash with "duplicate column name" / "table already exists".
+        // This runs every launch — safe because INSERT OR IGNORE is idempotent.
+        await ReconcileMigrationHistoryAsync(conn);
+    }
+
+    private async Task ReconcileMigrationHistoryAsync(System.Data.Common.DbConnection conn)
+    {
+        try
+        {
+            // __EFMigrationsHistory may not exist on a fresh DB that MigrateAsync hasn't touched yet.
+            // But if we're reconciling, it means a legacy DB exists with data — so it should have the table.
+            // Check defensively.
+            using var checkHistCmd = conn.CreateCommand();
+            checkHistCmd.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='__EFMigrationsHistory'";
+            if (Convert.ToInt64(await checkHistCmd.ExecuteScalarAsync()) == 0)
+                return; // fresh DB — let MigrateAsync handle everything
+
+            // Only stamp migrations whose schema artifacts we can verify present in the DB.
+            // Each tuple: (migrationId, predicateSql returning count>0 when artifacts exist)
+            var checks = new (string MigrationId, string Sql)[]
+            {
+                // AddPassiveExposureFields — adds ExposureCount + LastExposedAt to VocabularyProgress
+                ("20260415024019_AddPassiveExposureFields",
+                    "SELECT CASE WHEN (SELECT COUNT(*) FROM pragma_table_info('VocabularyProgress') WHERE name IN ('ExposureCount','LastExposedAt')) = 2 THEN 1 ELSE 0 END"),
+                // AddLexicalUnitTypeAndConstituents — adds LexicalUnitType to VocabularyWord + PhraseConstituent table
+                ("20260423213242_AddLexicalUnitTypeAndConstituents",
+                    "SELECT CASE WHEN ((SELECT COUNT(*) FROM pragma_table_info('VocabularyWord') WHERE name='LexicalUnitType') > 0 AND (SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='PhraseConstituent') > 0) THEN 1 ELSE 0 END"),
+            };
+
+            foreach (var (migrationId, sql) in checks)
+            {
+                using var existsCmd = conn.CreateCommand();
+                existsCmd.CommandText = "SELECT COUNT(*) FROM \"__EFMigrationsHistory\" WHERE \"MigrationId\" = $id";
+                var pCheck = existsCmd.CreateParameter();
+                pCheck.ParameterName = "$id";
+                pCheck.Value = migrationId;
+                existsCmd.Parameters.Add(pCheck);
+                var alreadyStamped = Convert.ToInt64(await existsCmd.ExecuteScalarAsync()) > 0;
+                if (alreadyStamped)
+                    continue;
+
+                using var predCmd = conn.CreateCommand();
+                predCmd.CommandText = sql;
+                var artifactsPresent = Convert.ToInt64(await predCmd.ExecuteScalarAsync()) > 0;
+                if (!artifactsPresent)
+                    continue;
+
+                _logger.LogWarning("Reconciling migration history: stamping {MigrationId} (schema artifacts already present in DB)", migrationId);
+                await StampMigrationAsAppliedAsync(conn, migrationId);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "ReconcileMigrationHistoryAsync failed (non-fatal); MigrateAsync may still succeed or surface a clearer error");
+        }
+    }
+
+    /// <summary>
+    /// Inserts a migration ID into __EFMigrationsHistory so EF treats it as already applied.
+    /// Called after defensive raw-SQL schema patches to keep EF's migration state consistent.
+    /// Idempotent via INSERT OR IGNORE (PK is MigrationId).
+    /// </summary>
+    private async Task StampMigrationAsAppliedAsync(System.Data.Common.DbConnection conn, string migrationId)
+    {
+        try
+        {
+            // Ensure __EFMigrationsHistory exists (MigrateAsync creates it if not, but we may be ahead of that)
+            using var ensureCmd = conn.CreateCommand();
+            ensureCmd.CommandText = @"
+                CREATE TABLE IF NOT EXISTS ""__EFMigrationsHistory"" (
+                    ""MigrationId"" TEXT NOT NULL CONSTRAINT ""PK___EFMigrationsHistory"" PRIMARY KEY,
+                    ""ProductVersion"" TEXT NOT NULL
+                );";
+            await ensureCmd.ExecuteNonQueryAsync();
+
+            // Read existing ProductVersion from any row so our stamp matches; fall back to EF Core 9 default
+            string productVersion = "9.0.0";
+            using (var verCmd = conn.CreateCommand())
+            {
+                verCmd.CommandText = "SELECT ProductVersion FROM \"__EFMigrationsHistory\" LIMIT 1";
+                var v = await verCmd.ExecuteScalarAsync();
+                if (v != null && v != DBNull.Value)
+                    productVersion = v.ToString() ?? productVersion;
+            }
+
+            using var insertCmd = conn.CreateCommand();
+            insertCmd.CommandText = "INSERT OR IGNORE INTO \"__EFMigrationsHistory\" (\"MigrationId\", \"ProductVersion\") VALUES ($id, $ver)";
+            var pId = insertCmd.CreateParameter();
+            pId.ParameterName = "$id";
+            pId.Value = migrationId;
+            insertCmd.Parameters.Add(pId);
+            var pVer = insertCmd.CreateParameter();
+            pVer.ParameterName = "$ver";
+            pVer.Value = productVersion;
+            insertCmd.Parameters.Add(pVer);
+            var rows = await insertCmd.ExecuteNonQueryAsync();
+            if (rows > 0)
+                _logger.LogWarning("Stamped migration {MigrationId} as applied in __EFMigrationsHistory (defensive patch reconciliation)", migrationId);
+            else
+                _logger.LogDebug("Migration {MigrationId} already recorded in __EFMigrationsHistory", migrationId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to stamp migration {MigrationId} as applied. EF may re-attempt the migration.", migrationId);
+            // Don't throw — better to let EF attempt and potentially fail with a clearer error
+            // than to block startup on a history table write.
         }
     }
 #endif
