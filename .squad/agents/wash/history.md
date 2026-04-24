@@ -1601,3 +1601,44 @@ _logger.LogWarning($"Patched {result} rows: ExposureCount NULL → 0");
 4. Reference: `AddMissingVocabularyWordLanguageColumn.cs` (empty Up() + patch pattern) and commit c9b1d0a (ExposureCount example)
 
 **Verification:** Always test on Mac Catalyst Debug build (via `scripts/validate-mobile-migrations.sh`) and device before merge.
+
+### 2026-05-30: Bulk Import Data Layer Patterns (Scout for File Import Feature)
+
+**Context:** Pre-architecture scouting for Zoe to design a file import feature for vocabulary lists (CSV/text). No implementation — read-only investigation of existing patterns.
+
+**Key discoveries:**
+
+1. **Dedup inconsistency:** `VideoImportPipelineService` uses case-sensitive exact match on `TargetLanguageTerm` (line 368), but `LearningResourceRepository` utilities use case-insensitive trimmed comparison (line 940). This creates duplicates when same word appears with different casing across imports. **Recommendation:** Standardize to case-insensitive trimmed dedup in service layer (both YouTube and file imports).
+
+2. **Shared vocabulary model:** `VocabularyWord` has NO `UserProfileId` — vocabulary is shared across users. Per-user data lives in `VocabularyProgress` (created lazily on first practice, NOT at import time). `ResourceVocabularyMapping` provides many-to-many between user's `LearningResource` and shared `VocabularyWord` pool.
+
+3. **Batch import status tracking pattern:** `VideoImport` entity tracks pipeline state with enum statuses (`Pending`, `FetchingTranscript`, etc.). Background execution via `Task.Run`, caller polls `/api/imports/{id}` for progress. Pattern is reusable for file imports if status UI is needed.
+
+4. **Repository transaction pattern:** `SaveResourceAsync` (LearningResourceRepository:210-250+) handles resource + vocabulary in single transaction: (a) detach nav props, (b) check existing resource, (c) save resource, (d) dedup words via `GetWordByTargetTermAsync`, (e) create mappings, (f) SaveChanges, (g) trigger sync. Use this pattern for file import to maintain data integrity.
+
+5. **File picker ready to use:** `IFilePickerService` / `MauiFilePickerService` abstraction exists and is production-tested. Returns `Stream` for parsing. Static parser `VocabularyWord.ParseVocabularyWords()` exists but is NOT wired to repository/persistence — new service layer needed.
+
+**Delivered:** `.squad/decisions/inbox/wash-import-scout-findings.md` for Zoe's architecture proposal.
+
+---
+
+## 2026-04-24 — Import Data Layer Scout (Multi-Agent Session)
+
+Conducted data layer survey for new import feature. Identified YouTube pipeline as template, found file import UI/service gap, discovered dedup inconsistency, confirmed no schema changes needed.
+
+**Key findings:**
+- YouTube pipeline pattern in `VideoImportPipelineService` (dedup by TargetLanguageTerm)
+- File import UI missing, but parser utility `VocabularyWord.ParseVocabularyWords()` exists
+- Dedup inconsistency: case-sensitive in pipeline vs. case-insensitive in repo utilities
+- MVP reuses all existing tables (LearningResource, VocabularyWord, ResourceVocabularyMapping)
+- Migration gotcha: multi-TFM requires temporary single-TFM switch for `dotnet ef`
+
+**Recommendations to Zoe:**
+- Standardize dedup to case-insensitive trimmed
+- New `VocabularyImportService` following YouTube pattern
+- Optional `FileImport` entity for status tracking
+
+**Coordinated with:** Zoe (architecture), River (AI), Kaylee (UI), Copilot
+
+**Next:** Implementation uses findings for service + DB layer.
+

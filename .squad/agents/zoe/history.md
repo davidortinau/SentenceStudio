@@ -671,3 +671,22 @@ blockers. Took ownership as Lead, fixed both, commit `b56c1c1`.
   triggers a 270-line diff to the Designer file on next build. Commit
   it alongside the resx change — otherwise the next contributor's first
   build produces a mystery diff.
+
+- 2026-07-27: **Import Feature Architecture** — Existing import infrastructure is YouTube-video-specific (VideoImport entity, VideoImportPipelineService, ImportEndpoints.cs). VocabularyWord dedup in the YouTube pipeline uses TargetLanguageTerm exact match (case-sensitive) — see VideoImportPipelineService.CreateLearningResourceAsync line 367. VocabularyWord.ParseVocabularyWords() exists as a static method for basic CSV/TSV parsing (comma or tab delimiter, 2-column only). ResourceAdd.razor already has a rudimentary vocab paste + file import UI (textarea + InputFile + delimiter radio). The existing ExtractVocabularyFromTranscript.scriban-txt prompt and VocabularyExtractionResponse DTO are reusable for any AI-backed vocabulary extraction, not just YouTube transcripts. Import.razor currently has 3 tabs (Channels, Single Video, History) — the text/file import feature should be a 4th tab, not a separate page.
+
+---
+
+## 2026-04-24 — Import Feature Architecture Session (Multi-Agent)
+
+Coordinated architecture for new generic data import feature (text/CSV/JSON → vocabulary/phrases/transcripts). Produced full design covering UX flows, content type detection, data model, parsing pipeline, AI integration, service layer, scope phasing.
+
+**Key deliverables:**
+- Architecture proposal with UX flows, content detection heuristics, data model (no new tables)
+- Placement revision: separate `/import-content` page (not tab on existing `/import`)
+- MVP scope: text paste or CSV/TSV upload, vocabulary, delimiter detection, preview-before-commit
+- Service layer: `ContentImportService` in Shared
+
+**Coordinated with:** Wash (data layer scout), River (AI strategy), Kaylee (UI patterns), Copilot directive
+
+**Next:** Implementation team builds service layer + UI. River engineers prompts.
+
