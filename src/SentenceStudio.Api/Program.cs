@@ -231,6 +231,7 @@ builder.Services.AddSingleton<ISyncProvider>(sp =>
 builder.Services.AddSingleton<VocabularyProgressRepository>();
 builder.Services.AddSingleton<VocabularyLearningContextRepository>();
 builder.Services.AddSingleton<VocabularyProgressService>();
+builder.Services.AddSingleton<VocabularyClassificationBackfillService>();
 builder.Services.AddSingleton<IVocabularyProgressService>(provider =>
     provider.GetRequiredService<VocabularyProgressService>());
 
