@@ -3,7 +3,10 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Data;
 using SentenceStudio.Shared.Models;
+using SentenceStudio.Abstractions;
 using System.ComponentModel;
+using System.Text.Json;
+using Scriban;
 
 namespace SentenceStudio.Services;
 
@@ -45,16 +48,23 @@ public class ContentImportService : IContentImportService
     private readonly IServiceProvider _serviceProvider;
     private readonly LearningResourceRepository _resourceRepo;
     private readonly ILogger<ContentImportService> _logger;
+    private readonly AiService _aiService;
+    private readonly IFileSystemService _fileSystem;
 
     public ContentImportService(
         IServiceProvider serviceProvider,
         LearningResourceRepository resourceRepo,
-        ILogger<ContentImportService> logger)
+        ILogger<ContentImportService> logger,
+        AiService aiService,
+        IFileSystemService fileSystem)
     {
         _serviceProvider = serviceProvider;
         _resourceRepo = resourceRepo;
         _logger = logger;
+        _aiService = aiService;
+        _fileSystem = fileSystem;
     }
+
 
     public async Task<ContentImportPreview> ParseContentAsync(ContentImportRequest request, CancellationToken ct = default)
     {
@@ -93,63 +103,97 @@ public class ContentImportService : IContentImportService
             throw new ArgumentException("Either RawText or FileBytes must be provided.", nameof(request));
         }
 
-        // TODO (Wave 2): Add format detection heuristics here
-        // For MVP, assume CSV/TSV and use delimiter from request
-        var delimiter = request.DelimiterOverride ?? ',';
-        var lines = content.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        // Wave 2: Format detection
+        var (formatType, delimiter) = DetectFormat(content, request.DelimiterOverride, request.FormatHint);
+        
+        _logger.LogDebug("Detected format: {FormatType}, Delimiter: {Delimiter}", formatType, delimiter?.ToString() ?? "N/A");
 
-        // Skip header row if requested
-        var dataLines = request.HasHeaderRow && lines.Length > 0
-            ? lines.Skip(1).ToArray()
-            : lines;
-
-        for (int i = 0; i < dataLines.Length; i++)
+        // Parse based on detected format
+        switch (formatType)
         {
-            var line = dataLines[i];
-            var rowNumber = i + 1 + (request.HasHeaderRow ? 1 : 0); // Account for header in row numbering
-            var parts = line.Split(delimiter);
+            case "CSV":
+            case "TSV":
+            case "Pipe":
+                rows = ParseDelimitedContent(content, delimiter!.Value, request.HasHeaderRow);
+                break;
 
-            if (parts.Length == 0 || string.IsNullOrWhiteSpace(parts[0]))
-            {
-                // Skip empty rows
-                continue;
-            }
+            case "JSON":
+                rows = ParseJsonContent(content, request.HasHeaderRow);
+                break;
 
-            string? targetTerm = parts.Length > 0 ? parts[0].Trim() : null;
-            string? nativeTerm = parts.Length > 1 ? parts[1].Trim() : null;
+            case "FreeText":
+                // Cap size for AI processing (50KB = roughly 12,500 tokens)
+                if (content.Length > 50_000)
+                {
+                    warnings.Add($"Content is too large for free-text extraction ({content.Length} chars). Please provide structured data or split into smaller chunks.");
+                    rows.Add(new ImportRow
+                    {
+                        RowNumber = 1,
+                        Status = RowStatus.Error,
+                        Error = "Content exceeds size limit for free-text extraction (50KB)."
+                    });
+                }
+                else
+                {
+                    try
+                    {
+                        rows = await ParseFreeTextContentAsync(content, request.TargetLanguage, request.NativeLanguage, request.FormatHint, ct);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "AI free-text extraction failed");
+                        warnings.Add($"AI extraction failed: {ex.Message}");
+                        rows.Add(new ImportRow
+                        {
+                            RowNumber = 1,
+                            Status = RowStatus.Error,
+                            Error = $"AI extraction failed: {ex.Message}. Please check your content or provide a structured format."
+                        });
+                    }
+                }
+                break;
 
-            // TODO (Wave 2): Add AI fallback for free-form text parsing here
-            // For MVP, we expect structured CSV/TSV input
-
-            var rowStatus = RowStatus.Ok;
-            string? error = null;
-
-            if (string.IsNullOrEmpty(targetTerm))
-            {
-                rowStatus = RowStatus.Error;
-                error = "Target language term is required.";
-            }
-            else if (string.IsNullOrEmpty(nativeTerm))
-            {
-                // Single-column case: AI translation will fill this in during commit
-                // TODO (River, Wave 2): Hook AI translation here to preview the result
-                rowStatus = RowStatus.Warning;
-                error = "Native language term missing (will use AI translation on commit).";
-            }
-
-            rows.Add(new ImportRow
-            {
-                RowNumber = rowNumber,
-                TargetLanguageTerm = targetTerm,
-                NativeLanguageTerm = nativeTerm,
-                Status = rowStatus,
-                Error = error,
-                IsSelected = rowStatus != RowStatus.Error // Auto-deselect error rows
-            });
+            default:
+                throw new InvalidOperationException($"Unknown format type: {formatType}");
         }
 
-        // Detect format (for MVP, just return the delimiter type)
-        var detectedFormat = delimiter == '\t' ? "Tab-delimited (TSV)" : "Comma-delimited (CSV)";
+        // Wave 2: Single-column translation
+        var singleColumnRows = rows.Where(r => string.IsNullOrWhiteSpace(r.NativeLanguageTerm) && !string.IsNullOrWhiteSpace(r.TargetLanguageTerm)).ToList();
+        if (singleColumnRows.Any())
+        {
+            _logger.LogInformation("Detected {Count} rows with missing native terms. Attempting AI translation...", singleColumnRows.Count);
+            try
+            {
+                await TranslateMissingNativeTermsAsync(singleColumnRows, request.TargetLanguage, request.NativeLanguage, ct);
+                // Mark AI-translated rows
+                foreach (var row in singleColumnRows.Where(r => !string.IsNullOrWhiteSpace(r.NativeLanguageTerm)))
+                {
+                    row.IsAiTranslated = true;
+                    if (row.Status == RowStatus.Warning && row.Error?.Contains("missing") == true)
+                    {
+                        row.Status = RowStatus.Ok;
+                        row.Error = null;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "AI translation failed for single-column import");
+                warnings.Add($"AI translation failed: {ex.Message}. Please provide translations manually.");
+                // Keep rows as warnings — user can manually fill in translations
+            }
+        }
+
+        // Detect format description
+        var detectedFormat = formatType switch
+        {
+            "TSV" => "Tab-delimited (TSV)",
+            "CSV" => "Comma-delimited (CSV)",
+            "Pipe" => "Pipe-delimited",
+            "JSON" => "JSON",
+            "FreeText" => "Free-form text (AI-extracted)",
+            _ => "Unknown"
+        };
 
         // Detect content type (for MVP, explicit from request)
         var detectedContentType = new ContentTypeDetectionResult
@@ -168,6 +212,431 @@ public class ContentImportService : IContentImportService
             DetectedContentType = detectedContentType,
             Warnings = warnings
         };
+    }
+
+    private (string formatType, char? delimiter) DetectFormat(string content, char? delimiterOverride, string? formatHint)
+    {
+        // If delimiter is explicitly provided, use it
+        if (delimiterOverride.HasValue)
+        {
+            return (delimiterOverride.Value switch
+            {
+                '\t' => "TSV",
+                ',' => "CSV",
+                '|' => "Pipe",
+                _ => "CSV"
+            }, delimiterOverride.Value);
+        }
+
+        // Try JSON first (most specific)
+        if (content.TrimStart().StartsWith("[") || content.TrimStart().StartsWith("{"))
+        {
+            try
+            {
+                using var doc = JsonDocument.Parse(content);
+                return ("JSON", null);
+            }
+            catch
+            {
+                // Not valid JSON, continue to delimiter detection
+            }
+        }
+
+        // Delimiter detection: count occurrences of comma, tab, pipe per line
+        var lines = content.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).Take(10).ToList();
+        if (lines.Count == 0)
+        {
+            return ("FreeText", null);
+        }
+
+        // Count delimiter occurrences per line
+        var commaCount = new List<int>();
+        var tabCount = new List<int>();
+        var pipeCount = new List<int>();
+
+        foreach (var line in lines)
+        {
+            commaCount.Add(CountDelimiterOccurrences(line, ','));
+            tabCount.Add(CountDelimiterOccurrences(line, '\t'));
+            pipeCount.Add(CountDelimiterOccurrences(line, '|'));
+        }
+
+        // Check for consistency (same count across at least 60% of lines)
+        var commaConsistent = IsConsistent(commaCount);
+        var tabConsistent = IsConsistent(tabCount);
+        var pipeConsistent = IsConsistent(pipeCount);
+
+        // Prefer tab, then pipe, then comma (comma is most ambiguous)
+        if (tabConsistent && tabCount.Any(c => c > 0))
+        {
+            return ("TSV", '\t');
+        }
+        if (pipeConsistent && pipeCount.Any(c => c > 0))
+        {
+            return ("Pipe", '|');
+        }
+        if (commaConsistent && commaCount.Any(c => c > 0))
+        {
+            return ("CSV", ',');
+        }
+
+        // No clear delimiter found — fall back to free-text AI extraction
+        return ("FreeText", null);
+    }
+
+    private int CountDelimiterOccurrences(string line, char delimiter)
+    {
+        if (delimiter == ',')
+        {
+            // Simple CSV quote handling: don't count commas inside quotes
+            int count = 0;
+            bool inQuotes = false;
+            foreach (char c in line)
+            {
+                if (c == '"')
+                {
+                    inQuotes = !inQuotes;
+                }
+                else if (c == ',' && !inQuotes)
+                {
+                    count++;
+                }
+            }
+            return count;
+        }
+        else
+        {
+            return line.Count(c => c == delimiter);
+        }
+    }
+
+    private bool IsConsistent(List<int> counts)
+    {
+        if (counts.Count == 0)
+            return false;
+
+        // Get the most common count
+        var grouped = counts.GroupBy(c => c).OrderByDescending(g => g.Count()).FirstOrDefault();
+        if (grouped == null || grouped.Key == 0)
+            return false;
+
+        // At least 60% of lines must have the same count
+        return (double)grouped.Count() / counts.Count >= 0.6;
+    }
+
+    private List<ImportRow> ParseDelimitedContent(string content, char delimiter, bool hasHeaderRow)
+    {
+        var rows = new List<ImportRow>();
+        var lines = content.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+
+        // Skip header row if requested
+        var dataLines = hasHeaderRow && lines.Length > 0
+            ? lines.Skip(1).ToArray()
+            : lines;
+
+        for (int i = 0; i < dataLines.Length; i++)
+        {
+            var line = dataLines[i];
+            var rowNumber = i + 1 + (hasHeaderRow ? 1 : 0); // Account for header in row numbering
+            var parts = SplitLine(line, delimiter);
+
+            if (parts.Length == 0 || string.IsNullOrWhiteSpace(parts[0]))
+            {
+                // Skip empty rows
+                continue;
+            }
+
+            string? targetTerm = parts.Length > 0 ? parts[0].Trim() : null;
+            string? nativeTerm = parts.Length > 1 ? parts[1].Trim() : null;
+
+            var rowStatus = RowStatus.Ok;
+            string? error = null;
+
+            if (string.IsNullOrEmpty(targetTerm))
+            {
+                rowStatus = RowStatus.Error;
+                error = "Target language term is required.";
+            }
+            else if (string.IsNullOrEmpty(nativeTerm))
+            {
+                // Single-column case: AI translation will fill this in
+                rowStatus = RowStatus.Warning;
+                error = "Native language term missing (will use AI translation).";
+            }
+
+            rows.Add(new ImportRow
+            {
+                RowNumber = rowNumber,
+                TargetLanguageTerm = targetTerm,
+                NativeLanguageTerm = nativeTerm,
+                Status = rowStatus,
+                Error = error,
+                IsSelected = rowStatus != RowStatus.Error // Auto-deselect error rows
+            });
+        }
+
+        return rows;
+    }
+
+    private string[] SplitLine(string line, char delimiter)
+    {
+        if (delimiter == ',')
+        {
+            // Simple CSV quote handling
+            var parts = new List<string>();
+            var currentPart = new System.Text.StringBuilder();
+            bool inQuotes = false;
+
+            for (int i = 0; i < line.Length; i++)
+            {
+                char c = line[i];
+
+                if (c == '"')
+                {
+                    inQuotes = !inQuotes;
+                }
+                else if (c == ',' && !inQuotes)
+                {
+                    parts.Add(currentPart.ToString().Trim('"'));
+                    currentPart.Clear();
+                }
+                else
+                {
+                    currentPart.Append(c);
+                }
+            }
+
+            parts.Add(currentPart.ToString().Trim('"'));
+            return parts.ToArray();
+        }
+        else
+        {
+            return line.Split(delimiter);
+        }
+    }
+
+    private List<ImportRow> ParseJsonContent(string content, bool hasHeaderRow)
+    {
+        var rows = new List<ImportRow>();
+
+        try
+        {
+            using var doc = JsonDocument.Parse(content);
+            var root = doc.RootElement;
+
+            if (root.ValueKind == JsonValueKind.Array)
+            {
+                int rowNumber = 0;
+                foreach (var item in root.EnumerateArray())
+                {
+                    rowNumber++;
+
+                    // Skip first item if it's a header indicator
+                    if (hasHeaderRow && rowNumber == 1)
+                        continue;
+
+                    string? targetTerm = null;
+                    string? nativeTerm = null;
+
+                    if (item.ValueKind == JsonValueKind.Object)
+                    {
+                        // JSON object: { "target": "...", "native": "..." }
+                        // Try common property names
+                        if (item.TryGetProperty("target", out var targetProp))
+                            targetTerm = targetProp.GetString();
+                        else if (item.TryGetProperty("targetLanguageTerm", out targetProp))
+                            targetTerm = targetProp.GetString();
+                        else if (item.TryGetProperty("korean", out targetProp))
+                            targetTerm = targetProp.GetString();
+                        else if (item.TryGetProperty("term", out targetProp))
+                            targetTerm = targetProp.GetString();
+
+                        if (item.TryGetProperty("native", out var nativeProp))
+                            nativeTerm = nativeProp.GetString();
+                        else if (item.TryGetProperty("nativeLanguageTerm", out nativeProp))
+                            nativeTerm = nativeProp.GetString();
+                        else if (item.TryGetProperty("english", out nativeProp))
+                            nativeTerm = nativeProp.GetString();
+                        else if (item.TryGetProperty("translation", out nativeProp))
+                            nativeTerm = nativeProp.GetString();
+                        else if (item.TryGetProperty("definition", out nativeProp))
+                            nativeTerm = nativeProp.GetString();
+                    }
+                    else if (item.ValueKind == JsonValueKind.Array)
+                    {
+                        // JSON array: ["target", "native"]
+                        var arr = item.EnumerateArray().ToArray();
+                        if (arr.Length > 0)
+                            targetTerm = arr[0].GetString();
+                        if (arr.Length > 1)
+                            nativeTerm = arr[1].GetString();
+                    }
+
+                    var rowStatus = RowStatus.Ok;
+                    string? error = null;
+
+                    if (string.IsNullOrEmpty(targetTerm))
+                    {
+                        rowStatus = RowStatus.Error;
+                        error = "Target language term is required.";
+                    }
+                    else if (string.IsNullOrEmpty(nativeTerm))
+                    {
+                        rowStatus = RowStatus.Warning;
+                        error = "Native language term missing (will use AI translation).";
+                    }
+
+                    rows.Add(new ImportRow
+                    {
+                        RowNumber = rowNumber,
+                        TargetLanguageTerm = targetTerm,
+                        NativeLanguageTerm = nativeTerm,
+                        Status = rowStatus,
+                        Error = error,
+                        IsSelected = rowStatus != RowStatus.Error
+                    });
+                }
+            }
+        }
+        catch (JsonException ex)
+        {
+            _logger.LogError(ex, "Failed to parse JSON content");
+            rows.Add(new ImportRow
+            {
+                RowNumber = 1,
+                Status = RowStatus.Error,
+                Error = $"Invalid JSON format: {ex.Message}"
+            });
+        }
+
+        return rows;
+    }
+
+    private async Task<List<ImportRow>> ParseFreeTextContentAsync(string content, string targetLanguage, string nativeLanguage, string? formatHint, CancellationToken ct)
+    {
+        _logger.LogInformation("Extracting vocabulary from free-form text via AI ({Length} chars)...", content.Length);
+
+        // Load Scriban template
+        using Stream templateStream = await _fileSystem.OpenAppPackageFileAsync("FreeTextToVocab.scriban-txt");
+        using var reader = new StreamReader(templateStream);
+        var templateContent = await reader.ReadToEndAsync();
+        var scribanTemplate = Template.Parse(templateContent);
+
+        // Render prompt
+        var prompt = scribanTemplate.Render(new
+        {
+            source_text = content,
+            target_language = targetLanguage,
+            native_language = nativeLanguage,
+            format_hint = formatHint
+        });
+
+        // Call AI
+        var response = await _aiService.SendPrompt<FreeTextVocabularyExtractionResponse>(prompt);
+
+        if (response == null || response.Vocabulary == null || !response.Vocabulary.Any())
+        {
+            _logger.LogWarning("AI returned no vocabulary from free text");
+            return new List<ImportRow>
+            {
+                new ImportRow
+                {
+                    RowNumber = 1,
+                    Status = RowStatus.Warning,
+                    Error = "No vocabulary extracted. Check language settings or provide structured data.",
+                    IsSelected = false
+                }
+            };
+        }
+
+        // Convert to ImportRows with confidence mapping
+        var rows = new List<ImportRow>();
+        for (int i = 0; i < response.Vocabulary.Count; i++)
+        {
+            var item = response.Vocabulary[i];
+            var status = item.Confidence.ToLowerInvariant() switch
+            {
+                "high" => RowStatus.Ok,
+                "medium" => RowStatus.Warning,
+                "low" => RowStatus.Error,
+                _ => RowStatus.Warning
+            };
+
+            var error = status != RowStatus.Ok
+                ? $"Confidence: {item.Confidence}" + (string.IsNullOrWhiteSpace(item.Notes) ? "" : $" — {item.Notes}")
+                : null;
+
+            rows.Add(new ImportRow
+            {
+                RowNumber = i + 1,
+                TargetLanguageTerm = item.TargetLanguageTerm,
+                NativeLanguageTerm = item.NativeLanguageTerm,
+                Status = status,
+                Error = error,
+                IsSelected = status != RowStatus.Error, // Auto-deselect low-confidence rows
+                IsAiTranslated = true // Free-text extractions are always AI-generated
+            });
+        }
+
+        _logger.LogInformation("Extracted {Count} vocabulary items from free text", rows.Count);
+        return rows;
+    }
+
+    private async Task TranslateMissingNativeTermsAsync(List<ImportRow> rows, string targetLanguage, string nativeLanguage, CancellationToken ct)
+    {
+        var termsToTranslate = rows
+            .Where(r => !string.IsNullOrWhiteSpace(r.TargetLanguageTerm))
+            .Select(r => r.TargetLanguageTerm!)
+            .ToList();
+
+        if (!termsToTranslate.Any())
+            return;
+
+        _logger.LogInformation("Translating {Count} terms via AI...", termsToTranslate.Count);
+
+        // Load Scriban template
+        using Stream templateStream = await _fileSystem.OpenAppPackageFileAsync("TranslateMissingNativeTerms.scriban-txt");
+        using var reader = new StreamReader(templateStream);
+        var templateContent = await reader.ReadToEndAsync();
+        var scribanTemplate = Template.Parse(templateContent);
+
+        // Render prompt
+        var prompt = scribanTemplate.Render(new
+        {
+            terms = termsToTranslate,
+            target_language = targetLanguage,
+            native_language = nativeLanguage
+        });
+
+        // Call AI
+        var response = await _aiService.SendPrompt<BulkTranslationResponse>(prompt);
+
+        if (response == null || response.Translations == null || !response.Translations.Any())
+        {
+            _logger.LogWarning("AI returned no translations");
+            return;
+        }
+
+        // Map translations back to rows
+        var translationDict = response.Translations.ToDictionary(t => t.TargetLanguageTerm, t => t.NativeLanguageTerm, StringComparer.Ordinal);
+
+        foreach (var row in rows)
+        {
+            if (!string.IsNullOrWhiteSpace(row.TargetLanguageTerm) && translationDict.TryGetValue(row.TargetLanguageTerm, out var translation))
+            {
+                if (translation != "[unknown]")
+                {
+                    row.NativeLanguageTerm = translation;
+                }
+                else
+                {
+                    row.Status = RowStatus.Error;
+                    row.Error = "AI could not translate this term.";
+                }
+            }
+        }
+
+        _logger.LogInformation("Translation complete: {Count} terms filled", translationDict.Count(kv => kv.Value != "[unknown]"));
     }
 
     public ContentTypeDetectionResult DetectContentType(string content, string? formatHint)
@@ -500,6 +969,9 @@ public class ImportRow
 
     [Description("Whether this row is selected for import (user can toggle)")]
     public bool IsSelected { get; set; } = true;
+
+    [Description("Whether the native term was AI-translated (for UI badging)")]
+    public bool IsAiTranslated { get; set; }
 }
 
 /// <summary>

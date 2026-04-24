@@ -6122,4 +6122,240 @@ For example: {0} ...</value>
     <value>Marked as familiar. Keep reviewing to promote to Known.</value>
     <comment>VocabWordEdit: Info toast when learning status set to Familiar</comment>
   </data>
+  <data name="Nav_ImportContent" xml:space="preserve">
+    <value>Import Content</value>
+    <comment>Navigation menu item for import content page</comment>
+  </data>
+  <data name="Import_Content_Title" xml:space="preserve">
+    <value>Import Content</value>
+    <comment>Page title for import content</comment>
+  </data>
+  <data name="Import_Step1_Title" xml:space="preserve">
+    <value>Step 1: Source</value>
+    <comment>Import wizard step 1 heading</comment>
+  </data>
+  <data name="Import_PasteContentLabel" xml:space="preserve">
+    <value>Paste your content</value>
+    <comment>Label for text area where users paste content</comment>
+  </data>
+  <data name="Import_PastePlaceholder" xml:space="preserve">
+    <value>Paste CSV, TSV, or plain text here...</value>
+    <comment>Placeholder for paste text area</comment>
+  </data>
+  <data name="Import_PasteHint" xml:space="preserve">
+    <value>Paste vocabulary data in CSV or TSV format (e.g., "Korean word, English translation" per line)</value>
+    <comment>Hint text below paste area</comment>
+  </data>
+  <data name="Import_Step2_Title" xml:space="preserve">
+    <value>Step 2: Format Hints (Optional)</value>
+    <comment>Import wizard step 2 heading</comment>
+  </data>
+  <data name="Import_ContentTypeLabel" xml:space="preserve">
+    <value>Content Type</value>
+    <comment>Label for content type dropdown</comment>
+  </data>
+  <data name="Import_ContentType_Vocabulary" xml:space="preserve">
+    <value>Vocabulary</value>
+    <comment>Content type option: Vocabulary</comment>
+  </data>
+  <data name="Import_ContentType_Phrases" xml:space="preserve">
+    <value>Phrases</value>
+    <comment>Content type option: Phrases (v2)</comment>
+  </data>
+  <data name="Import_ContentType_Transcript" xml:space="preserve">
+    <value>Transcript</value>
+    <comment>Content type option: Transcript (v2)</comment>
+  </data>
+  <data name="Import_ContentType_Auto" xml:space="preserve">
+    <value>Auto-detect</value>
+    <comment>Content type option: Auto-detect (v2)</comment>
+  </data>
+  <data name="Import_DelimiterLabel" xml:space="preserve">
+    <value>Delimiter</value>
+    <comment>Label for delimiter dropdown</comment>
+  </data>
+  <data name="Import_Delimiter_Auto" xml:space="preserve">
+    <value>Auto</value>
+    <comment>Delimiter option: Auto-detect</comment>
+  </data>
+  <data name="Import_Delimiter_Comma" xml:space="preserve">
+    <value>Comma</value>
+    <comment>Delimiter option: Comma</comment>
+  </data>
+  <data name="Import_Delimiter_Tab" xml:space="preserve">
+    <value>Tab</value>
+    <comment>Delimiter option: Tab</comment>
+  </data>
+  <data name="Import_Delimiter_Pipe" xml:space="preserve">
+    <value>Pipe (|)</value>
+    <comment>Delimiter option: Pipe</comment>
+  </data>
+  <data name="Import_HasHeaderRow" xml:space="preserve">
+    <value>First row is header</value>
+    <comment>Checkbox label for header row option</comment>
+  </data>
+  <data name="Import_PreviewButton" xml:space="preserve">
+    <value>Preview</value>
+    <comment>Button to preview parsed content</comment>
+  </data>
+  <data name="Import_Step3_Title" xml:space="preserve">
+    <value>Step 3: Preview &amp; Edit</value>
+    <comment>Import wizard step 3 heading</comment>
+  </data>
+  <data name="Import_DetectedFormat" xml:space="preserve">
+    <value>Detected format</value>
+    <comment>Label showing detected file format</comment>
+  </data>
+  <data name="Import_TargetLanguageTerm" xml:space="preserve">
+    <value>Target Language Term</value>
+    <comment>Table column header for target language</comment>
+  </data>
+  <data name="Import_NativeLanguageTerm" xml:space="preserve">
+    <value>Native Language Term</value>
+    <comment>Table column header for native language</comment>
+  </data>
+  <data name="Import_Status" xml:space="preserve">
+    <value>Status</value>
+    <comment>Table column header for row status</comment>
+  </data>
+  <data name="Import_SelectedCount" xml:space="preserve">
+    <value>Selected for import</value>
+    <comment>Label showing selected row count</comment>
+  </data>
+  <data name="Import_Step5_Title" xml:space="preserve">
+    <value>Step 4: Target Resource</value>
+    <comment>Import wizard step 5 heading</comment>
+  </data>
+  <data name="Import_CreateNewResource" xml:space="preserve">
+    <value>Create new resource</value>
+    <comment>Radio option to create new resource</comment>
+  </data>
+  <data name="Import_AddToExistingResource" xml:space="preserve">
+    <value>Add to existing resource</value>
+    <comment>Radio option to add to existing resource</comment>
+  </data>
+  <data name="Import_ResourceTitleLabel" xml:space="preserve">
+    <value>Resource Title</value>
+    <comment>Label for new resource title input</comment>
+  </data>
+  <data name="Import_ResourceTitlePlaceholder" xml:space="preserve">
+    <value>e.g., Common Korean Verbs</value>
+    <comment>Placeholder for resource title</comment>
+  </data>
+  <data name="Import_ResourceDescriptionLabel" xml:space="preserve">
+    <value>Description</value>
+    <comment>Label for new resource description input</comment>
+  </data>
+  <data name="Import_ResourceDescriptionPlaceholder" xml:space="preserve">
+    <value>Optional description...</value>
+    <comment>Placeholder for resource description</comment>
+  </data>
+  <data name="Import_TargetLanguageLabel" xml:space="preserve">
+    <value>Target Language</value>
+    <comment>Label for target language dropdown</comment>
+  </data>
+  <data name="Import_NativeLanguageLabel" xml:space="preserve">
+    <value>Native Language</value>
+    <comment>Label for native language dropdown</comment>
+  </data>
+  <data name="Import_SelectExistingResourceLabel" xml:space="preserve">
+    <value>Select Resource</value>
+    <comment>Label for existing resource dropdown</comment>
+  </data>
+  <data name="Import_SelectResourcePlaceholder" xml:space="preserve">
+    <value>Select a resource</value>
+    <comment>Placeholder for resource dropdown</comment>
+  </data>
+  <data name="Import_Step6_Title" xml:space="preserve">
+    <value>Step 5: Duplicate Handling</value>
+    <comment>Import wizard step 6 heading</comment>
+  </data>
+  <data name="Import_DedupMode_Skip" xml:space="preserve">
+    <value>Skip duplicates (recommended)</value>
+    <comment>Dedup mode option: Skip</comment>
+  </data>
+  <data name="Import_DedupMode_Skip_Help" xml:space="preserve">
+    <value>Existing words are reused. New words are added. Safest option.</value>
+    <comment>Help text for skip mode</comment>
+  </data>
+  <data name="Import_DedupMode_Update" xml:space="preserve">
+    <value>Update existing words</value>
+    <comment>Dedup mode option: Update</comment>
+  </data>
+  <data name="Import_DedupMode_Update_Help" xml:space="preserve">
+    <value>WARNING: Updates native translations for ALL resources using the word. Use carefully.</value>
+    <comment>Help text for update mode</comment>
+  </data>
+  <data name="Import_DedupMode_ImportAll" xml:space="preserve">
+    <value>Import all as new</value>
+    <comment>Dedup mode option: Import all</comment>
+  </data>
+  <data name="Import_DedupMode_ImportAll_Help" xml:space="preserve">
+    <value>Creates new entries even if duplicates exist. May create duplicate vocabulary.</value>
+    <comment>Help text for import all mode</comment>
+  </data>
+  <data name="Import_CommitButton" xml:space="preserve">
+    <value>Import</value>
+    <comment>Button to commit import</comment>
+  </data>
+  <data name="Import_ImportComplete" xml:space="preserve">
+    <value>Import Complete</value>
+    <comment>Import success heading</comment>
+  </data>
+  <data name="Import_Created" xml:space="preserve">
+    <value>Created</value>
+    <comment>Label for created count</comment>
+  </data>
+  <data name="Import_Skipped" xml:space="preserve">
+    <value>Skipped</value>
+    <comment>Label for skipped count</comment>
+  </data>
+  <data name="Import_Updated" xml:space="preserve">
+    <value>Updated</value>
+    <comment>Label for updated count</comment>
+  </data>
+  <data name="Import_Failed" xml:space="preserve">
+    <value>Failed</value>
+    <comment>Label for failed count</comment>
+  </data>
+  <data name="Import_ViewResource" xml:space="preserve">
+    <value>View Resource</value>
+    <comment>Button to view imported resource</comment>
+  </data>
+  <data name="Import_ImportMore" xml:space="preserve">
+    <value>Import More</value>
+    <comment>Button to start another import</comment>
+  </data>
+  <data name="Import_ParseError" xml:space="preserve">
+    <value>Failed to parse content</value>
+    <comment>Error toast when parsing fails</comment>
+  </data>
+  <data name="Import_ResourceTitleRequired" xml:space="preserve">
+    <value>Please enter a resource title.</value>
+    <comment>Validation error for missing title</comment>
+  </data>
+  <data name="Import_SelectResourceRequired" xml:space="preserve">
+    <value>Please select a resource.</value>
+    <comment>Validation error for missing resource selection</comment>
+  </data>
+  <data name="Import_NoRowsSelected" xml:space="preserve">
+    <value>Please select at least one row to import.</value>
+    <comment>Validation error for no rows selected</comment>
+  </data>
+  <data name="Import_UpdateModeWarning" xml:space="preserve">
+    <value>Update mode will modify existing vocabulary words across all resources.</value>
+    <comment>Warning toast for update mode</comment>
+  </data>
+  <data name="Import_ProfileNotFound" xml:space="preserve">
+    <value>User profile not found.</value>
+    <comment>Error toast when profile is missing</comment>
+  </data>
+  <data name="Import_ImportSuccess" xml:space="preserve">
+    <value>Import completed successfully!</value>
+    <comment>Success toast after import</comment>
+  </data>
+  <data name="Import_CommitError" xml:space="preserve">
+    <value>Failed to commit import</value>
+    <comment>Error toast when commit fails</comment>
+  </data>
 </root>

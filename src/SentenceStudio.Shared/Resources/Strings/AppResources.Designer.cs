@@ -3712,6 +3712,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Add to existing resource.
+        /// </summary>
+        internal static string Import_AddToExistingResource {
+            get {
+                return ResourceManager.GetString("Import_AddToExistingResource", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Channel monitoring paused.
         /// </summary>
         internal static string Import_ChannelPaused {
@@ -3739,11 +3748,209 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Import.
+        /// </summary>
+        internal static string Import_CommitButton {
+            get {
+                return ResourceManager.GetString("Import_CommitButton", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to commit import.
+        /// </summary>
+        internal static string Import_CommitError {
+            get {
+                return ResourceManager.GetString("Import_CommitError", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Completed.
         /// </summary>
         internal static string Import_Completed {
             get {
                 return ResourceManager.GetString("Import_Completed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Import Content.
+        /// </summary>
+        internal static string Import_Content_Title {
+            get {
+                return ResourceManager.GetString("Import_Content_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auto-detect.
+        /// </summary>
+        internal static string Import_ContentType_Auto {
+            get {
+                return ResourceManager.GetString("Import_ContentType_Auto", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Phrases.
+        /// </summary>
+        internal static string Import_ContentType_Phrases {
+            get {
+                return ResourceManager.GetString("Import_ContentType_Phrases", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Transcript.
+        /// </summary>
+        internal static string Import_ContentType_Transcript {
+            get {
+                return ResourceManager.GetString("Import_ContentType_Transcript", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Vocabulary.
+        /// </summary>
+        internal static string Import_ContentType_Vocabulary {
+            get {
+                return ResourceManager.GetString("Import_ContentType_Vocabulary", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Content Type.
+        /// </summary>
+        internal static string Import_ContentTypeLabel {
+            get {
+                return ResourceManager.GetString("Import_ContentTypeLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Created.
+        /// </summary>
+        internal static string Import_Created {
+            get {
+                return ResourceManager.GetString("Import_Created", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Create new resource.
+        /// </summary>
+        internal static string Import_CreateNewResource {
+            get {
+                return ResourceManager.GetString("Import_CreateNewResource", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Import all as new.
+        /// </summary>
+        internal static string Import_DedupMode_ImportAll {
+            get {
+                return ResourceManager.GetString("Import_DedupMode_ImportAll", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Creates new entries even if duplicates exist. May create duplicate vocabulary..
+        /// </summary>
+        internal static string Import_DedupMode_ImportAll_Help {
+            get {
+                return ResourceManager.GetString("Import_DedupMode_ImportAll_Help", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Skip duplicates (recommended).
+        /// </summary>
+        internal static string Import_DedupMode_Skip {
+            get {
+                return ResourceManager.GetString("Import_DedupMode_Skip", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Existing words are reused. New words are added. Safest option..
+        /// </summary>
+        internal static string Import_DedupMode_Skip_Help {
+            get {
+                return ResourceManager.GetString("Import_DedupMode_Skip_Help", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Update existing words.
+        /// </summary>
+        internal static string Import_DedupMode_Update {
+            get {
+                return ResourceManager.GetString("Import_DedupMode_Update", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to WARNING: Updates native translations for ALL resources using the word. Use carefully..
+        /// </summary>
+        internal static string Import_DedupMode_Update_Help {
+            get {
+                return ResourceManager.GetString("Import_DedupMode_Update_Help", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Auto.
+        /// </summary>
+        internal static string Import_Delimiter_Auto {
+            get {
+                return ResourceManager.GetString("Import_Delimiter_Auto", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Comma.
+        /// </summary>
+        internal static string Import_Delimiter_Comma {
+            get {
+                return ResourceManager.GetString("Import_Delimiter_Comma", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Pipe (|).
+        /// </summary>
+        internal static string Import_Delimiter_Pipe {
+            get {
+                return ResourceManager.GetString("Import_Delimiter_Pipe", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Tab.
+        /// </summary>
+        internal static string Import_Delimiter_Tab {
+            get {
+                return ResourceManager.GetString("Import_Delimiter_Tab", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Delimiter.
+        /// </summary>
+        internal static string Import_DelimiterLabel {
+            get {
+                return ResourceManager.GetString("Import_DelimiterLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Detected format.
+        /// </summary>
+        internal static string Import_DetectedFormat {
+            get {
+                return ResourceManager.GetString("Import_DetectedFormat", resourceCulture);
             }
         }
         
@@ -3793,6 +4000,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to First row is header.
+        /// </summary>
+        internal static string Import_HasHeaderRow {
+            get {
+                return ResourceManager.GetString("Import_HasHeaderRow", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Import History.
         /// </summary>
         internal static string Import_History {
@@ -3811,11 +4027,38 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Import Complete.
+        /// </summary>
+        internal static string Import_ImportComplete {
+            get {
+                return ResourceManager.GetString("Import_ImportComplete", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Import More.
+        /// </summary>
+        internal static string Import_ImportMore {
+            get {
+                return ResourceManager.GetString("Import_ImportMore", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Imports refreshed.
         /// </summary>
         internal static string Import_ImportsRefreshed {
             get {
                 return ResourceManager.GetString("Import_ImportsRefreshed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Import completed successfully!.
+        /// </summary>
+        internal static string Import_ImportSuccess {
+            get {
+                return ResourceManager.GetString("Import_ImportSuccess", resourceCulture);
             }
         }
         
@@ -3847,6 +4090,24 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Native Language.
+        /// </summary>
+        internal static string Import_NativeLanguageLabel {
+            get {
+                return ResourceManager.GetString("Import_NativeLanguageLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Native Language Term.
+        /// </summary>
+        internal static string Import_NativeLanguageTerm {
+            get {
+                return ResourceManager.GetString("Import_NativeLanguageTerm", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Never.
         /// </summary>
         internal static string Import_Never {
@@ -3874,11 +4135,56 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Please select at least one row to import..
+        /// </summary>
+        internal static string Import_NoRowsSelected {
+            get {
+                return ResourceManager.GetString("Import_NoRowsSelected", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to No transcripts found for this video..
         /// </summary>
         internal static string Import_NoTranscripts {
             get {
                 return ResourceManager.GetString("Import_NoTranscripts", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to parse content.
+        /// </summary>
+        internal static string Import_ParseError {
+            get {
+                return ResourceManager.GetString("Import_ParseError", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Paste your content.
+        /// </summary>
+        internal static string Import_PasteContentLabel {
+            get {
+                return ResourceManager.GetString("Import_PasteContentLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Paste vocabulary data in CSV or TSV format (e.g., &quot;Korean word, English translation&quot; per line).
+        /// </summary>
+        internal static string Import_PasteHint {
+            get {
+                return ResourceManager.GetString("Import_PasteHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Paste CSV, TSV, or plain text here....
+        /// </summary>
+        internal static string Import_PastePlaceholder {
+            get {
+                return ResourceManager.GetString("Import_PastePlaceholder", resourceCulture);
             }
         }
         
@@ -3919,6 +4225,24 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Preview.
+        /// </summary>
+        internal static string Import_PreviewButton {
+            get {
+                return ResourceManager.GetString("Import_PreviewButton", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to User profile not found..
+        /// </summary>
+        internal static string Import_ProfileNotFound {
+            get {
+                return ResourceManager.GetString("Import_ProfileNotFound", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Refresh.
         /// </summary>
         internal static string Import_Refresh {
@@ -3928,11 +4252,56 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Description.
+        /// </summary>
+        internal static string Import_ResourceDescriptionLabel {
+            get {
+                return ResourceManager.GetString("Import_ResourceDescriptionLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Optional description....
+        /// </summary>
+        internal static string Import_ResourceDescriptionPlaceholder {
+            get {
+                return ResourceManager.GetString("Import_ResourceDescriptionPlaceholder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Resource saved successfully!.
         /// </summary>
         internal static string Import_ResourceSaved {
             get {
                 return ResourceManager.GetString("Import_ResourceSaved", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Resource Title.
+        /// </summary>
+        internal static string Import_ResourceTitleLabel {
+            get {
+                return ResourceManager.GetString("Import_ResourceTitleLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to e.g., Common Korean Verbs.
+        /// </summary>
+        internal static string Import_ResourceTitlePlaceholder {
+            get {
+                return ResourceManager.GetString("Import_ResourceTitlePlaceholder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Please enter a resource title..
+        /// </summary>
+        internal static string Import_ResourceTitleRequired {
+            get {
+                return ResourceManager.GetString("Import_ResourceTitleRequired", resourceCulture);
             }
         }
         
@@ -3973,6 +4342,42 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Selected for import.
+        /// </summary>
+        internal static string Import_SelectedCount {
+            get {
+                return ResourceManager.GetString("Import_SelectedCount", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Select Resource.
+        /// </summary>
+        internal static string Import_SelectExistingResourceLabel {
+            get {
+                return ResourceManager.GetString("Import_SelectExistingResourceLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Select a resource.
+        /// </summary>
+        internal static string Import_SelectResourcePlaceholder {
+            get {
+                return ResourceManager.GetString("Import_SelectResourcePlaceholder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Please select a resource..
+        /// </summary>
+        internal static string Import_SelectResourceRequired {
+            get {
+                return ResourceManager.GetString("Import_SelectResourceRequired", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Showing {0} of {1} imports.
         /// </summary>
         internal static string Import_ShowingCount {
@@ -4000,6 +4405,87 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Skipped.
+        /// </summary>
+        internal static string Import_Skipped {
+            get {
+                return ResourceManager.GetString("Import_Skipped", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Status.
+        /// </summary>
+        internal static string Import_Status {
+            get {
+                return ResourceManager.GetString("Import_Status", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Step 1: Source.
+        /// </summary>
+        internal static string Import_Step1_Title {
+            get {
+                return ResourceManager.GetString("Import_Step1_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Step 2: Format Hints (Optional).
+        /// </summary>
+        internal static string Import_Step2_Title {
+            get {
+                return ResourceManager.GetString("Import_Step2_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Step 3: Preview &amp; Edit.
+        /// </summary>
+        internal static string Import_Step3_Title {
+            get {
+                return ResourceManager.GetString("Import_Step3_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Step 4: Target Resource.
+        /// </summary>
+        internal static string Import_Step5_Title {
+            get {
+                return ResourceManager.GetString("Import_Step5_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Step 5: Duplicate Handling.
+        /// </summary>
+        internal static string Import_Step6_Title {
+            get {
+                return ResourceManager.GetString("Import_Step6_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Target Language.
+        /// </summary>
+        internal static string Import_TargetLanguageLabel {
+            get {
+                return ResourceManager.GetString("Import_TargetLanguageLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Target Language Term.
+        /// </summary>
+        internal static string Import_TargetLanguageTerm {
+            get {
+                return ResourceManager.GetString("Import_TargetLanguageTerm", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Transcript.
         /// </summary>
         internal static string Import_Transcript {
@@ -4023,6 +4509,24 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Import_TranscriptPolished {
             get {
                 return ResourceManager.GetString("Import_TranscriptPolished", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Updated.
+        /// </summary>
+        internal static string Import_Updated {
+            get {
+                return ResourceManager.GetString("Import_Updated", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Update mode will modify existing vocabulary words across all resources..
+        /// </summary>
+        internal static string Import_UpdateModeWarning {
+            get {
+                return ResourceManager.GetString("Import_UpdateModeWarning", resourceCulture);
             }
         }
         
@@ -5049,6 +5553,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Nav_Import {
             get {
                 return ResourceManager.GetString("Nav_Import", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Import Content.
+        /// </summary>
+        internal static string Nav_ImportContent {
+            get {
+                return ResourceManager.GetString("Nav_ImportContent", resourceCulture);
             }
         }
         

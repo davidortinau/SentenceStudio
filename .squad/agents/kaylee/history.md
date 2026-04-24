@@ -298,3 +298,131 @@ Surveyed UI patterns, form conventions, file picker abstractions, navigation str
 
 **Next:** Implementation team uses patterns to build ImportContent.razor page.
 
+
+---
+
+## 2026-04-24 — Media Import Rename (Wave 1 Track B)
+
+Renamed YouTube import page from `/import` to `/media-import` to free up `/import` namespace for upcoming generic content-import feature.
+
+**Files changed:**
+1. **Component rename:** `src/SentenceStudio.UI/Pages/Import.razor` → `MediaImport.razor`
+2. **Route updates:** 
+   - Primary route changed to `/media-import`
+   - Added back-compat `/import` route on same component (dual @page directives)
+3. **Child route updates:** `src/SentenceStudio.UI/Pages/ChannelDetail.razor`
+   - Primary route changed to `/media-import/channel/{Id?}`
+   - Added back-compat `/import/channel/{Id?}` route
+   - All NavigateTo calls updated to use new `/media-import/*` paths
+4. **Navigation menu:** `src/SentenceStudio.UI/Layout/NavMenu.razor`
+   - Section key: `import` → `media-import`
+   - Icon: `bi-box-arrow-in-down` → `bi-camera-video`
+   - Label localization key: `Nav_Import` → `Nav_MediaImport`
+5. **Navigation service:** `src/SentenceStudio.UI/Services/NavigationMemoryService.cs`
+   - Section definition updated to `("media-import", "/media-import", ["/media-import", "/import"])`
+   - Both routes recognized for active-state tracking
+6. **Localization:** `src/SentenceStudio.Shared/Resources/Strings/AppResources.{resx,ko.resx}`
+   - Added `Nav_MediaImport` → "Media Import" (EN), "미디어 가져오기" (KO)
+   - Kept `Nav_Import` for potential future use
+7. **Logger type parameter:** Changed `ILogger<Import>` → `ILogger<MediaImport>` in component
+
+**Back-compat strategy:**
+- Chose dual @page directives (option 1) over redirect middleware
+- Rationale: Simpler, no extra code paths, bookmarks/deep-links resolve immediately
+- Both `/import` and `/media-import` work, UI always shows `/media-import` in address bar on fresh navigation
+- ChannelDetail also supports both `/import/channel/{Id?}` and `/media-import/channel/{Id?}`
+
+**Tricky cross-references:**
+- MediaImport.razor internal NavigateTo calls (AddChannel, EditChannel methods)
+- ChannelDetail.razor NavigateTo calls (SaveChannel success, NavigateBack)
+- NavigationMemoryService section definition (needed both routes in Prefixes array for sidebar active state)
+
+**Build verification:** `dotnet build src/SentenceStudio.UI/SentenceStudio.UI.csproj` — 267 warnings, **0 errors** ✅
+
+**Not changed:**
+- YouTube logic inside MediaImport.razor (scope: rename + reroute only)
+- ContentImportService (Wash's domain, Wave 2)
+- No new /import-content page yet (Wave 3, Kaylee)
+
+**Next:** Wave 2 (Wash) — ContentImportService + DTOs. Wave 3 (Kaylee) — Build new ImportContent.razor page at `/import-content`.
+
+---
+
+## 2026-04-24 — Import Content Page (Wave 2 Track B)
+
+Built the user-facing `/import-content` page for the data import MVP. This is the comprehensive wizard interface that consumes Wash's `ContentImportService` API.
+
+**Page structure (7-step wizard):**
+1. **Source:** Text area for paste (CSV/TSV). File upload deferred to v2 per Captain's prioritization.
+2. **Format hints:** Content type dropdown (Vocabulary enabled, Phrases/Transcript/Auto shown disabled with "v2" badge), delimiter dropdown (Auto/Comma/Tab/Pipe), "Has header row" checkbox.
+3. **Preview button:** Calls `IContentImportService.ParseContentAsync`, displays editable preview table.
+4. **Preview table:** Columns = row #, Target Language Term, Native Language Term, Status (OK/Warning/Error badges). Rows have checkboxes (error rows auto-deselected). Inline editable text inputs per cell. Select-all checkbox in header.
+5. **Target resource:** Radio choice between "Create new resource" (with title + description + target/native language dropdowns) OR "Add to existing resource" (dropdown of user's non-smart resources).
+6. **Dedup mode:** Radio: Skip (default, safest), Update (with warning text), ImportAll. Help text explains each mode per Captain's ruling.
+7. **Commit button:** Calls `IContentImportService.CommitImportAsync`, shows summary panel with counts (created/skipped/updated/failed). "View Resource" and "Import More" buttons.
+
+**Route decision:**
+- Primary route: `/import-content`
+- Did NOT claim `/import` (MediaImport already has it as back-compat)
+- TODO comment left for Captain review — generic import is arguably the better claimant for `/import`, but avoiding conflict for now
+
+**Reused components/patterns:**
+- **Resource picker:** Studied Resources.razor search + filter + Virtualize pattern. For MVP, used simple dropdown from `ResourceRepo.GetAllResourcesLightweightAsync()` filtered to non-smart resources.
+- **Preview table:** Bootstrap table-sm + table-bordered, similar to ResourceAdd.razor's vocabulary preview (but with status badges + select checkboxes instead of classification dropdown).
+- **Styling:** Bootstrap card-ss, ss-title3, ss-body2, form-control-ss, btn-ss-primary/secondary — matching MediaImport.razor and ResourceAdd.razor visual rhythm.
+- **Localization:** Injected `BlazorLocalizationService`, subscribed to CultureChanged, added `@implements IDisposable`.
+
+**DTOs consumed:**
+- `ContentImportRequest`, `ContentImportPreview`, `ImportRow`, `ContentImportCommit`, `ImportTarget`, `DedupMode`, `ContentType`, `RowStatus`, `ImportTargetMode`, `ContentImportResult`
+- All from `src/SentenceStudio.Shared/Services/ContentImportService.cs` (Wash's Wave 1 service)
+
+**Localization (43 keys added):**
+- `Nav_ImportContent` → "Import Content" (EN), "콘텐츠 가져오기" (KO)
+- `Import_Content_Title`, `Import_Step1_Title` through `Import_Step6_Title`
+- `Import_PasteContentLabel`, `Import_PastePlaceholder`, `Import_PasteHint`
+- Content type options: `Import_ContentType_Vocabulary`, `Import_ContentType_Phrases`, `Import_ContentType_Transcript`, `Import_ContentType_Auto`
+- Delimiter options: `Import_Delimiter_Auto`, `Import_Delimiter_Comma`, `Import_Delimiter_Tab`, `Import_Delimiter_Pipe`
+- Table headers: `Import_TargetLanguageTerm`, `Import_NativeLanguageTerm`, `Import_Status`
+- Target section: `Import_CreateNewResource`, `Import_AddToExistingResource`, `Import_ResourceTitleLabel`, etc.
+- Dedup modes: `Import_DedupMode_Skip`, `Import_DedupMode_Update`, `Import_DedupMode_ImportAll` (+ help text keys for each)
+- Result counts: `Import_Created`, `Import_Skipped`, `Import_Updated`, `Import_Failed`
+- Validation errors: `Import_ResourceTitleRequired`, `Import_SelectResourceRequired`, `Import_NoRowsSelected`
+- Toasts: `Import_ParseError`, `Import_CommitError`, `Import_ImportSuccess`, `Import_UpdateModeWarning`
+
+**Navigation menu:**
+- Added entry: `new NavItem("import-content", "bi-box-arrow-in-down", Localize["Nav_ImportContent"])`
+- Placed BEFORE `media-import` entry (content import is now the primary import feature; media import is specialized)
+
+**Build verification:**
+- Fixed ToastService API: Methods are synchronous (not async) — `ShowError`, `ShowSuccess`, `ShowWarning`, not `ShowErrorAsync`
+- `dotnet build src/SentenceStudio.UI/SentenceStudio.UI.csproj` — 267 warnings (all pre-existing), **0 errors** ✅
+
+**Key UX decisions:**
+1. **Single-column imports:** Preview shows `RowStatus.Warning` when native term is missing. User sees warning badge + can edit before commit. Wave 2 (River) will backfill AI translation during preview generation.
+2. **Error rows auto-deselected:** User CAN re-select them if they fix the inline error (e.g., fill in missing target term).
+3. **Update mode confirmation:** MVP shows warning toast. v2 will add modal confirmation (deferred per Captain guidance on taking time to make good decisions).
+4. **File upload deferred:** MVP is paste-only. `InputFile` component pattern exists in MediaImport.razor but adds complexity; Captain said "deliver paste-only and write a v2 todo for upload" if needed. Delivered paste-only.
+5. **Existing resource picker:** Used simple dropdown (not search+virtualize). 99% of users have <20 resources; search can be added when needed.
+
+**Gotchas / learnings:**
+- **ToastService API:** Synchronous methods, not async. Check service interface before assuming `await`.
+- **ContentType enum parse:** Needed `Enum.Parse<ContentType>(contentType)` where `contentType` is string bound to select.
+- **Delimiter special handling:** `\t` (tab) needs to be string `"\\t"` in dropdown, then parsed to `'\t'` char for `DelimiterOverride`.
+- **Preview table state management:** Needed `List<ImportRow> editableRows` separate from `previewResult.Rows` (which is read-only) so user edits don't mutate the original DTO.
+
+**Files changed:**
+1. `src/SentenceStudio.UI/Pages/ImportContent.razor` — NEW (27KB, 600+ lines)
+2. `src/SentenceStudio.UI/Layout/NavMenu.razor` — added import-content entry
+3. `src/SentenceStudio.Shared/Resources/Strings/AppResources.resx` — +43 keys
+4. `src/SentenceStudio.Shared/Resources/Strings/AppResources.ko.resx` — +43 Korean translations
+
+**Handoff notes for Jayne (E2E testing):**
+- **Do NOT run the app** — Captain validates manually after wave lands. Jayne writes the E2E test next.
+- Test scenarios:
+  1. Paste CSV (2 columns) → Preview → Create new resource → Skip duplicates → Commit
+  2. Paste TSV (1 column, header row) → Preview (warnings for missing native terms) → Add to existing → Skip duplicates → Commit
+  3. Paste invalid (no delimiter) → Parse error toast
+  4. Preview → Edit row → Toggle selection → Commit subset
+  5. Update mode → Warning toast shown
+- Look for: Row checkboxes functional, inline edits persist, status badges correct, summary counts match, resource created/updated in DB.
+

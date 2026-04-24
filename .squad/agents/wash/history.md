@@ -1642,3 +1642,95 @@ Conducted data layer survey for new import feature. Identified YouTube pipeline 
 
 **Next:** Implementation uses findings for service + DB layer.
 
+
+## Learnings
+
+### 2026-05-30 — ContentImportService Skeleton + DI Registration
+
+**Files Created:**
+- `src/SentenceStudio.Shared/Services/ContentImportService.cs` — Interface `IContentImportService` + implementation class with DTOs for Wave 1 Track A MVP
+
+**Files Modified:**
+- `src/SentenceStudio.AppLib/Services/CoreServiceExtensions.cs` — Added scoped registration for `IContentImportService`
+
+**DI Registration:**
+- Registered as **scoped** in `CoreServiceExtensions.AddSentenceStudioCoreServices()` (line ~96)
+- Matches `LearningResourceRepository` lifetime (singleton) but scoped is safer for transient operations
+- Service requires `IServiceProvider` injection for DbContext scoping pattern
+
+**Dedup Rule Applied:**
+- Case-sensitive, whitespace-trimmed match on `TargetLanguageTerm` only
+- Matches YouTube pipeline (`VideoImportPipelineService:368`) and Captain's ruling (2026-04-24)
+- Three modes: Skip (default, safest), Update (dangerous, warns), ImportAll (creates duplicates)
+
+**Transaction Pattern:**
+1. Get or create target resource
+2. Load existing mappings into HashSet to prevent duplicates
+3. For each selected row:
+   - Check existing word via `FirstOrDefaultAsync(w => w.TargetLanguageTerm == trimmedTarget)`
+   - Apply dedup mode (Skip / Update / ImportAll)
+   - Detach nav props for Update mode (prevents cascade insert errors)
+   - Add word if new, update if Update mode, reuse if Skip mode
+   - Create mapping only if not already in resource's mapping set
+4. Update resource timestamp
+5. Single `SaveChangesAsync` for entire transaction
+6. Trigger sync (fire-and-forget)
+
+**Key Patterns Followed:**
+- `SaveResourceAsync` transaction pattern from `LearningResourceRepository` (detach nav props → dedup → save → create mappings → single SaveChanges)
+- Scoped DbContext via `_serviceProvider.CreateScope()` (not constructor injection — allows multiple scopes)
+- Defensive null-handling on all DTOs
+- XML doc comments on all public surfaces
+- Microsoft.Extensions.AI `[Description]` attributes on all DTO properties (per repo convention)
+
+**MVP Scope Boundaries:**
+- ParseContentAsync: Vocabulary only (Phrases/Transcript throw `NotSupportedException` with v2 TODO)
+- Format detection: Stub (returns delimiter type for MVP, AI heuristics in Wave 2)
+- Single-column translation: Stub (returns error for MVP, AI translation in Wave 2 per Captain ruling #3)
+- Content type detection: Stub (returns explicit type for MVP, AI classifier in Wave 2)
+
+**Future Wash Sessions Should Know:**
+- CommitImportAsync body is **production-quality MVP** — full transaction, real dedup, real mapping creation
+- ParseContentAsync is **Wave 2 placeholder** — format detection and AI fallback hooks are stubbed but API surface is locked
+- No database migrations required (zero new tables per MVP plan)
+- Dedup on `NativeLanguageTerm` is explicitly excluded (allows multiple English definitions for same Korean word)
+- Smart resources (`IsSmartResource == true`) are never import targets (user-created resources only)
+
+
+## Learnings
+
+### 2026-05-30 — Wave 2 Content Import: Format Detection + AI Wiring
+
+**Context:** Filled in the parsing pipeline for Wave 2 Track A — format detection, AI translation, AI free-text extraction
+
+**Parser approach:**
+- **Format detection order:** Explicit delimiter → JSON parse → delimiter sniffing (60% consistency threshold across first 10 lines) → free-text fallback
+- **CSV quote handling:** Simple state machine (toggle inQuotes on `"`, split on `,` only when !inQuotes). Not full RFC 4180 but production-quality for MVP.
+- **JSON property heuristics:** Try common names (target/targetLanguageTerm/korean/term, native/nativeLanguageTerm/english/translation/definition) — works for both object and array formats
+- **Delimiter preference:** Tab → Pipe → Comma (comma is most ambiguous, prefer less common delimiters)
+
+**AI integration:**
+- **Template loading pattern:** `IFileSystemService.OpenAppPackageFileAsync("FreeTextToVocab.scriban-txt")` → StreamReader → Template.Parse → Render with anonymous object → AiService.SendPrompt<T>()
+- **Single-column translation:** Batch all missing native terms, single AI call, map back via dictionary (TargetLanguageTerm key), mark with `IsAiTranslated = true`
+- **Free-text extraction:** 50KB size cap (~12,500 tokens), confidence mapping (high→Ok, medium→Warning, low→Error), empty result gracefully handled
+- **Error handling:** Catch AI exceptions at parse time, show user-friendly error row + retry suggestion (never crash the preview)
+
+**Dedup audit findings:**
+- **VideoImportPipelineService (line 368):** Case-sensitive, NO trim — vulnerable to whitespace duplicates
+- **ContentImportService (Wave 1+2):** Case-sensitive, trimmed — CORRECT per Captain's ruling
+- **GetWordByTargetTermAsync (line 50):** Case-sensitive, NO trim — same vulnerability, but zero call sites found
+- **LearningResourceRepository (line 940):** Case-insensitive, trimmed — used for dual-key lookup (target+native), not dedup
+- **Recommendation:** Audit only for Wave 2, no behavior changes. Separate PR needed to fix YouTube pipeline + merge existing whitespace duplicates.
+
+**Library choices:**
+- **No external CSV parser added** — hand-rolled quote-aware state machine is sufficient for MVP, avoids new dependency
+- **System.Text.Json for JSON parsing** — already in use, JsonDocument.Parse() with try/catch for format detection
+- **Scriban for templates** — existing pattern, reused from VideoImportPipelineService
+
+**Build:** ✅ 0 errors, 729 pre-existing warnings. No new warnings from this code.
+
+**Files modified:**
+- `src/SentenceStudio.Shared/Services/ContentImportService.cs` (+467 lines: replaced ParseContentAsync stub, added 6 helper methods, added IsAiTranslated property to ImportRow DTO)
+
+**Decision docs:**
+- `.squad/decisions/inbox/wash-format-detector-ai-wiring.md` — Wave 2 implementation details, format detection strategy, AI wiring, dedup audit findings

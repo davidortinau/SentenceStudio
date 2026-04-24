@@ -4,6 +4,304 @@
 
 ---
 
+## Data Import MVP — Wave 2 Implementation — 2026-04-24
+
+**Date:** 2026-04-24  
+**Status:** ✅ Complete — Awaiting Captain Review  
+**Scope:** ContentImportService internals + ImportContent.razor UI page
+
+### Wash — Format Detector + AI Wiring
+
+**Track:** A — Backend  
+**Owners:** Wash (Backend Dev)  
+**Date:** 2026-05-30 (PRE-REQ: Wave 1)
+
+#### Summary
+
+Filled in `ContentImportService.ParseContentAsync` with production-quality format detection, AI translation for single-column imports, and AI free-text extraction as fallback. All four MVP input types now produce real previews:
+1. Delimited (CSV, TSV, pipe)
+2. JSON (array of objects or arrays)
+3. Single-column (target terms only) → AI-translated
+4. Free-text (no structure) → AI-extracted
+
+**Build:** ✅ 0 errors (729 pre-existing warnings)
+
+#### Format Detection Strategy
+
+**Inputs:**
+- `request.DelimiterOverride` (explicit comma/tab/pipe)
+- `request.FormatHint` (free-text description, reserved for v2 AI classifier)
+- `content` (raw text)
+
+**Detection order:**
+1. **Explicit delimiter** → use it (skip heuristics)
+2. **JSON** → try `JsonDocument.Parse()` first (most specific)
+3. **Delimiter sniffing** → count comma/tab/pipe per line, check consistency (≥60% of first 10 lines must have same count)
+   - Prefer tab → pipe → comma (comma is most ambiguous)
+   - CSV quoted-value handling: don't count commas inside quotes
+4. **Free-text fallback** → if no clear delimiter found, route to AI extraction
+
+**Consistency threshold:** 60% of sampled lines must have the same delimiter count.
+
+**Result:** `(formatType: string, delimiter: char?)` where formatType ∈ {CSV, TSV, Pipe, JSON, FreeText}
+
+#### Delimited Parsing (CSV/TSV/Pipe)
+
+**Logic:**
+1. Split by `\r` / `\n`, skip empty lines
+2. If `hasHeaderRow == true`, skip line 1 (treat as column hints — not used in MVP)
+3. For each line:
+   - Split by delimiter (CSV: quote-aware state machine; TSV/Pipe: simple split)
+   - Extract `parts[0]` as TargetLanguageTerm, `parts[1]` as NativeLanguageTerm
+   - Validation:
+     - Empty TargetLanguageTerm → Status=Error, auto-deselect
+     - Empty NativeLanguageTerm → Status=Warning (AI translation will fill it in)
+4. Row numbering accounts for header (if row 5 in file had header, shows as "Row 5" not "Row 4")
+
+**Quote handling (CSV only):**
+- Simplified state machine: toggle `inQuotes` on `"`, split on `,` only when `!inQuotes`
+- Handles common cases like `"term, with comma","translation"`
+- Not a full RFC 4180 parser — production-quality for MVP, can refine for edge cases in v2
+
+#### JSON Parsing
+
+**Supported formats:**
+1. Array of objects: `[{"target": "가다", "native": "to go"}, ...]`
+2. Array of arrays: `[["가다", "to go"], ...]`
+
+**Property name heuristics (tries in order):**
+- Target: `target`, `targetLanguageTerm`, `korean`, `term`
+- Native: `native`, `nativeLanguageTerm`, `english`, `translation`, `definition`
+
+**Row numbering:** 1-based index within JSON array (header row flag still respected if set, skips first item)
+
+#### AI Translation (Single-Column)
+
+**Trigger:** After parsing, if any rows have non-empty TargetLanguageTerm but empty NativeLanguageTerm
+
+**Process:**
+1. Collect all `TargetLanguageTerm` values from affected rows (deduplicate via LINQ)
+2. Load `TranslateMissingNativeTerms.scriban-txt` template
+3. Render prompt with `{ terms: [...], target_language: "Korean", native_language: "English" }`
+4. Call `AiService.SendPrompt<BulkTranslationResponse>()`
+5. Map translations back to rows via dictionary lookup
+6. Mark each row with `IsAiTranslated = true` (UI will show "AI" badge)
+7. If AI returns `[unknown]` for a term, set row Status=Error
+
+**Failure handling:** Catch AI exceptions, log warning, keep rows as Warning status  
+**Cost estimate:** ~$0.005-0.01 per 50-term batch
+
+#### AI Free-Text Extraction
+
+**Trigger:** Format detector returns `FreeText` (no clear delimiter found)
+
+**Size cap:** 50KB raw text (~12,500 tokens). Above this, return single error row asking user to provide structure or split into chunks.
+
+**Process:**
+1. Load `FreeTextToVocab.scriban-txt` template
+2. Render prompt with `{ source_text, target_language, native_language, format_hint }`
+3. Call `AiService.SendPrompt<FreeTextVocabularyExtractionResponse>()`
+4. Map response items to ImportRows with confidence → status mapping:
+   - `high` → Status=Ok (auto-select)
+   - `medium` → Status=Warning (auto-select, user should review)
+   - `low` → Status=Error (auto-deselect, user must opt-in)
+5. Set `IsAiTranslated = true` for all rows
+
+**Empty result handling:** AI returns `{"vocabulary": []}` → single warning row "No vocabulary extracted."  
+**Failure handling:** Catch AI exceptions, return single error row with exception message  
+**Cost estimate:** ~$0.01-0.02 per 300-word paste
+
+#### Dependencies Wired
+
+**Constructor changes:**
+- Added `AiService` (concrete class, not interface)
+- Added `IFileSystemService` (for loading Scriban templates)
+
+**Template loading pattern:**
+```csharp
+using Stream templateStream = await _fileSystem.OpenAppPackageFileAsync("FreeTextToVocab.scriban-txt");
+using var reader = new StreamReader(templateStream);
+var templateContent = await reader.ReadToEndAsync();
+var scribanTemplate = Template.Parse(templateContent);
+var prompt = scribanTemplate.Render(new { ... });
+```
+
+**DI registration:** No changes needed — already registered in `CoreServiceExtensions`
+
+#### Dedup Audit (mvp-dedup-standardize)
+
+**Audit scope:** Find all call sites that check `TargetLanguageTerm` equality or perform dedup.
+
+**Findings:**
+
+| Call Site | File | Line | Rule |
+|-----------|------|------|------|
+| **YouTube import** | `VideoImportPipelineService.cs` | 368 | `w.TargetLanguageTerm == word.TargetLanguageTerm` — **case-sensitive, NO trim** |
+| **ContentImportService (Wave 1)** | `ContentImportService.cs` | 287 | `w.TargetLanguageTerm == trimmedTarget` — **case-sensitive, trimmed** |
+| **GetWordByTargetTermAsync** | `LearningResourceRepository.cs` | 50 | `w.TargetLanguageTerm == targetTerm` — **case-sensitive, NO trim** |
+| **Dual-key lookup** | `LearningResourceRepository.cs` | 940 | `vw.TargetLanguageTerm.Trim().ToLower() == targetTerm.Trim().ToLower()` — **case-insensitive, trimmed** |
+
+**Inconsistency Summary:**
+1. **YouTube pipeline (line 368):** Case-sensitive, no trim — vulnerable to whitespace duplicates
+2. **GetWordByTargetTermAsync (line 50):** Case-sensitive, no trim — same vulnerability as YouTube
+3. **ContentImportService (Wave 1 + Wave 2):** Case-sensitive, trimmed — CORRECT per Captain's ruling
+4. **Dual-key lookup (line 940):** Case-insensitive, trimmed — used for different purpose (exact-match lookups), not dedup
+
+**Recommendation:** DO NOT change behavior in this PR. VideoImportPipelineService is production. Changing its dedup rule is a separate decision (requires data migration strategy).
+
+**Wave 2 scope:** Audit only, document findings, no behavior changes. ✅ Complete.
+
+#### Files Changed
+- Modified: `src/SentenceStudio.Shared/Services/ContentImportService.cs` (+467 lines, 59→526 for ParseContentAsync + helpers)
+
+---
+
+### Kaylee — ImportContent.razor Page
+
+**Track:** B — UI  
+**Owner:** Kaylee (Full-stack Dev)
+
+#### Problem
+
+Build the `/import-content` page that consumes Wash's `ContentImportService` API. This is the primary user touchpoint for the new data import feature — replacing ad-hoc "paste into ResourceAdd.razor" workflows.
+
+#### 7-Step Import Wizard
+
+**Step 1: Source**
+- Text area for paste (CSV/TSV)
+- File upload deferred to v2
+
+**Step 2: Format Hints (Optional)**
+- Content Type dropdown: Vocabulary (enabled), Phrases (disabled "v2"), Transcript (disabled "v2"), Auto (disabled "v2")
+- Delimiter dropdown: Auto, Comma, Tab, Pipe
+- Checkbox: "First row is header"
+
+**Step 3: Preview Button**
+- Calls `IContentImportService.ParseContentAsync(ContentImportRequest)`
+- Returns `ContentImportPreview` with parsed rows, detected format, warnings
+
+**Step 4: Preview Table**
+- Columns: [Checkbox] [Row #] [Target Language Term] [Native Language Term] [Status]
+- Status badges: OK (green), Warning (yellow), Error (red)
+- Inline editable text inputs per cell
+- Select-all checkbox in header
+- Error rows auto-deselected
+
+**Step 5: Target Resource**
+- Radio: "Create new resource" (Title, Description, language dropdowns)
+- Radio: "Add to existing resource" (dropdown from user's non-smart resources)
+
+**Step 6: Dedup Mode**
+- Radio: Skip duplicates (default) — "Existing words are reused. New words are added."
+- Radio: Update existing — **WARNING** — "Updates native translations for ALL resources using the word."
+- Radio: Import all as new — "Creates new entries even if duplicates exist."
+
+**Step 7: Commit & Results**
+- Button: "Import" → calls `IContentImportService.CommitImportAsync(ContentImportCommit)`
+- Success panel: 4 stat boxes (Created / Skipped / Updated / Failed) + navigation buttons
+
+#### Route Resolution
+
+**Decision:** Claimed `/import-content` only (NOT `/import`).
+
+**Rationale:**
+- MediaImport.razor already claims `/import` as back-compat route (dual @page directives)
+- Avoiding route conflict for MVP delivery
+- Captain can reassign `/import` ownership post-review if desired
+
+#### Component Reuse Decisions
+
+**Resource Picker:** Simple dropdown (99% of users have <20 resources; search+Virtualize deferred to v2)
+
+**Preview Table:** Bootstrap table-sm + inline text inputs + status badges + checkboxes  
+- Diverges from ResourceAdd (which has classification dropdown)
+- ImportContent rows are editable; ResourceAdd rows are read-only
+
+**File Upload:** Paste-only (InputFile is web-only; adds ~30 lines; Captain said deliver paste-only MVP)
+
+#### Styling Choices
+
+**Visual rhythm matched:** MediaImport.razor and ResourceAdd.razor
+
+**Components used:**
+- `card card-ss p-4 mb-3` — Bootstrap card with project spacing
+- `ss-title3` — Section headings
+- `ss-body2` — Form labels
+- `form-control-ss` / `form-select` — Inputs with project styling
+- `btn-ss-primary` / `btn-ss-secondary` — Action buttons
+- `text-secondary-ss` — Muted text
+
+**No emojis:** Bootstrap icons only (`bi-check-lg`, `bi-exclamation-triangle`, `bi-x-lg` for status badges)
+
+#### Localization
+
+**43 new keys** added to AppResources.resx + AppResources.ko.resx:
+
+- Navigation: `Nav_ImportContent`
+- Steps: `Import_Content_Title`, `Import_Step1_Title`, `Import_Step2_Title`, `Import_Step3_Title`, `Import_Step5_Title`, `Import_Step6_Title`
+- Source: `Import_PasteContentLabel`, `Import_PastePlaceholder`, `Import_PasteHint`
+- Format Hints: Content types + Delimiters + `Import_HasHeaderRow`, `Import_PreviewButton`
+- Preview Table: `Import_DetectedFormat`, `Import_TargetLanguageTerm`, `Import_NativeLanguageTerm`, `Import_Status`, `Import_SelectedCount`
+- Target Resource: `Import_CreateNewResource`, `Import_AddToExistingResource`, resource fields
+- Dedup Modes: `Import_DedupMode_Skip`, `Import_DedupMode_Update`, `Import_DedupMode_ImportAll` (+ help text)
+- Commit & Results: `Import_CommitButton`, `Import_ImportComplete`, stat boxes, `Import_ViewResource`, `Import_ImportMore`
+- Validation & Errors: `Import_ParseError`, `Import_ResourceTitleRequired`, `Import_SelectResourceRequired`, `Import_NoRowsSelected`, `Import_UpdateModeWarning`, etc.
+
+**Pattern:** All keys prefixed `Import_` to avoid collision with existing `Nav_Import` (Media Import) key.
+
+#### Key UX Decisions
+
+**1. Single-Column Imports (MVP Warning, v2 AI Fill)**
+- Current: Preview shows Warning status with message "Native language term missing"
+- MVP: User sees warning badge, can edit before commit
+- v2: AI translation fills `NativeLanguageTerm` during preview generation (River, Wave 2)
+
+**2. Update Mode Confirmation**
+- Current: Toast warning when "Update existing words" selected
+- v2 TODO: Modal confirmation with "I understand" checkbox
+
+**3. Error Row Auto-Deselection**
+- Rows with `RowStatus.Error` default to `IsSelected = false`
+- Prevents accidental import of invalid rows
+
+**4. Preview Table State Management**
+- Created separate `List<ImportRow> editableRows` (mutable) from `previewResult.Rows` (read-only DTO)
+- User edits are UI-local until commit; don't leak state back to service
+
+#### Gotchas / Learnings
+
+**1. ToastService API is Synchronous**
+- NOT `await Toast.ShowErrorAsync(...)` — use `Toast.ShowError(...)`
+
+**2. ContentType Enum Parse**
+- Blazor @bind on `<select>` produces string; DTO wants enum
+- Must parse: `Enum.Parse<ContentType>(contentType)`
+
+**3. Delimiter Special Handling**
+- HTML attribute: `<option value="\t">Tab</option>` → string `"\\t"` (escaped)
+- Parse: `delimiter == "\\t" ? '\t' : delimiter[0]`
+
+**4. Existing Resource Load Timing**
+- Load resources in `OnInitializedAsync()` before page renders
+- Dropdown is Step 5; preview is Step 3 — pre-load avoids jank
+
+#### Files Changed
+1. **NEW:** `src/SentenceStudio.UI/Pages/ImportContent.razor` (600+ lines, 27KB)
+2. Modified: `src/SentenceStudio.UI/Layout/NavMenu.razor` — added `import-content` entry
+3. Modified: `src/SentenceStudio.Shared/Resources/Strings/AppResources.resx` — +43 keys
+4. Modified: `src/SentenceStudio.Shared/Resources/Strings/AppResources.ko.resx` — +43 keys (Korean)
+
+**Build:** 267 warnings (all pre-existing), **0 errors** ✅
+
+#### Next Steps
+
+1. Captain review: Route decision, file upload deferral, update-mode confirmation
+2. Jayne E2E tests: Scenarios from handoff (Basic CSV import, TSV with edit, parse error handling, preview editing + partial selection, update mode warning)
+3. River Wave 2: Hook AI translation into `ParseContentAsync` for single-column imports
+4. v2 enhancements: File upload, update mode modal, search + Virtualize for resource picker, column mapping UI
+
+---
+
 ## 2026-04-24 — Per-Type Idempotency for Smart Resource Seeding
 
 **Date:** 2026-04-24

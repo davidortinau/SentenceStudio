@@ -476,3 +476,66 @@ Designed AI strategy for new data import feature: 5 tasks (format inference, con
 
 **Next:** Implement prompt templates. Integration into `ContentImportService` by implementation team.
 
+
+---
+
+## 2026-04-28 — Wave 1 Track C: FreeTextToVocab Prompt + DTO Created
+
+**Session:** Import Feature AI Templates — Wave 1 Track C (Template + DTO creation)  
+**Status:** ✅ Complete — Ready for Wash's Wave 2 wiring  
+**Deliverables:**
+- `src/SentenceStudio.AppLib/Resources/Raw/FreeTextToVocab.scriban-txt`
+- `src/SentenceStudio.AppLib/Resources/Raw/TranslateMissingNativeTerms.scriban-txt`
+- `src/SentenceStudio.Shared/Models/FreeTextVocabularyExtractionResponse.cs`
+- `src/SentenceStudio.Shared/Models/BulkTranslationResponse.cs`
+- `.squad/decisions/inbox/river-free-text-to-vocab-prompt.md` (behavior contract)
+
+**Key Learnings:**
+
+### Template design choices
+- **FreeTextToVocab.scriban-txt** — Extracts vocabulary from messy free-form text (paste with no clear delimiters). Inputs: `source_text`, `target_language`, `native_language`, optional `format_hint`, optional `topik_level`. Returns structured JSON with confidence scoring ("high", "medium", "low") to surface uncertain extractions rather than silently dropping them.
+- **Korean-first examples** — Included 1 worked Korean→English example in the template to guide extraction (e.g., "오늘 학교에서..." → 학교, 친구, 밥 먹다, 맛있다, 가다).
+- **Permissive extraction philosophy** — Accepts messy input (mixed languages, partial sentences, typos), never fails entire import. Uncertain terms get flagged with `confidence: "low"` + optional `notes` field instead of being silently dropped.
+- **LexicalUnitType classification** — Reuses same Word/Phrase/Sentence classification logic as `ExtractVocabularyFromTranscript.scriban-txt` to maintain consistency. RelatedTerms field populated for Phrases and Sentences to track constituents.
+
+### Translation fallback for single-column imports (Captain's ruling #3)
+- **TranslateMissingNativeTerms.scriban-txt** — Bulk translation prompt for single-column imports (when CSV has only target language terms). Takes list of TargetLanguageTerms, returns list of TranslationPairs.
+- Separate template from FreeTextToVocab (cleaner separation of concerns) — follows existing pattern of single-purpose templates.
+- Returns JSON with `translations` array, each entry has `targetLanguageTerm` + `nativeLanguageTerm`.
+
+### DTO design patterns matched
+- **FreeTextVocabularyExtractionResponse** — New DTO extending existing `VocabularyExtractionResponse` pattern. Nested `ExtractedVocabularyItemWithConfidence` class adds `Confidence` (string: "high"/"medium"/"low") and `Notes` (optional string) fields beyond base `ExtractedVocabularyItem`.
+- **BulkTranslationResponse** — Simple DTO with `List<TranslationPair>` for translation-fill path. Each `TranslationPair` has `TargetLanguageTerm` + `NativeLanguageTerm`.
+- **[Description] attributes on every property** — Guides Microsoft.Extensions.AI JSON output (per project rule). NO `[JsonPropertyName]` attributes added unless required. NO manual JSON formatting in Scriban templates.
+- **ToVocabularyWord() converter** — `ExtractedVocabularyItemWithConfidence.ToVocabularyWord()` maps confidence + notes into Tags field for later review (e.g., `confidence:low; notes:possible proper noun`). Mirrors existing mapper pattern.
+
+### Build verification
+- `dotnet build src/SentenceStudio.AppLib/SentenceStudio.AppLib.csproj` — SUCCESS (only pre-existing NuGet vulnerability warnings).
+- `.scriban-txt` files automatically included as `MauiAsset` via wildcard in `SentenceStudio.AppLib.csproj` (line 31: `<MauiAsset Include="Resources\Raw\**" LogicalName="..."/>`).
+- DTOs in `SentenceStudio.Shared/Models/` follow existing file-per-type pattern.
+
+### Template voice and style
+- Matched existing template structure EXACTLY:
+  - Numbered extraction rules (like `ExtractVocabularyFromTranscript.scriban-txt`)
+  - Explicit JSON schema examples (with `{{ target_language }}` / `{{ native_language }}` placeholders)
+  - "IMPORTANT" callout section for critical rules
+  - Comments for non-obvious design choices (e.g., confidence scoring rationale)
+- Consistent with project grading philosophy: permissive, never reject, provide feedback rather than fail.
+
+### Anticipated LLM behavior quirks
+- **Mixed-language paste** (e.g., English explanations + Korean examples) — Prompt explicitly instructs: "extract vocabulary from {{ target_language }} portions only; English context helps you understand meaning but should not appear as vocabulary items." This mirrors YouTube transcript extraction pattern for bilingual channels.
+- **Dictionary form normalization** — Verbs/adjectives in -다 form, nouns without particles. Explicit examples provided in prompt to reduce AI errors (e.g., "먹었어요 → 먹다").
+- **Confidence scoring edge cases** — AI may be overly conservative (marking obvious terms as "medium"). Wash's preview UI should allow Captain to override confidence and promote items before commit.
+
+### What's next (Wash's Wave 2 wiring)
+- `ContentImportService.ExtractVocabularyFromFreeText()` — calls `AiService.SendPrompt<FreeTextVocabularyExtractionResponse>()` with FreeTextToVocab template
+- `ContentImportService.TranslateMissingNativeTerms()` — calls `AiService.SendPrompt<BulkTranslationResponse>()` with TranslateMissingNativeTerms template
+- Preview UI displays confidence badges (high=green, medium=yellow, low=red) + notes tooltip
+- Single-column import flow: detect missing NativeLanguageTerm → batch terms → call TranslateMissingNativeTerms → merge into preview table with "AI" badge
+
+**References:**
+- Studied `ExtractVocabularyFromTranscript.scriban-txt` (lines 1-75) — extraction rules, permissiveness, LexicalUnitType classification
+- Studied `GetTranslations.scriban-txt` (lines 1-24) — vocabulary constraint pattern, translation prompt structure
+- Studied `VocabularyExtractionResponse.cs` — [Description] attribute usage, ToVocabularyWord() converter pattern
+- Studied `TranslationDto.cs` — simple DTO structure for translation exercises
+- `SentenceStudio.AppLib.csproj` line 31 — MauiAsset wildcard pattern for Resources/Raw/**

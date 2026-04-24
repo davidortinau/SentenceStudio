@@ -1,0 +1,613 @@
+@page "/import-content"
+@attribute [Authorize]
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@inject IContentImportService ImportService
+@inject LearningResourceRepository ResourceRepo
+@inject UserProfileRepository UserProfileRepo
+@inject NavigationManager NavManager
+@inject ToastService Toast
+@inject ILogger<ImportContent> Logger
+@implements IDisposable
+
+<PageHeader Title='@Localize["Import_Content_Title"]' ShowBack="false">
+    <PrimaryActions>
+        @if (currentStep == ImportStep.Preview && previewResult != null)
+        {
+            <button class="btn btn-ss-primary" @onclick="CommitImport" disabled="@isCommitting">
+                @if (isCommitting) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                @Localize["Import_CommitButton"]
+            </button>
+        }
+    </PrimaryActions>
+</PageHeader>
+
+<div class="container-fluid px-3 px-md-4 py-3">
+    @if (isCommitting)
+    {
+        <div class="d-flex justify-content-center p-5">
+            <div class="spinner-border text-primary" role="status"></div>
+        </div>
+    }
+    else if (importResult != null)
+    {
+        @* Step 7: Results Summary *@
+        <div class="card card-ss p-4 mb-3">
+            <h5 class="ss-title3 mb-3"><i class="bi bi-check-circle-fill text-success me-2"></i>@Localize["Import_ImportComplete"]</h5>
+            
+            <div class="row mb-3">
+                <div class="col-6 col-md-3 mb-2">
+                    <div class="text-center p-3 bg-light rounded">
+                        <div class="ss-title2 text-success">@importResult.CreatedCount</div>
+                        <small class="text-secondary-ss">@Localize["Import_Created"]</small>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3 mb-2">
+                    <div class="text-center p-3 bg-light rounded">
+                        <div class="ss-title2 text-info">@importResult.SkippedCount</div>
+                        <small class="text-secondary-ss">@Localize["Import_Skipped"]</small>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3 mb-2">
+                    <div class="text-center p-3 bg-light rounded">
+                        <div class="ss-title2 text-warning">@importResult.UpdatedCount</div>
+                        <small class="text-secondary-ss">@Localize["Import_Updated"]</small>
+                    </div>
+                </div>
+                <div class="col-6 col-md-3 mb-2">
+                    <div class="text-center p-3 bg-light rounded">
+                        <div class="ss-title2 text-danger">@importResult.FailedCount</div>
+                        <small class="text-secondary-ss">@Localize["Import_Failed"]</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-flex gap-2">
+                <button class="btn btn-ss-primary" @onclick="ViewResource">
+                    <i class="bi bi-book me-1"></i> @Localize["Import_ViewResource"]
+                </button>
+                <button class="btn btn-ss-secondary" @onclick="StartNewImport">
+                    <i class="bi bi-arrow-repeat me-1"></i> @Localize["Import_ImportMore"]
+                </button>
+            </div>
+        </div>
+    }
+    else
+    {
+        @* Steps 1-6: Import Wizard *@
+        
+        @* Step 1: Source *@
+        <div class="card card-ss p-4 mb-3">
+            <h5 class="ss-title3 mb-3">@Localize["Import_Step1_Title"]</h5>
+            
+            <div class="mb-3">
+                <label class="form-label ss-body2 text-secondary-ss">@Localize["Import_PasteContentLabel"]</label>
+                <textarea class="form-control form-control-ss" 
+                          @bind="rawText" 
+                          rows="8" 
+                          placeholder='@Localize["Import_PastePlaceholder"]'
+                          disabled="@(currentStep > ImportStep.Source)"></textarea>
+                <small class="form-text text-secondary-ss">@Localize["Import_PasteHint"]</small>
+            </div>
+        </div>
+
+        @* Step 2: Format Hints *@
+        <div class="card card-ss p-4 mb-3">
+            <h5 class="ss-title3 mb-3">@Localize["Import_Step2_Title"]</h5>
+            
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label class="form-label ss-body2 text-secondary-ss">@Localize["Import_ContentTypeLabel"]</label>
+                    <select class="form-select form-control-ss" 
+                            @bind="contentType"
+                            disabled="@(currentStep > ImportStep.Source)">
+                        <option value="Vocabulary">@Localize["Import_ContentType_Vocabulary"]</option>
+                        <option value="Phrases" disabled>@Localize["Import_ContentType_Phrases"] <span class="badge bg-secondary ms-1">v2</span></option>
+                        <option value="Transcript" disabled>@Localize["Import_ContentType_Transcript"] <span class="badge bg-secondary ms-1">v2</span></option>
+                        <option value="Auto" disabled>@Localize["Import_ContentType_Auto"] <span class="badge bg-secondary ms-1">v2</span></option>
+                    </select>
+                </div>
+                
+                <div class="col-md-4 mb-3">
+                    <label class="form-label ss-body2 text-secondary-ss">@Localize["Import_DelimiterLabel"]</label>
+                    <select class="form-select form-control-ss" 
+                            @bind="delimiter"
+                            disabled="@(currentStep > ImportStep.Source)">
+                        <option value="auto">@Localize["Import_Delimiter_Auto"]</option>
+                        <option value=",">@Localize["Import_Delimiter_Comma"]</option>
+                        <option value="\t">@Localize["Import_Delimiter_Tab"]</option>
+                        <option value="|">@Localize["Import_Delimiter_Pipe"]</option>
+                    </select>
+                </div>
+                
+                <div class="col-md-4 mb-3 d-flex align-items-end">
+                    <div class="form-check">
+                        <input class="form-check-input" 
+                               type="checkbox" 
+                               id="hasHeaderRow" 
+                               @bind="hasHeaderRow"
+                               disabled="@(currentStep > ImportStep.Source)" />
+                        <label class="form-check-label ss-body2" for="hasHeaderRow">
+                            @Localize["Import_HasHeaderRow"]
+                        </label>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="d-flex justify-content-end">
+                <button class="btn btn-ss-primary" 
+                        @onclick="ParseContent" 
+                        disabled="@(string.IsNullOrWhiteSpace(rawText) || isParsing)">
+                    @if (isParsing) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                    @Localize["Import_PreviewButton"]
+                </button>
+            </div>
+        </div>
+
+        @if (previewResult != null && currentStep >= ImportStep.Preview)
+        {
+            @* Step 3-4: Preview Table *@
+            <div class="card card-ss p-4 mb-3">
+                <h5 class="ss-title3 mb-3">@Localize["Import_Step3_Title"]</h5>
+                
+                <div class="mb-3">
+                    <small class="text-secondary-ss">
+                        @Localize["Import_DetectedFormat"]: <strong>@previewResult.DetectedFormat</strong>
+                    </small>
+                    @if (previewResult.Warnings.Any())
+                    {
+                        <div class="alert alert-warning mt-2 mb-0 p-2">
+                            <small>
+                                @foreach (var warning in previewResult.Warnings)
+                                {
+                                    <div><i class="bi bi-exclamation-triangle me-1"></i>@warning</div>
+                                }
+                            </small>
+                        </div>
+                    }
+                </div>
+
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="text-center" style="width: 40px;">
+                                    <input type="checkbox" 
+                                           class="form-check-input" 
+                                           @bind="selectAllRows" 
+                                           @bind:after="ToggleSelectAll" />
+                                </th>
+                                <th style="width: 60px;">#</th>
+                                <th>@Localize["Import_TargetLanguageTerm"]</th>
+                                <th>@Localize["Import_NativeLanguageTerm"]</th>
+                                <th style="width: 100px;">@Localize["Import_Status"]</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in editableRows)
+                            {
+                                <tr class="@(row.Status == RowStatus.Error ? "table-danger" : row.Status == RowStatus.Warning ? "table-warning" : "")">
+                                    <td class="text-center">
+                                        <input type="checkbox" 
+                                               class="form-check-input" 
+                                               @bind="row.IsSelected" 
+                                               disabled="@(row.Status == RowStatus.Error)" />
+                                    </td>
+                                    <td class="text-secondary-ss">@row.RowNumber</td>
+                                    <td>
+                                        <input type="text" 
+                                               class="form-control form-control-sm" 
+                                               @bind="row.TargetLanguageTerm" />
+                                    </td>
+                                    <td>
+                                        <input type="text" 
+                                               class="form-control form-control-sm" 
+                                               @bind="row.NativeLanguageTerm" />
+                                    </td>
+                                    <td>
+                                        @if (row.Status == RowStatus.Ok)
+                                        {
+                                            <span class="badge bg-success"><i class="bi bi-check-lg"></i> OK</span>
+                                        }
+                                        else if (row.Status == RowStatus.Warning)
+                                        {
+                                            <span class="badge bg-warning text-dark" title="@row.Error">
+                                                <i class="bi bi-exclamation-triangle"></i> Warning
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-danger" title="@row.Error">
+                                                <i class="bi bi-x-lg"></i> Error
+                                            </span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                
+                <small class="text-secondary-ss">
+                    @Localize["Import_SelectedCount"]: <strong>@editableRows.Count(r => r.IsSelected)</strong> / @editableRows.Count
+                </small>
+            </div>
+
+            @* Step 5: Target *@
+            <div class="card card-ss p-4 mb-3">
+                <h5 class="ss-title3 mb-3">@Localize["Import_Step5_Title"]</h5>
+                
+                <div class="mb-3">
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" 
+                               type="radio" 
+                               name="targetMode" 
+                               id="targetNew" 
+                               value="New"
+                               checked="@(targetMode == ImportTargetMode.New)"
+                               @onchange="() => SetTargetMode(ImportTargetMode.New)" />
+                        <label class="form-check-label ss-body2" for="targetNew">
+                            @Localize["Import_CreateNewResource"]
+                        </label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" 
+                               type="radio" 
+                               name="targetMode" 
+                               id="targetExisting" 
+                               value="Existing"
+                               checked="@(targetMode == ImportTargetMode.Existing)"
+                               @onchange="() => SetTargetMode(ImportTargetMode.Existing)" />
+                        <label class="form-check-label ss-body2" for="targetExisting">
+                            @Localize["Import_AddToExistingResource"]
+                        </label>
+                    </div>
+                </div>
+
+                @if (targetMode == ImportTargetMode.New)
+                {
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label ss-body2 text-secondary-ss">@Localize["Import_ResourceTitleLabel"]</label>
+                            <input type="text" 
+                                   class="form-control form-control-ss" 
+                                   @bind="newResourceTitle" 
+                                   placeholder='@Localize["Import_ResourceTitlePlaceholder"]' />
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label ss-body2 text-secondary-ss">@Localize["Import_ResourceDescriptionLabel"]</label>
+                            <input type="text" 
+                                   class="form-control form-control-ss" 
+                                   @bind="newResourceDescription" 
+                                   placeholder='@Localize["Import_ResourceDescriptionPlaceholder"]' />
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label ss-body2 text-secondary-ss">@Localize["Import_TargetLanguageLabel"]</label>
+                            <select class="form-select form-control-ss" @bind="targetLanguage">
+                                @foreach (var lang in languages)
+                                {
+                                    <option value="@lang">@lang</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label ss-body2 text-secondary-ss">@Localize["Import_NativeLanguageLabel"]</label>
+                            <select class="form-select form-control-ss" @bind="nativeLanguage">
+                                @foreach (var lang in languages)
+                                {
+                                    <option value="@lang">@lang</option>
+                                }
+                            </select>
+                        </div>
+                    </div>
+                }
+                else
+                {
+                    <div class="mb-3">
+                        <label class="form-label ss-body2 text-secondary-ss">@Localize["Import_SelectExistingResourceLabel"]</label>
+                        <select class="form-select form-control-ss" @bind="selectedResourceId">
+                            <option value="">-- @Localize["Import_SelectResourcePlaceholder"] --</option>
+                            @foreach (var resource in availableResources)
+                            {
+                                <option value="@resource.Id">@resource.Title (@resource.Language)</option>
+                            }
+                        </select>
+                    </div>
+                }
+            </div>
+
+            @* Step 6: Dedup Mode *@
+            <div class="card card-ss p-4 mb-3">
+                <h5 class="ss-title3 mb-3">@Localize["Import_Step6_Title"]</h5>
+                
+                <div class="form-check mb-2">
+                    <input class="form-check-input" 
+                           type="radio" 
+                           name="dedupMode" 
+                           id="dedupSkip" 
+                           value="Skip"
+                           checked="@(dedupMode == DedupMode.Skip)"
+                           @onchange="() => SetDedupMode(DedupMode.Skip)" />
+                    <label class="form-check-label ss-body2" for="dedupSkip">
+                        <strong>@Localize["Import_DedupMode_Skip"]</strong>
+                        <small class="d-block text-secondary-ss">@Localize["Import_DedupMode_Skip_Help"]</small>
+                    </label>
+                </div>
+                
+                <div class="form-check mb-2">
+                    <input class="form-check-input" 
+                           type="radio" 
+                           name="dedupMode" 
+                           id="dedupUpdate" 
+                           value="Update"
+                           checked="@(dedupMode == DedupMode.Update)"
+                           @onchange="() => SetDedupMode(DedupMode.Update)" />
+                    <label class="form-check-label ss-body2" for="dedupUpdate">
+                        <strong>@Localize["Import_DedupMode_Update"]</strong>
+                        <small class="d-block text-warning">@Localize["Import_DedupMode_Update_Help"]</small>
+                    </label>
+                </div>
+                
+                <div class="form-check">
+                    <input class="form-check-input" 
+                           type="radio" 
+                           name="dedupMode" 
+                           id="dedupImportAll" 
+                           value="ImportAll"
+                           checked="@(dedupMode == DedupMode.ImportAll)"
+                           @onchange="() => SetDedupMode(DedupMode.ImportAll)" />
+                    <label class="form-check-label ss-body2" for="dedupImportAll">
+                        <strong>@Localize["Import_DedupMode_ImportAll"]</strong>
+                        <small class="d-block text-secondary-ss">@Localize["Import_DedupMode_ImportAll_Help"]</small>
+                    </label>
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    // Services
+    
+    // State
+    private enum ImportStep { Source, Preview, Commit, Complete }
+    private ImportStep currentStep = ImportStep.Source;
+    
+    // Step 1: Source
+    private string rawText = string.Empty;
+    
+    // Step 2: Format Hints
+    private string contentType = "Vocabulary";
+    private string delimiter = "auto";
+    private bool hasHeaderRow = false;
+    
+    // Step 3-4: Preview
+    private bool isParsing;
+    private bool selectAllRows = true;
+    private ContentImportPreview? previewResult;
+    private List<ImportRow> editableRows = new();
+    
+    // Step 5: Target
+    private ImportTargetMode targetMode = ImportTargetMode.New;
+    private string newResourceTitle = string.Empty;
+    private string newResourceDescription = string.Empty;
+    private string targetLanguage = "Korean";
+    private string nativeLanguage = "English";
+    private string selectedResourceId = string.Empty;
+    private List<LearningResource> availableResources = new();
+    
+    // Step 6: Dedup
+    private DedupMode dedupMode = DedupMode.Skip;
+    
+    // Step 7: Commit
+    private bool isCommitting;
+    private ContentImportResult? importResult;
+    
+    private readonly string[] languages = SentenceStudio.Common.Constants.Languages;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Localize.CultureChanged += OnCultureChanged;
+        await LoadAvailableResources();
+    }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
+
+    private async Task LoadAvailableResources()
+    {
+        try
+        {
+            var profile = await UserProfileRepo.GetAsync();
+            if (profile == null) return;
+
+            // Load user resources (non-smart resources only for import target)
+            var allResources = await ResourceRepo.GetAllResourcesLightweightAsync();
+            availableResources = allResources
+                .Where(r => !r.IsSmartResource && r.UserProfileId == profile.Id)
+                .OrderBy(r => r.Title)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load available resources");
+        }
+    }
+
+    private async Task ParseContent()
+    {
+        isParsing = true;
+        try
+        {
+            var request = new ContentImportRequest
+            {
+                RawText = rawText,
+                ContentType = Enum.Parse<ContentType>(contentType),
+                DelimiterOverride = delimiter == "auto" ? null : delimiter == "\\t" ? '\t' : delimiter[0],
+                HasHeaderRow = hasHeaderRow,
+                TargetLanguage = targetLanguage,
+                NativeLanguage = nativeLanguage
+            };
+
+            previewResult = await ImportService.ParseContentAsync(request);
+            editableRows = previewResult.Rows.Select(r => new ImportRow
+            {
+                RowNumber = r.RowNumber,
+                TargetLanguageTerm = r.TargetLanguageTerm,
+                NativeLanguageTerm = r.NativeLanguageTerm,
+                Status = r.Status,
+                Error = r.Error,
+                IsSelected = r.IsSelected
+            }).ToList();
+
+            currentStep = ImportStep.Preview;
+            selectAllRows = editableRows.All(r => r.IsSelected);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to parse content");
+            Toast.ShowError($"{Localize["Import_ParseError"]}: {ex.Message}");
+        }
+        finally
+        {
+            isParsing = false;
+        }
+    }
+
+    private void ToggleSelectAll()
+    {
+        foreach (var row in editableRows.Where(r => r.Status != RowStatus.Error))
+        {
+            row.IsSelected = selectAllRows;
+        }
+    }
+
+    private void SetTargetMode(ImportTargetMode mode)
+    {
+        targetMode = mode;
+    }
+
+    private void SetDedupMode(DedupMode mode)
+    {
+        dedupMode = mode;
+    }
+
+    private async Task CommitImport()
+    {
+        // Validation
+        if (targetMode == ImportTargetMode.New && string.IsNullOrWhiteSpace(newResourceTitle))
+        {
+            Toast.ShowError($"{Localize["Import_ResourceTitleRequired"]}");
+            return;
+        }
+
+        if (targetMode == ImportTargetMode.Existing && string.IsNullOrWhiteSpace(selectedResourceId))
+        {
+            Toast.ShowError($"{Localize["Import_SelectResourceRequired"]}");
+            return;
+        }
+
+        if (!editableRows.Any(r => r.IsSelected))
+        {
+            Toast.ShowError($"{Localize["Import_NoRowsSelected"]}");
+            return;
+        }
+
+        // Confirm update mode
+        if (dedupMode == DedupMode.Update)
+        {
+            // TODO: Show confirmation modal
+            // For MVP, just warn via toast
+            Toast.ShowWarning($"{Localize["Import_UpdateModeWarning"]}");
+        }
+
+        isCommitting = true;
+        try
+        {
+            var profile = await UserProfileRepo.GetAsync();
+            if (profile == null)
+            {
+                Toast.ShowError($"{Localize["Import_ProfileNotFound"]}");
+                return;
+            }
+
+            // Build commit request
+            var updatedPreview = new ContentImportPreview
+            {
+                Rows = editableRows,
+                DetectedFormat = previewResult!.DetectedFormat,
+                DetectedContentType = previewResult.DetectedContentType,
+                Warnings = previewResult.Warnings
+            };
+
+            var target = targetMode == ImportTargetMode.New
+                ? new ImportTarget
+                {
+                    Mode = ImportTargetMode.New,
+                    NewResourceTitle = newResourceTitle,
+                    NewResourceDescription = newResourceDescription,
+                    TargetLanguage = targetLanguage,
+                    NativeLanguage = nativeLanguage
+                }
+                : new ImportTarget
+                {
+                    Mode = ImportTargetMode.Existing,
+                    ExistingResourceId = selectedResourceId
+                };
+
+            var commit = new ContentImportCommit
+            {
+                Preview = updatedPreview,
+                Target = target,
+                DedupMode = dedupMode
+            };
+
+            importResult = await ImportService.CommitImportAsync(commit);
+            currentStep = ImportStep.Complete;
+
+            Toast.ShowSuccess($"{Localize["Import_ImportSuccess"]}");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to commit import");
+            Toast.ShowError($"{Localize["Import_CommitError"]}: {ex.Message}");
+        }
+        finally
+        {
+            isCommitting = false;
+        }
+    }
+
+    private void ViewResource()
+    {
+        if (importResult != null && !string.IsNullOrEmpty(importResult.ResourceId))
+        {
+            NavManager.NavigateTo($"/resources/edit/{importResult.ResourceId}");
+        }
+    }
+
+    private void StartNewImport()
+    {
+        // Reset all state
+        currentStep = ImportStep.Source;
+        rawText = string.Empty;
+        contentType = "Vocabulary";
+        delimiter = "auto";
+        hasHeaderRow = false;
+        previewResult = null;
+        editableRows.Clear();
+        selectAllRows = true;
+        targetMode = ImportTargetMode.New;
+        newResourceTitle = string.Empty;
+        newResourceDescription = string.Empty;
+        selectedResourceId = string.Empty;
+        dedupMode = DedupMode.Skip;
+        importResult = null;
+    }
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnCultureChanged;
+    }
+}
