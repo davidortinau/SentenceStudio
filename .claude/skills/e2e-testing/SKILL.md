@@ -79,14 +79,14 @@ Use the **maui-ai-debugging** skill for native testing. Key commands:
 dotnet build -f net10.0-maccatalyst -t:Run
 
 # Wait for agent
-maui-devflow wait
+maui devflow wait
 
 # Inspect UI
-maui-devflow MAUI tree
-maui-devflow MAUI screenshot --output test.png
+maui devflow ui tree
+maui devflow ui screenshot --output test.png
 
 # Check logs
-maui-devflow MAUI logs --limit 20
+maui devflow logs --limit 20
 ```
 
 ## Test Users

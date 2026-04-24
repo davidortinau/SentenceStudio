@@ -38,6 +38,6 @@ Run after **any** activity change:
 | **Correct UserId** | `SELECT DISTINCT UserId FROM VocabularyProgress ORDER BY LastPracticedAt DESC LIMIT 5` — must be GUID, never `"1"` |
 | **Cache freshness** | Dashboard Learning/Known counts update immediately after activity |
 | **Audio on webapp** | Browser console has no `audioInterop` errors; speaker button cycles spinner→idle |
-| **Audio on native** | `maui-devflow MAUI logs --limit 10` shows no NPE from AudioManager |
+| **Audio on native** | `maui devflow logs --limit 10` shows no NPE from AudioManager |
 | **AI calls via Aspire** | Aspire structured logs show no 503/401 on `/api/v1/ai/chat` |
 | **Auto-advance (quiz)** | After answering, next question loads in ~2s without clicking Next |
