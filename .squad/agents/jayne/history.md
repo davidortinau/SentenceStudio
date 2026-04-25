@@ -1132,3 +1132,93 @@ This is a **schema reconciliation problem** requiring strategic fix.
 
 **Artifacts:** Playwri...e2e-testing skill reference (steps 1–7), maui-ai-debugging skill screenshots. Feature code-complete, e2e verified. Awaiting Captain's `/review` before push.
 
+
+### 2026-04-25 — Phrase/Sentence Import Capability Testing
+
+**Status:** ✅ COMPLETE  
+**Related Decisions:**
+- `.squad/decisions/inbox/jayne-phrase-import-gap.md` (THIS report)
+
+**Assignment:** Test phrase/sentence import via Import Content MVP on `feature/import-content-mvp` branch
+
+**Context:**
+- Import wizard's Content Type dropdown shows "Vocabulary" as only enabled option
+- "Phrases", "Transcript", "Auto-detect" marked `[v2]` and disabled
+- Underlying `ContentImportService` has `ParseFreeTextContentAsync` AI fallback
+- Question: Does the MVP handle the Captain's Margo phrase example?
+
+**Test Variants:**
+
+**Variant 1: Paired lines, no delimiter** (alternating Korean/English)
+```
+마고는 눈하고 귀가 안 좋아요. 잘 못 보고, 잘 못 들어요.
+Margo's eyes and ears are not good. (She) can't see well and can't hear well.
+[... 2 more phrase pairs]
+```
+
+- Parser path: **Free-text AI** (detected as "Free-form text (AI-extracted)")
+- Preview rows: **14 individual words** — AI extracted vocabulary (눈/eye, 귀/ear, 좋다/to be good, etc.)
+- Commit result: 10 created, 4 skipped (dedup with Variant 1)
+- DB persistence: 14 VocabularyWord rows, each a single word with AI-generated translation
+- Verdict: ❌ **BROKEN** — phrases were split into individual words, not preserved as full sentences
+- User-visible problems: 
+  - User pastes phrases, gets individual words instead
+  - All rows flagged with AI badge (correct, but entire output is wrong)
+  - No warning that "Vocabulary" mode doesn't support phrases
+
+**Variant 2: Comma-delimited paired sentences**
+```
+마고는 눈하고 귀가 안 좋아요. 잘 못 보고 잘 못 들어요.,Margo's eyes and ears are not good. She can't see or hear well.
+[... 2 more phrase pairs]
+```
+
+- Parser path: **CSV** (detected as "Comma-delimited (CSV)")
+- Preview rows: **3 phrase pairs** — full sentences preserved
+- Commit result: 3 created, 0 skipped
+- DB persistence: 3 VocabularyWord rows with full sentences in both TargetLanguageTerm and NativeLanguageTerm
+- Verdict: ✅ **WORKS** — phrases preserved correctly as single "word" entries
+- User-visible problems:
+  - User must know to add commas (not intuitive for paired-line phrase format)
+  - Still stored in VocabularyWord table (semantically wrong, but functionally usable)
+  - No "Phrases" content type selectable
+
+**Bottom line:**
+The MVP **cannot** handle paired-line phrase format (Variant 1) — the AI fallback splits sentences into individual words. Comma-delimited format (Variant 2) works but requires user to know the workaround and results in phrases stored as vocabulary "words" (table name mismatch, but data intact).
+
+**Recommendations:**
+1. **Enable Phrases mode now** — add UI option to Content Type dropdown, skip AI fallback, enforce CSV structure
+2. **Document the gap** — if shipping MVP without Phrases mode, warn users to use comma-delimited format for multi-word content
+3. **Fix AI free-text path** — currently extracts individual words; should detect sentence structure and preserve full phrases
+4. **Schema question** — Is VocabularyWord table the right place for phrases, or do we need separate Phrase table? (Deferred to architecture discussion)
+
+**Tools Used:**
+- Aspire CLI (`aspire run`)
+- Playwright MCP (browser automation, snapshots, screenshots)
+- Postgres CLI (docker exec psql, db verification)
+- Screenshots: `phrase-test-variant1-*.png`, `phrase-test-variant2-*.png`
+
+**Test Data Locations:**
+- Postgres container: `db-84833ad0`, database `sentencestudio`
+- Test resources: "Phrase Import Probe - Variant 1", "Phrase Import Probe - Variant 2"
+
+**Next:** Captain decision on whether to enable Phrases mode before merge or ship with limitation documented
+
+
+---
+
+## 2026-04-25 — Import Scope Correction + v1.1 Architecture (Team Update)
+
+**Event:** Captain's process-correction round + Zoe's architecture spec completion  
+**Status:** 🔒 BLOCKED on captain-confirm-scope  
+
+**What happened:**
+- Captain identified process issue: Phrases/Transcripts/Auto-detect were silently moved to v2 without asking him by name. Scope corrected; all three are back in v1.1.
+- Zoe completed architecture spec and **corrected Squad's Decision #1**: `LexicalUnitType` enum already exists (not a new enum needed). Only a backfill migration required (Unknown→Word).
+- New scope flag from Zoe: free-text phrase extraction deferred to v1.2 (CSV + paired-line phrases stay in v1.1).
+
+**For Jayne specifically:**
+- **E2E testing:** Re-run import e2e suite including Margo example (`마고는 눈하고 귀가 안 좋아요...`) in all three new modes (CSV, paired-line, transcript) plus auto-detect. Block sign-off until each scenario passes UI + DB + log verification.
+- **Implementation blocked** until Captain confirms. See `.squad/decisions.md` for full spec (section "Import Content — Scope Correction & Expansion" + "Import Content v1.1 Architecture", section H).
+
+**No action needed from you yet.** Read the decisions ledger when Captain unblocks. Zoe's spec has implementation order: River → Wash → Kaylee → Jayne. (You go last.)
+

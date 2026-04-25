@@ -539,3 +539,23 @@ Designed AI strategy for new data import feature: 5 tasks (format inference, con
 - Studied `VocabularyExtractionResponse.cs` — [Description] attribute usage, ToVocabularyWord() converter pattern
 - Studied `TranslationDto.cs` — simple DTO structure for translation exercises
 - `SentenceStudio.AppLib.csproj` line 31 — MauiAsset wildcard pattern for Resources/Raw/**
+
+---
+
+## 2026-04-25 — Import Scope Correction + v1.1 Architecture (Team Update)
+
+**Event:** Captain's process-correction round + Zoe's architecture spec completion  
+**Status:** 🔒 BLOCKED on captain-confirm-scope  
+
+**What happened:**
+- Captain identified process issue: Phrases/Transcripts/Auto-detect were silently moved to v2 without asking him by name. Scope corrected; all three are back in v1.1.
+- Zoe completed architecture spec and **corrected Squad's Decision #1**: `LexicalUnitType` enum already exists (not a new enum needed). Only a backfill migration required (Unknown→Word).
+- New scope flag from Zoe: free-text phrase extraction deferred to v1.2 (CSV + paired-line phrases stay in v1.1).
+
+**For River specifically:**
+- **Decision #3 (affirmed):** Auto-detect with confidence thresholds (≥0.85 auto-apply / 0.70-0.84 show banner / <0.70 manual). Plus: always-visible detection banner with confidence score.
+- **Prompts to create:** `ContentTypeDetect.scriban-txt` (auto-detect), `PhraseExtraction.scriban-txt` (free-text, but deferred to v1.2).
+- **Implementation blocked** until Captain confirms. See `.squad/decisions.md` for full spec (section "Import Content — Scope Correction & Expansion" + "Import Content v1.1 Architecture").
+
+**No action needed from you yet.** Read the decisions ledger when Captain unblocks. Zoe's spec has implementation order: River → Wash → Kaylee → Jayne. (You go first.)
+

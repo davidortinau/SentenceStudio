@@ -4,6 +4,751 @@
 
 ---
 
+# Import Content — Scope Correction & Expansion
+
+**Date:** 2026-04-25
+**Author:** Squad (Coordinator)
+**Branch:** `feature/import-content-mvp` (commit `04053f2`)
+**Status:** ⚠️ AWAITING CAPTAIN CONFIRMATION OR OVERRIDE
+
+## What happened
+
+Captain pointed out a process failure on Squad's side. His original statement of work for the data-import feature explicitly named **vocabulary, phrases, transcripts, and auto-detect** as the four content types. During architecture, Squad asked Captain to confirm deferrals on *some* items (source attribution, replace-all vocabulary, mobile paste shortcut) but **silently moved Phrases / Transcripts / Auto-detect to v2** without ever asking him by name. Selectively asking about some deferrals while not asking about others created a false signal that the unmentioned items were still in v1 scope.
+
+Captain caught this when Jayne's e2e probe revealed the wizard's content-type dropdown shows Phrases / Transcript / Auto as `[v2 disabled]`. Quote: *"the fact you asked about other items being deferred to v2 and did NOT ask me to defer those led me to believe they were still in v1 scope."*
+
+He's right. The v2 demotion is rescinded. Phrases / Transcripts / Auto-detect are back in v1.
+
+## Process change committed
+
+A repo memory has been stored under subject `scope discipline`:
+
+> Never silently defer features the user explicitly named in their original ask. Ask about each named feature by name up front before writing a plan.
+
+Future planning tasks must enumerate each named feature and explicitly negotiate any deferral, by name, before plan finalization.
+
+## Autonomous decisions taken (Captain offline)
+
+Captain's standing direction is "make really good decisions" while he's away. To avoid sprinting forward on still-unconfirmed scope after just having made a scope error, Squad is **stopping at the planning gate**: decisions documented, plan updated, but no implementation cycles burned until Captain confirms or overrides.
+
+### 1. Phrase storage model — `EntryType` discriminator on `VocabularyWord`
+
+**Choice:** Add an `EntryType` enum column to `VocabularyWord` with values `Word` (default), `Phrase`, `Sentence`. Migrate via `dotnet ef migrations add AddEntryTypeToVocabularyWord`. Backfill all existing rows to `Word`.
+
+**Why not the alternatives:**
+- *Reuse VocabularyWord without a discriminator* — fastest, but the column name becomes a lie and we lose the ability for activities like Vocab Quiz to filter "single words only" later. Bakes in technical debt for no real time saving.
+- *New `Phrase` entity + `PhraseMapping` table* — cleanest model, but doubles every activity that currently iterates `VocabularyWord` (Cloze, Translation, Vocab Quiz, Matching, Reading prompts), forces a wide refactor, and requires duplicating dedup / progress / sync wiring. Out of proportion for v1.1.
+
+**Tradeoff accepted:** The `VocabularyWord` table retains a misleading name. We can rename in a future sweep without breaking data. This is the standard EF Core "single-table inheritance via discriminator" pattern and is reversible.
+
+**Activity awareness:** Activities remain agnostic in v1.1 — they treat phrases and sentences the same as words. Filtering by `EntryType` (e.g. Vocab Matching shows only `Word`-type entries) is a v2 sweep. Captain can override this if he wants the filter behavior in v1.1.
+
+### 2. Transcript handling — Both (store + extract)
+
+**Choice:** When `Transcript` content type is selected, store the pasted/uploaded transcript text in the existing `LearningResource.Transcript` field (already on the model — confirmed during plan update), set `MediaType = "Transcript"`, and run the existing `ExtractVocabularyFromTranscript.scriban-txt` prompt to create vocabulary mappings.
+
+**Why this is essentially free:**
+- `LearningResource.Transcript` field already exists (line 29 of `LearningResource.cs`).
+- `ExtractVocabularyFromTranscript.scriban-txt` already exists (River's prior work — already validated for the YouTube path).
+- No new entities, no migration beyond the EntryType one.
+
+**Why not "extract only" or "store only":**
+- *Extract only* loses the transcript text — Captain might want to read it back, attach activities to it, or re-extract with a different prompt later.
+- *Store only* defeats the purpose of importing into an app that runs vocab activities.
+
+### 3. Auto-detect — River's thresholds + always-visible detection banner
+
+**Choice:** Implement `ContentTypeDetect.scriban-txt` per River's design with confidence thresholds:
+- ≥ 0.85 → auto-fill content type, run preview immediately
+- 0.70 – 0.84 → show modal/banner "Detected: Phrases (0.78). Confirm or change?" — block parse until user confirms
+- < 0.70 → require manual content-type selection; show what we suspected for transparency
+
+PLUS: regardless of confidence, the **preview header always shows the detected type as a banner** with confidence score and a one-click change-and-reparse affordance. So even an auto-fired classification is visible and reversible without losing the input text.
+
+**Why:** Aligns with Captain's standing data-preservation rule "no silent drops, every parse failure surfaces in the preview" — same spirit applies to silent classifications. Captain's comfort with auto behavior depends on being able to see what was decided. The banner is a small UI lift that buys a lot of trust.
+
+### 4. Branch strategy — same branch, drop the `-mvp` suffix
+
+**Choice:** Continue work on the existing `feature/import-content-mvp` branch (5 commits ahead of main, not pushed). Rename it to `feature/import-content` before merging since "MVP" is no longer accurate now that v1 is the full content-type set.
+
+**Why not a new branch off main:** The work-in-progress (wizard, service, dedup, AI translation) is the foundation for everything else. Spinning a new branch would mean rebasing or duplicating, neither of which adds value. The work is on a feature branch by design — that's where iteration belongs.
+
+## Implementation work breakdown (queued, not started)
+
+If Captain confirms (or overrides individual decisions), the next work hop is:
+
+1. **Zoe** — extend the architecture spec to cover Phrases / Transcripts / Auto-detect now that they're v1.1, with the four decisions above baked in. Output: updated `.squad/decisions/inbox/zoe-import-architecture-v1.1.md`.
+2. **Wash** — add `EntryType` migration via `dotnet ef`, backfill, validate via `scripts/validate-mobile-migrations.sh`. Wire `ContentImportService` to handle the three new content types end-to-end.
+3. **River** — author `ContentTypeDetect.scriban-txt` and `PhraseExtraction.scriban-txt`. Wire to `AiService.SendPrompt<T>()` with structured DTOs. Confirm `ExtractVocabularyFromTranscript` is reachable from the new generic pipeline (not just the YouTube path).
+4. **Kaylee** — enable the three dropdown options in `ImportContent.razor`, add the auto-detect banner UI, add help text for paired-line phrase format, ensure CSV parser handles RFC 4180 quoting (Korean text contains commas inside fields per Jayne's probe finding).
+5. **Jayne** — re-run the import e2e suite, including the original Margo example (`마고는 눈하고 귀가 안 좋아요...`) in all three new modes plus auto-detect. Block sign-off until each named scenario passes UI + DB + log verification.
+
+Total estimate: not provided — Captain's standing rule is no time/date estimates in plans.
+
+## Update — Zoe's architecture review (added after this doc was first written)
+
+Zoe completed her v1.1 architecture spec at `.squad/decisions/inbox/zoe-import-architecture-v1.1.md` and **corrected Decision #1**:
+
+- **Decision #1 was WRONG.** `LexicalUnitType` enum already exists in `src/SentenceStudio.Shared/Models/LexicalUnitType.cs` with values `Unknown=0, Word=1, Phrase=2, Sentence=3`. `VocabularyWord.LexicalUnitType` is already a property (line 53), and existing AI prompts already populate it. **No new enum, no schema additions** — only a backfill migration (Unknown→Word for existing rows). This is strictly better than what Squad proposed.
+- **Decisions #2, #3, #4 hold** as proposed.
+- **New scope flag (same pattern as the original correction):** Zoe deferred *free-text phrase extraction* (a paragraph of prose → AI extracts phrases) to v1.2, keeping only CSV-phrases and paired-line-phrases in v1.1. CSV + paired-line covers the Margo example you raised. Free-text phrases would need a new prompt + tuning. **Flagging this explicitly so you can pull it back into v1.1 if you want it.**
+
+Zoe also raised six smaller open questions in her appendix (LexicalUnitType default value, confidence threshold tuning, transcript chunking strategy >50KB, paired-line heuristic specifics, dedup standardization scope) — review them when you read her spec.
+
+## Captain — what's needed from you
+
+Confirm the four decisions above (or override any of them) when you're back. The plan and todos are queued; nobody starts implementing until you've signed off, because the previous round of "silent decisions Squad made for the Captain" is what triggered this whole correction.
+
+If any of the four needs more discussion, just say so — we'll work it out together rather than guess again.
+
+---
+
+# Import Content v1.1 Architecture
+
+**Status:** Architecture Spec  
+**Author:** Zoe (Lead)  
+**Date:** 2025-06-01  
+**Depends On:** Squad Decisions #2, #3, #4 (affirm), #1 (CORRECTED)  
+
+---
+
+## Executive Summary
+
+This spec expands the Import Content feature from v1.0 (Vocabulary-only) to v1.1 supporting **Phrases**, **Transcripts**, and **Auto-detect** content types. The architecture assumes Squad's autonomous decisions #2, #3, #4 hold, but **CORRECTS Decision #1** to use the existing `LexicalUnitType` enum instead of creating a redundant `EntryType` enum.
+
+**Critical Discovery:** `LexicalUnitType` enum already exists on `VocabularyWord.LexicalUnitType` with values `Unknown=0, Word=1, Phrase=2, Sentence=3`. Squad's proposed "EntryType" is redundant. This spec uses the existing enum throughout.
+
+**Key Risks:**
+- Paired-line phrase detection heuristic may yield false positives (mitigation: always-visible preview with override)
+- Transcript AI extraction may fail or yield zero vocabulary (mitigation: transaction rollback + user-facing error)
+- Auto-detect confidence thresholds need tuning (mitigation: Captain defines thresholds based on testing)
+
+**Implementation Order:** River → Wash → Kaylee → Jayne (see Section J)
+
+---
+
+## Section A: Data Model
+
+### A1. Correction to Squad Decision #1
+
+**Squad proposed:** Add new `EntryType` enum with values `Vocabulary`, `Phrase`, `Transcript`  
+**Actual codebase state:** `LexicalUnitType` enum already exists in `src/SentenceStudio.Shared/Models/LexicalUnitType.cs`  
+```csharp
+public enum LexicalUnitType
+{
+    Unknown = 0,
+    Word = 1,
+    Phrase = 2,
+    Sentence = 3
+}
+```
+
+**Correction:** Use existing `LexicalUnitType` enum. Mapping:
+- CSV Vocabulary rows → `LexicalUnitType.Word`
+- CSV Phrases rows → `LexicalUnitType.Phrase`
+- Transcript-extracted items → AI determines (Word/Phrase/Sentence per ExtractVocabularyFromTranscript)
+
+**Why this is BETTER than Squad's proposal:**
+1. Infrastructure already exists (VocabularyWord.LexicalUnitType property, line 53)
+2. AI prompts already return `lexicalUnitType` classification
+3. "Lexical unit" is more precise terminology than "entry"
+4. No new enum to migrate or coordinate across 3 repos
+
+### A2. Migration Requirements
+
+**Problem:** Existing `VocabularyWord` rows have `LexicalUnitType = Unknown` (default 0)  
+**Solution:** Migration + backfill
+
+**Postgres migration (API database):**
+```sql
+-- Migration: SetDefaultLexicalUnitType
+UPDATE "VocabularyWord" 
+SET "LexicalUnitType" = 1 
+WHERE "LexicalUnitType" = 0;
+```
+
+**Mobile SQLite migration (client databases):**
+- Applied via `MigrateAsync()` in `UserProfileRepository.GetAsync()` pattern
+- Backfill method: `BackfillLexicalUnitTypeAsync()` (after `MigrateAsync()`)
+- Logic: Set all `LexicalUnitType = Unknown` rows to `Word` (existing CSV imports assumed words)
+
+**EF Migration command:**
+```bash
+dotnet ef migrations add SetDefaultLexicalUnitType \
+  --project src/SentenceStudio.Shared/SentenceStudio.Shared.csproj \
+  --startup-project src/SentenceStudio.Shared/SentenceStudio.Shared.csproj
+```
+
+**Open Question for Captain:** Should model default change from `Unknown=0` to `Word=1`? Or keep `Unknown` as sentinel for "not yet classified"?
+
+### A3. No Schema Changes Required
+
+- `LearningResource.Transcript` field already exists (line 29)
+- `LearningResource.MediaType` supports "Transcript" classification (line 21)
+- No new entities needed
+
+---
+
+## Section B: Phrases Parser Design
+
+### B1. Input Format Detection
+
+**Three paths:**
+
+1. **Paired-line detection** (Squad Decision #2):
+   - Heuristic: Even line count + alternating script pattern (Korean/English)
+   - Split on `\n`, chunk into pairs: `[lines[i], lines[i+1]]`
+   - Sample: "안녕하세요\nHello"
+   - Set `LexicalUnitType.Phrase` on all extracted items
+
+2. **CSV with RFC 4180 quoting** (already works):
+   - Existing `SplitLine()` in ContentImportService.cs (lines 382-416) handles quotes
+   - Jayne's test confirmed: `"잘 못 보고, 잘 못 들어요",I can't see well and can't hear well` works correctly
+   - Set `LexicalUnitType.Phrase` on all extracted items
+
+3. **Free-text fallback** (no delimiters, no paired pattern):
+   - Invoke modified `FreeTextToVocab.scriban-txt` with `extractPhrases: true` parameter
+   - AI extracts phrases and sets `lexicalUnitType` per item
+   - Jayne's Variant 1 test showed this path fails (AI extracts individual words) - needs prompt tuning
+
+**Implementation priority:** CSV (already works) > Paired-line (new heuristic) > Free-text (needs prompt work)
+
+### B2. Paired-Line Heuristic Details
+
+**Detection logic:**
+```csharp
+bool IsPairedLineFormat(string content)
+{
+    var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+    if (lines.Length % 2 != 0) return false; // Must be even
+    
+    // Check alternating script: every other line should be different script
+    for (int i = 0; i < lines.Length; i += 2)
+    {
+        if (i + 1 >= lines.Length) break;
+        bool line1Korean = ContainsKorean(lines[i]);
+        bool line2Korean = ContainsKorean(lines[i+1]);
+        if (line1Korean == line2Korean) return false; // Must alternate
+    }
+    return true;
+}
+```
+
+**Edge case:** What if user pastes Korean-only paired lines? Heuristic fails → falls back to free-text  
+**Mitigation:** Preview always shows detected format + "Override" button
+
+### B3. Free-Text Phrase Extraction
+
+**Prompt modification needed:**
+- Copy `FreeTextToVocab.scriban-txt` → `PhraseExtraction.scriban-txt`
+- Change instructions: "Extract multi-word phrases suitable for language learning"
+- Keep same DTO structure (includes `lexicalUnitType` field)
+- Captain approves prompt before River implements
+
+**Open Question for Captain:** Should free-text phrase extraction be in v1.1 scope, or defer to v1.2 if prompt tuning is complex?
+
+---
+
+## Section C: Transcript Design
+
+### C1. User Flow
+
+1. User selects "Transcript" from content type dropdown
+2. Pastes transcript text into textarea
+3. Clicks "Preview"
+4. System invokes `ExtractVocabularyFromTranscript.scriban-txt` (existing prompt)
+5. AI returns list of vocabulary items with `lexicalUnitType` classifications
+6. Preview shows extracted items grouped by type (Words / Phrases / Sentences)
+7. User confirms → items saved to `VocabularyWord` table with appropriate `LexicalUnitType`
+8. Transcript text saved to `LearningResource.Transcript` with `MediaType = "Transcript"`
+
+### C2. Transcript Storage
+
+**LearningResource creation:**
+```csharp
+var resource = new LearningResource
+{
+    MediaType = "Transcript",
+    Title = "(auto-generated title from first 50 chars)",
+    Transcript = transcriptText,
+    Url = null, // No URL for pasted transcripts
+    ThumbnailUrl = null,
+    Duration = null
+};
+```
+
+**Vocabulary extraction:**
+- Use existing `ExtractVocabularyFromTranscript.scriban-txt` (lines 1-76)
+- AI returns DTO with `lexicalUnitType` field (line 63)
+- Each extracted item saved to `VocabularyWord` with AI-determined `LexicalUnitType`
+
+### C3. Edge Cases
+
+**Transcript > 50KB:**
+- Current free-text limit is 50KB (ContentImportService.cs line 544)
+- **Option 1:** Reject with user-facing error "Transcript too large, please split into smaller sections"
+- **Option 2:** Chunking strategy (split on paragraph boundaries, process chunks, merge results)
+- **Captain Decision Required:** Reject or chunk?
+
+**AI returns zero vocabulary:**
+- User-facing error: "No vocabulary items found in transcript. Please check the content."
+- Do NOT create LearningResource if extraction fails
+
+**AI call fails (timeout, API error):**
+- Transaction rollback (no LearningResource, no VocabularyWord rows)
+- User-facing error with retry option
+- Log structured error for debugging
+
+---
+
+## Section D: Auto-Detect Design
+
+### D1. Detection Flow
+
+1. User selects "Auto-detect" from dropdown
+2. Pastes content into textarea
+3. Clicks "Preview"
+4. System invokes **NEW** `ContentTypeDetect.scriban-txt` prompt
+5. AI returns `{ contentType: "Vocabulary" | "Phrases" | "Transcript", confidence: 0.0-1.0, reasoning: "..." }`
+6. If confidence ≥ 0.85: Auto-apply detected type, show banner "Detected as {type} (confidence: {conf}%)"
+7. If confidence 0.70-0.84: Show confirmation dialog "Detected as {type}, is this correct?"
+8. If confidence < 0.70: Show banner "Could not auto-detect type, please select manually"
+9. Banner always includes "Override" button → user can force different type
+
+### D2. ContentTypeDetect.scriban-txt Prompt Design
+
+**DTO:**
+```csharp
+public class ContentTypeDetectionResult
+{
+    [Description("Detected content type")]
+    public string ContentType { get; set; } = string.Empty; // "Vocabulary", "Phrases", "Transcript"
+    
+    [Description("Confidence score 0.0 to 1.0")]
+    public double Confidence { get; set; }
+    
+    [Description("Brief explanation of why this type was detected")]
+    public string Reasoning { get; set; } = string.Empty;
+}
+```
+
+**Prompt instructions (River drafts, Captain approves):**
+- Analyze content structure, length, delimiter patterns
+- Vocabulary: Tab/comma delimited, 2-3 columns, <100 lines
+- Phrases: Paired lines (alternating scripts) OR long comma-separated entries
+- Transcript: Prose paragraphs, >200 words, narrative flow
+- Return confidence based on pattern clarity
+
+**Open Question for Captain:** Confidence thresholds (0.85/0.70) or different values?
+
+### D3. UI Affordances
+
+**Always-visible banner** (even at high confidence):
+- "Auto-detected as {type} (confidence: {conf}%)" + "Override" button
+- Prevents silent misclassification
+- User can force type change before committing
+
+**Preview changes based on detected type:**
+- If Vocabulary → show table preview
+- If Phrases → show paired-line or CSV preview
+- If Transcript → show extracted vocabulary grouped by type
+
+---
+
+## Section E: UI Changes (Kaylee)
+
+### E1. Dropdown Enablement
+
+**Current state:** Dropdown has disabled options for Phrases/Transcript/Auto  
+**Change:** Enable all options in `ImportContent.razor`
+
+**Help text per type:**
+- Vocabulary: "Tab or comma-separated vocabulary with translations"
+- Phrases: "Paired lines (Korean/English) or CSV format"
+- Transcript: "Paste a transcript to extract vocabulary automatically"
+- Auto-detect: "Let AI determine the content type"
+
+### E2. New Components
+
+**AutoDetectBanner.razor:**
+- Props: `DetectedType`, `Confidence`, `OnOverride` callback
+- Displays confidence percentage
+- "Override" button triggers type selection dialog
+
+**TranscriptPreview.razor:**
+- Props: `ExtractedItems` (list of VocabularyWord with LexicalUnitType)
+- Groups by type: Words / Phrases / Sentences
+- Shows count per group
+- Scrollable list with Korean + English + Type badge
+
+### E3. Preview Step Changes
+
+**For Phrases:**
+- If paired-line: Show side-by-side preview (Korean | English)
+- If CSV: Show table preview (same as Vocabulary)
+- If free-text: Show extracted phrases with AI-determined types
+
+**For Transcript:**
+- Show TranscriptPreview component
+- Display "Extracted {count} items from transcript" summary
+
+**For Auto-detect:**
+- Show AutoDetectBanner at top
+- Preview adapts to detected type
+
+---
+
+## Section F: Service Changes (Wash)
+
+### F1. ParseContentAsync Branching
+
+**Current state:** `ParseContentAsync()` calls `ParseCsvVocabularyAsync()` only  
+**New logic:**
+
+```csharp
+public async Task<ImportResult> ParseContentAsync(string content, ContentType type, ...)
+{
+    return type switch
+    {
+        ContentType.Vocabulary => await ParseCsvVocabularyAsync(content, ...),
+        ContentType.Phrases => await ParsePhrasesAsync(content, ...),
+        ContentType.Transcript => await ParseTranscriptAsync(content, ...),
+        ContentType.AutoDetect => await ParseAutoDetectAsync(content, ...),
+        _ => throw new NotSupportedException($"Content type {type} not supported")
+    };
+}
+```
+
+### F2. New Parse Methods
+
+**ParsePhrasesAsync:**
+1. Detect format: IsPairedLineFormat() vs IsCsvFormat() vs free-text
+2. Route to appropriate parser
+3. Set `LexicalUnitType.Phrase` on all extracted items
+4. Return ImportResult with items
+
+**ParseTranscriptAsync:**
+1. Validate transcript length (<50KB or chunk)
+2. Invoke `ExtractVocabularyFromTranscript` AI call
+3. Create LearningResource with transcript text
+4. Create VocabularyWord rows with AI-determined LexicalUnitType
+5. Return ImportResult with items + LearningResource ID
+
+**ParseAutoDetectAsync:**
+1. Invoke `ContentTypeDetect` AI call
+2. Get detected type + confidence
+3. Route to appropriate parser based on detected type
+4. Return ImportResult with detected type metadata
+
+### F3. Migration Implementation
+
+**Migration class:**
+```csharp
+public partial class SetDefaultLexicalUnitType : Migration
+{
+    protected override void Up(MigrationBuilder migrationBuilder)
+    {
+        migrationBuilder.Sql(
+            "UPDATE \"VocabularyWord\" SET \"LexicalUnitType\" = 1 WHERE \"LexicalUnitType\" = 0;");
+    }
+    
+    protected override void Down(MigrationBuilder migrationBuilder)
+    {
+        migrationBuilder.Sql(
+            "UPDATE \"VocabularyWord\" SET \"LexicalUnitType\" = 0 WHERE \"LexicalUnitType\" = 1;");
+    }
+}
+```
+
+**Backfill method** (in UserProfileRepository pattern):
+```csharp
+private async Task BackfillLexicalUnitTypeAsync()
+{
+    var unknownItems = await _context.VocabularyWords
+        .Where(w => w.LexicalUnitType == LexicalUnitType.Unknown)
+        .ToListAsync();
+    
+    foreach (var item in unknownItems)
+    {
+        item.LexicalUnitType = LexicalUnitType.Word; // Assume existing imports were words
+    }
+    
+    if (unknownItems.Any())
+    {
+        await _context.SaveChangesAsync();
+    }
+}
+```
+
+### F4. Dedup Standardization
+
+**Problem:** YouTube path uses case-sensitive dedup, some utilities use case-insensitive trimmed  
+**Decision:** Standardize on **case-sensitive trimmed** (matches YouTube behavior)
+
+**Logic:**
+```csharp
+var normalizedSource = sourceText.Trim();
+var existingWord = await _context.VocabularyWords
+    .FirstOrDefaultAsync(w => w.SourceText == normalizedSource && w.UserProfileId == userProfileId);
+```
+
+**Applies to:** Vocabulary CSV, Phrases CSV/paired-line, Transcript extraction
+
+---
+
+## Section G: AI Work (River)
+
+### G1. New Prompts Required
+
+**ContentTypeDetect.scriban-txt:**
+- Input: Raw pasted content (string)
+- Output: ContentTypeDetectionResult DTO (type, confidence, reasoning)
+- Captain must approve prompt before implementation
+
+**PhraseExtraction.scriban-txt** (optional, depends on Captain decision):
+- Input: Free-text content
+- Output: List of VocabularyWordDto with lexicalUnitType
+- Modified version of FreeTextToVocab with phrase-focused instructions
+- Captain must approve prompt before implementation
+
+### G2. Existing Prompt Verification
+
+**ExtractVocabularyFromTranscript.scriban-txt:**
+- Already returns `lexicalUnitType` field (line 63)
+- Already has classification rules (lines 31-47)
+- **No changes needed** - reuse as-is
+
+**FreeTextToVocab.scriban-txt:**
+- Already returns `lexicalUnitType` field (line 71)
+- Could be adapted for phrase extraction if needed
+- **No changes needed for v1.1** unless free-text phrase path is in scope
+
+### G3. DTO Design Pattern
+
+All prompts follow project convention:
+- Use `[Description]` attributes on DTO properties
+- NO manual JSON formatting in Scriban templates
+- Microsoft.Extensions.AI handles serialization automatically
+
+**Example:**
+```csharp
+public class VocabularyWordDto
+{
+    [Description("Korean text")]
+    public string SourceText { get; set; } = string.Empty;
+    
+    [Description("English translation")]
+    public string TargetText { get; set; } = string.Empty;
+    
+    [Description("Type of lexical unit: Word, Phrase, or Sentence")]
+    public string LexicalUnitType { get; set; } = "Word";
+}
+```
+
+---
+
+## Section H: Test Plan (Jayne)
+
+### H1. Test Cases (UI + Database + Logs)
+
+**TC1: Margo paired-line as Phrases**
+- Input: Margo sample (10 pairs, Korean/English alternating)
+- Expected: Paired-line detection succeeds, all items have `LexicalUnitType.Phrase`
+- Validation: Screenshot preview, query DB for LexicalUnitType values, check logs for detection path
+
+**TC2: Margo as Auto-detect**
+- Input: Margo sample via Auto-detect
+- Expected: AI detects as "Phrases" with confidence ≥0.85, banner shows detected type
+- Validation: Screenshot banner, verify items saved with Phrase type
+
+**TC3: CSV with Korean commas**
+- Input: `"잘 못 보고, 잘 못 들어요",I can't see well and can't hear well`
+- Expected: RFC 4180 quoting preserves full phrase, item saved with `LexicalUnitType.Phrase`
+- Validation: DB query shows full Korean text with embedded comma
+
+**TC4: Transcript paste**
+- Input: 500-word Korean transcript
+- Expected: LearningResource created with MediaType="Transcript", vocabulary extracted with mixed types
+- Validation: DB query for LearningResource, count VocabularyWords by LexicalUnitType, screenshot preview
+
+**TC5: Auto-detect on CSV vocabulary**
+- Input: Standard tab-delimited vocabulary CSV
+- Expected: Detects as "Vocabulary" with high confidence, processes as CSV
+- Validation: Banner shows Vocabulary detection, items have `LexicalUnitType.Word`
+
+**TC6: Auto-detect on prose (low confidence)**
+- Input: Unstructured prose (neither CSV nor paired nor transcript length)
+- Expected: Confidence <0.70, banner shows "Could not auto-detect"
+- Validation: Screenshot banner with manual override option
+
+**TC7: Migration backfill**
+- Input: Existing VocabularyWord rows with `LexicalUnitType = Unknown`
+- Expected: After migration, all Unknown rows set to Word
+- Validation: SQL query before/after migration
+
+### H2. Test Environment
+
+- **Postgres (API):** Azure staging database
+- **SQLite (Mobile):** Mac Catalyst Debug build on Captain's Mac
+- **Logs:** Structured logs via `maui devflow MAUI logs --follow`
+
+### H3. Success Criteria
+
+- All TC1-TC7 pass (screenshot + DB + logs verified)
+- No regressions in existing Vocabulary CSV import
+- Preview component renders correctly for all types
+- Auto-detect banner always visible (no silent misclassification)
+
+---
+
+## Section I: Risk Register
+
+### I1. Squad Decision #1 Correction
+
+**Risk:** Squad proposed redundant "EntryType" enum  
+**Impact:** Would create parallel classification systems, confuse codebase  
+**Mitigation:** Corrected in this spec to use existing `LexicalUnitType`  
+**Captain Override Point:** Confirm `LexicalUnitType` is preferred over new enum
+
+### I2. Paired-Line False Positives
+
+**Risk:** Heuristic may misdetect free-text as paired-line  
+**Impact:** Items grouped incorrectly, user confusion  
+**Mitigation:** Always-visible preview with "Override" button  
+**Captain Override Point:** Approve/modify paired-line heuristic logic
+
+### I3. Transcript AI Extraction Failure
+
+**Risk:** AI call fails or returns zero vocabulary  
+**Impact:** User pastes transcript, gets error, loses work  
+**Mitigation:** Transaction rollback, user-facing error with retry, log structured error  
+**Captain Override Point:** Approve error handling strategy (reject vs retry vs partial commit)
+
+### I4. Auto-Detect Confidence Thresholds
+
+**Risk:** Thresholds (0.85/0.70) may be too high/low  
+**Impact:** Too many false positives or too many "manual select" fallbacks  
+**Mitigation:** Captain defines thresholds after testing  
+**Captain Override Point:** Set confidence thresholds based on real-world testing
+
+### I5. Transcript Chunking
+
+**Risk:** Large transcripts (>50KB) require chunking, adds complexity  
+**Impact:** Implementation delay, edge cases in chunk merging  
+**Mitigation:** Defer chunking to v1.2, reject large transcripts in v1.1  
+**Captain Override Point:** Approve reject strategy or require chunking in v1.1
+
+### I6. Free-Text Phrase Extraction
+
+**Risk:** Jayne's test showed AI extracts words, not phrases  
+**Impact:** Free-text phrase path doesn't work without prompt tuning  
+**Mitigation:** Defer free-text phrase extraction to v1.2, support only paired-line + CSV in v1.1  
+**Captain Override Point:** Approve deferral or require prompt tuning in v1.1
+
+---
+
+## Section J: Implementation Order
+
+### J1. Dependency-Correct Commit Sequence
+
+**Commit 1 (River): Add ContentTypeDetect.scriban-txt prompt**
+- File: `src/SentenceStudio.AppLib/Resources/Raw/ContentTypeDetect.scriban-txt`
+- DTO: ContentTypeDetectionResult (type, confidence, reasoning)
+- No dependencies
+
+**Commit 2 (Wash): Migration for LexicalUnitType backfill**
+- Command: `dotnet ef migrations add SetDefaultLexicalUnitType`
+- SQL: Set all Unknown → Word
+- Backfill method in UserProfileRepository
+- No dependencies
+
+**Commit 3 (Wash): Add ParsePhrasesAsync (CSV + Paired-line only)**
+- Paired-line heuristic: `IsPairedLineFormat()`
+- CSV path: reuse existing `SplitLine()`
+- Set `LexicalUnitType.Phrase` on all items
+- Defer free-text to later commit or v1.2
+- Depends on: Commit 2 (migration)
+
+**Commit 4 (Wash): Add ParseTranscriptAsync**
+- Invoke `ExtractVocabularyFromTranscript`
+- Create LearningResource with MediaType="Transcript"
+- Create VocabularyWords with AI-determined LexicalUnitType
+- Depends on: Commit 2 (migration)
+
+**Commit 5 (Wash): Add ParseAutoDetectAsync**
+- Invoke ContentTypeDetect AI call
+- Route to appropriate parser
+- Return detected type metadata
+- Depends on: Commit 1 (prompt), Commit 3, Commit 4
+
+**Commit 6 (Kaylee): Enable Phrases/Transcript/Auto in dropdown**
+- Update `ImportContent.razor` dropdown
+- Add help text per type
+- No new components yet
+- Depends on: Commit 3, Commit 4, Commit 5
+
+**Commit 7 (Kaylee): Add AutoDetectBanner component**
+- Component: `AutoDetectBanner.razor`
+- Props: DetectedType, Confidence, OnOverride
+- Depends on: Commit 6
+
+**Commit 8 (Kaylee): Add TranscriptPreview component**
+- Component: `TranscriptPreview.razor`
+- Groups items by LexicalUnitType
+- Depends on: Commit 6
+
+**Commit 9 (Kaylee): Wire up preview logic for Phrases/Transcript/Auto**
+- Show appropriate preview based on content type
+- Integrate AutoDetectBanner and TranscriptPreview
+- Depends on: Commit 7, Commit 8
+
+**Commit 10 (Jayne): E2E test suite for v1.1**
+- Run TC1-TC7
+- Document results with screenshots + DB queries + logs
+- Depends on: All previous commits
+
+### J2. Optional Future Commits (v1.2 candidates)
+
+**River: Add PhraseExtraction.scriban-txt for free-text**
+- Modified version of FreeTextToVocab
+- Phrase-focused instructions
+- Requires prompt tuning + Captain approval
+
+**Wash: Add transcript chunking for >50KB**
+- Split on paragraph boundaries
+- Process chunks, merge results
+- Requires Captain decision on chunking strategy
+
+**Wash: Dedup consistency refactor**
+- Audit all dedup call sites
+- Standardize on case-sensitive trimmed
+- May affect existing behavior (breaking change?)
+
+---
+
+## Appendix: Open Questions for Captain
+
+1. **LexicalUnitType default:** Change model default from `Unknown=0` to `Word=1`? Or keep `Unknown` as "not yet classified" sentinel?
+
+2. **Confidence thresholds:** Approve 0.85 (auto-apply) / 0.70 (confirm) / <0.70 (manual), or set different values?
+
+3. **Transcript chunking:** Reject large transcripts (>50KB) in v1.1, or implement chunking strategy?
+
+4. **Free-text phrase extraction:** Defer to v1.2, or require prompt tuning in v1.1?
+
+5. **Paired-line heuristic:** Approve alternating-script logic, or modify to handle Korean-only pairs?
+
+6. **Dedup refactor scope:** Standardize dedup in v1.1, or defer to v1.2 to avoid breaking changes?
+
+---
+
+## Revision History
+
+- **2025-06-01:** Initial spec (Zoe). Corrected Squad Decision #1 to use existing `LexicalUnitType` enum. All other Squad decisions (#2, #3, #4) affirmed.
+
+---
+
+
 ## Data Import MVP — Wave 2 Implementation — 2026-04-24
 
 **Date:** 2026-04-24  

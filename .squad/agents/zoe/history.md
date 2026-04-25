@@ -690,3 +690,40 @@ Coordinated architecture for new generic data import feature (text/CSV/JSON → 
 
 **Next:** Implementation team builds service layer + UI. River engineers prompts.
 
+
+---
+
+## 2026-04-25 — v1.1 Architecture Spec Completion + Decision #1 Correction
+
+**Session:** Import Scope Correction (background, 4 hours)  
+**Output:** `.squad/decisions/inbox/zoe-import-architecture-v1.1.md` (23.5 KB, 10 sections + appendix)  
+**Status:** ✅ Complete — merged into decisions.md, awaiting Captain confirmation  
+
+**Key Discovery:**
+Squad's proposed Decision #1 (add new `EntryType` enum) was **WRONG**. Discovered that `LexicalUnitType` enum **already exists** in `src/SentenceStudio.Shared/Models/LexicalUnitType.cs` with exact values needed (Unknown=0, Word=1, Phrase=2, Sentence=3). Corrected autonomously:
+- VocabularyWord.LexicalUnitType property already exists (line 53)
+- AI prompts already populate LexicalUnitType
+- No new enum, no schema additions — only a backfill migration (Unknown→Word)
+- Saved team a redundant migration and corrected before implementation began
+
+**Other Decisions Affirmed:** Decisions #2, #3, #4 from Squad hold as proposed.
+
+**New Scope Flag (Same Pattern as Original Correction):** Deferred free-text phrase extraction (prose → AI extracts phrases) to v1.2, keeping CSV + paired-line phrases in v1.1. Flagged explicitly so Captain can pull back if needed.
+
+**Learnings:**
+
+### Discovery Pattern
+- **Existing Infrastructure:** When proposing schema changes, always audit the existing model classes. `LexicalUnitType` was already designed into the system — Squad missed it because it didn't cross-reference the codebase thoroughly during autonomous decision-making.
+- **AI Prompt Alignment:** The AI templates already populated `lexicalUnitType` fields correctly. This alignment was a signal that the infrastructure was intentionally designed to support Word/Phrase/Sentence distinctions.
+- **Backfill Pattern:** When existing rows have a default value (Unknown=0), a backfill migration is needed. Pattern: EF migration + async backfill method post-migration.
+
+### Architecture Decisions That Held
+- Transcript: Both store + extract (justified by: field already exists, prompt already exists, no migration needed)
+- Auto-detect: Confidence thresholds + always-visible banner (justified by: data preservation rule, user-visible decisions)
+- Same branch, drop -mvp: Avoids rebasing; work is isolated on feature branch by design
+
+### Open Questions Captured
+Six open questions for Captain in appendix (LexicalUnitType default value, confidence thresholds, transcript chunking >50KB, paired-line heuristic, dedup scope, naming) — documented for Captain review during unblock.
+
+**Next:** Captain confirms, Scribe merges, implementation team (River → Wash → Kaylee → Jayne) unblocked per spec Section J.
+

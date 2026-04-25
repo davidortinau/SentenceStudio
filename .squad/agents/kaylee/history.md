@@ -426,3 +426,22 @@ Built the user-facing `/import-content` page for the data import MVP. This is th
   5. Update mode → Warning toast shown
 - Look for: Row checkboxes functional, inline edits persist, status badges correct, summary counts match, resource created/updated in DB.
 
+
+---
+
+## 2026-04-25 — Import Scope Correction + v1.1 Architecture (Team Update)
+
+**Event:** Captain's process-correction round + Zoe's architecture spec completion  
+**Status:** 🔒 BLOCKED on captain-confirm-scope  
+
+**What happened:**
+- Captain identified process issue: Phrases/Transcripts/Auto-detect were silently moved to v2 without asking him by name. Scope corrected; all three are back in v1.1.
+- Zoe completed architecture spec and **corrected Squad's Decision #1**: `LexicalUnitType` enum already exists (not a new enum needed). Only a backfill migration required (Unknown→Word).
+- New scope flag from Zoe: free-text phrase extraction deferred to v1.2 (CSV + paired-line phrases stay in v1.1).
+
+**For Kaylee specifically:**
+- **UI Changes:** Enable Phrases/Transcript/Auto-detect in ImportContent.razor dropdown. Add auto-detect banner UI. Add help text for paired-line phrase format. Ensure CSV parser handles RFC 4180 quoting (Korean commas).
+- **Implementation blocked** until Captain confirms. See `.squad/decisions.md` for full spec (section "Import Content — Scope Correction & Expansion" + "Import Content v1.1 Architecture", section E).
+
+**No action needed from you yet.** Read the decisions ledger when Captain unblocks. Zoe's spec has implementation order: River → Wash → Kaylee → Jayne.
+

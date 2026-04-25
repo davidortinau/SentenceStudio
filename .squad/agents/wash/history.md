@@ -1736,3 +1736,23 @@ Conducted data layer survey for new import feature. Identified YouTube pipeline 
 - `.squad/decisions/inbox/wash-format-detector-ai-wiring.md` — Wave 2 implementation details, format detection strategy, AI wiring, dedup audit findings
 
 - 2026-05-01: **IAiService Interface Extraction** — Unblocked Jayne's unit tests for ContentImportService by extracting IAiService interface from concrete AiService class. Implemented dual DI registration strategy (concrete + interface alias) to preserve existing consumers while enabling mockability for new code. Zero blast radius — only ContentImportService migrated. Build clean (UI + tests). Full details in `.squad/decisions/inbox/wash-iaiservice-extraction.md`.
+
+---
+
+## 2026-04-25 — Import Scope Correction + v1.1 Architecture (Team Update)
+
+**Event:** Captain's process-correction round + Zoe's architecture spec completion  
+**Status:** �� BLOCKED on captain-confirm-scope  
+
+**What happened:**
+- Captain identified process issue: Phrases/Transcripts/Auto-detect were silently moved to v2 without asking him by name. Scope corrected; all three are back in v1.1.
+- Zoe completed architecture spec and **corrected Squad's Decision #1**: `LexicalUnitType` enum already exists (not a new enum needed). Only a backfill migration required (Unknown→Word).
+- New scope flag from Zoe: free-text phrase extraction deferred to v1.2 (CSV + paired-line phrases stay in v1.1).
+
+**For Wash specifically:**
+- **Decision #1 (corrected):** Use existing `LexicalUnitType` enum, not a new EntryType enum. Backfill: set all Unknown→Word for existing rows.
+- **Decision #2 (affirmed):** Transcript handling — store in `LearningResource.Transcript` + run `ExtractVocabularyFromTranscript`.
+- **Implementation blocked** until Captain confirms. See `.squad/decisions.md` for full spec (section "Import Content — Scope Correction & Expansion" + "Import Content v1.1 Architecture").
+
+**No action needed from you yet.** Read the decisions ledger when Captain unblocks. Zoe's spec has implementation order: River → Wash → Kaylee → Jayne.
+
