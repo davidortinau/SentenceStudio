@@ -83,6 +83,7 @@
                 <label class="form-label ss-body2 text-secondary-ss">@Localize["Import_PasteContentLabel"]</label>
                 <textarea class="form-control form-control-ss" 
                           @bind="rawText" 
+                          @bind:event="oninput"
                           rows="8" 
                           placeholder='@Localize["Import_PastePlaceholder"]'
                           disabled="@(currentStep > ImportStep.Source)"></textarea>
@@ -464,7 +465,8 @@
                 NativeLanguageTerm = r.NativeLanguageTerm,
                 Status = r.Status,
                 Error = r.Error,
-                IsSelected = r.IsSelected
+                IsSelected = r.IsSelected,
+                IsAiTranslated = r.IsAiTranslated
             }).ToList();
 
             currentStep = ImportStep.Preview;
