@@ -12,34 +12,26 @@ namespace SentenceStudio.Services;
 
 /// <summary>
 /// Service for importing content (vocabulary, phrases, transcripts) from text or file sources.
-/// MVP: Vocabulary only. Phrases and Transcripts deferred to v2.
+/// v1.1: Vocabulary, Phrases, Transcripts, and Auto-detect with checkbox harvest model.
 /// </summary>
 public interface IContentImportService
 {
     /// <summary>
     /// Parse content from text or file input and return a preview of rows to import.
     /// </summary>
-    /// <param name="request">The import request containing raw text, file bytes, format hints, and metadata.</param>
-    /// <param name="ct">Cancellation token.</param>
-    /// <returns>Preview with parsed rows, detected format, and validation warnings.</returns>
     Task<ContentImportPreview> ParseContentAsync(ContentImportRequest request, CancellationToken ct = default);
 
     /// <summary>
-    /// Detect content type from raw content and optional format hint.
-    /// MVP: Returns explicit type; heuristic body to be filled in Wave 2.
+    /// Classify content type using AI. Returns type, confidence, reasoning, and signals.
+    /// Confidence tiers: >=0.85 auto-route, 0.70-0.84 suggest, <0.70 user must pick.
     /// </summary>
-    /// <param name="content">Raw text content to classify.</param>
-    /// <param name="formatHint">Optional format description from user.</param>
-    /// <returns>Detection result with content type and confidence.</returns>
-    ContentTypeDetectionResult DetectContentType(string content, string? formatHint);
+    Task<ContentClassificationResult> ClassifyContentAsync(string content, string? formatHint, CancellationToken ct = default);
 
     /// <summary>
     /// Commit the parsed import to the database. Creates or appends to a LearningResource,
     /// creates VocabularyWord rows with dedup, and creates ResourceVocabularyMapping rows.
+    /// Respects harvest checkboxes (harvestTranscript, harvestPhrases, harvestWords).
     /// </summary>
-    /// <param name="commit">The commit request containing preview, target resource, and dedup mode.</param>
-    /// <param name="ct">Cancellation token.</param>
-    /// <returns>Result with resource ID, counts (created/skipped/updated/failed), and warnings.</returns>
     Task<ContentImportResult> CommitImportAsync(ContentImportCommit commit, CancellationToken ct = default);
 }
 
@@ -73,17 +65,6 @@ public class ContentImportService : IContentImportService
 
         ct.ThrowIfCancellationRequested();
 
-        // MVP: Only vocabulary content type is implemented
-        if (request.ContentType == ContentType.Phrases)
-        {
-            throw new NotSupportedException("Phrase import is not yet supported. Coming in v2.");
-        }
-
-        if (request.ContentType == ContentType.Transcript)
-        {
-            throw new NotSupportedException("Transcript import is not yet supported. Coming in v2.");
-        }
-
         var rows = new List<ImportRow>();
         var warnings = new List<string>();
 
@@ -95,7 +76,6 @@ public class ContentImportService : IContentImportService
         }
         else if (request.FileBytes != null && request.FileBytes.Length > 0)
         {
-            // For MVP, assume text files (CSV/TSV) encoded as UTF-8
             content = System.Text.Encoding.UTF8.GetString(request.FileBytes);
         }
         else
@@ -103,6 +83,128 @@ public class ContentImportService : IContentImportService
             throw new ArgumentException("Either RawText or FileBytes must be provided.", nameof(request));
         }
 
+        // --- Auto-detect branch ---
+        // If ContentType is Auto, run classification FIRST before any DB persistence.
+        // Confidence gate: >=0.85 auto-route, 0.70-0.84 suggest, <0.70 user picks.
+        ContentClassificationResult? classification = null;
+        var effectiveContentType = request.ContentType;
+
+        if (request.ContentType == ContentType.Auto)
+        {
+            classification = await ClassifyContentAsync(content, request.FormatHint, ct);
+
+            if (classification.Confidence >= 0.85f)
+            {
+                effectiveContentType = classification.ContentType;
+                _logger.LogInformation("Auto-detect: high confidence ({Confidence:F2}) → routing to {Type}",
+                    classification.Confidence, effectiveContentType);
+            }
+            else
+            {
+                // Return classification result to UI for user confirmation — do NOT persist yet.
+                return new ContentImportPreview
+                {
+                    Rows = Array.Empty<ImportRow>(),
+                    DetectedFormat = "Pending classification confirmation",
+                    DetectedContentType = new ContentTypeDetectionResult
+                    {
+                        ContentType = classification.ContentType,
+                        Confidence = classification.Confidence,
+                        Note = classification.Reasoning
+                    },
+                    Classification = classification,
+                    Warnings = classification.Confidence >= 0.70f
+                        ? new[] { $"Auto-detect suggests '{classification.ContentType}' ({classification.Confidence:P0} confidence). Please confirm before import." }
+                        : new[] { $"Auto-detect is uncertain ({classification.Confidence:P0} confidence). Please select a content type manually." },
+                    RequiresUserConfirmation = true
+                };
+            }
+        }
+
+        // --- Transcript branch ---
+        // For Transcript content, we store the full text and extract words (not phrases).
+        if (effectiveContentType == ContentType.Transcript)
+        {
+            // Reject content >30KB (v1.1 limit; chunking deferred to v1.2)
+            if (content.Length > 30_000)
+            {
+                throw new InvalidOperationException(
+                    $"Transcript is too large ({content.Length:N0} chars, limit 30,000). " +
+                    "Chunking support is planned for v1.2. Please split the transcript into smaller segments.");
+            }
+
+            // Extract vocabulary from transcript using the existing prompt
+            rows = await ExtractVocabularyFromTranscriptAsync(content, request.TargetLanguage, request.NativeLanguage, ct);
+
+            // Filter based on harvest checkboxes
+            if (!request.HarvestWords && !request.HarvestPhrases)
+            {
+                // User only wants the transcript stored, no vocab extraction
+                rows.Clear();
+                warnings.Add("Transcript will be stored but no vocabulary extraction was requested.");
+            }
+            else
+            {
+                rows = FilterRowsByHarvestFlags(rows, request.HarvestWords, request.HarvestPhrases);
+            }
+
+            return new ContentImportPreview
+            {
+                Rows = rows,
+                DetectedFormat = "Transcript",
+                DetectedContentType = new ContentTypeDetectionResult
+                {
+                    ContentType = ContentType.Transcript,
+                    Confidence = classification?.Confidence ?? 1.0f,
+                    Note = effectiveContentType == request.ContentType ? "Explicitly set by user" : $"Auto-detected ({classification?.Confidence:P0})"
+                },
+                Classification = classification,
+                Warnings = rows.Count == 0 && (request.HarvestWords || request.HarvestPhrases)
+                    ? new[] { "No vocabulary extracted from transcript. The transcript will still be stored on the resource." }
+                    : warnings
+            };
+        }
+
+        // --- Phrases branch ---
+        // Phrase content harvests BOTH Words AND Phrases (Captain's harvest matrix).
+        if (effectiveContentType == ContentType.Phrases)
+        {
+            if (content.Length > 50_000)
+            {
+                warnings.Add($"Content is too large for phrase extraction ({content.Length} chars). Please split into smaller chunks.");
+                rows.Add(new ImportRow
+                {
+                    RowNumber = 1,
+                    Status = RowStatus.Error,
+                    Error = "Content exceeds size limit for phrase extraction (50KB)."
+                });
+            }
+            else
+            {
+                // TODO: Use River's dedicated phrase extraction prompt (ExtractPhrasesFromContent.scriban-txt)
+                // when it lands. For now, use FreeTextToVocab which already supports LexicalUnitType classification.
+                rows = await ParseFreeTextContentAsync(content, request.TargetLanguage, request.NativeLanguage, request.FormatHint, ct);
+
+                // Filter based on harvest checkboxes
+                rows = FilterRowsByHarvestFlags(rows, request.HarvestWords, request.HarvestPhrases);
+            }
+
+            return new ContentImportPreview
+            {
+                Rows = rows,
+                DetectedFormat = "Phrases (AI-extracted)",
+                DetectedContentType = new ContentTypeDetectionResult
+                {
+                    ContentType = ContentType.Phrases,
+                    Confidence = classification?.Confidence ?? 1.0f,
+                    Note = effectiveContentType == request.ContentType ? "Explicitly set by user" : $"Auto-detected ({classification?.Confidence:P0})"
+                },
+                Classification = classification,
+                Warnings = warnings
+            };
+        }
+
+        // --- Vocabulary branch (default) ---
         // Wave 2: Format detection
         var (formatType, delimiter) = DetectFormat(content, request.DelimiterOverride, request.FormatHint);
         
@@ -195,13 +297,12 @@ public class ContentImportService : IContentImportService
             _ => "Unknown"
         };
 
-        // Detect content type (for MVP, explicit from request)
         var detectedContentType = new ContentTypeDetectionResult
         {
-            ContentType = request.ContentType == ContentType.Auto ? ContentType.Vocabulary : request.ContentType,
-            Confidence = 1.0f,
+            ContentType = effectiveContentType,
+            Confidence = classification?.Confidence ?? 1.0f,
             Note = request.ContentType == ContentType.Auto
-                ? "Auto-detected as vocabulary (based on MVP default)"
+                ? $"Auto-detected as vocabulary ({classification?.Confidence:P0})"
                 : "Explicitly set by user"
         };
 
@@ -210,6 +311,7 @@ public class ContentImportService : IContentImportService
             Rows = rows,
             DetectedFormat = detectedFormat,
             DetectedContentType = detectedContentType,
+            Classification = classification,
             Warnings = warnings
         };
     }
@@ -639,16 +741,158 @@ public class ContentImportService : IContentImportService
         _logger.LogInformation("Translation complete: {Count} terms filled", translationDict.Count(kv => kv.Value != "[unknown]"));
     }
 
-    public ContentTypeDetectionResult DetectContentType(string content, string? formatHint)
+    public async Task<ContentClassificationResult> ClassifyContentAsync(string content, string? formatHint, CancellationToken ct = default)
     {
-        // MVP: Return explicit vocabulary type
-        // TODO (Wave 2): Implement AI-based content type classification here
-        return new ContentTypeDetectionResult
+        if (string.IsNullOrWhiteSpace(content))
+            throw new ArgumentException("Content cannot be empty.", nameof(content));
+
+        // Cap the content sent to AI for classification (first 5KB is enough for signals)
+        var classificationSample = content.Length > 5_000 ? content[..5_000] : content;
+
+        try
         {
-            ContentType = ContentType.Vocabulary,
-            Confidence = 1.0f,
-            Note = "Content type detection not yet implemented; defaulting to Vocabulary. Coming in v2."
-        };
+            // TODO: Use River's ClassifyImportContent.scriban-txt when it lands.
+            // For now, use inline prompt to unblock Phrase/Transcript/Auto pipeline.
+            var prompt = BuildClassificationPrompt(classificationSample, formatHint);
+            var response = await _aiService.SendPrompt<ContentClassificationAiResponse>(prompt);
+
+            if (response == null)
+            {
+                _logger.LogWarning("AI classification returned null — defaulting to Vocabulary");
+                return new ContentClassificationResult
+                {
+                    ContentType = ContentType.Vocabulary,
+                    Confidence = 0.5f,
+                    Reasoning = "AI classification failed; defaulting to Vocabulary.",
+                    Signals = new List<string> { "classification_failed" }
+                };
+            }
+
+            var contentType = response.Type?.ToLowerInvariant() switch
+            {
+                "vocabulary" => ContentType.Vocabulary,
+                "phrases" => ContentType.Phrases,
+                "transcript" => ContentType.Transcript,
+                _ => ContentType.Vocabulary
+            };
+
+            return new ContentClassificationResult
+            {
+                ContentType = contentType,
+                Confidence = Math.Clamp(response.Confidence, 0f, 1f),
+                Reasoning = response.Reasoning ?? string.Empty,
+                Signals = response.Signals ?? new List<string>()
+            };
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Content classification failed");
+            return new ContentClassificationResult
+            {
+                ContentType = ContentType.Vocabulary,
+                Confidence = 0.3f,
+                Reasoning = $"Classification error: {ex.Message}. Defaulting to Vocabulary.",
+                Signals = new List<string> { "error", ex.GetType().Name }
+            };
+        }
+    }
+
+    private static string BuildClassificationPrompt(string sample, string? formatHint)
+    {
+        var hintSection = formatHint != null ? $"**USER HINT:** {formatHint}\n\n" : "";
+
+        return $"""
+            You are a content classifier for a language learning app. Analyze the following text and determine what type of content it is.
+
+            **TEXT SAMPLE:**
+            {sample}
+
+            {hintSection}**CLASSIFICATION RULES:**
+            1. **Vocabulary** — structured word list, CSV/TSV with target+native columns, or simple word pairs.
+            2. **Phrases** — standalone sentences or phrase examples with NO sentence-to-sentence continuity. Each line stands alone. Reading as a passage does NOT flow.
+            3. **Transcript** — continuous prose with sentence-to-sentence continuity. Reading as a passage FLOWS naturally. Includes paragraphs, dialogue, or narration.
+
+            **KEY SIGNAL:** Check for continuity between sentences. If continuity exists (pronouns referencing previous sentences, temporal progression, narrative arc), it's a Transcript. If each sentence is independent with no contextual link to neighbors, it's Phrases.
+
+            **RESPONSE FORMAT — Return ONLY valid JSON with keys: type, confidence, reasoning, signals.**
+            The "type" field must be one of: vocabulary, phrases, transcript.
+            The "confidence" field must be a float between 0.0 and 1.0.
+            The "reasoning" field is a brief explanation string.
+            The "signals" field is a string array of signal keywords.
+            """;
+    }
+
+    /// <summary>
+    /// Extract vocabulary from transcript text using the ExtractVocabularyFromTranscript prompt.
+    /// Word-biased extraction per Captain's D2 refinement.
+    /// </summary>
+    private async Task<List<ImportRow>> ExtractVocabularyFromTranscriptAsync(
+        string transcript, string targetLanguage, string nativeLanguage, CancellationToken ct)
+    {
+        _logger.LogInformation("Extracting vocabulary from transcript via AI ({Length} chars)...", transcript.Length);
+
+        using Stream templateStream = await _fileSystem.OpenAppPackageFileAsync("ExtractVocabularyFromTranscript.scriban-txt");
+        using var reader = new StreamReader(templateStream);
+        var templateContent = await reader.ReadToEndAsync();
+        var scribanTemplate = Template.Parse(templateContent);
+
+        var prompt = await scribanTemplate.RenderAsync(new
+        {
+            native_language = nativeLanguage,
+            target_language = targetLanguage,
+            video_title = (string?)null,
+            channel_name = (string?)null,
+            transcript = transcript,
+            existing_terms = new List<string>(),
+            max_words = 50,
+            proficiency_level = (string?)null
+        });
+
+        var result = await _aiService.SendPrompt<VocabularyExtractionResponse>(prompt);
+
+        if (result?.Vocabulary == null || !result.Vocabulary.Any())
+        {
+            _logger.LogWarning("AI returned no vocabulary from transcript");
+            return new List<ImportRow>();
+        }
+
+        var rows = new List<ImportRow>();
+        for (int i = 0; i < result.Vocabulary.Count; i++)
+        {
+            var item = result.Vocabulary[i];
+            rows.Add(new ImportRow
+            {
+                RowNumber = i + 1,
+                TargetLanguageTerm = item.TargetLanguageTerm,
+                NativeLanguageTerm = item.NativeLanguageTerm,
+                Status = RowStatus.Ok,
+                IsSelected = true,
+                IsAiTranslated = true,
+                LexicalUnitType = item.LexicalUnitType
+            });
+        }
+
+        _logger.LogInformation("Extracted {Count} vocabulary items from transcript", rows.Count);
+        return rows;
+    }
+
+    /// <summary>
+    /// Filter rows by harvest flags. Removes entries that don't match the requested harvest types.
+    /// </summary>
+    private static List<ImportRow> FilterRowsByHarvestFlags(List<ImportRow> rows, bool harvestWords, bool harvestPhrases)
+    {
+        if (harvestWords && harvestPhrases)
+            return rows; // Harvest both — no filtering needed
+
+        return rows.Where(r =>
+        {
+            var type = r.LexicalUnitType;
+            if (harvestWords && (type == LexicalUnitType.Word || type == LexicalUnitType.Unknown))
+                return true;
+            if (harvestPhrases && (type == LexicalUnitType.Phrase || type == LexicalUnitType.Sentence))
+                return true;
+            return false;
+        }).ToList();
     }
 
     public async Task<ContentImportResult> CommitImportAsync(ContentImportCommit commit, CancellationToken ct = default)
@@ -661,6 +905,12 @@ public class ContentImportService : IContentImportService
             throw new ArgumentNullException(nameof(commit.Target));
 
         ct.ThrowIfCancellationRequested();
+
+        // Validate harvest checkboxes — at least one must be true
+        if (!commit.HarvestTranscript && !commit.HarvestPhrases && !commit.HarvestWords)
+        {
+            throw new ArgumentException("At least one harvest option must be selected (Transcript, Phrases, or Words).", nameof(commit));
+        }
 
         var warnings = new List<string>(commit.Preview.Warnings);
         int createdCount = 0;
@@ -688,6 +938,13 @@ public class ContentImportService : IContentImportService
                 if (targetResource == null)
                     throw new InvalidOperationException($"Resource with ID {commit.Target.ExistingResourceId} not found.");
 
+                // If transcript harvest requested, store/overwrite transcript on existing resource
+                if (commit.HarvestTranscript && !string.IsNullOrEmpty(commit.TranscriptText))
+                {
+                    targetResource.Transcript = commit.TranscriptText;
+                    targetResource.MediaType = "Transcript";
+                }
+
                 _logger.LogInformation("Appending vocabulary to existing resource: {ResourceId} ({Title})",
                     targetResource.Id, targetResource.Title);
             }
@@ -696,12 +953,16 @@ public class ContentImportService : IContentImportService
                 if (string.IsNullOrEmpty(commit.Target.NewResourceTitle))
                     throw new ArgumentException("NewResourceTitle is required when Mode is New.", nameof(commit.Target));
 
+                // Determine MediaType based on harvest checkboxes
+                var mediaType = commit.HarvestTranscript ? "Transcript" : "Vocabulary List";
+
                 targetResource = new LearningResource
                 {
                     Id = Guid.NewGuid().ToString(),
                     Title = commit.Target.NewResourceTitle,
                     Description = commit.Target.NewResourceDescription ?? string.Empty,
-                    MediaType = "Vocabulary List",
+                    MediaType = mediaType,
+                    Transcript = commit.HarvestTranscript ? commit.TranscriptText : null,
                     Language = commit.Target.TargetLanguage,
                     Tags = "imported",
                     IsSmartResource = false,
@@ -842,6 +1103,7 @@ public class ContentImportService : IContentImportService
                                 TargetLanguageTerm = trimmedTarget,
                                 NativeLanguageTerm = row.NativeLanguageTerm?.Trim(),
                                 Language = commit.Target.TargetLanguage,
+                                LexicalUnitType = row.LexicalUnitType,
                                 CreatedAt = DateTime.UtcNow,
                                 UpdatedAt = DateTime.UtcNow
                             };
@@ -864,6 +1126,7 @@ public class ContentImportService : IContentImportService
                         TargetLanguageTerm = trimmedTarget,
                         NativeLanguageTerm = row.NativeLanguageTerm?.Trim(),
                         Language = commit.Target.TargetLanguage,
+                        LexicalUnitType = row.LexicalUnitType,
                         CreatedAt = DateTime.UtcNow,
                         UpdatedAt = DateTime.UtcNow
                     };
@@ -907,6 +1170,17 @@ public class ContentImportService : IContentImportService
 
             // Step 6: Single SaveChanges for the entire transaction
             await db.SaveChangesAsync(ct);
+
+            // Zero-vocab edge case: if transcript was stored but no vocab extracted,
+            // persist the resource with a clear status message rather than failing silently.
+            if (createdCount == 0 && skippedCount == 0 && updatedCount == 0 && commit.HarvestTranscript)
+            {
+                warnings.Add("Transcript stored on resource, but no vocabulary was extracted or committed.");
+            }
+            else if (createdCount == 0 && skippedCount == 0 && updatedCount == 0)
+            {
+                warnings.Add("No vocabulary entries were imported. Check content format or harvest settings.");
+            }
 
             _logger.LogInformation("Import complete: {Created} created, {Skipped} skipped, {Updated} updated, {Failed} failed",
                 createdCount, skippedCount, updatedCount, failedCount);
@@ -968,6 +1242,17 @@ public class ContentImportRequest
 
     [Description("Native language for translations (e.g., 'English')")]
     public string NativeLanguage { get; set; } = "English";
+
+    // --- v1.1 checkbox harvest model ---
+
+    [Description("Store full text on LearningResource.Transcript (MediaType='Transcript')")]
+    public bool HarvestTranscript { get; set; }
+
+    [Description("Extract Phrase-type entries (LexicalUnitType=Phrase)")]
+    public bool HarvestPhrases { get; set; }
+
+    [Description("Extract Word-type entries (LexicalUnitType=Word)")]
+    public bool HarvestWords { get; set; } = true;
 }
 
 /// <summary>
@@ -983,6 +1268,12 @@ public class ContentImportPreview
 
     [Description("Detected content type with confidence")]
     public ContentTypeDetectionResult DetectedContentType { get; set; } = new();
+
+    [Description("Full AI classification result (null if not auto-detected)")]
+    public ContentClassificationResult? Classification { get; set; }
+
+    [Description("True if auto-detect confidence is below threshold and user must confirm")]
+    public bool RequiresUserConfirmation { get; set; }
 
     [Description("Warnings encountered during parsing")]
     public IReadOnlyList<string> Warnings { get; set; } = Array.Empty<string>();
@@ -1013,6 +1304,9 @@ public class ImportRow
 
     [Description("Whether the native term was AI-translated (for UI badging)")]
     public bool IsAiTranslated { get; set; }
+
+    [Description("Lexical unit classification for this entry")]
+    public LexicalUnitType LexicalUnitType { get; set; } = LexicalUnitType.Word;
 }
 
 /// <summary>
@@ -1028,6 +1322,18 @@ public class ContentImportCommit
 
     [Description("Deduplication mode: Skip, Update, or ImportAll")]
     public DedupMode DedupMode { get; set; } = DedupMode.Skip;
+
+    [Description("Store the full text as a transcript on the LearningResource")]
+    public bool HarvestTranscript { get; set; }
+
+    [Description("Extract phrase-level entries (LexicalUnitType=Phrase)")]
+    public bool HarvestPhrases { get; set; }
+
+    [Description("Extract word-level entries (LexicalUnitType=Word)")]
+    public bool HarvestWords { get; set; } = true;
+
+    [Description("Raw transcript text to store on the resource (when HarvestTranscript is true)")]
+    public string? TranscriptText { get; set; }
 }
 
 /// <summary>
@@ -1155,4 +1461,40 @@ public enum DedupMode
 
     [Description("Import all as new entries, even if duplicates exist")]
     ImportAll
+}
+
+/// <summary>
+/// Result from AI content classification (auto-detect).
+/// </summary>
+public class ContentClassificationResult
+{
+    [Description("Classified content type")]
+    public ContentType ContentType { get; set; } = ContentType.Vocabulary;
+
+    [Description("Confidence score (0.0 to 1.0). >=0.85 auto-route, 0.70-0.84 suggest, <0.70 user picks.")]
+    public float Confidence { get; set; }
+
+    [Description("AI reasoning for the classification")]
+    public string Reasoning { get; set; } = string.Empty;
+
+    [Description("Signals the classifier identified (e.g., 'continuity', 'csv_structure', 'standalone_sentences')")]
+    public List<string> Signals { get; set; } = new();
+}
+
+/// <summary>
+/// Internal AI response DTO for content classification prompt.
+/// </summary>
+internal class ContentClassificationAiResponse
+{
+    [Description("Classified type: vocabulary, phrases, or transcript")]
+    public string? Type { get; set; }
+
+    [Description("Confidence score 0.0-1.0")]
+    public float Confidence { get; set; }
+
+    [Description("Brief explanation of the classification")]
+    public string? Reasoning { get; set; }
+
+    [Description("Signal keywords that influenced the classification")]
+    public List<string>? Signals { get; set; }
 }

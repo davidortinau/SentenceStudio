@@ -102,9 +102,9 @@
                             @bind="contentType"
                             disabled="@(currentStep > ImportStep.Source)">
                         <option value="Vocabulary">@Localize["Import_ContentType_Vocabulary"]</option>
-                        <option value="Phrases" disabled>@Localize["Import_ContentType_Phrases"] <span class="badge bg-secondary ms-1">v2</span></option>
-                        <option value="Transcript" disabled>@Localize["Import_ContentType_Transcript"] <span class="badge bg-secondary ms-1">v2</span></option>
-                        <option value="Auto" disabled>@Localize["Import_ContentType_Auto"] <span class="badge bg-secondary ms-1">v2</span></option>
+                        <option value="Phrases">@Localize["Import_ContentType_Phrases"]</option>
+                        <option value="Transcript">@Localize["Import_ContentType_Transcript"]</option>
+                        <option value="Auto">@Localize["Import_ContentType_Auto"]</option>
                     </select>
                 </div>
                 
@@ -144,9 +144,158 @@
             </div>
         </div>
 
+        @* Auto-detect: Confidence gate (shown when auto-detect was used) *@
+        @if (autoDetectResult != null && currentStep >= ImportStep.Harvest)
+        {
+            @if (autoDetectConfidenceBand == ConfidenceBand.High)
+            {
+                <div class="alert alert-info d-flex align-items-center mb-3" role="alert">
+                    <i class="bi bi-stars me-2 fs-5"></i>
+                    <div class="flex-grow-1">
+                        <strong>Auto-detected:</strong> @FormatContentType(autoDetectResult.ContentType) 
+                        (@FormatConfidence(autoDetectResult.Confidence) confidence)
+                    </div>
+                    <button class="btn btn-sm btn-outline-secondary ms-2" @onclick="OpenTypeChooser">
+                        <i class="bi bi-pencil me-1"></i>Change
+                    </button>
+                </div>
+            }
+            else if (autoDetectConfidenceBand == ConfidenceBand.Medium)
+            {
+                <div class="alert alert-warning mb-3" role="alert">
+                    <div class="d-flex align-items-center mb-2">
+                        <i class="bi bi-question-circle me-2 fs-5"></i>
+                        <strong>We're not 100% sure.</strong>
+                    </div>
+                    <p class="mb-2">
+                        Looks like <strong>@FormatContentType(autoDetectResult.ContentType)</strong> 
+                        (@FormatConfidence(autoDetectResult.Confidence) confidence). 
+                        Please confirm or pick the correct type:
+                    </p>
+                    @if (!autoDetectConfirmed)
+                    {
+                        <div class="d-flex flex-wrap gap-2">
+                            <button class="btn btn-sm btn-primary" @onclick="ConfirmAutoDetect">
+                                <i class="bi bi-check-lg me-1"></i>Yes, it's @FormatContentType(autoDetectResult.ContentType)
+                            </button>
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="OpenTypeChooser">
+                                <i class="bi bi-pencil me-1"></i>Pick a different type
+                            </button>
+                        </div>
+                    }
+                    else
+                    {
+                        <small class="text-success"><i class="bi bi-check-circle me-1"></i>Confirmed as @FormatContentType(resolvedContentType)</small>
+                    }
+                </div>
+            }
+            else
+            {
+                @* Low confidence *@
+                <div class="alert alert-secondary mb-3" role="alert">
+                    <div class="d-flex align-items-center mb-2">
+                        <i class="bi bi-exclamation-circle me-2 fs-5"></i>
+                        <strong>Couldn't auto-detect the content type.</strong>
+                    </div>
+                    @if (!string.IsNullOrEmpty(autoDetectResult.Note))
+                    {
+                        <p class="mb-2 text-secondary-ss"><small>Hint: might be @FormatContentType(autoDetectResult.ContentType), but confidence is low (@FormatConfidence(autoDetectResult.Confidence)).</small></p>
+                    }
+                    <p class="mb-2">Please select the content type:</p>
+                    <div class="d-flex flex-wrap gap-2">
+                        <button class="btn btn-sm @(resolvedContentType == ContentType.Vocabulary ? "btn-primary" : "btn-outline-primary")" 
+                                @onclick='() => OverrideContentType(ContentType.Vocabulary)'>
+                            Vocabulary
+                        </button>
+                        <button class="btn btn-sm @(resolvedContentType == ContentType.Phrases ? "btn-primary" : "btn-outline-primary")" 
+                                @onclick='() => OverrideContentType(ContentType.Phrases)'>
+                            Phrases
+                        </button>
+                        <button class="btn btn-sm @(resolvedContentType == ContentType.Transcript ? "btn-primary" : "btn-outline-primary")" 
+                                @onclick='() => OverrideContentType(ContentType.Transcript)'>
+                            Transcript
+                        </button>
+                    </div>
+                </div>
+            }
+        }
+
+        @* Type override chooser (shown when [Change] is clicked) *@
+        @if (showTypeChooser)
+        {
+            <div class="card card-ss p-4 mb-3 border-warning">
+                <h6 class="ss-body1 mb-3">Select content type:</h6>
+                <div class="d-flex flex-wrap gap-2 mb-2">
+                    <button class="btn btn-sm @(resolvedContentType == ContentType.Vocabulary ? "btn-primary" : "btn-outline-primary")" 
+                            @onclick='() => OverrideContentType(ContentType.Vocabulary)'>
+                        Vocabulary
+                    </button>
+                    <button class="btn btn-sm @(resolvedContentType == ContentType.Phrases ? "btn-primary" : "btn-outline-primary")" 
+                            @onclick='() => OverrideContentType(ContentType.Phrases)'>
+                        Phrases
+                    </button>
+                    <button class="btn btn-sm @(resolvedContentType == ContentType.Transcript ? "btn-primary" : "btn-outline-primary")" 
+                            @onclick='() => OverrideContentType(ContentType.Transcript)'>
+                        Transcript
+                    </button>
+                </div>
+                <button class="btn btn-sm btn-link text-secondary-ss p-0" @onclick="CloseTypeChooser">Cancel</button>
+            </div>
+        }
+
+        @* Harvest Step: What to extract *@
+        @if (currentStep >= ImportStep.Harvest && harvestStepReady)
+        {
+            <div class="card card-ss p-4 mb-3">
+                <h5 class="ss-title3 mb-3">What should we harvest?</h5>
+                <p class="ss-body2 text-secondary-ss mb-3">Select what to extract from this content. At least one option must be checked.</p>
+
+                <div class="form-check mb-2">
+                    <input class="form-check-input" 
+                           type="checkbox" 
+                           id="harvestTranscript" 
+                           @bind="harvestTranscript" />
+                    <label class="form-check-label ss-body2" for="harvestTranscript">
+                        <strong>This is a Transcript</strong>
+                        <small class="d-block text-secondary-ss">Store the full text on the learning resource</small>
+                    </label>
+                </div>
+
+                <div class="form-check mb-2">
+                    <input class="form-check-input" 
+                           type="checkbox" 
+                           id="harvestPhrases" 
+                           @bind="harvestPhrases" />
+                    <label class="form-check-label ss-body2" for="harvestPhrases">
+                        <strong>Harvest Phrases</strong>
+                        <small class="d-block text-secondary-ss">Extract phrase-level entries for practice activities</small>
+                    </label>
+                </div>
+
+                <div class="form-check mb-3">
+                    <input class="form-check-input" 
+                           type="checkbox" 
+                           id="harvestWords" 
+                           @bind="harvestWords" />
+                    <label class="form-check-label ss-body2" for="harvestWords">
+                        <strong>Harvest Words</strong>
+                        <small class="d-block text-secondary-ss">Extract individual vocabulary words</small>
+                    </label>
+                </div>
+
+                @if (showHarvestValidationError)
+                {
+                    <div class="alert alert-danger py-2 mb-0">
+                        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                        Please select at least one harvest option before continuing.
+                    </div>
+                }
+            </div>
+        }
+
         @if (previewResult != null && currentStep >= ImportStep.Preview)
         {
-            @* Step 3-4: Preview Table *@
+            @* Preview Table *@
             <div class="card card-ss p-4 mb-3">
                 <h5 class="ss-title3 mb-3">@Localize["Import_Step3_Title"]</h5>
                 
@@ -376,10 +525,9 @@
 </div>
 
 @code {
-    // Services
-    
-    // State
-    private enum ImportStep { Source, Preview, Commit, Complete }
+    private enum ImportStep { Source, Harvest, Preview, Commit, Complete }
+    private enum ConfidenceBand { High, Medium, Low }
+
     private ImportStep currentStep = ImportStep.Source;
     
     // Step 1: Source
@@ -390,13 +538,27 @@
     private string delimiter = "auto";
     private bool hasHeaderRow = false;
     
-    // Step 3-4: Preview
+    // Auto-detect state
+    private ContentTypeDetectionResult? autoDetectResult;
+    private ConfidenceBand autoDetectConfidenceBand;
+    private bool autoDetectConfirmed;
+    private ContentType resolvedContentType = ContentType.Vocabulary;
+    private bool showTypeChooser;
+
+    // Harvest checkboxes
+    private bool harvestTranscript;
+    private bool harvestPhrases;
+    private bool harvestWords = true;
+    private bool showHarvestValidationError;
+    private bool harvestStepReady;
+
+    // Preview
     private bool isParsing;
     private bool selectAllRows = true;
     private ContentImportPreview? previewResult;
     private List<ImportRow> editableRows = new();
     
-    // Step 5: Target
+    // Target
     private ImportTargetMode targetMode = ImportTargetMode.New;
     private string newResourceTitle = string.Empty;
     private string newResourceDescription = string.Empty;
@@ -405,10 +567,10 @@
     private string selectedResourceId = string.Empty;
     private List<LearningResource> availableResources = new();
     
-    // Step 6: Dedup
+    // Dedup
     private DedupMode dedupMode = DedupMode.Skip;
     
-    // Step 7: Commit
+    // Commit
     private bool isCommitting;
     private ContentImportResult? importResult;
     
@@ -429,7 +591,6 @@
             var profile = await UserProfileRepo.GetAsync();
             if (profile == null) return;
 
-            // Load user resources (non-smart resources only for import target)
             var allResources = await ResourceRepo.GetAllResourcesLightweightAsync();
             availableResources = allResources
                 .Where(r => !r.IsSmartResource && r.UserProfileId == profile.Id)
@@ -445,12 +606,78 @@
     private async Task ParseContent()
     {
         isParsing = true;
+        showHarvestValidationError = false;
+
+        try
+        {
+            var selectedType = Enum.Parse<ContentType>(contentType);
+
+            // Auto-detect path: run classifier BEFORE preview
+            if (selectedType == ContentType.Auto)
+            {
+                var classificationResult = await ImportService.ClassifyContentAsync(rawText, null);
+                autoDetectResult = new ContentTypeDetectionResult
+                {
+                    ContentType = classificationResult.ContentType,
+                    Confidence = classificationResult.Confidence,
+                    Note = classificationResult.Reasoning
+                };
+                autoDetectConfidenceBand = ClassifyConfidence(autoDetectResult.Confidence);
+                autoDetectConfirmed = false;
+                showTypeChooser = false;
+
+                if (autoDetectConfidenceBand == ConfidenceBand.High)
+                {
+                    resolvedContentType = autoDetectResult.ContentType;
+                    autoDetectConfirmed = true;
+                    ApplyHarvestDefaults(resolvedContentType);
+                    harvestStepReady = true;
+                }
+                else if (autoDetectConfidenceBand == ConfidenceBand.Medium)
+                {
+                    resolvedContentType = autoDetectResult.ContentType;
+                    harvestStepReady = false; // User must confirm first
+                    currentStep = ImportStep.Harvest;
+                    return; // Don't run preview yet
+                }
+                else
+                {
+                    resolvedContentType = ContentType.Vocabulary; // Placeholder until user picks
+                    harvestStepReady = false;
+                    currentStep = ImportStep.Harvest;
+                    return; // Don't run preview yet
+                }
+            }
+            else
+            {
+                resolvedContentType = selectedType;
+                autoDetectResult = null;
+                ApplyHarvestDefaults(resolvedContentType);
+                harvestStepReady = true;
+            }
+
+            await RunPreview();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to parse content");
+            Toast.ShowError($"{Localize["Import_ParseError"]}: {ex.Message}");
+        }
+        finally
+        {
+            isParsing = false;
+        }
+    }
+
+    private async Task RunPreview()
+    {
+        isParsing = true;
         try
         {
             var request = new ContentImportRequest
             {
                 RawText = rawText,
-                ContentType = Enum.Parse<ContentType>(contentType),
+                ContentType = resolvedContentType,
                 DelimiterOverride = delimiter == "auto" ? null : delimiter == "\\t" ? '\t' : delimiter[0],
                 HasHeaderRow = hasHeaderRow,
                 TargetLanguage = targetLanguage,
@@ -483,6 +710,83 @@
         }
     }
 
+    private void ApplyHarvestDefaults(ContentType type)
+    {
+        switch (type)
+        {
+            case ContentType.Vocabulary:
+                harvestTranscript = false;
+                harvestPhrases = false;
+                harvestWords = true;
+                break;
+            case ContentType.Phrases:
+                harvestTranscript = false;
+                harvestPhrases = true;
+                harvestWords = true;
+                break;
+            case ContentType.Transcript:
+                harvestTranscript = true;
+                harvestPhrases = false;
+                harvestWords = true;
+                break;
+            default:
+                harvestWords = true;
+                break;
+        }
+    }
+
+    private void ConfirmAutoDetect()
+    {
+        autoDetectConfirmed = true;
+        ApplyHarvestDefaults(resolvedContentType);
+        harvestStepReady = true;
+        _ = RunPreview();
+    }
+
+    private void OpenTypeChooser()
+    {
+        showTypeChooser = true;
+    }
+
+    private void CloseTypeChooser()
+    {
+        showTypeChooser = false;
+    }
+
+    private void OverrideContentType(ContentType type)
+    {
+        resolvedContentType = type;
+        autoDetectConfirmed = true;
+        showTypeChooser = false;
+        ApplyHarvestDefaults(type);
+        harvestStepReady = true;
+        _ = RunPreview();
+    }
+
+    private bool ValidateHarvestCheckboxes()
+    {
+        var valid = harvestTranscript || harvestPhrases || harvestWords;
+        showHarvestValidationError = !valid;
+        return valid;
+    }
+
+    private static ConfidenceBand ClassifyConfidence(float confidence)
+    {
+        if (confidence >= 0.85f) return ConfidenceBand.High;
+        if (confidence >= 0.70f) return ConfidenceBand.Medium;
+        return ConfidenceBand.Low;
+    }
+
+    private static string FormatContentType(ContentType type) => type switch
+    {
+        ContentType.Vocabulary => "Vocabulary",
+        ContentType.Phrases => "Phrases",
+        ContentType.Transcript => "Transcript",
+        _ => type.ToString()
+    };
+
+    private static string FormatConfidence(float confidence) => $"{confidence * 100:F0}%";
+
     private void ToggleSelectAll()
     {
         foreach (var row in editableRows.Where(r => r.Status != RowStatus.Error))
@@ -503,6 +807,13 @@
 
     private async Task CommitImport()
     {
+        // Validate harvest checkboxes
+        if (!ValidateHarvestCheckboxes())
+        {
+            Toast.ShowError("Please select at least one harvest option.");
+            return;
+        }
+
         // Validation
         if (targetMode == ImportTargetMode.New && string.IsNullOrWhiteSpace(newResourceTitle))
         {
@@ -522,11 +833,8 @@
             return;
         }
 
-        // Confirm update mode
         if (dedupMode == DedupMode.Update)
         {
-            // TODO: Show confirmation modal
-            // For MVP, just warn via toast
             Toast.ShowWarning($"{Localize["Import_UpdateModeWarning"]}");
         }
 
@@ -540,7 +848,6 @@
                 return;
             }
 
-            // Build commit request
             var updatedPreview = new ContentImportPreview
             {
                 Rows = editableRows,
@@ -568,7 +875,10 @@
             {
                 Preview = updatedPreview,
                 Target = target,
-                DedupMode = dedupMode
+                DedupMode = dedupMode,
+                HarvestTranscript = harvestTranscript,
+                HarvestPhrases = harvestPhrases,
+                HarvestWords = harvestWords
             };
 
             importResult = await ImportService.CommitImportAsync(commit);
@@ -597,7 +907,6 @@
 
     private void StartNewImport()
     {
-        // Reset all state
         currentStep = ImportStep.Source;
         rawText = string.Empty;
         contentType = "Vocabulary";
@@ -612,6 +921,14 @@
         selectedResourceId = string.Empty;
         dedupMode = DedupMode.Skip;
         importResult = null;
+        autoDetectResult = null;
+        autoDetectConfirmed = false;
+        showTypeChooser = false;
+        harvestTranscript = false;
+        harvestPhrases = false;
+        harvestWords = true;
+        showHarvestValidationError = false;
+        harvestStepReady = false;
     }
 
     public void Dispose()
