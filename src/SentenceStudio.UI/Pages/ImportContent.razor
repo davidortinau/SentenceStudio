@@ -202,6 +202,12 @@
                                         <input type="text" 
                                                class="form-control form-control-sm" 
                                                @bind="row.NativeLanguageTerm" />
+                                        @if (row.IsAiTranslated)
+                                        {
+                                            <span class="badge bg-info text-dark mt-1" title="@Localize["Import_AiTranslated_Tooltip"]">
+                                                <i class="bi bi-stars"></i> @Localize["Import_AiTranslated_Badge"]
+                                            </span>
+                                        }
                                     </td>
                                     <td>
                                         @if (row.Status == RowStatus.Ok)

@@ -721,6 +721,13 @@ public class ContentImportService : IContentImportService
                 targetResource.VocabularyMappings.Select(m => m.VocabularyWordId),
                 StringComparer.Ordinal);
 
+            // In-batch dedup cache: tracks words created/reused during THIS commit so that
+            // subsequent rows with the same trimmed target term reuse the same VocabularyWord
+            // instead of querying the DB (which can't see tracked-but-unsaved entities) and
+            // accidentally creating duplicates within a single import. Honors DedupMode:
+            // ImportAll bypasses this cache so it can intentionally create duplicates.
+            var batchWordsByTarget = new Dictionary<string, VocabularyWord>(StringComparer.Ordinal);
+
             // Step 3: Process selected rows with dedup logic
             // CRITICAL: Follow the SaveResourceAsync transaction pattern from LearningResourceRepository
             // - Detach nav props
@@ -752,10 +759,37 @@ public class ContentImportService : IContentImportService
 
                 // Dedup check: case-sensitive, whitespace-trimmed (matches YouTube pipeline + Captain's ruling)
                 var trimmedTarget = row.TargetLanguageTerm.Trim();
-                var existingWord = await db.VocabularyWords
-                    .FirstOrDefaultAsync(w => w.TargetLanguageTerm == trimmedTarget, ct);
 
                 VocabularyWord wordToMap;
+
+                // First, check the in-batch cache to avoid creating duplicates for same-term rows
+                // within this single import. ImportAll mode skips the cache so duplicates can be
+                // created intentionally (matching DB query bypass behavior).
+                if (commit.DedupMode != DedupMode.ImportAll &&
+                    batchWordsByTarget.TryGetValue(trimmedTarget, out var batchWord))
+                {
+                    wordToMap = batchWord;
+
+                    if (commit.DedupMode == DedupMode.Update)
+                    {
+                        // Apply the latest non-empty native term so the final saved value reflects
+                        // the most recent row's translation, mirroring the "last write wins" semantics
+                        // a user would expect from successive Update rows for the same term.
+                        var trimmedNative = row.NativeLanguageTerm?.Trim();
+                        if (!string.IsNullOrEmpty(trimmedNative))
+                        {
+                            wordToMap.NativeLanguageTerm = trimmedNative;
+                            wordToMap.UpdatedAt = DateTime.UtcNow;
+                        }
+                    }
+
+                    skippedCount++;
+                    _logger.LogDebug("In-batch duplicate reused for term: {TargetTerm}", trimmedTarget);
+                }
+                else
+                {
+                    var existingWord = await db.VocabularyWords
+                        .FirstOrDefaultAsync(w => w.TargetLanguageTerm == trimmedTarget, ct);
 
                 if (existingWord != null)
                 {
@@ -838,6 +872,13 @@ public class ContentImportService : IContentImportService
                     wordToMap = newWord;
                     createdCount++;
                     _logger.LogDebug("Creating new word: {TargetTerm}", trimmedTarget);
+                }
+
+                    // Cache for the rest of this batch (skip ImportAll so duplicates remain intentional).
+                    if (commit.DedupMode != DedupMode.ImportAll)
+                    {
+                        batchWordsByTarget[trimmedTarget] = wordToMap;
+                    }
                 }
 
                 // Step 4: Create mapping if it doesn't already exist for this resource

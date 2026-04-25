@@ -782,6 +782,100 @@ public class ContentImportServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task CommitImportAsync_DedupSkip_DeduplicatesIntraBatchDuplicates()
+    {
+        // Regression test: two rows with the same trimmed TargetLanguageTerm in a single
+        // commit must NOT create two VocabularyWord rows. EF's FirstOrDefaultAsync can't
+        // see tracked-but-unsaved entities, so an in-batch cache is required.
+        using var scope = _serviceProvider.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<ContentImportService>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var preview = new ContentImportPreview
+        {
+            Rows = new List<ImportRow>
+            {
+                new ImportRow { RowNumber = 1, TargetLanguageTerm = "안녕하세요", NativeLanguageTerm = "hello", Status = RowStatus.Ok, IsSelected = true },
+                new ImportRow { RowNumber = 2, TargetLanguageTerm = "안녕하세요", NativeLanguageTerm = "hi",    Status = RowStatus.Ok, IsSelected = true },
+                new ImportRow { RowNumber = 3, TargetLanguageTerm = "  안녕하세요  ", NativeLanguageTerm = "greetings", Status = RowStatus.Ok, IsSelected = true },
+                new ImportRow { RowNumber = 4, TargetLanguageTerm = "감사합니다", NativeLanguageTerm = "thank you", Status = RowStatus.Ok, IsSelected = true }
+            }
+        };
+
+        var commitRequest = new ContentImportCommit
+        {
+            Preview = preview,
+            Target = new ImportTarget
+            {
+                Mode = ImportTargetMode.New,
+                NewResourceTitle = "Intra-batch test",
+                TargetLanguage = "Korean",
+                NativeLanguage = "English"
+            },
+            DedupMode = DedupMode.Skip
+        };
+
+        var result = await service.CommitImportAsync(commitRequest);
+
+        result.CreatedCount.Should().Be(2, "only two unique trimmed target terms exist");
+        result.SkippedCount.Should().Be(2, "rows 2 and 3 collapse onto row 1's word");
+
+        // Only ONE VocabularyWord row for "안녕하세요" should exist in the database.
+        var hellos = await dbContext.VocabularyWords
+            .Where(w => w.TargetLanguageTerm == "안녕하세요")
+            .ToListAsync();
+        hellos.Should().HaveCount(1, "Skip mode must not create duplicate VocabularyWord rows within a single import");
+        hellos[0].NativeLanguageTerm.Should().Be("hello", "Skip mode keeps the first row's translation");
+
+        // Resource gets exactly ONE mapping for "안녕하세요" (no duplicate mappings either).
+        var mappings = await dbContext.ResourceVocabularyMappings
+            .Where(m => m.ResourceId == result.ResourceId)
+            .ToListAsync();
+        mappings.Should().HaveCount(2, "two unique words → two mappings, no duplicates");
+    }
+
+    [Fact]
+    public async Task CommitImportAsync_DedupImportAll_StillCreatesIntraBatchDuplicates()
+    {
+        // Companion to the Skip regression test: ImportAll must bypass the in-batch cache so
+        // the user can intentionally create duplicate VocabularyWord rows within a single import.
+        using var scope = _serviceProvider.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<ContentImportService>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var preview = new ContentImportPreview
+        {
+            Rows = new List<ImportRow>
+            {
+                new ImportRow { RowNumber = 1, TargetLanguageTerm = "안녕하세요", NativeLanguageTerm = "hello", Status = RowStatus.Ok, IsSelected = true },
+                new ImportRow { RowNumber = 2, TargetLanguageTerm = "안녕하세요", NativeLanguageTerm = "hi",    Status = RowStatus.Ok, IsSelected = true }
+            }
+        };
+
+        var commitRequest = new ContentImportCommit
+        {
+            Preview = preview,
+            Target = new ImportTarget
+            {
+                Mode = ImportTargetMode.New,
+                NewResourceTitle = "ImportAll intra-batch",
+                TargetLanguage = "Korean",
+                NativeLanguage = "English"
+            },
+            DedupMode = DedupMode.ImportAll
+        };
+
+        var result = await service.CommitImportAsync(commitRequest);
+
+        result.CreatedCount.Should().Be(2, "ImportAll must create both rows even though they share a target term");
+
+        var hellos = await dbContext.VocabularyWords
+            .Where(w => w.TargetLanguageTerm == "안녕하세요")
+            .ToListAsync();
+        hellos.Should().HaveCount(2, "ImportAll intentionally bypasses dedup");
+    }
+
+    [Fact]
     public async Task ParseContentAsync_ThrowsNotSupportedException_ForPhrasesAndTranscript()
     {
         // Arrange

@@ -6038,6 +6038,14 @@
     <value>경고: 단어를 사용하는 모든 리소스의 모국어 번역을 업데이트합니다. 주의해서 사용하세요.</value>
     <comment>Help text for update mode</comment>
   </data>
+  <data name="Import_AiTranslated_Badge" xml:space="preserve">
+    <value>AI</value>
+    <comment>Short badge label shown on rows whose native term was filled in by AI translation</comment>
+  </data>
+  <data name="Import_AiTranslated_Tooltip" xml:space="preserve">
+    <value>AI가 생성한 번역입니다. 커밋하기 전에 검토하고 수정하세요.</value>
+    <comment>Tooltip explaining the AI badge on import preview rows</comment>
+  </data>
   <data name="Import_DedupMode_ImportAll" xml:space="preserve">
     <value>모두 새로 가져오기</value>
     <comment>Dedup mode option: Import all</comment>
