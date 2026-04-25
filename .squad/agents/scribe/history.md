@@ -67,3 +67,18 @@ Scribed multi-agent session for data-import-architecture-plan. Deployed Zoe (arc
 - Ready for: Captain's `/review` gate → merge → production
 
 **Next:** Captain runs `/review`, resolves any feedback, merges to main.
+
+
+---
+
+## 2026-04-25 — v1.1 Data Import Implementation Merge
+
+**Status:** Complete — merged 10 inbox decisions, wrote 4 orchestration logs, 1 session log, updated 4 agent histories.
+
+**Orchestration tasks:**
+1. Archived decisions.md (229KB → decisions-archive-2026-04-25.md)
+2. Merged 10 inbox files (river-v11-prompts, wash-v11-backend, kaylee-v11-ui, jayne-v11-test-matrix, jayne-phrase-import-gap, 5 captain confirmations)
+3. Wrote orchestration logs for River, Wash, Kaylee, Jayne
+4. Logged session to `.squad/log/2026-04-25T1357-import-v11-implementation.md`
+5. Updated agent histories for River, Wash, Kaylee, Jayne
+6. Git committed `.squad/` changes

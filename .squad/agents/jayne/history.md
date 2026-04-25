@@ -10,6 +10,8 @@
 - 2026-04-23: **Word/Phrase Feature Completed** — Completed 4 todos: tests-backfill (120 tests, classification + constituent backfill), tests-mastery-cascade (10 tests, cascade logic), tests-regression (5 tests, word-only unaffected), tests-smart-resource (12 tests, Phrases smart resource). Total: 147 tests passing, feature code-complete. E2E blocked on pre-existing SQLite migration history mismatch (Captain decision needed on reconciliation). One bug surfaced & fixed: SmartResourceService.GetPhrasesVocabularyIdsAsync scope bug (was circular, fixed by Wash). Documented in `.squad/log/2026-04-23T2219Z-wordphrase-squad-wrap.md`.
 - 2026-04-17: HelpKit Alpha — 30 golden Q/A + eval gate (85%/0%) + cross-platform validation plan + 7 unit-test files.
 
+- 2026-04-25: **v1.1 Import Test Matrix Authored** — 10 scenarios (A-J) + 7 edge cases + 5 test fixtures in `e2e-testing-workspace/v11-import/`. Covers vocab CSV regression, phrases import, transcript import, auto-detect at all 3 confidence tiers, checkbox validation, checkbox override, DB pollution check on cancel, and LexicalUnitType backfill migration. All marked AUTHORED NOT YET RUN. Decision file at `.squad/decisions/inbox/jayne-v11-test-matrix.md`. Gaps flagged: zero-extraction behavior undefined, >30KB handling needs Wash confirmation, classifier confidence thresholds depend on River's prompt, Kaylee's UI selectors TBD.
+
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
 - E2E testing skill at `.claude/skills/e2e-testing/SKILL.md` — follow it religiously
@@ -1222,3 +1224,18 @@ The MVP **cannot** handle paired-line phrase format (Variant 1) — the AI fallb
 
 **No action needed from you yet.** Read the decisions ledger when Captain unblocks. Zoe's spec has implementation order: River → Wash → Kaylee → Jayne. (You go last.)
 
+
+
+---
+
+## 2026-04-25 — v1.1 Data Import Test Matrix + Phrase Gap Report
+
+**Status:** AUTHORED (not yet run) — 10 scenarios + 7 edge cases + 5 fixtures.
+
+**Deliverables:**
+1. 10-scenario e2e test matrix: Vocabulary CSV regression, Phrases (Korean/Margo), Transcript, Auto-detect (3 tiers), Checkbox validation (zero/multi), Confidence gate pollution, Migration backfill.
+2. 7 edge cases: Empty input, >30KB, Korean-only, mixed language, zero extraction, duplicate import, special chars.
+3. 5 fixtures: phrase-list-korean.txt, transcript-korean.txt, vocab-csv.csv, ambiguous-blob.txt, low-confidence-noise.txt.
+4. Phrase import gap report — Variant 1 (paired-line) broken, Variant 2 (comma-delimited) works. Recommended Option 1 (enable Phrases mode).
+
+**Execution blocked on:** Wash + Kaylee integration completion.

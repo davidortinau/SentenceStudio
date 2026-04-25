@@ -559,3 +559,42 @@ Designed AI strategy for new data import feature: 5 tasks (format inference, con
 
 **No action needed from you yet.** Read the decisions ledger when Captain unblocks. Zoe's spec has implementation order: River → Wash → Kaylee → Jayne. (You go first.)
 
+---
+
+## 2026-04-25 — v1.1 Prompt Deliverables
+
+**Session:** Data Import v1.1 — Prompt authoring phase
+**Status:** DELIVERED — 3 prompt files authored/revised
+**Decision drop:** `.squad/decisions/inbox/river-v11-prompts.md`
+
+### Files authored
+
+1. **`ClassifyImportContent.scriban-txt`** (NEW) — Auto-detect classifier. Uses continuity heuristic as highest-weight signal per Captain's directive. Three few-shot examples (Korean vocab CSV, Korean phrase list, Korean transcript prose). Confidence calibration: >=0.85 / 0.70-0.84 / <0.70.
+
+2. **`ExtractVocabularyFromTranscript.scriban-txt`** (REVISED) — Word-biased. Changed from mixed Word/Phrase/Sentence extraction to 90%+ Word-type per Captain's harvest model. Dropped Sentence type from response format. Generalized system role from hardcoded "Korean" to `{{ target_language }}`. Common verb-object pairs excluded from Phrase classification.
+
+3. **`ExtractVocabularyFromPhrases.scriban-txt`** (NEW) — Dual Word+Phrase extraction for phrase-list imports. Worked example uses Captain's "마고는 눈하고 귀가 안 좋아요" test case. Reuses `FreeTextVocabularyExtractionResponse` DTO — no new model needed.
+
+### Key learnings
+
+- `ExtractVocabularyFromTranscript.scriban-txt` is already reachable from generic pipeline — `video_title` and `channel_name` are `{{ if }}`-guarded. No YouTube-specific coupling to break.
+- `AiService.SendPrompt<T>()` is fully generic — takes rendered prompt string, returns any DTO. All three prompts work through the existing pipeline with zero service changes.
+- `ContentImportService.DetectContentType()` is currently a stub returning Vocabulary with 1.0 confidence and a TODO comment. Wash needs to wire the new `ClassifyImportContent` template into this method (or a new AI-powered variant).
+- `ContentImportService.ParseContentAsync()` has `NotSupportedException` guards for Phrases and Transcript content types. Wash needs to remove those guards and add parsing methods using the new templates.
+- `FreeTextVocabularyExtractionResponse` DTO is compatible with phrase extraction output — same vocabulary array shape with confidence, notes, lexicalUnitType, relatedTerms.
+- A new `ImportContentClassificationResponse` DTO is needed for the classifier (type, confidence, reasoning, signals) — flagged for Wash.
+
+
+
+---
+
+## 2026-04-25 — v1.1 Data Import Prompt Deliverables
+
+**Status:** DELIVERED — 3 prompts authored/revised for v1.1 import pipeline.
+
+**Deliverables:**
+1. `ClassifyImportContent.scriban-txt` (NEW) — Auto-detect classifier with continuity heuristic, 3-tier confidence, 3 few-shot Korean examples.
+2. `ExtractVocabularyFromTranscript.scriban-txt` (REVISED) — Word-biased (90%+ Word-type), dropped Sentence type, generalized to `{{ target_language }}`.
+3. `ExtractVocabularyFromPhrases.scriban-txt` (NEW) — Dual Word+Phrase extraction, Captain's Margo test case, reuses existing DTO.
+
+**Key insight:** All 3 prompts work through existing `AiService.SendPrompt<T>()` with zero service changes. Only a new `ImportContentClassificationResponse` DTO is needed (flagged for Wash).

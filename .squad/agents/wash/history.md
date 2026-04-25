@@ -1757,3 +1757,19 @@ Conducted data layer survey for new import feature. Identified YouTube pipeline 
 
 **No action needed from you yet.** Read the decisions ledger when Captain unblocks. Zoe's spec has implementation order: River → Wash → Kaylee → Jayne.
 
+
+
+---
+
+## 2026-04-25 — v1.1 Data Import Backend Implementation
+
+**Status:** DELIVERED — Migration + 3 ContentImportService branches + DTO updates.
+
+**Deliverables:**
+1. `SetDefaultLexicalUnitType` migration — Heuristic backfill (TRIM+space check → Phrase, else Word). Down() no-op. Both Postgres and SQLite variants.
+2. ContentImportService Phrase branch — FreeTextToVocab routing, Words+Phrases per checkbox flags.
+3. ContentImportService Transcript branch — LearningResource.Transcript storage + word-biased vocabulary extraction.
+4. ContentImportService Auto-detect branch — 3-tier confidence gate, classification before DB persistence.
+5. DTO updates: HarvestTranscript/HarvestPhrases/HarvestWords on request/commit DTOs. ImportRow gains LexicalUnitType. ContentImportPreview gains Classification.
+
+**Edge cases resolved:** Zero-vocab = persist + warn. >30KB = reject (chunking v1.2).
