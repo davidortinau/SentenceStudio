@@ -1239,3 +1239,34 @@ The MVP **cannot** handle paired-line phrase format (Variant 1) — the AI fallb
 4. Phrase import gap report — Variant 1 (paired-line) broken, Variant 2 (comma-delimited) works. Recommended Option 1 (enable Phrases mode).
 
 **Execution blocked on:** Wash + Kaylee integration completion.
+
+---
+
+## 2026-04-26 to 2026-04-27 — v1.1 Data Import QA Cycle (DO-NOT-SHIP → CONDITIONAL SHIP → SHIP)
+
+**Status:** ✅ SHIPPED — 3-phase verification cycle
+
+**Phase 1 (2026-04-26): Initial e2e sweep → DO-NOT-SHIP**
+- Executed Scenarios A-J against fresh Aspire stack
+- Result: 3 P1/P0 bugs found (UserProfileId NULL, Transcript not stored, LexicalUnitType wrong)
+- Decision: DO-NOT-SHIP with action items for Wash/River
+
+**Phase 2 (2026-04-27): Retest after backend fixes → CONDITIONAL SHIP**
+- Simon fixed backend bugs; Jayne re-ran 5 targeted scenarios (A, B, BUG-3 Targeted, C, H)
+- Discovery: Frontend DTO mapping gap in ImportContent.razor (LexicalUnitType + SourceText not round-tripped)
+- Verdict: CONDITIONAL SHIP pending Kaylee's frontend fix
+- Action: Routed DTO mapping bug to Kaylee (same cycle)
+
+**Phase 3 (2026-04-27): Full sweep after all fixes → SHIP ✓**
+- All 10 scenarios (A-J) executed
+- Results: 10/10 PASS, all P1 bugs verified fixed with DB-level evidence
+- Evidence: 15+ final screenshots + clean Aspire logs (zero Error/Warning)
+- Decision: SHIP cleared
+
+**Lesson learned:** Frontend DTO mapping bugs can masquerade as backend bugs. When frontend DTOs carry structured data, dual-layer verification is required:
+1. Backend logic verified correct (e.g., ResolveLexicalUnitType heuristic working)
+2. Frontend mapping verified complete (e.g., DTO properties explicitly mapped in initializers)
+Both layers must be audited together. Single-layer verification can hide defects.
+
+**Ship readiness:** All P1 bugs verified fixed. Feature shipped clean with full regression coverage.
+

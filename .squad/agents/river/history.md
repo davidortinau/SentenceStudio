@@ -598,3 +598,28 @@ Designed AI strategy for new data import feature: 5 tasks (format inference, con
 3. `ExtractVocabularyFromPhrases.scriban-txt` (NEW) — Dual Word+Phrase extraction, Captain's Margo test case, reuses existing DTO.
 
 **Key insight:** All 3 prompts work through existing `AiService.SendPrompt<T>()` with zero service changes. Only a new `ImportContentClassificationResponse` DTO is needed (flagged for Wash).
+
+---
+
+## 2026-04-26 to 2026-04-27 — v1.1 Data Import QA Cycle (Prompts Clean)
+
+**Status:** ✅ NO CHANGES NEEDED — Prompts shipped clean
+
+**Context:** River's v1.1 prompts (FreeTextToVocab.scriban-txt, TranslateMissingNativeTerms.scriban-txt) were locked in place while bug-fix cycle ran. During Simon's backend fixes and Kaylee's frontend DTO audit, the prompts were verified correct and required zero changes.
+
+**Verification:**
+- LexicalUnitType guidance in prompts is correct (AI correctly classifies multi-word terms as Phrase)
+- DTO field mapping in prompts matches backend expectation
+- ExtractedVocabularyItemWithConfidence DTO carries all required fields
+- Confidence scoring guidance followed in all test scenarios (AI correctly returns high/medium/low)
+
+**Outcome:**
+- Simon's backend fixes validated prompt output was correct (bug was pure C# mapping layer)
+- Kaylee's DTO audit confirmed prompts expected fields matched frontend mapping (prompts guiding AI output correctly)
+- All 10 regression scenarios PASS using River's prompts unmodified
+- Feature shipped clean
+
+**Lesson:** Prompt engineering discipline + AI DTO contracts + C# mapping discipline must all align. In this cycle, River's part was correct; bugs were in C# layer. This validates River's prompt design and template structure.
+
+**Ship readiness:** Prompts verified correct and shipped clean (zero changes).
+

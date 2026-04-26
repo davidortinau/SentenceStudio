@@ -12,6 +12,7 @@
 
 ## Learnings
 
+- 2026-04-27: **Preview-to-Commit DTO Mapping Discipline** -- When constructing a DTO from an API response for a round-trip (preview -> user edit -> commit), EVERY property on the source DTO must be accounted for in the object initializer. Properties that default to a value (like enums defaulting to their first member) will silently swallow data from the backend. Going forward: when writing or reviewing any DTO-to-DTO mapping in ImportContent.razor (or similar round-trip flows), enumerate all source properties and explicitly decide map-or-skip for each one. This prevents the "silent default" class of bug that caused BUG-2 and BUG-3 to persist despite correct backend fixes.
 - 2026-04-25: **v1.1 Import Harvest Checkboxes + Auto-detect Banner** — Replaced disabled v2 badges on Phrases/Transcript/Auto options with full enablement. Added three independent harvest checkboxes (Transcript/Phrases/Words) with defaults per content type (Captain's directive). Implemented three-tier confidence gate for auto-detect (high/medium/low bands at 0.85/0.70 thresholds) with always-visible banner and [Change] override. Confidence gate runs BEFORE any DB persistence per D3. Added `HarvestTranscript`/`HarvestPhrases`/`HarvestWords` booleans to `ContentImportCommit` DTO for Wash integration. No emojis — Bootstrap icons only. Documented in `.squad/decisions/inbox/kaylee-v11-ui.md`.
 - 2026-04-23: **Word/Phrase Feature Completed** — Completed ui-import-edit todo: added LexicalUnitType dropdown (Word/Phrase/Sentence) to VocabularyWordEdit.razor with constituent word editor (search-as-you-type autocomplete, badge display, remove buttons). Updated ResourceAdd.razor with preview table showing classification + override per row. Applied VocabularyClassificationBackfillService.ClassifyHeuristic() on paste/import. 14 new UI strings pending localization. Feature shipped, 147 tests passing. Documented in `.squad/log/2026-04-23T2219Z-wordphrase-squad-wrap.md`.
 - 2026-04-19: **Phase 2 Localization Review Lockout (Reviewer Rejection Protocol)** — After code review rejection, you were frozen from the fix cycle per protocol. Lead (Zoe) took ownership and found 30 missing resx keys + Skills.razor missing IDisposable/CultureChanged. **Key takeaway:** Run grep-all-keys verification before declaring resx batches complete. Verify all Blazor components with `@inject BlazorLocalizationService` have `@implements IDisposable` + event subscription pattern. This would have caught both blockers pre-review.
@@ -461,3 +462,27 @@ Built the user-facing `/import-content` page for the data import MVP. This is th
 4. ImportStep enum gains `Harvest` between Source and Preview.
 
 **Known limitations:** DetectContentType() still a stub. Harvest labels need localization.
+
+---
+
+## 2026-04-27 — v1.1 Data Import DTO Mapping Fix (Same-Cycle)
+
+**Status:** ✅ FIXED — Frontend defect + lesson learned
+
+**Context:** During Jayne's retest of Simon's backend bug fixes, a frontend DTO mapping gap was discovered: `LexicalUnitType` and `SourceText` were not being round-tripped from preview to commit.
+
+**Outcome:**
+- Identified 2 missing property mappings in ImportContent.razor (~line 688 and ~line 853)
+- Added `LexicalUnitType = r.LexicalUnitType` to editableRows construction
+- Added `SourceText = previewResult.SourceText` to updatedPreview construction
+- Audited ALL properties on 3 DTOs (ImportRow, ContentImportPreview, ContentImportCommit) for completeness
+- Clean build (0 errors)
+- Verified fix in retest (BUG-2 + BUG-3 now pass)
+- Final sweep confirmed 10/10 scenarios PASS
+
+**Lesson learned:** DTO discipline — when DTOs carry structured data through a pipeline, audit all properties in the initializer blocks, not just the obvious ones. AI-generated DTO fields (like LexicalUnitType from the prompt) can silently disappear if mapping is implicit. Explicit mapping + audit = defects caught early.
+
+**Adjacent finding (low-risk, future work):** Classification and RequiresUserConfirmation are informational-only and not used by backend. Could optionally round-trip in future for UI symmetry, but not blocking for MVP.
+
+**Ship readiness:** All bugs fixed and verified. Feature shipped clean.
+

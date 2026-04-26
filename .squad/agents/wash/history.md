@@ -1773,3 +1773,24 @@ Conducted data layer survey for new import feature. Identified YouTube pipeline 
 5. DTO updates: HarvestTranscript/HarvestPhrases/HarvestWords on request/commit DTOs. ImportRow gains LexicalUnitType. ContentImportPreview gains Classification.
 
 **Edge cases resolved:** Zero-vocab = persist + warn. >30KB = reject (chunking v1.2).
+
+---
+
+## 2026-04-26 to 2026-04-27 — v1.1 Data Import Lockout & Resolution
+
+**Status:** LOCKED OUT (scoped) → RESOLUTION DELIVERED BY ESCALATION
+
+**Event:** Jayne's e2e run revealed 3 P1/P0 bugs in ContentImportService.cs (Wash's authored work). Under Reviewer Rejection Protocol, Wash was locked out and Simon (escalation specialist) was routed to fix.
+
+**Lockout scope:** 3 specific bugs only (UserProfileId, Transcript, LexicalUnitType). No impact on prior v1.0 or other features.
+
+**Resolution:**
+- Simon fixed all 3 bugs (backend DTO + mapping discipline)
+- Kaylee discovered + fixed frontend DTO mapping gap (same cycle)
+- Jayne's retest + full sweep confirmed all bugs fixed, zero regressions
+- **SHIP verdict: CLEARED** (2026-04-27, 10/10 scenarios PASS)
+
+**Lesson for Wash:** UserProfileId scoping (bypass-repo writes need explicit ActiveUserId resolution) and transcript DTO carry-through (SourceText must round-trip via preview). Both now baked into Simon's documented learnings for future cycles.
+
+**Status resolved:** Lockout was temporary and scoped. Feature shipped clean with all fixes verified.
+
