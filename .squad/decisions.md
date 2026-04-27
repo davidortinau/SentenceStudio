@@ -1107,3 +1107,130 @@ The LexicalUnitType filter on the Vocabulary list uses the same `<select>` dropd
 
 If the team later decides segmented controls or pill toggles are better for enum-style filters across the app, this would be a good candidate to convert — but for now, uniformity wins.
 
+---
+
+# Decision: Per-item result detail on ContentImportResult
+
+**Date:** 2025-07-25
+**Author:** Wash (Backend Dev)
+**Branch:** feature/import-content
+
+## Summary
+
+Added per-row detail to `ContentImportResult` so the Import Complete screen can show exactly what happened to each row (created/updated/skipped/failed) with linkable vocabulary IDs and curated reasons.
+
+## New Types
+
+### `ImportItemStatus` enum
+- `Created` — new VocabularyWord inserted
+- `Updated` — existing VocabularyWord modified (DedupMode.Update)
+- `Skipped` — duplicate found (DB or intra-batch)
+- `Failed` — row could not be imported (empty term, etc.)
+
+### `ContentImportItemResult` class
+| Field | Type | Notes |
+|---|---|---|
+| `VocabularyWordId` | `string?` | Null only when Status=Failed and no DB row created |
+| `Lemma` | `string` | The target-language term |
+| `NativeLanguageTerm` | `string` | Translation (empty string if unavailable) |
+| `Type` | `LexicalUnitType` | Word / Phrase / Sentence |
+| `Status` | `ImportItemStatus` | Created / Updated / Skipped / Failed |
+| `Reason` | `string?` | Null for Created/Updated; curated user-facing message for Skipped/Failed |
+
+### `ContentImportResult.Items`
+- Type: `IReadOnlyList<ContentImportItemResult>`
+- Default: `Array.Empty<ContentImportItemResult>()`
+- Aggregate counts (`CreatedCount`, `SkippedCount`, `UpdatedCount`, `FailedCount`) remain for summary cards.
+- Invariant: `Items.Count == CreatedCount + SkippedCount + UpdatedCount + FailedCount`
+
+## Curated Reason Strings (stable for Kaylee's UI)
+- **Skipped (DB duplicate):** `"Already exists in resource"`
+- **Skipped (intra-batch):** `"Duplicate within batch"`
+- **Failed (empty target):** `"Target language term is empty"`
+- **Failed (empty native):** `"Native language term is empty (AI translation not yet implemented)"`
+
+## Logging Contract
+Every Failed branch calls:
+```csharp
+_logger.LogError("Import row failed for lemma {Lemma} (type {Type}): {Reason}", lemma, type, curatedReason);
+```
+Raw exceptions (when present) are passed as the first arg to `LogError(ex, ...)` so they appear in Aspire structured logs. The curated `Reason` on the DTO stays user-friendly.
+
+## Kaylee Integration Notes
+- `Items` is populated in the same order as `selectedRows` iteration
+- `VocabularyWordId` on Created/Updated/Skipped rows is always non-null and can be used for navigation to `/vocabulary/{id}`
+- Failed rows with `VocabularyWordId == null` should not render a link
+- `Reason` can be displayed inline in the table row for Skipped/Failed statuses
+
+## Tests
+8 new tests added covering all statuses, sentence type, intra-batch dedup, mixed-batch aggregate invariant, and logger verification. Total: 32 ContentImportService tests passing.
+
+---
+
+# Decision: ImportResultStore Lifetime & URL-Param Strategy
+
+**Author:** Kaylee (Full-stack Dev)  
+**Date:** 2026-04-27  
+**Status:** Shipped
+
+## Context
+
+The Import Complete view needs to survive browser back-navigation (user clicks a vocab detail link, then hits Back). Blazor Server/Hybrid re-initializes the page component on each navigation, so in-memory state is lost.
+
+## Decision
+
+### Singleton lifetime for `IImportResultStore`
+
+**Choice: Singleton** (not Scoped).
+
+**Rationale:**
+- SentenceStudio is a single-user app. There is exactly one Blazor circuit active at a time (MAUI Hybrid) or one authenticated session (webapp). No risk of cross-user data leakage.
+- Scoped in Blazor Server means per-circuit, which is functionally identical to Singleton for this single-user scenario but adds DI complexity if we ever need to access the store from non-circuit code (e.g., background jobs).
+- A 30-minute TTL with lazy eviction prevents unbounded memory growth.
+- If the app ever becomes multi-user, upgrade to Scoped + per-user keying.
+
+### URL parameter strategy
+
+After `CommitImportAsync`, we:
+1. `var key = ImportResultStore.Save(importResult);`
+2. `NavManager.NavigateTo($"/import-content?completed={key}", forceLoad: false);`
+
+On `OnInitializedAsync`, if `?completed={guid}` is present, hydrate from store.
+
+**Why URL param instead of NavigationState or SessionStorage:**
+- URL param is the simplest approach that works identically in MAUI Hybrid and Blazor Server.
+- Browser Back button preserves the URL including the query string, so re-navigation re-hydrates automatically.
+- No JS interop required (unlike SessionStorage).
+- The GUID key is opaque and meaningless to the user — no data leakage in the URL.
+
+## Risks
+
+- If the server restarts within 30 minutes, the store is lost and the user sees a blank import page. Acceptable for this use case (they can re-import).
+- If multiple imports are done in rapid succession, old keys remain in memory until TTL expires. ConcurrentDictionary + lazy eviction handles this cleanly.
+
+---
+
+# Decision: v1.3 Import Detail — E2E Verdict
+
+**Date:** 2026-04-27
+**Agent:** Jayne (Tester)
+**Feature:** v1.3 Import Complete view with per-row detail table
+**Branch:** `feature/import-content`
+**Commits:** `35e0ba1` (Wash), `111418f` (Kaylee)
+
+## Verdict: SHIP
+
+**7/7 tests PASS.** No regressions, no blockers.
+
+### Key findings:
+1. Summary cards (Created/Skipped/Updated/Failed) render correctly with accurate counts
+2. Per-row detail table shows Lemma, Translation, Type badge, Status badge, and Reason
+3. Filter pills work correctly — show/hide by status, conditional visibility when count=0
+4. Row clicks navigate to vocab detail for both Skipped (existing) and Created (new) items
+5. Back-navigation preserves full Import Complete state via IImportResultStore
+6. Failed rows are not reproducible through malformed user input (AI extraction is resilient)
+7. Zero errors in Aspire structured logs and distributed traces
+
+### Evidence:
+`e2e-testing-workspace/v13-import-detail/VERDICT.md` + 10 screenshots
+

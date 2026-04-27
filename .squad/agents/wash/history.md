@@ -1840,3 +1840,8 @@ Conducted data layer survey for new import feature. Identified YouTube pipeline 
 
 **Decision doc:** `.squad/decisions.md` (merged from inbox/wash-sentences-branch-fix.md)
 
+
+## Cross-Agent Updates
+
+- 2026-04-27: **Jayne v1.3 Import Detail E2E — SHIPPED** — Jayne validated the Import Complete redesign (commits 35e0ba1, 111418f) with 7/7 E2E tests PASS. Summary cards render correctly, per-row table works, filter pills functional, back-nav state preserved, vocab links navigate correctly, failed rows resilient, zero errors in logs. Feature shipped on feature/import-content. (See: `.squad/log/2026-04-27T14:53:00Z-v13-import-detail.md`)
+
