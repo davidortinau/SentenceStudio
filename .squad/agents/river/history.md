@@ -623,3 +623,51 @@ Designed AI strategy for new data import feature: 5 tasks (format inference, con
 
 **Ship readiness:** Prompts verified correct and shipped clean (zero changes).
 
+---
+
+## 2026-04-27 — Phrase Import Bug Fix + Sentence Content Type
+
+**Session:** Import prompt fixes — Parts A-D  
+**Status:** Prompts complete, coordination doc shipped  
+**Branch:** `feature/import-content`
+
+### Learnings
+
+#### Root cause of the phrase import bug
+The `ExtractVocabularyFromPhrases.scriban-txt` prompt was actually correct — it DID ask for both Phrase-level and Word-level entries. The bug was in the **service wiring**: `ContentImportService.cs` line 190-192 has a TODO saying "Use River's dedicated phrase extraction prompt when it lands" and falls back to `ParseFreeTextContentAsync()` which loads `FreeTextToVocab.scriban-txt`. That general-purpose prompt decomposes everything into individual words. The correct prompt existed but was never called. This is Wash's fix (service layer).
+
+However, the Phrases prompt had a design gap: it did not handle **pipe-delimited input** (Captain's exact format: `Korean|English`), and it only extracted sub-phrase patterns — it did NOT preserve the full input line as a Phrase entry. Fixed both issues.
+
+#### Prompt improvements made to ExtractVocabularyFromPhrases.scriban-txt
+1. Added Scriban conditional flags: `harvest_phrases`, `harvest_words` — prompt now only emits the types the user requested via checkboxes.
+2. Added pipe-delimited input handling instructions.
+3. Added Captain's exact Korean|English example as a few-shot (맥주/brewery sentence).
+4. Added CRITICAL rule: each input line MUST produce at least one Phrase entry (the full expression). This was the missing instruction that caused phrase entries to be skipped even if the prompt were wired correctly.
+5. Added rule to use provided translations from delimited input rather than re-translating.
+
+#### ExtractVocabularyFromSentences.scriban-txt design choices
+- Mirrors the Phrases prompt structure exactly for consistency.
+- Three harvest flags: `harvest_sentences`, `harvest_phrases`, `harvest_words` — all controlled via Scriban conditionals.
+- Sentence entries preserve ORIGINAL text verbatim (conjugated forms, punctuation) — unlike Word/Phrase entries which normalize to dictionary form.
+- Three few-shot examples: pipe-delimited full harvest, plain Korean all-three-levels, pipe-delimited sentences-only.
+- Same JSON response shape as all other extraction prompts (`VocabularyExtractionResponse` DTO).
+
+#### Classifier extension for Sentences
+- Added `Sentences` as fourth type alongside Vocabulary, Phrases, Transcript.
+- Key heuristic: Sentences vs Phrases distinguished by **sentence completeness test** (subject + predicate + terminal punctuation). Phrases are sub-sentence fragments in dictionary form.
+- Previous classifier lumped Captain's sentences under "Phrases" — now they correctly classify as "Sentences" because they have subject+predicate structure.
+- Added borderline-case guidance: >60% complete sentences → Sentences, >60% fragments → Phrases.
+- Added two new few-shot examples (Sentences with translations, Phrases as dictionary-form patterns).
+
+#### Dual-harvest pattern
+A reusable Scriban pattern emerged: use `{{ if harvest_X }}` conditionals to gate extraction steps. This lets a single prompt serve multiple harvest configurations without needing separate prompts per combination. The pattern:
+1. Wrap each extraction step in `{{ if harvest_TYPE }}`
+2. Number steps dynamically based on which flags are active
+3. Adjust dedup rules based on which types are active
+4. Add a CRITICAL rule for the primary type (must emit at least one entry per input line)
+
+### Coordination
+- Wrote `.squad/decisions/inbox/river-import-prompt-shape.md` with locked JSON contract for Wash.
+- Key action for Wash: wire `ExtractVocabularyFromPhrases.scriban-txt` into the Phrases branch (replace `ParseFreeTextContentAsync` call), add `ContentType.Sentences` enum value, add Sentences branch routing to `ExtractVocabularyFromSentences.scriban-txt`.
+- Key action for Wash: classifier now returns `"Sentences"` — add case to classifier switch (`"sentences" => ContentType.Sentences`).
+

@@ -1,4 +1,4 @@
-You are a {{ target_language }} language learning specialist. Extract BOTH individual words AND multi-word phrases from the provided phrase list for a {{ native_language }}-speaking learner studying {{ target_language }}.
+You are a {{ target_language }} language learning specialist. Extract vocabulary from the provided phrase list for a {{ native_language }}-speaking learner studying {{ target_language }}.
 
 **SOURCE PHRASES:**
 {{ source_text }}
@@ -9,29 +9,39 @@ You are a {{ target_language }} language learning specialist. Extract BOTH indiv
 {{ end }}
 
 **WHAT THIS INPUT IS:**
-A collection of standalone sentences or expressions for language study. Each line is independent — there is no narrative continuity between lines. Your job is to mine BOTH the phrases themselves AND the individual words that compose them.
+A collection of standalone phrases or expressions for language study. Each line is independent — there is no narrative continuity between lines. Lines may be delimited (pipe `|`, tab, comma) with {{ target_language }}|{{ native_language }} translation pairs.
 
 **EXTRACTION STRATEGY:**
 
-For each input line, extract:
+{{ if harvest_phrases }}
+**Step 1 — Phrase-level entries** (lexicalUnitType = "Phrase"):
+For EACH input line, emit ONE phrase entry that preserves the full expression:
+- Use the {{ target_language }} side of the line as `targetLanguageTerm` (keep the full expression — do NOT decompose it).
+- Use the {{ native_language }} side (if present) as `nativeLanguageTerm`. If no translation is provided, generate one.
+- Populate `relatedTerms` with the constituent content words in dictionary form.
+- Set `confidence` to "high" for lines that have both target and native language, "medium" if you had to generate the translation.
 
-1. **Phrase-level entries** (LexicalUnitType = "Phrase"):
-   - The core expression or pattern, normalized to dictionary form.
-   - Strip sentence-final politeness endings to get the base pattern (e.g., "잘 못 보고, 잘 못 들어요" → extract "잘 못 보다" and "잘 못 듣다").
-   - Idiomatic expressions and collocations (e.g., "눈하고 귀가 안 좋다" → "눈이 안 좋다", "귀가 안 좋다").
-   - Verb phrases that function as units (e.g., "커피를 마시다", "영화를 보다").
-   - For each phrase, populate "relatedTerms" with the constituent words in dictionary form.
+Additionally, extract sub-phrase patterns — idiomatic collocations and verb phrases that function as learnable units:
+- Strip sentence-final politeness endings to get the base pattern (e.g., "잘 못 보고, 잘 못 들어요" yields "잘 못 보다" and "잘 못 듣다").
+- Idiomatic expressions (e.g., "눈하고 귀가 안 좋다" yields "눈이 안 좋다", "귀가 안 좋다").
+- For each sub-phrase, populate `relatedTerms` with its constituent words.
+{{ end }}
 
-2. **Word-level entries** (LexicalUnitType = "Word"):
-   - Individual content words from the phrases: nouns, verbs, adjectives, adverbs.
-   - Return dictionary form (기본형): verbs/adjectives → -다 form, nouns → base without particles.
-   - Sino-Korean 하다 compounds count as single words (공부하다, 운동하다).
-   - Skip particles (이/가/을/를/은/는/에/의/로/와/과/하고), basic conjunctions, and filler words.
-   - Skip basic greetings unless used in a noteworthy way.
+{{ if harvest_words }}
+**{{ if harvest_phrases }}Step 2{{ else }}Step 1{{ end }} — Word-level entries** (lexicalUnitType = "Word"):
+Extract individual content words from the phrases: nouns, verbs, adjectives, adverbs.
+- Return dictionary form (기본형): verbs/adjectives in -다 form, nouns without particles.
+- Sino-Korean 하다 compounds count as single words (공부하다, 운동하다).
+- Skip particles (이/가/을/를/은/는/에/의/로/와/과/하고), basic conjunctions, and filler words.
+- Skip basic greetings unless used in a noteworthy way.
+{{ end }}
 
+{{ if harvest_phrases && harvest_words }}
 **DEDUPLICATION:**
 - If the same word appears across multiple input lines, include it only once.
 - If a word appears both as a standalone entry AND as a constituent of a phrase, include BOTH — the word entry and the phrase entry. They serve different learning purposes.
+- Full-line phrase entries are NEVER duplicates of their constituent word entries.
+{{ end }}
 
 {{ if topik_level }}
 **DIFFICULTY:** Focus on words/phrases at or slightly above TOPIK level {{ topik_level }}.
@@ -39,22 +49,95 @@ For each input line, extract:
 **DIFFICULTY:** Target mid-intermediate level (TOPIK 3-4) unless the content clearly suggests another level.
 {{ end }}
 
-**WORKED EXAMPLE:**
+**FEW-SHOT EXAMPLES:**
+
+---
+**Example 1 — Pipe-delimited input (harvest Phrases + Words)**
+
+Input:
+```
+저는 맥주를 많이 안 마시지만, 앤지하고 맥주집에 갔어요.|I don't drink beer much but went with Angie to a beer house (brewery).
+이 강아지는 갈색이에요. 다리가 짧아요.|This dog is brown. Its legs are short.
+시간이 없어요. 빨리 가야 해요.|I don't have time. I need to go quickly.
+```
+
+Expected output (abbreviated):
+```json
+{
+  "vocabulary": [
+    {
+      "targetLanguageTerm": "저는 맥주를 많이 안 마시지만, 앤지하고 맥주집에 갔어요.",
+      "nativeLanguageTerm": "I don't drink beer much but went with Angie to a beer house (brewery).",
+      "confidence": "high",
+      "notes": "Line 1 — full phrase",
+      "partOfSpeech": "expression",
+      "topikLevel": 3,
+      "lexicalUnitType": "Phrase",
+      "relatedTerms": ["맥주", "마시다", "맥주집", "가다"]
+    },
+    {
+      "targetLanguageTerm": "맥주를 마시다",
+      "nativeLanguageTerm": "to drink beer",
+      "confidence": "high",
+      "notes": "Sub-phrase from line 1",
+      "partOfSpeech": "expression",
+      "topikLevel": 2,
+      "lexicalUnitType": "Phrase",
+      "relatedTerms": ["맥주", "마시다"]
+    },
+    {
+      "targetLanguageTerm": "맥주",
+      "nativeLanguageTerm": "beer",
+      "confidence": "high",
+      "notes": "From line 1",
+      "partOfSpeech": "noun",
+      "topikLevel": 2,
+      "lexicalUnitType": "Word",
+      "relatedTerms": []
+    },
+    {
+      "targetLanguageTerm": "마시다",
+      "nativeLanguageTerm": "to drink",
+      "confidence": "high",
+      "notes": "From line 1",
+      "partOfSpeech": "verb",
+      "topikLevel": 2,
+      "lexicalUnitType": "Word",
+      "relatedTerms": []
+    },
+    {
+      "targetLanguageTerm": "맥주집",
+      "nativeLanguageTerm": "beer house, brewery pub",
+      "confidence": "high",
+      "notes": "From line 1",
+      "partOfSpeech": "noun",
+      "topikLevel": 3,
+      "lexicalUnitType": "Word",
+      "relatedTerms": []
+    }
+  ]
+}
+```
+
+Note: "앤지" is a proper noun (person name) — skip it. Each input line produces ONE full phrase entry PLUS its constituent words.
+
+---
+**Example 2 — Plain Korean text (no translations provided)**
 
 Input line: "마고는 눈하고 귀가 안 좋아요. 잘 못 보고, 잘 못 들어요."
-(Margo's eyes and ears are not good. Can't see well and can't hear well.)
 
 Should produce:
-- **Phrases:** "눈이 안 좋다" (to have bad eyesight), "귀가 안 좋다" (to have bad hearing), "잘 못 보다" (to not see well), "잘 못 듣다" (to not hear well)
+- **Phrase (full line):** "마고는 눈하고 귀가 안 좋아요. 잘 못 보고, 잘 못 들어요." — generate the translation since none provided (confidence: "medium")
+- **Sub-phrases:** "눈이 안 좋다" (to have bad eyesight), "귀가 안 좋다" (to have bad hearing), "잘 못 보다" (to not see well), "잘 못 듣다" (to not hear well)
 - **Words:** "눈" (eye), "귀" (ear), "보다" (to see), "듣다" (to hear), "좋다" (to be good)
 
-Note: "마고" is a proper noun — skip it. "잘" and "못" are common adverbs — include them if they appear to be at the learner's level.
+---
 
 **RESPONSE FORMAT — Return a JSON object exactly like this:**
 {
   "vocabulary": [
     {
-      "targetLanguageTerm": "{{ target_language }} dictionary form",
+      "targetLanguageTerm": "{{ target_language }} term — full phrase or dictionary-form word",
       "nativeLanguageTerm": "{{ native_language }} definition — clear, concise",
       "confidence": "high | medium | low",
       "notes": "Optional: source line number or extraction context",
@@ -68,10 +151,12 @@ Note: "마고" is a proper noun — skip it. "잘" and "못" are common adverbs 
 
 **RULES:**
 - Return ONLY valid JSON. No markdown fences, no commentary.
-- Every entry MUST have lexicalUnitType set correctly: "Word" for single dictionary entries, "Phrase" for multi-word units.
+- Every entry MUST have lexicalUnitType set correctly: "Word" for single dictionary entries, "Phrase" for multi-word units or full-line expressions.
+{{ if harvest_phrases }}- CRITICAL: Each input line MUST produce at least one Phrase entry with the full expression. This is the primary purpose of phrase import — do NOT skip it.{{ end }}
 - Phrase entries MUST have relatedTerms populated with constituent words in dictionary form.
 - Word entries should have relatedTerms as an empty array.
-- "targetLanguageTerm" MUST be in dictionary form, even if the source has it conjugated/inflected.
+- Word-level "targetLanguageTerm" MUST be in dictionary form, even if the source has it conjugated/inflected.
 - Be permissive: extract generously, flag uncertainty via confidence rather than dropping items.
 - Never invent terms that don't appear (directly or as conjugations) in the source text.
 - Do NOT include proper nouns (person names, place names) unless they are culturally significant vocabulary.
+- If input lines contain a delimiter (pipe, tab, comma) separating {{ target_language }} from {{ native_language }}, use the {{ native_language }} side as the translation — do NOT re-translate.
