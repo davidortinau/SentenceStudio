@@ -4306,6 +4306,42 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Already exists in vocabulary.
+        /// </summary>
+        internal static string Import_PreviewDuplicate_AlreadyInVocabulary {
+            get {
+                return ResourceManager.GetString("Import_PreviewDuplicate_AlreadyInVocabulary", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Duplicate within this import batch.
+        /// </summary>
+        internal static string Import_PreviewDuplicate_DuplicateWithinBatch {
+            get {
+                return ResourceManager.GetString("Import_PreviewDuplicate_DuplicateWithinBatch", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Duplicate.
+        /// </summary>
+        internal static string Import_PreviewDuplicateBadge {
+            get {
+                return ResourceManager.GetString("Import_PreviewDuplicateBadge", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Duplicate.
+        /// </summary>
+        internal static string Import_PreviewDuplicateHeader {
+            get {
+                return ResourceManager.GetString("Import_PreviewDuplicateHeader", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to User profile not found..
         /// </summary>
         internal static string Import_ProfileNotFound {

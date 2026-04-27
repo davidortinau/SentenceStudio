@@ -1,0 +1,83 @@
+- generic [ref=e2]:
+  - 'generic "API: https://localhost:7012"': LOCAL
+  - navigation [ref=e3]:
+    - navigation [ref=e5]:
+      - link " 대시보드" [ref=e6] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e7]: 
+        - generic [ref=e8]: 대시보드
+      - link " 활동" [ref=e9] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e10]: 
+        - generic [ref=e11]: 활동
+      - link " 학습 자료" [ref=e12] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e13]: 
+        - generic [ref=e14]: 학습 자료
+      - link " 어휘" [ref=e15] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e16]: 
+        - generic [ref=e17]: 어휘
+      - link " 최소 대립쌍" [ref=e18] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e19]: 
+        - generic [ref=e20]: 최소 대립쌍
+      - link " 기술" [ref=e21] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e22]: 
+        - generic [ref=e23]: 기술
+      - link " 콘텐츠 가져오기" [ref=e24] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e25]: 
+        - generic [ref=e26]: 콘텐츠 가져오기
+      - link " 미디어 가져오기" [ref=e27] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e28]: 
+        - generic [ref=e29]: 미디어 가져오기
+      - separator [ref=e30]
+      - link " 프로필" [ref=e31] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e32]: 
+        - generic [ref=e33]: 프로필
+      - link " 설정" [ref=e34] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e35]: 
+        - generic [ref=e36]: 설정
+      - link " 피드백" [ref=e37] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e38]: 
+        - generic [ref=e39]: 피드백
+      - link " 로그아웃" [ref=e40] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e41]: 
+        - generic [ref=e42]: 로그아웃
+    - button "" [ref=e44] [cursor=pointer]:
+      - generic [ref=e45]: 
+  - main [ref=e47]:
+    - generic [ref=e50]:
+      - text: 
+      - heading "콘텐츠 가져오기" [level=1] [ref=e51]
+    - generic [ref=e436]:
+      - heading " 가져오기 완료" [level=5] [ref=e437]:
+        - generic [ref=e438]: 
+        - text: 가져오기 완료
+      - generic [ref=e439]:
+        - generic [ref=e441]:
+          - generic [ref=e442]: "20"
+          - text: 생성됨
+        - generic [ref=e444]:
+          - generic [ref=e445]: "0"
+          - text: 건너뜀
+        - generic [ref=e447]:
+          - generic [ref=e448]: "0"
+          - text: 업데이트됨
+        - generic [ref=e450]:
+          - generic [ref=e451]: "0"
+          - text: 실패
+      - generic [ref=e452]:
+        - button " 리소스 보기" [ref=e453] [cursor=pointer]:
+          - generic [ref=e454]: 
+          - text: 리소스 보기
+        - button " 더 가져오기" [ref=e455] [cursor=pointer]:
+          - generic [ref=e456]: 
+          - text: 더 가져오기

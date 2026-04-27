@@ -1340,3 +1340,32 @@ After Wash's diagnosis + fix (commit `3c7a4cc`), re-executed:
 
 **Decision Integration:** Decision doc merged into `.squad/decisions.md`.
 
+
+---
+
+## 2026-04-27: v14 Import Style + Duplicate Badge Validation
+
+**Commits tested:** 3130810 (Wash/Kaylee), 5d98a27 (Kaylee)  
+**Surface:** Webapp (Blazor Server via Aspire)
+
+### Critical Finding: Missing EnrichPreviewWithDuplicateInfoAsync Call
+
+Wash built `EnrichPreviewWithDuplicateInfoAsync` on `IContentImportService`. Kaylee added `@if (row.IsDuplicate)` badge rendering in the Razor markup. But nobody wired the actual *call* — `ImportContent.razor` code-behind called `ParseContentAsync` then mapped rows without enriching. All preview rows always showed `IsDuplicate=false`.
+
+**Fixed in commit 7d9b5c3** — one-line addition after `ParseContentAsync()`.
+
+### Lesson: Always check the bridge between backend and frontend
+
+When two agents deliver backend (Wash) and frontend (Kaylee) pieces, the integration call between them is a prime spot for gaps. E2E caught what unit tests couldn't — the unit tests tested the enrichment method in isolation, and the Razor markup rendered correctly when `IsDuplicate=true`, but nobody verified the full chain.
+
+### Aspire orphan cleanup
+
+DCP processes orphaned again after `stop_bash`. Two-pass kill (SIGTERM parent PIDs 51006, 51012) cleaned up. Port 22070 verified free before exiting.
+
+### Style audit results
+
+- No bespoke purple hex remaining
+- All inline `cursor:pointer` replaced with `role="button"`
+- All inline `font-size` replaced with Bootstrap `small` class
+- Remaining inline `style=` are justified functional widths + text truncation
+- Mobile preview table (390px) is functional but cramped — preview table lacks the card layout the results table has

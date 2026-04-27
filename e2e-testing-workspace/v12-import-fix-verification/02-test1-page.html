@@ -1,0 +1,202 @@
+<!DOCTYPE html><html lang="en" data-bs-theme="dark" data-ss-theme="seoul-pop" style="--ss-font-scale: 1;"><head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <base href="/">
+    
+    <link id="bootstrap-theme" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="_content/SentenceStudio.UI/css/app.css">
+    <link rel="stylesheet" href="app.w7mf952350.css">
+    <script type="importmap">{
+  "imports": {
+    "./Components/Layout/ReconnectModal.razor.js": "./Components/Layout/ReconnectModal.w97mql0d9w.razor.js",
+    "./_content/SentenceStudio.UI/js/app.js": "./_content/SentenceStudio.UI/js/app.zfg129j71w.js",
+    "./_framework/blazor.server.js": "./_framework/blazor.server.2lgipwaf5j.js",
+    "./_framework/blazor.web.js": "./_framework/blazor.web.wmp8iwak4q.js",
+    "./js/audioInterop.js": "./js/audioInterop.235ndw89m7.js",
+    "./js/filePicker.js": "./js/filePicker.8exwsboioo.js",
+    "./lib/bootstrap/dist/js/bootstrap.bundle.js": "./lib/bootstrap/dist/js/bootstrap.bundle.6cfz1n2cew.js",
+    "./lib/bootstrap/dist/js/bootstrap.bundle.min.js": "./lib/bootstrap/dist/js/bootstrap.bundle.min.493y06b0oq.js",
+    "./lib/bootstrap/dist/js/bootstrap.esm.min.js": "./lib/bootstrap/dist/js/bootstrap.esm.min.jj8uyg4cgr.js",
+    "./lib/bootstrap/dist/js/bootstrap.esm.js": "./lib/bootstrap/dist/js/bootstrap.esm.vr1egmr9el.js",
+    "./lib/bootstrap/dist/js/bootstrap.min.js": "./lib/bootstrap/dist/js/bootstrap.min.63fj8s7r0e.js",
+    "./lib/bootstrap/dist/js/bootstrap.js": "./lib/bootstrap/dist/js/bootstrap.notf2xhcfb.js"
+  }
+}</script>
+    <link rel="icon" type="image/png" href="favicon.png">
+    <!--!--><!--!--><!--!--><!--!--><!--!--></head>
+
+<body><!--!--><!--!--><!--!--><!--!--><!--!--><!--!--><!--!--><!--!--><div class="d-flex vh-100"><!--!--><div class="env-badge env-badge-local" title="API: https://localhost:7012">LOCAL</div><nav class="d-none d-md-flex flex-column flex-shrink-0 bg-surface sidebar-nav " style="border-right: 1px solid var(--bs-border-color);"><div class="flex-grow-1 overflow-auto"><!--!--><nav class="nav flex-column p-2 gap-1"><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="대시보드"><i class="bi bi-house-door"></i> <span class="nav-label">대시보드</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="활동"><i class="bi bi-calendar3"></i> <span class="nav-label">활동</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="학습 자료"><i class="bi bi-book"></i> <span class="nav-label">학습 자료</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="어휘"><i class="bi bi-card-text"></i> <span class="nav-label">어휘</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="최소 대립쌍"><i class="bi bi-soundwave"></i> <span class="nav-label">최소 대립쌍</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="기술"><i class="bi bi-bullseye"></i> <span class="nav-label">기술</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 active" href="" title="콘텐츠 가져오기"><i class="bi bi-box-arrow-in-down"></i> <span class="nav-label">콘텐츠 가져오기</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="미디어 가져오기"><i class="bi bi-camera-video"></i> <span class="nav-label">미디어 가져오기</span></a><!--!--><hr class="my-2" style="border-color: var(--bs-border-color);"><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="프로필"><i class="bi bi-person"></i> <span class="nav-label">프로필</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="설정"><i class="bi bi-gear"></i> <span class="nav-label">설정</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="피드백"><i class="bi bi-chat-dots"></i> <span class="nav-label">피드백</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 text-danger" href="" title="로그아웃"><!--!--><i class="bi bi-box-arrow-left"></i> <span class="nav-label">로그아웃</span></a></nav></div><!--!-->
+            <div class="p-2 border-top" style="border-color: var(--bs-border-color) !important;"><button class="btn btn-sm btn-icon d-flex align-items-center ms-auto" title="사이드바 접기"><i class="bi bi-chevron-left"></i></button></div></nav><div class="d-flex flex-column flex-grow-1 overflow-hidden"><main class="flex-grow-1 overflow-auto p-3 main-content"><!--!--><!--!--><div class="page-header"><div class="page-header-inner d-flex justify-content-between align-items-center"><div class="d-flex align-items-center gap-2 overflow-hidden"><!--!--><button class="btn btn-sm btn-icon d-md-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileNav"><i class="bi bi-list" style="color: var(--bs-body-color); font-size: 1.5rem;"></i></button><h1 class="ss-title1 mb-0 text-truncate" tabindex="-1">콘텐츠 가져오기</h1></div><!--!-->
+        <div class="d-flex align-items-center gap-1 flex-shrink-0"><div class="d-none d-md-flex gap-2"><button class="btn btn-ss-primary">가져오기</button></div></div></div></div><!--!-->
+
+<div class="container-fluid px-3 px-md-4 py-3"><div class="card card-ss p-4 mb-3"><h5 class="ss-title3 mb-3">1단계: 소스</h5><!--!-->
+            
+            <div class="mb-3"><label class="form-label ss-body2 text-secondary-ss">콘텐츠 붙여넣기</label><!--!-->
+                <textarea class="form-control form-control-ss" rows="8" placeholder="CSV, TSV 또는 일반 텍스트를 여기에 붙여넣으세요..." disabled="" style=""></textarea><!--!-->
+                <small class="form-text text-secondary-ss">CSV 또는 TSV 형식으로 어휘 데이터를 붙여넣으세요 (예: "한국어 단어, 영어 번역")</small></div></div><div class="card card-ss p-4 mb-3"><h5 class="ss-title3 mb-3">2단계: 형식 힌트 (선택사항)</h5><!--!-->
+            
+            <div class="row"><div class="col-md-4 mb-3"><label class="form-label ss-body2 text-secondary-ss">콘텐츠 유형</label><!--!-->
+                    <select class="form-select form-control-ss" disabled=""><option value="Vocabulary">어휘</option><!--!-->
+                        <option value="Phrases">문구</option><!--!-->
+                        <option value="Sentences">Sentences</option><!--!-->
+                        <option value="Transcript">대본</option><!--!-->
+                        <option value="Auto">자동 감지</option></select></div><!--!-->
+                
+                <div class="col-md-4 mb-3"><label class="form-label ss-body2 text-secondary-ss">구분자</label><!--!-->
+                    <select class="form-select form-control-ss" disabled=""><option value="auto">자동</option><!--!-->
+                        <option value=",">쉼표</option><!--!-->
+                        <option value="\t">탭</option><!--!-->
+                        <option value="|">파이프 (|)</option></select></div><!--!-->
+                
+                <div class="col-md-4 mb-3 d-flex align-items-end"><div class="form-check"><input class="form-check-input" type="checkbox" id="hasHeaderRow" disabled="" style=""><!--!-->
+                        <label class="form-check-label ss-body2" for="hasHeaderRow">첫 번째 행은 헤더</label></div></div></div><!--!-->
+            
+            <div class="d-flex justify-content-end"><button class="btn btn-ss-primary">미리보기</button></div></div><div class="card card-ss p-4 mb-3"><!--!--><h5 class="ss-title3 mb-3">What should we harvest?</h5>
+                <!--!--><p class="ss-body2 text-secondary-ss mb-3">Select what to extract from this content. At least one option must be checked.</p>
+
+                <div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="harvestTranscript" style=""><!--!-->
+                    <!--!--><label class="form-check-label ss-body2" for="harvestTranscript"><strong>This is a Transcript</strong>
+                        <small class="d-block text-secondary-ss">Store the full text on the learning resource</small></label></div><!--!-->
+
+                <div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="harvestSentences" style=""><!--!-->
+                    <!--!--><label class="form-check-label ss-body2" for="harvestSentences"><strong>Harvest Sentences</strong>
+                        <small class="d-block text-secondary-ss">Extract complete sentences (subject + verb + terminal punctuation), often pipe-delimited with translations</small></label></div><!--!-->
+
+                <div class="form-check mb-2"><input class="form-check-input" type="checkbox" id="harvestPhrases" style=""><!--!-->
+                    <!--!--><label class="form-check-label ss-body2" for="harvestPhrases"><strong>Harvest Phrases</strong>
+                        <small class="d-block text-secondary-ss">Extract phrase-level entries for practice activities</small></label></div><!--!-->
+
+                <div class="form-check mb-3"><input class="form-check-input" type="checkbox" id="harvestWords" style=""><!--!-->
+                    <!--!--><label class="form-check-label ss-body2" for="harvestWords"><strong>Harvest Words</strong>
+                        <small class="d-block text-secondary-ss">Extract individual vocabulary words</small></label></div></div><div class="card card-ss p-4 mb-3"><h5 class="ss-title3 mb-3">3단계: 미리보기 및 편집</h5><!--!-->
+                
+                <div class="mb-3"><small class="text-secondary-ss">감지된 형식: <strong>Phrases (parsed + AI-extracted)</strong></small></div><!--!-->
+
+                <div class="table-responsive"><table class="table table-sm table-bordered"><thead class="table-light"><tr><th class="text-center" style="width: 40px;"><input type="checkbox" class="form-check-input" style=""></th><!--!-->
+                                <!--!--><th style="width: 60px;">#</th>
+                                <th>대상 언어 용어</th><!--!-->
+                                <th>모국어 용어</th><!--!-->
+                                <th style="width: 100px;">상태</th></tr></thead><!--!-->
+                        <tbody><tr class=""><td class="text-center"><input type="checkbox" class="form-check-input" style=""></td><!--!-->
+                                    <td class="text-secondary-ss">1</td><!--!-->
+                                    <td><input type="text" class="form-control form-control-sm" style=""></td><!--!-->
+                                    <td><input type="text" class="form-control form-control-sm" style=""></td><!--!-->
+                                    <td><!--!--><span class="badge bg-success"><i class="bi bi-check-lg"></i> OK</span></td></tr><tr class=""><td class="text-center"><input type="checkbox" class="form-check-input" style=""></td><!--!-->
+                                    <td class="text-secondary-ss">2</td><!--!-->
+                                    <td><input type="text" class="form-control form-control-sm" style=""></td><!--!-->
+                                    <td><input type="text" class="form-control form-control-sm" style=""></td><!--!-->
+                                    <td><!--!--><span class="badge bg-success"><i class="bi bi-check-lg"></i> OK</span></td></tr><tr class=""><td class="text-center"><input type="checkbox" class="form-check-input" style=""></td><!--!-->
+                                    <td class="text-secondary-ss">3</td><!--!-->
+                                    <td><input type="text" class="form-control form-control-sm" style=""></td><!--!-->
+                                    <td><input type="text" class="form-control form-control-sm" style=""></td><!--!-->
+                                    <td><!--!--><span class="badge bg-success"><i class="bi bi-check-lg"></i> OK</span></td></tr><tr class=""><td class="text-center"><input type="checkbox" class="form-check-input" style=""></td><!--!-->
+                                    <td class="text-secondary-ss">4</td><!--!-->
+                                    <td><input type="text" class="form-control form-control-sm" style=""></td><!--!-->
+                                    <td><input type="text" class="form-control form-control-sm" style=""><span class="badge bg-info text-dark mt-1" title="AI가 생성한 번역입니다. 커밋하기 전에 검토하고 수정하세요."><!--!--><i class="bi bi-stars"></i> AI</span></td><!--!-->
+                                    <td><!--!--><span class="badge bg-success"><i class="bi bi-check-lg"></i> OK</span></td></tr><tr class=""><td class="text-center"><input type="checkbox" class="form-check-input" style=""></td><!--!-->
+                                    <td class="text-secondary-ss">5</td><!--!-->
+                                    <td><input type="text" class="form-control form-control-sm" style=""></td><!--!-->
+                                    <td><input type="text" class="form-control form-control-sm" style=""><span class="badge bg-info text-dark mt-1" title="AI가 생성한 번역입니다. 커밋하기 전에 검토하고 수정하세요."><!--!--><i class="bi bi-stars"></i> AI</span></td><!--!-->
+                                    <td><!--!--><span class="badge bg-success"><i class="bi bi-check-lg"></i> OK</span></td></tr><tr class=""><td class="text-center"><input type="checkbox" class="form-check-input" style=""></td><!--!-->
+                                    <td class="text-secondary-ss">6</td><!--!-->
+                                    <td><input type="text" class="form-control form-control-sm" style=""></td><!--!-->
+                                    <td><input type="text" class="form-control form-control-sm" style=""><span class="badge bg-info text-dark mt-1" title="AI가 생성한 번역입니다. 커밋하기 전에 검토하고 수정하세요."><!--!--><i class="bi bi-stars"></i> AI</span></td><!--!-->
+                                    <td><!--!--><span class="badge bg-success"><i class="bi bi-check-lg"></i> OK</span></td></tr><tr class=""><td class="text-center"><input type="checkbox" class="form-check-input" style=""></td><!--!-->
+                                    <td class="text-secondary-ss">7</td><!--!-->
+                                    <td><input type="text" class="form-control form-control-sm" style=""></td><!--!-->
+                                    <td><input type="text" class="form-control form-control-sm" style=""><span class="badge bg-info text-dark mt-1" title="AI가 생성한 번역입니다. 커밋하기 전에 검토하고 수정하세요."><!--!--><i class="bi bi-stars"></i> AI</span></td><!--!-->
+                                    <td><!--!--><span class="badge bg-success"><i class="bi bi-check-lg"></i> OK</span></td></tr><tr class=""><td class="text-center"><input type="checkbox" class="form-check-input" style=""></td><!--!-->
+                                    <td class="text-secondary-ss">8</td><!--!-->
+                                    <td><input type="text" class="form-control form-control-sm" style=""></td><!--!-->
+                                    <td><input type="text" class="form-control form-control-sm" style=""><span class="badge bg-info text-dark mt-1" title="AI가 생성한 번역입니다. 커밋하기 전에 검토하고 수정하세요."><!--!--><i class="bi bi-stars"></i> AI</span></td><!--!-->
+                                    <td><!--!--><span class="badge bg-success"><i class="bi bi-check-lg"></i> OK</span></td></tr><tr class=""><td class="text-center"><input type="checkbox" class="form-check-input" style=""></td><!--!-->
+                                    <td class="text-secondary-ss">9</td><!--!-->
+                                    <td><input type="text" class="form-control form-control-sm" style=""></td><!--!-->
+                                    <td><input type="text" class="form-control form-control-sm" style=""><span class="badge bg-info text-dark mt-1" title="AI가 생성한 번역입니다. 커밋하기 전에 검토하고 수정하세요."><!--!--><i class="bi bi-stars"></i> AI</span></td><!--!-->
+                                    <td><!--!--><span class="badge bg-success"><i class="bi bi-check-lg"></i> OK</span></td></tr><tr class=""><td class="text-center"><input type="checkbox" class="form-check-input" style=""></td><!--!-->
+                                    <td class="text-secondary-ss">10</td><!--!-->
+                                    <td><input type="text" class="form-control form-control-sm" style=""></td><!--!-->
+                                    <td><input type="text" class="form-control form-control-sm" style=""><span class="badge bg-info text-dark mt-1" title="AI가 생성한 번역입니다. 커밋하기 전에 검토하고 수정하세요."><!--!--><i class="bi bi-stars"></i> AI</span></td><!--!-->
+                                    <td><!--!--><span class="badge bg-success"><i class="bi bi-check-lg"></i> OK</span></td></tr><tr class=""><td class="text-center"><input type="checkbox" class="form-check-input" style=""></td><!--!-->
+                                    <td class="text-secondary-ss">11</td><!--!-->
+                                    <td><input type="text" class="form-control form-control-sm" style=""></td><!--!-->
+                                    <td><input type="text" class="form-control form-control-sm" style=""><span class="badge bg-info text-dark mt-1" title="AI가 생성한 번역입니다. 커밋하기 전에 검토하고 수정하세요."><!--!--><i class="bi bi-stars"></i> AI</span></td><!--!-->
+                                    <td><!--!--><span class="badge bg-success"><i class="bi bi-check-lg"></i> OK</span></td></tr><tr class=""><td class="text-center"><input type="checkbox" class="form-check-input" style=""></td><!--!-->
+                                    <td class="text-secondary-ss">12</td><!--!-->
+                                    <td><input type="text" class="form-control form-control-sm" style=""></td><!--!-->
+                                    <td><input type="text" class="form-control form-control-sm" style=""><span class="badge bg-info text-dark mt-1" title="AI가 생성한 번역입니다. 커밋하기 전에 검토하고 수정하세요."><!--!--><i class="bi bi-stars"></i> AI</span></td><!--!-->
+                                    <td><!--!--><span class="badge bg-success"><i class="bi bi-check-lg"></i> OK</span></td></tr><tr class=""><td class="text-center"><input type="checkbox" class="form-check-input" style=""></td><!--!-->
+                                    <td class="text-secondary-ss">13</td><!--!-->
+                                    <td><input type="text" class="form-control form-control-sm" style=""></td><!--!-->
+                                    <td><input type="text" class="form-control form-control-sm" style=""><span class="badge bg-info text-dark mt-1" title="AI가 생성한 번역입니다. 커밋하기 전에 검토하고 수정하세요."><!--!--><i class="bi bi-stars"></i> AI</span></td><!--!-->
+                                    <td><!--!--><span class="badge bg-success"><i class="bi bi-check-lg"></i> OK</span></td></tr><tr class=""><td class="text-center"><input type="checkbox" class="form-check-input" style=""></td><!--!-->
+                                    <td class="text-secondary-ss">14</td><!--!-->
+                                    <td><input type="text" class="form-control form-control-sm" style=""></td><!--!-->
+                                    <td><input type="text" class="form-control form-control-sm" style=""><span class="badge bg-info text-dark mt-1" title="AI가 생성한 번역입니다. 커밋하기 전에 검토하고 수정하세요."><!--!--><i class="bi bi-stars"></i> AI</span></td><!--!-->
+                                    <td><!--!--><span class="badge bg-success"><i class="bi bi-check-lg"></i> OK</span></td></tr><tr class=""><td class="text-center"><input type="checkbox" class="form-check-input" style=""></td><!--!-->
+                                    <td class="text-secondary-ss">15</td><!--!-->
+                                    <td><input type="text" class="form-control form-control-sm" style=""></td><!--!-->
+                                    <td><input type="text" class="form-control form-control-sm" style=""><span class="badge bg-info text-dark mt-1" title="AI가 생성한 번역입니다. 커밋하기 전에 검토하고 수정하세요."><!--!--><i class="bi bi-stars"></i> AI</span></td><!--!-->
+                                    <td><!--!--><span class="badge bg-success"><i class="bi bi-check-lg"></i> OK</span></td></tr></tbody></table></div><!--!-->
+                
+                <small class="text-secondary-ss">가져오기 선택됨: <strong>15</strong> / 15</small></div><div class="card card-ss p-4 mb-3"><h5 class="ss-title3 mb-3">4단계: 대상 리소스</h5><!--!-->
+                
+                <div class="mb-3"><div class="form-check mb-2"><input class="form-check-input" type="radio" name="targetMode" id="targetNew" value="New" style=""><!--!-->
+                        <label class="form-check-label ss-body2" for="targetNew">새 리소스 만들기</label></div><!--!-->
+                    <div class="form-check"><input class="form-check-input" type="radio" name="targetMode" id="targetExisting" value="Existing" style=""><!--!-->
+                        <label class="form-check-label ss-body2" for="targetExisting">기존 리소스에 추가</label></div></div><div class="row"><div class="col-md-6 mb-3"><label class="form-label ss-body2 text-secondary-ss">리소스 제목</label><!--!-->
+                            <input type="text" class="form-control form-control-ss" placeholder="예: 일반 한국어 동사" style=""></div><!--!-->
+                        <div class="col-md-6 mb-3"><label class="form-label ss-body2 text-secondary-ss">설명</label><!--!-->
+                            <input type="text" class="form-control form-control-ss" placeholder="선택적 설명..." style=""></div></div><div class="row"><div class="col-md-6 mb-3"><label class="form-label ss-body2 text-secondary-ss">대상 언어</label><!--!-->
+                            <select class="form-select form-control-ss"><option value="English">English</option><option value="Korean">Korean</option><option value="Spanish">Spanish</option><option value="Japanese">Japanese</option><option value="Chinese">Chinese</option><option value="French">French</option><option value="German">German</option><option value="Italian">Italian</option><option value="Portuguese">Portuguese</option><option value="Russian">Russian</option></select></div><!--!-->
+                        <div class="col-md-6 mb-3"><label class="form-label ss-body2 text-secondary-ss">모국어</label><!--!-->
+                            <select class="form-select form-control-ss"><option value="English">English</option><option value="Korean">Korean</option><option value="Spanish">Spanish</option><option value="Japanese">Japanese</option><option value="Chinese">Chinese</option><option value="French">French</option><option value="German">German</option><option value="Italian">Italian</option><option value="Portuguese">Portuguese</option><option value="Russian">Russian</option></select></div></div></div><div class="card card-ss p-4 mb-3"><h5 class="ss-title3 mb-3">5단계: 중복 처리</h5><!--!-->
+                
+                <div class="form-check mb-2"><input class="form-check-input" type="radio" name="dedupMode" id="dedupSkip" value="Skip" style=""><!--!-->
+                    <label class="form-check-label ss-body2" for="dedupSkip"><strong>중복 건너뛰기 (권장)</strong><!--!-->
+                        <small class="d-block text-secondary-ss">기존 단어가 재사용됩니다. 새 단어가 추가됩니다. 가장 안전한 옵션입니다.</small></label></div><!--!-->
+                
+                <div class="form-check mb-2"><input class="form-check-input" type="radio" name="dedupMode" id="dedupUpdate" value="Update" style=""><!--!-->
+                    <label class="form-check-label ss-body2" for="dedupUpdate"><strong>기존 단어 업데이트</strong><!--!-->
+                        <small class="d-block text-warning">경고: 단어를 사용하는 모든 리소스의 모국어 번역을 업데이트합니다. 주의해서 사용하세요.</small></label></div><!--!-->
+                
+                <div class="form-check"><input class="form-check-input" type="radio" name="dedupMode" id="dedupImportAll" value="ImportAll" style=""><!--!-->
+                    <label class="form-check-label ss-body2" for="dedupImportAll"><strong>모두 새로 가져오기</strong><!--!-->
+                        <small class="d-block text-secondary-ss">중복이 존재하더라도 새 항목을 만듭니다. 중복 어휘가 생성될 수 있습니다.</small></label></div></div></div></main></div><div class="offcanvas offcanvas-start bg-surface" tabindex="-1" id="mobileNav" style="border-right: 1px solid var(--bs-border-color);"><!--!--><div class="offcanvas-header border-bottom" style="border-color: var(--bs-border-color) !important; padding-top: calc(env(safe-area-inset-top, 0px) + 12px);"><h5 class="offcanvas-title text-primary-ss">SentenceStudio</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button></div>
+            <div class="offcanvas-body p-0"><!--!--><nav class="nav flex-column p-2 gap-1"><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="대시보드"><i class="bi bi-house-door"></i> <span class="nav-label">대시보드</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="활동"><i class="bi bi-calendar3"></i> <span class="nav-label">활동</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="학습 자료"><i class="bi bi-book"></i> <span class="nav-label">학습 자료</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="어휘"><i class="bi bi-card-text"></i> <span class="nav-label">어휘</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="최소 대립쌍"><i class="bi bi-soundwave"></i> <span class="nav-label">최소 대립쌍</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="기술"><i class="bi bi-bullseye"></i> <span class="nav-label">기술</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 active" href="" title="콘텐츠 가져오기"><i class="bi bi-box-arrow-in-down"></i> <span class="nav-label">콘텐츠 가져오기</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="미디어 가져오기"><i class="bi bi-camera-video"></i> <span class="nav-label">미디어 가져오기</span></a><!--!--><hr class="my-2" style="border-color: var(--bs-border-color);"><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="프로필"><i class="bi bi-person"></i> <span class="nav-label">프로필</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="설정"><i class="bi bi-gear"></i> <span class="nav-label">설정</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="피드백"><i class="bi bi-chat-dots"></i> <span class="nav-label">피드백</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 text-danger" href="" title="로그아웃"><!--!--><i class="bi bi-box-arrow-left"></i> <span class="nav-label">로그아웃</span></a></nav></div></div><!--!--><div class="toast-container-ss"></div><!--!-->
+    
+    <!--!--></div><!--!-->
+        <!--!-->
+    <script type="module" src="Components/Layout/ReconnectModal.w97mql0d9w.razor.js"></script>
+
+<dialog id="components-reconnect-modal" data-nosnippet=""><div class="components-reconnect-container"><div class="components-rejoining-animation" aria-hidden="true"><div></div>
+            <div></div></div>
+        <p class="components-reconnect-first-attempt-visible">
+            Rejoining the server...
+        </p>
+        <p class="components-reconnect-repeated-attempt-visible">
+            Rejoin failed... trying again in <span id="components-seconds-to-next-attempt"></span> seconds.
+        </p>
+        <p class="components-reconnect-failed-visible">
+            Failed to rejoin.<br>Please retry or reload the page.
+        </p>
+        <button id="components-reconnect-button" class="components-reconnect-failed-visible">
+            Retry
+        </button>
+        <p class="components-pause-visible">
+            The session has been paused by the server.
+        </p>
+        <button id="components-resume-button" class="components-pause-visible">
+            Resume
+        </button>
+        <p class="components-resume-failed-visible">
+            Failed to resume the session.<br>Please reload the page.
+        </p></div></dialog>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+    <script src="js/audioInterop.js"></script>
+    <script src="js/filePicker.js"></script>
+    <script src="_framework/blazor.web.wmp8iwak4q.js"></script></body></html>

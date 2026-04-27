@@ -1234,3 +1234,98 @@ On `OnInitializedAsync`, if `?completed={guid}` is present, hydrate from store.
 ### Evidence:
 `e2e-testing-workspace/v13-import-detail/VERDICT.md` + 10 screenshots
 
+---
+
+# Decision: Preview Duplicate Detection — DTO Contract for Kaylee
+
+**Date:** 2026-07-25
+**Author:** Wash (Backend Dev)
+**Branch:** `feature/import-content`
+
+## Summary
+
+Added duplicate-detection enrichment to the import preview so users see which rows already exist in the database BEFORE committing. The same matching predicate used by `CommitImportAsync` is now extracted into a shared helper (`NormalizeTargetTerm`) and reused by `EnrichPreviewWithDuplicateInfoAsync`.
+
+## New DTO Properties on `ImportRow`
+
+| Property | Type | Description |
+|---|---|---|
+| `IsDuplicate` | `bool` | `true` if this row matches an existing vocabulary word in the DB (commit with `DedupMode.Skip` will skip it). Default: `false`. |
+| `DuplicateReason` | `string?` | Stable enum-style key. `null` when `IsDuplicate` is `false`. |
+
+### DuplicateReason Values
+
+| Key | Meaning |
+|---|---|
+| `"AlreadyInVocabulary"` | Term already exists in the `VocabularyWord` table (exact match on trimmed `TargetLanguageTerm`, case-sensitive). |
+| `"DuplicateWithinBatch"` | Same term appears earlier in this preview batch (second+ occurrence). |
+
+## New Interface Method
+
+```csharp
+Task EnrichPreviewWithDuplicateInfoAsync(ContentImportPreview preview, CancellationToken ct = default);
+```
+
+**Call this after `ParseContentAsync` returns and before rendering the preview table.** It mutates the `ImportRow` objects in place (sets `IsDuplicate` and `DuplicateReason`).
+
+## UI Integration (Kaylee)
+
+1. After `ParseContentAsync` returns, call `await ImportService.EnrichPreviewWithDuplicateInfoAsync(previewResult);`
+2. In the preview table, check `row.IsDuplicate`:
+   - If `true` with reason `"AlreadyInVocabulary"`: show a badge like "Already in vocabulary"
+   - If `true` with reason `"DuplicateWithinBatch"`: show "Duplicate in batch"
+3. Localized display strings are your domain — the reason keys are stable and won't change.
+4. Duplicate rows remain `IsSelected = true` by default — users can still include them if they switch to `DedupMode.Update` or `ImportAll`.
+
+## Performance
+
+Single batched DB query per `EnrichPreviewWithDuplicateInfoAsync` call (uses `WHERE IN` with a `HashSet` of normalized terms). No N+1.
+
+## Tests Added
+
+4 new tests (36 total):
+- `EnrichPreview_FlagsExactDuplicate_WhenTermExistsInDb`
+- `EnrichPreview_DoesNotFlag_NearMiss_DifferentLemma`
+- `EnrichPreview_UsesBatchQuery_NotNPlusOne`
+- `EnrichPreview_MatchesCommitBehavior_RoundTrip` (invariant: Preview's IsDuplicate matches Commit's Skip/Create)
+
+---
+
+# Decision: Import Content page style normalization
+
+**Date:** 2026-07-27
+**Author:** Kaylee (Full-stack Dev)
+**Branch:** `feature/import-content`
+
+## Problem
+
+ImportContent.razor accumulated bespoke inline styles that didn't match the rest of the webapp: a custom purple hex color (`#6f42c1`) with inline `background-color`/`color` CSS vars on the Phrase type badge, inline `cursor:pointer` on clickable table rows (rest of app uses `role="button"`), and inline `font-size:0.75rem` on a link icon.
+
+## What Changed
+
+### Style cleanup (merged in commit 3130810)
+
+| Before | After | Rationale |
+|--------|-------|-----------|
+| `bg-purple` + inline `style="--bs-purple:#6f42c1;color:var(--bs-purple);background-color:rgba(111,66,193,0.1);"` | `bg-secondary bg-opacity-10 text-secondary` | Standard Bootstrap 5 color; no custom CSS vars needed |
+| `class="cursor-pointer"` + `style="cursor:pointer;"` on `<tr>` | `role="button"` | Matches app-wide pattern; CSS rule at app.css:1360 handles cursor |
+| `style="cursor:pointer;"` on mobile card `<div>` | `role="button"` | Same pattern |
+| `style="font-size:0.75rem;"` on link icon | Bootstrap `small` class | Utility class, no inline style |
+| Empty `@(isClickable ? "" : "")` class expression on mobile card | Removed | Dead code |
+
+### Kept (justified) inline styles
+
+- Table `<th>` `width` values (40px–110px) — functional column sizing; no Bootstrap class equivalent
+- `max-width:220px` on truncated reason text — functional, documented with comment
+
+### Duplicate badge column (merged in commit 3130810)
+
+Wash landed `IsDuplicate` and `DuplicateReason` on `ImportRow`; the preview table now includes a "Duplicate" column using `badge bg-warning bg-opacity-10 text-warning` with `bi-files` icon. Rows are still committable (heads-up only). 5 new resx keys (EN + KO).
+
+## Pattern for Future Agents
+
+- **Clickable non-button elements**: Use `role="button"` — never inline `cursor:pointer`
+- **Type badges**: Use standard Bootstrap opacity badge pattern: `badge bg-{color} bg-opacity-10 text-{color}` where `{color}` is primary/secondary/info/success/warning/danger
+- **Status badges**: `badge bg-{semantic-color}` (solid, not opacity-tinted)
+- **No custom hex colors in Razor markup** — use CSS vars or Bootstrap named colors only
+
