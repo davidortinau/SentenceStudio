@@ -103,6 +103,7 @@
                             disabled="@(currentStep > ImportStep.Source)">
                         <option value="Vocabulary">@Localize["Import_ContentType_Vocabulary"]</option>
                         <option value="Phrases">@Localize["Import_ContentType_Phrases"]</option>
+                        <option value="Sentences">Sentences</option>
                         <option value="Transcript">@Localize["Import_ContentType_Transcript"]</option>
                         <option value="Auto">@Localize["Import_ContentType_Auto"]</option>
                     </select>
@@ -211,6 +212,10 @@
                                 @onclick='() => OverrideContentType(ContentType.Phrases)'>
                             Phrases
                         </button>
+                        <button class="btn btn-sm @(resolvedContentType == ContentType.Sentences ? "btn-primary" : "btn-outline-primary")" 
+                                @onclick='() => OverrideContentType(ContentType.Sentences)'>
+                            Sentences
+                        </button>
                         <button class="btn btn-sm @(resolvedContentType == ContentType.Transcript ? "btn-primary" : "btn-outline-primary")" 
                                 @onclick='() => OverrideContentType(ContentType.Transcript)'>
                             Transcript
@@ -233,6 +238,10 @@
                     <button class="btn btn-sm @(resolvedContentType == ContentType.Phrases ? "btn-primary" : "btn-outline-primary")" 
                             @onclick='() => OverrideContentType(ContentType.Phrases)'>
                         Phrases
+                    </button>
+                    <button class="btn btn-sm @(resolvedContentType == ContentType.Sentences ? "btn-primary" : "btn-outline-primary")" 
+                            @onclick='() => OverrideContentType(ContentType.Sentences)'>
+                        Sentences
                     </button>
                     <button class="btn btn-sm @(resolvedContentType == ContentType.Transcript ? "btn-primary" : "btn-outline-primary")" 
                             @onclick='() => OverrideContentType(ContentType.Transcript)'>
@@ -258,6 +267,17 @@
                     <label class="form-check-label ss-body2" for="harvestTranscript">
                         <strong>This is a Transcript</strong>
                         <small class="d-block text-secondary-ss">Store the full text on the learning resource</small>
+                    </label>
+                </div>
+
+                <div class="form-check mb-2">
+                    <input class="form-check-input" 
+                           type="checkbox" 
+                           id="harvestSentences" 
+                           @bind="harvestSentences" />
+                    <label class="form-check-label ss-body2" for="harvestSentences">
+                        <strong>Harvest Sentences</strong>
+                        <small class="d-block text-secondary-ss">Extract complete sentences (subject + verb + terminal punctuation), often pipe-delimited with translations</small>
                     </label>
                 </div>
 
@@ -547,6 +567,7 @@
 
     // Harvest checkboxes
     private bool harvestTranscript;
+    private bool harvestSentences;
     private bool harvestPhrases;
     private bool harvestWords = true;
     private bool showHarvestValidationError;
@@ -681,7 +702,11 @@
                 DelimiterOverride = delimiter == "auto" ? null : delimiter == "\\t" ? '\t' : delimiter[0],
                 HasHeaderRow = hasHeaderRow,
                 TargetLanguage = targetLanguage,
-                NativeLanguage = nativeLanguage
+                NativeLanguage = nativeLanguage,
+                HarvestTranscript = harvestTranscript,
+                HarvestSentences = harvestSentences,
+                HarvestPhrases = harvestPhrases,
+                HarvestWords = harvestWords
             };
 
             previewResult = await ImportService.ParseContentAsync(request);
@@ -717,18 +742,33 @@
         {
             case ContentType.Vocabulary:
                 harvestTranscript = false;
+                harvestSentences = false;
                 harvestPhrases = false;
                 harvestWords = true;
                 break;
             case ContentType.Phrases:
                 harvestTranscript = false;
+                harvestSentences = false;
                 harvestPhrases = true;
+                harvestWords = true;
+                break;
+            case ContentType.Sentences:
+                harvestTranscript = false;
+                harvestSentences = true;
+                harvestPhrases = false;
                 harvestWords = true;
                 break;
             case ContentType.Transcript:
                 harvestTranscript = true;
+                harvestSentences = false;
                 harvestPhrases = false;
                 harvestWords = true;
+                break;
+            case ContentType.Auto:
+                harvestTranscript = false;
+                harvestSentences = false;
+                harvestPhrases = false;
+                harvestWords = false;
                 break;
             default:
                 harvestWords = true;
@@ -766,7 +806,7 @@
 
     private bool ValidateHarvestCheckboxes()
     {
-        var valid = harvestTranscript || harvestPhrases || harvestWords;
+        var valid = harvestTranscript || harvestSentences || harvestPhrases || harvestWords;
         showHarvestValidationError = !valid;
         return valid;
     }
@@ -782,6 +822,7 @@
     {
         ContentType.Vocabulary => "Vocabulary",
         ContentType.Phrases => "Phrases",
+        ContentType.Sentences => "Sentences",
         ContentType.Transcript => "Transcript",
         _ => type.ToString()
     };
@@ -879,6 +920,7 @@
                 Target = target,
                 DedupMode = dedupMode,
                 HarvestTranscript = harvestTranscript,
+                HarvestSentences = harvestSentences,
                 HarvestPhrases = harvestPhrases,
                 HarvestWords = harvestWords
             };
@@ -927,6 +969,7 @@
         autoDetectConfirmed = false;
         showTypeChooser = false;
         harvestTranscript = false;
+        harvestSentences = false;
         harvestPhrases = false;
         harvestWords = true;
         showHarvestValidationError = false;
