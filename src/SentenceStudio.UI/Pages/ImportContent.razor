@@ -855,6 +855,7 @@
             };
 
             previewResult = await ImportService.ParseContentAsync(request);
+            await ImportService.EnrichPreviewWithDuplicateInfoAsync(previewResult);
             editableRows = previewResult.Rows.Select(r => new ImportRow
             {
                 RowNumber = r.RowNumber,
