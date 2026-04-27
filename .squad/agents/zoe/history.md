@@ -727,3 +727,4 @@ Six open questions for Captain in appendix (LexicalUnitType default value, confi
 
 **Next:** Captain confirms, Scribe merges, implementation team (River → Wash → Kaylee → Jayne) unblocked per spec Section J.
 
+- 2026-04-27: **M.E.AI 10.5.0 Adoption Strategy — Defer Features, Ship Debt** — Synthesized Wash's audit + River's verification into strategic recommendation: defer all three 10.5.0 headline features; ship three unrelated debt actions (Polly resilience, Directory.Packages.props + SKU unification, config for model/voice IDs). Pre-wrap decision: NO — bundle ElevenLabs + `ITextToSpeechClient` wrap with Realtime adoption when both stable (v11 timeframe). (See: `.squad/orchestration-log/2026-04-27T19-06-10Z-zoe.md` and merged decision in `.squad/decisions.md`.)

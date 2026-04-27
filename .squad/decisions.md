@@ -4,6 +4,215 @@
 
 ---
 
+# Decision: M.E.AI 10.5.0 Strategic Review — Defer Features, Ship Three Debt Actions
+
+**Date:** 2026-04-27  
+**Authors:** Wash (audit), River (verification), Zoe (strategy)  
+**Status:** RECOMMENDATION — awaiting Captain's call  
+**Cycle:** M.E.AI 10.5.0 Strategic Review (analysis cycle, no code changes)
+
+---
+
+## TL;DR
+
+- **Adopt nothing from M.E.AI 10.5.0 itself this quarter.** The headline "rate-limit retry" is a hallucination, VectorData is experimental greenfield with no consuming feature, and the TTS/Realtime APIs shipped in 10.4.1 (not 10.5.0) and are experimental — disqualified for DX24 production device.
+- **Do fix three latent issues Wash uncovered that are independent of 10.5.0:** (1) add Polly-based 429/5xx retry to the OpenAI `HttpClient`, (2) introduce `Directory.Packages.props` and unify the M.E.AI/Agents.AI/HelpKit version split, (3) move the `gpt-4o-mini` literal and ElevenLabs voice IDs into config.
+- **Do NOT pre-wrap ElevenLabs behind `ITextToSpeechClient`.** The abstraction is experimental, ElevenLabs-specific features (voice IDs, `eleven_multilingual_v2`) leak through `RawRepresentationFactory` anyway, and we have no second provider on the roadmap. Wait and do the wrap + Realtime adoption together when both stabilize.
+- **Schedule a VectorData pilot only when a "practice more like this" or transcript-search feature is on the roadmap.** Don't build embeddings infrastructure speculatively.
+- **Set a calendar reminder for the v11 GA window** (likely Nov 2026 timeframe) — that's when Realtime + TTS abstractions are expected to drop the `[Experimental]` tag and become DX24-eligible.
+
+---
+
+## Verified Facts (Captain's Brief vs Reality)
+
+| Brief Claim | Reality | Source |
+|---|---|---|
+| `UseRateLimitRetry()` is a new M.E.AI middleware | **Does not exist.** Hallucination. Standard path is `Microsoft.Extensions.Http.Resilience` (Polly). | River verification §1 |
+| VectorData migrated from Semantic Kernel to `dotnet/extensions` | **True.** PR #7434. APIs remain `[Experimental]`. Source-breaking ctor rename only (`Dimensions` → `dimensions`). | River verification §1 |
+| Realtime + TTS APIs in 10.5.0 | **Wrong version.** Shipped in **10.4.1** (March 2026). Both `[Experimental]`. 10.5.0 is bug fixes + the VectorData move. | River verification §1 |
+| Our app already has retry on OpenAI traffic | **No.** `AddStandardResilienceHandler()` is on the MAUI→API gateway only. Direct OpenAI SDK traffic builds its own `HttpClient` with no resilience. | Wash audit §2 |
+| Our M.E.AI usage is consistent across heads | **No.** Server is on M.E.AI 10.2.0-preview, AppLib is on Agents.AI 1.0.0-preview, HelpKit is on M.E.AI.Abstractions 9.5.0. Three families, three versions. | Wash audit §1 |
+
+---
+
+## What the Audit Reveals About TODAY's Risk Surface
+
+These are independent of 10.5.0 and would be issues even if Microsoft never shipped another M.E.AI release.
+
+### 3.1 The IChatClient pipeline is naked
+
+Five `IChatClient` registration sites. The two server projects (Api, Workers) have **zero middleware** — not even logging. The two client projects (AppLib, WebApp) have only `.UseLogging()`. There is no retry, no telemetry, no caching, no function-invocation middleware on any pipeline. If OpenAI returns a transient 503 during a quiz generation, it propagates as an uncaught exception to the user. We've been lucky, not safe.
+
+### 3.2 The Aspire/standalone dual path is a silent quality fork
+
+When MAUI runs against Aspire, OpenAI calls proxy through the API and inherit `AddStandardResilienceHandler()`. When MAUI runs standalone (which is the DX24 production posture), calls go direct to OpenAI with **no resilience whatsoever**. This means production behavior on Captain's phone is *less* resilient than dev behavior on his laptop. That's an architectural inversion — production should be the most defended path, not the least.
+
+### 3.3 The package family is fragmented across three SKUs and three versions
+
+- Server: `Microsoft.Extensions.AI.OpenAI` 10.2.0-preview
+- AppLib: `Microsoft.Agents.AI` + `Microsoft.Agents.AI.OpenAI` 1.0.0-preview (a *different* product line that wraps M.E.AI)
+- HelpKit: `Microsoft.Extensions.AI.Abstractions` 9.5.0
+
+There is no `Directory.Packages.props`. Every csproj pins independently. Future M.E.AI upgrades will require touching N csprojs and resolving N transitive conflicts — and the Agents.AI vs M.E.AI choice was likely made implicitly rather than deliberately.
+
+### 3.4 Hardcoded magic values that should be config
+
+- `gpt-4o-mini` appears as a string literal in at least 5 places (Api, Workers, AppLib, WebApp, HelpKitIntegration).
+- 7 ElevenLabs Korean voice IDs are hardcoded in `ElevenLabsSpeechService.cs`.
+- `tts-1` model name hardcoded in `AiClient.cs:31`.
+- `text-embedding-3-small` hardcoded in HelpKit.
+
+Any model upgrade (e.g., to `gpt-4o-mini-2025-something` or to a cheaper future model) is a multi-file PR instead of a config change.
+
+### 3.5 HelpKit's `RetrievalService.NotImplementedException`
+
+Wash flagged a `throw new NotImplementedException("Wash: wire to VectorData store")` in `RetrievalService.cs:60`. That's a live land-mine — if any HelpKit code path reaches it, the app throws. Either delete the code path or wire it. This is unrelated to 10.5.0 but it's debt visible in the same audit.
+
+---
+
+## The Four-Quadrant Decision
+
+| Feature | Verdict | Trigger to flip |
+|---|---|---|
+| (a) 429 retry | **Adopt now** (but via Polly, not the fictional API) | N/A — do it |
+| (b) VectorData | **Defer** | First feature spec that requires semantic similarity |
+| (c) TTS abstraction (`ITextToSpeechClient`) | **Defer** | Stable (non-experimental) release AND a second TTS provider is on the roadmap |
+| (d) Realtime API (`IRealtimeClient`) | **Defer (high interest)** | Stable release — then pilot a "Live Conversation Practice" activity |
+
+### (a) 429 / transient retry — **ADOPT NOW**
+
+The brief's specific API is fictional, but the gap it points at is real and Wash confirmed it: zero retry on direct-to-OpenAI traffic, which is exactly the path DX24 uses in production. The right fix is `Microsoft.Extensions.Http.Resilience` configured on the `HttpClient` that backs `OpenAIClient`, with a retry policy that honors `Retry-After` headers and handles `HttpStatusCode.TooManyRequests` plus transient 5xx. This is a small, well-understood, non-experimental change. **Scope:** ~1 day. **Risk:** low.
+
+### (b) VectorData — **DEFER**
+
+We have zero embedding usage in the main app (HelpKit's tiny in-memory cosine store is isolated). The APIs are `[Experimental]`. Adding them speculatively is premature optimization with a real maintenance tax. **Trigger:** when product specs a feature that genuinely needs semantic similarity (River's "practice more like this," transcript chunk search, or synonym-aware spaced repetition), pilot then. Until then, the code we don't write is the code we don't have to refactor when the API stabilizes.
+
+### (c) `ITextToSpeechClient` — **DEFER**
+
+Three reasons stack: (1) experimental, (2) ElevenLabs is our intentional choice for Korean voice quality and we use provider-specific features that would leak through `RawRepresentationFactory` even with the abstraction, (3) we have no second TTS provider on the roadmap, so DI-swappability has no consumer. The abstraction's option-value is currently zero. **Trigger:** stable release **and** a concrete plan to A/B Korean TTS providers or offer users a choice.
+
+### (d) `IRealtimeClient` — **DEFER (high interest)**
+
+This is the most genuinely transformative API for a language-learning app — bidirectional audio streaming collapses our STT→Chat→TTS pipeline into one session and would enable a "Live Conversation Practice" activity that we cannot reasonably build today. But: experimental, OpenAI-pricing-significant, and the .NET-side OpenAI provider is using raw WebSocket/JSON because the OpenAI SDK's realtime support wasn't ready at merge. Three breaking-change vectors at once. **Trigger:** experimental tag drops AND OpenAI .NET SDK ships first-class realtime support. At that point, scope a pilot activity for non-DX24 testing first.
+
+---
+
+## Pre-Wrap Decision: ElevenLabs Behind `ITextToSpeechClient` Now?
+
+**No. Wait and do both swaps together when Realtime stabilizes.**
+
+The abstraction-cost vs option-value trade-off:
+
+**Cost of wrapping now:**
+- Build an `ITextToSpeechClient` adapter over `ElevenLabsSpeechService`.
+- Lose strong typing on Korean voice IDs and `eleven_multilingual_v2` model selection — they become `RawRepresentationFactory` opaque blobs or out-of-band config, both of which are worse than the current direct API.
+- Take a dependency on an experimental package on DX24 (violates Captain's production rule) OR keep two parallel paths until stable, which is strictly worse.
+
+**Value of wrapping now:**
+- DI-swappability we don't need (no second provider on roadmap).
+- "Readiness" for Realtime — but Realtime is a *different* abstraction. Wrapping TTS does not accelerate Realtime adoption.
+
+**The bet:** when Realtime stabilizes (likely in the v11 timeframe), we'll do the Realtime adoption as one focused workstream. At that time we can decide whether to also adopt `ITextToSpeechClient` for the non-realtime path. Doing them together = one migration, one regression pass, one TTS contract. Doing them separately = two migrations, two passes, throwaway intermediate abstraction.
+
+---
+
+## Three Concrete Actions Worth Doing NOW (Independent of 10.5.0 Hype)
+
+### Action 1: Add Polly resilience to the OpenAI HttpClient
+
+**Why:** Closes the dual-path gap. DX24 production gets the same retry behavior as Aspire-connected dev. Honors `Retry-After` on 429s and retries transient 5xx.
+
+**How:** Register `OpenAIClient` via a typed `HttpClient` factory (or attach `Microsoft.Extensions.Http.Resilience`'s standard handler to the named client OpenAI uses internally). Use the standard resilience pipeline with retry + circuit breaker, configured with conservative defaults (3 retries, exponential backoff, 30s circuit-break window).
+
+**Where:** The five registration sites Wash enumerated. Centralize in a shared extension method (e.g., `services.AddSentenceStudioOpenAIClient(...)`) so all heads share one configuration.
+
+**Scope:** ~1 day. **Risk:** low. Non-experimental. No consumer-visible change unless something is currently failing silently.
+
+### Action 2: Introduce `Directory.Packages.props` and unify the AI package family
+
+**Why:** Three packages, three versions today. Future upgrades are O(N csprojs). With CPM, future upgrades become O(1).
+
+**How:** Create `Directory.Packages.props` at the repo root. Move all package versions there. Pin the M.E.AI family deliberately:
+- `Microsoft.Extensions.AI.OpenAI` and `Microsoft.Extensions.AI.Abstractions` to a single 10.x version.
+- Decide explicitly: do we keep `Microsoft.Agents.AI` in AppLib, or migrate it to plain M.E.AI? (Agents.AI buys us very little — we don't use multi-agent orchestration. Recommend migrating to plain M.E.AI and deleting the SKU split.)
+- Bump HelpKit from 9.5.0 to match.
+
+**Scope:** ~2 days including the Agents.AI → M.E.AI migration in AppLib. **Risk:** medium (touches every AI call site). **Payoff:** strong long-term.
+
+### Action 3: Move model + voice IDs to config
+
+**Why:** Model upgrades become single-line config changes instead of multi-file PRs. Also enables per-environment overrides (e.g., a cheaper model in dev, premium in production).
+
+**How:** Add an `AI` section to `appsettings.json`:
+
+```json
+{
+  "AI": {
+    "ChatModel": "gpt-4o-mini",
+    "EmbeddingModel": "text-embedding-3-small",
+    "TtsModel": "tts-1",
+    "ElevenLabsModel": "eleven_multilingual_v2",
+    "ElevenLabsKoreanVoices": [ /* 7 IDs */ ]
+  }
+}
+```
+
+Bind via `IOptions<AIOptions>`. Replace the literals in the 5+ sites Wash identified.
+
+**Scope:** ~½ day. **Risk:** low. **Pairs naturally with Action 2.**
+
+### (Bonus) Action 4 — fix or delete the `RetrievalService` NotImplementedException
+
+Not strategic, but it's a land-mine waiting to bite. Either wire it (small) or guard the call site (smaller). Mention in next commit.
+
+---
+
+## What to Revisit and When
+
+| Trigger | Action |
+|---|---|
+| `Microsoft.Extensions.AI.IRealtimeClient` drops `[Experimental]` (likely v11 GA, ~Nov 2026) | Pilot a "Live Conversation Practice" Korean speaking activity. Pair with adopting `ITextToSpeechClient` in the same workstream. |
+| `Microsoft.Extensions.VectorData.*` drops `[Experimental]` | Re-evaluate as infrastructure for any "similar content" or "transcript search" feature. |
+| Product specs a "practice more like this" or "search across my imported transcripts" feature | Pilot VectorData even if still experimental — but isolate it to non-DX24 (web/dev) until stable. |
+| OpenAI .NET SDK ships first-class realtime support | Reduces Realtime adoption risk — accelerates the pilot trigger. |
+| We hit observed 429s in production telemetry | Action 1 already covers this; verify the policy is doing its job. |
+| We add a second TTS provider (Azure, OpenAI, or another) | `ITextToSpeechClient` immediately earns its keep. Wrap then. |
+| M.E.AI ships a non-experimental rate-limit-aware middleware (genuine, not hallucinated) | Replace the Polly handler with the platform middleware — but only if it's strictly better. |
+
+---
+
+## Risks if We Do Nothing
+
+If we simply file all three under "defer" and don't do Actions 1–3 either:
+
+1. **Production resilience gap persists.** Direct-to-OpenAI traffic from DX24 has no retry. The first time OpenAI has a regional blip, the app surfaces an exception instead of recovering. Probability over 6 months: medium-high. Impact: trust damage on production device.
+
+2. **Package drift compounds.** Each preview release of M.E.AI we skip widens the gap between pinned versions and current. The eventual upgrade becomes a multi-day yak-shave. Probability: certain. Impact: future-Zoe productivity tax.
+
+3. **Agents.AI vs M.E.AI ambiguity calcifies.** Right now, choosing between them is reversible. After another 6 months of feature accretion, migration cost grows. Probability: medium. Impact: structural lock-in to a SKU we may not want.
+
+4. **Realtime FOMO.** Competing language-learning apps will ship live conversation features in the next 1–2 quarters. If we wait for stability, we ship 6 months later. Mitigation: plan the pilot now (architecturally), execute fast when stable. **Action item: design doc, not code.**
+
+5. **VectorData FOMO is lower-stakes.** Embeddings are valuable but not table-stakes. Risk of waiting: low.
+
+6. **Hallucinated `UseRateLimitRetry` could surface again** in another AI summary. Someone less rigorous than River could ship a fix that doesn't compile. **Action item: document the verified-facts table in durable team docs so the next person doesn't re-verify.**
+
+**Net assessment:** the "defer everything in 10.5.0" stance is correct **if and only if** we pair it with Actions 1–3. The 10.5.0 features are not the urgent risk. The naked IChatClient pipeline on the production device is.
+
+---
+
+## Recommendation Summary for Captain
+
+1. **Don't ship anything from 10.5.0 itself this quarter.**
+2. **Do ship Actions 1, 2, 3 this quarter** — they pay down debt that 10.5.0's marketing accidentally surfaced.
+3. **Write a Realtime design doc now** (not code) so we're ready to execute when the experimental tag drops.
+4. **Set a v11 GA reminder.** That's our adoption window for Realtime + TTS abstraction together.
+5. **Skip `ITextToSpeechClient` wrapping.** Wait and bundle with Realtime.
+
+---
+
+
+
 # Decision: Fix Sentences content type import — zero sentence rows reaching DB
 
 **Date:** 2025-07-24

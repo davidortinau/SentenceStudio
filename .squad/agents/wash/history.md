@@ -1846,3 +1846,4 @@ Conducted data layer survey for new import feature. Identified YouTube pipeline 
 
 - 2026-04-27: **Jayne v1.3 Import Detail E2E — SHIPPED** — Jayne validated the Import Complete redesign (commits 35e0ba1, 111418f) with 7/7 E2E tests PASS. Summary cards render correctly, per-row table works, filter pills functional, back-nav state preserved, vocab links navigate correctly, failed rows resilient, zero errors in logs. Feature shipped on feature/import-content. (See: `.squad/log/2026-04-27T14:53:00Z-v13-import-detail.md`)
 
+- 2026-04-27: **M.E.AI 10.5.0 Strategic Review — Read-Only Audit** — Performed baseline audit of M.E.AI usage across 5 service sites (Api, Workers, AppLib, WebApp, HelpKit). Identified pipeline gaps (zero middleware on server paths), package fragmentation (3 versions), and hardcoded magic values. Output forwarded to River and Zoe. (See: `.squad/orchestration-log/2026-04-27T19-06-10Z-wash.md` and merged decision in `.squad/decisions.md`.)
