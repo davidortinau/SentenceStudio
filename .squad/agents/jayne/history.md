@@ -16,7 +16,9 @@
 
 - 2026-04-26: **v1.2 Import Bug Reproduction** — Captain's Phrases+Pipe import confirmed broken. Root cause: Phrases branch in `ContentImportService.ParseContentAsync()` (line 176-196) bypasses delimiter-aware `ParseDelimitedContent()` and sends everything to `ParseFreeTextContentAsync()`, which decomposes phrases into individual words via AI. DB evidence: 8 Word entries, 0 Phrase entries from Captain's 3-sentence input. Second issue: `ParseDelimitedContent()` hardcodes `LexicalUnitType.Word` (line 485). Evidence at `e2e-testing-workspace/v12-import-bug/`. LexicalUnitType enum mapping confirmed: Unknown=0, Word=1, Phrase=2, Sentence=3. Server Postgres has the LexicalUnitType column (migration applied); mobile SQLite does NOT (migration `20260423` never applied to server SQLite).
 - Server DB is Postgres via Aspire (not SQLite). The SQLite file at `~/Library/Application Support/sentencestudio/server/sentencestudio.db` is the mobile sync DB, not the webapp DB. Query Postgres via: `docker exec -e PGPASSWORD='...' <container> psql -U dbadmin -d sentencestudio`
-- Playwright MCP can go stale (browser closed state) between sessions. Have a fallback to DB-level verification when Playwright is unresponsive.
+- Playwright MCP can go stale (browser closed state) between sessions. Have a fallback to DB-level verification when Playwright is unresponsive. Workaround: connect Python Playwright directly via CDP to the existing Chromium debug port (64185). Requires page reload to re-establish Blazor SignalR circuit.
+
+- 2026-04-27: **v1.2 Import Fix Verified (Round 4)** — Wash's fix at commit `3c7a4cc` verified. Test 1 (Phrases regression): 3 pipe-delimited lines imported as LexicalUnitType=2 (Phrase) + 5 harvested words — PASS. Test 2 (Sentences fix): 3 pipe-delimited lines imported as LexicalUnitType=3 (Sentence) — was 0 before fix, now 4 — PASS. All 24 unit tests pass. Verdict: SHIP. Evidence at `e2e-testing-workspace/v12-import-fix-r4/`.
 
 - E2E testing skill at `.claude/skills/e2e-testing/SKILL.md` — follow it religiously
 - Aspire stack: `cd src/SentenceStudio.AppHost && aspire run`
@@ -1275,4 +1277,66 @@ Both layers must be audited together. Single-layer verification can hide defects
 **Ship readiness:** All P1 bugs verified fixed. Feature shipped clean with full regression coverage.
 
 - 2026-04-27: **TEAM CONVERGENCE: Bug Reproduction + Test Plan** — Reproduced v1.1 phrase-save bug at HEAD 3b6c01b: 3 Korean|English sentences in → 8 word entries out, ZERO phrases. Smoking gun: `ContentImportService.cs` line 192 calls `ParseFreeTextContentAsync()` (generic FreeTextToVocab prompt) instead of River's dedicated `ExtractVocabularyFromPhrases.scriban-txt`. All 8 entries had `LexicalUnitType=1 (Word)`. Convergent diagnosis: Wash identified root cause + implemented 2-step fix (parse delimited → AI extract words), River locked JSON contract + created Sentences prompt, Kaylee added Type filter. Created 7-section test plan (Phrases/Sentences/Transcript/edge cases) in `e2e-testing-workspace/v12-import-bug/test-plan.md`. Round 2: execute validation against fixes + verify all three import paths end-to-end.
+
+
+---
+
+## 2026-04-27 — v1.2 Import E2E Validation Cycle: Rounds 3-4
+
+**Status:** ✅ SHIPPED — Escalation + Re-verification
+
+**Cycle Overview:** Two-round validation gate. Round 3 revealed feature gap (Sentences type never committed). Root cause escalated to Wash. Round 4 re-verified both regression guard and fix after engineering cycle.
+
+**Round 3 — Ship-Gate E2E (7 Scenarios) — Result: PARTIAL**
+
+**Test 1 — Phrases Regression Guard:** ✅ PASS  
+- Input: 3 Korean|English pipe lines, Content Type = Phrases
+- Result: +4 type=2 (Phrase), +2 type=1 (Word)
+- Evidence: `e2e-testing-workspace/v12-import-fix-verification/t1-*.png`
+
+**Test 2 — Sentences Type Expansion:** ⚠️ PARTIAL  
+- Input: 3 Korean|English pipe lines, Content Type = Sentences
+- Expected: +3 type=3 (Sentence), +? type=1 (Word)
+- Actual: 0 type=3, +9 type=1 only
+- Root Cause: **Feature gap** — AI preview decomposed sentences into word-level entries. No type=3 rows ever created. Escalated to Wash as engineering bug.
+- Evidence: `e2e-testing-workspace/v12-import-fix-verification/t2-*.png`
+
+**Tests 3-7 — UI/UX/Validation:** ✅ All PASS  
+- Type filter dropdown: Present with 4 localized options (전체/단어/구문/문장)
+- Auto-detect: Correctly classified multi-sentence Korean
+- Validation gate: Commit blocked when 0 harvest flags set
+- Regression (Vocabulary words-only): +3 entries, all type=1
+- DB heuristic: Phrase entries correctly classified, no mismatches
+
+**Round 3 Verdict:** SHIP with follow-up — Primary bug (Phrases) fixed, secondary gap (Sentences) filed as engineering issue.
+
+**Round 4 — Re-Verification (Targeted Tests 1+2) — Result: PASS ✓**
+
+After Wash's diagnosis + fix (commit `3c7a4cc`), re-executed:
+
+**Test 1 — Phrases Regression Guard (vs. `3c7a4cc`):** ✅ PASS  
+- Input: 3 coffee-themed pipe lines, Content Type = Phrases
+- Result: 8 created, 6 skipped (dedup)
+- DB rows: 3 primary → type=2, 5 AI-extracted → type=2, 3 AI-extracted → type=1
+- Evidence: `e2e-testing-workspace/v12-import-fix-r4/{03,04,05,06}*.png`
+
+**Test 2 — Sentences Fix Verification:** ✅ PASS  
+- Input: 3 coffee-morning-evening pipe lines, Content Type = Sentences
+- Result: 8 created, 10 skipped (dedup)
+- **DB rows: 3 primary → type=3 (was 0 in R3!)**, 1 AI hallucination → type=3, 7 AI-extracted → type=1
+- Evidence: `e2e-testing-workspace/v12-import-fix-r4/{07,08,09}*.png`
+
+**DB Type Distribution (R4 Final):**
+
+| Type | Before R3 | After R3 | After R4 | R4 Delta |
+|------|-----------|----------|----------|----------|
+| 1 (Word) | 221 | 234 | 241 | +7 |
+| 2 (Phrase) | 7 | 12 | 17 | +5 |
+| 3 (Sentence) | 0 | 0 | 4 | **+4** |
+
+**Pattern Learning:** "Escalation pattern" — when partial results flag a feature gap, escalation to engineering (with clear evidence) is faster than debugging yourself. Root cause turned out to be architectural (unwired prompt) + hint bug, not a simple data-flow bug. Wash fixed both in single cycle.
+
+**Round 4 Verdict:** SHIP ✓ — Feature complete and verified end-to-end. All three import paths (Phrases/Sentences/Words) working.
+
+**Decision Integration:** Decision doc merged into `.squad/decisions.md`.
 

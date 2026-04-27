@@ -1797,3 +1797,45 @@ Conducted data layer survey for new import feature. Identified YouTube pipeline 
 
 - 2026-04-27: **TEAM CONVERGENCE: v1.2 Phrase-Save Bug Fix** — Root cause: Phrases branch (line 192) routed to generic `ParseFreeTextContentAsync` instead of River's dedicated `ExtractVocabularyFromPhrases.scriban-txt` (TODO comment at line 191 acknowledged this gap). Three independent agents (Wash, River, Jayne) converged on identical diagnosis within same spawn. Jayne reproduced Captain's exact case (3 Korean|English in → 8 words, 0 phrases). Wash fixed by rewriting Phrases as 2-step pipeline: parse delimited → preserve phrase/sentence entries → AI harvest constituent words → dedup. Added `ContentType.Sentences` + `HarvestSentences` flag. Refined ResolveLexicalUnitType heuristic (terminal punctuation → Sentence). River locked JSON contract. Kaylee added Type filter UI. Pattern learning: "the prompt was already there, just unwired" — for future: check for TODOs when implementing new features.
 
+
+---
+
+## 2026-04-27 — v1.2 Import Bug Fix: Sentences Content Type (Round 3-4 Cycle)
+
+**Status:** ✅ SHIPPED — Root-cause diagnosis + fix + re-verification
+
+**Cycle Summary:** Jayne's Round 3 E2E identified partial failure (Test 2: Sentences producing 0 type=3 rows). Wash diagnosed two real bugs, fixed both, and Jayne re-verified all paths passing in Round 4.
+
+**Root Causes Identified:**
+
+1. **S2 (Primary) — Content-type-unaware hint:** Line 204 always passed `LexicalUnitType.Phrase` to `ResolveLexicalUnitType` regardless of user's explicit content type choice. With Sentences harvest defaults (`harvestPhrases=false`), all primary rows were filtered out at line 1100. Only AI-extracted Word rows survived.
+
+2. **S1 (Secondary) — Unwired Sentences AI prompt:** `ExtractVocabularyFromSentences.scriban-txt` existed (authored by River) but was never wired. Extraction always used Phrases prompt, which only emits Word/Phrase entries (never Sentence).
+
+3. **S3 (Investigated, Not Cause) — DTO round-trip:** Confirmed not issue. `ImportRow.LexicalUnitType` survives serialization; rows simply never had Sentence classification.
+
+**Fix Implementation:**
+
+1. **Content-type-aware classification (S2):** When `effectiveContentType == ContentType.Sentences`, pass `LexicalUnitType.Sentence` as hint. Single-token check moved AFTER Phrase/Sentence early-return guard (ensures single-token always → Word).
+
+2. **Wired Sentences extraction (S1):** New `ExtractVocabularyFromSentencesAsync` method mirrors Phrases variant but loads correct template and passes harvest flags (`harvest_sentences`, `harvest_phrases`, `harvest_words`) to prompt.
+
+**Tests Added (4 new, 24/24 passing):**
+- `ParseContentAsync_Sentences_PrimaryRowsClassifiedAsSentence` — Terminal-punctuation sentences → type=3
+- `ParseContentAsync_Sentences_NoPunctuation_StillClassifiedAsSentence` — Multi-token Korean without period → still type=3
+- `ParseContentAsync_Sentences_SingleTokenStaysWord` — Single token → always Word (correct)
+- `ParseContentAsync_Phrases_StillWorkCorrectly` — Regression guard: Phrases still type=2
+
+**Commit:** `3c7a4cc` — "fix: Sentences content type now produces LexicalUnitType=Sentence rows"
+
+**Files Modified:**
+- `src/SentenceStudio.Shared/Services/ContentImportService.cs` — hint logic, AI branching, new method, heuristic reorder
+- `tests/SentenceStudio.UnitTests/Services/ContentImportServiceTests.cs` — 4 new tests
+
+**Pattern Learning:** "Wired-but-not-called" anti-pattern — when code path exists (like River's Sentences prompt) but isn't branched-to, the feature silently fails. For future: grep for TODO comments at route points; verify all paths are actually reachable.
+
+**Round 3 Verdict:** PARTIAL → Escalated for root-cause  
+**Round 4 Verdict:** SHIP ✓ — Both Test 1 (Phrases regression guard) and Test 2 (Sentences fix) PASS. DB delta: +7 Word, +5 Phrase, +4 Sentence rows.
+
+**Decision doc:** `.squad/decisions.md` (merged from inbox/wash-sentences-branch-fix.md)
+
