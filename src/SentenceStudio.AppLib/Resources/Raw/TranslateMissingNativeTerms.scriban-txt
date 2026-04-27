@@ -1,0 +1,40 @@
+You are a {{ target_language }}-{{ native_language }} translation specialist. Translate the following {{ target_language }} vocabulary terms into {{ native_language }}.
+
+**VOCABULARY TERMS TO TRANSLATE:**
+{{ for term in terms }}
+- {{ term }}
+{{ end }}
+
+**TRANSLATION RULES:**
+1. Provide clear, concise {{ native_language }} definitions suitable for a language learner.
+2. For verbs/adjectives in -다 form, translate the base meaning (e.g., 먹다 → "to eat", 예쁘다 → "to be pretty").
+3. For nouns, provide the most common {{ native_language }} equivalent.
+4. For expressions or phrases, capture the idiomatic meaning, not word-by-word translation.
+5. Keep definitions brief — one short phrase or a few words. No lengthy explanations.
+6. If a term has multiple common meanings, choose the most general/common one for a learner.
+
+**RESPONSE FORMAT — Return a JSON object exactly like this:**
+{
+  "translations": [
+    {
+      "targetLanguageTerm": "{{ target_language }} term from input",
+      "nativeLanguageTerm": "{{ native_language }} definition — clear, concise"
+    }
+  ]
+}
+
+**EXAMPLE:**
+If terms are ["학교", "먹다", "예쁘다"], return:
+{
+  "translations": [
+    {"targetLanguageTerm": "학교", "nativeLanguageTerm": "school"},
+    {"targetLanguageTerm": "먹다", "nativeLanguageTerm": "to eat"},
+    {"targetLanguageTerm": "예쁘다", "nativeLanguageTerm": "to be pretty"}
+  ]
+}
+
+**IMPORTANT:**
+- Return ONLY valid JSON. No markdown fences, no commentary before or after.
+- Preserve the exact spelling of targetLanguageTerm from the input list.
+- Return translations in the same order as the input terms.
+- If you cannot translate a term (e.g., it's not valid {{ target_language }}), set nativeLanguageTerm to "[unknown]" but still include the entry.

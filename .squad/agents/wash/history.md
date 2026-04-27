@@ -7,6 +7,10 @@
 
 ## Learnings
 
+- 2025-07-25: **Preview Duplicate Detection** — Added `IsDuplicate` (bool) and `DuplicateReason` (string?) to `ImportRow`. New interface method `EnrichPreviewWithDuplicateInfoAsync` runs a single batched DB query (`WHERE IN` on normalized target terms) and marks each preview row before commit. Extracted `NormalizeTargetTerm()` as the single source of truth for the matching predicate (trimmed, case-sensitive ordinal) — used by both preview enrichment and `CommitImportAsync`. Two reason keys: `"AlreadyInVocabulary"` (term exists in VocabularyWord table), `"DuplicateWithinBatch"` (same term appears earlier in preview). Intra-batch detection uses a `HashSet<string>` seen-tracker. 4 new tests (36 total): exact dup flagged, near-miss not flagged, batch query structure, and round-trip invariant (Preview IsDuplicate matches Commit Skipped/Created). Decision drop: `wash-preview-duplicate-flag.md`. Kaylee integration: call `EnrichPreviewWithDuplicateInfoAsync` after `ParseContentAsync`, render badge per `DuplicateReason` key.
+- 2025-07-25: **Per-Item Import Result Detail** — Added `ImportItemStatus` enum (Created/Updated/Skipped/Failed), `ContentImportItemResult` class (VocabularyWordId?, Lemma, NativeLanguageTerm, Type, Status, Reason), and `ContentImportResult.Items` (`IReadOnlyList<ContentImportItemResult>`). Every branch in `CommitImportAsync` that increments a count now also appends a detail item. Curated reasons: "Already exists in resource" (DB skip), "Duplicate within batch" (intra-batch skip), "Target language term is empty" / "Native language term is empty..." (failures). Failed branches call `_logger.LogError(...)` with structured fields for Aspire retrieval. Invariant: `Items.Count == CreatedCount + UpdatedCount + SkippedCount + FailedCount`. 8 new tests (32 total ContentImportService tests passing). No schema migration needed. Decision drop: `wash-import-item-result.md`. Skill: `structured-import-results/SKILL.md`. Kaylee integration: Items order matches selectedRows, VocabularyWordId linkable for non-failed rows, Reason shown inline for Skipped/Failed.
+- 2026-07-21: **Phrase-Save Bug Fix + Sentence Content Type** — ROOT CAUSE: Phrases branch in ParseContentAsync called `ParseFreeTextContentAsync` (generic FreeTextToVocab prompt) which decomposed input into individual words, silently dropping phrase/sentence entries. River's `ExtractVocabularyFromPhrases.scriban-txt` was deployed but never wired in (TODO comment at line 191). FIX: Rewrote Phrases branch with two-step pipeline: (1) parse delimited lines first to create primary phrase/sentence entries preserving user's original content, (2) run River's AI phrase extraction for constituent words, (3) combine with dedup by target term, (4) filter by harvest flags. Added `ContentType.Sentences` enum value, `HarvestSentences` boolean on both DTOs. Refined ResolveLexicalUnitType heuristic: terminal punctuation (. ! ? 。 ！ ？) + whitespace → Sentence; whitespace only → Phrase; else Word. Updated classifier prompt to recognize Sentences as a fourth type. Updated stale test `ParseContentAsync_ThrowsNotSupportedException_ForPhrasesAndTranscript` → `ParseContentAsync_PhrasesAndTranscript_NoLongerThrow`. No schema migration needed (LexicalUnitType.Sentence already exists). Build green, 138+472 tests passing (1 pre-existing auth failure). Decisions inbox: `wash-sentence-type-plumbing.md`. Kaylee needs: Sentences button in content type selector, Sentences harvest checkbox, `ContentTypeToString` case.
+- 2026-04-25: **v1.1 Content Import Backend** — Implemented three new import branches (Phrase, Transcript, Auto-detect) in ContentImportService plus checkbox harvest model. Migration `SetDefaultLexicalUnitType` backfills Unknown→Word/Phrase via space heuristic (dual-provider: Postgres POSITION, SQLite INSTR). Auto-detect uses three-tier confidence gate (>=0.85 auto, 0.70-0.84 suggest, <0.70 manual) with classification running BEFORE any DB persistence. Transcript branch reuses `ExtractVocabularyFromTranscript.scriban-txt` with word-biased extraction. Phrase branch reuses `FreeTextToVocab.scriban-txt` (awaiting River's dedicated prompt). Zero-vocab: persist resource + warning. Chunking: reject >30KB, v1.2 follow-up. DTOs updated with harvest booleans and LexicalUnitType per row. UI adapted (DetectContentType→ClassifyContentAsync). Build green: Shared, MacCatalyst, API. Doc: `.squad/decisions/inbox/wash-v11-backend.md`
 - 2026-04-23: **Word/Phrase Feature Completed** — Delivered 9 todos: model-enum (LexicalUnitType), model-constituent (PhraseConstituent), migration-schema (dual-provider), backfill-classification (heuristic), backfill-constituents (lemma tokenization), progress-cascade (passive exposure), shadowing-consumer (LexicalUnitType branching), smart-resource-phrases (new type), smart-resource-phrases-fix (scope bug). Total: 147 tests passing, feature complete, e2e blocked on SQLite migration history mismatch (Captain decision needed). Documented in `.squad/log/2026-04-23T2219Z-wordphrase-squad-wrap.md`.
 - 2026-05-20: **Smart Resource: Phrases** — Added `Phrases` smart resource type for practicing all phrase/sentence vocabulary. Uses `LexicalUnitType.Phrase | Sentence` filter with user scoping via `VocabularyProgress.UserId` join (VocabularyWord has no UserProfileId). Intent-driven like Struggling (excluded from planner via `.Where(r => !r.IsSmartResource)` in DeterministicPlanBuilder). Initialization creates 4th smart resource (DailyReview, NewWords, Struggling, Phrases). ResourceVocabularyMapping population via same refresh/bulk-associate pattern. Empty on new users (populates after backfill classification). Build green (Shared, MacCatalyst, Api). Doc: `.squad/decisions/inbox/wash-smart-resource-phrases.md`
 - 2025-01-24: **Shadowing LexicalUnitType Consumer** — Modified `ShadowingService.GenerateSentencesAsync()` to branch on `VocabularyWord.LexicalUnitType`: only `Word` entries trigger AI carrier-sentence generation via Scriban template; `Phrase | Sentence | Unknown` use `TargetLanguageTerm` as-is (no AI round-trip). Unknown entries emit structured log `ShadowingUnknownTerm` (Information level, WordId+Term fields) for downstream UI reclassification. As-is sentences populate same `ShadowingSentence` DTO shape (TargetLanguageText=term, NativeLanguageText=translation, PronunciationNotes=null). No public API changes, no Scriban template changes. All target projects (Shared, MacCatalyst, Api) build green. No external call sites — all routing internal to ShadowingService. Doc: `.squad/decisions/inbox/wash-shadowing-consumer.md`
@@ -1558,3 +1562,288 @@ None. Exact match to Captain's specification.
 
 
 - 2026-04-24: **DX24 LexicalUnitType Hotfix (Production Emergency)** — Captain installed Release iOS build (feat/vocab Word-vs-Phrase, commit ff0bb25) to DX24 (iPhone) but app errored on every activity page with "no such column: LexicalUnitType". Root cause: `SyncService.InitializeDatabaseAsync` has a catch-all at lines 227-230 that logs MigrateAsync exceptions and continues, so the new migration `20260423213242_AddLexicalUnitTypeAndConstituents` failed silently on device. Established pattern from `AddMissingVocabularyWordLanguageColumn.cs`: SQLite migrations for mobile must be idempotent via `PatchMissingColumnsAsync` because MigrateAsync failures are swallowed. Fix: (1) Made SQLite migration Up() empty with doc comment explaining snapshot-only advancement + PatchMissingColumnsAsync pre-migration patching pattern. (2) Extended `PatchMissingColumnsAsync` to add `LexicalUnitType INTEGER NOT NULL DEFAULT 0` column to VocabularyWord if missing AND create `PhraseConstituent` table with all 3 indexes (FK1, FK2, unique composite) using `CREATE TABLE IF NOT EXISTS` + `CREATE INDEX IF NOT EXISTS` for idempotency. Pattern confirmed: future SQLite migrations adding columns/tables must pair migration file with PatchMissingColumnsAsync entries at landing time or risk silent schema drift on mobile. Build green (Shared Release). Decision: `.squad/decisions/inbox/wash-dx24-lexical-patch.md`.
+
+---
+
+## CRITICAL RULE: SQLite Migration Defense-in-Depth (2026-04-24)
+
+**Context:** DX24 vocab-page crash (NULL at ordinal 8, then LexicalUnitType missing column).
+
+**Pattern:** Defensive ALTER TABLE patches MUST include DEFAULT clauses for non-nullable entity properties, PLUS an idempotent backfill UPDATE for databases patched before the fix shipped.
+
+**Example:**
+```csharp
+// In migration: add NOT NULL DEFAULT when possible
+migrationBuilder.AddColumn<int>(
+    name: "ExposureCount",
+    table: "VocabularyProgress",
+    nullable: false,
+    defaultValue: 0);
+
+// In SyncService.PatchMissingColumnsAsync: idempotent backfill
+var result = await connection.ExecuteAsync(
+    "UPDATE VocabularyProgress SET ExposureCount = 0 WHERE ExposureCount IS NULL");
+_logger.LogWarning($"Patched {result} rows: ExposureCount NULL → 0");
+```
+
+**When migration can't use DEFAULT** (e.g., computed column, complex logic):
+1. Still add the column with a safe default (NULL if nullable, 0 if int, empty string if text, etc.)
+2. Implement idempotent post-migration backfill in `PatchMissingColumnsAsync` using `WHERE ... IS NULL` or `WHERE ... = <old_value>`
+3. Log at WARNING level with row count
+4. Non-fatal on error (log + continue, user app must not crash)
+
+**Why this matters:**
+- SQLite on iOS/Android can have legacy migration history seeded without schema applied
+- `MigrateAsync` failures are caught + logged in `SyncService.InitializeDatabaseAsync` (non-fatal, degraded mode)
+- Silent schema drift means NULLs in non-nullable EF entity properties → `SqliteException` on every query
+- User sees crash only when navigating to a page that queries the incomplete schema (very late in session)
+
+**For all future SQLite migrations (mobile):**
+1. Make the SQLite migration Up() idempotent (either empty with doc comment explaining PatchMissingColumnsAsync handles it, or use SQL that works on repeat)
+2. Add corresponding entry to `PatchMissingColumnsAsync` at the same time the migration lands
+3. Use IF NOT EXISTS / pragma checks for idempotency
+4. Reference: `AddMissingVocabularyWordLanguageColumn.cs` (empty Up() + patch pattern) and commit c9b1d0a (ExposureCount example)
+
+**Verification:** Always test on Mac Catalyst Debug build (via `scripts/validate-mobile-migrations.sh`) and device before merge.
+
+### 2026-05-30: Bulk Import Data Layer Patterns (Scout for File Import Feature)
+
+**Context:** Pre-architecture scouting for Zoe to design a file import feature for vocabulary lists (CSV/text). No implementation — read-only investigation of existing patterns.
+
+**Key discoveries:**
+
+1. **Dedup inconsistency:** `VideoImportPipelineService` uses case-sensitive exact match on `TargetLanguageTerm` (line 368), but `LearningResourceRepository` utilities use case-insensitive trimmed comparison (line 940). This creates duplicates when same word appears with different casing across imports. **Recommendation:** Standardize to case-insensitive trimmed dedup in service layer (both YouTube and file imports).
+
+2. **Shared vocabulary model:** `VocabularyWord` has NO `UserProfileId` — vocabulary is shared across users. Per-user data lives in `VocabularyProgress` (created lazily on first practice, NOT at import time). `ResourceVocabularyMapping` provides many-to-many between user's `LearningResource` and shared `VocabularyWord` pool.
+
+3. **Batch import status tracking pattern:** `VideoImport` entity tracks pipeline state with enum statuses (`Pending`, `FetchingTranscript`, etc.). Background execution via `Task.Run`, caller polls `/api/imports/{id}` for progress. Pattern is reusable for file imports if status UI is needed.
+
+4. **Repository transaction pattern:** `SaveResourceAsync` (LearningResourceRepository:210-250+) handles resource + vocabulary in single transaction: (a) detach nav props, (b) check existing resource, (c) save resource, (d) dedup words via `GetWordByTargetTermAsync`, (e) create mappings, (f) SaveChanges, (g) trigger sync. Use this pattern for file import to maintain data integrity.
+
+5. **File picker ready to use:** `IFilePickerService` / `MauiFilePickerService` abstraction exists and is production-tested. Returns `Stream` for parsing. Static parser `VocabularyWord.ParseVocabularyWords()` exists but is NOT wired to repository/persistence — new service layer needed.
+
+**Delivered:** `.squad/decisions/inbox/wash-import-scout-findings.md` for Zoe's architecture proposal.
+
+---
+
+## 2026-04-24 — Import Data Layer Scout (Multi-Agent Session)
+
+Conducted data layer survey for new import feature. Identified YouTube pipeline as template, found file import UI/service gap, discovered dedup inconsistency, confirmed no schema changes needed.
+
+**Key findings:**
+- YouTube pipeline pattern in `VideoImportPipelineService` (dedup by TargetLanguageTerm)
+- File import UI missing, but parser utility `VocabularyWord.ParseVocabularyWords()` exists
+- Dedup inconsistency: case-sensitive in pipeline vs. case-insensitive in repo utilities
+- MVP reuses all existing tables (LearningResource, VocabularyWord, ResourceVocabularyMapping)
+- Migration gotcha: multi-TFM requires temporary single-TFM switch for `dotnet ef`
+
+**Recommendations to Zoe:**
+- Standardize dedup to case-insensitive trimmed
+- New `VocabularyImportService` following YouTube pattern
+- Optional `FileImport` entity for status tracking
+
+**Coordinated with:** Zoe (architecture), River (AI), Kaylee (UI), Copilot
+
+**Next:** Implementation uses findings for service + DB layer.
+
+
+## Learnings
+
+### 2026-05-30 — ContentImportService Skeleton + DI Registration
+
+**Files Created:**
+- `src/SentenceStudio.Shared/Services/ContentImportService.cs` — Interface `IContentImportService` + implementation class with DTOs for Wave 1 Track A MVP
+
+**Files Modified:**
+- `src/SentenceStudio.AppLib/Services/CoreServiceExtensions.cs` — Added scoped registration for `IContentImportService`
+
+**DI Registration:**
+- Registered as **scoped** in `CoreServiceExtensions.AddSentenceStudioCoreServices()` (line ~96)
+- Matches `LearningResourceRepository` lifetime (singleton) but scoped is safer for transient operations
+- Service requires `IServiceProvider` injection for DbContext scoping pattern
+
+**Dedup Rule Applied:**
+- Case-sensitive, whitespace-trimmed match on `TargetLanguageTerm` only
+- Matches YouTube pipeline (`VideoImportPipelineService:368`) and Captain's ruling (2026-04-24)
+- Three modes: Skip (default, safest), Update (dangerous, warns), ImportAll (creates duplicates)
+
+**Transaction Pattern:**
+1. Get or create target resource
+2. Load existing mappings into HashSet to prevent duplicates
+3. For each selected row:
+   - Check existing word via `FirstOrDefaultAsync(w => w.TargetLanguageTerm == trimmedTarget)`
+   - Apply dedup mode (Skip / Update / ImportAll)
+   - Detach nav props for Update mode (prevents cascade insert errors)
+   - Add word if new, update if Update mode, reuse if Skip mode
+   - Create mapping only if not already in resource's mapping set
+4. Update resource timestamp
+5. Single `SaveChangesAsync` for entire transaction
+6. Trigger sync (fire-and-forget)
+
+**Key Patterns Followed:**
+- `SaveResourceAsync` transaction pattern from `LearningResourceRepository` (detach nav props → dedup → save → create mappings → single SaveChanges)
+- Scoped DbContext via `_serviceProvider.CreateScope()` (not constructor injection — allows multiple scopes)
+- Defensive null-handling on all DTOs
+- XML doc comments on all public surfaces
+- Microsoft.Extensions.AI `[Description]` attributes on all DTO properties (per repo convention)
+
+**MVP Scope Boundaries:**
+- ParseContentAsync: Vocabulary only (Phrases/Transcript throw `NotSupportedException` with v2 TODO)
+- Format detection: Stub (returns delimiter type for MVP, AI heuristics in Wave 2)
+- Single-column translation: Stub (returns error for MVP, AI translation in Wave 2 per Captain ruling #3)
+- Content type detection: Stub (returns explicit type for MVP, AI classifier in Wave 2)
+
+**Future Wash Sessions Should Know:**
+- CommitImportAsync body is **production-quality MVP** — full transaction, real dedup, real mapping creation
+- ParseContentAsync is **Wave 2 placeholder** — format detection and AI fallback hooks are stubbed but API surface is locked
+- No database migrations required (zero new tables per MVP plan)
+- Dedup on `NativeLanguageTerm` is explicitly excluded (allows multiple English definitions for same Korean word)
+- Smart resources (`IsSmartResource == true`) are never import targets (user-created resources only)
+
+
+## Learnings
+
+### 2026-05-30 — Wave 2 Content Import: Format Detection + AI Wiring
+
+**Context:** Filled in the parsing pipeline for Wave 2 Track A — format detection, AI translation, AI free-text extraction
+
+**Parser approach:**
+- **Format detection order:** Explicit delimiter → JSON parse → delimiter sniffing (60% consistency threshold across first 10 lines) → free-text fallback
+- **CSV quote handling:** Simple state machine (toggle inQuotes on `"`, split on `,` only when !inQuotes). Not full RFC 4180 but production-quality for MVP.
+- **JSON property heuristics:** Try common names (target/targetLanguageTerm/korean/term, native/nativeLanguageTerm/english/translation/definition) — works for both object and array formats
+- **Delimiter preference:** Tab → Pipe → Comma (comma is most ambiguous, prefer less common delimiters)
+
+**AI integration:**
+- **Template loading pattern:** `IFileSystemService.OpenAppPackageFileAsync("FreeTextToVocab.scriban-txt")` → StreamReader → Template.Parse → Render with anonymous object → AiService.SendPrompt<T>()
+- **Single-column translation:** Batch all missing native terms, single AI call, map back via dictionary (TargetLanguageTerm key), mark with `IsAiTranslated = true`
+- **Free-text extraction:** 50KB size cap (~12,500 tokens), confidence mapping (high→Ok, medium→Warning, low→Error), empty result gracefully handled
+- **Error handling:** Catch AI exceptions at parse time, show user-friendly error row + retry suggestion (never crash the preview)
+
+**Dedup audit findings:**
+- **VideoImportPipelineService (line 368):** Case-sensitive, NO trim — vulnerable to whitespace duplicates
+- **ContentImportService (Wave 1+2):** Case-sensitive, trimmed — CORRECT per Captain's ruling
+- **GetWordByTargetTermAsync (line 50):** Case-sensitive, NO trim — same vulnerability, but zero call sites found
+- **LearningResourceRepository (line 940):** Case-insensitive, trimmed — used for dual-key lookup (target+native), not dedup
+- **Recommendation:** Audit only for Wave 2, no behavior changes. Separate PR needed to fix YouTube pipeline + merge existing whitespace duplicates.
+
+**Library choices:**
+- **No external CSV parser added** — hand-rolled quote-aware state machine is sufficient for MVP, avoids new dependency
+- **System.Text.Json for JSON parsing** — already in use, JsonDocument.Parse() with try/catch for format detection
+- **Scriban for templates** — existing pattern, reused from VideoImportPipelineService
+
+**Build:** ✅ 0 errors, 729 pre-existing warnings. No new warnings from this code.
+
+**Files modified:**
+- `src/SentenceStudio.Shared/Services/ContentImportService.cs` (+467 lines: replaced ParseContentAsync stub, added 6 helper methods, added IsAiTranslated property to ImportRow DTO)
+
+**Decision docs:**
+- `.squad/decisions/inbox/wash-format-detector-ai-wiring.md` — Wave 2 implementation details, format detection strategy, AI wiring, dedup audit findings
+
+- 2026-05-01: **IAiService Interface Extraction** — Unblocked Jayne's unit tests for ContentImportService by extracting IAiService interface from concrete AiService class. Implemented dual DI registration strategy (concrete + interface alias) to preserve existing consumers while enabling mockability for new code. Zero blast radius — only ContentImportService migrated. Build clean (UI + tests). Full details in `.squad/decisions/inbox/wash-iaiservice-extraction.md`.
+
+---
+
+## 2026-04-25 — Import Scope Correction + v1.1 Architecture (Team Update)
+
+**Event:** Captain's process-correction round + Zoe's architecture spec completion  
+**Status:** �� BLOCKED on captain-confirm-scope  
+
+**What happened:**
+- Captain identified process issue: Phrases/Transcripts/Auto-detect were silently moved to v2 without asking him by name. Scope corrected; all three are back in v1.1.
+- Zoe completed architecture spec and **corrected Squad's Decision #1**: `LexicalUnitType` enum already exists (not a new enum needed). Only a backfill migration required (Unknown→Word).
+- New scope flag from Zoe: free-text phrase extraction deferred to v1.2 (CSV + paired-line phrases stay in v1.1).
+
+**For Wash specifically:**
+- **Decision #1 (corrected):** Use existing `LexicalUnitType` enum, not a new EntryType enum. Backfill: set all Unknown→Word for existing rows.
+- **Decision #2 (affirmed):** Transcript handling — store in `LearningResource.Transcript` + run `ExtractVocabularyFromTranscript`.
+- **Implementation blocked** until Captain confirms. See `.squad/decisions.md` for full spec (section "Import Content — Scope Correction & Expansion" + "Import Content v1.1 Architecture").
+
+**No action needed from you yet.** Read the decisions ledger when Captain unblocks. Zoe's spec has implementation order: River → Wash → Kaylee → Jayne.
+
+
+
+---
+
+## 2026-04-25 — v1.1 Data Import Backend Implementation
+
+**Status:** DELIVERED — Migration + 3 ContentImportService branches + DTO updates.
+
+**Deliverables:**
+1. `SetDefaultLexicalUnitType` migration — Heuristic backfill (TRIM+space check → Phrase, else Word). Down() no-op. Both Postgres and SQLite variants.
+2. ContentImportService Phrase branch — FreeTextToVocab routing, Words+Phrases per checkbox flags.
+3. ContentImportService Transcript branch — LearningResource.Transcript storage + word-biased vocabulary extraction.
+4. ContentImportService Auto-detect branch — 3-tier confidence gate, classification before DB persistence.
+5. DTO updates: HarvestTranscript/HarvestPhrases/HarvestWords on request/commit DTOs. ImportRow gains LexicalUnitType. ContentImportPreview gains Classification.
+
+**Edge cases resolved:** Zero-vocab = persist + warn. >30KB = reject (chunking v1.2).
+
+---
+
+## 2026-04-26 to 2026-04-27 — v1.1 Data Import Lockout & Resolution
+
+**Status:** LOCKED OUT (scoped) → RESOLUTION DELIVERED BY ESCALATION
+
+**Event:** Jayne's e2e run revealed 3 P1/P0 bugs in ContentImportService.cs (Wash's authored work). Under Reviewer Rejection Protocol, Wash was locked out and Simon (escalation specialist) was routed to fix.
+
+**Lockout scope:** 3 specific bugs only (UserProfileId, Transcript, LexicalUnitType). No impact on prior v1.0 or other features.
+
+**Resolution:**
+- Simon fixed all 3 bugs (backend DTO + mapping discipline)
+- Kaylee discovered + fixed frontend DTO mapping gap (same cycle)
+- Jayne's retest + full sweep confirmed all bugs fixed, zero regressions
+- **SHIP verdict: CLEARED** (2026-04-27, 10/10 scenarios PASS)
+
+**Lesson for Wash:** UserProfileId scoping (bypass-repo writes need explicit ActiveUserId resolution) and transcript DTO carry-through (SourceText must round-trip via preview). Both now baked into Simon's documented learnings for future cycles.
+
+**Status resolved:** Lockout was temporary and scoped. Feature shipped clean with all fixes verified.
+
+- 2026-04-27: **TEAM CONVERGENCE: v1.2 Phrase-Save Bug Fix** — Root cause: Phrases branch (line 192) routed to generic `ParseFreeTextContentAsync` instead of River's dedicated `ExtractVocabularyFromPhrases.scriban-txt` (TODO comment at line 191 acknowledged this gap). Three independent agents (Wash, River, Jayne) converged on identical diagnosis within same spawn. Jayne reproduced Captain's exact case (3 Korean|English in → 8 words, 0 phrases). Wash fixed by rewriting Phrases as 2-step pipeline: parse delimited → preserve phrase/sentence entries → AI harvest constituent words → dedup. Added `ContentType.Sentences` + `HarvestSentences` flag. Refined ResolveLexicalUnitType heuristic (terminal punctuation → Sentence). River locked JSON contract. Kaylee added Type filter UI. Pattern learning: "the prompt was already there, just unwired" — for future: check for TODOs when implementing new features.
+
+
+---
+
+## 2026-04-27 — v1.2 Import Bug Fix: Sentences Content Type (Round 3-4 Cycle)
+
+**Status:** ✅ SHIPPED — Root-cause diagnosis + fix + re-verification
+
+**Cycle Summary:** Jayne's Round 3 E2E identified partial failure (Test 2: Sentences producing 0 type=3 rows). Wash diagnosed two real bugs, fixed both, and Jayne re-verified all paths passing in Round 4.
+
+**Root Causes Identified:**
+
+1. **S2 (Primary) — Content-type-unaware hint:** Line 204 always passed `LexicalUnitType.Phrase` to `ResolveLexicalUnitType` regardless of user's explicit content type choice. With Sentences harvest defaults (`harvestPhrases=false`), all primary rows were filtered out at line 1100. Only AI-extracted Word rows survived.
+
+2. **S1 (Secondary) — Unwired Sentences AI prompt:** `ExtractVocabularyFromSentences.scriban-txt` existed (authored by River) but was never wired. Extraction always used Phrases prompt, which only emits Word/Phrase entries (never Sentence).
+
+3. **S3 (Investigated, Not Cause) — DTO round-trip:** Confirmed not issue. `ImportRow.LexicalUnitType` survives serialization; rows simply never had Sentence classification.
+
+**Fix Implementation:**
+
+1. **Content-type-aware classification (S2):** When `effectiveContentType == ContentType.Sentences`, pass `LexicalUnitType.Sentence` as hint. Single-token check moved AFTER Phrase/Sentence early-return guard (ensures single-token always → Word).
+
+2. **Wired Sentences extraction (S1):** New `ExtractVocabularyFromSentencesAsync` method mirrors Phrases variant but loads correct template and passes harvest flags (`harvest_sentences`, `harvest_phrases`, `harvest_words`) to prompt.
+
+**Tests Added (4 new, 24/24 passing):**
+- `ParseContentAsync_Sentences_PrimaryRowsClassifiedAsSentence` — Terminal-punctuation sentences → type=3
+- `ParseContentAsync_Sentences_NoPunctuation_StillClassifiedAsSentence` — Multi-token Korean without period → still type=3
+- `ParseContentAsync_Sentences_SingleTokenStaysWord` — Single token → always Word (correct)
+- `ParseContentAsync_Phrases_StillWorkCorrectly` — Regression guard: Phrases still type=2
+
+**Commit:** `3c7a4cc` — "fix: Sentences content type now produces LexicalUnitType=Sentence rows"
+
+**Files Modified:**
+- `src/SentenceStudio.Shared/Services/ContentImportService.cs` — hint logic, AI branching, new method, heuristic reorder
+- `tests/SentenceStudio.UnitTests/Services/ContentImportServiceTests.cs` — 4 new tests
+
+**Pattern Learning:** "Wired-but-not-called" anti-pattern — when code path exists (like River's Sentences prompt) but isn't branched-to, the feature silently fails. For future: grep for TODO comments at route points; verify all paths are actually reachable.
+
+**Round 3 Verdict:** PARTIAL → Escalated for root-cause  
+**Round 4 Verdict:** SHIP ✓ — Both Test 1 (Phrases regression guard) and Test 2 (Sentences fix) PASS. DB delta: +7 Word, +5 Phrase, +4 Sentence rows.
+
+**Decision doc:** `.squad/decisions.md` (merged from inbox/wash-sentences-branch-fix.md)
+
+
+## Cross-Agent Updates
+
+- 2026-04-27: **Jayne v1.3 Import Detail E2E — SHIPPED** — Jayne validated the Import Complete redesign (commits 35e0ba1, 111418f) with 7/7 E2E tests PASS. Summary cards render correctly, per-row table works, filter pills functional, back-nav state preserved, vocab links navigate correctly, failed rows resilient, zero errors in logs. Feature shipped on feature/import-content. (See: `.squad/log/2026-04-27T14:53:00Z-v13-import-detail.md`)
+
+- 2026-04-27: **M.E.AI 10.5.0 Strategic Review — Read-Only Audit** — Performed baseline audit of M.E.AI usage across 5 service sites (Api, Workers, AppLib, WebApp, HelpKit). Identified pipeline gaps (zero middleware on server paths), package fragmentation (3 versions), and hardcoded magic values. Output forwarded to River and Zoe. (See: `.squad/orchestration-log/2026-04-27T19-06-10Z-wash.md` and merged decision in `.squad/decisions.md`.)

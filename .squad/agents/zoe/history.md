@@ -671,3 +671,60 @@ blockers. Took ownership as Lead, fixed both, commit `b56c1c1`.
   triggers a 270-line diff to the Designer file on next build. Commit
   it alongside the resx change — otherwise the next contributor's first
   build produces a mystery diff.
+
+- 2026-07-27: **Import Feature Architecture** — Existing import infrastructure is YouTube-video-specific (VideoImport entity, VideoImportPipelineService, ImportEndpoints.cs). VocabularyWord dedup in the YouTube pipeline uses TargetLanguageTerm exact match (case-sensitive) — see VideoImportPipelineService.CreateLearningResourceAsync line 367. VocabularyWord.ParseVocabularyWords() exists as a static method for basic CSV/TSV parsing (comma or tab delimiter, 2-column only). ResourceAdd.razor already has a rudimentary vocab paste + file import UI (textarea + InputFile + delimiter radio). The existing ExtractVocabularyFromTranscript.scriban-txt prompt and VocabularyExtractionResponse DTO are reusable for any AI-backed vocabulary extraction, not just YouTube transcripts. Import.razor currently has 3 tabs (Channels, Single Video, History) — the text/file import feature should be a 4th tab, not a separate page.
+
+---
+
+## 2026-04-24 — Import Feature Architecture Session (Multi-Agent)
+
+Coordinated architecture for new generic data import feature (text/CSV/JSON → vocabulary/phrases/transcripts). Produced full design covering UX flows, content type detection, data model, parsing pipeline, AI integration, service layer, scope phasing.
+
+**Key deliverables:**
+- Architecture proposal with UX flows, content detection heuristics, data model (no new tables)
+- Placement revision: separate `/import-content` page (not tab on existing `/import`)
+- MVP scope: text paste or CSV/TSV upload, vocabulary, delimiter detection, preview-before-commit
+- Service layer: `ContentImportService` in Shared
+
+**Coordinated with:** Wash (data layer scout), River (AI strategy), Kaylee (UI patterns), Copilot directive
+
+**Next:** Implementation team builds service layer + UI. River engineers prompts.
+
+
+---
+
+## 2026-04-25 — v1.1 Architecture Spec Completion + Decision #1 Correction
+
+**Session:** Import Scope Correction (background, 4 hours)  
+**Output:** `.squad/decisions/inbox/zoe-import-architecture-v1.1.md` (23.5 KB, 10 sections + appendix)  
+**Status:** ✅ Complete — merged into decisions.md, awaiting Captain confirmation  
+
+**Key Discovery:**
+Squad's proposed Decision #1 (add new `EntryType` enum) was **WRONG**. Discovered that `LexicalUnitType` enum **already exists** in `src/SentenceStudio.Shared/Models/LexicalUnitType.cs` with exact values needed (Unknown=0, Word=1, Phrase=2, Sentence=3). Corrected autonomously:
+- VocabularyWord.LexicalUnitType property already exists (line 53)
+- AI prompts already populate LexicalUnitType
+- No new enum, no schema additions — only a backfill migration (Unknown→Word)
+- Saved team a redundant migration and corrected before implementation began
+
+**Other Decisions Affirmed:** Decisions #2, #3, #4 from Squad hold as proposed.
+
+**New Scope Flag (Same Pattern as Original Correction):** Deferred free-text phrase extraction (prose → AI extracts phrases) to v1.2, keeping CSV + paired-line phrases in v1.1. Flagged explicitly so Captain can pull back if needed.
+
+**Learnings:**
+
+### Discovery Pattern
+- **Existing Infrastructure:** When proposing schema changes, always audit the existing model classes. `LexicalUnitType` was already designed into the system — Squad missed it because it didn't cross-reference the codebase thoroughly during autonomous decision-making.
+- **AI Prompt Alignment:** The AI templates already populated `lexicalUnitType` fields correctly. This alignment was a signal that the infrastructure was intentionally designed to support Word/Phrase/Sentence distinctions.
+- **Backfill Pattern:** When existing rows have a default value (Unknown=0), a backfill migration is needed. Pattern: EF migration + async backfill method post-migration.
+
+### Architecture Decisions That Held
+- Transcript: Both store + extract (justified by: field already exists, prompt already exists, no migration needed)
+- Auto-detect: Confidence thresholds + always-visible banner (justified by: data preservation rule, user-visible decisions)
+- Same branch, drop -mvp: Avoids rebasing; work is isolated on feature branch by design
+
+### Open Questions Captured
+Six open questions for Captain in appendix (LexicalUnitType default value, confidence thresholds, transcript chunking >50KB, paired-line heuristic, dedup scope, naming) — documented for Captain review during unblock.
+
+**Next:** Captain confirms, Scribe merges, implementation team (River → Wash → Kaylee → Jayne) unblocked per spec Section J.
+
+- 2026-04-27: **M.E.AI 10.5.0 Adoption Strategy — Defer Features, Ship Debt** — Synthesized Wash's audit + River's verification into strategic recommendation: defer all three 10.5.0 headline features; ship three unrelated debt actions (Polly resilience, Directory.Packages.props + SKU unification, config for model/voice IDs). Pre-wrap decision: NO — bundle ElevenLabs + `ITextToSpeechClient` wrap with Realtime adoption when both stable (v11 timeframe). (See: `.squad/orchestration-log/2026-04-27T19-06-10Z-zoe.md` and merged decision in `.squad/decisions.md`.)

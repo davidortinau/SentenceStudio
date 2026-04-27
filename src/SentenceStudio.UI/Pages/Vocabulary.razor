@@ -16,11 +16,11 @@
     </ToolbarActions>
     <PrimaryActions>
         <button class="btn btn-ss-primary" @onclick="AddWord">
-            <i class="bi bi-plus-lg me-1"></i> @Localize["Vocabulary_AddWord"]
+            <i class="bi bi-plus-lg me-1"></i> @Localize["Vocabulary_Add"]
         </button>
     </PrimaryActions>
     <SecondaryActions>
-        <li><button class="dropdown-item" @onclick="AddWord"><i class="bi bi-plus-lg me-2"></i>@Localize["Vocabulary_AddWord"]</button></li>
+        <li><button class="dropdown-item" @onclick="AddWord"><i class="bi bi-plus-lg me-2"></i>@Localize["Vocabulary_Add"]</button></li>
         <li><hr class="dropdown-divider"></li>
         <li><button class="dropdown-item" @onclick="ToggleViewMode">
             <i class="bi @ViewToggleIcon me-2"></i>@ViewToggleLabel</button></li>
@@ -148,6 +148,14 @@ else
         </select>
 
         <select class="form-select form-control-ss" style="max-width: 160px;"
+                value="@CurrentType" @onchange="OnTypeDropdown">
+            <option value="">@Localize["Vocabulary_FilterTypeAll"]</option>
+            <option value="word">@Localize["Vocabulary_FilterTypeWord"]</option>
+            <option value="phrase">@Localize["Vocabulary_FilterTypePhrase"]</option>
+            <option value="sentence">@Localize["Vocabulary_FilterTypeSentence"]</option>
+        </select>
+
+        <select class="form-select form-control-ss" style="max-width: 160px;"
                 value="@CurrentStatus" @onchange="OnStatusDropdown">
             <option value="">All Status</option>
             <option value="known">Known</option>
@@ -236,6 +244,17 @@ else
                         <option value="">All Words</option>
                         <option value="associated">Associated</option>
                         <option value="orphaned">Orphaned</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="form-label fw-semibold">Type</label>
+                    <select class="form-select form-control-ss"
+                            value="@CurrentType" @onchange="OnTypeDropdown">
+                        <option value="">@Localize["Vocabulary_FilterTypeAll"]</option>
+                        <option value="word">@Localize["Vocabulary_FilterTypeWord"]</option>
+                        <option value="phrase">@Localize["Vocabulary_FilterTypePhrase"]</option>
+                        <option value="sentence">@Localize["Vocabulary_FilterTypeSentence"]</option>
                     </select>
                 </div>
 
@@ -626,6 +645,7 @@ else
     private string CurrentLemma => GetFilterValue("lemma");
     private string CurrentLanguage => GetFilterValue("language");
     private string CurrentEncoding => GetFilterValue("encoding");
+    private string CurrentType => GetFilterValue("type");
 
     private string GetFilterValue(string type) =>
         parsedQuery?.Filters.FirstOrDefault(f => f.Type.Equals(type, StringComparison.OrdinalIgnoreCase))?.Value ?? "";
@@ -806,6 +826,7 @@ else
     private void OnLemmaDropdown(ChangeEventArgs e) => OnDropdownChanged("lemma", e);
     private void OnLanguageDropdown(ChangeEventArgs e) => OnDropdownChanged("language", e);
     private void OnEncodingDropdown(ChangeEventArgs e) => OnDropdownChanged("encoding", e);
+    private void OnTypeDropdown(ChangeEventArgs e) => OnDropdownChanged("type", e);
 
     private void OnDropdownChanged(string filterType, ChangeEventArgs e)
     {
@@ -878,6 +899,13 @@ else
                             r.Language != null && r.Language.Equals(filter.Value, StringComparison.OrdinalIgnoreCase)))),
                     "encoding" => filtered.Where(v =>
                         v.EncodingLabel.Equals(filter.Value, StringComparison.OrdinalIgnoreCase)),
+                    "type" => val switch
+                    {
+                        "word" => filtered.Where(v => v.Word.LexicalUnitType == LexicalUnitType.Word),
+                        "phrase" => filtered.Where(v => v.Word.LexicalUnitType == LexicalUnitType.Phrase),
+                        "sentence" => filtered.Where(v => v.Word.LexicalUnitType == LexicalUnitType.Sentence),
+                        _ => filtered
+                    },
                     _ => filtered
                 };
             }
@@ -1088,6 +1116,7 @@ else
         "status" => "bg-warning text-dark",
         "lemma" => "bg-secondary",
         "association" => "bg-success",
+        "type" => "bg-primary-subtle text-primary-emphasis",
         _ => "bg-dark"
     };
 
@@ -1098,6 +1127,7 @@ else
         "status" => "bi bi-check-circle",
         "lemma" => "bi bi-braces",
         "association" => "bi bi-link-45deg",
+        "type" => "bi bi-diagram-3",
         _ => "bi bi-funnel"
     };
 

@@ -1,0 +1,329 @@
+- generic [ref=e2]:
+  - 'generic "API: https://localhost:7012"': LOCAL
+  - navigation [ref=e3]:
+    - navigation [ref=e5]:
+      - link " 대시보드" [ref=e6] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e7]: 
+        - generic [ref=e8]: 대시보드
+      - link " 활동" [ref=e9] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e10]: 
+        - generic [ref=e11]: 활동
+      - link " 학습 자료" [ref=e12] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e13]: 
+        - generic [ref=e14]: 학습 자료
+      - link " 어휘" [ref=e15] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e16]: 
+        - generic [ref=e17]: 어휘
+      - link " 최소 대립쌍" [ref=e18] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e19]: 
+        - generic [ref=e20]: 최소 대립쌍
+      - link " 기술" [ref=e21] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e22]: 
+        - generic [ref=e23]: 기술
+      - link " 콘텐츠 가져오기" [ref=e24] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e25]: 
+        - generic [ref=e26]: 콘텐츠 가져오기
+      - link " 미디어 가져오기" [ref=e27] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e28]: 
+        - generic [ref=e29]: 미디어 가져오기
+      - separator [ref=e30]
+      - link " 프로필" [ref=e31] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e32]: 
+        - generic [ref=e33]: 프로필
+      - link " 설정" [ref=e34] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e35]: 
+        - generic [ref=e36]: 설정
+      - link " 피드백" [ref=e37] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e38]: 
+        - generic [ref=e39]: 피드백
+      - link " 로그아웃" [ref=e40] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e41]: 
+        - generic [ref=e42]: 로그아웃
+    - button "" [ref=e44] [cursor=pointer]:
+      - generic [ref=e45]: 
+  - main [ref=e47]:
+    - generic [ref=e49]:
+      - generic [ref=e50]:
+        - text: 
+        - heading "콘텐츠 가져오기" [level=1] [ref=e51]
+      - button "가져오기" [ref=e75] [cursor=pointer]
+    - generic [ref=e52]:
+      - generic [ref=e53]:
+        - 'heading "1단계: 소스" [level=5] [ref=e54]'
+        - generic [ref=e55]:
+          - generic [ref=e56]: 콘텐츠 붙여넣기
+          - textbox "CSV, TSV 또는 일반 텍스트를 여기에 붙여넣으세요..." [disabled] [ref=e57]: 오늘 날씨가 정말 좋아요. The weather is really nice today. 내일은 비가 올 거예요. It will rain tomorrow. 저는 매일 한국어를 공부해요. 그리고 주말에는 한국 드라마를 봐요. 요즘 드라마가 정말 재미있어요. 커피,coffee 차,tea 주말에 뭐 할 거예요? What are you going to do on the weekend? 사과, 바나나, 딸기
+          - text: "CSV 또는 TSV 형식으로 어휘 데이터를 붙여넣으세요 (예: \"한국어 단어, 영어 번역\")"
+      - generic [ref=e58]:
+        - 'heading "2단계: 형식 힌트 (선택사항)" [level=5] [ref=e59]'
+        - generic [ref=e60]:
+          - generic [ref=e61]:
+            - generic [ref=e62]: 콘텐츠 유형
+            - combobox [disabled] [ref=e63]:
+              - option "어휘"
+              - option "문구"
+              - option "대본"
+              - option "자동 감지" [selected]
+          - generic [ref=e64]:
+            - generic [ref=e65]: 구분자
+            - combobox [disabled] [ref=e66]:
+              - option "자동" [selected]
+              - option "쉼표"
+              - option "탭"
+              - option "파이프 (|)"
+          - generic [ref=e68]:
+            - checkbox "첫 번째 행은 헤더" [disabled]
+            - generic [ref=e70]: 첫 번째 행은 헤더
+        - button "미리보기" [ref=e72] [cursor=pointer]
+      - alert [ref=e76]:
+        - generic [ref=e77]: 
+        - generic [ref=e78]:
+          - strong [ref=e79]: "Auto-detected:"
+          - text: Transcript (90% confidence)
+        - button " Change" [ref=e80] [cursor=pointer]:
+          - generic [ref=e81]: 
+          - text: Change
+      - generic [ref=e82]:
+        - heading "What should we harvest?" [level=5] [ref=e83]
+        - paragraph [ref=e84]: Select what to extract from this content. At least one option must be checked.
+        - generic [ref=e85]:
+          - checkbox "This is a Transcript Store the full text on the learning resource" [checked] [ref=e86]
+          - generic [ref=e87]:
+            - strong [ref=e88]: This is a Transcript
+            - generic [ref=e89]: Store the full text on the learning resource
+        - generic [ref=e90]:
+          - checkbox "Harvest Phrases Extract phrase-level entries for practice activities" [ref=e91]
+          - generic [ref=e92]:
+            - strong [ref=e93]: Harvest Phrases
+            - generic [ref=e94]: Extract phrase-level entries for practice activities
+        - generic [ref=e95]:
+          - checkbox "Harvest Words Extract individual vocabulary words" [checked] [ref=e96]
+          - generic [ref=e97]:
+            - strong [ref=e98]: Harvest Words
+            - generic [ref=e99]: Extract individual vocabulary words
+      - generic [ref=e100]:
+        - 'heading "3단계: 미리보기 및 편집" [level=5] [ref=e101]'
+        - generic [ref=e103]:
+          - text: "감지된 형식:"
+          - strong [ref=e104]: Transcript
+        - table [ref=e106]:
+          - rowgroup [ref=e107]:
+            - row "# 대상 언어 용어 모국어 용어 상태" [ref=e108]:
+              - columnheader [ref=e109]:
+                - checkbox [checked] [ref=e110]
+              - columnheader "#" [ref=e111]
+              - columnheader "대상 언어 용어" [ref=e112]
+              - columnheader "모국어 용어" [ref=e113]
+              - columnheader "상태" [ref=e114]
+          - rowgroup [ref=e115]:
+            - row "1 날씨 weather  AI  OK" [ref=e116]:
+              - cell [ref=e117]:
+                - checkbox [checked] [ref=e118]
+              - cell "1" [ref=e119]
+              - cell "날씨" [ref=e120]:
+                - textbox [ref=e121]: 날씨
+              - cell "weather  AI" [ref=e122]:
+                - textbox [ref=e123]: weather
+                - generic "AI가 생성한 번역입니다. 커밋하기 전에 검토하고 수정하세요." [ref=e124]:
+                  - generic [ref=e125]: 
+                  - text: AI
+              - cell " OK" [ref=e126]:
+                - generic [ref=e127]:
+                  - generic [ref=e128]: 
+                  - text: OK
+            - row "2 비 rain  AI  OK" [ref=e129]:
+              - cell [ref=e130]:
+                - checkbox [checked] [ref=e131]
+              - cell "2" [ref=e132]
+              - cell "비" [ref=e133]:
+                - textbox [ref=e134]: 비
+              - cell "rain  AI" [ref=e135]:
+                - textbox [ref=e136]: rain
+                - generic "AI가 생성한 번역입니다. 커밋하기 전에 검토하고 수정하세요." [ref=e137]:
+                  - generic [ref=e138]: 
+                  - text: AI
+              - cell " OK" [ref=e139]:
+                - generic [ref=e140]:
+                  - generic [ref=e141]: 
+                  - text: OK
+            - row "3 공부하다 to study  AI  OK" [ref=e142]:
+              - cell [ref=e143]:
+                - checkbox [checked] [ref=e144]
+              - cell "3" [ref=e145]
+              - cell "공부하다" [ref=e146]:
+                - textbox [ref=e147]: 공부하다
+              - cell "to study  AI" [ref=e148]:
+                - textbox [ref=e149]: to study
+                - generic "AI가 생성한 번역입니다. 커밋하기 전에 검토하고 수정하세요." [ref=e150]:
+                  - generic [ref=e151]: 
+                  - text: AI
+              - cell " OK" [ref=e152]:
+                - generic [ref=e153]:
+                  - generic [ref=e154]: 
+                  - text: OK
+            - row "4 주말 weekend  AI  OK" [ref=e155]:
+              - cell [ref=e156]:
+                - checkbox [checked] [ref=e157]
+              - cell "4" [ref=e158]
+              - cell "주말" [ref=e159]:
+                - textbox [ref=e160]: 주말
+              - cell "weekend  AI" [ref=e161]:
+                - textbox [ref=e162]: weekend
+                - generic "AI가 생성한 번역입니다. 커밋하기 전에 검토하고 수정하세요." [ref=e163]:
+                  - generic [ref=e164]: 
+                  - text: AI
+              - cell " OK" [ref=e165]:
+                - generic [ref=e166]:
+                  - generic [ref=e167]: 
+                  - text: OK
+            - row "5 재미있다 to be interesting  AI  OK" [ref=e168]:
+              - cell [ref=e169]:
+                - checkbox [checked] [ref=e170]
+              - cell "5" [ref=e171]
+              - cell "재미있다" [ref=e172]:
+                - textbox [ref=e173]: 재미있다
+              - cell "to be interesting  AI" [ref=e174]:
+                - textbox [ref=e175]: to be interesting
+                - generic "AI가 생성한 번역입니다. 커밋하기 전에 검토하고 수정하세요." [ref=e176]:
+                  - generic [ref=e177]: 
+                  - text: AI
+              - cell " OK" [ref=e178]:
+                - generic [ref=e179]:
+                  - generic [ref=e180]: 
+                  - text: OK
+            - row "6 차 tea  AI  OK" [ref=e181]:
+              - cell [ref=e182]:
+                - checkbox [checked] [ref=e183]
+              - cell "6" [ref=e184]
+              - cell "차" [ref=e185]:
+                - textbox [ref=e186]: 차
+              - cell "tea  AI" [ref=e187]:
+                - textbox [ref=e188]: tea
+                - generic "AI가 생성한 번역입니다. 커밋하기 전에 검토하고 수정하세요." [ref=e189]:
+                  - generic [ref=e190]: 
+                  - text: AI
+              - cell " OK" [ref=e191]:
+                - generic [ref=e192]:
+                  - generic [ref=e193]: 
+                  - text: OK
+            - row "7 사과 apple  AI  OK" [ref=e194]:
+              - cell [ref=e195]:
+                - checkbox [checked] [ref=e196]
+              - cell "7" [ref=e197]
+              - cell "사과" [ref=e198]:
+                - textbox [ref=e199]: 사과
+              - cell "apple  AI" [ref=e200]:
+                - textbox [ref=e201]: apple
+                - generic "AI가 생성한 번역입니다. 커밋하기 전에 검토하고 수정하세요." [ref=e202]:
+                  - generic [ref=e203]: 
+                  - text: AI
+              - cell " OK" [ref=e204]:
+                - generic [ref=e205]:
+                  - generic [ref=e206]: 
+                  - text: OK
+            - row "8 바나나 banana  AI  OK" [ref=e207]:
+              - cell [ref=e208]:
+                - checkbox [checked] [ref=e209]
+              - cell "8" [ref=e210]
+              - cell "바나나" [ref=e211]:
+                - textbox [ref=e212]: 바나나
+              - cell "banana  AI" [ref=e213]:
+                - textbox [ref=e214]: banana
+                - generic "AI가 생성한 번역입니다. 커밋하기 전에 검토하고 수정하세요." [ref=e215]:
+                  - generic [ref=e216]: 
+                  - text: AI
+              - cell " OK" [ref=e217]:
+                - generic [ref=e218]:
+                  - generic [ref=e219]: 
+                  - text: OK
+            - row "9 딸기 strawberry  AI  OK" [ref=e220]:
+              - cell [ref=e221]:
+                - checkbox [checked] [ref=e222]
+              - cell "9" [ref=e223]
+              - cell "딸기" [ref=e224]:
+                - textbox [ref=e225]: 딸기
+              - cell "strawberry  AI" [ref=e226]:
+                - textbox [ref=e227]: strawberry
+                - generic "AI가 생성한 번역입니다. 커밋하기 전에 검토하고 수정하세요." [ref=e228]:
+                  - generic [ref=e229]: 
+                  - text: AI
+              - cell " OK" [ref=e230]:
+                - generic [ref=e231]:
+                  - generic [ref=e232]: 
+                  - text: OK
+        - generic [ref=e233]:
+          - text: "가져오기 선택됨:"
+          - strong [ref=e234]: "9"
+          - text: / 9
+      - generic [ref=e235]:
+        - 'heading "4단계: 대상 리소스" [level=5] [ref=e236]'
+        - generic [ref=e237]:
+          - generic [ref=e238]:
+            - radio "새 리소스 만들기" [checked] [ref=e239]
+            - generic [ref=e240]: 새 리소스 만들기
+          - generic [ref=e241]:
+            - radio "기존 리소스에 추가" [ref=e242]
+            - generic [ref=e243]: 기존 리소스에 추가
+        - generic [ref=e244]:
+          - generic [ref=e245]:
+            - generic [ref=e246]: 리소스 제목
+            - 'textbox "예: 일반 한국어 동사" [ref=e247]'
+          - generic [ref=e248]:
+            - generic [ref=e249]: 설명
+            - textbox "선택적 설명..." [ref=e250]
+        - generic [ref=e251]:
+          - generic [ref=e252]:
+            - generic [ref=e253]: 대상 언어
+            - combobox [ref=e254]:
+              - option "English"
+              - option "Korean" [selected]
+              - option "Spanish"
+              - option "Japanese"
+              - option "Chinese"
+              - option "French"
+              - option "German"
+              - option "Italian"
+              - option "Portuguese"
+              - option "Russian"
+          - generic [ref=e255]:
+            - generic [ref=e256]: 모국어
+            - combobox [ref=e257]:
+              - option "English" [selected]
+              - option "Korean"
+              - option "Spanish"
+              - option "Japanese"
+              - option "Chinese"
+              - option "French"
+              - option "German"
+              - option "Italian"
+              - option "Portuguese"
+              - option "Russian"
+      - generic [ref=e258]:
+        - 'heading "5단계: 중복 처리" [level=5] [ref=e259]'
+        - generic [ref=e260]:
+          - radio "중복 건너뛰기 (권장) 기존 단어가 재사용됩니다. 새 단어가 추가됩니다. 가장 안전한 옵션입니다." [checked] [ref=e261]
+          - generic [ref=e262]:
+            - strong [ref=e263]: 중복 건너뛰기 (권장)
+            - generic [ref=e264]: 기존 단어가 재사용됩니다. 새 단어가 추가됩니다. 가장 안전한 옵션입니다.
+        - generic [ref=e265]:
+          - 'radio "기존 단어 업데이트 경고: 단어를 사용하는 모든 리소스의 모국어 번역을 업데이트합니다. 주의해서 사용하세요." [ref=e266]'
+          - generic [ref=e267]:
+            - strong [ref=e268]: 기존 단어 업데이트
+            - generic [ref=e269]: "경고: 단어를 사용하는 모든 리소스의 모국어 번역을 업데이트합니다. 주의해서 사용하세요."
+        - generic [ref=e270]:
+          - radio "모두 새로 가져오기 중복이 존재하더라도 새 항목을 만듭니다. 중복 어휘가 생성될 수 있습니다." [ref=e271]
+          - generic [ref=e272]:
+            - strong [ref=e273]: 모두 새로 가져오기
+            - generic [ref=e274]: 중복이 존재하더라도 새 항목을 만듭니다. 중복 어휘가 생성될 수 있습니다.

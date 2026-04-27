@@ -1,0 +1,314 @@
+- generic [ref=e72]:
+  - 'generic "API: https://localhost:7012"': LOCAL
+  - navigation [ref=e73]:
+    - navigation [ref=e75]:
+      - link " 대시보드" [ref=e76] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e77]: 
+        - generic [ref=e78]: 대시보드
+      - link " 활동" [ref=e79] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e80]: 
+        - generic [ref=e81]: 활동
+      - link " 학습 자료" [ref=e82] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e83]: 
+        - generic [ref=e84]: 학습 자료
+      - link " 어휘" [ref=e85] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e86]: 
+        - generic [ref=e87]: 어휘
+      - link " 최소 대립쌍" [ref=e88] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e89]: 
+        - generic [ref=e90]: 최소 대립쌍
+      - link " 기술" [ref=e91] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e92]: 
+        - generic [ref=e93]: 기술
+      - link " 콘텐츠 가져오기" [ref=e94] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e95]: 
+        - generic [ref=e96]: 콘텐츠 가져오기
+      - link " 미디어 가져오기" [ref=e97] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e98]: 
+        - generic [ref=e99]: 미디어 가져오기
+      - separator [ref=e100]
+      - link " 프로필" [ref=e101] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e102]: 
+        - generic [ref=e103]: 프로필
+      - link " 설정" [ref=e104] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e105]: 
+        - generic [ref=e106]: 설정
+      - link " 피드백" [ref=e107] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e108]: 
+        - generic [ref=e109]: 피드백
+      - link " 로그아웃" [ref=e110] [cursor=pointer]:
+        - /url: ""
+        - generic [ref=e111]: 
+        - generic [ref=e112]: 로그아웃
+    - button "" [ref=e114] [cursor=pointer]:
+      - generic [ref=e115]: 
+  - main [ref=e117]:
+    - generic [ref=e119]:
+      - generic [ref=e120]:
+        - text: 
+        - heading "콘텐츠 가져오기" [level=1] [ref=e121]
+      - button "가져오기" [ref=e898] [cursor=pointer]
+    - generic [ref=e122]:
+      - generic [ref=e878]:
+        - 'heading "1단계: 소스" [level=5] [ref=e879]'
+        - generic [ref=e880]:
+          - generic [ref=e881]: 콘텐츠 붙여넣기
+          - textbox "CSV, TSV 또는 일반 텍스트를 여기에 붙여넣으세요..." [disabled] [ref=e882]: 책,book 읽다,to read 학교,school 선생님,teacher 공부하다,to study 사과,apple 물,water 친구,friend 집,house 좋다,to be good
+          - text: "CSV 또는 TSV 형식으로 어휘 데이터를 붙여넣으세요 (예: \"한국어 단어, 영어 번역\")"
+      - generic [ref=e883]:
+        - 'heading "2단계: 형식 힌트 (선택사항)" [level=5] [ref=e884]'
+        - generic [ref=e885]:
+          - generic [ref=e886]:
+            - generic [ref=e887]: 콘텐츠 유형
+            - combobox [disabled] [ref=e888]:
+              - option "어휘"
+              - option "문구"
+              - option "대본"
+              - option "자동 감지" [selected]
+          - generic [ref=e889]:
+            - generic [ref=e890]: 구분자
+            - combobox [disabled] [ref=e891]:
+              - option "자동" [selected]
+              - option "쉼표"
+              - option "탭"
+              - option "파이프 (|)"
+          - generic [ref=e893]:
+            - checkbox "첫 번째 행은 헤더" [disabled]
+            - generic [ref=e895]: 첫 번째 행은 헤더
+        - button "미리보기" [ref=e897] [cursor=pointer]
+      - alert [ref=e899]:
+        - generic [ref=e900]: 
+        - generic [ref=e901]:
+          - strong [ref=e902]: "Auto-detected:"
+          - text: Vocabulary (95% confidence)
+        - button " Change" [ref=e903] [cursor=pointer]:
+          - generic [ref=e904]: 
+          - text: Change
+      - generic [ref=e905]:
+        - heading "What should we harvest?" [level=5] [ref=e906]
+        - paragraph [ref=e907]: Select what to extract from this content. At least one option must be checked.
+        - generic [ref=e908]:
+          - checkbox "This is a Transcript Store the full text on the learning resource" [ref=e909]
+          - generic [ref=e910]:
+            - strong [ref=e911]: This is a Transcript
+            - generic [ref=e912]: Store the full text on the learning resource
+        - generic [ref=e913]:
+          - checkbox "Harvest Phrases Extract phrase-level entries for practice activities" [ref=e914]
+          - generic [ref=e915]:
+            - strong [ref=e916]: Harvest Phrases
+            - generic [ref=e917]: Extract phrase-level entries for practice activities
+        - generic [ref=e918]:
+          - checkbox "Harvest Words Extract individual vocabulary words" [checked] [ref=e919]
+          - generic [ref=e920]:
+            - strong [ref=e921]: Harvest Words
+            - generic [ref=e922]: Extract individual vocabulary words
+      - generic [ref=e923]:
+        - 'heading "3단계: 미리보기 및 편집" [level=5] [ref=e924]'
+        - generic [ref=e926]:
+          - text: "감지된 형식:"
+          - strong [ref=e927]: Comma-delimited (CSV)
+        - table [ref=e929]:
+          - rowgroup [ref=e930]:
+            - row "# 대상 언어 용어 모국어 용어 상태" [ref=e931]:
+              - columnheader [ref=e932]:
+                - checkbox [checked] [ref=e933]
+              - columnheader "#" [ref=e934]
+              - columnheader "대상 언어 용어" [ref=e935]
+              - columnheader "모국어 용어" [ref=e936]
+              - columnheader "상태" [ref=e937]
+          - rowgroup [ref=e938]:
+            - row "1 책 book  OK" [ref=e939]:
+              - cell [ref=e940]:
+                - checkbox [checked] [ref=e941]
+              - cell "1" [ref=e942]
+              - cell "책" [ref=e943]:
+                - textbox [ref=e944]: 책
+              - cell "book" [ref=e945]:
+                - textbox [ref=e946]: book
+              - cell " OK" [ref=e947]:
+                - generic [ref=e948]:
+                  - generic [ref=e949]: 
+                  - text: OK
+            - row "2 읽다 to read  OK" [ref=e950]:
+              - cell [ref=e951]:
+                - checkbox [checked] [ref=e952]
+              - cell "2" [ref=e953]
+              - cell "읽다" [ref=e954]:
+                - textbox [ref=e955]: 읽다
+              - cell "to read" [ref=e956]:
+                - textbox [ref=e957]: to read
+              - cell " OK" [ref=e958]:
+                - generic [ref=e959]:
+                  - generic [ref=e960]: 
+                  - text: OK
+            - row "3 학교 school  OK" [ref=e961]:
+              - cell [ref=e962]:
+                - checkbox [checked] [ref=e963]
+              - cell "3" [ref=e964]
+              - cell "학교" [ref=e965]:
+                - textbox [ref=e966]: 학교
+              - cell "school" [ref=e967]:
+                - textbox [ref=e968]: school
+              - cell " OK" [ref=e969]:
+                - generic [ref=e970]:
+                  - generic [ref=e971]: 
+                  - text: OK
+            - row "4 선생님 teacher  OK" [ref=e972]:
+              - cell [ref=e973]:
+                - checkbox [checked] [ref=e974]
+              - cell "4" [ref=e975]
+              - cell "선생님" [ref=e976]:
+                - textbox [ref=e977]: 선생님
+              - cell "teacher" [ref=e978]:
+                - textbox [ref=e979]: teacher
+              - cell " OK" [ref=e980]:
+                - generic [ref=e981]:
+                  - generic [ref=e982]: 
+                  - text: OK
+            - row "5 공부하다 to study  OK" [ref=e983]:
+              - cell [ref=e984]:
+                - checkbox [checked] [ref=e985]
+              - cell "5" [ref=e986]
+              - cell "공부하다" [ref=e987]:
+                - textbox [ref=e988]: 공부하다
+              - cell "to study" [ref=e989]:
+                - textbox [ref=e990]: to study
+              - cell " OK" [ref=e991]:
+                - generic [ref=e992]:
+                  - generic [ref=e993]: 
+                  - text: OK
+            - row "6 사과 apple  OK" [ref=e994]:
+              - cell [ref=e995]:
+                - checkbox [checked] [ref=e996]
+              - cell "6" [ref=e997]
+              - cell "사과" [ref=e998]:
+                - textbox [ref=e999]: 사과
+              - cell "apple" [ref=e1000]:
+                - textbox [ref=e1001]: apple
+              - cell " OK" [ref=e1002]:
+                - generic [ref=e1003]:
+                  - generic [ref=e1004]: 
+                  - text: OK
+            - row "7 물 water  OK" [ref=e1005]:
+              - cell [ref=e1006]:
+                - checkbox [checked] [ref=e1007]
+              - cell "7" [ref=e1008]
+              - cell "물" [ref=e1009]:
+                - textbox [ref=e1010]: 물
+              - cell "water" [ref=e1011]:
+                - textbox [ref=e1012]: water
+              - cell " OK" [ref=e1013]:
+                - generic [ref=e1014]:
+                  - generic [ref=e1015]: 
+                  - text: OK
+            - row "8 친구 friend  OK" [ref=e1016]:
+              - cell [ref=e1017]:
+                - checkbox [checked] [ref=e1018]
+              - cell "8" [ref=e1019]
+              - cell "친구" [ref=e1020]:
+                - textbox [ref=e1021]: 친구
+              - cell "friend" [ref=e1022]:
+                - textbox [ref=e1023]: friend
+              - cell " OK" [ref=e1024]:
+                - generic [ref=e1025]:
+                  - generic [ref=e1026]: 
+                  - text: OK
+            - row "9 집 house  OK" [ref=e1027]:
+              - cell [ref=e1028]:
+                - checkbox [checked] [ref=e1029]
+              - cell "9" [ref=e1030]
+              - cell "집" [ref=e1031]:
+                - textbox [ref=e1032]: 집
+              - cell "house" [ref=e1033]:
+                - textbox [ref=e1034]: house
+              - cell " OK" [ref=e1035]:
+                - generic [ref=e1036]:
+                  - generic [ref=e1037]: 
+                  - text: OK
+            - row "10 좋다 to be good  OK" [ref=e1038]:
+              - cell [ref=e1039]:
+                - checkbox [checked] [ref=e1040]
+              - cell "10" [ref=e1041]
+              - cell "좋다" [ref=e1042]:
+                - textbox [ref=e1043]: 좋다
+              - cell "to be good" [ref=e1044]:
+                - textbox [ref=e1045]: to be good
+              - cell " OK" [ref=e1046]:
+                - generic [ref=e1047]:
+                  - generic [ref=e1048]: 
+                  - text: OK
+        - generic [ref=e1049]:
+          - text: "가져오기 선택됨:"
+          - strong [ref=e1050]: "10"
+          - text: / 10
+      - generic [ref=e1051]:
+        - 'heading "4단계: 대상 리소스" [level=5] [ref=e1052]'
+        - generic [ref=e1053]:
+          - generic [ref=e1054]:
+            - radio "새 리소스 만들기" [checked] [ref=e1055]
+            - generic [ref=e1056]: 새 리소스 만들기
+          - generic [ref=e1057]:
+            - radio "기존 리소스에 추가" [ref=e1058]
+            - generic [ref=e1059]: 기존 리소스에 추가
+        - generic [ref=e1060]:
+          - generic [ref=e1061]:
+            - generic [ref=e1062]: 리소스 제목
+            - 'textbox "예: 일반 한국어 동사" [ref=e1063]'
+          - generic [ref=e1064]:
+            - generic [ref=e1065]: 설명
+            - textbox "선택적 설명..." [ref=e1066]
+        - generic [ref=e1067]:
+          - generic [ref=e1068]:
+            - generic [ref=e1069]: 대상 언어
+            - combobox [ref=e1070]:
+              - option "English"
+              - option "Korean" [selected]
+              - option "Spanish"
+              - option "Japanese"
+              - option "Chinese"
+              - option "French"
+              - option "German"
+              - option "Italian"
+              - option "Portuguese"
+              - option "Russian"
+          - generic [ref=e1071]:
+            - generic [ref=e1072]: 모국어
+            - combobox [ref=e1073]:
+              - option "English" [selected]
+              - option "Korean"
+              - option "Spanish"
+              - option "Japanese"
+              - option "Chinese"
+              - option "French"
+              - option "German"
+              - option "Italian"
+              - option "Portuguese"
+              - option "Russian"
+      - generic [ref=e1074]:
+        - 'heading "5단계: 중복 처리" [level=5] [ref=e1075]'
+        - generic [ref=e1076]:
+          - radio "중복 건너뛰기 (권장) 기존 단어가 재사용됩니다. 새 단어가 추가됩니다. 가장 안전한 옵션입니다." [checked] [ref=e1077]
+          - generic [ref=e1078]:
+            - strong [ref=e1079]: 중복 건너뛰기 (권장)
+            - generic [ref=e1080]: 기존 단어가 재사용됩니다. 새 단어가 추가됩니다. 가장 안전한 옵션입니다.
+        - generic [ref=e1081]:
+          - 'radio "기존 단어 업데이트 경고: 단어를 사용하는 모든 리소스의 모국어 번역을 업데이트합니다. 주의해서 사용하세요." [ref=e1082]'
+          - generic [ref=e1083]:
+            - strong [ref=e1084]: 기존 단어 업데이트
+            - generic [ref=e1085]: "경고: 단어를 사용하는 모든 리소스의 모국어 번역을 업데이트합니다. 주의해서 사용하세요."
+        - generic [ref=e1086]:
+          - radio "모두 새로 가져오기 중복이 존재하더라도 새 항목을 만듭니다. 중복 어휘가 생성될 수 있습니다." [ref=e1087]
+          - generic [ref=e1088]:
+            - strong [ref=e1089]: 모두 새로 가져오기
+            - generic [ref=e1090]: 중복이 존재하더라도 새 항목을 만듭니다. 중복 어휘가 생성될 수 있습니다.

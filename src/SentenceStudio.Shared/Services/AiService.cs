@@ -12,7 +12,8 @@ using SentenceStudio.Services.Api;
 
 namespace SentenceStudio.Services;
 
-public class AiService {
+public class AiService : IAiService
+{
 
     private readonly string _openAiApiKey;
     private readonly IChatClient _client;

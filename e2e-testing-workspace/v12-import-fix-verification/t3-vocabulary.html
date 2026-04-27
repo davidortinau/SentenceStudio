@@ -1,0 +1,174 @@
+<!DOCTYPE html><html lang="en" data-bs-theme="dark" data-ss-theme="seoul-pop" style="--ss-font-scale: 1;"><head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <base href="/">
+    
+    <link id="bootstrap-theme" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="_content/SentenceStudio.UI/css/app.css">
+    <link rel="stylesheet" href="app.w7mf952350.css">
+    <script type="importmap">{
+  "imports": {
+    "./Components/Layout/ReconnectModal.razor.js": "./Components/Layout/ReconnectModal.w97mql0d9w.razor.js",
+    "./_content/SentenceStudio.UI/js/app.js": "./_content/SentenceStudio.UI/js/app.zfg129j71w.js",
+    "./_framework/blazor.server.js": "./_framework/blazor.server.2lgipwaf5j.js",
+    "./_framework/blazor.web.js": "./_framework/blazor.web.wmp8iwak4q.js",
+    "./js/audioInterop.js": "./js/audioInterop.235ndw89m7.js",
+    "./js/filePicker.js": "./js/filePicker.8exwsboioo.js",
+    "./lib/bootstrap/dist/js/bootstrap.bundle.js": "./lib/bootstrap/dist/js/bootstrap.bundle.6cfz1n2cew.js",
+    "./lib/bootstrap/dist/js/bootstrap.bundle.min.js": "./lib/bootstrap/dist/js/bootstrap.bundle.min.493y06b0oq.js",
+    "./lib/bootstrap/dist/js/bootstrap.esm.min.js": "./lib/bootstrap/dist/js/bootstrap.esm.min.jj8uyg4cgr.js",
+    "./lib/bootstrap/dist/js/bootstrap.esm.js": "./lib/bootstrap/dist/js/bootstrap.esm.vr1egmr9el.js",
+    "./lib/bootstrap/dist/js/bootstrap.min.js": "./lib/bootstrap/dist/js/bootstrap.min.63fj8s7r0e.js",
+    "./lib/bootstrap/dist/js/bootstrap.js": "./lib/bootstrap/dist/js/bootstrap.notf2xhcfb.js"
+  }
+}</script>
+    <link rel="icon" type="image/png" href="favicon.png">
+    <!--!--><!--!--><!--!--><!--!--><!--!--></head>
+
+<body><!--!--><!--!--><!--!--><!--!--><!--!--><!--!--><!--!--><!--!--><div class="d-flex vh-100"><!--!--><div class="env-badge env-badge-local" title="API: https://localhost:7012">LOCAL</div><nav class="d-none d-md-flex flex-column flex-shrink-0 bg-surface sidebar-nav " style="border-right: 1px solid var(--bs-border-color);"><div class="flex-grow-1 overflow-auto"><!--!--><nav class="nav flex-column p-2 gap-1"><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="대시보드"><i class="bi bi-house-door"></i> <span class="nav-label">대시보드</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="활동"><i class="bi bi-calendar3"></i> <span class="nav-label">활동</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="학습 자료"><i class="bi bi-book"></i> <span class="nav-label">학습 자료</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 active" href="" title="어휘"><i class="bi bi-card-text"></i> <span class="nav-label">어휘</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="최소 대립쌍"><i class="bi bi-soundwave"></i> <span class="nav-label">최소 대립쌍</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="기술"><i class="bi bi-bullseye"></i> <span class="nav-label">기술</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="콘텐츠 가져오기"><i class="bi bi-box-arrow-in-down"></i> <span class="nav-label">콘텐츠 가져오기</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="미디어 가져오기"><i class="bi bi-camera-video"></i> <span class="nav-label">미디어 가져오기</span></a><!--!--><hr class="my-2" style="border-color: var(--bs-border-color);"><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="프로필"><i class="bi bi-person"></i> <span class="nav-label">프로필</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="설정"><i class="bi bi-gear"></i> <span class="nav-label">설정</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="피드백"><i class="bi bi-chat-dots"></i> <span class="nav-label">피드백</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 text-danger" href="" title="로그아웃"><!--!--><i class="bi bi-box-arrow-left"></i> <span class="nav-label">로그아웃</span></a></nav></div><!--!-->
+            <div class="p-2 border-top" style="border-color: var(--bs-border-color) !important;"><button class="btn btn-sm btn-icon d-flex align-items-center ms-auto" title="사이드바 접기"><i class="bi bi-chevron-left"></i></button></div></nav><div class="d-flex flex-column flex-grow-1 overflow-hidden"><main class="flex-grow-1 overflow-auto p-3 main-content"><!--!--><!--!--><div class="page-header"><div class="page-header-inner d-flex justify-content-between align-items-center"><div class="d-flex align-items-center gap-2 overflow-hidden"><!--!--><button class="btn btn-sm btn-icon d-md-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#mobileNav"><i class="bi bi-list" style="color: var(--bs-body-color); font-size: 1.5rem;"></i></button><h1 class="ss-title1 mb-0 text-truncate" tabindex="-1">어휘</h1></div><!--!-->
+        <div class="d-flex align-items-center gap-1 flex-shrink-0"><button class="btn btn-sm btn-icon text-primary-ss d-md-none" data-bs-toggle="offcanvas" data-bs-target="#vocabFilterPanel"><i class="bi bi-funnel" style="font-size: 1.25rem;"></i></button><div class="d-none d-md-flex gap-2"><button class="btn btn-ss-primary"><!--!--><i class="bi bi-plus-lg me-1"></i> 추가</button></div><div class="dropdown"><!--!--><button class="btn btn-sm btn-icon text-secondary-ss" type="button" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-three-dots-vertical" style="font-size: 1.25rem;"></i></button>
+                    <ul class="dropdown-menu dropdown-menu-end" data-bs-theme="dark"><li><button class="dropdown-item"><!--!--><i class="bi bi-plus-lg me-2"></i>추가</button></li><!--!-->
+        <!--!--><li><hr class="dropdown-divider"></li>
+        <li><button class="dropdown-item"><i class="bi bi-list-ul me-2"></i>목록 보기</button></li><!--!-->
+        <!--!--><li><hr class="dropdown-divider"></li>
+        <li><button class="dropdown-item"><!--!--><i class="bi bi-files me-2"></i>중복 찾기</button></li><!--!-->
+        <li><button class="dropdown-item"><!--!--><i class="bi bi-book me-2"></i>표제어 채우기</button></li><!--!-->
+        <li><button class="dropdown-item"><!--!--><i class="bi bi-arrow-left-right me-2"></i>교환된 언어 수정</button></li><!--!-->
+        <li><button class="dropdown-item"><!--!--><i class="bi bi-box-arrow-in-right me-2"></i>고아 단어 할당</button></li><!--!-->
+        <!--!--><li><hr class="dropdown-divider"></li>
+        <li><button class="dropdown-item"><!--!--><i class="bi bi-check2-square me-2"></i>일괄 상태 편집</button></li></ul></div></div></div></div><!--!-->
+
+<div class="list-page" style="overflow-anchor: none;"><div class="d-none d-md-flex gap-3 mb-3 overflow-auto flex-nowrap align-items-center" style="-webkit-overflow-scrolling: touch;"><span class="badge bg-dark rounded-pill flex-shrink-0">단어 16 / 16개</span><!--!-->
+        <span class="badge bg-secondary rounded-pill flex-shrink-0">모름: 16개</span><!--!-->
+        <span class="badge bg-primary rounded-pill flex-shrink-0">학습 중: 0개</span><!--!-->
+        <span class="badge bg-warning text-dark rounded-pill flex-shrink-0">익숙함: 0개</span><!--!-->
+        <span class="badge bg-success rounded-pill flex-shrink-0">알고 있음: 0개</span><!--!-->
+        <div class="ms-auto btn-group btn-group-sm flex-shrink-0" role="group"><button class="btn btn-secondary" title="Grid view"><!--!--><i class="bi bi-grid-3x3-gap"></i></button><!--!-->
+            <button class="btn btn-outline-secondary" title="List view"><!--!--><i class="bi bi-list-ul"></i></button></div></div><div class="d-flex gap-2 mb-2"><div class="flex-grow-1 position-relative"><input type="text" class="form-control form-control-ss" placeholder="검색... (예: tag:의류 status:learning resource:'Starter')" style=""></div></div><div class="d-none d-md-flex gap-2 mb-4 flex-wrap"><select class="form-select form-control-ss" style="max-width: 160px;"><option value="">All Words</option><!--!-->
+            <option value="associated">Associated</option><!--!-->
+            <option value="orphaned">Orphaned</option></select><!--!-->
+
+        <select class="form-select form-control-ss" style="max-width: 160px;"><option value="">전체 유형</option><!--!-->
+            <option value="word">단어</option><!--!-->
+            <option value="phrase">구문</option><!--!-->
+            <option value="sentence">문장</option></select><!--!-->
+
+        <select class="form-select form-control-ss" style="max-width: 160px;"><option value="">All Status</option><!--!-->
+            <option value="known">Known</option><!--!-->
+            <option value="familiar">Familiar</option><!--!-->
+            <option value="learning">Learning</option><!--!-->
+            <option value="unknown">Unknown</option></select><select class="form-select form-control-ss" style="max-width: 220px;"><option value="">All Resources</option><option value="QA-t2-1777263250">QA-t2-1777263250</option><option value="QA-t1-1777263212">QA-t1-1777263212</option><option value="E2E Debug Test">E2E Debug Test</option><option value="Phrases">Phrases</option><option value="Struggling Words">Struggling Words</option><option value="New Words Practice">New Words Practice</option><option value="Daily Review">Daily Review</option></select><select class="form-select form-control-ss" style="max-width: 160px;"><option value="">All Languages</option><option value="Korean">Korean</option></select><select class="form-select form-control-ss" style="max-width: 180px;"><option value="">All Encoding</option><!--!-->
+            <option value="strong">Strong</option><!--!-->
+            <option value="good">Good</option><!--!-->
+            <option value="basic">Basic</option></select></div><div class="offcanvas offcanvas-bottom offcanvas-ss d-md-none" tabindex="-1" id="vocabFilterPanel" aria-labelledby="vocabFilterPanelLabel" style="height: auto; max-height: 85vh; border-radius: 1rem 1rem 0 0;"><div class="offcanvas-header border-bottom"><h5 class="offcanvas-title" id="vocabFilterPanelLabel"><!--!--><i class="bi bi-funnel me-2"></i>Filters
+</h5><!--!-->
+            <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button></div><!--!-->
+        <div class="offcanvas-body"><div class="d-flex flex-column gap-3"><div><!--!--><label class="form-label fw-semibold">Association</label>
+                    <select class="form-select form-control-ss"><option value="">All Words</option><!--!-->
+                        <option value="associated">Associated</option><!--!-->
+                        <option value="orphaned">Orphaned</option></select></div><!--!-->
+
+                <div><!--!--><label class="form-label fw-semibold">Type</label>
+                    <select class="form-select form-control-ss"><option value="">전체 유형</option><!--!-->
+                        <option value="word">단어</option><!--!-->
+                        <option value="phrase">구문</option><!--!-->
+                        <option value="sentence">문장</option></select></div><!--!-->
+
+                <div><!--!--><label class="form-label fw-semibold">Status</label>
+                    <select class="form-select form-control-ss"><option value="">All Status</option><!--!-->
+                        <option value="known">Known</option><!--!-->
+                        <option value="familiar">Familiar</option><!--!-->
+                        <option value="learning">Learning</option><!--!-->
+                        <option value="unknown">Unknown</option></select></div><div><!--!--><label class="form-label fw-semibold">Resource</label>
+                        <select class="form-select form-control-ss"><option value="">All Resources</option><option value="QA-t2-1777263250">QA-t2-1777263250</option><option value="QA-t1-1777263212">QA-t1-1777263212</option><option value="E2E Debug Test">E2E Debug Test</option><option value="Phrases">Phrases</option><option value="Struggling Words">Struggling Words</option><option value="New Words Practice">New Words Practice</option><option value="Daily Review">Daily Review</option></select></div><div><!--!--><label class="form-label fw-semibold">Language</label>
+                        <select class="form-select form-control-ss"><option value="">All Languages</option><option value="Korean">Korean</option></select></div><div><!--!--><label class="form-label fw-semibold">Encoding Strength</label>
+                    <select class="form-select form-control-ss"><option value="">All Encoding</option><!--!-->
+                        <option value="strong">Strong</option><!--!-->
+                        <option value="good">Good</option><!--!-->
+                        <option value="basic">Basic</option></select></div></div></div></div><div class="row g-3"><!--!--><div style="height: 0px; flex-shrink: 0;" aria-hidden="true" _bl_806b93a7-a7d8-4fb5-89b4-568094ca2e9a=""></div><div class="col-12 col-md-6 col-lg-4 mb-3"><div class="card card-ss p-3" role="button"><div class="d-flex justify-content-between align-items-start"><div class="flex-grow-1 overflow-hidden"><h6 class="ss-title3 mb-1">맥주</h6><!--!-->
+                                <span class="ss-body2 text-secondary-ss">beer</span></div><!--!-->
+                            <div class="d-flex gap-1 flex-shrink-0 align-items-center"><span class="badge bg-secondary bg-opacity-25 text-secondary-ss">Basic</span><span class="badge bg-secondary" title="Not yet studied">Unknown</span></div></div><!--!-->
+                        <div class="mt-2 d-flex gap-2 flex-wrap"><small class="text-secondary-ss"><!--!--><i class="bi bi-book me-1"></i>2 resource(s)</small></div></div></div><div class="col-12 col-md-6 col-lg-4 mb-3"><div class="card card-ss p-3" role="button"><div class="d-flex justify-content-between align-items-start"><div class="flex-grow-1 overflow-hidden"><h6 class="ss-title3 mb-1">실례합니다</h6><!--!-->
+                                <span class="ss-body2 text-secondary-ss">Excuse me</span></div><!--!-->
+                            <div class="d-flex gap-1 flex-shrink-0 align-items-center"><span class="badge bg-secondary bg-opacity-25 text-secondary-ss">Basic</span><span class="badge bg-secondary" title="Not yet studied">Unknown</span></div></div><!--!-->
+                        <div class="mt-2 d-flex gap-2 flex-wrap"><small class="text-secondary-ss"><!--!--><i class="bi bi-book me-1"></i>1 resource(s)</small></div></div></div><div class="col-12 col-md-6 col-lg-4 mb-3"><div class="card card-ss p-3" role="button"><div class="d-flex justify-content-between align-items-start"><div class="flex-grow-1 overflow-hidden"><h6 class="ss-title3 mb-1">그 웨이터는 동료가 한국어로 주문했는데 이해 못 했어요.</h6><!--!-->
+                                <span class="ss-body2 text-secondary-ss">The waiter didn't understand (when) my colleague ordered in Korean.</span></div><!--!-->
+                            <div class="d-flex gap-1 flex-shrink-0 align-items-center"><span class="badge bg-secondary bg-opacity-25 text-secondary-ss">Basic</span><span class="badge bg-secondary" title="Not yet studied">Unknown</span></div></div><!--!-->
+                        <div class="mt-2 d-flex gap-2 flex-wrap"><small class="text-secondary-ss"><!--!--><i class="bi bi-book me-1"></i>1 resource(s)</small></div></div></div><div class="col-12 col-md-6 col-lg-4 mb-3"><div class="card card-ss p-3" role="button"><div class="d-flex justify-content-between align-items-start"><div class="flex-grow-1 overflow-hidden"><h6 class="ss-title3 mb-1">맥주집</h6><!--!-->
+                                <span class="ss-body2 text-secondary-ss">beer house, brewery pub</span></div><!--!-->
+                            <div class="d-flex gap-1 flex-shrink-0 align-items-center"><span class="badge bg-secondary bg-opacity-25 text-secondary-ss">Basic</span><span class="badge bg-secondary" title="Not yet studied">Unknown</span></div></div><!--!-->
+                        <div class="mt-2 d-flex gap-2 flex-wrap"><small class="text-secondary-ss"><!--!--><i class="bi bi-book me-1"></i>2 resource(s)</small></div></div></div><div class="col-12 col-md-6 col-lg-4 mb-3"><div class="card card-ss p-3" role="button"><div class="d-flex justify-content-between align-items-start"><div class="flex-grow-1 overflow-hidden"><h6 class="ss-title3 mb-1">주문하다</h6><!--!-->
+                                <span class="ss-body2 text-secondary-ss">to order</span></div><!--!-->
+                            <div class="d-flex gap-1 flex-shrink-0 align-items-center"><span class="badge bg-secondary bg-opacity-25 text-secondary-ss">Basic</span><span class="badge bg-secondary" title="Not yet studied">Unknown</span></div></div><!--!-->
+                        <div class="mt-2 d-flex gap-2 flex-wrap"><small class="text-secondary-ss"><!--!--><i class="bi bi-book me-1"></i>2 resource(s)</small></div></div></div><div class="col-12 col-md-6 col-lg-4 mb-3"><div class="card card-ss p-3" role="button"><div class="d-flex justify-content-between align-items-start"><div class="flex-grow-1 overflow-hidden"><h6 class="ss-title3 mb-1">단 음료</h6><!--!-->
+                                <span class="ss-body2 text-secondary-ss">sweet drink</span></div><!--!-->
+                            <div class="d-flex gap-1 flex-shrink-0 align-items-center"><span class="badge bg-secondary bg-opacity-25 text-secondary-ss">Basic</span><span class="badge bg-secondary" title="Not yet studied">Unknown</span></div></div><!--!-->
+                        <div class="mt-2 d-flex gap-2 flex-wrap"><small class="text-secondary-ss"><!--!--><i class="bi bi-book me-1"></i>1 resource(s)</small></div></div></div><div class="col-12 col-md-6 col-lg-4 mb-3"><div class="card card-ss p-3" role="button"><div class="d-flex justify-content-between align-items-start"><div class="flex-grow-1 overflow-hidden"><h6 class="ss-title3 mb-1">앤지는 맥주를 많이 안 마시지만, 단 음료를 마셔요.</h6><!--!-->
+                                <span class="ss-body2 text-secondary-ss">Angie doesn't drink much beer but she drinks sweet drinks.</span></div><!--!-->
+                            <div class="d-flex gap-1 flex-shrink-0 align-items-center"><span class="badge bg-secondary bg-opacity-25 text-secondary-ss">Basic</span><span class="badge bg-secondary" title="Not yet studied">Unknown</span></div></div><!--!-->
+                        <div class="mt-2 d-flex gap-2 flex-wrap"><small class="text-secondary-ss"><!--!--><i class="bi bi-book me-1"></i>1 resource(s)</small></div></div></div><div class="col-12 col-md-6 col-lg-4 mb-3"><div class="card card-ss p-3" role="button"><div class="d-flex justify-content-between align-items-start"><div class="flex-grow-1 overflow-hidden"><h6 class="ss-title3 mb-1">저는 맥주를 많이 안 마시지만, 앤지하고 맥주집에 갔어요.</h6><!--!-->
+                                <span class="ss-body2 text-secondary-ss">I don't drink beer much but went with Angie to a beer house (brewery).</span></div><!--!-->
+                            <div class="d-flex gap-1 flex-shrink-0 align-items-center"><span class="badge bg-secondary bg-opacity-25 text-secondary-ss">Basic</span><span class="badge bg-secondary" title="Not yet studied">Unknown</span></div></div><!--!-->
+                        <div class="mt-2 d-flex gap-2 flex-wrap"><small class="text-secondary-ss"><!--!--><i class="bi bi-book me-1"></i>1 resource(s)</small></div></div></div><div class="col-12 col-md-6 col-lg-4 mb-3"><div class="card card-ss p-3" role="button"><div class="d-flex justify-content-between align-items-start"><div class="flex-grow-1 overflow-hidden"><h6 class="ss-title3 mb-1">맥주를 마시다</h6><!--!-->
+                                <span class="ss-body2 text-secondary-ss">to drink beer</span></div><!--!-->
+                            <div class="d-flex gap-1 flex-shrink-0 align-items-center"><span class="badge bg-secondary bg-opacity-25 text-secondary-ss">Basic</span><span class="badge bg-secondary" title="Not yet studied">Unknown</span></div></div><!--!-->
+                        <div class="mt-2 d-flex gap-2 flex-wrap"><small class="text-secondary-ss"><!--!--><i class="bi bi-book me-1"></i>1 resource(s)</small></div></div></div><div class="col-12 col-md-6 col-lg-4 mb-3"><div class="card card-ss p-3" role="button"><div class="d-flex justify-content-between align-items-start"><div class="flex-grow-1 overflow-hidden"><h6 class="ss-title3 mb-1">동료</h6><!--!-->
+                                <span class="ss-body2 text-secondary-ss">colleague</span></div><!--!-->
+                            <div class="d-flex gap-1 flex-shrink-0 align-items-center"><span class="badge bg-secondary bg-opacity-25 text-secondary-ss">Basic</span><span class="badge bg-secondary" title="Not yet studied">Unknown</span></div></div><!--!-->
+                        <div class="mt-2 d-flex gap-2 flex-wrap"><small class="text-secondary-ss"><!--!--><i class="bi bi-book me-1"></i>2 resource(s)</small></div></div></div><div class="col-12 col-md-6 col-lg-4 mb-3"><div class="card card-ss p-3" role="button"><div class="d-flex justify-content-between align-items-start"><div class="flex-grow-1 overflow-hidden"><h6 class="ss-title3 mb-1">이해하다</h6><!--!-->
+                                <span class="ss-body2 text-secondary-ss">to understand</span></div><!--!-->
+                            <div class="d-flex gap-1 flex-shrink-0 align-items-center"><span class="badge bg-secondary bg-opacity-25 text-secondary-ss">Basic</span><span class="badge bg-secondary" title="Not yet studied">Unknown</span></div></div><!--!-->
+                        <div class="mt-2 d-flex gap-2 flex-wrap"><small class="text-secondary-ss"><!--!--><i class="bi bi-book me-1"></i>2 resource(s)</small></div></div></div><div class="col-12 col-md-6 col-lg-4 mb-3"><div class="card card-ss p-3" role="button"><div class="d-flex justify-content-between align-items-start"><div class="flex-grow-1 overflow-hidden"><h6 class="ss-title3 mb-1">감사합니다</h6><!--!-->
+                                <span class="ss-body2 text-secondary-ss">thank you</span></div><!--!-->
+                            <div class="d-flex gap-1 flex-shrink-0 align-items-center"><span class="badge bg-secondary bg-opacity-25 text-secondary-ss">Basic</span><span class="badge bg-secondary" title="Not yet studied">Unknown</span></div></div><!--!-->
+                        <div class="mt-2 d-flex gap-2 flex-wrap"><small class="text-secondary-ss"><!--!--><i class="bi bi-book me-1"></i>1 resource(s)</small></div></div></div><div class="col-12 col-md-6 col-lg-4 mb-3"><div class="card card-ss p-3" role="button"><div class="d-flex justify-content-between align-items-start"><div class="flex-grow-1 overflow-hidden"><h6 class="ss-title3 mb-1">안녕하세요</h6><!--!-->
+                                <span class="ss-body2 text-secondary-ss">hello</span></div><!--!-->
+                            <div class="d-flex gap-1 flex-shrink-0 align-items-center"><span class="badge bg-secondary bg-opacity-25 text-secondary-ss">Basic</span><span class="badge bg-secondary" title="Not yet studied">Unknown</span></div></div><!--!-->
+                        <div class="mt-2 d-flex gap-2 flex-wrap"><small class="text-secondary-ss"><!--!--><i class="bi bi-book me-1"></i>1 resource(s)</small></div></div></div><div class="col-12 col-md-6 col-lg-4 mb-3"><div class="card card-ss p-3" role="button"><div class="d-flex justify-content-between align-items-start"><div class="flex-grow-1 overflow-hidden"><h6 class="ss-title3 mb-1">한국어</h6><!--!-->
+                                <span class="ss-body2 text-secondary-ss">Korean language</span></div><!--!-->
+                            <div class="d-flex gap-1 flex-shrink-0 align-items-center"><span class="badge bg-secondary bg-opacity-25 text-secondary-ss">Basic</span><span class="badge bg-secondary" title="Not yet studied">Unknown</span></div></div><!--!-->
+                        <div class="mt-2 d-flex gap-2 flex-wrap"><small class="text-secondary-ss"><!--!--><i class="bi bi-book me-1"></i>1 resource(s)</small></div></div></div><div class="col-12 col-md-6 col-lg-4 mb-3"><div class="card card-ss p-3" role="button"><div class="d-flex justify-content-between align-items-start"><div class="flex-grow-1 overflow-hidden"><h6 class="ss-title3 mb-1">마시다</h6><!--!-->
+                                <span class="ss-body2 text-secondary-ss"> to drink  </span></div><!--!-->
+                            <div class="d-flex gap-1 flex-shrink-0 align-items-center"><span class="badge bg-secondary bg-opacity-25 text-secondary-ss">Basic</span><span class="badge bg-secondary" title="Not yet studied">Unknown</span></div></div><!--!-->
+                        <div class="mt-2 d-flex gap-2 flex-wrap"><small class="text-secondary-ss"><!--!--><i class="bi bi-book me-1"></i>2 resource(s)</small></div></div></div><div class="col-12 col-md-6 col-lg-4 mb-3"><div class="card card-ss p-3" role="button"><div class="d-flex justify-content-between align-items-start"><div class="flex-grow-1 overflow-hidden"><h6 class="ss-title3 mb-1">웨이터</h6><!--!-->
+                                <span class="ss-body2 text-secondary-ss">waiter</span></div><!--!-->
+                            <div class="d-flex gap-1 flex-shrink-0 align-items-center"><span class="badge bg-secondary bg-opacity-25 text-secondary-ss">Basic</span><span class="badge bg-secondary" title="Not yet studied">Unknown</span></div></div><!--!-->
+                        <div class="mt-2 d-flex gap-2 flex-wrap"><small class="text-secondary-ss"><!--!--><i class="bi bi-book me-1"></i>2 resource(s)</small></div></div></div><div aria-hidden="true" style="height: 0px; flex-shrink: 0;" _bl_50b50086-4d4a-4dbd-89bd-8bffa48d48c1=""></div></div></div></main></div><div class="offcanvas offcanvas-start bg-surface" tabindex="-1" id="mobileNav" style="border-right: 1px solid var(--bs-border-color);"><!--!--><div class="offcanvas-header border-bottom" style="border-color: var(--bs-border-color) !important; padding-top: calc(env(safe-area-inset-top, 0px) + 12px);"><h5 class="offcanvas-title text-primary-ss">SentenceStudio</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button></div>
+            <div class="offcanvas-body p-0"><!--!--><nav class="nav flex-column p-2 gap-1"><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="대시보드"><i class="bi bi-house-door"></i> <span class="nav-label">대시보드</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="활동"><i class="bi bi-calendar3"></i> <span class="nav-label">활동</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="학습 자료"><i class="bi bi-book"></i> <span class="nav-label">학습 자료</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 active" href="" title="어휘"><i class="bi bi-card-text"></i> <span class="nav-label">어휘</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="최소 대립쌍"><i class="bi bi-soundwave"></i> <span class="nav-label">최소 대립쌍</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="기술"><i class="bi bi-bullseye"></i> <span class="nav-label">기술</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="콘텐츠 가져오기"><i class="bi bi-box-arrow-in-down"></i> <span class="nav-label">콘텐츠 가져오기</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="미디어 가져오기"><i class="bi bi-camera-video"></i> <span class="nav-label">미디어 가져오기</span></a><!--!--><hr class="my-2" style="border-color: var(--bs-border-color);"><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="프로필"><i class="bi bi-person"></i> <span class="nav-label">프로필</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="설정"><i class="bi bi-gear"></i> <span class="nav-label">설정</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 " href="" title="피드백"><i class="bi bi-chat-dots"></i> <span class="nav-label">피드백</span></a><a class="nav-link nav-link-ss rounded px-3 py-2 text-danger" href="" title="로그아웃"><!--!--><i class="bi bi-box-arrow-left"></i> <span class="nav-label">로그아웃</span></a></nav></div></div><!--!--><div class="toast-container-ss"></div><!--!-->
+    
+    <!--!--></div><!--!-->
+        <!--!-->
+    <script type="module" src="Components/Layout/ReconnectModal.w97mql0d9w.razor.js"></script>
+
+<dialog id="components-reconnect-modal" data-nosnippet=""><div class="components-reconnect-container"><div class="components-rejoining-animation" aria-hidden="true"><div></div>
+            <div></div></div>
+        <p class="components-reconnect-first-attempt-visible">
+            Rejoining the server...
+        </p>
+        <p class="components-reconnect-repeated-attempt-visible">
+            Rejoin failed... trying again in <span id="components-seconds-to-next-attempt"></span> seconds.
+        </p>
+        <p class="components-reconnect-failed-visible">
+            Failed to rejoin.<br>Please retry or reload the page.
+        </p>
+        <button id="components-reconnect-button" class="components-reconnect-failed-visible">
+            Retry
+        </button>
+        <p class="components-pause-visible">
+            The session has been paused by the server.
+        </p>
+        <button id="components-resume-button" class="components-pause-visible">
+            Resume
+        </button>
+        <p class="components-resume-failed-visible">
+            Failed to resume the session.<br>Please reload the page.
+        </p></div></dialog>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/js/tom-select.complete.min.js"></script>
+    <script src="js/audioInterop.js"></script>
+    <script src="js/filePicker.js"></script>
+    <script src="_framework/blazor.web.wmp8iwak4q.js"></script></body></html>

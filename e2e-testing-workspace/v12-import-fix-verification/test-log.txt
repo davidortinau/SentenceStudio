@@ -1,0 +1,131 @@
+=== LOGIN ===
+  Logged in: https://localhost:7071/
+  Baseline: {1: 221, 2: 7} total=228
+
+============================================================
+TEST 1: Captain's Bug Repro (Content Type=Phrases, Harvest=Phrases+Words)
+============================================================
+
+  Navigating to import page...
+  Clicked Preview, waiting for AI processing...
+  Harvest visible: True, Preview visible: True
+    #harvestTranscript: checked=False
+    #harvestSentences: checked=False
+    #harvestPhrases: checked=True
+    #harvestWords: checked=True
+  Preview rows: 13
+  First few cells: ['', '1', '', '', ' OK', '', '2', '', '', ' OK', '', '3']
+  Set resource title: QA-t1-1777263212
+  Clicking commit...
+  DB: before={1: 221, 2: 7} total=228
+  DB: after={1: 222, 2: 12} total=234
+  Delta: +6
+  Phrase/Sentence entries with test content: 4
+    [2] 맥주를 마시다
+    [2] 그 웨이터는 동료가 한국어로 주문했는데 이해 못 했어요.
+    [2] 앤지는 맥주를 많이 안 마시지만, 단 음료를 마셔요.
+    [2] 저는 맥주를 많이 안 마시지만, 앤지하고 맥주집에 갔어요.
+  Word entries (recent 10): 10
+    [1] 맥주집
+    [1] 이해하다
+    [1] 주문하다
+    [1] 한국어
+    [1] 동료
+  RESULT: PASS
+
+============================================================
+TEST 2: Sentences Content Type (Sentences + Words)
+============================================================
+
+  Navigating to import page...
+  Clicked Preview, waiting for AI processing...
+  Harvest visible: True, Preview visible: True
+    #harvestTranscript: checked=False
+    #harvestSentences: checked=True
+    #harvestPhrases: checked=False
+    #harvestWords: checked=True
+  Preview rows: 7
+  First few cells: ['', '4', '', ' AI', ' OK', '', '5', '', ' AI', ' OK', '', '6']
+  Set resource title: QA-t2-1777263250
+  Clicking commit...
+  DB: before={1: 222, 2: 12} total=234
+  DB: after={1: 222, 2: 12} total=234
+  Delta: +0
+  Sentence (type=3) entries: 0
+  RESULT: FAIL - 0 new entries
+
+============================================================
+TEST 3: Vocabulary Type Filter + Add Button
+============================================================
+  Select[0]: ['All Words', 'Associated', 'Orphaned']
+  Select[1]: ['전체 유형', '단어', '구문', '문장']
+  Select[2]: ['All Status', 'Known', 'Familiar', 'Learning', 'Unknown']
+  Select[3]: ['All Resources', 'QA-t2-1777263250', 'QA-t1-1777263212', 'E2E Debug Test', 'Phrases', 'Struggling Words', 'New Words Practice', 'Daily Review']
+  Select[4]: ['All Languages', 'Korean']
+  Select[5]: ['All Encoding', 'Strong', 'Good', 'Basic']
+  Select[6]: ['All Words', 'Associated', 'Orphaned']
+  Select[7]: ['전체 유형', '단어', '구문', '문장']
+  Select[8]: ['All Status', 'Known', 'Familiar', 'Learning', 'Unknown']
+  Select[9]: ['All Resources', 'QA-t2-1777263250', 'QA-t1-1777263212', 'E2E Debug Test', 'Phrases', 'Struggling Words', 'New Words Practice', 'Daily Review']
+  Select[10]: ['All Languages', 'Korean']
+  Select[11]: ['All Encoding', 'Strong', 'Good', 'Basic']
+  Type filter dropdown found: ['All Words', 'Associated', 'Orphaned']
+  Found button: '추가'
+  Filter: PASS
+  Add btn: PASS
+
+============================================================
+TEST 4: Auto-Detect Classifier
+============================================================
+  RESULT: PASS - Classified as Sentences
+
+============================================================
+TEST 5: Validation Gate (all harvest unchecked)
+============================================================
+  RESULT: PASS - Commit blocked (0 new entries)
+
+============================================================
+TEST 6: Regression — Vocabulary (Words only)
+============================================================
+
+  Navigating to import page...
+  Clicked Preview, waiting for AI processing...
+  Harvest visible: True, Preview visible: True
+    #harvestTranscript: checked=False
+    #harvestSentences: checked=False
+    #harvestPhrases: checked=False
+    #harvestWords: checked=True
+  Preview rows: 5
+  First few cells: ['', '1', '', '', ' OK', '', '2', '', '', ' OK', '', '3']
+  Set resource title: QA-t6-1777263339
+  Clicking commit...
+  DB: before={1: 222, 2: 12} total=234
+  DB: after={1: 222, 2: 12} total=234
+  Delta: +0
+  RESULT: FAIL - 0 new entries
+
+============================================================
+TEST 7: Heuristic Verification (via DB)
+============================================================
+  [Phrase] 단 음료
+  [Phrase] 그 웨이터는 동료가 한국어로 주문했는데 이해 못 했어요.
+  [Phrase] 앤지는 맥주를 많이 안 마시지만, 단 음료를 마셔요.
+  [Phrase] 저는 맥주를 많이 안 마시지만, 앤지하고 맥주집에 갔어요.
+  RESULT: PASS - All sentences classified as Phrase/Sentence
+
+============================================================
+FINAL SUMMARY
+============================================================
+  Baseline: {1: 221, 2: 7} total=228
+  Final:    {1: 222, 2: 12} total=234
+  Net new:  +6
+
+  RESULTS:
+    test1: [PASS] PASS
+    test2: [FAIL] FAIL - 0 new entries
+    test3_filter: [PASS] PASS
+    test3_add: [PASS] PASS
+    test4: [PASS] PASS - Classified as Sentences
+    test5: [PASS] PASS - Commit blocked (0 new entries)
+    test6: [FAIL] FAIL - 0 new entries
+    test7: [PASS] PASS - All sentences classified as Phrase/Sentence
