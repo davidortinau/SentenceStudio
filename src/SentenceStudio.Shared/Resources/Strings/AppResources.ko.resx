@@ -6167,6 +6167,22 @@
     <value>사유</value>
     <comment>Column header for failure/skip reason in result table</comment>
   </data>
+  <data name="Import_PreviewDuplicateHeader" xml:space="preserve">
+    <value>중복</value>
+    <comment>Column header for duplicate detection in preview table</comment>
+  </data>
+  <data name="Import_PreviewDuplicateBadge" xml:space="preserve">
+    <value>중복</value>
+    <comment>Badge label shown on rows flagged as duplicates in preview table</comment>
+  </data>
+  <data name="Import_PreviewDuplicate_AlreadyInVocabulary" xml:space="preserve">
+    <value>이미 단어장에 있음</value>
+    <comment>Tooltip for duplicate row that matches existing vocabulary word</comment>
+  </data>
+  <data name="Import_PreviewDuplicate_DuplicateWithinBatch" xml:space="preserve">
+    <value>이번 가져오기에서 중복됨</value>
+    <comment>Tooltip for duplicate row that appears more than once in the current import</comment>
+  </data>
   <data name="Import_ViewVocab" xml:space="preserve">
     <value>보기</value>
     <comment>Short link text to view vocabulary detail from import result</comment>

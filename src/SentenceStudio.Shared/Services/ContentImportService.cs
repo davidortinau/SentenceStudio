@@ -33,6 +33,13 @@ public interface IContentImportService
     /// Respects harvest checkboxes (harvestTranscript, harvestPhrases, harvestWords).
     /// </summary>
     Task<ContentImportResult> CommitImportAsync(ContentImportCommit commit, CancellationToken ct = default);
+
+    /// <summary>
+    /// Enrich preview rows with duplicate-detection info by checking existing vocabulary in a single
+    /// batched DB query. Sets IsDuplicate and DuplicateReason on each ImportRow. Uses the same
+    /// matching predicate as CommitImportAsync (trimmed TargetLanguageTerm, case-sensitive).
+    /// </summary>
+    Task EnrichPreviewWithDuplicateInfoAsync(ContentImportPreview preview, CancellationToken ct = default);
 }
 
 public class ContentImportService : IContentImportService
@@ -58,6 +65,13 @@ public class ContentImportService : IContentImportService
         _fileSystem = fileSystem;
         _preferences = serviceProvider?.GetService<SentenceStudio.Abstractions.IPreferencesService>();
     }
+
+    /// <summary>
+    /// Single source of truth for normalizing a target-language term before duplicate comparison.
+    /// Used by both PreviewImportAsync (enrichment) and CommitImportAsync (dedup).
+    /// Rule: trim whitespace, case-sensitive ordinal comparison.
+    /// </summary>
+    internal static string NormalizeTargetTerm(string? term) => term?.Trim() ?? string.Empty;
 
     private string ActiveUserId => _preferences?.Get("active_profile_id", string.Empty) ?? string.Empty;
 
@@ -1192,6 +1206,67 @@ public class ContentImportService : IContentImportService
         }).ToList();
     }
 
+    public async Task EnrichPreviewWithDuplicateInfoAsync(ContentImportPreview preview, CancellationToken ct = default)
+    {
+        if (preview == null) throw new ArgumentNullException(nameof(preview));
+        if (preview.Rows.Count == 0) return;
+
+        // Collect all non-empty, normalized target terms from the preview in one pass
+        var termsByRow = new List<(ImportRow Row, string NormalizedTerm)>();
+        var uniqueTerms = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var row in preview.Rows)
+        {
+            var normalized = NormalizeTargetTerm(row.TargetLanguageTerm);
+            if (string.IsNullOrEmpty(normalized)) continue;
+
+            termsByRow.Add((row, normalized));
+            uniqueTerms.Add(normalized);
+        }
+
+        if (uniqueTerms.Count == 0) return;
+
+        // Single batched query: fetch all existing vocabulary words whose trimmed target term
+        // matches any term in the preview. This is the SAME predicate CommitImportAsync uses:
+        // exact match on TargetLanguageTerm (already stored trimmed in DB).
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var existingTerms = await db.VocabularyWords
+            .Where(w => uniqueTerms.Contains(w.TargetLanguageTerm))
+            .Select(w => w.TargetLanguageTerm)
+            .Distinct()
+            .ToListAsync(ct);
+
+        var existingTermSet = new HashSet<string>(existingTerms, StringComparer.Ordinal);
+
+        _logger.LogDebug("Duplicate enrichment: {PreviewTerms} unique terms, {ExistingMatches} existing in DB",
+            uniqueTerms.Count, existingTermSet.Count);
+
+        // Also detect intra-batch duplicates (same term appears multiple times in the preview)
+        var seenInBatch = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var (row, normalizedTerm) in termsByRow)
+        {
+            if (existingTermSet.Contains(normalizedTerm))
+            {
+                row.IsDuplicate = true;
+                row.DuplicateReason = "AlreadyInVocabulary";
+            }
+            else if (!seenInBatch.Add(normalizedTerm))
+            {
+                // Second+ occurrence of the same term within this preview batch
+                row.IsDuplicate = true;
+                row.DuplicateReason = "DuplicateWithinBatch";
+            }
+            else
+            {
+                row.IsDuplicate = false;
+                row.DuplicateReason = null;
+            }
+        }
+    }
+
     public async Task<ContentImportResult> CommitImportAsync(ContentImportCommit commit, CancellationToken ct = default)
     {
         if (commit == null)
@@ -1358,7 +1433,7 @@ public class ContentImportService : IContentImportService
                 }
 
                 // Dedup check: case-sensitive, whitespace-trimmed (matches YouTube pipeline + Captain's ruling)
-                var trimmedTarget = row.TargetLanguageTerm.Trim();
+                var trimmedTarget = NormalizeTargetTerm(row.TargetLanguageTerm);
 
                 VocabularyWord wordToMap;
 
@@ -1698,6 +1773,12 @@ public class ImportRow
 
     [Description("Lexical unit classification for this entry")]
     public LexicalUnitType LexicalUnitType { get; set; } = LexicalUnitType.Word;
+
+    [Description("True if this row matches an existing vocabulary word in the database (will be skipped on commit with DedupMode.Skip)")]
+    public bool IsDuplicate { get; set; }
+
+    [Description("Stable key describing the duplicate reason (e.g., 'AlreadyInVocabulary'). Null when IsDuplicate is false.")]
+    public string? DuplicateReason { get; set; }
 }
 
 /// <summary>

@@ -131,14 +131,13 @@
                             @foreach (var item in FilteredResultItems)
                             {
                                 var isClickable = item.Status != ImportItemStatus.Failed && !string.IsNullOrEmpty(item.VocabularyWordId);
-                                <tr class="@(isClickable ? "cursor-pointer" : "")"
-                                    @onclick="() => NavigateToVocabDetail(item)"
-                                    style="@(isClickable ? "cursor:pointer;" : "")">
+                                <tr role="@(isClickable ? "button" : null)"
+                                    @onclick="() => NavigateToVocabDetail(item)">
                                     <td>
                                         @item.Lemma
                                         @if (isClickable)
                                         {
-                                            <i class="bi bi-box-arrow-up-right ms-1 text-secondary-ss" style="font-size:0.75rem;"></i>
+                                            <i class="bi bi-box-arrow-up-right ms-1 text-secondary-ss small"></i>
                                         }
                                     </td>
                                     <td>@item.NativeLanguageTerm</td>
@@ -147,6 +146,7 @@
                                     <td>
                                         @if (!string.IsNullOrEmpty(item.Reason))
                                         {
+                                            @* Functional max-width for text truncation in fixed table column *@
                                             <span title="@item.Reason" class="text-truncate d-inline-block" style="max-width:220px;">@item.Reason</span>
                                         }
                                     </td>
@@ -161,9 +161,9 @@
                     @foreach (var item in FilteredResultItems)
                     {
                         var isClickable = item.Status != ImportItemStatus.Failed && !string.IsNullOrEmpty(item.VocabularyWordId);
-                        <div class="border rounded p-3 mb-2 @(isClickable ? "" : "")"
-                             @onclick="() => NavigateToVocabDetail(item)"
-                             style="@(isClickable ? "cursor:pointer;" : "")">
+                        <div class="border rounded p-3 mb-2"
+                             role="@(isClickable ? "button" : null)"
+                             @onclick="() => NavigateToVocabDetail(item)">
                             <div class="d-flex justify-content-between align-items-start mb-1">
                                 <span class="ss-body1 fw-bold">@item.Lemma</span>
                                 @RenderStatusBadge(item.Status)
@@ -465,6 +465,7 @@
                                 <th>@Localize["Import_TargetLanguageTerm"]</th>
                                 <th>@Localize["Import_NativeLanguageTerm"]</th>
                                 <th style="width: 100px;">@Localize["Import_Status"]</th>
+                                <th style="width: 110px;">@Localize["Import_PreviewDuplicateHeader"]</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -509,6 +510,14 @@
                                         {
                                             <span class="badge bg-danger" title="@row.Error">
                                                 <i class="bi bi-x-lg"></i> Error
+                                            </span>
+                                        }
+                                    </td>
+                                    <td>
+                                        @if (row.IsDuplicate)
+                                        {
+                                            <span class="badge bg-warning bg-opacity-10 text-warning" title="@Localize[$"Import_PreviewDuplicate_{row.DuplicateReason}"]">
+                                                <i class="bi bi-files me-1"></i>@Localize["Import_PreviewDuplicateBadge"]
                                             </span>
                                         }
                                     </td>
@@ -855,7 +864,9 @@
                 Error = r.Error,
                 IsSelected = r.IsSelected,
                 IsAiTranslated = r.IsAiTranslated,
-                LexicalUnitType = r.LexicalUnitType
+                LexicalUnitType = r.LexicalUnitType,
+                IsDuplicate = r.IsDuplicate,
+                DuplicateReason = r.DuplicateReason
             }).ToList();
 
             currentStep = ImportStep.Preview;
@@ -1138,7 +1149,7 @@
         },
         LexicalUnitType.Phrase => (__builder) =>
         {
-            <span class="badge bg-purple bg-opacity-10 text-purple" style="--bs-purple:#6f42c1;color:var(--bs-purple);background-color:rgba(111,66,193,0.1);"><i class="bi bi-chat-quote me-1"></i>Phrase</span>
+            <span class="badge bg-secondary bg-opacity-10 text-secondary"><i class="bi bi-chat-quote me-1"></i>Phrase</span>
         },
         LexicalUnitType.Sentence => (__builder) =>
         {

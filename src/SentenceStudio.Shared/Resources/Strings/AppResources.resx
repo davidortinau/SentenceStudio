@@ -6414,6 +6414,22 @@ For example: {0} ...</value>
     <value>Reason</value>
     <comment>Column header for failure/skip reason in result table</comment>
   </data>
+  <data name="Import_PreviewDuplicateHeader" xml:space="preserve">
+    <value>Duplicate</value>
+    <comment>Column header for duplicate detection in preview table</comment>
+  </data>
+  <data name="Import_PreviewDuplicateBadge" xml:space="preserve">
+    <value>Duplicate</value>
+    <comment>Badge label shown on rows flagged as duplicates in preview table</comment>
+  </data>
+  <data name="Import_PreviewDuplicate_AlreadyInVocabulary" xml:space="preserve">
+    <value>Already exists in vocabulary</value>
+    <comment>Tooltip for duplicate row that matches existing vocabulary word</comment>
+  </data>
+  <data name="Import_PreviewDuplicate_DuplicateWithinBatch" xml:space="preserve">
+    <value>Duplicate within this import batch</value>
+    <comment>Tooltip for duplicate row that appears more than once in the current import</comment>
+  </data>
   <data name="Import_ViewVocab" xml:space="preserve">
     <value>View</value>
     <comment>Short link text to view vocabulary detail from import result</comment>
