@@ -693,7 +693,8 @@
                 Status = r.Status,
                 Error = r.Error,
                 IsSelected = r.IsSelected,
-                IsAiTranslated = r.IsAiTranslated
+                IsAiTranslated = r.IsAiTranslated,
+                LexicalUnitType = r.LexicalUnitType
             }).ToList();
 
             currentStep = ImportStep.Preview;
@@ -853,7 +854,8 @@
                 Rows = editableRows,
                 DetectedFormat = previewResult!.DetectedFormat,
                 DetectedContentType = previewResult.DetectedContentType,
-                Warnings = previewResult.Warnings
+                Warnings = previewResult.Warnings,
+                SourceText = previewResult.SourceText
             };
 
             var target = targetMode == ImportTargetMode.New

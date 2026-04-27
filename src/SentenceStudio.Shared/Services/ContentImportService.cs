@@ -42,6 +42,7 @@ public class ContentImportService : IContentImportService
     private readonly ILogger<ContentImportService> _logger;
     private readonly IAiService _aiService;
     private readonly IFileSystemService _fileSystem;
+    private readonly SentenceStudio.Abstractions.IPreferencesService? _preferences;
 
     public ContentImportService(
         IServiceProvider serviceProvider,
@@ -55,7 +56,10 @@ public class ContentImportService : IContentImportService
         _logger = logger;
         _aiService = aiService;
         _fileSystem = fileSystem;
+        _preferences = serviceProvider?.GetService<SentenceStudio.Abstractions.IPreferencesService>();
     }
+
+    private string ActiveUserId => _preferences?.Get("active_profile_id", string.Empty) ?? string.Empty;
 
 
     public async Task<ContentImportPreview> ParseContentAsync(ContentImportRequest request, CancellationToken ct = default)
@@ -116,7 +120,8 @@ public class ContentImportService : IContentImportService
                     Warnings = classification.Confidence >= 0.70f
                         ? new[] { $"Auto-detect suggests '{classification.ContentType}' ({classification.Confidence:P0} confidence). Please confirm before import." }
                         : new[] { $"Auto-detect is uncertain ({classification.Confidence:P0} confidence). Please select a content type manually." },
-                    RequiresUserConfirmation = true
+                    RequiresUserConfirmation = true,
+                    SourceText = content
                 };
             }
         }
@@ -161,7 +166,8 @@ public class ContentImportService : IContentImportService
                 Classification = classification,
                 Warnings = rows.Count == 0 && (request.HarvestWords || request.HarvestPhrases)
                     ? new[] { "No vocabulary extracted from transcript. The transcript will still be stored on the resource." }
-                    : warnings
+                    : warnings,
+                SourceText = content
             };
         }
 
@@ -200,7 +206,8 @@ public class ContentImportService : IContentImportService
                     Note = effectiveContentType == request.ContentType ? "Explicitly set by user" : $"Auto-detected ({classification?.Confidence:P0})"
                 },
                 Classification = classification,
-                Warnings = warnings
+                Warnings = warnings,
+                SourceText = content
             };
         }
 
@@ -312,7 +319,8 @@ public class ContentImportService : IContentImportService
             DetectedFormat = detectedFormat,
             DetectedContentType = detectedContentType,
             Classification = classification,
-            Warnings = warnings
+            Warnings = warnings,
+            SourceText = content
         };
     }
 
@@ -473,7 +481,8 @@ public class ContentImportService : IContentImportService
                 NativeLanguageTerm = nativeTerm,
                 Status = rowStatus,
                 Error = error,
-                IsSelected = rowStatus != RowStatus.Error // Auto-deselect error rows
+                IsSelected = rowStatus != RowStatus.Error, // Auto-deselect error rows
+                LexicalUnitType = ResolveLexicalUnitType(LexicalUnitType.Word, targetTerm)
             });
         }
 
@@ -676,7 +685,8 @@ public class ContentImportService : IContentImportService
                 Status = status,
                 Error = error,
                 IsSelected = status != RowStatus.Error, // Auto-deselect low-confidence rows
-                IsAiTranslated = true // Free-text extractions are always AI-generated
+                IsAiTranslated = true, // Free-text extractions are always AI-generated
+                LexicalUnitType = ResolveLexicalUnitType(item.LexicalUnitType, item.TargetLanguageTerm)
             });
         }
 
@@ -868,7 +878,7 @@ public class ContentImportService : IContentImportService
                 Status = RowStatus.Ok,
                 IsSelected = true,
                 IsAiTranslated = true,
-                LexicalUnitType = item.LexicalUnitType
+                LexicalUnitType = ResolveLexicalUnitType(item.LexicalUnitType, item.TargetLanguageTerm)
             });
         }
 
@@ -879,6 +889,24 @@ public class ContentImportService : IContentImportService
     /// <summary>
     /// Filter rows by harvest flags. Removes entries that don't match the requested harvest types.
     /// </summary>
+    /// <summary>
+    /// Resolve LexicalUnitType with a defensive space-based heuristic fallback.
+    /// If the AI classified as Word but the term contains whitespace, reclassify as Phrase.
+    /// This matches the migration backfill heuristic and Captain's ruling.
+    /// </summary>
+    private static LexicalUnitType ResolveLexicalUnitType(LexicalUnitType aiClassification, string? targetTerm)
+    {
+        if (aiClassification == LexicalUnitType.Phrase || aiClassification == LexicalUnitType.Sentence)
+            return aiClassification;
+
+        // Defensive heuristic: multi-word terms that the AI marked as Word (or left as Unknown/default)
+        if (!string.IsNullOrWhiteSpace(targetTerm) && targetTerm.Trim().Contains(' '))
+            return LexicalUnitType.Phrase;
+
+        // If Unknown, default to Word (single token)
+        return aiClassification == LexicalUnitType.Unknown ? LexicalUnitType.Word : aiClassification;
+    }
+
     private static List<ImportRow> FilterRowsByHarvestFlags(List<ImportRow> rows, bool harvestWords, bool harvestPhrases)
     {
         if (harvestWords && harvestPhrases)
@@ -918,6 +946,16 @@ public class ContentImportService : IContentImportService
         int updatedCount = 0;
         int failedCount = 0;
 
+        // BUG-2 fix: If the UI didn't set TranscriptText explicitly, fall back to
+        // the SourceText that round-tripped through the preview.
+        var transcriptText = !string.IsNullOrEmpty(commit.TranscriptText)
+            ? commit.TranscriptText
+            : commit.Preview?.SourceText;
+
+        // BUG-1 fix: Resolve the active user so imported resources are scoped correctly.
+        // Matches the pattern in LearningResourceRepository.SaveAsync (ActiveUserId from prefs).
+        var userId = ActiveUserId;
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
@@ -939,10 +977,16 @@ public class ContentImportService : IContentImportService
                     throw new InvalidOperationException($"Resource with ID {commit.Target.ExistingResourceId} not found.");
 
                 // If transcript harvest requested, store/overwrite transcript on existing resource
-                if (commit.HarvestTranscript && !string.IsNullOrEmpty(commit.TranscriptText))
+                if (commit.HarvestTranscript && !string.IsNullOrEmpty(transcriptText))
                 {
-                    targetResource.Transcript = commit.TranscriptText;
+                    targetResource.Transcript = transcriptText;
                     targetResource.MediaType = "Transcript";
+                }
+
+                // Ensure user ownership on existing resource if missing
+                if (string.IsNullOrEmpty(targetResource.UserProfileId) && !string.IsNullOrEmpty(userId))
+                {
+                    targetResource.UserProfileId = userId;
                 }
 
                 _logger.LogInformation("Appending vocabulary to existing resource: {ResourceId} ({Title})",
@@ -962,10 +1006,11 @@ public class ContentImportService : IContentImportService
                     Title = commit.Target.NewResourceTitle,
                     Description = commit.Target.NewResourceDescription ?? string.Empty,
                     MediaType = mediaType,
-                    Transcript = commit.HarvestTranscript ? commit.TranscriptText : null,
+                    Transcript = commit.HarvestTranscript ? transcriptText : null,
                     Language = commit.Target.TargetLanguage,
                     Tags = "imported",
                     IsSmartResource = false,
+                    UserProfileId = !string.IsNullOrEmpty(userId) ? userId : null,
                     CreatedAt = DateTime.UtcNow,
                     UpdatedAt = DateTime.UtcNow,
                     VocabularyMappings = new List<ResourceVocabularyMapping>()
@@ -1277,6 +1322,9 @@ public class ContentImportPreview
 
     [Description("Warnings encountered during parsing")]
     public IReadOnlyList<string> Warnings { get; set; } = Array.Empty<string>();
+
+    [Description("Original source text carried through for transcript storage on commit")]
+    public string? SourceText { get; set; }
 }
 
 /// <summary>
