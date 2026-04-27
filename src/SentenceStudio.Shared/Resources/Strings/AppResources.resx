@@ -4096,7 +4096,27 @@ For example: {0} ...</value>
   </data>
   <data name="Vocabulary_AddWord" xml:space="preserve">
     <value>Add Word</value>
-    <comment>Button text</comment>
+    <comment>Button text (legacy key — use Vocabulary_Add instead)</comment>
+  </data>
+  <data name="Vocabulary_Add" xml:space="preserve">
+    <value>Add</value>
+    <comment>Button text for adding vocabulary (word, phrase, or sentence)</comment>
+  </data>
+  <data name="Vocabulary_FilterTypeAll" xml:space="preserve">
+    <value>All Types</value>
+    <comment>Type filter default option</comment>
+  </data>
+  <data name="Vocabulary_FilterTypeWord" xml:space="preserve">
+    <value>Word</value>
+    <comment>Type filter option</comment>
+  </data>
+  <data name="Vocabulary_FilterTypePhrase" xml:space="preserve">
+    <value>Phrase</value>
+    <comment>Type filter option</comment>
+  </data>
+  <data name="Vocabulary_FilterTypeSentence" xml:space="preserve">
+    <value>Sentence</value>
+    <comment>Type filter option</comment>
   </data>
   <data name="Vocabulary_ToggleViewGrid" xml:space="preserve">
     <value>List View</value>

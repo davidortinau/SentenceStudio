@@ -486,3 +486,37 @@ Built the user-facing `/import-content` page for the data import MVP. This is th
 
 **Ship readiness:** All bugs fixed and verified. Feature shipped clean.
 
+
+---
+
+## Vocabulary List — Type Filter & Add Button Rename (Round 1)
+
+**Date:** 2025-07-25
+**Branch:** feature/import-content
+**Scope:** `src/SentenceStudio.UI/Pages/Vocabulary.razor` only
+
+### Changes Made
+
+1. **Type filter dropdown** — Added a new "Type" filter (All Types / Word / Phrase / Sentence) to both the desktop filter row and the mobile offcanvas filter panel. Follows the exact same pattern as the existing Association/Status/Encoding dropdowns: `CurrentType` computed property, `OnTypeDropdown` handler routing through `OnDropdownChanged("type", e)`, and a `"type"` case in `ApplyFilters()` that matches against `VocabularyWord.LexicalUnitType`. Client-side filtering on the already-loaded list — no new service calls needed.
+
+2. **Add button renamed** — Changed "Add Word" → "Add" in both the primary action button and the secondary dropdown menu item. Created a new localization key `Vocabulary_Add` ("Add" / "추가") to keep `Vocabulary_AddWord` as a non-breaking legacy key.
+
+3. **Filter chip support** — Added `"type"` entries to `GetFilterTypeBadgeClass` (bg-primary-subtle) and `GetFilterTypeIcon` (bi-diagram-3) so type chips render correctly in the active filter bar.
+
+4. **Localization** — Added 5 new keys to both `AppResources.resx` and `AppResources.ko.resx`: `Vocabulary_Add`, `Vocabulary_FilterTypeAll`, `Vocabulary_FilterTypeWord`, `Vocabulary_FilterTypePhrase`, `Vocabulary_FilterTypeSentence`.
+
+### Learnings
+
+- **Dropdown filter pattern is clean and scalable:** The search-query-driven filter system (`OnDropdownChanged` → `SearchParser` → `ApplyFilters` switch) made adding a new filter type trivial. Same pattern should be used for any future filter additions.
+- **VocabularyWordEdit.razor already has full type support** (lines 117-128): a `<select>` bound to `selectedLexicalUnitType` with Word/Phrase/Sentence options, plus constituent word linking UI for Phrase/Sentence types. No changes needed there.
+- **No follow-up needed for the edit page** — it already handles all three types including the add-new flow (id=0). The "Add" button navigation works correctly as-is.
+
+### How to Test
+
+- Navigate to `/vocabulary`
+- Verify the header button says "Add" (not "Add Word")
+- Verify the "Type" dropdown appears in the desktop filter row (between Association and Status)
+- Select "Word" → only Word-type entries shown; select "Phrase" → only Phrases; "Sentence" → only Sentences; "All Types" → everything
+- Verify the type filter chip appears in the active filters bar when a type is selected
+- On mobile viewport: open the offcanvas filter panel → verify the "Type" section appears
+- Combine type filter with other filters (e.g., type:word + status:known) → both should apply

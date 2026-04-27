@@ -3852,7 +3852,27 @@
   </data>
   <data name="Vocabulary_AddWord" xml:space="preserve">
     <value>단어 추가</value>
-    <comment>Button text</comment>
+    <comment>Button text (legacy key — use Vocabulary_Add instead)</comment>
+  </data>
+  <data name="Vocabulary_Add" xml:space="preserve">
+    <value>추가</value>
+    <comment>Button text for adding vocabulary (word, phrase, or sentence)</comment>
+  </data>
+  <data name="Vocabulary_FilterTypeAll" xml:space="preserve">
+    <value>전체 유형</value>
+    <comment>Type filter default option</comment>
+  </data>
+  <data name="Vocabulary_FilterTypeWord" xml:space="preserve">
+    <value>단어</value>
+    <comment>Type filter option</comment>
+  </data>
+  <data name="Vocabulary_FilterTypePhrase" xml:space="preserve">
+    <value>구문</value>
+    <comment>Type filter option</comment>
+  </data>
+  <data name="Vocabulary_FilterTypeSentence" xml:space="preserve">
+    <value>문장</value>
+    <comment>Type filter option</comment>
   </data>
   <data name="Vocabulary_ToggleViewGrid" xml:space="preserve">
     <value>목록 보기</value>
