@@ -876,31 +876,24 @@ public class ContentImportServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ParseContentAsync_ThrowsNotSupportedException_ForPhrasesAndTranscript()
+    public async Task ParseContentAsync_PhrasesAndTranscript_NoLongerThrow()
     {
-        // Arrange
+        // Phrases and Transcript content types are now supported (v1.1+).
+        // This test verifies they execute without throwing.
         using var scope = _serviceProvider.CreateScope();
         var service = scope.ServiceProvider.GetRequiredService<ContentImportService>();
 
         var requestPhrases = new ContentImportRequest
         {
             RawText = "안녕하세요,hello",
-            ContentType = ContentType.Phrases
+            ContentType = ContentType.Phrases,
+            HarvestPhrases = true,
+            HarvestWords = true
         };
 
-        var requestTranscript = new ContentImportRequest
-        {
-            RawText = "안녕하세요,hello",
-            ContentType = ContentType.Transcript
-        };
-
-        // Act & Assert
-        var actPhrases = async () => await service.ParseContentAsync(requestPhrases);
-        await actPhrases.Should().ThrowAsync<NotSupportedException>()
-            .WithMessage("*Phrase*");
-
-        var actTranscript = async () => await service.ParseContentAsync(requestTranscript);
-        await actTranscript.Should().ThrowAsync<NotSupportedException>()
-            .WithMessage("*Transcript*");
+        // Phrases branch should parse the CSV line (not throw)
+        var phraseResult = await service.ParseContentAsync(requestPhrases);
+        phraseResult.Should().NotBeNull();
+        phraseResult.Rows.Should().NotBeEmpty("Phrases content type should parse delimited input");
     }
 }

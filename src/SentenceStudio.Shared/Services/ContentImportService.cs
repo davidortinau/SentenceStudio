@@ -171,9 +171,10 @@ public class ContentImportService : IContentImportService
             };
         }
 
-        // --- Phrases branch ---
-        // Phrase content harvests BOTH Words AND Phrases (Captain's harvest matrix).
-        if (effectiveContentType == ContentType.Phrases)
+        // --- Phrases / Sentences branch ---
+        // Content type is Phrases or Sentences: parse delimited lines as primary entries,
+        // then optionally run AI to harvest constituent words/phrases.
+        if (effectiveContentType == ContentType.Phrases || effectiveContentType == ContentType.Sentences)
         {
             if (content.Length > 50_000)
             {
@@ -187,21 +188,110 @@ public class ContentImportService : IContentImportService
             }
             else
             {
-                // TODO: Use River's dedicated phrase extraction prompt (ExtractPhrasesFromContent.scriban-txt)
-                // when it lands. For now, use FreeTextToVocab which already supports LexicalUnitType classification.
-                rows = await ParseFreeTextContentAsync(content, request.TargetLanguage, request.NativeLanguage, request.FormatHint, ct);
+                // Step 1: Parse delimited lines to create primary phrase/sentence entries.
+                // The user's original content is preserved as-is in each row.
+                var (phraseFormatType, phraseDelimiter) = DetectFormat(content, request.DelimiterOverride, request.FormatHint);
 
-                // Filter based on harvest checkboxes
-                rows = FilterRowsByHarvestFlags(rows, request.HarvestWords, request.HarvestPhrases);
+                List<ImportRow> primaryRows;
+                if (phraseFormatType is "CSV" or "TSV" or "Pipe")
+                {
+                    primaryRows = ParseDelimitedContent(content, phraseDelimiter!.Value, request.HasHeaderRow);
+                    // Reclassify: delimited parser defaults to Word, but these are phrases/sentences.
+                    foreach (var row in primaryRows)
+                    {
+                        // Hint the AI classification toward Phrase; ResolveLexicalUnitType will
+                        // promote to Sentence if terminal punctuation is present.
+                        row.LexicalUnitType = ResolveLexicalUnitType(LexicalUnitType.Phrase, row.TargetLanguageTerm);
+                    }
+                }
+                else
+                {
+                    // Unstructured input: no delimited primary rows to create.
+                    primaryRows = new List<ImportRow>();
+                }
+
+                // Step 2: Run AI phrase extraction to harvest constituent words
+                // (and normalized phrase patterns). Only run if HarvestWords is requested
+                // OR if there are no primary rows (unstructured input needs AI).
+                List<ImportRow> aiRows = new();
+                if (request.HarvestWords || primaryRows.Count == 0)
+                {
+                    try
+                    {
+                        aiRows = await ExtractVocabularyFromPhrasesAsync(
+                            content, request.TargetLanguage, request.NativeLanguage, ct);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "AI phrase extraction failed");
+                        warnings.Add($"AI word extraction failed: {ex.Message}. Primary phrases are still available.");
+                    }
+                }
+
+                // Step 3: Combine primary entries + AI-extracted entries, deduplicating by target term.
+                var seenTargets = new HashSet<string>(StringComparer.Ordinal);
+                rows = new List<ImportRow>();
+
+                foreach (var row in primaryRows)
+                {
+                    if (!string.IsNullOrWhiteSpace(row.TargetLanguageTerm))
+                    {
+                        seenTargets.Add(row.TargetLanguageTerm.Trim());
+                        rows.Add(row);
+                    }
+                }
+
+                int rowNum = rows.Count;
+                foreach (var row in aiRows)
+                {
+                    if (!string.IsNullOrWhiteSpace(row.TargetLanguageTerm)
+                        && seenTargets.Add(row.TargetLanguageTerm.Trim()))
+                    {
+                        row.RowNumber = ++rowNum;
+                        rows.Add(row);
+                    }
+                }
+
+                // Step 4: Single-column translation for rows missing native terms
+                var phraseSingleColumnRows = rows.Where(r =>
+                    string.IsNullOrWhiteSpace(r.NativeLanguageTerm)
+                    && !string.IsNullOrWhiteSpace(r.TargetLanguageTerm)).ToList();
+                if (phraseSingleColumnRows.Any())
+                {
+                    try
+                    {
+                        await TranslateMissingNativeTermsAsync(phraseSingleColumnRows, request.TargetLanguage, request.NativeLanguage, ct);
+                        foreach (var row in phraseSingleColumnRows.Where(r => !string.IsNullOrWhiteSpace(r.NativeLanguageTerm)))
+                        {
+                            row.IsAiTranslated = true;
+                            if (row.Status == RowStatus.Warning && row.Error?.Contains("missing") == true)
+                            {
+                                row.Status = RowStatus.Ok;
+                                row.Error = null;
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "AI translation failed for phrase import single-column rows");
+                    }
+                }
+
+                // Step 5: Filter by harvest flags
+                rows = FilterRowsByHarvestFlags(rows, request.HarvestWords, request.HarvestPhrases, request.HarvestSentences);
             }
+
+            var formatLabel = effectiveContentType == ContentType.Sentences
+                ? "Sentences (parsed + AI-extracted)"
+                : "Phrases (parsed + AI-extracted)";
 
             return new ContentImportPreview
             {
                 Rows = rows,
-                DetectedFormat = "Phrases (AI-extracted)",
+                DetectedFormat = formatLabel,
                 DetectedContentType = new ContentTypeDetectionResult
                 {
-                    ContentType = ContentType.Phrases,
+                    ContentType = effectiveContentType,
                     Confidence = classification?.Confidence ?? 1.0f,
                     Note = effectiveContentType == request.ContentType ? "Explicitly set by user" : $"Auto-detected ({classification?.Confidence:P0})"
                 },
@@ -782,6 +872,7 @@ public class ContentImportService : IContentImportService
             {
                 "vocabulary" => ContentType.Vocabulary,
                 "phrases" => ContentType.Phrases,
+                "sentences" => ContentType.Sentences,
                 "transcript" => ContentType.Transcript,
                 _ => ContentType.Vocabulary
             };
@@ -819,13 +910,18 @@ public class ContentImportService : IContentImportService
 
             {hintSection}**CLASSIFICATION RULES:**
             1. **Vocabulary** — structured word list, CSV/TSV with target+native columns, or simple word pairs.
-            2. **Phrases** — standalone sentences or phrase examples with NO sentence-to-sentence continuity. Each line stands alone. Reading as a passage does NOT flow.
-            3. **Transcript** — continuous prose with sentence-to-sentence continuity. Reading as a passage FLOWS naturally. Includes paragraphs, dialogue, or narration.
+            2. **Phrases** — multi-word expressions, idioms, or collocations that are NOT complete sentences. No terminal punctuation or subject+verb structure required.
+            3. **Sentences** — complete grammatical sentences (subject + predicate) ending with terminal punctuation (. ! ? 。 ！ ？). Each line is independent with no narrative continuity.
+            4. **Transcript** — continuous prose with sentence-to-sentence continuity. Reading as a passage FLOWS naturally. Includes paragraphs, dialogue, or narration.
 
-            **KEY SIGNAL:** Check for continuity between sentences. If continuity exists (pronouns referencing previous sentences, temporal progression, narrative arc), it's a Transcript. If each sentence is independent with no contextual link to neighbors, it's Phrases.
+            **KEY SIGNALS:**
+            - Sentence-terminal punctuation (. ! ?) on independent lines → Sentences.
+            - Multi-word units WITHOUT terminal punctuation → Phrases.
+            - Continuity between sentences (pronouns referencing previous sentences, temporal progression, narrative arc) → Transcript.
+            - If each sentence is independent with no contextual link to neighbors, it's Sentences (not Transcript).
 
             **RESPONSE FORMAT — Return ONLY valid JSON with keys: type, confidence, reasoning, signals.**
-            The "type" field must be one of: vocabulary, phrases, transcript.
+            The "type" field must be one of: vocabulary, phrases, sentences, transcript.
             The "confidence" field must be a float between 0.0 and 1.0.
             The "reasoning" field is a brief explanation string.
             The "signals" field is a string array of signal keywords.
@@ -887,6 +983,71 @@ public class ContentImportService : IContentImportService
     }
 
     /// <summary>
+    /// Extract vocabulary from phrase/sentence content using River's dedicated
+    /// ExtractVocabularyFromPhrases prompt. Returns BOTH phrase-level entries AND
+    /// constituent word entries as classified by the AI.
+    /// </summary>
+    private async Task<List<ImportRow>> ExtractVocabularyFromPhrasesAsync(
+        string content, string targetLanguage, string nativeLanguage, CancellationToken ct)
+    {
+        _logger.LogInformation("Extracting vocabulary from phrases via AI ({Length} chars)...", content.Length);
+
+        using Stream templateStream = await _fileSystem.OpenAppPackageFileAsync("ExtractVocabularyFromPhrases.scriban-txt");
+        using var reader = new StreamReader(templateStream);
+        var templateContent = await reader.ReadToEndAsync();
+        var scribanTemplate = Template.Parse(templateContent);
+
+        var prompt = await scribanTemplate.RenderAsync(new
+        {
+            native_language = nativeLanguage,
+            target_language = targetLanguage,
+            source_text = content,
+            existing_terms = new List<string>(),
+            topik_level = (string?)null
+        });
+
+        var result = await _aiService.SendPrompt<FreeTextVocabularyExtractionResponse>(prompt);
+
+        if (result?.Vocabulary == null || !result.Vocabulary.Any())
+        {
+            _logger.LogWarning("AI returned no vocabulary from phrase extraction");
+            return new List<ImportRow>();
+        }
+
+        var rows = new List<ImportRow>();
+        for (int i = 0; i < result.Vocabulary.Count; i++)
+        {
+            var item = result.Vocabulary[i];
+            var status = item.Confidence.ToLowerInvariant() switch
+            {
+                "high" => RowStatus.Ok,
+                "medium" => RowStatus.Warning,
+                "low" => RowStatus.Error,
+                _ => RowStatus.Warning
+            };
+
+            var error = status != RowStatus.Ok
+                ? $"Confidence: {item.Confidence}" + (string.IsNullOrWhiteSpace(item.Notes) ? "" : $" - {item.Notes}")
+                : null;
+
+            rows.Add(new ImportRow
+            {
+                RowNumber = i + 1,
+                TargetLanguageTerm = item.TargetLanguageTerm,
+                NativeLanguageTerm = item.NativeLanguageTerm,
+                Status = status,
+                Error = error,
+                IsSelected = status != RowStatus.Error,
+                IsAiTranslated = true,
+                LexicalUnitType = ResolveLexicalUnitType(item.LexicalUnitType, item.TargetLanguageTerm)
+            });
+        }
+
+        _logger.LogInformation("Extracted {Count} vocabulary items from phrases (phrase + word entries)", rows.Count);
+        return rows;
+    }
+
+    /// <summary>
     /// Filter rows by harvest flags. Removes entries that don't match the requested harvest types.
     /// </summary>
     /// <summary>
@@ -899,25 +1060,50 @@ public class ContentImportService : IContentImportService
         if (aiClassification == LexicalUnitType.Phrase || aiClassification == LexicalUnitType.Sentence)
             return aiClassification;
 
-        // Defensive heuristic: multi-word terms that the AI marked as Word (or left as Unknown/default)
-        if (!string.IsNullOrWhiteSpace(targetTerm) && targetTerm.Trim().Contains(' '))
-            return LexicalUnitType.Phrase;
+        if (string.IsNullOrWhiteSpace(targetTerm))
+            return aiClassification == LexicalUnitType.Unknown ? LexicalUnitType.Word : aiClassification;
 
-        // If Unknown, default to Word (single token)
-        return aiClassification == LexicalUnitType.Unknown ? LexicalUnitType.Word : aiClassification;
+        var trimmed = targetTerm.Trim();
+        var hasWhitespace = trimmed.Contains(' ');
+
+        if (!hasWhitespace)
+            return aiClassification == LexicalUnitType.Unknown ? LexicalUnitType.Word : aiClassification;
+
+        // Multi-token term: distinguish Sentence vs Phrase.
+        // Sentence = ends with terminal punctuation AND has 2+ tokens.
+        var lastChar = trimmed[^1];
+        var isSentenceTerminal = lastChar is '.' or '!' or '?' or '。' or '！' or '？';
+
+        if (isSentenceTerminal)
+            return LexicalUnitType.Sentence;
+
+        return LexicalUnitType.Phrase;
     }
 
-    private static List<ImportRow> FilterRowsByHarvestFlags(List<ImportRow> rows, bool harvestWords, bool harvestPhrases)
+    private static List<ImportRow> FilterRowsByHarvestFlags(
+        List<ImportRow> rows, bool harvestWords, bool harvestPhrases,
+        bool harvestSentences = false)
     {
-        if (harvestWords && harvestPhrases)
+        // Legacy callers pass only words+phrases; treat harvestSentences=false as "include
+        // sentences under the harvestPhrases umbrella" for backward compatibility.
+        if (harvestWords && harvestPhrases && !harvestSentences)
             return rows; // Harvest both — no filtering needed
+
+        if (harvestWords && harvestPhrases && harvestSentences)
+            return rows; // All three — no filtering needed
 
         return rows.Where(r =>
         {
             var type = r.LexicalUnitType;
             if (harvestWords && (type == LexicalUnitType.Word || type == LexicalUnitType.Unknown))
                 return true;
-            if (harvestPhrases && (type == LexicalUnitType.Phrase || type == LexicalUnitType.Sentence))
+            if (harvestPhrases && type == LexicalUnitType.Phrase)
+                return true;
+            if (harvestSentences && type == LexicalUnitType.Sentence)
+                return true;
+            // Backward compat: when HarvestSentences is not explicitly set,
+            // Sentence entries ride along with HarvestPhrases.
+            if (!harvestSentences && harvestPhrases && type == LexicalUnitType.Sentence)
                 return true;
             return false;
         }).ToList();
@@ -935,9 +1121,9 @@ public class ContentImportService : IContentImportService
         ct.ThrowIfCancellationRequested();
 
         // Validate harvest checkboxes — at least one must be true
-        if (!commit.HarvestTranscript && !commit.HarvestPhrases && !commit.HarvestWords)
+        if (!commit.HarvestTranscript && !commit.HarvestPhrases && !commit.HarvestWords && !commit.HarvestSentences)
         {
-            throw new ArgumentException("At least one harvest option must be selected (Transcript, Phrases, or Words).", nameof(commit));
+            throw new ArgumentException("At least one harvest option must be selected (Transcript, Sentences, Phrases, or Words).", nameof(commit));
         }
 
         var warnings = new List<string>(commit.Preview.Warnings);
@@ -1298,6 +1484,9 @@ public class ContentImportRequest
 
     [Description("Extract Word-type entries (LexicalUnitType=Word)")]
     public bool HarvestWords { get; set; } = true;
+
+    [Description("Extract Sentence-type entries (LexicalUnitType=Sentence)")]
+    public bool HarvestSentences { get; set; }
 }
 
 /// <summary>
@@ -1380,6 +1569,9 @@ public class ContentImportCommit
     [Description("Extract word-level entries (LexicalUnitType=Word)")]
     public bool HarvestWords { get; set; } = true;
 
+    [Description("Extract sentence-level entries (LexicalUnitType=Sentence)")]
+    public bool HarvestSentences { get; set; }
+
     [Description("Raw transcript text to store on the resource (when HarvestTranscript is true)")]
     public string? TranscriptText { get; set; }
 }
@@ -1461,6 +1653,9 @@ public enum ContentType
 
     [Description("Phrases or sentence patterns")]
     Phrases,
+
+    [Description("Complete sentences with translations")]
+    Sentences,
 
     [Description("Transcript or free-form text")]
     Transcript,
