@@ -3766,6 +3766,51 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Lemma.
+        /// </summary>
+        internal static string Import_ColLemma {
+            get {
+                return ResourceManager.GetString("Import_ColLemma", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Native Term.
+        /// </summary>
+        internal static string Import_ColNative {
+            get {
+                return ResourceManager.GetString("Import_ColNative", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Reason.
+        /// </summary>
+        internal static string Import_ColReason {
+            get {
+                return ResourceManager.GetString("Import_ColReason", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Status.
+        /// </summary>
+        internal static string Import_ColStatus {
+            get {
+                return ResourceManager.GetString("Import_ColStatus", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Type.
+        /// </summary>
+        internal static string Import_ColType {
+            get {
+                return ResourceManager.GetString("Import_ColType", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Import.
         /// </summary>
         internal static string Import_CommitButton {
@@ -4005,6 +4050,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Import_Fetching {
             get {
                 return ResourceManager.GetString("Import_Fetching", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to All.
+        /// </summary>
+        internal static string Import_FilterAll {
+            get {
+                return ResourceManager.GetString("Import_FilterAll", resourceCulture);
             }
         }
         
@@ -4324,6 +4378,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Import Details.
+        /// </summary>
+        internal static string Import_ResultDetails {
+            get {
+                return ResourceManager.GetString("Import_ResultDetails", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Resume monitoring.
         /// </summary>
         internal static string Import_ResumeMonitoring {
@@ -4554,6 +4617,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Import_ViewResource {
             get {
                 return ResourceManager.GetString("Import_ViewResource", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to View.
+        /// </summary>
+        internal static string Import_ViewVocab {
+            get {
+                return ResourceManager.GetString("Import_ViewVocab", resourceCulture);
             }
         }
         
@@ -10875,6 +10947,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Add.
+        /// </summary>
+        internal static string Vocabulary_Add {
+            get {
+                return ResourceManager.GetString("Vocabulary_Add", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Add Your First Word.
         /// </summary>
         internal static string Vocabulary_AddFirstWord {
@@ -11798,6 +11879,42 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Vocabulary_FiltersTitle {
             get {
                 return ResourceManager.GetString("Vocabulary_FiltersTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to All Types.
+        /// </summary>
+        internal static string Vocabulary_FilterTypeAll {
+            get {
+                return ResourceManager.GetString("Vocabulary_FilterTypeAll", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Phrase.
+        /// </summary>
+        internal static string Vocabulary_FilterTypePhrase {
+            get {
+                return ResourceManager.GetString("Vocabulary_FilterTypePhrase", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Sentence.
+        /// </summary>
+        internal static string Vocabulary_FilterTypeSentence {
+            get {
+                return ResourceManager.GetString("Vocabulary_FilterTypeSentence", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Word.
+        /// </summary>
+        internal static string Vocabulary_FilterTypeWord {
+            get {
+                return ResourceManager.GetString("Vocabulary_FilterTypeWord", resourceCulture);
             }
         }
         

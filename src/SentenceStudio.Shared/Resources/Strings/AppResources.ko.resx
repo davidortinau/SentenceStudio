@@ -6138,4 +6138,37 @@
     <value>가져오기 커밋 실패</value>
     <comment>Error toast when commit fails</comment>
   </data>
+  <!-- TODO: i18n review — Korean translations for import result detail UI -->
+  <data name="Import_ResultDetails" xml:space="preserve">
+    <value>가져오기 상세</value>
+    <comment>Heading for per-row result detail table</comment>
+  </data>
+  <data name="Import_FilterAll" xml:space="preserve">
+    <value>전체</value>
+    <comment>Filter pill showing all import result rows</comment>
+  </data>
+  <data name="Import_ColLemma" xml:space="preserve">
+    <value>표제어</value>
+    <comment>Column header for the target language term in result table</comment>
+  </data>
+  <data name="Import_ColNative" xml:space="preserve">
+    <value>번역</value>
+    <comment>Column header for the native language translation in result table</comment>
+  </data>
+  <data name="Import_ColType" xml:space="preserve">
+    <value>유형</value>
+    <comment>Column header for lexical unit type in result table</comment>
+  </data>
+  <data name="Import_ColStatus" xml:space="preserve">
+    <value>상태</value>
+    <comment>Column header for import outcome status in result table</comment>
+  </data>
+  <data name="Import_ColReason" xml:space="preserve">
+    <value>사유</value>
+    <comment>Column header for failure/skip reason in result table</comment>
+  </data>
+  <data name="Import_ViewVocab" xml:space="preserve">
+    <value>보기</value>
+    <comment>Short link text to view vocabulary detail from import result</comment>
+  </data>
 </root>

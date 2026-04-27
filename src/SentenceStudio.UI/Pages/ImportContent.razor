@@ -7,7 +7,9 @@
 @inject NavigationManager NavManager
 @inject ToastService Toast
 @inject ILogger<ImportContent> Logger
+@inject IImportResultStore ImportResultStore
 @implements IDisposable
+@using SentenceStudio.WebUI.Services
 
 <PageHeader Title='@Localize["Import_Content_Title"]' ShowBack="false">
     <PrimaryActions>
@@ -70,6 +72,119 @@
                 </button>
             </div>
         </div>
+
+        @* Per-row detail table *@
+        @if (importResult.Items.Any())
+        {
+            <div class="card card-ss p-4 mb-3">
+                <h6 class="ss-title3 mb-3"><i class="bi bi-list-ul me-2"></i>@Localize["Import_ResultDetails"]</h6>
+
+                @* Filter pills *@
+                <div class="d-flex flex-wrap gap-2 mb-3">
+                    <button class="btn btn-sm @(resultFilter == null ? "btn-primary" : "btn-outline-primary")"
+                            @onclick="() => SetResultFilter(null)">
+                        @Localize["Import_FilterAll"] <span class="badge bg-light text-dark ms-1">@importResult.Items.Count</span>
+                    </button>
+                    @if (importResult.CreatedCount > 0)
+                    {
+                        <button class="btn btn-sm @(resultFilter == ImportItemStatus.Created ? "btn-success" : "btn-outline-success")"
+                                @onclick="() => SetResultFilter(ImportItemStatus.Created)">
+                            @Localize["Import_Created"] <span class="badge bg-light text-dark ms-1">@importResult.CreatedCount</span>
+                        </button>
+                    }
+                    @if (importResult.UpdatedCount > 0)
+                    {
+                        <button class="btn btn-sm @(resultFilter == ImportItemStatus.Updated ? "btn-warning text-dark" : "btn-outline-warning")"
+                                @onclick="() => SetResultFilter(ImportItemStatus.Updated)">
+                            @Localize["Import_Updated"] <span class="badge bg-light text-dark ms-1">@importResult.UpdatedCount</span>
+                        </button>
+                    }
+                    @if (importResult.SkippedCount > 0)
+                    {
+                        <button class="btn btn-sm @(resultFilter == ImportItemStatus.Skipped ? "btn-info" : "btn-outline-info")"
+                                @onclick="() => SetResultFilter(ImportItemStatus.Skipped)">
+                            @Localize["Import_Skipped"] <span class="badge bg-light text-dark ms-1">@importResult.SkippedCount</span>
+                        </button>
+                    }
+                    @if (importResult.FailedCount > 0)
+                    {
+                        <button class="btn btn-sm @(resultFilter == ImportItemStatus.Failed ? "btn-danger" : "btn-outline-danger")"
+                                @onclick="() => SetResultFilter(ImportItemStatus.Failed)">
+                            @Localize["Import_Failed"] <span class="badge bg-light text-dark ms-1">@importResult.FailedCount</span>
+                        </button>
+                    }
+                </div>
+
+                @* Desktop: table  |  Mobile: stacked cards *@
+                <div class="table-responsive d-none d-md-block">
+                    <table class="table table-sm table-bordered align-middle mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>@Localize["Import_ColLemma"]</th>
+                                <th>@Localize["Import_ColNative"]</th>
+                                <th style="width:100px;">@Localize["Import_ColType"]</th>
+                                <th style="width:110px;">@Localize["Import_ColStatus"]</th>
+                                <th>@Localize["Import_ColReason"]</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var item in FilteredResultItems)
+                            {
+                                var isClickable = item.Status != ImportItemStatus.Failed && !string.IsNullOrEmpty(item.VocabularyWordId);
+                                <tr class="@(isClickable ? "cursor-pointer" : "")"
+                                    @onclick="() => NavigateToVocabDetail(item)"
+                                    style="@(isClickable ? "cursor:pointer;" : "")">
+                                    <td>
+                                        @item.Lemma
+                                        @if (isClickable)
+                                        {
+                                            <i class="bi bi-box-arrow-up-right ms-1 text-secondary-ss" style="font-size:0.75rem;"></i>
+                                        }
+                                    </td>
+                                    <td>@item.NativeLanguageTerm</td>
+                                    <td>@RenderTypeBadge(item.Type)</td>
+                                    <td>@RenderStatusBadge(item.Status)</td>
+                                    <td>
+                                        @if (!string.IsNullOrEmpty(item.Reason))
+                                        {
+                                            <span title="@item.Reason" class="text-truncate d-inline-block" style="max-width:220px;">@item.Reason</span>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                @* Mobile card layout *@
+                <div class="d-md-none">
+                    @foreach (var item in FilteredResultItems)
+                    {
+                        var isClickable = item.Status != ImportItemStatus.Failed && !string.IsNullOrEmpty(item.VocabularyWordId);
+                        <div class="border rounded p-3 mb-2 @(isClickable ? "" : "")"
+                             @onclick="() => NavigateToVocabDetail(item)"
+                             style="@(isClickable ? "cursor:pointer;" : "")">
+                            <div class="d-flex justify-content-between align-items-start mb-1">
+                                <span class="ss-body1 fw-bold">@item.Lemma</span>
+                                @RenderStatusBadge(item.Status)
+                            </div>
+                            <div class="ss-body2 text-secondary-ss mb-1">@item.NativeLanguageTerm</div>
+                            <div class="d-flex align-items-center gap-2">
+                                @RenderTypeBadge(item.Type)
+                                @if (isClickable)
+                                {
+                                    <small class="text-primary-ss"><i class="bi bi-box-arrow-up-right"></i> @Localize["Import_ViewVocab"]</small>
+                                }
+                            </div>
+                            @if (!string.IsNullOrEmpty(item.Reason))
+                            {
+                                <div class="mt-1 ss-caption1 text-danger">@item.Reason</div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        }
     }
     else
     {
@@ -548,7 +663,17 @@
     private enum ImportStep { Source, Harvest, Preview, Commit, Complete }
     private enum ConfidenceBand { High, Medium, Low }
 
+    [SupplyParameterFromQuery(Name = "completed")]
+    public string? CompletedKey { get; set; }
+
     private ImportStep currentStep = ImportStep.Source;
+    
+    // Result detail filter
+    private ImportItemStatus? resultFilter;
+    private IReadOnlyList<ContentImportItemResult> FilteredResultItems =>
+        importResult?.Items == null ? Array.Empty<ContentImportItemResult>()
+        : resultFilter == null ? importResult.Items
+        : importResult.Items.Where(i => i.Status == resultFilter.Value).ToList();
     
     // Step 1: Source
     private string rawText = string.Empty;
@@ -601,6 +726,17 @@
     {
         Localize.CultureChanged += OnCultureChanged;
         await LoadAvailableResources();
+
+        // Hydrate from store if navigated back with ?completed={guid}
+        if (Guid.TryParse(CompletedKey, out var key))
+        {
+            var cached = ImportResultStore.TryGet(key);
+            if (cached != null)
+            {
+                importResult = cached;
+                currentStep = ImportStep.Complete;
+            }
+        }
     }
 
     private void OnCultureChanged() => InvokeAsync(StateHasChanged);
@@ -928,6 +1064,10 @@
             importResult = await ImportService.CommitImportAsync(commit);
             currentStep = ImportStep.Complete;
 
+            // Persist in memory store so back-nav re-hydrates the view
+            var storeKey = ImportResultStore.Save(importResult);
+            NavManager.NavigateTo($"/import-content?completed={storeKey}", forceLoad: false);
+
             Toast.ShowSuccess($"{Localize["Import_ImportSuccess"]}");
         }
         catch (Exception ex)
@@ -965,6 +1105,7 @@
         selectedResourceId = string.Empty;
         dedupMode = DedupMode.Skip;
         importResult = null;
+        resultFilter = null;
         autoDetectResult = null;
         autoDetectConfirmed = false;
         showTypeChooser = false;
@@ -974,7 +1115,64 @@
         harvestWords = true;
         showHarvestValidationError = false;
         harvestStepReady = false;
+
+        NavManager.NavigateTo("/import-content", forceLoad: false);
     }
+
+    // --- Import Complete helpers ---
+
+    private void SetResultFilter(ImportItemStatus? status) => resultFilter = status;
+
+    private void NavigateToVocabDetail(ContentImportItemResult item)
+    {
+        if (item.Status == ImportItemStatus.Failed || string.IsNullOrEmpty(item.VocabularyWordId))
+            return;
+        NavManager.NavigateTo($"/vocabulary/edit/{item.VocabularyWordId}");
+    }
+
+    private static RenderFragment RenderTypeBadge(LexicalUnitType type) => type switch
+    {
+        LexicalUnitType.Word => (__builder) =>
+        {
+            <span class="badge bg-primary bg-opacity-10 text-primary"><i class="bi bi-fonts me-1"></i>Word</span>
+        },
+        LexicalUnitType.Phrase => (__builder) =>
+        {
+            <span class="badge bg-purple bg-opacity-10 text-purple" style="--bs-purple:#6f42c1;color:var(--bs-purple);background-color:rgba(111,66,193,0.1);"><i class="bi bi-chat-quote me-1"></i>Phrase</span>
+        },
+        LexicalUnitType.Sentence => (__builder) =>
+        {
+            <span class="badge bg-info bg-opacity-10 text-info"><i class="bi bi-body-text me-1"></i>Sentence</span>
+        },
+        _ => (__builder) =>
+        {
+            <span class="badge bg-secondary bg-opacity-10 text-secondary"><i class="bi bi-question-circle me-1"></i>Unknown</span>
+        }
+    };
+
+    private static RenderFragment RenderStatusBadge(ImportItemStatus status) => status switch
+    {
+        ImportItemStatus.Created => (__builder) =>
+        {
+            <span class="badge bg-success"><i class="bi bi-plus-circle me-1"></i>Created</span>
+        },
+        ImportItemStatus.Updated => (__builder) =>
+        {
+            <span class="badge bg-warning text-dark"><i class="bi bi-pencil me-1"></i>Updated</span>
+        },
+        ImportItemStatus.Skipped => (__builder) =>
+        {
+            <span class="badge bg-info"><i class="bi bi-skip-forward me-1"></i>Skipped</span>
+        },
+        ImportItemStatus.Failed => (__builder) =>
+        {
+            <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Failed</span>
+        },
+        _ => (__builder) =>
+        {
+            <span class="badge bg-secondary">Unknown</span>
+        }
+    };
 
     public void Dispose()
     {

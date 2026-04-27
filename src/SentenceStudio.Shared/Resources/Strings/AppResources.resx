@@ -6386,4 +6386,36 @@ For example: {0} ...</value>
     <value>Failed to commit import</value>
     <comment>Error toast when commit fails</comment>
   </data>
+  <data name="Import_ResultDetails" xml:space="preserve">
+    <value>Import Details</value>
+    <comment>Heading for per-row result detail table</comment>
+  </data>
+  <data name="Import_FilterAll" xml:space="preserve">
+    <value>All</value>
+    <comment>Filter pill showing all import result rows</comment>
+  </data>
+  <data name="Import_ColLemma" xml:space="preserve">
+    <value>Lemma</value>
+    <comment>Column header for the target language term in result table</comment>
+  </data>
+  <data name="Import_ColNative" xml:space="preserve">
+    <value>Native Term</value>
+    <comment>Column header for the native language translation in result table</comment>
+  </data>
+  <data name="Import_ColType" xml:space="preserve">
+    <value>Type</value>
+    <comment>Column header for lexical unit type in result table</comment>
+  </data>
+  <data name="Import_ColStatus" xml:space="preserve">
+    <value>Status</value>
+    <comment>Column header for import outcome status in result table</comment>
+  </data>
+  <data name="Import_ColReason" xml:space="preserve">
+    <value>Reason</value>
+    <comment>Column header for failure/skip reason in result table</comment>
+  </data>
+  <data name="Import_ViewVocab" xml:space="preserve">
+    <value>View</value>
+    <comment>Short link text to view vocabulary detail from import result</comment>
+  </data>
 </root>
