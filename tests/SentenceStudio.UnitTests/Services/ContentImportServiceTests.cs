@@ -1007,4 +1007,329 @@ public class ContentImportServiceTests : IDisposable
         var phraseRows = preview.Rows.Where(r => r.LexicalUnitType == LexicalUnitType.Phrase).ToList();
         phraseRows.Should().HaveCount(2, "Phrases content type should produce Phrase-typed primary rows");
     }
+
+    // ===========================
+    // ContentImportItemResult tests
+    // ===========================
+
+    [Fact]
+    public async Task CommitImportAsync_Items_CreatedStatus_ForNewWord()
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<ContentImportService>();
+
+        var preview = new ContentImportPreview
+        {
+            Rows = new List<ImportRow>
+            {
+                new ImportRow { RowNumber = 1, TargetLanguageTerm = "사과", NativeLanguageTerm = "apple", LexicalUnitType = LexicalUnitType.Word, Status = RowStatus.Ok, IsSelected = true }
+            }
+        };
+
+        var commit = new ContentImportCommit
+        {
+            Preview = preview,
+            Target = new ImportTarget { Mode = ImportTargetMode.New, NewResourceTitle = "Items Created Test", TargetLanguage = "Korean", NativeLanguage = "English" },
+            DedupMode = DedupMode.Skip
+        };
+
+        var result = await service.CommitImportAsync(commit);
+
+        result.Items.Should().HaveCount(1);
+        var item = result.Items[0];
+        item.Status.Should().Be(ImportItemStatus.Created);
+        item.VocabularyWordId.Should().NotBeNullOrEmpty();
+        item.Lemma.Should().Be("사과");
+        item.NativeLanguageTerm.Should().Be("apple");
+        item.Type.Should().Be(LexicalUnitType.Word);
+        item.Reason.Should().BeNull("Created items should not have a reason");
+    }
+
+    [Fact]
+    public async Task CommitImportAsync_Items_UpdatedStatus_ForExistingWord()
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<ContentImportService>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var existingWord = new VocabularyWord
+        {
+            Id = Guid.NewGuid().ToString(),
+            TargetLanguageTerm = "바나나",
+            NativeLanguageTerm = "banana",
+            Language = "Korean",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        dbContext.VocabularyWords.Add(existingWord);
+        await dbContext.SaveChangesAsync();
+
+        var preview = new ContentImportPreview
+        {
+            Rows = new List<ImportRow>
+            {
+                new ImportRow { RowNumber = 1, TargetLanguageTerm = "바나나", NativeLanguageTerm = "plantain", LexicalUnitType = LexicalUnitType.Word, Status = RowStatus.Ok, IsSelected = true }
+            }
+        };
+
+        var commit = new ContentImportCommit
+        {
+            Preview = preview,
+            Target = new ImportTarget { Mode = ImportTargetMode.New, NewResourceTitle = "Items Updated Test", TargetLanguage = "Korean", NativeLanguage = "English" },
+            DedupMode = DedupMode.Update
+        };
+
+        var result = await service.CommitImportAsync(commit);
+
+        result.Items.Should().HaveCount(1);
+        var item = result.Items[0];
+        item.Status.Should().Be(ImportItemStatus.Updated);
+        item.VocabularyWordId.Should().Be(existingWord.Id);
+        item.Lemma.Should().Be("바나나");
+        item.Reason.Should().BeNull("Updated items should not have a reason");
+    }
+
+    [Fact]
+    public async Task CommitImportAsync_Items_SkippedStatus_ForDuplicate()
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<ContentImportService>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var existingWord = new VocabularyWord
+        {
+            Id = Guid.NewGuid().ToString(),
+            TargetLanguageTerm = "포도",
+            NativeLanguageTerm = "grape",
+            Language = "Korean",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        dbContext.VocabularyWords.Add(existingWord);
+        await dbContext.SaveChangesAsync();
+
+        var preview = new ContentImportPreview
+        {
+            Rows = new List<ImportRow>
+            {
+                new ImportRow { RowNumber = 1, TargetLanguageTerm = "포도", NativeLanguageTerm = "grape", LexicalUnitType = LexicalUnitType.Word, Status = RowStatus.Ok, IsSelected = true }
+            }
+        };
+
+        var commit = new ContentImportCommit
+        {
+            Preview = preview,
+            Target = new ImportTarget { Mode = ImportTargetMode.New, NewResourceTitle = "Items Skipped Test", TargetLanguage = "Korean", NativeLanguage = "English" },
+            DedupMode = DedupMode.Skip
+        };
+
+        var result = await service.CommitImportAsync(commit);
+
+        result.Items.Should().HaveCount(1);
+        var item = result.Items[0];
+        item.Status.Should().Be(ImportItemStatus.Skipped);
+        item.VocabularyWordId.Should().Be(existingWord.Id);
+        item.Lemma.Should().Be("포도");
+        item.Reason.Should().NotBeNullOrEmpty("Skipped items must have a user-facing reason");
+        item.Reason.Should().Contain("Already exists");
+    }
+
+    [Fact]
+    public async Task CommitImportAsync_Items_FailedStatus_ForEmptyTarget()
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<ContentImportService>();
+
+        var preview = new ContentImportPreview
+        {
+            Rows = new List<ImportRow>
+            {
+                new ImportRow { RowNumber = 1, TargetLanguageTerm = "", NativeLanguageTerm = "something", LexicalUnitType = LexicalUnitType.Phrase, Status = RowStatus.Ok, IsSelected = true }
+            }
+        };
+
+        var commit = new ContentImportCommit
+        {
+            Preview = preview,
+            Target = new ImportTarget { Mode = ImportTargetMode.New, NewResourceTitle = "Items Failed Test", TargetLanguage = "Korean", NativeLanguage = "English" },
+            DedupMode = DedupMode.Skip
+        };
+
+        var result = await service.CommitImportAsync(commit);
+
+        result.Items.Should().HaveCount(1);
+        var item = result.Items[0];
+        item.Status.Should().Be(ImportItemStatus.Failed);
+        item.VocabularyWordId.Should().BeNull("Failed items with no DB row should have null ID");
+        item.Reason.Should().NotBeNullOrEmpty("Failed items must have a user-facing reason");
+        item.Type.Should().Be(LexicalUnitType.Phrase);
+    }
+
+    [Fact]
+    public async Task CommitImportAsync_Items_SkippedIntraBatch_ForDuplicateWithinBatch()
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<ContentImportService>();
+
+        var preview = new ContentImportPreview
+        {
+            Rows = new List<ImportRow>
+            {
+                new ImportRow { RowNumber = 1, TargetLanguageTerm = "오렌지", NativeLanguageTerm = "orange", LexicalUnitType = LexicalUnitType.Word, Status = RowStatus.Ok, IsSelected = true },
+                new ImportRow { RowNumber = 2, TargetLanguageTerm = "오렌지", NativeLanguageTerm = "orange fruit", LexicalUnitType = LexicalUnitType.Word, Status = RowStatus.Ok, IsSelected = true }
+            }
+        };
+
+        var commit = new ContentImportCommit
+        {
+            Preview = preview,
+            Target = new ImportTarget { Mode = ImportTargetMode.New, NewResourceTitle = "Items IntraBatch Test", TargetLanguage = "Korean", NativeLanguage = "English" },
+            DedupMode = DedupMode.Skip
+        };
+
+        var result = await service.CommitImportAsync(commit);
+
+        result.Items.Should().HaveCount(2);
+        result.Items[0].Status.Should().Be(ImportItemStatus.Created);
+        result.Items[1].Status.Should().Be(ImportItemStatus.Skipped);
+        result.Items[1].Reason.Should().Contain("Duplicate within batch");
+    }
+
+    [Fact]
+    public async Task CommitImportAsync_Items_CreatedForSentenceType()
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<ContentImportService>();
+
+        var preview = new ContentImportPreview
+        {
+            Rows = new List<ImportRow>
+            {
+                new ImportRow { RowNumber = 1, TargetLanguageTerm = "저는 한국어를 공부해요.", NativeLanguageTerm = "I study Korean.", LexicalUnitType = LexicalUnitType.Sentence, Status = RowStatus.Ok, IsSelected = true }
+            }
+        };
+
+        var commit = new ContentImportCommit
+        {
+            Preview = preview,
+            Target = new ImportTarget { Mode = ImportTargetMode.New, NewResourceTitle = "Sentence Items Test", TargetLanguage = "Korean", NativeLanguage = "English" },
+            DedupMode = DedupMode.Skip,
+            HarvestSentences = true
+        };
+
+        var result = await service.CommitImportAsync(commit);
+
+        result.Items.Should().HaveCount(1);
+        var item = result.Items[0];
+        item.Status.Should().Be(ImportItemStatus.Created);
+        item.Type.Should().Be(LexicalUnitType.Sentence);
+        item.Lemma.Should().Contain("한국어를 공부해요");
+    }
+
+    [Fact]
+    public async Task CommitImportAsync_Items_CountEqualsAggregates_MixedBatch()
+    {
+        // Mixed batch: new word + duplicate (skip) + empty target (fail) = 3 items, counts match
+        using var scope = _serviceProvider.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<ContentImportService>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        // Pre-seed a word for the skip case
+        var existingWord = new VocabularyWord
+        {
+            Id = Guid.NewGuid().ToString(),
+            TargetLanguageTerm = "딸기",
+            NativeLanguageTerm = "strawberry",
+            Language = "Korean",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        dbContext.VocabularyWords.Add(existingWord);
+        await dbContext.SaveChangesAsync();
+
+        var preview = new ContentImportPreview
+        {
+            Rows = new List<ImportRow>
+            {
+                new ImportRow { RowNumber = 1, TargetLanguageTerm = "수박", NativeLanguageTerm = "watermelon", LexicalUnitType = LexicalUnitType.Word, Status = RowStatus.Ok, IsSelected = true },
+                new ImportRow { RowNumber = 2, TargetLanguageTerm = "딸기", NativeLanguageTerm = "strawberry", LexicalUnitType = LexicalUnitType.Word, Status = RowStatus.Ok, IsSelected = true },
+                new ImportRow { RowNumber = 3, TargetLanguageTerm = "", NativeLanguageTerm = "mystery", LexicalUnitType = LexicalUnitType.Word, Status = RowStatus.Ok, IsSelected = true }
+            }
+        };
+
+        var commit = new ContentImportCommit
+        {
+            Preview = preview,
+            Target = new ImportTarget { Mode = ImportTargetMode.New, NewResourceTitle = "Mixed Batch Test", TargetLanguage = "Korean", NativeLanguage = "English" },
+            DedupMode = DedupMode.Skip
+        };
+
+        var result = await service.CommitImportAsync(commit);
+
+        result.Items.Should().HaveCount(3);
+        result.Items.Count.Should().Be(result.CreatedCount + result.UpdatedCount + result.SkippedCount + result.FailedCount,
+            "Items.Count must equal the sum of all aggregate counts");
+
+        result.Items.Count(i => i.Status == ImportItemStatus.Created).Should().Be(result.CreatedCount);
+        result.Items.Count(i => i.Status == ImportItemStatus.Skipped).Should().Be(result.SkippedCount);
+        result.Items.Count(i => i.Status == ImportItemStatus.Failed).Should().Be(result.FailedCount);
+    }
+
+    [Fact]
+    public async Task CommitImportAsync_Items_FailedRows_LogErrorWithException()
+    {
+        // Verify that failed rows produce structured log entries via ILogger.LogError.
+        // We use a custom mock logger to capture calls.
+        var logMessages = new List<(LogLevel Level, string Message)>();
+        var mockLogger = new Mock<ILogger<ContentImportService>>();
+        mockLogger
+            .Setup(x => x.Log(
+                It.IsAny<LogLevel>(),
+                It.IsAny<EventId>(),
+                It.IsAny<It.IsAnyType>(),
+                It.IsAny<Exception?>(),
+                It.IsAny<Func<It.IsAnyType, Exception?, string>>()))
+            .Callback<LogLevel, EventId, object, Exception?, Delegate>((level, eventId, state, exception, formatter) =>
+            {
+                var msg = formatter.DynamicInvoke(state, exception)?.ToString() ?? string.Empty;
+                logMessages.Add((level, msg));
+            });
+
+        // Build a service with the mock logger
+        using var scope = _serviceProvider.CreateScope();
+        var sp = scope.ServiceProvider;
+        var resourceRepo = sp.GetRequiredService<LearningResourceRepository>();
+        var aiService = sp.GetRequiredService<IAiService>();
+        var fileSystem = sp.GetRequiredService<IFileSystemService>();
+
+        var service = new ContentImportService(sp, resourceRepo, mockLogger.Object, aiService, fileSystem);
+
+        var preview = new ContentImportPreview
+        {
+            Rows = new List<ImportRow>
+            {
+                new ImportRow { RowNumber = 1, TargetLanguageTerm = "", NativeLanguageTerm = "oops", LexicalUnitType = LexicalUnitType.Word, Status = RowStatus.Ok, IsSelected = true },
+                new ImportRow { RowNumber = 2, TargetLanguageTerm = "정상", NativeLanguageTerm = "", LexicalUnitType = LexicalUnitType.Word, Status = RowStatus.Ok, IsSelected = true }
+            }
+        };
+
+        var commit = new ContentImportCommit
+        {
+            Preview = preview,
+            Target = new ImportTarget { Mode = ImportTargetMode.New, NewResourceTitle = "Logger Test", TargetLanguage = "Korean", NativeLanguage = "English" },
+            DedupMode = DedupMode.Skip
+        };
+
+        var result = await service.CommitImportAsync(commit);
+
+        result.FailedCount.Should().Be(2);
+        result.Items.Where(i => i.Status == ImportItemStatus.Failed).Should().HaveCount(2);
+        result.Items.All(i => i.Status == ImportItemStatus.Failed && !string.IsNullOrEmpty(i.Reason)).Should().BeTrue(
+            "all failed items must have a non-empty curated reason");
+
+        // Verify LogError was called for each failed row
+        var errorLogs = logMessages.Where(l => l.Level == LogLevel.Error).ToList();
+        errorLogs.Should().HaveCount(2, "each failed row must produce a LogError call");
+        errorLogs.Should().Contain(l => l.Message.Contains("empty"), "log messages should describe the failure");
+    }
 }

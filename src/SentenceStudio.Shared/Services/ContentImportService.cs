@@ -1210,6 +1210,7 @@ public class ContentImportService : IContentImportService
         }
 
         var warnings = new List<string>(commit.Preview.Warnings);
+        var items = new List<ContentImportItemResult>();
         int createdCount = 0;
         int skippedCount = 0;
         int updatedCount = 0;
@@ -1320,7 +1321,19 @@ public class ContentImportService : IContentImportService
                 if (string.IsNullOrEmpty(row.TargetLanguageTerm))
                 {
                     failedCount++;
-                    warnings.Add($"Row {row.RowNumber}: Target language term is empty.");
+                    var reason = "Target language term is empty";
+                    warnings.Add($"Row {row.RowNumber}: {reason}.");
+                    items.Add(new ContentImportItemResult
+                    {
+                        VocabularyWordId = null,
+                        Lemma = string.Empty,
+                        NativeLanguageTerm = row.NativeLanguageTerm ?? string.Empty,
+                        Type = row.LexicalUnitType,
+                        Status = ImportItemStatus.Failed,
+                        Reason = reason
+                    });
+                    _logger.LogError("Import row failed for lemma {Lemma} (type {Type}): {Reason}",
+                        string.Empty, row.LexicalUnitType, reason);
                     continue;
                 }
 
@@ -1328,7 +1341,19 @@ public class ContentImportService : IContentImportService
                 if (string.IsNullOrEmpty(row.NativeLanguageTerm))
                 {
                     failedCount++;
-                    warnings.Add($"Row {row.RowNumber}: Native language term is empty (AI translation not yet implemented).");
+                    var reason = "Native language term is empty (AI translation not yet implemented)";
+                    warnings.Add($"Row {row.RowNumber}: {reason}.");
+                    items.Add(new ContentImportItemResult
+                    {
+                        VocabularyWordId = null,
+                        Lemma = row.TargetLanguageTerm?.Trim() ?? string.Empty,
+                        NativeLanguageTerm = string.Empty,
+                        Type = row.LexicalUnitType,
+                        Status = ImportItemStatus.Failed,
+                        Reason = reason
+                    });
+                    _logger.LogError("Import row failed for lemma {Lemma} (type {Type}): {Reason}",
+                        row.TargetLanguageTerm?.Trim(), row.LexicalUnitType, reason);
                     continue;
                 }
 
@@ -1359,6 +1384,15 @@ public class ContentImportService : IContentImportService
                     }
 
                     skippedCount++;
+                    items.Add(new ContentImportItemResult
+                    {
+                        VocabularyWordId = wordToMap.Id,
+                        Lemma = trimmedTarget,
+                        NativeLanguageTerm = row.NativeLanguageTerm?.Trim() ?? string.Empty,
+                        Type = row.LexicalUnitType,
+                        Status = ImportItemStatus.Skipped,
+                        Reason = "Duplicate within batch"
+                    });
                     _logger.LogDebug("In-batch duplicate reused for term: {TargetTerm}", trimmedTarget);
                 }
                 else
@@ -1375,6 +1409,15 @@ public class ContentImportService : IContentImportService
                             // Reuse existing word
                             wordToMap = existingWord;
                             skippedCount++;
+                            items.Add(new ContentImportItemResult
+                            {
+                                VocabularyWordId = existingWord.Id,
+                                Lemma = trimmedTarget,
+                                NativeLanguageTerm = row.NativeLanguageTerm?.Trim() ?? string.Empty,
+                                Type = row.LexicalUnitType,
+                                Status = ImportItemStatus.Skipped,
+                                Reason = "Already exists in resource"
+                            });
                             _logger.LogDebug("Skipping duplicate word: {TargetTerm}", trimmedTarget);
                             break;
 
@@ -1406,6 +1449,15 @@ public class ContentImportService : IContentImportService
                             db.VocabularyWords.Update(existingWord);
                             wordToMap = existingWord;
                             updatedCount++;
+                            items.Add(new ContentImportItemResult
+                            {
+                                VocabularyWordId = existingWord.Id,
+                                Lemma = trimmedTarget,
+                                NativeLanguageTerm = row.NativeLanguageTerm?.Trim() ?? string.Empty,
+                                Type = row.LexicalUnitType,
+                                Status = ImportItemStatus.Updated,
+                                Reason = null
+                            });
                             _logger.LogWarning("Updating shared word: {TargetTerm} (affects all resources using this word)", trimmedTarget);
                             break;
 
@@ -1424,6 +1476,15 @@ public class ContentImportService : IContentImportService
                             db.VocabularyWords.Add(newDuplicate);
                             wordToMap = newDuplicate;
                             createdCount++;
+                            items.Add(new ContentImportItemResult
+                            {
+                                VocabularyWordId = newDuplicate.Id,
+                                Lemma = trimmedTarget,
+                                NativeLanguageTerm = row.NativeLanguageTerm?.Trim() ?? string.Empty,
+                                Type = row.LexicalUnitType,
+                                Status = ImportItemStatus.Created,
+                                Reason = null
+                            });
                             _logger.LogDebug("Importing duplicate word as new entry: {TargetTerm}", trimmedTarget);
                             break;
 
@@ -1448,6 +1509,15 @@ public class ContentImportService : IContentImportService
                     db.VocabularyWords.Add(newWord);
                     wordToMap = newWord;
                     createdCount++;
+                    items.Add(new ContentImportItemResult
+                    {
+                        VocabularyWordId = newWord.Id,
+                        Lemma = trimmedTarget,
+                        NativeLanguageTerm = row.NativeLanguageTerm?.Trim() ?? string.Empty,
+                        Type = row.LexicalUnitType,
+                        Status = ImportItemStatus.Created,
+                        Reason = null
+                    });
                     _logger.LogDebug("Creating new word: {TargetTerm}", trimmedTarget);
                 }
 
@@ -1510,6 +1580,7 @@ public class ContentImportService : IContentImportService
                 SkippedCount = skippedCount,
                 UpdatedCount = updatedCount,
                 FailedCount = failedCount,
+                Items = items,
                 Warnings = warnings
             };
         }
@@ -1684,6 +1755,48 @@ public class ImportTarget
 }
 
 /// <summary>
+/// Status of an individual item after import commit.
+/// </summary>
+public enum ImportItemStatus
+{
+    [Description("New vocabulary word was created")]
+    Created,
+
+    [Description("Existing vocabulary word was updated with new data")]
+    Updated,
+
+    [Description("Row was skipped (duplicate or already exists)")]
+    Skipped,
+
+    [Description("Row failed to import due to an error")]
+    Failed
+}
+
+/// <summary>
+/// Per-row result from a committed import, providing detail for UI display.
+/// </summary>
+public class ContentImportItemResult
+{
+    [Description("ID of the vocabulary word (null only when Status=Failed and no row was created)")]
+    public string? VocabularyWordId { get; set; }
+
+    [Description("The target-language term (lemma or surface form)")]
+    public string Lemma { get; set; } = string.Empty;
+
+    [Description("Native language translation if available, empty string otherwise")]
+    public string NativeLanguageTerm { get; set; } = string.Empty;
+
+    [Description("Whether this entry is a single word, a phrase fragment, or a full sentence")]
+    public LexicalUnitType Type { get; set; }
+
+    [Description("Outcome status of this row: Created, Updated, Skipped, or Failed")]
+    public ImportItemStatus Status { get; set; }
+
+    [Description("User-facing reason (null for Created/Updated; populated for Skipped and Failed)")]
+    public string? Reason { get; set; }
+}
+
+/// <summary>
 /// Result of a committed import.
 /// </summary>
 public class ContentImportResult
@@ -1702,6 +1815,9 @@ public class ContentImportResult
 
     [Description("Number of rows that failed to import")]
     public int FailedCount { get; set; }
+
+    [Description("Per-row detail for every item processed during import")]
+    public IReadOnlyList<ContentImportItemResult> Items { get; set; } = Array.Empty<ContentImportItemResult>();
 
     [Description("Warnings encountered during commit")]
     public IReadOnlyList<string> Warnings { get; set; } = Array.Empty<string>();
