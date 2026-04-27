@@ -197,11 +197,14 @@ public class ContentImportService : IContentImportService
                 {
                     primaryRows = ParseDelimitedContent(content, phraseDelimiter!.Value, request.HasHeaderRow);
                     // Reclassify: delimited parser defaults to Word, but these are phrases/sentences.
+                    // Use the user's explicit content type as the strongest hint — Captain's directive:
+                    // ContentType=Sentences → Sentence, ContentType=Phrases → Phrase (for multi-token).
+                    var typeHint = effectiveContentType == ContentType.Sentences
+                        ? LexicalUnitType.Sentence
+                        : LexicalUnitType.Phrase;
                     foreach (var row in primaryRows)
                     {
-                        // Hint the AI classification toward Phrase; ResolveLexicalUnitType will
-                        // promote to Sentence if terminal punctuation is present.
-                        row.LexicalUnitType = ResolveLexicalUnitType(LexicalUnitType.Phrase, row.TargetLanguageTerm);
+                        row.LexicalUnitType = ResolveLexicalUnitType(typeHint, row.TargetLanguageTerm);
                     }
                 }
                 else
@@ -210,21 +213,30 @@ public class ContentImportService : IContentImportService
                     primaryRows = new List<ImportRow>();
                 }
 
-                // Step 2: Run AI phrase extraction to harvest constituent words
-                // (and normalized phrase patterns). Only run if HarvestWords is requested
-                // OR if there are no primary rows (unstructured input needs AI).
+                // Step 2: Run AI extraction to harvest constituent words/phrases.
+                // Use the Sentences prompt when content type is Sentences (passes harvest
+                // flags so the AI knows which entry types to produce); use Phrases prompt otherwise.
                 List<ImportRow> aiRows = new();
                 if (request.HarvestWords || primaryRows.Count == 0)
                 {
                     try
                     {
-                        aiRows = await ExtractVocabularyFromPhrasesAsync(
-                            content, request.TargetLanguage, request.NativeLanguage, ct);
+                        if (effectiveContentType == ContentType.Sentences)
+                        {
+                            aiRows = await ExtractVocabularyFromSentencesAsync(
+                                content, request.TargetLanguage, request.NativeLanguage,
+                                request.HarvestSentences, request.HarvestPhrases, request.HarvestWords, ct);
+                        }
+                        else
+                        {
+                            aiRows = await ExtractVocabularyFromPhrasesAsync(
+                                content, request.TargetLanguage, request.NativeLanguage, ct);
+                        }
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "AI phrase extraction failed");
-                        warnings.Add($"AI word extraction failed: {ex.Message}. Primary phrases are still available.");
+                        _logger.LogError(ex, "AI extraction failed for {ContentType}", effectiveContentType);
+                        warnings.Add($"AI word extraction failed: {ex.Message}. Primary entries are still available.");
                     }
                 }
 
@@ -1048,29 +1060,100 @@ public class ContentImportService : IContentImportService
     }
 
     /// <summary>
+    /// Extract vocabulary from sentence content using the Sentences-specific AI prompt.
+    /// Passes harvest flags to the Scriban template so the AI knows which entry types to produce.
+    /// </summary>
+    private async Task<List<ImportRow>> ExtractVocabularyFromSentencesAsync(
+        string content, string targetLanguage, string nativeLanguage,
+        bool harvestSentences, bool harvestPhrases, bool harvestWords,
+        CancellationToken ct)
+    {
+        _logger.LogInformation("Extracting vocabulary from sentences via AI ({Length} chars)...", content.Length);
+
+        using Stream templateStream = await _fileSystem.OpenAppPackageFileAsync("ExtractVocabularyFromSentences.scriban-txt");
+        using var reader = new StreamReader(templateStream);
+        var templateContent = await reader.ReadToEndAsync();
+        var scribanTemplate = Template.Parse(templateContent);
+
+        var prompt = await scribanTemplate.RenderAsync(new
+        {
+            native_language = nativeLanguage,
+            target_language = targetLanguage,
+            source_text = content,
+            existing_terms = new List<string>(),
+            topik_level = (string?)null,
+            harvest_sentences = harvestSentences,
+            harvest_phrases = harvestPhrases,
+            harvest_words = harvestWords
+        });
+
+        var result = await _aiService.SendPrompt<FreeTextVocabularyExtractionResponse>(prompt);
+
+        if (result?.Vocabulary == null || !result.Vocabulary.Any())
+        {
+            _logger.LogWarning("AI returned no vocabulary from sentence extraction");
+            return new List<ImportRow>();
+        }
+
+        var rows = new List<ImportRow>();
+        for (int i = 0; i < result.Vocabulary.Count; i++)
+        {
+            var item = result.Vocabulary[i];
+            var status = item.Confidence.ToLowerInvariant() switch
+            {
+                "high" => RowStatus.Ok,
+                "medium" => RowStatus.Warning,
+                "low" => RowStatus.Error,
+                _ => RowStatus.Warning
+            };
+
+            var error = status != RowStatus.Ok
+                ? $"Confidence: {item.Confidence}" + (string.IsNullOrWhiteSpace(item.Notes) ? "" : $" - {item.Notes}")
+                : null;
+
+            rows.Add(new ImportRow
+            {
+                RowNumber = i + 1,
+                TargetLanguageTerm = item.TargetLanguageTerm,
+                NativeLanguageTerm = item.NativeLanguageTerm,
+                Status = status,
+                Error = error,
+                IsSelected = status != RowStatus.Error,
+                IsAiTranslated = true,
+                LexicalUnitType = ResolveLexicalUnitType(item.LexicalUnitType, item.TargetLanguageTerm)
+            });
+        }
+
+        _logger.LogInformation("Extracted {Count} vocabulary items from sentences (sentence + phrase + word entries)", rows.Count);
+        return rows;
+    }
+
+    /// <summary>
     /// Filter rows by harvest flags. Removes entries that don't match the requested harvest types.
     /// </summary>
     /// <summary>
     /// Resolve LexicalUnitType with a defensive space-based heuristic fallback.
-    /// If the AI classified as Word but the term contains whitespace, reclassify as Phrase.
-    /// This matches the migration backfill heuristic and Captain's ruling.
+    /// If the AI/caller classified as Phrase or Sentence AND the term is multi-token,
+    /// trust the classification. Single-token terms are always Word regardless of hint.
+    /// Captain's directive: user's content type is the strongest signal for multi-token terms.
     /// </summary>
     private static LexicalUnitType ResolveLexicalUnitType(LexicalUnitType aiClassification, string? targetTerm)
     {
-        if (aiClassification == LexicalUnitType.Phrase || aiClassification == LexicalUnitType.Sentence)
-            return aiClassification;
-
         if (string.IsNullOrWhiteSpace(targetTerm))
             return aiClassification == LexicalUnitType.Unknown ? LexicalUnitType.Word : aiClassification;
 
         var trimmed = targetTerm.Trim();
         var hasWhitespace = trimmed.Contains(' ');
 
+        // Single-token terms are always Word, regardless of caller hint.
         if (!hasWhitespace)
-            return aiClassification == LexicalUnitType.Unknown ? LexicalUnitType.Word : aiClassification;
+            return LexicalUnitType.Word;
 
-        // Multi-token term: distinguish Sentence vs Phrase.
-        // Sentence = ends with terminal punctuation AND has 2+ tokens.
+        // Multi-token: trust Phrase/Sentence classification from caller or AI.
+        if (aiClassification == LexicalUnitType.Phrase || aiClassification == LexicalUnitType.Sentence)
+            return aiClassification;
+
+        // Multi-token term with Word/Unknown hint: use terminal punctuation heuristic.
         var lastChar = trimmed[^1];
         var isSentenceTerminal = lastChar is '.' or '!' or '?' or '。' or '！' or '？';
 

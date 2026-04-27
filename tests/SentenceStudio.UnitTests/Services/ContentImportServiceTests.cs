@@ -896,4 +896,115 @@ public class ContentImportServiceTests : IDisposable
         phraseResult.Should().NotBeNull();
         phraseResult.Rows.Should().NotBeEmpty("Phrases content type should parse delimited input");
     }
+
+    [Fact]
+    public async Task ParseContentAsync_Sentences_PrimaryRowsClassifiedAsSentence()
+    {
+        // Captain's exact 3 lines from Jayne's Test 2 — pipe-delimited, terminal periods.
+        // With ContentType=Sentences, all 3 primary rows must be LexicalUnitType.Sentence.
+        using var scope = _serviceProvider.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<ContentImportService>();
+
+        var request = new ContentImportRequest
+        {
+            RawText = "저는 맥주를 많이 안 마시지만, 앤지하고 맥주집에 갔어요.|I don't drink beer much but went with Angie to a beer house.\n"
+                    + "앤지는 맥주를 많이 안 마시지만, 단 음료를 마셔요.|Angie doesn't drink beer much but drinks sweet beverages.\n"
+                    + "그 웨이터는 동료가 한국어로 주문했는데 이해 못 했어요.|The waiter didn't understand when my colleague ordered in Korean.",
+            ContentType = ContentType.Sentences,
+            HarvestSentences = true,
+            HarvestWords = false,
+            HarvestPhrases = false
+        };
+
+        var preview = await service.ParseContentAsync(request);
+
+        preview.Should().NotBeNull();
+        var sentenceRows = preview.Rows
+            .Where(r => r.LexicalUnitType == LexicalUnitType.Sentence)
+            .ToList();
+        sentenceRows.Should().HaveCount(3, "each of the 3 input lines should produce a Sentence-typed primary row");
+
+        // Verify the full Korean text is preserved
+        sentenceRows.Select(r => r.TargetLanguageTerm).Should().Contain(t => t!.Contains("맥주집에 갔어요"));
+        sentenceRows.Select(r => r.TargetLanguageTerm).Should().Contain(t => t!.Contains("단 음료를 마셔요"));
+        sentenceRows.Select(r => r.TargetLanguageTerm).Should().Contain(t => t!.Contains("이해 못 했어요"));
+    }
+
+    [Fact]
+    public async Task ParseContentAsync_Sentences_NoPunctuation_StillClassifiedAsSentence()
+    {
+        // Captain's directive: when user explicitly picks Sentences, multi-token terms
+        // should be Sentence even without terminal punctuation.
+        using var scope = _serviceProvider.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<ContentImportService>();
+
+        var request = new ContentImportRequest
+        {
+            RawText = "저는 한국어를 공부해요|I study Korean\n오늘 날씨가 좋아요|The weather is nice today",
+            ContentType = ContentType.Sentences,
+            HarvestSentences = true,
+            HarvestWords = false,
+            HarvestPhrases = false
+        };
+
+        var preview = await service.ParseContentAsync(request);
+
+        preview.Should().NotBeNull();
+        var sentenceRows = preview.Rows
+            .Where(r => r.LexicalUnitType == LexicalUnitType.Sentence)
+            .ToList();
+        sentenceRows.Should().HaveCount(2,
+            "ContentType=Sentences + multi-token term should classify as Sentence regardless of terminal punctuation");
+    }
+
+    [Fact]
+    public async Task ParseContentAsync_Sentences_SingleTokenStaysWord()
+    {
+        // Single-token target terms stay Word even when ContentType=Sentences.
+        using var scope = _serviceProvider.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<ContentImportService>();
+
+        var request = new ContentImportRequest
+        {
+            RawText = "맥주|beer",
+            ContentType = ContentType.Sentences,
+            HarvestSentences = true,
+            HarvestWords = true,
+            HarvestPhrases = false
+        };
+
+        var preview = await service.ParseContentAsync(request);
+
+        preview.Should().NotBeNull();
+        // Single token should be Word, not Sentence
+        var wordRows = preview.Rows.Where(r => r.LexicalUnitType == LexicalUnitType.Word).ToList();
+        wordRows.Should().HaveCountGreaterOrEqualTo(1, "single-token terms stay Word even with ContentType=Sentences");
+        preview.Rows.Where(r => r.LexicalUnitType == LexicalUnitType.Sentence).Should().BeEmpty(
+            "single-token term has no whitespace, so it cannot be a Sentence");
+    }
+
+    [Fact]
+    public async Task ParseContentAsync_Phrases_StillWorkCorrectly()
+    {
+        // Regression guard: Phrases content type must still produce Phrase-typed primary rows.
+        using var scope = _serviceProvider.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<ContentImportService>();
+
+        var request = new ContentImportRequest
+        {
+            RawText = "저는 맥주를 많이 안 마시지만, 앤지하고 맥주집에 갔어요.|I don't drink beer much but went with Angie to a beer house.\n"
+                    + "앤지는 맥주를 많이 안 마시지만, 단 음료를 마셔요.|Angie doesn't drink beer much but drinks sweet beverages.",
+            ContentType = ContentType.Phrases,
+            HarvestPhrases = true,
+            HarvestWords = false,
+            HarvestSentences = false
+        };
+
+        var preview = await service.ParseContentAsync(request);
+
+        preview.Should().NotBeNull();
+        // With Phrases content type, these should be classified as Phrase (not promoted to Sentence)
+        var phraseRows = preview.Rows.Where(r => r.LexicalUnitType == LexicalUnitType.Phrase).ToList();
+        phraseRows.Should().HaveCount(2, "Phrases content type should produce Phrase-typed primary rows");
+    }
 }
