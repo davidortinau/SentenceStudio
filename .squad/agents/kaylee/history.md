@@ -520,3 +520,25 @@ Built the user-facing `/import-content` page for the data import MVP. This is th
 - Verify the type filter chip appears in the active filters bar when a type is selected
 - On mobile viewport: open the offcanvas filter panel → verify the "Type" section appears
 - Combine type filter with other filters (e.g., type:word + status:known) → both should apply
+
+### Import Page: Sentences Content Type Support (Round 2)
+
+**Scope:** Wired Wash's new `ContentType.Sentences` and `HarvestSentences` flag into ImportContent.razor.
+
+**Changes made:**
+1. **Content type dropdown**: Added "Sentences" option between Phrases and Transcript
+2. **Harvest checkboxes**: Added "Harvest Sentences" checkbox (order: Sentences > Phrases > Words), bound to `harvestSentences`
+3. **Type chooser buttons**: Added Sentences button to both low-confidence auto-detect panel and override chooser
+4. **FormatContentType helper**: Added `ContentType.Sentences => "Sentences"` case
+5. **ValidateHarvestCheckboxes**: Extended to include `harvestSentences` in the "at least one" check
+6. **CommitImport**: Wired `HarvestSentences = harvestSentences` into `ContentImportCommit` DTO
+7. **RunPreview**: Wired all four harvest flags into `ContentImportRequest` so backend can filter preview rows
+8. **StartNewImport**: Resets `harvestSentences = false`
+
+## Learnings
+
+- 2026-07 **Harvest Defaults per Content Type**: Vocabulary = Words only; Phrases = Phrases + Words; Sentences = Sentences + Words; Transcript = Transcript + Words; Auto = all unchecked. The pattern is: primary harvest flag matches content type, Words rides along as secondary (except Auto). User can always override.
+- 2026-07 **Validation rule extension**: `ValidateHarvestCheckboxes` uses OR across all four flags (Transcript, Sentences, Phrases, Words). Backend `CommitImportAsync` enforces the same rule independently. Both must stay in sync.
+- 2026-07 **RunPreview needs harvest flags too**: The preview request sends harvest flags so the backend's `FilterRowsByHarvestFlags` can filter the preview table. Without this, the preview would show rows the user didn't ask for.
+- 2026-04-27: **TEAM CONVERGENCE: Type Filter + Import UI** — Three-agent spawn diagnosed phrase-save bug (generic prompt wired instead of River's dedicated prompt). Kaylee completed Round 1: `Vocabulary.razor` Type filter dropdown added (All/Word/Phrase/Sentence pattern matching Association/Status/Encoding filters). VocabularyWordEdit.razor already supported all types — no changes needed. Client-side filter on loaded list. Round 2 pending: add Sentences button to import content type selector + Sentences harvest checkbox + `ContentTypeToString` case. Team pattern: convergent diagnosis (Wash backend, River prompts, Jayne reproduction) enabled fast Round 1 completion; UI now ready for backend integration.
+

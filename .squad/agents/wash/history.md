@@ -1795,3 +1795,5 @@ Conducted data layer survey for new import feature. Identified YouTube pipeline 
 
 **Status resolved:** Lockout was temporary and scoped. Feature shipped clean with all fixes verified.
 
+- 2026-04-27: **TEAM CONVERGENCE: v1.2 Phrase-Save Bug Fix** — Root cause: Phrases branch (line 192) routed to generic `ParseFreeTextContentAsync` instead of River's dedicated `ExtractVocabularyFromPhrases.scriban-txt` (TODO comment at line 191 acknowledged this gap). Three independent agents (Wash, River, Jayne) converged on identical diagnosis within same spawn. Jayne reproduced Captain's exact case (3 Korean|English in → 8 words, 0 phrases). Wash fixed by rewriting Phrases as 2-step pipeline: parse delimited → preserve phrase/sentence entries → AI harvest constituent words → dedup. Added `ContentType.Sentences` + `HarvestSentences` flag. Refined ResolveLexicalUnitType heuristic (terminal punctuation → Sentence). River locked JSON contract. Kaylee added Type filter UI. Pattern learning: "the prompt was already there, just unwired" — for future: check for TODOs when implementing new features.
+

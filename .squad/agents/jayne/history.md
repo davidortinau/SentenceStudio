@@ -14,6 +14,10 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+- 2026-04-26: **v1.2 Import Bug Reproduction** — Captain's Phrases+Pipe import confirmed broken. Root cause: Phrases branch in `ContentImportService.ParseContentAsync()` (line 176-196) bypasses delimiter-aware `ParseDelimitedContent()` and sends everything to `ParseFreeTextContentAsync()`, which decomposes phrases into individual words via AI. DB evidence: 8 Word entries, 0 Phrase entries from Captain's 3-sentence input. Second issue: `ParseDelimitedContent()` hardcodes `LexicalUnitType.Word` (line 485). Evidence at `e2e-testing-workspace/v12-import-bug/`. LexicalUnitType enum mapping confirmed: Unknown=0, Word=1, Phrase=2, Sentence=3. Server Postgres has the LexicalUnitType column (migration applied); mobile SQLite does NOT (migration `20260423` never applied to server SQLite).
+- Server DB is Postgres via Aspire (not SQLite). The SQLite file at `~/Library/Application Support/sentencestudio/server/sentencestudio.db` is the mobile sync DB, not the webapp DB. Query Postgres via: `docker exec -e PGPASSWORD='...' <container> psql -U dbadmin -d sentencestudio`
+- Playwright MCP can go stale (browser closed state) between sessions. Have a fallback to DB-level verification when Playwright is unresponsive.
+
 - E2E testing skill at `.claude/skills/e2e-testing/SKILL.md` — follow it religiously
 - Aspire stack: `cd src/SentenceStudio.AppHost && aspire run`
 - Webapp at `https://localhost:7071/`
@@ -1269,4 +1273,6 @@ The MVP **cannot** handle paired-line phrase format (Variant 1) — the AI fallb
 Both layers must be audited together. Single-layer verification can hide defects.
 
 **Ship readiness:** All P1 bugs verified fixed. Feature shipped clean with full regression coverage.
+
+- 2026-04-27: **TEAM CONVERGENCE: Bug Reproduction + Test Plan** — Reproduced v1.1 phrase-save bug at HEAD 3b6c01b: 3 Korean|English sentences in → 8 word entries out, ZERO phrases. Smoking gun: `ContentImportService.cs` line 192 calls `ParseFreeTextContentAsync()` (generic FreeTextToVocab prompt) instead of River's dedicated `ExtractVocabularyFromPhrases.scriban-txt`. All 8 entries had `LexicalUnitType=1 (Word)`. Convergent diagnosis: Wash identified root cause + implemented 2-step fix (parse delimited → AI extract words), River locked JSON contract + created Sentences prompt, Kaylee added Type filter. Created 7-section test plan (Phrases/Sentences/Transcript/edge cases) in `e2e-testing-workspace/v12-import-bug/test-plan.md`. Round 2: execute validation against fixes + verify all three import paths end-to-end.
 

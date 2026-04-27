@@ -923,3 +923,146 @@ Initial DO-NOT-SHIP verdict from first e2e run. This decision is now archived as
 
 All three bugs were fixed in the follow-up cycle (Simon backend + Kaylee frontend) and verified passing in final sweep.
 
+
+---
+
+# v1.2: Phrase-Save Bug Root Cause & Sentence Type Expansion
+
+**Date:** 2026-04-27  
+**Authors:** Wash (Backend Dev), River (AI/Prompt Engineer), Kaylee (Full-stack Dev), Jayne (Tester)  
+**Branch:** `feature/import-content`  
+**Status:** ✅ **ROUND 1 COMPLETE** — Code ready; Round 2 UI pending
+
+## Root Cause Analysis
+
+The v1.1 phrase-save bug was caused by the Phrases branch in `ContentImportService.cs` (line ~192) calling `ParseFreeTextContentAsync()`, which used the generic `FreeTextToVocab.scriban-txt` prompt. This prompt decomposes any input into individual vocabulary words, discarding phrase/sentence structure entirely.
+
+**Root Cause**: River's dedicated `ExtractVocabularyFromPhrases.scriban-txt` had been written and deployed to Raw resources, but was **never wired in**. A TODO comment at line 191 acknowledged this: "Use River's dedicated phrase extraction prompt when it lands."
+
+**Evidence**: Jayne reproduced Captain's exact scenario (3 Korean|English sentences) and confirmed: 3 inputs → 8 individual words, ZERO phrase entries. All entries had `LexicalUnitType=1 (Word)`, confirming generic prompt usage.
+
+## Fix: Two-Step Phrase Pipeline
+
+Wash rewrote the Phrases branch to:
+
+1. **Parse delimited content first** (pipe/CSV/TSV) → create primary phrase/sentence entries preserving user's original content
+2. **Run River's dedicated AI prompt** → harvest constituent words from each phrase
+3. **Combine both sets** → apply deduplication by target term
+4. **Filter by harvest flags** → respect `HarvestPhrases`, `HarvestWords`, `HarvestSentences` selections
+
+This ensures the 3 original pipe-delimited sentences are always present in the preview AND commit, with constituent words added as a bonus extraction.
+
+## New: ContentType.Sentences
+
+Added `ContentType.Sentences` enum value for complete grammatical sentences. Routes to the same import pipeline as Phrases, but `ResolveLexicalUnitType` heuristic classifies entries based on terminal punctuation:
+
+```
+1. If AI classified as Phrase or Sentence → keep it
+2. If no whitespace → Word
+3. If whitespace + terminal punctuation (. ! ? 。 ！ ？) → Sentence
+4. If whitespace + no terminal punctuation → Phrase
+```
+
+This replaces the v1.1 "contains space → Phrase" heuristic. Terminal punctuation is the reliable signal for complete sentences.
+
+## DTO Changes
+
+### ContentType enum (added)
+```csharp
+[Description("Complete grammatical sentences")]
+Sentences,
+```
+
+### ContentImportRequest (added)
+```csharp
+bool HarvestSentences  // Extract Sentence-type entries
+```
+
+### ContentImportCommit (added)
+```csharp
+bool HarvestSentences
+```
+
+## JSON Response Contract (River)
+
+All three extraction prompts (`ExtractVocabularyFromPhrases`, `ExtractVocabularyFromSentences`, `ExtractVocabularyFromTranscript`) return identical shape:
+
+```json
+{
+  "vocabulary": [
+    {
+      "targetLanguageTerm": "string",
+      "nativeLanguageTerm": "string",
+      "confidence": "high | medium | low",
+      "notes": "string?",
+      "partOfSpeech": "noun | verb | adjective | ...",
+      "topikLevel": 3,
+      "lexicalUnitType": "Word | Phrase | Sentence",
+      "relatedTerms": ["string"]
+    }
+  ]
+}
+```
+
+**Classifier**: `ClassifyImportContent.scriban-txt` now returns four types: `"Vocabulary"`, `"Phrases"`, `"Sentences"`, `"Transcript"`.
+
+## No Schema Migration
+
+- `LexicalUnitType.Sentence = 3` already exists in database
+- No new columns, tables, or migrations required
+- `ContentType` is DTO-only (not persisted)
+
+## UI Changes (Kaylee, Round 1)
+
+**Vocabulary.razor:**
+- Added Type filter dropdown to desktop filter row (All/Word/Phrase/Sentence)
+- Mirrored dropdown to mobile offcanvas for consistency
+- Pattern matches existing filters (Association, Status, Encoding)
+- Unknown type excluded from filter options (fallback classification only)
+
+**VocabularyWordEdit.razor:** No changes needed — already supports all three types.
+
+**Round 2 Scope (Pending):**
+- Add "Sentences" button to import content type selector
+- Add "Sentences" harvest checkbox
+- Update `ContentTypeToString` helper
+
+## Test Status
+
+- **Build:** Green (610 tests passing in Shared)
+- **Reproduction:** ✅ Bug confirmed by Jayne at HEAD 3b6c01b
+- **Round 2 Plan:** 7-section test plan (Phrases/Sentences/Transcript + edge cases) in `e2e-testing-workspace/v12-import-bug/test-plan.md`
+
+## Files Modified
+
+- `ContentImportService.cs` — Rewrote Phrases/Sentences branches, heuristic refinement
+- `ContentImportServiceTests.cs` — Updated tests, fixed stale test assertions
+- `ExtractVocabularyFromPhrases.scriban-txt` — Added harvest flags + pipe handling
+- `ExtractVocabularyFromSentences.scriban-txt` — NEW prompt
+- `ClassifyImportContent.scriban-txt` — Four-class output
+- `Vocabulary.razor` — Type filter dropdown added
+
+---
+
+# Filter Pattern Decision: Type Filter Uses Dropdown
+
+**Date:** 2026-04-27  
+**Author:** Kaylee (Full-stack Dev)  
+**Scope:** Vocabulary list page type filter
+
+## Decision
+
+The LexicalUnitType filter on the Vocabulary list uses the same `<select>` dropdown pattern as all other filters (Association, Status, Encoding, etc.) rather than a segmented control or pill toggle group.
+
+## Rationale
+
+- Consistency with 6 existing filter dropdowns on the page
+- Scales if more types are added later
+- Works identically in desktop filter row and mobile offcanvas panel
+- Integrates with search-query-driven filter system (`type:word` in search bar)
+- Unknown type excluded from options (fallback classification, not user intent)
+
+## Impact
+
+If the team later decides segmented controls or pill toggles are better for enum-style filters across the app, this would be a good candidate to convert — but for now, uniformity wins.
+
