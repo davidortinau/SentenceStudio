@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using SentenceStudio.Services;
 using SentenceStudio.Shared.Models;
 
@@ -111,7 +112,8 @@ public static class ChannelEndpoints
         string id,
         ClaimsPrincipal user,
         [FromServices] ChannelMonitorService channelService,
-        [FromServices] VideoImportPipelineService pipelineService)
+        [FromServices] VideoImportPipelineService pipelineService,
+        [FromServices] ILoggerFactory loggerFactory)
     {
         var userProfileId = user.FindFirstValue("user_profile_id");
         if (string.IsNullOrEmpty(userProfileId))
@@ -155,7 +157,9 @@ public static class ChannelEndpoints
                 }
                 catch (Exception ex)
                 {
-                    // Logging happens inside the pipeline service
+                    var logger = loggerFactory.CreateLogger(nameof(ChannelEndpoints));
+                    logger.LogError(ex, "Unhandled exception in import pipeline for import {ImportId}", import.Id);
+                    await pipelineService.FailImportAsync(import, ex.Message);
                 }
             });
 

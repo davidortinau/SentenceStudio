@@ -1369,3 +1369,1711 @@ ShadowingUnknownTerm: WordId={WordId} Term={Term} needs classification
 
 **Action:** Awaits Captain decision. Scribe cannot proceed without explicit guidance.
 
+
+---
+
+## 2026-04-24 — DX24 LexicalUnitType Production Hotfix
+
+**Date:** 2026-04-24  
+**Agent:** Wash (Backend Dev)  
+**Status:** Implemented, code-reviewed, shipped  
+**Type:** Production Emergency Fix
+
+### Problem
+
+DX24 Release iOS build crash. Symptom: "no such column: LexicalUnitType" on Vocabulary page and all activity pages.
+
+### Root Cause
+
+Migration `20260423213242_AddLexicalUnitTypeAndConstituents` failed silently on DX24. The schema was incomplete (column never added). EF entity property expects `LexicalUnitType` to exist and be non-nullable. Query fails on schema mismatch.
+
+Pattern: SQLite on mobile can silently fail migrations. `SyncService.InitializeDatabaseAsync` had catch-all exception handler that logged and continued (degraded mode).
+
+### Solution
+
+Two-file hotfix (SQLite provider only; PostgreSQL migration unchanged on Azure):
+
+1. **SQLite Migration** — Convert Up() to empty, idempotent no-op
+   - File: `src/SentenceStudio.Shared/Migrations/Sqlite/20260423213242_AddLexicalUnitTypeAndConstituents.cs`
+   - Pattern: Exact match to `AddMissingVocabularyWordLanguageColumn.cs` precedent
+   - Leave Down() functional for rollback
+
+2. **SyncService** — Extend PatchMissingColumnsAsync
+   - File: `src/SentenceStudio.Shared/Services/SyncService.cs`
+   - Add LexicalUnitType column patch + PhraseConstituent table patch
+   - Both use IF NOT EXISTS / pragma checks (idempotent)
+   - Runs BEFORE and AFTER MigrateAsync (defense-in-depth)
+
+### Verification
+
+- Build: ✅ 0 errors
+- Code review: ✅ SHIP IT (5/5 checks passed)
+- DX24 deployment: ExposureCount NULL count 1871 → 0; vocab + activities load
+
+### Rule for Future Migrations
+
+**REQUIRED for all new SQLite schema changes:**
+1. Make SQLite migration Up() empty with doc comment explaining pattern
+2. Add corresponding entry to `PatchMissingColumnsAsync` at the SAME TIME
+3. Use IF NOT EXISTS / pragma checks for idempotency
+4. Leave Down() functional for rollback
+
+---
+
+## 2026-04-24 — Mobile Migration Validation Strategy
+
+**Status:** Active  
+**Date:** 2026-04-24  
+**Context:** DX24 production emergency — migration schema mismatches on iOS/Android.  
+**Participants:** Captain, Wash
+
+### Problem
+
+**Migration test architecture is wrong.** xUnit projects target `net10.0` (server TFM). Conditional compilation in `SentenceStudio.Shared.csproj` excludes SQLite migrations from server TFMs. Tests tried to apply PostgreSQL migrations to SQLite database → "near ALTER" syntax error. Tests don't validate mobile.
+
+### Solution: Three-Layer Defense
+
+**Layer 1: Runtime schema sanity check (mobile DEBUG only)**
+- File: `src/SentenceStudio.Shared/Services/MigrationSanityCheckService.cs`
+- Validates critical tables + columns post-migration using `pragma_table_info`
+- DEBUG: Throws `InvalidOperationException` (fail-fast for devs)
+- Release: Logs `LogCritical` (don't brick user apps)
+
+**Layer 2: Automated Mac Catalyst validation (pre-deploy gate)**
+- File: `scripts/validate-mobile-migrations.sh`
+- Builds Mac Catalyst Debug + launches app via `maui devflow`
+- Fetches logs, greps for SQLite errors
+- Run BEFORE any migration-touching PR merge
+
+**Layer 3: Hardened exception handling**
+- File: `src/SentenceStudio.Shared/Services/SyncService.cs`
+- Split try/catch: migration failures → `LogCritical` + re-throw (FATAL)
+- Background tasks → `LogError` + continue (degraded OK)
+
+**Layer 4: Defense-in-depth patching (existing, keep)**
+- File: `SyncService.PatchMissingColumnsAsync`
+- Runs BEFORE and AFTER MigrateAsync on mobile
+- Patches missing columns/tables with IF NOT EXISTS
+
+### Why NOT xUnit for mobile migrations
+
+xUnit can't target mobile TFMs (no test runner on iOS simulator). SQLite migrations aren't compiled into `net10.0` test projects. Would need duplicate migration code or MSBuild hacks. **Rejected.** Use runtime + script validation instead.
+
+### What We Learned
+
+SQLite has severe ALTER TABLE limits (no type changes, no drops, no renames on old iOS versions). Exceptions on mobile are silent (caught and logged). Conditional compilation makes unit tests misleading. Only real validation is on actual mobile build.
+
+---
+
+## 2026-04-24T15:54:33Z — User Directive
+
+**By:** David Ortinau (via Copilot)
+
+**Directive:** Agents MUST drive physical-device verification themselves (tap, navigate, screenshot, read errors). NOT ask Captain to tap buttons or read errors on DX24 Release builds.
+
+**Rationale:** Captain explicitly stated twice: "you should be logging these in debug so you can read them yourself. I'm not your error reading monkey" and "you need to be doing this e2e yourself. There's no excuse for asking me to tap buttons."
+
+**Tools available:** `appium-automation` skill, `xcrun devicectl`, Appium. MauiDevFlow being `#if DEBUG` is not an excuse — use another tool.
+
+**Scope:** Applies to all device work, not just Debug builds. Agents own the full e2e cycle.
+
+# Decision: Data Import Feature Architecture
+
+**Date:** 2026-07-27
+**Owner:** Zoe (Lead)
+**Status:** Proposed — awaiting Captain review
+**Requested by:** Captain (David Ortinau)
+
+---
+
+## 1. Feature Surface (UX Flow)
+
+### Where Import Lives
+
+The feature extends the existing `/import` Blazor page (`Import.razor`), which currently handles YouTube video imports only. Add a fourth tab: **"Text / File"** alongside Channels, Single Video, and History. This keeps all import paths in one place.
+
+- **Blazor webapp**: Primary surface. Full form with file upload, text paste, preview table.
+- **MAUI (MauiReactor mobile)**: Defer to v2. The Blazor Hybrid WebView renders the same Razor pages, so MAUI users get it for free via the shared UI project. A native MauiReactor page is not needed for MVP.
+
+### Core Form Fields
+
+| Field | Type | Required | Notes |
+|---|---|---|---|
+| **Input mode** | Toggle: Paste Text / Upload File | Yes | File accepts .csv, .tsv, .txt, .json |
+| **Text input** | Textarea | If paste mode | Multiline, no size limit in UI |
+| **File input** | InputFile | If file mode | Uses existing Blazor InputFile pattern from ResourceAdd.razor |
+| **Format description** | Textarea | No | Free-text hint: "columns are Korean, English, part of speech" |
+| **Content type** | Select: Vocabulary / Phrases / Transcript / Auto-detect | Yes, default Auto-detect | |
+| **Target resource** | Select: "Create new" / picker of existing LearningResources | Yes, default "Create new" | Filtered to user's resources |
+| **New resource title** | Text input | If "Create new" selected | Pre-populated from filename if file upload |
+| **Target language** | Select | Yes, default from user profile | Korean, Spanish, etc. |
+| **Native language** | Select | Yes, default from user profile | English, etc. |
+| **Tags** | Text input | No | Comma-separated, pre-populated from selected resource |
+
+### Additional Anticipated Fields
+
+| Field | Type | Default | Rationale |
+|---|---|---|---|
+| **Delimiter hint** | Radio: Auto / Comma / Tab / Semicolon / Pipe | Auto | CSV/TSV ambiguity is common |
+| **Header row** | Checkbox | Off | "First row is column names" |
+| **Dedup behavior** | Radio: Skip duplicates / Update existing / Import all | Skip duplicates | Captain's data preservation rule demands explicit choice |
+| **Source attribution** | Text input | Blank | "Where did this content come from?" (textbook name, URL, teacher) |
+| **Dry-run preview** | Always shown | N/A | Non-negotiable. Every import shows parsed rows before commit. |
+
+Fields NOT included in MVP (defer to v2): CEFR/TOPIK level tagging per-word, batch scheduling, audio file extraction, language pair detection.
+
+### Preview-Before-Commit Step
+
+After the user fills the form and clicks "Preview Import":
+
+1. Parsing pipeline runs (see Section 4).
+2. Results displayed in an editable table: checkbox per row (select/deselect), inline edit for target term and native term, row-level error badges.
+3. Summary bar: "42 words parsed, 3 duplicates skipped, 2 errors".
+4. Captain can edit, exclude rows, then click "Commit Import".
+5. On commit: words saved, mappings created, toast confirmation with count.
+
+---
+
+## 2. Content Type Detection Strategy
+
+### When Set to Auto-detect
+
+**Heuristic-first, AI fallback.** Rationale: deterministic checks are fast, free, and predictable. AI is expensive and non-deterministic. Use AI only when heuristics are inconclusive.
+
+### Heuristic Signals
+
+| Content Type | Signals |
+|---|---|
+| **Vocabulary** | Two-column structure (delimiter-separated pairs), short tokens (< 30 chars per cell), no timestamps, no speaker tags |
+| **Phrases** | One column of medium-length strings (10-80 chars), no paired translation column, complete utterances but no paragraph flow |
+| **Transcript** | Timestamps (`[00:01:23]`, `0:15`), speaker tags (`A:`, `Speaker 1:`), paragraph flow, > 500 chars total, line breaks between utterances |
+
+### Decision Flow
+
+```
+1. Check for timestamps/speaker tags → Transcript (high confidence)
+2. Check for two-column delimiter structure → Vocabulary (high confidence)
+3. Check for JSON array → parse structure, classify by field names
+4. Single column, short lines → Phrases (medium confidence)
+5. Otherwise → AI classification (low confidence flag)
+```
+
+### Low-Confidence Handling
+
+When heuristic confidence is below threshold OR AI is used:
+- Show a yellow info bar: "We detected this as [Vocabulary]. Is that correct?"
+- Provide a dropdown to override. The override feeds back into the parsing stage.
+- Never auto-commit low-confidence detections.
+
+---
+
+## 3. Data Model and Persistence
+
+### New Entities: No
+
+No new database entities for MVP. Rationale:
+
+- **No ImportJob table.** The import is a synchronous, single-request operation. State is held in the Blazor component during preview. If the user navigates away, the preview is lost — this is acceptable for MVP. The VideoImport entity exists for the YouTube pipeline (which is async/background), but text/file imports are fast enough to be synchronous.
+- **No ImportSource table.** Source attribution is stored as a tag or in the resource's Description field.
+- **No ImportError table.** Per-row errors are transient UI state during preview. Not persisted.
+
+### How Imports Map to LearningResource
+
+| Target selection | Behavior |
+|---|---|
+| **Create new** | New LearningResource created. MediaType = "Vocabulary List" or "Transcript" based on content type. UserProfileId set from active user. Vocab words linked via ResourceVocabularyMapping. |
+| **Existing resource** | Vocab words added to existing resource via new ResourceVocabularyMapping rows. Existing mappings untouched. No words removed. |
+
+"Append" is the only merge mode for MVP. "Replace all words on resource" is destructive and deferred to v2 behind a confirmation modal.
+
+### Vocabulary Dedup Strategy
+
+VocabularyWord is shared (no UserProfileId). Dedup key: **TargetLanguageTerm, case-sensitive, whitespace-trimmed.**
+
+This matches the existing pattern in `VideoImportPipelineService.CreateLearningResourceAsync` (line 367-368):
+```csharp
+var existing = await db.VocabularyWords
+    .FirstOrDefaultAsync(w => w.TargetLanguageTerm == word.TargetLanguageTerm);
+```
+
+Dedup behavior based on user's selection:
+- **Skip duplicates** (default): If a VocabularyWord with the same TargetLanguageTerm exists, reuse its ID for the ResourceVocabularyMapping. Do not update the existing word's fields.
+- **Update existing**: If match found, update NativeLanguageTerm, Lemma, Tags on the existing word. Create mapping if not already linked.
+- **Import all**: Create new VocabularyWord regardless of duplicates (allows variant definitions). This is an escape hatch.
+
+ResourceVocabularyMapping dedup: always check for existing mapping before inserting. Never create duplicate (ResourceId, VocabularyWordId) pairs.
+
+### Migration Plan
+
+No migration needed for MVP. All data flows through existing tables: LearningResource, VocabularyWord, ResourceVocabularyMapping.
+
+If v2 adds an ImportHistory entity (for audit trail/undo), that would require an EF Core migration following the established pattern (`dotnet ef migrations add`).
+
+---
+
+## 4. Parsing Pipeline
+
+### Stages
+
+```
+Source Intake → Format Detection → Parse → Validate → Preview → Commit
+```
+
+| Stage | Deterministic | AI | Notes |
+|---|---|---|---|
+| **Source Intake** | Yes | No | Read text or file bytes, detect encoding (UTF-8 assumed, BOM sniff) |
+| **Format Detection** | Yes (heuristic) | Fallback | See Section 2. Determine delimiter, column count, content type |
+| **Parse** | Yes (structured) | Yes (unstructured) | CSV/TSV/JSON: deterministic. Free text/transcript: AI extraction |
+| **Validate** | Yes | No | Required fields present, no empty terms, encoding issues, length limits |
+| **Preview** | N/A | N/A | UI renders parsed + validated rows |
+| **Commit** | Yes | No | SaveChangesAsync with dedup logic |
+
+### Where AI Fits
+
+1. **Content type classification** (Auto-detect fallback): Short prompt, returns enum.
+2. **Transcript to vocabulary**: Reuses existing `ExtractVocabularyFromTranscript.scriban-txt` prompt and `VocabularyExtractionResponse` DTO. Already battle-tested in the YouTube pipeline.
+3. **Free-text to vocab pairs**: New prompt needed. Input: unstructured text + format description from user. Output: `VocabularyExtractionResponse`.
+4. **Format inference**: When delimiter/structure is ambiguous and user provided a format description, AI interprets the description to produce parsing rules.
+
+### Where Deterministic Parsing Fits
+
+- **CSV/TSV**: Split by delimiter, map columns. Column mapping: if 2 columns, assume (TargetLanguageTerm, NativeLanguageTerm). If 3+, check header row or use format description.
+- **JSON**: Deserialize, look for `vocabulary` array (matches existing DTO) or flat array of objects with recognizable field names.
+- **Line-delimited**: One item per line. Single column = target terms only (native term left blank for user to fill or AI to populate in v2).
+
+### Error Handling
+
+- Per-row errors collected in a list. Each error: row number, raw content, error message.
+- Partial success: valid rows shown in preview with green checkmarks; error rows shown with red badges and the raw text.
+- Captain reviews errors in preview. Can edit and re-validate, or exclude and proceed.
+- No silent data loss. Every row accounted for in the preview summary.
+
+---
+
+## 5. AI Integration Touchpoints
+
+### Prompts Needed
+
+| Prompt | New/Existing | Input | Output DTO |
+|---|---|---|---|
+| **ContentTypeDetect** | New `.scriban-txt` | Sample of input text (first 500 chars) + user's format description | `ContentTypeDetectionResponse { ContentType, Confidence, Reasoning }` |
+| **FreeTextToVocab** | New `.scriban-txt` | Raw text + format description + target/native language | `VocabularyExtractionResponse` (existing DTO) |
+| **TranscriptToVocab** | Existing `ExtractVocabularyFromTranscript.scriban-txt` | Transcript text + language | `VocabularyExtractionResponse` (existing DTO) |
+
+### Integration Pattern
+
+Reuse `AiService.SendPrompt<T>()` with structured DTOs, following the `VideoImportPipelineService` precedent. The `[Description]` attributes on DTO properties guide the AI. No manual JSON formatting in prompts (Captain's standing rule from Microsoft.Extensions.AI guidelines).
+
+New prompt templates go in `src/SentenceStudio.AppLib/Resources/Raw/` following the `.scriban-txt` naming convention.
+
+River will detail the prompt engineering. The architecture only mandates: structured DTOs in, structured DTOs out, via `SendPrompt<T>`.
+
+---
+
+## 6. Architecture / Dependency Flow
+
+### Service Layer
+
+**New service: `ContentImportService`** in `SentenceStudio.Shared/Services/`.
+
+Location rationale: Shared project, not AppLib. The import logic needs `ApplicationDbContext` and `AiService`, both available in Shared. This matches the placement of `VideoImportPipelineService`.
+
+```
+ContentImportService
+  ├── ParseContent(text/bytes, formatHint, contentType, delimiter) → ImportPreview
+  ├── DetectContentType(sample, formatDescription) → ContentTypeResult
+  ├── CommitImport(ImportPreview, targetResourceId, dedupPolicy) → ImportResult
+  └── Dependencies: AiService, LearningResourceRepository, IFileSystemService
+```
+
+**API endpoint: Not needed for MVP.** The Blazor webapp and MAUI Hybrid both run in-process with direct service access. The YouTube import needs API endpoints because the Workers project processes imports server-side. Text/file imports are user-initiated and synchronous.
+
+If v2 adds server-side import (e.g., bulk API upload), add endpoints then.
+
+### UI Layer
+
+Primary: `Import.razor` — extend with a new tab. Component decomposition:
+- `ImportTextFileTab.razor` — the form
+- `ImportPreviewTable.razor` — the editable preview grid
+- Reuse existing `PageHeader`, `form-control-ss`, `card-ss` patterns from ResourceAdd.razor
+
+### Background Work
+
+**Not needed for MVP.** Text/file imports parse in < 2 seconds for deterministic formats. AI-backed transcript extraction takes 5-15 seconds — show a spinner, same pattern as the Single Video tab's "Polish" and "Generate Vocabulary" buttons.
+
+If imports exceed 1000 rows or transcripts are very long, v2 can add a progress indicator with cancellation. No queue infrastructure needed.
+
+---
+
+## 7. Scope Phasing
+
+### MVP (v1)
+
+Ship end-to-end with:
+- Text paste or CSV/TSV/TXT file upload
+- Vocabulary content type (paired columns)
+- Delimiter detection (auto + manual override)
+- Header row toggle
+- Create new or append to existing LearningResource
+- Dedup by TargetLanguageTerm (skip / update / import all)
+- Editable preview table before commit
+- Basic error display per row
+
+### v2
+
+- **Transcript content type**: AI extraction using existing `ExtractVocabularyFromTranscript` prompt
+- **Phrases content type**: AI-backed phrase parsing
+- **Auto-detect content type**: Heuristic + AI fallback
+- **JSON import format**: Structured import matching `VocabularyExtractionResponse` schema
+- **Format description AI interpretation**: User describes format, AI generates column mapping
+- **Import history / undo**: Persist import records for audit trail, enable "undo last import" (remove mappings, optionally remove orphaned words)
+- **Batch/async processing**: Progress bar, cancellation for large imports
+- **Column mapping UI**: Drag-and-drop column assignment for multi-column files
+- **CEFR/TOPIK level tagging**: Per-word level assignment during import
+- **Audio file extraction**: Import audio with transcript alignment
+
+---
+
+## 8. Open Questions for Captain
+
+1. **Dedup default behavior**: When importing vocabulary that already exists in the database, should the default be "skip and reuse existing" (safest) or "update existing definitions" (keeps data fresh but modifies shared words)? Current YouTube pipeline uses skip-and-reuse.
+
+2. **Source attribution field**: Worth including in MVP, or defer? It adds one text field to the form. If included, should it go on the LearningResource.Description, a tag, or a new column?
+
+3. **Native language term requirement**: If the user imports a single-column list (target language terms only, no translations), should we (a) leave NativeLanguageTerm blank and let the user fill in later, (b) use AI to generate translations as part of the import, or (c) reject single-column imports?
+
+4. **Import from clipboard on mobile**: The MAUI app could offer a "Paste from clipboard" shortcut that skips the textarea entirely. Worth prioritizing, or is the textarea sufficient?
+
+5. **Merge vs append for existing resources**: When adding words to an existing resource, the plan says append-only (no words removed). Should there be a "replace all vocabulary on this resource" option, even with a confirmation modal? Or is that too dangerous for MVP?
+
+---
+
+## 9. Risks / Data Preservation Callouts
+
+### Dedup Risk
+
+The dedup key is TargetLanguageTerm (case-sensitive, trimmed). Two risks:
+- **Near-duplicates**: "먹다" vs "먹다 " (trailing space) — mitigated by trimming.
+- **Homographs**: Different words with the same spelling but different meanings. The "Import all" escape hatch handles this, but users must know to select it.
+- **Shared word mutation**: "Update existing" dedup mode modifies a VocabularyWord that may be linked to other resources. The NativeLanguageTerm change affects all resources referencing that word. This must be clearly communicated in the UI: "This will update the definition for all resources using this word."
+
+### Merge Risk
+
+Appending to an existing resource never removes words. Safe by default. The v2 "replace" option must:
+- Show exactly which words will be removed
+- Require explicit confirmation
+- Preserve removed words in the VocabularyWord table (only remove ResourceVocabularyMapping rows)
+- Never delete VocabularyWord rows as part of an import
+
+### No Silent Data Loss
+
+Every import goes through preview. No row is committed without the Captain seeing it in the preview table. Error rows are visible, not silently dropped.
+
+### Reversibility
+
+MVP does not include formal undo. However:
+- Words added to a resource can be removed via the existing resource edit page (bulk remove from ResourceVocabularyMapping).
+- VocabularyWord rows created during import persist but are harmless orphans if unlinked.
+- v2 ImportHistory would enable one-click undo by recording which words and mappings were created per import.
+
+### File Upload Safety
+
+- File size limit: 5 MB (configurable). Prevents accidental large file processing.
+- Encoding: UTF-8 assumed. BOM detection for UTF-16. Encoding errors reported per row, not silently mangled.
+- No file is persisted to disk. Content is read into memory, parsed, then discarded after commit. The raw content lives only in the LearningResource.Transcript field if the content type is Transcript.
+
+---
+
+## Summary
+
+This is a focused MVP: paste text or upload a file, pick vocabulary, preview, commit. The heavy AI work (transcripts, auto-detect, format inference) is deferred to v2. The architecture reuses existing patterns (VideoImportPipelineService for pipeline structure, VocabularyExtractionResponse for AI DTOs, ResourceAdd.razor for UI patterns) rather than inventing new ones.
+
+No new database tables. No migrations. No background infrastructure. One new service, two new prompt templates, one new Blazor tab with a preview component.
+# Decision: Import Feature Placement — Separation Revision
+
+**Date:** 2026-07-27
+**Owner:** Zoe (Lead)
+**Status:** Proposed — awaiting Captain ruling
+**Context:** Captain feedback: "the existing import is video subscription related, and I think video subs should be somewhat considered separately."
+
+---
+
+## 1. Case Assessment: Shared Tab vs. Separate Pages
+
+### Arguments for keeping it as a tab on `/import`
+
+- **Single discovery point.** Users think "I want to bring content in" and go to one place. One nav entry, not two.
+- **Code reuse.** Both flows end at the same commit target: LearningResource + VocabularyWord + ResourceVocabularyMapping. Shared components (resource picker, preview table) stay co-located.
+
+### Arguments for separating (stronger)
+
+- **Different mental models.** YouTube subscriptions are an ongoing pipeline: subscribe to a channel, monitor for new videos, auto-process. The new import is a one-shot action: paste text, preview, commit. Mixing these in tabs conflates a subscription manager with a data tool.
+- **Different growth trajectories.** YouTube import will gain channel management features (polling frequency, auto-tagging, notification preferences). The data import will gain format support, column mapping, batch processing. Coupling them means one page accumulates unrelated complexity.
+- **Navigation clarity.** "Import" today means "YouTube stuff." Adding a 4th tab for a fundamentally different workflow muddies the label. Two focused pages with clear names are better than one overloaded page.
+- **The Captain said so.** He knows his own product's information architecture better than I do. The instinct is correct.
+
+**Verdict: Separate. The Captain is right.**
+
+---
+
+## 2. Placement Recommendation
+
+### Navigation structure
+
+| Current | Proposed | Route | Icon |
+|---|---|---|---|
+| Import | **Video Subscriptions** | `/video-subscriptions` | `bi-youtube` (or `bi-camera-video`) | *(superseded — see Final Rulings 2026-04-24)* |
+| _(new)_ | **Import Content** | `/import-content` | `bi-box-arrow-in-down` |
+
+Rationale for the names:
+- "Video Subscriptions" says exactly what it is: YouTube channel monitoring and single-video import. The word "Import" was always too generic for what is really a subscription manager. *(superseded — see Final Rulings 2026-04-24)*
+- "Import Content" is the new generic data import. "Content" scopes it to learning material (not settings, not backups). The route `/import-content` avoids collision with the existing `/import` route during migration.
+
+### Nav order in `NavMenu.razor`
+
+```csharp
+new NavItem("resources",           "bi-book",               Localize["Nav_LearningResources"]),
+new NavItem("vocabulary",          "bi-card-text",           Localize["Nav_Vocabulary"]),
+new NavItem("import-content",      "bi-box-arrow-in-down",   Localize["Nav_ImportContent"]),
+new NavItem("media-import",        "bi-film",               Localize["Nav_MediaImport"]), // (superseded — see Final Rulings 2026-04-24)
+```
+
+Import Content sits next to Resources and Vocabulary (data management cluster). Media Import (renamed from Video Subscriptions per Captain ruling) follows — related but distinct.
+
+### What happens to existing `/import`
+
+Two options, recommend Option A:
+
+**Original Options A/B:** (superseded — see Final Rulings 2026-04-24)
+
+**Final Ruling:** Rename `Import.razor` to `MediaImport.razor`, change `@page "/import"` to `@page "/media-import"`. Keep `@page "/import"` as a secondary route for backward compatibility redirect. Update `NavMenu.razor` with new label "Media Import" and icon `bi-film`. The route rename is low-risk (no external consumers of `/import` — it is an authenticated SPA page, not a public URL).
+
+### Does Import.razor need refactoring?
+
+No structural refactoring needed. It is already focused on YouTube concerns (channels, single video, history). Renaming the file and route is sufficient. The three tabs (Channels, Single Video, History) remain as they are.
+
+The only code-level change: update localization keys from `Import_*` to `MediaImport_*` (or keep the old keys and just change the display values — cheaper, no functional difference). Recommend keeping the old keys for MVP to avoid a localization churn; rename in a cleanup pass. *(superseded — see Final Rulings 2026-04-24)*
+
+---
+
+## 3. Updated Plan Sections
+
+### Section 1 — Feature Surface (revised)
+
+The import feature lives at a **new page** `/import-content` (`ImportContent.razor`), accessible from a dedicated nav entry "Import Content" with `bi-box-arrow-in-down` icon.
+
+This page is not tabbed. It is a single-purpose form:
+- Input mode toggle (paste / file upload)
+- Format and content type fields
+- Target resource picker
+- Language, tags, delimiter, dedup controls
+- Preview table
+- Commit button
+
+No relationship to the YouTube/Media Import page. No shared tabs or parent component. *(superseded — see Final Rulings 2026-04-24)*
+
+Blazor webapp is the primary surface. MAUI Hybrid gets it via the shared UI project. Native MauiReactor page deferred to v2.
+
+### Section 6 — Architecture / Dependency Flow (revised)
+
+**UI layer:**
+- New file: `src/SentenceStudio.UI/Pages/ImportContent.razor` — the form + preview.
+- New component: `src/SentenceStudio.UI/Pages/ImportPreviewTable.razor` — the editable preview grid (can be shared with Media Import later if needed).
+- `NavMenu.razor`: Add `import-content` entry, rename `import` to `media-import`. *(superseded — see Final Rulings 2026-04-24)*
+- Localization: Add `Nav_ImportContent` and `Nav_MediaImport` keys. Add `ImportContent_*` keys for the new page. Existing `Import_*` keys remain untouched (they serve Media Import). *(superseded — see Final Rulings 2026-04-24)*
+
+**Service layer:** No change from original plan. `ContentImportService` in Shared, no API endpoint for MVP.
+
+**Existing `Import.razor`:** Rename to `MediaImport.razor`, route to `/media-import`, keep `@page "/import"` as secondary route for backward compat. No structural changes to its internals. *(superseded — see Final Rulings 2026-04-24)*
+
+---
+
+## Summary
+
+Separate pages. "Import Content" at `/import-content` for the new feature. "Media Import" (renamed from "Video Subscriptions" per Captain ruling) at `/media-import` for YouTube. Clean names, clean growth paths, no shared complexity. The rest of the architecture plan (Sections 2-5, 7-9) is unaffected.
+
+---
+
+## 2026-04-24 — Captain's Final Rulings — Data Import
+
+**Date:** 2026-04-24  
+**Respondent:** David Ortinau (Captain)  
+**Context:** Ruling on 7 open questions from Zoe's architecture proposal  
+**Status:** ✅ Final  
+
+### Rulings
+
+1. **Dedup default behavior:** Skip and reuse existing. When importing vocabulary that already exists in the database, the default is "skip and reuse existing" (matches YouTube pipeline pattern). Safest path: prevents accidental mutation of shared words.
+
+2. **Source attribution field:** Deferred to v2. Not included in MVP. Can be added post-launch as an optional field on `LearningResource.Description` or a dedicated tag.
+
+3. **Single-column imports (target language terms only):** Use AI to translate on import. **New MVP work item: `mvp-single-column-translate`.** Reuses existing `GetTranslations`-style prompt pattern. Editable AI-filled cells in preview, badged to indicate AI-filled, never silently committed blank. User can edit or delete cells before commit.
+
+4. **Mobile clipboard paste shortcut:** Not needed for MVP. The textarea on ImportContent is sufficient. Shortcut can be added in v2 if users request it.
+
+5. **"Replace all vocabulary" mode:** Deferred to v2. MVP only supports append-only merge. v2 will add "replace all words on this resource" option behind confirmation modal.
+
+6. **Renamed YouTube import page:** Label is **"Media Import"**, route is **/media-import** (NOT "Video Subscriptions" / `/video-subscriptions` as originally proposed). Primary route is `/media-import`. Keep `/import` as secondary `@page` attribute for backward-compatibility redirect. This clarifies the page scope without using "video" which may confuse users when transcripts or other media are added.
+
+7. **Separate-page placement:** Confirmed. New import feature lives at `/import-content` (separate from `/media-import`). No shared tabs. Clean separation enables independent growth.
+
+### MVP Work Items Added
+
+- **mvp-single-column-translate:** Add AI prompt task to translate single-column vocabulary imports. Produces editable preview with AI-filled cells (badged), user can edit or delete before commit.
+# Import Data Layer Scout — Findings for Zoe
+
+**Date:** 2026-05-30  
+**Scout:** Wash (Backend Dev)  
+**Consumer:** Zoe (Architect)  
+**Purpose:** Pre-architecture survey for new vocabulary import feature
+
+---
+
+## 1. Existing Import Paths
+
+### YouTube Video Import (Production)
+- **Service:** `VideoImportPipelineService` (`src/SentenceStudio.Shared/Services/VideoImportPipelineService.cs`)
+- **Pipeline:** Fetch transcript → AI cleanup → vocab generation → save `LearningResource` + `VocabularyWord` entities
+- **Status tracking:** `VideoImport` entity with enum states (`Pending`, `FetchingTranscript`, `CleaningTranscript`, `GeneratingVocabulary`, `SavingResource`, `Completed`, `Failed`)
+- **API endpoints:** `ImportEndpoints.cs` exposes `/api/imports` (GET history, POST start, POST retry)
+- **Background execution:** Pipeline runs via `Task.Run` (non-blocking), caller polls for progress
+- **Dedup logic:** Line 368 — `FirstOrDefaultAsync(w => w.TargetLanguageTerm == word.TargetLanguageTerm)` — **case-sensitive, exact match on TargetLanguageTerm only**
+- **File picker:** NOT USED — YouTube import is URL-based, no file upload
+
+### CSV/Text File Import (Gap)
+- **Search result:** No CSV parsing service found
+- **UI evidence:** `Import.razor` exists but contains ONLY YouTube tabs (Channels, Single Video, History) — no file import tab
+- **File picker abstraction:** Exists at `IFilePickerService` / `MauiFilePickerService` — ready to use, tested in other features
+- **Parsers:** `VocabularyWord.ParseVocabularyWords()` static method (line 78-102 in `VocabularyWord.cs`) — supports comma or tab delimited, returns `List<VocabularyWord>` — **NO resource linkage, NO dedup, NO persistence**
+
+**VERDICT:** File import UI and service layer are missing. Parser exists but is a static utility, not wired to repository/persistence.
+
+---
+
+## 2. LearningResource Model
+
+**File:** `src/SentenceStudio.Shared/Models/LearningResource.cs`
+
+### All Fields (lines 11-78):
+- `Id` (string GUID, PK)
+- `Title`, `Description`, `MediaType`, `MediaUrl`, `Transcript`, `Translation`, `Language`
+- `SkillID`, `OldVocabularyListID` (legacy compat)
+- `Tags` (comma-separated string)
+- `IsSmartResource` (bool) — system-generated flag
+- `SmartResourceType` (string) — `"DailyReview"`, `"NewWords"`, `"Struggling"`, `"Phrases"`
+- `CreatedAt`, `UpdatedAt` (DateTime)
+- `UserProfileId` (string, FK) — **per-user ownership**
+- `Vocabulary` (List<VocabularyWord>, skip navigation via `VocabularyMappings`)
+- `VocabularyMappings` (List<ResourceVocabularyMapping>, join entity)
+
+### IsSmartResource Semantics (lines 50-54, 76-77):
+- `IsSmartResource == true` → system-generated "smart" resource (daily review, new words, struggling, phrases)
+- `SmartResourceType` enum specifies which type
+- Helper property `IsSystemGenerated` aliases `IsSmartResource`
+- User-created resources have `IsSmartResource == false`, no `SmartResourceType`
+
+**KEY INVARIANT:** Smart resources are singleton-per-type-per-user, refreshed in-place. Import targets will ALWAYS be user-created (`IsSmartResource = false`).
+
+---
+
+## 3. VocabularyWord + ResourceVocabularyMapping
+
+### VocabularyWord (src/SentenceStudio.Shared/Models/VocabularyWord.cs)
+- **PK:** `Id` (string GUID)
+- **Core fields:** `TargetLanguageTerm`, `NativeLanguageTerm`, `Language`
+- **Encoding fields:** `Lemma`, `Tags`, `MnemonicText`, `MnemonicImageUri`, `AudioPronunciationUri`, `LexicalUnitType`
+- **NO UserProfileId** — confirmed at line 10-11, no FK to UserProfile
+- **Shared vocabulary:** Words are global, per-user association lives in `VocabularyProgress` (via `UserId` FK) and resource linkage via `ResourceVocabularyMapping`
+- **Navigation properties:** `LearningResources` (skip nav), `ResourceMappings`, `ExampleSentences`
+
+### ResourceVocabularyMapping (src/SentenceStudio.Shared/Models/ResourceVocabularyMapping.cs)
+- **PK:** `Id` (string GUID)
+- **FKs:** `ResourceId`, `VocabularyWordId`
+- **Purpose:** Many-to-many join between `LearningResource` and `VocabularyWord`
+- **Creation pattern (from VideoImportPipelineService, lines 364-390):**
+  1. Check for existing word by `TargetLanguageTerm`
+  2. If exists, use existing `Id`; if new, insert word first
+  3. Create mapping: `new ResourceVocabularyMapping { ResourceId = resource.Id, VocabularyWordId = wordId }`
+  4. SaveChanges in single transaction
+
+**IMPORTANT:** Mappings are created AFTER word dedup check — no duplicate mappings within single resource.
+
+---
+
+## 4. LearningResourceRepository + VocabularyProgressRepository
+
+### LearningResourceRepository (`src/SentenceStudio.Shared/Data/LearningResourceRepository.cs`)
+
+**Public surface for import:**
+- `GetWordByTargetTermAsync(string)` — line 45, exact match on `TargetLanguageTerm` (used for dedup)
+- `GetWordByNativeTermAsync(string)` — line 36
+- `SaveWordAsync(VocabularyWord)` — line 108, upserts word (detaches nav props)
+- `SaveResourceAsync(LearningResource)` — line 210, upserts resource + handles vocab associations
+- `AddVocabularyAsync(resourceId, List<VocabularyWord>)` — line 254+ (view_range truncated, likely exists)
+
+**Key method: SaveResourceAsync (lines 210-250+)**
+1. Captures `Vocabulary` list before detach
+2. Checks if resource exists (`AnyAsync` by `Id`)
+3. If exists: fetches with `.Include(r => r.Vocabulary)`, updates props, clears + re-adds vocab
+4. If new: adds resource + vocab mappings
+5. Saves in single transaction
+6. Triggers sync
+
+**Dedup helpers:**
+- Line 940: `vw.TargetLanguageTerm.Trim().ToLower()` — case-insensitive after trim (found in grep)
+- Line 1007-1047: `MergeVocabularyWordsAsync` — merges duplicate words, reassigns mappings, deletes duplicates
+
+### VocabularyProgressRepository (`src/SentenceStudio.Shared/Data/VocabularyProgressRepository.cs`)
+
+**Progress tracking (per-user):**
+- `GetByWordIdAndUserIdAsync(wordId, userId)` — line 38
+- `GetOrCreateAsync(vocabularyWordId)` — line 117, auto-creates progress for new words
+- `SaveAsync(VocabularyProgress)` — line 137, upserts progress
+
+**IMPORTANT:** Progress is created lazily when word is first practiced, NOT at import time. Import only creates `VocabularyWord` + `ResourceVocabularyMapping`.
+
+---
+
+## 5. Dedup Keys Today
+
+**Current dedup logic:** `VideoImportPipelineService.cs:368`
+```csharp
+var existing = await db.VocabularyWords
+    .FirstOrDefaultAsync(w => w.TargetLanguageTerm == word.TargetLanguageTerm);
+```
+
+**Dedup key:** `TargetLanguageTerm` ONLY  
+**Case sensitivity:** Exact match (case-sensitive via EF default)  
+**Trimming:** NOT applied in pipeline (raw AI output used)
+
+**HOWEVER:** `LearningResourceRepository.cs:940` shows alternative pattern:
+```csharp
+vw.TargetLanguageTerm.Trim().ToLower() == targetTerm.Trim().ToLower()
+```
+This suggests dedup SHOULD be case-insensitive + trimmed, but `VideoImportPipelineService` doesn't use this pattern.
+
+**Native term ignored:** No check on `NativeLanguageTerm` — multiple meanings for same target term allowed (e.g., "가다" with multiple English definitions creates separate words).
+
+**RECOMMENDATION FOR IMPORT:** Use case-insensitive trimmed dedup OR add explicit merge tool post-import. Current YouTube pipeline will create duplicates if same word appears with different casing.
+
+---
+
+## 6. Migration Mechanics for This Repo
+
+**Canonical workflow (AGENTS.md line 110, .squad/agents/wash/history.md:90, 129, 1424):**
+
+```bash
+dotnet ef migrations add <MigrationName> \
+  --project src/SentenceStudio.Shared/SentenceStudio.Shared.csproj \
+  --startup-project src/SentenceStudio.Shared/SentenceStudio.Shared.csproj
+```
+
+**CRITICAL GOTCHA (wash/history.md:190, 1424):**
+- `dotnet ef migrations add` FAILS on multi-TFM projects (ResolvePackageAssets error)
+- **Workaround:** Temporarily change `<TargetFrameworks>` to `<TargetFramework>net10.0</TargetFramework>` (singular), generate migration, restore multi-targeting
+- **Dual providers:** PostgreSQL (Azure) + SQLite (mobile)
+  - PostgreSQL: auto-generated via `dotnet ef`
+  - SQLite: hand-converted from PG migration (type substitution: `integer`→`INTEGER`, `timestamp with time zone`→`TEXT`)
+- **Table naming:** Use singular names via `.ToTable("VocabularyWord")` in `OnModelCreating` — EF respects these, no plural gotcha
+
+**SQLite idempotency pattern (wash/history.md:1560):**
+- MigrateAsync failures are swallowed in production (catch-all at `SyncService.InitializeDatabaseAsync:227-230`)
+- Mobile migrations MUST be idempotent via `PatchMissingColumnsAsync` before MigrateAsync
+- Pattern: Leave SQLite migration `Up()` empty, add patch in `PatchMissingColumnsAsync` using `CREATE TABLE IF NOT EXISTS` + `CREATE INDEX IF NOT EXISTS`
+
+**Runtime application:** Migrations auto-apply at `UserProfileRepository.GetAsync()` via `MigrateAsync()` — no manual `dotnet ef database update` needed.
+
+---
+
+## 7. Aspire Wiring (DI Registration)
+
+**Service registration:** `src/SentenceStudio.AppLib/Setup/SentenceStudioAppBuilder.cs`
+
+**Relevant section (lines 36-84):**
+- Line 36: `RegisterServices(builder.Services)` — central registration point (method likely in same file, not shown in view_range)
+- Line 54: `builder.Services.AddDataServices(dbPath)` — registers DbContext + repos
+- Line 62: `builder.Services.AddSyncServices(dbPath, syncServerUri)` — sync services
+- Line 70: `builder.Services.AddApiClients(apiBaseUri)` — HTTP clients for API endpoints
+- Line 71: `builder.Services.AddSingleton<ISyncService, SyncService>()` — sync service singleton
+- Line 77-78: Scoped repos (`MinimalPairRepository`, `MinimalPairSessionRepository`)
+
+**Pattern for new ImportService:**
+```csharp
+builder.Services.AddScoped<VocabularyImportService>();
+// OR if needs file picker:
+builder.Services.AddScoped<IFilePickerService, MauiFilePickerService>(); // Already exists
+```
+
+**Existing file picker registration:** NOT found in shown section — likely already registered in `RegisterServices` or `AddDataServices` extension.
+
+---
+
+## Summary for Zoe
+
+**What works today:**
+- YouTube import: full pipeline with status tracking, background processing, API endpoints
+- File picker abstraction: `IFilePickerService` ready to use
+- Static parser: `VocabularyWord.ParseVocabularyWords()` exists but needs repository wiring
+- Dedup: exists but inconsistent (case-sensitive in pipeline, case-insensitive in repo util)
+
+**What's missing:**
+- File import service layer (CSV/text parsing → resource creation)
+- File import UI (no tab in `Import.razor`)
+- Batch import status tracking (no `FileImport` entity like `VideoImport`)
+- Standardized dedup strategy (case-insensitive + trim not enforced)
+
+**Data integrity considerations:**
+- `VocabularyWord` has NO `UserProfileId` — shared vocabulary across users
+- Per-user data lives in `VocabularyProgress` (created lazily on first practice, NOT at import)
+- Smart resources (`IsSmartResource = true`) are system-managed, import targets are user-created (`IsSmartResource = false`)
+- Mappings support many-to-many: same word can link to multiple resources
+
+**Migration path:**
+- Any schema changes: use EF migrations (workaround multi-TFM gotcha)
+- SQLite: add idempotent patch in `PatchMissingColumnsAsync` for mobile safety
+- No schema changes needed for file import — existing models sufficient
+
+**Recommended architecture hooks:**
+1. New service: `VocabularyImportService` (scoped, registered in `SentenceStudioAppBuilder`)
+2. Reuse: `IFilePickerService`, `LearningResourceRepository.SaveResourceAsync`, dedup via `GetWordByTargetTermAsync`
+3. Add: File import UI tab in `Import.razor`, optional `FileImport` entity for status tracking (like `VideoImport`)
+4. Standardize: Case-insensitive trimmed dedup in service layer (YouTube + file imports)
+
+---
+
+**Next step:** Zoe proposes architecture, Wash reviews data layer implications before implementation.
+# AI Strategy for Data Import Feature
+
+**Date:** 2026-04-26  
+**Owner:** River (AI/Prompt Engineer)  
+**Status:** 📋 Design — Ready for Zoe's architecture plan
+
+---
+
+## Overview
+
+This document defines the AI strategy for importing vocabulary, phrases, and transcripts into SentenceStudio. The Captain wants to paste text or upload files, optionally describe the format OR let AI detect it, classify content type (Vocabulary | Phrases | Transcript | Auto), and target a new or existing LearningResource.
+
+**Design philosophy:** Permissive grading. Accept reasonable variations, never reject for spelling. Fill missing translations gracefully. Structured JSON output via `SendPrompt<T>` with [Description] attributes.
+
+---
+
+## 1. AI Tasks Needed
+
+### Task 1: Format Inference (when Captain skips format field)
+
+**When:** Captain provides raw text/file but doesn't describe the format.
+
+**Input:**
+- First N lines of text (500-1000 chars for fast classification)
+- Optional: File extension hint
+
+**Output DTO (sketch):**
+```csharp
+public class ImportFormatInferenceResponse
+{
+    [Description("Detected format: CSV, TSV, JSON, LineDelimited, FreeFormText, Transcript")]
+    public string DetectedFormat { get; set; }
+    
+    [Description("For delimited formats: the delimiter character (comma, tab, pipe, etc.)")]
+    public string? Delimiter { get; set; }
+    
+    [Description("True if first row appears to be column headers")]
+    public bool HasHeaderRow { get; set; }
+    
+    [Description("Suggested role for each column: TargetLanguage, NativeLanguage, Notes, Romanization, PartOfSpeech, Ignore")]
+    public List<string> ColumnRoles { get; set; } = new();
+    
+    [Description("Confidence 0.0-1.0 in this format detection")]
+    public float Confidence { get; set; }
+    
+    [Description("Human-readable explanation of the detection reasoning")]
+    public string Notes { get; set; } = string.Empty;
+}
+```
+
+**Confidence signal:** `>= 0.85` = auto-proceed. `< 0.85` = show UI confirmation with Notes.
+
+**Reuse:** Similar to no existing template, but follows VocabularyExtractionResponse pattern with [Description] attributes.
+
+---
+
+### Task 2: Content Type Classification (Vocabulary vs Phrases vs Transcript)
+
+**When:** Captain selects "Auto" for content type.
+
+**Input:**
+- First 10-20 rows of parsed data (after format inference or heuristic parse)
+- Target language hint
+
+**Output DTO (sketch):**
+```csharp
+public class ImportContentClassificationResponse
+{
+    [Description("Detected content type: Vocabulary, Phrases, Transcript, Mixed")]
+    public string ContentType { get; set; }
+    
+    [Description("Confidence 0.0-1.0 in this classification")]
+    public float Confidence { get; set; }
+    
+    [Description("Why this classification was chosen — cite specific clues from the data")]
+    public string Reasoning { get; set; } = string.Empty;
+    
+    [Description("If Mixed: suggested split strategy (e.g., 'rows 1-50 Vocabulary, 51-100 Transcript')")]
+    public string? SplitSuggestion { get; set; }
+}
+```
+
+**Heuristics first (deterministic):**
+- Single column of short terms (< 6 words each) → likely Vocabulary
+- Pairs with arrow/equals separator (Korean → English, 한국어 = Korean) → Vocabulary
+- Numbered speaker labels (Speaker 1:, A:, B:) or timestamps → Transcript
+- Long multi-sentence paragraphs → Transcript
+- Two-column with medium-length phrases → Phrases
+
+**AI call only if:** Heuristics are inconclusive (confidence < 0.7).
+
+**Reuse:** New task. Follows ExtractVocabularyFromTranscript pattern (uses TOPIK level knowledge, target language awareness).
+
+---
+
+### Task 3: Vocabulary Extraction (clean pairs from messy text)
+
+**When:** Content type = Vocabulary, OR Classification response = Vocabulary.
+
+**Input:**
+- Parsed rows (after format inference + heuristic split)
+- Target language
+- Native language
+- Proficiency level (for TOPIK level estimation if missing)
+
+**Output DTO (REUSE EXISTING):**
+```csharp
+// DIRECTLY REUSE: src/SentenceStudio.Shared/Models/VocabularyExtractionResponse.cs
+// Already has ExtractedVocabularyItem with all needed [Description] attributes
+```
+
+**Structured extraction goals:**
+- Normalize dictionary forms (conjugated Korean → -다 form, nouns without particles)
+- Fill missing NativeLanguageTerm if only TargetLanguageTerm provided (translation-fill)
+- Infer PartOfSpeech, TopikLevel, LexicalUnitType
+- Generate romanization if missing
+- Tag unparseable lines separately (do NOT fail entire import)
+
+**Permissiveness rules:**
+- Accept spacing variations (띄어쓰기 mistakes common in Korean)
+- Accept synonym definitions (multiple valid English translations for one Korean term)
+- Auto-fill missing translations using AI (no blank rejection)
+- Accept romanization variations (both revised and McCune-Reischauer, convert to revised)
+
+**Reuse prompt:** `ExtractVocabularyFromTranscript.scriban-txt` (lines 1-75) — mirrors extraction rules, [Description] guidance, TOPIK level logic, LexicalUnitType classification, permissiveness for language learning content.
+
+**Token strategy:** If > 1000 vocabulary rows, chunk into batches of 200-300 rows per call. Aggregate results.
+
+---
+
+### Task 4: Phrase Extraction
+
+**When:** Content type = Phrases, OR Classification response = Phrases.
+
+**Input:**
+- Parsed rows (phrase text in target language, optional translation)
+- Target language
+- Native language
+
+**Output DTO (sketch):**
+```csharp
+public class PhraseExtractionResponse
+{
+    [Description("List of extracted phrase entries")]
+    public List<ExtractedPhraseItem> Entries { get; set; } = new();
+    
+    [Description("Rows that couldn't be parsed — return verbatim for manual review")]
+    public List<string> UnparseableLines { get; set; } = new();
+}
+
+public class ExtractedPhraseItem
+{
+    [Description("Target language phrase (cleaned, normalized spacing)")]
+    public string Phrase { get; set; } = string.Empty;
+    
+    [Description("Native language translation — if missing, generate one")]
+    public string Translation { get; set; } = string.Empty;
+    
+    [Description("Optional usage context or example scenario")]
+    public string? Context { get; set; }
+    
+    [Description("Romanization of the phrase")]
+    public string? Romanization { get; set; }
+    
+    [Description("Estimated TOPIK level 1-6")]
+    public int TopikLevel { get; set; } = 3;
+    
+    [Description("Comma-separated tags (topic, formality, usage context)")]
+    public string? Tags { get; set; }
+}
+```
+
+**Translation-fill rule:** If Translation is blank, AI generates natural native-language translation (permissive — accept the Captain's content even if incomplete).
+
+**Reuse:** Hybrid of `ExtractVocabularyFromTranscript` (TOPIK level, romanization, tags) + `GetTranslations` (translation fill logic).
+
+**Token strategy:** Batch 100-150 phrases per call. Phrases are longer than single vocabulary words.
+
+---
+
+### Task 5: Transcript Segmentation and Extraction
+
+**When:** Content type = Transcript, OR Classification response = Transcript.
+
+**Input:**
+- Raw transcript text (or pre-segmented speaker turns if format inference detected them)
+- Target language
+- Native language
+- Proficiency level
+
+**Output DTO (sketch):**
+```csharp
+public class TranscriptExtractionResponse
+{
+    [Description("Segmented transcript units suitable for study (speaker turns, logical utterances, or topical chunks)")]
+    public List<TranscriptSegment> Segments { get; set; } = new();
+    
+    [Description("Optional: extracted vocabulary terms from transcript for separate LearningResource")]
+    public List<ExtractedVocabularyItem>? ExtractedVocabulary { get; set; }
+}
+
+public class TranscriptSegment
+{
+    [Description("Target language text for this segment (cleaned, properly punctuated)")]
+    public string Text { get; set; } = string.Empty;
+    
+    [Description("Native language translation — generate if missing")]
+    public string? Translation { get; set; }
+    
+    [Description("Speaker identifier if detected (A, B, Speaker 1, etc.)")]
+    public string? Speaker { get; set; }
+    
+    [Description("Timestamp if detected (e.g., '00:12:34' or '12:34')")]
+    public string? Timestamp { get; set; }
+    
+    [Description("Segment number in sequence (1-based)")]
+    public int SequenceNumber { get; set; }
+    
+    [Description("Comma-separated tags for this segment (question, exclamation, formal, casual, etc.)")]
+    public string? Tags { get; set; }
+}
+```
+
+**Segmentation strategy:**
+- If speaker labels detected → segment by speaker turn
+- If timestamps detected → segment by timestamp boundaries (30-60 second chunks)
+- If neither → AI segments into logical utterance boundaries (sentence-final endings in Korean: -다/-요/-까/-네/-군요)
+
+**Optional vocabulary extraction:** If Captain wants both transcript segments AND vocabulary extraction, run two tasks:
+1. Transcript segmentation (this task)
+2. Vocabulary extraction (Task 3) against the full transcript text
+
+**Reuse prompts:**
+- Segmentation logic: similar to `CleanTranscript.scriban-txt` (line-by-line cleanup, punctuation repair)
+- Vocabulary extraction: `ExtractVocabularyFromTranscript.scriban-txt` (full reuse)
+
+**Token strategy:**
+- Transcripts can be LARGE (10k+ chars). Chunk into 2000-3000 char segments for cleanup.
+- For vocabulary extraction: run against full transcript (or aggregate chunks) with max_words cap (100-200).
+
+**Permissiveness:**
+- Accept missing speaker labels (generate generic Speaker A, B, C if needed for clarity)
+- Accept missing timestamps (use sequence numbers instead)
+- Accept mixed languages in transcript (extract only target language portions)
+- Accept punctuation errors (AI cleans during segmentation)
+
+---
+
+## 2. DTO Design Summary
+
+### Existing DTOs to reuse directly:
+- **VocabularyExtractionResponse** (src/SentenceStudio.Shared/Models/VocabularyExtractionResponse.cs) — already has [Description] attributes, TOPIK level, LexicalUnitType, RelatedTerms, Tags. PERFECT for Task 3.
+- **TranscriptCleanupResult** (src/SentenceStudio.Shared/Models/TranscriptCleanupResponse.cs) — document-only, not used for JSON deserialization, but pattern applies.
+
+### New DTOs needed (sketched above with [Description] attributes):
+- ImportFormatInferenceResponse (Task 1)
+- ImportContentClassificationResponse (Task 2)
+- PhraseExtractionResponse + ExtractedPhraseItem (Task 4)
+- TranscriptExtractionResponse + TranscriptSegment (Task 5)
+
+**[Description] philosophy:** Every property gets a [Description] attribute. Microsoft.Extensions.AI uses them automatically for prompt context. NO manual JSON formatting in Scriban templates — let the library serialize/deserialize.
+
+**JsonPropertyName philosophy:** ONLY use [JsonPropertyName] when the AI must output a specific JSON field name that differs from C# property naming conventions (e.g., camelCase vs PascalCase). Otherwise, omit — the library handles it.
+
+---
+
+## 3. Heuristic-vs-AI Split (Routing Rule)
+
+**Deterministic heuristics (no AI call needed):**
+1. **CSV/TSV with clear header row** (e.g., "Korean,English" or "Term,Definition,Notes"):
+   - Parse with CSV library
+   - Map columns by header name (case-insensitive match for common variants: term/word/vocabulary, translation/definition/meaning, notes/context/example)
+   - If ambiguous header → AI Task 1 (format inference)
+
+2. **JSON array of objects** (e.g., `[{"term": "...", "definition": "..."}]`):
+   - Deserialize with System.Text.Json
+   - Map fields by name (support common variants: term/word/targetLanguageTerm, definition/meaning/nativeLanguageTerm)
+   - If ambiguous structure → AI Task 1
+
+3. **Line-delimited single column** (one term per line, no delimiter):
+   - Split by newline
+   - Content type = Vocabulary (assume dictionary form terms)
+   - AI Task 3 for translation-fill (generate missing NativeLanguageTerm)
+
+4. **Arrow/equals separator pairs** (e.g., "한국어 → Korean", "먹다 = to eat"):
+   - Regex parse: `(.+?)\s*(?:→|=>|=|:)\s*(.+)`
+   - Left = TargetLanguageTerm, Right = NativeLanguageTerm
+   - Content type = Vocabulary
+
+**AI-required scenarios (call Task 1 format inference):**
+- Inconsistent delimiters (mixed commas/tabs/pipes within same file)
+- No obvious header row (all rows look like data)
+- Multi-column with unclear roles (which column is target language?)
+- Free-form pasted text (paragraphs, no structure)
+- Transcripts with mixed speaker labels and timestamps
+
+**Content classification heuristics (Task 2 optional):**
+- If heuristics give >= 0.7 confidence → auto-classify, skip AI
+- If heuristics give < 0.7 confidence → AI Task 2 (classification)
+
+**Routing decision tree:**
+```
+1. File extension hint? (CSV → heuristic CSV parse, JSON → heuristic JSON parse)
+   ├─ Success + high confidence (>= 0.85)? → Use heuristic result
+   └─ Failure or low confidence? → AI Task 1 (format inference)
+
+2. Content type specified by Captain? → Use it, skip Task 2
+   └─ Content type = Auto? → Run heuristic classification
+       ├─ Confidence >= 0.7? → Use heuristic result
+       └─ Confidence < 0.7? → AI Task 2 (classification)
+
+3. Execute extraction:
+   ├─ Vocabulary → AI Task 3 (reuse VocabularyExtractionResponse)
+   ├─ Phrases → AI Task 4 (new PhraseExtractionResponse)
+   └─ Transcript → AI Task 5 (new TranscriptExtractionResponse)
+```
+
+**Why this split?**
+- CSV/JSON/arrow-separated are 80%+ of imports (common export formats from Anki, Quizlet, spreadsheets). Heuristics handle them fast and free.
+- Free-form text, transcripts, and ambiguous delimiters are the 20% that genuinely need AI.
+- Token cost optimization: heuristics save ~500-1000 tokens per import.
+
+---
+
+## 4. Confidence and Low-Confidence Handoff
+
+**Confidence thresholds:**
+- **>= 0.85:** Auto-proceed (high confidence)
+- **0.70 - 0.84:** Show UI confirmation with reasoning, proceed if Captain approves
+- **< 0.70:** Show UI warning + manual format selection fallback
+
+**Where confidence appears:**
+- Task 1 (format inference): `ImportFormatInferenceResponse.Confidence`
+- Task 2 (content classification): `ImportContentClassificationResponse.Confidence`
+- Task 3-5 do NOT have top-level confidence (they're extraction tasks, not classification)
+
+**UI handoff pattern (for Zoe/Wash):**
+```
+IF confidence < 0.85 THEN
+    Display: "I detected [DetectedFormat] with [ColumnRoles]. Does this look correct?"
+    Show: Notes field (AI reasoning)
+    Buttons: [Proceed] [Manual Override]
+END IF
+```
+
+**UnparseableLines pattern (Task 3-5):**
+- Extraction DTOs include `UnparseableLines` or similar field
+- UI shows count: "Imported 284 items. 3 lines couldn't be parsed."
+- Click to review → show unparseable lines in editable list (Captain can fix and re-submit)
+
+**No rejection philosophy:**
+- NEVER fail entire import due to partial parse errors
+- NEVER reject for spelling mistakes, capitalization, spacing variations
+- Extract what's extractable, flag the rest for manual review
+- Auto-fill missing translations (permissive by default)
+
+---
+
+## 5. Cost / Token Strategy
+
+### Model tier suggestions:
+- **Default model:** GPT-4o-mini (current project standard, balance of cost and quality)
+- **Format inference (Task 1):** Can downgrade to GPT-4o-mini or even GPT-3.5-turbo (simple classification, short input)
+- **Content classification (Task 2):** GPT-4o-mini (simple classification)
+- **Extraction tasks (3-5):** GPT-4o-mini (matches existing VocabularyExtraction usage, proven adequate)
+
+**Token optimization:**
+- **Format inference:** Limit input to first 500-1000 chars (enough to detect structure, delimiters, headers)
+- **Content classification:** Limit input to first 10-20 rows (enough to classify content type)
+- **Vocabulary extraction:** Batch 200-300 rows per call (balance latency vs token count)
+- **Phrase extraction:** Batch 100-150 phrases per call (phrases are longer than vocab words)
+- **Transcript segmentation:** Chunk 2000-3000 chars per call (avoid exceeding context window, maintain coherence)
+
+### Chunking strategy for large imports:
+```
+IF row count > 300 (vocabulary) OR > 150 (phrases) OR char count > 3000 (transcript) THEN
+    Split into batches
+    Process batches in parallel (up to 3 concurrent calls to avoid rate limits)
+    Aggregate results (merge arrays, deduplicate if needed)
+END IF
+```
+
+**Rate considerations:**
+- Current project: no rate limit handling visible in AiService.cs
+- Recommendation: Add exponential backoff + retry for 429 errors if importing large datasets (500+ rows)
+- Parallel calls: cap at 3 concurrent to avoid triggering rate limits
+
+**Cost estimate (ballpark):**
+- Format inference: 1 call × ~500 tokens = ~$0.001 per import (negligible)
+- Content classification: 1 call × ~800 tokens = ~$0.002 per import (negligible)
+- Vocabulary extraction (300 rows): 1-3 calls × ~2000 tokens each = ~$0.01-0.03 per import
+- Transcript (10k chars): 3-5 calls × ~3000 tokens each = ~$0.03-0.05 per import
+
+**Total per-import cost:** $0.01 - $0.10 depending on size. Acceptable for this use case.
+
+---
+
+## 6. Reuse of Existing Prompts
+
+### Direct reuse:
+1. **ExtractVocabularyFromTranscript.scriban-txt** (Task 3):
+   - Lines 1-75: extraction rules, TOPIK level logic, LexicalUnitType classification, [Description] guidance, romanization rules
+   - Permissiveness philosophy: "accept spacing variations, synonym definitions, auto-fill missing translations"
+   - REUSE 90% of this prompt for vocabulary import (just swap "transcript" context with "imported data" context)
+
+2. **GetTranslations.scriban-txt** (Task 3 & 4 — translation-fill logic):
+   - Uses vocabulary list, generates natural native-language translations
+   - Permissive grading: "accept reasonable variations"
+   - REUSE for auto-filling missing NativeLanguageTerm in vocabulary/phrase imports
+
+3. **CleanTranscript.scriban-txt** (Task 5 — transcript segmentation):
+   - Line-by-line cleanup, punctuation repair
+   - REUSE for transcript cleanup before segmentation
+
+### New prompts needed:
+1. **ImportFormatInference.scriban-txt** (Task 1) — NEW
+   - Input: first N lines of raw text + optional file extension hint
+   - Output: ImportFormatInferenceResponse (DetectedFormat, Delimiter, HasHeaderRow, ColumnRoles, Confidence, Notes)
+   - Pattern: similar to classification prompts (clear instructions, [Description] attributes, confidence signal)
+
+2. **ImportContentClassification.scriban-txt** (Task 2) — NEW
+   - Input: first 10-20 rows of parsed data + target language hint
+   - Output: ImportContentClassificationResponse (ContentType, Confidence, Reasoning)
+   - Pattern: mirrors Task 1 structure
+
+3. **ImportPhraseExtraction.scriban-txt** (Task 4) — NEW
+   - Hybrid: ExtractVocabularyFromTranscript logic + GetTranslations translation-fill
+   - Input: parsed phrase rows + target/native language
+   - Output: PhraseExtractionResponse (Entries, UnparseableLines)
+
+4. **ImportTranscriptSegmentation.scriban-txt** (Task 5) — NEW
+   - Reuses CleanTranscript logic + adds segmentation boundaries + speaker/timestamp detection
+   - Input: raw transcript text + target/native language
+   - Output: TranscriptExtractionResponse (Segments, optional ExtractedVocabulary)
+
+**Reuse ratio:** 60% reuse (ExtractVocabularyFromTranscript, GetTranslations, CleanTranscript patterns), 40% new (format inference, classification, segmentation scaffolding).
+
+---
+
+## 7. Permissiveness for Language Learning Content
+
+**Project rule:** "Permissive grading philosophy. Accept reasonable variations, never reject for spelling. Fill missing translations gracefully."
+
+**How this applies to import:**
+
+### Vocabulary/Phrase extraction:
+- **Spelling:** Accept Korean spacing mistakes (띄어쓰기 errors common for learners)
+- **Romanization:** Accept both Revised and McCune-Reischauer, convert to Revised automatically
+- **Capitalization:** Normalize (Korean has no case, but English definitions may vary)
+- **Synonym definitions:** Accept multiple valid translations (e.g., "먹다 = to eat / to consume / to have a meal" → take first, tag rest)
+- **Missing translations:** Auto-generate via AI (Task 3/4 translation-fill) — NEVER leave blank or reject
+- **Conjugated forms:** Auto-normalize to dictionary form (Korean -다 form, nouns without particles)
+- **PartOfSpeech ambiguity:** If uncertain, default to "expression" (catch-all)
+- **TOPIK level uncertainty:** If unsure, default to level 3 (mid-intermediate, safe default)
+
+### Transcript extraction:
+- **Missing punctuation:** AI adds during cleanup (CleanTranscript pattern)
+- **Mixed languages:** Extract only target language portions, ignore filler in native language (common in learning videos)
+- **Speaker ambiguity:** Generate generic labels (Speaker A, B, C) if not clear
+- **Timestamp ambiguity:** Use sequence numbers if no timestamps detected
+- **Incomplete sentences:** Accept fragments (transcripts often have interruptions, false starts)
+
+### Format inference:
+- **Inconsistent delimiters:** If 80%+ rows use comma, treat as CSV (ignore outlier rows)
+- **Ambiguous column roles:** If unsure, default to [TargetLanguage, NativeLanguage, Notes] (most common)
+- **No header row:** Infer from first data row structure (e.g., "한국어, English" pattern → treat first row as header)
+
+**Error handling philosophy:**
+- Extract the good, flag the bad (UnparseableLines), NEVER fail entire import
+- Log warnings, not errors (permissive = forgiving)
+- Default to safe assumptions (e.g., Vocabulary > Phrases > Transcript if uncertain)
+
+---
+
+## Implementation Notes for Zoe
+
+**Service architecture suggestion (not code, just guidance):**
+```
+ImportService (new)
+├── ParseFormat() — heuristics first, AI Task 1 fallback
+├── ClassifyContent() — heuristics first, AI Task 2 fallback
+├── ExtractVocabulary() — AI Task 3, reuse VocabularyExtractionResponse
+├── ExtractPhrases() — AI Task 4, new PhraseExtractionResponse
+└── ExtractTranscript() — AI Task 5, new TranscriptExtractionResponse
+
+All call AiService.SendPrompt<T> with Scriban-rendered prompts.
+```
+
+**Scriban template rendering:**
+- Load .scriban-txt files from embedded resources (existing pattern in LearningResourceRepository)
+- Render with Scriban.Template.Parse + template.Render(model)
+- Pass rendered string to AiService.SendPrompt<T>
+
+**LearningResource creation flow:**
+1. Captain selects "New LearningResource" OR "Add to existing [Resource Name]"
+2. Import extracts vocabulary/phrases/transcript
+3. Service creates VocabularyWord entities from extraction DTOs
+4. Service associates words with LearningResource via ResourceVocabularyMappings (existing pattern)
+5. For transcripts: optionally create TWO resources (one for segments, one for extracted vocabulary)
+
+**Error UX:**
+- Show progress: "Analyzing format... (1/3)" → "Extracting vocabulary... (2/3)" → "Saving to database... (3/3)"
+- On low confidence: modal with "Does this look correct?" + Notes field + [Proceed] [Manual Override]
+- On UnparseableLines: toast notification "Imported 284 items. 3 lines need review." + clickable link to review list
+
+---
+
+## Open Questions for Captain
+
+1. **Transcript vocabulary extraction:** Should we ALWAYS extract vocabulary from transcripts, or make it optional? (Recommendation: optional checkbox — some transcripts are study content, others are just listening practice)
+
+2. **Duplicate handling:** If imported vocabulary already exists in database (exact TargetLanguageTerm match), should we:
+   - Skip (avoid duplicates)
+   - Update (merge definitions/tags)
+   - Create new (keep both)
+   - Ask Captain each time
+   (Recommendation: Skip with notification "5 words already exist, skipped")
+
+3. **LexicalUnitType override:** Should Captain be able to override AI's LexicalUnitType classification (Word/Phrase/Sentence) during import review? (Recommendation: yes, add UI override for ambiguous cases)
+
+4. **Batch import limit:** Hard cap on import size to avoid UI freeze? (Recommendation: 2000 vocabulary rows, 1000 phrases, 50k chars for transcripts — warn if exceeded)
+
+---
+
+## Next Steps
+
+1. **Zoe:** Architecture plan (ImportService, UI flow, error handling, LearningResource wiring)
+2. **River (future):** Write 4 new Scriban templates (after architecture approved):
+   - ImportFormatInference.scriban-txt
+   - ImportContentClassification.scriban-txt
+   - ImportPhraseExtraction.scriban-txt
+   - ImportTranscriptSegmentation.scriban-txt
+3. **Wash:** Implement ImportService + UI pages
+4. **Jayne:** E2E test scripts for import scenarios
+
+---
+
+## References
+
+**Existing code examined:**
+- `src/SentenceStudio.Shared/Services/AiService.cs` — SendPrompt<T> pattern (lines 45-74)
+- `src/SentenceStudio.Shared/Models/VocabularyExtractionResponse.cs` — [Description] attribute pattern, TOPIK level, LexicalUnitType (lines 1-94)
+- `src/SentenceStudio.AppLib/Resources/Raw/ExtractVocabularyFromTranscript.scriban-txt` — extraction rules, permissiveness philosophy (lines 1-75)
+- `src/SentenceStudio.AppLib/Resources/Raw/GetTranslations.scriban-txt` — translation generation pattern (lines 1-24)
+- `src/SentenceStudio.AppLib/Resources/Raw/CleanTranscript.scriban-txt` — transcript cleanup logic
+- `src/SentenceStudio.Shared/Services/SmartResourceService.cs` — no direct AI usage, but document for LearningResource wiring pattern
+
+**Project conventions:**
+- [Description] attributes on DTO properties (Microsoft.Extensions.AI uses them)
+- NO manual JSON formatting in Scriban templates
+- Permissive grading (accept variations, fill missing, never reject)
+- Scriban templates in `src/SentenceStudio.AppLib/Resources/Raw/*.scriban-txt`
+- DTOs in `src/SentenceStudio.Shared/Models/*Response.cs`
+# UI Pattern Scout: Import Page (Blazor)
+**Kaylee, Planning Phase**  
+Date: 2026-04-24 | For: Zoe | Status: Findings only (no code edits)
+
+---
+
+## 1. Existing Admin/Settings/Management Pages
+
+### Blazor Pages (src/SentenceStudio.UI/Pages/)
+
+| Page | File | Pattern | Notes |
+|------|------|---------|-------|
+| **Settings** | `Settings.razor` (484 lines) | Tabbed form groups (Appearance, Voice/Quiz, Data Management, Debug/DB) | Theme swatches, radio button groups, range sliders, spinners on async ops, Toast notifications. Uses `ThemeService` + `VoiceDiscoveryService` for async state mgmt. Cards (`card-ss p-4`) organize settings into sections with centered spinners during load. |
+| **Import** | `Import.razor` (28.7 KB) | Multi-tab feature (Channels, Single Video, History) with YouTube-specific flows | Demonstrates tab nav pattern (btn-group), list-group for history, card-based channel display with toggle switch. Uses multi-step URL→transcript→polish→save flow. Error/success alerts inline. |
+| **ResourceAdd** | `ResourceAdd.razor` (389 lines) | Multi-card CRUD form with file & text import | PageHeader with back button, basic info card, media content card (conditional), vocab section with paste/file import. Features InputFile + delimiter radio buttons + preview table. |
+| **ResourceEdit** | `ResourceEdit.razor` (24.4 KB) | Full resource editor with nested vocab table | Similar card structure; extends ResourceAdd with transcript/translation textareas. Delete via dropdown action. |
+| **Resources** | `Resources.razor` (290 lines) | List page with search + filter + dual view mode (grid/list) | Demonstrates resource **selection/lookup pattern**: search bar, media-type + language dropdowns, grid/list toggle, Virtualize for perf, empty state with CTA buttons. MediaType icons via `GetMediaTypeIcon()` helper. |
+| **Profile** | `Profile.razor` | User profile form | Not yet examined in detail. |
+| **Onboarding** | `Onboarding.razor` (387 lines) | Multi-step onboarding flow | Not yet examined; candidate for multi-step form pattern. |
+
+**Takeaway:** Settings is lightweight single-page; Import is multi-tab with nested forms; ResourceAdd/Edit show card-based CRUD. Resources shows polished list/lookup (search, filter, dual views, Virtualize).
+
+---
+
+## 2. File Picker Usage & Patterns
+
+### Abstraction Layer (IFilePickerService)
+**File:** `src/SentenceStudio.Shared/Abstractions/IFilePickerService.cs`
+
+```csharp
+public interface IFilePickerService
+{
+    Task<FilePickerResult?> PickAsync(FilePickerRequest request, CancellationToken cancellationToken = default);
+}
+
+public record FilePickerRequest(string? Title, IReadOnlyCollection<string>? FileTypes);
+public record FilePickerResult(string FileName, Stream Content);
+```
+
+**Why it matters for Import:** Shared abstraction means Import UI can work in both Blazor (WebApp) and MAUI (AppLib) contexts.
+
+### Blazor Implementation
+**File:** `src/SentenceStudio.WebApp/Platform/WebFilePickerService.cs`
+
+- **Method:** JSInterop → `filePickerInterop.pickFile(acceptTypes)`
+- **Returns:** FilePickerJsResult (FileName + byte[] Content)
+- **Wraps:** Raw JS file picker; accepts comma-delimited file types (e.g., `.txt,.csv`)
+- **Usage in ResourceAdd.razor:** `InputFile` component (lines 119–130)
+  - `OnChange="HandleFileImport"`, max 1 MB, accepts `.txt,.csv`
+  - Reads stream, parses vocab via `VocabularyWord.ParseVocabularyWords(content, delimiter)`
+  - Shows spinner + status text during import; Toast on success/error
+
+**Takeaway:** Blazor uses two patterns:
+1. **InputFile** (built-in `<InputFile>`) for direct file upload → stream → parse
+2. **IFilePickerService** abstraction for cross-platform scenarios (not yet used in Blazor, but available)
+
+### MAUI Implementation
+**File:** `src/SentenceStudio.AppLib/Abstractions/MauiFilePickerService.cs`
+
+- **Method:** `FilePicker.Default.PickAsync()` (MAUI.Storage)
+- **Returns:** FilePickerResult (FileName + Stream)
+- **Used in:** MAUI-only features (not examined yet)
+
+**Takeaway:** MAUI has native FilePicker built-in; Blazor uses InputFile or JS interop.
+
+---
+
+## 3. Form Patterns & Validation
+
+### Pattern: Bootstrap Cards + Sections
+**Seen in:** Settings.razor, ResourceAdd.razor, ResourceEdit.razor
+
+```razor
+<div class="card card-ss p-4 mb-3">
+    <h5 class="ss-title3 mb-3">Section Title</h5>
+    <div class="mb-3">
+        <label class="form-label ss-body2 text-secondary-ss">Label</label>
+        <input type="text" class="form-control form-control-ss" @bind="model.Field" />
+    </div>
+</div>
+```
+
+**Key classes:**
+- `card-ss` — custom card style
+- `form-control-ss` — custom input styling
+- `ss-title3`, `ss-body2` — theme typography
+- `text-secondary-ss` — theme text color
+
+### Pattern: Multi-Step Flows
+**Seen in:** Import.razor (URL → Transcript → Polish → Save)
+
+1. **Step 1:** Input field + button to trigger fetch
+2. **Step 2 (conditional):** Show transcript after fetch; allow edit
+3. **Step 3:** Polish button + Save button
+4. **Success state:** Alert + View/ImportAnother CTA buttons
+
+**Error handling:** Inline alert (`alert-danger`) or Toast.
+
+### Pattern: File Import + Delimiter Selection
+**Seen in:** ResourceAdd.razor (lines 96–130)
+
+```razor
+<div class="d-flex align-items-center gap-3 mb-3">
+    <div class="form-check">
+        <input class="form-check-input" type="radio" name="delimiter" id="delimComma"
+               checked="@(delimiter == "comma")" @onchange="SetDelimiterComma" />
+        <label class="form-check-label ss-body2" for="delimComma">@Localize["ResourceAdd_CommaDelimiter"]</label>
+    </div>
+    <div class="form-check">
+        <input class="form-check-input" type="radio" name="delimiter" id="delimTab"
+               checked="@(delimiter == "tab")" @onchange="SetDelimiterTab" />
+        <label class="form-check-label ss-body2" for="delimTab">@Localize["ResourceAdd_TabDelimiter"]</label>
+    </div>
+    <button class="btn btn-ss-secondary btn-sm ms-auto" @onclick="ImportVocabulary" disabled="@string.IsNullOrWhiteSpace(vocabList)">
+        @Localize["ResourceAdd_ImportVocabulary"]
+    </button>
+</div>
+```
+
+**Pattern:** Radio button pair + action button (disabled when input empty).
+
+### Pattern: Preview Table
+**Seen in:** ResourceAdd.razor (lines 132–177)
+
+```razor
+<table class="table table-sm table-hover">
+    <thead><tr><th>Target Term</th><th>Native Term</th><th>Type</th><th>Tags</th><th></th></tr></thead>
+    <tbody>
+        @foreach (var word in resource.Vocabulary)
+        {
+            <tr>
+                <td>@word.TargetLanguageTerm</td>
+                <td>@word.NativeLanguageTerm</td>
+                <td><select class="form-select form-select-sm" @bind="word.LexicalUnitType">...)</td>
+                <td><small>@(string.IsNullOrEmpty(word.Tags) ? "—" : word.Tags)</small></td>
+                <td><button class="btn btn-sm btn-outline-danger" @onclick="() => RemoveVocabularyWord(word)"><i class="bi bi-x"></i></button></td>
+            </tr>
+        }
+    </tbody>
+</table>
+<small class="text-secondary-ss">@string.Format(Localize["ResourceAdd_VocabWordsAdded"], resource.Vocabulary.Count)</small>
+```
+
+**Pattern:** Responsive table with inline edit (dropdowns), delete buttons (bi-x icon), count summary.
+
+### Validation
+**Seen in:** ResourceAdd.razor SaveResource() (lines 225–258)
+
+```csharp
+if (string.IsNullOrWhiteSpace(resource.Title))
+{
+    Toast.ShowError($"{Localize["ResourceAdd_TitleRequired"]}");
+    return;
+}
+```
+
+**Pattern:** Explicit null/empty checks → Toast errors (not form validation UI). No DataAnnotations-based client validation visible.
+
+### Notification Pattern: Toast
+**Seen in:** All pages via `[Inject] private ToastService Toast { get; set; }`
+
+```csharp
+Toast.ShowSuccess($"{Localize["ResourceAdd_SavedSuccess"]}");
+Toast.ShowError($"{string.Format(Localize["ResourceAdd_SaveFailed"], ex.Message)}");
+Toast.ShowInfo($"{Localize["Settings_ModalityRequired"]}");
+```
+
+**Pattern:** Non-blocking, auto-dismiss toasts for user feedback. No inline error fields.
+
+---
+
+## 4. Resource List / Lookup UI
+
+### Pattern: Search + Filter + View Mode Toggle
+**File:** `src/SentenceStudio.UI/Pages/Resources.razor` (lines 26–58)
+
+```razor
+<div class="d-flex flex-wrap gap-2 mb-4 align-items-center">
+    <input type="text" class="form-control form-control-ss w-100 w-md-auto flex-md-grow-1"
+           placeholder='@Localize["Resources_SearchPlaceholder"]'
+           @bind="searchText" @bind:after="SearchResources" />
+    <select class="form-select form-control-ss" style="max-width: 180px;" @bind="filterType" @bind:after="FilterResources">
+        <option value="All">@Localize["Resources_AllTypes"]</option>
+        @foreach (var type in mediaTypes) { <option value="@type">@type</option> }
+    </select>
+    <select class="form-select form-control-ss" style="max-width: 180px;" @bind="filterLanguage" @bind:after="FilterResources">
+        <option value="All">@Localize["Resources_AllLanguages"]</option>
+        @foreach (var lang in languages) { <option value="@lang">@lang</option> }
+    </select>
+    <div class="ms-auto btn-group btn-group-sm flex-shrink-0" role="group">
+        <button class="btn @(viewMode == "grid" ? "btn-secondary" : "btn-outline-secondary")" @onclick='() => SetViewMode("grid")'><i class="bi bi-grid-3x3-gap"></i></button>
+        <button class="btn @(viewMode == "list" ? "btn-secondary" : "btn-outline-secondary")" @onclick='() => SetViewMode("list")'><i class="bi bi-list-ul"></i></button>
+    </div>
+</div>
+```
+
+**Grid view (lines 82–101):**
+```razor
+<div class="row g-3">
+    <Virtualize Items="resources" Context="resource">
+        <div class="col-12 col-md-6 col-lg-4 mb-3">
+            <div class="card card-ss p-3" role="button" @onclick="() => EditResource(resource.Id)">
+                <div class="d-flex align-items-start gap-3">
+                    <i class="bi @GetMediaTypeIcon(resource.MediaType) fs-4"></i>
+                    <div class="flex-grow-1 overflow-hidden">
+                        <h6 class="ss-title3 mb-1 text-truncate">@resource.Title</h6>
+                        <small class="text-secondary-ss">@resource.MediaType • @resource.Language</small>
+                    </div>
+                    <small class="text-secondary-ss text-nowrap">@resource.CreatedAt.ToString("d")</small>
+                </div>
+            </div>
+        </div>
+    </Virtualize>
+</div>
+```
+
+**List view (lines 104–114):**
+```razor
+<div class="list-group">
+    <Virtualize Items="resources" Context="resource">
+        <button class="list-group-item list-group-item-action d-flex align-items-center gap-3 py-2" @onclick="() => EditResource(resource.Id)">
+            <i class="bi @GetMediaTypeIcon(resource.MediaType) fs-5"></i>
+            <span class="fw-semibold flex-grow-1 text-truncate">@resource.Title</span>
+            <span class="text-secondary-ss d-none d-md-inline text-nowrap">@resource.MediaType • @resource.Language</span>
+            <small class="text-secondary-ss text-nowrap">@resource.CreatedAt.ToString("d")</small>
+        </button>
+    </Virtualize>
+</div>
+```
+
+**Empty state (lines 60–74):**
+```razor
+@if (resources.Count == 0)
+{
+    <div class="text-center p-5">
+        <p class="ss-body1 text-secondary-ss mb-4">@Localize["Resources_NoResourcesFound"]</p>
+        <div class="d-flex gap-2 justify-content-center">
+            <button class="btn btn-ss-primary" @onclick="AddResource">@Localize["Resources_AddFirstResource"]</button>
+            <button class="btn btn-ss-secondary" @onclick="CreateStarterResource" disabled="@isCreatingStarter">...</button>
+        </div>
+    </div>
+}
+```
+
+**Key patterns:**
+- **Search + filter live update:** `@bind:after` triggers search on every keystroke + filter change
+- **Virtualize for performance:** Only renders visible rows
+- **Dual view modes:** Grid (cards) + List (button list); persisted via `Preferences`
+- **Responsive layout:** `w-100 w-md-auto flex-md-grow-1` on search; `d-none d-md-inline` hides metadata on mobile
+- **Empty state:** Centered text + CTA buttons (Add, Create Starter)
+- **Icons:** MediaType via `GetMediaTypeIcon()` helper using `bi-*` class
+
+**Takeaway:** Reusable lookup/selection UI pattern: search + filter + dual views + Virtualize + empty state.
+
+---
+
+## 5. Navigation Placement Recommendation
+
+### Current Navigation Structure
+**File:** `src/SentenceStudio.UI/Layout/NavMenu.razor` (lines 52–61)
+
+```csharp
+private NavItem[] TopItems => new[]
+{
+    new NavItem("dashboard",    "bi-house-door",         Localize["Nav_Dashboard"]),
+    new NavItem("activity",     "bi-calendar3",          Localize["Nav_Activity"]),
+    new NavItem("resources",    "bi-book",               Localize["Nav_LearningResources"]),
+    new NavItem("vocabulary",   "bi-card-text",          Localize["Nav_Vocabulary"]),
+    new NavItem("minimal-pairs","bi-soundwave",          Localize["Nav_MinimalPairs"]),
+    new NavItem("skills",       "bi-bullseye",           Localize["Nav_Skills"]),
+    new NavItem("import",       "bi-box-arrow-in-down",  Localize["Nav_Import"]),
+};
+
+private NavItem[] BottomItems => new[]
+{
+    new NavItem("profile",  "bi-person",    Localize["Nav_Profile"]),
+    new NavItem("settings", "bi-gear",      Localize["Nav_Settings"]),
+    new NavItem("feedback", "bi-chat-dots", Localize["Nav_Feedback"]),
+};
+```
+
+**Route:** `/import` → defined in `src/SentenceStudio.UI/Pages/Import.razor:1` as `@page "/import"`
+
+**Icon:** `bi-box-arrow-in-down` (download/import semantics ✓)
+
+**Current placement:** Top-level nav item, below Skills, above Profile/Settings (data import feels lower priority than activities/resources but higher than settings).
+
+### Recommendation
+✅ **Keep Import at top level.** Rationale:
+1. **Precedent:** Already in NavMenu as primary nav item (not buried in menu dropdown)
+2. **Parity with Resources:** Users add content via Resources (manual) or Import (automated/bulk) — companion features deserve same nav weight
+3. **Icon semantics:** `bi-box-arrow-in-down` (import) is clearer than alternatives; consistent with Bootstrap icon vocabulary
+
+**Alternative placements considered:**
+- ❌ **Sub-item under Resources:** Would break UI convention (all other sections are top-level)
+- ❌ **Dropdown menu under Settings:** Import is a data workflow, not a preference
+- ✅ **Tab within Resources page:** Could work as "Import" tab alongside list view; not done currently; would require Resources.razor refactor
+
+**Final call:** Maintain current placement (`import` in `TopItems`, icon `bi-box-arrow-in-down`).
+
+---
+
+## 6. Blazor-vs-MauiReactor Parity
+
+### Current State: Blazor-Heavy Web App
+
+**Web presence:**
+- `src/SentenceStudio.WebApp/` (ASP.NET Core Blazor Server app, net10.0)
+- `src/SentenceStudio.UI/` (Blazor component library, net10.0)
+  - All pages (Import, Resources, Settings, etc.) are **Blazor-only**
+  - Uses Blazor-specific components: `InputFile`, `Virtualize`, `PageHeader`
+
+**MAUI presence:**
+- `src/SentenceStudio.AppLib/` (Shared MAUI library, net10.0 + UseMaui=true)
+  - Primarily backend: services, data access, shared logic
+  - Does NOT contain activity pages; HelpKit (external sample integration) handles native UI
+- `src/SentenceStudio.iOS/`, `src/SentenceStudio.Android/`, `src/SentenceStudio.Windows/` (platform heads)
+  - No MauiReactor pages found (yet)
+
+### Convention: "Shared Logic, Separate UI"
+
+1. **Shared data access:** LearningResourceRepository, VocabularyWordService in AppLib (net10.0)
+2. **Shared models:** LearningResource, VocabularyWord in Shared
+3. **Separate UI:** Blazor in WebApp (src/SentenceStudio.UI/Pages/), no desktop/mobile MAUI pages currently shipped
+
+### Implication for Import Page
+
+**Status:** Blazor-only (matching existing pattern).
+
+- **If new Import page is Blazor:**
+  - Place in `src/SentenceStudio.UI/Pages/Import.razor` (already exists at 28.7 KB; likely template/stub)
+  - Reuse IFilePickerService abstraction (ready in Shared)
+  - Use InputFile (Blazor built-in) for file uploads
+  - Follow Settings/ResourceAdd/ResourceEdit card + form patterns
+
+- **If native MAUI/MauiReactor Import is needed in future:**
+  - Create `src/SentenceStudio/Pages/ImportPage.cs` (MauiReactor fluent syntax)
+  - Use IFilePickerService via MauiFilePickerService
+  - Mimic Blazor form structure in MauiReactor (VStack, HStack, Pickers, etc.)
+  - Share ViewModels between platforms (currently not done; each platform has its own UI)
+
+### Takeaway
+**No MauiReactor parity required for Zoe's Import design phase.** All existing management pages are Blazor-only. Ship Blazor first; if native MAUI equivalent is needed later, migrate data access logic (already portable) and rewrite UI in MauiReactor.
+
+---
+
+## Summary for Zoe
+
+### What's Already Built
+1. **Import.razor exists** (28.7 KB) — likely YouTube-only template; reusable structure for new import types
+2. **File picker abstractions ready** — IFilePickerService + WebFilePickerService (Blazor) + MauiFilePickerService (MAUI)
+3. **Form patterns proven** — Settings (lightweight), ResourceAdd (multi-card), Resources (search + filter + dual views)
+4. **Resource lookup UI polished** — Virtualize, search, filter, grid/list toggle, empty states
+5. **Navigation slot ready** — Import already in top nav (line 60, NavMenu.razor)
+
+### Key Decisions to Make
+1. **Multi-step import flow vs. single-form?** (Import.razor shows multi-step; ResourceAdd shows single-form + preview)
+2. **Where does user "select resource to import into" fit?** (New design decision; Resources.razor shows pattern for resource lookup)
+3. **File type support?** (InputFile already accepts `.txt,.csv`; can extend to `.xlsx`, `.json`, etc.)
+4. **Delimiter/format detection** (ResourceAdd.razor shows manual radio buttons; could auto-detect)
+
+### UI Components to Leverage
+- `PageHeader` — title + back button + primary/secondary actions (ResourceAdd.razor:6)
+- `card-ss` + form groups — Settings.razor shows multi-section pattern
+- `Toast` notifications — error/success feedback (all pages)
+- `Virtualize` + search + filter — Resources.razor shows lookup pattern
+- Preview table — ResourceAdd.razor (lines 132–177) for import preview
+
+### Files to Study Before Design
+- `src/SentenceStudio.UI/Pages/Import.razor` — current template (28.7 KB)
+- `src/SentenceStudio.UI/Pages/ResourceAdd.razor` — form + file import + preview (389 lines)
+- `src/SentenceStudio.UI/Pages/Resources.razor` — resource selection pattern (290 lines)
+- `src/SentenceStudio.UI/Layout/NavMenu.razor` — import nav placement (157 lines)
+- `src/SentenceStudio.Shared/Abstractions/IFilePickerService.cs` — file picker contract
+
+---
+
+**Findings complete. Ready for architecture phase with Zoe.**
+### 2026-04-24T22:28:00Z: User directive — Import scope
+**By:** David Ortinau (Captain, via Copilot)
+**What:** The existing Import.razor (YouTube subscription / video transcript pipeline) should be considered SEPARATELY from the new generic data import feature. The new feature should not be designed around the YouTube flow. Captain is open to being convinced otherwise.
+**Why:** Scope clarification — keeps the new import feature focused on text/file → vocabulary/phrases/transcript without coupling to video subscription concerns.
