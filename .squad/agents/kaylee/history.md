@@ -12,6 +12,7 @@
 
 ## Learnings
 
+- 2026-07-28: **Scriban CVE Bump 6.5.2 → 7.1.0** — Resolved 10 Scriban CVEs (1 critical, 7 high, 2 moderate) via Directory.Packages.props version bump. All builds pass (Api, WebApp, Workers, Shared, AppLib); unit & API tests run (487 + 138 passed; pre-existing failures unrelated to bump). Verified Scriban template syntax compatibility (checked GetClozures.scriban-txt — no breaking changes). NuGet audit shows Scriban now clean; remaining vulns: 3 moderate in OpenTelemetry (GHSA-g94r-2vxg-569j, GHSA-mr8r-92fq-pj8p, GHSA-q834-8qmm-v933) not in scope. Decision doc: `.squad/decisions/inbox/kaylee-scriban-cve-bump.md`.
 - 2026-07-27: **Import Content Style Normalization** — Audited and cleaned all bespoke inline styles from ImportContent.razor. Key fixes: replaced custom purple hex badge (`#6f42c1` + inline CSS vars) with `bg-secondary bg-opacity-10 text-secondary`; replaced inline `cursor:pointer` with `role="button"` (matching app.css:1360 generic rule); replaced inline `font-size:0.75rem` with Bootstrap `small` class; removed dead empty class expression on mobile card. Also added Duplicate badge column to preview table using `bg-warning bg-opacity-10 text-warning` after Wash landed `IsDuplicate`/`DuplicateReason` on `ImportRow`. 5 new resx keys (EN+KO). Decision doc in `.squad/decisions/inbox/kaylee-import-style-cleanup.md`. Pattern: type badges always use `badge bg-{color} bg-opacity-10 text-{color}`; clickable non-buttons always use `role="button"` not inline cursor; no hex colors in Razor markup.
 - 2026-07-14: **Import Complete Per-Row Detail Table + State Preservation** — Built the detailed Import Complete view with per-row results table (Lemma, Native, Type badge, Status pill, Reason column), filter pills (All/Created/Updated/Skipped/Failed), mobile-responsive card fallback, and clickable rows linking to `/vocabulary/edit/{id}`. State preservation across back-nav via `IImportResultStore` (Singleton, ConcurrentDictionary, 30-min TTL) + URL query param `?completed={guid}`. Key pattern: save result to in-memory store on commit, navigate with key in URL, hydrate from store on init if key present. Reusable skill written to `.squad/skills/blazor-nav-state-preservation/SKILL.md`. Decision doc in `.squad/decisions/inbox/kaylee-import-result-store.md`. 8 new resx keys (en + ko).
 - 2026-04-27: **Preview-to-Commit DTO Mapping Discipline** -- When constructing a DTO from an API response for a round-trip (preview -> user edit -> commit), EVERY property on the source DTO must be accounted for in the object initializer. Properties that default to a value (like enums defaulting to their first member) will silently swallow data from the backend. Going forward: when writing or reviewing any DTO-to-DTO mapping in ImportContent.razor (or similar round-trip flows), enumerate all source properties and explicitly decide map-or-skip for each one. This prevents the "silent default" class of bug that caused BUG-2 and BUG-3 to persist despite correct backend fixes.
@@ -88,4 +89,22 @@ Zoe's M.E.AI 10.5 strategic recommendations executed via three-agent orchestrati
 **Session log**: .squad/log/2026-04-28T00:06:30Z-meai-debt-paydown.md
 
 **SHIP IT verdict**: All validation gates pass; zero regressions introduced. Production-ready.
+
+
+---
+
+## 2026-04-27 (Follow-Up): Scriban CVE Security Bump
+
+**Cycle:** Code Review Follow-Up Fixes  
+**Work:** Bumped Scriban 6.5.2 → 7.1.0 in Directory.Packages.props.
+
+**Key Finding:** Scriban 6.5.2 carries 10 known CVEs (1 critical, 7 high, 2 moderate) affecting template rendering. Import flow uses Scriban templates — vulnerability class real.
+
+**Solution:** Bumped to 7.1.0 (latest NuGet release, all Scriban vulns resolved).
+
+**Validation:** All builds pass (Api, WebApp, Workers, Shared, AppLib). Spot-checked Scriban template syntax — no breaking changes (GetClozures.scriban-txt verified). `dotnet list package --vulnerable` confirms zero Scriban vulns post-bump. 487 + 138 tests pass, no regressions.
+
+**Bonus Finding:** During audit, surfaced 3 moderate OpenTelemetry CVEs (GHSA-g94r-2vxg-569j, GHSA-mr8r-92fq-pj8p, GHSA-q834-8qmm-v933) for separate backlog cycle. Not auto-bumped to keep blast radius tight; recommend pairing with feature release for batch validation. Logged in decisions.md follow-ups.
+
+**Decision:** `kaylee-scriban-cve-bump.md`.
 

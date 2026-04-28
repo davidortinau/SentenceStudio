@@ -1,4 +1,6 @@
 using System.ClientModel;
+using System.ClientModel.Primitives;
+using OpenAI;
 using OpenAI.Audio;
 using OpenAI.Chat;
 using OpenAI.Images;
@@ -11,7 +13,6 @@ namespace SentenceStudio.Services;
 
 public class AIClient
 {
-    private readonly string _apiKey;
     private readonly ChatClient _client;
     private readonly AudioClient _audio;
     private readonly ImageClient _image;
@@ -19,6 +20,7 @@ public class AIClient
     private readonly IConnectivityService _connectivity;
 
     public AIClient(
+        System.Net.Http.HttpClient httpClient,
         string apiKey,
         IConnectivityService connectivity,
         ILogger<AIClient>? logger = null,
@@ -27,12 +29,17 @@ public class AIClient
         string ttsModel = "tts-1",
         string imageModel = "gpt-4o")
     {
-        _apiKey = apiKey;
         _connectivity = connectivity;
         _logger = logger;
-        _client = new ChatClient(chatModel, _apiKey);
-        _audio = new(ttsModel, _apiKey);
-        _image = new ImageClient(imageModel, _apiKey);
+
+        // Route all OpenAI SDK traffic through the provided HttpClient (Polly-backed)
+        var transport = new HttpClientPipelineTransport(httpClient);
+        var clientOptions = new OpenAIClientOptions { Transport = transport };
+        var openAiClient = new OpenAIClient(new ApiKeyCredential(apiKey), clientOptions);
+
+        _client = openAiClient.GetChatClient(chatModel);
+        _audio = openAiClient.GetAudioClient(ttsModel);
+        _image = openAiClient.GetImageClient(imageModel);
     }
 
     public async Task<Stream> TextToSpeechAsync(string text, string voice, float speed = 1.0f)

@@ -1541,3 +1541,120 @@ Wash landed `IsDuplicate` and `DuplicateReason` on `ImportRow`; the preview tabl
 
 ---
 
+
+---
+
+# Decision: Route AIClient Through Polly Transport
+
+**Date:** 2026-04-27  
+**By:** Wash  
+**Status:** IMPLEMENTED  
+**Branch:** feature/import-content
+
+## What
+
+Refactored `AIClient` (src/SentenceStudio.Shared/Services/AiClient.cs) to route OpenAI SDK traffic through a Polly-backed HttpClient instead of bypassing resilience via raw API key constructors.
+
+## Why
+
+Code review (commit d6333f9) flagged that AIClient still used raw-string OpenAI SDK constructors at lines 33-35:
+
+```csharp
+_client = new ChatClient(chatModel, _apiKey);
+_audio  = new(ttsModel, _apiKey);
+_image  = new ImageClient(imageModel, _apiKey);
+```
+
+This bypassed the Polly resilience pipeline (429/5xx retry, circuit breaker, timeout) that was wired into the 5 main client sites in Wave 2 of the M.E.AI debt-paydown. Same retry-storm risk that was closed everywhere else.
+
+Call-site audit revealed AIClient is ONLY used in `AiService.cs:145` as a TTS fallback when `ISpeechGatewayClient` is null (standalone/non-Aspire mode). This is exactly the DX24 production path — the most critical surface to defend.
+
+## How
+
+**Option chosen:** A — Refactor (not delete)
+
+**Changes:**
+1. **AiClient.cs constructor** — Added `HttpClient httpClient` as first parameter, removed `_apiKey` field. Built `OpenAIClient` with `HttpClientPipelineTransport(httpClient)` and used `.GetChatClient(model)/.GetAudioClient(model)/.GetImageClient(model)` pattern from Wave 2 sites.
+
+2. **AiService.cs** — Injected `IHttpClientFactory` in constructor (new parameter), called `_httpClientFactory.CreateClient("openai")` before constructing AIClient at line 145 fallback path.
+
+**Key pattern learned:** Shared project types that need HttpClient must accept it via constructor. Shared targets `net10.0` plain (no MAUI TFMs), has no DI registration site of its own, and cannot resolve `IHttpClientFactory` directly — callers must provide the HttpClient.
+
+**Config reading:** TTS/image model names already read from `AI:OpenAI:TtsModel/ImageModel` with fallback defaults (`"tts-1"`, `"gpt-4o"`), inherited from Wave 2 work. No hardcoded strings added.
+
+## Validation
+
+- **Build:** Shared (net10.0) + Api (net10.0) clean
+- **Tests:** 488 UnitTests + 138 Api.Tests = 626 total (1 pre-existing auth failure unrelated)
+- **No regressions** — all prior-green tests remain green
+
+## Implications
+
+- AIClient now flows through the same Polly pipeline as the 5 main sites (Api, Workers, WebApp, AppLib, MAUI heads)
+- DX24 production posture (standalone mode) now has retry/circuit-breaker protection on TTS fallback path
+- Complete: All OpenAI SDK traffic in the codebase is now Polly-backed (zero naked constructors)
+
+---
+
+# Decision: Scriban CVE Bump to 7.1.0
+
+**Date:** 2026-04-27  
+**By:** Kaylee  
+**Status:** COMPLETED — staged in Directory.Packages.props
+
+## What
+
+Bumped Scriban from 6.5.2 → 7.1.0 in Directory.Packages.props to resolve all Scriban CVEs.
+
+**Scriban CVEs resolved (10 total):**
+- **Critical:** GHSA-5wr9-m6jw-xx44
+- **High (7):** GHSA-c875-h985-hvrc, GHSA-grr9-747v-xvcp, GHSA-p6q4-fgr8-vx4p, GHSA-v66j-x4hw-fv9g, GHSA-wgh7-7m3c-fx25, GHSA-x6m9-38vm-2xhf, GHSA-xcx6-vp38-8hr5
+- **Moderate (2):** GHSA-5rpf-x9jg-8j5p, GHSA-m2p3-hwv5-xpqw, GHSA-xw6w-9jjh-p9cr
+
+## Why
+
+Scriban 6.5.2 has known CVEs affecting template rendering used across the app (API, AppLib, WebApp, Workers). Scriban templates process input sometimes derived from external import data — the vulnerability class is real. Latest NuGet release is 7.1.0, confirmed clean of Scriban vulnerabilities.
+
+## Validation
+
+✅ **Builds:** Api, WebApp, Workers, Shared, AppLib (net10.0)  
+✅ **Tests:** SentenceStudio.UnitTests (487 passed), SentenceStudio.Api.Tests (138 passed) — pre-existing failures unrelated  
+✅ **Templates:** Scriban syntax verified — no breaking changes between 6.5.2 and 7.1.0 (spot-checked GetClozures.scriban-txt)  
+✅ **Scriban clean:** dotnet list package --vulnerable shows zero Scriban vulns after bump
+
+## Remaining CVEs (Not in Scope)
+
+Three moderate-severity OpenTelemetry CVEs found during audit — scheduled for separate debt-paydown:
+
+| Package | Version | CVE(s) | Severity |
+|---------|---------|--------|----------|
+| OpenTelemetry.Api | 1.15.1 | GHSA-g94r-2vxg-569j | Moderate |
+| OpenTelemetry.Exporter.OpenTelemetryProtocol | 1.15.1 | GHSA-mr8r-92fq-pj8p, GHSA-q834-8qmm-v933 | Moderate |
+
+**Captain:** Consider scheduling follow-up for OpenTelemetry bump (likely to 1.16.x+).
+
+## Files Changed
+
+- `Directory.Packages.props` — Scriban 6.5.2 → 7.1.0
+
+## Next Steps
+
+1. Captain reviews & merges to feature/import-content
+2. OpenTelemetry debt-paydown (TBD backlog priority)
+
+---
+
+## Follow-Ups (Open Questions)
+
+### OpenTelemetry CVE Debt (Kaylee discovery, 2026-04-27)
+
+Three moderate-severity OpenTelemetry CVEs identified during Scriban audit cycle:
+
+| Package | Version | CVE ID | Severity | Status |
+|---------|---------|--------|----------|--------|
+| OpenTelemetry.Api | 1.15.1 | GHSA-g94r-2vxg-569j | Moderate | Logged for follow-up |
+| OpenTelemetry.Exporter.OpenTelemetryProtocol | 1.15.1 | GHSA-mr8r-92fq-pj8p | Moderate | Logged for follow-up |
+| OpenTelemetry.Exporter.OpenTelemetryProtocol | 1.15.1 | GHSA-q834-8qmm-v933 | Moderate | Logged for follow-up |
+
+**Rationale:** Not auto-bumped to keep blast radius tight. Scriban bump alone demonstrates stability. Recommend pairing OpenTelemetry bump with feature release to batch validation load. (Source: Kaylee audit, decision inbox/kaylee-scriban-cve-bump.md)
+

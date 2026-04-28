@@ -7,6 +7,7 @@
 
 ## Learnings
 
+- 2026-07-28: **AiClient Polly Integration** — Refactored `AIClient` (Shared) to route through Polly-backed HttpClient. Call-site audit: ONLY `AiService.cs:145` used AIClient as TTS fallback (non-Aspire mode). Chose Option A (refactor over delete) — changed AIClient constructor to accept `HttpClient` parameter, built `OpenAIClient` with `HttpClientPipelineTransport`, used `.GetChatClient()/.GetAudioClient()/.GetImageClient()` pattern from Wave 2 sites. Updated `AiService.cs` to inject `IHttpClientFactory` and call `CreateClient("openai")` before constructing AIClient. Config reading: TTS/image model names already read from `AI:OpenAI:TtsModel/ImageModel` with fallback defaults (inherited from Wave 2). Key pattern: All Shared types that use HttpClient must accept it via ctor (Shared targets `net10.0` plain, has no DI registration site, no access to IHttpClientFactory directly). Build green (Shared, Api); 626 tests passing (1 pre-existing auth failure). Decision drop: `wash-aiclient-polly.md`.
 - 2025-07-25: **Preview Duplicate Detection** — Added `IsDuplicate` (bool) and `DuplicateReason` (string?) to `ImportRow`. New interface method `EnrichPreviewWithDuplicateInfoAsync` runs a single batched DB query (`WHERE IN` on normalized target terms) and marks each preview row before commit. Extracted `NormalizeTargetTerm()` as the single source of truth for the matching predicate (trimmed, case-sensitive ordinal) — used by both preview enrichment and `CommitImportAsync`. Two reason keys: `"AlreadyInVocabulary"` (term exists in VocabularyWord table), `"DuplicateWithinBatch"` (same term appears earlier in preview). Intra-batch detection uses a `HashSet<string>` seen-tracker. 4 new tests (36 total): exact dup flagged, near-miss not flagged, batch query structure, and round-trip invariant (Preview IsDuplicate matches Commit Skipped/Created). Decision drop: `wash-preview-duplicate-flag.md`. Kaylee integration: call `EnrichPreviewWithDuplicateInfoAsync` after `ParseContentAsync`, render badge per `DuplicateReason` key.
 - 2025-07-25: **Per-Item Import Result Detail** — Added `ImportItemStatus` enum (Created/Updated/Skipped/Failed), `ContentImportItemResult` class (VocabularyWordId?, Lemma, NativeLanguageTerm, Type, Status, Reason), and `ContentImportResult.Items` (`IReadOnlyList<ContentImportItemResult>`). Every branch in `CommitImportAsync` that increments a count now also appends a detail item. Curated reasons: "Already exists in resource" (DB skip), "Duplicate within batch" (intra-batch skip), "Target language term is empty" / "Native language term is empty..." (failures). Failed branches call `_logger.LogError(...)` with structured fields for Aspire retrieval. Invariant: `Items.Count == CreatedCount + UpdatedCount + SkippedCount + FailedCount`. 8 new tests (32 total ContentImportService tests passing). No schema migration needed. Decision drop: `wash-import-item-result.md`. Skill: `structured-import-results/SKILL.md`. Kaylee integration: Items order matches selectedRows, VocabularyWordId linkable for non-failed rows, Reason shown inline for Skipped/Failed.
 - 2026-07-21: **Phrase-Save Bug Fix + Sentence Content Type** — ROOT CAUSE: Phrases branch in ParseContentAsync called `ParseFreeTextContentAsync` (generic FreeTextToVocab prompt) which decomposed input into individual words, silently dropping phrase/sentence entries. River's `ExtractVocabularyFromPhrases.scriban-txt` was deployed but never wired in (TODO comment at line 191). FIX: Rewrote Phrases branch with two-step pipeline: (1) parse delimited lines first to create primary phrase/sentence entries preserving user's original content, (2) run River's AI phrase extraction for constituent words, (3) combine with dedup by target term, (4) filter by harvest flags. Added `ContentType.Sentences` enum value, `HarvestSentences` boolean on both DTOs. Refined ResolveLexicalUnitType heuristic: terminal punctuation (. ! ? 。 ！ ？) + whitespace → Sentence; whitespace only → Phrase; else Word. Updated classifier prompt to recognize Sentences as a fourth type. Updated stale test `ParseContentAsync_ThrowsNotSupportedException_ForPhrasesAndTranscript` → `ParseContentAsync_PhrasesAndTranscript_NoLongerThrow`. No schema migration needed (LexicalUnitType.Sentence already exists). Build green, 138+472 tests passing (1 pre-existing auth failure). Decisions inbox: `wash-sentence-type-plumbing.md`. Kaylee needs: Sentences button in content type selector, Sentences harvest checkbox, `ContentTypeToString` case.
@@ -88,4 +89,24 @@ Zoe's M.E.AI 10.5 strategic recommendations executed via three-agent orchestrati
 **Session log**: .squad/log/2026-04-28T00:06:30Z-meai-debt-paydown.md
 
 **SHIP IT verdict**: All validation gates pass; zero regressions introduced. Production-ready.
+
+
+---
+
+## 2026-04-27 (Follow-Up): AiClient Polly Routing
+
+**Cycle:** Code Review Follow-Up Fixes  
+**Work:** Refactored AIClient.cs to route OpenAI SDK through Polly-backed HttpClient.
+
+**Key Finding:** AIClient was the ONLY remaining naked-constructor site for OpenAI SDK traffic. Code review flagged retry-storm risk on DX24 production path (AiService.cs:145 TTS fallback, non-Aspire mode).
+
+**Solution:** Constructor now accepts `HttpClient httpClient` parameter (no `_apiKey` field). Built `OpenAIClient` with `HttpClientPipelineTransport(httpClient)` + `.GetChatClient()/.GetAudioClient()/.GetImageClient()` pattern (same as Wave 2 sites).
+
+**Integration:** AiService.cs injected `IHttpClientFactory`, calls `CreateClient("openai")` before AIClient construction. Config reading (TTS/image model names) inherited from Wave 2 work — no hardcoded strings.
+
+**Pattern Learned:** Shared types needing HttpClient must accept via ctor (Shared targets `net10.0` plain, no DI site, no access to IHttpClientFactory directly — callers must provide).
+
+**Validation:** Shared + Api builds green, 626 tests passing (1 pre-existing auth failure). Zero regressions. Decision: `wash-aiclient-polly.md`.
+
+**Implication:** All OpenAI SDK traffic in the codebase is now Polly-backed. Production DX24 path (standalone mode) gains retry/circuit-breaker protection on critical TTS fallback surface.
 

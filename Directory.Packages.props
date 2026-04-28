@@ -110,7 +110,7 @@
     <PackageVersion Include="YoutubeExplode" Version="6.5.6" />
 
     <!-- Utilities -->
-    <PackageVersion Include="Scriban" Version="6.5.2" />
+    <PackageVersion Include="Scriban" Version="7.1.0" />
     <PackageVersion Include="Shiny.Hosting.Maui" Version="3.3.4" />
     <PackageVersion Include="sqlite-net-pcl" Version="1.9.172" />
     <PackageVersion Include="SQLiteNetExtensions" Version="2.1.0" />

@@ -23,6 +23,7 @@ public class AiService : IAiService
     private readonly IConnectivityService _connectivity;
     private readonly IAiGatewayClient? _aiGatewayClient;
     private readonly ISpeechGatewayClient? _speechGatewayClient;
+    private readonly IHttpClientFactory _httpClientFactory;
     private readonly string _ttsModel;
     private readonly string _imageModel;
     public AiService(
@@ -30,12 +31,14 @@ public class AiService : IAiService
         IChatClient client,
         ILogger<AiService> logger,
         IConnectivityService connectivity,
+        IHttpClientFactory httpClientFactory,
         IAiGatewayClient? aiGatewayClient = null,
         ISpeechGatewayClient? speechGatewayClient = null)
     {
         _client = client;
         _logger = logger;
         _connectivity = connectivity;
+        _httpClientFactory = httpClientFactory;
         _aiGatewayClient = aiGatewayClient;
         _speechGatewayClient = speechGatewayClient;
         _openAiApiKey = configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
@@ -142,8 +145,10 @@ public class AiService : IAiService
         }
 
         // Direct client fallback for standalone (non-Aspire) mode
+        // Use the "openai" named HttpClient which has Polly resilience configured
+        var httpClient = _httpClientFactory.CreateClient("openai");
         var aiClient = new AIClient(
-            _openAiApiKey, _connectivity,
+            httpClient, _openAiApiKey, _connectivity,
             ttsModel: _ttsModel, imageModel: _imageModel);
         return await aiClient.TextToSpeechAsync(text, voice, speed);
     }
