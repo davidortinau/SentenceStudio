@@ -44,20 +44,20 @@ public sealed class RetrievalService : IRetrievalService
         _threshold = similarityThresholdOverride ?? SimilarityThresholds.DefaultFor(embeddingModelId);
     }
 
+    /// <remarks>
+    /// Vector retrieval deferred — VectorData is [Experimental] and no consuming feature
+    /// is on the roadmap yet. See .squad/decisions.md M.E.AI 10.5 cycle.
+    /// </remarks>
+    [Obsolete("Vector retrieval deferred — see .squad/decisions.md M.E.AI 10.5 cycle")]
     public Task<RetrievalResult> RetrieveAsync(string query, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(query))
             return Task.FromResult(new RetrievalResult(Array.Empty<HelpKitChunk>(), 0.0, true));
 
-        // Reference flow — Wash will implement the vector store calls:
-        //   var queryEmbedding = (await _embeddings.GenerateAsync(new[] { query }, cancellationToken)).First();
-        //   var hits = await _vectorStore.SearchAsync(queryEmbedding, _topK, cancellationToken);
-        //   var ordered = hits.OrderByDescending(h => h.Score).ToList();
-        //   var topScore = ordered.FirstOrDefault()?.Score ?? 0.0;
-        //   if (topScore < _threshold) return new RetrievalResult([], topScore, ShouldRefuse: true);
-        //   var chunks = ordered.Where(h => h.Score >= _threshold).Select(h => h.Chunk).ToList();
-        //   return new RetrievalResult(chunks, topScore, ShouldRefuse: chunks.Count == 0);
-        throw new NotImplementedException("Wash: wire to VectorData store");
+        // TODO: vector retrieval pending — see .squad/decisions.md M.E.AI 10.5 cycle.
+        // When a "practice more like this" or transcript-search feature lands, wire this to
+        // the VectorStore.SearchAsync path (reference flow preserved in git history).
+        return Task.FromResult(new RetrievalResult(Array.Empty<HelpKitChunk>(), 0.0, ShouldRefuse: true));
     }
 
     /// <summary>Cosine similarity between two equal-length vectors. Public for unit testing.</summary>

@@ -1,7 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using OpenAI.Audio;
 using Microsoft.Extensions.AI;
-using Microsoft.Agents.AI;
+using Microsoft.Extensions.AI;
 using OpenAI.Images;
 using Microsoft.Extensions.Logging;
 using System.Net.Http;
@@ -23,6 +23,8 @@ public class AiService : IAiService
     private readonly IConnectivityService _connectivity;
     private readonly IAiGatewayClient? _aiGatewayClient;
     private readonly ISpeechGatewayClient? _speechGatewayClient;
+    private readonly string _ttsModel;
+    private readonly string _imageModel;
     public AiService(
         IConfiguration configuration,
         IChatClient client,
@@ -38,9 +40,12 @@ public class AiService : IAiService
         _speechGatewayClient = speechGatewayClient;
         _openAiApiKey = configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
 
-        // _client = new OpenAIClient(_openAiApiKey).AsChatClient(modelId: "gpt-4o-mini");
-        _audio = new("tts-1", _openAiApiKey);
-        _image = new ImageClient("gpt-4o", _openAiApiKey);
+        var ttsModel = configuration["AI:OpenAI:TtsModel"] ?? "tts-1";
+        var imageModel = configuration["AI:OpenAI:ImageModel"] ?? "gpt-4o";
+        _ttsModel = ttsModel;
+        _imageModel = imageModel;
+        _audio = new(ttsModel, _openAiApiKey);
+        _image = new ImageClient(imageModel, _openAiApiKey);
     }
 
     public async Task<T> SendPrompt<T>(string prompt)
@@ -137,7 +142,9 @@ public class AiService : IAiService
         }
 
         // Direct client fallback for standalone (non-Aspire) mode
-        var aiClient = new AIClient(_openAiApiKey, _connectivity);
+        var aiClient = new AIClient(
+            _openAiApiKey, _connectivity,
+            ttsModel: _ttsModel, imageModel: _imageModel);
         return await aiClient.TextToSpeechAsync(text, voice, speed);
     }
 }

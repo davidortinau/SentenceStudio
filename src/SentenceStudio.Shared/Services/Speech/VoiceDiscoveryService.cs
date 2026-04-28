@@ -1,5 +1,6 @@
 using ElevenLabs;
 using ElevenLabs.Voices;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Services.Speech;
@@ -30,9 +31,12 @@ public class VoiceDiscoveryService : IVoiceDiscoveryService
     
     /// <summary>
     /// Fallback voices when API is unavailable or returns no results.
-    /// These are well-known ElevenLabs voice IDs that work for each language.
+    /// Populated from config (AI:ElevenLabs:Voices) with hardcoded defaults as last resort.
     /// </summary>
-    private static readonly Dictionary<string, List<VoiceInfo>> FallbackVoices = new(StringComparer.OrdinalIgnoreCase)
+    private readonly Dictionary<string, List<VoiceInfo>> _fallbackVoices;
+
+    // Hardcoded defaults — config takes precedence (see constructor)
+    private static readonly Dictionary<string, List<VoiceInfo>> DefaultFallbackVoices = new(StringComparer.OrdinalIgnoreCase)
     {
         { "Korean", new List<VoiceInfo>
             {
@@ -69,10 +73,11 @@ public class VoiceDiscoveryService : IVoiceDiscoveryService
         }
     };
 
-    public VoiceDiscoveryService(ElevenLabsClient client, ILogger<VoiceDiscoveryService> logger)
+    public VoiceDiscoveryService(ElevenLabsClient client, ILogger<VoiceDiscoveryService> logger, IConfiguration? configuration = null)
     {
         _client = client;
         _logger = logger;
+        _fallbackVoices = BuildFallbackVoices(configuration);
     }
 
     public IReadOnlyList<string> SupportedLanguages => LanguageCodes.Keys.ToList().AsReadOnly();
@@ -99,7 +104,7 @@ public class VoiceDiscoveryService : IVoiceDiscoveryService
         if (languageCode == null)
         {
             _logger.LogWarning("⚠️ Unsupported language for voice discovery: {Language}", language);
-            return FallbackVoices.TryGetValue(language, out var fallback) ? fallback : new List<VoiceInfo>();
+            return _fallbackVoices.TryGetValue(language, out var fallback) ? fallback : new List<VoiceInfo>();
         }
 
         try
@@ -131,7 +136,7 @@ public class VoiceDiscoveryService : IVoiceDiscoveryService
             if (voices.Count == 0)
             {
                 _logger.LogWarning("⚠️ No voices returned from API, using fallback for {Language}", language);
-                voices = FallbackVoices.TryGetValue(language, out var fallbackList) 
+                voices = _fallbackVoices.TryGetValue(language, out var fallbackList) 
                     ? fallbackList.ToList() 
                     : new List<VoiceInfo>();
             }
@@ -146,7 +151,7 @@ public class VoiceDiscoveryService : IVoiceDiscoveryService
         catch (Exception ex)
         {
             _logger.LogError(ex, "❌ Failed to fetch voices for {Language}, using fallback", language);
-            return FallbackVoices.TryGetValue(language, out var fallback) ? fallback : new List<VoiceInfo>();
+            return _fallbackVoices.TryGetValue(language, out var fallback2) ? fallback2 : new List<VoiceInfo>();
         }
     }
 
@@ -161,5 +166,44 @@ public class VoiceDiscoveryService : IVoiceDiscoveryService
     {
         if (string.IsNullOrEmpty(value)) return string.Empty;
         return char.ToUpper(value[0]) + value[1..].ToLower();
+    }
+
+    /// <summary>
+    /// Builds fallback voice dictionary from config (AI:ElevenLabs:Voices), falling back
+    /// to hardcoded defaults for any language not present in config.
+    /// </summary>
+    private static Dictionary<string, List<VoiceInfo>> BuildFallbackVoices(IConfiguration? configuration)
+    {
+        var result = new Dictionary<string, List<VoiceInfo>>(DefaultFallbackVoices, StringComparer.OrdinalIgnoreCase);
+
+        var voicesSection = configuration?.GetSection("AI:ElevenLabs:Voices");
+        if (voicesSection == null || !voicesSection.Exists())
+            return result;
+
+        foreach (var langSection in voicesSection.GetChildren())
+        {
+            var language = langSection.Key; // e.g. "Korean"
+            var langCode = LanguageCodes.TryGetValue(language, out var code) ? code : language.ToLowerInvariant();
+            var voices = new List<VoiceInfo>();
+
+            foreach (var voiceEntry in langSection.GetChildren())
+            {
+                var voiceId = voiceEntry.Value;
+                if (!string.IsNullOrWhiteSpace(voiceId))
+                {
+                    voices.Add(new VoiceInfo
+                    {
+                        VoiceId = voiceId,
+                        Name = voiceEntry.Key,
+                        Language = langCode
+                    });
+                }
+            }
+
+            if (voices.Count > 0)
+                result[language] = voices;
+        }
+
+        return result;
     }
 }

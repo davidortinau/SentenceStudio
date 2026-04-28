@@ -18,14 +18,21 @@ public class AIClient
     private readonly ILogger<AIClient>? _logger;
     private readonly IConnectivityService _connectivity;
 
-    public AIClient(string apiKey, IConnectivityService connectivity, ILogger<AIClient>? logger = null, bool hd = false)
+    public AIClient(
+        string apiKey,
+        IConnectivityService connectivity,
+        ILogger<AIClient>? logger = null,
+        bool hd = false,
+        string chatModel = "gpt-4o",
+        string ttsModel = "tts-1",
+        string imageModel = "gpt-4o")
     {
         _apiKey = apiKey;
         _connectivity = connectivity;
         _logger = logger;
-        _client = new ChatClient("gpt-4o", _apiKey);
-        _audio = new("tts-1", _apiKey);
-        _image = new ImageClient("gpt-4o", _apiKey);
+        _client = new ChatClient(chatModel, _apiKey);
+        _audio = new(ttsModel, _apiKey);
+        _image = new ImageClient(imageModel, _apiKey);
     }
 
     public async Task<Stream> TextToSpeechAsync(string text, string voice, float speed = 1.0f)

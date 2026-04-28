@@ -10,9 +10,9 @@
 	<!-- ASP.NET Core Identity: server-only (no iOS/Android runtime pack) -->
 	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == ''">
 		<FrameworkReference Include="Microsoft.AspNetCore.App" />
-		<PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.5" />
-		<PackageReference Include="CoreSync.PostgreSQL" Version="0.1.127" />
-		<PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
+		<PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
+		<PackageReference Include="CoreSync.PostgreSQL" />
+		<PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
 	</ItemGroup>
 
 	<!-- EF Core migrations: server uses PostgreSQL, mobile uses SQLite -->
@@ -32,25 +32,25 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-		<PackageReference Include="CoreSync.Http.Client" Version="0.1.127" />
-		<PackageReference Include="CoreSync.Sqlite" Version="0.1.127" />
-		<PackageReference Include="ElevenLabs-DotNet" Version="3.7.1" />
-		<PackageReference Include="Microsoft.Agents.AI" Version="1.0.0-preview.260121.1" />
-		<PackageReference Include="Microsoft.Agents.AI.OpenAI" Version="1.0.0-preview.260121.1" />
-		<PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.5">
+		<PackageReference Include="CommunityToolkit.Mvvm" />
+		<PackageReference Include="CoreSync.Http.Client" />
+		<PackageReference Include="CoreSync.Sqlite" />
+		<PackageReference Include="ElevenLabs-DotNet" />
+		<PackageReference Include="Microsoft.Agents.AI" />
+		<PackageReference Include="Microsoft.Agents.AI.OpenAI" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Design">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-		<PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.5" />
-		<PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.5" />
-		<PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.5" />
-		<PackageReference Include="NAudio" Version="2.2.1" />
-		<PackageReference Include="NLayer.NAudioSupport" Version="1.4.0" />
-		<PackageReference Include="Scriban" Version="6.5.2" />
-		<PackageReference Include="sqlite-net-pcl" Version="1.9.172" />
-		<PackageReference Include="SQLiteNetExtensions" Version="2.1.0" />
-		<PackageReference Include="YoutubeExplode" Version="6.5.6" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+		<PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+		<PackageReference Include="Microsoft.Extensions.Logging" />
+		<PackageReference Include="NAudio" />
+		<PackageReference Include="NLayer.NAudioSupport" />
+		<PackageReference Include="Scriban" />
+		<PackageReference Include="sqlite-net-pcl" />
+		<PackageReference Include="SQLiteNetExtensions" />
+		<PackageReference Include="YoutubeExplode" />
 	</ItemGroup>
 
 	<ItemGroup>

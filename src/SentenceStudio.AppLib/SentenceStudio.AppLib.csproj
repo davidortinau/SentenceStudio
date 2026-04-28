@@ -36,45 +36,46 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<PackageReference Include="Microsoft.AspNetCore.Components.Authorization" Version="10.0.5" />
-		<PackageReference Include="Microsoft.Identity.Client" Version="4.83.1" />
-		<PackageReference Include="Microsoft.Maui.Controls" Version="$(MauiVersion)" />
-		<PackageReference Include="CommunityToolkit.Mvvm" Version="8.4.0" />
-		<PackageReference Include="CommunityToolkit.Maui" Version="13.0.0" />
-		<PackageReference Include="Plugin.Maui.Audio" Version="4.0.0" />
-		<PackageReference Include="Scriban" Version="6.5.2" />
-		<PackageReference Include="SkiaSharp.Views.Maui.Controls" Version="3.119.1" />
-		<PackageReference Include="Syncfusion.Maui.Toolkit" Version="1.0.8" />
-		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.5" />
-		<PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.5" />
-		<PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.5" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Debug" Version="10.0.5" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="10.0.5" />
-		<PackageReference Include="ElevenLabs-DotNet" Version="3.7.1" />
-		<PackageReference Include="NAudio" Version="2.2.1" />
-		<PackageReference Include="NLayer.NAudioSupport" Version="1.4.0" />
-		<PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.16.0" />
-		<PackageReference Include="YoutubeExplode" Version="6.5.6" />
-		<PackageReference Include="AsyncFixer" Version="1.6.0">
+		<PackageReference Include="Microsoft.AspNetCore.Components.Authorization" />
+		<PackageReference Include="Microsoft.Extensions.Http.Resilience" />
+		<PackageReference Include="Microsoft.Identity.Client" />
+		<PackageReference Include="Microsoft.Maui.Controls" />
+		<PackageReference Include="CommunityToolkit.Mvvm" />
+		<PackageReference Include="CommunityToolkit.Maui" />
+		<PackageReference Include="Plugin.Maui.Audio" />
+		<PackageReference Include="Scriban" />
+		<PackageReference Include="SkiaSharp.Views.Maui.Controls" />
+		<PackageReference Include="Syncfusion.Maui.Toolkit" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.Json" />
+		<PackageReference Include="Microsoft.Extensions.Logging" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Debug" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Console" />
+		<PackageReference Include="ElevenLabs-DotNet" />
+		<PackageReference Include="NAudio" />
+		<PackageReference Include="NLayer.NAudioSupport" />
+		<PackageReference Include="System.IdentityModel.Tokens.Jwt" />
+		<PackageReference Include="YoutubeExplode" />
+		<PackageReference Include="AsyncFixer">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>
 		</PackageReference>
-		<PackageReference Include="OpenTelemetry" Version="1.15.1" />
-		<PackageReference Include="OpenTelemetry.Exporter.Console" Version="1.15.1" />
-		<PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.15.1" />
-		<PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.15.0" />
-		<PackageReference Include="CoreSync.Http.Client" Version="0.1.127" />
-		<PackageReference Include="CoreSync.Sqlite" Version="0.1.127" />
-		<PackageReference Include="Syncfusion.Maui.Inputs" Version="31.1.17" />
-		<PackageReference Include="Syncfusion.Maui.Charts" Version="31.1.17" />
-		<PackageReference Include="Syncfusion.Maui.Gauges" Version="31.1.17" />
-		<PackageReference Include="Syncfusion.Maui.ProgressBar" Version="31.1.17" />
-		<PackageReference Include="Microsoft.EntityFrameworkCore.Tasks" Version="10.0.2">
+		<PackageReference Include="OpenTelemetry" />
+		<PackageReference Include="OpenTelemetry.Exporter.Console" />
+		<PackageReference Include="OpenTelemetry.Extensions.Hosting" />
+		<PackageReference Include="OpenTelemetry.Instrumentation.Http" />
+		<PackageReference Include="CoreSync.Http.Client" />
+		<PackageReference Include="CoreSync.Sqlite" />
+		<PackageReference Include="Syncfusion.Maui.Inputs" />
+		<PackageReference Include="Syncfusion.Maui.Charts" />
+		<PackageReference Include="Syncfusion.Maui.Gauges" />
+		<PackageReference Include="Syncfusion.Maui.ProgressBar" />
+		<PackageReference Include="Microsoft.EntityFrameworkCore.Tasks">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
-		<PackageReference Include="Microsoft.Agents.AI" Version="1.0.0-preview.260121.1" />
-		<PackageReference Include="Microsoft.Agents.AI.OpenAI" Version="1.0.0-preview.260121.1" />
+		<PackageReference Include="Microsoft.Agents.AI" />
+		<PackageReference Include="Microsoft.Agents.AI.OpenAI" />
 	</ItemGroup>
 
 	<ItemGroup>
