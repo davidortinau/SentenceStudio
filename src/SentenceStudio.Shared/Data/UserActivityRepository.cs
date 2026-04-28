@@ -84,7 +84,7 @@ public class UserActivityRepository
 
             int result = await db.SaveChangesAsync();
 
-            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            TriggerSync();
 
             // PHASE 2 OPTIMIZATION: Invalidate relevant caches (but NOT TodaysPlan!)
             // User activities affect vocab summary and practice heat, but not the plan structure
@@ -110,7 +110,7 @@ public class UserActivityRepository
             db.UserActivities.Remove(item);
             int result = await db.SaveChangesAsync();
 
-            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            TriggerSync();
 
             return result;
         }
@@ -120,4 +120,14 @@ public class UserActivityRepository
             return -1;
         }
     }
+    private void TriggerSync()
+    {
+        if (_syncService is null) return;
+        _ = Task.Run(async () =>
+        {
+            try { await _syncService.TriggerSyncAsync(); }
+            catch (Exception ex) { _logger.LogError(ex, "Background sync trigger failed"); }
+        });
+    }
+
 }

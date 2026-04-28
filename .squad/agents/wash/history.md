@@ -1558,3 +1558,87 @@ None. Exact match to Captain's specification.
 
 
 - 2026-04-24: **DX24 LexicalUnitType Hotfix (Production Emergency)** — Captain installed Release iOS build (feat/vocab Word-vs-Phrase, commit ff0bb25) to DX24 (iPhone) but app errored on every activity page with "no such column: LexicalUnitType". Root cause: `SyncService.InitializeDatabaseAsync` has a catch-all at lines 227-230 that logs MigrateAsync exceptions and continues, so the new migration `20260423213242_AddLexicalUnitTypeAndConstituents` failed silently on device. Established pattern from `AddMissingVocabularyWordLanguageColumn.cs`: SQLite migrations for mobile must be idempotent via `PatchMissingColumnsAsync` because MigrateAsync failures are swallowed. Fix: (1) Made SQLite migration Up() empty with doc comment explaining snapshot-only advancement + PatchMissingColumnsAsync pre-migration patching pattern. (2) Extended `PatchMissingColumnsAsync` to add `LexicalUnitType INTEGER NOT NULL DEFAULT 0` column to VocabularyWord if missing AND create `PhraseConstituent` table with all 3 indexes (FK1, FK2, unique composite) using `CREATE TABLE IF NOT EXISTS` + `CREATE INDEX IF NOT EXISTS` for idempotency. Pattern confirmed: future SQLite migrations adding columns/tables must pair migration file with PatchMissingColumnsAsync entries at landing time or risk silent schema drift on mobile. Build green (Shared Release). Decision: `.squad/decisions/inbox/wash-dx24-lexical-patch.md`.
+
+---
+
+## CRITICAL RULE: SQLite Migration Defense-in-Depth (2026-04-24)
+
+**Context:** DX24 vocab-page crash (NULL at ordinal 8, then LexicalUnitType missing column).
+
+**Pattern:** Defensive ALTER TABLE patches MUST include DEFAULT clauses for non-nullable entity properties, PLUS an idempotent backfill UPDATE for databases patched before the fix shipped.
+
+**Example:**
+```csharp
+// In migration: add NOT NULL DEFAULT when possible
+migrationBuilder.AddColumn<int>(
+    name: "ExposureCount",
+    table: "VocabularyProgress",
+    nullable: false,
+    defaultValue: 0);
+
+// In SyncService.PatchMissingColumnsAsync: idempotent backfill
+var result = await connection.ExecuteAsync(
+    "UPDATE VocabularyProgress SET ExposureCount = 0 WHERE ExposureCount IS NULL");
+_logger.LogWarning($"Patched {result} rows: ExposureCount NULL → 0");
+```
+
+**When migration can't use DEFAULT** (e.g., computed column, complex logic):
+1. Still add the column with a safe default (NULL if nullable, 0 if int, empty string if text, etc.)
+2. Implement idempotent post-migration backfill in `PatchMissingColumnsAsync` using `WHERE ... IS NULL` or `WHERE ... = <old_value>`
+3. Log at WARNING level with row count
+4. Non-fatal on error (log + continue, user app must not crash)
+
+**Why this matters:**
+- SQLite on iOS/Android can have legacy migration history seeded without schema applied
+- `MigrateAsync` failures are caught + logged in `SyncService.InitializeDatabaseAsync` (non-fatal, degraded mode)
+- Silent schema drift means NULLs in non-nullable EF entity properties → `SqliteException` on every query
+- User sees crash only when navigating to a page that queries the incomplete schema (very late in session)
+
+**For all future SQLite migrations (mobile):**
+1. Make the SQLite migration Up() idempotent (either empty with doc comment explaining PatchMissingColumnsAsync handles it, or use SQL that works on repeat)
+2. Add corresponding entry to `PatchMissingColumnsAsync` at the same time the migration lands
+3. Use IF NOT EXISTS / pragma checks for idempotency
+4. Reference: `AddMissingVocabularyWordLanguageColumn.cs` (empty Up() + patch pattern) and commit c9b1d0a (ExposureCount example)
+
+**Verification:** Always test on Mac Catalyst Debug build (via `scripts/validate-mobile-migrations.sh`) and device before merge.
+
+### 2026-05-30: Bulk Import Data Layer Patterns (Scout for File Import Feature)
+
+**Context:** Pre-architecture scouting for Zoe to design a file import feature for vocabulary lists (CSV/text). No implementation — read-only investigation of existing patterns.
+
+**Key discoveries:**
+
+1. **Dedup inconsistency:** `VideoImportPipelineService` uses case-sensitive exact match on `TargetLanguageTerm` (line 368), but `LearningResourceRepository` utilities use case-insensitive trimmed comparison (line 940). This creates duplicates when same word appears with different casing across imports. **Recommendation:** Standardize to case-insensitive trimmed dedup in service layer (both YouTube and file imports).
+
+2. **Shared vocabulary model:** `VocabularyWord` has NO `UserProfileId` — vocabulary is shared across users. Per-user data lives in `VocabularyProgress` (created lazily on first practice, NOT at import time). `ResourceVocabularyMapping` provides many-to-many between user's `LearningResource` and shared `VocabularyWord` pool.
+
+3. **Batch import status tracking pattern:** `VideoImport` entity tracks pipeline state with enum statuses (`Pending`, `FetchingTranscript`, etc.). Background execution via `Task.Run`, caller polls `/api/imports/{id}` for progress. Pattern is reusable for file imports if status UI is needed.
+
+4. **Repository transaction pattern:** `SaveResourceAsync` (LearningResourceRepository:210-250+) handles resource + vocabulary in single transaction: (a) detach nav props, (b) check existing resource, (c) save resource, (d) dedup words via `GetWordByTargetTermAsync`, (e) create mappings, (f) SaveChanges, (g) trigger sync. Use this pattern for file import to maintain data integrity.
+
+5. **File picker ready to use:** `IFilePickerService` / `MauiFilePickerService` abstraction exists and is production-tested. Returns `Stream` for parsing. Static parser `VocabularyWord.ParseVocabularyWords()` exists but is NOT wired to repository/persistence — new service layer needed.
+
+**Delivered:** `.squad/decisions/inbox/wash-import-scout-findings.md` for Zoe's architecture proposal.
+
+---
+
+## 2026-04-24 — Import Data Layer Scout (Multi-Agent Session)
+
+Conducted data layer survey for new import feature. Identified YouTube pipeline as template, found file import UI/service gap, discovered dedup inconsistency, confirmed no schema changes needed.
+
+**Key findings:**
+- YouTube pipeline pattern in `VideoImportPipelineService` (dedup by TargetLanguageTerm)
+- File import UI missing, but parser utility `VocabularyWord.ParseVocabularyWords()` exists
+- Dedup inconsistency: case-sensitive in pipeline vs. case-insensitive in repo utilities
+- MVP reuses all existing tables (LearningResource, VocabularyWord, ResourceVocabularyMapping)
+- Migration gotcha: multi-TFM requires temporary single-TFM switch for `dotnet ef`
+
+**Recommendations to Zoe:**
+- Standardize dedup to case-insensitive trimmed
+- New `VocabularyImportService` following YouTube pattern
+- Optional `FileImport` entity for status tracking
+
+**Coordinated with:** Zoe (architecture), River (AI), Kaylee (UI), Copilot
+
+**Next:** Implementation uses findings for service + DB layer.
+

@@ -144,7 +144,7 @@ public class LearningResourceRepository
 
             int result = await db.SaveChangesAsync();
 
-            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            TriggerSync();
 
             return result;
         }
@@ -279,7 +279,7 @@ public class LearningResourceRepository
 
             await db.SaveChangesAsync();
 
-            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            TriggerSync();
 
             return resource.Id;
         }
@@ -301,7 +301,7 @@ public class LearningResourceRepository
             db.LearningResources.Remove(resource);
             int result = await db.SaveChangesAsync();
 
-            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            TriggerSync();
 
             return result;
         }
@@ -409,7 +409,7 @@ public class LearningResourceRepository
                 resource.Vocabulary.Add(vocabularyWord);
                 await db.SaveChangesAsync();
 
-                _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+                TriggerSync();
 
                 return true;
             }
@@ -443,7 +443,7 @@ public class LearningResourceRepository
                     resource.Vocabulary.Remove(vocabularyToRemove);
                     await db.SaveChangesAsync();
 
-                    _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+                    TriggerSync();
 
                     return true;
                 }
@@ -740,7 +740,7 @@ public class LearningResourceRepository
 
             await db.SaveChangesAsync();
 
-            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            TriggerSync();
 
             return true;
         }
@@ -765,7 +765,7 @@ public class LearningResourceRepository
             db.VocabularyWords.Update(word);
             await db.SaveChangesAsync();
 
-            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            TriggerSync();
 
             return true;
         }
@@ -796,7 +796,7 @@ public class LearningResourceRepository
 
             await db.SaveChangesAsync();
 
-            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            TriggerSync();
 
             return true;
         }
@@ -837,7 +837,7 @@ public class LearningResourceRepository
 
             await db.SaveChangesAsync();
 
-            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            TriggerSync();
 
             return true;
         }
@@ -865,7 +865,7 @@ public class LearningResourceRepository
             db.ResourceVocabularyMappings.RemoveRange(mappingsToRemove);
             await db.SaveChangesAsync();
 
-            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            TriggerSync();
 
             return true;
         }
@@ -902,7 +902,7 @@ public class LearningResourceRepository
 
             await db.SaveChangesAsync();
 
-            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            TriggerSync();
 
             return true;
         }
@@ -1056,9 +1056,19 @@ public class LearningResourceRepository
         if (deleted > 0)
         {
             await db.SaveChangesAsync();
-            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            TriggerSync();
         }
 
         return deleted;
     }
+    private void TriggerSync()
+    {
+        if (_syncService is null) return;
+        _ = Task.Run(async () =>
+        {
+            try { await _syncService.TriggerSyncAsync(); }
+            catch (Exception ex) { _logger.LogError(ex, "Background sync trigger failed"); }
+        });
+    }
+
 }

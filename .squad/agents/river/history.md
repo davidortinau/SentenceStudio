@@ -20,6 +20,94 @@
 - Grading philosophy for sentence shortcut: grade for CONTEXTUAL USAGE (using word naturally in a sentence), never for definition-recitation ("X means Y")
 - The `userMeaning` template variable in GradeSentence.scriban-txt maps to "which I mean to express..." — passing meta-instructions here biases AI grading toward definition patterns
 
+---
+
+## 2026-04-26 — Import Feature AI Strategy Design
+
+**Session:** Data Import AI Strategy — Planning phase (no code)  
+**Status:** 📋 Design Complete — Awaiting Zoe architecture plan  
+**Deliverable:** `.squad/decisions/inbox/river-import-ai-design.md`
+
+**Key Learnings:**
+
+### Reuse-first approach wins
+- **60% template reuse** achieved: `ExtractVocabularyFromTranscript.scriban-txt` is 90% reusable for vocabulary import (just swap "transcript" context for "imported data" context), `GetTranslations.scriban-txt` provides translation-fill pattern, `CleanTranscript.scriban-txt` provides cleanup logic for transcript segmentation
+- **VocabularyExtractionResponse DTO** is PERFECT for import — already has [Description] attributes, TOPIK level, LexicalUnitType, RelatedTerms, Tags. Zero new DTO needed for vocabulary import (Task 3).
+- Reuse reduces risk, token cost, and maintenance burden
+
+### Heuristics-first routing saves tokens
+- **80%+ of imports** are CSV/TSV/JSON with clear structure (Anki, Quizlet, spreadsheet exports) → deterministic parsing (regex, CSV lib, JSON deserialize)
+- **20%** are messy (free-form text, transcripts, ambiguous delimiters) → need AI
+- Routing rule: heuristics first (>= 0.85 confidence), AI fallback if inconclusive
+- Token savings: ~500-1000 tokens per import (~$0.001-0.002 per import avoided)
+
+### Confidence thresholds create UX safety valve
+- **>= 0.85** = auto-proceed (high confidence)
+- **0.70-0.84** = show UI confirmation with AI reasoning, proceed if Captain approves
+- **< 0.70** = show warning + manual format selection fallback
+- Permissive philosophy: extract good, flag bad (UnparseableLines), NEVER fail entire import
+
+### Chunking strategy for large imports
+- **Vocabulary:** batch 200-300 rows per call (balance latency vs token count)
+- **Phrases:** batch 100-150 phrases per call (phrases are longer than vocab words)
+- **Transcripts:** chunk 2000-3000 chars per call (avoid context window overflow, maintain coherence)
+- Parallel calls: cap at 3 concurrent to avoid rate limits
+
+### Five distinct AI tasks identified
+1. **Format inference** (when Captain skips format field) → `ImportFormatInferenceResponse` (DetectedFormat, Delimiter, HasHeaderRow, ColumnRoles, Confidence, Notes)
+2. **Content classification** (Vocabulary vs Phrases vs Transcript) → `ImportContentClassificationResponse` (ContentType, Confidence, Reasoning)
+3. **Vocabulary extraction** → REUSE `VocabularyExtractionResponse` DTO
+4. **Phrase extraction** → `PhraseExtractionResponse` (Entries, UnparseableLines)
+5. **Transcript segmentation** → `TranscriptExtractionResponse` (Segments, optional ExtractedVocabulary)
+
+Each task has clear input → output DTO → confidence signal.
+
+### [Description] attributes > JSON formatting
+- Microsoft.Extensions.AI uses [Description] attributes automatically for prompt context
+- NO manual JSON formatting in Scriban templates (library handles serialization/deserialization)
+- ONLY use [JsonPropertyName] when AI must output specific field name that differs from C# convention
+- This pattern already proven in existing codebase (`VocabularyExtractionResponse`, `ExtractedVocabularyItem`)
+
+### Translation-fill preserves permissiveness
+- If Captain provides only target language terms (one column) → AI generates missing native-language translations
+- Never reject for missing data → auto-fill gracefully
+- Follows project philosophy: "permissive grading, accept variations, fill missing, never reject"
+
+### Four new Scriban templates needed
+1. `ImportFormatInference.scriban-txt` (Task 1 — format detection)
+2. `ImportContentClassification.scriban-txt` (Task 2 — content type classification)
+3. `ImportPhraseExtraction.scriban-txt` (Task 4 — hybrid of ExtractVocabularyFromTranscript + GetTranslations)
+4. `ImportTranscriptSegmentation.scriban-txt` (Task 5 — CleanTranscript + segmentation + speaker/timestamp detection)
+
+Templates will be written AFTER Zoe's architecture plan is approved (next phase).
+
+### Cost estimates
+- **Format inference:** ~$0.001 per import (negligible)
+- **Content classification:** ~$0.002 per import (negligible)
+- **Vocabulary extraction (300 rows):** ~$0.01-0.03 per import
+- **Transcript (10k chars):** ~$0.03-0.05 per import
+- **Total per-import:** $0.01-0.10 depending on size (acceptable)
+
+### Open questions for Captain
+1. Transcript vocabulary extraction: always or optional checkbox?
+2. Duplicate handling: skip, update, create new, or ask each time?
+3. LexicalUnitType override during import review?
+4. Batch import limit (hard cap to avoid UI freeze)?
+
+Documented in design doc section "Open Questions for Captain".
+
+### References examined
+- `AiService.cs` — SendPrompt<T> pattern (lines 45-74)
+- `VocabularyExtractionResponse.cs` — [Description] attribute pattern (lines 1-94)
+- `ExtractVocabularyFromTranscript.scriban-txt` — extraction rules, permissiveness (lines 1-75)
+- `GetTranslations.scriban-txt` — translation generation pattern (lines 1-24)
+- `CleanTranscript.scriban-txt` — transcript cleanup logic
+- `SmartResourceService.cs` — LearningResource wiring pattern (no AI usage, but architectural reference)
+
+**Next:** Zoe's architecture plan → River writes 4 Scriban templates → Wash implements ImportService + UI → Jayne writes E2E tests
+
+---
+
 - AI prompts are Scriban templates in `src/SentenceStudio.AppLib/Resources/Raw/*.scriban-txt`
 - AI grading uses `AiService.SendPrompt<T>()` with structured JSON responses
 - Grading philosophy: VERY permissive — accept associations, contrasts, feelings, moods, cultural links
@@ -364,4 +452,27 @@ Full analysis and design rationale captured in:
 1. **Wash:** Implement constituent hydration service that parses `constituents:` hint from Tags and creates `PhraseConstituent` rows linking phrases to component words.
 2. **Testing:** After next video import, verify AI returns proper `lexicalUnitType` + `relatedTerms` in response JSON. Check DB to confirm values flow through.
 3. **Monitoring:** Log LexicalUnitType distribution (Word/Phrase/Sentence ratio) to validate AI classifies sensibly. If too many Unknown, refine prompt guidance.
+
+
+---
+
+## 2026-04-24 — Import AI Strategy (Multi-Agent Session)
+
+Designed AI strategy for new data import feature: 5 tasks (format inference, content classification, vocabulary/phrase/transcript extraction), heuristic-first approach, structured DTOs via `SendPrompt<T>`.
+
+**Key decisions:**
+- Heuristics-first, AI fallback: deterministic checks fast/free; AI only when inconclusive (< 0.7 confidence)
+- Permissive grading: accept reasonable variations, never reject for spelling
+- 5 prompt tasks with confidence thresholds (>= 0.85 auto-proceed, < 0.85 show UI confirmation)
+- Structured DTOs: ImportFormatInferenceResponse, ImportContentClassificationResponse, reuse VocabularyExtractionResponse
+- All prompts in `.scriban-txt` templates, no manual JSON formatting (Captain's rule)
+
+**Prompt templates to build:**
+- Format Inference (detect delimiter, column roles, header presence)
+- Content Classification (Vocabulary vs Phrases vs Transcript)
+- Reuse existing ExtractVocabularyFromTranscript for extraction tasks
+
+**Coordinated with:** Zoe (architecture), Wash (data layer), Kaylee (UI), Copilot
+
+**Next:** Implement prompt templates. Integration into `ContentImportService` by implementation team.
 
