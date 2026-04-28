@@ -87,3 +87,55 @@ Zoe's M.E.AI 10.5 strategic recommendations executed via three-agent orchestrati
 
 **SHIP IT verdict**: All validation gates pass; zero regressions introduced. Production-ready.
 
+
+## 2026-04-10: Polly-backed OpenAI Client Wiring Completion (Reviewer Rejection Lockout)
+
+**Status:** ✅ COMPLETE — Awaiting Scribe commit workflow  
+**Branch:** `feature/import-content`  
+**Task:** Complete Polly/IHttpClientFactory wiring for remaining naked OpenAI client instantiations
+
+### Context
+
+Code review on commit 183e4e3 (Wash's initial Polly refactor of `AiClient.cs`) identified two remaining naked OpenAI client sites that bypassed Polly resilience. **Wash locked out** under Reviewer Rejection Lockout — Simon assigned as independent backend specialist to complete the wiring.
+
+### Work Completed
+
+Fixed two remaining naked OpenAI client sites:
+
+1. **`AiService.cs` (lines 50-51):** Refactored `AudioClient` and `ImageClient` construction to use the already-injected `_httpClientFactory`, applying Wave 2 pattern (HttpClientPipelineTransport → OpenAIClientOptions → OpenAIClient → Get*Client methods)
+
+2. **`HelpKitIntegration.cs` (line 91-93):** Fixed naked `OpenAIClient` in `IEmbeddingGenerator` DI registration by resolving `IHttpClientFactory` from service provider and applying same Wave 2 pattern
+
+### Key Learnings
+
+1. **DI Factory Lambda Pattern:** When registering services via `TryAddSingleton<T>(sp => ...)`, the lambda has access to the full service provider. Can resolve dependencies like `IHttpClientFactory` via `sp.GetRequiredService<T>()` even though the factory itself doesn't declare them as constructor parameters.
+
+2. **Named HttpClient Availability:** The `"openai"` named client is registered in all three host entry points (`Program.cs` in Api, WebApp, and via `SentenceStudioAppBuilder` for MAUI). HelpKitIntegration is called AFTER `UseSentenceStudioApp()`, so the named client is guaranteed to be available when HelpKit's DI registrations run.
+
+3. **Wave 2 Pattern Universality:** The four-line HttpClientPipelineTransport pattern works identically for ChatClient, AudioClient, ImageClient, and EmbeddingClient. The `OpenAIClient` base instance handles the transport, then the `Get*Client()` methods return typed clients that inherit the transport configuration.
+
+4. **Field Type Preservation:** When refactoring constructors, the field types (`AudioClient`, `ImageClient`) don't change — they're the return types of the `Get*Client()` methods. Only the construction mechanism changes (naked ctor → factory method on properly-configured base client).
+
+### Verification
+
+- Grep confirmed zero naked OpenAI constructors remain in codebase
+- All matches show proper `OpenAIClientOptions { Transport = transport }` wiring
+- SentenceStudio.Shared and SentenceStudio.Api build clean
+- 488 unit tests passed (100%)
+- 138/139 API tests passed (1 pre-existing auth test failure, unrelated to OpenAI changes)
+
+### Reference Patterns Used
+
+- `src/SentenceStudio.Shared/Services/AiClient.cs:35-42` (Wash's Wave 2 refactor)
+- `src/SentenceStudio.Api/Program.cs:248-251`
+- `src/SentenceStudio.AppLib/Setup/SentenceStudioAppBuilder.cs:55-59`
+- `src/SentenceStudio.WebApp/Program.cs:145-149`
+
+### Deliverables
+
+- Staged changes: `AiService.cs`, `HelpKitIntegration.cs`
+- Decision file: `.squad/decisions/inbox/simon-polly-completion.md`
+- This history entry
+
+**Verdict:** Task complete. All OpenAI clients now route through Polly. Zero naked constructors remain.
+

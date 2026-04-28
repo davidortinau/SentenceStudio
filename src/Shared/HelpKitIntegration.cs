@@ -88,7 +88,14 @@ public static class HelpKitIntegration
                     .LogWarning("OpenAI API key not found — HelpKit embedding generator will fail on ingest.");
             }
 
-            return new OpenAIClient(openAiApiKey)
+            // Route embedding client through Polly-backed HttpClient
+            var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+            var httpClient = httpClientFactory.CreateClient("openai");
+            var transport = new System.ClientModel.Primitives.HttpClientPipelineTransport(httpClient);
+            var clientOptions = new OpenAIClientOptions { Transport = transport };
+            var openAiClient = new OpenAIClient(new System.ClientModel.ApiKeyCredential(openAiApiKey), clientOptions);
+
+            return openAiClient
                 .GetEmbeddingClient(embeddingModel)
                 .AsIEmbeddingGenerator();
         });

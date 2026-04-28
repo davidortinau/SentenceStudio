@@ -1658,3 +1658,35 @@ Three moderate-severity OpenTelemetry CVEs identified during Scriban audit cycle
 
 **Rationale:** Not auto-bumped to keep blast radius tight. Scriban bump alone demonstrates stability. Recommend pairing OpenTelemetry bump with feature release to batch validation load. (Source: Kaylee audit, decision inbox/kaylee-scriban-cve-bump.md)
 
+
+---
+
+# Decision: Polly-backed OpenAI Client Wiring Completion
+
+**Date:** 2026-04-27  
+**Agent:** Simon (Backend specialist)  
+**Branch:** `feature/import-content`  
+**Commit:** Completing post-183e4e3 work
+
+Completed the remaining two naked OpenAI client instantiations identified in code review of commit 183e4e3. All OpenAI SDK traffic now routes through Polly via IHttpClientFactory.
+
+## Files Changed
+
+1. **`src/SentenceStudio.Shared/Services/AiService.cs`**
+   - Replaced naked `AudioClient` and `ImageClient` constructors with Polly-backed wiring
+   - Used `_httpClientFactory` to resolve `"openai"` HttpClient
+   - Applied Wave 2 pattern: `HttpClientPipelineTransport` → `OpenAIClientOptions` → `OpenAIClient` → `.GetAudioClient()` / `.GetImageClient()`
+
+2. **`src/Shared/HelpKitIntegration.cs`**
+   - Fixed naked `OpenAIClient` in `IEmbeddingGenerator` registration
+   - Resolved `IHttpClientFactory` via `sp.GetRequiredService<IHttpClientFactory>()`
+   - Applied Wave 2 pattern for embedding client
+
+## Verification
+
+- ✅ **Build:** SentenceStudio.Shared and SentenceStudio.Api succeeded
+- ✅ **Tests:** 488/488 unit tests passed
+- ✅ **Grep validation:** Zero naked constructors remain across codebase
+
+All OpenAI SDK traffic now routes through Polly via IHttpClientFactory. Wave 2 pattern fully applied.
+
