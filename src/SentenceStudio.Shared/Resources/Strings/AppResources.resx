@@ -6434,4 +6434,52 @@ For example: {0} ...</value>
     <value>View</value>
     <comment>Short link text to view vocabulary detail from import result</comment>
   </data>
+  <data name="Import_NewResourceTitleRequired" xml:space="preserve">
+    <value>Please enter a title for the new resource</value>
+    <comment>Inline validation error when user tries to commit without entering resource title</comment>
+  </data>
+  <data name="Import_HarvestTitle" xml:space="preserve">
+    <value>What should we harvest?</value>
+    <comment>Harvest step title</comment>
+  </data>
+  <data name="Import_HarvestDescription" xml:space="preserve">
+    <value>Select what to extract from this content. At least one option must be checked.</value>
+    <comment>Harvest step description</comment>
+  </data>
+  <data name="Import_HarvestTranscriptLabel" xml:space="preserve">
+    <value>This is a Transcript</value>
+    <comment>Harvest checkbox label for transcript</comment>
+  </data>
+  <data name="Import_HarvestTranscriptHint" xml:space="preserve">
+    <value>Store the full text on the learning resource</value>
+    <comment>Harvest checkbox hint for transcript</comment>
+  </data>
+  <data name="Import_HarvestSentencesLabel" xml:space="preserve">
+    <value>Harvest Sentences</value>
+    <comment>Harvest checkbox label for sentences</comment>
+  </data>
+  <data name="Import_HarvestSentencesHint" xml:space="preserve">
+    <value>Extract complete sentences (subject + verb + terminal punctuation), often pipe-delimited with translations</value>
+    <comment>Harvest checkbox hint for sentences</comment>
+  </data>
+  <data name="Import_HarvestPhrasesLabel" xml:space="preserve">
+    <value>Harvest Phrases</value>
+    <comment>Harvest checkbox label for phrases</comment>
+  </data>
+  <data name="Import_HarvestPhrasesHint" xml:space="preserve">
+    <value>Extract phrase-level entries for practice activities</value>
+    <comment>Harvest checkbox hint for phrases</comment>
+  </data>
+  <data name="Import_HarvestWordsLabel" xml:space="preserve">
+    <value>Harvest Words</value>
+    <comment>Harvest checkbox label for words</comment>
+  </data>
+  <data name="Import_HarvestWordsHint" xml:space="preserve">
+    <value>Extract individual vocabulary words</value>
+    <comment>Harvest checkbox hint for words</comment>
+  </data>
+  <data name="Import_HarvestValidationError" xml:space="preserve">
+    <value>Please select at least one harvest option before continuing.</value>
+    <comment>Harvest validation error message</comment>
+  </data>
 </root>

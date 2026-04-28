@@ -48,6 +48,37 @@ The migration backfill heuristic (term contains space = Phrase, else Word) is Ca
 - UserProfileId scoping discipline (bypass-repo pattern requires explicit user resolution)
 - Transcript DTO carry-through pattern (original text must round-trip via preview)
 - LLM mapping gap pattern (every AI DTO field must be explicitly mapped to ImportRow)
+
+---
+
+## 2026-05-01 — P2 Bug Fix: Wire Import Classifier Scriban Template
+
+**Status:** ✅ STAGED — Awaiting Scribe P2 batch commit
+
+**Context:** River was assigned to recalibrate import classifier confidence (P2 `bug4-ai-confidence`). River staged the updated Scriban template but the service-code changes (template wiring + DTO description updates) never landed. Reviewer rejected River's batch. Per Reviewer Rejection Protocol, River is locked out and I was assigned to land the missing service-code piece.
+
+**Work completed:**
+1. **Wired Scriban template** (lines 878-893): Replaced inline `BuildClassificationPrompt()` call with canonical loader pattern matching line 747 pattern (OpenAppPackageFileAsync → StreamReader → Template.Parse → Render)
+2. **Deleted dead code** (lines 927-955): Removed the now-unused `BuildClassificationPrompt()` private method (28 lines)
+3. **Strengthened DTO descriptions** (lines 1996, 2004): Updated both `ContentClassificationResult.Confidence` and `ContentClassificationAiResponse.Confidence` to emphasize full range usage ("USE THE FULL RANGE — do NOT cluster at 0.85+") with brief band guidance
+
+**Build & Test results:**
+- ✅ Shared build: 656 warnings, 0 errors (5.76s)
+- ✅ UI build: 192 warnings, 0 errors (15.21s)
+- ✅ ContentImport tests: 36 passed, 0 failed (1s)
+
+**Coordination notes:**
+- River's `ClassifyImportContent.scriban-txt` was already staged (not in my scope, syntax-checked for safety — no issues found)
+- Wash's `isNewResource` transaction fix is included in my staged changes (part of P2 batch, marked "already approved" in task brief)
+- Kaylee's razor/resx changes already staged (no overlap with my work)
+
+**Decision:** `.squad/decisions/inbox/simon-wire-classifier-scriban.md`
+
+**Learnings:**
+- **Scriban loader pattern**: `_fileSystem.OpenAppPackageFileAsync` is the canonical way to load .scriban-txt templates in this codebase. DI convention: `IFileSystemService` is already injected into most services. Always match the existing pattern (search for `Template.Parse` to find examples) rather than inventing a new one.
+- **Reviewer Rejection Protocol escalation**: When a staged artifact is rejected and the original author is locked out, another agent completes only the missing pieces without duplicating work. My scope was service-code only — River's template was already staged and correct.
+- **DTO description strengthening**: Microsoft.Extensions.AI 10.5 uses `[Description]` attributes to guide structured output. Strengthening descriptions (especially range directives like "USE THE FULL RANGE") directly impacts AI behavior without changing prompt logic.
+
 - Defensive heuristic discipline (multi-word → Phrase fallback + centralized ResolveLexicalUnitType)
 
 **Verdict:** First escalation cycle successful. Feature shipped clean.

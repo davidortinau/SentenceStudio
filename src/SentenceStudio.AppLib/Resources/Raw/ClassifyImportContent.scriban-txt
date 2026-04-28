@@ -108,10 +108,55 @@ Output:
 - Lines in dictionary form (-다 ending) without subject markers → **Phrases** (these are patterns, not utterances).
 - Mixed lines: if >60% of lines are complete sentences → **Sentences**. If >60% are fragments → **Phrases**.
 
-**CONFIDENCE CALIBRATION:**
-- **>= 0.85**: Clear single type. Strong signals all point the same direction.
-- **0.70-0.84**: Mixed or borderline. Some signals conflict (e.g., sentence-length lines but some are fragments, or structured pairs mixed with free text).
-- **< 0.70**: Ambiguous. Content genuinely mixes types or lacks distinguishing features.
+**CONFIDENCE CALIBRATION (USE THE FULL 0.0-1.0 RANGE):**
+
+**CRITICAL:** You MUST spread your confidence scores across the full 0.0-1.0 spectrum. Do NOT cluster at 0.85 or above. Anchor your scores to these concrete rubrics:
+
+**0.95-1.0 (Very High Confidence)**
+- ALL signals align perfectly for a single type with ZERO ambiguity
+- Examples: 
+  - Vocabulary: Perfect CSV structure with header row + 100% word pairs + every line <20 chars + clear delimiter
+  - Transcript: Multi-paragraph block with anaphora + temporal progression + shared topic thread across 5+ sentences
+  - Sentences: Every line has subject+predicate+terminal punctuation + zero fragments + clear bilingual pairs + zero continuity
+  - Phrases: 100% dictionary-form patterns + zero complete sentences + consistent fragment structure
+
+**0.85-0.94 (High Confidence)**
+- Strong primary signals for one type, minor ambiguity or 1-2 borderline lines
+- Examples:
+  - Vocabulary: CSV structure but 1-2 lines have extra text or inconsistent delimiters
+  - Transcript: Clear continuity but one paragraph break that feels abrupt
+  - Sentences: 90% complete sentences but 1-2 fragments mixed in
+  - Phrases: Mostly fragments but 1-2 lines could be interpreted as sentences
+
+**0.70-0.84 (Medium Confidence - Borderline)**
+- Mixed signals OR format is guessable but several elements don't fit the pattern
+- Examples:
+  - Lines are sentence-length but 40% lack terminal punctuation (Sentences vs Phrases unclear)
+  - Some delimiter patterns but also free-form text (Vocabulary vs Phrases unclear)
+  - Continuity exists but weak or only across 2-3 sentence pairs (Transcript vs Sentences unclear)
+  - Bilingual pairs but inconsistent structure — some CSV, some prose format
+
+**0.50-0.69 (Low Confidence - Uncertain)**
+- Genuinely ambiguous OR content mixes multiple types OR very short sample with insufficient signals
+- Examples:
+  - 3 lines total — too short to determine pattern
+  - Half the lines are word pairs, half are complete sentences
+  - Prose text but only 2 sentences — can't assess continuity
+  - Mixed delimiters (some tabs, some commas, some pipes) with no clear pattern
+
+**<0.50 (Very Low Confidence - Noise/Garbage)**
+- Content is unstructured, incoherent, OR clearly not language learning material
+- Examples:
+  - Lorem ipsum filler text
+  - Code snippets (JSON, JavaScript, SQL)
+  - Random numbers or symbols with no language content
+  - Extremely fragmented or malformed input with no discernible structure
+  - Content in a language other than target/native with no translation pairs
+
+**GUARD RAILS:**
+- If you cannot confidently distinguish the type, your confidence MUST be <0.70 — do NOT default to 0.85+
+- If the sample is <5 lines or <100 characters, cap confidence at 0.80 (insufficient evidence for high confidence)
+- If ANY lines are completely uninterpretable garbage, cap confidence at 0.60 even if other lines are clear
 
 **RESPONSE FORMAT — Return ONLY this JSON object, no other text:**
 {

@@ -746,7 +746,7 @@ public class ContentImportService : IContentImportService
         // Load Scriban template
         using Stream templateStream = await _fileSystem.OpenAppPackageFileAsync("FreeTextToVocab.scriban-txt");
         using var reader = new StreamReader(templateStream);
-        var templateContent = await reader.ReadToEndAsync();
+        var templateContent = await reader.ReadToEndAsync(ct);
         var scribanTemplate = Template.Parse(templateContent);
 
         // Render prompt
@@ -877,9 +877,19 @@ public class ContentImportService : IContentImportService
 
         try
         {
-            // TODO: Use River's ClassifyImportContent.scriban-txt when it lands.
-            // For now, use inline prompt to unblock Phrase/Transcript/Auto pipeline.
-            var prompt = BuildClassificationPrompt(classificationSample, formatHint);
+            // Load Scriban template
+            using Stream templateStream = await _fileSystem.OpenAppPackageFileAsync("ClassifyImportContent.scriban-txt");
+            using var reader = new StreamReader(templateStream);
+            var templateContent = await reader.ReadToEndAsync(ct);
+            var scribanTemplate = Template.Parse(templateContent);
+
+            // Render prompt
+            var prompt = scribanTemplate.Render(new
+            {
+                content = classificationSample,
+                format_hint = formatHint
+            });
+
             var response = await _aiService.SendPrompt<ContentClassificationAiResponse>(prompt);
 
             if (response == null)
@@ -924,35 +934,7 @@ public class ContentImportService : IContentImportService
         }
     }
 
-    private static string BuildClassificationPrompt(string sample, string? formatHint)
-    {
-        var hintSection = formatHint != null ? $"**USER HINT:** {formatHint}\n\n" : "";
 
-        return $"""
-            You are a content classifier for a language learning app. Analyze the following text and determine what type of content it is.
-
-            **TEXT SAMPLE:**
-            {sample}
-
-            {hintSection}**CLASSIFICATION RULES:**
-            1. **Vocabulary** — structured word list, CSV/TSV with target+native columns, or simple word pairs.
-            2. **Phrases** — multi-word expressions, idioms, or collocations that are NOT complete sentences. No terminal punctuation or subject+verb structure required.
-            3. **Sentences** — complete grammatical sentences (subject + predicate) ending with terminal punctuation (. ! ? 。 ！ ？). Each line is independent with no narrative continuity.
-            4. **Transcript** — continuous prose with sentence-to-sentence continuity. Reading as a passage FLOWS naturally. Includes paragraphs, dialogue, or narration.
-
-            **KEY SIGNALS:**
-            - Sentence-terminal punctuation (. ! ?) on independent lines → Sentences.
-            - Multi-word units WITHOUT terminal punctuation → Phrases.
-            - Continuity between sentences (pronouns referencing previous sentences, temporal progression, narrative arc) → Transcript.
-            - If each sentence is independent with no contextual link to neighbors, it's Sentences (not Transcript).
-
-            **RESPONSE FORMAT — Return ONLY valid JSON with keys: type, confidence, reasoning, signals.**
-            The "type" field must be one of: vocabulary, phrases, sentences, transcript.
-            The "confidence" field must be a float between 0.0 and 1.0.
-            The "reasoning" field is a brief explanation string.
-            The "signals" field is a string array of signal keywords.
-            """;
-    }
 
     /// <summary>
     /// Extract vocabulary from transcript text using the ExtractVocabularyFromTranscript prompt.
@@ -1303,6 +1285,7 @@ public class ContentImportService : IContentImportService
 
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        bool isNewResource = false;
 
         try
         {
@@ -1362,7 +1345,9 @@ public class ContentImportService : IContentImportService
                 };
 
                 db.LearningResources.Add(targetResource);
-                await db.SaveChangesAsync(ct); // Save resource first to get ID
+                isNewResource = true;
+                // ID is set via Guid.NewGuid().ToString() above — no DB save needed yet.
+                // EF will persist the resource + vocab + mappings atomically at line 1631.
 
                 _logger.LogInformation("Created new resource: {ResourceId} ({Title})", targetResource.Id, targetResource.Title);
             }
@@ -1625,7 +1610,11 @@ public class ContentImportService : IContentImportService
 
             // Step 5: Update resource timestamp
             targetResource.UpdatedAt = DateTime.UtcNow;
-            db.LearningResources.Update(targetResource);
+            // Only call Update for existing resources — new resources are already tracked via Add
+            if (!isNewResource)
+            {
+                db.LearningResources.Update(targetResource);
+            }
 
             // Step 6: Single SaveChanges for the entire transaction
             await db.SaveChangesAsync(ct);
@@ -1994,7 +1983,7 @@ public class ContentClassificationResult
     [Description("Classified content type")]
     public ContentType ContentType { get; set; } = ContentType.Vocabulary;
 
-    [Description("Confidence score (0.0 to 1.0). >=0.85 auto-route, 0.70-0.84 suggest, <0.70 user picks.")]
+    [Description("Confidence score from 0.0 to 1.0. USE THE FULL RANGE — do NOT cluster at 0.85+. >=0.85 = strong signals. 0.70-0.84 = mixed. <0.70 = ambiguous or noise.")]
     public float Confidence { get; set; }
 
     [Description("AI reasoning for the classification")]
@@ -2012,7 +2001,7 @@ internal class ContentClassificationAiResponse
     [Description("Classified type: vocabulary, phrases, or transcript")]
     public string? Type { get; set; }
 
-    [Description("Confidence score 0.0-1.0")]
+    [Description("Confidence score 0.0-1.0. USE THE FULL RANGE — do NOT cluster at 0.85+. >=0.85 = strong signals. 0.70-0.84 = mixed. <0.70 = ambiguous or noise.")]
     public float Confidence { get; set; }
 
     [Description("Brief explanation of the classification")]

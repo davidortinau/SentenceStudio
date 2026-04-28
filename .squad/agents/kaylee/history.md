@@ -25,6 +25,34 @@
 
 ## Recent Work
 
+### Import Wizard P2 Bug Fixes (2025-01-26)
+
+**Scope:** Fixed two parallel-safe bugs in import wizard — silent title validation and Korean harvest localization
+
+**Bug A (silent-title-validation):**
+- Added inline Bootstrap validation to new resource title field
+- Applied `is-invalid` class + `invalid-feedback` div pattern
+- Added `showTitleValidationError` state + `ClearTitleError()` callback
+- Modified `CommitImport()` and `SetTargetMode()` to manage error state
+- Pattern choice: show on commit attempt + clear on input (more responsive than disabled button)
+- New key: `Import_NewResourceTitleRequired` (EN + KO)
+
+**Bug B (kr-localize-harvest):**
+- Replaced 8 hard-coded English strings in harvest section with `@Localize["..."]` keys
+- Added 11 total keys to both `AppResources.resx` and `AppResources.ko.resx`
+- Korean translation approach: "추출" (extract) for all harvest actions, polite imperative tone, technical precision preserved
+- Keys: HarvestTitle, HarvestDescription, 4x Labels (Transcript/Sentences/Phrases/Words), 4x Hints, HarvestValidationError
+
+**Also fixed:** Pre-existing syntax error in `ContentImportService.cs` (missing closing brace after staged removal of BuildClassificationPrompt)
+
+**Build:** ✅ Successful (0 errors, 346 pre-existing warnings)
+
+**Decision:** `.squad/decisions/inbox/kaylee-import-p2-ui-fixes.md`
+
+**Status:** Staged, ready for Scribe's batch commit. Visual verification deferred to Captain's hot-reload session.
+
+---
+
 ### Vocabulary Classification & Constituents (2025-01-24)
 
 **Scope:** Blazor-only UI update for Word/Phrase/Sentence classification + constituent word editing.

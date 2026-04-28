@@ -4072,6 +4072,105 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Select what to extract from this content. At least one option must be checked..
+        /// </summary>
+        internal static string Import_HarvestDescription {
+            get {
+                return ResourceManager.GetString("Import_HarvestDescription", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Extract phrase-level entries for practice activities.
+        /// </summary>
+        internal static string Import_HarvestPhrasesHint {
+            get {
+                return ResourceManager.GetString("Import_HarvestPhrasesHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Harvest Phrases.
+        /// </summary>
+        internal static string Import_HarvestPhrasesLabel {
+            get {
+                return ResourceManager.GetString("Import_HarvestPhrasesLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Extract complete sentences (subject + verb + terminal punctuation), often pipe-delimited with translations.
+        /// </summary>
+        internal static string Import_HarvestSentencesHint {
+            get {
+                return ResourceManager.GetString("Import_HarvestSentencesHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Harvest Sentences.
+        /// </summary>
+        internal static string Import_HarvestSentencesLabel {
+            get {
+                return ResourceManager.GetString("Import_HarvestSentencesLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to What should we harvest?.
+        /// </summary>
+        internal static string Import_HarvestTitle {
+            get {
+                return ResourceManager.GetString("Import_HarvestTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Store the full text on the learning resource.
+        /// </summary>
+        internal static string Import_HarvestTranscriptHint {
+            get {
+                return ResourceManager.GetString("Import_HarvestTranscriptHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to This is a Transcript.
+        /// </summary>
+        internal static string Import_HarvestTranscriptLabel {
+            get {
+                return ResourceManager.GetString("Import_HarvestTranscriptLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Please select at least one harvest option before continuing..
+        /// </summary>
+        internal static string Import_HarvestValidationError {
+            get {
+                return ResourceManager.GetString("Import_HarvestValidationError", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Extract individual vocabulary words.
+        /// </summary>
+        internal static string Import_HarvestWordsHint {
+            get {
+                return ResourceManager.GetString("Import_HarvestWordsHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Harvest Words.
+        /// </summary>
+        internal static string Import_HarvestWordsLabel {
+            get {
+                return ResourceManager.GetString("Import_HarvestWordsLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to First row is header.
         /// </summary>
         internal static string Import_HasHeaderRow {
@@ -4185,6 +4284,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Import_Never {
             get {
                 return ResourceManager.GetString("Import_Never", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Please enter a title for the new resource.
+        /// </summary>
+        internal static string Import_NewResourceTitleRequired {
+            get {
+                return ResourceManager.GetString("Import_NewResourceTitleRequired", resourceCulture);
             }
         }
         
