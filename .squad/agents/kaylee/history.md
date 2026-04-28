@@ -266,3 +266,35 @@ Wash's mobile observability memo identifies capturing Blazor WebView JavaScript 
 
 5. **Bootstrap icon + styling conventions:** Existing pages use `bi-*` icons consistently, `form-control-ss` for inputs, `card-ss` for sections, `ss-body2`/`ss-title3` typography.
 
+
+## Learnings (continued)
+
+- 2026-04-24: **Import UI Pattern Scout** — Completed planning investigation for Zoe's Import page design. Surveyed existing admin/management pages (Settings, ResourceAdd, ResourceEdit, Resources, Onboarding). Key findings: (1) Blazor-only platform (no MauiReactor parity yet); (2) Settings uses lightweight card sections, ResourceAdd shows multi-card + file import + preview table pattern, Resources shows polished list/lookup with search + filter + dual view modes + Virtualize; (3) File picker abstraction ready (IFilePickerService + WebFilePickerService for Blazor, MauiFilePickerService for MAUI); (4) Form validation is explicit null checks → Toast (no DataAnnotations UI); (5) Import already in top nav (NavMenu.razor line 60, icon bi-box-arrow-in-down); (6) Import.razor exists (28.7 KB YouTube-only template, reusable structure). Documented in `.squad/decisions/inbox/kaylee-import-ui-scout.md`.
+
+---
+
+## 2026-04-24 — Import UI Pattern Scout (Multi-Agent Session)
+
+Surveyed UI patterns, form conventions, file picker abstractions, navigation structure for import feature architecture.
+
+**Key findings:**
+- Form patterns: Bootstrap cards + sections (card-ss, form-control-ss, theme typography)
+- Multi-step flows: Settings (tabbed), Import (URL → Transcript → Polish → Save), ResourceAdd (card + file + preview)
+- File import pattern in ResourceAdd: InputFile + delimiter radios + editable preview table
+- Resource lookup: Resources.razor shows search + filter + dual views + Virtualize
+- File picker abstraction: IFilePickerService (Blazor: WebFilePickerService, MAUI: MauiFilePickerService)
+- Navigation: Import already in top-level nav (bi-box-arrow-in-down)
+
+**Recommendations to Zoe:**
+- Keep Import in top-level nav (good positioning)
+- Create new `/import-content` page (separate from YouTube)
+- Reuse preview table from ResourceAdd.razor
+- Use InputFile for file upload
+- Toast for notifications
+
+**Reusable components:** PageHeader, card-ss, form-control-ss, preview table pattern
+
+**Coordinated with:** Zoe (architecture), Wash (data layer), River (AI), Copilot
+
+**Next:** Implementation team uses patterns to build ImportContent.razor page.
+
