@@ -1845,6 +1845,10 @@
     <value>가져오기</value>
     <comment>Sidebar nav: Import</comment>
   </data>
+  <data name="Nav_MediaImport" xml:space="preserve">
+    <value>미디어 가져오기</value>
+    <comment>Sidebar nav: Media Import (YouTube videos)</comment>
+  </data>
   <data name="Nav_Profile" xml:space="preserve">
     <value>프로필</value>
     <comment>Sidebar nav: Profile</comment>
@@ -3848,7 +3852,27 @@
   </data>
   <data name="Vocabulary_AddWord" xml:space="preserve">
     <value>단어 추가</value>
-    <comment>Button text</comment>
+    <comment>Button text (legacy key — use Vocabulary_Add instead)</comment>
+  </data>
+  <data name="Vocabulary_Add" xml:space="preserve">
+    <value>추가</value>
+    <comment>Button text for adding vocabulary (word, phrase, or sentence)</comment>
+  </data>
+  <data name="Vocabulary_FilterTypeAll" xml:space="preserve">
+    <value>전체 유형</value>
+    <comment>Type filter default option</comment>
+  </data>
+  <data name="Vocabulary_FilterTypeWord" xml:space="preserve">
+    <value>단어</value>
+    <comment>Type filter option</comment>
+  </data>
+  <data name="Vocabulary_FilterTypePhrase" xml:space="preserve">
+    <value>구문</value>
+    <comment>Type filter option</comment>
+  </data>
+  <data name="Vocabulary_FilterTypeSentence" xml:space="preserve">
+    <value>문장</value>
+    <comment>Type filter option</comment>
   </data>
   <data name="Vocabulary_ToggleViewGrid" xml:space="preserve">
     <value>목록 보기</value>
@@ -5869,5 +5893,298 @@
   <data name="VocabWordEdit_FamiliarMessage" xml:space="preserve">
     <value>익숙함으로 표시했습니다. 계속 복습하여 '알고 있음'으로 승급하세요.</value>
     <comment>VocabWordEdit: Info toast when learning status set to Familiar</comment>
+  </data>
+  <data name="Nav_ImportContent" xml:space="preserve">
+    <value>콘텐츠 가져오기</value>
+    <comment>Navigation menu item for import content page</comment>
+  </data>
+  <data name="Import_Content_Title" xml:space="preserve">
+    <value>콘텐츠 가져오기</value>
+    <comment>Page title for import content</comment>
+  </data>
+  <data name="Import_Step1_Title" xml:space="preserve">
+    <value>1단계: 소스</value>
+    <comment>Import wizard step 1 heading</comment>
+  </data>
+  <data name="Import_PasteContentLabel" xml:space="preserve">
+    <value>콘텐츠 붙여넣기</value>
+    <comment>Label for text area where users paste content</comment>
+  </data>
+  <data name="Import_PastePlaceholder" xml:space="preserve">
+    <value>CSV, TSV 또는 일반 텍스트를 여기에 붙여넣으세요...</value>
+    <comment>Placeholder for paste text area</comment>
+  </data>
+  <data name="Import_PasteHint" xml:space="preserve">
+    <value>CSV 또는 TSV 형식으로 어휘 데이터를 붙여넣으세요 (예: "한국어 단어, 영어 번역")</value>
+    <comment>Hint text below paste area</comment>
+  </data>
+  <data name="Import_Step2_Title" xml:space="preserve">
+    <value>2단계: 형식 힌트 (선택사항)</value>
+    <comment>Import wizard step 2 heading</comment>
+  </data>
+  <data name="Import_ContentTypeLabel" xml:space="preserve">
+    <value>콘텐츠 유형</value>
+    <comment>Label for content type dropdown</comment>
+  </data>
+  <data name="Import_ContentType_Vocabulary" xml:space="preserve">
+    <value>어휘</value>
+    <comment>Content type option: Vocabulary</comment>
+  </data>
+  <data name="Import_ContentType_Phrases" xml:space="preserve">
+    <value>문구</value>
+    <comment>Content type option: Phrases (v2)</comment>
+  </data>
+  <data name="Import_ContentType_Transcript" xml:space="preserve">
+    <value>대본</value>
+    <comment>Content type option: Transcript (v2)</comment>
+  </data>
+  <data name="Import_ContentType_Auto" xml:space="preserve">
+    <value>자동 감지</value>
+    <comment>Content type option: Auto-detect (v2)</comment>
+  </data>
+  <data name="Import_DelimiterLabel" xml:space="preserve">
+    <value>구분자</value>
+    <comment>Label for delimiter dropdown</comment>
+  </data>
+  <data name="Import_Delimiter_Auto" xml:space="preserve">
+    <value>자동</value>
+    <comment>Delimiter option: Auto-detect</comment>
+  </data>
+  <data name="Import_Delimiter_Comma" xml:space="preserve">
+    <value>쉼표</value>
+    <comment>Delimiter option: Comma</comment>
+  </data>
+  <data name="Import_Delimiter_Tab" xml:space="preserve">
+    <value>탭</value>
+    <comment>Delimiter option: Tab</comment>
+  </data>
+  <data name="Import_Delimiter_Pipe" xml:space="preserve">
+    <value>파이프 (|)</value>
+    <comment>Delimiter option: Pipe</comment>
+  </data>
+  <data name="Import_HasHeaderRow" xml:space="preserve">
+    <value>첫 번째 행은 헤더</value>
+    <comment>Checkbox label for header row option</comment>
+  </data>
+  <data name="Import_PreviewButton" xml:space="preserve">
+    <value>미리보기</value>
+    <comment>Button to preview parsed content</comment>
+  </data>
+  <data name="Import_Step3_Title" xml:space="preserve">
+    <value>3단계: 미리보기 및 편집</value>
+    <comment>Import wizard step 3 heading</comment>
+  </data>
+  <data name="Import_DetectedFormat" xml:space="preserve">
+    <value>감지된 형식</value>
+    <comment>Label showing detected file format</comment>
+  </data>
+  <data name="Import_TargetLanguageTerm" xml:space="preserve">
+    <value>대상 언어 용어</value>
+    <comment>Table column header for target language</comment>
+  </data>
+  <data name="Import_NativeLanguageTerm" xml:space="preserve">
+    <value>모국어 용어</value>
+    <comment>Table column header for native language</comment>
+  </data>
+  <data name="Import_Status" xml:space="preserve">
+    <value>상태</value>
+    <comment>Table column header for row status</comment>
+  </data>
+  <data name="Import_SelectedCount" xml:space="preserve">
+    <value>가져오기 선택됨</value>
+    <comment>Label showing selected row count</comment>
+  </data>
+  <data name="Import_Step5_Title" xml:space="preserve">
+    <value>4단계: 대상 리소스</value>
+    <comment>Import wizard step 5 heading</comment>
+  </data>
+  <data name="Import_CreateNewResource" xml:space="preserve">
+    <value>새 리소스 만들기</value>
+    <comment>Radio option to create new resource</comment>
+  </data>
+  <data name="Import_AddToExistingResource" xml:space="preserve">
+    <value>기존 리소스에 추가</value>
+    <comment>Radio option to add to existing resource</comment>
+  </data>
+  <data name="Import_ResourceTitleLabel" xml:space="preserve">
+    <value>리소스 제목</value>
+    <comment>Label for new resource title input</comment>
+  </data>
+  <data name="Import_ResourceTitlePlaceholder" xml:space="preserve">
+    <value>예: 일반 한국어 동사</value>
+    <comment>Placeholder for resource title</comment>
+  </data>
+  <data name="Import_ResourceDescriptionLabel" xml:space="preserve">
+    <value>설명</value>
+    <comment>Label for new resource description input</comment>
+  </data>
+  <data name="Import_ResourceDescriptionPlaceholder" xml:space="preserve">
+    <value>선택적 설명...</value>
+    <comment>Placeholder for resource description</comment>
+  </data>
+  <data name="Import_TargetLanguageLabel" xml:space="preserve">
+    <value>대상 언어</value>
+    <comment>Label for target language dropdown</comment>
+  </data>
+  <data name="Import_NativeLanguageLabel" xml:space="preserve">
+    <value>모국어</value>
+    <comment>Label for native language dropdown</comment>
+  </data>
+  <data name="Import_SelectExistingResourceLabel" xml:space="preserve">
+    <value>리소스 선택</value>
+    <comment>Label for existing resource dropdown</comment>
+  </data>
+  <data name="Import_SelectResourcePlaceholder" xml:space="preserve">
+    <value>리소스 선택</value>
+    <comment>Placeholder for resource dropdown</comment>
+  </data>
+  <data name="Import_Step6_Title" xml:space="preserve">
+    <value>5단계: 중복 처리</value>
+    <comment>Import wizard step 6 heading</comment>
+  </data>
+  <data name="Import_DedupMode_Skip" xml:space="preserve">
+    <value>중복 건너뛰기 (권장)</value>
+    <comment>Dedup mode option: Skip</comment>
+  </data>
+  <data name="Import_DedupMode_Skip_Help" xml:space="preserve">
+    <value>기존 단어가 재사용됩니다. 새 단어가 추가됩니다. 가장 안전한 옵션입니다.</value>
+    <comment>Help text for skip mode</comment>
+  </data>
+  <data name="Import_DedupMode_Update" xml:space="preserve">
+    <value>기존 단어 업데이트</value>
+    <comment>Dedup mode option: Update</comment>
+  </data>
+  <data name="Import_DedupMode_Update_Help" xml:space="preserve">
+    <value>경고: 단어를 사용하는 모든 리소스의 모국어 번역을 업데이트합니다. 주의해서 사용하세요.</value>
+    <comment>Help text for update mode</comment>
+  </data>
+  <data name="Import_AiTranslated_Badge" xml:space="preserve">
+    <value>AI</value>
+    <comment>Short badge label shown on rows whose native term was filled in by AI translation</comment>
+  </data>
+  <data name="Import_AiTranslated_Tooltip" xml:space="preserve">
+    <value>AI가 생성한 번역입니다. 커밋하기 전에 검토하고 수정하세요.</value>
+    <comment>Tooltip explaining the AI badge on import preview rows</comment>
+  </data>
+  <data name="Import_DedupMode_ImportAll" xml:space="preserve">
+    <value>모두 새로 가져오기</value>
+    <comment>Dedup mode option: Import all</comment>
+  </data>
+  <data name="Import_DedupMode_ImportAll_Help" xml:space="preserve">
+    <value>중복이 존재하더라도 새 항목을 만듭니다. 중복 어휘가 생성될 수 있습니다.</value>
+    <comment>Help text for import all mode</comment>
+  </data>
+  <data name="Import_CommitButton" xml:space="preserve">
+    <value>가져오기</value>
+    <comment>Button to commit import</comment>
+  </data>
+  <data name="Import_ImportComplete" xml:space="preserve">
+    <value>가져오기 완료</value>
+    <comment>Import success heading</comment>
+  </data>
+  <data name="Import_Created" xml:space="preserve">
+    <value>생성됨</value>
+    <comment>Label for created count</comment>
+  </data>
+  <data name="Import_Skipped" xml:space="preserve">
+    <value>건너뜀</value>
+    <comment>Label for skipped count</comment>
+  </data>
+  <data name="Import_Updated" xml:space="preserve">
+    <value>업데이트됨</value>
+    <comment>Label for updated count</comment>
+  </data>
+  <data name="Import_Failed" xml:space="preserve">
+    <value>실패함</value>
+    <comment>Label for failed count</comment>
+  </data>
+  <data name="Import_ViewResource" xml:space="preserve">
+    <value>리소스 보기</value>
+    <comment>Button to view imported resource</comment>
+  </data>
+  <data name="Import_ImportMore" xml:space="preserve">
+    <value>더 가져오기</value>
+    <comment>Button to start another import</comment>
+  </data>
+  <data name="Import_ParseError" xml:space="preserve">
+    <value>콘텐츠 구문 분석 실패</value>
+    <comment>Error toast when parsing fails</comment>
+  </data>
+  <data name="Import_ResourceTitleRequired" xml:space="preserve">
+    <value>리소스 제목을 입력하세요.</value>
+    <comment>Validation error for missing title</comment>
+  </data>
+  <data name="Import_SelectResourceRequired" xml:space="preserve">
+    <value>리소스를 선택하세요.</value>
+    <comment>Validation error for missing resource selection</comment>
+  </data>
+  <data name="Import_NoRowsSelected" xml:space="preserve">
+    <value>가져올 행을 하나 이상 선택하세요.</value>
+    <comment>Validation error for no rows selected</comment>
+  </data>
+  <data name="Import_UpdateModeWarning" xml:space="preserve">
+    <value>업데이트 모드는 모든 리소스의 기존 어휘 단어를 수정합니다.</value>
+    <comment>Warning toast for update mode</comment>
+  </data>
+  <data name="Import_ProfileNotFound" xml:space="preserve">
+    <value>사용자 프로필을 찾을 수 없습니다.</value>
+    <comment>Error toast when profile is missing</comment>
+  </data>
+  <data name="Import_ImportSuccess" xml:space="preserve">
+    <value>가져오기가 성공적으로 완료되었습니다!</value>
+    <comment>Success toast after import</comment>
+  </data>
+  <data name="Import_CommitError" xml:space="preserve">
+    <value>가져오기 커밋 실패</value>
+    <comment>Error toast when commit fails</comment>
+  </data>
+  <!-- TODO: i18n review — Korean translations for import result detail UI -->
+  <data name="Import_ResultDetails" xml:space="preserve">
+    <value>가져오기 상세</value>
+    <comment>Heading for per-row result detail table</comment>
+  </data>
+  <data name="Import_FilterAll" xml:space="preserve">
+    <value>전체</value>
+    <comment>Filter pill showing all import result rows</comment>
+  </data>
+  <data name="Import_ColLemma" xml:space="preserve">
+    <value>표제어</value>
+    <comment>Column header for the target language term in result table</comment>
+  </data>
+  <data name="Import_ColNative" xml:space="preserve">
+    <value>번역</value>
+    <comment>Column header for the native language translation in result table</comment>
+  </data>
+  <data name="Import_ColType" xml:space="preserve">
+    <value>유형</value>
+    <comment>Column header for lexical unit type in result table</comment>
+  </data>
+  <data name="Import_ColStatus" xml:space="preserve">
+    <value>상태</value>
+    <comment>Column header for import outcome status in result table</comment>
+  </data>
+  <data name="Import_ColReason" xml:space="preserve">
+    <value>사유</value>
+    <comment>Column header for failure/skip reason in result table</comment>
+  </data>
+  <data name="Import_PreviewDuplicateHeader" xml:space="preserve">
+    <value>중복</value>
+    <comment>Column header for duplicate detection in preview table</comment>
+  </data>
+  <data name="Import_PreviewDuplicateBadge" xml:space="preserve">
+    <value>중복</value>
+    <comment>Badge label shown on rows flagged as duplicates in preview table</comment>
+  </data>
+  <data name="Import_PreviewDuplicate_AlreadyInVocabulary" xml:space="preserve">
+    <value>이미 단어장에 있음</value>
+    <comment>Tooltip for duplicate row that matches existing vocabulary word</comment>
+  </data>
+  <data name="Import_PreviewDuplicate_DuplicateWithinBatch" xml:space="preserve">
+    <value>이번 가져오기에서 중복됨</value>
+    <comment>Tooltip for duplicate row that appears more than once in the current import</comment>
+  </data>
+  <data name="Import_ViewVocab" xml:space="preserve">
+    <value>보기</value>
+    <comment>Short link text to view vocabulary detail from import result</comment>
   </data>
 </root>

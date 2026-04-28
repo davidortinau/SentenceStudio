@@ -1,3 +1,6 @@
+@* Primary route for Media Import (YouTube videos) *@
+@page "/media-import"
+@* Back-compat for original YouTube import route. New /import-content page (Wave 2) will own /import-content; this component continues to own /media-import + /import. *@
 @page "/import"
 @attribute [Authorize]
 @using SentenceStudio.Shared.Models
@@ -275,7 +278,7 @@
     [Inject] private UserProfileRepository ProfileRepo { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
-    [Inject] private ILogger<Import> Logger { get; set; } = default!;
+    [Inject] private ILogger<MediaImport> Logger { get; set; } = default!;
     [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
     
     // NEW: Services for channel monitoring
@@ -401,12 +404,12 @@
 
     private void AddChannel()
     {
-        NavManager.NavigateTo("/import/channel");
+        NavManager.NavigateTo("/media-import/channel");
     }
 
     private void EditChannel(string channelId)
     {
-        NavManager.NavigateTo($"/import/channel/{channelId}");
+        NavManager.NavigateTo($"/media-import/channel/{channelId}");
     }
 
     private async Task ToggleChannelActive(MonitoredChannel channel)

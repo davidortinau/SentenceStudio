@@ -1,3 +1,6 @@
+@* Media Import channel detail page - for adding/editing YouTube channel subscriptions *@
+@page "/media-import/channel/{Id?}"
+@* Back-compat for bookmarked channel edit URLs *@
 @page "/import/channel/{Id?}"
 @attribute [Authorize]
 @using SentenceStudio.Shared.Models
@@ -352,7 +355,7 @@ else
                         // Channel saved but YouTube ID wasn't resolved — go to edit page
                         resolutionError = resolveError ?? "Unknown error";
                         Toast.ShowError($"Channel saved but YouTube ID couldn't be resolved: {resolutionError}");
-                        NavManager.NavigateTo($"/import/channel/{saved.Id}");
+                        NavManager.NavigateTo($"/media-import/channel/{saved.Id}");
                         return;
                     }
                     
@@ -402,7 +405,7 @@ else
                 Toast.ShowSuccess(Localize["ChannelDetail_ChannelUpdated"]);
             }
 
-            NavManager.NavigateTo("/import");
+            NavManager.NavigateTo("/media-import");
         }
         catch (Exception ex)
         {
@@ -417,7 +420,7 @@ else
 
     private void NavigateBack()
     {
-        NavManager.NavigateTo("/import");
+        NavManager.NavigateTo("/media-import");
     }
 
     private static string ExtractChannelHandle(string url)

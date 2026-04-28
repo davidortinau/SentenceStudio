@@ -12,6 +12,10 @@
 
 ## Learnings
 
+- 2026-07-27: **Import Content Style Normalization** — Audited and cleaned all bespoke inline styles from ImportContent.razor. Key fixes: replaced custom purple hex badge (`#6f42c1` + inline CSS vars) with `bg-secondary bg-opacity-10 text-secondary`; replaced inline `cursor:pointer` with `role="button"` (matching app.css:1360 generic rule); replaced inline `font-size:0.75rem` with Bootstrap `small` class; removed dead empty class expression on mobile card. Also added Duplicate badge column to preview table using `bg-warning bg-opacity-10 text-warning` after Wash landed `IsDuplicate`/`DuplicateReason` on `ImportRow`. 5 new resx keys (EN+KO). Decision doc in `.squad/decisions/inbox/kaylee-import-style-cleanup.md`. Pattern: type badges always use `badge bg-{color} bg-opacity-10 text-{color}`; clickable non-buttons always use `role="button"` not inline cursor; no hex colors in Razor markup.
+- 2026-07-14: **Import Complete Per-Row Detail Table + State Preservation** — Built the detailed Import Complete view with per-row results table (Lemma, Native, Type badge, Status pill, Reason column), filter pills (All/Created/Updated/Skipped/Failed), mobile-responsive card fallback, and clickable rows linking to `/vocabulary/edit/{id}`. State preservation across back-nav via `IImportResultStore` (Singleton, ConcurrentDictionary, 30-min TTL) + URL query param `?completed={guid}`. Key pattern: save result to in-memory store on commit, navigate with key in URL, hydrate from store on init if key present. Reusable skill written to `.squad/skills/blazor-nav-state-preservation/SKILL.md`. Decision doc in `.squad/decisions/inbox/kaylee-import-result-store.md`. 8 new resx keys (en + ko).
+- 2026-04-27: **Preview-to-Commit DTO Mapping Discipline** -- When constructing a DTO from an API response for a round-trip (preview -> user edit -> commit), EVERY property on the source DTO must be accounted for in the object initializer. Properties that default to a value (like enums defaulting to their first member) will silently swallow data from the backend. Going forward: when writing or reviewing any DTO-to-DTO mapping in ImportContent.razor (or similar round-trip flows), enumerate all source properties and explicitly decide map-or-skip for each one. This prevents the "silent default" class of bug that caused BUG-2 and BUG-3 to persist despite correct backend fixes.
+- 2026-04-25: **v1.1 Import Harvest Checkboxes + Auto-detect Banner** — Replaced disabled v2 badges on Phrases/Transcript/Auto options with full enablement. Added three independent harvest checkboxes (Transcript/Phrases/Words) with defaults per content type (Captain's directive). Implemented three-tier confidence gate for auto-detect (high/medium/low bands at 0.85/0.70 thresholds) with always-visible banner and [Change] override. Confidence gate runs BEFORE any DB persistence per D3. Added `HarvestTranscript`/`HarvestPhrases`/`HarvestWords` booleans to `ContentImportCommit` DTO for Wash integration. No emojis — Bootstrap icons only. Documented in `.squad/decisions/inbox/kaylee-v11-ui.md`.
 - 2026-04-23: **Word/Phrase Feature Completed** — Completed ui-import-edit todo: added LexicalUnitType dropdown (Word/Phrase/Sentence) to VocabularyWordEdit.razor with constituent word editor (search-as-you-type autocomplete, badge display, remove buttons). Updated ResourceAdd.razor with preview table showing classification + override per row. Applied VocabularyClassificationBackfillService.ClassifyHeuristic() on paste/import. 14 new UI strings pending localization. Feature shipped, 147 tests passing. Documented in `.squad/log/2026-04-23T2219Z-wordphrase-squad-wrap.md`.
 - 2026-04-19: **Phase 2 Localization Review Lockout (Reviewer Rejection Protocol)** — After code review rejection, you were frozen from the fix cycle per protocol. Lead (Zoe) took ownership and found 30 missing resx keys + Skills.razor missing IDisposable/CultureChanged. **Key takeaway:** Run grep-all-keys verification before declaring resx batches complete. Verify all Blazor components with `@inject BlazorLocalizationService` have `@implements IDisposable` + event subscription pattern. This would have caught both blockers pre-review.
 - 2026-04-17: **Dynamic Platform Detection in Shared UI** — When wiring platform-specific features (HelpKit) into portable UI projects, use runtime type resolution via `Type.GetType()` + reflection to invoke methods. Keeps UI project browser-only (no MAUI refs), works in both MAUI and WebApp contexts, graceful degrade on missing types. Applied in NavMenu.razor for Help button.
@@ -265,4 +269,283 @@ Wash's mobile observability memo identifies capturing Blazor WebView JavaScript 
 4. **No MauiReactor surfaces:** All vocabulary editing is Blazor-only. Native app uses embedded Blazor WebView for vocab management.
 
 5. **Bootstrap icon + styling conventions:** Existing pages use `bi-*` icons consistently, `form-control-ss` for inputs, `card-ss` for sections, `ss-body2`/`ss-title3` typography.
+
+
+## Learnings (continued)
+
+- 2026-04-24: **Import UI Pattern Scout** — Completed planning investigation for Zoe's Import page design. Surveyed existing admin/management pages (Settings, ResourceAdd, ResourceEdit, Resources, Onboarding). Key findings: (1) Blazor-only platform (no MauiReactor parity yet); (2) Settings uses lightweight card sections, ResourceAdd shows multi-card + file import + preview table pattern, Resources shows polished list/lookup with search + filter + dual view modes + Virtualize; (3) File picker abstraction ready (IFilePickerService + WebFilePickerService for Blazor, MauiFilePickerService for MAUI); (4) Form validation is explicit null checks → Toast (no DataAnnotations UI); (5) Import already in top nav (NavMenu.razor line 60, icon bi-box-arrow-in-down); (6) Import.razor exists (28.7 KB YouTube-only template, reusable structure). Documented in `.squad/decisions/inbox/kaylee-import-ui-scout.md`.
+
+---
+
+## 2026-04-24 — Import UI Pattern Scout (Multi-Agent Session)
+
+Surveyed UI patterns, form conventions, file picker abstractions, navigation structure for import feature architecture.
+
+**Key findings:**
+- Form patterns: Bootstrap cards + sections (card-ss, form-control-ss, theme typography)
+- Multi-step flows: Settings (tabbed), Import (URL → Transcript → Polish → Save), ResourceAdd (card + file + preview)
+- File import pattern in ResourceAdd: InputFile + delimiter radios + editable preview table
+- Resource lookup: Resources.razor shows search + filter + dual views + Virtualize
+- File picker abstraction: IFilePickerService (Blazor: WebFilePickerService, MAUI: MauiFilePickerService)
+- Navigation: Import already in top-level nav (bi-box-arrow-in-down)
+
+**Recommendations to Zoe:**
+- Keep Import in top-level nav (good positioning)
+- Create new `/import-content` page (separate from YouTube)
+- Reuse preview table from ResourceAdd.razor
+- Use InputFile for file upload
+- Toast for notifications
+
+**Reusable components:** PageHeader, card-ss, form-control-ss, preview table pattern
+
+**Coordinated with:** Zoe (architecture), Wash (data layer), River (AI), Copilot
+
+**Next:** Implementation team uses patterns to build ImportContent.razor page.
+
+
+---
+
+## 2026-04-24 — Media Import Rename (Wave 1 Track B)
+
+Renamed YouTube import page from `/import` to `/media-import` to free up `/import` namespace for upcoming generic content-import feature.
+
+**Files changed:**
+1. **Component rename:** `src/SentenceStudio.UI/Pages/Import.razor` → `MediaImport.razor`
+2. **Route updates:** 
+   - Primary route changed to `/media-import`
+   - Added back-compat `/import` route on same component (dual @page directives)
+3. **Child route updates:** `src/SentenceStudio.UI/Pages/ChannelDetail.razor`
+   - Primary route changed to `/media-import/channel/{Id?}`
+   - Added back-compat `/import/channel/{Id?}` route
+   - All NavigateTo calls updated to use new `/media-import/*` paths
+4. **Navigation menu:** `src/SentenceStudio.UI/Layout/NavMenu.razor`
+   - Section key: `import` → `media-import`
+   - Icon: `bi-box-arrow-in-down` → `bi-camera-video`
+   - Label localization key: `Nav_Import` → `Nav_MediaImport`
+5. **Navigation service:** `src/SentenceStudio.UI/Services/NavigationMemoryService.cs`
+   - Section definition updated to `("media-import", "/media-import", ["/media-import", "/import"])`
+   - Both routes recognized for active-state tracking
+6. **Localization:** `src/SentenceStudio.Shared/Resources/Strings/AppResources.{resx,ko.resx}`
+   - Added `Nav_MediaImport` → "Media Import" (EN), "미디어 가져오기" (KO)
+   - Kept `Nav_Import` for potential future use
+7. **Logger type parameter:** Changed `ILogger<Import>` → `ILogger<MediaImport>` in component
+
+**Back-compat strategy:**
+- Chose dual @page directives (option 1) over redirect middleware
+- Rationale: Simpler, no extra code paths, bookmarks/deep-links resolve immediately
+- Both `/import` and `/media-import` work, UI always shows `/media-import` in address bar on fresh navigation
+- ChannelDetail also supports both `/import/channel/{Id?}` and `/media-import/channel/{Id?}`
+
+**Tricky cross-references:**
+- MediaImport.razor internal NavigateTo calls (AddChannel, EditChannel methods)
+- ChannelDetail.razor NavigateTo calls (SaveChannel success, NavigateBack)
+- NavigationMemoryService section definition (needed both routes in Prefixes array for sidebar active state)
+
+**Build verification:** `dotnet build src/SentenceStudio.UI/SentenceStudio.UI.csproj` — 267 warnings, **0 errors** ✅
+
+**Not changed:**
+- YouTube logic inside MediaImport.razor (scope: rename + reroute only)
+- ContentImportService (Wash's domain, Wave 2)
+- No new /import-content page yet (Wave 3, Kaylee)
+
+**Next:** Wave 2 (Wash) — ContentImportService + DTOs. Wave 3 (Kaylee) — Build new ImportContent.razor page at `/import-content`.
+
+---
+
+## 2026-04-24 — Import Content Page (Wave 2 Track B)
+
+Built the user-facing `/import-content` page for the data import MVP. This is the comprehensive wizard interface that consumes Wash's `ContentImportService` API.
+
+**Page structure (7-step wizard):**
+1. **Source:** Text area for paste (CSV/TSV). File upload deferred to v2 per Captain's prioritization.
+2. **Format hints:** Content type dropdown (Vocabulary enabled, Phrases/Transcript/Auto shown disabled with "v2" badge), delimiter dropdown (Auto/Comma/Tab/Pipe), "Has header row" checkbox.
+3. **Preview button:** Calls `IContentImportService.ParseContentAsync`, displays editable preview table.
+4. **Preview table:** Columns = row #, Target Language Term, Native Language Term, Status (OK/Warning/Error badges). Rows have checkboxes (error rows auto-deselected). Inline editable text inputs per cell. Select-all checkbox in header.
+5. **Target resource:** Radio choice between "Create new resource" (with title + description + target/native language dropdowns) OR "Add to existing resource" (dropdown of user's non-smart resources).
+6. **Dedup mode:** Radio: Skip (default, safest), Update (with warning text), ImportAll. Help text explains each mode per Captain's ruling.
+7. **Commit button:** Calls `IContentImportService.CommitImportAsync`, shows summary panel with counts (created/skipped/updated/failed). "View Resource" and "Import More" buttons.
+
+**Route decision:**
+- Primary route: `/import-content`
+- Did NOT claim `/import` (MediaImport already has it as back-compat)
+- TODO comment left for Captain review — generic import is arguably the better claimant for `/import`, but avoiding conflict for now
+
+**Reused components/patterns:**
+- **Resource picker:** Studied Resources.razor search + filter + Virtualize pattern. For MVP, used simple dropdown from `ResourceRepo.GetAllResourcesLightweightAsync()` filtered to non-smart resources.
+- **Preview table:** Bootstrap table-sm + table-bordered, similar to ResourceAdd.razor's vocabulary preview (but with status badges + select checkboxes instead of classification dropdown).
+- **Styling:** Bootstrap card-ss, ss-title3, ss-body2, form-control-ss, btn-ss-primary/secondary — matching MediaImport.razor and ResourceAdd.razor visual rhythm.
+- **Localization:** Injected `BlazorLocalizationService`, subscribed to CultureChanged, added `@implements IDisposable`.
+
+**DTOs consumed:**
+- `ContentImportRequest`, `ContentImportPreview`, `ImportRow`, `ContentImportCommit`, `ImportTarget`, `DedupMode`, `ContentType`, `RowStatus`, `ImportTargetMode`, `ContentImportResult`
+- All from `src/SentenceStudio.Shared/Services/ContentImportService.cs` (Wash's Wave 1 service)
+
+**Localization (43 keys added):**
+- `Nav_ImportContent` → "Import Content" (EN), "콘텐츠 가져오기" (KO)
+- `Import_Content_Title`, `Import_Step1_Title` through `Import_Step6_Title`
+- `Import_PasteContentLabel`, `Import_PastePlaceholder`, `Import_PasteHint`
+- Content type options: `Import_ContentType_Vocabulary`, `Import_ContentType_Phrases`, `Import_ContentType_Transcript`, `Import_ContentType_Auto`
+- Delimiter options: `Import_Delimiter_Auto`, `Import_Delimiter_Comma`, `Import_Delimiter_Tab`, `Import_Delimiter_Pipe`
+- Table headers: `Import_TargetLanguageTerm`, `Import_NativeLanguageTerm`, `Import_Status`
+- Target section: `Import_CreateNewResource`, `Import_AddToExistingResource`, `Import_ResourceTitleLabel`, etc.
+- Dedup modes: `Import_DedupMode_Skip`, `Import_DedupMode_Update`, `Import_DedupMode_ImportAll` (+ help text keys for each)
+- Result counts: `Import_Created`, `Import_Skipped`, `Import_Updated`, `Import_Failed`
+- Validation errors: `Import_ResourceTitleRequired`, `Import_SelectResourceRequired`, `Import_NoRowsSelected`
+- Toasts: `Import_ParseError`, `Import_CommitError`, `Import_ImportSuccess`, `Import_UpdateModeWarning`
+
+**Navigation menu:**
+- Added entry: `new NavItem("import-content", "bi-box-arrow-in-down", Localize["Nav_ImportContent"])`
+- Placed BEFORE `media-import` entry (content import is now the primary import feature; media import is specialized)
+
+**Build verification:**
+- Fixed ToastService API: Methods are synchronous (not async) — `ShowError`, `ShowSuccess`, `ShowWarning`, not `ShowErrorAsync`
+- `dotnet build src/SentenceStudio.UI/SentenceStudio.UI.csproj` — 267 warnings (all pre-existing), **0 errors** ✅
+
+**Key UX decisions:**
+1. **Single-column imports:** Preview shows `RowStatus.Warning` when native term is missing. User sees warning badge + can edit before commit. Wave 2 (River) will backfill AI translation during preview generation.
+2. **Error rows auto-deselected:** User CAN re-select them if they fix the inline error (e.g., fill in missing target term).
+3. **Update mode confirmation:** MVP shows warning toast. v2 will add modal confirmation (deferred per Captain guidance on taking time to make good decisions).
+4. **File upload deferred:** MVP is paste-only. `InputFile` component pattern exists in MediaImport.razor but adds complexity; Captain said "deliver paste-only and write a v2 todo for upload" if needed. Delivered paste-only.
+5. **Existing resource picker:** Used simple dropdown (not search+virtualize). 99% of users have <20 resources; search can be added when needed.
+
+**Gotchas / learnings:**
+- **ToastService API:** Synchronous methods, not async. Check service interface before assuming `await`.
+- **ContentType enum parse:** Needed `Enum.Parse<ContentType>(contentType)` where `contentType` is string bound to select.
+- **Delimiter special handling:** `\t` (tab) needs to be string `"\\t"` in dropdown, then parsed to `'\t'` char for `DelimiterOverride`.
+- **Preview table state management:** Needed `List<ImportRow> editableRows` separate from `previewResult.Rows` (which is read-only) so user edits don't mutate the original DTO.
+
+**Files changed:**
+1. `src/SentenceStudio.UI/Pages/ImportContent.razor` — NEW (27KB, 600+ lines)
+2. `src/SentenceStudio.UI/Layout/NavMenu.razor` — added import-content entry
+3. `src/SentenceStudio.Shared/Resources/Strings/AppResources.resx` — +43 keys
+4. `src/SentenceStudio.Shared/Resources/Strings/AppResources.ko.resx` — +43 Korean translations
+
+**Handoff notes for Jayne (E2E testing):**
+- **Do NOT run the app** — Captain validates manually after wave lands. Jayne writes the E2E test next.
+- Test scenarios:
+  1. Paste CSV (2 columns) → Preview → Create new resource → Skip duplicates → Commit
+  2. Paste TSV (1 column, header row) → Preview (warnings for missing native terms) → Add to existing → Skip duplicates → Commit
+  3. Paste invalid (no delimiter) → Parse error toast
+  4. Preview → Edit row → Toggle selection → Commit subset
+  5. Update mode → Warning toast shown
+- Look for: Row checkboxes functional, inline edits persist, status badges correct, summary counts match, resource created/updated in DB.
+
+
+---
+
+## 2026-04-25 — Import Scope Correction + v1.1 Architecture (Team Update)
+
+**Event:** Captain's process-correction round + Zoe's architecture spec completion  
+**Status:** 🔒 BLOCKED on captain-confirm-scope  
+
+**What happened:**
+- Captain identified process issue: Phrases/Transcripts/Auto-detect were silently moved to v2 without asking him by name. Scope corrected; all three are back in v1.1.
+- Zoe completed architecture spec and **corrected Squad's Decision #1**: `LexicalUnitType` enum already exists (not a new enum needed). Only a backfill migration required (Unknown→Word).
+- New scope flag from Zoe: free-text phrase extraction deferred to v1.2 (CSV + paired-line phrases stay in v1.1).
+
+**For Kaylee specifically:**
+- **UI Changes:** Enable Phrases/Transcript/Auto-detect in ImportContent.razor dropdown. Add auto-detect banner UI. Add help text for paired-line phrase format. Ensure CSV parser handles RFC 4180 quoting (Korean commas).
+- **Implementation blocked** until Captain confirms. See `.squad/decisions.md` for full spec (section "Import Content — Scope Correction & Expansion" + "Import Content v1.1 Architecture", section E).
+
+**No action needed from you yet.** Read the decisions ledger when Captain unblocks. Zoe's spec has implementation order: River → Wash → Kaylee → Jayne.
+
+
+
+---
+
+## 2026-04-25 — v1.1 Data Import UI (Checkboxes + Auto-detect)
+
+**Status:** DELIVERED — Harvest checkboxes + confidence banner + ImportStep.Harvest.
+
+**Deliverables:**
+1. Enabled Phrases/Transcript/Auto-detect in content type dropdown (removed v2 disabled badges).
+2. Harvest checkbox step — 3 independent checkboxes (Transcript/Phrases/Words) with at-least-one validation and default presets per scenario.
+3. Auto-detect confidence banner — 3-tier: High (auto-preview), Medium (confirm gate), Low (manual picker). Bootstrap icons only.
+4. ImportStep enum gains `Harvest` between Source and Preview.
+
+**Known limitations:** DetectContentType() still a stub. Harvest labels need localization.
+
+---
+
+## 2026-04-27 — v1.1 Data Import DTO Mapping Fix (Same-Cycle)
+
+**Status:** ✅ FIXED — Frontend defect + lesson learned
+
+**Context:** During Jayne's retest of Simon's backend bug fixes, a frontend DTO mapping gap was discovered: `LexicalUnitType` and `SourceText` were not being round-tripped from preview to commit.
+
+**Outcome:**
+- Identified 2 missing property mappings in ImportContent.razor (~line 688 and ~line 853)
+- Added `LexicalUnitType = r.LexicalUnitType` to editableRows construction
+- Added `SourceText = previewResult.SourceText` to updatedPreview construction
+- Audited ALL properties on 3 DTOs (ImportRow, ContentImportPreview, ContentImportCommit) for completeness
+- Clean build (0 errors)
+- Verified fix in retest (BUG-2 + BUG-3 now pass)
+- Final sweep confirmed 10/10 scenarios PASS
+
+**Lesson learned:** DTO discipline — when DTOs carry structured data through a pipeline, audit all properties in the initializer blocks, not just the obvious ones. AI-generated DTO fields (like LexicalUnitType from the prompt) can silently disappear if mapping is implicit. Explicit mapping + audit = defects caught early.
+
+**Adjacent finding (low-risk, future work):** Classification and RequiresUserConfirmation are informational-only and not used by backend. Could optionally round-trip in future for UI symmetry, but not blocking for MVP.
+
+**Ship readiness:** All bugs fixed and verified. Feature shipped clean.
+
+
+---
+
+## Vocabulary List — Type Filter & Add Button Rename (Round 1)
+
+**Date:** 2025-07-25
+**Branch:** feature/import-content
+**Scope:** `src/SentenceStudio.UI/Pages/Vocabulary.razor` only
+
+### Changes Made
+
+1. **Type filter dropdown** — Added a new "Type" filter (All Types / Word / Phrase / Sentence) to both the desktop filter row and the mobile offcanvas filter panel. Follows the exact same pattern as the existing Association/Status/Encoding dropdowns: `CurrentType` computed property, `OnTypeDropdown` handler routing through `OnDropdownChanged("type", e)`, and a `"type"` case in `ApplyFilters()` that matches against `VocabularyWord.LexicalUnitType`. Client-side filtering on the already-loaded list — no new service calls needed.
+
+2. **Add button renamed** — Changed "Add Word" → "Add" in both the primary action button and the secondary dropdown menu item. Created a new localization key `Vocabulary_Add` ("Add" / "추가") to keep `Vocabulary_AddWord` as a non-breaking legacy key.
+
+3. **Filter chip support** — Added `"type"` entries to `GetFilterTypeBadgeClass` (bg-primary-subtle) and `GetFilterTypeIcon` (bi-diagram-3) so type chips render correctly in the active filter bar.
+
+4. **Localization** — Added 5 new keys to both `AppResources.resx` and `AppResources.ko.resx`: `Vocabulary_Add`, `Vocabulary_FilterTypeAll`, `Vocabulary_FilterTypeWord`, `Vocabulary_FilterTypePhrase`, `Vocabulary_FilterTypeSentence`.
+
+### Learnings
+
+- **Dropdown filter pattern is clean and scalable:** The search-query-driven filter system (`OnDropdownChanged` → `SearchParser` → `ApplyFilters` switch) made adding a new filter type trivial. Same pattern should be used for any future filter additions.
+- **VocabularyWordEdit.razor already has full type support** (lines 117-128): a `<select>` bound to `selectedLexicalUnitType` with Word/Phrase/Sentence options, plus constituent word linking UI for Phrase/Sentence types. No changes needed there.
+- **No follow-up needed for the edit page** — it already handles all three types including the add-new flow (id=0). The "Add" button navigation works correctly as-is.
+
+### How to Test
+
+- Navigate to `/vocabulary`
+- Verify the header button says "Add" (not "Add Word")
+- Verify the "Type" dropdown appears in the desktop filter row (between Association and Status)
+- Select "Word" → only Word-type entries shown; select "Phrase" → only Phrases; "Sentence" → only Sentences; "All Types" → everything
+- Verify the type filter chip appears in the active filters bar when a type is selected
+- On mobile viewport: open the offcanvas filter panel → verify the "Type" section appears
+- Combine type filter with other filters (e.g., type:word + status:known) → both should apply
+
+### Import Page: Sentences Content Type Support (Round 2)
+
+**Scope:** Wired Wash's new `ContentType.Sentences` and `HarvestSentences` flag into ImportContent.razor.
+
+**Changes made:**
+1. **Content type dropdown**: Added "Sentences" option between Phrases and Transcript
+2. **Harvest checkboxes**: Added "Harvest Sentences" checkbox (order: Sentences > Phrases > Words), bound to `harvestSentences`
+3. **Type chooser buttons**: Added Sentences button to both low-confidence auto-detect panel and override chooser
+4. **FormatContentType helper**: Added `ContentType.Sentences => "Sentences"` case
+5. **ValidateHarvestCheckboxes**: Extended to include `harvestSentences` in the "at least one" check
+6. **CommitImport**: Wired `HarvestSentences = harvestSentences` into `ContentImportCommit` DTO
+7. **RunPreview**: Wired all four harvest flags into `ContentImportRequest` so backend can filter preview rows
+8. **StartNewImport**: Resets `harvestSentences = false`
+
+## Learnings
+
+- 2026-07 **Harvest Defaults per Content Type**: Vocabulary = Words only; Phrases = Phrases + Words; Sentences = Sentences + Words; Transcript = Transcript + Words; Auto = all unchecked. The pattern is: primary harvest flag matches content type, Words rides along as secondary (except Auto). User can always override.
+- 2026-07 **Validation rule extension**: `ValidateHarvestCheckboxes` uses OR across all four flags (Transcript, Sentences, Phrases, Words). Backend `CommitImportAsync` enforces the same rule independently. Both must stay in sync.
+- 2026-07 **RunPreview needs harvest flags too**: The preview request sends harvest flags so the backend's `FilterRowsByHarvestFlags` can filter the preview table. Without this, the preview would show rows the user didn't ask for.
+- 2026-04-27: **TEAM CONVERGENCE: Type Filter + Import UI** — Three-agent spawn diagnosed phrase-save bug (generic prompt wired instead of River's dedicated prompt). Kaylee completed Round 1: `Vocabulary.razor` Type filter dropdown added (All/Word/Phrase/Sentence pattern matching Association/Status/Encoding filters). VocabularyWordEdit.razor already supported all types — no changes needed. Client-side filter on loaded list. Round 2 pending: add Sentences button to import content type selector + Sentences harvest checkbox + `ContentTypeToString` case. Team pattern: convergent diagnosis (Wash backend, River prompts, Jayne reproduction) enabled fast Round 1 completion; UI now ready for backend integration.
+
+
+## Cross-Agent Updates
+
+- 2026-04-27: **Jayne v1.3 Import Detail E2E — SHIPPED** — Jayne validated the Import Complete redesign (commits 35e0ba1, 111418f) with 7/7 E2E tests PASS. Summary cards render correctly, per-row table works, filter pills functional, back-nav state preserved, vocab links navigate correctly, failed rows resilient, zero errors in logs. Feature shipped on feature/import-content. (See: `.squad/log/2026-04-27T14:53:00Z-v13-import-detail.md`)
 

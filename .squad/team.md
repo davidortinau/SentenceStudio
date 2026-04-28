@@ -17,6 +17,7 @@
 | Wash | Backend Dev | `.squad/agents/wash/charter.md` | ✅ Active |
 | River | AI/Prompt Engineer | `.squad/agents/river/charter.md` | ✅ Active |
 | Jayne | Tester | `.squad/agents/jayne/charter.md` | ✅ Active |
+| Simon | Backend Specialist (Escalation) | `.squad/agents/simon/charter.md` | ✅ Active |
 | Scribe | Session Logger | `.squad/agents/scribe/charter.md` | 📋 Silent |
 | Ralph | Work Monitor | — | 🔄 Monitor |
 
