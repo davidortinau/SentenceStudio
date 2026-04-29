@@ -33,44 +33,42 @@
     else if (importResult != null)
     {
         @* Step 7: Results Summary *@
-        <div class="card card-ss p-4 mb-3">
-            <h5 class="ss-title3 mb-3"><i class="bi bi-check-circle-fill text-success me-2"></i>@Localize["Import_ImportComplete"]</h5>
-            
-            <div class="row g-3 mb-3">
-                <div class="col-6 col-md-3">
-                    <div class="card card-ss p-3 text-center">
-                        <div class="fs-3 fw-bold text-success-ss">@importResult.CreatedCount</div>
-                        <div class="text-secondary-ss small">@Localize["Import_Created"]</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="card card-ss p-3 text-center">
-                        <div class="fs-3 fw-bold" style="color: var(--bs-info);">@importResult.SkippedCount</div>
-                        <div class="text-secondary-ss small">@Localize["Import_Skipped"]</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="card card-ss p-3 text-center">
-                        <div class="fs-3 fw-bold text-warning-ss">@importResult.UpdatedCount</div>
-                        <div class="text-secondary-ss small">@Localize["Import_Updated"]</div>
-                    </div>
-                </div>
-                <div class="col-6 col-md-3">
-                    <div class="card card-ss p-3 text-center">
-                        <div class="fs-3 fw-bold" style="color: var(--bs-danger);">@importResult.FailedCount</div>
-                        <div class="text-secondary-ss small">@Localize["Import_Failed"]</div>
-                    </div>
+        <h5 class="ss-title3 mb-3"><i class="bi bi-check-circle-fill text-success me-2"></i>@Localize["Import_ImportComplete"]</h5>
+        
+        <div class="row g-3 mb-3">
+            <div class="col-6 col-md-3">
+                <div class="card card-ss p-3 text-center">
+                    <div class="fs-3 fw-bold text-success-ss">@importResult.CreatedCount</div>
+                    <div class="text-secondary-ss small">@Localize["Import_Created"]</div>
                 </div>
             </div>
+            <div class="col-6 col-md-3">
+                <div class="card card-ss p-3 text-center">
+                    <div class="fs-3 fw-bold" style="color: var(--bs-info);">@importResult.SkippedCount</div>
+                    <div class="text-secondary-ss small">@Localize["Import_Skipped"]</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card card-ss p-3 text-center">
+                    <div class="fs-3 fw-bold text-warning-ss">@importResult.UpdatedCount</div>
+                    <div class="text-secondary-ss small">@Localize["Import_Updated"]</div>
+                </div>
+            </div>
+            <div class="col-6 col-md-3">
+                <div class="card card-ss p-3 text-center">
+                    <div class="fs-3 fw-bold" style="color: var(--bs-danger);">@importResult.FailedCount</div>
+                    <div class="text-secondary-ss small">@Localize["Import_Failed"]</div>
+                </div>
+            </div>
+        </div>
 
-            <div class="d-flex gap-2">
-                <button class="btn btn-ss-primary" @onclick="ViewResource">
-                    <i class="bi bi-book me-1"></i> @Localize["Import_ViewResource"]
-                </button>
-                <button class="btn btn-ss-secondary" @onclick="StartNewImport">
-                    <i class="bi bi-arrow-repeat me-1"></i> @Localize["Import_ImportMore"]
-                </button>
-            </div>
+        <div class="d-flex gap-2 mb-4">
+            <button class="btn btn-ss-primary" @onclick="ViewResource">
+                <i class="bi bi-book me-1"></i> @Localize["Import_ViewResource"]
+            </button>
+            <button class="btn btn-ss-secondary" @onclick="StartNewImport">
+                <i class="bi bi-arrow-repeat me-1"></i> @Localize["Import_ImportMore"]
+            </button>
         </div>
 
         @* Per-row detail table *@
@@ -87,30 +85,30 @@
                     </button>
                     @if (importResult.CreatedCount > 0)
                     {
-                        <button class="btn btn-sm @(resultFilter == ImportItemStatus.Created ? "btn-success" : "btn-ss-secondary")"
+                        <button class="btn btn-sm @(resultFilter == ImportItemStatus.Created ? "bg-success text-white" : "btn-ss-secondary")"
                                 @onclick="() => SetResultFilter(ImportItemStatus.Created)">
-                            @Localize["Import_Created"] <span class="badge bg-success ms-1">@importResult.CreatedCount</span>
+                            @Localize["Import_Created"] <span class="badge bg-success text-white ms-1">@importResult.CreatedCount</span>
                         </button>
                     }
                     @if (importResult.UpdatedCount > 0)
                     {
-                        <button class="btn btn-sm @(resultFilter == ImportItemStatus.Updated ? "btn-warning text-dark" : "btn-ss-secondary")"
+                        <button class="btn btn-sm @(resultFilter == ImportItemStatus.Updated ? "bg-warning text-dark" : "btn-ss-secondary")"
                                 @onclick="() => SetResultFilter(ImportItemStatus.Updated)">
                             @Localize["Import_Updated"] <span class="badge bg-warning text-dark ms-1">@importResult.UpdatedCount</span>
                         </button>
                     }
                     @if (importResult.SkippedCount > 0)
                     {
-                        <button class="btn btn-sm @(resultFilter == ImportItemStatus.Skipped ? "btn-info text-dark" : "btn-ss-secondary")"
+                        <button class="btn btn-sm @(resultFilter == ImportItemStatus.Skipped ? "bg-info text-dark" : "btn-ss-secondary")"
                                 @onclick="() => SetResultFilter(ImportItemStatus.Skipped)">
                             @Localize["Import_Skipped"] <span class="badge bg-info text-dark ms-1">@importResult.SkippedCount</span>
                         </button>
                     }
                     @if (importResult.FailedCount > 0)
                     {
-                        <button class="btn btn-sm @(resultFilter == ImportItemStatus.Failed ? "btn-danger" : "btn-ss-secondary")"
+                        <button class="btn btn-sm @(resultFilter == ImportItemStatus.Failed ? "bg-danger text-white" : "btn-ss-secondary")"
                                 @onclick="() => SetResultFilter(ImportItemStatus.Failed)">
-                            @Localize["Import_Failed"] <span class="badge bg-danger ms-1">@importResult.FailedCount</span>
+                            @Localize["Import_Failed"] <span class="badge bg-danger text-white ms-1">@importResult.FailedCount</span>
                         </button>
                     }
                 </div>
@@ -118,7 +116,7 @@
                 @* Desktop: table  |  Mobile: stacked cards *@
                 <div class="table-responsive d-none d-md-block">
                     <table class="table table-sm table-bordered align-middle mb-0">
-                        <thead class="table-light">
+                        <thead>
                             <tr>
                                 <th>@Localize["Import_ColLemma"]</th>
                                 <th>@Localize["Import_ColNative"]</th>
@@ -498,7 +496,7 @@
                                     <td>
                                         @if (row.Status == RowStatus.Ok)
                                         {
-                                            <span class="badge bg-success"><i class="bi bi-check-lg"></i> OK</span>
+                                            <span class="badge bg-success text-white"><i class="bi bi-check-lg"></i> OK</span>
                                         }
                                         else if (row.Status == RowStatus.Warning)
                                         {
@@ -508,7 +506,7 @@
                                         }
                                         else
                                         {
-                                            <span class="badge bg-danger" title="@row.Error">
+                                            <span class="badge bg-danger text-white" title="@row.Error">
                                                 <i class="bi bi-x-lg"></i> Error
                                             </span>
                                         }
@@ -1182,7 +1180,7 @@
     {
         ImportItemStatus.Created => (__builder) =>
         {
-            <span class="badge bg-success"><i class="bi bi-plus-circle me-1"></i>Created</span>
+            <span class="badge bg-success text-white"><i class="bi bi-plus-circle me-1"></i>Created</span>
         },
         ImportItemStatus.Updated => (__builder) =>
         {
@@ -1194,7 +1192,7 @@
         },
         ImportItemStatus.Failed => (__builder) =>
         {
-            <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Failed</span>
+            <span class="badge bg-danger text-white"><i class="bi bi-x-circle me-1"></i>Failed</span>
         },
         _ => (__builder) =>
         {
