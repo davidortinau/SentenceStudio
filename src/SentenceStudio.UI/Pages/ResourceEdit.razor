@@ -14,15 +14,21 @@ else
 {
     <PageHeader Title="@(resource.Title ?? "Resource")" ShowBack="true" OnBack="GoBack">
         <PrimaryActions>
-            <button class="btn btn-ss-primary" @onclick="SaveResource" disabled="@isSaving">
-                @if (isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
-                @Localize["Common_Save"]
-            </button>
+            @if (!resource.IsSmartResource)
+            {
+                <button class="btn btn-ss-primary" @onclick="SaveResource" disabled="@isSaving">
+                    @if (isSaving) { <span class="spinner-border spinner-border-sm me-1"></span> }
+                    @Localize["Common_Save"]
+                </button>
+            }
         </PrimaryActions>
         <SecondaryActions>
-            <li><button class="dropdown-item" @onclick="SaveResource" disabled="@isSaving"><i class="bi bi-check-lg me-2"></i>@Localize["Common_Save"]</button></li>
-            <li><hr class="dropdown-divider" /></li>
-            <li><button class="dropdown-item text-danger" @onclick="RequestDelete"><i class="bi bi-trash me-2"></i>@Localize["Common_Delete"]</button></li>
+            @if (!resource.IsSmartResource)
+            {
+                <li><button class="dropdown-item" @onclick="SaveResource" disabled="@isSaving"><i class="bi bi-check-lg me-2"></i>@Localize["Common_Save"]</button></li>
+                <li><hr class="dropdown-divider" /></li>
+                <li><button class="dropdown-item text-danger" @onclick="RequestDelete"><i class="bi bi-trash me-2"></i>@Localize["Common_Delete"]</button></li>
+            }
         </SecondaryActions>
     </PageHeader>
 
@@ -40,18 +46,18 @@ else
 
         <div class="mb-3">
             <label class="form-label ss-body2 text-secondary-ss">@Localize["ResourceEdit_Title"]</label>
-            <input type="text" class="form-control form-control-ss" @bind="resource.Title" />
+            <input type="text" class="form-control form-control-ss" @bind="resource.Title" disabled="@resource.IsSmartResource" />
         </div>
 
         <div class="mb-3">
             <label class="form-label ss-body2 text-secondary-ss">@Localize["ResourceEdit_Description"]</label>
-            <textarea class="form-control form-control-ss" @bind="resource.Description" rows="3"></textarea>
+            <textarea class="form-control form-control-ss" @bind="resource.Description" rows="3" disabled="@resource.IsSmartResource"></textarea>
         </div>
 
         <div class="row">
             <div class="col-md-6 mb-3">
                 <label class="form-label ss-body2 text-secondary-ss">@Localize["ResourceEdit_MediaType"]</label>
-                <select class="form-select form-control-ss" @bind="resource.MediaType">
+                <select class="form-select form-control-ss" @bind="resource.MediaType" disabled="@resource.IsSmartResource">
                     @foreach (var type in mediaTypes)
                     {
                         <option value="@type">@type</option>
@@ -60,7 +66,7 @@ else
             </div>
             <div class="col-md-6 mb-3">
                 <label class="form-label ss-body2 text-secondary-ss">@Localize["ResourceEdit_Language"]</label>
-                <select class="form-select form-control-ss" @bind="resource.Language">
+                <select class="form-select form-control-ss" @bind="resource.Language" disabled="@resource.IsSmartResource">
                     @foreach (var lang in languages)
                     {
                         <option value="@lang">@lang</option>
@@ -71,12 +77,12 @@ else
 
         <div class="mb-3">
             <label class="form-label ss-body2 text-secondary-ss">@Localize["ResourceEdit_MediaUrl"]</label>
-            <input type="url" class="form-control form-control-ss" @bind="resource.MediaUrl" />
+            <input type="url" class="form-control form-control-ss" @bind="resource.MediaUrl" disabled="@resource.IsSmartResource" />
         </div>
 
         <div class="mb-3">
             <label class="form-label ss-body2 text-secondary-ss">@Localize["ResourceEdit_Tags"]</label>
-            <input type="text" class="form-control form-control-ss" @bind="resource.Tags" />
+            <input type="text" class="form-control form-control-ss" @bind="resource.Tags" disabled="@resource.IsSmartResource" />
         </div>
 
         <div class="row g-2 mt-2">
@@ -90,19 +96,19 @@ else
 
     <div class="card card-ss p-4 mb-3">
         <h5 class="ss-title3 mb-3">@Localize["ResourceEdit_Transcript"]</h5>
-        <textarea class="form-control form-control-ss" @bind="resource.Transcript" rows="6"></textarea>
+        <textarea class="form-control form-control-ss" @bind="resource.Transcript" rows="6" disabled="@resource.IsSmartResource"></textarea>
     </div>
 
     <div class="card card-ss p-4 mb-3">
         <h5 class="ss-title3 mb-3">@Localize["ResourceEdit_Translation"]</h5>
-        <textarea class="form-control form-control-ss" @bind="resource.Translation" rows="6"></textarea>
+        <textarea class="form-control form-control-ss" @bind="resource.Translation" rows="6" disabled="@resource.IsSmartResource"></textarea>
     </div>
 
     @* Vocabulary *@
     <div class="card card-ss p-4 mb-3">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h5 class="ss-title3 mb-0">@string.Format(Localize["ResourceEdit_VocabularySection"], resource.Vocabulary?.Count ?? 0)</h5>
-            @if (!string.IsNullOrWhiteSpace(resource.Transcript))
+            @if (!string.IsNullOrWhiteSpace(resource.Transcript) && !resource.IsSmartResource)
             {
                 <button class="btn btn-ss-secondary btn-sm" @onclick="GenerateVocabulary"
                         disabled="@isGeneratingVocabulary">
@@ -120,47 +126,50 @@ else
             }
         </div>
 
-        <div class="mb-3">
-            <label class="form-label ss-body2 text-secondary-ss">@Localize["ResourceEdit_ImportVocabLabel"]</label>
-            <textarea class="form-control form-control-ss" @bind="vocabList" rows="4"
-                      placeholder='@Localize["ResourceEdit_VocabPlaceholder"]'></textarea>
-        </div>
+        @if (!resource.IsSmartResource)
+        {
+            <div class="mb-3">
+                <label class="form-label ss-body2 text-secondary-ss">@Localize["ResourceEdit_ImportVocabLabel"]</label>
+                <textarea class="form-control form-control-ss" @bind="vocabList" rows="4"
+                          placeholder='@Localize["ResourceEdit_VocabPlaceholder"]'></textarea>
+            </div>
 
-        <div class="d-flex align-items-center gap-3 mb-3">
-            <div class="form-check">
-                <input class="form-check-input" type="radio" name="editDelimiter" id="editDelimComma"
-                       checked="@(delimiter == "comma")" @onchange="SetDelimiterComma" />
-                <label class="form-check-label ss-body2" for="editDelimComma">@Localize["ResourceEdit_Comma"]</label>
+            <div class="d-flex align-items-center gap-3 mb-3">
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="editDelimiter" id="editDelimComma"
+                           checked="@(delimiter == "comma")" @onchange="SetDelimiterComma" />
+                    <label class="form-check-label ss-body2" for="editDelimComma">@Localize["ResourceEdit_Comma"]</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="radio" name="editDelimiter" id="editDelimTab"
+                           checked="@(delimiter == "tab")" @onchange="SetDelimiterTab" />
+                    <label class="form-check-label ss-body2" for="editDelimTab">@Localize["ResourceEdit_Tab"]</label>
+                </div>
+                <button class="btn btn-ss-secondary btn-sm ms-auto" @onclick="ImportVocabulary"
+                        disabled="@string.IsNullOrWhiteSpace(vocabList)">
+                    @Localize["ResourceEdit_Import"]
+                </button>
             </div>
-            <div class="form-check">
-                <input class="form-check-input" type="radio" name="editDelimiter" id="editDelimTab"
-                       checked="@(delimiter == "tab")" @onchange="SetDelimiterTab" />
-                <label class="form-check-label ss-body2" for="editDelimTab">@Localize["ResourceEdit_Tab"]</label>
-            </div>
-            <button class="btn btn-ss-secondary btn-sm ms-auto" @onclick="ImportVocabulary"
-                    disabled="@string.IsNullOrWhiteSpace(vocabList)">
-                @Localize["ResourceEdit_Import"]
-            </button>
-        </div>
 
-        <div class="mb-3">
-            <label class="form-label ss-body2 text-secondary-ss">@Localize["ResourceEdit_OrImportFile"]</label>
-            <div class="d-flex align-items-center gap-2">
-                <label class="btn btn-ss-secondary btn-sm mb-0" for="fileImportEdit" role="button" style="cursor:pointer">
-                    <i class="bi bi-file-earmark-arrow-up me-1"></i>@Localize["ResourceEdit_ChooseFile"]
-                </label>
-                <InputFile id="fileImportEdit" OnChange="HandleFileImport" accept=".txt,.csv" class="d-none" />
-                @if (isImportingFile)
-                {
-                    <span class="spinner-border spinner-border-sm text-primary"></span>
-                    <span class="ss-body2 text-secondary-ss">@Localize["ResourceEdit_Importing"]</span>
-                }
-                @if (!string.IsNullOrEmpty(fileImportStatus))
-                {
-                    <span class="ss-body2 text-secondary-ss">@fileImportStatus</span>
-                }
+            <div class="mb-3">
+                <label class="form-label ss-body2 text-secondary-ss">@Localize["ResourceEdit_OrImportFile"]</label>
+                <div class="d-flex align-items-center gap-2">
+                    <label class="btn btn-ss-secondary btn-sm mb-0" for="fileImportEdit" role="button" style="cursor:pointer">
+                        <i class="bi bi-file-earmark-arrow-up me-1"></i>@Localize["ResourceEdit_ChooseFile"]
+                    </label>
+                    <InputFile id="fileImportEdit" OnChange="HandleFileImport" accept=".txt,.csv" class="d-none" />
+                    @if (isImportingFile)
+                    {
+                        <span class="spinner-border spinner-border-sm text-primary"></span>
+                        <span class="ss-body2 text-secondary-ss">@Localize["ResourceEdit_Importing"]</span>
+                    }
+                    @if (!string.IsNullOrEmpty(fileImportStatus))
+                    {
+                        <span class="ss-body2 text-secondary-ss">@fileImportStatus</span>
+                    }
+                </div>
             </div>
-        </div>
+        }
 
         @if (resource.Vocabulary?.Count > 0)
         {
@@ -271,6 +280,12 @@ else
 
     private async Task SaveResource()
     {
+        if (resource.IsSmartResource)
+        {
+            Logger.LogWarning("Attempt to save smart resource {ResourceId} blocked", resource.Id);
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(resource.Title))
         {
             Toast.ShowError($"{Localize["ResourceEdit_TitleRequired"]}");
@@ -301,6 +316,12 @@ else
 
     private void RequestDelete()
     {
+        if (resource.IsSmartResource)
+        {
+            Logger.LogWarning("Attempt to delete smart resource {ResourceId} blocked", resource.Id);
+            return;
+        }
+
         deleteConfirmMessage = $"{Localize["ResourceEdit_DeleteMessage"]}";
         showDeleteConfirm = true;
     }
@@ -312,6 +333,13 @@ else
 
     private async Task ConfirmDelete()
     {
+        if (resource.IsSmartResource)
+        {
+            Logger.LogWarning("Attempt to delete smart resource {ResourceId} blocked", resource.Id);
+            showDeleteConfirm = false;
+            return;
+        }
+
         isDeleting = true;
         try
         {
@@ -332,6 +360,12 @@ else
 
     private async Task ImportVocabulary()
     {
+        if (resource.IsSmartResource)
+        {
+            Logger.LogWarning("Attempt to import vocabulary into smart resource {ResourceId} blocked", resource.Id);
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(vocabList))
             return;
 
@@ -371,6 +405,12 @@ else
 
     private async Task HandleFileImport(InputFileChangeEventArgs e)
     {
+        if (resource.IsSmartResource)
+        {
+            Logger.LogWarning("Attempt to import file into smart resource {ResourceId} blocked", resource.Id);
+            return;
+        }
+
         var file = e.File;
         if (file is null) return;
 
@@ -433,6 +473,12 @@ else
 
     private async Task GenerateVocabulary()
     {
+        if (resource.IsSmartResource)
+        {
+            Logger.LogWarning("Attempt to generate vocabulary for smart resource {ResourceId} blocked", resource.Id);
+            return;
+        }
+
         if (string.IsNullOrWhiteSpace(resource.Transcript))
         {
             Toast.ShowError($"{Localize["ResourceEdit_NoTranscript"]}");
