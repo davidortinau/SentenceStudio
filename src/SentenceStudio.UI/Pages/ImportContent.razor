@@ -130,8 +130,10 @@
                             </span>
                             <span class="text-secondary-ss flex-grow-1">@item.NativeLanguageTerm</span>
                             <div class="d-flex gap-2 align-items-center flex-wrap">
-                                @RenderTypeBadge(item.Type)
-                                @RenderStatusBadge(item.Status)
+                                @{ var typeBadge = GetTypeBadge(item.Type); }
+                                <span class="badge @typeBadge.CssClass"><i class="bi @typeBadge.Icon me-1"></i>@typeBadge.Label</span>
+                                @{ var statusBadge = GetStatusBadge(item.Status); }
+                                <span class="badge @statusBadge.CssClass"><i class="bi @statusBadge.Icon me-1"></i>@statusBadge.Label</span>
                                 @if (!string.IsNullOrEmpty(item.Reason))
                                 {
                                     <small class="text-danger" title="@item.Reason">
@@ -1117,48 +1119,28 @@
         NavManager.NavigateTo($"/vocabulary/edit/{item.VocabularyWordId}");
     }
 
-    private static RenderFragment RenderTypeBadge(LexicalUnitType type) => type switch
+    // WORKAROUND for dotnet/razor#13117 — net11p3 Razor SG regression:
+    // Switch expressions returning RenderFragment lambdas with inline markup
+    // emit synthetic members with empty names → CS0101/CS0102/CS9348 cascade.
+    // Replaced RenderFragment-returning helpers with tuple-returning meta helpers
+    // and inlined markup at call site. Recheck on each upstream preview release;
+    // when fixed, restore the original RenderFragment-returning helpers.
+    // See https://github.com/dotnet/razor/issues/13117
+    private static (string CssClass, string Icon, string Label) GetTypeBadge(LexicalUnitType type) => type switch
     {
-        LexicalUnitType.Word => (__builder) =>
-        {
-            <span class="badge bg-primary bg-opacity-10 text-primary"><i class="bi bi-fonts me-1"></i>Word</span>
-        },
-        LexicalUnitType.Phrase => (__builder) =>
-        {
-            <span class="badge bg-secondary bg-opacity-10 text-secondary"><i class="bi bi-chat-quote me-1"></i>Phrase</span>
-        },
-        LexicalUnitType.Sentence => (__builder) =>
-        {
-            <span class="badge bg-info bg-opacity-10 text-info"><i class="bi bi-body-text me-1"></i>Sentence</span>
-        },
-        _ => (__builder) =>
-        {
-            <span class="badge bg-secondary bg-opacity-10 text-secondary"><i class="bi bi-question-circle me-1"></i>Unknown</span>
-        }
+        LexicalUnitType.Word => ("bg-primary bg-opacity-10 text-primary", "bi-fonts", "Word"),
+        LexicalUnitType.Phrase => ("bg-secondary bg-opacity-10 text-secondary", "bi-chat-quote", "Phrase"),
+        LexicalUnitType.Sentence => ("bg-info bg-opacity-10 text-info", "bi-body-text", "Sentence"),
+        _ => ("bg-secondary bg-opacity-10 text-secondary", "bi-question-circle", "Unknown"),
     };
 
-    private static RenderFragment RenderStatusBadge(ImportItemStatus status) => status switch
+    private static (string CssClass, string Icon, string Label) GetStatusBadge(ImportItemStatus status) => status switch
     {
-        ImportItemStatus.Created => (__builder) =>
-        {
-            <span class="badge bg-success text-white"><i class="bi bi-plus-circle me-1"></i>Created</span>
-        },
-        ImportItemStatus.Updated => (__builder) =>
-        {
-            <span class="badge bg-warning text-dark"><i class="bi bi-pencil me-1"></i>Updated</span>
-        },
-        ImportItemStatus.Skipped => (__builder) =>
-        {
-            <span class="badge bg-info text-dark"><i class="bi bi-skip-forward me-1"></i>Skipped</span>
-        },
-        ImportItemStatus.Failed => (__builder) =>
-        {
-            <span class="badge bg-danger text-white"><i class="bi bi-x-circle me-1"></i>Failed</span>
-        },
-        _ => (__builder) =>
-        {
-            <span class="badge bg-secondary">Unknown</span>
-        }
+        ImportItemStatus.Created => ("bg-success text-white", "bi-plus-circle", "Created"),
+        ImportItemStatus.Updated => ("bg-warning text-dark", "bi-pencil", "Updated"),
+        ImportItemStatus.Skipped => ("bg-info text-dark", "bi-skip-forward", "Skipped"),
+        ImportItemStatus.Failed => ("bg-danger text-white", "bi-x-circle", "Failed"),
+        _ => ("bg-secondary", "bi-question-circle", "Unknown"),
     };
 
     public void Dispose()

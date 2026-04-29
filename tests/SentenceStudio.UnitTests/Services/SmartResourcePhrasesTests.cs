@@ -93,10 +93,10 @@ public class SmartResourcePhrasesTests : IDisposable
 
     /// <summary>
     /// Scenario 1: User with 2 Phrase, 1 Sentence, 3 Word vocab → refresh Phrases resource → 
-    /// mapping contains exactly the 3 non-Word rows
+    /// mapping contains exactly the 2 Phrase rows (Sentences excluded)
     /// </summary>
     [Fact]
-    public async Task RefreshPhrases_WithMixedVocabulary_ReturnsOnlyPhrasesAndSentences()
+    public async Task RefreshPhrases_WithMixedVocabulary_ReturnsOnlyPhrases()
     {
         // Arrange
         SeedUserProfile(TestUserA);
@@ -121,7 +121,7 @@ public class SmartResourcePhrasesTests : IDisposable
         {
             Id = Guid.NewGuid().ToString(),
             Title = "Phrases",
-            Description = "Practice all your phrase and sentence vocabulary",
+            Description = "Practice all your phrase vocabulary",
             MediaType = "Smart Vocabulary List",
             Language = "Korean",
             Tags = "system-generated,dynamic,phrases",
@@ -138,38 +138,40 @@ public class SmartResourcePhrasesTests : IDisposable
 
         // Assert
         var mappedWords = await _resourceRepo.GetVocabularyWordsByResourceAsync(phrasesResource.Id);
-        mappedWords.Should().HaveCount(3, "only Phrase and Sentence types should be included");
+        mappedWords.Should().HaveCount(2, "only Phrase types should be included");
         
         var mappedWordIds = mappedWords.Select(w => w.Id).ToList();
         mappedWordIds.Should().Contain(phraseWord1.Id);
         mappedWordIds.Should().Contain(phraseWord2.Id);
-        mappedWordIds.Should().Contain(sentenceWord.Id);
+        mappedWordIds.Should().NotContain(sentenceWord.Id);
         mappedWordIds.Should().NotContain(regularWord1.Id);
         mappedWordIds.Should().NotContain(regularWord2.Id);
         mappedWordIds.Should().NotContain(regularWord3.Id);
     }
 
     /// <summary>
-    /// Scenario 2: User with zero Phrase/Sentence vocab → refresh → empty mapping (no exception, resource still exists)
+    /// Scenario 2: User with zero Phrase vocab → refresh → empty mapping (no exception, resource still exists)
     /// </summary>
     [Fact]
-    public async Task RefreshPhrases_WithNoPhrasesOrSentences_ReturnsEmptyMapping()
+    public async Task RefreshPhrases_WithNoPhrases_ReturnsEmptyMapping()
     {
         // Arrange
         SeedUserProfile(TestUserA);
         
-        // Create only regular Word vocabulary
+        // Create only regular Word vocabulary and Sentences (no Phrases)
         var word1 = SeedVocabularyWord("word-1", "사과", LexicalUnitType.Word);
         var word2 = SeedVocabularyWord("word-2", "물", LexicalUnitType.Word);
+        var sentence1 = SeedVocabularyWord("sentence-1", "좋은 아침입니다", LexicalUnitType.Sentence);
         
         SeedVocabularyProgress(word1.Id, TestUserA);
         SeedVocabularyProgress(word2.Id, TestUserA);
+        SeedVocabularyProgress(sentence1.Id, TestUserA);
 
         var phrasesResource = new LearningResource
         {
             Id = Guid.NewGuid().ToString(),
             Title = "Phrases",
-            Description = "Practice all your phrase and sentence vocabulary",
+            Description = "Practice all your phrase vocabulary",
             MediaType = "Smart Vocabulary List",
             Language = "Korean",
             IsSmartResource = true,
@@ -185,7 +187,7 @@ public class SmartResourcePhrasesTests : IDisposable
 
         // Assert
         var mappedWords = await _resourceRepo.GetVocabularyWordsByResourceAsync(phrasesResource.Id);
-        mappedWords.Should().BeEmpty("no phrase/sentence vocabulary exists for this user");
+        mappedWords.Should().BeEmpty("no phrase vocabulary exists for this user");
         
         // Verify resource still exists
         var resource = await _resourceRepo.GetResourceAsync(phrasesResource.Id);
@@ -193,10 +195,10 @@ public class SmartResourcePhrasesTests : IDisposable
     }
 
     /// <summary>
-    /// Scenario 3: User with only Sentence vocab (no Phrase) → refresh → mapping contains only the Sentence rows
+    /// Scenario 3: User with only Sentence vocab (no Phrase) → refresh → mapping is empty (Sentences go to Sentences resource)
     /// </summary>
     [Fact]
-    public async Task RefreshPhrases_WithOnlySentences_ReturnsOnlySentences()
+    public async Task RefreshPhrases_WithOnlySentences_ReturnsEmpty()
     {
         // Arrange
         SeedUserProfile(TestUserA);
@@ -226,12 +228,7 @@ public class SmartResourcePhrasesTests : IDisposable
 
         // Assert
         var mappedWords = await _resourceRepo.GetVocabularyWordsByResourceAsync(phrasesResource.Id);
-        mappedWords.Should().HaveCount(2, "only Sentence types should be included");
-        
-        var mappedWordIds = mappedWords.Select(w => w.Id).ToList();
-        mappedWordIds.Should().Contain(sentence1.Id);
-        mappedWordIds.Should().Contain(sentence2.Id);
-        mappedWordIds.Should().NotContain(word1.Id);
+        mappedWords.Should().BeEmpty("only Phrase types should be included, not Sentences");
     }
 
     /// <summary>
@@ -269,11 +266,11 @@ public class SmartResourcePhrasesTests : IDisposable
 
         // Assert
         var mappedWords = await _resourceRepo.GetVocabularyWordsByResourceAsync(phrasesResource.Id);
-        mappedWords.Should().HaveCount(2, "only Phrase and Sentence (not Unknown) should be included");
+        mappedWords.Should().HaveCount(1, "only Phrase (not Sentence or Unknown) should be included after Phrases→Sentences split");
         
         var mappedWordIds = mappedWords.Select(w => w.Id).ToList();
         mappedWordIds.Should().Contain(phrase.Id);
-        mappedWordIds.Should().Contain(sentence.Id);
+        mappedWordIds.Should().NotContain(sentence.Id);
         mappedWordIds.Should().NotContain(unknown.Id);
     }
 
@@ -578,10 +575,10 @@ public class SmartResourcePhrasesTests : IDisposable
 
     /// <summary>
     /// Scenario 11: Initialize smart resources from scratch for a new user. 
-    /// Assert exactly 4 smart resources exist: DailyReview, NewWords, Struggling, Phrases.
+    /// Assert exactly 5 smart resources exist: DailyReview, NewWords, Struggling, Phrases, Sentences.
     /// </summary>
     [Fact]
-    public async Task InitializeSmartResources_CreatesAllFourTypes()
+    public async Task InitializeSmartResources_CreatesAllFiveTypes()
     {
         // Arrange
         SeedUserProfile(TestUserA);
@@ -591,17 +588,18 @@ public class SmartResourcePhrasesTests : IDisposable
 
         // Assert
         var smartResources = await _resourceRepo.GetSmartResourcesAsync();
-        smartResources.Should().HaveCount(4, "exactly 4 smart resources should exist");
+        smartResources.Should().HaveCount(5, "exactly 5 smart resources should exist");
         
         var types = smartResources.Select(r => r.SmartResourceType).ToList();
         types.Should().Contain(SmartResourceService.SmartResourceType_DailyReview);
         types.Should().Contain(SmartResourceService.SmartResourceType_NewWords);
         types.Should().Contain(SmartResourceService.SmartResourceType_Struggling);
         types.Should().Contain(SmartResourceService.SmartResourceType_Phrases);
+        types.Should().Contain(SmartResourceService.SmartResourceType_Sentences);
     }
 
     /// <summary>
-    /// Scenario 12: Re-initialize (idempotent) — still 4 resources, no duplicates.
+    /// Scenario 12: Re-initialize (idempotent) — still 5 resources, no duplicates.
     /// </summary>
     [Fact]
     public async Task InitializeSmartResources_CalledTwice_IsIdempotent()
@@ -618,7 +616,7 @@ public class SmartResourcePhrasesTests : IDisposable
 
         // Assert
         secondRunCount.Should().Be(firstRunCount, "second initialization should not create duplicates");
-        secondRunCount.Should().Be(4, "exactly 4 smart resources should exist");
+        secondRunCount.Should().Be(5, "exactly 5 smart resources should exist");
         
         // Verify no duplicate types
         var smartResources = await _resourceRepo.GetSmartResourcesAsync();

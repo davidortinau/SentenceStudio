@@ -2247,3 +2247,62 @@ All 36 ContentImport tests passed cleanly. No regressions detected.
 - ✅ Builds clean (0 errors)
 - ✅ All 36 ContentImport tests pass
 
+
+---
+
+### 2026-04-29T13:26:41Z: Pre-Deploy Check Rewritten for Flexible Server Architecture
+
+**By:** Wash (Backend Dev)  
+**Status:** Implemented, Merged  
+**PR:** #182 (e4e6480)  
+**Related Skill:** `.squad/skills/azure-predeploy-validation/SKILL.md`
+
+#### Context
+
+`scripts/pre-deploy-check.sh` had been failing on every deploy attempt for ~2 weeks because it validated obsolete ACA-container-DB resources that no longer existed after production was migrated to Azure PostgreSQL Flexible Server.
+
+#### Decision
+
+Rewrote the pre-deploy check script to validate the **current Flexible Server architecture** with four core safety checks:
+
+1. **Resource Locks (RG-scoped)** — Verifies ≥2 locks with expected names: `do-not-delete-db`, `do-not-delete-db-storage`
+2. **PostgreSQL Flexible Server State** — Verifies server `db-3ovvqiybthkb6` exists and state is `Ready` (not `Disabled`, `Stopped`, or provisioning)
+3. **Container Apps Environment State** — Verifies environment `cae-3ovvqiybthkb6` exists and provisioning state is `Succeeded`
+4. **Backup Freshness (48h threshold)** — Queries Flex Server backups via `az postgres flexible-server backup list`, verifies latest backup within 48 hours; handles GNU (Linux CI) and BSD (macOS dev) date parsing
+
+#### Safety Hardening
+
+Code-review agent caught three safety holes in first draft; all hardened to FAIL:
+
+1. **Lock-name validation** — Original only counted locks. Now verifies expected names (`do-not-delete-db`, `do-not-delete-db-storage`).
+2. **Backup-missing fallback** — Original silently passed when no backups existed. Now FAILS (indicates backup configuration drift).
+3. **Date-parse error handling** — Original silently passed on malformed backup timestamps. Now FAILS on date-parse errors.
+
+#### Verification
+
+All four checks **PASS** against production (`rg-sstudio-prod`) as of 2026-04-29 07:52 UTC:
+
+- Latest backup: `2026-04-29T02:52:03` (5 hours before verification)
+- Flex Server: `Ready`
+- CAE environment: `Succeeded`
+- Locks: 2/2 expected
+
+#### What Changed
+
+- **Removed** — ACA `db` container, volume mount, storage account file share, file count checks (all obsolete)
+- **Added** — Flex Server state, backup freshness, lock name verification
+- **Preserved** — Exit codes (0/1), PASS/FAIL output format, SKIP_PREDEPLOY_CHECK bypass
+
+#### Reusable Pattern
+
+Packaged as `.squad/skills/azure-predeploy-validation/SKILL.md` — template for future Azure deployment validation tasks (check resource states, verify backup SLAs, validate lock contracts, handle cross-platform date parsing).
+
+#### Migration Path
+
+None required. Script is called automatically by `azure.yaml` preprovision hook. Exit codes and output format unchanged — operators see no behavioral difference.
+
+#### Known Risks & Mitigations
+
+- **Date parsing fragility**: BSD vs GNU date differences handled with conditional logic. If CI fails, check backup freshness parsing in logs.
+- **Backup CLI deprecation warning**: `az postgres flexible-server backup list` warns about argument changes coming May 2026. Migration path is clear (add `--server-name` when available).
+

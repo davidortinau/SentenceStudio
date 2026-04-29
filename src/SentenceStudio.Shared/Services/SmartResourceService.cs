@@ -22,6 +22,7 @@ public class SmartResourceService
     public const string SmartResourceType_NewWords = "NewWords";
     public const string SmartResourceType_Struggling = "Struggling";
     public const string SmartResourceType_Phrases = "Phrases";
+    public const string SmartResourceType_Sentences = "Sentences";
 
     // Threshold for "struggling" words
     private const int STRUGGLING_MIN_ATTEMPTS = 5;
@@ -104,12 +105,24 @@ public class SmartResourceService
                 new LearningResource
                 {
                     Title = "Phrases",
-                    Description = "Practice all your phrase and sentence vocabulary",
+                    Description = "Practice all your phrase vocabulary",
                     MediaType = "Smart Vocabulary List",
                     Language = targetLanguage,
                     Tags = "system-generated,dynamic,phrases",
                     IsSmartResource = true,
                     SmartResourceType = SmartResourceType_Phrases,
+                    CreatedAt = DateTime.Now,
+                    UpdatedAt = DateTime.Now
+                },
+                new LearningResource
+                {
+                    Title = "Sentences",
+                    Description = "Practice all your sentence vocabulary",
+                    MediaType = "Smart Vocabulary List",
+                    Language = targetLanguage,
+                    Tags = "system-generated,dynamic,sentences",
+                    IsSmartResource = true,
+                    SmartResourceType = SmartResourceType_Sentences,
                     CreatedAt = DateTime.Now,
                     UpdatedAt = DateTime.Now
                 }
@@ -234,6 +247,7 @@ public class SmartResourceService
             SmartResourceType_NewWords => await GetNewWordsVocabularyIdsAsync(userId),
             SmartResourceType_Struggling => await GetStrugglingWordsVocabularyIdsAsync(userId),
             SmartResourceType_Phrases => await GetPhrasesVocabularyIdsAsync(userId),
+            SmartResourceType_Sentences => await GetSentencesVocabularyIdsAsync(userId),
             _ => new List<string>()
         };
     }
@@ -299,8 +313,8 @@ public class SmartResourceService
     }
 
     /// <summary>
-    /// Get vocabulary IDs for Phrases: all phrase and sentence vocabulary.
-    /// Selection: LexicalUnitType = Phrase OR Sentence, scoped by user via VocabularyProgress.
+    /// Get vocabulary IDs for Phrases: all phrase vocabulary only.
+    /// Selection: LexicalUnitType = Phrase, scoped by user via VocabularyProgress.
     /// </summary>
     private async Task<List<string>> GetPhrasesVocabularyIdsAsync(string userId = "")
     {
@@ -313,7 +327,7 @@ public class SmartResourceService
 
         if (userWordIds.Count == 0)
         {
-            _logger.LogDebug("📝 Phrases found 0 phrase/sentence entries (no user progress)");
+            _logger.LogDebug("📝 Phrases found 0 phrase entries (no user progress)");
             return new List<string>();
         }
 
@@ -322,12 +336,43 @@ public class SmartResourceService
 
         var phraseWordIds = await db.VocabularyWords
             .Where(w => userWordIds.Contains(w.Id))
-            .Where(w => w.LexicalUnitType == LexicalUnitType.Phrase
-                     || w.LexicalUnitType == LexicalUnitType.Sentence)
+            .Where(w => w.LexicalUnitType == LexicalUnitType.Phrase)
             .Select(w => w.Id)
             .ToListAsync();
 
-        _logger.LogDebug("📝 Phrases found {Count} phrase/sentence entries", phraseWordIds.Count);
+        _logger.LogDebug("📝 Phrases found {Count} phrase entries", phraseWordIds.Count);
         return phraseWordIds;
+    }
+
+    /// <summary>
+    /// Get vocabulary IDs for Sentences: all sentence vocabulary only.
+    /// Selection: LexicalUnitType = Sentence, scoped by user via VocabularyProgress.
+    /// </summary>
+    private async Task<List<string>> GetSentencesVocabularyIdsAsync(string userId = "")
+    {
+        var allProgress = await _progressRepo.ListAsync();
+        var userWordIds = allProgress
+            .Where(vp => vp.UserId == userId)
+            .Select(vp => vp.VocabularyWordId)
+            .Distinct()
+            .ToList();
+
+        if (userWordIds.Count == 0)
+        {
+            _logger.LogDebug("📖 Sentences found 0 sentence entries (no user progress)");
+            return new List<string>();
+        }
+
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var sentenceWordIds = await db.VocabularyWords
+            .Where(w => userWordIds.Contains(w.Id))
+            .Where(w => w.LexicalUnitType == LexicalUnitType.Sentence)
+            .Select(w => w.Id)
+            .ToListAsync();
+
+        _logger.LogDebug("📖 Sentences found {Count} sentence entries", sentenceWordIds.Count);
+        return sentenceWordIds;
     }
 }
