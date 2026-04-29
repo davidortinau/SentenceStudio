@@ -56,12 +56,19 @@
     upgrade further; these are floors, not pins.
   -->
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.AI.Abstractions" Version="9.5.0" />
-    <PackageReference Include="Microsoft.Extensions.VectorData.Abstractions" Version="9.5.0" />
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
-    <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.0" />
-    <PackageReference Include="sqlite-net-pcl" Version="1.9.172" />
+    <!-- Explicit MAUI refs required when CPM is enabled (MAUI SDK disables
+         implicit PackageReferences when ManagePackageVersionsCentrally=true). -->
+    <PackageReference Include="Microsoft.Maui.Controls" />
+    <PackageReference Include="Microsoft.Maui.Resizetizer" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.AI.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.VectorData.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Options" />
+    <PackageReference Include="sqlite-net-pcl" />
   </ItemGroup>
 
 </Project>

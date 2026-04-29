@@ -56,8 +56,20 @@ if (!string.IsNullOrWhiteSpace(openAiApiKey))
 {
     // AiService reads from Settings:OpenAIKey — bridge the Aspire env var
     builder.Configuration["Settings:OpenAIKey"] = openAiApiKey;
-    builder.Services.AddSingleton<Microsoft.Extensions.AI.IChatClient>(_ =>
-        new OpenAI.OpenAIClient(openAiApiKey).GetChatClient("gpt-4o-mini").AsIChatClient());
+
+    // Resilient HttpClient for OpenAI — server defaults (AddServiceDefaults) provide
+    // Polly retry/circuit-breaker via ConfigureHttpClientDefaults.
+    builder.Services.AddResilientOpenAIHttpClient();
+
+    var chatModel = builder.Configuration["AI:OpenAI:ChatModel"] ?? "gpt-4o-mini";
+    builder.Services.AddSingleton<Microsoft.Extensions.AI.IChatClient>(sp =>
+    {
+        var httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient("openai");
+        var transport = new System.ClientModel.Primitives.HttpClientPipelineTransport(httpClient);
+        var clientOptions = new OpenAI.OpenAIClientOptions { Transport = transport };
+        return new OpenAI.OpenAIClient(new System.ClientModel.ApiKeyCredential(openAiApiKey), clientOptions)
+            .GetChatClient(chatModel).AsIChatClient();
+    });
 }
 
 builder.Services.AddHostedService<Worker>();

@@ -1,0 +1,48 @@
+# DB Query Output — Postgres (server, Aspire-managed)
+# Container: db-84833ad0, Port: 60488, User: dbadmin, DB: sentencestudio
+# Date: 2026-04-26
+
+## Query 1: Captain's test data (맥주/웨이터 search)
+
+SELECT "Id", "TargetLanguageTerm", "NativeLanguageTerm", "LexicalUnitType"
+FROM "VocabularyWord"
+WHERE "TargetLanguageTerm" LIKE '%맥주%' OR "TargetLanguageTerm" LIKE '%웨이터%' OR "TargetLanguageTerm" LIKE '%앤지%'
+ORDER BY "CreatedAt" DESC LIMIT 30;
+
+                  Id                  | TargetLanguageTerm | NativeLanguageTerm | LexicalUnitType 
+--------------------------------------+--------------------+--------------------+-----------------
+ fd4e99ac-afb7-4699-9db1-a3daf71d81bb | 웨이터             | waiter             |               1
+ 103b98c7-355f-4d5a-b7e4-3e1825424877 | 맥주               | beer               |               1
+(2 rows)
+
+## Query 2: LexicalUnitType distribution
+
+SELECT "LexicalUnitType", COUNT(*) as count
+FROM "VocabularyWord"
+GROUP BY "LexicalUnitType"
+ORDER BY "LexicalUnitType";
+
+ LexicalUnitType | count 
+-----------------+-------
+               1 |   221
+               2 |     6
+(2 rows)
+
+## Query 3: Most recent 20 entries (Captain's import batch)
+
+SELECT "Id", "TargetLanguageTerm", "NativeLanguageTerm", "LexicalUnitType", "CreatedAt" 
+FROM "VocabularyWord" ORDER BY "CreatedAt" DESC LIMIT 20;
+
+                  Id                  | TargetLanguageTerm |  NativeLanguageTerm   | LexicalUnitType |           CreatedAt           
+--------------------------------------+--------------------+-----------------------+-----------------+-------------------------------
+ 9999ca2b-7b9e-4b80-a081-636e85d30f1f | 이해하다           | to understand         |               1 | 2026-04-27 02:54:20.349102+00
+ 31db6966-180d-4545-9895-60c57b0c94ef | 주문하다           | to order              |               1 | 2026-04-27 02:54:20.347701+00
+ acdd65e9-0d1e-40e5-95e8-0dbe3c1093af | 한국어             | Korean language        |               1 | 2026-04-27 02:54:20.346531+00
+ 97402339-757f-42f5-b36f-3802fac562e9 | 동료               | colleague             |               1 | 2026-04-27 02:54:20.345386+00
+ fd4e99ac-afb7-4699-9db1-a3daf71d81bb | 웨이터             | waiter                |               1 | 2026-04-27 02:54:20.344367+00
+ 47bb716b-8a3f-4b6a-8ba2-364bf2d54130 | 안                 | not (negation marker) |               1 | 2026-04-27 02:54:20.343027+00
+ 067f1f8f-3b24-4411-9a9a-df40dc7e9384 | 많이               | much                  |               1 | 2026-04-27 02:54:20.339937+00
+ 103b98c7-355f-4d5a-b7e4-3e1825424877 | 맥주               | beer                  |               1 | 2026-04-27 02:54:20.330836+00
+
+NOTE: 8 individual words extracted. 0 phrase-level entries. The 3 full Korean sentences
+from Captain's input were decomposed into individual vocabulary words by the AI.

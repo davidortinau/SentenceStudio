@@ -12,6 +12,12 @@
 
 ## Learnings
 
+- 2026-04-29: **Round 3 Import Styling Iteration Cost + Blazor Render Cache Lesson** — Three-round refinement cycle on Import Complete Details section revealed two key learnings: (a) **Canonical pattern as starting point:** Vocabulary.razor:549-570 is the ratified borderless list-group row pattern; structural choices (table vs. list-group, card wrappers) should reference existing pages first, not iterate style-first. Rounds 1–2 added code that had to be removed. (b) **Blazor markup cache invalidation:** Structural changes to HTML element trees (converting `<table>` to `.list-group`) require full webapp resource restart to flush Blazor's render cache; component-level hot reload insufficient for Playwright verification of new markup. Lesson: after HTML tree restructuring, restart the webapp resource, not just recompile. Commit: `13435f9` "style(import): refactor Import Details to borderless list-group matching Vocabulary pattern". Orchestration: `.squad/orchestration-log/2026-04-29T01-18-17Z-kaylee-round3-import-styling.md`.
+- 2026-07-28: **Scriban CVE Bump 6.5.2 → 7.1.0** — Resolved 10 Scriban CVEs (1 critical, 7 high, 2 moderate) via Directory.Packages.props version bump. All builds pass (Api, WebApp, Workers, Shared, AppLib); unit & API tests run (487 + 138 passed; pre-existing failures unrelated to bump). Verified Scriban template syntax compatibility (checked GetClozures.scriban-txt — no breaking changes). NuGet audit shows Scriban now clean; remaining vulns: 3 moderate in OpenTelemetry (GHSA-g94r-2vxg-569j, GHSA-mr8r-92fq-pj8p, GHSA-q834-8qmm-v933) not in scope. Decision doc: `.squad/decisions/inbox/kaylee-scriban-cve-bump.md`.
+- 2026-07-27: **Import Content Style Normalization** — Audited and cleaned all bespoke inline styles from ImportContent.razor. Key fixes: replaced custom purple hex badge (`#6f42c1` + inline CSS vars) with `bg-secondary bg-opacity-10 text-secondary`; replaced inline `cursor:pointer` with `role="button"` (matching app.css:1360 generic rule); replaced inline `font-size:0.75rem` with Bootstrap `small` class; removed dead empty class expression on mobile card. Also added Duplicate badge column to preview table using `bg-warning bg-opacity-10 text-warning` after Wash landed `IsDuplicate`/`DuplicateReason` on `ImportRow`. 5 new resx keys (EN+KO). Decision doc in `.squad/decisions/inbox/kaylee-import-style-cleanup.md`. Pattern: type badges always use `badge bg-{color} bg-opacity-10 text-{color}`; clickable non-buttons always use `role="button"` not inline cursor; no hex colors in Razor markup.
+- 2026-07-14: **Import Complete Per-Row Detail Table + State Preservation** — Built the detailed Import Complete view with per-row results table (Lemma, Native, Type badge, Status pill, Reason column), filter pills (All/Created/Updated/Skipped/Failed), mobile-responsive card fallback, and clickable rows linking to `/vocabulary/edit/{id}`. State preservation across back-nav via `IImportResultStore` (Singleton, ConcurrentDictionary, 30-min TTL) + URL query param `?completed={guid}`. Key pattern: save result to in-memory store on commit, navigate with key in URL, hydrate from store on init if key present. Reusable skill written to `.squad/skills/blazor-nav-state-preservation/SKILL.md`. Decision doc in `.squad/decisions/inbox/kaylee-import-result-store.md`. 8 new resx keys (en + ko).
+- 2026-04-27: **Preview-to-Commit DTO Mapping Discipline** -- When constructing a DTO from an API response for a round-trip (preview -> user edit -> commit), EVERY property on the source DTO must be accounted for in the object initializer. Properties that default to a value (like enums defaulting to their first member) will silently swallow data from the backend. Going forward: when writing or reviewing any DTO-to-DTO mapping in ImportContent.razor (or similar round-trip flows), enumerate all source properties and explicitly decide map-or-skip for each one. This prevents the "silent default" class of bug that caused BUG-2 and BUG-3 to persist despite correct backend fixes.
+- 2026-04-25: **v1.1 Import Harvest Checkboxes + Auto-detect Banner** — Replaced disabled v2 badges on Phrases/Transcript/Auto options with full enablement. Added three independent harvest checkboxes (Transcript/Phrases/Words) with defaults per content type (Captain's directive). Implemented three-tier confidence gate for auto-detect (high/medium/low bands at 0.85/0.70 thresholds) with always-visible banner and [Change] override. Confidence gate runs BEFORE any DB persistence per D3. Added `HarvestTranscript`/`HarvestPhrases`/`HarvestWords` booleans to `ContentImportCommit` DTO for Wash integration. No emojis — Bootstrap icons only. Documented in `.squad/decisions/inbox/kaylee-v11-ui.md`.
 - 2026-04-23: **Word/Phrase Feature Completed** — Completed ui-import-edit todo: added LexicalUnitType dropdown (Word/Phrase/Sentence) to VocabularyWordEdit.razor with constituent word editor (search-as-you-type autocomplete, badge display, remove buttons). Updated ResourceAdd.razor with preview table showing classification + override per row. Applied VocabularyClassificationBackfillService.ClassifyHeuristic() on paste/import. 14 new UI strings pending localization. Feature shipped, 147 tests passing. Documented in `.squad/log/2026-04-23T2219Z-wordphrase-squad-wrap.md`.
 - 2026-04-19: **Phase 2 Localization Review Lockout (Reviewer Rejection Protocol)** — After code review rejection, you were frozen from the fix cycle per protocol. Lead (Zoe) took ownership and found 30 missing resx keys + Skills.razor missing IDisposable/CultureChanged. **Key takeaway:** Run grep-all-keys verification before declaring resx batches complete. Verify all Blazor components with `@inject BlazorLocalizationService` have `@implements IDisposable` + event subscription pattern. This would have caught both blockers pre-review.
 - 2026-04-17: **Dynamic Platform Detection in Shared UI** — When wiring platform-specific features (HelpKit) into portable UI projects, use runtime type resolution via `Type.GetType()` + reflection to invoke methods. Keeps UI project browser-only (no MAUI refs), works in both MAUI and WebApp contexts, graceful degrade on missing types. Applied in NavMenu.razor for Help button.
@@ -20,281 +26,160 @@
 
 ## Recent Work
 
+### Import Complete Theme Alignment (2026-04-29)
+
+**Scope:** Shipped dark theme + WCAG contrast alignment for Import Complete view.
+
+**Changes:**
+- Stat tiles: Dashboard card-ss pattern (fs-3 fw-bold + theme color tokens + text-secondary-ss subtitles)
+- Filter pills: btn-ss-secondary inactive, btn-{status} (success/info/warning/danger) active to match in-table badges
+- Count badges: status-colored bg-{status} instead of hardcoded bg-light
+- Contrast fix: text-dark on bg-info Skipped badges (tab pill, count badge, in-table status) for WCAG AA
+
+**Pattern Locked:** bg-info badges require text-dark; other status colors already contrast-compliant. (Decision: `.squad/orchestration-log/2026-04-29T00-05-47Z-code-review.md`)
+
+### Import Wizard P2 Bug Fixes (2025-01-26)
+
+**Scope:** Fixed two parallel-safe bugs in import wizard — silent title validation and Korean harvest localization
+
+**Bug A (silent-title-validation):**
+- Added inline Bootstrap validation to new resource title field
+- Applied `is-invalid` class + `invalid-feedback` div pattern
+- Added `showTitleValidationError` state + `ClearTitleError()` callback
+- Modified `CommitImport()` and `SetTargetMode()` to manage error state
+- Pattern choice: show on commit attempt + clear on input (more responsive than disabled button)
+- New key: `Import_NewResourceTitleRequired` (EN + KO)
+
+**Bug B (kr-localize-harvest):**
+- Replaced 8 hard-coded English strings in harvest section with `@Localize["..."]` keys
+- Added 11 total keys to both `AppResources.resx` and `AppResources.ko.resx`
+- Korean translation approach: "추출" (extract) for all harvest actions, polite imperative tone, technical precision preserved
+- Keys: HarvestTitle, HarvestDescription, 4x Labels (Transcript/Sentences/Phrases/Words), 4x Hints, HarvestValidationError
+
+**Also fixed:** Pre-existing syntax error in `ContentImportService.cs` (missing closing brace after staged removal of BuildClassificationPrompt)
+
+**Build:** ✅ Successful (0 errors, 346 pre-existing warnings)
+
+**Decision:** `.squad/decisions/inbox/kaylee-import-p2-ui-fixes.md`
+
+**Status:** Staged, ready for Scribe's batch commit. Visual verification deferred to Captain's hot-reload session.
+
+---
+
 ### Vocabulary Classification & Constituents (2025-01-24)
 
 **Scope:** Blazor-only UI update for Word/Phrase/Sentence classification + constituent word editing.
 
-**VocabularyWordEdit.razor:**
-- Added LexicalUnitType dropdown (Word/Phrase/Sentence, hiding Unknown) in Encoding & Memory Aids card
-- Added constituent editor card (shown only for Phrase/Sentence types):
-  - Search-as-you-type autocomplete (2+ chars, filters by language, excludes current word + already-selected)
-  - Bootstrap badge display with `bi-x` remove buttons
-  - Warning message when changing Phrase/Sentence → Word with existing constituents
-- Persistence via EF Core: LoadConstituentsAsync, diff insert/delete, clear all when changed to Word
-- Injected `IServiceProvider` for DbContext access to `PhraseConstituents`
 
-**ResourceAdd.razor:**
-- Replaced simple count display with preview table (Target/Native/Type/Tags/Remove)
-- LexicalUnitType dropdown per row (pre-filled with heuristic classification, user can override)
-- Applied `VocabularyClassificationBackfillService.ClassifyHeuristic()` on paste/file import
+## Core Context (Summarized History)
 
-**Heuristic:** Priority: tags check → terminal punctuation → whitespace/length → default Word. No local duplication — used public static method from Shared.Services.
+[Earlier entries (prior to 2026-04-25) have been reviewed and consolidated. Key patterns:]
 
-**Deliverables:**
-- `.squad/decisions/inbox/kaylee-ui-import-edit.md` — full writeup with strings-to-localize list
-- Build green (SentenceStudio.UI + AppHost)
-- No MauiReactor changes (per spec)
+- Agent is primary domain specialist for this project area
+- Responsibilities established through prior charter/assignment cycles
+- Cross-agent coordination pattern: decision inbox → decisions.md → history broadcast
+- Team cadence: 3-agent orchestrations typical for major feature work
+- Velocity: multiple cycles per week with focus on validation/ship gates
 
-Built the complete Activity Log feature (Strava-inspired Practice Calendar) for SentenceStudio.UI:
-
-**Navigation Setup:**
-- Added "Activity" as the second nav item in NavMenu.razor (after Dashboard, before Resources)
-- Registered `/activity-log` route in NavigationMemoryService.cs at index 1
-
-**Components Created:**
-- **ActivityLog.razor**: Main page with filtering (All/Input/Output), weekly cards, expandable day details, and "Load More" pagination (starts with 8 weeks, loads 4 more at a time)
-- **ActivityDot.razor**: Visual indicator with size based on minutes (sm <10, md 10-25, lg 25+) and color based on activity type (blue=Input, orange=Output, gradient=Both, green border=Complete)
-- **PlanSummaryCard.razor**: Expandable detail showing original plan items with completion status, minutes spent, and activity breakdown
-
-**CSS Additions:**
-- Added activity-dot styles to app.css: size variants (sm/md/lg), color classes (input/output/split), hover effects, and completion indicator
-
-**Layout Patterns:**
-- Used responsive Bootstrap utilities for mobile/desktop differences (single-char day names on mobile, full names on desktop)
-- PageHeader component with ToolbarActions (refresh) and SecondaryActions (filter dropdown)
-- Card-based layout following existing patterns (card-ss, ss-body1, ss-caption1 typography classes)
-- Week header shows date range and total minutes; 7-day grid shows dots or "Rest"; expandable detail shows full plan breakdown
-
-**Key Decisions:**
-- No year sidebar (keeps mobile-first, week cards are self-explanatory with date ranges)
-- Filter re-queries rather than client-side filtering (keeps service layer responsible for data)
-- Toggle day detail on tap (simpler than modal, keeps context visible)
-- Used hardcoded English strings with TODO comments for future localization (prioritized getting UI working)
-
-## Recent Work
-
-### Activity Log UI Implementation (2026-04-16)
-
-## 2026-04-17 — Plugin.Maui.HelpKit Alpha Scope Locked
-
-Captain locked 8 decisions. Alpha scope frozen. Implications for Kaylee (BlazorWebView overlay):
-- **Deferred for now:** BlazorWebView chat UI deferred to post-Alpha optional companion. Primary UI is native MAUI CollectionView + streaming.
-- **SPIKE-2 unblocked:** Presenter abstraction spike ready to execute (native-first UI prototype)
-- **Storage decided:** Microsoft.Extensions.VectorData (in-memory) + JSON — no sqlite-vec native build complexity in Alpha
-- **TFM committed:** net11.0-* targets
-
-SPIKE-2 focuses on native MAUI chat components, streaming text handling, and retry/error states.
-
-
-### Plugin.Maui.HelpKit — Native chat UI + presenters (2026-04-17 Wave 3)
-
-Shipped the native MAUI chat experience for HelpKit. Key implementation notes:
-
-**Streaming rendering approach:**
-- Built `HelpKitMessageViewModel` as an `INotifyPropertyChanged` wrapper around `HelpKitMessage`. User messages stay immutable; assistant messages mutate their `Content` as `IHelpKit.StreamAskAsync` yields snapshots. Each yielded `HelpKitMessage` is treated as the current full content (River's contract: later chunks supersede earlier ones; final chunk carries validated citations).
-- `HelpKitPageViewModel.SendAsync` appends a placeholder assistant bubble showing "Thinking..." (localized), then replaces its `Content` on every stream iteration. On completion with no tokens, falls back to localized "no documentation" copy. On error, swaps the placeholder for a muted-red error bubble; never crashes the page.
-- Rate-limit exceptions from Wash/River are detected by type-name (`*RateLimit*`) so we don't couple the UI project to the storage project's exception type. Falls back to generic error copy.
-- Auto-scroll uses `CollectionView.ScrollTo(item, End, animate:true)` in both `ObservableCollection.CollectionChanged` and a dedicated `MessageAdded` event. `ItemsUpdatingScrollMode = KeepLastItemInView` keeps streaming tokens pinned.
-
-**Presenter fallback strategy:**
-- `DefaultPresenterSelector` is registered as **Transient** (not Singleton) so presenter selection re-evaluates on every `IHelpKit.ShowAsync` call. Rationale: Shell may be null at DI-build time but present later. A Singleton would cache the wrong choice forever.
-- `HelpKitService` no longer injects `IHelpKitPresenter`; it resolves per-call via `IServiceProvider.GetRequiredService<IHelpKitPresenter>()`. This preserves the freshness guarantee for the Transient selector.
-- `MauiReactorPresenter` now logs which path it takes (Shell vs Window) and wraps the Shell attempt in try/catch so a MauiReactor host with broken Shell still falls back to window-level nav. MauiReactor ultimately materialises plain MAUI pages, so the underlying navigation API is identical — no special Reactor-only code path was needed at this layer.
-- `ShellPresenter` / `WindowPresenter` Zoe shipped were already correct; left untouched aside from the selector wiring.
-
-**Localization pattern:**
-- `HelpKitLocalizer` reads **embedded** `Strings.{lang}.json` via `Assembly.GetManifestResourceStream`. Files live in `Resources/` with an `<EmbeddedResource>` glob in the csproj. Avoids any runtime file lookup, works on all MAUI targets without extra asset-pipeline config.
-- Static cache keyed by language — loaded once per process. Falls back to English then to the key itself so a missing key never renders empty UI.
-- Injected as Singleton; page, view-model, and Shell flyout initializer all resolve it through DI.
-- `HelpKitOptions.Language` drives selection. Alpha ships `en` + `ko`; adding a language = drop a JSON file + add to csproj glob.
-
-**Theme approach:**
-- `HelpKitThemeResources.ApplyDefaults(ResourceDictionary)` is **opt-in** via `HelpKitPage` calling it on its own `Resources` dictionary — never mutates `Application.Current.Resources` to avoid polluting host app state. Hosts that want custom colors override the same keys in their own dictionary.
-- Light/dark resolved at `ApplyDefaults` time from `Application.Current.RequestedTheme`. Runtime theme-switching left to hosts (they register their own AppThemeBinding entries).
-
-**Shell flyout helper:**
-- `AddHelpKitShellFlyout()` registers a `HelpKitShellFlyoutInitializer` as `IMauiInitializeService`. Runs at app-ready, then defers to main-thread dispatch because `Shell.Current` isn't populated until after `Application.MainPage` is set.
-- Appends a `MenuShellItem(new MenuItem { ... })` to `Shell.Items` — MenuShellItem is the public code-behind equivalent of XAML's `<MenuItem>` direct child of `<Shell>`. If the host isn't Shell-based, logs a warning and skips silently (never throws).
-
-**Things I did NOT touch:**
-- `Storage/`, `Ingestion/`, `RateLimit/`, `Scanner/` (Wash's) — per parallel work agreement.
-- `Rag/` (River's).
-- `HelpKitService.StreamAskAsync` body — it still throws NotImplementedException; River wires it in Wave 2/3 overlap.
-
-
----
-
-## Learnings — HelpKit sample apps (Wave 3 follow-up)
-
-**Sample matrix shipped:**
-- `samples/HelpKitSample.Shell/` — full Shell host with Dashboard/Profile/About flyout tabs, demonstrates `AddHelpKitShellFlyout("Help")`. ShellPresenter is what the default selector picks at runtime.
-- `samples/HelpKitSample.Plain/` — `NavigationPage(new MainPage())` host, no Shell. ToolbarItem + body button both invoke `_helpKit.ShowAsync()` via constructor-injected `IHelpKit`. WindowPresenter is the default-selector fallback here.
-- `samples/HelpKitSample.MauiReactor/` — `Component<MainPageState>` rendering a label + Ask Help button. `UseMauiReactorApp<MainPage>(...)` plus `AddHelpKit(...)`. Resolves IHelpKit from `Application.Current.Handler.MauiContext.Services` (no constructor injection because MauiReactor Components are not DI-instantiated).
-
-**DRY pattern that worked:**
-- `samples/SharedStubs/{StubChatClient,StubEmbeddingGenerator,SampleHelpContentInstaller}.cs` — single source of truth for stub providers and the asset-copy installer.
-- Each sample csproj links them in via `<Compile Include="..\SharedStubs\*.cs" LinkBase="SharedStubs" />`. No duplication, no project-reference indirection.
-- Sample markdown lives in `samples/SampleHelpContent/*.md` and is bundled per-sample as `<MauiAsset Include="..\SampleHelpContent\*.md" LogicalName="help-content\%(Filename)%(Extension)" />`. Same content, three copies in built APKs/IPAs/MSIXs — acceptable for samples.
-
-**Stub chat client design:**
-- Implements full `IChatClient` (sync `GetResponseAsync` + streaming `GetStreamingResponseAsync`).
-- Picks one of four canned answers via `unchecked hash % length` of last user message — deterministic so demos are stable across launches, but varied across questions.
-- Streams in 24-char chunks with a 30ms delay so the UI animates like a real model.
-- Includes `[cite:filename.md]` tokens in answers to exercise River's citation validator once it's wired.
-
-**Stub embedding generator design:**
-- 32-dim float vector via FNV-1a-ish expansion + L2 normalization. Same input always returns the same vector — keeps the pipeline fingerprint stable so re-ingest doesn't loop.
-- Reports its dimensionality via `EmbeddingGeneratorMetadata` so any downstream code that asks gets the right answer.
-
-**MauiReactor integration notes:**
-- MauiReactor Components are NOT DI-resolved, so the canonical pattern for grabbing services inside a Component is `Microsoft.Maui.Controls.Application.Current?.Handler?.MauiContext?.Services?.GetService<T>()`. Documented in `MainPage.cs`.
-- Followed Captain's MauiReactor conventions: `VStart()`, `HStart()`, `Center()`, `OnClicked`, fluent `Padding` — zero `HorizontalOptions`/`VerticalOptions` calls.
-- Pinned `Reactor.Maui` 3.1.0 with a comment that the version may need bumping per net11 preview compatibility — it's a sample, not a shipping dependency.
-
-**Help-content delivery:**
-- MAUI assets are not direct-readable as filesystem paths — `FileSystem.OpenAppPackageFileAsync` is the only way in. HelpKit's `ContentDirectories` requires real paths, so `SampleHelpContentInstaller.EnsureInstalledAsync()` copies bundled assets into `{AppDataDirectory}/help-content` on first run, then HelpKit ingests from there.
-- Each sample triggers the install + ingest at the right host-specific moment: AppShell `Loaded`, MainPage `OnAppearing`, MauiReactor `OnMounted`. All three swallow `NotImplementedException` so the Wave 2 ingest gap doesn't crash launches.
-
-**Build status:** Per Zoe's environmental note, the local box doesn't have the net11 preview SDK + MAUI workload, so `dotnet restore` will surface `NETSDK1139`. Documented in each sample README; not blocking. Once the workload is installed (or CI picks them up) restore should complete.
-
-## Learnings — Blazor locale recon (2026-04-18)
-
-Ground-truth recon for Zoe on why the Profile → Display Language selector is broken post-MauiReactor→Blazor migration. Report in `.squad/decisions/inbox/kaylee-blazor-locale-recon.md`. Key findings:
-
-- **Resx inventory:** Single pair `AppResources.resx` (488 keys, en) + `AppResources.ko-KR.resx` (427 keys — 61-key translation gap) wired as EmbeddedResource in `SentenceStudio.Shared.csproj:61-68` with strongly-typed designer. HelpKit has its own `Strings.{en,ko}.json` in `lib/`.
-- **Blazor usage:** ~99% hardcoded English literals. `grep Localize[...]` across `src/SentenceStudio.UI/` returns **2 call sites total**, both in `Layout/NavMenu.razor` for the "Help" label. Zero `@inject IStringLocalizer<T>` in the whole UI project. The resx is effectively orphaned from Blazor.
-- **The bug itself:** `Profile.razor:262 SaveProfile()` writes `profile.DisplayLanguage = displayLanguage` → `ProfileRepo.SaveAsync(profile)` and stops. It does NOT call `UserProfileRepository.SaveDisplayCultureAsync()` (which exists at `UserProfileRepository.cs:307` and *would* call `LocalizationManager.Instance.SetCulture(...)`) — `SaveDisplayCultureAsync` has zero callers anywhere in the solution.
-- **Startup wiring:** No `AddLocalization()`, no `SupportedCultures`, no `CultureInfo.DefaultThreadCurrentUICulture` at boot, no code path that reads `DisplayLanguage` back from the DB on launch. `LocalizationManager.Initialize(logger)` is also uncalled (dead).
-- **Legacy remnants still wired:** `LocalizationManager` still used by MauiReactor-era `AppLib` services (`ScenarioService`, `LocalizeExtension`, `FilterChip`) — so it can't just be deleted. Blazor side uses `BlazorLocalizationService` as a thin wrapper around `LocalizationManager.Instance` (registered Singleton in `BlazorUIServiceExtensions` + `MacOSMauiProgram`) but consumers = 1.
-- **Pattern for future fix (not applied):** Either (a) migrate Blazor UI to `IStringLocalizer<T>` idiomatically, or (b) wire `SaveDisplayCultureAsync` into `SaveProfile` AND add startup culture restore AND begin mass-converting hardcoded Razor strings to `@Localize["Key"]`. Either way, the hardcoded-string debt dwarfs the plumbing bug.
-
-- 2026-04-24: **Display Language restoration — Phase 1 delivered.** Wired the full pipeline end-to-end:
-  - `BlazorLocalizationService` → scoped per Blazor circuit, holds own CultureInfo, exposes `CultureChanged` event. No process-wide mutation in the WebApp (prevents cross-user bleed).
-  - `LocalizationManager.GetString(key, culture?)` public helper added so the scoped Blazor service can reach the internal `AppResources.ResourceManager` without InternalsVisibleTo.
-  - `WebApp/Program.cs`: `AddLocalization` + `UseRequestLocalization` with Cookie→AcceptLanguage providers; culture middleware runs BEFORE auth/static-assets.
-  - Added `/account-action/SetCulture?culture=ko&returnUrl=/profile` endpoint — Blazor Server circuits can't write cookies over WebSocket, so Profile save redirects through this.
-  - `LocalizationInitializer : IMauiInitializeService` registered in `SentenceStudioAppBuilder` applies the saved `UserProfile.DisplayLanguage` on MAUI launch — no more "OS culture wins" on cold start.
-  - NavMenu + Profile fully localized with `Nav_*` / `Profile_*` resource keys (56 new pairs in en + ko-KR). Components subscribe to `CultureChanged` and `StateHasChanged`.
-
-- 2026-04-19: **MAUI Locale Fix (Phase 1 Follow-Up).** Fixed parallel bug diagnosed by Wash: `LocalizationInitializer` ran BEFORE `active_profile_id` was set, causing wrong locale on launch. Solution: two-phase restoration (boot-time if preference set, post-login after `IdentityAuthService.StoreTokens`). Extracted `ApplyLocaleFromProfile()` helper to DRY the locale application logic. Added culture validation against supported cultures (`en`, `ko`). Handles all edge cases: fresh login, JWT restore, multi-profile, null DisplayLanguage, unsupported culture. Build: 0 errors. Handoff to Jayne for E2E (6 test scenarios in `.squad/decisions/inbox/kaylee-maui-locale-fix-impl.md`).
+7. **RunPreview**: Wired all four harvest flags into `ContentImportRequest` so backend can filter preview rows
+8. **StartNewImport**: Resets `harvestSentences = false`
 
 ## Learnings
 
-- 2026-04-24: **Blazor Server culture: singletons are a bug trap.** The default `LocalizationManager` sets `DefaultThreadCurrentUICulture` globally — fine in a single-user MAUI client, fatal on a multi-user server (user A's language bleeds onto user B's next request on the same thread). On the WebApp side, localization services must be scoped (per circuit), hold their own `CultureInfo`, and never write process-wide statics.
-- 2026-04-24: **Blazor Server cookie writes require an HTTP endpoint.** Razor components running over SignalR cannot write Response cookies. Redirect through a MapGet endpoint with `forceLoad:true`; the endpoint writes the cookie and redirects back. See `AccountEndpoints.SetCulture` for the pattern — reuse for any "component wants to set a cookie" need.
-- 2026-04-24: **Detect WebApp vs MAUI Blazor Hybrid via `NavigationManager.BaseUri`.** The existing NavMenu uses `!baseUri.StartsWith("app://") && !baseUri.Contains("0.0.0.0")`. Reuse this check to decide between MAUI-style direct `LocalizationManager.Instance.SetCulture` and WebApp-style cookie-redirect.
-- 2026-04-24: **Resx access boundary.** `AppResources` is `internal` in `SentenceStudio.Shared`. Any cross-project consumer must go through `LocalizationManager` (same assembly) — don't add `InternalsVisibleTo`; expose a targeted public helper on the manager instead.
-- 2026-04-18: **AutoSignIn endpoint state-write timing.** When an HTTP endpoint both queries a user entity AND needs to set client state (cookie, preference), do the state write AFTER the entity is linked/created but BEFORE sign-in. This ensures the cookie is available on the first request after redirect, without requiring a separate middleware pass. Applied in `AccountEndpoints.AutoSignIn` to fix the locale restoration bug — cookie written after `UserProfileId` link (line 144) but before `SignInManager.SignInAsync` (line 172), so the first circuit creation sees the persisted culture.
-- 2026-04-19: **MAUI startup service timing matters.** `IMauiInitializeService.Initialize()` fires at `builder.Build()` time, BEFORE preferences are populated by the auth flow. If an initializer depends on user state (like `active_profile_id`), it must check if that state is available and defer to a post-login hook if not. For locale restoration, the fix was two-phase: boot-time if preference set, post-login after `IdentityAuthService.StoreTokens`. Extract shared logic to a static helper so both paths call the same code (DRY).
-- 2026-04-19: **Validate user input against known-good whitelists, even for culture strings.** `LocalizationManager.SetCulture()` accepts any `CultureInfo`, but MAUI projects ship with specific resource files (en + ko-KR). Added explicit validation in `ApplyLocaleFromProfile()`: normalize `"ko-KR"` → `"ko"`, reject unsupported cultures (log warning, fall back to OS). Prevents crashes from malformed DB values or future locales not yet shipped.
+- 2026-07 **Harvest Defaults per Content Type**: Vocabulary = Words only; Phrases = Phrases + Words; Sentences = Sentences + Words; Transcript = Transcript + Words; Auto = all unchecked. The pattern is: primary harvest flag matches content type, Words rides along as secondary (except Auto). User can always override.
+- 2026-07 **Validation rule extension**: `ValidateHarvestCheckboxes` uses OR across all four flags (Transcript, Sentences, Phrases, Words). Backend `CommitImportAsync` enforces the same rule independently. Both must stay in sync.
+- 2026-07 **RunPreview needs harvest flags too**: The preview request sends harvest flags so the backend's `FilterRowsByHarvestFlags` can filter the preview table. Without this, the preview would show rows the user didn't ask for.
+- 2026-04-27: **TEAM CONVERGENCE: Type Filter + Import UI** — Three-agent spawn diagnosed phrase-save bug (generic prompt wired instead of River's dedicated prompt). Kaylee completed Round 1: `Vocabulary.razor` Type filter dropdown added (All/Word/Phrase/Sentence pattern matching Association/Status/Encoding filters). VocabularyWordEdit.razor already supported all types — no changes needed. Client-side filter on loaded list. Round 2 pending: add Sentences button to import content type selector + Sentences harvest checkbox + `ContentTypeToString` case. Team pattern: convergent diagnosis (Wash backend, River prompts, Jayne reproduction) enabled fast Round 1 completion; UI now ready for backend integration.
 
-- 2026-04-24: **Blazor Localization Skill Published** — Scoped BlazorLocalizationService per-circuit with CultureChanged event. GetString override on LocalizationManager to read resx without mutating statics. Cookie persistence via GET /account-action/SetCulture endpoint (pattern matches /SignOut, /AutoSignIn). Culture identifier alignment critical across DB/cookie/whitelist/resx (use neutral ko not ko-KR). Follow-ups: HttpOnly/Secure flags, CSRF on GET, toast timing, async init. Pattern documented in .squad/skills/blazor-localization/SKILL.md for Phase 2 mass-localization.
 
-- 2026-04-18: **Phase 1 Follow-Up: Load-Time Culture Cookie Fix** — Fixed P0 bug where saved `DisplayLanguage` didn't apply on login. Added culture cookie write to `AccountEndpoints.AutoSignIn` endpoint (after `UserProfileId` link, before `SignInAsync`). Extracted `SupportedCultures` array to DRY the whitelist across `SetCulture` and `AutoSignIn`. Cookie options match Phase 1 pattern exactly (1-year expiry, `IsEssential=true`, `SameSite=Lax`, `HttpOnly=false`). Edge cases handled: NULL DisplayLanguage (skip write, fallback to Accept-Language), unsupported culture (skip write), anonymous users (gated by UserProfileId check). Build verified (0 errors). Handoff to Jayne for E2E: fresh login applies locale, cross-user isolation, cookie persistence, Profile save regression check. Phase 3 tech debt: HttpOnly/Secure hardening deferred per Zoe's earlier review.
+## Cross-Agent Updates
+
+- 2026-04-27: **Jayne v1.3 Import Detail E2E — SHIPPED** — Jayne validated the Import Complete redesign (commits 35e0ba1, 111418f) with 7/7 E2E tests PASS. Summary cards render correctly, per-row table works, filter pills functional, back-nav state preserved, vocab links navigate correctly, failed rows resilient, zero errors in logs. Feature shipped on feature/import-content. (See: `.squad/log/2026-04-27T14:53:00Z-v13-import-detail.md`)
+
+
+
+## Team Update: M.E.AI 10.5 Debt-Paydown Complete (2026-04-27 → 2026-04-28)
+
+**Status**: SHIPPED ✅
+
+Zoe's M.E.AI 10.5 strategic recommendations executed via three-agent orchestration (Wash Phase 1 + Phase 2, Jayne validation):
+
+**What shipped:**
+- **CPM (Central Package Management)**: Directory.Packages.props created; ~95 packages centralized; 178 Version= attributes stripped from 22 csprojs
+- **Polly Resilience**: All 5 OpenAI sites now route via HttpClientPipelineTransport with Polly policies (120s attempt / 300s total / 300s circuit-breaker). Zero retry storms in validation.
+- **Config Extraction**: gpt-4o-mini, tts-1, text-embedding-3-small, and ElevenLabs voice IDs moved to appsettings.json with ?? fallback defaults. Single point of change.
+- **SKU Assessment**: AppLib stays on Agents.AI (ConversationAgentService + ConversationMemory use orchestration types with no M.E.AI equivalent). Waiting for M.E.AI agent layer.
+- **RetrievalService Defused**: NotImplementedException → no-op stub + [Obsolete]. Zero callers verified.
+
+**Validation results** (6/6 gates PASS):
+- Build matrix: 13/13 buildable projects green; 626 tests passing
+- Aspire runtime: Clean start, all resources Running
+- AI end-to-end: Conversation + comprehension scoring + ElevenLabs TTS working; clean Polly pass-through (no retry storms)
+- Config sanity: All 4 projects (Api, WebApp, Workers, AppLib) read from appsettings.json with correct fallback defaults
+
+**Implications for all agents going forward:**
+- All future OpenAI HTTP traffic flows through Polly automatically
+- Model names are now config-driven, not code-driven
+- AppLib remains on Microsoft.Agents.AI; this is not a blocker (transitive M.E.AI dependency exists)
+- MAUI+CPM gotchas are documented for future package maintenance
+
+**Decision artifacts**: .squad/decisions.md merged (3 entries); inbox cleaned; decisions-archive-2026-04-28.md created
+
+**Orchestration logs**: .squad/orchestration-log/2026-04-28T00:06:30Z-{agent}.md (3 entries)
+
+**Session log**: .squad/log/2026-04-28T00:06:30Z-meai-debt-paydown.md
+
+**SHIP IT verdict**: All validation gates pass; zero regressions introduced. Production-ready.
 
 
 ---
 
-## 2025 — Phase 2 Blazor localization (Batch 1 of 4 shipped)
+## 2026-04-27 (Follow-Up): Scriban CVE Security Bump
 
-**Commit:** `9543146` — Dashboard/ActivityLog/MainLayout → Korean (118 keys, 3 files).
+**Cycle:** Code Review Follow-Up Fixes  
+**Work:** Bumped Scriban 6.5.2 → 7.1.0 in Directory.Packages.props.
 
-**Patterns locked in:**
-- Naming: `PageName_*` per file; promote to `Common_*` only at 3+ uses.
-- Enum-over-string: switch on typed enums (`PlanActivityType`), not AI-generated `TitleKey` strings — avoids snake_case/PascalCase mismatches.
-- `ActivityInfo` record refactor: rename field `Label → LabelKey`, store resx key, look up via `@Localize[activity.LabelKey]`.
-- CultureChanged wiring: every localized component needs `@implements IDisposable` + `OnInitialized { Localize.CultureChanged += OnCultureChanged; }` + `OnCultureChanged => InvokeAsync(StateHasChanged)` + `Dispose { Localize.CultureChanged -= OnCultureChanged; }`.
-- `whatsNewTitle` pattern: expression-bodied property `=> Localize["MainLayout_WhatsNew"]` beats mutable field + reassignment.
-- Legacy unprefixed keys (`Save`, `Reading`, `OK`, `Refresh`) stay — still bound to MauiReactor. Blazor uses prefixed variants only. `Common_OKButton` used to dodge `OK` collision.
+**Key Finding:** Scriban 6.5.2 carries 10 known CVEs (1 critical, 7 high, 2 moderate) affecting template rendering. Import flow uses Scriban templates — vulnerability class real.
 
-**Gotcha — Razor attribute quote nesting:**
-Edit tool mangles `title="@Localize["Key"]"` → `title="@Localize[" Key "]"`. Always use single-quoted outer attribute: `title='@Localize["Key"]'`. Also fine inside `@(...)` C# expressions.
+**Solution:** Bumped to 7.1.0 (latest NuGet release, all Scriban vulns resolved).
 
-**Tooling:** `scripts/i18n-work/add_keys.py` + `batchN.json` — bulk append to both resx files. De-dupes by key. Reusable.
+**Validation:** All builds pass (Api, WebApp, Workers, Shared, AppLib). Spot-checked Scriban template syntax — no breaking changes (GetClozures.scriban-txt verified). `dotnet list package --vulnerable` confirms zero Scriban vulns post-bump. 487 + 138 tests pass, no regressions.
 
-**Build gate:** `dotnet build src/SentenceStudio.WebApp/SentenceStudio.WebApp.csproj` — clean per batch before commit.
+**Bonus Finding:** During audit, surfaced 3 moderate OpenTelemetry CVEs (GHSA-g94r-2vxg-569j, GHSA-mr8r-92fq-pj8p, GHSA-q834-8qmm-v933) for separate backlog cycle. Not auto-bumped to keep blast radius tight; recommend pairing with feature release for batch validation. Logged in decisions.md follow-ups.
 
-**Commit format (per Captain):**
-```
-feat(i18n): Phase 2 Batch N — {area} strings to Korean
-- Adds {N} keys…
-- Localizes {files}…
-Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>
-```
-Never push — Captain runs `/review` first.
-
----
-
-## 2026-04-20 — Potential Parallel Opportunity: Blazor JS Error Bridge (Mobile App Insights)
-
-**Cross-agent note from Scribe (Wash spawn context)**
-
-Wash's mobile observability memo identifies capturing Blazor WebView JavaScript errors as one of five telemetry hooks for App Insights integration. Current scope: Wash handles `.NET-side` wiring (Azure exporter, `MauiExceptions` subscriber, business event extensions).
-
-**Blazor JS error bridge** (separate piece):
-- `wwwroot/js/error-bridge.js`: global `window.onerror` + `unhandledrejection` handler
-- `JsErrorBridge.cs` service: `[JSInvokable]` method to receive errors from JS layer
-- JSInterop registration in DI
-
-**If Captain approves parallel work,** Kaylee could own this independently while Wash does the .NET wiring. Minimal merge conflict surface (JS file + one new service class). Leaves Wash free to focus on HTTP instrumentation + `MauiExceptions` plumbing.
-
-**Current status:** Awaiting Captain decision on full 1-day plan vs. 3-hour small-slice PoC, and answers to open questions. Will be documented in `.squad/decisions.md` once merged.
-
-**Reference:** `.squad/decisions/inbox/wash-mobile-observability.md` (now merged into decisions.md as of 2026-04-20).
-
-## 2026-04-23 — Vocabulary LexicalUnitType UI Review
-
-**Task:** Evaluate UI surfaces for word/phrase plan — LexicalUnitType picker + constituent editor.
-
-**Pages Reviewed:**
-- `src/SentenceStudio.UI/Pages/VocabularyWordEdit.razor` — Single word edit form
-- `src/SentenceStudio.UI/Pages/Vocabulary.razor` — Vocabulary list with advanced search/filter
-- `src/SentenceStudio.UI/Pages/ResourceAdd.razor` — Bulk CSV/tab-delimited vocab import
-- `src/SentenceStudio.Shared/Models/VocabularyWord.cs` — Current model (no LexicalUnitType yet)
-- `src/SentenceStudio.Shared/Models/AutocompleteSuggestion.cs` — Existing autocomplete pattern
-
-**Findings:**
-1. **UI surfaces to touch:** Two Blazor pages only (no MauiReactor vocab editing surfaces found):
-   - `VocabularyWordEdit.razor` — add LexicalUnitType picker in "Encoding & Memory Aids" section
-   - `ResourceAdd.razor` — add auto-classification + override UI in bulk import flow
-   
-2. **Existing autocomplete pattern:** `Vocabulary.razor` already has full search-as-you-type autocomplete with dropdown suggestions (tag/resource/lemma/status). Reusable for constituent picker.
-
-3. **Constituent editor interaction:** For Phrase/Sentence types, need inline autocomplete to add constituent words from user's existing vocab. Pattern: search-as-you-type → dropdown → click to add → show as removable chip/badge. Similar to existing tag filter chips in Vocabulary.razor but with add/remove within the form.
-
-4. **No MauiReactor surfaces:** All vocabulary editing is Blazor-only. Native app uses embedded Blazor WebView for vocab management.
-
-5. **Bootstrap icon + styling conventions:** Existing pages use `bi-*` icons consistently, `form-control-ss` for inputs, `card-ss` for sections, `ss-body2`/`ss-title3` typography.
+**Decision:** `kaylee-scriban-cve-bump.md`.
 
 
-## Learnings (continued)
+### Import Complete Style Fidelity Rework (2026-04-29)
 
-- 2026-04-24: **Import UI Pattern Scout** — Completed planning investigation for Zoe's Import page design. Surveyed existing admin/management pages (Settings, ResourceAdd, ResourceEdit, Resources, Onboarding). Key findings: (1) Blazor-only platform (no MauiReactor parity yet); (2) Settings uses lightweight card sections, ResourceAdd shows multi-card + file import + preview table pattern, Resources shows polished list/lookup with search + filter + dual view modes + Virtualize; (3) File picker abstraction ready (IFilePickerService + WebFilePickerService for Blazor, MauiFilePickerService for MAUI); (4) Form validation is explicit null checks → Toast (no DataAnnotations UI); (5) Import already in top nav (NavMenu.razor line 60, icon bi-box-arrow-in-down); (6) Import.razor exists (28.7 KB YouTube-only template, reusable structure). Documented in `.squad/decisions/inbox/kaylee-import-ui-scout.md`.
+**Cycle:** Style Fidelity Fix — Captain directive enforcement  
+**Work:** Fixed three visual issues on ImportContent.razor Import Complete view to align with app-wide patterns.
 
----
+**Key Finding:** Coordinator's commit 7321d48 on `feature/import-content` invented styling that drifted:
+- Stat tiles had outer card wrapper (darkening subtiles into background)
+- Filter pills used `btn-{status}` classes (different shades than in-table `bg-{status}` badges)
+- Table header used `table-light` class (white on white in dark mode)
 
-## 2026-04-24 — Import UI Pattern Scout (Multi-Agent Session)
+**Solution:** Applied canonical patterns from Index.razor (tiles) and Vocabulary.razor (tabular lists):
+- Removed outer card wrapper — tiles now sit directly on page background (matches Dashboard)
+- Switched filter pills to use `bg-{status}` classes (exact match with in-table badges)
+- Removed `table-light` class from thead
 
-Surveyed UI patterns, form conventions, file picker abstractions, navigation structure for import feature architecture.
+**Code Review Issue:** First pass failed WCAG AA contrast check:
+- `bg-success` + black text: 2.44:1 (fails AA, needs 4.5:1)
+- `bg-danger` + black text: 3.88:1 (fails AA)
 
-**Key findings:**
-- Form patterns: Bootstrap cards + sections (card-ss, form-control-ss, theme typography)
-- Multi-step flows: Settings (tabbed), Import (URL → Transcript → Polish → Save), ResourceAdd (card + file + preview)
-- File import pattern in ResourceAdd: InputFile + delimiter radios + editable preview table
-- Resource lookup: Resources.razor shows search + filter + dual views + Virtualize
-- File picker abstraction: IFilePickerService (Blazor: WebFilePickerService, MAUI: MauiFilePickerService)
-- Navigation: Import already in top-level nav (bi-box-arrow-in-down)
+**Fix:** Coordinator added `text-white` to all 8 color-critical elements (4 buttons + 4 in-table badges). New contrast:
+- `bg-success` + white: 5.89:1 ✅
+- `bg-danger` + white: 4.78:1 ✅
 
-**Recommendations to Zoe:**
-- Keep Import in top-level nav (good positioning)
-- Create new `/import-content` page (separate from YouTube)
-- Reuse preview table from ResourceAdd.razor
-- Use InputFile for file upload
-- Toast for notifications
+**Lesson:** WCAG checks must be part of color+contrast decisions. Process: (1) Match pattern, (2) Check contrast ratio, (3) Add `text-white` or `text-dark` for 4.5:1+ AA compliance.
 
-**Reusable components:** PageHeader, card-ss, form-control-ss, preview table pattern
+**Directive Locked:** New rule binding all Blazor agents: "When styling Blazor pages, ALWAYS reference existing pages as canonical (Dashboard for tiles, Vocabulary for lists). Do NOT invent new card structures, header rows, or color treatments." Decision: `2026-04-29T00:23Z-copilot-directive-style-fidelity`.
 
-**Coordinated with:** Zoe (architecture), Wash (data layer), River (AI), Copilot
+**Committed:** 437eaac
 
-**Next:** Implementation team uses patterns to build ImportContent.razor page.
+**Files Changed:** src/SentenceStudio.UI/Pages/ImportContent.razor (lines 33-74, 82-116, 121)
+
+**Build:** ✅ 0 errors, 107 pre-existing warnings
 

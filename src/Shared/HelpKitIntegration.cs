@@ -71,18 +71,15 @@ public static class HelpKitIntegration
         // same API key used by the chat client so Captain does not manage a
         // second credential.
         //
-        // TODO(Captain): confirm the embedding deployment on your account.
-        // text-embedding-3-small is the standard OpenAI default — cheap,
-        // 1536 dims, plenty for in-app help retrieval. Swap here if you
-        // prefer text-embedding-3-large or a custom deployment.
-        const string embeddingModel = "text-embedding-3-small";
-
+        // Model defaults to text-embedding-3-small; override via AI:OpenAI:EmbeddingModel config.
         builder.Services.TryAddSingleton<IEmbeddingGenerator<string, Embedding<float>>>(sp =>
         {
+            var config = sp.GetService<Microsoft.Extensions.Configuration.IConfiguration>();
+            var embeddingModel = config?["AI:OpenAI:EmbeddingModel"] ?? "text-embedding-3-small";
+
             var openAiApiKey = (DeviceInfo.Idiom == DeviceIdiom.Desktop)
                 ? Environment.GetEnvironmentVariable("AI__OpenAI__ApiKey")
-                : sp.GetService<Microsoft.Extensions.Configuration.IConfiguration>()?
-                    .GetSection("Settings").Get<Settings>()?.OpenAIKey;
+                : config?.GetSection("Settings").Get<Settings>()?.OpenAIKey;
 
             if (string.IsNullOrWhiteSpace(openAiApiKey))
             {
@@ -91,7 +88,14 @@ public static class HelpKitIntegration
                     .LogWarning("OpenAI API key not found — HelpKit embedding generator will fail on ingest.");
             }
 
-            return new OpenAIClient(openAiApiKey)
+            // Route embedding client through Polly-backed HttpClient
+            var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+            var httpClient = httpClientFactory.CreateClient("openai");
+            var transport = new System.ClientModel.Primitives.HttpClientPipelineTransport(httpClient);
+            var clientOptions = new OpenAIClientOptions { Transport = transport };
+            var openAiClient = new OpenAIClient(new System.ClientModel.ApiKeyCredential(openAiApiKey), clientOptions);
+
+            return openAiClient
                 .GetEmbeddingClient(embeddingModel)
                 .AsIEmbeddingGenerator();
         });

@@ -3,10 +3,10 @@ using CommunityToolkit.Maui.Storage;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Http.Resilience;
 using Microsoft.Extensions.Logging;
 using OpenAI;
 using ElevenLabs;
-using OpenTelemetry;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
@@ -39,8 +39,26 @@ public static class SentenceStudioAppBuilder
             ? Environment.GetEnvironmentVariable("AI__OpenAI__ApiKey")!
             : builder.Configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
 
+        // Resilient HttpClient for OpenAI — MAUI doesn't call AddServiceDefaults so
+        // we add explicit Polly resilience (429/5xx retry, circuit breaker, timeout).
+        builder.Services.AddHttpClient("openai")
+            .AddStandardResilienceHandler(options =>
+            {
+                options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(120);
+                options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(300);
+                options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(300);
+            });
+
+        var chatModel = builder.Configuration["AI:OpenAI:ChatModel"] ?? "gpt-4o-mini";
         builder.Services
-            .AddChatClient(new OpenAIClient(openAiApiKey).GetChatClient("gpt-4o-mini").AsIChatClient())
+            .AddChatClient(sp =>
+            {
+                var httpClient = sp.GetRequiredService<System.Net.Http.IHttpClientFactory>().CreateClient("openai");
+                var transport = new System.ClientModel.Primitives.HttpClientPipelineTransport(httpClient);
+                var clientOptions = new OpenAIClientOptions { Transport = transport };
+                return (IChatClient)new OpenAIClient(new System.ClientModel.ApiKeyCredential(openAiApiKey), clientOptions)
+                    .GetChatClient(chatModel).AsIChatClient();
+            })
             .UseLogging();
 
         var elevenLabsKey = (DeviceInfo.Idiom == DeviceIdiom.Desktop)

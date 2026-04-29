@@ -1,0 +1,131 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Aspire Hosting -->
+    <PackageVersion Include="Aspire.Hosting.Azure.AppContainers" Version="13.3.0-preview.1.26177.8" />
+    <PackageVersion Include="Aspire.Hosting.Azure.PostgreSQL" Version="13.3.0-preview.1.26177.8" />
+    <PackageVersion Include="Aspire.Hosting.Azure.Storage" Version="13.3.0-preview.1.26177.8" />
+    <PackageVersion Include="Aspire.Hosting.Maui" Version="13.3.0-preview.1.26177.8" />
+    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.3.0-preview.1.26177.8" />
+    <PackageVersion Include="Aspire.Hosting.Redis" Version="13.3.0-preview.1.26177.8" />
+
+    <!-- Aspire Client -->
+    <PackageVersion Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="13.3.0-preview.1.26203.28" />
+    <PackageVersion Include="Aspire.StackExchange.Redis.DistributedCaching" Version="13.3.0-preview.1.26203.28" />
+
+    <!-- ASP.NET Core / Identity -->
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.2" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.Authorization" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.Web" Version="10.0.1" />
+    <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.2" />
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.1" />
+
+    <!-- Entity Framework Core -->
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.2" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Tasks" Version="10.0.2" />
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
+
+    <!-- AI / Agents -->
+    <PackageVersion Include="Microsoft.Agents.AI" Version="1.0.0-preview.260121.1" />
+    <PackageVersion Include="Microsoft.Agents.AI.OpenAI" Version="1.0.0-preview.260121.1" />
+    <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="9.5.0" />
+    <PackageVersion Include="Microsoft.Extensions.AI.OpenAI" Version="10.2.0-preview.1.26063.2" />
+    <PackageVersion Include="Microsoft.Extensions.VectorData.Abstractions" Version="9.5.0" />
+
+    <!-- Microsoft Extensions -->
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.1.0" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery" Version="10.2.0" />
+
+    <!-- MAUI — pinned to 10.0.31 (current workload NuGet package version).
+         Cannot use $(MauiVersion) because that property is only defined in
+         projects that import the MAUI SDK (<UseMaui>true</UseMaui>). Non-MAUI
+         projects like ServiceDefaults that reference Microsoft.Maui.Core need
+         a concrete version. Bump this when the MAUI workload is updated. -->
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="10.0.31" />
+    <PackageVersion Include="Microsoft.Maui.Controls" Version="10.0.31" />
+    <PackageVersion Include="Microsoft.Maui.Core" Version="10.0.31" />
+    <PackageVersion Include="Microsoft.Maui.Essentials" Version="10.0.31" />
+    <PackageVersion Include="Microsoft.Maui.Resizetizer" Version="10.0.31" />
+    <PackageVersion Include="Microsoft.Maui.DevFlow.Agent" Version="0.24.0-dev" />
+    <PackageVersion Include="Microsoft.Maui.DevFlow.Blazor" Version="0.24.0-dev" />
+
+    <!-- Identity / Auth -->
+    <PackageVersion Include="Microsoft.Identity.Client" Version="4.83.1" />
+    <PackageVersion Include="System.IdentityModel.Tokens.Jwt" Version="8.16.0" />
+
+    <!-- OpenTelemetry -->
+    <PackageVersion Include="Azure.Monitor.OpenTelemetry.Exporter" Version="1.7.0" />
+    <PackageVersion Include="OpenTelemetry" Version="1.15.1" />
+    <PackageVersion Include="OpenTelemetry.Exporter.Console" Version="1.15.1" />
+    <PackageVersion Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.15.1" />
+    <PackageVersion Include="OpenTelemetry.Extensions.Hosting" Version="1.15.1" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.15.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Http" Version="1.15.0" />
+    <PackageVersion Include="OpenTelemetry.Instrumentation.Runtime" Version="1.12.0" />
+
+    <!-- Community / UI -->
+    <PackageVersion Include="CommunityToolkit.Maui" Version="13.0.0" />
+    <PackageVersion Include="CommunityToolkit.Mvvm" Version="8.4.0" />
+    <PackageVersion Include="Reactor.Maui" Version="3.1.0" />
+    <PackageVersion Include="Syncfusion.Maui.Charts" Version="31.1.17" />
+    <PackageVersion Include="Syncfusion.Maui.Gauges" Version="31.1.17" />
+    <PackageVersion Include="Syncfusion.Maui.Inputs" Version="31.1.17" />
+    <PackageVersion Include="Syncfusion.Maui.ProgressBar" Version="31.1.17" />
+    <PackageVersion Include="Syncfusion.Maui.Toolkit" Version="1.0.8" />
+    <PackageVersion Include="SkiaSharp.Views.Maui.Controls" Version="3.119.1" />
+    <PackageVersion Include="Platform.Maui.Essentials.MacOS" Version="0.2.0-beta.5" />
+    <PackageVersion Include="Platform.Maui.MacOS" Version="0.3.0" />
+    <PackageVersion Include="Platform.Maui.MacOS.BlazorWebView" Version="0.3.0" />
+
+    <!-- CoreSync -->
+    <PackageVersion Include="CoreSync.Http.Client" Version="0.1.127" />
+    <PackageVersion Include="CoreSync.Http.Server" Version="0.1.127" />
+    <PackageVersion Include="CoreSync.PostgreSQL" Version="0.1.127" />
+    <PackageVersion Include="CoreSync.Sqlite" Version="0.1.127" />
+
+    <!-- Audio / Media -->
+    <PackageVersion Include="Plugin.Maui.Audio" Version="4.0.0" />
+    <PackageVersion Include="NAudio" Version="2.2.1" />
+    <PackageVersion Include="NLayer.NAudioSupport" Version="1.4.0" />
+    <PackageVersion Include="ElevenLabs-DotNet" Version="3.7.1" />
+
+    <!-- YouTube -->
+    <PackageVersion Include="YoutubeExplode" Version="6.5.6" />
+
+    <!-- Utilities -->
+    <PackageVersion Include="Scriban" Version="7.1.0" />
+    <PackageVersion Include="Shiny.Hosting.Maui" Version="3.3.4" />
+    <PackageVersion Include="sqlite-net-pcl" Version="1.9.172" />
+    <PackageVersion Include="SQLiteNetExtensions" Version="2.1.0" />
+
+    <!-- Testing -->
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageVersion Include="xunit" Version="2.9.2" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <PackageVersion Include="coverlet.collector" Version="6.0.2" />
+    <PackageVersion Include="AutoFixture" Version="4.18.1" />
+    <PackageVersion Include="AutoFixture.Xunit2" Version="4.18.1" />
+    <PackageVersion Include="FluentAssertions" Version="6.12.0" />
+    <PackageVersion Include="Moq" Version="4.20.70" />
+
+    <!-- Code Analysis -->
+    <PackageVersion Include="AsyncFixer" Version="1.6.0" />
+  </ItemGroup>
+</Project>

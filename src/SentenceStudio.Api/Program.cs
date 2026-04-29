@@ -238,8 +238,19 @@ builder.Services.AddSingleton<IVocabularyProgressService>(provider =>
 var openAiApiKey = builder.Configuration["AI:OpenAI:ApiKey"];
 if (!string.IsNullOrWhiteSpace(openAiApiKey))
 {
-    builder.Services.AddSingleton<IChatClient>(_ =>
-        new OpenAIClient(openAiApiKey).GetChatClient("gpt-4o-mini").AsIChatClient());
+    // Resilient HttpClient for OpenAI — server defaults (AddServiceDefaults) provide
+    // Polly retry/circuit-breaker via ConfigureHttpClientDefaults.
+    builder.Services.AddResilientOpenAIHttpClient();
+
+    var chatModel = builder.Configuration["AI:OpenAI:ChatModel"] ?? "gpt-4o-mini";
+    builder.Services.AddSingleton<IChatClient>(sp =>
+    {
+        var httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient("openai");
+        var transport = new System.ClientModel.Primitives.HttpClientPipelineTransport(httpClient);
+        var clientOptions = new OpenAIClientOptions { Transport = transport };
+        return new OpenAIClient(new System.ClientModel.ApiKeyCredential(openAiApiKey), clientOptions)
+            .GetChatClient(chatModel).AsIChatClient();
+    });
 }
 
 // GitHub API client for feedback issue creation
@@ -490,7 +501,7 @@ app.MapPost("/api/v1/speech/synthesize", async (SynthesizeRequest request, [From
         }
 
         var voiceId = string.IsNullOrWhiteSpace(request.VoiceId)
-            ? "21m00Tcm4TlvDq8ikWAM"
+            ? app.Configuration["AI:ElevenLabs:DefaultVoice"] ?? "21m00Tcm4TlvDq8ikWAM"
             : request.VoiceId;
 
         var voice = await client.VoicesEndpoint.GetVoiceAsync(voiceId);

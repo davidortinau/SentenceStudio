@@ -12,6 +12,7 @@ Agent Scribe initialized and ready for work.
 📌 Team initialized on 2026-03-07
 📌 Squad — Word/Phrase Plan Review checkpoint logged 2026-07-26 (5-agent consensus, 3 Captain decisions, implementation ready)
 📌 **2026-04-24** Bookkeeping pass: Merged 3 Wash decisions from inbox (DB reconcile Option A + smart-resource idempotency + wireup), logged session for WoC push (7cddc6e, ff0bb25), pushed to origin/main
+📌 **2026-07-27 v1.4 cycle** — Logged dual decisions (Wash preview duplicates + Kaylee style cleanup) + captured team learning on integration-gap coordination
 
 ## Learnings
 
@@ -41,4 +42,97 @@ Scribed multi-agent session for data-import-architecture-plan. Deployed Zoe (arc
 - Data integrity: dedup by TargetLanguageTerm (case-insensitive trimmed)
 
 **Next:** Implementation team begins service + UI build. River engineers prompts.
+
+
+---
+
+## 2026-05-01 — Data Import MVP Wave 3 Final Merge
+
+**Status:** ✅ Complete — MVP ready for Captain's `/review` gate
+
+**Final merge tasks completed:**
+1. ✅ Verified 4 inbox files exist (wash, jayne x3)
+2. ✅ Merged Wave 3 decisions into `.squad/decisions.md` with comprehensive sections:
+   - Wash: IAiService extraction rationale + dual DI registration safety
+   - Jayne: 18/18 unit tests passing, ~95% coverage, 0 bugs found
+   - MVP completion milestone: all 11 todos shipped
+3. ✅ Deleted merged inbox files (4 files removed)
+4. ✅ Added Wave 3 decision section to decisions.md
+5. ✅ Prepared commit with comprehensive message + trailers
+
+**Wave 3 Summary:**
+- IAiService extraction: unblocked unit testing with zero behavioral impact (16 existing consumers untouched via dual DI)
+- ContentImportService: 18 unit tests + 15-scenario E2E script, 0 bugs
+- Quality bar: 100% test pass rate, ~95% API coverage, comprehensive E2E scenarios
+- MVP complete: 11/11 todos shipped on `feature/import-content-mvp`
+- Ready for: Captain's `/review` gate → merge → production
+
+**Next:** Captain runs `/review`, resolves any feedback, merges to main.
+
+
+---
+
+## 2026-07-27 — v1.4 Preview Duplicates + Restyle Cycle
+
+**Status:** ✅ Logged — decisions merged, learnings captured, committed
+
+**Commits:**
+- `3130810` (Wash + Kaylee) — Preview duplicate detection + style cleanup
+- `5d98a27` (Kaylee) — History update
+- `7d9b5c3` (Jayne) — Caught missing integration wire, fixed EnrichPreviewWithDuplicateInfoAsync call
+
+**Decisions merged:**
+1. ✅ `wash-preview-duplicate-flag.md` — EnrichPreviewWithDuplicateInfoAsync contract, IsDuplicate + DuplicateReason DTO properties, 4 new unit tests
+2. ✅ `kaylee-import-style-cleanup.md` — Style audit (replaced custom purple, cursor:pointer, inline font-size), badge styling pattern
+
+**Learning captured:** Integration gap between backend (Wash) and frontend (Kaylee). Wash delivered enrichment method, Kaylee added badge rendering, but neither verified the bridge call. Unit tests passed in isolation; E2E caught the missing `EnrichPreviewWithDuplicateInfoAsync()` call in ImportContent.razor code-behind. Jayne's Round 2 test (re-import) showed zero duplicate badges despite rows being flagged — diagnosed root cause, identified commit 7d9b5c3 fix. **Future pattern:** When two agents handoff, explicitly verify the integration call exists and is wired before rendering.
+
+**Team coordination notes:**
+- Wash → Kaylee handoff needs explicit verification step
+- E2E testing is the guard against integration gaps (unit tests test pieces, not contracts)
+- Both agents' decisions are now in decisions.md with full rationale for future reference
+
+**Status:** Complete — merged 10 inbox decisions, wrote 4 orchestration logs, 1 session log, updated 4 agent histories.
+
+**Orchestration tasks:**
+1. Archived decisions.md (229KB → decisions-archive-2026-04-25.md)
+2. Merged 10 inbox files (river-v11-prompts, wash-v11-backend, kaylee-v11-ui, jayne-v11-test-matrix, jayne-phrase-import-gap, 5 captain confirmations)
+3. Wrote orchestration logs for River, Wash, Kaylee, Jayne
+4. Logged session to `.squad/log/2026-04-25T1357-import-v11-implementation.md`
+5. Updated agent histories for River, Wash, Kaylee, Jayne
+6. Git committed `.squad/` changes
+
+
+## Team Update: M.E.AI 10.5 Debt-Paydown Complete (2026-04-27 → 2026-04-28)
+
+**Status**: SHIPPED ✅
+
+Zoe's M.E.AI 10.5 strategic recommendations executed via three-agent orchestration (Wash Phase 1 + Phase 2, Jayne validation):
+
+**What shipped:**
+- **CPM (Central Package Management)**: Directory.Packages.props created; ~95 packages centralized; 178 Version= attributes stripped from 22 csprojs
+- **Polly Resilience**: All 5 OpenAI sites now route via HttpClientPipelineTransport with Polly policies (120s attempt / 300s total / 300s circuit-breaker). Zero retry storms in validation.
+- **Config Extraction**: gpt-4o-mini, tts-1, text-embedding-3-small, and ElevenLabs voice IDs moved to appsettings.json with ?? fallback defaults. Single point of change.
+- **SKU Assessment**: AppLib stays on Agents.AI (ConversationAgentService + ConversationMemory use orchestration types with no M.E.AI equivalent). Waiting for M.E.AI agent layer.
+- **RetrievalService Defused**: NotImplementedException → no-op stub + [Obsolete]. Zero callers verified.
+
+**Validation results** (6/6 gates PASS):
+- Build matrix: 13/13 buildable projects green; 626 tests passing
+- Aspire runtime: Clean start, all resources Running
+- AI end-to-end: Conversation + comprehension scoring + ElevenLabs TTS working; clean Polly pass-through (no retry storms)
+- Config sanity: All 4 projects (Api, WebApp, Workers, AppLib) read from appsettings.json with correct fallback defaults
+
+**Implications for all agents going forward:**
+- All future OpenAI HTTP traffic flows through Polly automatically
+- Model names are now config-driven, not code-driven
+- AppLib remains on Microsoft.Agents.AI; this is not a blocker (transitive M.E.AI dependency exists)
+- MAUI+CPM gotchas are documented for future package maintenance
+
+**Decision artifacts**: .squad/decisions.md merged (3 entries); inbox cleaned; decisions-archive-2026-04-28.md created
+
+**Orchestration logs**: .squad/orchestration-log/2026-04-28T00:06:30Z-{agent}.md (3 entries)
+
+**Session log**: .squad/log/2026-04-28T00:06:30Z-meai-debt-paydown.md
+
+**SHIP IT verdict**: All validation gates pass; zero regressions introduced. Production-ready.
 

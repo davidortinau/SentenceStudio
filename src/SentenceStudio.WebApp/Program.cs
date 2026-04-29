@@ -134,9 +134,21 @@ if (string.IsNullOrWhiteSpace(openAiApiKey))
 {
     openAiApiKey = "not-configured";
 }
+// Resilient HttpClient for OpenAI — server defaults (AddServiceDefaults) provide
+// Polly retry/circuit-breaker via ConfigureHttpClientDefaults.
+builder.Services.AddResilientOpenAIHttpClient();
+
+var chatModel = builder.Configuration["AI:OpenAI:ChatModel"] ?? "gpt-4o-mini";
 builder.Configuration["Settings:OpenAIKey"] = openAiApiKey;
 builder.Services
-    .AddChatClient(new OpenAIClient(openAiApiKey).GetChatClient("gpt-4o-mini").AsIChatClient())
+    .AddChatClient(sp =>
+    {
+        var httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient("openai");
+        var transport = new System.ClientModel.Primitives.HttpClientPipelineTransport(httpClient);
+        var clientOptions = new OpenAIClientOptions { Transport = transport };
+        return (IChatClient)new OpenAIClient(new System.ClientModel.ApiKeyCredential(openAiApiKey), clientOptions)
+            .GetChatClient(chatModel).AsIChatClient();
+    })
     .UseLogging();
 
 var elevenLabsKey = builder.Configuration["Settings:ElevenLabsKey"];

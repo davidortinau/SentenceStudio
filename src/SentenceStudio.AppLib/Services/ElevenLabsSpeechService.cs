@@ -9,7 +9,8 @@ using Microsoft.Extensions.Logging;
 namespace SentenceStudio.Services;
 
 /// <summary>
-/// Mapping of simple voice names to ElevenLabs voice IDs.
+/// Default ElevenLabs voice IDs. Config (AI:ElevenLabs:Voices) takes precedence at runtime;
+/// these constants serve as compile-time fallbacks and are used by SpeechVoicePreferences.
 /// </summary>
 public static class Voices
 {

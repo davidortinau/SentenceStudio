@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Configuration;
 using OpenAI.Audio;
 using Microsoft.Extensions.AI;
-using Microsoft.Agents.AI;
 using OpenAI.Images;
 using Microsoft.Extensions.Logging;
 using System.Net.Http;
@@ -9,10 +8,14 @@ using CommunityToolkit.Mvvm.Messaging;
 using SentenceStudio.Abstractions;
 using SentenceStudio.Messages;
 using SentenceStudio.Services.Api;
+using OpenAI;
+using System.ClientModel;
+using System.ClientModel.Primitives;
 
 namespace SentenceStudio.Services;
 
-public class AiService {
+public class AiService : IAiService
+{
 
     private readonly string _openAiApiKey;
     private readonly IChatClient _client;
@@ -22,24 +25,39 @@ public class AiService {
     private readonly IConnectivityService _connectivity;
     private readonly IAiGatewayClient? _aiGatewayClient;
     private readonly ISpeechGatewayClient? _speechGatewayClient;
+    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly string _ttsModel;
+    private readonly string _imageModel;
     public AiService(
         IConfiguration configuration,
         IChatClient client,
         ILogger<AiService> logger,
         IConnectivityService connectivity,
+        IHttpClientFactory httpClientFactory,
         IAiGatewayClient? aiGatewayClient = null,
         ISpeechGatewayClient? speechGatewayClient = null)
     {
         _client = client;
         _logger = logger;
         _connectivity = connectivity;
+        _httpClientFactory = httpClientFactory;
         _aiGatewayClient = aiGatewayClient;
         _speechGatewayClient = speechGatewayClient;
         _openAiApiKey = configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
 
-        // _client = new OpenAIClient(_openAiApiKey).AsChatClient(modelId: "gpt-4o-mini");
-        _audio = new("tts-1", _openAiApiKey);
-        _image = new ImageClient("gpt-4o", _openAiApiKey);
+        var ttsModel = configuration["AI:OpenAI:TtsModel"] ?? "tts-1";
+        var imageModel = configuration["AI:OpenAI:ImageModel"] ?? "gpt-4o";
+        _ttsModel = ttsModel;
+        _imageModel = imageModel;
+
+        // Route audio and image clients through Polly-backed HttpClient
+        var httpClient = _httpClientFactory.CreateClient("openai");
+        var transport = new HttpClientPipelineTransport(httpClient);
+        var clientOptions = new OpenAIClientOptions { Transport = transport };
+        var openAiClient = new OpenAIClient(new ApiKeyCredential(_openAiApiKey), clientOptions);
+
+        _audio = openAiClient.GetAudioClient(ttsModel);
+        _image = openAiClient.GetImageClient(imageModel);
     }
 
     public async Task<T> SendPrompt<T>(string prompt)
@@ -136,7 +154,11 @@ public class AiService {
         }
 
         // Direct client fallback for standalone (non-Aspire) mode
-        var aiClient = new AIClient(_openAiApiKey, _connectivity);
+        // Use the "openai" named HttpClient which has Polly resilience configured
+        var httpClient = _httpClientFactory.CreateClient("openai");
+        var aiClient = new AIClient(
+            httpClient, _openAiApiKey, _connectivity,
+            ttsModel: _ttsModel, imageModel: _imageModel);
         return await aiClient.TextToSpeechAsync(text, voice, speed);
     }
 }
