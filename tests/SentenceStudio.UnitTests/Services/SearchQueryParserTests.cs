@@ -125,6 +125,36 @@ public class SearchQueryParserTests
         result.Filters[0].Value.Should().Be("learning");
     }
 
+    // Regression for issue #179: type: filter token was missing from parser regex,
+    // causing type:Sentence to fall through to free text and silently produce no results.
+    [Theory]
+    [InlineData("type:Word", "Word")]
+    [InlineData("type:Phrase", "Phrase")]
+    [InlineData("type:Sentence", "Sentence")]
+    [InlineData("type:WORD", "WORD")]
+    [InlineData("type:phrase", "phrase")]
+    public void Parse_TypeFilter_ExtractsCorrectly(string query, string expectedValue)
+    {
+        var result = _sut.Parse(query);
+
+        result.Filters.Should().HaveCount(1);
+        result.Filters[0].Type.Should().Be("type");
+        result.Filters[0].Value.Should().Be(expectedValue);
+        result.FreeTextTerms.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Parse_TypeFilterCombinedWithResource_ExtractsBoth()
+    {
+        // Mirrors the original failing URL from issue #179.
+        var result = _sut.Parse("resource:\"Olivia 쌤\" type:Sentence");
+
+        result.Filters.Should().HaveCount(2);
+        result.Filters.Should().ContainSingle(f => f.Type == "resource" && f.Value == "Olivia 쌤");
+        result.Filters.Should().ContainSingle(f => f.Type == "type" && f.Value == "Sentence");
+        result.FreeTextTerms.Should().BeEmpty();
+    }
+
     [Fact]
     public void Parse_FreeTextOnly_ExtractsTerms()
     {

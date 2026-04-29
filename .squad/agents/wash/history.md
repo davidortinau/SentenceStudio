@@ -213,3 +213,29 @@ This is the kind of hygiene rule that distinguishes "I think it's broken" from "
 ### Implication
 
 `docs/deploy-runbook.md` Step 2a still needs rewriting (FU-4 owns that task). The replacement is the `-p:ValidateXcodeVersion=false` recipe, NOT a "use cleaner SDK swap" recipe — net11p3 is dead until the upstream Razor regression is fixed.
+
+## Learnings — net11p3 Razor SG repro (2026-04-28)
+
+Confirmed Captain's hypothesis: net11.0.100-preview.3.26209.122 is NOT broadly broken — the regression is pattern-specific. The failing pattern is a **switch expression returning `RenderFragment` lambdas with inline Razor markup**, used inside an `@code` block of a `.razor` file.
+
+### Reproduction recipe
+1. Standard `dotnet new maui-blazor` solution (PeeThreeRegression). Builds clean on net11p3 by default.
+2. Add a single page `Pages/RazorSgRepro.razor` with `@inject NavigationManager Nav` plus a `RenderFragment` switch expression containing inline `<span>` markup in each arm.
+3. `dotnet build PeeThreeRegression.Shared` — fails.
+
+### Diagnostic fingerprint
+- `CS0101: The namespace 'X' already contains a definition for ''` (empty member name)
+- `CS0102: The type 'Y' already contains a definition for ''` (empty member name)
+- Cascading `CS0246` on every type referenced after the switch — including `@inject` services (NavigationManager) and inline-defined enums (SampleType).
+- In files with **multiple** `@inject` directives (like ImportContent.razor in SentenceStudio), this also triggers `CS9348: The compilation unit cannot directly contain members`. The minimal repro only has 1 `@inject`, which is enough to surface CS0246 cascades but not CS9348.
+
+### Root cause hypothesis
+The Razor SG synthesizes private members for each switch arm's RenderFragment but fails to assign them stable identifiers (emits empty `""` names). The duplicate empty names collide → CS0101/CS0102 → entire compilation unit becomes invalid → cascading CS0246 on everything else. CS9348 surfaces when the SG additionally misplaces injected fields at compilation-unit scope.
+
+### Workaround
+Refactor each switch arm to delegate to a separate named `RenderFragment` helper method (single-line `@<span ...>` body). This avoids the inline-markup-inside-switch-arm pattern entirely.
+
+### Artifacts
+- Repro zip: `~/work/peethree-repro-artifacts/peethree-net11p3-repro.zip` (252 KB)
+- Build log: `~/work/peethree-repro-artifacts/peethree-net11p3-repro.log`
+- Both are outside SentenceStudio so they survive any repo cleanup.

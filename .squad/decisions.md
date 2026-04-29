@@ -4,7 +4,37 @@
 
 ---
 
-### 2026-04-29T14:32Z: iOS Release Build Recipe Verified — net11p3 Razor Regression Confirmed
+### 2026-04-29T21:00Z: net11p3 Razor SG Regression — Root Cause Identified, Filed Upstream, Workaround Applied
+
+**By:** Scribe (logging team correction cycle)
+**Scope:** Correcting earlier "net11p3 broken" framing with verified narrow regression facts
+
+#### Corrected facts
+
+1. **net11p3 is NOT broadly broken.** Captain verified independently with a clean `dotnet new maui-blazor` project at `~/work/PeeThreeRegression` — it builds and deploys fine on net11 Preview 3 (`11.0.100-preview.3.26209.122`). The earlier "net11p3 broken for our app" framing was wrong.
+
+2. **The regression is narrow and pattern-specific** — a Razor source generator bug on **switch expressions returning `RenderFragment` lambdas with inline Razor markup** (the `(__builder) => { <markup/> }` shape inside `@code` blocks). The SG emits synthetic members with EMPTY names, producing `CS0101`/`CS0102` (duplicate definition with empty name) which then cascades to `CS0246`/`CS9348` on every `@inject` directive in the same file.
+
+3. **Only ONE file in our repo used the pattern:** `src/SentenceStudio.UI/Pages/ImportContent.razor` — two helpers (`RenderTypeBadge`, `RenderStatusBadge`). Kaylee refactored both to **tuple-meta + inline markup** (`GetTypeBadgeMeta`, `GetStatusBadgeMeta` returning `(CssClass, IconClass, Label)`). File shrank 1168→1145 lines, builds clean on net10. Refactor commit pending (separate from this bookkeeping commit).
+
+4. **Wash packaged a clean repro** — minimal ~30-line `.razor` page added to a fresh MAUI Blazor project, reproduces the bug with 4 errors against the Shared library on net11p3. Zipped at `~/work/peethree-repro-artifacts/peethree-net11p3-repro.zip` (252 KB).
+
+5. **Upstream issue filed:** **https://github.com/dotnet/razor/issues/13117** — "[net11p3] Razor SG emits synthetic members with empty names for switch expressions returning RenderFragment lambdas with inline markup".
+
+6. **Production iOS Release recipe (net10 GA + `-p:ValidateXcodeVersion=false`) remains valid and is the recommended path** for the Xcode 26.3 mismatch until the upstream Razor SG fix ships. With ImportContent.razor refactored, the net11p3 SDK swap path is also viable, but unnecessary — there is no longer a forcing function to swap SDKs at all.
+
+#### Archived inbox decisions backing this correction
+
+- `kaylee-renderfragment-switch-pattern-banned.md` → `.squad/decisions/archive/kaylee-renderfragment-switch-pattern-banned.md` — bans the broken pattern repo-wide; documents tuple-meta as preferred replacement.
+- `wash-net11p3-razor-sg-repro.md` → `.squad/decisions/archive/wash-net11p3-razor-sg-repro.md` — verified bug pattern + minimal repro packaged for upstream.
+
+#### Process lesson
+
+When an SDK swap produces a wall of errors, **read the error LINE NUMBERS first** before concluding "SDK is broken." `CS9348` on `@inject` lines (4–10) plus `CS0101`/`CS0102` with **empty** type/member names = the Razor source generator bailed on the file = pattern-specific bug, not a broad SDK regression.
+
+---
+
+### 2026-04-29T14:32Z: iOS Release Build Recipe Verified — net11p3 Narrow Razor SG Regression
 
 **By:** Wash (Backend Dev)  
 **Scope:** Canonical iOS Release build recipe under Xcode 26.3 + .NET SDK mismatch
@@ -32,7 +62,7 @@ Reproduced build with full hygiene:
 4. **Result: 31 errors, 316 warnings, 8.66s.** Identical error count and signatures to Coordinator's first attempt.
 5. Restore `global.json` → confirm net10.
 
-**Conclusion: net11p3 is genuinely incompatible with `ImportContent.razor`.** The contamination hypothesis is FALSE. This is a genuine Razor source-generator regression in the net11 Preview 3 SDK.
+**Conclusion (corrected 2026-04-29T21:00Z):** net11p3 is genuinely incompatible with `ImportContent.razor` **as it was authored** — but this is a **narrow, pattern-specific Razor source-generator regression**, NOT a broad "net11p3 is broken" problem. Captain verified net11p3 builds and deploys a clean `dotnet new maui-blazor` project (`~/work/PeeThreeRegression`) without issue. Wash subsequently isolated the trigger to switch expressions returning `RenderFragment` lambdas with inline Razor markup; Kaylee refactored ImportContent.razor to tuple-meta helpers; upstream issue filed at **https://github.com/dotnet/razor/issues/13117**. The contamination hypothesis was correctly falsified — this entry's _other_ conclusion (an SDK-wide problem) is what was wrong, and is corrected in the 2026-04-29T21:00Z entry above.
 
 **Build log:** `.squad/orchestration-log/2026-04-29-wash-net11p3-clean-build.log`
 
@@ -60,7 +90,7 @@ services__api__https__0=https://api.livelyforest-b32e7d63.centralus.azurecontain
     -p:ValidateXcodeVersion=false
 ```
 
-**Do NOT use the `global.json` net11p3 swap** documented in `docs/deploy-runbook.md` Step 2a. It is broken on main and produces 31 build errors regardless of obj/ hygiene.
+**Recommended:** stay on net10 + `-p:ValidateXcodeVersion=false`. The `global.json` net11p3 swap documented in `docs/deploy-runbook.md` Step 2a is no longer necessary — with the ImportContent.razor refactor (Kaylee, 2026-04-29) the swap would now succeed, but the net10 + flag path is simpler and recommended until the upstream Razor SG fix (dotnet/razor#13117) ships.
 
 #### New Process Rule
 
@@ -75,7 +105,8 @@ find <project-dirs> -name bin -type d -exec rm -rf {} +
 
 - ✅ FU-4 in `.squad/followups.md` updated with verified facts.
 - 🔄 `docs/deploy-runbook.md` Step 2a rewrite remains a separate task (not done here).
-- 🔄 Captain to decide whether to file upstream Razor SDK bug for net11 Preview 3.
+- ✅ Upstream Razor SDK bug filed: https://github.com/dotnet/razor/issues/13117 (2026-04-29).
+- ✅ ImportContent.razor refactored to tuple-meta + inline markup (Kaylee, 2026-04-29).
 
 ---
 

@@ -184,3 +184,28 @@ Zoe's M.E.AI 10.5 strategic recommendations executed via three-agent orchestrati
 
 **Build:** ✅ 0 errors, 107 pre-existing warnings
 
+
+## Learnings
+
+### Razor source generator regression (net11p3) — switch-expr-of-RenderFragment-with-inline-markup
+**Date:** $(date +%Y-%m-%d)
+**File:** `src/SentenceStudio.UI/Pages/ImportContent.razor`
+
+**The broken pattern:** A `static RenderFragment Helper(T x) => x switch { Case => (__builder) => { <span>...</span> }, ... };` — switch expression returning multiple `RenderFragment` lambdas with inline Razor markup in each arm. Builds clean on net10 GA, but on net11 Preview 3 the Razor SG miscompiles and emits 31 errors (CS9348 on every `@inject`, CS0101/CS0102 with empty type/member names, cascading CS0246/CS0426). Wash repro'd it in a clean MAUI Blazor project (PeeThreeRegression) for the upstream issue.
+
+**The fix:** Replace each switch-expression-of-RenderFragment with a tuple-returning meta helper, then inline the markup at the call site:
+
+```csharp
+private static (string CssClass, string IconClass, string Label) GetTypeBadgeMeta(LexicalUnitType type) => type switch
+{
+    LexicalUnitType.Word => ("bg-primary bg-opacity-10 text-primary", "bi-fonts", "Word"),
+    ...
+};
+```
+
+```razor
+@{ var typeMeta = GetTypeBadgeMeta(item.Type); }
+<span class="badge @typeMeta.CssClass"><i class="bi @typeMeta.IconClass me-1"></i>@typeMeta.Label</span>
+```
+
+**Don't do this in Razor again:** switch expression whose arms are `(__builder) => { <markup/> }` lambdas. Pure data tuples + inline markup is safer and cleaner regardless of SG bugs.

@@ -10,7 +10,8 @@ public sealed record FilterToken(string Type, string Value)
         "status",
         "association",
         "language",
-        "encoding"
+        "encoding",
+        "type"
     };
 
     public bool IsValid =>
