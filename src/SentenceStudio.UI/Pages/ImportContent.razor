@@ -36,29 +36,29 @@
         <div class="card card-ss p-4 mb-3">
             <h5 class="ss-title3 mb-3"><i class="bi bi-check-circle-fill text-success me-2"></i>@Localize["Import_ImportComplete"]</h5>
             
-            <div class="row mb-3">
-                <div class="col-6 col-md-3 mb-2">
-                    <div class="text-center p-3 bg-light rounded">
-                        <div class="ss-title2 text-success">@importResult.CreatedCount</div>
-                        <small class="text-secondary-ss">@Localize["Import_Created"]</small>
+            <div class="row g-3 mb-3">
+                <div class="col-6 col-md-3">
+                    <div class="card card-ss p-3 text-center">
+                        <div class="fs-3 fw-bold text-success-ss">@importResult.CreatedCount</div>
+                        <div class="text-secondary-ss small">@Localize["Import_Created"]</div>
                     </div>
                 </div>
-                <div class="col-6 col-md-3 mb-2">
-                    <div class="text-center p-3 bg-light rounded">
-                        <div class="ss-title2 text-info">@importResult.SkippedCount</div>
-                        <small class="text-secondary-ss">@Localize["Import_Skipped"]</small>
+                <div class="col-6 col-md-3">
+                    <div class="card card-ss p-3 text-center">
+                        <div class="fs-3 fw-bold" style="color: var(--bs-info);">@importResult.SkippedCount</div>
+                        <div class="text-secondary-ss small">@Localize["Import_Skipped"]</div>
                     </div>
                 </div>
-                <div class="col-6 col-md-3 mb-2">
-                    <div class="text-center p-3 bg-light rounded">
-                        <div class="ss-title2 text-warning">@importResult.UpdatedCount</div>
-                        <small class="text-secondary-ss">@Localize["Import_Updated"]</small>
+                <div class="col-6 col-md-3">
+                    <div class="card card-ss p-3 text-center">
+                        <div class="fs-3 fw-bold text-warning-ss">@importResult.UpdatedCount</div>
+                        <div class="text-secondary-ss small">@Localize["Import_Updated"]</div>
                     </div>
                 </div>
-                <div class="col-6 col-md-3 mb-2">
-                    <div class="text-center p-3 bg-light rounded">
-                        <div class="ss-title2 text-danger">@importResult.FailedCount</div>
-                        <small class="text-secondary-ss">@Localize["Import_Failed"]</small>
+                <div class="col-6 col-md-3">
+                    <div class="card card-ss p-3 text-center">
+                        <div class="fs-3 fw-bold" style="color: var(--bs-danger);">@importResult.FailedCount</div>
+                        <div class="text-secondary-ss small">@Localize["Import_Failed"]</div>
                     </div>
                 </div>
             </div>
@@ -81,36 +81,36 @@
 
                 @* Filter pills *@
                 <div class="d-flex flex-wrap gap-2 mb-3">
-                    <button class="btn btn-sm @(resultFilter == null ? "btn-primary" : "btn-outline-primary")"
+                    <button class="btn btn-sm @(resultFilter == null ? "btn-ss-primary" : "btn-ss-secondary")"
                             @onclick="() => SetResultFilter(null)">
-                        @Localize["Import_FilterAll"] <span class="badge bg-light text-dark ms-1">@importResult.Items.Count</span>
+                        @Localize["Import_FilterAll"] <span class="badge text-bg-dark ms-1">@importResult.Items.Count</span>
                     </button>
                     @if (importResult.CreatedCount > 0)
                     {
-                        <button class="btn btn-sm @(resultFilter == ImportItemStatus.Created ? "btn-success" : "btn-outline-success")"
+                        <button class="btn btn-sm @(resultFilter == ImportItemStatus.Created ? "btn-success" : "btn-ss-secondary")"
                                 @onclick="() => SetResultFilter(ImportItemStatus.Created)">
-                            @Localize["Import_Created"] <span class="badge bg-light text-dark ms-1">@importResult.CreatedCount</span>
+                            @Localize["Import_Created"] <span class="badge bg-success ms-1">@importResult.CreatedCount</span>
                         </button>
                     }
                     @if (importResult.UpdatedCount > 0)
                     {
-                        <button class="btn btn-sm @(resultFilter == ImportItemStatus.Updated ? "btn-warning text-dark" : "btn-outline-warning")"
+                        <button class="btn btn-sm @(resultFilter == ImportItemStatus.Updated ? "btn-warning text-dark" : "btn-ss-secondary")"
                                 @onclick="() => SetResultFilter(ImportItemStatus.Updated)">
-                            @Localize["Import_Updated"] <span class="badge bg-light text-dark ms-1">@importResult.UpdatedCount</span>
+                            @Localize["Import_Updated"] <span class="badge bg-warning text-dark ms-1">@importResult.UpdatedCount</span>
                         </button>
                     }
                     @if (importResult.SkippedCount > 0)
                     {
-                        <button class="btn btn-sm @(resultFilter == ImportItemStatus.Skipped ? "btn-info" : "btn-outline-info")"
+                        <button class="btn btn-sm @(resultFilter == ImportItemStatus.Skipped ? "btn-info text-dark" : "btn-ss-secondary")"
                                 @onclick="() => SetResultFilter(ImportItemStatus.Skipped)">
-                            @Localize["Import_Skipped"] <span class="badge bg-light text-dark ms-1">@importResult.SkippedCount</span>
+                            @Localize["Import_Skipped"] <span class="badge bg-info text-dark ms-1">@importResult.SkippedCount</span>
                         </button>
                     }
                     @if (importResult.FailedCount > 0)
                     {
-                        <button class="btn btn-sm @(resultFilter == ImportItemStatus.Failed ? "btn-danger" : "btn-outline-danger")"
+                        <button class="btn btn-sm @(resultFilter == ImportItemStatus.Failed ? "btn-danger" : "btn-ss-secondary")"
                                 @onclick="() => SetResultFilter(ImportItemStatus.Failed)">
-                            @Localize["Import_Failed"] <span class="badge bg-light text-dark ms-1">@importResult.FailedCount</span>
+                            @Localize["Import_Failed"] <span class="badge bg-danger ms-1">@importResult.FailedCount</span>
                         </button>
                     }
                 </div>
@@ -1190,7 +1190,7 @@
         },
         ImportItemStatus.Skipped => (__builder) =>
         {
-            <span class="badge bg-info"><i class="bi bi-skip-forward me-1"></i>Skipped</span>
+            <span class="badge bg-info text-dark"><i class="bi bi-skip-forward me-1"></i>Skipped</span>
         },
         ImportItemStatus.Failed => (__builder) =>
         {

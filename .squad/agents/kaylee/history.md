@@ -25,6 +25,18 @@
 
 ## Recent Work
 
+### Import Complete Theme Alignment (2026-04-29)
+
+**Scope:** Shipped dark theme + WCAG contrast alignment for Import Complete view.
+
+**Changes:**
+- Stat tiles: Dashboard card-ss pattern (fs-3 fw-bold + theme color tokens + text-secondary-ss subtitles)
+- Filter pills: btn-ss-secondary inactive, btn-{status} (success/info/warning/danger) active to match in-table badges
+- Count badges: status-colored bg-{status} instead of hardcoded bg-light
+- Contrast fix: text-dark on bg-info Skipped badges (tab pill, count badge, in-table status) for WCAG AA
+
+**Pattern Locked:** bg-info badges require text-dark; other status colors already contrast-compliant. (Decision: `.squad/orchestration-log/2026-04-29T00-05-47Z-code-review.md`)
+
 ### Import Wizard P2 Bug Fixes (2025-01-26)
 
 **Scope:** Fixed two parallel-safe bugs in import wizard — silent title validation and Korean harvest localization
