@@ -71,116 +71,77 @@
             </button>
         </div>
 
-        @* Per-row detail table *@
+        @* Per-row detail list *@
         @if (importResult.Items.Any())
         {
-            <div class="card card-ss p-4 mb-3">
-                <h6 class="ss-title3 mb-3"><i class="bi bi-list-ul me-2"></i>@Localize["Import_ResultDetails"]</h6>
+            <h6 class="ss-title3 mb-3"><i class="bi bi-list-ul me-2"></i>@Localize["Import_ResultDetails"]</h6>
 
-                @* Filter pills *@
-                <div class="d-flex flex-wrap gap-2 mb-3">
-                    <button class="btn btn-sm @(resultFilter == null ? "btn-ss-primary" : "btn-ss-secondary")"
-                            @onclick="() => SetResultFilter(null)">
-                        @Localize["Import_FilterAll"] <span class="badge text-bg-dark ms-1">@importResult.Items.Count</span>
+            @* Filter pills *@
+            <div class="d-flex flex-wrap gap-2 mb-3">
+                <button class="btn btn-sm @(resultFilter == null ? "btn-ss-primary" : "btn-ss-secondary")"
+                        @onclick="() => SetResultFilter(null)">
+                    @Localize["Import_FilterAll"] <span class="badge text-bg-dark ms-1">@importResult.Items.Count</span>
+                </button>
+                @if (importResult.CreatedCount > 0)
+                {
+                    <button class="btn btn-sm @(resultFilter == ImportItemStatus.Created ? "bg-success text-white" : "btn-ss-secondary")"
+                            @onclick="() => SetResultFilter(ImportItemStatus.Created)">
+                        @Localize["Import_Created"] <span class="badge bg-success text-white ms-1">@importResult.CreatedCount</span>
                     </button>
-                    @if (importResult.CreatedCount > 0)
-                    {
-                        <button class="btn btn-sm @(resultFilter == ImportItemStatus.Created ? "bg-success text-white" : "btn-ss-secondary")"
-                                @onclick="() => SetResultFilter(ImportItemStatus.Created)">
-                            @Localize["Import_Created"] <span class="badge bg-success text-white ms-1">@importResult.CreatedCount</span>
-                        </button>
-                    }
-                    @if (importResult.UpdatedCount > 0)
-                    {
-                        <button class="btn btn-sm @(resultFilter == ImportItemStatus.Updated ? "bg-warning text-dark" : "btn-ss-secondary")"
-                                @onclick="() => SetResultFilter(ImportItemStatus.Updated)">
-                            @Localize["Import_Updated"] <span class="badge bg-warning text-dark ms-1">@importResult.UpdatedCount</span>
-                        </button>
-                    }
-                    @if (importResult.SkippedCount > 0)
-                    {
-                        <button class="btn btn-sm @(resultFilter == ImportItemStatus.Skipped ? "bg-info text-dark" : "btn-ss-secondary")"
-                                @onclick="() => SetResultFilter(ImportItemStatus.Skipped)">
-                            @Localize["Import_Skipped"] <span class="badge bg-info text-dark ms-1">@importResult.SkippedCount</span>
-                        </button>
-                    }
-                    @if (importResult.FailedCount > 0)
-                    {
-                        <button class="btn btn-sm @(resultFilter == ImportItemStatus.Failed ? "bg-danger text-white" : "btn-ss-secondary")"
-                                @onclick="() => SetResultFilter(ImportItemStatus.Failed)">
-                            @Localize["Import_Failed"] <span class="badge bg-danger text-white ms-1">@importResult.FailedCount</span>
-                        </button>
-                    }
-                </div>
+                }
+                @if (importResult.UpdatedCount > 0)
+                {
+                    <button class="btn btn-sm @(resultFilter == ImportItemStatus.Updated ? "bg-warning text-dark" : "btn-ss-secondary")"
+                            @onclick="() => SetResultFilter(ImportItemStatus.Updated)">
+                        @Localize["Import_Updated"] <span class="badge bg-warning text-dark ms-1">@importResult.UpdatedCount</span>
+                    </button>
+                }
+                @if (importResult.SkippedCount > 0)
+                {
+                    <button class="btn btn-sm @(resultFilter == ImportItemStatus.Skipped ? "bg-info text-dark" : "btn-ss-secondary")"
+                            @onclick="() => SetResultFilter(ImportItemStatus.Skipped)">
+                        @Localize["Import_Skipped"] <span class="badge bg-info text-dark ms-1">@importResult.SkippedCount</span>
+                    </button>
+                }
+                @if (importResult.FailedCount > 0)
+                {
+                    <button class="btn btn-sm @(resultFilter == ImportItemStatus.Failed ? "bg-danger text-white" : "btn-ss-secondary")"
+                            @onclick="() => SetResultFilter(ImportItemStatus.Failed)">
+                        @Localize["Import_Failed"] <span class="badge bg-danger text-white ms-1">@importResult.FailedCount</span>
+                    </button>
+                }
+            </div>
 
-                @* Desktop: table  |  Mobile: stacked cards *@
-                <div class="table-responsive d-none d-md-block">
-                    <table class="table table-sm table-bordered align-middle mb-0">
-                        <thead>
-                            <tr>
-                                <th>@Localize["Import_ColLemma"]</th>
-                                <th>@Localize["Import_ColNative"]</th>
-                                <th style="width:100px;">@Localize["Import_ColType"]</th>
-                                <th style="width:110px;">@Localize["Import_ColStatus"]</th>
-                                <th>@Localize["Import_ColReason"]</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach (var item in FilteredResultItems)
-                            {
-                                var isClickable = item.Status != ImportItemStatus.Failed && !string.IsNullOrEmpty(item.VocabularyWordId);
-                                <tr role="@(isClickable ? "button" : null)"
-                                    @onclick="() => NavigateToVocabDetail(item)">
-                                    <td>
-                                        @item.Lemma
-                                        @if (isClickable)
-                                        {
-                                            <i class="bi bi-box-arrow-up-right ms-1 text-secondary-ss small"></i>
-                                        }
-                                    </td>
-                                    <td>@item.NativeLanguageTerm</td>
-                                    <td>@RenderTypeBadge(item.Type)</td>
-                                    <td>@RenderStatusBadge(item.Status)</td>
-                                    <td>
-                                        @if (!string.IsNullOrEmpty(item.Reason))
-                                        {
-                                            @* Functional max-width for text truncation in fixed table column *@
-                                            <span title="@item.Reason" class="text-truncate d-inline-block" style="max-width:220px;">@item.Reason</span>
-                                        }
-                                    </td>
-                                </tr>
-                            }
-                        </tbody>
-                    </table>
-                </div>
-
-                @* Mobile card layout *@
-                <div class="d-md-none">
-                    @foreach (var item in FilteredResultItems)
-                    {
-                        var isClickable = item.Status != ImportItemStatus.Failed && !string.IsNullOrEmpty(item.VocabularyWordId);
-                        <div class="border rounded p-3 mb-2"
-                             role="@(isClickable ? "button" : null)"
-                             @onclick="() => NavigateToVocabDetail(item)">
-                            <div class="d-flex justify-content-between align-items-start mb-1">
-                                <span class="ss-body1 fw-bold">@item.Lemma</span>
-                                @RenderStatusBadge(item.Status)
-                            </div>
-                            <div class="ss-body2 text-secondary-ss mb-1">@item.NativeLanguageTerm</div>
-                            <div class="d-flex align-items-center gap-2">
-                                @RenderTypeBadge(item.Type)
+            @* Borderless list matching Vocabulary.razor pattern *@
+            <div class="list-group">
+                @foreach (var item in FilteredResultItems)
+                {
+                    var isClickable = item.Status != ImportItemStatus.Failed && !string.IsNullOrEmpty(item.VocabularyWordId);
+                    <button class="list-group-item list-group-item-action d-flex align-items-center gap-3 py-3" 
+                            disabled="@(!isClickable)"
+                            @onclick="() => NavigateToVocabDetail(item)">
+                        <div class="d-flex flex-column flex-md-row flex-grow-1 gap-2 gap-md-3 align-items-start align-items-md-center">
+                            <span class="fw-semibold" style="min-width:140px;">
+                                @item.Lemma
                                 @if (isClickable)
                                 {
-                                    <small class="text-primary-ss"><i class="bi bi-box-arrow-up-right"></i> @Localize["Import_ViewVocab"]</small>
+                                    <i class="bi bi-box-arrow-up-right ms-1 text-secondary-ss small"></i>
+                                }
+                            </span>
+                            <span class="text-secondary-ss flex-grow-1">@item.NativeLanguageTerm</span>
+                            <div class="d-flex gap-2 align-items-center flex-wrap">
+                                @RenderTypeBadge(item.Type)
+                                @RenderStatusBadge(item.Status)
+                                @if (!string.IsNullOrEmpty(item.Reason))
+                                {
+                                    <small class="text-danger" title="@item.Reason">
+                                        <i class="bi bi-exclamation-circle me-1"></i>@item.Reason
+                                    </small>
                                 }
                             </div>
-                            @if (!string.IsNullOrEmpty(item.Reason))
-                            {
-                                <div class="mt-1 ss-caption1 text-danger">@item.Reason</div>
-                            }
                         </div>
-                    }
-                </div>
+                    </button>
+                }
             </div>
         }
     }
