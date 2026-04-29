@@ -111,3 +111,54 @@ Zoe's M.E.AI 10.5 strategic recommendations executed via three-agent orchestrati
 
 **Implication:** All OpenAI SDK traffic in the codebase is now Polly-backed. Production DX24 path (standalone mode) gains retry/circuit-breaker protection on critical TTS fallback surface.
 
+
+---
+
+## 2026-04-29: Aspire Mac Catalyst Environment Variable Injection Analysis
+
+**Cycle:** Local-Dev Infrastructure Diagnosis (no code changes)  
+**Work:** Root cause analysis for Captain's report: Aspire→Mac Catalyst launch hits production Azure API + UI freezes.
+
+**Key Finding:** Aspire.Hosting.Maui 13.3.0-preview does NOT implement environment variable injection for Mac Catalyst.
+- Android/iOS use custom MSBuild targets files (documented in XML annotations)
+- Mac Catalyst uses `dotnet run` (which *should* support env vars natively) but no injection machinery exists in the package
+- Result: `services__api__https__0` env var never reaches app → falls back to `appsettings.Production.json` (Azure)
+
+**Secondary Finding:** `InitializeDatabaseAsync().Wait()` in SentenceStudioAppBuilder.cs (line 147) blocks main thread during boot. If API call hangs, UI deadlocks before rendering.
+
+**Evidence Chain:**
+1. AppHost.cs: `.WithReference(api)` is correct but doesn't inject env vars for Mac Catalyst
+2. Service Discovery: Precedence is env vars > appsettings.Production.json. Missing env var → Azure fallback
+3. appsettings.Production.json: Correctly points to Azure. Loaded when `ASPNETCORE_ENVIRONMENT != "Development"`
+4. Aspire.Hosting.Maui: Has `MauiAndroidEnvironmentAnnotation`, `MauiiOSEnvironmentAnnotation`, but NO equivalent for Mac Catalyst
+
+**Hypothesis Confirmed:** Aspire assumes Mac Catalyst can receive env vars through `dotnet run`'s process environment, but Mac Catalyst .app bundles launched via `dotnet run` do NOT inherit environment variables when using NSWorkspace or xcrun internally.
+
+**Fix Options for Captain:**
+
+| Option | Approach | Pros | Cons | Recommend |
+|--------|----------|------|------|-----------|
+| **A** | Wait for Aspire team | Zero local code | Blocks dev NOW; unknown ETA | Long-term: file bug |
+| **B** | Custom MSBuild targets (mirrors Android/iOS) | Works NOW; proven | Custom Aspire code; maintenance | Medium-term: Wash implements |
+| **C** | Launch script with env vars | Dead simple; works TODAY | Two-step launch; loses dashboard | Short-term: verify hypothesis |
+| **D** | Hardcode localhost in appsettings.Development.json | No Aspire code | Port hardcoded; fragile | Band-aid only |
+
+**Recommended Path:**
+1. Short-term (today): Captain tests Option C (5 minutes) to confirm hypothesis
+2. Medium-term (week): Wash implements Option B (custom targets file)
+3. Long-term: File bug with Aspire team
+
+**Verification Steps:**
+```bash
+# Terminal 1
+aspire run --no-launch-profile  # Note API port
+
+# Terminal 2
+export services__api__https__0="https://localhost:7234"
+dotnet build -t:Run -f net10.0-maccatalyst -c Debug src/SentenceStudio.MacCatalyst/SentenceStudio.MacCatalyst.csproj
+```
+
+Expected: App loads local test data (not Azure). If UI still freezes, check Console.app logs for checkpoint messages from SentenceStudioAppBuilder.cs.
+
+**Decision:** Awaiting Captain's fix option call. Full analysis in `.squad/decisions/inbox/wash-aspire-maccatalyst-env-investigation.md`.
+

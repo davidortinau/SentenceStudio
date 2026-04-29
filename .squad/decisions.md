@@ -4,6 +4,135 @@
 
 ---
 
+### 2026-04-29T00:45Z: Import Complete View — Style Fidelity Fix
+
+**By:** Kaylee (Full-stack Dev)  
+**Directive:** `.squad/decisions/inbox/copilot-directive-2026-04-29-style-fidelity.md`  
+**Scope:** `src/SentenceStudio.UI/Pages/ImportContent.razor` lines 33-130 (Import Complete view)
+
+#### Problem
+
+Coordinator (commit 7321d48, `feature/import-content`) shipped invented styling that drifted from canonical patterns. Three specific issues:
+
+1. **Stat tiles blended into background**: Outer `card card-ss` wrapper nested inner stat tiles (also `card card-ss`) → same dark navy bg → no visual elevation.
+2. **Filter pill button bg ≠ table badge bg**: Active pills used Bootstrap `btn-{status}` instead of matching the in-table `bg-{status}` pill colors.
+3. **White table header row**: `<thead class="table-light">` rendered white-on-white in dark mode. Captain does not use header rows in this pattern.
+
+#### Solution
+
+Applied canonical patterns matched from Dashboard (tiles) and Vocabulary (tabular lists):
+- Removed outer `card card-ss` wrapper from stat tiles
+- Switched filter pill active state to `bg-{status}` classes (exact match with in-table badges)
+- Removed `table-light` class from `<thead>`
+
+**Files Changed:** `src/SentenceStudio.UI/Pages/ImportContent.razor` (lines 33-74, 82-116, 121)
+
+**Build Verification:** ✅ 0 errors, 107 pre-existing warnings
+
+**Code Review:** First pass BLOCKED on WCAG contrast (bg-success 2.44:1 fails AA). Coordinator added `text-white` to all 8 color-critical elements (4 buttons + 4 badges). Re-review APPROVED. Committed as 437eaac.
+
+#### Decision
+
+**Pattern locked:** Import Complete view now matches Dashboard tile structure, filter pill colors match table badges, and table header respects dark mode.
+
+---
+
+### 2026-04-29T00:45Z: Aspire Mac Catalyst Environment Variable Injection — Root Cause Analysis
+
+**By:** Wash (Backend Dev)  
+**Status:** DIAGNOSIS COMPLETE — awaiting Captain's fix decision  
+**Scope:** Local-dev Aspire→Mac Catalyst launch issue
+
+#### Root Cause
+
+**Mac Catalyst launched from Aspire hits PRODUCTION data because Aspire.Hosting.Maui 13.3.0-preview does NOT inject environment variables into Mac Catalyst .app bundles.**
+
+Android and iOS use MSBuild targets files to inject env vars. Mac Catalyst uses `dotnet run`, which *should* support env vars natively — but the integration doesn't implement the injection mechanism. The `services__api__https__0` env var that would point the app at localhost never reaches the app, so service discovery falls back to `appsettings.Production.json` (Azure API).
+
+The "can't interact" symptom is likely a **deadlock** — the app synchronously calls `InitializeDatabaseAsync().Wait()` at boot while trying to hit the unreachable Azure API, freezing the UI.
+
+#### Evidence Chain
+
+1. **AppHost.cs**: `.WithReference(api)` call is correct but doesn't inject env vars for Mac Catalyst
+2. **Service Discovery**: Config precedence is env vars > appsettings.Production.json. When env var missing, falls back to Azure
+3. **appsettings.Production.json**: Correctly points to Azure. Loaded when `ASPNETCORE_ENVIRONMENT != "Development"`
+4. **Aspire.Hosting.Maui**: Has `MauiAndroidEnvironmentAnnotation` and `MauiiOSEnvironmentAnnotation` but NO equivalent for Mac Catalyst
+5. **The Missing Piece**: No MSBuild targets file generation for Mac Catalyst env var injection
+
+#### Secondary Issue: InitializeDatabaseAsync().Wait() Deadlock
+
+Lines 146-147 in `SentenceStudioAppBuilder.cs`:
+```csharp
+Task.Run(async () => await syncService.InitializeDatabaseAsync()).Wait();
+```
+This blocks the main thread during app initialization. If the API is unreachable and the call hangs, the UI never renders.
+
+#### Fix Options for Captain
+
+| Option | Approach | Pros | Cons | Recommendation |
+|--------|----------|------|------|-----------------|
+| **A** | Wait for Aspire team to ship Mac Catalyst env var support | Zero local code; upstream benefits all users | Blocks dev NOW; unknown ETA | Long-term: file bug anyway |
+| **B** | Custom MSBuild targets file workaround (mirrors Android/iOS) | Works NOW; proven pattern | Custom Aspire integration code; maintenance burden | Medium-term: Wash implements |
+| **C** | Launch script with env vars set manually | Dead simple; zero Aspire code; works TODAY | Two-step launch; loses Aspire dashboard integration | Short-term: quick verification |
+| **D** | Hardcode localhost in appsettings.Development.json | No Aspire integration code | Port hardcoded; fragile; doesn't solve root problem | Band-aid only |
+
+#### Recommended Fix Path
+
+1. **Short-term (today):** Option C (launch script) — Captain verifies hypothesis in <5 minutes
+2. **Medium-term (this week):** Option B (custom targets file) — Wash implements MSBuild workaround
+3. **Long-term:** Open issue on `dotnet/aspire` repo requesting Mac Catalyst env var support
+
+#### Verification Steps
+
+```bash
+# Terminal 1: run Aspire (note API port from dashboard)
+aspire run --no-launch-profile
+
+# Terminal 2: set env var and launch app
+export services__api__https__0="https://localhost:7234"
+dotnet build -t:Run -f net10.0-maccatalyst -c Debug src/SentenceStudio.MacCatalyst/SentenceStudio.MacCatalyst.csproj
+```
+
+Expected result: App loads **local test data** (not Azure). If UI still freezes, check Console.app for checkpoint logs from `SentenceStudioAppBuilder.cs`.
+
+#### Decision
+
+**Status:** AWAITING CAPTAIN'S FIX OPTION (A/B/C/D)
+
+---
+
+### 2026-04-29T00:23Z: User Directive — Style Fidelity for Blazor Pages
+
+**By:** David (Captain)  
+**Type:** Team guardrail (binds all Blazor/CSS work)
+
+#### Directive
+
+**When styling Blazor pages, ALWAYS use existing pages as the canonical reference. Do NOT invent new card structures, header rows, or color treatments.**
+
+- **Tile layouts** → Dashboard (Index.razor:472-502)
+- **Tabular lists** → Vocabulary list / Learning resource list
+- **No white table headers** → Captain does not use white header rows
+
+#### Why
+
+Recent work on ImportContent.razor (Coordinator's commit 7321d48) invented styles that drifted from app-wide patterns:
+- Outer card wrapper on tiles (Dashboard has no outer wrapper)
+- Different button colors for filter pills vs. in-table badges
+- White table header row in dark mode
+
+This rule is a **hard guardrail** — future agents must read & match patterns from existing pages before writing CSS classes.
+
+#### Impact
+
+Applies to all future Blazor agents: Kaylee, Zoe, Simon, River, etc. Will be appended to agent history files.
+
+#### Decision
+
+**Rule locked. All future Blazor styling decisions must reference this directive.**
+
+---
+
 # Decision: M.E.AI 10.5.0 Strategic Review — Defer Features, Ship Three Debt Actions
 
 **Date:** 2026-04-27  

@@ -148,3 +148,37 @@ Zoe's M.E.AI 10.5 strategic recommendations executed via three-agent orchestrati
 
 **Decision:** `kaylee-scriban-cve-bump.md`.
 
+
+### Import Complete Style Fidelity Rework (2026-04-29)
+
+**Cycle:** Style Fidelity Fix — Captain directive enforcement  
+**Work:** Fixed three visual issues on ImportContent.razor Import Complete view to align with app-wide patterns.
+
+**Key Finding:** Coordinator's commit 7321d48 on `feature/import-content` invented styling that drifted:
+- Stat tiles had outer card wrapper (darkening subtiles into background)
+- Filter pills used `btn-{status}` classes (different shades than in-table `bg-{status}` badges)
+- Table header used `table-light` class (white on white in dark mode)
+
+**Solution:** Applied canonical patterns from Index.razor (tiles) and Vocabulary.razor (tabular lists):
+- Removed outer card wrapper — tiles now sit directly on page background (matches Dashboard)
+- Switched filter pills to use `bg-{status}` classes (exact match with in-table badges)
+- Removed `table-light` class from thead
+
+**Code Review Issue:** First pass failed WCAG AA contrast check:
+- `bg-success` + black text: 2.44:1 (fails AA, needs 4.5:1)
+- `bg-danger` + black text: 3.88:1 (fails AA)
+
+**Fix:** Coordinator added `text-white` to all 8 color-critical elements (4 buttons + 4 in-table badges). New contrast:
+- `bg-success` + white: 5.89:1 ✅
+- `bg-danger` + white: 4.78:1 ✅
+
+**Lesson:** WCAG checks must be part of color+contrast decisions. Process: (1) Match pattern, (2) Check contrast ratio, (3) Add `text-white` or `text-dark` for 4.5:1+ AA compliance.
+
+**Directive Locked:** New rule binding all Blazor agents: "When styling Blazor pages, ALWAYS reference existing pages as canonical (Dashboard for tiles, Vocabulary for lists). Do NOT invent new card structures, header rows, or color treatments." Decision: `2026-04-29T00:23Z-copilot-directive-style-fidelity`.
+
+**Committed:** 437eaac
+
+**Files Changed:** src/SentenceStudio.UI/Pages/ImportContent.razor (lines 33-74, 82-116, 121)
+
+**Build:** ✅ 0 errors, 107 pre-existing warnings
+
