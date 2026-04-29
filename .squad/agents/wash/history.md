@@ -162,3 +162,54 @@ Expected: App loads local test data (not Azure). If UI still freezes, check Cons
 
 **Decision:** Awaiting Captain's fix option call. Full analysis in `.squad/decisions/inbox/wash-aspire-maccatalyst-env-investigation.md`.
 
+
+
+---
+
+## 2026-04-29: Verified iOS Release Build Recipe — net11p3 Swap is Broken
+
+**Cycle:** Build verification (post-publish truth check)  
+**Triggered by:** Captain's challenge — Coordinator's claim that "net11p3 is broken" was unverified because no `dotnet clean` was performed between SDK swaps. Captain (correctly) suspected obj/ contamination.
+
+### Verification
+
+Performed a clean re-test:
+1. Swap to net11p3 (`11.0.100-preview.3.26209.122`)
+2. **Full wipe** of `obj/` and `bin/` from `src/SentenceStudio.UI/` and `src/SentenceStudio.iOS/` (not just `dotnet clean`)
+3. Build iOS Release with the runbook command
+4. **Result: 31 errors, identical signatures to Coordinator's earlier failed build.** Net11p3 is genuinely incompatible with `ImportContent.razor`.
+5. Restore net10 GA.
+
+### Truth
+
+- **Coordinator's claim was correct.** The 31 errors are real, not contamination.
+- **But Coordinator's process was wrong.** Without `dotnet clean` (or full obj/bin wipe) between SDK swaps, the claim was unverified. Captain caught this.
+- **Canonical iOS Release recipe going forward:** stay on net10 GA + `-p:ValidateXcodeVersion=false`. Do NOT swap global.json.
+
+### Root cause of net11p3 failure
+
+Razor source-generator regression in net11 Preview 3:
+- `@inject` directives parsed as raw C# (CS9348) instead of being lifted into the component partial class
+- Generator emits two colliding `partial class ImportContent` halves (CS0101/CS0102 with empty member names)
+- Cascades into CS0246 type-not-found on every injected service and CS0426 / CS0535 downstream
+
+### Process Rule Captured (new for all agents)
+
+**When swapping SDK versions via `global.json`, always wipe `obj/` AND `bin/` from affected projects — `dotnet clean` is NOT sufficient.** Razor source-gen output and incremental build state can survive `dotnet clean` and masquerade as SDK incompatibility.
+
+```
+find <project-dirs> -name obj -type d -exec rm -rf {} +
+find <project-dirs> -name bin -type d -exec rm -rf {} +
+```
+
+This is the kind of hygiene rule that distinguishes "I think it's broken" from "I've verified it's broken."
+
+### Artifacts
+
+- Decision drop: `.squad/decisions/inbox/wash-ios-build-recipe-verified.md`
+- Build log: `.squad/orchestration-log/2026-04-29-wash-net11p3-clean-build.log`
+- FU-4 updated in `.squad/followups.md` with verified facts and revised runbook-rewrite guidance
+
+### Implication
+
+`docs/deploy-runbook.md` Step 2a still needs rewriting (FU-4 owns that task). The replacement is the `-p:ValidateXcodeVersion=false` recipe, NOT a "use cleaner SDK swap" recipe — net11p3 is dead until the upstream Razor regression is fixed.

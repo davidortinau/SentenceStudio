@@ -4,6 +4,81 @@
 
 ---
 
+### 2026-04-29T14:32Z: iOS Release Build Recipe Verified — net11p3 Razor Regression Confirmed
+
+**By:** Wash (Backend Dev)  
+**Scope:** Canonical iOS Release build recipe under Xcode 26.3 + .NET SDK mismatch
+
+#### Problem
+
+Two candidate recipes were in play:
+
+- **Recipe A** — `global.json` swap to net11 Preview 3 (`11.0.100-preview.3.26209.122`), build, swap back. Documented in `docs/deploy-runbook.md` Step 2a.
+- **Recipe B** — Stay on net10 GA (`10.0.101`), pass `-p:ValidateXcodeVersion=false` to suppress the Xcode-version assertion.
+
+Captain suspected Recipe A's 31-error report was obj/ contamination (Coordinator did NOT run `dotnet clean` between SDK swaps). Wash was tasked to verify with proper hygiene.
+
+#### Verification (2026-04-29, Wash)
+
+Reproduced build with full hygiene:
+
+1. Backup `global.json` → swap to net11p3 → confirm `dotnet --version` = `11.0.100-preview.3.26209.122`
+2. **Full wipe** (not just `dotnet clean`):
+   ```bash
+   find src/SentenceStudio.UI src/SentenceStudio.iOS -name obj -type d -exec rm -rf {} +
+   find src/SentenceStudio.UI src/SentenceStudio.iOS -name bin -type d -exec rm -rf {} +
+   ```
+3. Build iOS Release: same command as runbook Step 2a
+4. **Result: 31 errors, 316 warnings, 8.66s.** Identical error count and signatures to Coordinator's first attempt.
+5. Restore `global.json` → confirm net10.
+
+**Conclusion: net11p3 is genuinely incompatible with `ImportContent.razor`.** The contamination hypothesis is FALSE. This is a genuine Razor source-generator regression in the net11 Preview 3 SDK.
+
+**Build log:** `.squad/orchestration-log/2026-04-29-wash-net11p3-clean-build.log`
+
+#### Verified Error Signatures
+
+```
+ImportContent.razor(4,9): error CS0246: type 'IContentImportService' could not be found
+ImportContent.razor(4,31): error CS9348: A compilation unit cannot directly contain members
+ImportContent.razor(1124,79): error CS0102: type 'ImportContent' already contains a definition for ''
+ImportContent.razor(1128,83): error CS0101: namespace 'SentenceStudio.WebUI.Pages' already contains a definition for ''
+ImportContent.razor(1126,25): error CS0426: type name 'Phrase' does not exist in 'LexicalUnitType'
+```
+
+The **CS9348** / **CS0246** cluster on `@inject` directive lines (4–10) plus duplicate-definition **CS0101/CS0102** with empty type/member names is a Razor SG regression — `@inject` directives are being parsed as raw C# instead of being lifted into the generated component partial class.
+
+#### Decision
+
+**Canonical iOS Release recipe for Xcode 26.3 mismatch:**
+
+```bash
+services__api__https__0=https://api.livelyforest-b32e7d63.centralus.azurecontainerapps.io \
+  dotnet build src/SentenceStudio.iOS/SentenceStudio.iOS.csproj \
+    -f net10.0-ios -c Release \
+    -p:RuntimeIdentifier=ios-arm64 \
+    -p:ValidateXcodeVersion=false
+```
+
+**Do NOT use the `global.json` net11p3 swap** documented in `docs/deploy-runbook.md` Step 2a. It is broken on main and produces 31 build errors regardless of obj/ hygiene.
+
+#### New Process Rule
+
+**When swapping SDK versions via `global.json`, always wipe `obj/` AND `bin/`** — `dotnet clean` is NOT sufficient. Razor source-gen output, generated assembly attributes, and incremental build state can survive `dotnet clean` and produce confusing errors. Safe procedure:
+
+```bash
+find <project-dirs> -name obj -type d -exec rm -rf {} +
+find <project-dirs> -name bin -type d -exec rm -rf {} +
+```
+
+#### Follow-up
+
+- ✅ FU-4 in `.squad/followups.md` updated with verified facts.
+- 🔄 `docs/deploy-runbook.md` Step 2a rewrite remains a separate task (not done here).
+- 🔄 Captain to decide whether to file upstream Razor SDK bug for net11 Preview 3.
+
+---
+
 ### 2026-04-29T01:44Z: Data Import Feature Shipped to Production
 
 **By:** Scribe (logging Captain's deploy)  
