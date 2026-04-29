@@ -82,3 +82,42 @@ Not critical for .NET 10 GA release; QoL improvement for future SDK updates.
 
 ---
 
+
+## FU-4: Rewrite `docs/deploy-runbook.md` Step 2a — drop net11p3 global.json swap
+
+**Status:** Discovered 2026-04-29 (import-content production deploy)  
+**Severity:** Medium (runbook actively misleading; first-time deployer following it will hit 31 build errors)  
+**Scope:** `docs/deploy-runbook.md` Step 2a — iOS Release build instructions
+
+### Problem
+
+Step 2a tells the operator to swap `global.json` to `11.0.100-preview.3.26209.122` (net11 Preview 3) before building iOS Release, then restore net10 after. This was the workaround for Xcode 26.3 vs net10 GA SDK mismatch.
+
+It is now broken: the net11p3 Razor SDK cannot compile `src/SentenceStudio.UI/Pages/ImportContent.razor` and produces 31 errors (CS9348, CS0246, CS0426 on `@inject` directives and `LexicalUnitType.Phrase` references). The import-content feature is now in main, so anyone following the runbook will fail.
+
+### Correct Recipe (verified 2026-04-29 deploy)
+
+Stay on net10 GA SDK (`10.0.101`); pass `-p:ValidateXcodeVersion=false` to skip the Xcode version assertion:
+
+```bash
+services__api__https__0=https://api.livelyforest-b32e7d63.centralus.azurecontainerapps.io \
+  dotnet build src/SentenceStudio.iOS/SentenceStudio.iOS.csproj \
+    -f net10.0-ios -c Release \
+    -p:RuntimeIdentifier=ios-arm64 \
+    -p:ValidateXcodeVersion=false
+```
+
+### Required Edits
+
+1. Step 2a: remove the `cp global.json global.json.bak` / net11p3 swap / restore dance
+2. Document `-p:ValidateXcodeVersion=false` as the standard flag for the Xcode 26.3 mismatch
+3. Update top-of-file "## .NET SDK Selection in This Repo" notes if they reference the swap
+4. Verify `global.json.bak` is not still in `.gitignore` for the wrong reason (or document why it remains)
+
+### Cross-refs
+
+- Orchestration log: `.squad/orchestration-log/2026-04-29T014444Z-publish-import-content.md`
+- Decision: `.squad/decisions.md` — 2026-04-29T01:44Z entry
+- Agent history: `.squad/agents/kaylee/history.md` Learnings (2026-04-29)
+
+---

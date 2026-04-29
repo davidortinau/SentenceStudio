@@ -4,6 +4,22 @@
 
 ---
 
+### 2026-04-29T01:44Z: Data Import Feature Shipped to Production
+
+**By:** Scribe (logging Captain's deploy)  
+**Merge commit:** `9765d68` on `main` (from `feature/import-content`, 37 commits)  
+**Scope:** Azure (api, cache, marketing, webapp, workers via `azd deploy`) + iOS Release on DX24
+
+**Decision:** **net10 GA SDK (`10.0.101`) + `-p:ValidateXcodeVersion=false` is the canonical iOS Release build recipe for the Xcode 26.3 mismatch — NOT the `global.json` swap to net11 Preview 3 prescribed in `docs/deploy-runbook.md` Step 2a.** The net11p3 Razor SDK fails to compile `src/SentenceStudio.UI/Pages/ImportContent.razor` (31 errors: CS9348 / CS0246 / CS0426 on `@inject` directives + `LexicalUnitType.Phrase`). Stay on net10, skip the Xcode version assertion via the MSBuild flag.
+
+**Action item:** `docs/deploy-runbook.md` Step 2a needs to be rewritten — tracked in `.squad/followups.md`. NOT edited in this commit.
+
+**Deploy summary:** azd deploy clean in 2m1s; post-deploy validation 16 PASS / 0 FAIL / 2 SKIP / 2 WARN; iOS install clean on retry (first attempt: transient CoreDeviceError 4000); iOS launch deferred (device locked at launch time — Captain to unlock + tap).
+
+**Orchestration log:** `.squad/orchestration-log/2026-04-29T014444Z-publish-import-content.md`
+
+---
+
 ### 2026-04-29T00:45Z: Import Complete View — Style Fidelity Fix
 
 **By:** Kaylee (Full-stack Dev)  
