@@ -25,6 +25,42 @@
 
 ---
 
+## 2026-04-29 — PR #183 Ship: Sentences Smart Resource + ResourceEdit Read-Only + net11p3 Workaround + Full Deploy
+
+**Scope:** Production publish of PR #183 + net11p3 Razor SG workaround (ImportContent.razor) + Azure deploy + iOS to DX24
+
+**Orchestration Arc:**
+
+1. **PR #183 Merge** (commit f8b4567, admin merge via `gh pr merge --squash --admin --delete-branch`)
+   - Wash: Sentences smart resource (5th type, LexicalUnitType.Sentence only) + narrowed Phrases (LexicalUnitType.Phrase only)
+   - Kaylee: ResourceEdit.razor read-only for IsSmartResource (8 disabled inputs, mutating buttons hidden, 6 server-side guards, ConfirmDelete guard added post-review)
+   - 18/18 tests passing
+
+2. **net11p3 Razor SG Workaround Applied** (commit 2359da8)
+   - Issue: dotnet/razor#13117 — switch expressions returning RenderFragment lambdas with inline Razor markup trigger SG regression
+   - Workaround: tuple-returning meta helpers in ImportContent.razor; file 1168→1145 lines
+   - Result: net10 = 0 errors, net11p3 = 0 errors (was 31)
+   - Deployed with upstream issue reference + "recheck on each upstream release" comment
+
+3. **Azure Deploy** — `azd deploy` success (2m 6s); all 5 services live; post-validation 16 PASS / 0 FAIL
+
+4. **iOS Device Build (DX24)** — **NEW: net11p3 SDK is now canonical** (not net10 + ValidateXcodeVersion=false)
+   - Used net11p3 SDK swap (workaround unblocked dogfooding latest preview)
+   - Build clean: 0 errors
+   - Install + launch on DX24 (CF4F94E3-A1C9-5617-A089-9ABB0110A09F) successful
+   - SDK restored to net10 after build
+
+**Key Decision Update:**
+- **Upstream Policy (Codified):** Default = workaround + comment + recheck (vs. upstreaming). Exception = if we have upstream repo locally (maui-labs, maui), PR the fix. When uncertain, ask Captain.
+- **iOS Recipe (NEW CANONICAL):** net11p3 SDK swap (supersedes net10 + ValidateXcodeVersion=false). Reason: unblock preview dogfooding + future-proof Xcode 26.3 support. Fallback recipe documented if net11p3 breaks again.
+
+**Cross-agent Notes:**
+- Wash: Sentences smart resource shipped in PR #183; ImportContent.razor workaround details for future razor work; iOS recipe updated to net11p3
+- Kaylee: ResourceEdit read-only shipped; upstream policy directive captured; iOS recipe updated
+- Scribe: Documented all of the above; decisions merged; agent histories updated
+
+---
+
 ## 2026-04-29 — Issue #179 Fix + Pre-Deploy Check Rewrite Publish
 
 **Scope:** Production publish (Issue #179 fix, PR #181) + pre-deploy check migration to Flex Server (PR #182)

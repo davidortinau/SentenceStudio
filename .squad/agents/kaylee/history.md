@@ -213,3 +213,31 @@ private static (string CssClass, string IconClass, string Label) GetTypeBadgeMet
 - 2026-04-29: **Blazor RenderFragment Conditionals Pattern** — When hiding content inside Blazor RenderFragments like `<PrimaryActions>` or `<SecondaryActions>`, the `@if` MUST go inside the RenderFragment, not wrapped around it. Wrapping the entire RenderFragment causes a compile error "Unrecognized child content inside component". Correct pattern: always define the RenderFragment tags, then conditionally render children inside. Applied in ResourceEdit.razor for smart resource read-only mode (hide Save/Delete buttons for system-managed resources).
 
 - 2026-04-29: **Smart Resource Read-Only UI Pattern** — Implemented read-only mode for `ResourceEdit.razor` when `resource.IsSmartResource == true` (DailyReview, NewWords, Struggling, Phrases, Sentences). Key points: (a) Disable inputs with `disabled="@resource.IsSmartResource"`, don't hide them — keeps screen-reader accessible and shows existing values; (b) Hide mutation buttons (Save/Delete/Generate/Import) using `@if (!resource.IsSmartResource)` INSIDE RenderFragments; (c) Server-side guards in all handlers (`SaveResource`, `ImportVocabulary`, `HandleFileImport`, `GenerateVocabulary`, `RequestDelete`) with warning logs; (d) Keep view-only features working (vocabulary list display, info banner, navigation). No new localization strings added — reused existing `ResourceEdit_SmartResource` and `ResourceEdit_AutoUpdated`. Pattern is reusable for any system-managed entity (SkillProfile, activity history, reports). Decision doc: `.squad/decisions/inbox/kaylee-resourceedit-readonly.md`.
+
+## 2026-04-29 — ResourceEdit Read-Only + net11p3 Workaround + Upstream Policy
+
+**Shipped in PR #183 (commit f8b4567):**
+- ResourceEdit.razor read-only for IsSmartResource: 8 disabled inputs, mutating buttons hidden, 6 server-side guards
+- Page title changes to "View Smart Resource" when IsSmartResource=true
+- Bootstrap info banner explains auto-management
+- Defense-in-depth pattern: UI disabled inputs → hidden buttons → server-side guards
+- Post-code-review addition: ConfirmDelete() server-side guard (caught by reviewer)
+- Pattern reusable for any system-managed entity
+
+**net11p3 Workaround Details:**
+- ImportContent.razor refactored from RenderFragment switch expressions to tuple-returning meta helpers
+- Commit 2359da8 refactor: `RenderTypeBadge`/`RenderStatusBadge` → `GetTypeBadgeMeta`/`GetStatusBadgeMeta`
+- File reduction: 1168→1145 lines
+- Outcome: builds clean on both net10 and net11p3 (was 31 errors on net11p3)
+- This workaround unblocked iOS device build with net11p3 SDK (new canonical recipe)
+
+**Upstream Policy Directive (Codified):**
+- Captain's policy: Default = workaround in our code + comment referencing filed issue + recheck on each upstream release
+- Exception: If upstream is a codebase we have locally (maui-labs, maui), unblock by PR'ing the fix
+- When uncertain about whether to upstream, ask Captain and remember the choice
+- Applied to dotnet/razor#13117: workaround applied (not PR'd upstream); recheck trigger documented in code
+
+**Key Learnings:**
+- When refactoring to work around upstream issues, include a comment referencing the upstream URL
+- "Recheck on each upstream release" reminder creates a natural cleanup trigger when the issue is fixed
+- Defense-in-depth pattern (UI + server guard) is essential for production-critical contracts like "smart resources are read-only"

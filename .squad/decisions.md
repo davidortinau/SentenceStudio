@@ -2306,3 +2306,218 @@ None required. Script is called automatically by `azure.yaml` preprovision hook.
 - **Date parsing fragility**: BSD vs GNU date differences handled with conditional logic. If CI fails, check backup freshness parsing in logs.
 - **Backup CLI deprecation warning**: `az postgres flexible-server backup list` warns about argument changes coming May 2026. Migration path is clear (add `--server-name` when available).
 
+
+---
+
+## 2026-04-29: Sentences Smart Resource Implementation
+
+**By:** Wash (Backend Dev)  
+**Status:** Shipped ✅ in PR #183  
+**Date:** 2026-01-29 (deferred work, completed 2026-04-29)
+
+### Problem
+
+Captain imported new sentence vocabulary correctly showing `Type=Sentence` on detail pages, but the existing **Phrases** smart resource included BOTH `LexicalUnitType.Phrase` AND `LexicalUnitType.Sentence`, mixing two distinct content types in one view. Users needed dedicated one-click access to sentences.
+
+### Decision
+
+Split the combined resource into two separate smart resources:
+1. **Phrases** → narrowed to `LexicalUnitType.Phrase` only
+2. **Sentences** (NEW) → `LexicalUnitType.Sentence` only
+
+### Implementation Summary
+
+- Added `SmartResourceType_Sentences` constant (SmartResourceService.cs:25)
+- New Sentences resource definition with 📖 icon (vs Phrases' 📝)
+- `GetSentencesVocabularyIdsAsync()` filtering `LexicalUnitType == Sentence`
+- Narrowed `GetPhrasesVocabularyIdsAsync()` from `Phrase OR Sentence` → `Phrase` only
+- Auto-refresh idempotency: existing users get Sentences on first upgrade, Phrases naturally narrowed on next refresh cycle
+- Zero schema changes needed (SmartResourceType column + LexicalUnitType.Sentence already exist)
+- 18/18 tests passing (6 Phrases + 6 Sentences + upgrade scenarios)
+
+### Key Files
+- Service: `src/SentenceStudio.Shared/Services/SmartResourceService.cs`
+- Tests: `tests/SentenceStudio.UnitTests/Services/SmartResourcePhrasesTests.cs`, `SmartResourceSentencesTests.cs`
+
+### User Impact
+
+**Existing users upgrading:**
+1. First launch: Sentences resource created + populated
+2. Next refresh: Phrases automatically narrowed (old sentence mappings removed via BulkRemoveWordsFromResourceAsync)
+
+**New users:** 5 smart resources seeded immediately (DailyReview, NewWords, Struggling, Phrases, Sentences)
+
+---
+
+## 2026-04-29: ResourceEdit Read-Only Mode for Smart Resources
+
+**By:** Kaylee (Full-Stack Dev)  
+**Status:** Shipped ✅ in PR #183  
+**Date:** 2026-04-29
+
+### Problem
+
+Smart resources (`IsSmartResource = true`) are auto-managed by the system based on vocabulary progress. User edits would be overwritten at next refresh, breaking data integrity. UI allowed editing despite this mismatch.
+
+### Decision
+
+Make `ResourceEdit.razor` fully read-only for smart resources:
+- All 8 form inputs disabled (Title, Description, MediaType, Language, MediaUrl, Tags, Transcript, Translation)
+- All mutating buttons hidden (Save, Delete, Generate Vocabulary, Import)
+- View-only features preserved (Vocabulary list, info banner)
+- Server-side guards in 6 handlers (SaveResource, RequestDelete, ImportVocabulary, HandleFileImport, GenerateVocabulary, ConfirmDelete)
+
+### Implementation
+
+**UI-Level Protection:**
+- Page title: "View Smart Resource" vs "Edit Resource"
+- `disabled="@resource.IsSmartResource"` on all inputs
+- `@if (!resource.IsSmartResource)` wrapping mutating buttons
+- Bootstrap info banner with `bi-info-circle` icon explaining auto-management
+
+**Server-Side Defense (3-tier):**
+1. UI disabled inputs — most users never see enabled controls
+2. Hidden buttons — no Save/Delete affordances presented
+3. Server guard — protects against API bypass, form manipulation, developer mistakes
+
+### Pattern (Reusable)
+
+For any system-managed entity: apply `disabled` attribute (not hidden), preserve read-only views, add server-side guard.
+
+### Key Files
+- `src/SentenceStudio.UI/Pages/ResourceEdit.razor` — 8 disabled inputs + 6 server-side guards
+
+### Localization
+No new strings. Used existing: `ResourceEdit_SmartResource`, `ResourceEdit_AutoUpdated`
+
+---
+
+## 2026-04-29: Smart Resource Read-Only Contract
+
+**By:** Kaylee (Full-Stack Dev)  
+**Status:** Shipped ✅ in PR #183  
+**Date:** 2026-04-29
+
+### Context
+
+Smart resources are managed by `SmartResourceService.RefreshSmartResourceAsync()`. User edits would be overwritten, causing confusion and data integrity risk.
+
+### Decision
+
+Smart resources are **read-only** in ResourceEdit UI. Formal contract:
+- Users can view metadata, transcript, translation, vocabulary list
+- Users cannot edit metadata, transcript, vocabulary associations, tags
+- System refresh cycle automatically manages all content updates
+- Server-side guards prevent all mutations (defense-in-depth)
+
+### Three-Tier Defense
+
+1. **UI disabled inputs** — Visual cues (grayed out), accessible to screen readers
+2. **Hidden mutating buttons** — No Save/Delete/Generate/Import affordances
+3. **Server-side guard** — Prevents bypass via direct API calls, form manipulation, future refactors
+
+### Rationale
+
+**Clarity:** Page title + banner message make read-only status obvious  
+**Transparency:** Users see all data (vocabulary, metadata, timestamps)  
+**Guidance:** Message explains WHY read-only and WHAT manages the data
+
+### Alternatives Rejected
+
+- **Allow editing with warning** — Would confuse when edits get overwritten
+- **Hide smart resources** — Users need visibility into what vocabulary is in their smart lists
+- **UI-only protection** — Insufficient; security needs defense-in-depth
+
+---
+
+## 2026-04-29: Upstream Contribution Policy (Codified)
+
+**By:** David Ortinau (via Copilot directive)  
+**Status:** Policy effective immediately  
+**Date:** 2026-04-29
+
+### Context
+
+**dotnet/razor#13117** — net11p3 Razor SG regression blocked ImportContent.razor build with 31 errors. Triggered policy codification: when should we workaround vs. upstream?
+
+### Decision (Captain's Policy)
+
+**Default = workaround in our code + comment referencing filed issue + recheck on each upstream release**
+
+**Exception:** If upstream is a codebase we have locally (maui-labs, maui), unblock ourselves by PR'ing the fix.
+
+**When uncertain** about whether to PR upstream (.NET or 3rd party), ASK the Captain first and remember the choice.
+
+### Rationale
+
+Pragmatic balance between dogfooding previews and not getting stuck on regressions. Workarounds with recheck reminders mean we surface issues to upstream while unblocking ourselves.
+
+### Current Application (dotnet/razor#13117)
+
+- Symptom: Switch expressions returning `RenderFragment` lambdas with inline Razor markup trigger SG bug (empty-named synthetic members)
+- Workaround applied: Refactored to tuple-returning meta helpers in ImportContent.razor (commit 2359da8)
+- Upstream issue filed: https://github.com/dotnet/razor/issues/13117
+- Recheck trigger: Each .NET preview release
+- Action if fixed: Remove workaround, revert to RenderFragment switch pattern
+
+---
+
+## 2026-04-29: iOS Publish Recipe — net11p3 is Canonical (UPDATED)
+
+**By:** David Ortinau (Captain)  
+**Status:** New canonical recipe effective immediately  
+**Date:** 2026-04-29
+
+### Context
+
+Previous canonical recipe (net10 + `ValidateXcodeVersion=false`) was a regression in dogfooding capability. With **dotnet/razor#13117 worked around** in ImportContent.razor (commit 2359da8), net11p3 builds clean again. Captain's stated use case: dogfood preview SDKs and surface issues.
+
+### Decision
+
+**New Canonical iOS Release Recipe = net11p3 SDK Swap**
+
+```bash
+cp global.json global.json.bak
+echo '{"sdk":{"version":"11.0.100-preview.3.26209.122","rollForward":"latestFeature","allowPrerelease":true}}' > global.json
+services__api__https__0=https://api.livelyforest-b32e7d63.centralus.azurecontainerapps.io \
+  dotnet build src/SentenceStudio.iOS/SentenceStudio.iOS.csproj \
+    -f net10.0-ios -c Release \
+    -p:RuntimeIdentifier=ios-arm64
+xcrun devicectl device install app --device CF4F94E3-A1C9-5617-A089-9ABB0110A09F src/SentenceStudio.iOS/bin/Release/net10.0-ios/ios-arm64/SentenceStudio.iOS.app
+xcrun devicectl device process launch --device CF4F94E3-A1C9-5617-A089-9ABB0110A09F com.simplyprofound.sentencestudio
+mv global.json.bak global.json
+```
+
+### Why net11p3 (Not net10 + ValidateXcodeVersion=false)
+
+1. **Dogfooding preview SDKs** — Captain wants to surface issues in net11 before GA
+2. **Xcode 26.3 future-proofing** — net11p3 SDK knows about Xcode 26.3; net10 GA requires flag workaround
+3. **Workaround unblocked** — ImportContent.razor refactor (commit 2359da8) removed the forcing function for net11p3 incompatibility
+4. **Proven on DX24** — 2026-04-29 deploy: built clean (0 errors), installed + launched successfully
+
+### Fallback Recipe (If net11p3 Breaks Again)
+
+If a future net11p3 release introduces blockers:
+
+```bash
+cp global.json global.json.bak
+echo '{"sdk":{"version":"10.0.101","rollForward":"latestFeature"}}' > global.json
+services__api__https__0=https://api.livelyforest-b32e7d63.centralus.azurecontainerapps.io \
+  dotnet build src/SentenceStudio.iOS/SentenceStudio.iOS.csproj \
+    -f net10.0-ios -c Release \
+    -p:RuntimeIdentifier=ios-arm64 \
+    -p:ValidateXcodeVersion=false
+xcrun devicectl device install app --device CF4F94E3-A1C9-5617-A089-9ABB0110A09F src/SentenceStudio.iOS/bin/Release/net10.0-ios/ios-arm64/SentenceStudio.iOS.app
+xcrun devicectl device process launch --device CF4F94E3-A1C9-5617-A089-9ABB0110A09F com.simplyprofound.sentencestudio
+mv global.json.bak global.json
+```
+
+### What This Supersedes
+
+Earlier 2026-04-29 decision pinning net10 + ValidateXcodeVersion=false. That recipe still works as a fallback if net11p3 reintroduces blockers, but is no longer canonical.
+
+### Files Affected
+
+- `docs/deploy-runbook.md` Step 2a — UPDATE to document net11p3 swap (not ValidateXcodeVersion=false)
+- ImportContent.razor workaround (commit 2359da8) — recheck on each upstream release
+

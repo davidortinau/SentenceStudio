@@ -246,3 +246,28 @@ Refactor each switch arm to delegate to a separate named `RenderFragment` helper
 
 - 2026-04-29: **iOS Release Recipe Simplified** — Verified that `-p:ValidateXcodeVersion=false` flag on net10 GA build suppresses Xcode 26.3 mismatch assertion, eliminating need for net11p3 SDK swap documented in `docs/deploy-runbook.md` Step 2a. New canonical recipe: `services__api__https__0=https://api.livelyforest-b32e7d63.centralus.azurecontainerapps.io dotnet build src/SentenceStudio.iOS/SentenceStudio.iOS.csproj -f net10.0-ios -c Release -p:RuntimeIdentifier=ios-arm64 -p:ValidateXcodeVersion=false`. Build succeeded, install to DX24 succeeded, app launch succeeded. Workflow simplified; no more global.json swaps for iOS device deploys.
 
+
+## 2026-04-29 — Sentences Smart Resource + net11p3 Workaround + iOS Recipe Update
+
+**Shipped in PR #183 (commit f8b4567):**
+- Sentences smart resource (5th type, LexicalUnitType.Sentence only) with dedicated `GetSentencesVocabularyIdsAsync()` method
+- Narrowed Phrases resource to LexicalUnitType.Phrase only (was mixing Phrase + Sentence)
+- Auto-refresh idempotency ensures existing users get Sentences on first upgrade, Phrases naturally narrowed on next cycle
+- 18/18 tests passing (6 Phrases + 6 Sentences + scenarios)
+- No schema changes needed
+
+**net11p3 Workaround (ImportContent.razor):**
+- Issue: dotnet/razor#13117 (Razor SG emits empty-named synthetic members for switch expressions returning RenderFragment lambdas)
+- Workaround applied in commit 2359da8: tuple-returning meta helpers (`GetTypeBadgeMeta`, `GetStatusBadgeMeta`) instead of RenderFragment switches
+- File shrank 1168→1145 lines
+- Result: net10 = 0 errors, net11p3 = 0 errors (was 31)
+- Upstream issue filed; recheck on each upstream release reminder in code
+
+**iOS Recipe Update (NEW CANONICAL):**
+- net11p3 SDK is now canonical (was net10 + ValidateXcodeVersion=false)
+- Reason: unblock dogfooding latest preview SDK; future-proof Xcode 26.3 support; workaround unblocked net11p3 viability
+- Proven on DX24 (2026-04-29): built clean, installed + launched successfully
+- Fallback recipe (net10 + flag) documented if net11p3 breaks again
+
+**Key Learning:**
+When applying workarounds to upstream issues, always include a comment referencing the upstream URL + "recheck on each upstream release" reminder. This creates a natural trigger for cleanup when the upstream fix ships.
