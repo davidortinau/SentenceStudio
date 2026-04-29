@@ -136,3 +136,20 @@ Zoe's M.E.AI 10.5 strategic recommendations executed via three-agent orchestrati
 
 **SHIP IT verdict**: All validation gates pass; zero regressions introduced. Production-ready.
 
+
+---
+
+## 2026-04-29 — net11p3 Narrative Correction Cycle
+
+Bookkeeping pass to correct earlier overstated framing ("net11p3 broken for our app") with the verified narrow facts: a Razor SG regression on switch-expression-of-RenderFragment-with-inline-markup. Captain's clean `~/work/PeeThreeRegression` MAUI Blazor project builds fine on net11p3 — falsifying the SDK-wide claim. Wash isolated the trigger pattern, packaged a minimal repro (`~/work/peethree-repro-artifacts/peethree-net11p3-repro.zip`), and filed upstream at https://github.com/dotnet/razor/issues/13117. Kaylee refactored the only offending file (`src/SentenceStudio.UI/Pages/ImportContent.razor`) to tuple-meta helpers (`GetTypeBadgeMeta`, `GetStatusBadgeMeta`).
+
+**Bookkeeping actions:**
+1. ✅ decisions.md — added new 2026-04-29T21:00Z entry with corrected facts at top; surgically corrected the 2026-04-29T14:32Z entry's two overreaching conclusions (added pointer to corrected entry, softened the "broken on main" line, added archived-decision references, marked upstream issue filed in follow-ups).
+2. ✅ Moved both inbox decisions (`kaylee-renderfragment-switch-pattern-banned.md`, `wash-net11p3-razor-sg-repro.md`) → `.squad/decisions/archive/`. (Created the archive/ dir — it didn't exist.)
+3. ✅ followups.md — FU-4 reframed and marked RESOLVED with verified path forward (net10 + `-p:ValidateXcodeVersion=false`); kept original framing preserved at end of entry for history.
+4. ✅ store_memory recorded for the trigger pattern + upstream issue.
+
+## Learnings
+
+- **2026-04-29 — When an SDK swap produces a wall of errors, look at error LINE NUMBERS first.** `CS9348` ("compilation unit cannot directly contain members") on `@inject` directive lines (4–10), combined with `CS0101`/`CS0102` with **empty** type/member names, is the fingerprint of a Razor source generator that bailed on the file → it's a pattern-specific bug, NOT an SDK-wide regression. Don't conclude "the SDK is broken" without (a) verifying with a clean `dotnet new` project and (b) isolating the trigger pattern in a minimal repro.
+- **Bookkeeping correction pattern:** when correcting an earlier decisions.md entry whose conclusions overreached, prefer **adding a new dated entry at the top with the corrected facts** + surgically softening the obsolete claims in the original entry (with a forward pointer), over rewriting the original wholesale. Preserves the diagnostic trail; future readers see how the team's understanding evolved.
