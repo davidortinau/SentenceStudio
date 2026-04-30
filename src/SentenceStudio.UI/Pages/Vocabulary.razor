@@ -158,9 +158,11 @@ else
         <select class="form-select form-control-ss" style="max-width: 160px;"
                 value="@CurrentStatus" @onchange="OnStatusDropdown">
             <option value="">All Status</option>
-            <option value="known">Known</option>
-            <option value="familiar">Familiar</option>
+            <option value="new">New</option>
             <option value="learning">Learning</option>
+            <option value="familiar">Familiar</option>
+            <option value="review">Review</option>
+            <option value="known">Known</option>
             <option value="unknown">Unknown</option>
         </select>
 
@@ -263,9 +265,11 @@ else
                     <select class="form-select form-control-ss"
                             value="@CurrentStatus" @onchange="OnStatusDropdown">
                         <option value="">All Status</option>
-                        <option value="known">Known</option>
-                        <option value="familiar">Familiar</option>
+                        <option value="new">New</option>
                         <option value="learning">Learning</option>
+                        <option value="familiar">Familiar</option>
+                        <option value="review">Review</option>
+                        <option value="known">Known</option>
                         <option value="unknown">Unknown</option>
                     </select>
                 </div>
@@ -881,6 +885,18 @@ else
                         "familiar" => filtered.Where(v => v.StatusText == "Familiar"),
                         "learning" => filtered.Where(v => v.StatusText == "Learning"),
                         "unknown" => filtered.Where(v => v.StatusText == "Unknown"),
+                        // "new" = words never practiced (no progress OR progress with 0 attempts, excluding Familiar)
+                        "new" => filtered.Where(v => 
+                            v.Progress == null 
+                            || (v.Progress.TotalAttempts == 0 
+                                && !(v.Progress.IsUserDeclared && v.Progress.VerificationState == VerificationStatus.Pending))),
+                        // "review" = words past their NextReviewDate (not Familiar, not Known)
+                        "review" => filtered.Where(v => 
+                            v.Progress != null 
+                            && !(v.Progress.IsUserDeclared && v.Progress.VerificationState == VerificationStatus.Pending)
+                            && !v.Progress.IsKnown 
+                            && v.Progress.NextReviewDate != null 
+                            && v.Progress.NextReviewDate <= DateTime.Now),
                         _ => filtered
                     },
                     "tag" => filtered.Where(v =>
