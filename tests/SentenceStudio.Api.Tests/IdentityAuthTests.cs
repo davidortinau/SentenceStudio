@@ -153,6 +153,63 @@ public class IdentityAuthTests : IClassFixture<JwtBearerApiFactory>
             "refresh token should be rotated");
     }
 
+    [Fact]
+    public async Task Login_WrongPassword_DoesNotAutoConfirmEmail()
+    {
+        var email = $"no-autoconfirm-{Guid.NewGuid():N}@test.local";
+
+        // Create user directly with unconfirmed email
+        using var scope = _factory.Services.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+        var user = new ApplicationUser { UserName = email, Email = email, DisplayName = "NoAutoConfirm" };
+        (await userManager.CreateAsync(user, "Test1234!")).Succeeded.Should().BeTrue();
+
+        // Attempt login with the WRONG password
+        var response = await _client.PostAsJsonAsync("/api/auth/login", new
+        {
+            Email = email,
+            Password = "WrongPassword99!"
+        });
+
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
+
+        // Email must still be unconfirmed — the failed login must not have auto-confirmed it
+        var updated = await userManager.FindByEmailAsync(email);
+        updated!.EmailConfirmed.Should().BeFalse(
+            "a failed login attempt must not auto-confirm the account's email");
+    }
+
+    [Fact]
+    public async Task Login_ExcessiveFailures_TriggersLockout()
+    {
+        var email = $"lockout-{Guid.NewGuid():N}@test.local";
+        const string correctPassword = "Test1234!";
+
+        await RegisterAndConfirmAsync(email, correctPassword);
+
+        // Identity default: MaxFailedAccessAttempts = 5
+        for (var i = 0; i < 5; i++)
+        {
+            var r = await _client.PostAsJsonAsync("/api/auth/login", new
+            {
+                Email = email,
+                Password = "WrongPassword99!"
+            });
+            r.StatusCode.Should().Be(HttpStatusCode.Unauthorized,
+                $"attempt {i + 1} with wrong password should return 401");
+        }
+
+        // After 5 failures the account should be locked; even the correct password must be rejected
+        var lockedResponse = await _client.PostAsJsonAsync("/api/auth/login", new
+        {
+            Email = email,
+            Password = correctPassword
+        });
+
+        lockedResponse.StatusCode.Should().Be(HttpStatusCode.TooManyRequests,
+            "account should be locked after exceeding MaxFailedAccessAttempts");
+    }
+
     // -- helpers --
 
     private async Task RegisterAndConfirmAsync(string email, string password)
