@@ -7,6 +7,13 @@
 		<PublishSelfContained>false</PublishSelfContained>
 	</PropertyGroup>
 
+	<ItemGroup>
+		<!-- Expose internal helpers (e.g. SyncService.RepairTaintedVocabularyProgressAsync)
+		     to the unit-test project so we can write regression tests without widening
+		     the public API surface. -->
+		<InternalsVisibleTo Include="SentenceStudio.UnitTests" />
+	</ItemGroup>
+
 	<!-- ASP.NET Core Identity: server-only (no iOS/Android runtime pack) -->
 	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == ''">
 		<FrameworkReference Include="Microsoft.AspNetCore.App" />
