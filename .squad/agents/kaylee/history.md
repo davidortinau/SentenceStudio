@@ -27,6 +27,24 @@
 
 ## Recent Work
 
+### First-Sync Routing Fix Implementation (2026-05-02)
+
+**Scope:** Fixed LoginPage routing to wait on initial sync before deciding onboarding vs. dashboard (PR #188 `fix/firstsync-routing-overlay`).
+
+**Problem:** On fresh Mac Catalyst installs, signing into an existing account routed to `/onboarding` because `is_onboarded` Preferences flag was false. The flag is a device cache, not source of truth; server-side profile state is the real authority. Fix required extracting routing logic into a testable service + adding sync-aware state transitions.
+
+**Implementation:**
+- **New files:** `PostLoginRouter` service (routing decision logic), `PostLoginRouterTests` (9 unit tests with regression comment blocks), `SyncOverlay` component (reusable sync-in-progress spinner)
+- **Modified files:** LoginPage (simplified to call PostLoginRouter), Index (added sync-aware new-user check), MainLayout (single routing gate), SyncService (added IsInitialSyncInProgress flag + InitialSyncCompleted event), IdentityAuthService (synchronously flips flag before Task.Run), MauiProgram (DI registration), IPreferencesService (test abstraction)
+- **Test coverage:** 7 routing paths (existing account, new account, in-progress sync, error handling, edge cases, stuck-overlay prevention)
+- **Build:** 509 tests passing, no warnings, no regressions
+
+**Decision:** `.squad/decisions.md` — "Post-Login Routing Must Wait on Initial Sync" + "First-Sync Routing Implementation"
+
+**Status:** Code review in flight; awaiting approval before merge.
+
+---
+
 ### Import Complete Theme Alignment (2026-04-29)
 
 **Scope:** Shipped dark theme + WCAG contrast alignment for Import Complete view.
