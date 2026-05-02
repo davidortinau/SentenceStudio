@@ -80,6 +80,10 @@ public static class CoreServiceExtensions
             provider.GetRequiredService<VocabularyProgressService>());
         services.AddSingleton<SmartResourceService>();
 
+        // Post-login routing decision (issue #187) — keep the rule out of LoginPage
+        // and MainLayout so it's testable and consistent.
+        services.AddSingleton<IPostLoginRouter, PostLoginRouter>();
+
         services.AddScoped<MinimalPairRepository>();
         services.AddScoped<MinimalPairSessionRepository>();
 
