@@ -380,6 +380,12 @@ public sealed class IdentityAuthService : IAuthService
         {
             try
             {
+                // Mark sync in-progress synchronously BEFORE handing off to the background
+                // task so the post-login navigation (LoginPage → MainLayout) sees the flag
+                // on its very first render and can show the overlay instead of routing
+                // to /onboarding while server data is still on the wire. (issue #187)
+                _syncService.BeginInitialSync();
+
                 _ = Task.Run(async () =>
                 {
                     try
