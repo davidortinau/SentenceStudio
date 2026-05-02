@@ -651,6 +651,20 @@ else
         {
             await LoadDashboardAsync();
             StateHasChanged();
+
+            // First-load race fix (issue #187 follow-up): when OnInitializedAsync defers
+            // dashboard load until initial sync completes, OnAfterRenderAsync(firstRender:true)
+            // has already run with the default isTodaysPlanMode == true and skipped Tom Select
+            // initialization. Now that mode has been resolved from preferences, if the user
+            // is in Choose-My-Own mode we need to initialize the selectors ourselves —
+            // otherwise the resource/skill dropdowns render empty until the user navigates
+            // away and back. Wait a beat for the just-rendered <select> elements to land in
+            // the DOM before handing off to JS interop.
+            if (!isTodaysPlanMode && jsModule is not null)
+            {
+                await Task.Delay(50);
+                await InitChooseOwnSelectorsAsync();
+            }
         });
     }
 

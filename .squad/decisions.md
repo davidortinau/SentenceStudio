@@ -2607,3 +2607,71 @@ Earlier 2026-04-29 decision pinning net10 + ValidateXcodeVersion=false. That rec
 - `docs/deploy-runbook.md` Step 2a — UPDATE to document net11p3 swap (not ValidateXcodeVersion=false)
 - ImportContent.razor workaround (commit 2359da8) — recheck on each upstream release
 
+---
+
+## 2026-05-02: AppHost Multi-Worktree Isolation (Diagnosed)
+
+**By:** Troubleshooter  
+**Status:** Awaiting Captain action  
+**Date:** 2026-05-02T13:05:00Z
+
+### Problem
+
+When Aspire AppHost runs from a different worktree (e.g., `davidortinau-jubilant-lamp`), it provisions its own fresh postgres volume. Login fails because the running AppHost's DB is empty (no users); Captain's account lives in a *different* orphaned postgres volume.
+
+### Root Cause
+
+Each worktree → separate Aspire AppHost → separate postgres volume. No cross-volume persistence.
+
+### Evidence
+
+- Running AppHost in `/Users/davidortinau/work/copilot-worktrees/SentenceStudio/davidortinau-jubilant-lamp` wired to empty DB
+- Captain's account in orphaned `db-84833ad0` (volume `sentencestudio.apphost-84833ad037-db-data`)
+- Login returns 401 (user not found, not email-confirmation issue)
+
+### Recommended Fix
+
+**Option A (non-destructive):** Stop worktree AppHost, launch from main checkout (`/Users/davidortinau/work/SentenceStudio`). Reattaches to the correct volume.
+
+```bash
+cd /Users/davidortinau/work/SentenceStudio
+dotnet run --project src/SentenceStudio.AppHost/SentenceStudio.AppHost.csproj
+```
+
+**Option B:** Register fresh user in worktree's running API (dev-mode auto-confirms email). No DB mutation.
+
+### Follow-up
+
+Add startup banner / dashboard warning when AppHost detects empty `AspNetUsers` table in non-test environment.
+
+---
+
+## 2026-05-02: Mac Catalyst Symlink Recurrence—Decision Needed
+
+**By:** Coordinator  
+**Status:** Awaiting Captain decision  
+**Date:** 2026-05-02T14:48:00Z
+
+### Problem
+
+Aspire.Hosting.Maui 13.3.0-preview bundle naming incompatibility:
+- Expected: `SentenceStudio.MacCatalyst.app`
+- Actual: `SentenceStudio.app` (from `<ApplicationTitle>` property)
+
+Manual workaround:
+```bash
+ln -sfn SentenceStudio.app SentenceStudio.MacCatalyst.app
+```
+
+Recurs after `dotnet clean` or fresh checkout.
+
+### Options
+
+1. **Permanent post-build target** — Add MSBuild to auto-create symlink
+2. **Manual workaround + runbook** — Document command in setup guide
+3. **Monitor Aspire.Hosting.Maui** — Await fix in future versions
+
+### Decision Needed
+
+Captain: Implement permanent target now, or accept manual workaround?
+

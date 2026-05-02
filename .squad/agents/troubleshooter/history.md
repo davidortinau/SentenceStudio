@@ -26,3 +26,17 @@ A. **Switch Aspire to the main checkout** — preferred:
 B. **Or, register a new user against the running (empty) DB** — only useful if Captain actually wants to test with the `login-keyboard-navigation` branch. Dev mode auto-confirms email, so registration immediately yields a working session.
 
 **No destructive action taken.** No DB mutation. No data deletion.
+
+## 2026-05-02 — Dashboard first-load: empty Learning Resources + Skill Profile dropdowns
+
+**Symptom:** On cold start (post-login), the Dashboard's "Choose My Own" mode rendered with empty Tom Select dropdowns for Learning Resources and Skill Profile. Navigating away and back fully populated them. Data was confirmed present (327 vocab words, "Beginner Korean" skill profile in DB).
+
+**Root cause (Blazor Hybrid first-render race):** `src/SentenceStudio.UI/Pages/Index.razor`.
+
+The Tom Select selectors are initialized ONLY in `OnAfterRenderAsync(firstRender:true)` and only when `isTodaysPlanMode == false` at that moment. The deferred-sync code path (issue #187) intentionally returns early from `OnInitializedAsync` while `SyncService.IsInitialSyncInProgress == true`, leaving `isTodaysPlanMode` at its default `true`. So when `firstRender` fires, init is skipped. When sync completes, `OnInitialSyncCompleted → LoadDashboardAsync` flips mode to `ChooseOwn` based on the user's saved preference and calls `StateHasChanged()` to render the `<select>` elements — but `OnAfterRenderAsync` runs again with `firstRender:false`, so `InitChooseOwnSelectorsAsync` is never called. Result: empty dropdowns until the component is re-mounted via navigation.
+
+**Fix (one-spot, ~10 lines):** In `Index.razor` at `OnInitialSyncCompleted`, after `LoadDashboardAsync` and `StateHasChanged()`, if `!isTodaysPlanMode && jsModule is not null`, await a 50 ms tick (let the just-rendered `<select>` elements land in the DOM) then call `InitChooseOwnSelectorsAsync()`. This is the same pattern `SetMode` uses when toggling modes post-firstRender. No change to the happy path — only the deferred-sync recovery path.
+
+**Validation:** Rebuilt MacCatalyst (clean), restarted via Aspire `resource-restart`. On first load Skill Profile shows "Beginner Korean" and vocab stats render correctly without nav-away/back. Screenshot: `dash-firstload-after-fix.png`.
+
+**Pattern lesson (reusable):** In Blazor Hybrid, **JS-interop init that depends on component state must run when that state is first valid, not necessarily at `firstRender`**. If `OnInitializedAsync` defers state resolution (e.g., to wait on an async event), every JS-interop call gated on `firstRender` becomes a latent race. The mitigation is: (1) make init idempotent and key it on a `selectorsInitialized` flag rather than `firstRender`, OR (2) re-invoke init from the deferred completion handler once state is resolved AND `jsModule != null`. Pattern #2 is minimal and was used here.

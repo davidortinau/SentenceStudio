@@ -259,3 +259,42 @@ private static (string CssClass, string IconClass, string Label) GetTypeBadgeMet
 - When refactoring to work around upstream issues, include a comment referencing the upstream URL
 - "Recheck on each upstream release" reminder creates a natural cleanup trigger when the issue is fixed
 - Defense-in-depth pattern (UI + server guard) is essential for production-critical contracts like "smart resources are read-only"
+
+## 2026-05-02 — Blazor Hybrid FirstRender JS-Init Pattern (Reusable Pattern)
+
+**Documented by:** Troubleshooter; pattern via Kaylee history  
+**Issue:** Dashboard doesn't show Skill Profile / vocab stats on cold post-login start
+
+**Pattern:**
+When JS interop code (e.g., Tom Select initialization) is gated on `OnAfterRenderAsync(firstRender:true)` AND that component has a conditional mode flag (like `isTodaysPlanMode`), **deferred/async mode changes can skip the firstRender gate entirely**. On cold start with `SyncService.IsInitialSyncInProgress==true`, the mode might remain at default (true) during first render, causing the JS init gate to fire when unwanted. When sync completes and the mode flips, the second render has `firstRender:false`, so JS init never runs.
+
+**Solution (Index.razor pattern):**
+After mode-changing operations in lifecycle methods (e.g., `OnInitialSyncCompleted` after `LoadDashboardAsync()`), explicitly re-trigger JS init if conditions now allow it:
+
+```csharp
+private async Task OnInitialSyncCompleted()
+{
+    await LoadDashboardAsync();
+    StateHasChanged();
+    
+    // Re-init JS if mode flip now allows it
+    if (displayMode == DashboardDisplayMode.ChooseOwn && jsModule != null)
+    {
+        await Task.Delay(50); // Allow DOM to settle
+        await InitChooseOwnSelectorsAsync();
+    }
+}
+```
+
+**Why this works:**
+- Decouples firstRender gate from mode-dependent initialization
+- Explicit re-trigger guarantees init runs when conditions are met, regardless of render sequence
+- 50ms delay gives the browser time to populate the DOM with new elements
+- Reusable for any Blazor Hybrid component with conditional JS-init logic
+
+**Applied in:**
+- `src/SentenceStudio.UI/Pages/Index.razor` — Tom Select dropdowns, post-sync re-init
+- Skill: `.squad/skills/blazor-hybrid-firstrender-jsinit/SKILL.md`
+
+**For future Blazor work:**
+If you encounter "my JS component initialized on nav-back but not on first-load," check for async mode flags + firstRender gates. This pattern resolves it.
