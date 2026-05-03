@@ -89,3 +89,45 @@ Zoe's M.E.AI 10.5 strategic recommendations executed via three-agent orchestrati
 
 **SHIP IT verdict**: All validation gates pass; zero regressions introduced. Production-ready.
 
+
+---
+
+## 2025-12-18 — Vocab Quiz Scoring Bug Cluster, Stream B Step 1 (failing repro tests for #189, #191)
+
+**Captain (David Ortinau)** approved the cluster plan; Zoe is Lead, I'm Tester (Stream B Step 1, repro-tests-only), Wash owns the fix (Step 2), Kaylee owns the UI sibling stream.
+
+**Shipped:**
+- Branch `test/vocab-quiz-scoring-repro-189-191` (off `main`, 2aab53d). Draft PR: https://github.com/davidortinau/SentenceStudio/pull/195
+- New file: `tests/SentenceStudio.UnitTests/Integration/VocabQuizScoringRepro189And191Tests.cs` (4 tests).
+- Pattern: `IClassFixture<PlanGenerationTestFixture>` — real EF Core + in-memory SQLite + DI, modeled on `MasteryAlgorithmIntegrationTests`. **Do not** use Moq on `VocabularyProgressService` / its repos — methods aren't virtual and the existing `Services/VocabularyProgressServiceTests.cs` is `<Compile Remove>`d in the csproj for that reason.
+
+**Captured failure signatures (against `main`):**
+
+`Repro191_NewWord_AllCorrect_DoesNotRotateOutBeforeFifthTurn` — FAIL
+```
+turn=1 mode=MC   streak=1.00 prodInStreak=0 mastery=0.143 sessMC=1 sessText=0 ReadyToRotateOut=False
+turn=2 mode=MC   streak=2.00 prodInStreak=0 mastery=0.286 sessMC=2 sessText=0 ReadyToRotateOut=False
+turn=3 mode=MC   streak=3.00 prodInStreak=0 mastery=0.429 sessMC=3 sessText=0 ReadyToRotateOut=False
+turn=4 mode=Text streak=4.50 prodInStreak=1 mastery=0.714 sessMC=3 sessText=1 ReadyToRotateOut=True   ← rotates here
+```
+
+`Repro189_*` (both PASS) — service math is correct for one MC attempt. `Accuracy=1.0`, `ProductionAttempts=0`. Captain's "2 production / 50% accuracy" panel readout therefore comes from the UI panel (or a duplicate-call path), not the service.
+
+**Hypothesis-disambiguation outcome:**
+- **#189 → Stream A (Kaylee).** Service is innocent; bug is in `VocabQuiz.razor` Learning Details panel (~395–460) reading legacy obsolete fields, OR in duplicate-fire of `RecordPendingAttemptAsync` (call sites at ~1245 / ~1394 / ~1490).
+- **#191 → Wash, Stream B Step 2.** Root cause is `VocabularyQuizItem.ReadyToRotateOut` Tier 2 (mastery>=0.50 OR streak>=3 + only SessionCorrectCount>=2 AND SessionTextCorrect>=1). Curve is too lenient; Wash should pause for Captain alignment via decisions.md before picking a corrected target curve.
+
+**Patterns / lessons learned for future test work in this repo:**
+
+1. **The unit-test project only references `SentenceStudio.Shared`.** The main `SentenceStudio` project doesn't build for `net10.0`, and several legacy test files are commented out as a result. Always confirm a service is in `.Shared` before writing tests against it. `VocabularyProgressService` is in `SentenceStudio.Shared/Services/VocabularyProgressService.cs`, namespace `SentenceStudio.Services`.
+2. **`VocabularyProgressRepository` and `VocabularyLearningContextRepository` take an `IServiceProvider`** — they cannot be cleanly mocked with Moq; use the real fixture.
+3. **`PlanGenerationTestFixture` is the canonical DI harness** for any service touching the DB. Static `TestUserId="test-user-1"`, `SeedResource(vocabWordCount:int)`, `GetResourceVocabularyWordIds`, `ClearAllData()`. Construct the service in the test ctor with `fixture.ServiceProvider.CreateScope()` and resolve the repos out of that scope.
+4. **`VocabularyAttempt.Phase` is a computed property derived from `(InputMode, ContextType)`.** Don't try to set Phase explicitly in tests — the service will auto-derive it. Use the literal strings the quiz uses: `"MultipleChoice"`, `"Text"`, `"Voice"`, `"TextEntry"`. ContextType `"Isolated"` is fine for unit tests.
+5. **`VocabularyQuizItem.Word` is required (constructor-init)** — I had to seed via `ApplicationDbContext.VocabularyWords.First(w=>w.Id==wordId)` from a fresh scope.
+6. **`DifficultyWeight` matters for streak math.** `1.0` for MC, `1.5` for Text — VocabQuiz.razor sets these explicitly; tests must mirror, or the streak math diverges from production.
+7. **Mode-selection rule from VocabQuiz.razor (~792–801):** `PendingRecognitionCheck` → MC; `CurrentStreak>=3 OR MasteryScore>=0.50` → Text; else MC. Mirrored as a private helper `ChooseQuizModeForTurn` in the test to keep simulations faithful.
+8. **Use FluentAssertions `AssertionScope`** to dump all expected/actual fields when one fails — critical for the PR description and for Wash's debugging.
+9. **CS0618 obsolete warnings on `RecognitionAttempts` / `ProductionAttempts`:** wrap assertions in `#pragma warning disable/restore CS0618` — these legacy fields are still updated by the service for back-compat and need to be asserted explicitly when proving recognition turns don't pollute production counters.
+10. **Don't disturb Kaylee's UI WIP.** Stashed `src/SentenceStudio.Shared/Resources/Strings/AppResources*.{cs,resx}` + `VocabQuiz.razor` + `docs/coresync-suspected-defects.md` under stash message `kaylee-stream-a-wip-vocab-quiz` before branching off `main`. Restore via `git checkout fix/vocab-quiz-ui-cluster-189-194 && git stash pop` when leaving Stream B.
+
+**Decision dropped:** `.squad/decisions/inbox/jayne-vocab-quiz-scoring-repro-189-191.md`.
