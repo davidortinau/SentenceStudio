@@ -343,3 +343,14 @@ Turn 5 vs turn 6. Held proposal at turn 5 because it's the smallest change that 
 - Legacy obsolete field WRITES in ProgressService — leave alone (sync compat).
 - Schema — no change.
 - Wrong-answer path — out of scope for #191.
+
+### Stream B Step 3 — Shipped #191 fix (2025-04-29)
+- **PR:** https://github.com/davidortinau/SentenceStudio/pull/198 (base: `main`, head: `fix/vocab-quiz-scoring-191-rotation-curve`, branched off Jayne's PR #195).
+- **Commit:** `70feb11` — `fix(vocab-quiz): tighten rotation curve for fresh words (#191)` — 9 files changed (+264 / -52).
+- **Production edits:** 2 lines as approved by Captain — `EFFECTIVE_STREAK_DIVISOR 7.0f → 12.0f` (`VocabularyProgressService.cs:21`) and Tier 2 `OR→AND` + floor `(2,1)→(4,2)` (`VocabularyQuizItem.cs:33-55`). Detailed comment blocks reference proposal markdown and simulator.
+- **Tests:** 520/520 pass. Jayne's `Repro191_NewWord_AllCorrect_DoesNotRotateOutBeforeFifthTurn` flipped FAIL → PASS as predicted.
+- **Test sweep gotcha (note for future):** Production code defaults `DifficultyWeight` to `1.0f` for ALL inputs (line 143) — Text attempts do NOT carry a 1.5x weight via the test's `MakeAttempt` helper because `DifficultyWeight` isn't set there. Initial test bumps assumed Text=1.5 weight; corrected by bumping MC counts from 5/7 → 8 across `MasteryAlgorithmIntegrationTests` (`FullLifecycle_Unknown_To_Learning_To_Known`, `FullLifecycle_KnownWord_GetsLongReviewInterval`, `WrongAnswer_AfterBuildingMastery_DropsBelowKnown`), `SpacedRepetitionIntegrationTests.KnownWord_HasReviewIn60Days_AfterAllAttempts`, `PlanToProgressLifecycleTests.FullCycle_PlanGeneration_ThenPractice`, and `MultiDayLearningJourneyTests.SimulateMultipleDays_MasteryProgressesCorrectly`.
+- **Simulator committed:** `tools/quiz-rotation-sim/sim.py` — Python-only repro of the C# math. Useful for any future tuning.
+- **Filed:** `Tier2_TriggerRequiresBothMasteryAndStreak` (new) and `Tier2_MidMastery_BlockedByLowSessionCorrect` (renamed from `Tier2_MidMastery_NotEnoughTotal`) lock in the AND-trigger and (4,2) floor behavior.
+- **Skipped:** Mac Catalyst smoke (proposal + simulator + unit tests + Jayne's repro all green; flagged in PR description as recommended manual verification before merge).
+- **Out-of-scope follow-up to file:** decouple `MasteryScore` from `SessionRotationReady` (tutor's higher-leverage architectural suggestion). Mentioned in PR description.
