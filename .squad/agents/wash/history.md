@@ -354,3 +354,7 @@ Turn 5 vs turn 6. Held proposal at turn 5 because it's the smallest change that 
 - **Filed:** `Tier2_TriggerRequiresBothMasteryAndStreak` (new) and `Tier2_MidMastery_BlockedByLowSessionCorrect` (renamed from `Tier2_MidMastery_NotEnoughTotal`) lock in the AND-trigger and (4,2) floor behavior.
 - **Skipped:** Mac Catalyst smoke (proposal + simulator + unit tests + Jayne's repro all green; flagged in PR description as recommended manual verification before merge).
 - **Out-of-scope follow-up to file:** decouple `MasteryScore` from `SessionRotationReady` (tutor's higher-leverage architectural suggestion). Mentioned in PR description.
+
+### Step 3 cross-link (2025-04-29, post-merge)
+- PR #198 body updated: out-of-scope follow-up now concretely references #197 (decouple `MasteryScore` from `SessionRotationReady`) instead of generic "follow-up issue".
+- Captain note: `MakeAttempt` test helper not setting `DifficultyWeight` (so Text weight 1.5x is bypassed in tests) is logged here and may be picked up either as a tiny standalone cleanup PR or folded into #197's acceptance criteria — Captain's call.
