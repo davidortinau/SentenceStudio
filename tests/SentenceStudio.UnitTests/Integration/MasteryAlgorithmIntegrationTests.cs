@@ -61,8 +61,8 @@ public class MasteryAlgorithmIntegrationTests : IClassFixture<PlanGenerationTest
         result.ProductionInStreak.Should().Be(0, "MultipleChoice is not production");
         result.TotalAttempts.Should().Be(1);
         result.CorrectAttempts.Should().Be(1);
-        // EffectiveStreak = 1 + 0*0.5 = 1.0 → MasteryScore = 1.0/7.0 ≈ 0.143
-        result.MasteryScore.Should().BeApproximately(1.0f / 7.0f, 0.01f);
+        // EffectiveStreak = 1 + 0*0.5 = 1.0 → MasteryScore = 1.0/12.0 ≈ 0.083 (#191)
+        result.MasteryScore.Should().BeApproximately(1.0f / 12.0f, 0.01f);
         result.IsKnown.Should().BeFalse("one correct answer is not enough");
         result.Status.Should().Be(LearningStatus.Learning);
     }
@@ -81,8 +81,8 @@ public class MasteryAlgorithmIntegrationTests : IClassFixture<PlanGenerationTest
         // Assert
         result.CurrentStreak.Should().Be(1);
         result.ProductionInStreak.Should().Be(1, "Text input is production");
-        // EffectiveStreak = 1 + 1*0.5 = 1.5 → MasteryScore = 1.5/7.0 ≈ 0.214
-        result.MasteryScore.Should().BeApproximately(1.5f / 7.0f, 0.01f);
+        // EffectiveStreak = 1 + 1*0.5 = 1.5 → MasteryScore = 1.5/12.0 ≈ 0.125 (#191)
+        result.MasteryScore.Should().BeApproximately(1.5f / 12.0f, 0.01f);
     }
 
     [Fact]
@@ -118,24 +118,26 @@ public class MasteryAlgorithmIntegrationTests : IClassFixture<PlanGenerationTest
     }
 
     [Fact]
-    public async Task RecordAttempt_StreakOf7Recognition_ReachesMasteryThresholdButNotKnown()
+    public async Task RecordAttempt_StreakOf12Recognition_ReachesMasteryCapButNotKnown()
     {
-        // Arrange: 7 consecutive correct MC answers
+        // Arrange: 12 consecutive correct MC answers — saturates the new
+        // EFFECTIVE_STREAK_DIVISOR=12.0 ceiling (#191).
         var resource = _fixture.SeedResource(vocabWordCount: 1);
         var wordId = _fixture.GetResourceVocabularyWordIds(resource.Id).First();
 
-        // Act: 7 correct recognition attempts
+        // Act: 12 correct recognition attempts
         VocabularyProgress? result = null;
-        for (int i = 0; i < 7; i++)
+        for (int i = 0; i < 12; i++)
         {
             result = await _progressService.RecordAttemptAsync(
                 MakeAttempt(wordId, wasCorrect: true, inputMode: "MultipleChoice"));
         }
 
         // Assert
-        result!.CurrentStreak.Should().BeApproximately(7.0f, 0.01f);
+        result!.CurrentStreak.Should().BeApproximately(12.0f, 0.01f);
         result.ProductionInStreak.Should().Be(0);
-        // EffectiveStreak = 7 + 0 = 7 → MasteryScore = 7/7 = 1.0
+        // EffectiveStreak = 12 + 0 = 12 → MasteryScore = 12/12 = 1.0
+        // (recovery boost may push slightly above 1.0 but is clamped)
         result.MasteryScore.Should().Be(1.0f);
         result.IsKnown.Should().BeFalse(
             "IsKnown requires ProductionInStreak >= 2 even with max mastery score");
@@ -159,15 +161,18 @@ public class MasteryAlgorithmIntegrationTests : IClassFixture<PlanGenerationTest
             "after first attempt, word should be Learning");
         progress.IsKnown.Should().BeFalse();
 
-        // Phase 2: Build up recognition streak (MC only)
-        for (int i = 0; i < 4; i++)
+        // Phase 2: Build up recognition streak (MC only) — under #191's
+        // EFFECTIVE_STREAK_DIVISOR=12.0, need 7 MC to clear the 0.50 promotion
+        // threshold (was 4 under divisor 7.0). We do 8 here so the final
+        // 8 MC + 2 Text combo lands at mastery >= 0.85 for IsKnown.
+        for (int i = 0; i < 7; i++)
         {
             progress = await _progressService.RecordAttemptAsync(
                 MakeAttempt(wordId, wasCorrect: true, inputMode: "MultipleChoice"));
         }
-        // After 5 MC: EffStreak = 5/7 ≈ 0.71 → should be above promotion threshold (0.50)
+        // After 8 MC: EffStreak = 8/12 ≈ 0.667 → above promotion threshold (0.50)
         progress.MasteryScore.Should().BeGreaterOrEqualTo(0.50f,
-            "after 5 correct MC answers, should be above promotion threshold");
+            "after 8 correct MC answers, should be above promotion threshold");
         progress.IsKnown.Should().BeFalse("still no production attempts");
 
         // Phase 3: Switch to production mode (Text input)
@@ -180,7 +185,8 @@ public class MasteryAlgorithmIntegrationTests : IClassFixture<PlanGenerationTest
             MakeAttempt(wordId, wasCorrect: true, inputMode: "Text"));
         progress.ProductionInStreak.Should().Be(2);
 
-        // EffStreak = 7 + 2*0.5 = 8 → Mastery = min(8/7, 1.0) = 1.0
+        // After 8 MC + 2 Text: streak = 10, prodInStreak = 2,
+        // EffStreak = 10 + 2*0.5 = 11 → Mastery = 11/12 ≈ 0.917
         progress.MasteryScore.Should().BeGreaterOrEqualTo(0.85f);
         progress.IsKnown.Should().BeTrue(
             "MasteryScore >= 0.85 AND ProductionInStreak >= 2 → Known");
@@ -195,8 +201,8 @@ public class MasteryAlgorithmIntegrationTests : IClassFixture<PlanGenerationTest
         var resource = _fixture.SeedResource(vocabWordCount: 1);
         var wordId = _fixture.GetResourceVocabularyWordIds(resource.Id).First();
 
-        // 5 MC + 2 Text = Known
-        for (int i = 0; i < 5; i++)
+        // 8 MC + 2 Text = Known (divisor 12.0 — #191: streak=10, prodIn=2, eff=11, mastery≈0.917)
+        for (int i = 0; i < 8; i++)
             await _progressService.RecordAttemptAsync(
                 MakeAttempt(wordId, wasCorrect: true, inputMode: "MultipleChoice"));
         for (int i = 0; i < 2; i++)
@@ -219,8 +225,8 @@ public class MasteryAlgorithmIntegrationTests : IClassFixture<PlanGenerationTest
         var resource = _fixture.SeedResource(vocabWordCount: 1);
         var wordId = _fixture.GetResourceVocabularyWordIds(resource.Id).First();
 
-        // 4 MC + 2 Text
-        for (int i = 0; i < 4; i++)
+        // 8 MC + 2 Text (divisor 12.0 — #191: drives word to Known before wrong answer)
+        for (int i = 0; i < 8; i++)
             await _progressService.RecordAttemptAsync(
                 MakeAttempt(wordId, wasCorrect: true, inputMode: "MultipleChoice"));
         for (int i = 0; i < 2; i++)
@@ -252,13 +258,13 @@ public class MasteryAlgorithmIntegrationTests : IClassFixture<PlanGenerationTest
     [Fact]
     public async Task IsPromoted_SetAt50PercentMastery()
     {
-        // Arrange: need EffectiveStreak >= 3.5 for MasteryScore >= 0.50
-        // 4 MC: EffStreak = 4/7 ≈ 0.57 → above 0.50
+        // Arrange: under #191's EFFECTIVE_STREAK_DIVISOR=12.0, need EffectiveStreak >= 6
+        // for MasteryScore >= 0.50. 6 MC: EffStreak = 6/12 = 0.50 → exactly at promotion floor.
         var resource = _fixture.SeedResource(vocabWordCount: 1);
         var wordId = _fixture.GetResourceVocabularyWordIds(resource.Id).First();
 
         VocabularyProgress? result = null;
-        for (int i = 0; i < 4; i++)
+        for (int i = 0; i < 6; i++)
         {
             result = await _progressService.RecordAttemptAsync(
                 MakeAttempt(wordId, wasCorrect: true, inputMode: "MultipleChoice"));
@@ -273,7 +279,7 @@ public class MasteryAlgorithmIntegrationTests : IClassFixture<PlanGenerationTest
     [Fact]
     public async Task NotPromoted_Below50PercentMastery()
     {
-        // Arrange: 2 MC: EffStreak = 2/7 ≈ 0.286 → below 0.50
+        // Arrange: 2 MC under divisor 12.0: EffStreak = 2/12 ≈ 0.167 → below 0.50 (#191)
         var resource = _fixture.SeedResource(vocabWordCount: 1);
         var wordId = _fixture.GetResourceVocabularyWordIds(resource.Id).First();
 
@@ -320,7 +326,7 @@ public class MasteryAlgorithmIntegrationTests : IClassFixture<PlanGenerationTest
         var resource = _fixture.SeedResource(vocabWordCount: 1);
         var wordId = _fixture.GetResourceVocabularyWordIds(resource.Id).First();
 
-        // 10 Text attempts: EffStreak = 10 + 10*0.5 = 15 → 15/7 = 2.14, capped at 1.0
+        // 10 Text attempts: EffStreak = 10*1.5 + 10*0.5 = 20 → 20/12 ≈ 1.67, capped at 1.0 (#191)
         for (int i = 0; i < 10; i++)
         {
             await _progressService.RecordAttemptAsync(
@@ -350,7 +356,8 @@ public class MasteryAlgorithmIntegrationTests : IClassFixture<PlanGenerationTest
 
         var result = await _progressService.GetProgressAsync(wordId, PlanGenerationTestFixture.TestUserId);
         // Phase 0: scaled penalty is softer (~0.83x per wrong for 3 correct attempts)
-        // After 3 correct: mastery ≈ 0.429, then 5 wrongs at ~0.83x each ≈ 0.17
+        // Under divisor 12.0 (#191): after 3 correct: mastery ≈ 0.25,
+        // then 5 wrongs at ~0.83x each ≈ 0.10
         result.MasteryScore.Should().BeLessThan(0.25f,
             "multiple penalties should drive mastery down significantly");
         result.MasteryScore.Should().BeGreaterOrEqualTo(0f, "mastery should not go negative");

@@ -304,3 +304,57 @@ Dashboard polls `/health` aggressively (every few seconds). Without the 30 s cac
 - `Aspire.Npgsql.EntityFrameworkCore.PostgreSQL` doesn't auto-map `/health`; the API's `ServiceDefaults` is intentionally MAUI-safe and skips `MapDefaultEndpoints`. Adding `app.MapHealthChecks("/health")` is the minimal incantation needed to surface health checks in the Aspire dashboard. Don't assume `MapDefaultEndpoints` exists on every Aspire app — check `ServiceDefaults/Extensions.cs` before relying on it.
 - `db.Database.GetDbConnection().DataSource` returns the `host:port` for Npgsql connections — handy for diagnostics without parsing the raw connection string and risking a credential leak.
 - Aspire's resource name (e.g. `db-84833ad0`) carries the AppHost path hash. Captain's main worktree currently binds `db-84833ad0`; a fresh worktree would bind a different suffix. The startup banner can't read the AppHost-side resource name directly, but `ASPIRE_RESOURCE_NAME` / `OTEL_SERVICE_INSTANCE_ID` env vars (when populated) carry enough signal — `EmptyUsersDetector.TryReadVolumeHashHint` surfaces whichever is set.
+
+## Stream B Step 2 — Vocab Quiz Scoring Proposal (#191)
+
+**Date:** 2025-01 (this turn)
+**Mode:** Investigation + proposal only. No production code touched.
+**Output:** `.squad/decisions/inbox/wash-vocab-quiz-scoring-proposal-191.md` (gitignored — Captain review)
+
+### What I investigated
+- `VocabularyQuizItem.ReadyToRotateOut` (lines 33–55). Tier 2 trigger is `OR` (`mastery>=0.5 OR streak>=3`) and the floor is just `SessC>=2 AND ST>=1`. This is the leak.
+- Per-turn mastery delta. **Important correction:** the writer is `VocabularyProgressService.RecordAttemptAsync` at `src/SentenceStudio.Shared/Services/VocabularyProgressService.cs:119-180`, NOT `ProgressService.cs` (that file only handles aggregate dashboard math). Constants live at lines 18-28; `EFFECTIVE_STREAK_DIVISOR = 7.0f`. The correct path is just `streak += weight; if production: prodInStreak++; mastery = max(eff/divisor, mastery) + recoveryBoost`.
+- Mode rule from `VocabQuiz.razor` `ChooseInteractionMode`: `streak>=3 OR mastery>=0.5 → Text` (mirrored in Jayne's test helper).
+- Confirmed Jayne's "rotation at turn 4" finding via simulator + by-hand math.
+
+### Simulator
+Built `tools/quiz-rotation-sim/sim.py` (~110 lines, stdlib only). Reproduces C# math verbatim. Walks fresh + half-mastered + already-known words for 12 turns under both rules. Captain or anyone can re-run.
+
+### Proposed rule (one rotation change + one delta change)
+- `ReadyToRotateOut` Tier 2: `OR` → `AND`, floor `(2,1)` → `(4,2)`.
+- `EFFECTIVE_STREAK_DIVISOR`: `7.0f` → `12.0f`.
+
+### Headline numbers
+| Scenario | Current | Proposed |
+|---|---|---|
+| Fresh word, all correct | rotates **turn 4** | rotates **turn 5** ✅ passes Jayne's `>=5` |
+| Half-mastered (m=0.5, s=3) | rotates turn 2 | rotates turn 4 |
+| Already-known (m=0.85) | rotates turn 1 | rotates turn 1 (UNCHANGED — no regression) |
+
+### Files I would edit if approved (post-Captain-review)
+- `src/SentenceStudio.Shared/Services/VocabularyProgressService.cs:21` (divisor const)
+- `src/SentenceStudio.Shared/Models/VocabularyQuizItem.cs:33-55` (Tier 2 predicate)
+- ~10 test methods across 4 test files (mechanical expected-value updates)
+
+### Captain's open question I flagged
+Turn 5 vs turn 6. Held proposal at turn 5 because it's the smallest change that passes Jayne. If Captain wants stricter, raise Tier 2 floor to `(5,3)` → turn 6 without touching the divisor.
+
+### Captain confirmed (do not touch)
+- Legacy obsolete field WRITES in ProgressService — leave alone (sync compat).
+- Schema — no change.
+- Wrong-answer path — out of scope for #191.
+
+### Stream B Step 3 — Shipped #191 fix (2025-04-29)
+- **PR:** https://github.com/davidortinau/SentenceStudio/pull/198 (base: `main`, head: `fix/vocab-quiz-scoring-191-rotation-curve`, branched off Jayne's PR #195).
+- **Commit:** `70feb11` — `fix(vocab-quiz): tighten rotation curve for fresh words (#191)` — 9 files changed (+264 / -52).
+- **Production edits:** 2 lines as approved by Captain — `EFFECTIVE_STREAK_DIVISOR 7.0f → 12.0f` (`VocabularyProgressService.cs:21`) and Tier 2 `OR→AND` + floor `(2,1)→(4,2)` (`VocabularyQuizItem.cs:33-55`). Detailed comment blocks reference proposal markdown and simulator.
+- **Tests:** 520/520 pass. Jayne's `Repro191_NewWord_AllCorrect_DoesNotRotateOutBeforeFifthTurn` flipped FAIL → PASS as predicted.
+- **Test sweep gotcha (note for future):** Production code defaults `DifficultyWeight` to `1.0f` for ALL inputs (line 143) — Text attempts do NOT carry a 1.5x weight via the test's `MakeAttempt` helper because `DifficultyWeight` isn't set there. Initial test bumps assumed Text=1.5 weight; corrected by bumping MC counts from 5/7 → 8 across `MasteryAlgorithmIntegrationTests` (`FullLifecycle_Unknown_To_Learning_To_Known`, `FullLifecycle_KnownWord_GetsLongReviewInterval`, `WrongAnswer_AfterBuildingMastery_DropsBelowKnown`), `SpacedRepetitionIntegrationTests.KnownWord_HasReviewIn60Days_AfterAllAttempts`, `PlanToProgressLifecycleTests.FullCycle_PlanGeneration_ThenPractice`, and `MultiDayLearningJourneyTests.SimulateMultipleDays_MasteryProgressesCorrectly`.
+- **Simulator committed:** `tools/quiz-rotation-sim/sim.py` — Python-only repro of the C# math. Useful for any future tuning.
+- **Filed:** `Tier2_TriggerRequiresBothMasteryAndStreak` (new) and `Tier2_MidMastery_BlockedByLowSessionCorrect` (renamed from `Tier2_MidMastery_NotEnoughTotal`) lock in the AND-trigger and (4,2) floor behavior.
+- **Skipped:** Mac Catalyst smoke (proposal + simulator + unit tests + Jayne's repro all green; flagged in PR description as recommended manual verification before merge).
+- **Out-of-scope follow-up to file:** decouple `MasteryScore` from `SessionRotationReady` (tutor's higher-leverage architectural suggestion). Mentioned in PR description.
+
+### Step 3 cross-link (2025-04-29, post-merge)
+- PR #198 body updated: out-of-scope follow-up now concretely references #197 (decouple `MasteryScore` from `SessionRotationReady`) instead of generic "follow-up issue".
+- Captain note: `MakeAttempt` test helper not setting `DifficultyWeight` (so Text weight 1.5x is bypassed in tests) is logged here and may be picked up either as a tiny standalone cleanup PR or folded into #197's acceptance criteria — Captain's call.

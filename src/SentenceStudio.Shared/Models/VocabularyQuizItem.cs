@@ -31,6 +31,17 @@ public class VocabularyQuizItem
     public bool IsDueOnlySession { get; set; }
 
     // Tiered rotation model (spec §1.2.2 / §1.3)
+    //
+    // Issue #191: Tier 2 trigger tightened from OR → AND, and demonstration
+    // floor raised from (SessC≥2, ST≥1) to (SessC≥4, ST≥2). Under the old
+    // OR-trigger, a fresh word's first three correct MC turns alone (streak=3)
+    // dropped it from the strict Tier 3 floor into Tier 2's lenient floor,
+    // and the very next Text turn satisfied (2,1) — rotating fresh words at
+    // turn 4. The AND trigger keeps Tier 2 reserved for words that have BOTH
+    // accumulated mid-mastery AND a real streak, and the higher floor demands
+    // visible session-level demonstration. See:
+    //   .squad/decisions/inbox/wash-vocab-quiz-scoring-proposal-191.md
+    //   tools/quiz-rotation-sim/sim.py
     public bool ReadyToRotateOut
     {
         get
@@ -40,13 +51,14 @@ public class VocabularyQuizItem
 
             bool tieredReady;
 
-            // Tier 1: High mastery — 1 correct text + recognition cleared
+            // Tier 1: High mastery — 1 correct text + recognition cleared (UNCHANGED)
             if (mastery >= 0.80f || streak >= 8f)
                 tieredReady = SessionTextCorrect >= 1 && !PendingRecognitionCheck;
-            // Tier 2: Mid mastery — 2 correct (at least 1 text)
-            else if (mastery >= 0.50f || streak >= 3f)
-                tieredReady = SessionCorrectCount >= 2 && SessionTextCorrect >= 1;
-            // Tier 3: Low mastery — full 3+3 demonstration
+            // Tier 2: Mid mastery — must demonstrate BOTH mid-mastery AND streak,
+            // then prove with 4 in-session corrects including 2 text. (#191)
+            else if (mastery >= 0.50f && streak >= 3f)
+                tieredReady = SessionCorrectCount >= 4 && SessionTextCorrect >= 2;
+            // Tier 3: Low mastery — full 3+3 demonstration (UNCHANGED)
             else
                 tieredReady = SessionMCCorrect >= 3 && SessionTextCorrect >= 3;
 

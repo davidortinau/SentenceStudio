@@ -186,20 +186,20 @@ public class MultiDayLearningJourneyTests : IClassFixture<PlanGenerationTestFixt
             }
         }
 
-        // After Day 1: all words at ~0.286 mastery (EffStreak=2/7)
+        // After Day 1: all words at ~0.167 mastery (EffStreak=2, divisor 12.0 — #191)
         foreach (var wordId in wordIds)
         {
             var p = await _progressService.GetProgressAsync(wordId, PlanGenerationTestFixture.TestUserId);
-            p.MasteryScore.Should().BeApproximately(2.0f / 7.0f, 0.01f);
+            p.MasteryScore.Should().BeApproximately(2.0f / 12.0f, 0.01f);
             p.IsKnown.Should().BeFalse();
             p.Status.Should().Be(LearningStatus.Learning);
         }
 
         // === Day 2: More MC practice, some words get a wrong answer ===
-        // First 4 words: 2 more correct MC (total streak 4, mastery ≈ 0.57)
+        // First 4 words: 6 more correct MC (total streak 8, mastery ≈ 0.667 — #191)
         for (int w = 0; w < 4; w++)
         {
-            for (int i = 0; i < 2; i++)
+            for (int i = 0; i < 6; i++)
             {
                 await _progressService.RecordAttemptAsync(new VocabularyAttempt
                 {
@@ -233,8 +233,8 @@ public class MultiDayLearningJourneyTests : IClassFixture<PlanGenerationTestFixt
         for (int w = 0; w < 4; w++)
         {
             var p = await _progressService.GetProgressAsync(wordIds[w], PlanGenerationTestFixture.TestUserId);
-            p.CurrentStreak.Should().BeApproximately(4.0f, 0.01f, $"word {w} should have 4-streak after 4 correct MC");
-            p.MasteryScore.Should().BeApproximately(4.0f / 7.0f, 0.01f);
+            p.CurrentStreak.Should().BeApproximately(8.0f, 0.01f, $"word {w} should have 8-streak after 8 correct MC");
+            p.MasteryScore.Should().BeApproximately(8.0f / 12.0f, 0.01f);
         }
         for (int w = 4; w < 6; w++)
         {
@@ -261,11 +261,11 @@ public class MultiDayLearningJourneyTests : IClassFixture<PlanGenerationTestFixt
             }
         }
 
-        // Words 0-3: streak 6, productionInStreak 2, EffStreak = 6+1 = 7 → mastery 1.0
+        // Words 0-3: streak 8+(2*1.0)=10, prodInStreak 2, EffStreak = 10+1 = 11 → mastery = 11/12 ≈ 0.917 (#191)
         for (int w = 0; w < 4; w++)
         {
             var p = await _progressService.GetProgressAsync(wordIds[w], PlanGenerationTestFixture.TestUserId);
-            p.CurrentStreak.Should().BeApproximately(6.0f, 0.01f);
+            p.CurrentStreak.Should().BeApproximately(10.0f, 0.01f);
             p.ProductionInStreak.Should().Be(2);
             p.MasteryScore.Should().BeGreaterOrEqualTo(0.85f);
             p.IsKnown.Should().BeTrue(
@@ -277,7 +277,7 @@ public class MultiDayLearningJourneyTests : IClassFixture<PlanGenerationTestFixt
         for (int w = 6; w < 8; w++)
         {
             var p = await _progressService.GetProgressAsync(wordIds[w], PlanGenerationTestFixture.TestUserId);
-            p.MasteryScore.Should().BeApproximately(2.0f / 7.0f, 0.01f);
+            p.MasteryScore.Should().BeApproximately(2.0f / 12.0f, 0.01f);
             p.IsKnown.Should().BeFalse();
         }
 

@@ -80,10 +80,10 @@ public class PlanToProgressLifecycleTests : IClassFixture<PlanGenerationTestFixt
         var dueCountBefore = plan1.VocabularyReview!.TotalDue;
         dueCountBefore.Should().BeGreaterOrEqualTo(5, "should have substantial due words");
 
-        // === STEP 2: Simulate practice — first 5 words get 5 MC + 2 Text each → Known ===
+        // === STEP 2: Simulate practice — first 5 words get 8 MC + 2 Text each → Known (divisor 12.0 — #191) ===
         for (int w = 0; w < 5; w++)
         {
-            for (int i = 0; i < 5; i++)
+            for (int i = 0; i < 8; i++)
             {
                 await _progressService.RecordAttemptAsync(new VocabularyAttempt
                 {
@@ -117,7 +117,7 @@ public class PlanToProgressLifecycleTests : IClassFixture<PlanGenerationTestFixt
         for (int w = 0; w < 5; w++)
         {
             var p = await _progressService.GetProgressAsync(wordIds[w], PlanGenerationTestFixture.TestUserId);
-            p.IsKnown.Should().BeTrue($"word {w} should be Known after 5 MC + 2 Text");
+            p.IsKnown.Should().BeTrue($"word {w} should be Known after 8 MC + 2 Text");
         }
 
         // Words 5-9 still at original level
