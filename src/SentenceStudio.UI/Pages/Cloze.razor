@@ -152,6 +152,9 @@ else
     [SupplyParameterFromQuery(Name = "planItemId")]
     public string? PlanItemId { get; set; }
 
+    [SupplyParameterFromQuery(Name = "DueOnly")]
+    public bool DueOnly { get; set; }
+
     [Inject] private ClozureService ClozureSvc { get; set; } = default!;
     [Inject] private UserActivityRepository ActivityRepo { get; set; } = default!;
     [Inject] private VocabularyProgressService ProgressService { get; set; } = default!;
@@ -197,10 +200,12 @@ else
         isBusy = true;
         try
         {
-            var resourceId = ResourceIdParam ?? "";
+            // DEFENSE IN DEPTH: When DueOnly=true (plan-initiated SRS mode), ignore ResourceId
+            // and load from full user vocabulary pool, same pattern as VocabQuiz
+            var resourceId = DueOnly ? "" : (ResourceIdParam ?? "");
             var skillId = SkillIdParam ?? "";
 
-            var result = await ClozureSvc.GetSentences(resourceId, 8, skillId);
+            var result = await ClozureSvc.GetSentences(resourceId, 8, skillId, DueOnly);
             if (result?.Any() == true)
             {
                 sentences = result;

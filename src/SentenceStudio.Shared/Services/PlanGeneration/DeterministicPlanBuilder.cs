@@ -502,7 +502,7 @@ public class DeterministicPlanBuilder
             activities.Add(new PlannedActivity
             {
                 ActivityType = outputActivity,
-                ResourceId = resource.Id,
+                ResourceId = outputActivity == "Cloze" ? null : resource.Id,  // Cloze is vocabulary-driven when from plan
                 SkillId = skill?.Id,
                 EstimatedMinutes = outputMinutes,
                 Priority = priority++,

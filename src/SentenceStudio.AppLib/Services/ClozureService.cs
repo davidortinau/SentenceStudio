@@ -40,17 +40,17 @@ public class ClozureService
         _progressService = serviceProvider.GetRequiredService<VocabularyProgressService>();
     }
 
-    public async Task<List<Challenge>> GetSentences(string resourceID, int numberOfSentences, string skillID)
+    public async Task<List<Challenge>> GetSentences(string resourceID, int numberOfSentences, string skillID, bool dueOnly = false)
     {
-        _logger.LogDebug("GetSentences called with resourceID={ResourceID}, numberOfSentences={NumberOfSentences}, skillID={SkillID}",
-            resourceID, numberOfSentences, skillID);
+        _logger.LogDebug("GetSentences called with resourceID={ResourceID}, numberOfSentences={NumberOfSentences}, skillID={SkillID}, dueOnly={DueOnly}",
+            resourceID, numberOfSentences, skillID, dueOnly);
         var watch = new Stopwatch();
         watch.Start();
 
-        if (string.IsNullOrEmpty(resourceID))
+        // DEFENSE IN DEPTH: When dueOnly=true (plan-initiated), ignore resourceID and load from full vocab pool
+        if (dueOnly || string.IsNullOrEmpty(resourceID))
         {
-            _logger.LogDebug("Resource ID is 0 - no resource selected");
-            return new List<Challenge>();
+            return await GetSentencesFromDueWords(numberOfSentences, skillID);
         }
 
         if (string.IsNullOrEmpty(skillID))
@@ -96,14 +96,98 @@ public class ClozureService
                 _words.Count, allVocab.Count - _words.Count);
         }
 
+        return await GenerateSentencesFromWords(_words, numberOfSentences, skillID, resource.Language);
+    }
+
+    private async Task<List<Challenge>> GetSentencesFromDueWords(int numberOfSentences, string skillID)
+    {
+        _logger.LogDebug("GetSentencesFromDueWords called - loading due vocabulary from full user pool");
+        
+        // Load all user vocabulary (same pattern as VocabQuiz)
+        var allWords = await _resourceRepository.GetAllVocabularyWordsWithResourcesAsync();
+        if (!allWords.Any())
+        {
+            _logger.LogDebug("No vocabulary found in user pool");
+            return new List<Challenge>();
+        }
+
+        // Get progress for filtering
+        var wordIds = allWords.Select(w => w.Id).ToList();
+        var progressDict = await _progressService.GetProgressForWordsAsync(wordIds);
+
+        // Filter to due words (same logic as VocabQuiz)
+        var now = DateTime.Now;
+        var dueWords = allWords.Where(w =>
+        {
+            if (!progressDict.TryGetValue(w.Id, out var progress))
+                return true; // Unseen words are due
+            
+            if (progress.IsInGracePeriod)
+                return false; // Skip grace period words
+            
+            var totalAttempts = progress.TotalAttempts;
+            var nextReview = progress.NextReviewDate;
+            
+            // Include unseen words (never attempted)
+            if (totalAttempts == 0)
+                return true;
+            
+            // Include words due for review
+            if (nextReview.HasValue && nextReview.Value <= now)
+                return true;
+            
+            return false;
+        }).ToList();
+
+        _logger.LogDebug("Found {DueCount} due words out of {TotalCount} total words", dueWords.Count, allWords.Count);
+
+        if (!dueWords.Any())
+        {
+            _logger.LogDebug("No due words available");
+            return new List<Challenge>();
+        }
+
+        // Cap vocab sample (same pattern as resource-driven path)
+        const int MaxVocabSample = 40;
+        if (dueWords.Count > MaxVocabSample)
+        {
+            _words = dueWords
+                .OrderBy(_ => Random.Shared.Next())
+                .Take(MaxVocabSample)
+                .ToList();
+            _logger.LogDebug("Sampled {SampleCount} of {DueCount} due vocabulary words for AI prompt",
+                _words.Count, dueWords.Count);
+        }
+        else
+        {
+            _words = dueWords;
+            _logger.LogDebug("Using all {WordCount} due vocabulary words for AI prompt", _words.Count);
+        }
+
+        // Get user profile for target language
+        var userProfileRepo = _serviceProvider.GetRequiredService<UserProfileRepository>();
+        var userProfile = await userProfileRepo.GetAsync();
+        string targetLanguage = userProfile?.TargetLanguage ?? "Korean";
+
+        return await GenerateSentencesFromWords(_words, numberOfSentences, skillID, targetLanguage);
+    }
+
+    private async Task<List<Challenge>> GenerateSentencesFromWords(List<VocabularyWord> words, int numberOfSentences, string skillID, string? targetLanguage = null)
+    {
+        if (string.IsNullOrEmpty(skillID))
+        {
+            _logger.LogDebug("Skill ID is empty - no skill selected");
+            return new List<Challenge>();
+        }
+
         var skillProfile = await _skillRepository.GetSkillProfileAsync(skillID);
         _logger.LogDebug("Skill profile retrieved: {SkillTitle}", skillProfile?.Title ?? "null");
 
-        // Get user's native language and use resource's language as target
+        // Get user's native language and use provided target language or fall back to user profile
         var userProfileRepo = _serviceProvider.GetRequiredService<UserProfileRepository>();
         var userProfile = await userProfileRepo.GetAsync();
         string nativeLanguage = userProfile?.NativeLanguage ?? "English";
-        string targetLanguage = resource.Language ?? userProfile?.TargetLanguage ?? "Korean";
+        targetLanguage = targetLanguage ?? userProfile?.TargetLanguage ?? "Korean";
 
         var prompt = string.Empty;
         using Stream templateStream = await _fileSystem.OpenAppPackageFileAsync("GetClozuresV2.scriban-txt");
@@ -111,7 +195,7 @@ public class ClozureService
         {
             var template = Template.Parse(await reader.ReadToEndAsync());
             prompt = await template.RenderAsync(new { 
-                terms = _words, 
+                terms = words, 
                 number_of_sentences = numberOfSentences, 
                 skills = skillProfile?.Description,
                 native_language = nativeLanguage,
@@ -186,7 +270,7 @@ public class ClozureService
                         CreatedAt = DateTime.UtcNow,
                         UpdatedAt = DateTime.UtcNow
                     };                    // Try to find matching vocabulary word for progress tracking
-                    var matchingWord = _words.FirstOrDefault(w =>
+                    var matchingWord = words.FirstOrDefault(w =>
                         string.Equals(w.TargetLanguageTerm, clozureDto.VocabularyWord, StringComparison.OrdinalIgnoreCase));
 
                     if (matchingWord != null)
