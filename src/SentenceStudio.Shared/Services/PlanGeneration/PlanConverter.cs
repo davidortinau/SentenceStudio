@@ -137,6 +137,14 @@ public static class PlanConverter
             if (!string.IsNullOrEmpty(skillId))
                 parameters["SkillId"] = skillId;
         }
+        else if (activityType == PlanActivityType.Cloze)
+        {
+            parameters["DueOnly"] = true;
+            // Cloze is vocabulary-driven when launched from plan, NOT resource-driven
+            // ResourceId is intentionally NOT passed to allow loading from full user vocab pool
+            if (!string.IsNullOrEmpty(skillId))
+                parameters["SkillId"] = skillId;
+        }
         else
         {
             // Resource-based activities
