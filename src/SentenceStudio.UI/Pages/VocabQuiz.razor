@@ -338,6 +338,16 @@ else if (currentItem != null)
                        @bind="userInput"
                        disabled="@(showAnswer && !requireCorrectTyping)"
                        placeholder='@(requireCorrectTyping ? Localize["VocabQuiz_TypeCorrect"] : Localize["VocabQuiz_TypeAnswer"])' />
+                @* #192 — explicit Submit button for text-entry mode (mirrors Enter key). Hidden once feedback is shown
+                   in non-correction mode; in requireCorrectTyping mode it still drives the submit handler. *@
+                @if (!showAnswer || requireCorrectTyping)
+                {
+                    <div class="text-center mt-3">
+                        <button type="submit" class="btn btn-ss-primary px-5" disabled="@(string.IsNullOrWhiteSpace(userInput))">
+                            @Localize["VocabQuiz_SubmitAnswer"] <i class="bi bi-check2 ms-1"></i>
+                        </button>
+                    </div>
+                }
             </form>
         }
 
@@ -396,10 +406,11 @@ else
                     _ => "bg-secondary"
                 };
             }
+            @* #194 anti-cheat: Do NOT render TargetLanguageTerm or NativeLanguageTerm here —
+               this panel is opened mid-quiz and showing either side leaks the answer.
+               Only stats, status, and metadata may appear in the Learning Details panel. *@
             <div class="mb-3">
-                <h6 class="ss-body1 fw-bold mb-1" style="color: var(--bs-primary);">@currentItem.Word.TargetLanguageTerm</h6>
-                <span class="ss-body2 text-secondary-ss">@currentItem.Word.NativeLanguageTerm</span>
-                <span class="badge @statusBadge ms-2">@statusText</span>
+                <span class="badge @statusBadge">@statusText</span>
             </div>
 
             <div class="row g-2 mb-3">
@@ -578,6 +589,9 @@ else
     private List<VocabularyQuizItem> vocabItems = new();
     private List<VocabularyQuizItem> sessionItems = new();
     private List<VocabularyQuizItem> roundWordOrder = new();
+    // #190 — full vocabulary scope used as the distractor pool, so MC always has 4 options
+    // even when only 1 word remains in the active round. Populated in LoadVocabulary after dedup.
+    private List<VocabularyWord> distractorScope = new();
     private VocabularyQuizItem? currentItem;
 
     private int currentTurnInRound;
@@ -665,6 +679,11 @@ else
             allWords = allWords
                 .Where(w => !string.IsNullOrWhiteSpace(w.NativeLanguageTerm) && !string.IsNullOrWhiteSpace(w.TargetLanguageTerm))
                 .GroupBy(w => w.Id).Select(g => g.First()).ToList();
+
+            // #190 — capture the full filtered+deduped vocabulary scope for distractor sampling.
+            // GenerateChoiceOptions draws from this so we always show 4 MC options regardless of
+            // how many words remain in the active round.
+            distractorScope = allWords;
 
             // Get progress
             var wordIds = allWords.Select(w => w.Id).ToList();
@@ -811,7 +830,8 @@ else
             audioAnswerModeAvailable = false;
         }
 
-        audioPromptAvailable = await CanPlayAudioAsync(GetTargetAudioText(currentItem.Word), GetTargetAudioLanguage(currentItem.Word));
+        // #193 — availability check must follow the prompt side (native or target), not always target.
+        audioPromptAvailable = await CanPlayAudioAsync(GetPromptAudioText(currentItem.Word), GetPromptAudioLanguage(currentItem.Word));
         ApplyPromptPreferences();
 
         responseTimer.Restart();
@@ -1089,9 +1109,16 @@ else
     {
         var correctOption = CreateChoiceOption(item);
 
-        var options = vocabItems
-            .Where(i => i != item)
-            .Select(CreateChoiceOption)
+        // #190 — sample distractors from the FULL vocabulary scope (resource-filtered or all user vocab),
+        // not just the active round. This guarantees a full set of 4 options even when remaining-to-learn
+        // shrinks to 1. Falls back to vocabItems if the scope hasn't been populated yet (defensive).
+        var pool = distractorScope.Count > 0
+            ? (IEnumerable<VocabularyWord>)distractorScope
+            : vocabItems.Select(v => v.Word);
+
+        var options = pool
+            .Where(w => w.Id != item.Word.Id)
+            .Select(w => CreateChoiceOptionForWord(w))
             .Where(option => !string.IsNullOrWhiteSpace(option.Text))
             .Where(option => !string.Equals(option.Text, correctOption.Text, StringComparison.OrdinalIgnoreCase))
             .GroupBy(option => option.Text, StringComparer.OrdinalIgnoreCase)
@@ -1100,15 +1127,22 @@ else
             .Take(3)
             .ToList();
 
+        // Edge case: if the full scope has fewer than 4 unique words, we degrade gracefully —
+        // we ship whatever distinct distractors we have plus the correct answer. This is
+        // deterministic by construction (no synthetic options injected) and avoids leaking
+        // "filler" answers that aren't real vocabulary.
         options.Add(correctOption);
         return options.OrderBy(_ => Guid.NewGuid()).ToArray();
     }
 
     private QuizChoiceOption CreateChoiceOption(VocabularyQuizItem item)
+        => CreateChoiceOptionForWord(item.Word);
+
+    private QuizChoiceOption CreateChoiceOptionForWord(VocabularyWord word)
     {
-        var answerText = GetAnswerText(item.Word);
+        var answerText = GetAnswerText(word);
         var answerLanguage = promptUsesNativeLanguage
-            ? item.Word.Language ?? targetLanguage
+            ? word.Language ?? targetLanguage
             : nativeLanguage;
 
         return new QuizChoiceOption(answerText, answerText, answerLanguage);
@@ -1412,7 +1446,8 @@ else
     {
         if (currentItem?.Word == null) return;
 
-        await PlayAudioTextAsync(GetTargetAudioText(currentItem.Word), GetTargetAudioLanguage(currentItem.Word));
+        // #193 — play prompt-side audio so we never leak the answer when prompt direction is native→target.
+        await PlayAudioTextAsync(GetPromptAudioText(currentItem.Word), GetPromptAudioLanguage(currentItem.Word));
     }
 
     private Task PlayChoiceAudio(QuizChoiceOption option) => PlayAudioTextAsync(option.AudioText, option.AudioLanguage);
@@ -1523,6 +1558,16 @@ else
     private string GetTargetAudioText(VocabularyWord word) => word.TargetLanguageTerm ?? "";
 
     private string GetTargetAudioLanguage(VocabularyWord word) => word.Language ?? targetLanguage;
+
+    // #193 anti-cheat: prompt audio MUST follow the prompt direction. When prompt is native (e.g. "to turn"),
+    // playing target audio (털) leaks the answer. These helpers return the side actually shown as the prompt.
+    private string GetPromptAudioText(VocabularyWord word) => promptUsesNativeLanguage
+        ? word.NativeLanguageTerm ?? ""
+        : word.TargetLanguageTerm ?? "";
+
+    private string GetPromptAudioLanguage(VocabularyWord word) => promptUsesNativeLanguage
+        ? nativeLanguage
+        : word.Language ?? targetLanguage;
 
     private async Task<bool> CanUseAudioAnswerModeAsync(IEnumerable<QuizChoiceOption> options)
     {

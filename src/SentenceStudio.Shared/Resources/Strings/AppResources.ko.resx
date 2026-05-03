@@ -2778,6 +2778,10 @@
     <value>답을 입력하세요</value>
     <comment>Input placeholder</comment>
   </data>
+  <data name="VocabQuiz_SubmitAnswer" xml:space="preserve">
+    <value>제출</value>
+    <comment>Submit button for text-entry quiz answers</comment>
+  </data>
   <data name="VocabQuiz_TypeCorrect" xml:space="preserve">
     <value>계속하려면 정답을 입력하세요</value>
     <comment>Retry placeholder</comment>
