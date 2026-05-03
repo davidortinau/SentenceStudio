@@ -413,36 +413,11 @@ else
                 <span class="badge @statusBadge">@statusText</span>
             </div>
 
+            @* #189: Render only the streak-based truth fields. Legacy/obsolete metadata
+               (IsKnown, IsUserDeclared, VerificationState, ProductionAttempts, RecognitionAttempts)
+               is intentionally NOT shown — those readouts misled users about quiz state.
+               Schema fields remain on VocabularyProgress for backward compat. *@
             <div class="row g-2 mb-3">
-                <div class="col-6">
-                    <small class="text-secondary-ss d-block">@Localize["VocabQuiz_IsKnown"]</small>
-                    <span class="ss-body2 fw-bold">@(p?.IsKnown == true ? Localize["VocabQuiz_Yes"] : Localize["VocabQuiz_No"])</span>
-                </div>
-                <div class="col-6">
-                    <small class="text-secondary-ss d-block">IsUserDeclared</small>
-                    <span class="ss-body2 fw-bold">@(p?.IsUserDeclared == true ? Localize["VocabQuiz_Yes"] : Localize["VocabQuiz_No"])</span>
-                </div>
-                <div class="col-6">
-                    <small class="text-secondary-ss d-block">VerificationState</small>
-                    <span class="ss-body2 fw-bold">@(p?.VerificationState.ToString() ?? "None")</span>
-                </div>
-                <div class="col-6">
-                    <small class="text-secondary-ss d-block">MasteryScore</small>
-                    <span class="ss-body2 fw-bold">@((p?.MasteryScore ?? 0f).ToString("P0"))</span>
-                </div>
-            </div>
-
-            <hr class="border-secondary my-2" />
-
-            <div class="row g-2 mb-3">
-                <div class="col-4">
-                    <small class="text-secondary-ss d-block">CurrentStreak</small>
-                    <span class="ss-body2 fw-bold">@(p?.CurrentStreak.ToString("F1") ?? "0")</span>
-                </div>
-                <div class="col-4">
-                    <small class="text-secondary-ss d-block">ProductionInStreak</small>
-                    <span class="ss-body2 fw-bold">@(p?.ProductionInStreak ?? 0) / 2</span>
-                </div>
                 <div class="col-4">
                     <small class="text-secondary-ss d-block">TotalAttempts</small>
                     <span class="ss-body2 fw-bold">@(p?.TotalAttempts ?? 0)</span>
@@ -454,6 +429,22 @@ else
                 <div class="col-4">
                     <small class="text-secondary-ss d-block">Accuracy</small>
                     <span class="ss-body2 fw-bold">@((p?.Accuracy ?? 0f).ToString("P0"))</span>
+                </div>
+                <div class="col-4">
+                    <small class="text-secondary-ss d-block">CurrentStreak</small>
+                    <span class="ss-body2 fw-bold">@(p?.CurrentStreak.ToString("F1") ?? "0")</span>
+                </div>
+                <div class="col-4">
+                    <small class="text-secondary-ss d-block">ProductionInStreak</small>
+                    <span class="ss-body2 fw-bold">@(p?.ProductionInStreak ?? 0) / 2</span>
+                </div>
+                <div class="col-4">
+                    <small class="text-secondary-ss d-block">EffectiveStreak</small>
+                    <span class="ss-body2 fw-bold">@((p?.EffectiveStreak ?? 0f).ToString("F1"))</span>
+                </div>
+                <div class="col-12">
+                    <small class="text-secondary-ss d-block">MasteryScore</small>
+                    <span class="ss-body2 fw-bold">@((p?.MasteryScore ?? 0f).ToString("P0"))</span>
                 </div>
             </div>
 
