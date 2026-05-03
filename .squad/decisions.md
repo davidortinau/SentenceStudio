@@ -2612,7 +2612,7 @@ Earlier 2026-04-29 decision pinning net10 + ValidateXcodeVersion=false. That rec
 ## 2026-05-02: AppHost Multi-Worktree Isolation (Diagnosed)
 
 **By:** Troubleshooter  
-**Status:** Awaiting Captain action  
+**Status:** RESOLVED — Empty-users startup banner + health check shipped 2026-05-02 (Wash). See `.squad/decisions/inbox/wash-empty-users-startup-banner.md`.  
 **Date:** 2026-05-02T13:05:00Z
 
 ### Problem
@@ -2649,7 +2649,7 @@ Add startup banner / dashboard warning when AppHost detects empty `AspNetUsers` 
 ## 2026-05-02: Mac Catalyst Symlink Recurrence—Decision Needed
 
 **By:** Coordinator  
-**Status:** Awaiting Captain decision  
+**Status:** RESOLVED — Permanent MSBuild post-build target shipped 2026-05-02 (Zoe). Captain approved Option A. See `.squad/decisions/inbox/zoe-maccatalyst-symlink-permanent.md`.  
 **Date:** 2026-05-02T14:48:00Z
 
 ### Problem

@@ -89,3 +89,5 @@ Zoe's M.E.AI 10.5 strategic recommendations executed via three-agent orchestrati
 
 **SHIP IT verdict**: All validation gates pass; zero regressions introduced. Production-ready.
 
+
+- 2026-05-02: **MSBuild post-build symlink for Aspire.Hosting.Maui bundle-name mismatch** — Hooked `AfterTargets="Build"` on `SentenceStudio.MacCatalyst.csproj`, gated to `net10.0-maccatalyst`. Used `$(_AppBundleName)` (from MAUI/Xamarin Shared SDK, populated by `_GenerateBundleName`) as the source-of-truth for the produced bundle name. Quirk: `$(OutputPath)` for Mac Catalyst already includes the RID segment (`bin/$(Config)/net10.0-maccatalyst/maccatalyst-arm64/`), so do NOT append `$(RuntimeIdentifier)` — first attempt produced a doubled `maccatalyst-arm64/maccatalyst-arm64/` path and the `Exists()` guard silently skipped the `Exec`. Verified diag-level MSBuild log to catch this. Final target uses `ln -sfn` for idempotence and skips when names match. Survives `dotnet clean` + rebuild.
