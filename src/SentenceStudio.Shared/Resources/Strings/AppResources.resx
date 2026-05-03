@@ -3022,6 +3022,10 @@ For example: {0} ...</value>
     <value>Type your answer</value>
     <comment>Input placeholder</comment>
   </data>
+  <data name="VocabQuiz_SubmitAnswer" xml:space="preserve">
+    <value>Submit</value>
+    <comment>Submit button for text-entry quiz answers</comment>
+  </data>
   <data name="VocabQuiz_TypeCorrect" xml:space="preserve">
     <value>Type the correct answer to continue</value>
     <comment>Retry placeholder</comment>

@@ -11010,6 +11010,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Submit.
+        /// </summary>
+        internal static string VocabQuiz_SubmitAnswer {
+            get {
+                return ResourceManager.GetString("VocabQuiz_SubmitAnswer", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Target-word feedback:.
         /// </summary>
         internal static string VocabQuiz_TargetWordFeedback {

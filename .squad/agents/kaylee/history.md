@@ -298,3 +298,64 @@ private async Task OnInitialSyncCompleted()
 
 **For future Blazor work:**
 If you encounter "my JS component initialized on nav-back but not on first-load," check for async mode flags + firstRender gates. This pattern resolves it.
+
+## Learnings — 2026-05-02 — Vocab Quiz UI cluster (Stream A) — PR #196
+
+Shipped four UI fixes in `src/SentenceStudio.UI/Pages/VocabQuiz.razor` as a single PR.
+- #190 (distractor scope), #192 (Submit button), #193 (prompt audio direction), #194 (anti-cheat info panel).
+- New field: `distractorScope: List<VocabularyWord>`. Populated in `LoadVocabulary` after dedup. Source of truth for MC distractor sampling.
+- Helpers added: `GetPromptAudioText` / `GetPromptAudioLanguage` (line ~1559). Switch on `promptUsesNativeLanguage`. They are the canonical way to ask "what should the prompt-side audio say." `GetTargetAudioText` / `GetTargetAudioLanguage` are LEFT in place but are dead code — safe to delete in a follow-up.
+- Method split: `CreateChoiceOption(item)` is now a thin wrapper over `CreateChoiceOptionForWord(VocabularyWord)`. The Word-level overload is what allows distractor sampling from raw scope.
+- Resource keys live at `src/SentenceStudio.Shared/Resources/Strings/AppResources*.resx`. Key prefix `VocabQuiz_` is the convention. `Designer.cs` MUST be committed alongside resx changes.
+- Aspire dev loop gotcha: restarting `webapp-rkmtvzgr` does NOT recompile. To pick up Razor changes, you MUST `dotnet build src/SentenceStudio.WebApp/SentenceStudio.WebApp.csproj` first, then `resource-stop` + `resource-start` the webapp resource. A `resource-restart` while the app is in `Unknown` state throws "Unhandled exception" — use start instead. The `webapp-rebuilder-ntjtbzbg` resource has no commands exposed from the MCP perspective.
+- Verifying the right binary is loaded: `strings src/SentenceStudio.WebApp/bin/Debug/net10.0/SentenceStudio.UI.dll | grep -E "GetPromptAudioText|distractorScope"` is a fast sanity check before re-clicking through Playwright.
+- Direct nav to `/vocab-quiz?...` after a webapp restart redirects to `/`. Always re-enter through the dashboard's "Vocabulary Review" tile so the planItem context attaches.
+- Korean: "Submit" → "제출" is standard (Naver, gov forms). Used directly without a localize agent round-trip.
+
+### 2026-04-29 — #189 follow-up appended to PR #196
+
+Jayne flagged service-side is clean (her repro tests pass on `main`); the
+"2 attempts / 50% accuracy" confusion in #189 is purely UI rendering.
+
+**Panel change (`VocabQuiz.razor` ~line 412–448):** Replaced the two stat
+grids with one streak-truth grid. Stripped legacy metadata readouts:
+`IsKnown`, `IsUserDeclared`, `VerificationState`. Added `EffectiveStreak`
+(was missing from rendering despite being on the model as a computed
+prop: `CurrentStreak + ProductionInStreak * 0.5f`). Final allowlist:
+TotalAttempts, CorrectAttempts, Accuracy, CurrentStreak,
+ProductionInStreak, EffectiveStreak, MasteryScore, status badge.
+
+Schema fields on `VocabularyProgress` (incl. `RecognitionAttempts`,
+`ProductionAttempts`, `IsKnown`, `VerificationState`) untouched —
+sync/back-compat preserved.
+
+**Attempt-recording audit:** Inspected all four call sites in
+`VocabQuiz.razor`:
+- L980 `RecordAttemptAsync` — sentence-shortcut, intentionally records
+  one attempt per credited sentence (loop body). Correct.
+- L1282 `RecordPendingAttemptAsync` in `NextItem` — records pending
+  attempt as-is. Correct.
+- L1394 `RecordPendingAttemptAsync` in override-to-correct — mutates
+  `pendingAttempt.WasCorrect = true` then records. Correct.
+- L1525 `RecordPendingAttemptAsync` in `DisposeAsync` — final flush.
+  Correct.
+
+The method is idempotent: `if (pendingAttempt == null) return;` guard +
+`pendingAttempt = null;` after the snapshot. Second call no-ops. The
+override-to-correct path then NextItem path is the worst case; second
+record is the no-op. **No double-invocation.**
+
+**Convention learned:** Resource keys can become orphans when fields are
+stripped from a panel (`VocabQuiz_IsKnown` is now unused). I noted this
+in PR description under "Out of scope" — low-priority cleanup, not worth
+churn on resx files. Future janitor pass should grep for unreferenced
+`VocabQuiz_*` keys.
+
+**Build verify only — no e2e re-run.** Justification: the change is
+mechanical rearrangement on the same offcanvas that I already screen-
+shotted for #194, all rendered values are existing properties on
+`p` (the progress reference), and the grid layout is identical bootstrap
+class structure. Risk of visual regression is negligible.
+
+PR #196 body amended via `gh pr edit` to add `Closes #189` and a #189
+section explaining the panel cleanup + audit outcome.
