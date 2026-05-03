@@ -530,6 +530,12 @@ public class SyncService : ISyncService
             }
         }
 
+        // Defensive self-repair for one-time CoreSync corruption event that left
+        // literal column-name strings in VocabularyProgress rows. Runs BEFORE
+        // ReconcileMigrationHistoryAsync / MigrateAsync so EF never tries to
+        // materialize a tainted DateTime?/enum value and throw FormatException.
+        await RepairTaintedVocabularyProgressAsync(conn);
+
         // Reconcile __EFMigrationsHistory against actual DB schema.
         // For each known migration whose artifacts are already present in the DB
         // (either from a previous release or from our defensive patches above),
@@ -644,5 +650,120 @@ public class SyncService : ISyncService
     }
 #endif
 
+    /// <summary>
+    /// Defensive self-repair for tainted <c>VocabularyProgress</c> rows.
+    ///
+    /// Background: a one-time CoreSync corruption event (root cause not reproducible
+    /// from any current code path — see decision doc below) left every row in
+    /// <c>VocabularyProgress</c> on at least one Mac Catalyst client with the literal
+    /// column NAME stored as a value:
+    /// <c>UserDeclaredAt = 'UserDeclaredAt'</c>,
+    /// <c>VerificationState = 'VerificationState'</c>,
+    /// <c>IsUserDeclared = 'IsUserDeclared'</c>.
+    /// SQLite's dynamic typing accepted the writes; EF's typed materializer then blew
+    /// up with <c>FormatException("'UserDeclaredAt' was not recognized as a valid DateTime")</c>
+    /// on every read, and CoreSync's Postgres upload pipeline forwarded the strings
+    /// to the server which rejected them with <c>42804</c>.
+    ///
+    /// This method runs three idempotent UPDATEs against the open ADO.NET connection
+    /// (NOT EF — the bug is precisely that EF cannot read these rows). Safe defaults
+    /// match the model in <c>Models/VocabularyProgress.cs</c>:
+    ///   • <c>UserDeclaredAt</c>    → NULL (DateTime?, nullable in the migration)
+    ///   • <c>VerificationState</c> → 0    (VerificationStatus.None)
+    ///   • <c>IsUserDeclared</c>    → 0    (false, model default)
+    ///
+    /// Idempotent — second run finds nothing to repair, returns silently.
+    /// On a fresh DB where the table doesn't yet exist (pre-MigrateAsync first run),
+    /// silently returns — does NOT throw.
+    ///
+    /// Defined outside the IOS/ANDROID/MACCATALYST conditional so it's reachable
+    /// from the unit-test project (which builds against the Shared project's
+    /// <c>net10.0</c> target). It's still only invoked from <c>PatchMissingColumnsAsync</c>
+    /// on mobile platforms.
+    ///
+    /// References:
+    ///  • <c>.squad/decisions/inbox/troubleshooter-coresync-vocabprogress-userdeclaredat.md</c>
+    ///  • <c>docs/captain-runbook-vocabprogress-repair.md</c> (manual unblock)
+    ///  • GitHub issue: TBD (filed alongside the PR that introduces this method)
+    /// </summary>
+    internal async Task RepairTaintedVocabularyProgressAsync(System.Data.Common.DbConnection conn)
+    {
+        try
+        {
+            // First-run / pre-migration safety: if the table doesn't exist yet,
+            // there's nothing to repair. Don't throw — let MigrateAsync create it.
+            using (var tableCmd = conn.CreateCommand())
+            {
+                tableCmd.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='VocabularyProgress'";
+                if (Convert.ToInt64(await tableCmd.ExecuteScalarAsync()) == 0)
+                {
+                    _logger.LogDebug("RepairTaintedVocabularyProgressAsync: VocabularyProgress table does not yet exist — skipping (fresh DB).");
+                    return;
+                }
+            }
 
+            // Three idempotent UPDATEs. Each is independent so a partial taint
+            // (one column tainted, others clean) is repaired correctly.
+            int totalRepaired = 0;
+
+            using (var fixUserDeclaredAt = conn.CreateCommand())
+            {
+                fixUserDeclaredAt.CommandText =
+                    "UPDATE \"VocabularyProgress\" SET \"UserDeclaredAt\" = NULL " +
+                    "WHERE \"UserDeclaredAt\" = 'UserDeclaredAt'";
+                var rows = await fixUserDeclaredAt.ExecuteNonQueryAsync();
+                if (rows > 0)
+                {
+                    _logger.LogWarning(
+                        "Repaired {Rows} tainted VocabularyProgress rows (UserDeclaredAt='UserDeclaredAt' → NULL) — see docs/captain-runbook-vocabprogress-repair.md for context",
+                        rows);
+                    totalRepaired += rows;
+                }
+            }
+
+            using (var fixVerificationState = conn.CreateCommand())
+            {
+                fixVerificationState.CommandText =
+                    "UPDATE \"VocabularyProgress\" SET \"VerificationState\" = 0 " +
+                    "WHERE \"VerificationState\" = 'VerificationState'";
+                var rows = await fixVerificationState.ExecuteNonQueryAsync();
+                if (rows > 0)
+                {
+                    _logger.LogWarning(
+                        "Repaired {Rows} tainted VocabularyProgress rows (VerificationState='VerificationState' → 0) — see docs/captain-runbook-vocabprogress-repair.md for context",
+                        rows);
+                    totalRepaired += rows;
+                }
+            }
+
+            using (var fixIsUserDeclared = conn.CreateCommand())
+            {
+                fixIsUserDeclared.CommandText =
+                    "UPDATE \"VocabularyProgress\" SET \"IsUserDeclared\" = 0 " +
+                    "WHERE \"IsUserDeclared\" = 'IsUserDeclared'";
+                var rows = await fixIsUserDeclared.ExecuteNonQueryAsync();
+                if (rows > 0)
+                {
+                    _logger.LogWarning(
+                        "Repaired {Rows} tainted VocabularyProgress rows (IsUserDeclared='IsUserDeclared' → 0) — see docs/captain-runbook-vocabprogress-repair.md for context",
+                        rows);
+                    totalRepaired += rows;
+                }
+            }
+
+            if (totalRepaired == 0)
+            {
+                _logger.LogDebug("RepairTaintedVocabularyProgressAsync: no tainted VocabularyProgress rows found.");
+            }
+        }
+        catch (Exception ex)
+        {
+            // Defensive guard — never let this fail the startup path. The repair is
+            // best-effort; if it can't run, the existing FormatException toast will
+            // still surface and Captain's runbook (docs/captain-runbook-vocabprogress-repair.md)
+            // remains the manual fallback.
+            _logger.LogError(ex,
+                "RepairTaintedVocabularyProgressAsync failed (non-fatal); see docs/captain-runbook-vocabprogress-repair.md for manual repair steps");
+        }
+    }
 }
