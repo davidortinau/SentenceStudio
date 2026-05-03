@@ -358,3 +358,6 @@ Turn 5 vs turn 6. Held proposal at turn 5 because it's the smallest change that 
 ### Step 3 cross-link (2025-04-29, post-merge)
 - PR #198 body updated: out-of-scope follow-up now concretely references #197 (decouple `MasteryScore` from `SessionRotationReady`) instead of generic "follow-up issue".
 - Captain note: `MakeAttempt` test helper not setting `DifficultyWeight` (so Text weight 1.5x is bypassed in tests) is logged here and may be picked up either as a tiny standalone cleanup PR or folded into #197's acceptance criteria — Captain's call.
+
+### 2026-05-03 — PR #198 merged
+Squash-merged to `main` with `--admin` (commit `626383a`). Closes #191. Branch `fix/vocab-quiz-scoring-191-rotation-curve` deleted. Carried Jayne's repro tests via the squash (PR #195 closed as superseded). Follow-ups concretely filed: **#197** (decouple `MasteryScore` from `SessionRotationReady`) and **#199** (`MakeAttempt` test helper missing `DifficultyWeight` — captures the test-sweep gotcha I logged above). Proposal markdown stays at `.squad/decisions/inbox/wash-vocab-quiz-scoring-proposal-191.md` — referenced from #197 body and PR #198 description.

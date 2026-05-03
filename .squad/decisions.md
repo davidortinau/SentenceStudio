@@ -4,6 +4,23 @@
 
 ---
 
+### 2026-05-03: Vocab Quiz bug cluster (#189–#194) shipped
+
+**By:** Scribe (logging) — work shipped by Kaylee, Jayne, Wash
+**Status:** All five issues closed. Two follow-ups filed.
+
+- **Stream A — UI cluster (PR #196, Kaylee).** Squash-merged to `main`. Closes **#189, #190, #192, #193, #194**. Single-PR ship of four UI-only fixes in `VocabQuiz.razor`: MC distractor pool now uses a dedicated `distractorScope` field (#190); audio routes through `GetPromptAudioText`/`GetPromptAudioLanguage` switching on `promptUsesNativeLanguage` (#193, #194 — anti-cheat); Submit button added to text-entry form with new resource key `VocabQuiz_SubmitAnswer` (#192). Learning Details panel tightened to streak-truth allowlist (`TotalAttempts`, `CorrectAttempts`, `Accuracy`, `CurrentStreak`, `ProductionInStreak`, `EffectiveStreak`, `MasteryScore`, status badge) — legacy `IsKnown`/`IsUserDeclared`/`VerificationState` readouts stripped from rendering; schema fields preserved for sync compat (#189). Audit confirmed `RecordPendingAttemptAsync` is idempotent — no double-fire. Dead code: `GetTargetAudioText`/`GetTargetAudioLanguage` candidates for janitor cleanup.
+
+- **Stream B — Scoring/rotation (PR #198, Wash).** Squash-merged to `main` with `--admin`. Closes **#191**. Two-line production fix: `EFFECTIVE_STREAK_DIVISOR 7.0f → 12.0f` in `VocabularyProgressService.cs` and Tier 2 `OR→AND` with floor `(2,1)→(4,2)` in `VocabularyQuizItem.ReadyToRotateOut`. Fresh all-correct word now rotates at turn 5 (was 4); already-known words still rotate at turn 1 — no regression. 520/520 tests pass; Jayne's `Repro191_NewWord_AllCorrect_DoesNotRotateOutBeforeFifthTurn` flipped FAIL→PASS. Carries Jayne's repro tests (PR #195 superseded by squash). Full proposal + simulator preserved at `.squad/decisions/inbox/wash-vocab-quiz-scoring-proposal-191.md` and `tools/quiz-rotation-sim/sim.py` — referenced from issue #197 and PR #198 description (do not move).
+
+- **Disambiguation (PR #195, Jayne — superseded).** Draft tests (`tests/SentenceStudio.UnitTests/Integration/VocabQuizScoringRepro189And191Tests.cs`) split #189 (UI artifact — service math correct) from #191 (rotation curve). Closed when #198 absorbed the commits via squash. Branch deleted.
+
+- **Follow-ups filed:**
+  - **#197** — Decouple `MasteryScore` from `SessionRotationReady` (cross-session evidence requirement). Tutor's higher-leverage SLA architectural follow-up; cross-references Wash's proposal markdown.
+  - **#199** — Test helper: `MakeAttempt` does not set `DifficultyWeight`, masking 1.5× Text weighting. Logged when Wash adjusted MC counts (5/7→8) across `MasteryAlgorithmIntegrationTests`, `SpacedRepetitionIntegrationTests`, `PlanToProgressLifecycleTests`, `MultiDayLearningJourneyTests` to compensate.
+
+---
+
 ### 2026-05-02T17:38:49Z: Post-Login Routing Must Wait on Initial Sync
 
 **By:** Lead  

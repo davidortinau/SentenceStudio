@@ -359,3 +359,6 @@ class structure. Risk of visual regression is negligible.
 
 PR #196 body amended via `gh pr edit` to add `Closes #189` and a #189
 section explaining the panel cleanup + audit outcome.
+
+### 2026-05-03 — PR #196 merged
+Squash-merged to `main` (commit `c996299`). Closes #189, #190, #192, #193, #194. Branch `fix/vocab-quiz-ui-cluster-189-194` deleted. Follow-up issues filed by team: #197 (decouple MasteryScore from SessionRotationReady) and #199 (`MakeAttempt` test helper missing `DifficultyWeight`).

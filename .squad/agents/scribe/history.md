@@ -153,3 +153,18 @@ Bookkeeping pass to correct earlier overstated framing ("net11p3 broken for our 
 
 - **2026-04-29 — When an SDK swap produces a wall of errors, look at error LINE NUMBERS first.** `CS9348` ("compilation unit cannot directly contain members") on `@inject` directive lines (4–10), combined with `CS0101`/`CS0102` with **empty** type/member names, is the fingerprint of a Razor source generator that bailed on the file → it's a pattern-specific bug, NOT an SDK-wide regression. Don't conclude "the SDK is broken" without (a) verifying with a clean `dotnet new` project and (b) isolating the trigger pattern in a minimal repro.
 - **Bookkeeping correction pattern:** when correcting an earlier decisions.md entry whose conclusions overreached, prefer **adding a new dated entry at the top with the corrected facts** + surgically softening the obsolete claims in the original entry (with a forward pointer), over rewriting the original wholesale. Preserves the diagnostic trail; future readers see how the team's understanding evolved.
+
+## 2026-05-03 — Vocab Quiz Bug Cluster Ship Logged (#189–#194)
+
+Bookkeeping pass after Stream A (PR #196, Kaylee) and Stream B (PR #198, Wash) both squash-merged to `main`. PR #195 (Jayne's draft repro tests) closed as superseded — commits absorbed into #198's squash.
+
+**Actions:**
+1. ✅ `.squad/decisions.md` — appended new section dated 2026-05-03 "Vocab Quiz bug cluster (#189–#194) shipped" near top, citing PR #196, PR #198, PR #195, and follow-up issues #197 / #199.
+2. ✅ Moved processed inbox files to `.squad/decisions/processed/2026-05-03/`:
+   - `jayne-vocab-quiz-scoring-repro-189-191.md`
+   - `kaylee-189-panel-cleanup.md`
+   - `kaylee-vocab-quiz-stream-a.md`
+3. ✅ **Preserved** `.squad/decisions/inbox/wash-vocab-quiz-scoring-proposal-191.md` at its current path — issue #197 body and PR #198 description both link to it. Do not move without updating those references.
+4. ✅ Appended one-line "merged" entries to `kaylee/history.md`, `jayne/history.md`, `wash/history.md` covering PR merge SHAs, branch deletion, and cross-issue links (#197, #199).
+
+**Convention reinforced:** When a referenced inbox artifact is cited from a public issue/PR, leave it at its current path even after its decision is merged into `decisions.md`. Treat it as a referenced artifact, not a transient inbox file. Path stability matters more than inbox cleanliness.

@@ -131,3 +131,6 @@ turn=4 mode=Text streak=4.50 prodInStreak=1 mastery=0.714 sessMC=3 sessText=1 Re
 10. **Don't disturb Kaylee's UI WIP.** Stashed `src/SentenceStudio.Shared/Resources/Strings/AppResources*.{cs,resx}` + `VocabQuiz.razor` + `docs/coresync-suspected-defects.md` under stash message `kaylee-stream-a-wip-vocab-quiz` before branching off `main`. Restore via `git checkout fix/vocab-quiz-ui-cluster-189-194 && git stash pop` when leaving Stream B.
 
 **Decision dropped:** `.squad/decisions/inbox/jayne-vocab-quiz-scoring-repro-189-191.md`.
+
+### 2026-05-03 — PR #195 closed (superseded)
+PR #195 (draft repro tests) closed; commits absorbed into Wash's squash-merge of PR #198 (`626383a`) which closed #191. Repro tests now live on `main` as the regression guard. Sibling Stream A PR #196 (`c996299`) closed #189/#190/#192/#193/#194. Follow-ups: #197 (decouple Mastery from SessionRotation) and #199 (test helper `DifficultyWeight` bug — direct outcome of point 6 in my earlier learnings).
