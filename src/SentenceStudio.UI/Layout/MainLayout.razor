@@ -8,12 +8,13 @@
 @inject SentenceStudio.Services.ReleaseNotesService ReleaseNotesService
 @inject IServiceProvider ServiceProvider
 @inject SentenceStudio.Services.ISyncService SyncService
+@inject SentenceStudio.Services.IPostLoginRouter PostLoginRouter
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
 @implements IDisposable
 
 <div class="d-flex vh-100">
     <EnvironmentBadge />
-    @if (!isOnboarding && isAuthenticated)
+    @if (!isOnboarding && isAuthenticated && !isSyncing)
     {
         @* Sidebar navigation (desktop only) *@
         <nav class="d-none d-md-flex flex-column flex-shrink-0 bg-surface sidebar-nav @(sidebarCollapsed ? "collapsed" : "")"
@@ -42,7 +43,7 @@
         </main>
     </div>
 
-    @if (!isOnboarding && isAuthenticated)
+    @if (!isOnboarding && isAuthenticated && !isSyncing)
     {
         @* Mobile offcanvas navigation *@
         <div class="offcanvas offcanvas-start bg-surface" tabindex="-1" id="mobileNav"
@@ -101,8 +102,7 @@
     {
         Localize.CultureChanged += OnCultureChanged;
         NavigationManager.LocationChanged += OnLocationChanged;
-        
-        isSyncing = SyncService.IsInitialSyncInProgress;
+
         SyncService.InitialSyncCompleted += OnInitialSyncCompleted;
 
         // Resolve authentication state from CascadingAuthenticationState
@@ -114,29 +114,46 @@
 
         var uri = NavigationManager.ToAbsoluteUri(NavigationManager.Uri);
         var isOnboardingPath = uri.AbsolutePath.StartsWith("/onboarding", StringComparison.OrdinalIgnoreCase);
+        isOnboarding = isOnboardingPath;
+        sidebarCollapsed = Preferences.Get("SidebarCollapsed", false);
 
-        // Only redirect to onboarding when authenticated but not yet onboarded
-        if (isAuthenticated && !Preferences.Get("is_onboarded", false) && !isOnboardingPath)
+        // Post-login routing is delegated to IPostLoginRouter so the rule is testable
+        // and consistent across login flow + fresh-install fallback. (issue #187)
+        if (isAuthenticated && !isOnboardingPath)
         {
-            // Check if this is a returning user with existing profile data
-            // (e.g., fresh deploy/rebuild cleared device-local preferences)
-            var existingProfile = await ProfileRepo.GetAsync();
-            if (existingProfile is not null
-                && !string.IsNullOrEmpty(existingProfile.TargetLanguage)
-                && !string.IsNullOrEmpty(existingProfile.NativeLanguage)
-                && !string.IsNullOrEmpty(existingProfile.Name))
-            {
-                Preferences.Set("is_onboarded", true);
-            }
-            else
-            {
-                isOnboarding = true;
-                NavigationManager.NavigateTo("/onboarding");
-            }
+            await ApplyPostLoginRouteAsync();
+        }
+    }
+
+    private async Task ApplyPostLoginRouteAsync()
+    {
+        var route = await PostLoginRouter.DecideRouteAsync();
+
+        if (route.DeferUntilSyncCompletes)
+        {
+            // Sync is in flight — keep the overlay up and wait for InitialSyncCompleted
+            // to re-evaluate. The overlay-render condition (!isOnboarding && isAuthenticated && !isSyncing)
+            // is inverted to ensure the spinner masks both nav and main content.
+            isSyncing = true;
+            await InvokeAsync(StateHasChanged);
+            return;
         }
 
-        isOnboarding = isOnboardingPath || isOnboarding;
-        sidebarCollapsed = Preferences.Get("SidebarCollapsed", false);
+        if (route.ShouldMarkOnboarded)
+        {
+            Preferences.Set("is_onboarded", true);
+        }
+
+        var currentPath = NavigationManager.ToAbsoluteUri(NavigationManager.Uri).AbsolutePath;
+        if (!string.IsNullOrEmpty(route.Path)
+            && !string.Equals(currentPath, route.Path, StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.Equals(route.Path, "/onboarding", StringComparison.OrdinalIgnoreCase))
+            {
+                isOnboarding = true;
+            }
+            NavigationManager.NavigateTo(route.Path);
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -307,7 +324,16 @@
 
     private void OnInitialSyncCompleted()
     {
-        isSyncing = false;
-        InvokeAsync(StateHasChanged);
+        // Sync finished (success OR failure — SyncService raises this in both branches).
+        // Re-run the router to decide whether to land on dashboard or onboarding.
+        _ = InvokeAsync(async () =>
+        {
+            isSyncing = false;
+            if (isAuthenticated)
+            {
+                await ApplyPostLoginRouteAsync();
+            }
+            StateHasChanged();
+        });
     }
 }

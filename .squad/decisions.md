@@ -4,6 +4,92 @@
 
 ---
 
+### 2026-05-02T17:38:49Z: Post-Login Routing Must Wait on Initial Sync
+
+**By:** Lead  
+**Scope:** First-sync UX gap — routing decision on fresh installs  
+**Status:** PR #188 under review  
+
+#### Decision
+
+1. **`is_onboarded` is a cache, not a source of truth.** The truth is "the server-side `UserProfile` for this account has Name + TargetLanguage + NativeLanguage populated." The local Preferences key stays for fast checks but is only ever *set* as a consequence of observing that server state (directly via the `AutoSignIn` cookie endpoint, or indirectly via the synced local `UserProfile` after initial sync completes). It must never be the primary gate that decides "show onboarding."
+
+2. **Post-login routing waits on `ISyncService.IsInitialSyncInProgress`.** `LoginPage` always sends users to `/` after authentication. `MainLayout` is the single place that decides "sync overlay vs. onboarding vs. dashboard," and it consults the sync flag before making that call.
+
+3. **`IdentityAuthService` flips `IsInitialSyncInProgress = true` synchronously before kicking off the post-login sync `Task.Run`,** so the UI sees the in-progress flag the moment it renders. The sync itself stays fire-and-forget; only the flag transition becomes ordered.
+
+#### Consequences
+
+- Native and webapp converge on the same behavior: server profile state drives onboarding decisions; local cache only optimizes.
+- `MainLayout`'s existing "look up local UserProfile if `is_onboarded` is false" fallback (lines 119–130) becomes meaningful on fresh installs because it now runs *after* sync.
+- Genuinely new accounts (no server profile) still hit `/onboarding` because the sync completes with an empty local profile, and the fallback check fails as it does today.
+
+---
+
+### 2026-05-02T17:38:49Z: First-Sync Routing Fix — Test Infrastructure & Findings
+
+**By:** Tester  
+**Scope:** Test plan for first-sync routing fix + process findings  
+**Status:** Informational / process improvement  
+
+#### Key Findings
+
+1. **Razor component tests are not currently runnable in this solution.**
+   - `tests/SentenceStudio.UnitTests/SentenceStudio.UnitTests.csproj` references only `SentenceStudio.Shared`; does not include `SentenceStudio.UI`
+   - **bUnit is not in `Directory.Packages.props`.** No `.razor` file in the repo has ever been unit-tested.
+   - Implication: LoginPage.razor, Index.razor, MainLayout.razor logic is effectively untestable at the unit level.
+   - **Recommended pattern:** Extract non-trivial branching logic into services in `SentenceStudio.Shared` (or `SentenceStudio.AppLib` if MAUI-only). Razor file becomes a thin orchestrator. This matches the pattern already used by `VocabularyProgressService`, `ContentImportService`, etc.
+
+2. **Tester agent infrastructure missing.**
+   - `.squad/agents/tester/charter.md` and `.squad/agents/tester/history.md` do not exist.
+   - Recommendation: Coordinator scaffold `.squad/agents/tester/` matching existing agent pattern.
+
+3. **Test path correction for future task prompts.**
+   - Earlier reference was `tests/SentenceStudio.Tests/`; correct path is `tests/SentenceStudio.UnitTests/`.
+
+4. **Regression test convention worth codifying.**
+   - Files that fix a recurring bug carry a top-of-file comment block explaining why (see `VocabularyProgressServiceUserIdTests.cs`).
+   - Recommendation: promote from implicit to documented in CONTRIBUTING.
+
+5. **Sandbox-wipe procedure not yet in e2e-testing skill.**
+   - Fresh Mac Catalyst install procedure (§2.2 of test plan) should be lifted into `references/fresh-install.md` after first-sync fix ships and manual test passes.
+   - Must include data-preservation backup step — wiping `sstudio.db3` is destructive.
+
+#### Test Plan Scope
+
+- Unit tests (7 test methods for `IPostLoginRouter` service covering all routing paths)
+- Integration/smoke manual wipe-and-test (Mac Catalyst, 5 UX steps with screenshots)
+- Negative path test (brand-new account flow)
+- Coverage matrix showing which test catches which regression
+
+---
+
+### 2026-05-02T17:38:49Z: First-Sync Routing Implementation — PR #188
+
+**By:** Kaylee (Implementer)  
+**Scope:** PR #188 `fix/firstsync-routing-overlay` — implementation of first-sync routing fix  
+**Status:** Code review in flight  
+
+#### Implementation Summary
+
+**New files (3):**
+- `src/SentenceStudio.Shared/Services/PostLoginRouter.cs` — routing decision service (extracted from LoginPage)
+- `tests/SentenceStudio.UnitTests/Services/PostLoginRouterTests.cs` — 9 comprehensive unit tests (with regression comment block)
+- `src/SentenceStudio.UI/Components/SyncOverlay.razor` — reusable sync-in-progress overlay component
+
+**Modified files (7):**
+- `LoginPage.razor` — simplified to call `IPostLoginRouter.ResolveAsync`, removed inline routing logic
+- `Index.razor` — `CheckNewUserAsync` now checks `ISyncService.IsInitialSyncInProgress` before returning "new user" flag
+- `MainLayout.razor` — single routing gate; consults sync flag and post-login router
+- `SyncService.cs` — added `IsInitialSyncInProgress` property, event `InitialSyncCompleted`
+- `IdentityAuthService.cs` — flips `IsInitialSyncInProgress = true` synchronously before kicking off post-login sync
+- `MauiProgram.cs` — registered `IPostLoginRouter` in DI container
+- `IPreferencesService.cs` — added abstraction for testability (mocks MAUI Preferences API)
+
+**Test coverage:** 9 new tests covering all routing paths (existing account, new account, in-progress sync, error handling, edge cases). Build status: 509 tests passing, no warnings, no regressions.
+
+---
+
 ### 2026-04-29T21:00Z: net11p3 Razor SG Regression — Root Cause Identified, Filed Upstream, Workaround Applied
 
 **By:** Scribe (logging team correction cycle)
@@ -2520,4 +2606,72 @@ Earlier 2026-04-29 decision pinning net10 + ValidateXcodeVersion=false. That rec
 
 - `docs/deploy-runbook.md` Step 2a — UPDATE to document net11p3 swap (not ValidateXcodeVersion=false)
 - ImportContent.razor workaround (commit 2359da8) — recheck on each upstream release
+
+---
+
+## 2026-05-02: AppHost Multi-Worktree Isolation (Diagnosed)
+
+**By:** Troubleshooter  
+**Status:** RESOLVED — Empty-users startup banner + health check shipped 2026-05-02 (Wash). See `.squad/decisions/inbox/wash-empty-users-startup-banner.md`.  
+**Date:** 2026-05-02T13:05:00Z
+
+### Problem
+
+When Aspire AppHost runs from a different worktree (e.g., `davidortinau-jubilant-lamp`), it provisions its own fresh postgres volume. Login fails because the running AppHost's DB is empty (no users); Captain's account lives in a *different* orphaned postgres volume.
+
+### Root Cause
+
+Each worktree → separate Aspire AppHost → separate postgres volume. No cross-volume persistence.
+
+### Evidence
+
+- Running AppHost in `/Users/davidortinau/work/copilot-worktrees/SentenceStudio/davidortinau-jubilant-lamp` wired to empty DB
+- Captain's account in orphaned `db-84833ad0` (volume `sentencestudio.apphost-84833ad037-db-data`)
+- Login returns 401 (user not found, not email-confirmation issue)
+
+### Recommended Fix
+
+**Option A (non-destructive):** Stop worktree AppHost, launch from main checkout (`/Users/davidortinau/work/SentenceStudio`). Reattaches to the correct volume.
+
+```bash
+cd /Users/davidortinau/work/SentenceStudio
+dotnet run --project src/SentenceStudio.AppHost/SentenceStudio.AppHost.csproj
+```
+
+**Option B:** Register fresh user in worktree's running API (dev-mode auto-confirms email). No DB mutation.
+
+### Follow-up
+
+Add startup banner / dashboard warning when AppHost detects empty `AspNetUsers` table in non-test environment.
+
+---
+
+## 2026-05-02: Mac Catalyst Symlink Recurrence—Decision Needed
+
+**By:** Coordinator  
+**Status:** RESOLVED — Permanent MSBuild post-build target shipped 2026-05-02 (Zoe). Captain approved Option A. See `.squad/decisions/inbox/zoe-maccatalyst-symlink-permanent.md`.  
+**Date:** 2026-05-02T14:48:00Z
+
+### Problem
+
+Aspire.Hosting.Maui 13.3.0-preview bundle naming incompatibility:
+- Expected: `SentenceStudio.MacCatalyst.app`
+- Actual: `SentenceStudio.app` (from `<ApplicationTitle>` property)
+
+Manual workaround:
+```bash
+ln -sfn SentenceStudio.app SentenceStudio.MacCatalyst.app
+```
+
+Recurs after `dotnet clean` or fresh checkout.
+
+### Options
+
+1. **Permanent post-build target** — Add MSBuild to auto-create symlink
+2. **Manual workaround + runbook** — Document command in setup guide
+3. **Monitor Aspire.Hosting.Maui** — Await fix in future versions
+
+### Decision Needed
+
+Captain: Implement permanent target now, or accept manual workaround?
 

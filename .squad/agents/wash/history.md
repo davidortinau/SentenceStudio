@@ -271,3 +271,36 @@ Refactor each switch arm to delegate to a separate named `RenderFragment` helper
 
 **Key Learning:**
 When applying workarounds to upstream issues, always include a comment referencing the upstream URL + "recheck on each upstream release" reminder. This creates a natural trigger for cleanup when the upstream fix ships.
+
+
+## 2026-05-02 — Empty-Users Startup Banner + Health Check
+
+**Shipped:** Captain-approved banner approach for the multi-worktree Postgres-volume footgun.
+
+**What was added:**
+- `src/SentenceStudio.Api/Diagnostics/EmptyUsersHealthCheck.cs` — `IHealthCheck` that returns `Degraded` (not `Unhealthy` — never kill the API for a diagnostic) when `AspNetUsers.Count() == 0` on a Postgres-backed `ApplicationDbContext`. Result cached for 30 s via static lock + `DateTime` field so dashboard polling doesn't hammer the DB.
+- `EmptyUsersDetector` (same file) — shared helpers (`IsPostgres`, `DescribeConnection`, `TryReadVolumeHashHint`, `BuildMessage`) so the runtime check and the startup banner stay byte-for-byte aligned.
+- `Program.cs` startup block (after migrations, before `app.Run()`): runs once in a request-scope, skips `IsEnvironment("Testing")`, skips when EF resolved a non-Npgsql provider, and `LogCritical`s the banner when `Users.CountAsync() == 0`. Logs an `Information` line when populated so the negative-case footprint is grep-able.
+- Registered `AddHealthChecks().AddCheck<EmptyUsersHealthCheck>("aspnet-users-populated", failureStatus: Degraded, tags: ["db","users","diagnostics"])` and mapped `/health` (Development only — production health goes through App Insights / OTEL, no need to leak diagnostic detail publicly).
+
+**Why startup-only + health-check (instead of either-or):**
+- Startup banner guarantees a single, unmissable scream the moment the API binds to the wrong volume — the failure mode that confused Captain today.
+- Health check is the *recurring* signal: if a developer attaches to the API mid-session, or if the dashboard is the first place they look, the Degraded state is visible without re-reading old console logs.
+- Both share the same message via `EmptyUsersDetector.BuildMessage` so Captain never has to reconcile two different formats.
+
+**Why Degraded, not Unhealthy:**
+Captain's brief was explicit: WARNING, not action. `Unhealthy` cascades through `IHostApplicationLifetime` consumers and Aspire orchestration; `Degraded` paints the dashboard amber and surfaces in `/health` JSON without taking the API offline. Empty users is a config issue, not a service-down condition.
+
+**Why caching the health check:**
+Dashboard polls `/health` aggressively (every few seconds). Without the 30 s cache, every poll fires `SELECT COUNT(*) FROM AspNetUsers` against Postgres. Static lock + `DateTime` is the simplest correct primitive — no `IMemoryCache` registration needed (none exists in the API today).
+
+**Validation:**
+- `dotnet build src/SentenceStudio.Api/SentenceStudio.Api.csproj` — clean (only pre-existing warnings).
+- Triggered Aspire `rebuild` on `api-fdhckgbm`. After restart, structured logs showed `AspNetUsers populated at startup: 6 user(s) on tcp://localhost:51185 db=sentencestudio.` from `SentenceStudio.Api.Diagnostics.EmptyUsersStartupCheck` — confirms the negative case (Captain's real volume, no banner emitted).
+- `curl -k https://localhost:7012/health` → `Healthy` HTTP 200. The new check is live.
+- Did NOT smoke-test the empty path against live data (would require deleting users — strictly forbidden). The empty path is exercised by the same code path as the Information log, so behavior parity is guaranteed by construction. If Captain wants a live empty-test, spin up a fresh worktree's AppHost.
+
+**Learnings:**
+- `Aspire.Npgsql.EntityFrameworkCore.PostgreSQL` doesn't auto-map `/health`; the API's `ServiceDefaults` is intentionally MAUI-safe and skips `MapDefaultEndpoints`. Adding `app.MapHealthChecks("/health")` is the minimal incantation needed to surface health checks in the Aspire dashboard. Don't assume `MapDefaultEndpoints` exists on every Aspire app — check `ServiceDefaults/Extensions.cs` before relying on it.
+- `db.Database.GetDbConnection().DataSource` returns the `host:port` for Npgsql connections — handy for diagnostics without parsing the raw connection string and risking a credential leak.
+- Aspire's resource name (e.g. `db-84833ad0`) carries the AppHost path hash. Captain's main worktree currently binds `db-84833ad0`; a fresh worktree would bind a different suffix. The startup banner can't read the AppHost-side resource name directly, but `ASPIRE_RESOURCE_NAME` / `OTEL_SERVICE_INSTANCE_ID` env vars (when populated) carry enough signal — `EmptyUsersDetector.TryReadVolumeHashHint` surfaces whichever is set.

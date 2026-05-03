@@ -24,6 +24,7 @@ using SentenceStudio;
 using SentenceStudio.Abstractions;
 using SentenceStudio.Api;
 using SentenceStudio.Api.Auth;
+using SentenceStudio.Api.Diagnostics;
 using SentenceStudio.Api.Platform;
 using SentenceStudio.Contracts.Ai;
 using SentenceStudio.Contracts.Auth;
@@ -216,6 +217,16 @@ builder.AddNpgsqlDbContext<ApplicationDbContext>("sentencestudio", configureDbCo
         w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
 });
 
+// Multi-worktree footgun: if the API binds to a fresh Postgres volume (different worktree
+// or freshly-provisioned Aspire environment), AspNetUsers will be empty and login will return
+// 401 with no obvious cause. Surface this loudly via a Degraded health check on the dashboard.
+// The startup banner (logged after Build()) is the louder companion. Read-only by design.
+builder.Services.AddHealthChecks()
+    .AddCheck<EmptyUsersHealthCheck>(
+        name: "aspnet-users-populated",
+        failureStatus: Microsoft.Extensions.Diagnostics.HealthChecks.HealthStatus.Degraded,
+        tags: new[] { "db", "users", "diagnostics" });
+
 // CoreSync server — allows mobile clients to sync through the API endpoint
 // (mobile devices can't reach the separate 'web' service directly)
 builder.Services.AddCoreSyncHttpServer();
@@ -292,6 +303,50 @@ if (!skipDatabaseInitialization)
     await syncProvider.ApplyProvisionAsync();
 }
 
+// Startup detection: warn loudly if AspNetUsers is empty. Catches the multi-worktree
+// case where Aspire spun up a fresh Postgres volume separate from the one holding real
+// user data. Read-only — SELECT COUNT(*) only, never mutates.
+if (!app.Environment.IsEnvironment("Testing"))
+{
+    using var scope = app.Services.CreateScope();
+    var startupLogger = scope.ServiceProvider
+        .GetRequiredService<ILoggerFactory>()
+        .CreateLogger("SentenceStudio.Api.Diagnostics.EmptyUsersStartupCheck");
+    try
+    {
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        if (EmptyUsersDetector.IsPostgres(db))
+        {
+            var userCount = await db.Users.CountAsync();
+            if (userCount == 0)
+            {
+                var connectionInfo = EmptyUsersDetector.DescribeConnection(db);
+                var banner = EmptyUsersDetector.BuildMessage(connectionInfo);
+                startupLogger.LogCritical("{EmptyUsersBanner}", banner);
+            }
+            else
+            {
+                startupLogger.LogInformation(
+                    "AspNetUsers populated at startup: {UserCount} user(s) on {Connection}.",
+                    userCount,
+                    EmptyUsersDetector.DescribeConnection(db));
+            }
+        }
+        else
+        {
+            startupLogger.LogDebug(
+                "Skipping empty-users startup check; provider is {Provider} (not Postgres).",
+                db.Database.ProviderName);
+        }
+    }
+    catch (Exception ex)
+    {
+        // Don't let a diagnostic check abort startup — the API still needs to come up so
+        // the existing DbContext health check can surface the underlying connectivity error.
+        startupLogger.LogWarning(ex, "Empty-users startup check failed; continuing.");
+    }
+}
+
 // Global unhandled-exception handler — MUST be the first middleware in the pipeline so it
 // catches exceptions from auth, CORS, CoreSync, and endpoint code alike. ASP.NET Core OTel
 // instrumentation tags exceptions on the request span but does NOT emit them as `exceptions`
@@ -344,6 +399,18 @@ app.UseCors(app.Environment.IsDevelopment() ? "AllowDevClients" : "AllowWebApp")
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseMiddleware<TenantContextMiddleware>();
+
+// Health endpoints — exposed in Development so the Aspire dashboard can render check
+// status (including aspnet-users-populated). Skipped in Production to avoid leaking
+// internal diagnostics; production health is observed via App Insights / OTEL instead.
+if (app.Environment.IsDevelopment())
+{
+    app.MapHealthChecks("/health");
+    app.MapHealthChecks("/alive", new Microsoft.AspNetCore.Diagnostics.HealthChecks.HealthCheckOptions
+    {
+        Predicate = static r => r.Tags.Contains("live")
+    });
+}
 app.UseCoreSyncHttpServer(optionsConfigure: options =>
 {
     // CoreSync syncs per-user data, so its endpoints must enforce the same auth pipeline as the rest of the API.

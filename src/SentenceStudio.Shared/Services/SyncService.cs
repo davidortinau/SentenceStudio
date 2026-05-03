@@ -12,6 +12,14 @@ public interface ISyncService
     Task TriggerSyncAsync();
     bool IsInitialSyncInProgress { get; }
     event Action? InitialSyncCompleted;
+
+    /// <summary>
+    /// Synchronously marks an initial sync as in progress so consumers (e.g. MainLayout,
+    /// Index dashboard) can render the sync overlay before <see cref="TriggerSyncAsync"/>
+    /// has actually started running on a background task. Cleared by TriggerSyncAsync
+    /// on completion or failure.
+    /// </summary>
+    void BeginInitialSync();
 }
 
 public class NoOpSyncService : ISyncService
@@ -20,6 +28,7 @@ public class NoOpSyncService : ISyncService
     public Task TriggerSyncAsync() => Task.CompletedTask;
     public bool IsInitialSyncInProgress => false;
     public event Action? InitialSyncCompleted;
+    public void BeginInitialSync() { /* intentionally empty — no sync occurs in webapp */ }
 }
 
 public class SyncService : ISyncService
@@ -33,6 +42,12 @@ public class SyncService : ISyncService
     
     public bool IsInitialSyncInProgress { get; private set; }
     public event Action? InitialSyncCompleted;
+
+    public void BeginInitialSync()
+    {
+        IsInitialSyncInProgress = true;
+        _logger.LogInformation("BeginInitialSync: marking initial sync in progress");
+    }
 
     public SyncService(
         ISyncProvider localSyncProvider,

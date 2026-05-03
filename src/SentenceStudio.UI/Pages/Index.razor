@@ -586,12 +586,34 @@ else
     protected override async Task OnInitializedAsync()
     {
         Localize.CultureChanged += OnCultureChanged;
+
+        // If an initial sync is in flight (e.g. just logged in and SyncService.BeginInitialSync
+        // was called by IdentityAuthService), don't run the new-user check yet — local DB rows
+        // are about to land. Subscribe to InitialSyncCompleted and re-evaluate when the wave
+        // settles. Without this guard, the dashboard flashes the "new user / starter pack" UI
+        // for returning accounts during the sync window. (issue #187)
+        if (SyncService is not null && SyncService.IsInitialSyncInProgress)
+        {
+            Logger.LogInformation("Index: deferring dashboard load until initial sync completes");
+            isLoading = true;
+            SyncService.InitialSyncCompleted += OnInitialSyncCompleted;
+            return;
+        }
+
+        await LoadDashboardAsync();
+    }
+
+    private async Task LoadDashboardAsync()
+    {
         await CheckNewUserAsync();
 
         // If authenticated but no local data, sync from server first.
-        // This handles the common case where the user just logged in but the
-        // initial startup sync failed (no JWT at that point).
-        if (isNewUser && SyncService != null)
+        // This handles the cold-cache case where login already happened previously and
+        // the initial sync was never triggered. We only run this fallback when no sync
+        // is currently in flight — IdentityAuthService now flips IsInitialSyncInProgress
+        // synchronously before the post-login Task.Run, so the OnInitializedAsync defer
+        // path above covers the fresh-login race. (issue #187)
+        if (isNewUser && SyncService != null && !SyncService.IsInitialSyncInProgress)
         {
             try
             {
@@ -605,6 +627,8 @@ else
             }
         }
 
+        isLoading = false;
+
         if (isNewUser) return;
 
         var savedMode = Preferences.Get(PREF_DASHBOARD_MODE, "TodaysPlan");
@@ -614,6 +638,34 @@ else
 
         if (isTodaysPlanMode)
             await LoadPlanAsync();
+    }
+
+    private void OnInitialSyncCompleted()
+    {
+        if (SyncService is not null)
+        {
+            SyncService.InitialSyncCompleted -= OnInitialSyncCompleted;
+        }
+
+        _ = InvokeAsync(async () =>
+        {
+            await LoadDashboardAsync();
+            StateHasChanged();
+
+            // First-load race fix (issue #187 follow-up): when OnInitializedAsync defers
+            // dashboard load until initial sync completes, OnAfterRenderAsync(firstRender:true)
+            // has already run with the default isTodaysPlanMode == true and skipped Tom Select
+            // initialization. Now that mode has been resolved from preferences, if the user
+            // is in Choose-My-Own mode we need to initialize the selectors ourselves —
+            // otherwise the resource/skill dropdowns render empty until the user navigates
+            // away and back. Wait a beat for the just-rendered <select> elements to land in
+            // the DOM before handing off to JS interop.
+            if (!isTodaysPlanMode && jsModule is not null)
+            {
+                await Task.Delay(50);
+                await InitChooseOwnSelectorsAsync();
+            }
+        });
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -1131,6 +1183,10 @@ else
     public async ValueTask DisposeAsync()
     {
         Localize.CultureChanged -= OnCultureChanged;
+        if (SyncService is not null)
+        {
+            SyncService.InitialSyncCompleted -= OnInitialSyncCompleted;
+        }
         if (jsModule is not null)
         {
             try

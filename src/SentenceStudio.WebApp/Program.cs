@@ -114,6 +114,9 @@ builder.Services.AddSingleton(WebAudioManagerProxy.Create());
 // No-op sync service — server doesn't sync to itself, but Blazor [Inject] requires registration
 builder.Services.AddSingleton<SentenceStudio.Services.ISyncService>(
     new SentenceStudio.Services.NoOpSyncService());
+// Post-login routing decision (issue #187). Webapp also needs the router because
+// MainLayout consults it on every authenticated render.
+builder.Services.AddSingleton<SentenceStudio.Services.IPostLoginRouter, SentenceStudio.Services.PostLoginRouter>();
 
 var apiBaseUrl = builder.Configuration.GetValue<string>("ApiBaseUrl") ?? "https+http://api";
 // Server-side IAuthService using Identity directly (UserManager + SignInManager)

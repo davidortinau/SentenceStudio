@@ -27,6 +27,24 @@
 
 ## Recent Work
 
+### First-Sync Routing Fix Implementation (2026-05-02)
+
+**Scope:** Fixed LoginPage routing to wait on initial sync before deciding onboarding vs. dashboard (PR #188 `fix/firstsync-routing-overlay`).
+
+**Problem:** On fresh Mac Catalyst installs, signing into an existing account routed to `/onboarding` because `is_onboarded` Preferences flag was false. The flag is a device cache, not source of truth; server-side profile state is the real authority. Fix required extracting routing logic into a testable service + adding sync-aware state transitions.
+
+**Implementation:**
+- **New files:** `PostLoginRouter` service (routing decision logic), `PostLoginRouterTests` (9 unit tests with regression comment blocks), `SyncOverlay` component (reusable sync-in-progress spinner)
+- **Modified files:** LoginPage (simplified to call PostLoginRouter), Index (added sync-aware new-user check), MainLayout (single routing gate), SyncService (added IsInitialSyncInProgress flag + InitialSyncCompleted event), IdentityAuthService (synchronously flips flag before Task.Run), MauiProgram (DI registration), IPreferencesService (test abstraction)
+- **Test coverage:** 7 routing paths (existing account, new account, in-progress sync, error handling, edge cases, stuck-overlay prevention)
+- **Build:** 509 tests passing, no warnings, no regressions
+
+**Decision:** `.squad/decisions.md` — "Post-Login Routing Must Wait on Initial Sync" + "First-Sync Routing Implementation"
+
+**Status:** Code review in flight; awaiting approval before merge.
+
+---
+
 ### Import Complete Theme Alignment (2026-04-29)
 
 **Scope:** Shipped dark theme + WCAG contrast alignment for Import Complete view.
@@ -241,3 +259,42 @@ private static (string CssClass, string IconClass, string Label) GetTypeBadgeMet
 - When refactoring to work around upstream issues, include a comment referencing the upstream URL
 - "Recheck on each upstream release" reminder creates a natural cleanup trigger when the issue is fixed
 - Defense-in-depth pattern (UI + server guard) is essential for production-critical contracts like "smart resources are read-only"
+
+## 2026-05-02 — Blazor Hybrid FirstRender JS-Init Pattern (Reusable Pattern)
+
+**Documented by:** Troubleshooter; pattern via Kaylee history  
+**Issue:** Dashboard doesn't show Skill Profile / vocab stats on cold post-login start
+
+**Pattern:**
+When JS interop code (e.g., Tom Select initialization) is gated on `OnAfterRenderAsync(firstRender:true)` AND that component has a conditional mode flag (like `isTodaysPlanMode`), **deferred/async mode changes can skip the firstRender gate entirely**. On cold start with `SyncService.IsInitialSyncInProgress==true`, the mode might remain at default (true) during first render, causing the JS init gate to fire when unwanted. When sync completes and the mode flips, the second render has `firstRender:false`, so JS init never runs.
+
+**Solution (Index.razor pattern):**
+After mode-changing operations in lifecycle methods (e.g., `OnInitialSyncCompleted` after `LoadDashboardAsync()`), explicitly re-trigger JS init if conditions now allow it:
+
+```csharp
+private async Task OnInitialSyncCompleted()
+{
+    await LoadDashboardAsync();
+    StateHasChanged();
+    
+    // Re-init JS if mode flip now allows it
+    if (displayMode == DashboardDisplayMode.ChooseOwn && jsModule != null)
+    {
+        await Task.Delay(50); // Allow DOM to settle
+        await InitChooseOwnSelectorsAsync();
+    }
+}
+```
+
+**Why this works:**
+- Decouples firstRender gate from mode-dependent initialization
+- Explicit re-trigger guarantees init runs when conditions are met, regardless of render sequence
+- 50ms delay gives the browser time to populate the DOM with new elements
+- Reusable for any Blazor Hybrid component with conditional JS-init logic
+
+**Applied in:**
+- `src/SentenceStudio.UI/Pages/Index.razor` — Tom Select dropdowns, post-sync re-init
+- Skill: `.squad/skills/blazor-hybrid-firstrender-jsinit/SKILL.md`
+
+**For future Blazor work:**
+If you encounter "my JS component initialized on nav-back but not on first-load," check for async mode flags + firstRender gates. This pattern resolves it.

@@ -123,8 +123,13 @@
                     Preferences.Set("remember_email", email.Trim());
                 }
 
-                // Determine where to send the user — onboarding if not yet completed
-                var returnUrl = Preferences.Get("is_onboarded", false) ? "/" : "/onboarding";
+                // Always route to "/" — MainLayout consults IPostLoginRouter to decide
+                // whether to keep the user on the dashboard, defer for in-flight initial
+                // sync, or redirect to /onboarding. Centralising the decision there means
+                // a fresh-install-with-server-data login no longer short-circuits to
+                // /onboarding just because the local "is_onboarded" preference is unset.
+                // (issue #187)
+                var returnUrl = "/";
 
                 // If the token contains a userId|token pair, redirect to HTTP sign-in endpoint
                 // (Blazor Server can't set cookies over WebSocket)
