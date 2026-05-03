@@ -47,6 +47,17 @@ activities.Add(new PlannedActivity
 });
 ```
 
+**Example (Cloze, line 505):**
+```csharp
+activities.Add(new PlannedActivity
+{
+    ActivityType = outputActivity,
+    ResourceId = outputActivity == "Cloze" ? null : resource.Id,  // Cloze is vocabulary-driven when from plan
+    SkillId = skill?.Id,
+    // ...
+});
+```
+
 ### Layer 2: PlanConverter.cs
 
 Add activity-specific handling in `BuildRouteParameters` to:
@@ -76,6 +87,18 @@ else if (activityType == PlanActivityType.VocabularyGame)
 }
 ```
 
+**Example (Cloze, lines 140-147):**
+```csharp
+else if (activityType == PlanActivityType.Cloze)
+{
+    parameters["DueOnly"] = true;
+    // Cloze is vocabulary-driven when launched from plan, NOT resource-driven
+    // ResourceId is intentionally NOT passed to allow loading from full user vocab pool
+    if (!string.IsNullOrEmpty(skillId))
+        parameters["SkillId"] = skillId;
+}
+```
+
 ### Layer 3: Index.razor LaunchPlanItem Guard
 
 Prevent **persisted old plan items** from leaking ResourceId into the URL. This is defense-in-depth for plans generated before Layer 1 fix.
@@ -84,11 +107,12 @@ Prevent **persisted old plan items** from leaking ResourceId into the URL. This 
 
 **Pattern:**
 ```csharp
-// CRITICAL: For vocabulary-driven activities (VocabularyReview, VocabularyGame),
+// CRITICAL: For vocabulary-driven activities (VocabularyReview, VocabularyGame, Cloze),
 // NEVER pass ResourceId (even if persisted on the plan item)
 // These activities are vocabulary-driven, NOT resource-driven
 if (item.ActivityType != PlanActivityType.VocabularyReview 
     && item.ActivityType != PlanActivityType.VocabularyGame 
+    && item.ActivityType != PlanActivityType.Cloze 
     && !string.IsNullOrEmpty(item.ResourceId))
 {
     if (multiResourceRoutes.Contains(route))
@@ -118,6 +142,43 @@ var resourceIds = DueOnly ? Array.Empty<string>() : ParseResourceIds();
 var resourceIds = DueOnly ? Array.Empty<string>() : ParseResourceIds();
 ```
 
+**Example (Cloze.razor + ClozureService):**
+```csharp
+// In Cloze.razor LoadSentences method:
+private async Task LoadSentences()
+{
+    // DEFENSE IN DEPTH: When DueOnly=true (plan-initiated SRS mode), ignore ResourceId
+    // and load from full user vocabulary pool, same pattern as VocabQuiz
+    var resourceId = DueOnly ? "" : (ResourceIdParam ?? "");
+    var skillId = SkillIdParam ?? "";
+    var result = await ClozureSvc.GetSentences(resourceId, 8, skillId, DueOnly);
+    // ...
+}
+
+// In ClozureService.cs:
+public async Task<List<Challenge>> GetSentences(string resourceID, int numberOfSentences, string skillID, bool dueOnly = false)
+{
+    // DEFENSE IN DEPTH: When dueOnly=true (plan-initiated), ignore resourceID and load from full vocab pool
+    if (dueOnly || string.IsNullOrEmpty(resourceID))
+    {
+        return await GetSentencesFromDueWords(numberOfSentences, skillID);
+    }
+    // ... existing resource-driven path
+}
+
+private async Task<List<Challenge>> GetSentencesFromDueWords(int numberOfSentences, string skillID)
+{
+    // Load all user vocabulary (same pattern as VocabQuiz)
+    var allWords = await _resourceRepository.GetAllVocabularyWordsWithResourcesAsync();
+    // Filter to due words using SRS logic
+    var dueWords = allWords.Where(w => {
+        // Grace period exclusion, NextReviewDate checks, unseen word handling
+    }).ToList();
+    // Generate sentences from due vocab pool
+    return await GenerateSentencesFromWords(dueWords, numberOfSentences, skillID, targetLanguage);
+}
+```
+
 **Required page changes:**
 1. Add query parameter: `[SupplyParameterFromQuery(Name = "DueOnly")] public bool DueOnly { get; set; }`
 2. Check DueOnly flag in load method
@@ -139,6 +200,7 @@ After applying all 4 layers:
 
 - VocabQuiz decoupling: commits 88a0272 (builder+converter), c081a63 (Index guard + page defense)
 - VocabMatching decoupling: commit 0c8e197 (all 4 layers)
+- Cloze decoupling: commit b3a2937 (all 4 layers, PR #201)
 - Decisions log: `.squad/decisions.md` lines 7-16
 - Memory: "DailyPlan items persisted in DB retain their original ResourceId field. UI code that reads item.ResourceId directly (e.g., Index.razor LaunchPlanItem) bypasses PlanConverter and can leak stale resource filters."
 
