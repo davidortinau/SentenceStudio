@@ -42,4 +42,41 @@
 		<ProjectReference Include="..\..\lib\Plugin.Maui.HelpKit\src\Plugin.Maui.HelpKit\Plugin.Maui.HelpKit.csproj" />
 		<Compile Include="..\Shared\HelpKitIntegration.cs" Link="Setup\HelpKitIntegration.cs" />
 	</ItemGroup>
+
+	<!--
+	  Aspire.Hosting.Maui 13.3.0-preview bundle-name compatibility shim.
+
+	  The integration computes the launch path as:
+	      bin/$(Configuration)/$(TargetFramework)/<rid>/$(MSBuildProjectName).app
+	  i.e. it expects "SentenceStudio.MacCatalyst.app". The MAUI build produces
+	  "$(ApplicationTitle).app" => "SentenceStudio.app" instead, so Aspire's
+	  `open -a` fails silently (exit code 1, no console logs).
+
+	  This target creates a symlink "SentenceStudio.MacCatalyst.app -> SentenceStudio.app"
+	  next to the real bundle so Aspire can find it. It is idempotent (`ln -sfn`),
+	  TFM-gated, and skipped when the names happen to match or when the source
+	  bundle hasn't been produced yet (e.g. partial / failed build).
+
+	  TODO: Remove this target once Aspire.Hosting.Maui exposes a bundle-name
+	  override API (track upstream — currently no such API as of 13.3.0-preview).
+	-->
+	<Target Name="_CreateAspireBundleNameSymlink"
+	        AfterTargets="Build"
+	        Condition="'$(TargetFramework)' == 'net10.0-maccatalyst' And '$(_AppBundleName)' != '' And '$(_AppBundleName)' != '$(MSBuildProjectName)'">
+		<PropertyGroup>
+			<!-- $(OutputPath) already includes the RID for MacCatalyst app builds. -->
+			<_AspireBundleDir>$(OutputPath)</_AspireBundleDir>
+			<_AspireBundleSourceApp>$(_AspireBundleDir)$(_AppBundleName).app</_AspireBundleSourceApp>
+			<_AspireBundleAliasApp>$(_AspireBundleDir)$(MSBuildProjectName).app</_AspireBundleAliasApp>
+		</PropertyGroup>
+		<Exec
+			Condition="Exists('$(_AspireBundleSourceApp)')"
+			Command="ln -sfn '$(_AppBundleName).app' '$(_AspireBundleAliasApp)'"
+			WorkingDirectory="$(MSBuildProjectDirectory)"
+			ConsoleToMSBuild="true" />
+		<Message
+			Condition="Exists('$(_AspireBundleSourceApp)')"
+			Importance="normal"
+			Text="Aspire bundle-name shim: $(MSBuildProjectName).app -&gt; $(_AppBundleName).app in $(_AspireBundleDir)" />
+	</Target>
 </Project>
