@@ -299,8 +299,8 @@ public class SpacedRepetitionIntegrationTests : IClassFixture<PlanGenerationTest
         var resource = _fixture.SeedResource(vocabWordCount: 1);
         var wordId = _fixture.GetResourceVocabularyWordIds(resource.Id).First();
 
-        // 5 MC + 2 Text → Known
-        for (int i = 0; i < 5; i++)
+        // 8 MC + 2 Text → Known (divisor 12.0 — #191)
+        for (int i = 0; i < 8; i++)
             await _progressService.RecordAttemptAsync(
                 MakeAttempt(wordId, wasCorrect: true, inputMode: "MultipleChoice"));
         for (int i = 0; i < 2; i++)

@@ -304,3 +304,42 @@ Dashboard polls `/health` aggressively (every few seconds). Without the 30 s cac
 - `Aspire.Npgsql.EntityFrameworkCore.PostgreSQL` doesn't auto-map `/health`; the API's `ServiceDefaults` is intentionally MAUI-safe and skips `MapDefaultEndpoints`. Adding `app.MapHealthChecks("/health")` is the minimal incantation needed to surface health checks in the Aspire dashboard. Don't assume `MapDefaultEndpoints` exists on every Aspire app — check `ServiceDefaults/Extensions.cs` before relying on it.
 - `db.Database.GetDbConnection().DataSource` returns the `host:port` for Npgsql connections — handy for diagnostics without parsing the raw connection string and risking a credential leak.
 - Aspire's resource name (e.g. `db-84833ad0`) carries the AppHost path hash. Captain's main worktree currently binds `db-84833ad0`; a fresh worktree would bind a different suffix. The startup banner can't read the AppHost-side resource name directly, but `ASPIRE_RESOURCE_NAME` / `OTEL_SERVICE_INSTANCE_ID` env vars (when populated) carry enough signal — `EmptyUsersDetector.TryReadVolumeHashHint` surfaces whichever is set.
+
+## Stream B Step 2 — Vocab Quiz Scoring Proposal (#191)
+
+**Date:** 2025-01 (this turn)
+**Mode:** Investigation + proposal only. No production code touched.
+**Output:** `.squad/decisions/inbox/wash-vocab-quiz-scoring-proposal-191.md` (gitignored — Captain review)
+
+### What I investigated
+- `VocabularyQuizItem.ReadyToRotateOut` (lines 33–55). Tier 2 trigger is `OR` (`mastery>=0.5 OR streak>=3`) and the floor is just `SessC>=2 AND ST>=1`. This is the leak.
+- Per-turn mastery delta. **Important correction:** the writer is `VocabularyProgressService.RecordAttemptAsync` at `src/SentenceStudio.Shared/Services/VocabularyProgressService.cs:119-180`, NOT `ProgressService.cs` (that file only handles aggregate dashboard math). Constants live at lines 18-28; `EFFECTIVE_STREAK_DIVISOR = 7.0f`. The correct path is just `streak += weight; if production: prodInStreak++; mastery = max(eff/divisor, mastery) + recoveryBoost`.
+- Mode rule from `VocabQuiz.razor` `ChooseInteractionMode`: `streak>=3 OR mastery>=0.5 → Text` (mirrored in Jayne's test helper).
+- Confirmed Jayne's "rotation at turn 4" finding via simulator + by-hand math.
+
+### Simulator
+Built `tools/quiz-rotation-sim/sim.py` (~110 lines, stdlib only). Reproduces C# math verbatim. Walks fresh + half-mastered + already-known words for 12 turns under both rules. Captain or anyone can re-run.
+
+### Proposed rule (one rotation change + one delta change)
+- `ReadyToRotateOut` Tier 2: `OR` → `AND`, floor `(2,1)` → `(4,2)`.
+- `EFFECTIVE_STREAK_DIVISOR`: `7.0f` → `12.0f`.
+
+### Headline numbers
+| Scenario | Current | Proposed |
+|---|---|---|
+| Fresh word, all correct | rotates **turn 4** | rotates **turn 5** ✅ passes Jayne's `>=5` |
+| Half-mastered (m=0.5, s=3) | rotates turn 2 | rotates turn 4 |
+| Already-known (m=0.85) | rotates turn 1 | rotates turn 1 (UNCHANGED — no regression) |
+
+### Files I would edit if approved (post-Captain-review)
+- `src/SentenceStudio.Shared/Services/VocabularyProgressService.cs:21` (divisor const)
+- `src/SentenceStudio.Shared/Models/VocabularyQuizItem.cs:33-55` (Tier 2 predicate)
+- ~10 test methods across 4 test files (mechanical expected-value updates)
+
+### Captain's open question I flagged
+Turn 5 vs turn 6. Held proposal at turn 5 because it's the smallest change that passes Jayne. If Captain wants stricter, raise Tier 2 floor to `(5,3)` → turn 6 without touching the divisor.
+
+### Captain confirmed (do not touch)
+- Legacy obsolete field WRITES in ProgressService — leave alone (sync compat).
+- Schema — no change.
+- Wrong-answer path — out of scope for #191.

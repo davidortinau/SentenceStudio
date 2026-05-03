@@ -18,7 +18,13 @@ public class VocabularyProgressService : IVocabularyProgressService
     // NEW: Streak-based scoring constants
     private const float MASTERY_THRESHOLD = 0.85f;                // MasteryScore threshold for "Known"
     private const int MIN_PRODUCTION_FOR_KNOWN = 2;               // Minimum production attempts to be "Known"
-    private const float EFFECTIVE_STREAK_DIVISOR = 7.0f;          // EffectiveStreak / 7.0 = MasteryScore (capped at 1.0)
+    // Issue #191: divisor raised 7.0 → 12.0 so a fresh, all-correct word
+    // doesn't reach mastery 1.0 in 5 turns. With 12.0, an all-correct fresh
+    // word lands at mastery ≈ 0.583 by turn 5 and ≈ 0.917 by turn 7, aligning
+    // mastery growth with the rotation gate in VocabularyQuizItem.ReadyToRotateOut.
+    // See .squad/decisions/inbox/wash-vocab-quiz-scoring-proposal-191.md and
+    // tools/quiz-rotation-sim/sim.py for the simulation that justifies this value.
+    private const float EFFECTIVE_STREAK_DIVISOR = 12.0f;         // EffectiveStreak / 12.0 = MasteryScore (capped at 1.0)
 
     // Phase 0: Scoring engine constants
     private const float WRONG_ANSWER_FLOOR = 0.6f;               // Scaled penalty never softer than this

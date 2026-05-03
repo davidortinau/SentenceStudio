@@ -397,29 +397,53 @@ public class VocabQuizFilteringTests
     }
 
     [Fact]
-    public void Tier2_MidMastery_Rotates_2CorrectWith1Text()
+    public void Tier2_MidMastery_Rotates_4CorrectWith2Text()
     {
+        // #191: Tier 2 trigger now requires mastery>=0.50 AND streak>=3 (was OR),
+        // and floor raised from (SessC>=2, ST>=1) to (SessC>=4, ST>=2).
         var item = MakeQuizItem(new VocabularyProgress
         {
             MasteryScore = 0.55f, CurrentStreak = 4f
         });
-        item.SessionCorrectCount = 2;
-        item.SessionTextCorrect = 1;
+        item.SessionCorrectCount = 4;
+        item.SessionTextCorrect = 2;
 
-        item.ReadyToRotateOut.Should().BeTrue("Tier 2: 2 correct with 1 text");
+        item.ReadyToRotateOut.Should().BeTrue("Tier 2: 4 correct with 2 text (#191)");
     }
 
     [Fact]
-    public void Tier2_MidMastery_NotEnoughTotal()
+    public void Tier2_MidMastery_BlockedByLowSessionCorrect()
     {
+        // #191: under new floor (4 corr, 2 text), a fresh-Tier-2 word with only
+        // 3 corrects and 1 text must NOT rotate out.
         var item = MakeQuizItem(new VocabularyProgress
         {
             MasteryScore = 0.55f, CurrentStreak = 4f
         });
-        item.SessionCorrectCount = 1;
+        item.SessionCorrectCount = 3;
         item.SessionTextCorrect = 1;
 
-        item.ReadyToRotateOut.Should().BeFalse("Tier 2: only 1 correct total, need 2");
+        item.ReadyToRotateOut.Should().BeFalse(
+            "Tier 2: only 3 correct / 1 text, need 4 / 2 (#191)");
+    }
+
+    [Fact]
+    public void Tier2_TriggerRequiresBothMasteryAndStreak()
+    {
+        // #191: a fresh word that has hit streak>=3 but mastery<0.5 falls to
+        // Tier 3 (was Tier 2 under the old OR-trigger). Tier 3 requires the
+        // strict 3 MC + 3 Text demonstration, which is NOT met here.
+        var item = MakeQuizItem(new VocabularyProgress
+        {
+            MasteryScore = 0.30f, CurrentStreak = 4f
+        });
+        item.SessionCorrectCount = 4;
+        item.SessionTextCorrect = 2;
+        item.SessionMCCorrect = 2;
+
+        item.ReadyToRotateOut.Should().BeFalse(
+            "Tier 2 trigger now requires BOTH mastery>=0.5 AND streak>=3 — "
+          + "this word has streak but not mastery, so falls to Tier 3 (#191)");
     }
 
     [Fact]
