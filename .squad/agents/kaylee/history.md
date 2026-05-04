@@ -398,3 +398,52 @@ Squash-merged to `main` (commit `c996299`). Closes #189, #190, #192, #193, #194.
 
 **Skill:** `.squad/skills/single-flight-async/SKILL.md` — reusable pattern for collapsing concurrent async calls
 
+
+## Wave 3a — NumberDrill Blazor Page + Dashboard Insights (2026-05-04)
+
+### Activity Page Pattern Reuse
+Successfully mirrored VocabQuiz.razor pattern for NumberDrill.razor:
+- Three-state machine (Setup → InSession → Summary)
+- PageHeader with back navigation
+- activity-page-wrapper / activity-content structure
+- Scoped CSS for system color chips
+- Minimal JS module for future enhancements
+
+### System Color Chips
+Implemented color coding for number systems matching UX spec:
+```css
+.chip-system-native   { background: #7c3aed; color: white; }  /* purple */
+.chip-system-sino     { background: #0d9488; color: white; }  /* teal */
+.chip-system-mixed    { background: linear-gradient(90deg, #7c3aed, #0d9488); color: white; }
+.chip-system-lexical  { background: #f59e0b; color: black; }  /* amber */
+```
+
+### Dashboard Tile Pattern
+Added Numbers Insights tile following existing Dashboard stat patterns:
+- Mini progress bars per context (Counting, Time, Age)
+- "Due" badge when items need review
+- Empty state with startup banner per Captain's approval
+- Direct /numberdrill navigation link
+
+### Data Model Mismatch (Phase 1 Workaround)
+Found inconsistency: UserProfile.Id is `string` (GUID), but NumberMasteryProgress.UserProfileId expects `int`. 
+**Phase 1 workaround:** Used `userGuid.GetHashCode()` for consistent int ID.
+**Phase 2 TODO:** Fix data model — either make NumberMasteryProgress.UserProfileId a string, or add an integer ID column to UserProfile.
+
+### TTS Placeholder
+NumberDrill Phase 1 shows AudioCue text as placeholder until Wash ships TTS cache service (Wave 3b).
+"Play" button simulates playback delay but doesn't call TTS API yet.
+
+### Where to Get UserProfileId
+For Blazor pages: `AppState?.CurrentUserProfile?.Id` (string GUID)
+Convert to int via `.GetHashCode()` when calling NumberSessionService until data model is unified.
+
+### Bootstrap Icons (NO Emojis)
+All UI iconography uses bi-* classes:
+- bi-clock (Time), bi-cup (Counting), bi-cake (Age), bi-123 (generic)
+- bi-play-fill, bi-volume-up, bi-check-circle-fill, bi-x-circle-fill
+Never inline emoji characters — non-negotiable per Captain's directive.
+
+### Build Verification
+- ✅ `dotnet build src/SentenceStudio.UI/SentenceStudio.UI.csproj` — 0 errors, 85 warnings (pre-existing)
+- ⚠️ E2E smoke test deferred (Aspire not running, Playwright requires running webapp)
