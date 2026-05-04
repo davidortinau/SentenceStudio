@@ -4,65 +4,56 @@
 
 Date: 2026-05-04  
 Tester: Jayne  
-Branch: `squad/numbers-activity-phase-1`  
+Branch: `squad/numbers-activity-phase-1` @ commit `bfe3174`  
 Backend Tests: 52/52 ✅ (Wash confirmed)  
 
 ---
 
 ## Summary
 
-NumberDrill activity page `/numberdrill` **crashes on load** with unhandled Blazor circuit exception. Root cause: **Migration `20260504174821_NumbersActivityPhase1` was not applied to the database**, causing page to fail when querying non-existent `NumberCounter` and `NumberContext` tables.
+NumberDrill activity page `/numberdrill` **crashes on load** with 500 Internal Server Error. Root cause: **Code bug** — `NumberDrill.razor` line 15 passes `SubTitle` parameter to `PageHeader` component, but `PageHeader.razor` does not have a `SubTitle` parameter (only `Title`, `ToolbarActions`, `PrimaryActions`, `SecondaryActions`, `ShowBack`, `OnBack`, `ShowHamburger`).
 
 ---
 
-## Critical Bug: Migration Not Applied
+## Critical Bug: Invalid Parameter in Component
 
 ### Evidence
 
-1. **Page crash on navigation to `/numberdrill`:**
+1. **Page crash on navigation to `/numberdrill` (after Aspire launched with Postgres):**
    ```
-   [ERROR] Error: There was an unhandled exception on the current circuit, so this circuit will be terminated.
+   InvalidOperationException: Object of type 'SentenceStudio.WebUI.Shared.PageHeader' does not have a property matching the name 'SubTitle'.
    ```
+   Full stack: `ComponentProperties.ThrowForUnknownIncomingParameterName` → Blazor circuit crash → HTTP 500
 
-2. **Database state verification:**
-   ```sql
-   sqlite3 "/Users/davidortinau/Library/Application Support/sentencestudio/server/sentencestudio.db"
-   > .tables
-   # No NumberCounter or NumberContext tables found
+2. **Code verification:**
    
-   > SELECT MigrationId FROM __EFMigrationsHistory ORDER BY MigrationId DESC LIMIT 5;
-   20260317205704_AddLanguageToVocabularyWord
-   20260315013232_AddRefreshTokens
-   20260315011600_AddIdentity
-   20260307234624_AddFamiliarStatusAndVerification
-   20260307201226_AddWordAssociationScore
+   **NumberDrill.razor line 15:**
+   ```razor
+   <PageHeader Title="Number Drill" SubTitle="@subtitle" ShowBack="true" OnBack="GoBack" />
+   ```
+   
+   **PageHeader.razor @code block (lines 60-68):**
+   ```csharp
+   [Parameter] public string Title { get; set; } = "";
+   [Parameter] public RenderFragment? ToolbarActions { get; set; }
+   [Parameter] public RenderFragment? PrimaryActions { get; set; }
+   [Parameter] public RenderFragment? SecondaryActions { get; set; }
+   [Parameter] public bool ShowBack { get; set; }
+   [Parameter] public EventCallback OnBack { get; set; }
+   [Parameter] public bool ShowHamburger { get; set; } = true;
+   // NO SubTitle parameter!
    ```
 
-3. **Migration file exists but not applied:**
-   ```bash
-   $ find src -name "*20260504174821*"
-   src/SentenceStudio.Shared/Migrations/Sqlite/20260504174821_NumbersActivityPhase1.cs
-   src/SentenceStudio.Shared/Migrations/20260504174821_NumbersActivityPhase1.cs
-   ```
-
-4. **Database also missing `20260503221947_AddRefreshTokenReplacedBy`** (Wash's April 28 commit)
+3. **First E2E attempt (commit fea46c5) incorrectly diagnosed as migration bug:**
+   - I checked the WRONG database (SQLite at `~/Library/Application Support/sentencestudio/server/sentencestudio.db`)
+   - Captain corrected: Aspire uses **PostgreSQL** via `AddNpgsqlDbContext`
+   - After launching Aspire properly with Postgres, page STILL crashed — different error (this one)
 
 ### Impact
 
-- ❌ NumberDrill page completely non-functional
-- ❌ No NumberContent tables → no seed data → no activity can run
-- ❌ Dashboard Numbers Insights tile renders empty state (which is CORRECT for no data, but users can't START because page crashes)
-
-### Root Cause
-
-The server database file at `~/Library/Application Support/sentencestudio/server/sentencestudio.db` had migrations only through `20260317205704_AddLanguageToVocabularyWord` (March 17). Two subsequent migrations were never applied:
-- `20260503221947_AddRefreshTokenReplacedBy`
-- `20260504174821_NumbersActivityPhase1`
-
-This suggests either:
-1. The AppHost didn't call `MigrateAsync()` on startup
-2. The database file is from an older session and migrations failed silently
-3. The `UserProfileRepository.GetAsync()` path (where migrations run per Captain's directive) wasn't hit during Aspire startup
+- ❌ NumberDrill page completely non-functional (HTTP 500)
+- ❌ All E2E gates blocked — can't test setup, session, grading, or dashboard updates
+- ✅ Dashboard Numbers Insights tile renders empty state correctly (verified before crash)
 
 ---
 
@@ -91,20 +82,20 @@ All remaining gates blocked:
 
 ## Required Fix
 
-1. **Investigate migration application flow:**
-   - Verify `UserProfileRepository.GetAsync()` is called during AppHost startup
-   - Confirm `MigrateAsync()` runs for both PostgreSQL (Azure) and SQLite (local dev)
-   - Check for silent migration failures in Aspire logs
+**Option 1: Remove `SubTitle` from NumberDrill.razor (simplest)**
+   ```diff
+   - <PageHeader Title="Number Drill" SubTitle="@subtitle" ShowBack="true" OnBack="GoBack" />
+   + <PageHeader Title="Number Drill" ShowBack="true" OnBack="GoBack" />
+   ```
+   Rationale: No other page in the codebase uses PageHeader with a subtitle. The `subtitle` variable in NumberDrill is context-dependent ("Counting", "Time", "Age") and could be shown differently (e.g., in a breadcrumb or below the title).
 
-2. **Test migration on fresh database:**
-   - Delete stale DB: `rm ~/Library/Application\ Support/sentencestudio/server/sentencestudio.db*`
-   - Start AppHost
-   - Verify `SELECT * FROM __EFMigrationsHistory` includes `20260504174821`
-   - Verify `SELECT COUNT(*) FROM NumberCounter` returns 6 (3 contexts × 2 sub-modes + 살)
+**Option 2: Add `SubTitle` parameter to PageHeader (if subtitle is genuinely needed)**
+   ```diff
+   + [Parameter] public string? SubTitle { get; set; }
+   ```
+   And render it in the template (e.g., below the title). But this requires design review — is a subtitle part of the PageHeader pattern?
 
-3. **Run NumberContentSeeder after migration:**
-   - Confirm seed runs automatically on startup OR provide manual trigger
-   - Verify 3 contexts (Counting, Time, Age) with 5 counters each + 살
+**Recommended**: Option 1 (remove). PageHeader is a layout component for nav/title/actions. Context-specific labels like "Counting" can be displayed inside the page body, not the header.
 
 ---
 
@@ -118,10 +109,30 @@ All remaining gates blocked:
 
 ## Next Steps
 
-1. Squad coordinator review this bug report
-2. Assign migration fix (likely Wash or backend specialist)
-3. After fix: Jayne re-runs full E2E test suite on this branch
-4. Only proceed to Wave 5 (Scribe) after E2E is GREEN
+1. **Fix the code bug**: Remove `SubTitle="@subtitle"` from NumberDrill.razor line 15 (or add SubTitle parameter to PageHeader if needed)
+2. **After fix**: Jayne re-runs full E2E test suite on this branch
+3. **Only proceed to Wave 5 (Scribe)** after E2E is GREEN with all 10 gates verified
+
+---
+
+## Appendix: Correct Database Check (for future E2E runs)
+
+**Aspire uses PostgreSQL, NOT SQLite!**
+
+To check migrations in Aspire environment:
+1. Open Aspire dashboard: `https://localhost:17017/login?t=<token>`
+2. Go to Resources → `sentencestudio` (Postgres container)
+3. Copy connection string from environment variables
+4. Connect with `psql` or pgAdmin:
+   ```bash
+   psql "<connection-string>"
+   \dt  -- list tables
+   SELECT "MigrationId" FROM "__EFMigrationsHistory" ORDER BY "MigrationId" DESC LIMIT 5;
+   SELECT COUNT(*) FROM "NumberContext";
+   SELECT COUNT(*) FROM "NumberCounter";
+   ```
+
+The SQLite file at `~/Library/Application Support/sentencestudio/server/sentencestudio.db` is from **non-Aspire runs** and is irrelevant when testing via Aspire.
 
 ---
 

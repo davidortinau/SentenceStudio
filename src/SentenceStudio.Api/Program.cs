@@ -217,6 +217,10 @@ builder.AddNpgsqlDbContext<ApplicationDbContext>("sentencestudio", configureDbCo
         w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
 });
 
+// NumberDrill content seeder — populates NumberContext / NumberSubMode / NumberCounter
+// from lib/content/numbers/{language}.json (idempotent upsert by natural key).
+builder.Services.AddScoped<SentenceStudio.Services.Numbers.NumberContentSeeder>();
+
 // Multi-worktree footgun: if the API binds to a fresh Postgres volume (different worktree
 // or freshly-provisioned Aspire environment), AspNetUsers will be empty and login will return
 // 401 with no obvious cause. Surface this loudly via a Degraded health check on the dashboard.
@@ -296,6 +300,10 @@ if (!skipDatabaseInitialization)
         
         // Run phrase constituent backfill (idempotent, after classification)
         await backfillService.BackfillPhraseConstituentsAsync();
+
+        // Seed Korean number content (NumberDrill activity — idempotent upsert by natural key)
+        var numberSeeder = scope.ServiceProvider.GetRequiredService<SentenceStudio.Services.Numbers.NumberContentSeeder>();
+        await numberSeeder.SeedAsync("ko");
     }
 
     // Apply CoreSync provisioning (creates change-tracking tables if missing)
