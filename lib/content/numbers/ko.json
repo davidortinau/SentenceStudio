@@ -1,0 +1,81 @@
+{
+  "languageCode": "ko",
+  "version": 1,
+  "contexts": [
+    {
+      "code": "Counting",
+      "displayName": "Counting",
+      "icon": "🛒",
+      "defaultSystem": "Native",
+      "sortOrder": 10,
+      "isActive": true
+    },
+    {
+      "code": "Time",
+      "displayName": "Time",
+      "icon": "⏰",
+      "defaultSystem": "Mixed",
+      "sortOrder": 20,
+      "isActive": true
+    },
+    {
+      "code": "Age",
+      "displayName": "Age",
+      "icon": "🎂",
+      "defaultSystem": "Native",
+      "sortOrder": 30,
+      "isActive": true
+    }
+  ],
+  "subModes": [
+    {
+      "code": "ListenAndType",
+      "displayName": "Listen & Type",
+      "phase": 1,
+      "isActive": true
+    },
+    {
+      "code": "ReadAndProduce",
+      "displayName": "Read & Produce",
+      "phase": 1,
+      "isActive": true
+    }
+  ],
+  "counters": [
+    {
+      "counter": "잔",
+      "romanization": "jan",
+      "meaningEn": "cup/glass",
+      "system": "Native",
+      "notes": "drinks"
+    },
+    {
+      "counter": "개",
+      "romanization": "gae",
+      "meaningEn": "generic",
+      "system": "Native",
+      "notes": "default object counter"
+    },
+    {
+      "counter": "명",
+      "romanization": "myeong",
+      "meaningEn": "people",
+      "system": "Native",
+      "notes": "casual; for honorific use 분"
+    },
+    {
+      "counter": "마리",
+      "romanization": "mari",
+      "meaningEn": "animals",
+      "system": "Native",
+      "notes": ""
+    },
+    {
+      "counter": "권",
+      "romanization": "gwon",
+      "meaningEn": "books/volumes",
+      "system": "Native",
+      "notes": ""
+    }
+  ]
+}

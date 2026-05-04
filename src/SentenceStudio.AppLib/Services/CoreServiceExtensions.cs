@@ -122,6 +122,8 @@ public static class CoreServiceExtensions
         // Number activity services (Phase 1: Korean)
         services.AddSingleton<INumberItemGenerator, KoreanNumberItemGenerator>();
         services.AddSingleton<INumberAnswerGrader, KoreanNumberAnswerGrader>();
+        services.AddScoped<NumberContentSeeder>();
+        services.AddScoped<NumberSessionService>();
 
         return services;
     }
