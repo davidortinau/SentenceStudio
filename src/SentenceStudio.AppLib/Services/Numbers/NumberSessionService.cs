@@ -62,14 +62,15 @@ public class NumberSessionService
             if (context == null) continue;
 
             var counter = progress.CounterId != null
-                ? await _db.NumberCounters.FindAsync(new object[] { progress.CounterId }, ct)
+                ? await _db.NumberCounters
+                    .FirstOrDefaultAsync(c => c.Counter == progress.CounterId, ct)
                 : null;
 
             var itemRequest = new NumberItemRequest(
                 ContextCode: context.Code,
                 SubModeCode: request.SubModeCode,
                 Bucket: progress.Bucket,
-                CounterId: counter?.Id,
+                CounterId: counter?.Counter, // Pass counter code (e.g., "잔"), not GUID
                 Difficulty: request.Difficulty ?? 1,
                 RandomSeed: Random.Shared.Next()
             );
@@ -81,9 +82,15 @@ public class NumberSessionService
         // If not enough due items, pad with random unseen items
         if (items.Count < request.ItemCount)
         {
-            var contexts = await _db.NumberContexts
-                .Where(c => c.IsActive)
-                .ToListAsync(ct);
+            var contextsQuery = _db.NumberContexts.Where(c => c.IsActive);
+            
+            // Respect ContextCode filter from request
+            if (!string.IsNullOrEmpty(request.ContextCode))
+            {
+                contextsQuery = contextsQuery.Where(c => c.Code == request.ContextCode);
+            }
+            
+            var contexts = await contextsQuery.ToListAsync(ct);
 
             var counters = await _db.NumberCounters
                 .Where(c => c.LanguageCode == languageCode)
@@ -105,7 +112,7 @@ public class NumberSessionService
                     ContextCode: context.Code,
                     SubModeCode: request.SubModeCode,
                     Bucket: bucket,
-                    CounterId: counter?.Id,
+                    CounterId: counter?.Counter, // Pass counter code (e.g., "잔"), not GUID
                     Difficulty: request.Difficulty ?? 1,
                     RandomSeed: Random.Shared.Next()
                 );

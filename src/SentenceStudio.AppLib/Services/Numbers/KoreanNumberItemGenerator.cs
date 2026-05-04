@@ -12,7 +12,8 @@ public class KoreanNumberItemGenerator : INumberItemGenerator
         { "개", new[] { "개", "generic objects" } },
         { "명", new[] { "명", "people" } },
         { "마리", new[] { "마리", "animals" } },
-        { "권", new[] { "권", "books" } }
+        { "권", new[] { "권", "books" } },
+        { "살", new[] { "살", "years old" } }
     };
 
     public NumberItem GenerateItem(NumberItemRequest request)

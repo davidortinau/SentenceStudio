@@ -219,6 +219,37 @@ public class NumberSessionServiceTests : IDisposable
         // NumberMasteryProgress has no streak fields - isolation confirmed
     }
 
+    [Fact]
+    public async Task StartSessionAsync_CountingContext_UsesCounterFromDatabase()
+    {
+        // Arrange
+        await SeedTestDataAsync();
+        var request = new NumberSessionRequest(
+            ContextCode: "Counting",
+            SubModeCode: "ListenAndType",
+            ItemCount: 3,
+            DueOnly: false
+        );
+
+        // Act
+        var session = await _service.StartSessionAsync(
+            userProfileId: "test-user-guid-1",
+            languageCode: "ko",
+            request: request
+        );
+
+        // Assert
+        Assert.NotEqual(Guid.Empty, session.SessionId);
+        Assert.True(session.Items.Count > 0);
+        Assert.All(session.Items, item => 
+        {
+            Assert.Equal("Counting", item.ContextCode);
+            Assert.Equal("ListenAndType", item.SubModeCode);
+            Assert.NotNull(item.CounterId); // Counting items must have a counter
+            Assert.NotNull(item.CounterText);
+        });
+    }
+
     private async Task SeedTestDataAsync()
     {
         // Seed contexts
@@ -234,9 +265,13 @@ public class NumberSessionServiceTests : IDisposable
             new NumberSubMode { Id = Guid.NewGuid().ToString(), Code = "ReadAndProduce", DisplayName = "Read & Produce", Phase = 1, IsActive = true }
         );
 
-        // Seed counters
+        // Seed counters (matching Phase1Counters in KoreanNumberItemGenerator)
         _db.NumberCounters.AddRange(
-            new NumberCounter { Id = Guid.NewGuid().ToString(), LanguageCode = "ko", Counter = "개", Romanization = "gae", MeaningEn = "generic", System = NumberSystem.Native },
+            new NumberCounter { Id = Guid.NewGuid().ToString(), LanguageCode = "ko", Counter = "잔", Romanization = "jan", MeaningEn = "cups/glasses", System = NumberSystem.Native },
+            new NumberCounter { Id = Guid.NewGuid().ToString(), LanguageCode = "ko", Counter = "개", Romanization = "gae", MeaningEn = "generic objects", System = NumberSystem.Native },
+            new NumberCounter { Id = Guid.NewGuid().ToString(), LanguageCode = "ko", Counter = "명", Romanization = "myeong", MeaningEn = "people", System = NumberSystem.Native },
+            new NumberCounter { Id = Guid.NewGuid().ToString(), LanguageCode = "ko", Counter = "마리", Romanization = "mari", MeaningEn = "animals", System = NumberSystem.Native },
+            new NumberCounter { Id = Guid.NewGuid().ToString(), LanguageCode = "ko", Counter = "권", Romanization = "gwon", MeaningEn = "books", System = NumberSystem.Native },
             new NumberCounter { Id = Guid.NewGuid().ToString(), LanguageCode = "ko", Counter = "살", Romanization = "sal", MeaningEn = "years old", System = NumberSystem.Native }
         );
 
