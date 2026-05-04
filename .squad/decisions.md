@@ -3702,3 +3702,50 @@ If treating Cloze as vocabulary-driven is too invasive:
 
 ---
 
+
+---
+
+## Number Mastery Activity (NumberDrill) — Phase 1 architecture
+
+**Source:** Planning phase research merged from Tutor (SLA), Architect (design), and Explorer (competitive analysis) inbox documents.
+
+### Activity Shape & Pedagogical Foundation
+- **Not a Smart Resource, not a LearningResource.** Numbers are a rule-driven *automaticity skill* (DeKeyser, Segalowitz), not a finite vocabulary list. Materializing every generated number (e.g., "5200원") as a VocabularyWord would pollute dashboards and miss the point: we train the *decision pipeline* (context → system → counter → sound-change), not lexical items.
+- **Rule-based, procedural generation** — no LLM dependency. Grading is deterministic and offline-capable. Fast, free, and repeatable.
+- **Blazor only, no MauiReactor twin.** Activity runs on `/number-drill` Razor page. Reuses ActivityTimer, TTS, scoring panels, SM-2 scheduler, and UI chrome from existing vocab activities. No learner benefit to a parallel native UI; dual maintenance cost is unjustified.
+
+### Phase 1 Scope & Phasing
+- **Phase 1 (MVP):** Listen-and-type (dictation) + Read-and-produce (hangul→sound-change) sub-modes only. 3 contexts: Counting (w/ 5 core counters: 명, 개, 살, 마리, 권), Time (hours + minutes, both systems), Age (informal native). Korean language only.
+- **Phase 2:** Add Money, Dates, Ordinals, Disambiguate, Tap-the-counter, Listen-and-place sub-modes. **Plan integration** (PlanActivityType.NumberDrill in DailyPlan).
+- **Phase 3:** Read-and-speak (ASR + self-rate fallback), day-count calendar widget, diagnostic error-class patterns in Insights, latency-based fluency metric.
+- **Phase 4:** Extract INumberItemGenerator interface; ship Japanese (音/訓 systems, rendaku) or Mandarin (classifiers, tone sandhi) as alternate language generators.
+
+### Data Model (5 Additive Tables)
+- **NumberContext** — `Id, Language, ContextKey ("Time"|"Money"|"Age"|…), MinCefrLevel, RequiresSino, RequiresNative, TitleKey, DescriptionKey`. ~10 rows seeded per language.
+- **NumberCounter** — `Id, Language, Lemma (잔), Romanization, Gloss, PreferredSystem, Domain, ExampleFrame ("커피 {n} 잔"), MinCefrLevel`. ~15 rows for Korean.
+- **NumberSubMode** — `ModeKey, CompatibleContexts[], InputType, DefaultTimeLimitMs`. 2–6 modes per phase.
+- **NumberMasteryProgress** — `Id, UserId, Language, ContextKey, NumberSystem (Native|Sino|Mixed|Lexical), Bucket ("1-10"|"11-99"|"100-999"|"1000-9999"|"10000+"|"irregular-day-counts"), CounterLemma?, MasteryScore, Attempts, Correct, CurrentStreak, EaseFactor, ReviewInterval, NextReviewDate, MedianLatencyMs, LastPracticedAt, FirstSeenAt`. SM-2 reused; progress granularity = (Context × System × Bucket × Counter).
+- **NumberAttempt** — `Id, UserId, SessionId, PlanItemId?, ContextKey, NumberSystem, GeneratedItem (JSON), ResponseType, ResponseValue, IsCorrect, ErrorClass (WrongSystem|MissingCounter|SoundChange|OffByMagnitude|Other), LatencyMs, CreatedAt`. Drives adaptive sequencing and error diagnostics.
+- **IMPORTANT:** NO changes to existing `VocabularyWord`, `VocabularyProgress`, `LearningResource`, or `DailyPlan` tables. Additive only.
+- **Day-count dual-home:** Lexicalized day-counts (하루, 이틀, 사흘…열흘) also exist as VocabularyWord rows for dictionary/Reading lookups. Small sync hook in NumberSessionService mirrors NumberMasteryProgress updates onto those VocabularyProgress rows.
+
+### Progress & Scoring
+- **Per-(context × system × bucket × counter)** mastery tracking. Retire well-known numbers (e.g., "1–10 Native + 명") while drilling new buckets.
+- **SM-2 reused** via shared Sm2Scheduler. Mastery threshold mirrors VocabularyProgress (0.85 with min production attempts).
+- **Latency is first-class.** Median latency per bucket feeds a "fluency" sub-metric distinct from accuracy. Automaticity = high accuracy *and* low latency (Segalowitz criterion).
+- **No streak penalty for number errors.** Item-level misses cost mastery points but never break daily practice streak (Tutor #8 — error-tolerant feedback reduces affective filter).
+
+### Integration & Open Questions
+- **Plan integration (Phase 2):** NumberDrill slots as `PlanActivityType.NumberDrill` with `ResourceId = null`. Uses 4-layer ResourceId Decoupling Pattern (DeterministicPlanBuilder Layer 1, PlanConverter Layer 2, LaunchPlanItem allowlist Layer 3, Page ignore Layer 4). Triggers when NumberMasteryProgress has due rows or cold-start contexts are below threshold. Replaces closer VocabularyGame on due days (avoids plan overstuffing).
+- **Korean-first, data-driven generalization.** KoreanNumberItemGenerator hardcodes dual systems, sound-changes (하나→한, 둘→두, 스물→스무), irregular months (유월/시월), liaison tolerance (십만→[심만]), and lexical day-count table. NumberContext/Counter/SubMode seeds are language-agnostic; future generators (JapaneseNumberItemGenerator, MandarinNumberItemGenerator, SpanishNumberItemGenerator) plug in same interface.
+- **Content seed format:** JSON at `lib/content/numbers/ko.json` (decided default). Enables content authors to extend without code change; mirrors pattern for other seeded content.
+- **OPEN — Captain decision pending:**
+  - **ASR vendor (Phase 3):** Is cloud ASR (cloud provider TBD) acceptable for Phase 3 Read-and-speak? Fallback is TTS-replay-then-self-rate.
+  - **Plan slot strategy (Phase 2):** Replace VocabularyGame (current plan) or add 5th slot when NumberDrill is due?
+  - **Day-count dual-home (Phase 3):** Confirm lexicalized day-counts belong in VocabularyWord for dictionary/Reading visibility despite NumberMasteryProgress also tracking them.
+
+### Key References
+- Tutor: DeKeyser (automaticity), Segalowitz (fluency), Cepeda (spacing), Ellis (usage-based), Paivio (dual coding), Krashen (listening-first).
+- Architect: 4-layer ResourceId Decoupling Pattern, SM-2 reuse, TTS cache strategy, error-class diagnostics.
+- Explorer: Competitive gaps (counter isolation, day-count absence, TTS limitations, context anxiety); differentiation vectors (dual-system transparency, counter-first drilling, scenario role-play, adaptive mastery paths).
+
