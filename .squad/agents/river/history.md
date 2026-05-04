@@ -5,7 +5,69 @@
 - **Stack:** .NET 10, MAUI, Blazor Hybrid, MauiReactor (MVU), .NET Aspire, EF Core, SQLite, OpenAI
 - **Created:** 2026-03-07
 
-## Learnings
+## 2026-05-04 — Korean Number Generation & Grading (Phase 1)
+
+**Session:** Numbers Activity — Generator + Grader Phase 1  
+**Status:** ✅ Shipped — All tests passing (33/33)  
+**Deliverable:** `src/SentenceStudio.AppLib/Services/Numbers/`
+
+### Implementation Summary
+
+Created pure deterministic (NO LLM) Korean number item generator and grader for Phase 1 contexts:
+
+**Generator (`KoreanNumberItemGenerator`):**
+- 3 contexts: Counting (Native + 5 counters), Time (Mixed 12-hour), Age (Native + 살)
+- Sound-change rules encoded:
+  - 하나→한, 둘→두, 셋→세, 넷→네 (ONLY standalone before counter, NOT in compounds like 스물하나)
+  - 스물→스무 (ONLY at exactly 20, NOT 21-29)
+- Phase 1 range: 1–99 (buckets "1-10", "11-99")
+- Deterministic via optional `RandomSeed` for testability
+
+**Grader (`KoreanNumberAnswerGrader`):**
+- Permissive normalization: whitespace, full-width digits, spacing tolerance
+- 7 error classes: `SinoNativeSwap`, `CounterMismatch`, `SoundChangeMissed`, `MagnitudeOff10x`, `Typo`, `WrongFormat`, `Unknown`
+- Every wrong answer gets specific `ErrorClass` + pedagogical `Tip`
+- Levenshtein distance for typo detection
+- Counter mismatch prioritized over Sino/Native swap (prevents false positives)
+
+**Tests (33 passing):**
+- Generator: each context happy path, all sound-change rules, bucket assignment, determinism
+- Grader: exact match, alternates, all error classes, normalization, edge cases
+
+**DI Registration:** Added to `CoreServiceExtensions.cs`
+
+**Coordination:** Wash's `NumberSystem` enum (Native/Sino/Mixed/Lexical) reused; added `Mixed` variant.
+
+### Learnings
+
+1. **Korean sound-change rules are CONTEXT-DEPENDENT:**
+   - 둘→두 applies standalone (두 명), NOT compounded (스물둘 살, 열둘 시)
+   - 스물→스무 ONLY at exactly 20 (스무 살), NOT 21-29 (스물하나 살)
+   - Compounds (열하나, 스물하나) keep full forms
+
+2. **ErrorClass taxonomy for grading:**
+   - `SinoNativeSwap`: wrong number system (Sino vs Native)
+   - `CounterMismatch`: wrong counter (개 vs 명)
+   - `SoundChangeMissed`: missed obligatory sound change (둘 명 → 두 명)
+   - `MagnitudeOff10x`: magnitude error (520 vs 5200)
+   - `Typo`: single-character Levenshtein distance
+   - `WrongFormat`: Hangul when digits expected or vice versa
+   - `Unknown`: catch-all with canonical answer
+
+3. **Grader error-classification priority order matters:**
+   - Check `CounterMismatch` FIRST (before Sino/Native) to avoid false positives when both counter and system are wrong
+   - Then `SinoNativeSwap`, then `SoundChangeMissed`, then magnitude/typo/format/unknown
+
+4. **Generalization path for Japanese/Mandarin/Spanish:**
+   - Same `INumberItemGenerator` interface, language-specific strategies
+   - Japanese: 音/訓 dual systems (similar to Korean), ~150 counters, euphonic changes (一本/三本/六本 rendaku)
+   - Mandarin: single system + classifiers, 一/不 tone sandhi as automaticity bottleneck
+   - Spanish: single system, gender/number agreement on ordinals + uno, apocope (uno→un, ciento→cien)
+   - Core grader logic reusable; error-class taxonomy stays the same (swap sound-change rules for tone sandhi, agreement, etc.)
+
+### Architecture
+
+
 
 - 2026-04-23: **Word/Phrase Feature Completed** — Completed ai-generation-emit todo: updated ExtractVocabularyFromTranscript.scriban-txt prompts with LexicalUnitType classification guidance (Korean-specific rules for Word vs. Phrase vs. Sentence). Added LexicalUnitType + RelatedTerms fields to ExtractedVocabularyItem DTO with [Description] attributes. Updated ToVocabularyWord() mapper to copy classification to entity and encode RelatedTerms as `constituents:term1,term2` hint in Tags. Feature shipped, 147 tests passing. Documented in `.squad/log/2026-04-23T2219Z-wordphrase-squad-wrap.md`.
 - `GradeMyDescription.scriban-txt` already includes `vocabulary_analysis` in its JSON schema — no template change needed when wiring Scene vocabulary scoring
