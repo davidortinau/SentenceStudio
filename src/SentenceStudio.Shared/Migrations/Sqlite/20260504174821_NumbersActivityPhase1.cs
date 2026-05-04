@@ -64,7 +64,7 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                 columns: table => new
                 {
                     Id = table.Column<string>(type: "TEXT", nullable: false),
-                    UserProfileId = table.Column<int>(type: "INTEGER", nullable: false),
+                    UserProfileId = table.Column<string>(type: "TEXT", nullable: false),
                     LanguageCode = table.Column<string>(type: "TEXT", nullable: false),
                     ContextCode = table.Column<string>(type: "TEXT", nullable: false),
                     CounterId = table.Column<string>(type: "TEXT", nullable: true),
@@ -89,7 +89,7 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                 columns: table => new
                 {
                     Id = table.Column<string>(type: "TEXT", nullable: false),
-                    UserProfileId = table.Column<int>(type: "INTEGER", nullable: false),
+                    UserProfileId = table.Column<string>(type: "TEXT", nullable: false),
                     LanguageCode = table.Column<string>(type: "TEXT", nullable: false),
                     ContextCode = table.Column<string>(type: "TEXT", nullable: false),
                     SubModeCode = table.Column<string>(type: "TEXT", nullable: false),

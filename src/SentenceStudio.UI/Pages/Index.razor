@@ -1165,11 +1165,8 @@ else
             var userGuid = AppState?.CurrentUserProfile?.Id;
             if (string.IsNullOrEmpty(userGuid)) return;
 
-            // TODO: Phase 2 - fix data model mismatch (UserProfile.Id is string, NumberMasteryProgress expects int)
-            var userId = userGuid.GetHashCode();
-
             var progress = await Db.NumberMasteryProgresses
-                .Where(p => p.UserProfileId == userId && p.LanguageCode == "ko")
+                .Where(p => p.UserProfileId == userGuid && p.LanguageCode == "ko")
                 .ToListAsync();
 
             if (progress.Count == 0)

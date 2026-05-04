@@ -391,9 +391,6 @@
                 return;
             }
             
-            // TODO: Phase 2 - fix data model mismatch (UserProfile.Id is string, NumberMasteryProgress expects int)
-            var userId = userGuid.GetHashCode();
-            
             var request = new NumberSessionRequest(
                 ContextCode: selectedContext,
                 SubModeCode: selectedSubMode,
@@ -402,7 +399,7 @@
                 Difficulty: 1
             );
             
-            session = await SessionService.StartSessionAsync(userId, "ko", request);
+            session = await SessionService.StartSessionAsync(userGuid, "ko", request);
             
             if (session.Items.Count == 0)
             {
@@ -457,11 +454,8 @@
                 return;
             }
             
-            // TODO: Phase 2 - fix data model mismatch (UserProfile.Id is string, NumberMasteryProgress expects int)
-            var userId = userGuid.GetHashCode();
-            
             lastAttemptResult = await SessionService.SubmitAnswerAsync(
-                userId,
+                userGuid,
                 session.SessionId,
                 currentItem,
                 userAnswer.Trim(),

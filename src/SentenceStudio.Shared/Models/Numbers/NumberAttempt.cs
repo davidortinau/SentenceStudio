@@ -6,7 +6,7 @@ namespace SentenceStudio.Shared.Models.Numbers;
 public class NumberAttempt
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
-    public int UserProfileId { get; set; }
+    public string UserProfileId { get; set; } = string.Empty;
     public string LanguageCode { get; set; } = string.Empty;
     public string ContextCode { get; set; } = string.Empty;
     public string SubModeCode { get; set; } = string.Empty;

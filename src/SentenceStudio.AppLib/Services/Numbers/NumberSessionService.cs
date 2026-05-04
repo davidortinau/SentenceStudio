@@ -29,7 +29,7 @@ public class NumberSessionService
     }
 
     public async Task<NumberSession> StartSessionAsync(
-        int userProfileId,
+        string userProfileId,
         string languageCode,
         NumberSessionRequest request,
         CancellationToken ct = default)
@@ -126,7 +126,7 @@ public class NumberSessionService
     }
 
     public async Task<NumberAttemptResult> SubmitAnswerAsync(
-        int userProfileId,
+        string userProfileId,
         Guid sessionId,
         NumberItem item,
         string userAnswer,

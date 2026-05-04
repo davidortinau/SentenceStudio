@@ -50,7 +50,7 @@ public class NumberSessionServiceTests : IDisposable
 
         // Act
         var session = await _service.StartSessionAsync(
-            userProfileId: 1,
+            userProfileId: "test-user-guid-1",
             languageCode: "ko",
             request: request
         );
@@ -78,7 +78,7 @@ public class NumberSessionServiceTests : IDisposable
 
         // Act
         var result = await _service.SubmitAnswerAsync(
-            userProfileId: 1,
+            userProfileId: "test-user-guid-1",
             sessionId: Guid.NewGuid(),
             item: item,
             userAnswer: item.CanonicalAnswer, // Correct answer
@@ -120,7 +120,7 @@ public class NumberSessionServiceTests : IDisposable
 
         // Act
         var result = await _service.SubmitAnswerAsync(
-            userProfileId: 1,
+            userProfileId: "test-user-guid-1",
             sessionId: Guid.NewGuid(),
             item: item,
             userAnswer: "wrong answer",
@@ -154,7 +154,7 @@ public class NumberSessionServiceTests : IDisposable
 
         // Act - Fast correct answer (5000ms < 8000ms threshold)
         var result = await _service.SubmitAnswerAsync(
-            userProfileId: 1,
+            userProfileId: "test-user-guid-1",
             sessionId: Guid.NewGuid(),
             item: item,
             userAnswer: item.CanonicalAnswer,
@@ -177,7 +177,7 @@ public class NumberSessionServiceTests : IDisposable
             SubModeCode: "ListenAndType",
             ItemCount: 3
         );
-        var session = await _service.StartSessionAsync(1, "ko", request);
+        var session = await _service.StartSessionAsync("test-user-guid-1", "ko", request);
 
         // Act
         var summary = await _service.EndSessionAsync(session.SessionId);
@@ -203,7 +203,7 @@ public class NumberSessionServiceTests : IDisposable
 
         // Act - Incorrect answer
         await _service.SubmitAnswerAsync(
-            userProfileId: 1,
+            userProfileId: "test-user-guid-1",
             sessionId: Guid.NewGuid(),
             item: item,
             userAnswer: "wrong",

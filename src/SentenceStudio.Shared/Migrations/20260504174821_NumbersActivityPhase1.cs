@@ -64,7 +64,7 @@ namespace SentenceStudio.Shared.Migrations
                 columns: table => new
                 {
                     Id = table.Column<string>(type: "text", nullable: false),
-                    UserProfileId = table.Column<int>(type: "integer", nullable: false),
+                    UserProfileId = table.Column<string>(type: "text", nullable: false),
                     LanguageCode = table.Column<string>(type: "text", nullable: false),
                     ContextCode = table.Column<string>(type: "text", nullable: false),
                     CounterId = table.Column<string>(type: "text", nullable: true),
@@ -89,7 +89,7 @@ namespace SentenceStudio.Shared.Migrations
                 columns: table => new
                 {
                     Id = table.Column<string>(type: "text", nullable: false),
-                    UserProfileId = table.Column<int>(type: "integer", nullable: false),
+                    UserProfileId = table.Column<string>(type: "text", nullable: false),
                     LanguageCode = table.Column<string>(type: "text", nullable: false),
                     ContextCode = table.Column<string>(type: "text", nullable: false),
                     SubModeCode = table.Column<string>(type: "text", nullable: false),
