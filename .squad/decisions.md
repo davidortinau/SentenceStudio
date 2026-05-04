@@ -2868,3 +2868,837 @@ Added `keychain-access-groups` entitlement to `src/SentenceStudio.MacCatalyst/Pl
 - Wash's decision: `.squad/decisions/inbox/wash-auth-grace-window.md`
 - Jayne's decision: `.squad/decisions/inbox/jayne-applib-concurrency-test.md`
 
+# Troubleshooter — CoreSync VocabularyProgress sync failure (UserDeclaredAt / VerificationState)
+
+**Author:** Troubleshooter
+**Date:** 2026-05-01
+**Severity:** High — blocks all sync from Mac Catalyst (and presumably iOS/Android) clients for any user that has rows in `VocabularyProgress` after the columns were added.
+**Status proposal:** File as separate bug; **not** a regression of PR #184 (`feature/dashboard-vocab-tile-nav`). PR #184 is safe to merge on its own merits.
+
+## Symptom
+
+- Captain reports: quiz activity fails to launch with "some data error" on Mac Catalyst.
+- Mac Catalyst app becomes unresponsive after a couple of navigations (process is in `S` state, 0% CPU — not a kernel hang).
+
+## Verbatim error from API (`SentenceStudio.Api`, log_id 888 / trace b8bf91b)
+
+```
+CoreSync.SynchronizationException: Unable to Insert item Insert on VocabularyProgress:
+{
+  "ApplicationAttempts": 0, "ApplicationCorrect": 0, "CorrectAttempts": 1,
+  "CreatedAt": 3/4/2026 5:36:45 AM, "CurrentPhase": 0, "CurrentStreak": 1,
+  "EaseFactor": 2.5, "ExposureCount": 0, "FirstSeenAt": 3/4/2026 5:36:45 AM,
+  "Id": "4b72cba8-7225-4c3e-a1a7-52bca7b1b725", "IsCompleted": False,
+  "IsPromoted": False, "IsUserDeclared": False, "LastExposedAt": null,
+  "LastPracticedAt": 3/4/2026 5:36:45 AM, "MasteredAt": null,
+  "MasteryScore": 0.14285715, "MultipleChoiceCorrect": 1,
+  "NextReviewDate": "2026-03-10 06:36:45.483286",
+  "ProductionAttempts": 0, "ProductionCorrect": 0, "ProductionInStreak": 0,
+  "RecognitionAttempts": 1, "RecognitionCorrect": 1, "ReviewInterval": 6,
+  "TextEntryCorrect": 0, "TotalAttempts": 1, "UpdatedAt": 3/4/2026 5:36:45 AM,
+  "UserDeclaredAt": "UserDeclaredAt",         ← ⚠ value equals column name
+  "UserId": "1",
+  "VerificationState": "VerificationState",   ← ⚠ value equals column name
+  "VocabularyWordId": "760f5af9-72bc-4f8f-94f8-973bbc7c5882"
+}
+to store for table VocabularyProgress:
+42804: column "UserDeclaredAt" is of type timestamp with time zone but expression is of type text
+POSITION: 729
+ ---> Npgsql.PostgresException (0x80004005): 42804: column "UserDeclaredAt" is of type timestamp with time zone but expression is of type text
+   at Npgsql.Internal.NpgsqlConnector.ReadMessageLong(...)
+   at Npgsql.NpgsqlDataReader.NextResult(...)
+   at Npgsql.NpgsqlCommand.ExecuteNonQuery(...)
+   at CoreSync.PostgreSQL.PostgreSQLSyncProvider.ApplyChangesAsync(SyncChangeSet changeSet, ...)
+```
+
+Endpoint: `POST /api/sync-agent/changes-bulk-complete/1c18d82b-d160-424d-9ecf-bec51d04ba1e`. Same batch GUID re-fails on every retry (observed RequestIds `0HNL73MEQ3FCP:000000EE`–`F1`, `0HNL73MEQ3FCR:000000EE`–`F1` — 8 failed attempts so far).
+
+## Root cause (high confidence)
+
+CoreSync's outbound change set for `VocabularyProgress` is binding the literal **string `"UserDeclaredAt"`** as the value for the `UserDeclaredAt` column, and `"VerificationState"` for `VerificationState`. Postgres then refuses to coerce a text literal into `timestamp with time zone`. Both columns were introduced together in `20260321133148_InitialSqlite` (and `20260320161534_InitialPostgreSQL`) with types `DateTime?` and `int` (enum-backed) — no other columns in the same row exhibit the bug, so the issue is per-column, almost certainly inside CoreSync's SQLite trigger generation or its column-value extraction reflection.
+
+This is a CoreSync (or CoreSync provisioning) bug, not application code. It is **independent** of PR #184.
+
+## Why Captain saw "some data error" on quiz launch
+
+Quiz launch writes to `VocabularyProgress` locally; the local SQLite write succeeds, but the next sync push fails repeatedly. The UI either surfaces the failed-sync state or awaits a confirmation that never resolves cleanly, presenting a generic error.
+
+## Why the Mac Catalyst app is unresponsive
+
+`SyncService.TriggerSyncAsync` (SyncService.cs:279-341) catches `Exception` and releases the semaphore — sync itself does **not** deadlock the UI thread. The app's `S`/0% CPU state means it is event-loop idle, not deadlocked at the kernel. Most likely: a Blazor toast/modal raised when the data error surfaced is awaiting interaction (or a `Task` continuation in the WebView is parked). I cannot confirm directly because `maui devflow` broker daemon's TCP listener wasn't reachable when I queried it (`[DevFlow Broker] Daemon process started (PID 81686) but TCP listener not reachable after 5s`).
+
+## Recommendation
+
+1. **Do NOT block PR #184.** It is unrelated. Safe to merge.
+2. **File a separate issue** for the CoreSync VocabularyProgress sync failure. Suggested investigation order:
+   - Inspect the SQLite change-tracking triggers CoreSync emits for `VocabularyProgress` (look for a hard-coded literal where `NEW.UserDeclaredAt` / `NEW.VerificationState` should appear).
+   - Re-run `ApplyProvisionAsync` from a clean state on the Mac Catalyst client to see if a re-provision regenerates correct triggers.
+   - Check CoreSync version pinning vs. the migration that added these columns; provisioning is supposed to be idempotent but may have an ordering bug for late-added columns.
+   - Workaround until fixed: clear the stuck batch (`1c18d82b-d160-424d-9ecf-bec51d04ba1e`) from the local outbox so unrelated tables can sync. The stuck row's `Id` is `4b72cba8-7225-4c3e-a1a7-52bca7b1b725`.
+3. **Mac Catalyst process (PID 71568): recommend killing it.**
+   - Risk to data: NONE for the database itself (Postgres + media are untouched; SQLite cache is safe to reload). The pending sync batch is already failing and re-failing — losing in-memory state doesn't lose any successfully-persisted work.
+   - The app is currently held in an unrecoverable UI state (modal-or-deadlocked WebView). Restart is the cleanest path to keep testing PR #184.
+   - Captain still has the standing "no destruction without permission" rule, so this is a **request for permission**, not an action taken.
+
+## Files of interest (no edits proposed)
+
+- `src/SentenceStudio.Shared/SharedSyncRegistration.cs:27,49` — `VocabularyProgress` registered for upload+download (correct).
+- `src/SentenceStudio.Shared/Services/SyncService.cs:279-341` — sync error handling (already correct; bug is upstream in CoreSync).
+- `src/SentenceStudio.Shared/Models/VocabularyProgress.cs` — model definitions for `UserDeclaredAt` / `VerificationState`.
+- `src/SentenceStudio.Shared/Migrations/Sqlite/20260321133148_InitialSqlite.cs:613-614` — where these columns were first introduced.
+
+---
+
+## Round 2 — Load-side findings (2026-05-01, after Captain's deeper inspection)
+
+### New verbatim symptom
+Toast shown on Mac Catalyst when opening **Vocabulary** page (PID 99325, alive after the original 71568 was killed):
+
+> **Error loading vocabulary:** The string 'UserDeclaredAt' was not recognized as a valid DateTime. There is an unknown word starting at index '0'.
+
+This is a `System.FormatException` thrown while EF Core materializes `VocabularyProgress.UserDeclaredAt` (`DateTime?`) from the corrupt SQLite text value `"UserDeclaredAt"`. So in addition to the upload-side `42804` failure described above, the corruption now also breaks every read path that loads `VocabularyProgress` via EF.
+
+### Exact failure site
+
+`src/SentenceStudio.Shared/Data/VocabularyProgressRepository.cs:111-114` — `GetAllForUserAsync`:
+```csharp
+return await db.VocabularyProgresses
+    .AsNoTracking()
+    .Where(vp => vp.UserId == userId)
+    .ToListAsync();
+```
+
+# Decision: AGENTS.md updated with auth-persistence cycle lessons
+
+**By:** Zoe (Lead)
+**Status:** COMPLETED
+**Date:** 2026-05-03
+
+## What Changed
+
+Updated `/Users/davidortinau/work/SentenceStudio/AGENTS.md` with three durable lessons from the May 2-3 auth-persistence fix cycle (commits 0014a84 + cff063d):
+
+1. **Mac Catalyst Keychain Gotcha (new section)** — Added "## Mac Catalyst Gotchas" section documenting that `keychain-access-groups` entitlement MUST NOT be added to Debug builds. The `$(AppIdentifierPrefix)` macro is not substituted under ad-hoc Debug signing, leaving a malformed literal value that causes NSPOSIXErrorDomain error 163 (OS_REASON_EXEC). Solution: omit the entitlement entirely — apps get default keychain access for their own bundle ID without declaration.
+
+2. **Mandatory post-deploy-validate.sh (Publish Workflow)** — Inserted mandatory `./scripts/post-deploy-validate.sh` step as Step 2 in the Publish Workflow section (after `azd deploy`, before iOS build). Reinforces that `azd deploy` exit code 0 means the upload worked, not that the system works. 16 automated checks required.
+
+3. **Async Patterns (new section)** — Added "## Async Patterns" section with three references:
+   - Single-flight async pattern (`.squad/skills/single-flight-async/SKILL.md`) for collapsing concurrent refresh/config/cache operations
+   - EF dual-provider migrations (`.squad/skills/ef-dual-provider-migrations/SKILL.md`)
+   - Async single-flight testing (`.squad/skills/async-single-flight-testing/SKILL.md`)
+
+## What Was Evaluated But Skipped
+
+**Catalyst bundle name symlink:** Captain suggested verifying if this needs documentation. Reviewed `.squad/decisions/inbox/zoe-maccatalyst-symlink-permanent.md` (2026-05-02) and zoe history.md line 93 — this is handled by a permanent MSBuild target (`_CreateAspireBundleNameSymlink` in `SentenceStudio.MacCatalyst.csproj`) that auto-creates the symlink on every build. No manual workflow needed. **SKIPPED** — already automated.
+
+## Source
+
+- Checkpoints 050-054 from session `8c66d948-9ec5-4676-b260-6beef53b2d72`
+- Checkpoint 053 (`shipping-auth-persistence-fix.md`) explicitly documented the Catalyst keychain entitlement gotcha
+- `scripts/post-deploy-validate.sh` already exists and is referenced in squad.agent.md but was missing from AGENTS.md
+- `.squad/skills/single-flight-async/SKILL.md`, `ef-dual-provider-migrations/SKILL.md`, `async-single-flight-testing/SKILL.md` created during auth fix cycle
+
+## Why This Matters
+
+These are **recurring patterns** that future sessions will need:
+- The Catalyst keychain issue is a silent failure mode that breaks Debug launches with zero actionable error context from the CLI
+- The post-deploy-validate step is critical to the "deploy != works" lesson and matches existing Squad protocol
+- Single-flight async is the correct solution for any concurrent refresh/token/config scenario and will recur in this codebase
+
+Tactical bug-fix details (like "Bug 1: concurrent refresh race") were NOT added — those are session-specific implementation notes, not durable guidance.
+
+## Reference
+
+Edited sections in AGENTS.md:
+- Line ~529-530: Publish Workflow Step 2 insertion
+- Line ~540-567: Mac Catalyst Gotchas (new section)
+- Line ~567-577: Async Patterns (new section)
+# Decision: Cloze ResourceId Decoupling Shipped
+
+**Status:** SHIPPED  
+**Issue:** #200  
+**PR:** #201  
+**Author:** Fenster  
+**Date:** 2026-05-03  
+
+## What Shipped
+
+Applied the **4-layer ResourceId Decoupling Pattern** to Cloze activity, matching the established precedent from VocabQuiz (commits 88a0272, c081a63) and VocabMatching (commit 0c8e197).
+
+When Cloze is launched from Today's Plan, it now loads sentences from the full user vocabulary pool filtered by SRS (due words only), instead of being constrained to a single resource's vocab.
+
+## Files Changed
+
+**Layer 1 - DeterministicPlanBuilder.cs (~line 505):**
+Set `ResourceId = outputActivity == "Cloze" ? null : resource.Id` when stamping the planned Cloze activity.
+
+**Layer 2 - PlanConverter.cs (~line 140):**
+Add Cloze branch that sets `DueOnly = true` and passes SkillId but NOT ResourceId.
+
+**Layer 3 - Index.razor (~line 986):**
+Extend the existing exclusion list to include `PlanActivityType.Cloze` so persisted plan items can't leak a stale ResourceId.
+
+**Layer 4 - Cloze.razor + ClozureService:**
+- Add `[SupplyParameterFromQuery(Name = "DueOnly")] public bool DueOnly { get; set; }` to Cloze.razor
+- Modify LoadSentences to check DueOnly flag and ignore resourceId when true
+- Add `GetSentencesFromDueWords()` private method to ClozureService that loads due vocab globally
+- Add `GenerateSentencesFromWords()` helper to eliminate code duplication between resource-driven and vocabulary-driven paths
+- Update `GetSentences()` signature to accept optional `bool dueOnly = false` parameter
+
+## Key Implementation Details
+
+- **No DB migration** — persisted DailyPlan rows with old ResourceId are masked by Layer 3 guard
+- **Backward compatible** — direct (non-plan) Cloze launches preserve existing resource-filtered behavior
+- **SRS filtering** — mirrors VocabQuiz's logic: exclude grace period words, include unseen words + due words based on NextReviewDate
+- **40-word cap** — same random sampling used in both paths to prevent overwhelming the LLM with thousands of words from dynamic resources
+
+## Testing
+
+✅ Build passes (0 errors, 397 warnings - all pre-existing)  
+✅ E2E smoke test via webapp:
+  - Today's Plan → Cloze loads 8 sentences successfully from due vocab pool
+  - Vocab Quiz from plan still works (regression test passed)
+  - Screenshot evidence: `cloze-plan-success.png`, `vocab-quiz-regression.png`
+
+## References
+
+- Decision spec: `.squad/decisions/inbox/keaton-200-cloze-resourceid-decoupling.md`
+- Pattern documentation: `.squad/skills/resource-id-decoupling/SKILL.md`
+- VocabQuiz decoupling: commits 88a0272, c081a63
+- VocabMatching decoupling: commit 0c8e197
+### 2026-05-03: User directive — Mandatory e2e smoke before production
+
+**By:** Captain (David Ortinau) via Copilot
+**What:** Always perform an e2e/smoke test to confirm new work is ready before merging to main / shipping to production. Do NOT ask whether to smoke test — the answer is essentially always YES, **especially in autopilot mode (when Captain is away)**. Asking wastes a turn and risks shipping unverified work.
+
+**Operational rules:**
+1. Treat the **e2e-testing skill** (`.claude/skills/e2e-testing/SKILL.md`) as a **required gate**, not an optional one, for any change that affects runtime behavior (UI, services, data, auth, audio, sync, etc.). Pure docs / `.squad/` bookkeeping commits are exempt.
+2. In autopilot mode (Captain away, no `ask_user` answers): run the smoke yourself before merging. If the smoke tooling is broken, surface the failure but do NOT skip merging silently — log the gap clearly in your final report so Captain can verify on return.
+3. Build-passing alone is **never** sufficient. "It compiles" ≠ done. See e2e-testing skill: "Marking a Task Complete" checklist.
+4. If the only way to smoke is platform-specific (Mac Catalyst, iOS, webapp), pick the cheapest surface that exercises the change and run it there. Webapp first when the change applies to it.
+5. After deploy (`azd deploy`), `scripts/post-deploy-validate.sh` is mandatory per existing rule — this directive reinforces and broadens it to all production-bound merges, not just deploys.
+
+**Why:** Captain has been asked "should I smoke?" multiple times this session; the answer was always yes. Treat smoke as the default, not the question.
+
+**Captain's exact words:** "add a directive that you should always perform e2e testing aka smoke test to confirm new work is ready for me prior to going to production. Several times in this past few turns you have asked me if you want this, and the answer is nearly always going to be yes ESPECIALLY when I'm away and you're in autopilot mode."
+# Vocab Quiz Scoring & Rotation — Proposal for #191 (and follow-up to #189)
+
+**Author:** Wash (Backend) · Stream B Step 2 · Investigation + proposal only — **no production code changed**
+**Audience:** Captain (David Ortinau). CC: Zoe (Lead), Jayne (Tester), Kaylee (UI)
+**Status:** Awaiting Captain approval before implementation
+**Acceptance test (must pass):** `Repro191_NewWord_AllCorrect_DoesNotRotateOutBeforeFifthTurn` (PR #195)
+
+---
+
+## TL;DR
+
+- **Confirmed:** A fresh, all-correct word **rotates out at turn 4** under the current code. Jayne's failing repro is real.
+- **Root cause is split across two surfaces** (Captain was right to call out the per-turn delta):
+  1. `VocabularyQuizItem.ReadyToRotateOut` Tier 2 fires too cheaply (`SessionCorrectCount >= 2 && SessionTextCorrect >= 1`).
+  2. `VocabularyProgressService` mastery delta grows too fast (`EffectiveStreak / 7`) — a fresh word reaches mastery **0.714 by turn 4** and **1.000 by turn 5** with all-correct answers.
+- **Proposed rule (one rotation change + one mastery-delta change):**
+  - Tier 2 of `ReadyToRotateOut`: change `OR` → `AND` and raise the floor from `(2, 1)` to `(4, 2)`.
+  - `EFFECTIVE_STREAK_DIVISOR`: change `7.0f` → `12.0f`.
+- **Result:** Fresh word now rotates at **turn 5** (passes Jayne's `>= 5`). Already-known word still rotates at turn 1 (no regression). Existing user data is preserved (no schema change, mastery only ever moves up).
+
+---
+
+## Section 1 — Investigation findings
+
+### 1.1 `VocabularyQuizItem.ReadyToRotateOut` (today)
+
+`src/SentenceStudio.Shared/Models/VocabularyQuizItem.cs:33-55`
+
+```csharp
+public bool ReadyToRotateOut
+{
+    var mastery = Progress?.MasteryScore ?? 0f;
+    var streak  = Progress?.CurrentStreak ?? 0f;
+
+    bool tieredReady;
+    // Tier 1: High mastery
+    if (mastery >= 0.80f || streak >= 8f)
+        tieredReady = SessionTextCorrect >= 1 && !PendingRecognitionCheck;
+    // Tier 2: Mid mastery   ← the leaky one
+    else if (mastery >= 0.50f || streak >= 3f)
+        tieredReady = SessionCorrectCount >= 2 && SessionTextCorrect >= 1;
+    // Tier 3: Low mastery
+    else
+        tieredReady = SessionMCCorrect >= 3 && SessionTextCorrect >= 3;
+
+    return tieredReady || (Progress?.IsKnown ?? false);
+}
+```
+
+**Variables that drive each tier:**
+
+| Tier | Trigger condition | Demonstration required |
+|------|-------------------|------------------------|
+| 1 (high) | `mastery >= 0.80` OR `streak >= 8` | `SessionTextCorrect >= 1 && !PendingRecognitionCheck` |
+| 2 (mid)  | `mastery >= 0.50` **OR** `streak >= 3` | `SessionCorrectCount >= 2 && SessionTextCorrect >= 1` |
+| 3 (low)  | else | `SessionMCCorrect >= 3 && SessionTextCorrect >= 3` |
+
+**Why Tier 2 leaks:** the trigger is `OR`, so a fresh word that hits `streak >= 3` (three correct MC turns) drops out of the strict Tier 3 floor (3 MC + 3 Text) into Tier 2's lenient floor (2 corr + 1 text). The very next Text turn (turn 4) trivially satisfies that floor.
+
+### 1.2 Per-turn mastery delta (today)
+
+**Important correction to the dispatch:** the mastery delta lives in `VocabularyProgressService.RecordAttemptAsync` — *not* `ProgressService.cs`. The latter only computes aggregate dashboard metrics.
+
+`src/SentenceStudio.Shared/Services/VocabularyProgressService.cs:119-180`
+
+```csharp
+private const float EFFECTIVE_STREAK_DIVISOR = 7.0f; // line 21
+private const float RECOVERY_BOOST = 0.02f;          // line 28
+
+if (attempt.WasCorrect)
+{
+    float weight = attempt.DifficultyWeight > 0 ? attempt.DifficultyWeight : 1.0f;
+    progress.CurrentStreak += weight;
+    if (isProduction) progress.ProductionInStreak++;
+
+    float effectiveStreak = progress.CurrentStreak + (progress.ProductionInStreak * 0.5f);
+    float streakScore     = MathF.Min(effectiveStreak / EFFECTIVE_STREAK_DIVISOR, 1.0f);
+    float recoveryBoost   = (progress.MasteryScore > streakScore) ? RECOVERY_BOOST : 0f;
+    progress.MasteryScore = MathF.Max(streakScore, progress.MasteryScore) + recoveryBoost;
+    progress.MasteryScore = MathF.Min(progress.MasteryScore, 1.0f);
+}
+else
+{
+    // Wrong-answer path — scaled penalty + partial streak preservation. Not relevant to #191.
+}
+```
+
+**Per-turn delta facts:**
+
+- **Correct MC** (recognition, weight 1.0): `streak += 1`, `prodInStreak += 0`. EffectiveStreak grows by 1 → mastery grows by `~1/7 ≈ 0.143`.
+- **Correct Text** (production, weight 1.5): `streak += 1.5`, `prodInStreak += 1`. EffectiveStreak grows by `1.5 + 0.5 = 2.0` → mastery grows by `~2/7 ≈ 0.286`.
+- **Mode rule** (mirrored from `VocabQuiz.razor` `ChooseInteractionMode`): MC by default; flip to Text once `streak >= 3` OR `mastery >= 0.50`.
+- **Identical to MC vs Text:** there is **no separate path** for recognition vs production beyond the weight and the `prodInStreak` increment. There is **no separate path** for MC vs text-submission beyond `InputMode == "Text"|"Voice"|"TextEntry"`. The whole delta is the four lines above.
+
+So the system has effectively **two knobs**: the rotation rule, and the divisor. Captain's instinct that "the per-turn increment is too generous for unmastered words" is mathematically correct — under the current divisor, **an all-correct fresh word reaches mastery 1.0 in 5 turns**.
+
+### 1.3 Confirmation of Jayne's "rotation at turn 4" finding
+
+Reproduced via the simulator below (Section 2). Both by reading the code by hand and by running the simulator against the same constants used in production, the first `ReadyToRotateOut == true` turn for a fresh, all-correct word is **turn 4**. Jayne's `Repro191_NewWord_AllCorrect_DoesNotRotateOutBeforeFifthTurn` failure (`firstRotateTurn.Should().BeGreaterOrEqualTo(5)`) is correct, and her snapshot test `Repro191_CharacterizeCurrentBehavior_FreshWordRotatesAtTurnN` will record turn 4 as the current behavior.
+
+---
+
+## Section 2 — Simulation
+
+The simulator (`tools/quiz-rotation-sim/sim.py`, ~110 lines) reproduces the production formulas exactly:
+- `RecordAttemptAsync` correct-path math (lines 134-152 of `VocabularyProgressService.cs`)
+- `ReadyToRotateOut` tiered rule (lines 33-55 of `VocabularyQuizItem.cs`)
+- `VocabQuiz.razor` mode selection (`streak >= 3 OR mastery >= 0.50 → Text`)
+
+> **Run:** `python3 tools/quiz-rotation-sim/sim.py`. Pure stdlib, no deps.
+
+### Scenario A — Fresh word, all-correct, 12 turns
+
+#### CURRENT — divisor = 7.0, Tier 2 = `(m≥0.5 OR s≥3) AND SessC≥2 AND ST≥1`
+
+| Turn | Mode | Streak | ProdInStreak | Total | Correct | SessC | SessMC | SessText | Mastery | Tier  | Ready |
+|------|------|--------|--------------|-------|---------|-------|--------|----------|---------|-------|-------|
+| 1 | MC   | 1.00 | 0 | 1 | 1 | 1 | 1 | 0 | 0.143 | Tier3 | no |
+| 2 | MC   | 2.00 | 0 | 2 | 2 | 2 | 2 | 0 | 0.286 | Tier3 | no |
+| 3 | MC   | 3.00 | 0 | 3 | 3 | 3 | 3 | 0 | 0.429 | Tier2 | no |
+| **4** | **Text** | **4.50** | **1** | **4** | **4** | **4** | **3** | **1** | **0.714** | **Tier2** | **YES** |
+| 5 | Text | 6.00 | 2 | 5 | 5 | 5 | 3 | 2 | 1.000 | Tier1 | YES |
+| 6 | Text | 7.50 | 3 | 6 | 6 | 6 | 3 | 3 | 1.000 | Tier1 | YES |
+
+**→ First rotation: turn 4**
+
+#### PROPOSED — divisor = 12.0, Tier 2 = `(m≥0.5 AND s≥3) AND SessC≥4 AND ST≥2`
+
+| Turn | Mode | Streak | ProdInStreak | Total | Correct | SessC | SessMC | SessText | Mastery | Tier  | Ready |
+|------|------|--------|--------------|-------|---------|-------|--------|----------|---------|-------|-------|
+| 1 | MC   | 1.00 | 0 | 1 | 1 | 1 | 1 | 0 | 0.083 | Tier3 | no |
+| 2 | MC   | 2.00 | 0 | 2 | 2 | 2 | 2 | 0 | 0.167 | Tier3 | no |
+| 3 | MC   | 3.00 | 0 | 3 | 3 | 3 | 3 | 0 | 0.250 | Tier3 | no |
+| 4 | Text | 4.50 | 1 | 4 | 4 | 4 | 3 | 1 | 0.417 | Tier3 | no |
+| **5** | **Text** | **6.00** | **2** | **5** | **5** | **5** | **3** | **2** | **0.583** | **Tier2** | **YES** |
+| 6 | Text | 7.50 | 3 | 6 | 6 | 6 | 3 | 3 | 0.750 | Tier2 | YES |
+| 7 | Text | 9.00 | 4 | 7 | 7 | 7 | 3 | 4 | 0.917 | Tier1 | YES |
+
+**→ First rotation: turn 5**
+
+### Scenario B — Half-mastered word entering session (mastery=0.50, streak=3, prod=1)
+
+| Rule | First rotation |
+|------|----------------|
+| CURRENT  | **turn 2** (almost instant) |
+| PROPOSED | **turn 4** (4 demonstrations: 2 in-session text correct + 2 more bringing SessC to 4) |
+
+### Scenario C — Already-known word entering session (mastery=0.85, streak=6, prod=2)
+
+| Rule | First rotation |
+|------|----------------|
+| CURRENT  | **turn 1** |
+| PROPOSED | **turn 1** ← **unchanged.** Tier 1 path is preserved verbatim. No regression for users' existing mastered words. |
+
+(Full 12-turn tables for all three scenarios produced verbatim by the simulator — see stdout when running. Trimmed here to the rotation boundary for readability.)
+
+---
+
+## Section 3 — Proposed rule
+
+### 3.1 New `ReadyToRotateOut` predicate
+
+**Pseudocode:**
+```
+Tier 1 (high — UNCHANGED):
+  trigger: mastery >= 0.80 OR streak >= 8
+  ready:   SessionTextCorrect >= 1 AND NOT PendingRecognitionCheck
+
+Tier 2 (mid — TWO CHANGES):
+  trigger: mastery >= 0.50 AND streak >= 3        ← OR → AND
+  ready:   SessionCorrectCount >= 4 AND SessionTextCorrect >= 2   ← raised from (2, 1)
+
+Tier 3 (low — UNCHANGED):
+  ready:   SessionMCCorrect >= 3 AND SessionTextCorrect >= 3
+
+DueOnly bonus: tieredReady OR Progress.IsKnown    (UNCHANGED)
+```
+
+**C#** (`VocabularyQuizItem.cs:33-55`):
+```csharp
+public bool ReadyToRotateOut
+{
+    get
+    {
+        var mastery = Progress?.MasteryScore ?? 0f;
+        var streak  = Progress?.CurrentStreak ?? 0f;
+
+        bool tieredReady;
+
+        // Tier 1: High mastery — 1 text correct + recognition cleared (UNCHANGED)
+        if (mastery >= 0.80f || streak >= 8f)
+            tieredReady = SessionTextCorrect >= 1 && !PendingRecognitionCheck;
+        // Tier 2: Mid mastery — must demonstrate BOTH mid-mastery AND streak,
+        // then prove with 4 in-session corrects including 2 text (#191).
+        else if (mastery >= 0.50f && streak >= 3f)
+            tieredReady = SessionCorrectCount >= 4 && SessionTextCorrect >= 2;
+        // Tier 3: Low mastery — full 3+3 demonstration (UNCHANGED)
+        else
+            tieredReady = SessionMCCorrect >= 3 && SessionTextCorrect >= 3;
+
+        return tieredReady || (Progress?.IsKnown ?? false);
+    }
+}
+```
+
+### 3.2 New per-turn mastery delta
+
+**Pseudocode:**
+```
+EFFECTIVE_STREAK_DIVISOR: 7.0 → 12.0
+(All other constants — RECOVERY_BOOST, weights, wrong-answer floor — UNCHANGED.)
+```
+
+**C#** (`VocabularyProgressService.cs:21`):
+```csharp
+// Before:
+private const float EFFECTIVE_STREAK_DIVISOR = 7.0f;
+// After:
+private const float EFFECTIVE_STREAK_DIVISOR = 12.0f;
+```
+
+**Why divisor 12, not e.g. 9 or 14?**
+- At divisor 12, an all-correct fresh word reaches `mastery == 0.50` at turn 4 (eff = 5/12 = 0.417 → not yet) and `mastery == 0.583` at turn 5 (eff = 7/12 = 0.583). That precisely **lines Tier 2 trigger up with the rotation gate**: the word becomes mid-mastery only on the same turn it has accumulated enough demonstration. Captain's intuition that "26 words / 58 turns is too fast" maps to ~2.2 turns/word; the new floor of 5 turns/word gives **~2.3× more demonstration per word** without slowing already-known users at all (Scenario C unchanged).
+- Divisor 9 would land fresh-word rotation right at turn 4–5 boundary (fragile). Divisor 14 pushes Tier 2 trigger past the rotation floor entirely — Tier 3 never escapes. 12 is the sweet spot found by the simulator.
+
+### 3.3 Acceptance against Jayne's tests
+
+| Test | Outcome under proposal |
+|------|------------------------|
+| `Repro191_NewWord_AllCorrect_DoesNotRotateOutBeforeFifthTurn` (`>= 5`) | **PASSES** — first rotation = turn 5 |
+| `Repro191_CharacterizeCurrentBehavior_FreshWordRotatesAtTurnN` (snapshot) | Snapshot needs to be updated from "turn 4" → "turn 5". Jayne owns this update; trivial one-line `_output` change since the test only writes the value to output, it doesn't assert it. |
+| `Repro189_SingleCorrectRecognitionAttempt_ProducesExpectedPanelState` | **Unaffected** — the proposal does not touch the obsolete-field write paths Captain told us to leave alone. The test should already pass since Kaylee confirmed the service is clean. |
+| `Repro189_SingleCorrectRecognition_LegacyProductionFieldsRemainZero` | **Unaffected** — same reason. |
+
+---
+
+## Section 4 — Risks & open questions
+
+### 4.1 Existing users' mastered words — DO THEY REGRESS?
+
+**No.** Three reasons:
+
+1. **MasteryScore is monotonic on correct.** The write is `mastery = max(streakScore, mastery) + recoveryBoost`. A user's stored `MasteryScore = 0.92` cannot drop just because we changed the divisor; the next correct turn produces `streakScore = eff/12` (smaller than before) but `max(streakScore, 0.92) = 0.92`, then adds `RECOVERY_BOOST = 0.02`. Net effect: existing high-mastery values are preserved verbatim.
+2. **`IsKnown` is computed from the stored `MasteryScore` and `ProductionInStreak`** (`VocabularyProgress.cs:108-113`). Both fields are stored; nothing about Known status is recomputed from raw streak math. Existing Known words remain Known.
+3. **Tier 1 of the rotation rule is unchanged.** Already-known and high-mastery words still rotate out after a single text correct, as today (Scenario C).
+
+**The rule "future mastery growth is slower" applies only to words that are still climbing the curve.** That's the desired behavior — they were climbing too fast.
+
+### 4.2 Migration concerns
+
+**None.** No schema change. Both `MasteryScore` and the Tier rule are runtime-derived from existing columns. Field already shipped; constants live in code only. `MigrateToStreakBasedScoringAsync` (line 81) — which uses the divisor too — would produce different numbers if re-run, but it's a one-shot migration and most users have already run it. Re-running it post-deploy on a stale install would slightly *lower* freshly-migrated mastery scores, which is consistent with the new curve. **Recommend: do not re-run the migration; just ship the new constant.**
+
+### 4.3 Feature flag / A-B?
+
+**Recommend no flag, but ship behind a new const file the test fixture can override.** The change is small enough (two locations), the simulator confirms the curve, and a flag would create dead branches in the rotation logic that are harder to reason about than just shipping the new numbers. If Captain wants a safety net, a per-user preference key (`vocab_rotation_curve_v1` vs `v2`) is feasible — let me know.
+
+### 4.4 Open question for Captain — "Is turn 5 the right floor, or should it be turn 6?"
+
+The proposal lands at **turn 5** for fresh words. Captain's casual target was 6–10. If 5 feels "still too fast", the cleanest tightening is to raise the Tier 2 demonstration to `SessionCorrectCount >= 5 AND SessionTextCorrect >= 3`, which would push fresh rotation to **turn 6** without further divisor changes. I held the proposal at (4, 2) because it's the smallest step that passes Jayne's test and matches the "mid mastery means moderate demonstration" mental model. Ask me to bump it if you want a more conservative curve.
+
+### 4.5 Open question — Wrong-answer path
+
+This proposal only touches the all-correct curve. The wrong-answer path (lines 154-180) has its own scaled penalty + streak preservation that I did not modify. If users complain that *wrong* answers don't dent rotation enough either, that's a Stream B Step 3 follow-up. Not in scope here.
+
+---
+
+## Section 5 — Recommended next steps
+
+### 5.1 Files Wash would edit (if approved)
+
+| File | Change | Lines |
+|------|--------|-------|
+| `src/SentenceStudio.Shared/Services/VocabularyProgressService.cs` | `EFFECTIVE_STREAK_DIVISOR`: `7.0f` → `12.0f` | 21 |
+| `src/SentenceStudio.Shared/Services/VocabularyProgressService.cs` | Update comment on line 21 | 21 |
+| `src/SentenceStudio.Shared/Models/VocabularyQuizItem.cs` | Tier 2 predicate: `OR` → `AND`, floors `(2,1)` → `(4,2)`, update comment | 33-55 |
+
+That's it for production code. Two files. ~6 lines net.
+
+### 5.2 Tests requiring updates
+
+Total: **~10 test methods** across **4 files**. Tractable, all mechanical updates of expected values.
+
+| File | Methods affected | Why |
+|------|------------------|-----|
+| `tests/SentenceStudio.UnitTests/Integration/MasteryAlgorithmIntegrationTests.cs` | ~6 tests with hardcoded `1.0f / 7.0f`, `1.5f / 7.0f`, `2.0f / 7.0f`, etc. (lines 65, 85, 169, 184, 255) | Divisor change. Update expected values to `/ 12.0f`. |
+| `tests/SentenceStudio.UnitTests/Integration/MultiDayLearningJourneyTests.cs` | 2 tests with `2.0f / 7.0f` and `4.0f / 7.0f` (lines 193, 237) | Divisor change. |
+| `tests/SentenceStudio.UnitTests/PlanGeneration/VocabQuizFilteringTests.cs` | 2 Tier 2 tests at lines 409 ("2 correct with 1 text") and 422 ("only 1 correct, need 2") | Tier 2 floor change. The "should rotate" case at 409 must be re-fixtured to 4 corr + 2 text; the negative case at 422 should still fail-to-rotate but with the new "need 4" message. |
+| `tests/SentenceStudio.UnitTests/Integration/VocabQuizScoringRepro189And191Tests.cs` (Jayne, PR #195) | `Repro191_CharacterizeCurrentBehavior_FreshWordRotatesAtTurnN` snapshot output line | Output text "turn 4" → "turn 5". Test still passes (it's a non-asserting snapshot). |
+
+I'd recommend Wash own the production-code edits and the test updates land in the same PR for atomicity. Jayne's snapshot is hers; we'd coordinate.
+
+### 5.3 Suggested PR shape (post-approval)
+
+1. Branch off `test/vocab-quiz-scoring-repro-189-191` (Jayne's branch — keeps her tests as the verification harness).
+2. Land the two production-code edits.
+3. Update the ~10 affected tests in the same commit.
+4. Run full unit test suite — the simulator output is the prediction; CI confirms it.
+5. Open PR closing #191. Reference this proposal in the description.
+
+---
+
+## Simulator artifact
+
+`tools/quiz-rotation-sim/sim.py` — 110 lines, pure Python stdlib. Reproduces the C# math exactly. Produces all tables in this proposal verbatim. Captain or anyone else can re-run to validate any future tweak (different divisor, different tier floors) before code lands.
+
+```
+python3 tools/quiz-rotation-sim/sim.py
+```
+
+— Wash
+### 2026-05-03: User directive — Troubleshoot maui devflow yourself
+
+**By:** Captain (David Ortinau) via Copilot
+**What:** When `maui devflow` (the `maui` dotnet global tool, `devflow` subcommand) misbehaves — JSON serialization errors, screenshot failures, agent connection issues, missing subcommands, etc. — **troubleshoot and attempt to resolve it yourself before escalating or working around it.** You are authorized to:
+- Read and modify the source at `~/work/maui-labs` (repository: `dotnet/maui-labs`)
+- Build/install a local fix to the global tool
+- Open issues or PRs against `dotnet/maui-labs` if a fix is non-trivial
+- Use this self-help path to unblock smoke tests and other workflows that depend on devflow
+
+**Key locations:**
+- Source: `/Users/davidortinau/work/maui-labs`
+- CLI source files referenced in the JSON serializer error today: `src/Cli/Microsoft.Maui.Cli/DevFlow/CliJson.cs`, `src/Cli/Microsoft.Maui.Cli/DevFlow/DevFlowCommands.cs`, `src/Cli/Microsoft.Maui.Cli/DevFlow/OutputWriter.cs`
+- Repo: `dotnet/maui-labs`
+
+**Operational rules:**
+1. **Diagnose first.** Read the error, find the source file, understand the bug. Don't guess.
+2. **Smallest fix that unblocks.** Add the missing `JsonSerializable` attribute or whatever the immediate issue requires. Don't refactor.
+3. **Build locally and test.** Reinstall the global tool from your fix (`dotnet pack` + `dotnet tool update --global`) and re-run the failing command to confirm.
+4. **Push the fix upstream.** When the fix is real (not a hack), open a PR against `dotnet/maui-labs`. Include the failing command + error in the PR description so the maintainers have context.
+5. **If it's truly out of scope** (deep architectural problem, multi-day effort), surface it clearly to Captain with what you tried — but exhaust the self-help path first.
+6. **Pair with the smoke directive.** This directive exists primarily so the smoke-test directive (filed earlier today) doesn't get blocked by tooling failures. Don't let a CLI bug be an excuse to skip e2e validation.
+
+**Why:** Captain owns the devflow tool itself. He's not a bystander to its bugs — he's the maintainer. When devflow blocks Squad work, the right move is to fix devflow, not route around it.
+
+**Captain's exact words:** "the other thing I expect you to do, so add this directive also, is to troubleshoot maui devflow issues and attempt to resolve them yourself. ~/work/maui-labs is the source for devflow and dotnet/maui-labs is the repository. You are authorized to unblock yourself."
+# Release: PR #201 (Cloze ResourceId Decoupling)
+
+**Date:** 2026-05-03 15:39 UTC  
+**Merge Commit:** 2995cad  
+**Status:** Azure Deploy ✅ | iOS Install ❌ (device unavailable)
+
+## What Shipped
+
+**PR #201** (Apply 4-layer ResourceId decoupling to Cloze activity) merges fix for **#200**.
+
+### Changes in this release:
+- Cloze activity now decouples ResourceId into separate layers (Cloze → Activity → Plan → Profile)
+- Updates ClozureService with 4-layer lookups
+- Adds DeterministicPlanBuilder configuration for deterministic IDs
+- Updates PlanConverter to handle ID flows
+- Cloze.razor UI adjustments for new ID structure
+- Index.razor updated for new imports
+
+### Earlier today (same branch):
+- Vocab quiz bug cluster #189-#194 shipped (rotation curve fix from #196, #198)
+
+## Release Workflow Summary
+
+| Step | Result | Time | Notes |
+|------|--------|------|-------|
+| Merge PR #201 | ✅ PASS | 15:30 UTC | Squash merge to main, branch deleted |
+| Azure deploy | ✅ PASS | 2m 11s | All 5 services (api, cache, marketing, webapp, workers) deployed successfully |
+| Post-deploy validate | ✅ PASS | 30s wait + script | 16 pass, 0 fail, 2 skip, 2 warn. All gates cleared. |
+| iOS build (net11p3) | ✅ PASS | ~3m build | Release binary built successfully to arm64 artifact |
+| iOS install on DX24 | ❌ FAIL | Connection error | Device CF4F94E3-A1C9-5617-A089-9ABB0110A09F not reachable (socket error 57) |
+| iOS launch on DX24 | ⏭️ SKIP | N/A | Not reached due to install failure |
+| global.json restore | ✅ PASS | Immediate | net11p3 → net10 GA restored, working tree clean |
+
+## Decision
+
+**Azure deployment is live and validated.**  
+**iOS device deploy failed due to device connectivity (not code issue).**  
+**All code changes are in production via API endpoint.**
+
+Device error suggests DX24 was offline or unreachable at deploy time. Recommend:
+1. Verify DX24 connectivity (ping, Xcode paired)
+2. Retry iOS install from working tree (build artifact still present in `src/SentenceStudio.iOS/bin/Release/net10.0-ios/ios-arm64/SentenceStudio.iOS.app`)
+3. Or wait for next release to re-deliver iOS build
+
+---
+**Release Runner:** Mechanical ops (Captain authorized)  
+**Approval:** PR #201 author + Captain  
+# Decision: Mac Catalyst Aspire bundle-name symlink — PERMANENT FIX SHIPPED
+
+**By:** Zoe (Lead)
+**Status:** RESOLVED (supersedes 2026-05-02 "Mac Catalyst Symlink Recurrence — Awaiting Captain decision")
+**Date:** 2026-05-02
+
+## Resolution
+
+Captain approved Option A (permanent MSBuild target). Implemented and validated.
+
+## What Changed
+
+Added MSBuild target `_CreateAspireBundleNameSymlink` to
+`src/SentenceStudio.MacCatalyst/SentenceStudio.MacCatalyst.csproj`.
+
+Behavior:
+- Runs `AfterTargets="Build"`, gated to `net10.0-maccatalyst`
+- Skips when `$(_AppBundleName)` is empty (partial build) or equals
+  `$(MSBuildProjectName)` (no rename needed)
+- Creates `SentenceStudio.MacCatalyst.app -> SentenceStudio.app` symlink in
+  `$(OutputPath)` using `ln -sfn` (idempotent)
+- XML comment in csproj documents the Aspire.Hosting.Maui 13.3.0-preview
+  limitation and carries a TODO to remove when an upstream bundle-name
+  override API exists
+
+## Validation Performed
+
+1. Deleted manual symlink → rebuilt → symlink auto-recreated ✅
+2. `dotnet clean` → rebuild → symlink auto-recreated ✅
+3. Aspire `maccatalyst-maccatalyst-gngrxsgx` resource restarted → state `Running` ✅
+
+## Implementation Quirk Worth Knowing
+
+For Mac Catalyst, `$(OutputPath)` already includes the RID segment
+(`bin/Debug/net10.0-maccatalyst/maccatalyst-arm64/`). Do NOT append
+`$(RuntimeIdentifier)` — first attempt produced a doubled path and the
+`Exists()` guard silently skipped the `Exec`. The MSBuild diag log was
+required to catch it. Documented in zoe history.
+
+## Reference
+
+- csproj target: `src/SentenceStudio.MacCatalyst/SentenceStudio.MacCatalyst.csproj` (`_CreateAspireBundleNameSymlink`)
+- Earlier "Awaiting Captain decision" entry in `.squad/decisions.md` is now RESOLVED by this drop.
+# Empty-Users Startup Banner + Health Check
+
+**By:** Wash (Backend Dev)
+**Date:** 2026-05-02
+**Status:** Shipped (awaiting merge to .squad/decisions.md)
+**Resolves:** "2026-05-02: AppHost Multi-Worktree Isolation (Diagnosed)" entry in decisions.md
+
+## Problem
+
+Multi-worktree Aspire setups silently bind the API to a fresh Postgres volume — every worktree gets a unique persistent volume name (`sentencestudio.apphost-{hash}-db-data`). Captain's real account lives in `db-84833ad0` (volume `sentencestudio.apphost-84833ad037-db-data`). When a different worktree's AppHost runs, the API connects to an empty Postgres and `/api/auth/login` returns 401. Today this misled the team into chasing an "email confirmation" bug for a config issue.
+
+Captain's directive: **WARNING, not action.** No auto-recovery. No auto-seed. Just a loud, actionable signal.
+
+## Decision
+
+Two-pronged read-only diagnostic that surfaces the empty-users state through both startup logs and Aspire dashboard health.
+
+### Implementation
+
+**File:** `src/SentenceStudio.Api/Diagnostics/EmptyUsersHealthCheck.cs` (new)
+- `EmptyUsersHealthCheck : IHealthCheck` — returns `Degraded` when `db.Users.CountAsync() == 0`, `Healthy` otherwise. 30 s static-lock + `DateTime` cache to keep dashboard polling cheap. Exceptions during the check return `Healthy` rather than masking other DB-level health checks.
+- `EmptyUsersDetector` static helpers — single source of truth for the banner message, connection-string parsing (`db.Database.GetDbConnection().DataSource`), Npgsql provider detection, and best-effort volume-hash hint via `ASPIRE_RESOURCE_NAME` / `OTEL_SERVICE_INSTANCE_ID` env vars.
+
+**File:** `src/SentenceStudio.Api/Program.cs` (edits)
+- Registered `AddHealthChecks().AddCheck<EmptyUsersHealthCheck>("aspnet-users-populated", failureStatus: Degraded, tags: ["db","users","diagnostics"])` immediately after `AddNpgsqlDbContext`.
+- Added a startup-time scope after migrations / CoreSync provisioning, before `app.Run()`. Skips when `IsEnvironment("Testing")` (xUnit / WebApplicationFactory). Skips when EF resolved a non-Npgsql provider (defensive against SQLite test contexts). Logs `LogCritical` with the banner when count == 0; logs `LogInformation` with user count + connection when count > 0.
+- Mapped `/health` and `/alive` (Development only). Production health continues to flow through App Insights / OTEL — no need to expose diagnostic JSON publicly.
+
+### Why Degraded (not Unhealthy)
+
+`Unhealthy` cascades through Aspire orchestration and could take the API offline. Empty-users is a configuration mistake, not a service-down event. Degraded paints the dashboard amber and surfaces in `/health` JSON while the API stays up.
+
+### Why startup-time check + health check (not either-or)
+
+- **Startup banner** = the unmissable scream when the API first binds to the wrong volume. Captain's misdiagnosis today happened because no signal fired at all.
+- **Health check** = the recurring signal. Anyone attaching mid-session sees the Degraded state without re-reading old console logs.
+- Both share `EmptyUsersDetector.BuildMessage` for byte-identical output.
+
+### Why a 30 s cache
+
+The Aspire dashboard polls `/health` every few seconds. Uncached, every poll fires `SELECT COUNT(*) FROM AspNetUsers` against Postgres. Simple `static object` lock + `DateTime _cachedAtUtc` is sufficient — no need to register `IMemoryCache` (none currently exists in the API).
+
+## Data preservation
+
+100% read-only. The only DB call is `Users.CountAsync()`. No DELETE, UPDATE, INSERT, migration, seed, or schema mutation anywhere in the new code. Reviewable in 1 file.
+
+## Validation
+
+- `dotnet build src/SentenceStudio.Api/SentenceStudio.Api.csproj` → clean (only pre-existing warnings unrelated to this change).
+- Triggered Aspire `rebuild` on `api-fdhckgbm`. Structured logs showed `AspNetUsers populated at startup: 6 user(s) on tcp://localhost:51185 db=sentencestudio.` from `SentenceStudio.Api.Diagnostics.EmptyUsersStartupCheck`. Confirms the negative-case path (Captain's real volume).
+- `curl -k https://localhost:7012/health` returned `Healthy` HTTP 200.
+- Empty-case path NOT smoke-tested live (would require deleting users — strictly forbidden by the data-preservation rule). Both paths share the same code: difference is only the count comparison. If Captain wants a live empty-case test, the canonical recipe is to start a fresh-worktree AppHost.
+
+## Files changed
+
+- `src/SentenceStudio.Api/Diagnostics/EmptyUsersHealthCheck.cs` (new, ~170 lines)
+- `src/SentenceStudio.Api/Program.cs` (3 small edits: using directive, registration block, startup detection block, /health mapping)
+
+## Notes for the next agent
+
+- Aspire's `Aspire.Npgsql.EntityFrameworkCore.PostgreSQL` package auto-registers a DB-level health check named `sentencestudio` (the connection name). The new `aspnet-users-populated` check is **additive** — it doesn't replace or duplicate anything.
+- This project's `ServiceDefaults/Extensions.cs` is **MAUI-safe** and intentionally skips `MapDefaultEndpoints`. Anyone adding more health checks to a web host needs to map `/health` themselves.
+- The volume-hash hint env vars (`ASPIRE_RESOURCE_NAME`, `OTEL_SERVICE_INSTANCE_ID`) are best-effort. If Aspire's plumbing changes, the banner gracefully degrades to `(not available from environment)`.
+# Decision: Apply ResourceId Decoupling Pattern to Cloze Activity
+
+**Status:** DRAFT (awaiting Captain approval)  
+**Issue:** #200  
+**Author:** Keaton  
+**Date:** 2026-05-03  
+
+## Context
+
+Cloze activity launched from Today's Plan throws "no words available" error while Vocab Quiz from the same plan has words. Investigation confirms this is the same ResourceId decoupling issue fixed for VocabQuiz (commits 88a0272, c081a63) and VocabMatching (commit 0c8e197), but Cloze never got the fix.
+
+## Problem
+
+Cloze is currently resource-driven:
+1. DeterministicPlanBuilder stamps `ResourceId = resource.Id` for Cloze activities (line 505)
+2. PlanConverter has no Cloze-specific handling, so ResourceId passes through unchanged
+3. Index.razor `LaunchPlanItem` has no guard for Cloze, so ResourceId leaks to URL
+4. Cloze.razor has no DueOnly parameter and calls `ClozureSvc.GetSentences(resourceId, 8, skillId)` directly
+5. ClozureService hard requires non-empty resourceId and returns empty list if resource has no vocab
+
+When a persisted plan item carries ResourceId for a resource that's exhausted, Cloze fails even when hundreds of due words exist globally.
+
+## Decision
+
+Apply the **4-layer ResourceId Decoupling Pattern** to Cloze, matching the VocabQuiz/VocabMatching precedent:
+
+### Option A: Full Decoupling (Recommended)
+
+Treat Cloze as vocabulary-driven (not resource-driven) when launched from Today's Plan:
+
+**Layer 1 - DeterministicPlanBuilder.cs (line 502-510):**
+```csharp
+activities.Add(new PlannedActivity
+{
+    ActivityType = outputActivity,
+    ResourceId = outputActivity == "Cloze" ? null : resource.Id,  // Cloze is vocabulary-driven when from plan
+    SkillId = skill?.Id,
+    EstimatedMinutes = outputMinutes,
+    Priority = priority++,
+    Rationale = GetActivityRationale(outputActivity, "output")
+});
+```
+
+**Layer 2 - PlanConverter.cs (add Cloze branch to BuildRouteParameters, after line 139):**
+```csharp
+else if (activityType == PlanActivityType.Cloze)
+{
+    parameters["DueOnly"] = true;
+    // Cloze is vocabulary-driven when launched from plan, NOT resource-driven
+    // ResourceId is intentionally NOT passed to allow loading from full user vocab pool
+    if (!string.IsNullOrEmpty(skillId))
+        parameters["SkillId"] = skillId;
+}
+```
+
+**Layer 3 - Index.razor LaunchPlanItem (extend guard at line 984-986):**
+```csharp
+if (item.ActivityType != PlanActivityType.VocabularyReview 
+    && item.ActivityType != PlanActivityType.VocabularyGame 
+    && item.ActivityType != PlanActivityType.Cloze  // Add this
+    && !string.IsNullOrEmpty(item.ResourceId))
+```
+
+**Layer 4 - Cloze.razor + ClozureService:**
+- Add `[SupplyParameterFromQuery(Name = "DueOnly")] public bool DueOnly { get; set; }` to Cloze.razor
+- Modify LoadSentences to:
+  - When DueOnly=true, fetch due vocab globally (e.g., via `VocabularyProgressService.GetDueWordsAsync()`)
+  - Pass vocab list + skill to ClozureService instead of resourceId
+  - ClozureService generates contextual sentences from the due vocab pool
+- When DueOnly=false (user-initiated resource-filtered Cloze), preserve current behavior (load from specific resource)
+
+### Option B: Minimal Fix (Guard Only)
+
+If treating Cloze as vocabulary-driven is too invasive:
+
+**Layer 3 only:** Add Cloze to Index.razor guard so persisted plans can't leak ResourceId
+**Layer 4 only:** Modify ClozureService to fall back to global vocab pool when resourceId is null/empty instead of returning empty list
+
+**Trade-off:** This prevents the error but doesn't optimize Cloze for SRS like the full pattern does.
+
+## Recommendation
+
+**Option A (Full Decoupling)** — matches the team's established pattern for vocab-driven activities and optimizes Cloze to focus on due vocabulary. The changes are surgical and follow the exact precedent from VocabQuiz/VocabMatching.
+
+## Implementation Notes
+
+- **Persisted plans:** Old DailyPlan rows with Cloze ResourceId will be masked by Layer 3 guard immediately. No DB migration needed.
+- **ClozureService changes:** Currently hardcoded for resource-driven mode. Needs refactor to support vocabulary-driven mode (fetch due words → generate contextual sentences for those words).
+- **Skill handling:** Preserve SkillId in all paths — Cloze can still be skill-focused even when vocabulary-driven.
+
+## Test Plan
+
+1. **Regenerate Today's Plan** with user `f452438c-b0ac-4770-afea-0803e2670df5` (Korean, DX24)
+2. **Launch Cloze** from Today's Plan
+3. **Verify:** Sentences load successfully using due vocabulary pool (not restricted to single resource)
+4. **Verify:** Direct resource-filtered Cloze still works (navigate from resource detail page)
+5. **Regression:** Confirm VocabQuiz + VocabMatching still work from plan
+
+## References
+
+- VocabQuiz decoupling: commits 88a0272, c081a63
+- VocabMatching decoupling: commit 0c8e197
+- Pattern documentation: `.squad/decisions.md` lines 7-16 (vocab-quiz bug cluster)
+
+---
+
+
+---
+
+
+---
+
+
+---
+
+
+---
+
+
+---
+
+
+---
+
+
+---
+
+
+---
+
+
+---
+

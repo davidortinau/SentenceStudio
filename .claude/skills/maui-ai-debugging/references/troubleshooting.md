@@ -2,10 +2,50 @@
 
 ## Table of Contents
 - [Broker Idle Timeout](#broker-idle-timeout)
+- [Phantom Agent (Connected But Empty Tree)](#phantom-agent-connected-but-empty-tree)
 - [Connection Refused](#connection-refused--cannot-connect)
 - [Build Failures](#build-failures)
 - [CDP Not Connecting](#cdp-not-connecting-blazor-hybrid)
 - [Mac Catalyst Permission Dialogs](#mac-catalyst-repeated-permission-dialogs-on-rebuild)
+
+## Phantom Agent (Connected But Empty Tree)
+
+**Symptom:** `maui devflow wait` returns a port (e.g. 10223) and `maui devflow list` shows the
+agent connected, but every inspection command misbehaves:
+
+- `maui devflow ui tree` returns 0 windows
+- `maui devflow ui status` reports no top-level window
+- `maui devflow webview status` reports CDP "Not ready"
+- `maui devflow logs` returns HTTP 404
+- Meanwhile `log stream --predicate 'process == "SentenceStudio"'` (or equivalent) shows the
+  app is alive — WebKit activity, layout, network calls all visible in system logs
+
+This is **not an auth/code bug** — the app is running. The DevFlow agent's HTTP surface is
+wedged. Most often seen on Mac Catalyst after a kill+relaunch cycle, or on a long-running
+session where the broker auto-restarted underneath a still-running app.
+
+**Recovery (in order — stop as soon as one works):**
+
+1. `maui devflow diagnose` — sometimes prints the actionable cause (broker mismatch, port collision).
+2. **Force the agent to re-register:** kill the app process directly (`kill <pid>` or close the
+   window), `maui devflow list` to confirm it disappears, then relaunch via `dotnet build -t:Run`
+   and `maui devflow wait`. A fresh launch almost always recovers.
+3. **Recycle the broker:** `maui devflow broker stop` then `maui devflow broker status` (which
+   restarts it), then relaunch the app.
+4. **Last resort:** delete `~/.maui/devflow/state.json` (or platform equivalent) and restart
+   the broker. This wipes any stale agent registrations.
+
+**When to give up and use a different signal:** if you've burned ≥10 minutes on this and your
+goal is to verify *behavior* (not introspect UI), fall back to indirect verification:
+
+- API logs (Aspire `list_structured_logs`) — did the expected request hit the server?
+- Database queries — did the expected row land in the DB?
+- Screenshot via `xcrun simctl io <udid> screenshot out.png` (iOS) or `screencapture` (Catalyst)
+  — visual confirmation without DevFlow.
+
+This was the workaround used during the 2026-05 auth-persistence ship: with the agent wedged,
+zero 401s and zero refresh storms in API logs over the runtime window were accepted as
+sufficient evidence that the persistence fix held.
 
 ## Broker Idle Timeout
 

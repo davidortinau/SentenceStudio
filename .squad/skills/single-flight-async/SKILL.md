@@ -191,6 +191,44 @@ private async Task<AuthResult?> RefreshWithLockAsync(string refreshToken)
 
 ## Common Mistakes
 
+❌ **Releasing the semaphore in `finally` without tracking acquisition:**
+
+If `WaitAsync()` throws (e.g. the operation was cancelled before the lock was acquired), the
+`finally` block still runs and `_lock.Release()` will throw `SemaphoreFullException` —
+masking the original exception and corrupting the semaphore count.
+
+```csharp
+// BAD: Release runs even if WaitAsync threw
+await _lock.WaitAsync(ct);
+try { ... }
+finally
+{
+    _inflightOperation = null;
+    _lock.Release();   // 💥 SemaphoreFullException if WaitAsync threw
+}
+```
+
+✅ **Use a `lockAcquired` guard:**
+
+```csharp
+bool lockAcquired = false;
+try
+{
+    await _lock.WaitAsync(ct);
+    lockAcquired = true;
+    // ... critical section ...
+}
+finally
+{
+    _inflightOperation = null;
+    if (lockAcquired)
+        _lock.Release();
+}
+```
+
+This pattern was added to `IdentityAuthService` after a code review caught it as a
+High-severity finding. Apply it everywhere you have `WaitAsync` + `finally { Release() }`.
+
 ❌ **Forgetting to null out `_inflightOperation` in finally:**
 ```csharp
 // BAD: next caller will await a completed Task forever

@@ -9,6 +9,7 @@
 
 - 2026-04-17: **Help Flyout Wiring Pattern** — Dynamic IHelpKit reflection to keep UI project portable (net10.0-browser, no MAUI refs). Runtime type detection via `Type.GetType()` + method invocation; graceful degrade if HelpKit absent (WebApp). Used in NavMenu.razor for both MAUI (Help visible) and WebApp (Help hidden).
 - 2026-04-17: **HelpKit Alpha shipped** — library, RAG pipeline, storage, 3 samples, eval harness, CI, docs all delivered.
+- 2026-05-03: **AGENTS.md updated with auth-persistence cycle lessons** — Added three entries from May 2-3 auth fix cycle: (1) Mac Catalyst keychain-access-groups entitlement gotcha (NSPOSIXErrorDomain 163 from `$(AppIdentifierPrefix)` not substituting under ad-hoc Debug signing — solution: omit the entitlement entirely), (2) Mandatory `scripts/post-deploy-validate.sh` step after `azd deploy` (inserted as Step 2 in Publish Workflow), (3) References to single-flight async pattern (`.squad/skills/single-flight-async/SKILL.md`), EF dual-provider migrations, and async single-flight testing skills in new "Async Patterns" section. Skipped Catalyst bundle symlink (already handled by permanent MSBuild target per zoe-maccatalyst-symlink-permanent.md).
 
 ## Core Context (Summarized from Sessions)
 

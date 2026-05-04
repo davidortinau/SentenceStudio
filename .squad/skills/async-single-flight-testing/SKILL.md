@@ -93,7 +93,7 @@ private class InMemorySecureStorageService : ISecureStorageService
 
     public bool Remove(string key)
     {
-        lock (_lock) => _store.Remove(key);
+        lock (_lock) { return _store.Remove(key); }
     }
 }
 ```

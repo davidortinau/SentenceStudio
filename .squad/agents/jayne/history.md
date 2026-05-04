@@ -29,6 +29,10 @@
 - "It compiles" is NOT sufficient — must verify in running app
 - Must call `CacheService.InvalidateVocabSummary()` after recording attempts or dashboard is stale
 
+## Cross-Agent Notes
+
+- **2026-05-04 (Scribe):** skill-trainer validated three skills from auth-persistence cycle: **single-flight-async** (lockAcquired guard added, production-validated), **async-single-flight-testing** (C# syntax fixed), **maui-ai-debugging** (phantom-agent troubleshooting entry added). All promoted to high confidence. Zoe updated AGENTS.md with "Async Patterns" section referencing single-flight-async, ef-dual-provider-migrations, async-single-flight-testing skills. Decisions merged from inbox → decisions.md.
+
 ## Core Context (Summarized History)
 
 [Earlier entries (prior to 2026-04-25) have been reviewed and consolidated. Key patterns:]

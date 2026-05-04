@@ -527,7 +527,8 @@ return $"{_localize[item.TitleKey]}"; // May not match resource file format
 See `docs/deploy-runbook.md` for full details. Quick reference:
 
 1. **Azure:** `azd deploy` (VPN must be off)
-2. **iOS to DX24 (iPhone 15 Pro, device CF4F94E3-A1C9-5617-A089-9ABB0110A09F):**
+2. **Post-deploy validation:** `./scripts/post-deploy-validate.sh` — **MANDATORY**. Exit code 0 from `azd deploy` means the upload worked, not that the system works. This script runs 16 automated checks (infrastructure health, service availability, auth smoke test, revision health). Never skip this step.
+3. **iOS to DX24 (iPhone 15 Pro, device CF4F94E3-A1C9-5617-A089-9ABB0110A09F):**
    - Switch `global.json` to .NET 11 Preview 3 (`allowPrerelease: true`, sdk `11.0.100-preview.3.26209.122`)
    - Build: `services__api__https__0=https://api.livelyforest-b32e7d63.centralus.azurecontainerapps.io dotnet build src/SentenceStudio.iOS/SentenceStudio.iOS.csproj -f net10.0-ios -c Release -p:RuntimeIdentifier=ios-arm64`
    - Install: `xcrun devicectl device install app --device CF4F94E3-A1C9-5617-A089-9ABB0110A09F src/SentenceStudio.iOS/bin/Release/net10.0-ios/ios-arm64/SentenceStudio.iOS.app`
@@ -535,6 +536,29 @@ See `docs/deploy-runbook.md` for full details. Quick reference:
    - Restore `global.json` after
 
 **Local dev builds** use Debug config and point at localhost (requires Aspire running). Never deploy a Debug build to DX24 for production use.
+
+## Mac Catalyst Gotchas
+
+**CRITICAL: Never add `keychain-access-groups` to Mac Catalyst Entitlements.plist for Debug builds.**
+
+Under ad-hoc Debug signing (the default local dev workflow), the `$(AppIdentifierPrefix)` macro is NOT substituted by the build tooling. This leaves a malformed literal value like `com.simplyprofound.sentencestudio` (missing the team prefix) in the compiled binary's entitlements. The macOS kernel rejects the binary at exec time with:
+
+```
+NSPOSIXErrorDomain error 163 (OS_REASON_EXEC)
+Process launch failed: Launchd job spawn failed
+```
+
+**Solution:** Omit `keychain-access-groups` entirely from `src/SentenceStudio.MacCatalyst/Platforms/MacCatalyst/Entitlements.plist`. Mac Catalyst apps get default access to keychain items under their own bundle ID without explicit declaration. The entitlement is only needed for keychain sharing across multiple apps with the same team prefix.
+
+**Why this matters:** Adding this entitlement "to match iOS" breaks local Catalyst Debug launches completely. The fix is to remove the entitlement. See checkpoint 053 for full diagnosis.
+
+## Async Patterns
+
+**Single-flight async:** For service methods where concurrent calls should share one operation (token refresh, config fetch, cache warming), use the single-flight pattern documented in `.squad/skills/single-flight-async/SKILL.md`. Pattern: `SemaphoreSlim(1,1)` + cached `Task<T>?` to collapse duplicate in-flight operations. Example: `IdentityAuthService.RefreshTokenAsync` (auth-persistence fix, May 2026).
+
+**EF dual-provider migrations:** When adding migrations that affect both PostgreSQL (API) and SQLite (mobile), see `.squad/skills/ef-dual-provider-migrations/SKILL.md` for the correct workflow. Both providers need migrations; always run `scripts/validate-mobile-migrations.sh` as a mandatory gate.
+
+**Testing single-flight concurrency:** See `.squad/skills/async-single-flight-testing/SKILL.md` for the xUnit pattern to verify exactly-one-call semantics under concurrent load.
 
 ## UI Style Rules
 
