@@ -1,0 +1,572 @@
+@page "/numberdrill"
+@attribute [Authorize]
+@using SentenceStudio.Services.Numbers
+@using SentenceStudio.Shared.Models.Numbers
+@using Microsoft.EntityFrameworkCore
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@inject NumberSessionService SessionService
+@inject ApplicationDbContext Db
+@inject IAppState AppState
+@inject NavigationManager NavManager
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<div class="activity-page-wrapper">
+    <PageHeader Title="Number Drill" SubTitle="@subtitle" ShowBack="true" OnBack="GoBack" />
+    
+    <div class="activity-content">
+        @if (state == State.Setup)
+        {
+            @* ============ SETUP CARD ============ *@
+            <div class="mx-auto" style="max-width: 640px;">
+                <div class="card card-ss p-4">
+                    <h3 class="ss-title3 mb-3">Choose your drill</h3>
+                    
+                    @* Context picker *@
+                    <div class="mb-4">
+                        <label class="ss-body2 fw-semibold mb-2 d-block">Context</label>
+                        <div class="d-flex flex-wrap gap-2">
+                            @foreach (var ctx in availableContexts)
+                            {
+                                <button type="button" 
+                                        class="btn @(selectedContext == ctx.Code ? "btn-ss-primary" : "btn-outline-secondary")"
+                                        @onclick="() => selectedContext = ctx.Code">
+                                    <i class="bi @GetContextIcon(ctx.Code)"></i> @ctx.DisplayName
+                                </button>
+                            }
+                            <button type="button" 
+                                    class="btn @(selectedContext == null ? "btn-ss-primary" : "btn-outline-secondary")"
+                                    @onclick="() => selectedContext = null">
+                                <i class="bi bi-asterisk"></i> Any
+                            </button>
+                        </div>
+                    </div>
+                    
+                    @* Sub-mode picker *@
+                    <div class="mb-4">
+                        <label class="ss-body2 fw-semibold mb-2 d-block">Mode</label>
+                        <div class="d-flex flex-wrap gap-2">
+                            @foreach (var mode in availableSubModes)
+                            {
+                                <button type="button" 
+                                        class="btn @(selectedSubMode == mode.Code ? "btn-ss-primary" : "btn-outline-secondary")"
+                                        @onclick="() => selectedSubMode = mode.Code">
+                                    @mode.DisplayName
+                                </button>
+                            }
+                        </div>
+                    </div>
+                    
+                    @* Item count *@
+                    <div class="mb-4">
+                        <label class="ss-body2 fw-semibold mb-2 d-block">Items: @itemCount</label>
+                        <div class="d-flex gap-2 align-items-center">
+                            <button type="button" class="btn btn-outline-secondary" @onclick="() => itemCount = Math.Max(5, itemCount - 5)">
+                                <i class="bi bi-dash"></i>
+                            </button>
+                            <span class="ss-body1">@itemCount</span>
+                            <button type="button" class="btn btn-outline-secondary" @onclick="() => itemCount = Math.Min(20, itemCount + 5)">
+                                <i class="bi bi-plus"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    @* Due only toggle *@
+                    <div class="form-check mb-4">
+                        <input class="form-check-input" type="checkbox" id="dueOnlyCheck" @bind="dueOnly">
+                        <label class="form-check-label ss-body2" for="dueOnlyCheck">
+                            Due items only
+                        </label>
+                    </div>
+                    
+                    @* Start button *@
+                    <button type="button" class="btn btn-ss-primary w-100" @onclick="StartSessionAsync" disabled="@isBusy">
+                        @if (isBusy)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        }
+                        <i class="bi bi-play-fill me-1"></i> Start Session
+                    </button>
+                    
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="alert alert-warning mt-3 mb-0" role="alert">
+                            <i class="bi bi-exclamation-triangle me-1"></i>@errorMessage
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+        else if (state == State.InSession && currentItem != null)
+        {
+            @* ============ ITEM CARD ============ *@
+            <div class="mx-auto" style="max-width: 640px;">
+                @* Progress dots *@
+                <div class="d-flex justify-content-center gap-1 mb-3">
+                    @for (int i = 0; i < session!.Items.Count; i++)
+                    {
+                        <span class="@(i == currentIndex ? "bg-primary" : "bg-secondary opacity-50")" 
+                              style="width: 8px; height: 8px; border-radius: 50%; display: inline-block;"></span>
+                    }
+                </div>
+                
+                <div class="card card-ss p-4">
+                    @* System color chip *@
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span class="chip-system-@(currentItem.System.ToString().ToLower()) px-3 py-1 rounded-pill small fw-semibold">
+                            @currentItem.System
+                        </span>
+                        <span class="text-secondary-ss small">
+                            <i class="bi @GetContextIcon(currentItem.ContextCode)"></i> @currentItem.ContextCode
+                        </span>
+                    </div>
+                    
+                    @if (!showFeedback)
+                    {
+                        @* Prompt area *@
+                        @if (selectedSubMode == "ListenAndType")
+                        {
+                            <div class="text-center my-4">
+                                <button type="button" class="btn btn-lg btn-ss-primary" @onclick="PlayAudioAsync" disabled="@isPlayingAudio">
+                                    <i class="bi @(isPlayingAudio ? "bi-volume-mute" : "bi-volume-up") me-2"></i>
+                                    @(isPlayingAudio ? "Playing..." : "Play")
+                                </button>
+                                
+                                @* TODO: TTS hookup pending — Wash's Wave 3b TTS cache *@
+                                @if (!string.IsNullOrEmpty(currentItem.AudioCue))
+                                {
+                                    <div class="text-secondary-ss small mt-2">
+                                        <em>(TTS placeholder: "@currentItem.AudioCue")</em>
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else if (selectedSubMode == "ReadAndProduce")
+                        {
+                            <div class="text-center my-4">
+                                <div class="ss-display mb-2" style="font-size: 3rem; color: var(--bs-primary);">
+                                    @currentItem.DisplayPrompt
+                                </div>
+                            </div>
+                        }
+                        
+                        @* Hint accordion *@
+                        @if (currentItem.Hints.Any())
+                        {
+                            <details class="mb-3">
+                                <summary class="ss-body2 text-secondary-ss" style="cursor: pointer;">
+                                    <i class="bi bi-lightbulb me-1"></i>Show hint
+                                </summary>
+                                <ul class="mt-2 mb-0">
+                                    @foreach (var hint in currentItem.Hints)
+                                    {
+                                        <li class="ss-body2 text-secondary-ss">@hint</li>
+                                    }
+                                </ul>
+                            </details>
+                        }
+                        
+                        @* Input field *@
+                        <form @onsubmit="SubmitAnswerAsync" @onsubmit:preventDefault>
+                            <input type="text" 
+                                   class="form-control form-control-ss mb-3" 
+                                   @bind="userAnswer"
+                                   @bind:event="oninput"
+                                   @ref="answerInput"
+                                   placeholder="@(selectedSubMode == "ListenAndType" ? "Type what you heard..." : "Type the Korean...")"
+                                   disabled="@isBusy"
+                                   autocomplete="off" />
+                            
+                            <button type="submit" class="btn btn-ss-primary w-100" disabled="@(isBusy || string.IsNullOrWhiteSpace(userAnswer))">
+                                @if (isBusy)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-2"></span>
+                                }
+                                Submit
+                            </button>
+                        </form>
+                    }
+                    else
+                    {
+                        @* Feedback panel *@
+                        @if (lastGrade != null)
+                        {
+                            <div class="@(lastGrade.IsCorrect ? "bg-success-subtle" : "bg-warning-subtle") p-3 rounded mb-3">
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <i class="bi @(lastGrade.IsCorrect ? "bi-check-circle-fill text-success" : "bi-x-circle-fill text-warning") fs-4"></i>
+                                    <span class="ss-title3">@lastGrade.Verdict</span>
+                                </div>
+                                
+                                <div class="ss-body2 mb-2">
+                                    <strong>Answer:</strong> @lastGrade.CanonicalAnswer
+                                </div>
+                                
+                                @if (!lastGrade.IsCorrect && !string.IsNullOrEmpty(lastGrade.ErrorClass))
+                                {
+                                    <div class="alert alert-info py-2 px-3 mb-2 small">
+                                        <i class="bi bi-info-circle me-1"></i>
+                                        <strong>@lastGrade.ErrorClass:</strong> @lastGrade.Tip
+                                    </div>
+                                }
+                                
+                                @if (lastAttemptResult != null && lastAttemptResult.Snapshot != null)
+                                {
+                                    <div class="text-secondary-ss small">
+                                        Progress: @lastAttemptResult.Snapshot.CorrectCount/@lastAttemptResult.Snapshot.TotalCount correct · 
+                                        Next review: @lastAttemptResult.Snapshot.NextDueDate.ToLocalTime().ToString("MMM d")
+                                    </div>
+                                }
+                            </div>
+                            
+                            <button type="button" class="btn btn-ss-primary w-100" @onclick="NextItemAsync">
+                                @if (currentIndex < session!.Items.Count - 1)
+                                {
+                                    <span>Next <i class="bi bi-arrow-right ms-1"></i></span>
+                                }
+                                else
+                                {
+                                    <span>Finish <i class="bi bi-check-lg ms-1"></i></span>
+                                }
+                            </button>
+                        }
+                    }
+                </div>
+            </div>
+        }
+        else if (state == State.Summary && sessionSummary != null)
+        {
+            @* ============ SUMMARY SCREEN ============ *@
+            <div class="mx-auto" style="max-width: 640px;">
+                <div class="card card-ss p-4 text-center">
+                    <h2 class="ss-title1 mb-4"><i class="bi bi-check-circle me-2 text-success"></i>Session Complete!</h2>
+                    
+                    <div class="row g-3 mb-4">
+                        <div class="col-6">
+                            <div class="ss-title2 text-success">@sessionSummary.CorrectCount/@sessionSummary.TotalItems</div>
+                            <div class="text-secondary-ss small">Correct</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="ss-title2">@sessionSummary.MedianLatencyMs ms</div>
+                            <div class="text-secondary-ss small">Median Time</div>
+                        </div>
+                    </div>
+                    
+                    @if (sessionSummary.ErrorClassBreakdown.Any())
+                    {
+                        <div class="text-start mb-4">
+                            <h4 class="ss-title3 mb-2">Patterns to Review</h4>
+                            @foreach (var kvp in sessionSummary.ErrorClassBreakdown.OrderByDescending(x => x.Value))
+                            {
+                                <div class="d-flex justify-content-between py-1">
+                                    <span class="ss-body2">@kvp.Key</span>
+                                    <span class="badge bg-warning text-dark">@kvp.Value</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                    
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-ss-primary flex-fill" @onclick="TryAgain">
+                            <i class="bi bi-arrow-clockwise me-1"></i>Another round
+                        </button>
+                        <button type="button" class="btn btn-ss-secondary flex-fill" @onclick="GoBack">
+                            <i class="bi bi-check-lg me-1"></i>Done
+                        </button>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+    
+    @if (state == State.InSession && !showFeedback)
+    {
+        <div class="activity-input-bar">
+            @* Input bar rendered above in mobile-friendly layout *@
+        </div>
+    }
+</div>
+
+@code {
+    private enum State { Setup, InSession, Summary }
+    
+    private State state = State.Setup;
+    private string? subtitle;
+    private bool isBusy;
+    private bool isPlayingAudio;
+    private string? errorMessage;
+    
+    // Setup state
+    private List<NumberContext> availableContexts = new();
+    private List<NumberSubMode> availableSubModes = new();
+    private string? selectedContext;
+    private string selectedSubMode = "ListenAndType";
+    private int itemCount = 10;
+    private bool dueOnly = false;
+    
+    // Session state
+    private NumberSession? session;
+    private int currentIndex = 0;
+    private NumberItem? currentItem;
+    private string userAnswer = "";
+    private ElementReference answerInput;
+    private DateTime itemStartTime;
+    private bool showFeedback;
+    private SentenceStudio.Services.Numbers.GradeResult? lastGrade;
+    private NumberAttemptResult? lastAttemptResult;
+    
+    // Summary state
+    private NumberSessionSummary? sessionSummary;
+    
+    // Aggregated stats
+    private int correctCount = 0;
+    private int totalCount = 0;
+    
+    private IJSObjectReference? jsModule;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadSetupDataAsync();
+    }
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./Pages/NumberDrill.razor.js");
+        }
+        
+        // Focus input when showing new item
+        if (state == State.InSession && !showFeedback && currentItem != null)
+        {
+            try
+            {
+                await answerInput.FocusAsync();
+            }
+            catch { /* ignore if element not ready */ }
+        }
+    }
+    
+    private async Task LoadSetupDataAsync()
+    {
+        try
+        {
+            isBusy = true;
+            
+            availableContexts = await Db.NumberContexts
+                .Where(c => c.IsActive)
+                .OrderBy(c => c.SortOrder)
+                .ToListAsync();
+            
+            availableSubModes = await Db.NumberSubModes
+                .Where(m => m.IsActive && m.Phase == 1)
+                .ToListAsync();
+            
+            // Default to first sub-mode if available
+            if (availableSubModes.Any() && string.IsNullOrEmpty(selectedSubMode))
+            {
+                selectedSubMode = availableSubModes[0].Code;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to load setup: {ex.Message}";
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+    
+    private async Task StartSessionAsync()
+    {
+        try
+        {
+            isBusy = true;
+            errorMessage = null;
+            
+            var userGuid = AppState?.CurrentUserProfile?.Id;
+            if (string.IsNullOrEmpty(userGuid))
+            {
+                errorMessage = "User not found. Please log in.";
+                return;
+            }
+            
+            // TODO: Phase 2 - fix data model mismatch (UserProfile.Id is string, NumberMasteryProgress expects int)
+            var userId = userGuid.GetHashCode();
+            
+            var request = new NumberSessionRequest(
+                ContextCode: selectedContext,
+                SubModeCode: selectedSubMode,
+                ItemCount: itemCount,
+                DueOnly: dueOnly,
+                Difficulty: 1
+            );
+            
+            session = await SessionService.StartSessionAsync(userId, "ko", request);
+            
+            if (session.Items.Count == 0)
+            {
+                errorMessage = "No items available. Try different settings or create some vocabulary first.";
+                return;
+            }
+            
+            state = State.InSession;
+            currentIndex = 0;
+            currentItem = session.Items[0];
+            itemStartTime = DateTime.UtcNow;
+            userAnswer = "";
+            showFeedback = false;
+            correctCount = 0;
+            totalCount = 0;
+            
+            subtitle = $"{session.Items.Count} items · {selectedSubMode}";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to start session: {ex.Message}";
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+    
+    private async Task PlayAudioAsync()
+    {
+        // TODO: replace with NumberAudioPlayer once Wash ships TTS cache (Phase 1 Wave 3b)
+        isPlayingAudio = true;
+        await Task.Delay(1000); // Simulate audio playback
+        isPlayingAudio = false;
+    }
+    
+    private async Task SubmitAnswerAsync()
+    {
+        if (string.IsNullOrWhiteSpace(userAnswer) || currentItem == null || session == null)
+            return;
+        
+        try
+        {
+            isBusy = true;
+            
+            var latencyMs = (int)(DateTime.UtcNow - itemStartTime).TotalMilliseconds;
+            
+            var userGuid = AppState?.CurrentUserProfile?.Id;
+            if (string.IsNullOrEmpty(userGuid))
+            {
+                errorMessage = "User not found.";
+                return;
+            }
+            
+            // TODO: Phase 2 - fix data model mismatch (UserProfile.Id is string, NumberMasteryProgress expects int)
+            var userId = userGuid.GetHashCode();
+            
+            lastAttemptResult = await SessionService.SubmitAnswerAsync(
+                userId,
+                session.SessionId,
+                currentItem,
+                userAnswer.Trim(),
+                latencyMs
+            );
+            
+            lastGrade = lastAttemptResult.Grade;
+            showFeedback = true;
+            totalCount++;
+            
+            if (lastGrade.IsCorrect)
+            {
+                correctCount++;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to submit answer: {ex.Message}";
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+    
+    private async Task NextItemAsync()
+    {
+        currentIndex++;
+        
+        if (currentIndex >= session!.Items.Count)
+        {
+            // End session
+            await EndSessionAsync();
+        }
+        else
+        {
+            // Move to next item
+            currentItem = session.Items[currentIndex];
+            userAnswer = "";
+            showFeedback = false;
+            lastGrade = null;
+            lastAttemptResult = null;
+            itemStartTime = DateTime.UtcNow;
+        }
+    }
+    
+    private async Task EndSessionAsync()
+    {
+        try
+        {
+            isBusy = true;
+            
+            sessionSummary = await SessionService.EndSessionAsync(session!.SessionId);
+            
+            // Override with our local counts (more accurate for this session)
+            sessionSummary = sessionSummary with 
+            { 
+                CorrectCount = correctCount,
+                TotalItems = totalCount
+            };
+            
+            state = State.Summary;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to end session: {ex.Message}";
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+    
+    private void TryAgain()
+    {
+        state = State.Setup;
+        session = null;
+        currentIndex = 0;
+        currentItem = null;
+        sessionSummary = null;
+        userAnswer = "";
+        showFeedback = false;
+        correctCount = 0;
+        totalCount = 0;
+        subtitle = null;
+    }
+    
+    private void GoBack()
+    {
+        NavManager.NavigateTo("/");
+    }
+    
+    private string GetContextIcon(string contextCode) => contextCode switch
+    {
+        "Time" => "bi-clock",
+        "Counting" => "bi-cup",
+        "Age" => "bi-cake",
+        _ => "bi-123"
+    };
+    
+    public async ValueTask DisposeAsync()
+    {
+        if (jsModule != null)
+        {
+            await jsModule.DisposeAsync();
+        }
+    }
+}

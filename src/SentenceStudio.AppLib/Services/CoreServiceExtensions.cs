@@ -124,6 +124,12 @@ public static class CoreServiceExtensions
         services.AddSingleton<INumberAnswerGrader, KoreanNumberAnswerGrader>();
         services.AddScoped<NumberContentSeeder>();
         services.AddScoped<NumberSessionService>();
+        services.AddSingleton<INumberTtsService>(sp =>
+        {
+            var elevenLabsService = sp.GetRequiredService<ElevenLabsSpeechService>();
+            return new ElevenLabsNumberTtsAdapter(elevenLabsService);
+        });
+        services.AddSingleton<INumberAudioCache, NumberAudioCache>();
 
         return services;
     }

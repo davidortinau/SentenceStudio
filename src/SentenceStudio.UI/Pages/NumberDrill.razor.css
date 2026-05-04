@@ -1,0 +1,20 @@
+/* Number system color chips */
+.chip-system-native {
+    background: #7c3aed;
+    color: white;
+}
+
+.chip-system-sino {
+    background: #0d9488;
+    color: white;
+}
+
+.chip-system-mixed {
+    background: linear-gradient(90deg, #7c3aed, #0d9488);
+    color: white;
+}
+
+.chip-system-lexical {
+    background: #f59e0b;
+    color: black;
+}
