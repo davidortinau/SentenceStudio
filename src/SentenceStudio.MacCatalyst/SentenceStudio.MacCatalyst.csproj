@@ -16,6 +16,11 @@
 		<ValidateXcodeVersion>false</ValidateXcodeVersion>
 	</PropertyGroup>
 
+	<!-- Mac Catalyst entitlements for both Debug and Release -->
+	<PropertyGroup Condition="'$(TargetFramework)' == 'net10.0-maccatalyst'">
+		<CodesignEntitlements>Platforms\MacCatalyst\Entitlements.plist</CodesignEntitlements>
+	</PropertyGroup>
+
 	<ItemGroup>
 		<PackageReference Include="Microsoft.Maui.Controls" />
 		<PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" />

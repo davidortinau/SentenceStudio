@@ -16,6 +16,12 @@ public class RefreshToken
     public DateTime ExpiresAt { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? RevokedAt { get; set; }
+    
+    /// <summary>
+    /// When this token is revoked by a refresh operation, points to the successor token value.
+    /// Used for grace-window replay detection.
+    /// </summary>
+    public string? ReplacedByToken { get; set; }
 
     public ApplicationUser? User { get; set; }
 }

@@ -345,6 +345,14 @@ if (!app.Environment.IsEnvironment("Testing"))
         // the existing DbContext health check can surface the underlying connectivity error.
         startupLogger.LogWarning(ex, "Empty-users startup check failed; continuing.");
     }
+
+    // Startup assertion: log JWT expiry and refresh-token grace window configuration
+    var jwtExpiryMinutes = int.TryParse(app.Configuration["Jwt:ExpiryMinutes"], out var expiry) ? expiry : 1440;
+    var graceWindowSeconds = int.TryParse(app.Configuration["RefreshToken:GraceWindowSeconds"], out var grace) ? grace : 60;
+    startupLogger.LogInformation(
+        "JWT lifetime: {JwtExpiryMinutes} minutes. Refresh-token grace window: {GraceWindowSeconds} seconds.",
+        jwtExpiryMinutes,
+        graceWindowSeconds);
 }
 
 // Global unhandled-exception handler — MUST be the first middleware in the pipeline so it

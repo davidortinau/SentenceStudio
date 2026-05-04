@@ -30,6 +30,11 @@ public sealed class IdentityAuthService : IAuthService
     private DateTimeOffset _cachedExpires;
     private string? _cachedUserName;
 
+    // Single-flight locking to prevent concurrent refresh races
+    private readonly SemaphoreSlim _refreshLock = new(1, 1);
+    private Task<AuthResult?>? _inflightRefresh;
+    private int _consecutiveAuthFailures;
+
     public IdentityAuthService(
         IHttpClientFactory httpClientFactory,
         ISecureStorageService secureStorage,
@@ -100,12 +105,33 @@ public sealed class IdentityAuthService : IAuthService
                 return new AuthResult(storedJwt, _cachedUserName, storedExpires);
             }
 
-            // JWT missing or expiring soon — try refresh token
+            // JWT missing or expiring soon — try refresh token with single-flight protection
             var refreshToken = await _secureStorage.GetAsync(RefreshKey);
             if (string.IsNullOrEmpty(refreshToken))
                 return null;
 
-            return await RefreshTokenAsync(refreshToken);
+            // Single-flight: if a refresh is already in-flight, await it instead of starting a new one
+            bool lockAcquired = false;
+            try
+            {
+                await _refreshLock.WaitAsync();
+                lockAcquired = true;
+
+                if (_inflightRefresh is not null)
+                {
+                    _logger.LogInformation("Refresh already in-flight, awaiting existing task");
+                    return await _inflightRefresh;
+                }
+
+                _inflightRefresh = RefreshTokenAsync(refreshToken);
+                return await _inflightRefresh;
+            }
+            finally
+            {
+                _inflightRefresh = null;
+                if (lockAcquired)
+                    _refreshLock.Release();
+            }
         }
         catch (Exception ex)
         {
@@ -267,15 +293,41 @@ public sealed class IdentityAuthService : IAuthService
         if (_cachedToken is not null && _cachedExpires > DateTimeOffset.UtcNow.AddSeconds(60))
             return _cachedToken;
 
-        // Try refresh
+        // Try refresh with single-flight protection
         try
         {
             var refreshToken = await _secureStorage.GetAsync(RefreshKey);
             if (string.IsNullOrEmpty(refreshToken))
                 return null;
 
-            var result = await RefreshTokenAsync(refreshToken);
-            return result?.AccessToken;
+            // Single-flight: if a refresh is already in-flight, await it instead of starting a new one
+            bool lockAcquired = false;
+            try
+            {
+                await _refreshLock.WaitAsync();
+                lockAcquired = true;
+
+                // Re-check cache after acquiring lock — another caller may have just refreshed
+                if (_cachedToken is not null && _cachedExpires > DateTimeOffset.UtcNow.AddSeconds(60))
+                    return _cachedToken;
+
+                if (_inflightRefresh is not null)
+                {
+                    _logger.LogInformation("Refresh already in-flight, awaiting existing task");
+                    var result = await _inflightRefresh;
+                    return result?.AccessToken;
+                }
+
+                _inflightRefresh = RefreshTokenAsync(refreshToken);
+                var refreshResult = await _inflightRefresh;
+                return refreshResult?.AccessToken;
+            }
+            finally
+            {
+                _inflightRefresh = null;
+                if (lockAcquired)
+                    _refreshLock.Release();
+            }
         }
         catch (Exception ex)
         {
@@ -298,6 +350,7 @@ public sealed class IdentityAuthService : IAuthService
             // Transient failure (network error, timeout) — keep the refresh token
             // so the next attempt can try again. Do NOT destroy the session.
             _logger.LogWarning(ex, "Token refresh failed due to transient error — keeping refresh token for retry");
+            _consecutiveAuthFailures = 0; // Reset counter on transient failures
             return null;
         }
 
@@ -306,20 +359,34 @@ public sealed class IdentityAuthService : IAuthService
             var statusCode = (int)response.StatusCode;
             if (statusCode == 401 || statusCode == 403)
             {
-                // Server explicitly rejected the refresh token — it's invalid/revoked
-                _logger.LogWarning("Token refresh rejected with {Status} — clearing refresh token", response.StatusCode);
-                _secureStorage.Remove(RefreshKey);
-                _cachedToken = null;
-                _cachedExpires = DateTimeOffset.MinValue;
-                _cachedUserName = null;
+                // Server explicitly rejected the refresh token — increment failure counter
+                _consecutiveAuthFailures++;
+                _logger.LogWarning("Token refresh rejected with {Status} (consecutive failures: {Count})", 
+                    response.StatusCode, _consecutiveAuthFailures);
+
+                // Only clear the refresh token after 2 consecutive auth failures
+                // This defends against transient server errors and race conditions
+                if (_consecutiveAuthFailures >= 2)
+                {
+                    _logger.LogWarning("Clearing refresh token after {Count} consecutive auth failures", _consecutiveAuthFailures);
+                    _secureStorage.Remove(RefreshKey);
+                    _cachedToken = null;
+                    _cachedExpires = DateTimeOffset.MinValue;
+                    _cachedUserName = null;
+                    _consecutiveAuthFailures = 0; // Reset after clearing
+                }
             }
             else
             {
                 // Server error (5xx) or other non-auth failure — keep the refresh token
                 _logger.LogWarning("Token refresh returned {Status} — keeping refresh token for retry", response.StatusCode);
+                _consecutiveAuthFailures = 0; // Reset counter on non-auth failures
             }
             return null;
         }
+
+        // Success — reset the consecutive failure counter
+        _consecutiveAuthFailures = 0;
 
         var authResponse = await response.Content.ReadFromJsonAsync<AuthResponseDto>();
         if (authResponse is null)

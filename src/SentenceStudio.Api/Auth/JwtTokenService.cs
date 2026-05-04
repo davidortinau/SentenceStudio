@@ -29,7 +29,7 @@ public sealed class JwtTokenService
 
         var issuer = _configuration["Jwt:Issuer"] ?? "SentenceStudio";
         var audience = _configuration["Jwt:Audience"] ?? "SentenceStudio.Api";
-        var expiryMinutes = int.TryParse(_configuration["Jwt:ExpiryMinutes"], out var mins) ? mins : 60;
+        var expiryMinutes = int.TryParse(_configuration["Jwt:ExpiryMinutes"], out var mins) ? mins : 1440;
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -67,7 +67,7 @@ public sealed class JwtTokenService
 
     public int GetExpiryMinutes()
     {
-        return int.TryParse(_configuration["Jwt:ExpiryMinutes"], out var mins) ? mins : 120;
+        return int.TryParse(_configuration["Jwt:ExpiryMinutes"], out var mins) ? mins : 1440;
     }
 
     /// <summary>
@@ -77,5 +77,17 @@ public sealed class JwtTokenService
     public int GetRefreshTokenLifetimeDays()
     {
         return int.TryParse(_configuration["RefreshToken:LifetimeDays"], out var days) ? days : 90;
+    }
+
+    /// <summary>
+    /// Grace window in seconds for refresh token replay protection.
+    /// When a revoked token is reused within this window and has a successor,
+    /// the successor's credentials are returned instead of 401.
+    /// Configurable via "RefreshToken:GraceWindowSeconds".
+    /// Defaults to 60 seconds.
+    /// </summary>
+    public int GetRefreshTokenGraceWindowSeconds()
+    {
+        return int.TryParse(_configuration["RefreshToken:GraceWindowSeconds"], out var seconds) ? seconds : 60;
     }
 }

@@ -206,7 +206,8 @@ public static class AuthEndpoints
         RefreshRequest request,
         ApplicationDbContext db,
         UserManager<ApplicationUser> userManager,
-        JwtTokenService tokenService)
+        JwtTokenService tokenService,
+        ILogger<AuthLog> logger)
     {
         var storedToken = await db.RefreshTokens
             .FirstOrDefaultAsync(rt =>
@@ -216,40 +217,89 @@ public static class AuthEndpoints
 
         if (storedToken is null)
         {
+            // Token not found as active. Check grace window for recently-revoked tokens.
+            var revokedToken = await db.RefreshTokens
+                .FirstOrDefaultAsync(rt =>
+                    rt.Token == request.RefreshToken
+                    && rt.RevokedAt != null
+                    && rt.ExpiresAt > DateTime.UtcNow);
+
+            if (revokedToken is not null)
+            {
+                var graceWindowSeconds = tokenService.GetRefreshTokenGraceWindowSeconds();
+                var graceWindowExpiry = DateTime.UtcNow.AddSeconds(-graceWindowSeconds);
+
+                // If revoked within grace window and has a successor, return the successor's credentials
+                if (revokedToken.RevokedAt > graceWindowExpiry && !string.IsNullOrEmpty(revokedToken.ReplacedByToken))
+                {
+                    var successorToken = await db.RefreshTokens
+                        .FirstOrDefaultAsync(rt =>
+                            rt.Token == revokedToken.ReplacedByToken
+                            && rt.RevokedAt == null
+                            && rt.ExpiresAt > DateTime.UtcNow);
+
+                    if (successorToken is not null)
+                    {
+                        var user = await userManager.FindByIdAsync(successorToken.UserId);
+                        if (user is not null)
+                        {
+                            logger.LogWarning(
+                                "Grace-window replay detected for user {UserId}. " +
+                                "Revoked token reused within {GraceWindowSeconds}s. " +
+                                "Returning successor credentials (no new rotation).",
+                                user.Id, graceWindowSeconds);
+
+                            // Return existing successor's credentials (do NOT rotate again)
+                            var jwt = tokenService.GenerateToken(user);
+                            var expiryMinutes = tokenService.GetExpiryMinutes();
+
+                            return Results.Ok(new AuthResponse(
+                                Token: jwt,
+                                RefreshToken: successorToken.Token,
+                                ExpiresAt: DateTime.UtcNow.AddMinutes(expiryMinutes),
+                                UserName: user.DisplayName ?? user.UserName,
+                                UserProfileId: user.UserProfileId));
+                        }
+                    }
+                }
+            }
+
             return Results.Unauthorized();
         }
 
-        var user = await userManager.FindByIdAsync(storedToken.UserId);
-        if (user is null)
+        var activeUser = await userManager.FindByIdAsync(storedToken.UserId);
+        if (activeUser is null)
         {
             return Results.Unauthorized();
         }
 
-        // Revoke old token
-        storedToken.RevokedAt = DateTime.UtcNow;
-
         // Issue new tokens
-        var jwt = tokenService.GenerateToken(user);
+        var newJwt = tokenService.GenerateToken(activeUser);
         var newRefreshTokenValue = JwtTokenService.GenerateRefreshToken();
-        var expiryMinutes = tokenService.GetExpiryMinutes();
+        var newExpiryMinutes = tokenService.GetExpiryMinutes();
 
         var newRefreshToken = new RefreshToken
         {
-            UserId = user.Id,
+            UserId = activeUser.Id,
             Token = newRefreshTokenValue,
             ExpiresAt = DateTime.UtcNow.AddDays(tokenService.GetRefreshTokenLifetimeDays()),
             CreatedAt = DateTime.UtcNow
         };
 
         db.RefreshTokens.Add(newRefreshToken);
+
+        // Revoke old token and link to successor
+        storedToken.RevokedAt = DateTime.UtcNow;
+        storedToken.ReplacedByToken = newRefreshTokenValue;
+
         await db.SaveChangesAsync();
 
         return Results.Ok(new AuthResponse(
-            Token: jwt,
+            Token: newJwt,
             RefreshToken: newRefreshTokenValue,
-            ExpiresAt: DateTime.UtcNow.AddMinutes(expiryMinutes),
-            UserName: user.DisplayName ?? user.UserName,
-            UserProfileId: user.UserProfileId));
+            ExpiresAt: DateTime.UtcNow.AddMinutes(newExpiryMinutes),
+            UserName: activeUser.DisplayName ?? activeUser.UserName,
+            UserProfileId: activeUser.UserProfileId));
     }
 
     private static async Task<IResult> ConfirmEmail(

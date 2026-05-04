@@ -166,6 +166,24 @@ public static class SentenceStudioAppBuilder
             throw;
         }
 
+        // Pre-load auth token cache at startup (Fix G — stop spurious logouts)
+        // This ensures IsSignedIn is correct and reduces the window where concurrent
+        // refresh requests can race. Fire-and-forget — don't block startup.
+        Task.Run(async () =>
+        {
+            try
+            {
+                var authService = app.Services.GetRequiredService<IAuthService>();
+                logger.LogDebug("Pre-loading auth token cache at startup");
+                await authService.SignInAsync(); // Silent restore
+                logger.LogDebug("Auth token cache pre-load complete");
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Auth token cache pre-load failed — non-fatal");
+            }
+        });
+
         Task.Run(async () =>
         {
             try
