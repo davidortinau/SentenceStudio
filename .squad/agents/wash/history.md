@@ -361,3 +361,53 @@ Turn 5 vs turn 6. Held proposal at turn 5 because it's the smallest change that 
 
 ### 2026-05-03 — PR #198 merged
 Squash-merged to `main` with `--admin` (commit `626383a`). Closes #191. Branch `fix/vocab-quiz-scoring-191-rotation-curve` deleted. Carried Jayne's repro tests via the squash (PR #195 closed as superseded). Follow-ups concretely filed: **#197** (decouple `MasteryScore` from `SessionRotationReady`) and **#199** (`MakeAttempt` test helper missing `DifficultyWeight` — captures the test-sweep gotcha I logged above). Proposal markdown stays at `.squad/decisions/inbox/wash-vocab-quiz-scoring-proposal-191.md` — referenced from #197 body and PR #198 description.
+
+## 2026-05-03 — Auth Persistence Fixes (B + C)
+
+**What changed:**
+
+Captain approved JWT lifetime extension (24h) and refresh-token grace window (60s) to fix spurious logout bugs. Implemented two server-side fixes:
+
+**Fix B — Refresh-token 60s grace window:**
+- Added `ReplacedByToken` nullable string column to `RefreshToken` model (`src/SentenceStudio.Shared/Models/RefreshToken.cs`)
+- Generated EF Core migrations for BOTH PostgreSQL (default) and SQLite providers:
+  - `src/SentenceStudio.Shared/Migrations/20260503221947_AddRefreshTokenReplacedBy.cs`
+  - `src/SentenceStudio.Shared/Migrations/Sqlite/20260503221947_AddRefreshTokenReplacedBy.cs`
+- Updated `AuthEndpoints.Refresh` (`src/SentenceStudio.Api/Auth/AuthEndpoints.cs`) to:
+  - When revoking a token, set `ReplacedByToken` to the new successor value
+  - When a revoked token is reused within the grace window (default 60s), look up the successor token
+  - If successor is still valid, return its credentials (do NOT rotate again) and log a Warning
+  - Grace window configurable via `RefreshToken:GraceWindowSeconds` (default 60)
+- Added `GetRefreshTokenGraceWindowSeconds()` method to `JwtTokenService` (`src/SentenceStudio.Api/Auth/JwtTokenService.cs`)
+
+**Fix C — JWT expiry alignment + 24h:**
+- Changed JWT default lifetime from 60 min to **1440 min (24 hours)** in two places:
+  - `JwtTokenService.GenerateToken` line 32
+  - `JwtTokenService.GetExpiryMinutes` line 70
+- Updated `appsettings.json` to set `Jwt:ExpiryMinutes: 1440` and `RefreshToken:GraceWindowSeconds: 60`
+- Added startup assertion in `Api/Program.cs` (after EmptyUsers check) to log JWT lifetime and grace window config at boot
+
+**Key decisions:**
+- Grace window is a **defense-in-depth** strategy for concurrency races — client-side single-flight lock (Fix A) is Kaylee's domain
+- Grace window returns the EXISTING successor's credentials, not a fresh rotation (prevents cascading rotations)
+- Both grace window and JWT expiry are configurable via appsettings (operators can override defaults)
+- Migrations created manually (dotnet ef tooling had TFM conflicts) following existing pattern from `AddPassiveExposureFields`
+
+**Files changed:**
+- `src/SentenceStudio.Shared/Models/RefreshToken.cs`
+- `src/SentenceStudio.Shared/Migrations/20260503221947_AddRefreshTokenReplacedBy.cs`
+- `src/SentenceStudio.Shared/Migrations/Sqlite/20260503221947_AddRefreshTokenReplacedBy.cs`
+- `src/SentenceStudio.Api/Auth/AuthEndpoints.cs` (Refresh endpoint)
+- `src/SentenceStudio.Api/Auth/JwtTokenService.cs`
+- `src/SentenceStudio.Api/appsettings.json`
+- `src/SentenceStudio.Api/Program.cs`
+
+**Validation:**
+- `dotnet build` succeeded for both Shared (net10.0) and Api (net10.0)
+- `scripts/validate-mobile-migrations.sh` passed — no migration errors on Mac Catalyst
+- Grace window Warning log will be visible in Aspire dashboard when concurrent refreshes occur
+
+**Next steps:**
+- Kaylee: Fix A (client single-flight lock), Fix D (Preferences fallback warning), Fix F (2-401 threshold), Fix G (pre-load cached token)
+- Jayne: E2E validation (webapp, Mac Catalyst, iOS DX24, concurrency stress test)
+

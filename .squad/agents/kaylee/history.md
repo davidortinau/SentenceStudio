@@ -362,3 +362,35 @@ section explaining the panel cleanup + audit outcome.
 
 ### 2026-05-03 — PR #196 merged
 Squash-merged to `main` (commit `c996299`). Closes #189, #190, #192, #193, #194. Branch `fix/vocab-quiz-ui-cluster-189-194` deleted. Follow-up issues filed by team: #197 (decouple MasteryScore from SessionRotationReady) and #199 (`MakeAttempt` test helper missing `DifficultyWeight`).
+
+## 2026-07-29: Auth Persistence Client-Side Fixes
+
+**Scope:** Implemented client-side fixes for auth persistence bugs that caused spurious logouts.
+
+**Problem:** Users were being logged out unexpectedly after app restart and on cold start. Root causes: (1) concurrent refresh-token races when two callers (MauiAuthenticationStateProvider + AuthenticatedHttpMessageHandler) both hit the API at startup, causing the first to succeed and the second to destroy the session with a 401; (2) empty `_cachedToken` at startup widening the race window; (3) Mac Catalyst Debug builds using Preferences fallback (wiped on reinstall) instead of Keychain.
+
+**Implementation:**
+- **Fix A — Single-flight refresh:** Added `SemaphoreSlim _refreshLock` + `Task<AuthResult?>? _inflightRefresh` to `IdentityAuthService`. Both `SignInAsync()` and `GetAccessTokenAsync()` now lock, check for in-flight task, and await the same refresh if one exists. Prevents concurrent `/api/auth/refresh` POSTs with the same token.
+- **Fix F — 2 consecutive 401s:** Added `_consecutiveAuthFailures` counter. Only clear refresh token after 2 consecutive 401/403 responses. Reset counter on success or transient failure. Defends against fluke server errors and race-induced single failures.
+- **Fix G — Pre-load token cache:** Added fire-and-forget `Task.Run(() => authService.SignInAsync())` in `SentenceStudioAppBuilder.InitializeApp` after database init. Ensures `_cachedToken`/`_cachedExpires` are populated before the first HTTP request, reducing the race window.
+- **Fix D — Log SecureStorage fallback:** Injected `ILogger<MauiSecureStorageService>` and log warning when `_usePreferencesFallback` flips: "SecureStorage unavailable on this platform — falling back to Preferences. Tokens will NOT survive app reinstall."
+- **Catalyst Debug Keychain Entitlements:** Added `keychain-access-groups` entitlement to `Entitlements.plist` and wired `<CodesignEntitlements>` in csproj for both Debug and Release. Fixes SecureStorage so Debug builds also persist tokens across restarts.
+
+**Build Verification:** ✅ Both AppLib and MacCatalyst projects build successfully (0 errors, warnings are pre-existing OpenTelemetry CVEs).
+
+**Learnings:**
+- **Single-flight async pattern:** Use `SemaphoreSlim` + cached `Task<T>?` to collapse concurrent callers to a single async operation. Lock-check-start-await-finally-null pattern prevents double-fire. Reusable for any service method where concurrent calls should collapse (config refresh, feature flag fetch, token refresh).
+- **Catalyst entitlements for Debug:** Debug builds need the same keychain entitlements as Release builds to access SecureStorage on Mac. Without `keychain-access-groups` entitlement, MAUI silently falls back to Preferences which are wiped on uninstall. Apply entitlements unconditionally for both configs.
+- **Preferences fallback warning policy:** When platform APIs degrade to insecure fallbacks, log once at the transition point with clear user-impact consequences. Helps diagnose persistence issues in bug reports (check logs for "falling back to Preferences").
+
+**Files Changed:**
+- `src/SentenceStudio.AppLib/Services/IdentityAuthService.cs` — single-flight locking, 2-401 gate
+- `src/SentenceStudio.AppLib/Abstractions/MauiSecureStorageService.cs` — logger injection, fallback warning
+- `src/SentenceStudio.AppLib/Setup/SentenceStudioAppBuilder.cs` — startup token cache preload
+- `src/SentenceStudio.MacCatalyst/Platforms/MacCatalyst/Entitlements.plist` — keychain-access-groups
+- `src/SentenceStudio.MacCatalyst/SentenceStudio.MacCatalyst.csproj` — CodesignEntitlements wiring
+
+**Decision:** `.squad/decisions/inbox/kaylee-auth-single-flight.md`
+
+**Skill:** `.squad/skills/single-flight-async/SKILL.md` — reusable pattern for collapsing concurrent async calls
+

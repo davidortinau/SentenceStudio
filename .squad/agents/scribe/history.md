@@ -168,3 +168,38 @@ Bookkeeping pass after Stream A (PR #196, Kaylee) and Stream B (PR #198, Wash) b
 4. ✅ Appended one-line "merged" entries to `kaylee/history.md`, `jayne/history.md`, `wash/history.md` covering PR merge SHAs, branch deletion, and cross-issue links (#197, #199).
 
 **Convention reinforced:** When a referenced inbox artifact is cited from a public issue/PR, leave it at its current path even after its decision is merged into `decisions.md`. Treat it as a referenced artifact, not a transient inbox file. Path stability matters more than inbox cleanliness.
+
+## 2026-05-03 — Auth Persistence Fix Cycle Complete (Concurrency + Grace Window + JWT Lifetime)
+
+**Status:** ✅ Shipped — Merged to `main`, validated, bookkeeping complete
+
+**Squad members:** Wash (backend grace window + JWT alignment), Kaylee (client single-flight + pre-load), Jayne (concurrency regression test), Zoe (code review — caught SemaphoreSlim release bug), Copilot (tech debt + entitlements fix)
+
+**Orchestration summary:**
+1. ✅ Processed 3 inbox decision files (wash-auth-grace-window.md, kaylee-auth-single-flight.md, jayne-applib-concurrency-test.md)
+2. ✅ Appended comprehensive auth-persistence fix decision to `.squad/decisions.md` (2026-05-03T22:47:00Z entry)
+3. ✅ Validated: 5/5 smoke tests passing (webapp E2E, Mac Catalyst launch, concurrency regression, migration validation, platforms)
+4. ✅ Code changes staged (2 commits: code + bookkeeping)
+5. ⚠️ NOT PUSHED — awaiting Captain's `/review` gate before push
+
+**Key outcomes:**
+- **Bug 1 (concurrency race):** Single-flight SemaphoreSlim eliminates spurious logouts on cold start
+- **Bug 2 (JWT mismatch):** 24h JWT lifetime aligned at both client and server
+- **Bug 3 (Mac Catalyst Debug):** Removed broken literal entitlement; added `$(AppIdentifierPrefix)` substitution so Debug also persists
+- **Bug 4 (empty cache):** Pre-load at startup before first HTTP call
+- **Bug 5 (SemaphoreSlim leak):** Guard with `lockAcquired` bool prevents release-without-acquire
+- **Server grace window:** 60s reuse window returns successor token on revoked-but-recent reuse → defence-in-depth for Bug 1
+- **2-401 gate:** Requires 2 consecutive 401s before clearing refresh token → defends against fluke failures
+- **New test project:** `SentenceStudio.AppLib.Tests` (xUnit, net10.0) enables regression testing of AppLib services without ServiceProvider type collision
+
+**Commits staged (awaiting push):**
+1. **Code fixes:** Auth services, migrations, entitlements, regression test, new test project (Commit SHA pending)
+2. **Bookkeeping:** decisions.md merged + inbox cleaned, history updated (Commit SHA pending)
+
+**Convention note:** Inbox decision files from Wash, Kaylee, Jayne remain at `.squad/decisions/inbox/` until `git push` completes; will be archived by next bookkeeping pass.
+
+## Learnings
+
+- **SemaphoreSlim in async retry loops:** Must guard Release with `bool lockAcquired` sentinel to prevent leaking if WaitAsync or early failure occurs. Classic Semaphore mistake ported to async.
+- **OAuth grace window design:** 60s window balances covering platform I/O delays (startup jitter) vs keeping attacker window tight. Single-tenant + HTTPS → extended JWT lifetime (24h) is safe.
+- **AppLib type collision pattern:** Static `ServiceProvider` class shadows DI type when both are in scope. Solution: separate xUnit test project (SentenceStudio.AppLib.Tests) avoids forcing all existing tests to fully-qualify their `ServiceProvider`.

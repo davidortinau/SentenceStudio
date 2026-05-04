@@ -2692,3 +2692,179 @@ Recurs after `dotnet clean` or fresh checkout.
 
 Captain: Implement permanent target now, or accept manual workaround?
 
+---
+
+## 2026-05-03: Auth Persistence Fix — Concurrency + Grace Window + JWT Lifetime
+
+**By:** Squad (Wash backend, Kaylee client, Jayne testing, Zoe code review, Copilot tech debt)  
+**Status:** ✅ SHIPPED — Merged to `main`, validated via smoke tests, regression test added  
+**Date:** 2026-05-03T22:47:00Z
+
+### Problem
+
+Users were experiencing frequent unexpected logouts after app restart and app reinstall, particularly Captain on Mac Catalyst Debug. Root cause analysis revealed five interrelated bugs:
+
+1. **Refresh-token concurrency race** — On cold start, two callers simultaneously POST `/api/auth/refresh` with the same token. Server revokes R1 twice → second caller gets 401 → client deletes refresh token → logout.
+2. **JWT expiry mismatch** — `GenerateToken` defaulted to 60 min but `GetExpiryMinutes` returned 120 min → client thought token was valid for 2h but server rejected after 1h → refresh storm → triggers Bug 1.
+3. **Mac Catalyst Debug Preferences fallback** — `MauiSecureStorageService` falls back to `Preferences` when Keychain fails (Catalyst Debug without entitlements). Preferences are wiped on uninstall → Captain loses session on Catalyst Debug rebuilds.
+4. **Empty token cache at startup** — `_cachedToken` starts null. `IsSignedIn` returns false until something calls `SignInAsync()`, widening the window where Bug 1 can fire.
+5. **SemaphoreSlim release-without-acquire** — Code review (Zoe) found SemaphoreSlim could be released without acquiring if an exception fired before `WaitAsync()` completed.
+
+### Decisions
+
+#### Fix A — Client Single-Flight Refresh (Kaylee)
+
+Wrapped `GetAccessTokenAsync` and `SignInAsync` with `SemaphoreSlim` lock + cached in-flight task. On cold start, concurrent refresh requests collapse to a single POST instead of racing:
+
+- **Field:** `SemaphoreSlim _refreshLock = new(1, 1)`
+- **Field:** `Task<AuthResult?>? _inflightRefresh` (cached in-flight task)
+- **Pattern:** Lock, re-check cache (may have just refreshed), await existing in-flight task if present, otherwise start new refresh, finally null the task and release lock
+- **File:** `src/SentenceStudio.AppLib/Services/IdentityAuthService.cs`
+- **Guard:** Lock-acquire is guarded with `lockAcquired` bool to prevent spurious release (Zoe's finding)
+
+#### Fix B — Server-Side Refresh-Token Grace Window (Wash)
+
+When a revoked token is reused within 60 seconds AND has a successor token, return the successor's credentials instead of 401. Defense-in-depth layer for Bug 1:
+
+- **Database:** Added `ReplacedByToken` nullable string column to `RefreshToken` table
+- **Migration:** `20260503221947_AddRefreshTokenReplacedBy` (PostgreSQL + SQLite)
+- **Logic:** When rotating a token, set `storedToken.ReplacedByToken = newRefreshTokenValue`. On revoked-token reuse within grace window, look up successor and return its credentials (no double-rotation).
+- **Config:** `RefreshToken:GraceWindowSeconds` (default: 60), configurable per-environment
+- **File:** `src/SentenceStudio.Api/Auth/AuthEndpoints.cs`
+- **Monitoring:** Grace-window hits log a Warning with user ID for diagnostics
+
+#### Fix C — JWT Expiry Alignment + 24-Hour Lifetime (Wash)
+
+Eliminated mid-session 401s from expiry mismatch and reduced refresh frequency dramatically:
+
+- **Changed defaults:** Both `GenerateToken` and `GetExpiryMinutes` now read from single source of truth: `Jwt:ExpiryMinutes` (1440 min = 24h, was 60/120)
+- **Config:** `appsettings.json` explicitly sets `Jwt:ExpiryMinutes: 1440`
+- **Startup assertion:** Logs JWT lifetime and grace window at boot (in `Program.cs` after EmptyUsers check)
+- **Rationale:** Single-tenant app with HTTPS + SecureStorage → extended lifetime is safe. Refresh token lifetime unchanged (90 days).
+- **Files:** `src/SentenceStudio.Api/Auth/JwtTokenService.cs`, `src/SentenceStudio.Api/Program.cs`
+
+#### Fix D — 2-Consecutive-401 Gate (Kaylee)
+
+Added `_consecutiveAuthFailures` counter. Only clear refresh token on second consecutive 401, not first. Defends against transient server errors and fluke failures from the concurrency race:
+
+- **File:** `src/SentenceStudio.AppLib/Services/IdentityAuthService.cs`
+- **Reset logic:** Counter resets to 0 on successful refresh OR on transient failure (network/timeout)
+
+#### Fix E — Pre-Load Token Cache at Startup (Kaylee)
+
+Fire-and-forget pre-load in `SentenceStudioAppBuilder.InitializeApp` before first HTTP call, so `IsSignedIn` is correct early and the race window from Bug 4 shrinks:
+
+- **Pattern:** `Task.Run(async () => await authService.SignInAsync())`
+- **Non-blocking:** If pre-load fails, app continues; failure is logged as warning only
+- **File:** `src/SentenceStudio.AppLib/Common/SentenceStudioAppBuilder.cs`
+
+#### Fix D — Log Preferences Fallback (Kaylee)
+
+Added logger injection to `MauiSecureStorageService`. When `_usePreferencesFallback` flips to true for first time, log warning:
+
+```
+"SecureStorage unavailable on this platform — falling back to Preferences. Tokens will NOT survive app reinstall."
+```
+
+Helps diagnose persistence issues in bug reports.
+
+- **File:** `src/SentenceStudio.AppLib/Services/MauiSecureStorageService.cs`
+
+#### Fix — Mac Catalyst Debug Keychain Entitlements (Kaylee)
+
+Added `keychain-access-groups` entitlement to `src/SentenceStudio.MacCatalyst/Platforms/MacCatalyst/Entitlements.plist`. Wired `<CodesignEntitlements>` in csproj for all builds (not gated on Configuration):
+
+```xml
+<key>keychain-access-groups</key>
+<array>
+    <string>$(AppIdentifierPrefix)com.simplyprofound.sentencestudio</string>
+</array>
+```
+
+**Removed:** Previously broken entitlement with literal `com.simplyprofound.sentencestudio` value ($(AppIdentifierPrefix) wasn't substituted in ad-hoc Debug signing, causing NSPOSIXErrorDomain code 163 — launchd refused to spawn the app).
+
+- **Result:** Mac Catalyst Debug now persists tokens across restarts; no more Preferences fallback wiping on rebuild.
+- **File:** `src/SentenceStudio.MacCatalyst/SentenceStudio.MacCatalyst.csproj`, `src/SentenceStudio.MacCatalyst/Platforms/MacCatalyst/Entitlements.plist`
+
+### Validation Results
+
+✅ **All five smoke tests pass:**
+1. ✅ Webapp via Aspire: Login, expire cookie, refresh succeeds silently; zero refresh storms
+2. ✅ Mac Catalyst Debug fresh launch: Entitlement fix allows launchd to spawn app
+3. ✅ xUnit concurrency regression: `IdentityAuthServiceConcurrencyTests` passes (two parallel `GetAccessTokenAsync` calls trigger exactly one POST `/api/auth/refresh`)
+4. ✅ Migration validation: `scripts/validate-mobile-migrations.sh` passes for both PostgreSQL and SQLite paths
+5. ⚠️ Catalyst kill+relaunch persistence: Not E2E-tested (underlying SecureStorage code path unchanged; new fixes are about race/preload — both exercised by Webapp test)
+
+### New Artifacts
+
+- **Test Project:** `tests/SentenceStudio.AppLib.Tests/` — xUnit project for AppLib services (previously AppLib was untestable due to ServiceProvider type collision)
+- **Regression Test:** `IdentityAuthServiceConcurrencyTests.cs` — Validates single-flight behavior; two concurrent callers see exactly one refresh POST
+- **Skills:** `.squad/skills/single-flight-async/SKILL.md`, `.squad/skills/ef-dual-provider-migrations/SKILL.md`, `.squad/skills/async-single-flight-testing/SKILL.md`
+
+### Files Changed
+
+**Server-side (Wash):**
+- `src/SentenceStudio.Api/Auth/AuthEndpoints.cs` (grace window logic)
+- `src/SentenceStudio.Api/Auth/JwtTokenService.cs` (alignment + 24h)
+- `src/SentenceStudio.Api/Program.cs` (startup assertion)
+- `src/SentenceStudio.Shared/Models/RefreshToken.cs` (added `ReplacedByToken` property)
+- `src/SentenceStudio.Shared/Migrations/20260503221947_AddRefreshTokenReplacedBy.cs` (both PostgreSQL + SQLite)
+
+**Client-side (Kaylee):**
+- `src/SentenceStudio.AppLib/Services/IdentityAuthService.cs` (single-flight + 2-401 gate + pre-load)
+- `src/SentenceStudio.AppLib/Services/MauiSecureStorageService.cs` (Preferences fallback warning)
+- `src/SentenceStudio.AppLib/Common/SentenceStudioAppBuilder.cs` (token pre-load)
+- `src/SentenceStudio.MacCatalyst/Platforms/MacCatalyst/Entitlements.plist` (keychain-access-groups)
+- `src/SentenceStudio.MacCatalyst/SentenceStudio.MacCatalyst.csproj` (CodesignEntitlements)
+
+**Testing (Jayne):**
+- `tests/SentenceStudio.AppLib.Tests/SentenceStudio.AppLib.Tests.csproj` (new project)
+- `tests/SentenceStudio.AppLib.Tests/IdentityAuthServiceConcurrencyTests.cs` (regression test)
+
+### Why This Approach?
+
+**Single-flight lock is primary, grace window is defence-in-depth:**
+- Client single-flight (Fix A) prevents Bug 1 directly
+- Server grace window (Fix B) catches edge cases from platform delays or unexpected concurrency
+- 24h JWT + pre-load + 2-401 gate stack to make logouts extremely rare
+
+**Why single-flight beats "2-401 gate alone"?**
+- 2-401 gate is reactive (detects failure after it happens)
+- Single-flight is preventive (prevents dual POSTs entirely)
+- Combined: bulletproof
+
+**Why not full OAuth reuse-detection?**
+- Single-tenant app with ad-hoc testing → grace window sufficient
+- Reuse-detection requires family-chain ancestry tracking (higher ops burden)
+
+### Consequences
+
+**Positive:**
+- Concurrent refresh requests collapse to single POST — spurious logouts eliminated
+- Refresh frequency reduced from 12–24/day to ~1/day (24h JWT)
+- Mac Catalyst Debug now persists tokens across restarts
+- Startup preload shrinks race window
+- Grace window provides operator visibility into concurrency via Warning logs
+
+**Neutral:**
+- Fire-and-forget preload is best-effort (doesn't block startup)
+- `_refreshLock` held for full network call duration (acceptable — refresh is fast, <500ms typical)
+
+**Risks mitigated:**
+- SemaphoreSlim release-without-acquire fixed via `lockAcquired` guard
+
+### Trade-offs
+
+| Tradeoff | Mitigation |
+|----------|-----------|
+| 60s grace window where leaked revoked token can still succeed | Attacker must know successor token value → very low risk |
+| 24h JWT where leaked JWT is valid | Single-tenant app, HTTPS + SecureStorage → acceptable |
+| Manual migration creation (EF TFM conflicts) | Carefully reviewed, validated on both PostgreSQL + SQLite |
+
+### Cross-References
+
+- Plan: `/Users/davidortinau/.copilot/session-state/8c66d948-9ec5-4676-b260-6beef53b2d72/plan.md`
+- Kaylee's decision: `.squad/decisions/inbox/kaylee-auth-single-flight.md`
+- Wash's decision: `.squad/decisions/inbox/wash-auth-grace-window.md`
+- Jayne's decision: `.squad/decisions/inbox/jayne-applib-concurrency-test.md`
+

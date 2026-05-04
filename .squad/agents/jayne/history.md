@@ -134,3 +134,29 @@ turn=4 mode=Text streak=4.50 prodInStreak=1 mastery=0.714 sessMC=3 sessText=1 Re
 
 ### 2026-05-03 — PR #195 closed (superseded)
 PR #195 (draft repro tests) closed; commits absorbed into Wash's squash-merge of PR #198 (`626383a`) which closed #191. Repro tests now live on `main` as the regression guard. Sibling Stream A PR #196 (`c996299`) closed #189/#190/#192/#193/#194. Follow-ups: #197 (decouple Mastery from SessionRotation) and #199 (test helper `DifficultyWeight` bug — direct outcome of point 6 in my earlier learnings).
+
+## 2026-05-04 — IdentityAuthService Concurrency Regression Test
+
+**Captain (David Ortinau)** requested a regression test for the refresh-token concurrency fix (auth persistence plan Bug 1) to lock in the single-flight pattern and prevent future regressions.
+
+**Shipped:**
+- New test project: `tests/SentenceStudio.AppLib.Tests/SentenceStudio.AppLib.Tests.csproj` (xUnit, `net10.0`, references `AppLib`)
+- Test: `IdentityAuthServiceConcurrencyTests.GetAccessTokenAsync_ConcurrentCallers_TriggersExactlyOneRefresh`
+- Pattern: custom `HttpMessageHandler` with request tracking + in-memory `ISecureStorageService` stub
+- Test scaffolding: `InMemorySecureStorageService` (reusable), `TrackingHttpMessageHandler` (reusable), `AuthResponseDto` (test-local DTO)
+
+**Test outcome:** PASS ✅ (single-flight fix already merged in commit `74666b9`)
+
+The test verifies:
+1. Two concurrent `GetAccessTokenAsync` calls trigger exactly **ONE** POST to `/api/auth/refresh` (not two)
+2. Both callers receive the same new AccessToken
+3. A third call after refresh completes uses the cached token (no new POST)
+
+**Learnings:**
+1. **AppLib test project isolation**: `AppLib` is a MAUI-enabled project (`UseMaui=true`) with a static `ServiceProvider` class that collides with `Microsoft.Extensions.DependencyInjection.ServiceProvider`. Referencing it from a plain `net10.0` test project breaks existing tests. Solution: create a separate `SentenceStudio.AppLib.Tests` project that references AppLib cleanly.
+2. **xUnit + CPM**: When creating test projects in a CPM-enabled repo, remove `Version=` attributes from PackageReference elements. Central Package Management requires versions in `Directory.Packages.props`, not csprojs.
+3. **Test-first regression guards**: Captain's "when a bug recurs, write a test" policy means this test was written AFTER the fix was already in place (commit `74666b9`). The test passing on first run is the CORRECT outcome — it proves the fix works and will catch future regressions.
+
+**Decision dropped:** `.squad/decisions/inbox/jayne-applib-concurrency-test.md` (new test project rationale).
+
+**Skill candidate:** The concurrency test pattern (custom `HttpMessageHandler` + in-memory storage stub + `Task.WhenAll` race simulation) is reusable for any auth/token service. Consider extracting to `.squad/skills/async-single-flight-testing/SKILL.md` if this pattern is needed again.
