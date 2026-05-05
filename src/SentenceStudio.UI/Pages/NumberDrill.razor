@@ -40,13 +40,13 @@
                             {
                                 <button type="button" 
                                         class="btn @(selectedContext == ctx.Code ? "btn-ss-primary" : "btn-outline-secondary")"
-                                        @onclick="() => selectedContext = ctx.Code">
+                                        @onclick="() => OnContextSelected(ctx.Code)">
                                     <i class="bi @GetContextIcon(ctx.Code)"></i> @ctx.DisplayName
                                 </button>
                             }
                             <button type="button" 
                                     class="btn @(selectedContext == null ? "btn-ss-primary" : "btn-outline-secondary")"
-                                    @onclick="() => selectedContext = null">
+                                    @onclick="() => OnContextSelected(null)">
                                 <i class="bi bi-asterisk"></i> Any
                             </button>
                         </div>
@@ -56,7 +56,7 @@
                     <div class="mb-4">
                         <label class="ss-body2 fw-semibold mb-2 d-block">Mode</label>
                         <div class="d-flex flex-wrap gap-2">
-                            @foreach (var mode in availableSubModes)
+                            @foreach (var mode in availableSubModes.Where(m => IsValidCombo(selectedContext, m.Code)))
                             {
                                 <button type="button" 
                                         class="btn @(selectedSubMode == mode.Code ? "btn-ss-primary" : "btn-outline-secondary")"
@@ -141,14 +141,6 @@
                                     <i class="bi @(isPlayingAudio ? "bi-volume-mute" : "bi-volume-up") me-2"></i>
                                     @(isPlayingAudio ? "Playing..." : "Play")
                                 </button>
-                                
-                                @* TODO: TTS hookup pending — Wash's Wave 3b TTS cache *@
-                                @if (!string.IsNullOrEmpty(currentItem.AudioCue))
-                                {
-                                    <div class="text-secondary-ss small mt-2">
-                                        <em>(TTS placeholder: "@currentItem.AudioCue")</em>
-                                    </div>
-                                }
                             </div>
                         }
                         else if (selectedSubMode == "ReadAndProduce")
@@ -593,6 +585,35 @@
         {
             isBusy = false;
         }
+    }
+    
+    private void OnContextSelected(string? contextCode)
+    {
+        selectedContext = contextCode;
+        
+        // Reset sub-mode if it becomes invalid for the new context
+        if (!string.IsNullOrEmpty(selectedSubMode) && !IsValidCombo(contextCode, selectedSubMode))
+        {
+            selectedSubMode = availableSubModes.FirstOrDefault(m => IsValidCombo(contextCode, m.Code))?.Code ?? "";
+        }
+    }
+    
+    private bool IsValidCombo(string? contextCode, string subModeCode)
+    {
+        // "Any" pseudo-context: hide context-specific modes (random rotation could pick an invalid context)
+        bool isAnyContext = string.IsNullOrEmpty(contextCode);
+        if (isAnyContext && (subModeCode == "TapTheCounter" || subModeCode == "ListenAndPlace"))
+            return false;
+        
+        // TapTheCounter: only Counting context (other contexts have no TapTheCounter generator)
+        if (subModeCode == "TapTheCounter" && contextCode != "Counting")
+            return false;
+        
+        // ListenAndPlace: only Time context (only Time has audio→digital cards generator)
+        if (subModeCode == "ListenAndPlace" && contextCode != "Time")
+            return false;
+        
+        return true;
     }
     
     private async Task StartSessionAsync()
