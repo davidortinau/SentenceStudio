@@ -4,6 +4,128 @@
 
 ---
 
+### 2026-05-04: NumberDrill Phase 1 shipped
+
+**By:** Scribe (logging) — work shipped by Wash (data model, session service, TTS cache), Kaylee (Blazor UI), River (generator/grader)  
+**Status:** E2E validated. Commit `squad/numbers-activity-phase-1` @ 4d97680 ready for merge.
+
+#### Decision
+
+Phase 1 NumberDrill activity enables Korean number mastery drilling with spaced repetition (SM-2). Three contexts (Time, Counting, Age) × two sub-modes (Listen & Type, Read & Produce) × deterministic generator + rule-based grader (7 error classes, sound-change handling).
+
+#### Core Patterns Established
+
+**1. Embedded manifest resources for content distribution** (Wave 2, Wash)
+   - Seed JSON files (`lib/content/numbers/*.json`) embedded as manifest resources with `LinkBase="Numbers"`
+   - Resolves via `Assembly.GetManifestResourceStream()` in seeder — works reliably under Aspire where relative paths fail
+   - Pattern: applicable to all future activity content seeders (Grammar, Listening, etc.)
+
+**2. RCL JavaScript module path requires `_content/{AssemblyName}/` prefix** (Wave 3a fix, Kaylee)
+   - Razor Class Library static assets must use `./_content/SentenceStudio.UI/Pages/NumberDrill.razor.js` path, not `./_framework/...`
+   - Wrap import in try/catch for graceful fallback
+   - Pattern: all RCL pages + JS interop must follow this convention
+
+**3. User auth resolution must fallback when AppState.CurrentUserProfile null** (Wave 3a fix, Kaylee)
+   - Pattern: `AppState.CurrentUserProfile?.Id ?? (await ProfileRepo.GetAsync())?.Id`
+   - Handles race condition: fresh login → page renders before AppState hydrated
+   - Matches existing Index.razor line 794 pattern for profile loading
+
+**4. SM-2 quality scale is latency-based** (Wave 2b, Wash)
+   - Quality 5 (perfect): correct + latency ≤ 8s (automaticity threshold)
+   - Quality 4 (good): correct + latency ≤ 15s
+   - Quality 3 (passing): correct + latency > 15s
+   - Quality 1 (fail): incorrect
+   - Enables future latency-aware mastery tracking across all activities
+
+**5. Deterministic rule-based generation over LLM** (Wave 4, River)
+   - Korean number system is rule-driven (Sino/Native system selection, sound-change morphology, counter association)
+   - LLM would introduce latency, cost, non-reproducibility, hallucination
+   - Generator interfaces (`INumberItemGenerator`, `INumberAnswerGrader`) designed for Japanese/Mandarin/Spanish plug-ins (isolated language-specific logic, reusable grading + error taxonomy)
+   - 33 tests, all passing; determinism verified (same seed → same output)
+
+**6. Concurrent TTS call deduplication prevents API stampede** (Wave 2c, Wash)
+   - `_pendingGenerations` dictionary: concurrent calls for same text dedupe to single TTS call
+   - Throttle: max 3 concurrent jobs (SemaphoreSlim)
+   - Cache key: SHA-256(normalized text) → `{AppData}/numbers-tts/{languageCode}/{hash}.mp3`
+   - Retry pattern: 2 attempts, 1s delay; returns null on failure (UI falls back to text display)
+
+**7. SM-2 Scheduler extracted as reusable service** (Wave 2b, Wash)
+   - `Sm2Scheduler.cs` — pure function, no state, testable, language-agnostic
+   - Removes duplication from `VocabularyProgressService` (refactor deferred)
+   - 14/14 tests passing; known sequences verified
+
+#### E2E Ship Evidence
+
+**Flow validated:** Time context (Mixed system), Read & Produce sub-mode, 10 items
+
+- Setup form renders, pickers functional ✓
+- Generator produces "1:30" (time format per Sino-hour + Native-minute morphology) ✓
+- Grader accepts "한 시 삼십 분" → "정확해요!" + latency 20778ms ✓
+- SM-2 scheduling: EaseFactor 2.5→2.6, Interval 0→6 days, DueDate null→2026-05-10 ✓
+- Postgres NumberAttempt: 1 row, IsCorrect=true, ErrorClass=null ✓
+- Postgres NumberMasteryProgress: 1 row, updated with SM-2 values ✓
+- Session flow: 10 items completed, summary screen displays ✓
+- Build: webapp 0 errors (95 warnings), API 0 errors (177 warnings), backend tests 52/52 ✓
+
+#### What Phase 2 Adds
+
+- `PlanActivityType.NumberDrill` enum value (IProgressService integration)
+- 4-layer ResourceId decoupling (PlanConverter, Index.razor guard, page route guard)
+- Plan activity injection via DeterministicPlanBuilder
+- Additional contexts (Money, Date, Ordinal)
+- Error-class insights tile with pattern detection
+- ASR for Read-and-speak sub-mode
+
+#### Files Shipped
+
+**Data Model (Wash, Wave 1):**
+- `src/SentenceStudio.Shared/Models/Numbers/{NumberSystem.cs, NumberContext.cs, NumberCounter.cs, NumberSubMode.cs, NumberMasteryProgress.cs, NumberAttempt.cs}`
+- `src/SentenceStudio.Shared/Migrations/20260504174821_NumbersActivityPhase1.cs` (Postgres)
+- `src/SentenceStudio.Shared/Migrations/Sqlite/20260504174821_NumbersActivityPhase1.cs` (SQLite)
+- Migrations include Designer.cs + model snapshots (critical for EF discovery)
+
+**Generator + Grader (River, Wave 4):**
+- `src/SentenceStudio.AppLib/Services/Numbers/{KoreanNumberItemGenerator.cs, KoreanNumberAnswerGrader.cs}`
+- 33 tests, all passing
+
+**Session Service (Wash, Wave 2b):**
+- `src/SentenceStudio.AppLib/Services/Numbers/NumberSessionService.cs`
+- `src/SentenceStudio.AppLib/Services/Spaced/Sm2Scheduler.cs`
+- Content seeding: `src/SentenceStudio.AppLib/Services/Numbers/NumberContentSeeder.cs`
+- `lib/content/numbers/ko.json` (seeded contexts, sub-modes, counters)
+
+**TTS Cache (Wash, Wave 2c):**
+- `src/SentenceStudio.AppLib/Services/Numbers/{NumberAudioCache.cs, NumberAudioCueBuilder.cs}`
+- `INumberTtsService` interface + `ElevenLabsNumberTtsAdapter` (ElevenLabs abstraction for testability)
+- 12/12 tests passing
+
+**UI (Kaylee, Wave 3a):**
+- `src/SentenceStudio.UI/Pages/{NumberDrill.razor, NumberDrill.razor.css, NumberDrill.razor.js}`
+- `src/SentenceStudio.UI/Pages/Index.razor` — Dashboard NumberDrill Insights tile (stats aggregation)
+- RCL static asset paths corrected, user auth fallback added
+
+#### Learnings
+
+1. **EF migration Designer.cs files are non-optional** — Migration discovery relies on `[Migration("...")]` attribute. Hand-written migrations without Designer files silently skip during runtime. Lesson: always regenerate with `dotnet ef` or manually create Designer files for discovery.
+
+2. **RCL static asset paths are a footgun** — Browser console silently shows 404 for wrong `_content/` path; interop calls fail without visible JS error. Lesson: wrapped imports in try/catch; documented convention for future RCL pages.
+
+3. **Auth state hydration race on fresh login** — AppState.CurrentUserProfile can be null on first page render (sync in flight). Lesson: always null-coalesce to ProfileRepo fallback; matches existing Index.razor pattern.
+
+4. **SM-2 quality scale unlocks future features** — Binary correct/incorrect masks latency information (automaticity signal). Latency-based quality (0-5) enables fluency tracking. Lesson: NumberDrill is first activity to use it; vocab quiz refactor can follow.
+
+5. **Concurrent TTS call stampede is real** — 750 items × parallel requests without dedup = API flood. Lesson: dictionary-based dedup for pending tasks is lightweight, effective pattern.
+
+6. **Idempotent JSON seeding is reusable** — `NumberContentSeeder` can be cloned for future activities. Lesson: candidate for extraction to generic `ContentSeeder<TEntity, TDto>` base class.
+
+#### Coordinator 3 Fixes Applied
+
+- Embedded resources fix: manifest resource loading for content JSON (pattern for Aspire-hosted apps)
+- RCL JS path fix: `_content/{Assembly}/` convention for Razor Class Library static assets
+- User auth fallback fix: AppState hydration safety with ProfileRepo.GetAsync() fallback
+
+---
+
 ### 2026-05-03: Vocab Quiz bug cluster (#189–#194) shipped
 
 **By:** Scribe (logging) — work shipped by Kaylee, Jayne, Wash

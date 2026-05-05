@@ -420,3 +420,37 @@ Captain approved JWT lifetime extension (24h) and refresh-token grace window (60
 
 
 - 2026-05-04: **NumberDrill Phase 1 Wave 2** — Extracted SM-2 scheduler from VocabularyProgressService into `Sm2Scheduler.cs` (pure function, quality-based 0-5 scale, 14/14 tests passing). Created `NumberContentSeeder` for idempotent JSON-driven seed data (`lib/content/numbers/ko.json` with contexts, sub-modes, counters). Implemented `NumberSessionService` with start/submit/end flow: generates items from due progress + random padding, grades via River's grader, persists `NumberAttempt`, updates `NumberMasteryProgress` with SM-2 scheduling. Latency-to-quality mapping: ≤8s=5, ≤15s=4, correct=3, incorrect=1. MedianLatencyMs uses running mean (Phase 1 simplification). **Streak invariant enforced:** incorrect answers NEVER break daily streak (service layer guard, test coverage confirms). DI registration: `NumberContentSeeder`, `NumberSessionService` in `CoreServiceExtensions.cs`. Build green (0 errors). Decision drop: `wash-numbers-session.md`. Phase 2: wire seeder startup, Blazor UI, plan integration.
+
+### Phase 1 NumberDrill Backend (2026-05-04)
+
+**Scope:** Data model (Wave 1), session service + SM-2 scheduler (Wave 2b), TTS cache (Wave 2c)
+
+**Key Patterns:**
+
+1. **Embedded Manifest Resources for Content Distribution** — Seed JSON files (`lib/content/numbers/*.json`) embedded as manifest resources via `.csproj` LinkBase="Numbers". Resolves via Assembly.GetManifestResourceStream() in seeder. **Why:** relative file paths fail when running under Aspire (current working directory context). Manifest resources work reliably on API startup. Pattern applicable to all future activity seeders (Grammar, Listening Comprehension, etc.).
+
+2. **Idempotent JSON-Driven Seeding** — `NumberContentSeeder` loads JSON from assembly, deserializes to DTOs, upserts by natural key (Code for contexts/sub-modes, Counter text for counters). Idempotent: safe to call every startup. Candidate for extraction to generic `ContentSeeder<TEntity, TDto>` base class.
+
+3. **SM-2 Scheduler Extraction as Service** — Extracted SM-2 algorithm from VocabularyProgressService into `Sm2Scheduler.cs` — pure function, no state, testable, language-agnostic. Removes duplication. Refactor of original VocabularyProgressService deferred (different quality mapping — binary vs. latency-based).
+
+4. **SM-2 Quality Scale: Latency-Based** — Phase 1 innovation: map SM-2 quality (0-5) based on latency + correctness:
+   - Quality 5: correct + latency ≤ 8s (automaticity threshold per Segalowitz)
+   - Quality 4: correct + latency ≤ 15s
+   - Quality 3: correct + latency > 15s
+   - Quality 1: incorrect
+   - Enables future fluency tracking across all activities (current vocab quiz is binary)
+
+5. **Streak Invariant Enforcement** — `NumberSessionService.SubmitAnswerAsync` NEVER touches streak state. Incorrect answers don't break daily streaks. Design-level requirement: numbers are a skill drill, not a core learning task.
+
+6. **TTS Cache with Concurrent Dedup** — `NumberAudioCache` idempotent via `_pendingGenerations` dictionary: concurrent calls for same text dedupe to single TTS call (prevents API stampede). SHA-256 cache keys (hash-safe file names for Unicode Korean text). Retry-once-then-fail pattern (2 attempts, 1s delay) + graceful null return (UI falls back to text display).
+
+7. **Interface Extraction for Testability** — `INumberTtsService` interface + `ElevenLabsNumberTtsAdapter` decouple from sealed ElevenLabsSpeechService (Moq cannot mock sealed types). Pattern: domain service depends on interface, not concrete legacy code. Enables FakeTtsService test double.
+
+8. **UserProfileId Data Integrity** — **P0 Bug Found & Fixed (2026-05-04):** UserProfileId was int (GetHashCode() workaround). String.GetHashCode() randomized per-process → progress corrupts on app restart. **Fix:** Changed entity to `string UserProfileId`, updated migrations in-place (feature branch), updated service signatures. **Lesson:** Always use consistent FK types across Shared + AppLib. Align entity contracts with repositories.
+
+9. **Migration Designer.cs Files Mandatory** — Hand-written migrations without Designer.cs fail discovery at runtime (no `[Migration(...)]` attribute). Both Postgres and SQLite migrations must have Designer.cs + ModelSnapshot updates. **Lesson:** Always regenerate with `dotnet ef` or manually create Designer files.
+
+10. **MedianLatencyMs is Simplified Mean** — Phase 1 uses running mean: `(old * count-1 + new) / count`. Not true median. Code comments this is a simplification. Phase 2+ can track proper percentiles (P50, P90) when telemetry shapes known.
+
+---
+

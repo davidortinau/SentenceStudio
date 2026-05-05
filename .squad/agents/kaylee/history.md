@@ -447,3 +447,26 @@ Never inline emoji characters — non-negotiable per Captain's directive.
 ### Build Verification
 - ✅ `dotnet build src/SentenceStudio.UI/SentenceStudio.UI.csproj` — 0 errors, 85 warnings (pre-existing)
 - ⚠️ E2E smoke test deferred (Aspire not running, Playwright requires running webapp)
+
+### Phase 1 NumberDrill Blazor UI (2026-05-04)
+
+**Scope:** Blazor activity page + Dashboard Insights tile for Korean number drilling (Wave 3a)
+
+**Key Patterns:**
+
+1. **Activity Page Template Pattern** — NumberDrill.razor reused 90% of VocabQuiz.razor structure (three-state machine: Setup → InSession → Summary). Takeaway: future activity pages should clone an existing activity page as starting point; architectural pattern is highly reusable.
+
+2. **System Color Chips Centralized** — Scoped CSS (`.chip-system-*` classes in NumberDrill.razor.css) encapsulates number system visual coding (purple Native, teal Sino, gradient Mixed, amber Lexical). No hardcoded inline colors. Theme changes trivial.
+
+3. **Dashboard Insights Tile Pattern** — LoadNumberStatsAsync aggregates `NumberMasteryProgress` by context, calculates percentage, renders mini progress bars + due badges. Same data-driven pattern reusable for future activity insights (Grammar, Listening, etc.).
+
+4. **Bootstrap Icons Only** — Enforced rule: NO emojis in UI strings. `bi-clock`, `bi-cup`, `bi-cake`, `bi-volume-up`, `bi-check-circle-fill`, `bi-x-circle-fill` used throughout. Prevents platform-specific emoji rendering drift.
+
+5. **Data Model Mismatch Workaround** — UserProfile.Id is string (GUID), NumberMasteryProgress.UserProfileId was int. Phase 1 used `userGuid.GetHashCode()`. **P0 CORRECTION (2026-05-04):** String.GetHashCode() is randomized per-process in .NET Core — user progress would corrupt on app restart. Fixed: changed entity to `public string UserProfileId { get; set; } = string.Empty;` and removed GetHashCode() calls. Pattern: always use consistent FK types (Shared + AppLib must align; Kaylee coordinates with Wash on entity contracts).
+
+6. **RCL JS Module Path Fix** — Imports failing silently because path was `./_framework/...` instead of `./_content/SentenceStudio.UI/Pages/NumberDrill.razor.js`. Wrapped in try/catch. **Pattern for RCL pages:** use `_content/{Assembly}/` prefix for all static assets, wrap imports in try/catch.
+
+7. **User Auth Fallback** — On fresh login, AppState.CurrentUserProfile can be null on first paint (sync in flight). Pattern: `AppState.CurrentUserProfile?.Id ?? (await ProfileRepo.GetAsync())?.Id`. Matches Index.razor line 794 existing pattern.
+
+---
+

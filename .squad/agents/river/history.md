@@ -153,3 +153,28 @@ Zoe's M.E.AI 10.5 strategic recommendations executed via three-agent orchestrati
 
 
 - 2026-05-01: **Import Confidence Calibration Fix (bug4-ai-confidence)** — Fixed AI classifier always returning ≥0.85 confidence. Root cause: dual-prompt situation where inline `BuildClassificationPrompt()` was active but my comprehensive `ClassifyImportContent.scriban-txt` was written but never wired. The inline prompt lacked concrete confidence anchors — it told the AI "≥0.85 = strong signals, 0.70-0.84 = mixed, <0.70 = ambiguous" but didn't define what "strong" or "mixed" means with concrete examples. Solution: (1) wired the Scriban template to replace inline prompt, (2) added explicit 5-band rubric with concrete signal examples per band (0.95+ = perfect CSV, 0.85-0.94 = minor ambiguity, 0.70-0.84 = mixed, 0.50-0.69 = uncertain, <0.50 = noise/code snippets), (3) strengthened DTO `[Description]` attributes to emphasize "USE THE FULL RANGE — do NOT cluster at 0.85+", (4) added guard rails (short samples cap at 0.80, any garbage lines cap at 0.60). Key learning: **AI prompt calibration requires CONCRETE EXAMPLES not abstract qualitative guidance.** Vague rubrics like "strong signals" cause score clustering because the model has no anchors. Decision drop at `.squad/decisions/inbox/river-import-confidence-calibration.md`.
+
+### Phase 1 Korean Number Generator & Grader (2026-05-04)
+
+**Scope:** Deterministic rule-based generator + 7-class grader (Wave 4)
+
+**Key Patterns:**
+
+1. **Rule-based Generation > LLM** — Korean numbers are procedural (Sino/Native system selection, sound morphology, counter association). LLM would add latency/cost/hallucination. Deterministic rules + offline capability essential. Generator designed for future Japanese/Mandarin/Spanish plug-ins by isolating language-specific logic.
+
+2. **Sound-Change Rule Context Dependency** — Korean morphophonology is subtle:
+   - `둘→두` applies ONLY standalone (두 명), NOT in compounds (스물둘, 열둘)
+   - `스물→스무` ONLY at exactly 20 (스무 살), NOT 21-29 (스물하나 살)
+   - Compounds keep full forms
+   - Ruleset must encode context predicates, not just target → replacement mappings
+
+3. **Error-Class Taxonomy Enables Pedagogy** — 7 classes (SinoNativeSwap, CounterMismatch, SoundChangeMissed, MagnitudeOff10x, Typo, WrongFormat, Unknown) with prioritized detection order. CounterMismatch checked FIRST to prevent false positives when both counter and system are wrong. Every error class has a pedagogical tip (e.g., "Native is used with counters" for SinoNativeSwap).
+
+4. **Permissive Normalization + Exact Validation** — Grader accepts spacing variants, full-width digit conversion, case-insensitive matching. BUT accepts associations (alternates list), never penalizes spelling without corrected_text via CanonicalAnswer field. Typo detection via Levenshtein distance.
+
+5. **Interface-First Design for Generalization** — `INumberItemGenerator` and `INumberAnswerGrader` interfaces keep language-specific implementations isolated. Core grader, normalization, and error taxonomy reused. Per-language plug-ins override sound-change rules (tone sandhi for Mandarin, rendaku for Japanese, apocope for Spanish).
+
+6. **Determinism Via RandomSeed** — Same seed → same output. Enables testability: iteration over seeds 0–1000 to find specific values (e.g., "find a seed that produces 스물 in Age context").
+
+---
+
