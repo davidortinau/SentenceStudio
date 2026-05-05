@@ -1785,3 +1785,18 @@ main.main-content:has(.matching-page-wrapper) {
 .activity-dot-complete {
     box-shadow: 0 0 0 2px var(--bs-success);
 }
+
+/* Vocabulary tile hover effect */
+.vocab-tile-hover {
+    cursor: pointer;
+    transition: transform 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.vocab-tile-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.vocab-tile-hover:active {
+    transform: translateY(0);
+}
