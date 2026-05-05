@@ -269,6 +269,16 @@ public class ProgressService : IProgressService
                 vocabDueCount,
                 llmResponse.Narrative
             );
+            
+            // NumberDrill telemetry (Phase 2)
+            var numberDrillItem = plan.Items.FirstOrDefault(i => i.ActivityType == PlanActivityType.NumberDrill);
+            if (numberDrillItem != null)
+            {
+                var profile = await _userProfileRepo.GetAsync();
+                _logger.LogInformation(
+                    "📐 NumberDrill plan item converted: user={UserId} dueOnly={DueOnly}",
+                    profile?.Id ?? "unknown", numberDrillItem.RouteParameters.ContainsKey("DueOnly"));
+            }
 
             // Add streak info
             var streak = await GetStreakInfoAsync(ct);

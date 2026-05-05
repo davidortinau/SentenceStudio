@@ -559,18 +559,21 @@ public class DeterministicPlanBuilder
         
         if (numbersDue)
         {
-            _logger.LogInformation("Numbers are due — selecting NumberDrill for STEP 4 closer");
+            _logger.LogInformation("Numbers are due — selecting NumberDrill for STEP 4 closer: userProfileId={UserProfileId}",
+                userProfileId);
             return "NumberDrill";
         }
         
         // Fallback: VocabularyGame if skill exists
         if (skill != null)
         {
-            _logger.LogInformation("No numbers due — selecting VocabularyGame for STEP 4 closer");
+            _logger.LogInformation("No numbers due — selecting VocabularyGame for STEP 4 closer: userProfileId={UserProfileId}",
+                userProfileId);
             return "VocabularyGame";
         }
         
-        _logger.LogInformation("No skill and no numbers due — skipping STEP 4 closer");
+        _logger.LogInformation("No skill and no numbers due — skipping STEP 4 closer: userProfileId={UserProfileId}",
+            userProfileId);
         return null;
     }
 

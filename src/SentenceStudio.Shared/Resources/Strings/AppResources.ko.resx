@@ -6247,4 +6247,28 @@
     <value>한국어 숫자 체계로 자동성을 키우세요</value>
     <comment>Plan item description for NumberDrill activity</comment>
   </data>
+  <data name="NumberDrillDisambiguateTitle" xml:space="preserve">
+    <value>체계 구별하기</value>
+    <comment>Title for Disambiguate sub-mode in NumberDrill</comment>
+  </data>
+  <data name="NumberDrillDisambiguateInstructions" xml:space="preserve">
+    <value>각 문맥에 맞는 숫자 체계(고유어 또는 한자어)를 선택하세요</value>
+    <comment>Instructions for Disambiguate sub-mode</comment>
+  </data>
+  <data name="NumberDrillSubmitBoth" xml:space="preserve">
+    <value>둘 다 제출</value>
+    <comment>Submit button text when both prompts must be answered</comment>
+  </data>
+  <data name="NumberDrillBothCorrect" xml:space="preserve">
+    <value>둘 다 정답!</value>
+    <comment>Feedback when both prompts are answered correctly</comment>
+  </data>
+  <data name="NumberDrillPartialCorrect" xml:space="preserve">
+    <value>하나만 정답</value>
+    <comment>Feedback when only one prompt is answered correctly</comment>
+  </data>
+  <data name="NumberDrillBothIncorrect" xml:space="preserve">
+    <value>힌트를 확인하세요</value>
+    <comment>Feedback when both prompts are answered incorrectly</comment>
+  </data>
 </root>

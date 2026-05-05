@@ -1,4 +1,5 @@
 using System.Text;
+using Microsoft.Extensions.Logging.Abstractions;
 using SentenceStudio.Shared.Models.Numbers;
 
 namespace SentenceStudio.Services.Numbers;
@@ -39,7 +40,7 @@ public static class NumberAudioCueBuilder
     private static List<string> BuildKoreanPrewarmList()
     {
         var items = new List<string>();
-        var generator = new KoreanNumberItemGenerator();
+        var generator = new KoreanNumberItemGenerator(NullLogger<KoreanNumberItemGenerator>.Instance);
 
         // Phase 1 prewarm scope (per plan.md):
         // - Native numbers 1–99 standalone

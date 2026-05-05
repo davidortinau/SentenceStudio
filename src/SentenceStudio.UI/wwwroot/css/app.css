@@ -1863,3 +1863,75 @@ main.main-content:has(.matching-page-wrapper) {
         font-size: 1.5rem;
     }
 }
+
+/* ============================================
+   PAIRED-PROMPT UI (Disambiguate sub-mode)
+   ============================================ */
+
+.paired-prompt-container {
+    max-width: 640px;
+    margin: 0 auto;
+}
+
+.paired-prompt-card {
+    border: 2px solid var(--bs-border-color);
+    border-radius: 0.75rem;
+    padding: 1.25rem;
+    background: var(--bs-secondary-bg);
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.paired-prompt-card.correct {
+    border-color: var(--bs-success);
+    border-width: 4px;
+    animation: pulse-border-success 0.5s ease;
+}
+
+.paired-prompt-card.incorrect {
+    border-color: var(--bs-danger);
+    border-width: 4px;
+    animation: pulse-border-danger 0.5s ease;
+}
+
+@keyframes pulse-border-success {
+    0%, 100% { 
+        border-color: var(--bs-success); 
+        box-shadow: 0 0 0 rgba(var(--bs-success-rgb), 0);
+    }
+    50% { 
+        box-shadow: 0 0 12px rgba(var(--bs-success-rgb), 0.4);
+    }
+}
+
+@keyframes pulse-border-danger {
+    0%, 100% { 
+        border-color: var(--bs-danger); 
+        box-shadow: 0 0 0 rgba(var(--bs-danger-rgb), 0);
+    }
+    50% { 
+        box-shadow: 0 0 12px rgba(var(--bs-danger-rgb), 0.4);
+    }
+}
+
+.choice-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+
+.choice-strip .btn {
+    flex: 1 1 calc(50% - 0.25rem);
+    min-width: 100px;
+    min-height: 44px; /* WCAG touch target */
+    font-size: 1rem;
+    font-weight: 500;
+}
+
+/* Mobile: stack choices vertically if needed */
+@media (max-width: 480px) {
+    .choice-strip .btn {
+        flex: 1 1 100%;
+    }
+}
+

@@ -190,9 +190,89 @@
                                 }
                             </div>
                         }
+                        else if (selectedSubMode == "Disambiguate")
+                        {
+                            @* Disambiguate UI: two paired prompts with choice strips *@
+                            <div class="paired-prompt-container my-4">
+                                @* Prompt A *@
+                                <div class="paired-prompt-card mb-3 @GetDisambiguateCardClass(true)">
+                                    <div class="ss-body2 text-secondary-ss mb-2">Prompt A:</div>
+                                    <div class="ss-title3 mb-3">@currentItem.PromptA</div>
+                                    
+                                    @if (currentItem.ChoicesA != null)
+                                    {
+                                        <div class="choice-strip">
+                                            @foreach (var choice in currentItem.ChoicesA)
+                                            {
+                                                <button type="button" 
+                                                        class="btn @(selectedAnswerA == choice ? "btn-ss-primary" : "btn-outline-secondary")"
+                                                        @onclick="() => selectedAnswerA = choice"
+                                                        disabled="@showFeedback">
+                                                    @choice
+                                                </button>
+                                            }
+                                        </div>
+                                    }
+                                    
+                                    @* Hint after feedback *@
+                                    @if (showFeedback && !string.IsNullOrEmpty(currentItem.HintA))
+                                    {
+                                        <div class="mt-3 p-2 bg-secondary-subtle rounded">
+                                            <i class="bi bi-info-circle me-1"></i>
+                                            <small class="ss-body2">@currentItem.HintA</small>
+                                        </div>
+                                    }
+                                </div>
+                                
+                                @* Prompt B *@
+                                <div class="paired-prompt-card mb-3 @GetDisambiguateCardClass(false)">
+                                    <div class="ss-body2 text-secondary-ss mb-2">Prompt B:</div>
+                                    <div class="ss-title3 mb-3">@currentItem.PromptB</div>
+                                    
+                                    @if (currentItem.ChoicesB != null)
+                                    {
+                                        <div class="choice-strip">
+                                            @foreach (var choice in currentItem.ChoicesB)
+                                            {
+                                                <button type="button" 
+                                                        class="btn @(selectedAnswerB == choice ? "btn-ss-primary" : "btn-outline-secondary")"
+                                                        @onclick="() => selectedAnswerB = choice"
+                                                        disabled="@showFeedback">
+                                                    @choice
+                                                </button>
+                                            }
+                                        </div>
+                                    }
+                                    
+                                    @* Hint after feedback *@
+                                    @if (showFeedback && !string.IsNullOrEmpty(currentItem.HintB))
+                                    {
+                                        <div class="mt-3 p-2 bg-secondary-subtle rounded">
+                                            <i class="bi bi-info-circle me-1"></i>
+                                            <small class="ss-body2">@currentItem.HintB</small>
+                                        </div>
+                                    }
+                                </div>
+                                
+                                @* Submit button (only when both selected and no feedback yet) *@
+                                @if (!showFeedback)
+                                {
+                                    <button type="button" 
+                                            class="btn btn-ss-primary w-100 mt-3" 
+                                            @onclick="SubmitBothAsync"
+                                            disabled="@(isBusy || string.IsNullOrEmpty(selectedAnswerA) || string.IsNullOrEmpty(selectedAnswerB))">
+                                        @if (isBusy)
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-2"></span>
+                                        }
+                                        @Localize["NumberDrillSubmitBoth"]
+                                    </button>
+                                }
+                            </div>
+                        }
                         
-                        @* Hint accordion (NOT for TapTheCounter — chips are the teaching moment) *@
-                        @if (selectedSubMode != "TapTheCounter" && currentItem.Hints.Any())
+                        @* Hint accordion (NOT for TapTheCounter or Disambiguate — those have inline hints) *@
+                        @if (selectedSubMode != "TapTheCounter" && selectedSubMode != "Disambiguate" && currentItem.Hints.Any())
                         {
                             <details class="mb-3">
                                 <summary class="ss-body2 text-secondary-ss" style="cursor: pointer;">
@@ -208,7 +288,7 @@
                         }
                         
                         @* Input field (only for text-entry sub-modes) *@
-                        @if (selectedSubMode != "TapTheCounter")
+                        @if (selectedSubMode != "TapTheCounter" && selectedSubMode != "Disambiguate")
                         {
                             <form @onsubmit="SubmitAnswerAsync" @onsubmit:preventDefault>
                                 <input type="text" 
@@ -373,6 +453,12 @@
     // TapTheCounter state
     private string? selectedCounter;
     private string? correctCounter;
+    
+    // Disambiguate state
+    private string? selectedAnswerA;
+    private string? selectedAnswerB;
+    private bool isCorrectA;
+    private bool isCorrectB;
     
     // Summary state
     private NumberSessionSummary? sessionSummary;
@@ -579,6 +665,12 @@
             // Reset TapTheCounter state
             selectedCounter = null;
             correctCounter = null;
+            
+            // Reset Disambiguate state
+            selectedAnswerA = null;
+            selectedAnswerB = null;
+            isCorrectA = false;
+            isCorrectB = false;
         }
     }
     
@@ -693,6 +785,80 @@
             return "incorrect";
         
         return "";
+    }
+    
+    // Disambiguate methods
+    private async Task SubmitBothAsync()
+    {
+        if (isBusy || currentItem == null) return;
+        
+        try
+        {
+            isBusy = true;
+            
+            // Grade both prompts
+            isCorrectA = selectedAnswerA == currentItem.CorrectAnswerA;
+            isCorrectB = selectedAnswerB == currentItem.CorrectAnswerB;
+            
+            var bothCorrect = isCorrectA && isCorrectB;
+            
+            var latencyMs = (int)(DateTime.UtcNow - itemStartTime).TotalMilliseconds;
+            
+            var userGuid = AppState?.CurrentUserProfile?.Id
+                ?? (await ProfileRepo.GetAsync())?.Id;
+            if (string.IsNullOrEmpty(userGuid))
+            {
+                errorMessage = "User not found. Please log in.";
+                return;
+            }
+            
+            // Submit combined answer (both-or-nothing for mastery tracking)
+            var combinedAnswer = $"{selectedAnswerA} | {selectedAnswerB}";
+            lastAttemptResult = await SessionService.SubmitAnswerAsync(
+                userGuid,
+                session!.SessionId,
+                currentItem,
+                combinedAnswer,
+                latencyMs
+            );
+            
+            // Build custom grade result for UI feedback
+            var verdict = bothCorrect ? Localize["NumberDrillBothCorrect"].ToString()
+                        : (isCorrectA || isCorrectB) ? Localize["NumberDrillPartialCorrect"].ToString()
+                        : Localize["NumberDrillBothIncorrect"].ToString();
+            
+            lastGrade = new SentenceStudio.Services.Numbers.GradeResult(
+                IsCorrect: bothCorrect,
+                Verdict: verdict,
+                CanonicalAnswer: $"A: {currentItem.CorrectAnswerA}, B: {currentItem.CorrectAnswerB}",
+                ErrorClass: bothCorrect ? "" : "system_confusion",
+                Tip: bothCorrect ? "" : "Review the hint for each prompt to understand which system applies."
+            );
+            
+            showFeedback = true;
+            totalCount++;
+            
+            if (bothCorrect)
+            {
+                correctCount++;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to submit answer: {ex.Message}";
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+    
+    private string GetDisambiguateCardClass(bool isPromptA)
+    {
+        if (!showFeedback) return "";
+        
+        var isCorrect = isPromptA ? isCorrectA : isCorrectB;
+        return isCorrect ? "correct" : "incorrect";
     }
     
     private string GetContextIcon(string contextCode) => contextCode switch

@@ -126,8 +126,8 @@ public class NumberSessionService
         _activeSessions[sessionId] = session;
 
         _logger.LogInformation(
-            "Started number session {SessionId} for user {UserProfileId}: {ItemCount} items, DueOnly={DueOnly}",
-            sessionId, userProfileId, items.Count, request.DueOnly);
+            "📐 NumberDrill session started: user={UserId} subMode={SubMode} context={Context} itemCount={ItemCount} dueOnly={DueOnly}",
+            userProfileId, request.SubModeCode, request.ContextCode ?? "Any", items.Count, request.DueOnly);
 
         return session;
     }
@@ -242,11 +242,12 @@ public class NumberSessionService
             progress.DueDate
         );
 
+        var masteryDelta = gradeResult.IsCorrect ? 1 : -1;
         _logger.LogInformation(
-            "Number attempt recorded: User={UserId}, Context={Context}, Bucket={Bucket}, " +
-            "Correct={Correct}, Latency={Latency}ms, NextDue={DueDate:yyyy-MM-dd}",
-            userProfileId, item.ContextCode, item.Bucket,
-            gradeResult.IsCorrect, latencyMs, progress.DueDate);
+            "📐 NumberDrill graded: user={UserId} subMode={SubMode} context={Context} bucket={Bucket} " +
+            "correct={Correct} latencyMs={LatencyMs} masteryDelta={Delta} nextDue={DueDate:yyyy-MM-dd}",
+            userProfileId, item.SubModeCode, item.ContextCode, item.Bucket,
+            gradeResult.IsCorrect, latencyMs, masteryDelta, progress.DueDate);
 
         return new NumberAttemptResult(gradeResult, snapshot);
     }

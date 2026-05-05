@@ -1,10 +1,18 @@
+using Microsoft.Extensions.Logging;
 using SentenceStudio.Shared.Models.Numbers;
 
 namespace SentenceStudio.Services.Numbers;
 
 public class KoreanNumberItemGenerator : INumberItemGenerator
 {
+    private readonly ILogger<KoreanNumberItemGenerator> _logger;
+    
     public string LanguageCode => "ko";
+
+    public KoreanNumberItemGenerator(ILogger<KoreanNumberItemGenerator> logger)
+    {
+        _logger = logger;
+    }
 
     private static readonly Dictionary<string, string[]> Phase1Counters = new()
     {
@@ -21,6 +29,12 @@ public class KoreanNumberItemGenerator : INumberItemGenerator
         var random = request.RandomSeed.HasValue 
             ? new Random(request.RandomSeed.Value) 
             : new Random();
+
+        // Disambiguate sub-mode is cross-context (tests contrast across different contexts)
+        if (request.SubModeCode == "Disambiguate")
+        {
+            return GenerateDisambiguateItem(request, random);
+        }
 
         return request.ContextCode switch
         {
@@ -298,6 +312,9 @@ public class KoreanNumberItemGenerator : INumberItemGenerator
         var bucket = GetBucket(value);
         var sinoReading = ConvertToSinoMoney(value);
         var canonicalAnswer = $"{sinoReading} 원";
+        
+        _logger.LogTrace("📐 Generated Money item: context={Context} digit={Digit} answer={Answer}",
+            context, value, canonicalAnswer);
 
         // Display as digit with comma grouping (Korean style 4-digit groups when over 10k)
         var displayValue = value >= 10000 
@@ -386,6 +403,9 @@ public class KoreanNumberItemGenerator : INumberItemGenerator
         var dayReading = ConvertToSino(day) + " 일";
         var yearReading = includeYear ? ConvertToSinoYear(year) + " 년 " : "";
         var canonicalAnswer = $"{yearReading}{monthReading} {dayReading}";
+        
+        _logger.LogTrace("📐 Generated Date item: context=Date year={Year} month={Month} day={Day} answer={Answer}",
+            includeYear ? year : 0, month, day, canonicalAnswer);
 
         var displayPrompt = request.SubModeCode == "ListenAndType"
             ? ""
@@ -491,6 +511,9 @@ public class KoreanNumberItemGenerator : INumberItemGenerator
         }
 
         var canonicalAnswer = ordinalReading;
+        
+        _logger.LogTrace("📐 Generated Ordinal item: context={Context} digit={Digit} pattern={Pattern} answer={Answer}",
+            context, value, pattern, canonicalAnswer);
 
         // Display prompt: use English ordinal suffix or Korean context
         var displayPrompt = request.SubModeCode == "ListenAndType"
@@ -738,5 +761,82 @@ public class KoreanNumberItemGenerator : INumberItemGenerator
         if (value <= 99) return "11-99";
         if (value <= 999) return "100-999";
         return "1000+";
+    }
+
+    private NumberItem GenerateDisambiguateItem(NumberItemRequest request, Random random)
+    {
+        // Paired prompts that test same digit in different contexts (Sino vs Native systems)
+        // Matches seed: lib/content/numbers/ko.json -> disambiguatePairs
+        var pairs = new[]
+        {
+            new { Digit = 3, ContextA = "3rd floor", ContextB = "3 floors of stairs", AnswerA = "삼 층", AnswerB = "세 층", 
+                  HintA = "Ordinal (which floor?) uses Sino numbers", HintB = "Counting floors uses Native numbers",
+                  ChoicesA = new[] { "삼 층", "세 층", "석 층", "삼층" }, ChoicesB = new[] { "세 층", "삼 층", "셋 층", "세층" } },
+            
+            new { Digit = 3, ContextA = "3 o'clock", ContextB = "3 minutes", AnswerA = "세 시", AnswerB = "삼 분",
+                  HintA = "Hours use Native numbers", HintB = "Minutes use Sino numbers",
+                  ChoicesA = new[] { "세 시", "삼 시", "석 시", "세시" }, ChoicesB = new[] { "삼 분", "세 분", "석 분", "삼분" } },
+            
+            new { Digit = 3, ContextA = "3 days (duration)", ContextB = "the 3rd day", AnswerA = "사흘", AnswerB = "셋째 날",
+                  HintA = "Duration days 1-4 use special native lexical forms (하루, 이틀, 사흘, 나흘)", HintB = "Ordinal day uses Native + 째",
+                  ChoicesA = new[] { "사흘", "삼 일", "세 일", "삼일" }, ChoicesB = new[] { "셋째 날", "삼째 날", "세째 날", "삼 번째 날" } },
+            
+            new { Digit = 3, ContextA = "3 people", ContextB = "person number 3", AnswerA = "세 명", AnswerB = "삼 번",
+                  HintA = "Counting people uses Native + 명", HintB = "Numbering (ID, jersey number) uses Sino + 번",
+                  ChoicesA = new[] { "세 명", "삼 명", "석 명", "세명" }, ChoicesB = new[] { "삼 번", "세 번", "석 번", "삼번" } },
+            
+            new { Digit = 20, ContextA = "20 years old", ContextB = "year 20 (calendar)", AnswerA = "스무 살", AnswerB = "이십 년",
+                  HintA = "Age uses Native numbers + 살 (스물 → 스무 sound change)", HintB = "Calendar years use Sino numbers + 년",
+                  ChoicesA = new[] { "스무 살", "이십 살", "스물 살", "스무살" }, ChoicesB = new[] { "이십 년", "스무 년", "스물 년", "이십년" } },
+            
+            new { Digit = 5, ContextA = "5 days (duration)", ContextB = "5th day of the month", AnswerA = "닷새", AnswerB = "오 일",
+                  HintA = "Duration days 5-10 have special native forms ending in -새 (닷새, 엿새, 이레...)", HintB = "Calendar dates use Sino numbers + 일",
+                  ChoicesA = new[] { "닷새", "오 일", "다섯 일", "오일" }, ChoicesB = new[] { "오 일", "닷새", "다섯 일", "오일" } },
+            
+            new { Digit = 2, ContextA = "2 bottles of water", ContextB = "February (month 2)", AnswerA = "두 병", AnswerB = "이월",
+                  HintA = "Counting bottles uses Native + 병 (두 = sound change of 둘)", HintB = "Months use Sino numbers + 월",
+                  ChoicesA = new[] { "두 병", "이 병", "둘 병", "두병" }, ChoicesB = new[] { "이월", "두 월", "둘 월", "이 월" } },
+            
+            new { Digit = 4, ContextA = "4 o'clock", ContextB = "April (month 4)", AnswerA = "네 시", AnswerB = "사월",
+                  HintA = "Hours use Native numbers (네 = sound change of 넷)", HintB = "Months use Sino numbers + 월",
+                  ChoicesA = new[] { "네 시", "사 시", "넷 시", "네시" }, ChoicesB = new[] { "사월", "네 월", "넷 월", "사 월" } }
+        };
+
+        var pair = pairs[random.Next(pairs.Length)];
+
+        var errorHints = new Dictionary<string, string>
+        {
+            ["pattern"] = "pattern_disambiguation",
+            ["hint"] = "Korean uses different number systems (Native vs Sino) based on context",
+            ["likely_error"] = "system_confusion"
+        };
+
+        return new NumberItem(
+            Id: Guid.NewGuid(),
+            ContextCode: "Mixed", // Cross-context comparison
+            SubModeCode: "Disambiguate",
+            CounterId: null,
+            CounterText: null,
+            System: NumberSystem.Mixed, // Both systems in play
+            Bucket: $"digit_{pair.Digit}",
+            DigitValue: pair.Digit,
+            CanonicalAnswer: $"{pair.AnswerA} | {pair.AnswerB}", // Both answers for telemetry
+            DisplayPrompt: $"{pair.ContextA} vs {pair.ContextB}", // Summary
+            AudioCue: "", // Not used in Disambiguate
+            Hints: new List<string> { pair.HintA, pair.HintB },
+            AcceptableAlternates: new List<string>(), // Not used — grading is exact-match per choice
+            ErrorClassHints: errorHints,
+            // Paired-prompt fields
+            PromptA: pair.ContextA,
+            PromptB: pair.ContextB,
+            CorrectAnswerA: pair.AnswerA,
+            CorrectAnswerB: pair.AnswerB,
+            ChoicesA: pair.ChoicesA.OrderBy(_ => random.Next()).ToList(), // Shuffle
+            ChoicesB: pair.ChoicesB.OrderBy(_ => random.Next()).ToList(), // Shuffle
+            HintA: pair.HintA,
+            HintB: pair.HintB,
+            AudioCueA: pair.AnswerA, // TTS placeholder
+            AudioCueB: pair.AnswerB  // TTS placeholder
+        );
     }
 }

@@ -6494,4 +6494,28 @@ For example: {0} ...</value>
     <value>Build automaticity with Korean number systems</value>
     <comment>Plan item description for NumberDrill activity</comment>
   </data>
+  <data name="NumberDrillDisambiguateTitle" xml:space="preserve">
+    <value>Disambiguate the System</value>
+    <comment>Title for Disambiguate sub-mode in NumberDrill</comment>
+  </data>
+  <data name="NumberDrillDisambiguateInstructions" xml:space="preserve">
+    <value>Choose the correct number system (Native or Sino) for each context</value>
+    <comment>Instructions for Disambiguate sub-mode</comment>
+  </data>
+  <data name="NumberDrillSubmitBoth" xml:space="preserve">
+    <value>Submit Both</value>
+    <comment>Submit button text when both prompts must be answered</comment>
+  </data>
+  <data name="NumberDrillBothCorrect" xml:space="preserve">
+    <value>Both correct!</value>
+    <comment>Feedback when both prompts are answered correctly</comment>
+  </data>
+  <data name="NumberDrillPartialCorrect" xml:space="preserve">
+    <value>One correct</value>
+    <comment>Feedback when only one prompt is answered correctly</comment>
+  </data>
+  <data name="NumberDrillBothIncorrect" xml:space="preserve">
+    <value>Review the hints</value>
+    <comment>Feedback when both prompts are answered incorrectly</comment>
+  </data>
 </root>

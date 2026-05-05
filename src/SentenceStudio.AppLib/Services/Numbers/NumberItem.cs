@@ -19,5 +19,16 @@ public record NumberItem(
     Dictionary<string, string>? ErrorClassHints = null,
     // TapTheCounter-specific properties
     string? NounCue = null,
-    List<string>? CounterChoices = null
+    List<string>? CounterChoices = null,
+    // Disambiguate-specific properties (paired prompts)
+    string? PromptA = null,
+    string? PromptB = null,
+    string? CorrectAnswerA = null,
+    string? CorrectAnswerB = null,
+    List<string>? ChoicesA = null,
+    List<string>? ChoicesB = null,
+    string? HintA = null,
+    string? HintB = null,
+    string? AudioCueA = null,
+    string? AudioCueB = null
 );

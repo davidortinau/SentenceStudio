@@ -6115,6 +6115,60 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Both correct!.
+        /// </summary>
+        internal static string NumberDrillBothCorrect {
+            get {
+                return ResourceManager.GetString("NumberDrillBothCorrect", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Review the hints.
+        /// </summary>
+        internal static string NumberDrillBothIncorrect {
+            get {
+                return ResourceManager.GetString("NumberDrillBothIncorrect", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Choose the correct number system (Native or Sino) for each context.
+        /// </summary>
+        internal static string NumberDrillDisambiguateInstructions {
+            get {
+                return ResourceManager.GetString("NumberDrillDisambiguateInstructions", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Disambiguate the System.
+        /// </summary>
+        internal static string NumberDrillDisambiguateTitle {
+            get {
+                return ResourceManager.GetString("NumberDrillDisambiguateTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to One correct.
+        /// </summary>
+        internal static string NumberDrillPartialCorrect {
+            get {
+                return ResourceManager.GetString("NumberDrillPartialCorrect", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Submit Both.
+        /// </summary>
+        internal static string NumberDrillSubmitBoth {
+            get {
+                return ResourceManager.GetString("NumberDrillSubmitBoth", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to of.
         /// </summary>
         internal static string Of {

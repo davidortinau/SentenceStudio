@@ -607,4 +607,75 @@ public class KoreanNumberItemGeneratorTests
     }
 
     #endregion
+
+    #region Disambiguate Sub-Mode Tests
+
+    [Fact]
+    public void GenerateDisambiguateItem_ProducesPairedPrompts()
+    {
+        var request = new NumberItemRequest("Any", "Disambiguate", RandomSeed: 42);
+        var item = _generator.GenerateItem(request);
+
+        Assert.Equal("Disambiguate", item.SubModeCode);
+        Assert.NotNull(item.PromptA);
+        Assert.NotNull(item.PromptB);
+        Assert.NotNull(item.CorrectAnswerA);
+        Assert.NotNull(item.CorrectAnswerB);
+        Assert.NotNull(item.ChoicesA);
+        Assert.NotNull(item.ChoicesB);
+        Assert.True(item.ChoicesA.Count >= 3, "PromptA should have at least 3 choices");
+        Assert.True(item.ChoicesB.Count >= 3, "PromptB should have at least 3 choices");
+    }
+
+    [Fact]
+    public void GenerateDisambiguateItem_BothHalvesPopulated()
+    {
+        var request = new NumberItemRequest("Any", "Disambiguate", RandomSeed: 99);
+        var item = _generator.GenerateItem(request);
+
+        Assert.False(string.IsNullOrEmpty(item.PromptA), "PromptA should not be empty");
+        Assert.False(string.IsNullOrEmpty(item.PromptB), "PromptB should not be empty");
+        Assert.False(string.IsNullOrEmpty(item.CorrectAnswerA), "CorrectAnswerA should not be empty");
+        Assert.False(string.IsNullOrEmpty(item.CorrectAnswerB), "CorrectAnswerB should not be empty");
+        Assert.False(string.IsNullOrEmpty(item.HintA), "HintA should not be empty");
+        Assert.False(string.IsNullOrEmpty(item.HintB), "HintB should not be empty");
+    }
+
+    [Fact]
+    public void GenerateDisambiguateItem_HasPatternDisambiguationHint()
+    {
+        var request = new NumberItemRequest("Any", "Disambiguate", RandomSeed: 42);
+        var item = _generator.GenerateItem(request);
+
+        Assert.NotNull(item.ErrorClassHints);
+        Assert.Equal("pattern_disambiguation", item.ErrorClassHints["pattern"]);
+        Assert.Equal("system_confusion", item.ErrorClassHints["likely_error"]);
+    }
+
+    [Fact]
+    public void GenerateDisambiguateItem_ChoicesContainCorrectAnswer()
+    {
+        var request = new NumberItemRequest("Any", "Disambiguate", RandomSeed: 123);
+        var item = _generator.GenerateItem(request);
+
+        Assert.Contains(item.CorrectAnswerA, item.ChoicesA);
+        Assert.Contains(item.CorrectAnswerB, item.ChoicesB);
+    }
+
+    [Fact]
+    public void GenerateDisambiguateItem_WithDifferentSeeds_ProducesDifferentPairs()
+    {
+        var item1 = _generator.GenerateItem(new NumberItemRequest("Any", "Disambiguate", RandomSeed: 1));
+        var item2 = _generator.GenerateItem(new NumberItemRequest("Any", "Disambiguate", RandomSeed: 999));
+
+        // With 8 pairs and different seeds, we should eventually get different pairs
+        // (This may occasionally fail with same pair; run multiple times to verify randomness)
+        bool differentPairs = item1.PromptA != item2.PromptA || item1.PromptB != item2.PromptB;
+        bool differentDigits = item1.DigitValue != item2.DigitValue;
+        
+        // At least one should differ due to random selection
+        Assert.True(differentPairs || differentDigits, "Different seeds should produce variety");
+    }
+
+    #endregion
 }

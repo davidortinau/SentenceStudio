@@ -69,6 +69,12 @@
       "displayName": "Tap the Counter",
       "phase": 2,
       "isActive": true
+    },
+    {
+      "code": "Disambiguate",
+      "displayName": "Disambiguate the System",
+      "phase": 2,
+      "isActive": true
     }
   ],
   "counters": [
@@ -189,5 +195,95 @@
       ],
       "notes": "Native + 째 is more conversational for ranks. Native + 번째 for occurrences. 첫째 is irregular (not 하나째). Generator must handle 한/두/세 contractions."
     }
-  }
+  },
+  "disambiguatePairs": [
+    {
+      "digit": 3,
+      "contextA": "3rd floor",
+      "contextB": "3 floors of stairs",
+      "answerA": "삼 층",
+      "answerB": "세 층",
+      "hintA": "Ordinal (which floor?) uses Sino numbers",
+      "hintB": "Counting floors uses Native numbers",
+      "audioTextA": "삼 층",
+      "audioTextB": "세 층"
+    },
+    {
+      "digit": 3,
+      "contextA": "3 o'clock",
+      "contextB": "3 minutes",
+      "answerA": "세 시",
+      "answerB": "삼 분",
+      "hintA": "Hours use Native numbers",
+      "hintB": "Minutes use Sino numbers",
+      "audioTextA": "세 시",
+      "audioTextB": "삼 분"
+    },
+    {
+      "digit": 3,
+      "contextA": "3 days (duration)",
+      "contextB": "the 3rd day",
+      "answerA": "사흘",
+      "answerB": "셋째 날",
+      "hintA": "Duration days 1-4 use special native lexical forms (하루, 이틀, 사흘, 나흘)",
+      "hintB": "Ordinal day uses Native + 째",
+      "audioTextA": "사흘",
+      "audioTextB": "셋째 날"
+    },
+    {
+      "digit": 3,
+      "contextA": "3 people",
+      "contextB": "person number 3",
+      "answerA": "세 명",
+      "answerB": "삼 번",
+      "hintA": "Counting people uses Native + 명",
+      "hintB": "Numbering (ID, jersey number) uses Sino + 번",
+      "audioTextA": "세 명",
+      "audioTextB": "삼 번"
+    },
+    {
+      "digit": 20,
+      "contextA": "20 years old",
+      "contextB": "year 20 (calendar)",
+      "answerA": "스무 살",
+      "answerB": "이십 년",
+      "hintA": "Age uses Native numbers + 살 (스물 → 스무 sound change)",
+      "hintB": "Calendar years use Sino numbers + 년",
+      "audioTextA": "스무 살",
+      "audioTextB": "이십 년"
+    },
+    {
+      "digit": 5,
+      "contextA": "5 days (duration)",
+      "contextB": "5th day of the month",
+      "answerA": "닷새",
+      "answerB": "오 일",
+      "hintA": "Duration days 5-10 have special native forms ending in -새 (닷새, 엿새, 이레...)",
+      "hintB": "Calendar dates use Sino numbers + 일",
+      "audioTextA": "닷새",
+      "audioTextB": "오 일"
+    },
+    {
+      "digit": 2,
+      "contextA": "2 bottles of water",
+      "contextB": "February (month 2)",
+      "answerA": "두 병",
+      "answerB": "이월",
+      "hintA": "Counting bottles uses Native + 병 (두 = sound change of 둘)",
+      "hintB": "Months use Sino numbers + 월",
+      "audioTextA": "두 병",
+      "audioTextB": "이월"
+    },
+    {
+      "digit": 4,
+      "contextA": "4 o'clock",
+      "contextB": "April (month 4)",
+      "answerA": "네 시",
+      "answerB": "사월",
+      "hintA": "Hours use Native numbers (네 = sound change of 넷)",
+      "hintB": "Months use Sino numbers + 월",
+      "audioTextA": "네 시",
+      "audioTextB": "사월"
+    }
+  ]
 }
