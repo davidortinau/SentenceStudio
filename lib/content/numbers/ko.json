@@ -25,6 +25,30 @@
       "defaultSystem": "Native",
       "sortOrder": 30,
       "isActive": true
+    },
+    {
+      "code": "Money",
+      "displayName": "Money",
+      "icon": "💰",
+      "defaultSystem": "Sino",
+      "sortOrder": 40,
+      "isActive": true
+    },
+    {
+      "code": "Date",
+      "displayName": "Date",
+      "icon": "📅",
+      "defaultSystem": "Sino",
+      "sortOrder": 50,
+      "isActive": true
+    },
+    {
+      "code": "Ordinal",
+      "displayName": "Ordinal",
+      "icon": "🏆",
+      "defaultSystem": "Native",
+      "sortOrder": 60,
+      "isActive": true
     }
   ],
   "subModes": [
@@ -38,6 +62,12 @@
       "code": "ReadAndProduce",
       "displayName": "Read & Produce",
       "phase": 1,
+      "isActive": true
+    },
+    {
+      "code": "TapTheCounter",
+      "displayName": "Tap the Counter",
+      "phase": 2,
       "isActive": true
     }
   ],
@@ -77,5 +107,87 @@
       "system": "Native",
       "notes": ""
     }
-  ]
+  ],
+  "contextNotes": {
+    "Money": {
+      "system": "Sino",
+      "particle": "원",
+      "placeValues": {
+        "만": 10000,
+        "억": 100000000
+      },
+      "ranges": [
+        { "value": 100, "korean": "백 원", "context": "small purchase" },
+        { "value": 1000, "korean": "천 원", "context": "coffee" },
+        { "value": 3000, "korean": "삼천 원", "context": "snack" },
+        { "value": 10000, "korean": "만 원", "context": "lunch" },
+        { "value": 15000, "korean": "만 오천 원", "context": "meal" },
+        { "value": 50000, "korean": "오만 원", "context": "dinner" },
+        { "value": 100000, "korean": "십만 원", "context": "shopping" },
+        { "value": 1000000, "korean": "백만 원", "context": "rent" }
+      ],
+      "notes": "Korean currency groups by 4 digits (만, 억) not 3 like Western. Sino numbers are mandatory for prices."
+    },
+    "Date": {
+      "system": "Sino",
+      "irregularMonths": {
+        "6": "유월",
+        "10": "시월"
+      },
+      "months": [
+        { "number": 1, "korean": "일월", "romanization": "ilwol" },
+        { "number": 2, "korean": "이월", "romanization": "iwol" },
+        { "number": 3, "korean": "삼월", "romanization": "samwol" },
+        { "number": 4, "korean": "사월", "romanization": "sawol" },
+        { "number": 5, "korean": "오월", "romanization": "owol" },
+        { "number": 6, "korean": "유월", "romanization": "yuwol", "irregular": true },
+        { "number": 7, "korean": "칠월", "romanization": "chirwol" },
+        { "number": 8, "korean": "팔월", "romanization": "palwol" },
+        { "number": 9, "korean": "구월", "romanization": "guwol" },
+        { "number": 10, "korean": "시월", "romanization": "siwol", "irregular": true },
+        { "number": 11, "korean": "십일월", "romanization": "sibiwol" },
+        { "number": 12, "korean": "십이월", "romanization": "sibiwol" }
+      ],
+      "sampleDates": [
+        { "date": "2026-01-01", "korean": "이천이십육 년 일월 일일", "context": "New Year's Day" },
+        { "date": "2026-03-01", "korean": "이천이십육 년 삼월 일일", "context": "Independence Movement Day" },
+        { "date": "2026-06-15", "korean": "이천이십육 년 유월 십오일", "context": "irregular month example" },
+        { "date": "2026-10-03", "korean": "이천이십육 년 시월 삼일", "context": "National Foundation Day (irregular month)" },
+        { "date": "2026-12-25", "korean": "이천이십육 년 십이월 이십오일", "context": "Christmas" }
+      ],
+      "notes": "Month 6 is 유월 (NOT 육월), month 10 is 시월 (NOT 십월). These are irregular. Days use Sino + 일 suffix."
+    },
+    "Ordinal": {
+      "system": "Native",
+      "patterns": {
+        "째": {
+          "description": "Native + 째 for ranking, family birth order, sequence",
+          "examples": [
+            { "number": 1, "korean": "첫째", "context": "first child", "notes": "irregular: 첫째 NOT 하나째" },
+            { "number": 2, "korean": "둘째", "context": "second child" },
+            { "number": 3, "korean": "셋째", "context": "third child" },
+            { "number": 4, "korean": "넷째", "context": "fourth place" },
+            { "number": 5, "korean": "다섯째", "context": "fifth in line" }
+          ]
+        },
+        "번째": {
+          "description": "Native + 번째 for occurrences, 'Nth time/turn'",
+          "examples": [
+            { "number": 1, "korean": "첫 번째", "context": "first time", "notes": "첫 번째 is spaced" },
+            { "number": 2, "korean": "두 번째", "context": "second time" },
+            { "number": 3, "korean": "세 번째", "context": "third visit" },
+            { "number": 4, "korean": "네 번째", "context": "fourth attempt" }
+          ]
+        }
+      },
+      "sampleContexts": [
+        { "ordinal": "첫째", "context": "ranking", "meaning": "first child in family" },
+        { "ordinal": "둘째", "context": "ranking", "meaning": "second child" },
+        { "ordinal": "첫 번째", "context": "occurrence", "meaning": "first time doing something" },
+        { "ordinal": "두 번째", "context": "occurrence", "meaning": "second time" },
+        { "ordinal": "세 번째", "context": "occurrence", "meaning": "third visit" }
+      ],
+      "notes": "Native + 째 is more conversational for ranks. Native + 번째 for occurrences. 첫째 is irregular (not 하나째). Generator must handle 한/두/세 contractions."
+    }
+  }
 }

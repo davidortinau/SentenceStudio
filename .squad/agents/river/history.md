@@ -178,3 +178,54 @@ Zoe's M.E.AI 10.5 strategic recommendations executed via three-agent orchestrati
 
 ---
 
+### Phase 2 NumberDrill Seed Expansion (2026-05-04)
+
+**Scope:** Extended `lib/content/numbers/ko.json` with Money, Date, Ordinal contexts
+
+**Deliverables:**
+1. Three new context entries: Money (Sino, 💰), Date (Sino, 📅), Ordinal (Native, 🏆)
+2. `contextNotes` metadata section with irregular month flags and ordinal pattern documentation
+
+**Key Learnings:**
+
+1. **Korean Date Irregularities Must Be Explicit** — Month 6 is 유월 (NOT 육월), month 10 is 시월 (NOT 십월). These irregular forms must be flagged in seed metadata so the generator can:
+   - Use correct forms in item generation
+   - Detect learner errors (e.g., "육월" when "유월" expected) as a dedicated error class
+   - Provide pedagogical tips ("June uses irregular form 유월")
+
+2. **Money Place-Value Grouping Is Cultural** — Korean groups by 4 digits (만 = 10,000; 억 = 100,000,000) vs. Western 3-digit grouping (thousand, million). Seed includes explicit place-value mappings (만: 10000, 억: 100000000) and sample ranges with conversational contexts (커피 = 3천 원, 월세 = 백만 원). This enables generator to teach Korean-native thinking patterns, not transliterated Western ones.
+
+3. **Ordinal Dual-Pattern Requires Contextual Selection** — Korean ordinals have two productive patterns:
+   - **Native + 째** (첫째, 둘째, 셋째…) for ranking/birth-order/sequence
+   - **Native + 번째** (첫 번째, 두 번째, 세 번째…) for occurrences/"Nth time"
+   - 첫째 is irregular (NOT 하나째) — similar to Time's 한 시 irregularity
+   - Generator needs to bias by sub-mode: Ranking contexts → 째; Occurrence contexts → 번째
+
+4. **Schema Extension via `contextNotes` Section** — Phase 1 seed had no extensibility for context-specific metadata (only generic `counters` array). Phase 2 adds `contextNotes` as a top-level object keyed by context code. This allows:
+   - Irregular forms (Date.irregularMonths)
+   - Sample data with semantic context tags (Money.ranges[].context)
+   - Multi-pattern documentation (Ordinal.patterns)
+   - Notes field for generator implementer guidance
+   - NO DTO change required — seeder ignores unknown fields, generator reads raw JSON for context-specific logic
+
+5. **Embedded Resource Verification Pattern** — After extending seed:
+   - Validate JSON syntax (python3 -m json.tool)
+   - Build Shared project to confirm embedded resource inclusion
+   - Check for deserialization errors in seeder (would manifest as "Failed to deserialize" log warning)
+   - Phase 2 extension passed all three gates — no schema regression
+
+**Coordination:**
+- Wash will implement Money/Date/Ordinal generation logic in `KoreanNumberItemGenerator.cs` (next Phase 2 todo)
+- Jayne will test irregular month detection and ordinal pattern disambiguation (Phase 2 validation suite expansion)
+- Captain approved icon choices (💰/📅/🏆) and defaultSystem assignments (Sino/Sino/Native)
+
+**Implications:**
+- NumberDrill is now A1-A2 complete for Korean numbers (Counting/Time/Age/Money/Date/Ordinal = 6 contexts)
+- Phase 3 day-counts (하루/이틀/사흘) deferred per Captain's decision — dual-home with VocabularyWord, not a number context
+- Generalization path to Japanese/Mandarin/Spanish now has ordinal exemplar (Korean 째/번째 ≈ Spanish -o/-a gender + placement variants)
+
+---
+
+
+
+- 2026-05-05: **NumberDrill Phase 2 Wave 1 — Content Seed Expansion** — Extended `lib/content/numbers/ko.json` with three new contexts for Phase 2: Money (💰, Sino, sortOrder 40), Date (📅, Sino, sortOrder 50), Ordinal (🏆, Native, sortOrder 60). Introduced `contextNotes` schema extension (top-level object with context-specific metadata) for generator/grader consumption — backward-compatible (seeder ignores unknown fields). Money: place values (만, 억), ranges (100원–1M원), particle (원). Date: irregular months (유월/시월), all 12 months with romanization, holidays, year format. Ordinal: dual patterns (째 for ranking, 번째 for occurrences), irregularity (첫째). Build validated ✓. Generalization path: contextNotes schema reusable for Japanese (phonetic variants), Mandarin (currency variants), Spanish (gender agreement). Handoff: Wash implements generators + graders (Money/Date/Ordinal item generation + new error classes), Kaylee implements Disambiguate generator for paired prompts. Day-counts explicitly deferred to Phase 3 (lexical, not productive pattern). Decision drop: `.squad/decisions/inbox/river-numberdrill-phase2-seed.md`.

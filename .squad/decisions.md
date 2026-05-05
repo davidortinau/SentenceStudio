@@ -4,6 +4,200 @@
 
 ---
 
+### 2026-05-05: NumberDrill Phase 2 Wave 1 — Architecture, Seed, UX Brief
+
+**By:** Scribe (logging) — work by Zoe (Lead/Architecture), River (Seed), Kaylee (UX), Captain (decisions)  
+**Status:** Wave 1 planning complete. Awaiting Captain approval. Wave 2 implementation can proceed in parallel.
+
+#### Phase 2 Wave 1 Overview
+
+Three parallel workstreams established Phase 2 architecture, content seed, and UX patterns:
+
+1. **Architecture (Zoe):** Plan integration strategy, 4-layer ResourceId decoupling, enum extension
+2. **Seed (River):** Three new contexts (Money, Date, Ordinal) with `contextNotes` metadata schema
+3. **UX (Kaylee):** Disambiguate sub-mode with vertical prompt stacking + paired grading
+
+#### Key Decisions
+
+**1. Slot Replacement (DeterministicPlanBuilder)**
+- NumberDrill **replaces** VocabularyMatching in STEP 4 (not additive)
+- Trigger: `NumberMasteryProgress.DueDate <= DateTime.UtcNow.AddDays(1)` (matches VocabProgress +1d lookahead)
+- Fallback: VocabularyGame if no numbers due and skill exists
+- Implements: `SelectCloserActivityAsync(skill, userId, ct)` method
+- Tests required: due/not-due/no-skill edge cases
+
+**2. Enum Extension**
+- Add `PlanActivityType.NumberDrill = 11` to `IProgressService.cs` enum
+- No compiler-enforced exhaustive switches found (all use `_ =>` default)
+- Safe to add without mass switch updates
+
+**3. 4-Layer ResourceId Decoupling (Pattern Applied to 3rd Activity)**
+- Layer 1 (Plan Builder): Set `ResourceId = null` for NumberDrill
+- Layer 2 (PlanConverter): Add NumberDrill to `BuildRouteParameters()` — set `DueOnly = true`, omit ResourceId/SkillId
+- Layer 3 (Index.razor guard): Add NumberDrill to line ~817 ResourceId guard (don't pass ResourceId even if persisted)
+- Layer 4 (Page defense): NumberDrill.razor OnParametersSet() rejects ResourceId with warning log
+- Files: PlanConverter.cs (4 switch cases), Index.razor (guard), NumberDrill.razor (defense)
+- Pattern formalized in `.squad/skills/resourceid-decoupling/SKILL.md` for future vocab-driven activities
+
+**4. Localization Keys (Enum-Driven, Not AI Snake_Case)**
+- Add to `Strings.en.json` + `Strings.ko.json`:
+  - `PlanItemNumberDrillTitle`: "Number Drill" / "숫자 연습"
+  - `PlanItemNumberDrillDesc`: "Build automaticity with Korean number systems" / "한국어 숫자 체계로 자동성을 키우세요"
+  - `PlanItemNumberDrillCta`: "Drill Numbers" / "숫자 연습하기"
+- PlanConverter maps enum → key at compile-time (immune to AI/human casing mismatches)
+
+**5. Content Seed: Three New Contexts**
+- **Money (돈)** — Sino system, icon 💰, sortOrder 40
+  - Particle: 원 (won)
+  - Place values: 만 (10,000), 억 (100,000,000) — Korean grouping by 4 digits
+  - Ranges: 100원–1,000,000원 with conversational context (coffee/lunch/rent)
+- **Date (날짜)** — Sino system, icon 📅, sortOrder 50
+  - Irregular months: 6월=유월 (not 육월), 10월=시월 (not 십월)
+  - All 12 months documented with romanization + irregularity flags
+  - Includes holidays (설날, 추석) and year format (Sino reading + 년)
+- **Ordinal (서수)** — Native system, icon 🏆, sortOrder 60
+  - Two patterns: Native + 째 (ranking/birth order), Native + 번째 (occurrences)
+  - Generator biases by sub-mode context
+  - Irregularity: 첫째 (not 하나째)
+- Schema extension via `contextNotes` (context-specific metadata):
+  - Money.placeValues, Money.ranges
+  - Date.irregularMonths (explicit 6→유월, 10→시월 mapping), Date.months (all 12 with romanization)
+  - Ordinal.patterns (째 vs 번째 guidance), Ordinal.sampleContexts
+- Backward-compatible (seeder ignores unknown fields)
+- Build validated ✓
+
+**6. Disambiguate Sub-Mode UX (Phase 2 Wave 2 Implementation)**
+- Core: Two prompts vertically stacked, each with independent choice strip (Sino vs Native buttons)
+- Pedagogical value: Contrast comprehension ("3rd floor" [Sino] vs "3 floors" [Native])
+- Layout: Mobile vertical cards (100% width), desktop centered max-width 800px
+- Grading: Paired-on-both-submitted (not per-prompt immediate) — reinforce contrast
+- Feedback: Per-prompt highlights + explanation panel (slide-up, responsive grid 1col mobile / 2col desktop)
+- Audio: English prompt auto-play on load; Korean answer replays in explanation panel
+- Generator constraint: SystemA ≠ SystemB (validation rule to ensure pedagogical contrast)
+- Phase 2 grading: Both-or-nothing (strict). Phase 3: Partial credit if analytics justify.
+- Skill extracted: `.squad/skills/paired-prompt-ui/SKILL.md` (canonical for future paired-prompt activities)
+
+**7. Non-Determinism Issue (Deferred)**
+- Found: SelectInputActivity uses `Guid.NewGuid()` tiebreaker (line 745); SelectOutputActivity uses deterministic `HashCode.Combine(DateTime.Today, a)` (line 769)
+- Impact: Same inputs can produce different plans on regenerate (pre-existing, shipped in Phase 0)
+- Decision: Defer to separate cycle per Captain "keep scope tight"
+- Fix candidate: Switch both to HashCode.Combine(DateTime.Today, ...) pattern (test suite may need updates)
+
+#### Handoff Assignments
+
+**Wash (Plan Integration — p2-plan-integration todo):**
+- Implement SelectCloserActivityAsync() in DeterministicPlanBuilder
+- Query NumberMasteryProgress for due items (within 1 day)
+- Add database injection for DI
+- Tests: due/not-due, no-skill, no-remaining-time edge cases
+
+**Wash (Resource Decoupling — p2-resource-decouple todo):**
+- Update PlanConverter.cs:
+  - ParseActivityType(): add `"NumberDrill" => PlanActivityType.NumberDrill`
+  - GetRouteForActivity(): add `PlanActivityType.NumberDrill => "/number-drill"`
+  - GetTitleKeyForActivity(): add `PlanActivityType.NumberDrill => "PlanItemNumberDrillTitle"`
+  - GetDescriptionKeyForActivity(): add `PlanActivityType.NumberDrill => "PlanItemNumberDrillDesc"`
+  - BuildRouteParameters(): add NumberDrill case with `DueOnly = true`
+- Update Index.razor line ~817: add NumberDrill to ResourceId guard
+- Add Layer 4 defense in NumberDrill.razor OnParametersSet()
+- Tests: route correct, DueOnly=true, ResourceId omitted
+
+**Wash (Generators + Graders — Wave 2 continuation):**
+- Implement GenerateMoneyItem(), GenerateDateItem(), GenerateOrdinalItem() in KoreanNumberItemGenerator
+- Extend KoreanNumberAnswerGrader with error classes: IrregularFormMissed, PlaceValueError, OrdinalPatternMismatch
+- Implement GenerateDisambiguateItem() for paired prompts (ensure SystemA ≠ SystemB)
+
+**Wash (Streak Interaction — Implementation Detail):**
+- NumberDrill completion must increment DailyPlanItem.IsCompleted
+- NumberDrill errors MUST NOT break daily streak (matches VocabQuiz behavior)
+- Implementation concern: ProgressTrackingService or StreakCalculator
+
+**Kaylee (Disambiguate UI — Wave 2):**
+- Create NumberDisambiguateItem DTO (PromptA/B, OptionsA/B, CorrectAnswerA/B, ExplanationA/B, SystemA/B, AudioCueA/B, ContextCode)
+- Implement vertical prompt cards + per-prompt choice strips
+- Implement paired grading logic + explanation panel (responsive grid)
+- Wire TTS audio (English prompts auto-play + Korean replays in feedback)
+- Add E2E test reference to e2e-testing skill
+- Implementation checklist: 12 items (see `.squad/decisions/inbox/kaylee-disambiguate-submode-ux.md`)
+
+**Jayne (Test Suite — Wave 3):**
+- Test irregular month detection (유월/시월 vs 육월/십월)
+- Test ordinal pattern disambiguation (째 vs 번째 by context)
+- Test Korean place-value grouping (만/억 boundaries)
+- Test Disambiguate: paired grading (both correct, one wrong, both wrong), explanation rendering
+
+**Localize Agent:**
+- Add 3 PlanItem keys (Title, Desc, Cta) for en/ko
+- Verify PascalCase convention (not snake_case)
+- Verify Korean translations align with automaticity pedagogy
+
+#### Risk Summary
+
+| Risk | Status | Mitigation |
+|------|--------|-----------|
+| Plan length pressure | Mitigated | Replacement (not additive); STEP 4 already conditional |
+| Streak interaction | Flagged | Implementation attention needed (not architecture); matches VocabQuiz |
+| Non-determinism | Deferred | Pre-existing (Phase 0); orthogonal to Phase 2; defer to separate cycle |
+| Backward compatibility | Low | New enum value won't collision with existing DB rows; no migration needed |
+
+#### Reusable Skills Extracted
+
+1. `.squad/skills/resourceid-decoupling/SKILL.md` — 4-layer pattern for vocabulary-driven activities (Quiz, Matching, Cloze, NumberDrill precedent)
+2. `.squad/skills/number-content-seeding/SKILL.md` — contextNotes schema for language-agnostic content metadata (reusable for Japanese/Mandarin/Spanish)
+3. `.squad/skills/paired-prompt-ui/SKILL.md` — Canonical paired-prompt pattern (vertical stacking, per-item choice UI, paired grading, responsive explanation grid). Extract after Wave 2 E2E verification.
+
+#### Next Phase
+
+**Wave 2 (Wash + Kaylee):** Implement generators, graders, Disambiguate UI, plan integration.  
+**Wave 3 (Jayne):** Comprehensive test suite for Phase 2 features.  
+**Wave 4 (E2E + Ship):** End-to-end validation on running app; merge to production.
+
+---
+
+### 2026-05-04: Captain decisions on NumberDrill Phase 2+ open questions
+
+**By:** David (Captain)  
+**Context:** Resolved 7 open questions from Phase 2 plan before Wave 2 implementation begins.
+
+#### Decisions
+
+1. **Speech grading approach (Phase 3 / Read-and-speak sub-mode):**
+   Self-grade with record + replay UX. User records voice, plays it back AND plays an ElevenLabs-generated reference for comparison, then taps Right/Wrong to confirm. **No ASR vendor required.** This is the canonical pattern for any future speech-graded activity in the app — record + reference replay + manual mark.
+
+2. **Follow the recommendation:** Accept default for any question where Squad recommended an answer; no override.
+
+3. **Counter seed format:** JSON at `lib/content/numbers/{language}.json` is acceptable. (Already shipped in Phase 1 as embedded resource — keep that pattern.)
+
+4. **Plan slot strategy (Phase 2):** NumberDrill **replaces VocabularyMatching** in the daily plan when a Number bucket is due. Replace, don't add a 5th slot. Keeps plan length bounded.
+
+5. **Time format priority (Phase 1/2):** Use whichever format is used in **daily conversation** for the language. For Korean, that means 12-hour Native+Sino mixed (한 시 삼십 분, 오후 두 시) is the primary; 24-hour military (`14:30` → 십사 시 삼십 분) is a secondary/A2 case. Generator should bias toward conversational form per language.
+
+6. **Day-counts dual-home (Phase 3):** Confirmed yes. Day-count words (하루/이틀/사흘…) live as both `VocabularyWord` rows AND `NumberMasteryProgress` entries with a sync hook so progress in either surface updates the other.
+
+7. **TTS audio cost:** Not a concern. Generate audio freely; cache by hash (already shipped in Phase 1 via `wash-numbers-tts-cache` decision).
+
+#### Implications
+
+- Phase 2 scope confirmed: Money/Date/Ordinal contexts + Tap-counter/Disambiguate/Listen-and-place sub-modes + DailyPlan integration
+- Phase 3 ASR vendor question is **closed** — self-rate-with-replay is the answer, no vendor selection needed
+- TTS budget concerns removed from risk list
+- Day-counts deferred to Phase 3 as lexical vocabulary (irregular, memorization-based) not productive number pattern
+
+---
+
+### 2026-05-04: Phase 2 branch & ship strategy
+
+**By:** David (Captain)  
+**Decision:** Phase 2 will continue on `squad/numbers-activity-phase-1` branch. Phase 1 will NOT be published independently — Phase 1 + Phase 2 ship together as a single deploy after Phase 2 completes.
+
+**Rationale:** Reduces deploy churn. Phase 1 was fully E2E-verified (commit 4d97680) but never reached production; rolling forward keeps the activity lifecycle atomic for users.
+
+**Implications:**
+- Branch may be renamed at ship time (`squad/numbers-activity-mvp` or similar) if scope grows
+- All Phase 2 PRs land on this branch, not main
+- No production rollback needed for Phase 1 if Phase 2 reveals issues
+
+---
 ### 2026-05-04: NumberDrill Phase 1 shipped
 
 **By:** Scribe (logging) — work shipped by Wash (data model, session service, TTS cache), Kaylee (Blazor UI), River (generator/grader)  
