@@ -17,7 +17,6 @@ public class DeterministicPlanBuilder
     private readonly LearningResourceRepository _resourceRepo;
     private readonly SkillProfileRepository _skillRepo;
     private readonly VocabularyProgressRepository _vocabProgressRepo;
-    private readonly ApplicationDbContext _db;
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<DeterministicPlanBuilder> _logger;
 
@@ -26,7 +25,6 @@ public class DeterministicPlanBuilder
         LearningResourceRepository resourceRepo,
         SkillProfileRepository skillRepo,
         VocabularyProgressRepository vocabProgressRepo,
-        ApplicationDbContext db,
         IServiceProvider serviceProvider,
         ILogger<DeterministicPlanBuilder> logger)
     {
@@ -34,7 +32,6 @@ public class DeterministicPlanBuilder
         _resourceRepo = resourceRepo;
         _skillRepo = skillRepo;
         _vocabProgressRepo = vocabProgressRepo;
-        _db = db;
         _serviceProvider = serviceProvider;
         _logger = logger;
     }
@@ -551,10 +548,13 @@ public class DeterministicPlanBuilder
         CancellationToken ct)
     {
         // Check if NumberDrill is due (any NumberMasteryProgress row with DueDate <= tomorrow)
+        // Resolve scoped ApplicationDbContext from a service scope (this class is registered Singleton).
         var tomorrow = DateTime.UtcNow.AddDays(1);
-        var numbersDue = await _db.NumberMasteryProgresses
-            .AnyAsync(p => 
-                p.UserProfileId == userProfileId 
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var numbersDue = await db.NumberMasteryProgresses
+            .AnyAsync(p =>
+                p.UserProfileId == userProfileId
                 && p.DueDate <= tomorrow, ct);
         
         if (numbersDue)
