@@ -14,7 +14,7 @@
 @implements IAsyncDisposable
 
 <div class="activity-page-wrapper">
-    <PageHeader Title="Number Drill" ShowBack="true" OnBack="GoBack" />
+    <PageHeader Title='@Localize["PlanItemNumberDrillTitle"]' ShowBack="true" OnBack="GoBack" />
     
     <div class="activity-content">
         @if (state == State.Setup)
@@ -370,9 +370,9 @@
                         @* Feedback panel *@
                         @if (lastGrade != null)
                         {
-                            <div class="@(lastGrade.IsCorrect ? "bg-success-subtle" : "bg-warning-subtle") p-3 rounded mb-3">
+                            <div class="alert @(lastGrade.IsCorrect ? "alert-success" : "alert-danger") mb-3">
                                 <div class="d-flex align-items-center gap-2 mb-2">
-                                    <i class="bi @(lastGrade.IsCorrect ? "bi-check-circle-fill text-success" : "bi-x-circle-fill text-warning") fs-4"></i>
+                                    <i class="bi @(lastGrade.IsCorrect ? "bi-check-circle-fill" : "bi-x-circle-fill") fs-4"></i>
                                     <span class="ss-title3">@lastGrade.Verdict</span>
                                 </div>
                                 
@@ -382,7 +382,7 @@
                                 
                                 @if (!lastGrade.IsCorrect && !string.IsNullOrEmpty(lastGrade.ErrorClass))
                                 {
-                                    <div class="alert alert-info py-2 px-3 mb-2 small">
+                                    <div class="ss-body2 mb-2">
                                         <i class="bi bi-info-circle me-1"></i>
                                         <strong>@lastGrade.ErrorClass:</strong> @lastGrade.Tip
                                     </div>
@@ -390,7 +390,7 @@
                                 
                                 @if (lastAttemptResult != null && lastAttemptResult.Snapshot != null)
                                 {
-                                    <div class="text-secondary-ss small">
+                                    <div class="small opacity-75">
                                         Progress: @lastAttemptResult.Snapshot.CorrectCount/@lastAttemptResult.Snapshot.TotalCount correct · 
                                         Next review: @lastAttemptResult.Snapshot.NextDueDate.ToLocalTime().ToString("MMM d")
                                     </div>
