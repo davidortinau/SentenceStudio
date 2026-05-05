@@ -25,7 +25,7 @@ public class NumberSessionServiceTests : IDisposable
         _db.Database.OpenConnection();
         _db.Database.EnsureCreated();
 
-        _generator = new KoreanNumberItemGenerator();
+        _generator = new KoreanNumberItemGenerator(NullLogger<KoreanNumberItemGenerator>.Instance);
         _grader = new KoreanNumberAnswerGrader();
         _service = new NumberSessionService(_generator, _grader, _db, NullLogger<NumberSessionService>.Instance);
     }

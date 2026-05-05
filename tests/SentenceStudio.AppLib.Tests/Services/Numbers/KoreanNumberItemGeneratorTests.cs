@@ -1,12 +1,14 @@
 using SentenceStudio.Services.Numbers;
 using SentenceStudio.Shared.Models.Numbers;
 using Xunit;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace SentenceStudio.AppLib.Tests.Services.Numbers;
 
 public class KoreanNumberItemGeneratorTests
 {
-    private readonly KoreanNumberItemGenerator _generator = new();
+    private readonly KoreanNumberItemGenerator _generator = new(NullLogger<KoreanNumberItemGenerator>.Instance);
 
     [Fact]
     public void LanguageCode_IsKorean()
