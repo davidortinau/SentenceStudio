@@ -22,7 +22,9 @@ public class NumberContentSeeder
         // Prefer embedded resource (works regardless of CWD or deployment layout).
         // Fall back to filesystem path for tests/dev where the file is added directly.
         string? jsonContent = null;
-        var resourceName = $"SentenceStudio.Shared.Numbers.{languageCode}.json";
+        
+        // FIXED: Resource name must match LinkBase in csproj (LinkBase="Numbers" → "Numbers.{lang}.json")
+        var resourceName = $"Numbers.{languageCode}.json";
         var assembly = typeof(NumberContentSeeder).Assembly;
         await using (var stream = assembly.GetManifestResourceStream(resourceName))
         {
@@ -46,10 +48,8 @@ public class NumberContentSeeder
             jsonContent = await File.ReadAllTextAsync(contentFilePath, ct);
         }
 
-        var seedData = JsonSerializer.Deserialize<NumberContentSeed>(jsonContent, new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true
-        });
+        // FIXED: Use source-generated JsonSerializerContext for AOT safety (iOS Release trimming)
+        var seedData = JsonSerializer.Deserialize(jsonContent, NumberContentSeedJsonContext.Default.NumberContentSeed);
 
         if (seedData == null)
         {
