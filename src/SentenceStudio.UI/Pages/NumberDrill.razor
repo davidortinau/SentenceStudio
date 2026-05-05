@@ -190,6 +190,61 @@
                                 }
                             </div>
                         }
+                        else if (selectedSubMode == "ListenAndPlace")
+                        {
+                            @* ListenAndPlace UI: audio button + 3 time cards *@
+                            <div class="text-center my-4">
+                                @* Audio button *@
+                                <div class="mb-4">
+                                    <button type="button" 
+                                            class="btn btn-primary btn-lg" 
+                                            @onclick="PlayAudioAsync"
+                                            disabled="@(isBusy || isPlayingAudio)">
+                                        <i class="bi bi-volume-up-fill me-2" style="font-size: 1.5rem;"></i>
+                                        @(isPlayingAudio ? Localize["NumberDrillPlaying"] : Localize["NumberDrillPlayAudio"])
+                                    </button>
+                                </div>
+                                
+                                @* Instruction caption *@
+                                <div class="ss-body1 text-secondary-ss mb-4">
+                                    @Localize["NumberDrillListenAndPlaceInstructions"]
+                                </div>
+                                
+                                @* Time cards (3 choices) *@
+                                @if (currentItem.CounterChoices != null && currentItem.CounterChoices.Any())
+                                {
+                                    <div class="d-flex flex-wrap justify-content-center gap-3 mt-4">
+                                        @foreach (var choice in currentItem.CounterChoices)
+                                        {
+                                            <button type="button" 
+                                                    class="time-card @GetTimeCardClass(choice)"
+                                                    @onclick="() => TapTimeCard(choice)"
+                                                    disabled="@isBusy">
+                                                <span class="time-card-text">@choice</span>
+                                            </button>
+                                        }
+                                    </div>
+                                }
+                                
+                                @* Replay audio button (smaller, always available) *@
+                                <div class="mt-4">
+                                    <button type="button" 
+                                            class="btn btn-outline-secondary btn-sm" 
+                                            @onclick="PlayAudioAsync"
+                                            disabled="@(isBusy || isPlayingAudio)">
+                                        <i class="bi bi-arrow-clockwise me-1"></i>@Localize["NumberDrillReplayAudio"]
+                                    </button>
+                                </div>
+                                
+                                @* TTS placeholder (DEV only) *@
+                                @if (!string.IsNullOrEmpty(currentItem.AudioCue))
+                                {
+                                    <div class="text-secondary-ss small mt-3">
+                                        <em>(TTS placeholder: "@currentItem.AudioCue")</em>
+                                    </div>
+                                }
+                            </div>
+                        }
                         else if (selectedSubMode == "Disambiguate")
                         {
                             @* Disambiguate UI: two paired prompts with choice strips *@
@@ -206,7 +261,7 @@
                                             {
                                                 <button type="button" 
                                                         class="btn @(selectedAnswerA == choice ? "btn-ss-primary" : "btn-outline-secondary")"
-                                                        @onclick="() => selectedAnswerA = choice"
+                                                        @onclick="() => SelectAnswerA(choice)"
                                                         disabled="@showFeedback">
                                                     @choice
                                                 </button>
@@ -236,7 +291,7 @@
                                             {
                                                 <button type="button" 
                                                         class="btn @(selectedAnswerB == choice ? "btn-ss-primary" : "btn-outline-secondary")"
-                                                        @onclick="() => selectedAnswerB = choice"
+                                                        @onclick="() => SelectAnswerB(choice)"
                                                         disabled="@showFeedback">
                                                     @choice
                                                 </button>
@@ -271,8 +326,8 @@
                             </div>
                         }
                         
-                        @* Hint accordion (NOT for TapTheCounter or Disambiguate — those have inline hints) *@
-                        @if (selectedSubMode != "TapTheCounter" && selectedSubMode != "Disambiguate" && currentItem.Hints.Any())
+                        @* Hint accordion (NOT for TapTheCounter, Disambiguate, or ListenAndPlace — those have inline hints) *@
+                        @if (selectedSubMode != "TapTheCounter" && selectedSubMode != "Disambiguate" && selectedSubMode != "ListenAndPlace" && currentItem.Hints.Any())
                         {
                             <details class="mb-3">
                                 <summary class="ss-body2 text-secondary-ss" style="cursor: pointer;">
@@ -288,7 +343,7 @@
                         }
                         
                         @* Input field (only for text-entry sub-modes) *@
-                        @if (selectedSubMode != "TapTheCounter" && selectedSubMode != "Disambiguate")
+                        @if (selectedSubMode != "TapTheCounter" && selectedSubMode != "Disambiguate" && selectedSubMode != "ListenAndPlace")
                         {
                             <form @onsubmit="SubmitAnswerAsync" @onsubmit:preventDefault>
                                 <input type="text" 
@@ -787,7 +842,79 @@
         return "";
     }
     
+    // ListenAndPlace methods
+    private async void TapTimeCard(string timeChoice)
+    {
+        if (isBusy || currentItem == null) return;
+        
+        // Similar to TapCounter — immediate grading + auto-advance
+        try
+        {
+            isBusy = true;
+            selectedCounter = timeChoice; // Reuse selectedCounter field for state
+            correctCounter = currentItem.CanonicalAnswer;
+            
+            var isCorrect = timeChoice == currentItem.CanonicalAnswer;
+            var latencyMs = (int)(DateTime.UtcNow - itemStartTime).TotalMilliseconds;
+            
+            // Submit to backend
+            var userGuid = AppState?.CurrentUserProfile?.Id
+                ?? (await ProfileRepo.GetAsync())?.Id;
+            if (string.IsNullOrEmpty(userGuid))
+            {
+                errorMessage = "User not found. Please log in.";
+                return;
+            }
+            
+            lastAttemptResult = await SessionService.SubmitAnswerAsync(
+                userGuid,
+                session!.SessionId,
+                currentItem,
+                timeChoice,
+                latencyMs
+            );
+            
+            showFeedback = true;
+            
+            // Auto-advance after 1.5s
+            await Task.Delay(1500);
+            await NextItemAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to submit answer: {ex.Message}";
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+    
+    private string GetTimeCardClass(string timeChoice)
+    {
+        if (selectedCounter == null) return "";
+        
+        if (timeChoice == correctCounter)
+            return "correct";
+        else if (timeChoice == selectedCounter)
+            return "incorrect";
+        
+        return "";
+    }
+    
     // Disambiguate methods
+    private void SelectAnswerA(string choice)
+    {
+        selectedAnswerA = choice;
+        StateHasChanged();
+    }
+    
+    private void SelectAnswerB(string choice)
+    {
+        selectedAnswerB = choice;
+        StateHasChanged();
+    }
+    
     private async Task SubmitBothAsync()
     {
         if (isBusy || currentItem == null) return;
@@ -863,9 +990,12 @@
     
     private string GetContextIcon(string contextCode) => contextCode switch
     {
-        "Time" => "bi-clock",
         "Counting" => "bi-cup",
+        "Time" => "bi-clock",
         "Age" => "bi-cake",
+        "Money" => "bi-currency-dollar",
+        "Date" => "bi-calendar",
+        "Ordinal" => "bi-trophy",
         _ => "bi-123"
     };
     

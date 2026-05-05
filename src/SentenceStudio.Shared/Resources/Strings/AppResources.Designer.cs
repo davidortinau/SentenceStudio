@@ -6151,11 +6151,47 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Listen carefully and select the matching time.
+        /// </summary>
+        internal static string NumberDrillListenAndPlaceInstructions {
+            get {
+                return ResourceManager.GetString("NumberDrillListenAndPlaceInstructions", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to One correct.
         /// </summary>
         internal static string NumberDrillPartialCorrect {
             get {
                 return ResourceManager.GetString("NumberDrillPartialCorrect", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Play Audio.
+        /// </summary>
+        internal static string NumberDrillPlayAudio {
+            get {
+                return ResourceManager.GetString("NumberDrillPlayAudio", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Playing....
+        /// </summary>
+        internal static string NumberDrillPlaying {
+            get {
+                return ResourceManager.GetString("NumberDrillPlaying", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Replay.
+        /// </summary>
+        internal static string NumberDrillReplayAudio {
+            get {
+                return ResourceManager.GetString("NumberDrillReplayAudio", resourceCulture);
             }
         }
         

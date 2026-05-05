@@ -75,6 +75,12 @@
       "displayName": "Disambiguate the System",
       "phase": 2,
       "isActive": true
+    },
+    {
+      "code": "ListenAndPlace",
+      "displayName": "Listen & Place",
+      "phase": 2,
+      "isActive": true
     }
   ],
   "counters": [
@@ -284,6 +290,68 @@
       "hintB": "Months use Sino numbers + 월",
       "audioTextA": "네 시",
       "audioTextB": "사월"
+    }
+  ],
+  "listenAndPlaceItems": [
+    {
+      "audioText": "세 시 사십오 분",
+      "correctAnswer": "3:45",
+      "distractors": ["3:15", "9:45"],
+      "context": "Time"
+    },
+    {
+      "audioText": "두 시 십 분",
+      "correctAnswer": "2:10",
+      "distractors": ["2:20", "12:10"],
+      "context": "Time"
+    },
+    {
+      "audioText": "일곱 시 반",
+      "correctAnswer": "7:30",
+      "distractors": ["7:00", "6:30"],
+      "context": "Time"
+    },
+    {
+      "audioText": "다섯 시",
+      "correctAnswer": "5:00",
+      "distractors": ["5:30", "15:00"],
+      "context": "Time"
+    },
+    {
+      "audioText": "열한 시 이십 분",
+      "correctAnswer": "11:20",
+      "distractors": ["11:30", "1:20"],
+      "context": "Time"
+    },
+    {
+      "audioText": "아홉 시 오십오 분",
+      "correctAnswer": "9:55",
+      "distractors": ["9:05", "9:50"],
+      "context": "Time"
+    },
+    {
+      "audioText": "열두 시",
+      "correctAnswer": "12:00",
+      "distractors": ["2:00", "12:30"],
+      "context": "Time"
+    },
+    {
+      "audioText": "여섯 시 사십 분",
+      "correctAnswer": "6:40",
+      "distractors": ["6:14", "6:04"],
+      "context": "Time"
+    },
+    {
+      "audioText": "한 시 십오 분",
+      "correctAnswer": "1:15",
+      "distractors": ["1:50", "11:15"],
+      "context": "Time"
+    },
+    {
+      "audioText": "네 시 오 분",
+      "correctAnswer": "4:05",
+      "distractors": ["4:50", "4:15"],
+      "context": "Time"
     }
   ]
 }

@@ -680,4 +680,58 @@ public class KoreanNumberItemGeneratorTests
     }
 
     #endregion
+
+    #region ListenAndPlace Sub-Mode Tests
+
+    [Fact]
+    public void GenerateListenAndPlaceItem_ProducesTimeContext()
+    {
+        var request = new NumberItemRequest("Time", "ListenAndPlace", RandomSeed: 42);
+        var item = _generator.GenerateItem(request);
+
+        Assert.Equal("ListenAndPlace", item.SubModeCode);
+        Assert.Equal("Time", item.ContextCode);
+        Assert.NotNull(item.AudioCue);
+        Assert.NotEmpty(item.AudioCue);
+    }
+
+    [Fact]
+    public void GenerateListenAndPlaceItem_Has3Choices()
+    {
+        var request = new NumberItemRequest("Time", "ListenAndPlace", RandomSeed: 99);
+        var item = _generator.GenerateItem(request);
+
+        Assert.NotNull(item.CounterChoices);
+        Assert.Equal(3, item.CounterChoices.Count);
+        Assert.Contains(item.CanonicalAnswer, item.CounterChoices);
+    }
+
+    [Fact]
+    public void GenerateListenAndPlaceItem_CorrectAnswerIsDigitalTime()
+    {
+        var request = new NumberItemRequest("Time", "ListenAndPlace", RandomSeed: 123);
+        var item = _generator.GenerateItem(request);
+
+        // Canonical answer should be digital time format (e.g., "3:45", "12:00")
+        Assert.Matches(@"^\d{1,2}:\d{2}$", item.CanonicalAnswer);
+    }
+
+    [Fact]
+    public void GenerateListenAndPlaceItem_ChoicesAreShuffled()
+    {
+        // With different seeds, the order of choices should vary
+        var item1 = _generator.GenerateItem(new NumberItemRequest("Time", "ListenAndPlace", RandomSeed: 1));
+        var item2 = _generator.GenerateItem(new NumberItemRequest("Time", "ListenAndPlace", RandomSeed: 999));
+
+        // If both happen to be the same item, choices should at least sometimes be in different order
+        // This is probabilistic but with 10 items and 999 different seeds, we should see variety
+        var choicesOrder1 = string.Join(",", item1.CounterChoices!);
+        var choicesOrder2 = string.Join(",", item2.CounterChoices!);
+        
+        // With highly divergent seeds, at least the order should differ (or items differ)
+        var isDifferent = choicesOrder1 != choicesOrder2 || item1.AudioCue != item2.AudioCue;
+        Assert.True(isDifferent, "Different seeds should produce different items or shuffled choices");
+    }
+
+    #endregion
 }

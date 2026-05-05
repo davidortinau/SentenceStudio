@@ -474,3 +474,32 @@ Never inline emoji characters — non-negotiable per Captain's directive.
 
 
 - 2026-05-05: **NumberDrill Phase 2 Wave 1 — Disambiguate Sub-Mode UX Brief** — Authored UX design brief for Disambiguate sub-mode (Phase 2 Wave 2 implementation). Core interaction: two prompts (e.g., "3rd floor" Sino vs "3 floors" Native) vertically stacked with independent choice strips, paired grading (both submitted together, both correct required for Phase 2). Pedagogical goal: contrast comprehension — learner must infer system from context. Layout: mobile vertical cards (100% width), desktop centered max-width 800px. Feedback: per-prompt correctness highlights + explanation panel (slide-up, responsive 1col mobile / 2col desktop). Audio strategy: English prompts auto-play on load; Korean answer replays in explanation panel. Generator constraint: SystemA ≠ SystemB (validation rule). Formalized edge cases (E1–E4): both same system (prevent), one wrong (reinforce + correct), audio modes (English vs Korean), choice strip expansion (Phase 3). Implementation checklist: 12 items (DTO, generators, UI, grading, TTS, E2E tests). Skill extracted: `.squad/skills/paired-prompt-ui/SKILL.md` (canonical paired-prompt pattern for future activities, extract post-Wave2 E2E). Decision drop: `.squad/decisions/inbox/kaylee-disambiguate-submode-ux.md`.
+
+## 2026-05-01 — NumberDrill Phase 2 Wave 4
+
+**Branch:** `squad/numbers-activity-phase-1`
+
+Completed final Wave 4 implementation for NumberDrill Phase 2:
+
+1. **Listen-and-place sub-mode** — Digital matcher variant (audio + 3 time cards, auto-advance, border feedback)
+2. **Picker expansion** — All 6 contexts now visible (Counting, Time, Age, Money, Date, Ordinal)
+3. **Disambiguate polish** — Selection-state bug fixed (explicit `StateHasChanged()` in choice handlers)
+
+**Deliverables:**
+- 10 seed items in `ko.json` (`listenAndPlaceItems`)
+- Generator method `GenerateListenAndPlaceItem` with telemetry
+- UI render branch for ListenAndPlace (audio button + time cards + replay)
+- CSS for `.time-card` (120×90px, monospace, hover/feedback states)
+- 4 new localization keys (EN + KO, XML-escaped `&amp;`)
+- 4 unit tests (all passing)
+- Decision drop: `.squad/decisions/inbox/kaylee-numberdrill-wave4.md`
+
+**Key Decisions:**
+- Digital matcher (not clock hands) for MVP-friendliness and consistency
+- Reused `CounterChoices` field (same as TapTheCounter)
+- Extended `GetContextIcon` to cover all 6 contexts
+- Fixed Disambiguate selection bug with explicit handler methods
+
+**Status:** ✅ BUILD PASS, ✅ TESTS PASS (4/4), ⏳ E2E PENDING (Captain will validate)
+
+**Next:** Captain to run `e2e-testing` skill, then SHIP or NO-SHIP based on results.

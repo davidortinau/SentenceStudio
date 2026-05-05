@@ -36,6 +36,12 @@ public class KoreanNumberItemGenerator : INumberItemGenerator
             return GenerateDisambiguateItem(request, random);
         }
 
+        // ListenAndPlace sub-mode is Time context only (audio → digital time matching)
+        if (request.SubModeCode == "ListenAndPlace")
+        {
+            return GenerateListenAndPlaceItem(request, random);
+        }
+
         return request.ContextCode switch
         {
             "Counting" => GenerateCountingItem(request, random),
@@ -761,6 +767,68 @@ public class KoreanNumberItemGenerator : INumberItemGenerator
         if (value <= 99) return "11-99";
         if (value <= 999) return "100-999";
         return "1000+";
+    }
+
+    private NumberItem GenerateListenAndPlaceItem(NumberItemRequest request, Random random)
+    {
+        // Audio-to-digital-time matching (Time context only, Phase 2)
+        // Matches seed: lib/content/numbers/ko.json -> listenAndPlaceItems
+        var items = new[]
+        {
+            new { AudioText = "세 시 사십오 분", CorrectAnswer = "3:45", Distractors = new[] { "3:15", "9:45" } },
+            new { AudioText = "두 시 십 분", CorrectAnswer = "2:10", Distractors = new[] { "2:20", "12:10" } },
+            new { AudioText = "일곱 시 반", CorrectAnswer = "7:30", Distractors = new[] { "7:00", "6:30" } },
+            new { AudioText = "다섯 시", CorrectAnswer = "5:00", Distractors = new[] { "5:30", "15:00" } },
+            new { AudioText = "열한 시 이십 분", CorrectAnswer = "11:20", Distractors = new[] { "11:30", "1:20" } },
+            new { AudioText = "아홉 시 오십오 분", CorrectAnswer = "9:55", Distractors = new[] { "9:05", "9:50" } },
+            new { AudioText = "열두 시", CorrectAnswer = "12:00", Distractors = new[] { "2:00", "12:30" } },
+            new { AudioText = "여섯 시 사십 분", CorrectAnswer = "6:40", Distractors = new[] { "6:14", "6:04" } },
+            new { AudioText = "한 시 십오 분", CorrectAnswer = "1:15", Distractors = new[] { "1:50", "11:15" } },
+            new { AudioText = "네 시 오 분", CorrectAnswer = "4:05", Distractors = new[] { "4:50", "4:15" } }
+        };
+
+        var item = items[random.Next(items.Length)];
+
+        // Build 3 choices: correct + 2 distractors, then shuffle
+        var choices = new List<string> { item.CorrectAnswer };
+        choices.AddRange(item.Distractors);
+        choices = choices.OrderBy(_ => random.Next()).ToList();
+
+        _logger.LogTrace("📐 Generated ListenAndPlace item: audio={Audio} correct={Correct} choices={Choices}",
+            item.AudioText, item.CorrectAnswer, string.Join(", ", choices));
+
+        var hints = new List<string>
+        {
+            "Listen carefully for the hour (Native Korean) and minute (Sino Korean)",
+            "시 (si) = hour, 분 (bun) = minute, 반 (ban) = 30 minutes",
+            "Korean time uses Native for hours (한, 두, 세...) and Sino for minutes (일, 이, 삼...)"
+        };
+
+        var errorHints = new Dictionary<string, string>
+        {
+            ["pattern"] = "time_listening_comprehension",
+            ["hint"] = "Focus on hour (Native) vs minute (Sino) system difference",
+            ["likely_error"] = "audio_parsing_confusion"
+        };
+
+        return new NumberItem(
+            Id: Guid.NewGuid(),
+            ContextCode: "Time",
+            SubModeCode: "ListenAndPlace",
+            CounterId: null,
+            CounterText: null,
+            System: NumberSystem.Mixed, // Hour=Native, Minute=Sino
+            Bucket: "listen_place",
+            DigitValue: 0, // Not a single digit value
+            CanonicalAnswer: item.CorrectAnswer,
+            DisplayPrompt: "Listen and select the matching time",
+            AudioCue: item.AudioText,
+            Hints: hints,
+            AcceptableAlternates: new List<string>(), // Exact match only
+            ErrorClassHints: errorHints,
+            // Reuse CounterChoices for the 3 time options
+            CounterChoices: choices
+        );
     }
 
     private NumberItem GenerateDisambiguateItem(NumberItemRequest request, Random random)

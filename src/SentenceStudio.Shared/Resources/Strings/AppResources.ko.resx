@@ -6271,4 +6271,20 @@
     <value>힌트를 확인하세요</value>
     <comment>Feedback when both prompts are answered incorrectly</comment>
   </data>
+  <data name="NumberDrillListenAndPlaceInstructions" xml:space="preserve">
+    <value>잘 듣고 맞는 시간을 선택하세요</value>
+    <comment>Instructions for Listen &amp; Place sub-mode</comment>
+  </data>
+  <data name="NumberDrillReplayAudio" xml:space="preserve">
+    <value>다시 듣기</value>
+    <comment>Button to replay audio in Listen &amp; Place sub-mode</comment>
+  </data>
+  <data name="NumberDrillPlaying" xml:space="preserve">
+    <value>재생 중...</value>
+    <comment>Status text when audio is playing</comment>
+  </data>
+  <data name="NumberDrillPlayAudio" xml:space="preserve">
+    <value>오디오 재생</value>
+    <comment>Button to play audio in Listen &amp; Place sub-mode</comment>
+  </data>
 </root>

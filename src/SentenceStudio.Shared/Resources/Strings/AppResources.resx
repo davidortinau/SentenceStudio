@@ -6518,4 +6518,20 @@ For example: {0} ...</value>
     <value>Review the hints</value>
     <comment>Feedback when both prompts are answered incorrectly</comment>
   </data>
+  <data name="NumberDrillListenAndPlaceInstructions" xml:space="preserve">
+    <value>Listen carefully and select the matching time</value>
+    <comment>Instructions for Listen &amp; Place sub-mode</comment>
+  </data>
+  <data name="NumberDrillReplayAudio" xml:space="preserve">
+    <value>Replay</value>
+    <comment>Button to replay audio in Listen &amp; Place sub-mode</comment>
+  </data>
+  <data name="NumberDrillPlaying" xml:space="preserve">
+    <value>Playing...</value>
+    <comment>Status text when audio is playing</comment>
+  </data>
+  <data name="NumberDrillPlayAudio" xml:space="preserve">
+    <value>Play Audio</value>
+    <comment>Button to play audio in Listen &amp; Place sub-mode</comment>
+  </data>
 </root>
