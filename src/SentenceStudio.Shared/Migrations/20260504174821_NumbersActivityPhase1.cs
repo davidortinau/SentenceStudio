@@ -1,3 +1,4 @@
+﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -10,6 +11,31 @@ namespace SentenceStudio.Shared.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.CreateTable(
+                name: "NumberAttempt",
+                columns: table => new
+                {
+                    Id = table.Column<string>(type: "text", nullable: false),
+                    UserProfileId = table.Column<string>(type: "text", nullable: false),
+                    LanguageCode = table.Column<string>(type: "text", nullable: false),
+                    ContextCode = table.Column<string>(type: "text", nullable: false),
+                    SubModeCode = table.Column<string>(type: "text", nullable: false),
+                    CounterId = table.Column<string>(type: "text", nullable: true),
+                    System = table.Column<string>(type: "text", nullable: false),
+                    Bucket = table.Column<string>(type: "text", nullable: false),
+                    PromptValue = table.Column<string>(type: "text", nullable: false),
+                    ExpectedAnswer = table.Column<string>(type: "text", nullable: false),
+                    UserAnswer = table.Column<string>(type: "text", nullable: true),
+                    IsCorrect = table.Column<bool>(type: "boolean", nullable: false),
+                    ErrorClass = table.Column<string>(type: "text", nullable: true),
+                    LatencyMs = table.Column<int>(type: "integer", nullable: false),
+                    AttemptedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_NumberAttempt", x => x.Id);
+                });
+
             migrationBuilder.CreateTable(
                 name: "NumberContext",
                 columns: table => new
@@ -45,21 +71,6 @@ namespace SentenceStudio.Shared.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "NumberSubMode",
-                columns: table => new
-                {
-                    Id = table.Column<string>(type: "text", nullable: false),
-                    Code = table.Column<string>(type: "text", nullable: false),
-                    DisplayName = table.Column<string>(type: "text", nullable: false),
-                    Phase = table.Column<int>(type: "integer", nullable: false),
-                    IsActive = table.Column<bool>(type: "boolean", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_NumberSubMode", x => x.Id);
-                });
-
-            migrationBuilder.CreateTable(
                 name: "NumberMasteryProgress",
                 columns: table => new
                 {
@@ -85,39 +96,28 @@ namespace SentenceStudio.Shared.Migrations
                 });
 
             migrationBuilder.CreateTable(
-                name: "NumberAttempt",
+                name: "NumberSubMode",
                 columns: table => new
                 {
                     Id = table.Column<string>(type: "text", nullable: false),
-                    UserProfileId = table.Column<string>(type: "text", nullable: false),
-                    LanguageCode = table.Column<string>(type: "text", nullable: false),
-                    ContextCode = table.Column<string>(type: "text", nullable: false),
-                    SubModeCode = table.Column<string>(type: "text", nullable: false),
-                    CounterId = table.Column<string>(type: "text", nullable: true),
-                    System = table.Column<string>(type: "text", nullable: false),
-                    Bucket = table.Column<string>(type: "text", nullable: false),
-                    PromptValue = table.Column<string>(type: "text", nullable: false),
-                    ExpectedAnswer = table.Column<string>(type: "text", nullable: false),
-                    UserAnswer = table.Column<string>(type: "text", nullable: true),
-                    IsCorrect = table.Column<bool>(type: "boolean", nullable: false),
-                    ErrorClass = table.Column<string>(type: "text", nullable: true),
-                    LatencyMs = table.Column<int>(type: "integer", nullable: false),
-                    AttemptedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                    Code = table.Column<string>(type: "text", nullable: false),
+                    DisplayName = table.Column<string>(type: "text", nullable: false),
+                    Phase = table.Column<int>(type: "integer", nullable: false),
+                    IsActive = table.Column<bool>(type: "boolean", nullable: false)
                 },
                 constraints: table =>
                 {
-                    table.PrimaryKey("PK_NumberAttempt", x => x.Id);
+                    table.PrimaryKey("PK_NumberSubMode", x => x.Id);
                 });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_NumberAttempt_UserProfileId",
+                table: "NumberAttempt",
+                column: "UserProfileId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_NumberContext_Code",
                 table: "NumberContext",
-                column: "Code",
-                unique: true);
-
-            migrationBuilder.CreateIndex(
-                name: "IX_NumberSubMode_Code",
-                table: "NumberSubMode",
                 column: "Code",
                 unique: true);
 
@@ -127,20 +127,24 @@ namespace SentenceStudio.Shared.Migrations
                 column: "UserProfileId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_NumberMasteryProgress_UserProfileId_LanguageCode_ContextCode_CounterId_System_Bucket",
+                name: "IX_NumberMasteryProgress_UserProfileId_LanguageCode_ContextCod~",
                 table: "NumberMasteryProgress",
                 columns: new[] { "UserProfileId", "LanguageCode", "ContextCode", "CounterId", "System", "Bucket" },
                 unique: true);
 
             migrationBuilder.CreateIndex(
-                name: "IX_NumberAttempt_UserProfileId",
-                table: "NumberAttempt",
-                column: "UserProfileId");
+                name: "IX_NumberSubMode_Code",
+                table: "NumberSubMode",
+                column: "Code",
+                unique: true);
         }
 
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.DropTable(
+                name: "NumberAttempt");
+
             migrationBuilder.DropTable(
                 name: "NumberContext");
 
@@ -148,13 +152,10 @@ namespace SentenceStudio.Shared.Migrations
                 name: "NumberCounter");
 
             migrationBuilder.DropTable(
-                name: "NumberSubMode");
-
-            migrationBuilder.DropTable(
                 name: "NumberMasteryProgress");
 
             migrationBuilder.DropTable(
-                name: "NumberAttempt");
+                name: "NumberSubMode");
         }
     }
 }
