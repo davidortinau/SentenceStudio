@@ -183,6 +183,7 @@ public static class ActivityCategoryMapper
         PlanActivityType.VideoWatching or
         PlanActivityType.VocabularyReview or
         PlanActivityType.VocabularyGame or
+        PlanActivityType.NumberDrill or
         PlanActivityType.Cloze => ActivityCategory.Input,
         _ => ActivityCategory.Output
     };
