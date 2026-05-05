@@ -1,5 +1,6 @@
 @page "/numberdrill"
 @attribute [Authorize]
+@using Plugin.Maui.Audio
 @using SentenceStudio.Services.Numbers
 @using SentenceStudio.Shared.Models.Numbers
 @using Microsoft.EntityFrameworkCore
@@ -11,6 +12,13 @@
 @inject NavigationManager NavManager
 @inject IJSRuntime JS
 @inject ILogger<NumberDrill> Logger
+@inject IAudioManager AudioManager
+@inject ElevenLabsSpeechService SpeechService
+@inject StreamHistoryRepository StreamHistoryRepo
+@inject SentenceStudio.Services.SpeechVoicePreferences VoicePrefs
+@inject SentenceStudio.Abstractions.IConnectivityService Connectivity
+@inject SentenceStudio.Abstractions.IFileSystemService FileSystemService
+@inject ToastService Toast
 @implements IAsyncDisposable
 
 <div class="activity-page-wrapper">
@@ -235,14 +243,6 @@
                                         <i class="bi bi-arrow-clockwise me-1"></i>@Localize["NumberDrillReplayAudio"]
                                     </button>
                                 </div>
-                                
-                                @* TTS placeholder (DEV only) *@
-                                @if (!string.IsNullOrEmpty(currentItem.AudioCue))
-                                {
-                                    <div class="text-secondary-ss small mt-3">
-                                        <em>(TTS placeholder: "@currentItem.AudioCue")</em>
-                                    </div>
-                                }
                             </div>
                         }
                         else if (selectedSubMode == "Disambiguate")
@@ -518,6 +518,9 @@
     // Summary state
     private NumberSessionSummary? sessionSummary;
     
+    // Audio playback
+    private IAudioPlayer? audioPlayer;
+    
     // Aggregated stats
     private int correctCount = 0;
     private int totalCount = 0;
@@ -646,10 +649,75 @@
     
     private async Task PlayAudioAsync()
     {
-        // TODO: replace with NumberAudioPlayer once Wash ships TTS cache (Phase 1 Wave 3b)
+        if (isPlayingAudio || currentItem == null || string.IsNullOrWhiteSpace(currentItem.AudioCue))
+            return;
+            
         isPlayingAudio = true;
-        await Task.Delay(1000); // Simulate audio playback
-        isPlayingAudio = false;
+
+        try
+        {
+            var text = currentItem.AudioCue;
+            var languageCode = "ko"; // Korean numbers
+            var voiceId = VoicePrefs.GetVoiceForLanguage(languageCode);
+            var cached = await StreamHistoryRepo.GetStreamHistoryByPhraseAndVoiceAsync(text, voiceId);
+            Stream audioStream;
+
+            if (cached != null && !string.IsNullOrEmpty(cached.AudioFilePath) && File.Exists(cached.AudioFilePath))
+            {
+                audioStream = File.OpenRead(cached.AudioFilePath);
+            }
+            else if (Connectivity.IsInternetAvailable)
+            {
+                audioStream = await SpeechService.TextToSpeechAsync(text, voiceId, speed: 1.0f);
+
+                var cacheDir = Path.Combine(FileSystemService.AppDataDirectory, "AudioCache");
+                Directory.CreateDirectory(cacheDir);
+                var filePath = Path.Combine(cacheDir, $"number_{Guid.NewGuid()}.mp3");
+                using (var fs = File.Create(filePath)) { await audioStream.CopyToAsync(fs); }
+
+                await StreamHistoryRepo.SaveStreamHistoryAsync(new StreamHistory
+                {
+                    Phrase = text,
+                    VoiceId = voiceId,
+                    AudioFilePath = filePath,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                });
+
+                audioStream = File.OpenRead(filePath);
+            }
+            else
+            {
+                Toast.ShowWarning("Audio unavailable offline.");
+                return;
+            }
+
+            audioPlayer?.Stop();
+            audioPlayer?.Dispose();
+            audioPlayer = AudioManager.CreatePlayer(audioStream);
+            if (audioPlayer != null)
+            {
+                audioPlayer.Play();
+            }
+            else
+            {
+                // JS interop fallback for server-side Blazor (WebApp)
+                audioStream.Position = 0;
+                using var ms = new MemoryStream();
+                await audioStream.CopyToAsync(ms);
+                var base64 = Convert.ToBase64String(ms.ToArray());
+                await JS.InvokeVoidAsync("audioInterop.playFromBase64", base64, "audio/mpeg");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to play number audio for '{Text}'", currentItem.AudioCue);
+            Toast.ShowError("Failed to play audio.");
+        }
+        finally
+        {
+            isPlayingAudio = false;
+        }
     }
     
     private async Task SubmitAnswerAsync()
@@ -1001,6 +1069,9 @@
     
     public async ValueTask DisposeAsync()
     {
+        audioPlayer?.Stop();
+        audioPlayer?.Dispose();
+        
         if (jsModule != null)
         {
             await jsModule.DisposeAsync();

@@ -506,3 +506,61 @@ Completed final Wave 4 implementation for NumberDrill Phase 2:
 
 - 2026-05-04: **NumberDrill Phase 2 Wave 4 — E2E Shipped** — Jayne's E2E verification (Playwright + Aspire webapp) shipped Wave 4 with SHIP verdict. All 3 deliverables verified working: Listen-and-place renders with audio + 3 time-card choices (wave4-03-listen-and-place-initial.png), green border on correct tap (wave4-04-listen-and-place-feedback.png), picker shows all 6 contexts with Bootstrap icons no emoji (wave4-02-picker-6-contexts-and-modes.png), Disambiguate both prompts stay visually active simultaneously after fix (wave4-06-disambiguate-both-selected.png, wave4-07-disambiguate-bug-reproduced.png showing Prompt A & B both highlighted). Console: 0 errors. Aspire: all services healthy. Decision drop merged: `.squad/decisions/inbox/jayne-wave4-e2e-ship.md`. Wall-clock: 12 min. Next: Captain merge + publish to production.
 
+
+## 2026-05-05: NumberDrill UI Redesign + iOS Trim Fix
+
+### Task
+Fix two issues from yesterday's DX24 publish:
+1. **Webapp UI** invented custom styles (yellow feedback, teal info box) that violated design conventions
+2. **iOS Release** picker showed only "Any" tile due to IL2026 trim warning on `JsonSerializer.Deserialize`
+
+### Learnings
+
+**Bootstrap Theme Tokens in This App:**
+- Feedback panels: `alert alert-success` (green check) / `alert alert-danger` (red X)
+- Icons: `bi-check-circle-fill` / `bi-x-circle-fill` (NOT text-success/text-danger)
+- Error hints: Inline in same alert, NOT nested `alert-info` boxes
+- CSS chip colors: Use `var(--bs-purple)`, `var(--bs-teal)`, `var(--bs-warning)` (NOT hex)
+- Buttons: `btn-ss-primary` for primary actions
+
+**Activity Layout Pattern (VocabQuiz template):**
+- Single feedback `alert` wrapping icon + verdict + error message (no nested boxes)
+- Next button: `btn btn-ss-primary` with `bi-arrow-right` icon
+- Header: Always localized (`@Localize["Key"]`)
+- Progress indicators: Small opacity-75 text below feedback
+
+**IL2026 Trim Trap on iOS Release:**
+- `JsonSerializer.Deserialize<T>(string, JsonSerializerOptions)` is NOT trim-safe
+- iOS Release builds remove reflection metadata unless a `JsonSerializerContext` exists
+- Solution: Create `[JsonSerializable]` context for DTO graph + use `Deserialize(json, context.Default.TType)`
+- Embedded resource names must match csproj `LinkBase` (e.g., LinkBase="Numbers" → "Numbers.ko.json")
+
+**iOS Sim is the Publish Gate (NOT webapp):**
+- Captain's directive: "when you have confirmed a fix for mobile by using the iOS simulator (iPhone 17 pro running 26.2) then you can push a new build to DX24"
+- Webapp testing is fast feedback loop, but iOS Sim is the final gate before ship
+- Xcode version mismatch (26.3 vs 26.2 requirement) blocked iOS Sim build with net10 SDK — requires temporary .NET 11 Preview 3 swap or Mac Catalyst substitute
+
+### Blockers
+
+**Webapp E2E incomplete:**  
+Aspire instance was running BEFORE code changes, so served stale UI. Screenshot shows old yellow/teal design. Need to rebuild & retest. Commits ARE correct (fbaabec shows `alert alert-success`/`alert-danger`).
+
+**iOS Sim build blocked by Xcode mismatch:**  
+net10 SDK requires Xcode 26.2, Captain has 26.3. Temporary solution: swap to .NET 11 Preview 3 per deploy-runbook.md, OR use Mac Catalyst as substitute (shares same TFM code path).
+
+### Deliverables
+
+**Commits:**
+- fbaabec: fix(numdrill): redesign UI to match theme + activity conventions
+- 4c578f4: fix(numdrill): JsonSerializerContext for AOT-safe seed deserialization on iOS
+
+**Decision files:**
+- kaylee-numdrill-design-conformance.md
+- kaylee-numdrill-ios-trim-fix.md
+
+**Screenshots (partial):**
+- numdrill-webapp-fixed-picker.png — ✅ shows all 6 contexts + 5 modes (PASS)
+- numdrill-webapp-after-submit.png — ❌ shows old yellow/teal design (stale Aspire instance)
+
+**Next:** Captain must review screenshots + commit diff, then restart Aspire to verify fresh webapp UI, then test iOS Sim (with .NET 11p3 SDK swap) before DX24 publish.
+- 2026-05-10: **NumberDrill Audio Playback Implementation** — Fixed silent play button in Listen & Type sub-mode. Root cause: `PlayAudioAsync()` was a TODO stub (`Task.Delay(1000)` simulator) with no actual TTS/playback calls. The "(TTS placeholder: ...)" debug text leaked into production UI because the audio path was never wired. Fix: applied VocabQuiz's proven audio pattern — injected `IAudioManager`, `ElevenLabsSpeechService`, `StreamHistoryRepository`, `SpeechVoicePreferences`, `IConnectivityService`, `IFileSystemService`, `ToastService`. Implemented `PlayAudioAsync()` to: (1) read `currentItem.AudioCue` (Korean number phrase, e.g., "스물하나 마리"), (2) check `StreamHistoryRepo` cache for phrase+voiceId, (3) call `SpeechService.TextToSpeechAsync()` if not cached or online, (4) cache stream to disk for offline replay, (5) play via `AudioManager.CreatePlayer()` (native) or JS interop fallback (`audioInterop.playFromBase64`, server-side Blazor WebApp), (6) dispose player on component teardown. Removed TTS placeholder UI elements (lines 137-143, 239-245). Added `audioPlayer` field + disposal in `DisposeAsync()`. **Key lesson**: When a feature stub leaks placeholder UI into production, the audio/playback path itself is missing, not just a config flag — grep for the working implementation (VocabQuiz) and replicate the full service injection + cache + play pipeline. Files modified: `NumberDrill.razor` (injections, PlayAudioAsync body, disposal, UI cleanup). Decision doc: `.squad/decisions/inbox/kaylee-numberdrill-audio-fix.md`. Pattern generalizes to any activity that plays TTS audio — cache-first, offline fallback, dual playback (Plugin.Maui.Audio for native, JS interop for WebApp).
