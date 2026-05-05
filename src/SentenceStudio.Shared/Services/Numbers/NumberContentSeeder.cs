@@ -1,3 +1,4 @@
+using System.Linq;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -23,9 +24,16 @@ public class NumberContentSeeder
         // Fall back to filesystem path for tests/dev where the file is added directly.
         string? jsonContent = null;
         
-        // FIXED: Resource name must match LinkBase in csproj (LinkBase="Numbers" → "Numbers.{lang}.json")
-        var resourceName = $"Numbers.{languageCode}.json";
+        // Embedded resource name is "<RootNamespace>.<LinkBase>.<file>".
+        // SentenceStudio.Shared.csproj uses RootNamespace=SentenceStudio.Shared and LinkBase=Numbers,
+        // so the actual embedded resource is "SentenceStudio.Shared.Numbers.{lang}.json".
+        // Match by suffix to be resilient to namespace changes.
         var assembly = typeof(NumberContentSeeder).Assembly;
+        var suffix = $".Numbers.{languageCode}.json";
+        var resourceName = assembly.GetManifestResourceNames()
+            .FirstOrDefault(n => n.EndsWith(suffix, StringComparison.OrdinalIgnoreCase))
+            ?? $"Numbers.{languageCode}.json";
+
         await using (var stream = assembly.GetManifestResourceStream(resourceName))
         {
             if (stream != null)
@@ -41,8 +49,10 @@ public class NumberContentSeeder
             if (!File.Exists(contentFilePath))
             {
                 _logger.LogWarning(
-                    "Number content seed not found. Tried embedded resource '{ResourceName}' and file '{FilePath}'.",
-                    resourceName, contentFilePath);
+                    "Number content seed not found. Tried embedded resource '{ResourceName}' (available: {Available}) and file '{FilePath}'.",
+                    resourceName,
+                    string.Join(", ", assembly.GetManifestResourceNames().Where(n => n.Contains("Numbers", StringComparison.OrdinalIgnoreCase))),
+                    contentFilePath);
                 return;
             }
             jsonContent = await File.ReadAllTextAsync(contentFilePath, ct);

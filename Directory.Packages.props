@@ -63,8 +63,8 @@
     <PackageVersion Include="Microsoft.Maui.Core" Version="10.0.31" />
     <PackageVersion Include="Microsoft.Maui.Essentials" Version="10.0.31" />
     <PackageVersion Include="Microsoft.Maui.Resizetizer" Version="10.0.31" />
-    <PackageVersion Include="Microsoft.Maui.DevFlow.Agent" Version="0.24.0-dev" />
-    <PackageVersion Include="Microsoft.Maui.DevFlow.Blazor" Version="0.24.0-dev" />
+    <PackageVersion Include="Microsoft.Maui.DevFlow.Agent" Version="0.25.0-dev" />
+    <PackageVersion Include="Microsoft.Maui.DevFlow.Blazor" Version="0.25.0-dev" />
 
     <!-- Identity / Auth -->
     <PackageVersion Include="Microsoft.Identity.Client" Version="4.83.1" />
