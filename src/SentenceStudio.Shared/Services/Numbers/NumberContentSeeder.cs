@@ -19,15 +19,33 @@ public class NumberContentSeeder
 
     public async Task SeedAsync(string languageCode, CancellationToken ct = default)
     {
-        var contentFilePath = Path.Combine("lib", "content", "numbers", $"{languageCode}.json");
-        
-        if (!File.Exists(contentFilePath))
+        // Prefer embedded resource (works regardless of CWD or deployment layout).
+        // Fall back to filesystem path for tests/dev where the file is added directly.
+        string? jsonContent = null;
+        var resourceName = $"SentenceStudio.Shared.Numbers.{languageCode}.json";
+        var assembly = typeof(NumberContentSeeder).Assembly;
+        await using (var stream = assembly.GetManifestResourceStream(resourceName))
         {
-            _logger.LogWarning("Number content seed file not found: {FilePath}", contentFilePath);
-            return;
+            if (stream != null)
+            {
+                using var reader = new StreamReader(stream);
+                jsonContent = await reader.ReadToEndAsync(ct);
+            }
         }
 
-        var jsonContent = await File.ReadAllTextAsync(contentFilePath, ct);
+        if (jsonContent == null)
+        {
+            var contentFilePath = Path.Combine("lib", "content", "numbers", $"{languageCode}.json");
+            if (!File.Exists(contentFilePath))
+            {
+                _logger.LogWarning(
+                    "Number content seed not found. Tried embedded resource '{ResourceName}' and file '{FilePath}'.",
+                    resourceName, contentFilePath);
+                return;
+            }
+            jsonContent = await File.ReadAllTextAsync(contentFilePath, ct);
+        }
+
         var seedData = JsonSerializer.Deserialize<NumberContentSeed>(jsonContent, new JsonSerializerOptions
         {
             PropertyNameCaseInsensitive = true
@@ -35,7 +53,7 @@ public class NumberContentSeeder
 
         if (seedData == null)
         {
-            _logger.LogWarning("Failed to deserialize number content seed file: {FilePath}", contentFilePath);
+            _logger.LogWarning("Failed to deserialize number content seed for language {LanguageCode}", languageCode);
             return;
         }
 

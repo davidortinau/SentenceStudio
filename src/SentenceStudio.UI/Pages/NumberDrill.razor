@@ -7,8 +7,10 @@
 @inject NumberSessionService SessionService
 @inject ApplicationDbContext Db
 @inject IAppState AppState
+@inject UserProfileRepository ProfileRepo
 @inject NavigationManager NavManager
 @inject IJSRuntime JS
+@inject ILogger<NumberDrill> Logger
 @implements IAsyncDisposable
 
 <div class="activity-page-wrapper">
@@ -332,7 +334,14 @@
     {
         if (firstRender)
         {
-            jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./Pages/NumberDrill.razor.js");
+            try
+            {
+                jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/SentenceStudio.UI/Pages/NumberDrill.razor.js");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Failed to load NumberDrill.razor.js — focus helper will be unavailable");
+            }
         }
         
         // Focus input when showing new item
@@ -384,7 +393,8 @@
             isBusy = true;
             errorMessage = null;
             
-            var userGuid = AppState?.CurrentUserProfile?.Id;
+            var userGuid = AppState?.CurrentUserProfile?.Id
+                ?? (await ProfileRepo.GetAsync())?.Id;
             if (string.IsNullOrEmpty(userGuid))
             {
                 errorMessage = "User not found. Please log in.";
@@ -447,7 +457,8 @@
             
             var latencyMs = (int)(DateTime.UtcNow - itemStartTime).TotalMilliseconds;
             
-            var userGuid = AppState?.CurrentUserProfile?.Id;
+            var userGuid = AppState?.CurrentUserProfile?.Id
+                ?? (await ProfileRepo.GetAsync())?.Id;
             if (string.IsNullOrEmpty(userGuid))
             {
                 errorMessage = "User not found.";
