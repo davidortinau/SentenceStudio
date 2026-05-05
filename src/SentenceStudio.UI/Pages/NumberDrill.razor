@@ -343,7 +343,7 @@
                                        @bind="userAnswer"
                                        @bind:event="oninput"
                                        @ref="answerInput"
-                                       placeholder="@(selectedSubMode == "ListenAndType" ? "Type what you heard..." : "Type the Korean...")"
+                                       placeholder="@GetInputPlaceholder()"
                                        disabled="@isBusy"
                                        autocomplete="off" />
                                 
@@ -368,8 +368,16 @@
                                     <span class="ss-title3">@lastGrade.Verdict</span>
                                 </div>
                                 
+                                @* Show user input vs correct answer *@
+                                @if (!string.IsNullOrEmpty(lastGrade.UserAnswer))
+                                {
+                                    <div class="ss-body2 mb-2">
+                                        <strong>You typed:</strong> @lastGrade.UserAnswer
+                                    </div>
+                                }
+                                
                                 <div class="ss-body2 mb-2">
-                                    <strong>Answer:</strong> @lastGrade.CanonicalAnswer
+                                    <strong>Correct answer:</strong> @lastGrade.CanonicalAnswer
                                 </div>
                                 
                                 @if (!lastGrade.IsCorrect && !string.IsNullOrEmpty(lastGrade.ErrorClass))
@@ -1046,8 +1054,9 @@
             lastGrade = new SentenceStudio.Services.Numbers.GradeResult(
                 IsCorrect: bothCorrect,
                 Verdict: verdict,
-                CanonicalAnswer: $"A: {currentItem.CorrectAnswerA}, B: {currentItem.CorrectAnswerB}",
                 ErrorClass: bothCorrect ? "" : "system_confusion",
+                CanonicalAnswer: $"A: {currentItem.CorrectAnswerA}, B: {currentItem.CorrectAnswerB}",
+                UserAnswer: combinedAnswer,
                 Tip: bothCorrect ? "" : "Review the hint for each prompt to understand which system applies."
             );
             
@@ -1087,6 +1096,61 @@
         "Ordinal" => "bi-trophy",
         _ => "bi-123"
     };
+    
+    /// <summary>
+    /// Generates a spacing hint with underscores showing the structure.
+    /// Example: "5시 30분" → "___시 ___분"
+    /// </summary>
+    private string GenerateSpacingHint(string answer)
+    {
+        if (string.IsNullOrEmpty(answer))
+            return "___";
+        
+        // Replace digits with underscores
+        var hint = System.Text.RegularExpressions.Regex.Replace(answer, @"\d+", "___");
+        
+        // Replace Korean number words with underscores (Sino)
+        var sinoDigits = new[] { "영", "일", "이", "삼", "사", "오", "육", "칠", "팔", "구", "십" };
+        foreach (var digit in sinoDigits)
+        {
+            hint = hint.Replace(digit, "");
+        }
+        
+        // Replace Korean number words with underscores (Native)
+        var nativeNumbers = new[] { "하나", "한", "둘", "두", "셋", "세", "넷", "네", 
+            "다섯", "여섯", "일곱", "여덟", "아홉", "열", 
+            "스물", "스무", "서른", "마흔", "쉰", "예순", "일흔", "여든", "아흔" };
+        foreach (var num in nativeNumbers.OrderByDescending(n => n.Length))
+        {
+            hint = hint.Replace(num, "");
+        }
+        
+        // Add back underscores where numbers were
+        hint = System.Text.RegularExpressions.Regex.Replace(hint, @"\s+", " ").Trim();
+        
+        // If we stripped everything, just show underscores
+        if (string.IsNullOrWhiteSpace(hint) || !hint.Contains("시") && !hint.Contains("분") && !hint.Contains("살") && !hint.Contains("개") && !hint.Contains("명"))
+            return "___";
+        
+        // Rebuild with underscores before counters
+        hint = System.Text.RegularExpressions.Regex.Replace(hint, @"(시|분|초|살|개|명|마리|권|잔|병|장|번|원|년|월|일)", "___$1");
+        
+        return hint;
+    }
+    
+    private string GetInputPlaceholder()
+    {
+        if (currentItem == null)
+            return selectedSubMode == "ListenAndType" ? "Type what you heard..." : "Type the Korean...";
+        
+        // Generate spacing hint for text-entry modes
+        var hint = GenerateSpacingHint(currentItem.CanonicalAnswer);
+        
+        if (selectedSubMode == "ListenAndType")
+            return $"Example pattern: {hint}";
+        else
+            return $"Example pattern: {hint}";
+    }
     
     public async ValueTask DisposeAsync()
     {

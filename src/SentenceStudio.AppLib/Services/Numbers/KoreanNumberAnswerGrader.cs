@@ -10,14 +10,22 @@ public class KoreanNumberAnswerGrader : INumberAnswerGrader
         var normalized = NormalizeAnswer(userAnswer);
         var canonicalNormalized = NormalizeAnswer(item.CanonicalAnswer);
 
-        // Exact match
-        if (normalized == canonicalNormalized)
+        // Generate equivalent forms for permissive matching
+        var userForms = KoreanNumberNormalizer.GenerateEquivalentForms(normalized);
+        var canonicalForms = KoreanNumberNormalizer.GenerateEquivalentForms(canonicalNormalized);
+
+        // Check if any user form matches any canonical form
+        var isMatch = userForms.Any(uf => canonicalForms.Any(cf => 
+            string.Equals(uf, cf, StringComparison.OrdinalIgnoreCase)));
+
+        if (isMatch)
         {
             return new GradeResult(
                 IsCorrect: true,
                 Verdict: "정확해요!",
                 ErrorClass: null,
                 CanonicalAnswer: item.CanonicalAnswer,
+                UserAnswer: userAnswer.Trim(),
                 Tip: null
             );
         }
@@ -25,13 +33,16 @@ public class KoreanNumberAnswerGrader : INumberAnswerGrader
         // Check acceptable alternates
         foreach (var alternate in item.AcceptableAlternates)
         {
-            if (normalized == NormalizeAnswer(alternate))
+            var alternateForms = KoreanNumberNormalizer.GenerateEquivalentForms(NormalizeAnswer(alternate));
+            if (userForms.Any(uf => alternateForms.Any(af => 
+                string.Equals(uf, af, StringComparison.OrdinalIgnoreCase))))
             {
                 return new GradeResult(
                     IsCorrect: true,
                     Verdict: "정확해요!",
                     ErrorClass: null,
                     CanonicalAnswer: item.CanonicalAnswer,
+                    UserAnswer: userAnswer.Trim(),
                     Tip: null
                 );
             }
@@ -45,6 +56,7 @@ public class KoreanNumberAnswerGrader : INumberAnswerGrader
             Verdict: "다시 해 볼까요?",
             ErrorClass: errorClass,
             CanonicalAnswer: item.CanonicalAnswer,
+            UserAnswer: userAnswer.Trim(),
             Tip: tip
         );
     }
@@ -54,8 +66,8 @@ public class KoreanNumberAnswerGrader : INumberAnswerGrader
         if (string.IsNullOrWhiteSpace(answer))
             return "";
 
-        // Trim whitespace
-        var normalized = answer.Trim();
+        // Use KoreanNumberNormalizer for whitespace normalization
+        var normalized = KoreanNumberNormalizer.NormalizeWhitespace(answer);
 
         // Convert full-width digits to half-width
         normalized = ConvertFullWidthToHalfWidth(normalized);
@@ -63,8 +75,6 @@ public class KoreanNumberAnswerGrader : INumberAnswerGrader
         // Lowercase for romanization comparison
         normalized = normalized.ToLowerInvariant();
 
-        // Remove optional spaces between number and counter
-        // But keep spaces within the number phrase itself
         return normalized;
     }
 

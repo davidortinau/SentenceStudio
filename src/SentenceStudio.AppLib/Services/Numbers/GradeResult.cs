@@ -5,5 +5,6 @@ public record GradeResult(
     string Verdict,
     string? ErrorClass,
     string CanonicalAnswer,
+    string? UserAnswer,
     string? Tip
 );
