@@ -47,7 +47,8 @@ public enum PlanActivityType
     Writing,
     SceneDescription,
     Conversation,
-    VocabularyGame
+    VocabularyGame,
+    NumberDrill
 }
 
 public record DailyPlanItem

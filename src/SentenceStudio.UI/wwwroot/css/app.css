@@ -1785,3 +1785,81 @@ main.main-content:has(.matching-page-wrapper) {
 .activity-dot-complete {
     box-shadow: 0 0 0 2px var(--bs-success);
 }
+
+/* ─── NumberDrill TapTheCounter sub-mode ─── */
+
+.counter-blank {
+    border-bottom: 3px dashed var(--bs-border-color);
+    display: inline-block;
+    min-width: 3rem;
+    text-align: center;
+    padding: 0 0.25rem;
+    color: var(--bs-tertiary-color);
+}
+
+.counter-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 80px;
+    min-height: 80px;
+    padding: 1.25rem 1.5rem;
+    font-size: 1.75rem;
+    font-weight: 600;
+    border: 3px solid var(--bs-border-color);
+    border-radius: 12px;
+    background: var(--bs-secondary-bg);
+    color: var(--bs-body-color);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.counter-chip:hover:not(:disabled) {
+    border-color: var(--bs-primary);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.counter-chip:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.counter-chip:disabled {
+    cursor: default;
+}
+
+.counter-chip.correct {
+    border-color: var(--bs-success);
+    border-width: 4px;
+    color: var(--bs-success);
+    animation: pulse-success 0.4s ease;
+}
+
+.counter-chip.incorrect {
+    border-color: var(--bs-danger);
+    border-width: 4px;
+    color: var(--bs-danger);
+    animation: shake 0.4s ease;
+}
+
+@keyframes pulse-success {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-8px); }
+    75% { transform: translateX(8px); }
+}
+
+/* Mobile-responsive counter chips */
+@media (max-width: 640px) {
+    .counter-chip {
+        min-width: 70px;
+        min-height: 70px;
+        padding: 1rem 1.25rem;
+        font-size: 1.5rem;
+    }
+}

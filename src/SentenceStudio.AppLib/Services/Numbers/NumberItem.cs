@@ -15,5 +15,9 @@ public record NumberItem(
     string DisplayPrompt,
     string AudioCue,
     List<string> Hints,
-    List<string> AcceptableAlternates
+    List<string> AcceptableAlternates,
+    Dictionary<string, string>? ErrorClassHints = null,
+    // TapTheCounter-specific properties
+    string? NounCue = null,
+    List<string>? CounterChoices = null
 );

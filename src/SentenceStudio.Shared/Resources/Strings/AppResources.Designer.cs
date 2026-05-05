@@ -6475,6 +6475,24 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Build automaticity with Korean number systems.
+        /// </summary>
+        internal static string PlanItemNumberDrillDesc {
+            get {
+                return ResourceManager.GetString("PlanItemNumberDrillDesc", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Number Drill.
+        /// </summary>
+        internal static string PlanItemNumberDrillTitle {
+            get {
+                return ResourceManager.GetString("PlanItemNumberDrillTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Read new content to build comprehension.
         /// </summary>
         internal static string PlanItemReadingDesc {

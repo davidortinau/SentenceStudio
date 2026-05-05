@@ -312,4 +312,299 @@ public class KoreanNumberItemGeneratorTests
     }
 
     #endregion
+
+    #region Money Context Tests
+
+    [Fact]
+    public void GenerateMoneyItem_UsesSinoSystem()
+    {
+        var request = new NumberItemRequest("Money", "ReadAndProduce", RandomSeed: 42);
+        var item = _generator.GenerateItem(request);
+
+        Assert.Equal(NumberSystem.Sino, item.System);
+        Assert.Contains("원", item.CanonicalAnswer);
+        Assert.Equal("원", item.CounterId);
+    }
+
+    [Fact]
+    public void GenerateMoneyItem_SmallPrice_ThousandWon()
+    {
+        for (int seed = 0; seed < 1000; seed++)
+        {
+            var request = new NumberItemRequest("Money", "ReadAndProduce", RandomSeed: seed);
+            var item = _generator.GenerateItem(request);
+
+            if (item.DigitValue == 1000)
+            {
+                Assert.Equal("천 원", item.CanonicalAnswer);
+                return;
+            }
+        }
+
+        Assert.Fail("Could not find seed that generates 1000 won");
+    }
+
+    [Fact]
+    public void GenerateMoneyItem_MediumPrice_TenThousandWon()
+    {
+        for (int seed = 0; seed < 1000; seed++)
+        {
+            var request = new NumberItemRequest("Money", "ReadAndProduce", RandomSeed: seed);
+            var item = _generator.GenerateItem(request);
+
+            if (item.DigitValue == 10000)
+            {
+                Assert.Equal("만 원", item.CanonicalAnswer);
+                return;
+            }
+        }
+
+        Assert.Fail("Could not find seed that generates 10000 won");
+    }
+
+    [Fact]
+    public void GenerateMoneyItem_LargePrice_HundredThousandWon()
+    {
+        for (int seed = 0; seed < 1000; seed++)
+        {
+            var request = new NumberItemRequest("Money", "ReadAndProduce", RandomSeed: seed);
+            var item = _generator.GenerateItem(request);
+
+            if (item.DigitValue == 100000)
+            {
+                Assert.Equal("십만 원", item.CanonicalAnswer);
+                return;
+            }
+        }
+
+        Assert.Fail("Could not find seed that generates 100000 won");
+    }
+
+    [Fact]
+    public void GenerateMoneyItem_ManBoundary_HasPlaceValueErrorHint()
+    {
+        for (int seed = 0; seed < 100; seed++)
+        {
+            var request = new NumberItemRequest("Money", "ReadAndProduce", RandomSeed: seed);
+            var item = _generator.GenerateItem(request);
+
+            if (item.DigitValue >= 10000 && item.DigitValue < 100000000)
+            {
+                Assert.NotNull(item.ErrorClassHints);
+                Assert.True(item.ErrorClassHints.ContainsKey("likely_error"));
+                Assert.Equal("place_value_grouping_4digit_vs_3digit", item.ErrorClassHints["likely_error"]);
+                return;
+            }
+        }
+    }
+
+    #endregion
+
+    #region Date Context Tests
+
+    [Fact]
+    public void GenerateDateItem_UsesSinoSystem()
+    {
+        var request = new NumberItemRequest("Date", "ReadAndProduce", RandomSeed: 42);
+        var item = _generator.GenerateItem(request);
+
+        Assert.Equal(NumberSystem.Sino, item.System);
+        Assert.Contains("월", item.CanonicalAnswer);
+        Assert.Contains("일", item.CanonicalAnswer);
+    }
+
+    [Fact]
+    public void GenerateDateItem_RegularMonth_January()
+    {
+        for (int seed = 0; seed < 1000; seed++)
+        {
+            var request = new NumberItemRequest("Date", "ReadAndProduce", RandomSeed: seed);
+            var item = _generator.GenerateItem(request);
+
+            var month = (int)(item.DigitValue / 100);
+            if (month == 1)
+            {
+                Assert.Contains("일월", item.CanonicalAnswer);
+                return;
+            }
+        }
+
+        Assert.Fail("Could not find seed that generates January date");
+    }
+
+    [Fact]
+    public void GenerateDateItem_IrregularMonth_June()
+    {
+        for (int seed = 0; seed < 1000; seed++)
+        {
+            var request = new NumberItemRequest("Date", "ReadAndProduce", RandomSeed: seed);
+            var item = _generator.GenerateItem(request);
+
+            var month = (int)(item.DigitValue / 100);
+            if (month == 6)
+            {
+                Assert.Contains("유월", item.CanonicalAnswer);
+                Assert.DoesNotContain("육월", item.CanonicalAnswer);
+                Assert.NotNull(item.ErrorClassHints);
+                Assert.Equal("wrong_form_for_month_6_or_10", item.ErrorClassHints["likely_error"]);
+                return;
+            }
+        }
+
+        Assert.Fail("Could not find seed that generates June date");
+    }
+
+    [Fact]
+    public void GenerateDateItem_IrregularMonth_October()
+    {
+        for (int seed = 0; seed < 1000; seed++)
+        {
+            var request = new NumberItemRequest("Date", "ReadAndProduce", RandomSeed: seed);
+            var item = _generator.GenerateItem(request);
+
+            var month = (int)(item.DigitValue / 100);
+            if (month == 10)
+            {
+                Assert.Contains("시월", item.CanonicalAnswer);
+                Assert.DoesNotContain("십월", item.CanonicalAnswer);
+                Assert.NotNull(item.ErrorClassHints);
+                Assert.Equal("wrong_form_for_month_6_or_10", item.ErrorClassHints["likely_error"]);
+                return;
+            }
+        }
+
+        Assert.Fail("Could not find seed that generates October date");
+    }
+
+    [Fact]
+    public void GenerateDateItem_ValidDates_NoFebruary30()
+    {
+        for (int seed = 0; seed < 100; seed++)
+        {
+            var request = new NumberItemRequest("Date", "ReadAndProduce", RandomSeed: seed);
+            var item = _generator.GenerateItem(request);
+
+            var month = (int)(item.DigitValue / 100);
+            var day = (int)(item.DigitValue % 100);
+
+            if (month == 2)
+            {
+                Assert.InRange(day, 1, 28);
+            }
+            else if (month == 4 || month == 6 || month == 9 || month == 11)
+            {
+                Assert.InRange(day, 1, 30);
+            }
+            else
+            {
+                Assert.InRange(day, 1, 31);
+            }
+        }
+    }
+
+    #endregion
+
+    #region Ordinal Context Tests
+
+    [Fact]
+    public void GenerateOrdinalItem_UsesNativeSystem()
+    {
+        var request = new NumberItemRequest("Ordinal", "ReadAndProduce", RandomSeed: 42);
+        var item = _generator.GenerateItem(request);
+
+        Assert.Equal(NumberSystem.Native, item.System);
+        Assert.True(item.CanonicalAnswer.Contains("째") || item.CanonicalAnswer.Contains("번째"));
+    }
+
+    [Fact]
+    public void GenerateOrdinalItem_RankPattern_첫째()
+    {
+        for (int seed = 0; seed < 1000; seed++)
+        {
+            var request = new NumberItemRequest("Ordinal", "ReadAndProduce", RandomSeed: seed);
+            var item = _generator.GenerateItem(request);
+
+            if (item.DigitValue == 1 && item.Bucket == "rank")
+            {
+                Assert.Equal("첫째", item.CanonicalAnswer);
+                Assert.DoesNotContain("하나째", item.CanonicalAnswer);
+                Assert.Equal("째", item.CounterId);
+                return;
+            }
+        }
+
+        Assert.Fail("Could not find seed that generates 첫째 rank pattern");
+    }
+
+    [Fact]
+    public void GenerateOrdinalItem_RankPattern_둘째()
+    {
+        for (int seed = 0; seed < 1000; seed++)
+        {
+            var request = new NumberItemRequest("Ordinal", "ReadAndProduce", RandomSeed: seed);
+            var item = _generator.GenerateItem(request);
+
+            if (item.DigitValue == 2 && item.Bucket == "rank")
+            {
+                Assert.Equal("둘째", item.CanonicalAnswer);
+                Assert.Equal("째", item.CounterId);
+                return;
+            }
+        }
+
+        Assert.Fail("Could not find seed that generates 둘째 rank pattern");
+    }
+
+    [Fact]
+    public void GenerateOrdinalItem_OccurrencePattern_첫번째()
+    {
+        for (int seed = 0; seed < 1000; seed++)
+        {
+            var request = new NumberItemRequest("Ordinal", "ReadAndProduce", RandomSeed: seed);
+            var item = _generator.GenerateItem(request);
+
+            if (item.DigitValue == 1 && item.Bucket == "occurrence")
+            {
+                Assert.Equal("첫 번째", item.CanonicalAnswer);
+                Assert.Contains(" ", item.CanonicalAnswer); // Spaced
+                Assert.Equal("번째", item.CounterId);
+                return;
+            }
+        }
+
+        Assert.Fail("Could not find seed that generates 첫 번째 occurrence pattern");
+    }
+
+    [Fact]
+    public void GenerateOrdinalItem_OccurrencePattern_두번째()
+    {
+        for (int seed = 0; seed < 1000; seed++)
+        {
+            var request = new NumberItemRequest("Ordinal", "ReadAndProduce", RandomSeed: seed);
+            var item = _generator.GenerateItem(request);
+
+            if (item.DigitValue == 2 && item.Bucket == "occurrence")
+            {
+                Assert.Equal("두 번째", item.CanonicalAnswer);
+                Assert.Contains(" ", item.CanonicalAnswer); // Spaced
+                Assert.Equal("번째", item.CounterId);
+                return;
+            }
+        }
+
+        Assert.Fail("Could not find seed that generates 두 번째 occurrence pattern");
+    }
+
+    [Fact]
+    public void GenerateOrdinalItem_HasPatternConfusionErrorHint()
+    {
+        var request = new NumberItemRequest("Ordinal", "ReadAndProduce", RandomSeed: 42);
+        var item = _generator.GenerateItem(request);
+
+        Assert.NotNull(item.ErrorClassHints);
+        Assert.Equal("rank_vs_occurrence_confusion", item.ErrorClassHints["likely_error"]);
+        Assert.True(item.ErrorClassHints.ContainsKey("pattern"));
+    }
+
+    #endregion
 }

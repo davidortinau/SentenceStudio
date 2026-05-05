@@ -4,10 +4,101 @@
 
 ---
 
+### 2026-05-05: NumberDrill Phase 2 Wave 2 — Plan Integration, Generators, Tap-Counter UI
+
+**By:** Scribe (logging) — work by Wash (Plan + Generators), River (Generators), Kaylee (UI)  
+**Status:** ✅ SHIPPED — Build green (0 errors, 519/520 tests passing)
+
+#### Phase 2 Wave 2 Implementation Summary
+
+Three parallel workstreams shipped plan integration, extended generators (Money/Date/Ordinal), and Tap-the-Counter UI:
+
+**1. Plan Integration (Wash)**
+- `PlanActivityType.NumberDrill = 11` added to enum
+- `SelectCloserActivityAsync()` detects due numbers (DueDate ≤ tomorrow) → replaces VocabularyMatching in STEP 4
+- 4-layer ResourceId decoupling applied (Builder → Converter → Index.razor guard → NumberDrill.razor defense)
+- Localization keys added: PascalCase `PlanItemNumberDrillTitle`, `PlanItemNumberDrillDesc` (en + ko)
+- All 519 unit tests passing (1 pre-existing failure unrelated to plan integration)
+
+**2. Generator Extension (River)**
+- `GenerateMoneyItem()` — Sino + 원, place-value grouping (만/억) without intra-compound spacing
+- `GenerateDateItem()` — Sino month/day + 월/일, irregular hardcoding (6→유월, 10→시월)
+- `GenerateOrdinalItem()` — Native + 째 (rank, 60%) or 번째 (occurrence, 40%)
+- `NumberItem.ErrorClassHints` dictionary added for Phase 3 grader metadata (likely_error, hint, pattern)
+- 17 new tests (35 total), all passing; deterministic seed iteration for irregular edge-case discovery
+
+**3. Tap-the-Counter UI (Kaylee)**
+- NumberDrill.razor renders TapTheCounter sub-mode branch (from ko.json seed, Phase 2)
+- Generator emits 3 shuffled counter choices (correct + 2 random distractors from 잔/개/명/마리/권)
+- UI: Noun cue + sentence frame with blank (`두 ___`) + 80×80px counter chips (mobile 70×70px)
+- Feedback: Border-only (green 4px pulse / red 4px shake), no background color (accessibility)
+- CSS: `.counter-blank`, `.counter-chip`, `.counter-chip.correct`, `.counter-chip.incorrect` with animations
+- Reuses SessionService.SubmitAnswerAsync() for grading (Phase 1 grader compatibility)
+- Phase filter updated: `Phase <= 2` surfaces TapTheCounter alongside ListenAndType/ReadAndProduce
+
+**Key Design Decisions**
+
+1. **Money Place-Value Compounding:** `ConvertToSinoMoney()` groups by 4 digits (Korean convention: 만 = 10,000), NOT by 3-digit Western groups. No spaces within compounds ("십만", not "십 만"); spaces between parts ("만 오천 원").
+
+2. **Irregular Month Hardcoding:** June (6→유월) and October (10→시월) hardcoded, not algorithmic. Non-productive euphonic changes; must teach correct forms.
+
+3. **Ordinal Dual-Pattern Selection:** 60/40 bias toward 째 (ranking/birth-order) vs 번째 (occurrences). Generator sets `Bucket` for telemetry; error hints disambiguate patterns.
+
+4. **Error-Class Hint Metadata:** Optional `Dictionary<string, string>` enables Phase 3 grader to detect context-specific errors (place-value confusion, irregular-form misses, pattern disambiguation).
+
+5. **Resource-Driven vs Vocabulary-Driven:** NumberDrill categorized as vocabulary-driven (like Quiz/Matching/Cloze), not resource-driven. ResourceId defense across 4 layers.
+
+#### Test Coverage
+
+- **Plan integration:** 519 existing tests pass (DeterministicPlanBuilder suite, PlanConverter suite). Missing: Unit tests for `SelectCloserActivityAsync` edge cases (due/not-due, no-skill, insufficient time) — deferred to follow-up PR.
+- **Generators:** 35 total (17 new Phase 2 tests). Deterministic seed iteration found irregular month edge cases; all passing. Gap: Grader error-class detection tests (Phase 3 scope).
+- **UI:** E2E verification deferred until build green (pre-existing compile error in DeterministicPlanBuilder resolved by Wash's changes).
+
+#### Backward Compatibility
+
+- New enum value (11) doesn't collide with existing DB rows (0-10)
+- No migrations needed (enum is in-memory only; DB stores integer)
+- New NumberItem fields (`ErrorClassHints`, `NounCue`, `CounterChoices`) are optional/nullable — existing records unaffected
+- New CSS classes isolated to TapTheCounter sub-mode rendering
+
+#### Files Modified
+
+**Plan Integration (Wash):**
+- `src/SentenceStudio.Shared/Services/Progress/IProgressService.cs` — enum
+- `src/SentenceStudio.Shared/Services/PlanGeneration/DeterministicPlanBuilder.cs` — DI, SelectCloserActivityAsync, STEP 4 logic
+- `src/SentenceStudio.Shared/Services/PlanGeneration/PlanConverter.cs` — 5 switch cases
+- `src/SentenceStudio.UI/Pages/Index.razor` — Layer 3 guard
+- `src/SentenceStudio.UI/Pages/NumberDrill.razor` — Layer 4 defense
+- `src/SentenceStudio.Shared/Resources/Strings/AppResources.resx` (en)
+- `src/SentenceStudio.Shared/Resources/Strings/AppResources.ko.resx` (ko)
+
+**Generators (River):**
+- `src/SentenceStudio.AppLib/Services/Numbers/NumberItem.cs` — ErrorClassHints field
+- `src/SentenceStudio.AppLib/Services/Numbers/KoreanNumberItemGenerator.cs` — 3 generators + 2 helpers
+- `tests/SentenceStudio.AppLib.Tests/Services/Numbers/KoreanNumberItemGeneratorTests.cs` — 17 new tests
+
+**UI (Kaylee):**
+- `lib/content/numbers/ko.json` — TapTheCounter sub-mode (Phase 2)
+- `src/SentenceStudio.AppLib/Services/Numbers/NumberItem.cs` — NounCue, CounterChoices fields
+- `src/SentenceStudio.AppLib/Services/Numbers/KoreanNumberItemGenerator.cs` — TapTheCounter generation branch
+- `src/SentenceStudio.UI/Pages/NumberDrill.razor` — rendering + interaction logic
+- `src/SentenceStudio.UI/wwwroot/css/app.css` — counter chip styles + animations
+
+#### Next Steps
+
+1. **E2E validation** (e2e-testing skill) — Verify plan generation with due numbers, tap-counter interaction, grading/persistence
+2. **Skill updates:**
+   - `.squad/skills/resourceid-decoupling/SKILL.md` — Bump confidence from `medium` to `high` (4th proven example: Quiz, Matching, Cloze, NumberDrill)
+   - `.squad/skills/paired-prompt-ui/SKILL.md` — Extract Disambiguate pattern after Wave 2 E2E (Kaylee Wave 2 deliverable)
+3. **Phase 3 grader enhancement** — Consume ErrorClassHints in KoreanNumberAnswerGrader (Wash, Wave 3)
+4. **Wave 3 testing** — Comprehensive test suite (Jayne)
+
+---
+
 ### 2026-05-05: NumberDrill Phase 2 Wave 1 — Architecture, Seed, UX Brief
 
 **By:** Scribe (logging) — work by Zoe (Lead/Architecture), River (Seed), Kaylee (UX), Captain (decisions)  
-**Status:** Wave 1 planning complete. Awaiting Captain approval. Wave 2 implementation can proceed in parallel.
+**Status:** Wave 1 planning complete. Wave 2 (implementation) now complete and merged.
 
 #### Phase 2 Wave 1 Overview
 

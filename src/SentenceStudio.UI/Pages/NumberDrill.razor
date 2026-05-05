@@ -151,9 +151,48 @@
                                 </div>
                             </div>
                         }
+                        else if (selectedSubMode == "TapTheCounter")
+                        {
+                            @* TapTheCounter UI: sentence frame + counter chips *@
+                            <div class="text-center my-4">
+                                @* Noun cue (if available) *@
+                                @if (!string.IsNullOrEmpty(currentItem.NounCue))
+                                {
+                                    <div class="ss-body2 text-secondary-ss mb-3">
+                                        <i class="bi bi-tag me-1"></i>@currentItem.NounCue
+                                    </div>
+                                }
+                                
+                                @* Sentence frame with blank counter *@
+                                <div class="ss-display mb-4" style="font-size: 2.5rem;">
+                                    @{
+                                        var parts = currentItem.DisplayPrompt.Split("___");
+                                        @parts[0]
+                                        <span class="counter-blank">___</span>
+                                        @(parts.Length > 1 ? parts[1] : "")
+                                    }
+                                </div>
+                                
+                                @* Counter chips *@
+                                @if (currentItem.CounterChoices != null && currentItem.CounterChoices.Any())
+                                {
+                                    <div class="d-flex flex-wrap justify-content-center gap-3 mt-4">
+                                        @foreach (var choice in currentItem.CounterChoices)
+                                        {
+                                            <button type="button" 
+                                                    class="counter-chip @GetCounterChipClass(choice)"
+                                                    @onclick="() => TapCounter(choice)"
+                                                    disabled="@isBusy">
+                                                <span class="counter-chip-text">@choice</span>
+                                            </button>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
                         
-                        @* Hint accordion *@
-                        @if (currentItem.Hints.Any())
+                        @* Hint accordion (NOT for TapTheCounter — chips are the teaching moment) *@
+                        @if (selectedSubMode != "TapTheCounter" && currentItem.Hints.Any())
                         {
                             <details class="mb-3">
                                 <summary class="ss-body2 text-secondary-ss" style="cursor: pointer;">
@@ -168,25 +207,28 @@
                             </details>
                         }
                         
-                        @* Input field *@
-                        <form @onsubmit="SubmitAnswerAsync" @onsubmit:preventDefault>
-                            <input type="text" 
-                                   class="form-control form-control-ss mb-3" 
-                                   @bind="userAnswer"
-                                   @bind:event="oninput"
-                                   @ref="answerInput"
-                                   placeholder="@(selectedSubMode == "ListenAndType" ? "Type what you heard..." : "Type the Korean...")"
-                                   disabled="@isBusy"
-                                   autocomplete="off" />
-                            
-                            <button type="submit" class="btn btn-ss-primary w-100" disabled="@(isBusy || string.IsNullOrWhiteSpace(userAnswer))">
-                                @if (isBusy)
-                                {
-                                    <span class="spinner-border spinner-border-sm me-2"></span>
-                                }
-                                Submit
-                            </button>
-                        </form>
+                        @* Input field (only for text-entry sub-modes) *@
+                        @if (selectedSubMode != "TapTheCounter")
+                        {
+                            <form @onsubmit="SubmitAnswerAsync" @onsubmit:preventDefault>
+                                <input type="text" 
+                                       class="form-control form-control-ss mb-3" 
+                                       @bind="userAnswer"
+                                       @bind:event="oninput"
+                                       @ref="answerInput"
+                                       placeholder="@(selectedSubMode == "ListenAndType" ? "Type what you heard..." : "Type the Korean...")"
+                                       disabled="@isBusy"
+                                       autocomplete="off" />
+                                
+                                <button type="submit" class="btn btn-ss-primary w-100" disabled="@(isBusy || string.IsNullOrWhiteSpace(userAnswer))">
+                                    @if (isBusy)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-2"></span>
+                                    }
+                                    Submit
+                                </button>
+                            </form>
+                        }
                     }
                     else
                     {
@@ -289,6 +331,18 @@
 </div>
 
 @code {
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public bool DueOnly { get; set; } = true;
+    
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public string? ResourceId { get; set; }
+    
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public string? PlanItemId { get; set; }
+    
     private enum State { Setup, InSession, Summary }
     
     private State state = State.Setup;
@@ -316,6 +370,10 @@
     private SentenceStudio.Services.Numbers.GradeResult? lastGrade;
     private NumberAttemptResult? lastAttemptResult;
     
+    // TapTheCounter state
+    private string? selectedCounter;
+    private string? correctCounter;
+    
     // Summary state
     private NumberSessionSummary? sessionSummary;
     
@@ -327,6 +385,13 @@
     
     protected override async Task OnInitializedAsync()
     {
+        // Layer 4: Defense-in-depth — NumberDrill ignores ResourceId
+        if (!string.IsNullOrEmpty(ResourceId))
+        {
+            Logger.LogWarning("NumberDrill received ResourceId '{ResourceId}' — ignoring (NumberDrill is vocabulary-driven)", ResourceId);
+            ResourceId = null;
+        }
+        
         await LoadSetupDataAsync();
     }
     
@@ -367,7 +432,7 @@
                 .ToListAsync();
             
             availableSubModes = await Db.NumberSubModes
-                .Where(m => m.IsActive && m.Phase == 1)
+                .Where(m => m.IsActive && m.Phase <= 2)
                 .ToListAsync();
             
             // Default to first sub-mode if available
@@ -510,6 +575,10 @@
             lastGrade = null;
             lastAttemptResult = null;
             itemStartTime = DateTime.UtcNow;
+            
+            // Reset TapTheCounter state
+            selectedCounter = null;
+            correctCounter = null;
         }
     }
     
@@ -557,6 +626,73 @@
     private void GoBack()
     {
         NavManager.NavigateTo("/");
+    }
+    
+    // TapTheCounter methods
+    private async Task TapCounter(string counter)
+    {
+        if (isBusy || currentItem == null) return;
+        
+        try
+        {
+            isBusy = true;
+            selectedCounter = counter;
+            correctCounter = currentItem.CounterText;
+            
+            var latencyMs = (int)(DateTime.UtcNow - itemStartTime).TotalMilliseconds;
+            
+            var userGuid = AppState?.CurrentUserProfile?.Id
+                ?? (await ProfileRepo.GetAsync())?.Id;
+            if (string.IsNullOrEmpty(userGuid))
+            {
+                errorMessage = "User not found. Please log in.";
+                return;
+            }
+            
+            // Submit answer (the counter the user tapped)
+            lastAttemptResult = await SessionService.SubmitAnswerAsync(
+                userGuid,
+                session!.SessionId,
+                currentItem,
+                counter,
+                latencyMs
+            );
+            
+            // Extract grade result
+            lastGrade = lastAttemptResult.Grade;
+            
+            showFeedback = true;
+            totalCount++;
+            
+            if (lastGrade.IsCorrect)
+            {
+                correctCount++;
+            }
+            
+            // Auto-advance after a beat
+            await Task.Delay(1500);
+            await NextItemAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to submit answer: {ex.Message}";
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+    
+    private string GetCounterChipClass(string counter)
+    {
+        if (selectedCounter == null) return "";
+        
+        if (counter == correctCounter)
+            return "correct";
+        else if (counter == selectedCounter)
+            return "incorrect";
+        
+        return "";
     }
     
     private string GetContextIcon(string contextCode) => contextCode switch

@@ -1,6 +1,7 @@
 # Skill: 4-Layer ResourceId Decoupling for Vocabulary-Driven Activities
 
-**Pattern Status:** Established (4 confirmations: VocabQuiz, VocabularyMatching, Cloze, NumberDrill)  
+**Pattern Status:** Proven (4 confirmations: VocabQuiz, VocabularyMatching, Cloze, NumberDrill)  
+**Confidence:** High  
 **First Applied:** Commit 0c8e197 (VocabQuiz + VocabularyMatching)  
 **Documented:** 2026-05-04 (.squad/decisions.md), 2026-05-05 (this skill)  
 **Context:** SentenceStudio DailyPlan system — vocabulary-driven activities must ignore ResourceId scope
@@ -230,7 +231,9 @@ When adding a new activity that draws from the user's full vocab pool:
 
 **Second application:** Cloze activity (date unknown, existing in codebase as of 2026-05-05)
 
-**Third application:** NumberDrill Phase 2 (2026-05-05)
+**Third application:** NumberDrill Phase 2 (2026-05-05 by Wash)  
+**Decision:** `.squad/decisions/inbox/wash-numberdrill-plan-integration-impl.md`  
+**Validation:** 519/520 unit tests passing, backend build clean
 
 **Pattern extracted as skill:** 2026-05-05 (this document)
 

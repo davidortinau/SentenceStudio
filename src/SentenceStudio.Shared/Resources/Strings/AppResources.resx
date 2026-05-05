@@ -6486,4 +6486,12 @@ For example: {0} ...</value>
     <value>Please select at least one harvest option before continuing.</value>
     <comment>Harvest validation error message</comment>
   </data>
+  <data name="PlanItemNumberDrillTitle" xml:space="preserve">
+    <value>Number Drill</value>
+    <comment>Plan item title for NumberDrill activity</comment>
+  </data>
+  <data name="PlanItemNumberDrillDesc" xml:space="preserve">
+    <value>Build automaticity with Korean number systems</value>
+    <comment>Plan item description for NumberDrill activity</comment>
+  </data>
 </root>

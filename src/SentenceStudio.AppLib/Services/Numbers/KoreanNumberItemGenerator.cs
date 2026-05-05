@@ -27,6 +27,9 @@ public class KoreanNumberItemGenerator : INumberItemGenerator
             "Counting" => GenerateCountingItem(request, random),
             "Time" => GenerateTimeItem(request, random),
             "Age" => GenerateAgeItem(request, random),
+            "Money" => GenerateMoneyItem(request, random),
+            "Date" => GenerateDateItem(request, random),
+            "Ordinal" => GenerateOrdinalItem(request, random),
             _ => throw new ArgumentException($"Unknown context: {request.ContextCode}")
         };
     }
@@ -46,17 +49,69 @@ public class KoreanNumberItemGenerator : INumberItemGenerator
         var nativeNumeral = ConvertToNative(value, beforeCounter: true);
         var canonicalAnswer = $"{nativeNumeral} {counterText}";
 
+        // For TapTheCounter: show sentence frame with blank counter
+        if (request.SubModeCode == "TapTheCounter")
+        {
+            // Noun cue based on counter type
+            var nounCue = counterKey switch
+            {
+                "잔" => "coffee",
+                "개" => "items",
+                "명" => "people",
+                "마리" => "animals",
+                "권" => "books",
+                _ => "things"
+            };
+            
+            // Display prompt: sentence frame with blank
+            var displayPrompt = $"{nativeNumeral} ___";
+            
+            // Pick 2 distractors from the other 4 counters
+            var allCounters = Phase1Counters.Keys.ToList();
+            var distractors = allCounters.Where(c => c != counterKey).OrderBy(_ => random.Next()).Take(2).ToList();
+            var choices = new List<string> { counterText };
+            choices.AddRange(distractors.Select(d => Phase1Counters[d][0]));
+            
+            // Shuffle choices
+            choices = choices.OrderBy(_ => random.Next()).ToList();
+            
+            var hints = new List<string>
+            {
+                $"Think about what you're counting: {nounCue}",
+                $"{counterInfo[1]}"
+            };
+            
+            return new NumberItem(
+                Id: Guid.NewGuid(),
+                ContextCode: "Counting",
+                SubModeCode: request.SubModeCode,
+                CounterId: counterKey,
+                CounterText: counterText,
+                System: NumberSystem.Native,
+                Bucket: bucket,
+                DigitValue: value,
+                CanonicalAnswer: canonicalAnswer,
+                DisplayPrompt: displayPrompt,
+                AudioCue: canonicalAnswer, // TTS plays after answer
+                Hints: hints,
+                AcceptableAlternates: new List<string>(),
+                ErrorClassHints: null,
+                NounCue: nounCue,
+                CounterChoices: choices
+            );
+        }
+        
         // For ListenAndType: audio plays Korean, user types digit
         // For ReadAndProduce: prompt shows digit + counter image, user types Hangul
-        var displayPrompt = request.SubModeCode == "ListenAndType" 
+        var regularDisplayPrompt = request.SubModeCode == "ListenAndType" 
             ? "" // Audio-only prompt
             : $"{value} {counterText}";
         
-        var audioCue = request.SubModeCode == "ListenAndType"
+        var regularAudioCue = request.SubModeCode == "ListenAndType"
             ? canonicalAnswer
             : ""; // No audio for ReadAndProduce
 
-        var hints = new List<string>
+        var regularHints = new List<string>
         {
             $"Native numbers (한, 두, 세) are used with counters like {counterText}",
             $"{counterInfo[1]}"
@@ -78,9 +133,9 @@ public class KoreanNumberItemGenerator : INumberItemGenerator
             Bucket: bucket,
             DigitValue: value,
             CanonicalAnswer: canonicalAnswer,
-            DisplayPrompt: displayPrompt,
-            AudioCue: audioCue,
-            Hints: hints,
+            DisplayPrompt: regularDisplayPrompt,
+            AudioCue: regularAudioCue,
+            Hints: regularHints,
             AcceptableAlternates: alternates
         );
     }
@@ -195,6 +250,305 @@ public class KoreanNumberItemGenerator : INumberItemGenerator
         );
     }
 
+    private NumberItem GenerateMoneyItem(NumberItemRequest request, Random random)
+    {
+        // Price range weights (from seed contextNotes.Money.ranges)
+        // Small: 100-3000 (60%), Medium: 10k-50k (30%), Large: 100k-1M (10%)
+        int value;
+        string context;
+        
+        var rangeRoll = random.Next(100);
+        if (rangeRoll < 60)
+        {
+            // Small purchase (100-3000)
+            value = random.Next(0, 100) switch
+            {
+                < 30 => 1000,      // 천 원 (coffee)
+                < 50 => 3000,      // 삼천 원 (snack)
+                < 70 => 2000,      // 이천 원
+                < 90 => 5000,      // 오천 원
+                _ => random.Next(1, 10) * 1000 // 1k-9k random
+            };
+            context = "small purchase";
+        }
+        else if (rangeRoll < 90)
+        {
+            // Medium purchase (10k-50k)
+            value = random.Next(0, 100) switch
+            {
+                < 40 => 10000,     // 만 원 (lunch)
+                < 60 => 15000,     // 만 오천 원 (meal)
+                < 80 => 20000,     // 이만 원
+                _ => random.Next(3, 6) * 10000 // 30k-50k
+            };
+            context = "meal/shopping";
+        }
+        else
+        {
+            // Large purchase (100k-1M)
+            value = random.Next(0, 100) switch
+            {
+                < 60 => 100000,    // 십만 원 (shopping)
+                < 85 => 500000,    // 오십만 원
+                _ => 1000000       // 백만 원 (rent)
+            };
+            context = "shopping/rent";
+        }
+
+        var bucket = GetBucket(value);
+        var sinoReading = ConvertToSinoMoney(value);
+        var canonicalAnswer = $"{sinoReading} 원";
+
+        // Display as digit with comma grouping (Korean style 4-digit groups when over 10k)
+        var displayValue = value >= 10000 
+            ? value.ToString("N0", System.Globalization.CultureInfo.GetCultureInfo("ko-KR"))
+            : value.ToString();
+        var displayPrompt = request.SubModeCode == "ListenAndType"
+            ? ""
+            : $"{displayValue}원";
+
+        var audioCue = request.SubModeCode == "ListenAndType"
+            ? canonicalAnswer
+            : "";
+
+        var hints = new List<string>
+        {
+            "Korean uses Sino numbers for money",
+            "만 (10,000) and 억 (100,000,000) group by 4 digits, not 3",
+            $"Context: {context}"
+        };
+
+        var alternates = new List<string>
+        {
+            $"{sinoReading}원", // No space
+        };
+
+        // Error-class hints for Phase 3 Insights
+        var errorHints = new Dictionary<string, string>();
+        if (value >= 10000 && value < 100000000)
+        {
+            errorHints["likely_error"] = "place_value_grouping_4digit_vs_3digit";
+            errorHints["hint"] = "Korean groups by 만 (10,000) not thousand";
+        }
+
+        return new NumberItem(
+            Id: Guid.NewGuid(),
+            ContextCode: "Money",
+            SubModeCode: request.SubModeCode,
+            CounterId: "원",
+            CounterText: "원",
+            System: NumberSystem.Sino,
+            Bucket: bucket,
+            DigitValue: value,
+            CanonicalAnswer: canonicalAnswer,
+            DisplayPrompt: displayPrompt,
+            AudioCue: audioCue,
+            Hints: hints,
+            AcceptableAlternates: alternates,
+            ErrorClassHints: errorHints.Count > 0 ? errorHints : null
+        );
+    }
+
+    private NumberItem GenerateDateItem(NumberItemRequest request, Random random)
+    {
+        // Generate valid date (avoid Feb 30, etc.)
+        var month = random.Next(1, 13);
+        var maxDay = month switch
+        {
+            2 => 28,  // Simplified: no leap year handling
+            4 or 6 or 9 or 11 => 30,
+            _ => 31
+        };
+        var day = random.Next(1, maxDay + 1);
+
+        // Optional: include year at higher difficulty (20% chance)
+        var includeYear = random.Next(100) < 20;
+        var year = includeYear ? 2026 : 0;
+
+        // Month irregular handling (from seed contextNotes.Date.irregularMonths)
+        var monthReading = month switch
+        {
+            1 => "일월",
+            2 => "이월",
+            3 => "삼월",
+            4 => "사월",
+            5 => "오월",
+            6 => "유월",   // IRREGULAR: 유월 NOT 육월
+            7 => "칠월",
+            8 => "팔월",
+            9 => "구월",
+            10 => "시월",  // IRREGULAR: 시월 NOT 십월
+            11 => "십일월",
+            12 => "십이월",
+            _ => throw new ArgumentException($"Invalid month: {month}")
+        };
+
+        var dayReading = ConvertToSino(day) + " 일";
+        var yearReading = includeYear ? ConvertToSinoYear(year) + " 년 " : "";
+        var canonicalAnswer = $"{yearReading}{monthReading} {dayReading}";
+
+        var displayPrompt = request.SubModeCode == "ListenAndType"
+            ? ""
+            : (includeYear ? $"{year}-{month:D2}-{day:D2}" : $"{month}월 {day}일");
+
+        var audioCue = request.SubModeCode == "ListenAndType"
+            ? canonicalAnswer
+            : "";
+
+        var hints = new List<string>
+        {
+            "Dates use Sino numbers for both month and day",
+            "Month 6 is 유월 (NOT 육월), month 10 is 시월 (NOT 십월)"
+        };
+
+        var alternates = new List<string>
+        {
+            canonicalAnswer.Replace(" ", ""), // No spaces
+            $"{monthReading}{dayReading}",   // Without year if included
+        };
+
+        // Error-class hints for Phase 3 Insights
+        var errorHints = new Dictionary<string, string>();
+        if (month == 6 || month == 10)
+        {
+            errorHints["likely_error"] = "wrong_form_for_month_6_or_10";
+            errorHints["hint"] = month == 6 
+                ? "June is 유월 (irregular), not 육월" 
+                : "October is 시월 (irregular), not 십월";
+        }
+
+        var bucket = includeYear ? "with_year" : "month_day_only";
+
+        return new NumberItem(
+            Id: Guid.NewGuid(),
+            ContextCode: "Date",
+            SubModeCode: request.SubModeCode,
+            CounterId: null,
+            CounterText: null,
+            System: NumberSystem.Sino,
+            Bucket: bucket,
+            DigitValue: month * 100 + day,
+            CanonicalAnswer: canonicalAnswer,
+            DisplayPrompt: displayPrompt,
+            AudioCue: audioCue,
+            Hints: hints,
+            AcceptableAlternates: alternates,
+            ErrorClassHints: errorHints.Count > 0 ? errorHints : null
+        );
+    }
+
+    private NumberItem GenerateOrdinalItem(NumberItemRequest request, Random random)
+    {
+        // Phase 1: 1-10 only for ordinals
+        var value = random.Next(1, 11);
+
+        // Two patterns: 째 (ranking) vs 번째 (occurrence)
+        // 60% ranking, 40% occurrence
+        var isRanking = random.Next(100) < 60;
+        var pattern = isRanking ? "째" : "번째";
+        var context = isRanking ? "ranking" : "occurrence";
+
+        // Generate native Korean ordinal with sound changes
+        string ordinalReading;
+        if (isRanking)
+        {
+            // Native + 째 (첫째, 둘째, 셋째...)
+            // Special case: 첫째 NOT 하나째
+            ordinalReading = value switch
+            {
+                1 => "첫째",
+                2 => "둘째",
+                3 => "셋째",
+                4 => "넷째",
+                5 => "다섯째",
+                6 => "여섯째",
+                7 => "일곱째",
+                8 => "여덟째",
+                9 => "아홉째",
+                10 => "열째",
+                _ => throw new ArgumentException($"Invalid ordinal: {value}")
+            };
+        }
+        else
+        {
+            // Native + 번째 (첫 번째, 두 번째, 세 번째...)
+            // Note: 첫 번째 is SPACED
+            var nativeBase = value switch
+            {
+                1 => "첫",  // Special case: 첫 NOT 하나
+                2 => "두",
+                3 => "세",
+                4 => "네",
+                5 => "다섯",
+                6 => "여섯",
+                7 => "일곱",
+                8 => "여덟",
+                9 => "아홉",
+                10 => "열",
+                _ => throw new ArgumentException($"Invalid ordinal: {value}")
+            };
+            ordinalReading = $"{nativeBase} 번째";
+        }
+
+        var canonicalAnswer = ordinalReading;
+
+        // Display prompt: use English ordinal suffix or Korean context
+        var displayPrompt = request.SubModeCode == "ListenAndType"
+            ? ""
+            : (isRanking 
+                ? $"{value}째 (rank)"  // e.g., "2째 (rank)" → "둘째"
+                : $"{value}번째 (occurrence)"); // e.g., "3번째 (occurrence)" → "세 번째"
+
+        var audioCue = request.SubModeCode == "ListenAndType"
+            ? canonicalAnswer
+            : "";
+
+        var hints = new List<string>
+        {
+            $"Ordinal uses Native numbers with {pattern}",
+            isRanking 
+                ? "째 is used for ranking/birth order (첫째 아이 = first child)"
+                : "번째 is used for occurrences/'Nth time' (첫 번째 방문 = first visit)",
+            "Special case: 첫째 and 첫 번째 (NOT 하나째 or 하나 번째)"
+        };
+
+        var alternates = new List<string>();
+        if (!isRanking)
+        {
+            // Accept with or without space for 번째 pattern
+            alternates.Add(ordinalReading.Replace(" ", ""));
+        }
+
+        // Error-class hints for Phase 3 Insights
+        var errorHints = new Dictionary<string, string>
+        {
+            ["likely_error"] = "rank_vs_occurrence_confusion",
+            ["hint"] = isRanking
+                ? "째 is for ranking (첫째 자녀 = first child)"
+                : "번째 is for occurrences (첫 번째 시도 = first attempt)",
+            ["pattern"] = pattern
+        };
+
+        var bucket = isRanking ? "rank" : "occurrence";
+
+        return new NumberItem(
+            Id: Guid.NewGuid(),
+            ContextCode: "Ordinal",
+            SubModeCode: request.SubModeCode,
+            CounterId: pattern,
+            CounterText: pattern,
+            System: NumberSystem.Native,
+            Bucket: bucket,
+            DigitValue: value,
+            CanonicalAnswer: canonicalAnswer,
+            DisplayPrompt: displayPrompt,
+            AudioCue: audioCue,
+            Hints: hints,
+            AcceptableAlternates: alternates,
+            ErrorClassHints: errorHints
+        );
+    }
+
     private string ConvertToNative(int value, bool beforeCounter = false, bool counterIs살 = false)
     {
         if (value == 0) return "영";
@@ -282,6 +636,81 @@ public class KoreanNumberItemGenerator : INumberItemGenerator
             result += GetSinoDigit(ones);
         }
 
+        return result;
+    }
+
+    private string ConvertToSinoMoney(int value)
+    {
+        if (value == 0) return "영";
+        
+        // Korean money uses 만 (10,000) and 억 (100,000,000) grouping
+        var parts = new List<string>();
+        
+        var eok = value / 100000000;  // 억 (hundred million)
+        var man = (value % 100000000) / 10000;  // 만 (ten thousand)
+        var remainder = value % 10000;
+        
+        if (eok > 0)
+        {
+            parts.Add(ConvertToSino(eok) + "억");
+        }
+        
+        if (man > 0)
+        {
+            if (man == 1)
+                parts.Add("만");
+            else
+                parts.Add(ConvertToSino(man) + "만");
+        }
+        
+        if (remainder > 0)
+        {
+            parts.Add(ConvertToSino(remainder));
+        }
+        
+        return string.Join(" ", parts);
+    }
+
+    private string ConvertToSinoYear(int year)
+    {
+        // Year is read digit-by-digit in Korean
+        // 2026 → 이천이십육 (not 이영이육)
+        var digits = year.ToString();
+        var result = "";
+        
+        for (int i = 0; i < digits.Length; i++)
+        {
+            var digit = int.Parse(digits[i].ToString());
+            var placeValue = digits.Length - i - 1;
+            
+            if (digit == 0)
+            {
+                result += "영";
+                continue;
+            }
+            
+            // For thousands, hundreds, tens
+            if (placeValue == 3) // thousands
+            {
+                if (digit > 1) result += GetSinoDigit(digit);
+                result += "천";
+            }
+            else if (placeValue == 2) // hundreds
+            {
+                if (digit > 1) result += GetSinoDigit(digit);
+                result += "백";
+            }
+            else if (placeValue == 1) // tens
+            {
+                if (digit > 1) result += GetSinoDigit(digit);
+                result += "십";
+            }
+            else // ones
+            {
+                result += GetSinoDigit(digit);
+            }
+        }
+        
         return result;
     }
 

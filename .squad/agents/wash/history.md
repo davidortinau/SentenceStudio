@@ -456,3 +456,37 @@ Captain approved JWT lifetime extension (24h) and refresh-token grace window (60
 
 
 - 2026-05-05: **NumberDrill Phase 2 Wave 1 — Plan Integration Architecture** — Zoe's architecture decision establishes plan-slot replacement strategy: NumberDrill replaces VocabularyMatching in STEP 4 when `NumberMasteryProgress.DueDate <= DateTime.UtcNow.AddDays(1)`. Implement `SelectCloserActivityAsync(skill, userId, ct)` method in DeterministicPlanBuilder with graceful fallback to VocabularyGame. 4-layer ResourceId decoupling pattern applies to NumberDrill as 3rd vocabulary-driven activity (follows Quiz, Matching, Cloze precedent): Layer 1 (PlanBuilder sets `ResourceId=null`), Layer 2 (PlanConverter adds NumberDrill case with `DueOnly=true`), Layer 3 (Index.razor guard rejects ResourceId), Layer 4 (NumberDrill.razor page defense). PlanConverter requires 4 switch updates (ParseActivityType, GetRouteForActivity, GetTitleKeyForActivity, GetDescriptionKeyForActivity, BuildRouteParameters). Tests needed: due/not-due/no-skill/no-remaining-time edge cases. Handoff todos: p2-plan-integration (PlanBuilder + DI), p2-resource-decouple (PlanConverter + UI guards). River's seed expansion adds Money/Date/Ordinal contexts with contextNotes metadata (irregular forms, place values, dual patterns). Implementation work spans Wave 2 (generators + graders) + Kaylee's Wave 2 Disambiguate UI. Non-determinism issue identified (SelectInputActivity Guid.NewGuid() vs SelectOutputActivity HashCode.Combine) — defer per Captain. Streak interaction: NumberDrill completion increments IsCompleted but NEVER breaks streak. Decision drop: `.squad/decisions/inbox/zoe-numberdrill-plan-integration-arch.md` (7 sections + appendices).
+
+## Learnings
+
+### NumberDrill Plan Integration (2026-05-05)
+
+**Implementation insights:**
+
+1. **4-Layer ResourceId Decoupling Mastery** — Applied the full pattern to NumberDrill (4th vocab-driven activity). All layers executed cleanly:
+   - Layer 1: DeterministicPlanBuilder sets `ResourceId = null`
+   - Layer 2: PlanConverter adds NumberDrill branch with `DueOnly = true`, omits ResourceId
+   - Layer 3: Index.razor guard expanded to include NumberDrill check
+   - Layer 4: NumberDrill.razor OnParametersSet defense rejects ResourceId with warning
+   
+   Pattern now proven across 4 activities: VocabQuiz, VocabularyMatching, Cloze, NumberDrill.
+
+2. **DeterministicPlanBuilder DI Signature Evolution** — `BuildActivitySequenceAsync` did not have `userProfileId` parameter. Added as 7th param to enable due-count query in SelectCloserActivityAsync. This reveals a design principle: async plan generation methods that need user context must explicitly receive userId, not rely on outer closure — keeps method signatures explicit and testable.
+
+3. **ApplicationDbContext Namespace Convention** — DbContext lives in `SentenceStudio.Data` namespace, NOT `SentenceStudio.Shared.Data`. Pre-existing migrations in Phase 1 worked because they target server-side TFMs only. Plan generation (Shared project, multi-target) requires careful namespace imports. Lesson: check `namespace` declaration in the actual file, not inferred path.
+
+4. **Localization Key Format Mismatch** — Existing plan item keys use snake_case (`plan_item_vocab_review_title`), but I used PascalCase (`PlanItemNumberDrillTitle`) per Zoe's spec. Both formats work with .resx files — the codebase currently has both. New keys should match the intended migration path (PascalCase per project memory guidelines).
+
+5. **NumberMasteryProgress Due-Date Query Pattern** — `DateTime.UtcNow.AddDays(1)` lookahead matches VocabularyProgressRepository convention. Tomorrow's due items appear in today's plan (prevention, not remediation). Ensures plan generation is consistent with vocab review logic.
+
+6. **STEP 4 Closer Slot: Replacement, Not Additive** — VocabularyMatching existed when `remainingMinutes >= 5 && skill != null`. NumberDrill steals this slot when numbers are due, regardless of skill. This creates a fallback hierarchy:
+   - Numbers due → NumberDrill (skill optional)
+   - Numbers NOT due + skill exists → VocabularyGame
+   - Numbers NOT due + no skill → no closer (no 8-minute activity)
+   
+   The `if (remainingMinutes >= 5)` guard is now decoupled from the skill existence check.
+
+7. **Test Coverage Gap Identified** — No unit tests exist yet for SelectCloserActivityAsync logic (due vs. not-due, skill vs. no-skill permutations). Integration test exists for full plan generation, but closer-specific edge cases need coverage. Marked as todo for p2-plan-integration completion.
+
+8. **TFM-Specific Build Errors Are Often Pre-Existing** — Mac Catalyst build showed NpgsqlPropertyBuilderExtensions errors in NumbersActivityPhase1 migration. These are unrelated to plan integration changes (migrations don't run on MAUI TFMs). Build verification strategy: test with `-f net10.0` for backend logic, ignore MAUI TFM errors unless they're in code I touched.
+

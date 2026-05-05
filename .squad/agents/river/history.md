@@ -229,3 +229,63 @@ Zoe's M.E.AI 10.5 strategic recommendations executed via three-agent orchestrati
 
 
 - 2026-05-05: **NumberDrill Phase 2 Wave 1 — Content Seed Expansion** — Extended `lib/content/numbers/ko.json` with three new contexts for Phase 2: Money (💰, Sino, sortOrder 40), Date (📅, Sino, sortOrder 50), Ordinal (🏆, Native, sortOrder 60). Introduced `contextNotes` schema extension (top-level object with context-specific metadata) for generator/grader consumption — backward-compatible (seeder ignores unknown fields). Money: place values (만, 억), ranges (100원–1M원), particle (원). Date: irregular months (유월/시월), all 12 months with romanization, holidays, year format. Ordinal: dual patterns (째 for ranking, 번째 for occurrences), irregularity (첫째). Build validated ✓. Generalization path: contextNotes schema reusable for Japanese (phonetic variants), Mandarin (currency variants), Spanish (gender agreement). Handoff: Wash implements generators + graders (Money/Date/Ordinal item generation + new error classes), Kaylee implements Disambiguate generator for paired prompts. Day-counts explicitly deferred to Phase 3 (lexical, not productive pattern). Decision drop: `.squad/decisions/inbox/river-numberdrill-phase2-seed.md`.
+
+
+## Phase 2 NumberDrill Generator Extension (2026-05-04)
+
+**Scope:** Extended `KoreanNumberItemGenerator` with Money, Date, Ordinal contexts
+
+**Deliverables:**
+1. Three new generator methods: `GenerateMoneyItem()`, `GenerateDateItem()`, `GenerateOrdinalItem()`
+2. Extended `NumberItem` record with `ErrorClassHints` dictionary for Phase 3 Insights
+3. Helper methods: `ConvertToSinoMoney()`, `ConvertToSinoYear()`
+4. 17 new unit tests (35 total, all passing)
+
+**Key Learnings:**
+
+1. **Money Place-Value Grouping Is Cultural** — Korean groups by 4 digits (만 = 10,000; 억 = 100,000,000) vs. Western 3-digit grouping. The `ConvertToSinoMoney()` method must NOT add spaces within compounds:
+   - ✅ CORRECT: "십만" (100,000 = 십 x 만)
+   - ❌ WRONG: "십 만" (treated as separate words)
+   - Between place-value groups: "만 오천" (15,000) uses spaces
+   - Seed contextNotes.Money.placeValues maps {만: 10000, 억: 100000000} for clarity
+
+2. **Date Irregulars Are Non-Negotiable** — Month 6 (유월) and month 10 (시월) are irregular and MUST be hardcoded:
+   - 6월 → 유월 (NOT 육월) — euphonic change to avoid double ㄱ sounds
+   - 10월 → 시월 (NOT 십월) — similar euphonic reason
+   - Generator reads `contextNotes.Date.irregularMonths` for these special cases
+   - Error-class hint: `wrong_form_for_month_6_or_10` flags likely learner confusion
+
+3. **Ordinal Dual-Pattern Requires Contextual Selection** — Korean ordinals have two productive patterns:
+   - **Native + 째** (첫째, 둘째, 셋째…) for ranking/birth-order/sequence (60% generation weight)
+   - **Native + 번째** (첫 번째, 두 번째, 세 번째…) for occurrences/"Nth time" (40% generation weight)
+   - 첫째 / 첫 번째 are irregular (NOT 하나째 or 하나 번째)
+   - 번째 pattern is SPACED ("첫 번째") while 째 pattern is NOT ("첫째")
+   - Generator sets `Bucket` to "rank" or "occurrence" for telemetry
+
+4. **Error-Class Hint Metadata Schema** — Phase 2 introduces `ErrorClassHints` dictionary on `NumberItem` for future grader/telemetry enhancements:
+   - Money: `likely_error: "place_value_grouping_4digit_vs_3digit"` when value ≥ 10,000
+   - Date: `likely_error: "wrong_form_for_month_6_or_10"` for irregular months
+   - Ordinal: `likely_error: "rank_vs_occurrence_confusion"` + `pattern: "째"|"번째"`
+   - Grader can consume these hints in Phase 3 to give targeted pedagogical feedback
+   - Metadata is optional (`ErrorClassHints: null` for simple cases like small money amounts)
+
+5. **Test Coverage Strategy for Irregular Forms** — Phase 1 tests used seed iteration (0–1000) to find specific values. Phase 2 continues this pattern but adds irregular-specific assertions:
+   - Money: test small/medium/large buckets + 만 boundary error hint
+   - Date: test regular month (January) + both irregulars (June, October) + calendar validity (no Feb 30)
+   - Ordinal: test both patterns (째, 번째) + 첫째/첫 번째 special case
+   - All 17 new tests pass on first run after fixing 십만 spacing
+
+6. **Generator Determinism Preserved** — All three new generators accept `RandomSeed` for testability. Same seed → same output across contexts. This enables test discoverability: iterate seeds to find edge cases like "generate irregular month 10" without hardcoding seed values in production code.
+
+**Coordination:**
+- Wash implemented generator logic as specified
+- Jayne will add Phase 3 grader error-class detection (consume ErrorClassHints)
+- Captain approved error-class hint schema and test coverage
+
+**Implications:**
+- NumberDrill Phase 2 complete: 6 contexts (Counting/Time/Age/Money/Date/Ordinal) cover A1-A2 Korean number curriculum
+- Generator is ready for Phase 3 grader enhancements (irregular-aware error detection)
+- Error-class hint pattern is generalizable to Japanese 音/訓 irregulars, Mandarin tone sandhi, Spanish apocope
+
+---
+

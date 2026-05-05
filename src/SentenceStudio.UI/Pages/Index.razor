@@ -1046,6 +1046,7 @@ else
         if (item.ActivityType != PlanActivityType.VocabularyReview 
             && item.ActivityType != PlanActivityType.VocabularyGame 
             && item.ActivityType != PlanActivityType.Cloze 
+            && item.ActivityType != PlanActivityType.NumberDrill
             && !string.IsNullOrEmpty(item.ResourceId))
         {
             if (multiResourceRoutes.Contains(route))

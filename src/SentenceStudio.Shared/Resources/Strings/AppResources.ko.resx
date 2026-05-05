@@ -6239,4 +6239,12 @@
     <value>계속하려면 최소 하나의 추출 옵션을 선택해주세요.</value>
     <comment>Harvest validation error message</comment>
   </data>
+  <data name="PlanItemNumberDrillTitle" xml:space="preserve">
+    <value>숫자 연습</value>
+    <comment>Plan item title for NumberDrill activity</comment>
+  </data>
+  <data name="PlanItemNumberDrillDesc" xml:space="preserve">
+    <value>한국어 숫자 체계로 자동성을 키우세요</value>
+    <comment>Plan item description for NumberDrill activity</comment>
+  </data>
 </root>
