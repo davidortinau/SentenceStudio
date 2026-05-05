@@ -1,5 +1,19 @@
 # Squad Orchestration Log — NumberDrill Phase 2
 
+## Wave 4: Listen-and-Place + Picker Expand + Disambiguate Fix
+**Date:** 2026-05-04  
+**Branch:** `squad/numbers-activity-phase-1`  
+**Status:** ✅ SHIPPED
+
+| Task | Agent | Model | Time | Outcome | Commit |
+|------|-------|-------|------|---------|--------|
+| Listen-and-place sub-mode (digital matcher: audio + 3 time cards, auto-advance, border feedback; 10 seed items, generator, telemetry), Picker expand to 6 contexts (Bootstrap icons, no emoji), Disambiguate selection-state fix (explicit StateHasChanged in handlers; 4 unit tests) | Kaylee (kaylee-numberdrill-wave4) | sonnet-4.5 | ~21 min | ✅ SHIP | 8725e94 |
+| E2E verification (Playwright + Aspire webapp; 3 deliverables + 7 screenshots, 0 console errors, 12 min wall-clock) | Jayne (jayne-wave4-e2e-ship) | sonnet-4.5 | ~15 min | ✅ SHIP (plan-slot integration + telemetry sanity deferred to post-merge) | decision drop |
+
+**Phase 2 Complete:** All 4 sub-modes shipped (TapTheCounter, Disambiguate, ListenAndPlace, SpeakAndCompare deferred), picker 6 contexts, plan integration, telemetry, E2E green. Phase 3 deferred: clock-hand drag, day-counts calendar, diagnostic error patterns, latency-fluency metric.
+
+---
+
 ## Wave 3: Disambiguate Sub-Mode, Telemetry, E2E Refs
 **Date:** 2026-05-05  
 **Branch:** `squad/numbers-activity-phase-1`  

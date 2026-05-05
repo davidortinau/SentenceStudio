@@ -503,3 +503,6 @@ Completed final Wave 4 implementation for NumberDrill Phase 2:
 **Status:** ✅ BUILD PASS, ✅ TESTS PASS (4/4), ⏳ E2E PENDING (Captain will validate)
 
 **Next:** Captain to run `e2e-testing` skill, then SHIP or NO-SHIP based on results.
+
+- 2026-05-04: **NumberDrill Phase 2 Wave 4 — E2E Shipped** — Jayne's E2E verification (Playwright + Aspire webapp) shipped Wave 4 with SHIP verdict. All 3 deliverables verified working: Listen-and-place renders with audio + 3 time-card choices (wave4-03-listen-and-place-initial.png), green border on correct tap (wave4-04-listen-and-place-feedback.png), picker shows all 6 contexts with Bootstrap icons no emoji (wave4-02-picker-6-contexts-and-modes.png), Disambiguate both prompts stay visually active simultaneously after fix (wave4-06-disambiguate-both-selected.png, wave4-07-disambiguate-bug-reproduced.png showing Prompt A & B both highlighted). Console: 0 errors. Aspire: all services healthy. Decision drop merged: `.squad/decisions/inbox/jayne-wave4-e2e-ship.md`. Wall-clock: 12 min. Next: Captain merge + publish to production.
+
