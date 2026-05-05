@@ -4,6 +4,81 @@
 
 ---
 
+### 2026-05-05: NumberDrill Phase 2 Wave 3 — Disambiguate Sub-Mode, Telemetry, E2E Refs
+
+**By:** Scribe (logging) — work by Kaylee (Disambiguate UI), Wash (Telemetry), Jayne (E2E)  
+**Status:** ✅ SHIPPED — Build green; 3 parallel workstreams shipped + 1 hot-fix DI regression
+
+#### Wave 3 Workstreams
+
+**1. Disambiguate Sub-Mode (Kaylee)**
+- **State machine:** Setup → PairedPrompt (Floor/Time/Days/People/Age 8 paired-item prompts) → Both Submitted gate → Feedback (correct/incorrect per choice) → Summary
+- **Grading:** "Both submitted" trigger — scores each choice independently, no partial credit for single-only submission
+- **Feedback:** Border-only styling (green 4px / red 4px), no background color, pedagogical error hints
+- **Localization:** 6 EN + 6 KO keys (`PlanItemDisambiguateTitle`, `SubModeDisambiguate`, etc.); Korean strings 25–35 chars
+- **Tests:** 5 unit tests (PairedPromptLogic, SubmitBoth, NoPartialCredit, FeedbackGeneration, LocalizationKeys); all passing
+- **E2E:** 6 screenshots (disambiguate-01..06.png in repo root) — item flow, choice selection, both-submit gate, feedback, summary
+- **Minor bug carryover:** Selection-state drop (clicking choice B sometimes drops choice A active marker); workaround = re-click; fix → Wave 4
+- **Commit:** 718e15f
+
+**2. Aspire Telemetry (Wash)**
+- **Log points:** 5 structured logs (📐 prefix) across StartSessionAsync, SubmitAnswerAsync (Money/Date/Ordinal generators), SelectCloserActivityAsync, ProgressService.ConvertToTodaysPlan
+- **Levels:** Information (state transitions), Trace (noisy generation)
+- **KQL ready:** Named placeholders ({UserId}, {SubMode}, {Context}, {Bucket}, {Correct}, {LatencyMs}, {Delta}, {DueDate})
+- **DI pattern:** ILogger injected into KoreanNumberItemGenerator; static NumberAudioCueBuilder uses NullLogger<T>.Instance for prewarm
+- **Tests:** 7/7 NumberSession tests pass
+- **Commit:** 5be1d1e
+- **KQL examples:** All "📐" logs, session starts by sub-mode, grading outcomes, plan generation decisions
+
+**3. E2E Reference Doc (Jayne)**
+- **Status:** ✅ Complete (NO-SHIP blocked by infra, not code quality)
+- **Deliverable:** `.claude/skills/e2e-testing/references/numberdrill.md`
+- **Contents:** Phase 1 (Listen&Type, Read&Produce), Phase 2 TapTheCounter (context picker, chip grid, DB checks), Plan-slot integration (NumberMasteryProgress seeding, card replacement, localization), Disambiguate placeholder (Kaylee Wave 3 output), Listen-and-place placeholder
+- **DB note:** PostgreSQL is canonical (not SQLite); 0-byte .db files are artifact; docker container `db-07bf899f` holds live data
+- **SQL queries:** NumberAttempt verification, NumberMasteryProgress aggregation, UserId GUID handling, DueDate <= tomorrow logic
+- **Pitfalls:** UserId type mismatch, localization key PascalCase format, Phase filter (Phase <= 2)
+- **Commit:** a928166 (decision only, E2E blocked)
+
+#### Hot-Fix (Coordinator)
+- **Issue:** Wave 2 regression — DI lifetime: ApplicationDbContext resolved from constructor instead of scope → webapp startup crash
+- **Fix:** Scoped DbContext resolved from scope (not constructor) in ProgressService, PlanConverter consumers
+- **Commit:** f794e5e (between Wave 2 and Wave 3)
+
+#### Files Changed
+
+**Kaylee (Disambiguate):**
+- `lib/content/numbers/ko.json` — Disambiguate sub-mode (8 paired prompts)
+- `src/SentenceStudio.AppLib/Services/Numbers/KoreanNumberItemGenerator.cs` — GenerateDisambiguateItem method
+- `src/SentenceStudio.UI/Pages/NumberDrill.razor` — PairedPrompt state, both-submit gate, feedback branching
+- `src/SentenceStudio.UI/wwwroot/css/app.css` — Border-only feedback styling
+- `src/SentenceStudio.Shared/Resources/Strings/AppResources.resx` (en + ko) — 6 keys
+
+**Wash (Telemetry):**
+- `src/SentenceStudio.AppLib/Services/Numbers/NumberSessionService.cs` — StartSessionAsync, SubmitAnswerAsync logs
+- `src/SentenceStudio.AppLib/Services/Numbers/KoreanNumberItemGenerator.cs` — ILogger injection, 3 generator trace logs
+- `src/SentenceStudio.AppLib/Services/Numbers/NumberAudioCueBuilder.cs` — NullLogger<T>.Instance
+- `src/SentenceStudio.Shared/Services/PlanGeneration/DeterministicPlanBuilder.cs` — SelectCloserActivityAsync userProfileId log
+- `src/SentenceStudio.Shared/Services/Progress/ProgressService.cs` — ConvertToTodaysPlan NumberDrill log
+
+**Jayne (E2E):**
+- `.claude/skills/e2e-testing/references/numberdrill.md` (new)
+- `.claude/skills/e2e-testing/` (reference doc update)
+
+#### Known Issues & Carryover
+
+1. **Disambiguate selection-state bug (minor, non-blocking):** Clicking choice B sometimes drops choice A active marker. Workaround: re-click choice A. Root cause: state sync lag in paired-choice rendering. Fix → Wave 4.
+2. **E2E testing blocked (infra, not code):** Aspire instability + missing NumberMasteryProgress table prevent full verification. Code review passed; infrastructure fixes required before re-test.
+3. **Listen-and-place sub-mode + picker expand:** Deferred to Wave 4 (Kaylee follow-up).
+
+#### Build & Test Status
+
+- ✅ Build green (0 errors, all three workstreams)
+- ✅ Unit tests: Kaylee 5/5, Wash 7/7
+- ⚠️  E2E blocked by infrastructure (Aspire startup race, missing migration)
+- ✅ Code review: Kaylee + Wash passed; Jayne code review passed (E2E ref doc + build fix)
+
+---
+
 ### 2026-05-05: NumberDrill Phase 2 Wave 2 — Plan Integration, Generators, Tap-Counter UI
 
 **By:** Scribe (logging) — work by Wash (Plan + Generators), River (Generators), Kaylee (UI)  
