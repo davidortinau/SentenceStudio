@@ -116,6 +116,9 @@ public class KoreanNumberAnswerGrader : INumberAnswerGrader
         // Use KoreanNumberNormalizer for whitespace normalization
         var normalized = KoreanNumberNormalizer.NormalizeWhitespace(answer);
 
+        // Strip internal commas from numbers (narrow rule: 15,000 → 15000)
+        normalized = StripInternalCommas(normalized);
+
         // Strip trailing punctuation (narrow rule: ., ,, ?, !, ?, ?, !)
         normalized = StripTrailingPunctuation(normalized);
 
@@ -136,6 +139,17 @@ public class KoreanNumberAnswerGrader : INumberAnswerGrader
             result = result.Replace(c, (char)('0' + (c - '０')));
         }
         return result;
+    }
+
+    private string StripInternalCommas(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+            return input;
+
+        // Narrow permissive rule: strip commas ONLY between digits (e.g., 15,000 → 15000)
+        // Regex pattern: (?<=\d),(?=\d) matches commas that have a digit before AND after
+        // This avoids affecting Korean text or other uses of commas
+        return Regex.Replace(input, @"(?<=\d),(?=\d)", "");
     }
 
     private string StripTrailingPunctuation(string input)

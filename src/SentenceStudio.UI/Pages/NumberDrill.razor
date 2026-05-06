@@ -403,7 +403,9 @@
                             @if (!lastGrade.IsCorrect)
                             {
                                 <div class="text-center mt-3">
-                                    <button class="btn btn-outline-success btn-sm" @onclick="OverrideAsCorrect">
+                                    <button class="btn btn-outline-success btn-sm" 
+                                            @onclick="OverrideAsCorrect"
+                                            disabled="@_overriding">
                                         <i class="bi bi-check2 me-1"></i>I was correct
                                     </button>
                                 </div>
@@ -514,6 +516,7 @@
     private ElementReference answerInput;
     private DateTime itemStartTime;
     private bool showFeedback;
+    private bool _overriding;  // Double-tap protection for override button
     private SentenceStudio.Services.Numbers.GradeResult? lastGrade;
     private NumberAttemptResult? lastAttemptResult;
     
@@ -815,8 +818,11 @@
     
     private async Task OverrideAsCorrect()
     {
-        if (lastGrade == null || lastAttemptResult == null || currentItem == null)
+        // Double-tap protection: disable immediately on first click
+        if (_overriding || lastGrade == null || lastAttemptResult == null || currentItem == null)
             return;
+
+        _overriding = true;
 
         // Update UI feedback immediately
         lastGrade = lastGrade with 
@@ -866,6 +872,7 @@
             currentItem = session.Items[currentIndex];
             userAnswer = "";
             showFeedback = false;
+            _overriding = false;  // Reset double-tap protection for next item
             lastGrade = null;
             lastAttemptResult = null;
             itemStartTime = DateTime.UtcNow;
