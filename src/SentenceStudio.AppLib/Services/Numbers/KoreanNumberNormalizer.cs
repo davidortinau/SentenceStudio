@@ -41,6 +41,32 @@ public static class KoreanNumberNormalizer
         "년", "월", "일", "원", "층", "호", "번지", "대"
     };
 
+    // Common Sino compound numbers (for ConvertKoreanToDigits)
+    private static readonly Dictionary<string, string> SinoCompounds = new()
+    {
+        { "천", "1000" },
+        { "만", "10000" },
+        { "백", "100" },
+        { "십", "10" },
+        { "이천", "2000" },
+        { "삼천", "3000" },
+        { "사천", "4000" },
+        { "오천", "5000" },
+        { "육천", "6000" },
+        { "칠천", "7000" },
+        { "팔천", "8000" },
+        { "구천", "9000" },
+        { "이만", "20000" },
+        { "삼만", "30000" },
+        { "사만", "40000" },
+        { "오만", "50000" },
+        { "육만", "60000" },
+        { "칠만", "70000" },
+        { "팔만", "80000" },
+        { "구만", "90000" },
+        { "십만", "100000" }
+    };
+
     /// <summary>
     /// Normalizes whitespace: collapses all internal whitespace to single space, trims edges.
     /// Treats fullwidth and halfwidth spaces equivalently.
@@ -169,6 +195,12 @@ public static class KoreanNumberNormalizer
     /// </summary>
     private static string ConvertKoreanToDigits(string text)
     {
+        // Replace Sino compound numbers first (longer matches before shorter)
+        foreach (var kvp in SinoCompounds.OrderByDescending(x => x.Key.Length))
+        {
+            text = text.Replace(kvp.Key, kvp.Value);
+        }
+        
         // Replace Native numbers
         foreach (var kvp in NativeNumbers.OrderByDescending(x => x.Value.Length))
         {
@@ -181,7 +213,7 @@ public static class KoreanNumberNormalizer
             text = text.Replace(kvp.Value, kvp.Key.ToString());
         }
         
-        // Replace Sino digits
+        // Replace Sino digits (0-9)
         foreach (var kvp in SinoDigits.OrderByDescending(x => x.Value.Length))
         {
             text = text.Replace(kvp.Value, kvp.Key.ToString());

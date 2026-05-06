@@ -317,6 +317,130 @@ public class KoreanNumberAnswerGraderTests
 
     #endregion
 
+    #region Whitespace Tolerance Tests (Issue: 1000원 bug)
+
+    [Fact]
+    public void Grade_1000원_AcceptsWhenCanonicalIs천원WithSpace()
+    {
+        // REPRO: Captain typed "1000원" for canonical "천 원" and got INCORRECT
+        // This is the exact bug report scenario
+        NumberItem item = null!;
+        for (int seed = 0; seed < 10000; seed++)
+        {
+            var candidate = _generator.GenerateItem(new NumberItemRequest("Money", "ReadAndProduce", RandomSeed: seed));
+            if (candidate.DigitValue == 1000 && candidate.CounterText == "원")
+            {
+                item = candidate;
+                break;
+            }
+        }
+        
+        Assert.NotNull(item);
+        Assert.Equal(NumberSystem.Sino, item.System);
+        Assert.Equal("천 원", item.CanonicalAnswer); // Canonical has space
+        
+        // User typed bare digits with no space
+        var result = _grader.Grade(item, "1000원", latencyMs: 1000);
+        
+        Assert.True(result.IsCorrect, $"Expected '1000원' to be accepted for canonical '천 원'. Got: {result.ErrorClass}");
+    }
+
+    [Fact]
+    public void Grade_10000원_AcceptsWhenCanonicalIs만원WithSpace()
+    {
+        // Similar test for 10000원 / 만 원
+        NumberItem item = null!;
+        for (int seed = 0; seed < 10000; seed++)
+        {
+            var candidate = _generator.GenerateItem(new NumberItemRequest("Money", "ReadAndProduce", RandomSeed: seed));
+            if (candidate.DigitValue == 10000 && candidate.CounterText == "원")
+            {
+                item = candidate;
+                break;
+            }
+        }
+        
+        Assert.NotNull(item);
+        Assert.Equal(NumberSystem.Sino, item.System);
+        Assert.Equal("만 원", item.CanonicalAnswer);
+        
+        var result = _grader.Grade(item, "10000원", latencyMs: 1000);
+        
+        Assert.True(result.IsCorrect, $"Expected '10000원' to be accepted for canonical '만 원'. Got: {result.ErrorClass}");
+    }
+
+    [Fact]
+    public void Grade_5000원_AcceptsWhenCanonicalIs오천원WithSpace()
+    {
+        // Test for 5000원 / 오천 원
+        NumberItem item = null!;
+        for (int seed = 0; seed < 10000; seed++)
+        {
+            var candidate = _generator.GenerateItem(new NumberItemRequest("Money", "ReadAndProduce", RandomSeed: seed));
+            if (candidate.DigitValue == 5000 && candidate.CounterText == "원")
+            {
+                item = candidate;
+                break;
+            }
+        }
+        
+        Assert.NotNull(item);
+        Assert.Equal(NumberSystem.Sino, item.System);
+        Assert.Equal("오천 원", item.CanonicalAnswer);
+        
+        var result = _grader.Grade(item, "5000원", latencyMs: 1000);
+        
+        Assert.True(result.IsCorrect, $"Expected '5000원' to be accepted for canonical '오천 원'. Got: {result.ErrorClass}");
+    }
+
+    [Fact]
+    public void Grade_천원NoSpace_AcceptsWhenCanonicalIs천원WithSpace()
+    {
+        // Symmetric test: canonical "천 원" (with space), user "천원" (no space)
+        NumberItem item = null!;
+        for (int seed = 0; seed < 10000; seed++)
+        {
+            var candidate = _generator.GenerateItem(new NumberItemRequest("Money", "ReadAndProduce", RandomSeed: seed));
+            if (candidate.DigitValue == 1000 && candidate.CounterText == "원")
+            {
+                item = candidate;
+                break;
+            }
+        }
+        
+        Assert.NotNull(item);
+        Assert.Equal("천 원", item.CanonicalAnswer);
+        
+        var result = _grader.Grade(item, "천원", latencyMs: 1000);
+        
+        Assert.True(result.IsCorrect, $"Expected '천원' to be accepted for canonical '천 원'. Got: {result.ErrorClass}");
+    }
+
+    [Fact]
+    public void Grade_1000원WithSpace_AcceptsWhenCanonicalIs천원WithSpace()
+    {
+        // User types digits WITH space, canonical has space too
+        NumberItem item = null!;
+        for (int seed = 0; seed < 10000; seed++)
+        {
+            var candidate = _generator.GenerateItem(new NumberItemRequest("Money", "ReadAndProduce", RandomSeed: seed));
+            if (candidate.DigitValue == 1000 && candidate.CounterText == "원")
+            {
+                item = candidate;
+                break;
+            }
+        }
+        
+        Assert.NotNull(item);
+        Assert.Equal("천 원", item.CanonicalAnswer);
+        
+        var result = _grader.Grade(item, "1000 원", latencyMs: 1000);
+        
+        Assert.True(result.IsCorrect, $"Expected '1000 원' to be accepted for canonical '천 원'. Got: {result.ErrorClass}");
+    }
+
+    #endregion
+
     #region Time-Specific Tests
 
     [Fact]

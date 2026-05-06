@@ -10,6 +10,45 @@ public class KoreanNumberAnswerGrader : INumberAnswerGrader
         var normalized = NormalizeAnswer(userAnswer);
         var canonicalNormalized = NormalizeAnswer(item.CanonicalAnswer);
 
+        // Special case: If user typed ONLY bare digits (no Korean, no counter), accept as shortcut
+        if (Regex.IsMatch(normalized, @"^\d+$"))
+        {
+            // Extract digit value from canonical answer
+            var canonicalDigitMatch = Regex.Match(item.DigitValue.ToString(), @"\d+");
+            if (canonicalDigitMatch.Success && normalized == canonicalDigitMatch.Value)
+            {
+                return new GradeResult(
+                    IsCorrect: true,
+                    Verdict: "정확해요!",
+                    ErrorClass: null,
+                    CanonicalAnswer: item.CanonicalAnswer,
+                    UserAnswer: userAnswer.Trim(),
+                    Tip: null
+                );
+            }
+        }
+
+        // Special case: If user typed ONLY Korean number words (no digits, no counter), check if it matches
+        if (!ContainsDigits(normalized) && !ContainsAnyCounter(normalized))
+        {
+            // Convert user's Korean to digits and compare
+            var userAsDigits = ConvertFullWidthToHalfWidth(KoreanToDigitString(normalized));
+            if (!string.IsNullOrWhiteSpace(userAsDigits) && Regex.IsMatch(userAsDigits, @"^\d+$"))
+            {
+                if (int.TryParse(userAsDigits, out var userValue) && userValue == item.DigitValue)
+                {
+                    return new GradeResult(
+                        IsCorrect: true,
+                        Verdict: "정확해요!",
+                        ErrorClass: null,
+                        CanonicalAnswer: item.CanonicalAnswer,
+                        UserAnswer: userAnswer.Trim(),
+                        Tip: null
+                    );
+                }
+            }
+        }
+
         // Generate equivalent forms for permissive matching (system-aware)
         var userForms = KoreanNumberNormalizer.GenerateEquivalentForms(normalized, item.System);
         var canonicalForms = KoreanNumberNormalizer.GenerateEquivalentForms(canonicalNormalized, item.System);
@@ -59,6 +98,14 @@ public class KoreanNumberAnswerGrader : INumberAnswerGrader
             UserAnswer: userAnswer.Trim(),
             Tip: tip
         );
+    }
+
+    private string KoreanToDigitString(string text)
+    {
+        // Use the normalizer's conversion, but we need to expose it or duplicate the logic
+        var forms = KoreanNumberNormalizer.GenerateEquivalentForms(text, NumberSystem.Sino);
+        // Find the first form that contains only digits
+        return forms.FirstOrDefault(f => Regex.IsMatch(f, @"^\d+$")) ?? text;
     }
 
     private string NormalizeAnswer(string answer)
