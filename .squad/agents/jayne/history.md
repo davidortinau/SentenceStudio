@@ -7,6 +7,8 @@
 
 ## Learnings
 
+- 2026-05-06: **NumberDrill Grader System-Aware (Phase 1 Ships)** — Kaylee implemented system-aware grading per Captain's directive. Grading rules changed: system-aware now, no longer accepts wrong number system for a given counter. Example: "마흔여섯 개" (Native counter) now rejects "사십육" (Sino) as `SinoNativeSwap`. Accept bare digits universally (e.g., `46`), keep whitespace permissiveness, keep counter-mismatch detection. Affects test expectations — grader is no longer over-permissive. Commits ac88a0c8 + be1604ee pushed to origin/squad/numbers-activity-phase-1.
+
 - 2026-04-23: **Word/Phrase Feature Completed** — Completed 4 todos: tests-backfill (120 tests, classification + constituent backfill), tests-mastery-cascade (10 tests, cascade logic), tests-regression (5 tests, word-only unaffected), tests-smart-resource (12 tests, Phrases smart resource). Total: 147 tests passing, feature code-complete. E2E blocked on pre-existing SQLite migration history mismatch (Captain decision needed on reconciliation). One bug surfaced & fixed: SmartResourceService.GetPhrasesVocabularyIdsAsync scope bug (was circular, fixed by Wash). Documented in `.squad/log/2026-04-23T2219Z-wordphrase-squad-wrap.md`.
 - 2026-04-17: HelpKit Alpha — 30 golden Q/A + eval gate (85%/0%) + cross-platform validation plan + 7 unit-test files.
 

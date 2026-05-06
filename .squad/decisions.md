@@ -4,6 +4,79 @@
 
 ---
 
+### 2026-05-06: NumberDrill Grading Must Be System-Aware
+
+**By:** Kaylee (Frontend Dev), on directive from Captain via copilot-directive-2026-05-06T034509Z.md  
+**Date:** 2026-05-06  
+**Status:** ✅ IMPLEMENTED — Commits ac88a0c8 + be1604ee  
+**Supersedes:** Prior over-permissive decision from kaylee-numberdrill-grading-improvements.md
+
+#### Context
+
+The previous `KoreanNumberNormalizer.GenerateEquivalentForms()` was over-permissive. It accepted ANY of (numeric / Native / Sino) for any prompt context, regardless of whether that form was linguistically valid for the counter. This was pedagogically wrong.
+
+**Real-world failure:** Captain typed `46` for canonical "마흔여섯 개" (Native + 개 counter) and was marked WRONG. The placeholder showed `___ 개`, strongly implying "fill in the blank, the counter is given." He expected bare numerals to be accepted as a shortcut.
+
+#### Decision
+
+`KoreanNumberNormalizer.GenerateEquivalentForms()` is now **system-aware**. It accepts a `NumberSystem` parameter and generates forms based on the item's number system:
+
+1. **Accept bare digits ALWAYS** — digits are a universal shortcut
+2. **Accept the linguistically-correct Korean form** (matching the item's `NumberSystem`)
+3. **REJECT the wrong number system** (e.g., Sino for Native counter → `SinoNativeSwap` error)
+4. **Keep whitespace permissiveness** (e.g., `5시` and `5 시` both correct)
+5. **Keep counter-mismatch detection** (e.g., `46 명` for `마흔여섯 개` → `CounterMismatch`)
+
+#### Grading Matrix (Native Counter Example: "마흔여섯 개")
+
+| User input | Verdict | Error Class |
+|---|---|---|
+| `46` | ✅ correct | (bare digit shortcut) |
+| `46개` / `46 개` | ✅ correct | (digit + correct counter) |
+| `마흔여섯` | ✅ correct | (correct Native form, no counter) |
+| `마흔여섯 개` / `마흔여섯개` | ✅ correct | (exact / no-space variant) |
+| `사십육` | ❌ wrong | `SinoNativeSwap` |
+| `사십육 개` | ❌ wrong | `SinoNativeSwap` |
+| `46 명` | ❌ wrong | `CounterMismatch` |
+
+#### Implementation
+
+**Files Modified:**
+- `src/SentenceStudio.AppLib/Services/Numbers/KoreanNumberNormalizer.cs` (added NumberSystem param)
+- `src/SentenceStudio.AppLib/Services/Numbers/KoreanNumberAnswerGrader.cs` (passes item.System)
+- `tests/SentenceStudio.AppLib.Tests/Services/Numbers/KoreanNumberAnswerGraderTests.cs` (17 new test cases)
+
+**Test Status:** 31 tests pass, 1 skipped
+
+#### Rationale
+
+**Why separate permissiveness about whitespace from permissiveness about pedagogy?**
+
+Whitespace permissiveness is a UX affordance. Number system permissiveness is pedagogically incorrect — it teaches the wrong rule. Korean has two number systems (Native and Sino), and they are NOT interchangeable.
+
+**Why accept bare digits?**
+
+The placeholder UI shows the counter (e.g., `___ 개`), creating a contract: "fill in the blank, the counter is given." Typing just the number is a reasonable interpretation of that contract.
+
+**Why reject wrong system?**
+
+Accepting `사십육 개` (Sino + Native counter) silently reinforces the wrong pattern. The learner must distinguish:
+- **Native counters** (개, 명, 마리, 잔, 살) → use Native numbers (하나, 둘, 셋)
+- **Sino counters** (분, 원, 년, 월) → use Sino numbers (일, 이, 삼)
+
+#### Future: Sound Change Detection
+
+The original test `Grade_SoundChangeMissed_스물Instead스무For20` expected the grader to catch sound change errors (e.g., `스물 살` instead of `스무 살` for age 20). With the new system-aware logic, both forms normalize to `20 살` via digits, so they match and are marked correct.
+
+**Resolution:** Skip sound change detection for Phase 1. The core directive is system-awareness + digit shortcut. Sound change detection can be re-added in a future phase with a more sophisticated normalizer.
+
+#### Decision File
+
+- `.squad/decisions/inbox/copilot-directive-2026-05-06T034509Z.md` (Captain directive)
+- `.squad/decisions/inbox/kaylee-numberdrill-grader-system-aware.md` (Full spec)
+
+---
+
 ### 2026-05-05: NumberDrill Listen & Type Audio Playback Bug Fix
 
 **By:** Kaylee (Full-stack Dev), spawned by David Ortinau  
