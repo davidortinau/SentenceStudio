@@ -402,7 +402,7 @@
                             @* Override button (grader edge-case escape hatch) *@
                             @if (!lastGrade.IsCorrect)
                             {
-                                <div class="text-center mt-3">
+                                <div class="text-center mt-3 mb-3">
                                     <button class="btn btn-outline-success btn-sm" 
                                             @onclick="OverrideAsCorrect"
                                             disabled="@_overriding">
