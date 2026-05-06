@@ -4,16 +4,16 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- Aspire Hosting -->
-    <PackageVersion Include="Aspire.Hosting.Azure.AppContainers" Version="13.3.0-preview.1.26177.8" />
-    <PackageVersion Include="Aspire.Hosting.Azure.PostgreSQL" Version="13.3.0-preview.1.26177.8" />
-    <PackageVersion Include="Aspire.Hosting.Azure.Storage" Version="13.3.0-preview.1.26177.8" />
-    <PackageVersion Include="Aspire.Hosting.Maui" Version="13.3.0-preview.1.26177.8" />
-    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.3.0-preview.1.26177.8" />
-    <PackageVersion Include="Aspire.Hosting.Redis" Version="13.3.0-preview.1.26177.8" />
+    <PackageVersion Include="Aspire.Hosting.Azure.AppContainers" Version="13.4.0-preview.1.26256.2" />
+    <PackageVersion Include="Aspire.Hosting.Azure.PostgreSQL" Version="13.4.0-preview.1.26256.2" />
+    <PackageVersion Include="Aspire.Hosting.Azure.Storage" Version="13.4.0-preview.1.26256.2" />
+    <PackageVersion Include="Aspire.Hosting.Maui" Version="13.4.0-preview.1.26256.2" />
+    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.4.0-preview.1.26256.2" />
+    <PackageVersion Include="Aspire.Hosting.Redis" Version="13.4.0-preview.1.26256.2" />
 
     <!-- Aspire Client -->
-    <PackageVersion Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="13.3.0-preview.1.26203.28" />
-    <PackageVersion Include="Aspire.StackExchange.Redis.DistributedCaching" Version="13.3.0-preview.1.26203.28" />
+    <PackageVersion Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="13.4.0-preview.1.26256.2" />
+    <PackageVersion Include="Aspire.StackExchange.Redis.DistributedCaching" Version="13.4.0-preview.1.26256.2" />
 
     <!-- ASP.NET Core / Identity -->
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.2" />
