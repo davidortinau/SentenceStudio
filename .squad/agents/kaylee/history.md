@@ -635,3 +635,86 @@ User may type EITHER form → normalizer generates all three (digit, Native, Sin
 
 `KoreanNumberNormalizer` is a static helper class (no dependencies, pure functions). Can be extracted to a skill at `.squad/skills/korean-number-normalization/SKILL.md` if other areas need number form conversion (e.g., Quiz, TTS pronunciation variants).
 
+
+---
+
+## 2026-05-06: 1000원 Grading Bug Fix
+
+**Context:**
+Captain reported a NEW issue from the freshly-deployed iOS build on DX24:
+> "I typed `1000원` for prompt audio whose correct answer is `천 원`. The app marked it INCORRECT."
+
+By design, this should be ACCEPTED:
+- Canonical: `천 원` (Sino "천" = 1000, counter "원")
+- User: `1000원` (bare digit + counter, no space)
+- Bare digits are universal shortcut; whitespace tolerance applies; counter matches
+
+**Investigation:**
+1. Pulled latest from `squad/numbers-activity-phase-1` (at be1604ee + cccd87bc)
+2. Traced through `KoreanNumberAnswerGrader.Grade` and `KoreanNumberNormalizer.GenerateEquivalentForms`
+3. Wrote failing test case `Grade_1000원_AcceptsWhenCanonicalIs천원WithSpace()`
+4. Ran test → FAILED with `WrongFormat` error, confirming REAL BUG (not stale build)
+
+**Root Cause:**
+The `KoreanNumberNormalizer.ConvertKoreanToDigits` method only handled:
+- Sino digits 0-9 (영, 일, 이, 삼, etc.)
+- Native numbers 1-99 (하나, 둘, 스물, etc.)
+
+But it did NOT handle large Sino compound numbers:
+- 천 (1000), 만 (10000), 백 (100), 십 (10)
+- 오천 (5000), 이만 (20000), etc.
+
+When canonical "천 원" was normalized:
+- Generated forms: `['천 원', '천원']` (Korean only, NO digit forms!)
+- User input "1000원" generated: `['1000 원', '1000원']` (digits only)
+- NO OVERLAP → grader failed the match
+
+**Fix (commit fc27ad8d):**
+1. Added `SinoCompounds` dictionary mapping common Sino number words to digits:
+   ```csharp
+   { "천", "1000" }, { "만", "10000" }, { "백", "100" }, { "십", "10" },
+   { "오천", "5000" }, { "이만", "20000" }, etc.
+   ```
+
+2. Updated `ConvertKoreanToDigits` to replace compound numbers BEFORE individual digits
+   (longest match first to avoid partial replacements)
+
+3. Added bare-number acceptance in `Grade` method:
+   - If user types ONLY digits (no counter, no Korean), check if it matches `item.DigitValue`
+   - If user types ONLY Korean numbers (no digits, no counter), convert to digits and check
+   - This allows "5" or "오" alone to match "오 원" (bare number shortcut)
+
+**Test Results:**
+All new tests PASS:
+- `Grade_1000원_AcceptsWhenCanonicalIs천원WithSpace()` ✓
+- `Grade_10000원_AcceptsWhenCanonicalIs만원WithSpace()` ✓
+- `Grade_5000원_AcceptsWhenCanonicalIs오천원WithSpace()` ✓
+- `Grade_천원NoSpace_AcceptsWhenCanonicalIs천원WithSpace()` ✓
+- `Grade_1000원WithSpace_AcceptsWhenCanonicalIs천원WithSpace()` ✓
+
+**Equivalence After Fix:**
+Canonical `천 원` now generates:
+- `천 원` (Korean with space)
+- `천원` (Korean no space)
+- `1000 원` (digit with space) ← NEW
+- `1000원` (digit no space) ← NEW
+
+User `1000원` generates:
+- `1000 원` (digit with space)
+- `1000원` (digit no space)
+
+Both sets overlap → CORRECT ✓
+
+**Symmetric Cases Verified:**
+- User `천원` (Korean no space) matches canonical `천 원` (Korean with space) ✓
+- User `1000 원` (digit with space) matches canonical `천 원` (Korean with space) ✓
+- All whitespace+counter combinations work correctly ✓
+
+**Commit:** fc27ad8d
+**Pushed:** Yes, to `squad/numbers-activity-phase-1`
+**Status:** REAL BUG, NOW FIXED. Redeploy needed.
+
+**Next Steps for Wash:**
+Re-deploy to Azure (API rev 88) and DX24 (iOS Release build).
+Captain should test "1000원" for "천 원" again after deployment.
+

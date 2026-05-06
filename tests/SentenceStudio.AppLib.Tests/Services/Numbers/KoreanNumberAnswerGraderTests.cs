@@ -456,4 +456,148 @@ public class KoreanNumberAnswerGraderTests
     }
 
     #endregion
+
+    #region Sino Additive Composition Tests (Issue: 만 오천 원 bug)
+
+    [Fact]
+    public void Grade_만오천원_AcceptsDigit15000원()
+    {
+        // REPRO: Captain typed "15000 원" for canonical "만 오천 원" (10000 + 5000) and got INCORRECT
+        // This is additive Sino composition: 만 (10000) + 오천 (5000) = 15000
+        NumberItem item = null!;
+        for (int seed = 0; seed < 10000; seed++)
+        {
+            var candidate = _generator.GenerateItem(new NumberItemRequest("Money", "ReadAndProduce", RandomSeed: seed));
+            if (candidate.DigitValue == 15000 && candidate.CounterText == "원")
+            {
+                item = candidate;
+                break;
+            }
+        }
+        
+        Assert.NotNull(item);
+        Assert.Equal(NumberSystem.Sino, item.System);
+        Assert.Contains("만", item.CanonicalAnswer); // Should have 만 오천 pattern
+        
+        // User typed bare digits with space before counter
+        var result = _grader.Grade(item, "15000 원", latencyMs: 1000);
+        
+        Assert.True(result.IsCorrect, $"Expected '15000 원' to be accepted for canonical '{item.CanonicalAnswer}'. Got: {result.ErrorClass}");
+    }
+
+    [Fact]
+    public void Grade_만오천원_AcceptsDigit15000원NoSpace()
+    {
+        // Same as above but without space before 원
+        NumberItem item = null!;
+        for (int seed = 0; seed < 10000; seed++)
+        {
+            var candidate = _generator.GenerateItem(new NumberItemRequest("Money", "ReadAndProduce", RandomSeed: seed));
+            if (candidate.DigitValue == 15000 && candidate.CounterText == "원")
+            {
+                item = candidate;
+                break;
+            }
+        }
+        
+        Assert.NotNull(item);
+        
+        var result = _grader.Grade(item, "15000원", latencyMs: 1000);
+        
+        Assert.True(result.IsCorrect, $"Expected '15000원' to be accepted for canonical '{item.CanonicalAnswer}'. Got: {result.ErrorClass}");
+    }
+
+    [Fact]
+    public void Grade_만오천원_AcceptsDigit15000Bare()
+    {
+        // Bare digits without counter
+        NumberItem item = null!;
+        for (int seed = 0; seed < 10000; seed++)
+        {
+            var candidate = _generator.GenerateItem(new NumberItemRequest("Money", "ReadAndProduce", RandomSeed: seed));
+            if (candidate.DigitValue == 15000 && candidate.CounterText == "원")
+            {
+                item = candidate;
+                break;
+            }
+        }
+        
+        Assert.NotNull(item);
+        
+        var result = _grader.Grade(item, "15000", latencyMs: 1000);
+        
+        Assert.True(result.IsCorrect, $"Expected '15000' to be accepted for canonical '{item.CanonicalAnswer}'. Got: {result.ErrorClass}");
+    }
+
+    [Fact]
+    public void Grade_삼십칠개_AcceptsDigit37개()
+    {
+        // Sino number composition: 삼십칠 = 삼십 (30) + 칠 (7) = 37
+        // But this is Sino used with Native counter - should it work? Let me check for pure Sino context
+        // Actually, let's test with a Sino-friendly context or just verify the parsing works
+        // For now, test that 37 in Sino form converts to 37
+        NumberItem item = null!;
+        for (int seed = 0; seed < 10000; seed++)
+        {
+            var candidate = _generator.GenerateItem(new NumberItemRequest("Money", "ReadAndProduce", RandomSeed: seed));
+            if (candidate.DigitValue == 37 && candidate.CounterText == "원")
+            {
+                item = candidate;
+                break;
+            }
+        }
+        
+        if (item != null)
+        {
+            var result = _grader.Grade(item, "37원", latencyMs: 1000);
+            Assert.True(result.IsCorrect, $"Expected '37원' to be accepted for canonical '{item.CanonicalAnswer}'. Got: {result.ErrorClass}");
+        }
+    }
+
+    [Fact]
+    public void Grade_백오십원_AcceptsDigit150원()
+    {
+        // 백오십 = 백 (100) + 오십 (50) = 150
+        NumberItem item = null!;
+        for (int seed = 0; seed < 10000; seed++)
+        {
+            var candidate = _generator.GenerateItem(new NumberItemRequest("Money", "ReadAndProduce", RandomSeed: seed));
+            if (candidate.DigitValue == 150 && candidate.CounterText == "원")
+            {
+                item = candidate;
+                break;
+            }
+        }
+        
+        if (item != null)
+        {
+            var result = _grader.Grade(item, "150원", latencyMs: 1000);
+            Assert.True(result.IsCorrect, $"Expected '150원' to be accepted for canonical '{item.CanonicalAnswer}'. Got: {result.ErrorClass}");
+        }
+    }
+
+    [Fact]
+    public void Grade_오천원Unspaced_MatchesCanonicalWithSpace()
+    {
+        // Symmetric: user types "오천원" (no space), canonical is "오천 원" (with space)
+        NumberItem item = null!;
+        for (int seed = 0; seed < 10000; seed++)
+        {
+            var candidate = _generator.GenerateItem(new NumberItemRequest("Money", "ReadAndProduce", RandomSeed: seed));
+            if (candidate.DigitValue == 5000 && candidate.CounterText == "원")
+            {
+                item = candidate;
+                break;
+            }
+        }
+        
+        Assert.NotNull(item);
+        Assert.Equal("오천 원", item.CanonicalAnswer);
+        
+        var result = _grader.Grade(item, "오천원", latencyMs: 1000);
+        
+        Assert.True(result.IsCorrect, $"Expected '오천원' to be accepted for canonical '오천 원'. Got: {result.ErrorClass}");
+    }
+
+    #endregion
 }

@@ -195,11 +195,8 @@ public static class KoreanNumberNormalizer
     /// </summary>
     private static string ConvertKoreanToDigits(string text)
     {
-        // Replace Sino compound numbers first (longer matches before shorter)
-        foreach (var kvp in SinoCompounds.OrderByDescending(x => x.Key.Length))
-        {
-            text = text.Replace(kvp.Key, kvp.Value);
-        }
+        // Parse Sino numbers with additive composition (만 오천 = 10000 + 5000 = 15000)
+        text = ParseSinoNumbers(text);
         
         // Replace Native numbers
         foreach (var kvp in NativeNumbers.OrderByDescending(x => x.Value.Length))
@@ -213,13 +210,133 @@ public static class KoreanNumberNormalizer
             text = text.Replace(kvp.Value, kvp.Key.ToString());
         }
         
-        // Replace Sino digits (0-9)
+        // Replace remaining Sino digits (0-9) that weren't part of larger numbers
         foreach (var kvp in SinoDigits.OrderByDescending(x => x.Value.Length))
         {
             text = text.Replace(kvp.Value, kvp.Key.ToString());
         }
         
         return text;
+    }
+
+    /// <summary>
+    /// Parses Sino Korean numbers with additive composition.
+    /// Examples: 만 오천 = 10000 + 5000 = 15000, 이만 삼천 = 20000 + 3000 = 23000
+    /// Algorithm: coefficient * place + coefficient * place + ... + trailing digit
+    /// 삼십칠 = 삼(3) * 십(10) + 칠(7) = 37
+    /// 만 오천 = 만(10000) + 오(5) * 천(1000) = 15000
+    /// </summary>
+    private static string ParseSinoNumbers(string input)
+    {
+        // Sino coefficient digits (일=1, 이=2, etc.)
+        var sinoDigits = new Dictionary<string, int>
+        {
+            { "일", 1 }, { "이", 2 }, { "삼", 3 }, { "사", 4 }, { "오", 5 },
+            { "육", 6 }, { "칠", 7 }, { "팔", 8 }, { "구", 9 }
+        };
+
+        // Sino place markers and their values
+        var sinoPlaces = new Dictionary<string, long>
+        {
+            { "억", 100000000 },   // 100 million
+            { "만", 10000 },        // 10 thousand
+            { "천", 1000 },         // thousand
+            { "백", 100 },          // hundred
+            { "십", 10 }            // ten
+        };
+
+        // Pattern to match Sino number sequences including trailing digits
+        // Examples: 만, 오천, 삼십칠, 만 오천, 이만 삼천 백오십
+        var pattern = @"(?:일|이|삼|사|오|육|칠|팔|구)?(?:억|만|천|백|십)(?:\s*(?:일|이|삼|사|오|육|칠|팔|구)?(?:억|만|천|백|십))*(?:\s*(?:일|이|삼|사|오|육|칠|팔|구))?";
+        var matches = Regex.Matches(input, pattern);
+
+        var result = input;
+        
+        // Process matches from right to left to avoid index shifting
+        for (int i = matches.Count - 1; i >= 0; i--)
+        {
+            var match = matches[i];
+            var sinoText = match.Value.Replace(" ", ""); // Remove spaces for parsing
+            
+            if (string.IsNullOrEmpty(sinoText))
+                continue;
+
+            long totalValue = 0;
+            int currentCoefficient = 1; // Default coefficient is 1 (e.g., 만 = 1만)
+            int pos = 0;
+
+            while (pos < sinoText.Length)
+            {
+                bool found = false;
+
+                // Try to match a coefficient digit
+                foreach (var kvp in sinoDigits)
+                {
+                    if (sinoText.Substring(pos).StartsWith(kvp.Key))
+                    {
+                        // Check if this digit is followed by a place marker
+                        bool hasPlaceAfter = false;
+                        int nextPos = pos + kvp.Key.Length;
+                        if (nextPos < sinoText.Length)
+                        {
+                            foreach (var place in sinoPlaces.Keys)
+                            {
+                                if (sinoText.Substring(nextPos).StartsWith(place))
+                                {
+                                    hasPlaceAfter = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (hasPlaceAfter)
+                        {
+                            // This is a coefficient for the next place marker
+                            currentCoefficient = kvp.Value;
+                        }
+                        else
+                        {
+                            // This is a trailing digit (ones place)
+                            totalValue += kvp.Value;
+                        }
+                        
+                        pos += kvp.Key.Length;
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (!found)
+                {
+                    // Try to match a place marker
+                    foreach (var kvp in sinoPlaces.OrderByDescending(p => p.Value))
+                    {
+                        if (sinoText.Substring(pos).StartsWith(kvp.Key))
+                        {
+                            totalValue += currentCoefficient * kvp.Value;
+                            currentCoefficient = 1; // Reset coefficient for next place
+                            pos += kvp.Key.Length;
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!found)
+                {
+                    // Skip unknown character
+                    pos++;
+                }
+            }
+
+            // If we successfully parsed a number, replace it
+            if (totalValue > 0)
+            {
+                result = result.Substring(0, match.Index) + totalValue.ToString() + result.Substring(match.Index + match.Length);
+            }
+        }
+
+        return result;
     }
 
     /// <summary>
