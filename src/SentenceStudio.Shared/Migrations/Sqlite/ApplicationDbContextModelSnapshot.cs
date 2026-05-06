@@ -1367,6 +1367,444 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
 
                     b.ToTable("WordAssociationScore", (string)null);
                 });
+            modelBuilder.Entity("SentenceStudio.Shared.Models.Numbers.NumberAttempt", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("AttemptedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Bucket")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ContextCode")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CounterId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ErrorClass")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ExpectedAnswer")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsCorrect")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("LanguageCode")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("LatencyMs")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("PromptValue")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SubModeCode")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("System")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserAnswer")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserProfileId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserProfileId");
+
+                    b.ToTable("NumberAttempt", (string)null);
+                });
+
+            modelBuilder.Entity("SentenceStudio.Shared.Models.Numbers.NumberContext", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DefaultSystem")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Icon")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("NumberContext", (string)null);
+                });
+
+            modelBuilder.Entity("SentenceStudio.Shared.Models.Numbers.NumberCounter", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Counter")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LanguageCode")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MeaningEn")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Romanization")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("System")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("NumberCounter", (string)null);
+                });
+
+            modelBuilder.Entity("SentenceStudio.Shared.Models.Numbers.NumberMasteryProgress", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Bucket")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ContextCode")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("CorrectCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CounterId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("DueDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<double>("EaseFactor")
+                        .HasColumnType("REAL");
+
+                    b.Property<int>("Interval")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("LanguageCode")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastReviewed")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("MedianLatencyMs")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Repetitions")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("System")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("TotalCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("UserProfileId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserProfileId");
+
+                    b.HasIndex("UserProfileId", "LanguageCode", "ContextCode", "CounterId", "System", "Bucket")
+                        .IsUnique();
+
+                    b.ToTable("NumberMasteryProgress", (string)null);
+                });
+
+            modelBuilder.Entity("SentenceStudio.Shared.Models.Numbers.NumberSubMode", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Phase")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("NumberSubMode", (string)null);
+                });
+
+            modelBuilder.Entity("SentenceStudio.Shared.Models.Numbers.NumberAttempt", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("AttemptedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Bucket")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ContextCode")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CounterId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ErrorClass")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ExpectedAnswer")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsCorrect")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("LanguageCode")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("LatencyMs")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("PromptValue")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SubModeCode")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("System")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserAnswer")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserProfileId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserProfileId");
+
+                    b.ToTable("NumberAttempt", (string)null);
+                });
+
+            modelBuilder.Entity("SentenceStudio.Shared.Models.Numbers.NumberContext", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DefaultSystem")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Icon")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SortOrder")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("NumberContext", (string)null);
+                });
+
+            modelBuilder.Entity("SentenceStudio.Shared.Models.Numbers.NumberCounter", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Counter")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LanguageCode")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("MeaningEn")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Romanization")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("System")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("NumberCounter", (string)null);
+                });
+
+            modelBuilder.Entity("SentenceStudio.Shared.Models.Numbers.NumberMasteryProgress", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Bucket")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ContextCode")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("CorrectCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("CounterId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("DueDate")
+                        .HasColumnType("TEXT");
+
+                    b.Property<double>("EaseFactor")
+                        .HasColumnType("REAL");
+
+                    b.Property<int>("Interval")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("LanguageCode")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LastReviewed")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("MedianLatencyMs")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Repetitions")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("System")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("TotalCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("UserProfileId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserProfileId");
+
+                    b.HasIndex("UserProfileId", "LanguageCode", "ContextCode", "CounterId", "System", "Bucket")
+                        .IsUnique();
+
+                    b.ToTable("NumberMasteryProgress", (string)null);
+                });
+
+            modelBuilder.Entity("SentenceStudio.Shared.Models.Numbers.NumberSubMode", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Phase")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Code")
+                        .IsUnique();
+
+                    b.ToTable("NumberSubMode", (string)null);
+                });
+
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
                 {

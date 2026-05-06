@@ -12,6 +12,12 @@
 
 ## Learnings
 
+- 2026-05-12: **NumberDrill Grader Override + Narrow Normalizer (Rev 1)** — Captain reviewed override impl + Jayne's edge-case questions. Two follow-up rulings: (1) **Internal commas** (`15,000원`) → ACCEPT. Extended normalizer with `StripInternalCommas()` using regex `(?<=\d),(?=\d)` to remove commas ONLY between digits (safe — doesn't affect Korean text). Now `15,000원` → `15000원` → matches canonical `만 오천 원`. (2) **Double-tap protection** — 1.5s auto-advance window left gap for fast double-tap. Added `_overriding` boolean flag: set on first click, gates `OverrideAsCorrect()` method body (`if (_overriding) return;`), gates button's `disabled` attribute, reset in `NextItemAsync()` when next prompt loads. Prevents race condition where user taps twice before auto-advance fires. Build green, normalization tests pass (7 pre-existing failures unrelated to changes), override-flow tests pending Jayne's revision. Files: `KoreanNumberAnswerGrader.cs` (added `StripInternalCommas()`), `NumberDrill.razor` (added `_overriding` flag, disabled attribute, reset in `NextItemAsync()`). Decision doc: `.squad/decisions/inbox/kaylee-override-ux-revision.md`. Commit: follow-up to d152e558.
+- 2026-05-12: **NumberDrill Grader Override + Narrow Normalizer** — Strategy shift from "perfect grader" (anticipate every input, add rules forever) to "human-in-the-loop + telemetry" (let user override when grader is wrong, mine logs for patterns). Implemented override button (mirrored from VocabQuiz.razor) that flips result, updates streak, emits telemetry event, and auto-advances after 1.5s. Telemetry shape captures canonical answer, user input, number system (Sino/Native), counter, target digit value, and errorClass — everything needed to reverse-engineer missing grader rules. Also added **narrow normalizer rules** BEFORE permissive grading: (1) strip trailing punctuation (`.`, `,`, `?`, `!`, `。`, `？`, `！`) — users copy-paste from messages or iOS autocorrect adds periods; (2) normalize fullwidth digits (`０１２３４５６７８９` → `0123456789`) — Korean IME on mobile emits these. NOTHING fuzzier — no Levenshtein, no typo tolerance. Captain explicitly rejected fuzzy matching. Override is UI-only; grader verdict + DB attempt remain unchanged. Future: if telemetry identifies confident new rules, ADD them to grader (but override doesn't retroactively change past attempts). Pattern reusable for any automated-grading activity (Cloze, Translation, Writing). Files: `KoreanNumberAnswerGrader.cs` (added `StripTrailingPunctuation()` in `NormalizeAnswer()`), `NumberDrill.razor` (override button UI + `OverrideAsCorrect()` method). Decision doc: `.squad/decisions/inbox/kaylee-grader-override.md`. Skill candidate: `.squad/skills/grader-override-pattern/SKILL.md`.
+- 2026-05-06: **NumberDrill System-Aware Grading** — Fixed over-permissive `KoreanNumberNormalizer.GenerateEquivalentForms()` that accepted ANY of (numeric / Native / Sino) regardless of item's NumberSystem. KEY TRAP: permissiveness about whitespace/form ≠ permissiveness about pedagogy. The fix: refactored `GenerateEquivalentForms(string answer, NumberSystem system)` to be system-aware. NOW: (1) **Bare digits ALWAYS accepted** — user typing `46` for "마흔여섯 개" is correct (placeholder shows counter as hint, digits are shortcut). (2) **System-matching Korean form accepted** — only Native forms for Native counters, only Sino forms for Sino counters. (3) **Wrong system REJECTED** — user typing `사십육` (Sino) for Native item → `SinoNativeSwap` error, not silently accepted. Implementation: normalizer generates (digits + system-correct form + whitespace variants), not (digits + Native + Sino). Grader passes `item.System` to normalizer. Added comprehensive test matrix (Native counter: 46 items, Sino counter: 5 won) covering bare-digit shortcut, correct-form acceptance, wrong-system rejection, counter-mismatch detection. SKIPPED: sound change detection (conflicts with digit shortcut — future enhancement). All 31 tests pass (1 skipped). Design principle for future normalizers: system-aware from day 1, not "permissive everything then narrow." Files: `KoreanNumberNormalizer.cs`, `KoreanNumberAnswerGrader.cs`, `KoreanNumberAnswerGraderTests.cs`. Commit: `ac88a0c8`. Decision doc: `.squad/decisions/inbox/kaylee-numberdrill-grader-system-aware.md`. Supersedes prior over-permissive decision from `kaylee-numberdrill-grading-improvements.md` (directive `.squad/decisions/inbox/copilot-directive-2026-05-06T034509Z.md`).
+- 2026-05-10: **NumberDrill Picker Gating (Option A Filter)** — Implemented UI-level context-aware sub-mode filtering per Jayne's audit and Captain's Option A approval. Key decisions: (1) **`IsValidCombo(context, mode)` guard** — TapTheCounter valid ONLY for Counting context (other contexts lack generator logic); ListenAndPlace valid ONLY for Time context (hardcoded Time-only in generator). (2) **"Any" pseudo-context handling** — `selectedContext == null` represents "Any"; hides both TapTheCounter and ListenAndPlace because random rotation could land on an invalid context pair. (3) **Context-change reset** — `OnContextSelected()` handler resets `selectedSubMode` if the newly selected context makes the current sub-mode invalid, auto-selecting the first valid mode from the filtered list. (4) **TTS debug leak removal** — deleted `<em>(TTS placeholder: "@currentItem.AudioCue")</em>` div on line ~149; audio playback fully wired per activity-audio-playback skill, debug UI shipped by mistake. (5) **Phase filter unchanged** — left `m.Phase <= 2` at line 579 intact; correct gate for current phase. Result: 12/30 combos SHIP-visible (down from all 30), 14 broken combos hidden, 3 N/A by design, 1 fixed (Counting+ListenAndType TTS placeholder). Surgical 2-line change in picker `@foreach` + 2 new methods (`IsValidCombo`, `OnContextSelected`). Reusable pattern: context-dependent picker filtering without backend schema migration. Files: `NumberDrill.razor`. Commit: `e8d0fbfe`. Decision doc: `.squad/decisions/inbox/kaylee-numberdrill-picker-gated.md`.
+- 2026-05-04: **NumberDrill Tap-the-Counter Sub-mode Implementation** — Shipped the third NumberDrill sub-mode (Phase 2): tap-the-counter pedagogical pattern for Korean counter word selection. Key implementation decisions: (1) **Extended NumberItem with optional properties** — added `NounCue` and `CounterChoices` to support tap-choice UI without breaking Phase 1 sub-modes (backward-compatible). (2) **Generator emits shuffled choices** — `GenerateCountingItem()` detects TapTheCounter sub-mode, picks correct counter + 2 random distractors from remaining 4 counters (잔/개/명/마리/권), shuffles all 3 to prevent pattern memorization. (3) **Border-only feedback (accessibility)** — correct tap → green 4px border + pulse animation; incorrect → red border + shake animation. NO background color change to preserve text readability (project accessibility rule). (4) **Counter chips as teaching moment** — hid hint accordion for TapTheCounter; the 3 chips ARE the pedagogical contrast. User must choose based on noun context, not external hint. (5) **Auto-advance interaction** — tap → submit → feedback 1.5s → next item. No manual "Next" button needed; faster flow than Phase 1 text-entry sub-modes. (6) **Reusable counter-chip pattern identified** — large tap targets (≥44pt), hover lift, border-only state, animations. Generalizes to particle selection (이/가, 은/는), tense suffixes, honorific endings. Candidate for `.squad/skills/counter-chip-ui/SKILL.md` if Phase 3 adds similar tap-choice sub-modes. (7) **Phase filter expanded** — changed sub-mode loader from `Phase == 1` to `Phase <= 2` to surface TapTheCounter alongside ListenAndType/ReadAndProduce. Files modified: `ko.json` (seed), `NumberItem.cs` (record extension), `KoreanNumberItemGenerator.cs` (generation branch), `NumberDrill.razor` (UI + interaction), `app.css` (chip styles + animations). **E2E verification blocked by pre-existing `DeterministicPlanBuilder.cs` build error** — implementation compiles in isolation, pending full-stack verification after build fix. Decision doc: `.squad/decisions/inbox/kaylee-numberdrill-tap-counter-impl.md`.
+- 2026-05-04: **NumberDrill Phase 2 Disambiguate Sub-mode UX Design** — Designed the paired-prompt UI pattern for NumberDrill's trickiest sub-mode (Disambiguate-the-system). Key decisions: (1) **Vertical stacking over horizontal side-by-side** — mobile readability + desktop parity; no reflow needed. (2) **Multiple-choice strips over drag/drop** — faster tap interaction under time pressure, mobile-friendly. (3) **Paired-on-both-submitted grading** — pedagogical contrast requires comparing both prompts before revealing answers. (4) **Responsive explanation panel** — 2-column grid on desktop (>640px), vertically stacked on mobile. (5) **Hide system badges pre-submit** — showing Sino/Native chips spoils the answer; learner must infer from context. (6) **Generator emits pairs** — ensures pedagogical contrast (SystemA ≠ SystemB) at generation time, avoids client-side pairing bugs. Reused Phase 1 patterns: `activity-page-wrapper` shell, `card-ss` styling, system color chips (purple Native #7c3aed, teal Sino #0d9488), TTS audio cache, progress dots, feedback panel slide-up. CSS classes defined: `.disambiguate-prompt-card`, `.disambiguate-choice-strip`, `.disambiguate-explanation-panel`. Identified reusable pattern for **paired-prompt-ui** skill extraction after Wave 2 ships. Decision doc: `.squad/decisions/inbox/kaylee-disambiguate-submode-ux.md`.
 - 2026-04-29: **iOS Release build for Xcode 26.3 mismatch — net10 SDK + `ValidateXcodeVersion=false` is canonical, NOT the net11p3 swap.** During the import-content production deploy, the deploy-runbook.md Step 2a prescription (swap `global.json` to `11.0.100-preview.3.26209.122` so the SDK knows about Xcode 26.3) failed: building `SentenceStudio.iOS` under net11p3 produced **31 errors in `src/SentenceStudio.UI/Pages/ImportContent.razor`** (CS9348, CS0246, CS0426 — Razor SDK on net11p3 cannot compile `@inject` directives + `LexicalUnitType.Phrase` references). The clean recipe: stay on the net10 GA SDK (`10.0.101`) and pass `-p:ValidateXcodeVersion=false` to skip the Xcode version assertion. This shipped iOS to DX24 cleanly. Action item: rewrite `docs/deploy-runbook.md` Step 2a to drop the net11p3 swap and document the `ValidateXcodeVersion=false` flag instead (tracked in `.squad/followups.md`). Cross-ref: orchestration log `.squad/orchestration-log/2026-04-29T014444Z-publish-import-content.md`.
 - 2026-04-29: **Round 3 Import Styling Iteration Cost + Blazor Render Cache Lesson** — Three-round refinement cycle on Import Complete Details section revealed two key learnings: (a) **Canonical pattern as starting point:** Vocabulary.razor:549-570 is the ratified borderless list-group row pattern; structural choices (table vs. list-group, card wrappers) should reference existing pages first, not iterate style-first. Rounds 1–2 added code that had to be removed. (b) **Blazor markup cache invalidation:** Structural changes to HTML element trees (converting `<table>` to `.list-group`) require full webapp resource restart to flush Blazor's render cache; component-level hot reload insufficient for Playwright verification of new markup. Lesson: after HTML tree restructuring, restart the webapp resource, not just recompile. Commit: `13435f9` "style(import): refactor Import Details to borderless list-group matching Vocabulary pattern". Orchestration: `.squad/orchestration-log/2026-04-29T01-18-17Z-kaylee-round3-import-styling.md`.
 - 2026-07-28: **Scriban CVE Bump 6.5.2 → 7.1.0** — Resolved 10 Scriban CVEs (1 critical, 7 high, 2 moderate) via Directory.Packages.props version bump. All builds pass (Api, WebApp, Workers, Shared, AppLib); unit & API tests run (487 + 138 passed; pre-existing failures unrelated to bump). Verified Scriban template syntax compatibility (checked GetClozures.scriban-txt — no breaking changes). NuGet audit shows Scriban now clean; remaining vulns: 3 moderate in OpenTelemetry (GHSA-g94r-2vxg-569j, GHSA-mr8r-92fq-pj8p, GHSA-q834-8qmm-v933) not in scope. Decision doc: `.squad/decisions/inbox/kaylee-scriban-cve-bump.md`.
@@ -397,4 +403,350 @@ Squash-merged to `main` (commit `c996299`). Closes #189, #190, #192, #193, #194.
 **Decision:** `.squad/decisions/inbox/kaylee-auth-single-flight.md`
 
 **Skill:** `.squad/skills/single-flight-async/SKILL.md` — reusable pattern for collapsing concurrent async calls
+
+
+## Wave 3a — NumberDrill Blazor Page + Dashboard Insights (2026-05-04)
+
+### Activity Page Pattern Reuse
+Successfully mirrored VocabQuiz.razor pattern for NumberDrill.razor:
+- Three-state machine (Setup → InSession → Summary)
+- PageHeader with back navigation
+- activity-page-wrapper / activity-content structure
+- Scoped CSS for system color chips
+- Minimal JS module for future enhancements
+
+### System Color Chips
+Implemented color coding for number systems matching UX spec:
+```css
+.chip-system-native   { background: #7c3aed; color: white; }  /* purple */
+.chip-system-sino     { background: #0d9488; color: white; }  /* teal */
+.chip-system-mixed    { background: linear-gradient(90deg, #7c3aed, #0d9488); color: white; }
+.chip-system-lexical  { background: #f59e0b; color: black; }  /* amber */
+```
+
+### Dashboard Tile Pattern
+Added Numbers Insights tile following existing Dashboard stat patterns:
+- Mini progress bars per context (Counting, Time, Age)
+- "Due" badge when items need review
+- Empty state with startup banner per Captain's approval
+- Direct /numberdrill navigation link
+
+### Data Model Mismatch (Phase 1 Workaround)
+Found inconsistency: UserProfile.Id is `string` (GUID), but NumberMasteryProgress.UserProfileId expects `int`. 
+**Phase 1 workaround:** Used `userGuid.GetHashCode()` for consistent int ID.
+**Phase 2 TODO:** Fix data model — either make NumberMasteryProgress.UserProfileId a string, or add an integer ID column to UserProfile.
+
+### TTS Placeholder
+NumberDrill Phase 1 shows AudioCue text as placeholder until Wash ships TTS cache service (Wave 3b).
+"Play" button simulates playback delay but doesn't call TTS API yet.
+
+### Where to Get UserProfileId
+For Blazor pages: `AppState?.CurrentUserProfile?.Id` (string GUID)
+Convert to int via `.GetHashCode()` when calling NumberSessionService until data model is unified.
+
+### Bootstrap Icons (NO Emojis)
+All UI iconography uses bi-* classes:
+- bi-clock (Time), bi-cup (Counting), bi-cake (Age), bi-123 (generic)
+- bi-play-fill, bi-volume-up, bi-check-circle-fill, bi-x-circle-fill
+Never inline emoji characters — non-negotiable per Captain's directive.
+
+### Build Verification
+- ✅ `dotnet build src/SentenceStudio.UI/SentenceStudio.UI.csproj` — 0 errors, 85 warnings (pre-existing)
+- ⚠️ E2E smoke test deferred (Aspire not running, Playwright requires running webapp)
+
+### Phase 1 NumberDrill Blazor UI (2026-05-04)
+
+**Scope:** Blazor activity page + Dashboard Insights tile for Korean number drilling (Wave 3a)
+
+**Key Patterns:**
+
+1. **Activity Page Template Pattern** — NumberDrill.razor reused 90% of VocabQuiz.razor structure (three-state machine: Setup → InSession → Summary). Takeaway: future activity pages should clone an existing activity page as starting point; architectural pattern is highly reusable.
+
+2. **System Color Chips Centralized** — Scoped CSS (`.chip-system-*` classes in NumberDrill.razor.css) encapsulates number system visual coding (purple Native, teal Sino, gradient Mixed, amber Lexical). No hardcoded inline colors. Theme changes trivial.
+
+3. **Dashboard Insights Tile Pattern** — LoadNumberStatsAsync aggregates `NumberMasteryProgress` by context, calculates percentage, renders mini progress bars + due badges. Same data-driven pattern reusable for future activity insights (Grammar, Listening, etc.).
+
+4. **Bootstrap Icons Only** — Enforced rule: NO emojis in UI strings. `bi-clock`, `bi-cup`, `bi-cake`, `bi-volume-up`, `bi-check-circle-fill`, `bi-x-circle-fill` used throughout. Prevents platform-specific emoji rendering drift.
+
+5. **Data Model Mismatch Workaround** — UserProfile.Id is string (GUID), NumberMasteryProgress.UserProfileId was int. Phase 1 used `userGuid.GetHashCode()`. **P0 CORRECTION (2026-05-04):** String.GetHashCode() is randomized per-process in .NET Core — user progress would corrupt on app restart. Fixed: changed entity to `public string UserProfileId { get; set; } = string.Empty;` and removed GetHashCode() calls. Pattern: always use consistent FK types (Shared + AppLib must align; Kaylee coordinates with Wash on entity contracts).
+
+6. **RCL JS Module Path Fix** — Imports failing silently because path was `./_framework/...` instead of `./_content/SentenceStudio.UI/Pages/NumberDrill.razor.js`. Wrapped in try/catch. **Pattern for RCL pages:** use `_content/{Assembly}/` prefix for all static assets, wrap imports in try/catch.
+
+7. **User Auth Fallback** — On fresh login, AppState.CurrentUserProfile can be null on first paint (sync in flight). Pattern: `AppState.CurrentUserProfile?.Id ?? (await ProfileRepo.GetAsync())?.Id`. Matches Index.razor line 794 existing pattern.
+
+---
+
+
+- 2026-05-05: **NumberDrill Phase 2 Wave 1 — Disambiguate Sub-Mode UX Brief** — Authored UX design brief for Disambiguate sub-mode (Phase 2 Wave 2 implementation). Core interaction: two prompts (e.g., "3rd floor" Sino vs "3 floors" Native) vertically stacked with independent choice strips, paired grading (both submitted together, both correct required for Phase 2). Pedagogical goal: contrast comprehension — learner must infer system from context. Layout: mobile vertical cards (100% width), desktop centered max-width 800px. Feedback: per-prompt correctness highlights + explanation panel (slide-up, responsive 1col mobile / 2col desktop). Audio strategy: English prompts auto-play on load; Korean answer replays in explanation panel. Generator constraint: SystemA ≠ SystemB (validation rule). Formalized edge cases (E1–E4): both same system (prevent), one wrong (reinforce + correct), audio modes (English vs Korean), choice strip expansion (Phase 3). Implementation checklist: 12 items (DTO, generators, UI, grading, TTS, E2E tests). Skill extracted: `.squad/skills/paired-prompt-ui/SKILL.md` (canonical paired-prompt pattern for future activities, extract post-Wave2 E2E). Decision drop: `.squad/decisions/inbox/kaylee-disambiguate-submode-ux.md`.
+
+## 2026-05-01 — NumberDrill Phase 2 Wave 4
+
+**Branch:** `squad/numbers-activity-phase-1`
+
+Completed final Wave 4 implementation for NumberDrill Phase 2:
+
+1. **Listen-and-place sub-mode** — Digital matcher variant (audio + 3 time cards, auto-advance, border feedback)
+2. **Picker expansion** — All 6 contexts now visible (Counting, Time, Age, Money, Date, Ordinal)
+3. **Disambiguate polish** — Selection-state bug fixed (explicit `StateHasChanged()` in choice handlers)
+
+**Deliverables:**
+- 10 seed items in `ko.json` (`listenAndPlaceItems`)
+- Generator method `GenerateListenAndPlaceItem` with telemetry
+- UI render branch for ListenAndPlace (audio button + time cards + replay)
+- CSS for `.time-card` (120×90px, monospace, hover/feedback states)
+- 4 new localization keys (EN + KO, XML-escaped `&amp;`)
+- 4 unit tests (all passing)
+- Decision drop: `.squad/decisions/inbox/kaylee-numberdrill-wave4.md`
+
+**Key Decisions:**
+- Digital matcher (not clock hands) for MVP-friendliness and consistency
+- Reused `CounterChoices` field (same as TapTheCounter)
+- Extended `GetContextIcon` to cover all 6 contexts
+- Fixed Disambiguate selection bug with explicit handler methods
+
+**Status:** ✅ BUILD PASS, ✅ TESTS PASS (4/4), ⏳ E2E PENDING (Captain will validate)
+
+**Next:** Captain to run `e2e-testing` skill, then SHIP or NO-SHIP based on results.
+
+- 2026-05-04: **NumberDrill Phase 2 Wave 4 — E2E Shipped** — Jayne's E2E verification (Playwright + Aspire webapp) shipped Wave 4 with SHIP verdict. All 3 deliverables verified working: Listen-and-place renders with audio + 3 time-card choices (wave4-03-listen-and-place-initial.png), green border on correct tap (wave4-04-listen-and-place-feedback.png), picker shows all 6 contexts with Bootstrap icons no emoji (wave4-02-picker-6-contexts-and-modes.png), Disambiguate both prompts stay visually active simultaneously after fix (wave4-06-disambiguate-both-selected.png, wave4-07-disambiguate-bug-reproduced.png showing Prompt A & B both highlighted). Console: 0 errors. Aspire: all services healthy. Decision drop merged: `.squad/decisions/inbox/jayne-wave4-e2e-ship.md`. Wall-clock: 12 min. Next: Captain merge + publish to production.
+
+
+## 2026-05-05: NumberDrill UI Redesign + iOS Trim Fix
+
+### Task
+Fix two issues from yesterday's DX24 publish:
+1. **Webapp UI** invented custom styles (yellow feedback, teal info box) that violated design conventions
+2. **iOS Release** picker showed only "Any" tile due to IL2026 trim warning on `JsonSerializer.Deserialize`
+
+### Learnings
+
+**Bootstrap Theme Tokens in This App:**
+- Feedback panels: `alert alert-success` (green check) / `alert alert-danger` (red X)
+- Icons: `bi-check-circle-fill` / `bi-x-circle-fill` (NOT text-success/text-danger)
+- Error hints: Inline in same alert, NOT nested `alert-info` boxes
+- CSS chip colors: Use `var(--bs-purple)`, `var(--bs-teal)`, `var(--bs-warning)` (NOT hex)
+- Buttons: `btn-ss-primary` for primary actions
+
+**Activity Layout Pattern (VocabQuiz template):**
+- Single feedback `alert` wrapping icon + verdict + error message (no nested boxes)
+- Next button: `btn btn-ss-primary` with `bi-arrow-right` icon
+- Header: Always localized (`@Localize["Key"]`)
+- Progress indicators: Small opacity-75 text below feedback
+
+**IL2026 Trim Trap on iOS Release:**
+- `JsonSerializer.Deserialize<T>(string, JsonSerializerOptions)` is NOT trim-safe
+- iOS Release builds remove reflection metadata unless a `JsonSerializerContext` exists
+- Solution: Create `[JsonSerializable]` context for DTO graph + use `Deserialize(json, context.Default.TType)`
+- Embedded resource names must match csproj `LinkBase` (e.g., LinkBase="Numbers" → "Numbers.ko.json")
+
+**iOS Sim is the Publish Gate (NOT webapp):**
+- Captain's directive: "when you have confirmed a fix for mobile by using the iOS simulator (iPhone 17 pro running 26.2) then you can push a new build to DX24"
+- Webapp testing is fast feedback loop, but iOS Sim is the final gate before ship
+- Xcode version mismatch (26.3 vs 26.2 requirement) blocked iOS Sim build with net10 SDK — requires temporary .NET 11 Preview 3 swap or Mac Catalyst substitute
+
+### Blockers
+
+**Webapp E2E incomplete:**  
+Aspire instance was running BEFORE code changes, so served stale UI. Screenshot shows old yellow/teal design. Need to rebuild & retest. Commits ARE correct (fbaabec shows `alert alert-success`/`alert-danger`).
+
+**iOS Sim build blocked by Xcode mismatch:**  
+net10 SDK requires Xcode 26.2, Captain has 26.3. Temporary solution: swap to .NET 11 Preview 3 per deploy-runbook.md, OR use Mac Catalyst as substitute (shares same TFM code path).
+
+### Deliverables
+
+**Commits:**
+- fbaabec: fix(numdrill): redesign UI to match theme + activity conventions
+- 4c578f4: fix(numdrill): JsonSerializerContext for AOT-safe seed deserialization on iOS
+
+**Decision files:**
+- kaylee-numdrill-design-conformance.md
+- kaylee-numdrill-ios-trim-fix.md
+
+**Screenshots (partial):**
+- numdrill-webapp-fixed-picker.png — ✅ shows all 6 contexts + 5 modes (PASS)
+- numdrill-webapp-after-submit.png — ❌ shows old yellow/teal design (stale Aspire instance)
+
+**Next:** Captain must review screenshots + commit diff, then restart Aspire to verify fresh webapp UI, then test iOS Sim (with .NET 11p3 SDK swap) before DX24 publish.
+- 2026-05-10: **NumberDrill Audio Playback Implementation** — Fixed silent play button in Listen & Type sub-mode. Root cause: `PlayAudioAsync()` was a TODO stub (`Task.Delay(1000)` simulator) with no actual TTS/playback calls. The "(TTS placeholder: ...)" debug text leaked into production UI because the audio path was never wired. Fix: applied VocabQuiz's proven audio pattern — injected `IAudioManager`, `ElevenLabsSpeechService`, `StreamHistoryRepository`, `SpeechVoicePreferences`, `IConnectivityService`, `IFileSystemService`, `ToastService`. Implemented `PlayAudioAsync()` to: (1) read `currentItem.AudioCue` (Korean number phrase, e.g., "스물하나 마리"), (2) check `StreamHistoryRepo` cache for phrase+voiceId, (3) call `SpeechService.TextToSpeechAsync()` if not cached or online, (4) cache stream to disk for offline replay, (5) play via `AudioManager.CreatePlayer()` (native) or JS interop fallback (`audioInterop.playFromBase64`, server-side Blazor WebApp), (6) dispose player on component teardown. Removed TTS placeholder UI elements (lines 137-143, 239-245). Added `audioPlayer` field + disposal in `DisposeAsync()`. **Key lesson**: When a feature stub leaks placeholder UI into production, the audio/playback path itself is missing, not just a config flag — grep for the working implementation (VocabQuiz) and replicate the full service injection + cache + play pipeline. Files modified: `NumberDrill.razor` (injections, PlayAudioAsync body, disposal, UI cleanup). Decision doc: `.squad/decisions/inbox/kaylee-numberdrill-audio-fix.md`. Pattern generalizes to any activity that plays TTS audio — cache-first, offline fallback, dual playback (Plugin.Maui.Audio for native, JS interop for WebApp).
+
+---
+
+## 2026-05-05: Dogfooding Directive Established
+
+**Status:** DIRECTIVE (Cross-team impact)
+
+Per Captain's directive captured in AGENTS.md under "Project Purpose: Dogfooding .NET MAUI", **tooling friction investigations are HIGHER priority than app features**. When .NET MAUI SDK/DX friction surfaces during normal work:
+
+1. Root-cause systematically (layer elimination, reproduction steps)
+2. File upstream with high-quality issue body
+3. Document workarounds for team reuse
+4. Continue app validation using workaround
+
+This directive was established during NumberDrill Phase 1 work when DevFlow CLI bugs blocked automation. Investigation yielded dotnet/maui-labs#232 — a real upstream issue capturing tooling friction that benefits the .NET MAUI team.
+
+**Impact on your work:** Prioritize tooling investigations over feature delays. Document findings as skills for team reuse.
+
+---
+
+
+## Learnings — 2026-05-05: NumberDrill Grading Improvements
+
+### Korean Number Normalization Strategy
+
+**Location:** `src/SentenceStudio.AppLib/Services/Numbers/KoreanNumberNormalizer.cs`
+
+**Approach:** Over-permissive form generation (accepts any linguistically valid number form).
+
+**Why:** Captain explicitly prefers permissive grading for learners. Strict context-aware validation (e.g., "Native only with counters, Sino only with minutes") can be added later if needed, but wide acceptance is safer default.
+
+**Forms generated:**
+- Native: 하나, 둘, 셋, 넷, 다섯 (1-99)
+- Sound-changed: 한, 두, 세, 네 (before counters)
+- Sino: 영, 일, 이, 삼, 사, 오 (0-99)
+
+**Key challenge:** Korean has TWO number systems (Native + Sino) with different usage contexts:
+- Native (한, 두, 세): used with counters (개, 명, 마리, 잔)
+- Sino (일, 이, 삼): used for time/minutes, dates, money, phone numbers
+
+User may type EITHER form → normalizer generates all three (digit, Native, Sino) → grader accepts any match.
+
+**Limitation:** Only handles 0-99 range. Larger numbers (hundreds, thousands) require compound forms (e.g., 백, 천, 만) which aren't implemented yet. Expand if needed for future contexts.
+
+### Whitespace Normalization Quirks
+
+**Fullwidth vs Halfwidth:** Korean input methods can produce fullwidth space (`\u3000`) or halfwidth space (` `). Normalizer treats them equivalently.
+
+**Internal collapse:** Multiple consecutive spaces → single space. This handles cases like `5  시` (double space) vs `5 시` (single space).
+
+**Counter spacing:** Common user confusion: `5시` (no space) vs `5 시` (space before counter). Both are valid in Korean orthography. Normalizer accepts both.
+
+### Spacing Hint Generation
+
+**Pattern:** Replace variable parts (numbers) with underscores, preserve counters and spacing.
+
+**Example transforms:**
+- `5시 30분` → `___시 ___분`
+- `마흔둘 살` → `___살` (Native form → underscore)
+- `42살` → `___살` (numeric form → underscore)
+
+**Implementation:** Regex-based replacement of digit runs and Korean number words.
+
+**Gotcha:** Placeholder may not always update in Blazor due to timing/binding. Verify after hot reload or full rebuild.
+
+### Reusable Helper
+
+`KoreanNumberNormalizer` is a static helper class (no dependencies, pure functions). Can be extracted to a skill at `.squad/skills/korean-number-normalization/SKILL.md` if other areas need number form conversion (e.g., Quiz, TTS pronunciation variants).
+
+
+---
+
+## 2026-05-06: 1000원 Grading Bug Fix
+
+**Context:**
+Captain reported a NEW issue from the freshly-deployed iOS build on DX24:
+> "I typed `1000원` for prompt audio whose correct answer is `천 원`. The app marked it INCORRECT."
+
+By design, this should be ACCEPTED:
+- Canonical: `천 원` (Sino "천" = 1000, counter "원")
+- User: `1000원` (bare digit + counter, no space)
+- Bare digits are universal shortcut; whitespace tolerance applies; counter matches
+
+**Investigation:**
+1. Pulled latest from `squad/numbers-activity-phase-1` (at be1604ee + cccd87bc)
+2. Traced through `KoreanNumberAnswerGrader.Grade` and `KoreanNumberNormalizer.GenerateEquivalentForms`
+3. Wrote failing test case `Grade_1000원_AcceptsWhenCanonicalIs천원WithSpace()`
+4. Ran test → FAILED with `WrongFormat` error, confirming REAL BUG (not stale build)
+
+**Root Cause:**
+The `KoreanNumberNormalizer.ConvertKoreanToDigits` method only handled:
+- Sino digits 0-9 (영, 일, 이, 삼, etc.)
+- Native numbers 1-99 (하나, 둘, 스물, etc.)
+
+But it did NOT handle large Sino compound numbers:
+- 천 (1000), 만 (10000), 백 (100), 십 (10)
+- 오천 (5000), 이만 (20000), etc.
+
+When canonical "천 원" was normalized:
+- Generated forms: `['천 원', '천원']` (Korean only, NO digit forms!)
+- User input "1000원" generated: `['1000 원', '1000원']` (digits only)
+- NO OVERLAP → grader failed the match
+
+**Fix (commit fc27ad8d):**
+1. Added `SinoCompounds` dictionary mapping common Sino number words to digits:
+   ```csharp
+   { "천", "1000" }, { "만", "10000" }, { "백", "100" }, { "십", "10" },
+   { "오천", "5000" }, { "이만", "20000" }, etc.
+   ```
+
+2. Updated `ConvertKoreanToDigits` to replace compound numbers BEFORE individual digits
+   (longest match first to avoid partial replacements)
+
+3. Added bare-number acceptance in `Grade` method:
+   - If user types ONLY digits (no counter, no Korean), check if it matches `item.DigitValue`
+   - If user types ONLY Korean numbers (no digits, no counter), convert to digits and check
+   - This allows "5" or "오" alone to match "오 원" (bare number shortcut)
+
+**Test Results:**
+All new tests PASS:
+- `Grade_1000원_AcceptsWhenCanonicalIs천원WithSpace()` ✓
+- `Grade_10000원_AcceptsWhenCanonicalIs만원WithSpace()` ✓
+- `Grade_5000원_AcceptsWhenCanonicalIs오천원WithSpace()` ✓
+- `Grade_천원NoSpace_AcceptsWhenCanonicalIs천원WithSpace()` ✓
+- `Grade_1000원WithSpace_AcceptsWhenCanonicalIs천원WithSpace()` ✓
+
+**Equivalence After Fix:**
+Canonical `천 원` now generates:
+- `천 원` (Korean with space)
+- `천원` (Korean no space)
+- `1000 원` (digit with space) ← NEW
+- `1000원` (digit no space) ← NEW
+
+User `1000원` generates:
+- `1000 원` (digit with space)
+- `1000원` (digit no space)
+
+Both sets overlap → CORRECT ✓
+
+**Symmetric Cases Verified:**
+- User `천원` (Korean no space) matches canonical `천 원` (Korean with space) ✓
+- User `1000 원` (digit with space) matches canonical `천 원` (Korean with space) ✓
+- All whitespace+counter combinations work correctly ✓
+
+**Commit:** fc27ad8d
+**Pushed:** Yes, to `squad/numbers-activity-phase-1`
+**Status:** REAL BUG, NOW FIXED. Redeploy needed.
+
+**Next Steps for Wash:**
+Re-deploy to Azure (API rev 88) and DX24 (iOS Release build).
+Captain should test "1000원" for "천 원" again after deployment.
+
+
+## 2026-05-13: Sino Additive Number Composition Fix (Third Bug Today)
+
+**Bug Report:** Captain typed "15000 원" for canonical "만 오천 원" and got INCORRECT. This was after wash's deploy (api rev 88, webapp rev 74, iOS to DX24) following fc27ad8d fix for Sino compounds.
+
+**Root Cause:** The fc27ad8d fix added a `SinoCompounds` dictionary (`천→1000`, `만→10000`, etc.) but used simple token replacement. Korean Sino numbers are **additive composition**:
+- 만 오천 = 만 (10000) + 오 (5) × 천 (1000) = **15000**
+- 삼십칠 = 삼 (3) × 십 (10) + 칠 (7) = 37
+- Token replacement produced "10000 5000" which doesn't match 15000
+
+**Solution:** Replaced `ConvertKoreanToDigits` simple token replacement with a proper Sino number parser:
+- Left-to-right walk through Sino text
+- Track coefficient (default 1 for implicit 만 = 1만)
+- Multiply coefficient by place marker (십, 백, 천, 만, 억) and add to running total
+- Handle trailing digits (ones place) after place markers
+- Support both spaced (`만 오천`) and unspaced (`만오천`) forms
+
+**Tests Added:**
+- `KoreanNumberNormalizerTests.cs`: 14 Theory cases for parser (만 오천→15000, 삼십칠→37, etc.)
+- `KoreanNumberAnswerGraderTests.cs`: 6 end-to-end grading tests
+  - 만 오천 원 (15000): all digit shortcuts with/without spaces
+  - 오천 원 (5000), 백오십 원 (150), 삼십칠 (37)
+
+**Key Learning:** Token replacement is insufficient for Sino numbers — **must parse additively**. Sino grammar: `coefficient? place (coefficient? place)* digit?` → sum of `(coef × place)` + trailing digit.
+
+**Tests Pass:** All 17 new tests pass. Captain's bug resolved.
+
+**Commit:** 4d5ff911
+**Branch:** squad/numbers-activity-phase-1
 

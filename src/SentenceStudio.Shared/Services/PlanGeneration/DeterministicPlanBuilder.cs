@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Data;
 using SentenceStudio.Shared.Models.DailyPlanGeneration;
 using SentenceStudio.Services.Progress;
 
@@ -111,6 +112,7 @@ public class DeterministicPlanBuilder
             vocabReview,
             sessionMinutes,
             today,
+            userProfile.Id,
             ct);
 
         var totalMinutes = activities.Sum(a => a.EstimatedMinutes);
@@ -428,6 +430,7 @@ public class DeterministicPlanBuilder
         VocabularyReviewBlock? vocabReview,
         int sessionMinutes,
         DateTime today,
+        string userProfileId,
         CancellationToken ct)
     {
         var activities = new List<PlannedActivity>();
@@ -512,20 +515,66 @@ public class DeterministicPlanBuilder
         }
 
         // STEP 4: Light closer (if time remains)
-        if (remainingMinutes >= 5 && skill != null)
+        if (remainingMinutes >= 5)
         {
-            activities.Add(new PlannedActivity
+            var closerActivity = await SelectCloserActivityAsync(skill, userProfileId, ct);
+            
+            if (closerActivity != null)
             {
-                ActivityType = "VocabularyGame",
-                ResourceId = null, // Vocabulary games use skill context
-                SkillId = skill.Id,
-                EstimatedMinutes = Math.Min(8, remainingMinutes),
-                Priority = priority++,
-                Rationale = "Light game activity to reinforce vocabulary in a low-pressure way"
-            });
+                activities.Add(new PlannedActivity
+                {
+                    ActivityType = closerActivity,
+                    ResourceId = null,  // Layer 1: Both NumberDrill and VocabularyGame are vocabulary-driven
+                    SkillId = closerActivity == "VocabularyGame" ? skill?.Id : null,
+                    EstimatedMinutes = Math.Min(8, remainingMinutes),
+                    Priority = priority++,
+                    Rationale = closerActivity == "NumberDrill"
+                        ? "Number drill to build automaticity with Korean number systems"
+                        : "Light game activity to reinforce vocabulary in a low-pressure way"
+                });
+            }
         }
 
         return activities;
+    }
+
+    /// <summary>
+    /// Selects the closer activity for STEP 4. Returns "NumberDrill" when numbers are due,
+    /// "VocabularyGame" when a skill is available, or null if no closer is appropriate.
+    /// </summary>
+    private async Task<string?> SelectCloserActivityAsync(
+        SkillInfo? skill,
+        string userProfileId,
+        CancellationToken ct)
+    {
+        // Check if NumberDrill is due (any NumberMasteryProgress row with DueDate <= tomorrow)
+        // Resolve scoped ApplicationDbContext from a service scope (this class is registered Singleton).
+        var tomorrow = DateTime.UtcNow.AddDays(1);
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var numbersDue = await db.NumberMasteryProgresses
+            .AnyAsync(p =>
+                p.UserProfileId == userProfileId
+                && p.DueDate <= tomorrow, ct);
+        
+        if (numbersDue)
+        {
+            _logger.LogInformation("Numbers are due — selecting NumberDrill for STEP 4 closer: userProfileId={UserProfileId}",
+                userProfileId);
+            return "NumberDrill";
+        }
+        
+        // Fallback: VocabularyGame if skill exists
+        if (skill != null)
+        {
+            _logger.LogInformation("No numbers due — selecting VocabularyGame for STEP 4 closer: userProfileId={UserProfileId}",
+                userProfileId);
+            return "VocabularyGame";
+        }
+        
+        _logger.LogInformation("No skill and no numbers due — skipping STEP 4 closer: userProfileId={UserProfileId}",
+            userProfileId);
+        return null;
     }
 
     private PlanNarrative BuildNarrative(

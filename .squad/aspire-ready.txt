@@ -1,0 +1,36 @@
+ASPIRE ENVIRONMENT READY
+========================
+Timestamp: 2026-05-05 20:37 (approx)
+Status: HEALTHY
+
+Dashboard URL: https://localhost:17017/
+Dashboard Port: 22070
+
+API Service (SentenceStudio.Api)
+---------------------------------
+HTTP:  http://localhost:5081
+HTTPS: https://localhost:7012
+Health Check: /health → HEALTHY ✓
+PID: 79473
+
+AppHost Process
+---------------
+PID: 79337
+Binary: /Users/davidortinau/work/SentenceStudio/src/SentenceStudio.AppHost/bin/Debug/net10.0/SentenceStudio.AppHost
+
+DCP Process
+-----------
+Main PID: 79409 (dcp start-apiserver)
+Monitor PIDs: 79463, 79462, 79459, 79453 (dcp monitor-process)
+
+Notes for Jayne (Mac Catalyst)
+-------------------------------
+The backend is running and healthy. Mac Catalyst should use:
+- services__api__https__0=https://localhost:7012
+
+If you need to restart Aspire:
+1. Kill processes carefully (see .squad/skills/aspire-orphan-recovery/)
+2. cd src/SentenceStudio.AppHost && aspire run
+
+Recovery completed by: Wash
+No orphan processes found - environment was already clean.

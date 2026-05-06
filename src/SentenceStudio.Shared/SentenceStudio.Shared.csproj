@@ -38,6 +38,11 @@
 		<EmbeddedResource Include="..\..\docs\release-notes\*.md" LinkBase="ReleaseNotes" />
 	</ItemGroup>
 
+	<!-- Number drill seed content (procedurally-generated activity, not a learning resource) -->
+	<ItemGroup>
+		<EmbeddedResource Include="..\..\lib\content\numbers\*.json" LinkBase="Numbers" />
+	</ItemGroup>
+
 	<ItemGroup>
 		<PackageReference Include="CommunityToolkit.Mvvm" />
 		<PackageReference Include="CoreSync.Http.Client" />

@@ -5,7 +5,69 @@
 - **Stack:** .NET 10, MAUI, Blazor Hybrid, MauiReactor (MVU), .NET Aspire, EF Core, SQLite, OpenAI
 - **Created:** 2026-03-07
 
-## Learnings
+## 2026-05-04 — Korean Number Generation & Grading (Phase 1)
+
+**Session:** Numbers Activity — Generator + Grader Phase 1  
+**Status:** ✅ Shipped — All tests passing (33/33)  
+**Deliverable:** `src/SentenceStudio.AppLib/Services/Numbers/`
+
+### Implementation Summary
+
+Created pure deterministic (NO LLM) Korean number item generator and grader for Phase 1 contexts:
+
+**Generator (`KoreanNumberItemGenerator`):**
+- 3 contexts: Counting (Native + 5 counters), Time (Mixed 12-hour), Age (Native + 살)
+- Sound-change rules encoded:
+  - 하나→한, 둘→두, 셋→세, 넷→네 (ONLY standalone before counter, NOT in compounds like 스물하나)
+  - 스물→스무 (ONLY at exactly 20, NOT 21-29)
+- Phase 1 range: 1–99 (buckets "1-10", "11-99")
+- Deterministic via optional `RandomSeed` for testability
+
+**Grader (`KoreanNumberAnswerGrader`):**
+- Permissive normalization: whitespace, full-width digits, spacing tolerance
+- 7 error classes: `SinoNativeSwap`, `CounterMismatch`, `SoundChangeMissed`, `MagnitudeOff10x`, `Typo`, `WrongFormat`, `Unknown`
+- Every wrong answer gets specific `ErrorClass` + pedagogical `Tip`
+- Levenshtein distance for typo detection
+- Counter mismatch prioritized over Sino/Native swap (prevents false positives)
+
+**Tests (33 passing):**
+- Generator: each context happy path, all sound-change rules, bucket assignment, determinism
+- Grader: exact match, alternates, all error classes, normalization, edge cases
+
+**DI Registration:** Added to `CoreServiceExtensions.cs`
+
+**Coordination:** Wash's `NumberSystem` enum (Native/Sino/Mixed/Lexical) reused; added `Mixed` variant.
+
+### Learnings
+
+1. **Korean sound-change rules are CONTEXT-DEPENDENT:**
+   - 둘→두 applies standalone (두 명), NOT compounded (스물둘 살, 열둘 시)
+   - 스물→스무 ONLY at exactly 20 (스무 살), NOT 21-29 (스물하나 살)
+   - Compounds (열하나, 스물하나) keep full forms
+
+2. **ErrorClass taxonomy for grading:**
+   - `SinoNativeSwap`: wrong number system (Sino vs Native)
+   - `CounterMismatch`: wrong counter (개 vs 명)
+   - `SoundChangeMissed`: missed obligatory sound change (둘 명 → 두 명)
+   - `MagnitudeOff10x`: magnitude error (520 vs 5200)
+   - `Typo`: single-character Levenshtein distance
+   - `WrongFormat`: Hangul when digits expected or vice versa
+   - `Unknown`: catch-all with canonical answer
+
+3. **Grader error-classification priority order matters:**
+   - Check `CounterMismatch` FIRST (before Sino/Native) to avoid false positives when both counter and system are wrong
+   - Then `SinoNativeSwap`, then `SoundChangeMissed`, then magnitude/typo/format/unknown
+
+4. **Generalization path for Japanese/Mandarin/Spanish:**
+   - Same `INumberItemGenerator` interface, language-specific strategies
+   - Japanese: 音/訓 dual systems (similar to Korean), ~150 counters, euphonic changes (一本/三本/六本 rendaku)
+   - Mandarin: single system + classifiers, 一/不 tone sandhi as automaticity bottleneck
+   - Spanish: single system, gender/number agreement on ordinals + uno, apocope (uno→un, ciento→cien)
+   - Core grader logic reusable; error-class taxonomy stays the same (swap sound-change rules for tone sandhi, agreement, etc.)
+
+### Architecture
+
+
 
 - 2026-04-23: **Word/Phrase Feature Completed** — Completed ai-generation-emit todo: updated ExtractVocabularyFromTranscript.scriban-txt prompts with LexicalUnitType classification guidance (Korean-specific rules for Word vs. Phrase vs. Sentence). Added LexicalUnitType + RelatedTerms fields to ExtractedVocabularyItem DTO with [Description] attributes. Updated ToVocabularyWord() mapper to copy classification to entity and encode RelatedTerms as `constituents:term1,term2` hint in Tags. Feature shipped, 147 tests passing. Documented in `.squad/log/2026-04-23T2219Z-wordphrase-squad-wrap.md`.
 - `GradeMyDescription.scriban-txt` already includes `vocabulary_analysis` in its JSON schema — no template change needed when wiring Scene vocabulary scoring
@@ -91,3 +153,159 @@ Zoe's M.E.AI 10.5 strategic recommendations executed via three-agent orchestrati
 
 
 - 2026-05-01: **Import Confidence Calibration Fix (bug4-ai-confidence)** — Fixed AI classifier always returning ≥0.85 confidence. Root cause: dual-prompt situation where inline `BuildClassificationPrompt()` was active but my comprehensive `ClassifyImportContent.scriban-txt` was written but never wired. The inline prompt lacked concrete confidence anchors — it told the AI "≥0.85 = strong signals, 0.70-0.84 = mixed, <0.70 = ambiguous" but didn't define what "strong" or "mixed" means with concrete examples. Solution: (1) wired the Scriban template to replace inline prompt, (2) added explicit 5-band rubric with concrete signal examples per band (0.95+ = perfect CSV, 0.85-0.94 = minor ambiguity, 0.70-0.84 = mixed, 0.50-0.69 = uncertain, <0.50 = noise/code snippets), (3) strengthened DTO `[Description]` attributes to emphasize "USE THE FULL RANGE — do NOT cluster at 0.85+", (4) added guard rails (short samples cap at 0.80, any garbage lines cap at 0.60). Key learning: **AI prompt calibration requires CONCRETE EXAMPLES not abstract qualitative guidance.** Vague rubrics like "strong signals" cause score clustering because the model has no anchors. Decision drop at `.squad/decisions/inbox/river-import-confidence-calibration.md`.
+
+### Phase 1 Korean Number Generator & Grader (2026-05-04)
+
+**Scope:** Deterministic rule-based generator + 7-class grader (Wave 4)
+
+**Key Patterns:**
+
+1. **Rule-based Generation > LLM** — Korean numbers are procedural (Sino/Native system selection, sound morphology, counter association). LLM would add latency/cost/hallucination. Deterministic rules + offline capability essential. Generator designed for future Japanese/Mandarin/Spanish plug-ins by isolating language-specific logic.
+
+2. **Sound-Change Rule Context Dependency** — Korean morphophonology is subtle:
+   - `둘→두` applies ONLY standalone (두 명), NOT in compounds (스물둘, 열둘)
+   - `스물→스무` ONLY at exactly 20 (스무 살), NOT 21-29 (스물하나 살)
+   - Compounds keep full forms
+   - Ruleset must encode context predicates, not just target → replacement mappings
+
+3. **Error-Class Taxonomy Enables Pedagogy** — 7 classes (SinoNativeSwap, CounterMismatch, SoundChangeMissed, MagnitudeOff10x, Typo, WrongFormat, Unknown) with prioritized detection order. CounterMismatch checked FIRST to prevent false positives when both counter and system are wrong. Every error class has a pedagogical tip (e.g., "Native is used with counters" for SinoNativeSwap).
+
+4. **Permissive Normalization + Exact Validation** — Grader accepts spacing variants, full-width digit conversion, case-insensitive matching. BUT accepts associations (alternates list), never penalizes spelling without corrected_text via CanonicalAnswer field. Typo detection via Levenshtein distance.
+
+5. **Interface-First Design for Generalization** — `INumberItemGenerator` and `INumberAnswerGrader` interfaces keep language-specific implementations isolated. Core grader, normalization, and error taxonomy reused. Per-language plug-ins override sound-change rules (tone sandhi for Mandarin, rendaku for Japanese, apocope for Spanish).
+
+6. **Determinism Via RandomSeed** — Same seed → same output. Enables testability: iteration over seeds 0–1000 to find specific values (e.g., "find a seed that produces 스물 in Age context").
+
+---
+
+### Phase 2 NumberDrill Seed Expansion (2026-05-04)
+
+**Scope:** Extended `lib/content/numbers/ko.json` with Money, Date, Ordinal contexts
+
+**Deliverables:**
+1. Three new context entries: Money (Sino, 💰), Date (Sino, 📅), Ordinal (Native, 🏆)
+2. `contextNotes` metadata section with irregular month flags and ordinal pattern documentation
+
+**Key Learnings:**
+
+1. **Korean Date Irregularities Must Be Explicit** — Month 6 is 유월 (NOT 육월), month 10 is 시월 (NOT 십월). These irregular forms must be flagged in seed metadata so the generator can:
+   - Use correct forms in item generation
+   - Detect learner errors (e.g., "육월" when "유월" expected) as a dedicated error class
+   - Provide pedagogical tips ("June uses irregular form 유월")
+
+2. **Money Place-Value Grouping Is Cultural** — Korean groups by 4 digits (만 = 10,000; 억 = 100,000,000) vs. Western 3-digit grouping (thousand, million). Seed includes explicit place-value mappings (만: 10000, 억: 100000000) and sample ranges with conversational contexts (커피 = 3천 원, 월세 = 백만 원). This enables generator to teach Korean-native thinking patterns, not transliterated Western ones.
+
+3. **Ordinal Dual-Pattern Requires Contextual Selection** — Korean ordinals have two productive patterns:
+   - **Native + 째** (첫째, 둘째, 셋째…) for ranking/birth-order/sequence
+   - **Native + 번째** (첫 번째, 두 번째, 세 번째…) for occurrences/"Nth time"
+   - 첫째 is irregular (NOT 하나째) — similar to Time's 한 시 irregularity
+   - Generator needs to bias by sub-mode: Ranking contexts → 째; Occurrence contexts → 번째
+
+4. **Schema Extension via `contextNotes` Section** — Phase 1 seed had no extensibility for context-specific metadata (only generic `counters` array). Phase 2 adds `contextNotes` as a top-level object keyed by context code. This allows:
+   - Irregular forms (Date.irregularMonths)
+   - Sample data with semantic context tags (Money.ranges[].context)
+   - Multi-pattern documentation (Ordinal.patterns)
+   - Notes field for generator implementer guidance
+   - NO DTO change required — seeder ignores unknown fields, generator reads raw JSON for context-specific logic
+
+5. **Embedded Resource Verification Pattern** — After extending seed:
+   - Validate JSON syntax (python3 -m json.tool)
+   - Build Shared project to confirm embedded resource inclusion
+   - Check for deserialization errors in seeder (would manifest as "Failed to deserialize" log warning)
+   - Phase 2 extension passed all three gates — no schema regression
+
+**Coordination:**
+- Wash will implement Money/Date/Ordinal generation logic in `KoreanNumberItemGenerator.cs` (next Phase 2 todo)
+- Jayne will test irregular month detection and ordinal pattern disambiguation (Phase 2 validation suite expansion)
+- Captain approved icon choices (💰/📅/🏆) and defaultSystem assignments (Sino/Sino/Native)
+
+**Implications:**
+- NumberDrill is now A1-A2 complete for Korean numbers (Counting/Time/Age/Money/Date/Ordinal = 6 contexts)
+- Phase 3 day-counts (하루/이틀/사흘) deferred per Captain's decision — dual-home with VocabularyWord, not a number context
+- Generalization path to Japanese/Mandarin/Spanish now has ordinal exemplar (Korean 째/번째 ≈ Spanish -o/-a gender + placement variants)
+
+---
+
+
+
+- 2026-05-05: **NumberDrill Phase 2 Wave 1 — Content Seed Expansion** — Extended `lib/content/numbers/ko.json` with three new contexts for Phase 2: Money (💰, Sino, sortOrder 40), Date (📅, Sino, sortOrder 50), Ordinal (🏆, Native, sortOrder 60). Introduced `contextNotes` schema extension (top-level object with context-specific metadata) for generator/grader consumption — backward-compatible (seeder ignores unknown fields). Money: place values (만, 억), ranges (100원–1M원), particle (원). Date: irregular months (유월/시월), all 12 months with romanization, holidays, year format. Ordinal: dual patterns (째 for ranking, 번째 for occurrences), irregularity (첫째). Build validated ✓. Generalization path: contextNotes schema reusable for Japanese (phonetic variants), Mandarin (currency variants), Spanish (gender agreement). Handoff: Wash implements generators + graders (Money/Date/Ordinal item generation + new error classes), Kaylee implements Disambiguate generator for paired prompts. Day-counts explicitly deferred to Phase 3 (lexical, not productive pattern). Decision drop: `.squad/decisions/inbox/river-numberdrill-phase2-seed.md`.
+
+
+## Phase 2 NumberDrill Generator Extension (2026-05-04)
+
+**Scope:** Extended `KoreanNumberItemGenerator` with Money, Date, Ordinal contexts
+
+**Deliverables:**
+1. Three new generator methods: `GenerateMoneyItem()`, `GenerateDateItem()`, `GenerateOrdinalItem()`
+2. Extended `NumberItem` record with `ErrorClassHints` dictionary for Phase 3 Insights
+3. Helper methods: `ConvertToSinoMoney()`, `ConvertToSinoYear()`
+4. 17 new unit tests (35 total, all passing)
+
+**Key Learnings:**
+
+1. **Money Place-Value Grouping Is Cultural** — Korean groups by 4 digits (만 = 10,000; 억 = 100,000,000) vs. Western 3-digit grouping. The `ConvertToSinoMoney()` method must NOT add spaces within compounds:
+   - ✅ CORRECT: "십만" (100,000 = 십 x 만)
+   - ❌ WRONG: "십 만" (treated as separate words)
+   - Between place-value groups: "만 오천" (15,000) uses spaces
+   - Seed contextNotes.Money.placeValues maps {만: 10000, 억: 100000000} for clarity
+
+2. **Date Irregulars Are Non-Negotiable** — Month 6 (유월) and month 10 (시월) are irregular and MUST be hardcoded:
+   - 6월 → 유월 (NOT 육월) — euphonic change to avoid double ㄱ sounds
+   - 10월 → 시월 (NOT 십월) — similar euphonic reason
+   - Generator reads `contextNotes.Date.irregularMonths` for these special cases
+   - Error-class hint: `wrong_form_for_month_6_or_10` flags likely learner confusion
+
+3. **Ordinal Dual-Pattern Requires Contextual Selection** — Korean ordinals have two productive patterns:
+   - **Native + 째** (첫째, 둘째, 셋째…) for ranking/birth-order/sequence (60% generation weight)
+   - **Native + 번째** (첫 번째, 두 번째, 세 번째…) for occurrences/"Nth time" (40% generation weight)
+   - 첫째 / 첫 번째 are irregular (NOT 하나째 or 하나 번째)
+   - 번째 pattern is SPACED ("첫 번째") while 째 pattern is NOT ("첫째")
+   - Generator sets `Bucket` to "rank" or "occurrence" for telemetry
+
+4. **Error-Class Hint Metadata Schema** — Phase 2 introduces `ErrorClassHints` dictionary on `NumberItem` for future grader/telemetry enhancements:
+   - Money: `likely_error: "place_value_grouping_4digit_vs_3digit"` when value ≥ 10,000
+   - Date: `likely_error: "wrong_form_for_month_6_or_10"` for irregular months
+   - Ordinal: `likely_error: "rank_vs_occurrence_confusion"` + `pattern: "째"|"번째"`
+   - Grader can consume these hints in Phase 3 to give targeted pedagogical feedback
+   - Metadata is optional (`ErrorClassHints: null` for simple cases like small money amounts)
+
+5. **Test Coverage Strategy for Irregular Forms** — Phase 1 tests used seed iteration (0–1000) to find specific values. Phase 2 continues this pattern but adds irregular-specific assertions:
+   - Money: test small/medium/large buckets + 만 boundary error hint
+   - Date: test regular month (January) + both irregulars (June, October) + calendar validity (no Feb 30)
+   - Ordinal: test both patterns (째, 번째) + 첫째/첫 번째 special case
+   - All 17 new tests pass on first run after fixing 십만 spacing
+
+6. **Generator Determinism Preserved** — All three new generators accept `RandomSeed` for testability. Same seed → same output across contexts. This enables test discoverability: iterate seeds to find edge cases like "generate irregular month 10" without hardcoding seed values in production code.
+
+**Coordination:**
+- Wash implemented generator logic as specified
+- Jayne will add Phase 3 grader error-class detection (consume ErrorClassHints)
+- Captain approved error-class hint schema and test coverage
+
+**Implications:**
+- NumberDrill Phase 2 complete: 6 contexts (Counting/Time/Age/Money/Date/Ordinal) cover A1-A2 Korean number curriculum
+- Generator is ready for Phase 3 grader enhancements (irregular-aware error detection)
+- Error-class hint pattern is generalizable to Japanese 音/訓 irregulars, Mandarin tone sandhi, Spanish apocope
+
+---
+
+
+---
+
+## 2026-05-05: Dogfooding Directive Established
+
+**Status:** DIRECTIVE (Cross-team impact)
+
+Per Captain's directive captured in AGENTS.md under "Project Purpose: Dogfooding .NET MAUI", **tooling friction investigations are HIGHER priority than app features**. When .NET MAUI SDK/DX friction surfaces during normal work:
+
+1. Root-cause systematically (layer elimination, reproduction steps)
+2. File upstream with high-quality issue body
+3. Document workarounds for team reuse
+4. Continue app validation using workaround
+
+This directive was established during NumberDrill Phase 1 work when DevFlow CLI bugs blocked automation. Investigation yielded dotnet/maui-labs#232 — a real upstream issue capturing tooling friction that benefits the .NET MAUI team.
+
+**Impact on your work:** Prioritize tooling investigations over feature delays. Document findings as skills for team reuse.
+
+---
+

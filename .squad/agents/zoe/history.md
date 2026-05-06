@@ -7,6 +7,9 @@
 
 ## Learnings
 
+- 2026-05-05: **NumberDrill Context × Sub-Mode Gating Policy — SupportedSubModes Matrix** — Designed gating mechanism for incomplete activity sub-mode combinations. CHOICE: Add `SupportedSubModes` JSON list field to `NumberContext` model (data-driven, not code-driven; preserves shipped seed rows; survives re-seeding; no feature-flag infrastructure). Picker filters dynamically at load time. Re-enable via 1-line JSON edit (no migration). Quality gate: 7 acceptance criteria (picker, start, render, success turn, failure turn, audio if applicable, no stubs) × 3 platforms (Mac Catalyst, iOS sim, webapp). Ownership routing: UI/Razor → Kaylee, Generator → River/Wash, Audio → Kaylee, Progress → Wash. N/A vs Deferred guidance: N/A = pedagogically incompatible for this language (hide permanently for Korean, revisit for Japanese in Phase 4); Deferred = unshipped feature dependency (ASR, Phase 3). Pattern is reusable for any multi-mode activity (Quiz variants, Shadowing contexts, Pronunciation drills). Estimated velocity: schema + picker + seed = 1 day, audit = 2 days, gate-to-ship = 3 days parallelized. Prevents stub leakage while preserving low-friction re-enable path. (See `.squad/decisions/inbox/zoe-numberdrill-gating-policy.md` for full spec.)
+
+- 2026-05-05: **DeterministicPlanBuilder slot replacement architecture for NumberDrill Phase 2** — Existing STEP 4 "closer" slot (VocabularyMatching) uses `ResourceId = null` + `SkillId` pattern. NumberDrill replaces it when `NumberMasteryProgress.DueDate <= DateTime.UtcNow.AddDays(1)`. Found non-determinism issue: `SelectInputActivity()` uses `Guid.NewGuid()` tiebreaker (line 745) while `SelectOutputActivity()` uses deterministic `HashCode.Combine(DateTime.Today, a)` (line 769) — inconsistency documented, fix deferred per Captain guidance "keep scope tight." 4-layer ResourceId decoupling pattern now applied to 3 activities (Quiz, Matching, Cloze) with NumberDrill as 4th; pattern is reusable skill candidate. Enum PlanActivityType has no exhaustive switches (all use `_ =>` default), so adding value 11 is safe. PlanConverter uses enum-to-key mapping (compile-time) to avoid AI snake_case localization mismatches.
 - 2026-04-17: **Help Flyout Wiring Pattern** — Dynamic IHelpKit reflection to keep UI project portable (net10.0-browser, no MAUI refs). Runtime type detection via `Type.GetType()` + method invocation; graceful degrade if HelpKit absent (WebApp). Used in NavMenu.razor for both MAUI (Help visible) and WebApp (Help hidden).
 - 2026-04-17: **HelpKit Alpha shipped** — library, RAG pipeline, storage, 3 samples, eval harness, CI, docs all delivered.
 - 2026-05-03: **AGENTS.md updated with auth-persistence cycle lessons** — Added three entries from May 2-3 auth fix cycle: (1) Mac Catalyst keychain-access-groups entitlement gotcha (NSPOSIXErrorDomain 163 from `$(AppIdentifierPrefix)` not substituting under ad-hoc Debug signing — solution: omit the entitlement entirely), (2) Mandatory `scripts/post-deploy-validate.sh` step after `azd deploy` (inserted as Step 2 in Publish Workflow), (3) References to single-flight async pattern (`.squad/skills/single-flight-async/SKILL.md`), EF dual-provider migrations, and async single-flight testing skills in new "Async Patterns" section. Skipped Catalyst bundle symlink (already handled by permanent MSBuild target per zoe-maccatalyst-symlink-permanent.md).
@@ -92,3 +95,25 @@ Zoe's M.E.AI 10.5 strategic recommendations executed via three-agent orchestrati
 
 
 - 2026-05-02: **MSBuild post-build symlink for Aspire.Hosting.Maui bundle-name mismatch** — Hooked `AfterTargets="Build"` on `SentenceStudio.MacCatalyst.csproj`, gated to `net10.0-maccatalyst`. Used `$(_AppBundleName)` (from MAUI/Xamarin Shared SDK, populated by `_GenerateBundleName`) as the source-of-truth for the produced bundle name. Quirk: `$(OutputPath)` for Mac Catalyst already includes the RID segment (`bin/$(Config)/net10.0-maccatalyst/maccatalyst-arm64/`), so do NOT append `$(RuntimeIdentifier)` — first attempt produced a doubled `maccatalyst-arm64/maccatalyst-arm64/` path and the `Exists()` guard silently skipped the `Exec`. Verified diag-level MSBuild log to catch this. Final target uses `ln -sfn` for idempotence and skips when names match. Survives `dotnet clean` + rebuild.
+
+- 2026-05-05: **NumberDrill Phase 2 Wave 1 — Plan Integration Architecture** — Led architecture decision for Phase 2 plan integration: NumberDrill replaces VocabularyMatching in DeterministicPlanBuilder STEP 4 when numbers are due (within +1 day). Key findings: (1) PlanActivityType enum has no exhaustive switches (all use `_ =>` defaults) — safe to add value 11, (2) 4-layer ResourceId decoupling pattern extends to 3rd activity (follows Quiz/Matching/Cloze), (3) Non-determinism in SelectInputActivity (uses Guid.NewGuid() vs SelectOutputActivity HashCode.Combine) — defer per Captain guidance, (4) Backward compatibility verified (new enum won't collision). 4-layer pattern extracted to `.squad/skills/resourceid-decoupling/SKILL.md` for future vocab-driven activities. Handoff: Wash (plan integration + resource decouple), Kaylee (Disambiguate UI Wave 2), Jayne (test suite Wave 3), Localize (keys). Architecture decision document: `.squad/decisions/inbox/zoe-numberdrill-plan-integration-arch.md` (6 sections + 2 appendices + open questions for Captain).
+
+---
+
+## 2026-05-05: Dogfooding Directive Established
+
+**Status:** DIRECTIVE (Cross-team impact)
+
+Per Captain's directive captured in AGENTS.md under "Project Purpose: Dogfooding .NET MAUI", **tooling friction investigations are HIGHER priority than app features**. When .NET MAUI SDK/DX friction surfaces during normal work:
+
+1. Root-cause systematically (layer elimination, reproduction steps)
+2. File upstream with high-quality issue body
+3. Document workarounds for team reuse
+4. Continue app validation using workaround
+
+This directive was established during NumberDrill Phase 1 work when DevFlow CLI bugs blocked automation. Investigation yielded dotnet/maui-labs#232 — a real upstream issue capturing tooling friction that benefits the .NET MAUI team.
+
+**Impact on your work:** Prioritize tooling investigations over feature delays. Document findings as skills for team reuse.
+
+---
+

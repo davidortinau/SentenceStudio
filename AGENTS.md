@@ -11,6 +11,21 @@ Please call me Captain and talk like a pirate.
 
 This is a .NET MAUI project that targets mobile and desktop.
 
+## Project Purpose: Dogfooding .NET MAUI
+
+**SentenceStudio's PRIMARY purpose is dogfooding the .NET MAUI SDK and developer experience.** The shipping app is the vehicle; surfacing and fixing tooling friction is the destination. This affects how Squad prioritizes work.
+
+**Tooling friction takes priority over app features.** When ANY .NET MAUI / Aspire / MauiDevFlow / Hot Reload / Blazor Hybrid / build-tool friction is encountered during normal app work, the investigation of that friction is MORE important than the app task that surfaced it. Do not power through. Do not pivot platforms to avoid the issue. Do not ask Captain to manually drive UI clicks because automation broke — that's a workaround, not an investigation.
+
+**Required outcomes (in priority order):**
+1. **Root cause + local fix** verified with a local build, PR opened against the dependency.
+2. **OR** a new upstream issue filed (dotnet/maui, dotnet/aspire, microsoft/dotnetdevflow, etc.) with a minimal repro project + exact steps + observed-vs-expected behavior.
+3. **OR** an existing upstream issue identified that matches the failure, with our reproduction added as a comment if it adds new signal.
+
+**Token and turn budget for tooling investigations is unlimited.** Burn as many parallel agents and as many turns as needed.
+
+**Recurring friction = capture, root-cause, share.** If something blocks a Squad member twice, treat it as a bug — even if a workaround exists. The job is to make the next developer's experience better than ours was.
+
 ## Documentation
 
 **IMPORTANT: All documentation files (summaries, guides, technical specs, etc.) must be placed in the `docs/` folder at the repository root.** Do not create markdown documentation files at the repository root. 

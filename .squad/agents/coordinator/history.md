@@ -98,3 +98,23 @@ services__api__https__0=https://api.livelyforest-b32e7d63.centralus.azurecontain
 
 **Documented:** `.squad/orchestration-log/2026-04-29T13-26-41Z-coordinator-publish.md`
 
+
+---
+
+## 2026-05-05: Dogfooding Directive Established
+
+**Status:** DIRECTIVE (Cross-team impact)
+
+Per Captain's directive captured in AGENTS.md under "Project Purpose: Dogfooding .NET MAUI", **tooling friction investigations are HIGHER priority than app features**. When .NET MAUI SDK/DX friction surfaces during normal work:
+
+1. Root-cause systematically (layer elimination, reproduction steps)
+2. File upstream with high-quality issue body
+3. Document workarounds for team reuse
+4. Continue app validation using workaround
+
+This directive was established during NumberDrill Phase 1 work when DevFlow CLI bugs blocked automation. Investigation yielded dotnet/maui-labs#232 — a real upstream issue capturing tooling friction that benefits the .NET MAUI team.
+
+**Impact on your work:** Prioritize tooling investigations over feature delays. Document findings as skills for team reuse.
+
+---
+

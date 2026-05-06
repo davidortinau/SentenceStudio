@@ -175,6 +175,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Number Drill.
+        /// </summary>
+        internal static string Activity_NumberDrill {
+            get {
+                return ResourceManager.GetString("Activity_NumberDrill", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Reading.
         /// </summary>
         internal static string Activity_Reading {
@@ -6115,6 +6124,96 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Both correct!.
+        /// </summary>
+        internal static string NumberDrillBothCorrect {
+            get {
+                return ResourceManager.GetString("NumberDrillBothCorrect", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Review the hints.
+        /// </summary>
+        internal static string NumberDrillBothIncorrect {
+            get {
+                return ResourceManager.GetString("NumberDrillBothIncorrect", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Choose the correct number system (Native or Sino) for each context.
+        /// </summary>
+        internal static string NumberDrillDisambiguateInstructions {
+            get {
+                return ResourceManager.GetString("NumberDrillDisambiguateInstructions", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Disambiguate the System.
+        /// </summary>
+        internal static string NumberDrillDisambiguateTitle {
+            get {
+                return ResourceManager.GetString("NumberDrillDisambiguateTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Listen carefully and select the matching time.
+        /// </summary>
+        internal static string NumberDrillListenAndPlaceInstructions {
+            get {
+                return ResourceManager.GetString("NumberDrillListenAndPlaceInstructions", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to One correct.
+        /// </summary>
+        internal static string NumberDrillPartialCorrect {
+            get {
+                return ResourceManager.GetString("NumberDrillPartialCorrect", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Play Audio.
+        /// </summary>
+        internal static string NumberDrillPlayAudio {
+            get {
+                return ResourceManager.GetString("NumberDrillPlayAudio", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Playing....
+        /// </summary>
+        internal static string NumberDrillPlaying {
+            get {
+                return ResourceManager.GetString("NumberDrillPlaying", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Replay.
+        /// </summary>
+        internal static string NumberDrillReplayAudio {
+            get {
+                return ResourceManager.GetString("NumberDrillReplayAudio", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Submit Both.
+        /// </summary>
+        internal static string NumberDrillSubmitBoth {
+            get {
+                return ResourceManager.GetString("NumberDrillSubmitBoth", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to of.
         /// </summary>
         internal static string Of {
@@ -6471,6 +6570,24 @@ namespace SentenceStudio.Resources.Strings {
         internal static string PlanItemListeningTitle {
             get {
                 return ResourceManager.GetString("PlanItemListeningTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Build automaticity with Korean number systems.
+        /// </summary>
+        internal static string PlanItemNumberDrillDesc {
+            get {
+                return ResourceManager.GetString("PlanItemNumberDrillDesc", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Number Drill.
+        /// </summary>
+        internal static string PlanItemNumberDrillTitle {
+            get {
+                return ResourceManager.GetString("PlanItemNumberDrillTitle", resourceCulture);
             }
         }
         

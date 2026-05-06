@@ -1,5 +1,6 @@
 using SentenceStudio.Repositories;
 using SentenceStudio.Services.LanguageSegmentation;
+using SentenceStudio.Services.Numbers;
 using SentenceStudio.Services.PlanGeneration;
 using SentenceStudio.Services.Progress;
 using SentenceStudio.Services.Speech;
@@ -117,6 +118,18 @@ public static class CoreServiceExtensions
         
         // Mobile schema sanity check service (DEBUG only on mobile)
         services.AddSingleton<MigrationSanityCheckService>();
+
+        // Number activity services (Phase 1: Korean)
+        services.AddSingleton<INumberItemGenerator, KoreanNumberItemGenerator>();
+        services.AddSingleton<INumberAnswerGrader, KoreanNumberAnswerGrader>();
+        services.AddScoped<NumberContentSeeder>();
+        services.AddScoped<NumberSessionService>();
+        services.AddSingleton<INumberTtsService>(sp =>
+        {
+            var elevenLabsService = sp.GetRequiredService<ElevenLabsSpeechService>();
+            return new ElevenLabsNumberTtsAdapter(elevenLabsService);
+        });
+        services.AddSingleton<INumberAudioCache, NumberAudioCache>();
 
         return services;
     }

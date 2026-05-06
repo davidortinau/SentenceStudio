@@ -198,6 +198,20 @@ public static class SentenceStudioAppBuilder
                 await scenarioService.SeedPredefinedScenariosAsync();
                 logger.LogDebug("✅ Conversation scenarios seeded");
 
+                // Seed Number drill content (NumberContext, NumberSubMode, NumberCounter rows from embedded JSON).
+                // Without this, the NumberDrill picker is empty on MAUI heads (only the Api seeds in Program.cs).
+                try
+                {
+                    using var seedScope = app.Services.CreateScope();
+                    var numberSeeder = seedScope.ServiceProvider.GetRequiredService<SentenceStudio.Services.Numbers.NumberContentSeeder>();
+                    await numberSeeder.SeedAsync("ko");
+                    logger.LogDebug("✅ Number drill content seeded");
+                }
+                catch (Exception numEx)
+                {
+                    logger.LogWarning(numEx, "Number content seeding failed — NumberDrill picker may be empty");
+                }
+
                 await backgroundSyncService.TriggerSyncAsync();
                 logger.LogInformation("[CoreSync] Background sync completed successfully");
             }

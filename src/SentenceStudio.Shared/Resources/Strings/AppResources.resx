@@ -2669,6 +2669,10 @@ Ready to practice? Say "yes" to start, or tell me what you'd like to change.</va
     <value>How Do You Say</value>
     <comment>Activity label: How Do You Say</comment>
   </data>
+  <data name="Activity_NumberDrill" xml:space="preserve">
+    <value>Number Drill</value>
+    <comment>Activity label: Number Drill</comment>
+  </data>
   <data name="Activity_MinimalPairs" xml:space="preserve">
     <value>Minimal Pairs</value>
     <comment>Activity label: Minimal Pairs</comment>
@@ -6485,5 +6489,53 @@ For example: {0} ...</value>
   <data name="Import_HarvestValidationError" xml:space="preserve">
     <value>Please select at least one harvest option before continuing.</value>
     <comment>Harvest validation error message</comment>
+  </data>
+  <data name="PlanItemNumberDrillTitle" xml:space="preserve">
+    <value>Number Drill</value>
+    <comment>Plan item title for NumberDrill activity</comment>
+  </data>
+  <data name="PlanItemNumberDrillDesc" xml:space="preserve">
+    <value>Build automaticity with Korean number systems</value>
+    <comment>Plan item description for NumberDrill activity</comment>
+  </data>
+  <data name="NumberDrillDisambiguateTitle" xml:space="preserve">
+    <value>Disambiguate the System</value>
+    <comment>Title for Disambiguate sub-mode in NumberDrill</comment>
+  </data>
+  <data name="NumberDrillDisambiguateInstructions" xml:space="preserve">
+    <value>Choose the correct number system (Native or Sino) for each context</value>
+    <comment>Instructions for Disambiguate sub-mode</comment>
+  </data>
+  <data name="NumberDrillSubmitBoth" xml:space="preserve">
+    <value>Submit Both</value>
+    <comment>Submit button text when both prompts must be answered</comment>
+  </data>
+  <data name="NumberDrillBothCorrect" xml:space="preserve">
+    <value>Both correct!</value>
+    <comment>Feedback when both prompts are answered correctly</comment>
+  </data>
+  <data name="NumberDrillPartialCorrect" xml:space="preserve">
+    <value>One correct</value>
+    <comment>Feedback when only one prompt is answered correctly</comment>
+  </data>
+  <data name="NumberDrillBothIncorrect" xml:space="preserve">
+    <value>Review the hints</value>
+    <comment>Feedback when both prompts are answered incorrectly</comment>
+  </data>
+  <data name="NumberDrillListenAndPlaceInstructions" xml:space="preserve">
+    <value>Listen carefully and select the matching time</value>
+    <comment>Instructions for Listen &amp; Place sub-mode</comment>
+  </data>
+  <data name="NumberDrillReplayAudio" xml:space="preserve">
+    <value>Replay</value>
+    <comment>Button to replay audio in Listen &amp; Place sub-mode</comment>
+  </data>
+  <data name="NumberDrillPlaying" xml:space="preserve">
+    <value>Playing...</value>
+    <comment>Status text when audio is playing</comment>
+  </data>
+  <data name="NumberDrillPlayAudio" xml:space="preserve">
+    <value>Play Audio</value>
+    <comment>Button to play audio in Listen &amp; Place sub-mode</comment>
   </data>
 </root>

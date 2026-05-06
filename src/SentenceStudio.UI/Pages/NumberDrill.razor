@@ -1,0 +1,1232 @@
+@page "/numberdrill"
+@attribute [Authorize]
+@using Plugin.Maui.Audio
+@using SentenceStudio.Services.Numbers
+@using SentenceStudio.Shared.Models.Numbers
+@using Microsoft.EntityFrameworkCore
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@inject NumberSessionService SessionService
+@inject ApplicationDbContext Db
+@inject IAppState AppState
+@inject UserProfileRepository ProfileRepo
+@inject NavigationManager NavManager
+@inject IJSRuntime JS
+@inject ILogger<NumberDrill> Logger
+@inject IAudioManager AudioManager
+@inject ElevenLabsSpeechService SpeechService
+@inject StreamHistoryRepository StreamHistoryRepo
+@inject SentenceStudio.Services.SpeechVoicePreferences VoicePrefs
+@inject SentenceStudio.Abstractions.IConnectivityService Connectivity
+@inject SentenceStudio.Abstractions.IFileSystemService FileSystemService
+@inject ToastService Toast
+@inject SentenceStudio.Services.Progress.IProgressService PlanProgressService
+@inject SentenceStudio.Services.Timer.IActivityTimerService ActivityTimer
+@implements IAsyncDisposable
+
+<div class="activity-page-wrapper">
+    <PageHeader Title='@Localize["PlanItemNumberDrillTitle"]' ShowBack="true" OnBack="GoBack" />
+    
+    <div class="activity-content">
+        @if (state == State.Setup)
+        {
+            @* ============ SETUP CARD ============ *@
+            <div class="mx-auto" style="max-width: 640px;">
+                <div class="card card-ss p-4">
+                    <h3 class="ss-title3 mb-3">Choose your drill</h3>
+                    
+                    @* Context picker *@
+                    <div class="mb-4">
+                        <label class="ss-body2 fw-semibold mb-2 d-block">Context</label>
+                        <div class="d-flex flex-wrap gap-2">
+                            @foreach (var ctx in availableContexts)
+                            {
+                                <button type="button" 
+                                        class="btn @(selectedContext == ctx.Code ? "btn-ss-primary" : "btn-outline-secondary")"
+                                        @onclick="() => OnContextSelected(ctx.Code)">
+                                    <i class="bi @GetContextIcon(ctx.Code)"></i> @ctx.DisplayName
+                                </button>
+                            }
+                            <button type="button" 
+                                    class="btn @(selectedContext == null ? "btn-ss-primary" : "btn-outline-secondary")"
+                                    @onclick="() => OnContextSelected(null)">
+                                <i class="bi bi-asterisk"></i> Any
+                            </button>
+                        </div>
+                    </div>
+                    
+                    @* Sub-mode picker *@
+                    <div class="mb-4">
+                        <label class="ss-body2 fw-semibold mb-2 d-block">Mode</label>
+                        <div class="d-flex flex-wrap gap-2">
+                            @foreach (var mode in availableSubModes.Where(m => IsValidCombo(selectedContext, m.Code)))
+                            {
+                                <button type="button" 
+                                        class="btn @(selectedSubMode == mode.Code ? "btn-ss-primary" : "btn-outline-secondary")"
+                                        @onclick="() => selectedSubMode = mode.Code">
+                                    @mode.DisplayName
+                                </button>
+                            }
+                        </div>
+                    </div>
+                    
+                    @* Item count *@
+                    <div class="mb-4">
+                        <label class="ss-body2 fw-semibold mb-2 d-block">Items: @itemCount</label>
+                        <div class="d-flex gap-2 align-items-center">
+                            <button type="button" class="btn btn-outline-secondary" @onclick="() => itemCount = Math.Max(5, itemCount - 5)">
+                                <i class="bi bi-dash"></i>
+                            </button>
+                            <span class="ss-body1">@itemCount</span>
+                            <button type="button" class="btn btn-outline-secondary" @onclick="() => itemCount = Math.Min(20, itemCount + 5)">
+                                <i class="bi bi-plus"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    @* Due only toggle *@
+                    <div class="form-check mb-4">
+                        <input class="form-check-input" type="checkbox" id="dueOnlyCheck" @bind="dueOnly">
+                        <label class="form-check-label ss-body2" for="dueOnlyCheck">
+                            Due items only
+                        </label>
+                    </div>
+                    
+                    @* Start button *@
+                    <button type="button" class="btn btn-ss-primary w-100" @onclick="StartSessionAsync" disabled="@isBusy">
+                        @if (isBusy)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2"></span>
+                        }
+                        <i class="bi bi-play-fill me-1"></i> Start Session
+                    </button>
+                    
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="alert alert-warning mt-3 mb-0" role="alert">
+                            <i class="bi bi-exclamation-triangle me-1"></i>@errorMessage
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+        else if (state == State.InSession && currentItem != null)
+        {
+            @* ============ ITEM CARD ============ *@
+            <div class="mx-auto" style="max-width: 640px;">
+                @* Progress dots *@
+                <div class="d-flex justify-content-center gap-1 mb-3">
+                    @for (int i = 0; i < session!.Items.Count; i++)
+                    {
+                        <span class="@(i == currentIndex ? "bg-primary" : "bg-secondary opacity-50")" 
+                              style="width: 8px; height: 8px; border-radius: 50%; display: inline-block;"></span>
+                    }
+                </div>
+                
+                <div class="card card-ss p-4">
+                    @* System color chip *@
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <span class="chip-system-@(currentItem.System.ToString().ToLower()) px-3 py-1 rounded-pill small fw-semibold">
+                            @currentItem.System
+                        </span>
+                        <span class="text-secondary-ss small">
+                            <i class="bi @GetContextIcon(currentItem.ContextCode)"></i> @currentItem.ContextCode
+                        </span>
+                    </div>
+                    
+                    @if (!showFeedback)
+                    {
+                        @* Prompt area *@
+                        @if (selectedSubMode == "ListenAndType")
+                        {
+                            <div class="text-center my-4">
+                                <button type="button" class="btn btn-lg btn-ss-primary" @onclick="PlayAudioAsync" disabled="@isPlayingAudio">
+                                    <i class="bi @(isPlayingAudio ? "bi-volume-mute" : "bi-volume-up") me-2"></i>
+                                    @(isPlayingAudio ? "Playing..." : "Play")
+                                </button>
+                            </div>
+                        }
+                        else if (selectedSubMode == "ReadAndProduce")
+                        {
+                            <div class="text-center my-4">
+                                <div class="ss-display mb-2" style="font-size: 3rem; color: var(--bs-primary);">
+                                    @currentItem.DisplayPrompt
+                                </div>
+                            </div>
+                        }
+                        else if (selectedSubMode == "TapTheCounter")
+                        {
+                            @* TapTheCounter UI: sentence frame + counter chips *@
+                            <div class="text-center my-4">
+                                @* Noun cue (if available) *@
+                                @if (!string.IsNullOrEmpty(currentItem.NounCue))
+                                {
+                                    <div class="ss-body2 text-secondary-ss mb-3">
+                                        <i class="bi bi-tag me-1"></i>@currentItem.NounCue
+                                    </div>
+                                }
+                                
+                                @* Sentence frame with blank counter *@
+                                <div class="ss-display mb-4" style="font-size: 2.5rem;">
+                                    @{
+                                        var parts = currentItem.DisplayPrompt.Split("___");
+                                        @parts[0]
+                                        <span class="counter-blank">___</span>
+                                        @(parts.Length > 1 ? parts[1] : "")
+                                    }
+                                </div>
+                                
+                                @* Counter chips *@
+                                @if (currentItem.CounterChoices != null && currentItem.CounterChoices.Any())
+                                {
+                                    <div class="d-flex flex-wrap justify-content-center gap-3 mt-4">
+                                        @foreach (var choice in currentItem.CounterChoices)
+                                        {
+                                            <button type="button" 
+                                                    class="counter-chip @GetCounterChipClass(choice)"
+                                                    @onclick="() => TapCounter(choice)"
+                                                    disabled="@isBusy">
+                                                <span class="counter-chip-text">@choice</span>
+                                            </button>
+                                        }
+                                    </div>
+                                }
+                            </div>
+                        }
+                        else if (selectedSubMode == "ListenAndPlace")
+                        {
+                            @* ListenAndPlace UI: audio button + 3 time cards *@
+                            <div class="text-center my-4">
+                                @* Audio button *@
+                                <div class="mb-4">
+                                    <button type="button" 
+                                            class="btn btn-primary btn-lg" 
+                                            @onclick="PlayAudioAsync"
+                                            disabled="@(isBusy || isPlayingAudio)">
+                                        <i class="bi bi-volume-up-fill me-2" style="font-size: 1.5rem;"></i>
+                                        @(isPlayingAudio ? Localize["NumberDrillPlaying"] : Localize["NumberDrillPlayAudio"])
+                                    </button>
+                                </div>
+                                
+                                @* Instruction caption *@
+                                <div class="ss-body1 text-secondary-ss mb-4">
+                                    @Localize["NumberDrillListenAndPlaceInstructions"]
+                                </div>
+                                
+                                @* Time cards (3 choices) *@
+                                @if (currentItem.CounterChoices != null && currentItem.CounterChoices.Any())
+                                {
+                                    <div class="d-flex flex-wrap justify-content-center gap-3 mt-4">
+                                        @foreach (var choice in currentItem.CounterChoices)
+                                        {
+                                            <button type="button" 
+                                                    class="time-card @GetTimeCardClass(choice)"
+                                                    @onclick="() => TapTimeCard(choice)"
+                                                    disabled="@isBusy">
+                                                <span class="time-card-text">@choice</span>
+                                            </button>
+                                        }
+                                    </div>
+                                }
+                                
+                                @* Replay audio button (smaller, always available) *@
+                                <div class="mt-4">
+                                    <button type="button" 
+                                            class="btn btn-outline-secondary btn-sm" 
+                                            @onclick="PlayAudioAsync"
+                                            disabled="@(isBusy || isPlayingAudio)">
+                                        <i class="bi bi-arrow-clockwise me-1"></i>@Localize["NumberDrillReplayAudio"]
+                                    </button>
+                                </div>
+                            </div>
+                        }
+                        else if (selectedSubMode == "Disambiguate")
+                        {
+                            @* Disambiguate UI: two paired prompts with choice strips *@
+                            <div class="paired-prompt-container my-4">
+                                @* Prompt A *@
+                                <div class="paired-prompt-card mb-3 @GetDisambiguateCardClass(true)">
+                                    <div class="ss-body2 text-secondary-ss mb-2">Prompt A:</div>
+                                    <div class="ss-title3 mb-3">@currentItem.PromptA</div>
+                                    
+                                    @if (currentItem.ChoicesA != null)
+                                    {
+                                        <div class="choice-strip">
+                                            @foreach (var choice in currentItem.ChoicesA)
+                                            {
+                                                <button type="button" 
+                                                        class="btn @(selectedAnswerA == choice ? "btn-ss-primary" : "btn-outline-secondary")"
+                                                        @onclick="() => SelectAnswerA(choice)"
+                                                        disabled="@showFeedback">
+                                                    @choice
+                                                </button>
+                                            }
+                                        </div>
+                                    }
+                                    
+                                    @* Hint after feedback *@
+                                    @if (showFeedback && !string.IsNullOrEmpty(currentItem.HintA))
+                                    {
+                                        <div class="mt-3 p-2 bg-secondary-subtle rounded">
+                                            <i class="bi bi-info-circle me-1"></i>
+                                            <small class="ss-body2">@currentItem.HintA</small>
+                                        </div>
+                                    }
+                                </div>
+                                
+                                @* Prompt B *@
+                                <div class="paired-prompt-card mb-3 @GetDisambiguateCardClass(false)">
+                                    <div class="ss-body2 text-secondary-ss mb-2">Prompt B:</div>
+                                    <div class="ss-title3 mb-3">@currentItem.PromptB</div>
+                                    
+                                    @if (currentItem.ChoicesB != null)
+                                    {
+                                        <div class="choice-strip">
+                                            @foreach (var choice in currentItem.ChoicesB)
+                                            {
+                                                <button type="button" 
+                                                        class="btn @(selectedAnswerB == choice ? "btn-ss-primary" : "btn-outline-secondary")"
+                                                        @onclick="() => SelectAnswerB(choice)"
+                                                        disabled="@showFeedback">
+                                                    @choice
+                                                </button>
+                                            }
+                                        </div>
+                                    }
+                                    
+                                    @* Hint after feedback *@
+                                    @if (showFeedback && !string.IsNullOrEmpty(currentItem.HintB))
+                                    {
+                                        <div class="mt-3 p-2 bg-secondary-subtle rounded">
+                                            <i class="bi bi-info-circle me-1"></i>
+                                            <small class="ss-body2">@currentItem.HintB</small>
+                                        </div>
+                                    }
+                                </div>
+                                
+                                @* Submit button (only when both selected and no feedback yet) *@
+                                @if (!showFeedback)
+                                {
+                                    <button type="button" 
+                                            class="btn btn-ss-primary w-100 mt-3" 
+                                            @onclick="SubmitBothAsync"
+                                            disabled="@(isBusy || string.IsNullOrEmpty(selectedAnswerA) || string.IsNullOrEmpty(selectedAnswerB))">
+                                        @if (isBusy)
+                                        {
+                                            <span class="spinner-border spinner-border-sm me-2"></span>
+                                        }
+                                        @Localize["NumberDrillSubmitBoth"]
+                                    </button>
+                                }
+                            </div>
+                        }
+                        
+                        @* Hint accordion (NOT for TapTheCounter, Disambiguate, or ListenAndPlace — those have inline hints) *@
+                        @if (selectedSubMode != "TapTheCounter" && selectedSubMode != "Disambiguate" && selectedSubMode != "ListenAndPlace" && currentItem.Hints.Any())
+                        {
+                            <details class="mb-3">
+                                <summary class="ss-body2 text-secondary-ss" style="cursor: pointer;">
+                                    <i class="bi bi-lightbulb me-1"></i>Show hint
+                                </summary>
+                                <ul class="mt-2 mb-0">
+                                    @foreach (var hint in currentItem.Hints)
+                                    {
+                                        <li class="ss-body2 text-secondary-ss">@hint</li>
+                                    }
+                                </ul>
+                            </details>
+                        }
+                        
+                        @* Input field (only for text-entry sub-modes) *@
+                        @if (selectedSubMode != "TapTheCounter" && selectedSubMode != "Disambiguate" && selectedSubMode != "ListenAndPlace")
+                        {
+                            <form @onsubmit="SubmitAnswerAsync" @onsubmit:preventDefault>
+                                <input type="text" 
+                                       class="form-control form-control-ss mb-3" 
+                                       @bind="userAnswer"
+                                       @bind:event="oninput"
+                                       @ref="answerInput"
+                                       placeholder="@GetInputPlaceholder()"
+                                       disabled="@isBusy"
+                                       autocomplete="off" />
+                                
+                                <button type="submit" class="btn btn-ss-primary w-100" disabled="@(isBusy || string.IsNullOrWhiteSpace(userAnswer))">
+                                    @if (isBusy)
+                                    {
+                                        <span class="spinner-border spinner-border-sm me-2"></span>
+                                    }
+                                    Submit
+                                </button>
+                            </form>
+                        }
+                    }
+                    else
+                    {
+                        @* Feedback panel *@
+                        @if (lastGrade != null)
+                        {
+                            <div class="alert @(lastGrade.IsCorrect ? "alert-success" : "alert-danger") mb-3">
+                                <div class="d-flex align-items-center gap-2 mb-2">
+                                    <i class="bi @(lastGrade.IsCorrect ? "bi-check-circle-fill" : "bi-x-circle-fill") fs-4"></i>
+                                    <span class="ss-title3">@lastGrade.Verdict</span>
+                                </div>
+                                
+                                @* Show user input vs correct answer *@
+                                @if (!string.IsNullOrEmpty(lastGrade.UserAnswer))
+                                {
+                                    <div class="ss-body2 mb-2">
+                                        <strong>You typed:</strong> @lastGrade.UserAnswer
+                                    </div>
+                                }
+                                
+                                <div class="ss-body2 mb-2">
+                                    <strong>Correct answer:</strong> @lastGrade.CanonicalAnswer
+                                </div>
+                                
+                                @if (!lastGrade.IsCorrect && !string.IsNullOrEmpty(lastGrade.ErrorClass))
+                                {
+                                    <div class="ss-body2 mb-2">
+                                        <i class="bi bi-info-circle me-1"></i>
+                                        <strong>@lastGrade.ErrorClass:</strong> @lastGrade.Tip
+                                    </div>
+                                }
+                                
+                                @if (lastAttemptResult != null && lastAttemptResult.Snapshot != null)
+                                {
+                                    <div class="small opacity-75">
+                                        Progress: @lastAttemptResult.Snapshot.CorrectCount/@lastAttemptResult.Snapshot.TotalCount correct · 
+                                        Next review: @lastAttemptResult.Snapshot.NextDueDate.ToLocalTime().ToString("MMM d")
+                                    </div>
+                                }
+                            </div>
+                            
+                            @* Override button (grader edge-case escape hatch) *@
+                            @if (!lastGrade.IsCorrect)
+                            {
+                                <div class="text-center mt-3 mb-3">
+                                    <button class="btn btn-outline-success btn-sm" 
+                                            @onclick="OverrideAsCorrect"
+                                            disabled="@_overriding">
+                                        <i class="bi bi-check2 me-1"></i>I was correct
+                                    </button>
+                                </div>
+                            }
+                            
+                            <button type="button" class="btn btn-ss-primary w-100" @onclick="NextItemAsync">
+                                @if (currentIndex < session!.Items.Count - 1)
+                                {
+                                    <span>Next <i class="bi bi-arrow-right ms-1"></i></span>
+                                }
+                                else
+                                {
+                                    <span>Finish <i class="bi bi-check-lg ms-1"></i></span>
+                                }
+                            </button>
+                        }
+                    }
+                </div>
+            </div>
+        }
+        else if (state == State.Summary && sessionSummary != null)
+        {
+            @* ============ SUMMARY SCREEN ============ *@
+            <div class="mx-auto" style="max-width: 640px;">
+                <div class="card card-ss p-4 text-center">
+                    <h2 class="ss-title1 mb-4"><i class="bi bi-check-circle me-2 text-success"></i>Session Complete!</h2>
+                    
+                    <div class="row g-3 mb-4">
+                        <div class="col-6">
+                            <div class="ss-title2 text-success">@sessionSummary.CorrectCount/@sessionSummary.TotalItems</div>
+                            <div class="text-secondary-ss small">Correct</div>
+                        </div>
+                        <div class="col-6">
+                            <div class="ss-title2">@sessionSummary.MedianLatencyMs ms</div>
+                            <div class="text-secondary-ss small">Median Time</div>
+                        </div>
+                    </div>
+                    
+                    @if (sessionSummary.ErrorClassBreakdown.Any())
+                    {
+                        <div class="text-start mb-4">
+                            <h4 class="ss-title3 mb-2">Patterns to Review</h4>
+                            @foreach (var kvp in sessionSummary.ErrorClassBreakdown.OrderByDescending(x => x.Value))
+                            {
+                                <div class="d-flex justify-content-between py-1">
+                                    <span class="ss-body2">@kvp.Key</span>
+                                    <span class="badge bg-warning text-dark">@kvp.Value</span>
+                                </div>
+                            }
+                        </div>
+                    }
+                    
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-ss-primary flex-fill" @onclick="TryAgain">
+                            <i class="bi bi-arrow-clockwise me-1"></i>Another round
+                        </button>
+                        <button type="button" class="btn btn-ss-secondary flex-fill" @onclick="GoBack">
+                            <i class="bi bi-check-lg me-1"></i>Done
+                        </button>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+    
+    @if (state == State.InSession && !showFeedback)
+    {
+        <div class="activity-input-bar">
+            @* Input bar rendered above in mobile-friendly layout *@
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public bool DueOnly { get; set; } = true;
+    
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public string? ResourceId { get; set; }
+    
+    [Parameter]
+    [SupplyParameterFromQuery]
+    public string? PlanItemId { get; set; }
+    
+    private enum State { Setup, InSession, Summary }
+    
+    private State state = State.Setup;
+    private string? subtitle;
+    private bool isBusy;
+    private bool isPlayingAudio;
+    private string? errorMessage;
+    
+    // Setup state
+    private List<NumberContext> availableContexts = new();
+    private List<NumberSubMode> availableSubModes = new();
+    private string? selectedContext;
+    private string selectedSubMode = "ListenAndType";
+    private int itemCount = 10;
+    private bool dueOnly = false;
+    
+    // Session state
+    private NumberSession? session;
+    private int currentIndex = 0;
+    private NumberItem? currentItem;
+    private string userAnswer = "";
+    private ElementReference answerInput;
+    private DateTime itemStartTime;
+    private bool showFeedback;
+    private bool _overriding;  // Double-tap protection for override button
+    private SentenceStudio.Services.Numbers.GradeResult? lastGrade;
+    private NumberAttemptResult? lastAttemptResult;
+    
+    // TapTheCounter state
+    private string? selectedCounter;
+    private string? correctCounter;
+    
+    // Disambiguate state
+    private string? selectedAnswerA;
+    private string? selectedAnswerB;
+    private bool isCorrectA;
+    private bool isCorrectB;
+    
+    // Summary state
+    private NumberSessionSummary? sessionSummary;
+    
+    // Audio playback
+    private IAudioPlayer? audioPlayer;
+    
+    // Aggregated stats
+    private int correctCount = 0;
+    private int totalCount = 0;
+    
+    private IJSObjectReference? jsModule;
+    
+    protected override async Task OnInitializedAsync()
+    {
+        Localize.CultureChanged += OnCultureChanged;
+        Logger.LogInformation("🎯 NumberDrill initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
+        ActivityTimer.StartSession("NumberDrill", PlanItemId, ResourceId, null);
+        
+        // Layer 4: Defense-in-depth — NumberDrill ignores ResourceId
+        if (!string.IsNullOrEmpty(ResourceId))
+        {
+            Logger.LogWarning("NumberDrill received ResourceId '{ResourceId}' — ignoring (NumberDrill is vocabulary-driven)", ResourceId);
+            ResourceId = null;
+        }
+        
+        await LoadSetupDataAsync();
+    }
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/SentenceStudio.UI/Pages/NumberDrill.razor.js");
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Failed to load NumberDrill.razor.js — focus helper will be unavailable");
+            }
+        }
+        
+        // Focus input when showing new item
+        if (state == State.InSession && !showFeedback && currentItem != null)
+        {
+            try
+            {
+                await answerInput.FocusAsync();
+            }
+            catch { /* ignore if element not ready */ }
+        }
+    }
+    
+    private async Task LoadSetupDataAsync()
+    {
+        try
+        {
+            isBusy = true;
+            
+            availableContexts = await Db.NumberContexts
+                .Where(c => c.IsActive)
+                .OrderBy(c => c.SortOrder)
+                .ToListAsync();
+            
+            availableSubModes = await Db.NumberSubModes
+                .Where(m => m.IsActive && m.Phase <= 2)
+                .ToListAsync();
+            
+            // Default to first sub-mode if available
+            if (availableSubModes.Any() && string.IsNullOrEmpty(selectedSubMode))
+            {
+                selectedSubMode = availableSubModes[0].Code;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to load setup: {ex.Message}";
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+    
+    private void OnContextSelected(string? contextCode)
+    {
+        selectedContext = contextCode;
+        
+        // Reset sub-mode if it becomes invalid for the new context
+        if (!string.IsNullOrEmpty(selectedSubMode) && !IsValidCombo(contextCode, selectedSubMode))
+        {
+            selectedSubMode = availableSubModes.FirstOrDefault(m => IsValidCombo(contextCode, m.Code))?.Code ?? "";
+        }
+    }
+    
+    private bool IsValidCombo(string? contextCode, string subModeCode)
+    {
+        // "Any" pseudo-context: hide context-specific modes (random rotation could pick an invalid context)
+        bool isAnyContext = string.IsNullOrEmpty(contextCode);
+        if (isAnyContext && (subModeCode == "TapTheCounter" || subModeCode == "ListenAndPlace"))
+            return false;
+        
+        // TapTheCounter: only Counting context (other contexts have no TapTheCounter generator)
+        if (subModeCode == "TapTheCounter" && contextCode != "Counting")
+            return false;
+        
+        // ListenAndPlace: only Time context (only Time has audio→digital cards generator)
+        if (subModeCode == "ListenAndPlace" && contextCode != "Time")
+            return false;
+        
+        return true;
+    }
+    
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
+    
+    private async Task StartSessionAsync()
+    {
+        try
+        {
+            isBusy = true;
+            errorMessage = null;
+            
+            var userGuid = AppState?.CurrentUserProfile?.Id
+                ?? (await ProfileRepo.GetAsync())?.Id;
+            if (string.IsNullOrEmpty(userGuid))
+            {
+                errorMessage = "User not found. Please log in.";
+                return;
+            }
+            
+            var request = new NumberSessionRequest(
+                ContextCode: selectedContext,
+                SubModeCode: selectedSubMode,
+                ItemCount: itemCount,
+                DueOnly: dueOnly,
+                Difficulty: 1
+            );
+            
+            session = await SessionService.StartSessionAsync(userGuid, "ko", request);
+            
+            if (session.Items.Count == 0)
+            {
+                errorMessage = "No items available. Try different settings or create some vocabulary first.";
+                return;
+            }
+            
+            state = State.InSession;
+            currentIndex = 0;
+            currentItem = session.Items[0];
+            itemStartTime = DateTime.UtcNow;
+            userAnswer = "";
+            showFeedback = false;
+            correctCount = 0;
+            totalCount = 0;
+            
+            subtitle = $"{session.Items.Count} items · {selectedSubMode}";
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to start session: {ex.Message}";
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+    
+    private async Task PlayAudioAsync()
+    {
+        if (isPlayingAudio || currentItem == null || string.IsNullOrWhiteSpace(currentItem.AudioCue))
+            return;
+            
+        isPlayingAudio = true;
+
+        try
+        {
+            var text = currentItem.AudioCue;
+            var languageCode = "ko"; // Korean numbers
+            var voiceId = VoicePrefs.GetVoiceForLanguage(languageCode);
+            var cached = await StreamHistoryRepo.GetStreamHistoryByPhraseAndVoiceAsync(text, voiceId);
+            Stream audioStream;
+
+            if (cached != null && !string.IsNullOrEmpty(cached.AudioFilePath) && File.Exists(cached.AudioFilePath))
+            {
+                audioStream = File.OpenRead(cached.AudioFilePath);
+            }
+            else if (Connectivity.IsInternetAvailable)
+            {
+                audioStream = await SpeechService.TextToSpeechAsync(text, voiceId, speed: 1.0f);
+
+                var cacheDir = Path.Combine(FileSystemService.AppDataDirectory, "AudioCache");
+                Directory.CreateDirectory(cacheDir);
+                var filePath = Path.Combine(cacheDir, $"number_{Guid.NewGuid()}.mp3");
+                using (var fs = File.Create(filePath)) { await audioStream.CopyToAsync(fs); }
+
+                await StreamHistoryRepo.SaveStreamHistoryAsync(new StreamHistory
+                {
+                    Phrase = text,
+                    VoiceId = voiceId,
+                    AudioFilePath = filePath,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                });
+
+                audioStream = File.OpenRead(filePath);
+            }
+            else
+            {
+                Toast.ShowWarning("Audio unavailable offline.");
+                return;
+            }
+
+            audioPlayer?.Stop();
+            audioPlayer?.Dispose();
+            audioPlayer = AudioManager.CreatePlayer(audioStream);
+            if (audioPlayer != null)
+            {
+                audioPlayer.Play();
+            }
+            else
+            {
+                // JS interop fallback for server-side Blazor (WebApp)
+                audioStream.Position = 0;
+                using var ms = new MemoryStream();
+                await audioStream.CopyToAsync(ms);
+                var base64 = Convert.ToBase64String(ms.ToArray());
+                await JS.InvokeVoidAsync("audioInterop.playFromBase64", base64, "audio/mpeg");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to play number audio for '{Text}'", currentItem.AudioCue);
+            Toast.ShowError("Failed to play audio.");
+        }
+        finally
+        {
+            isPlayingAudio = false;
+        }
+    }
+    
+    private async Task SubmitAnswerAsync()
+    {
+        if (string.IsNullOrWhiteSpace(userAnswer) || currentItem == null || session == null)
+            return;
+        
+        try
+        {
+            isBusy = true;
+            
+            var latencyMs = (int)(DateTime.UtcNow - itemStartTime).TotalMilliseconds;
+            
+            var userGuid = AppState?.CurrentUserProfile?.Id
+                ?? (await ProfileRepo.GetAsync())?.Id;
+            if (string.IsNullOrEmpty(userGuid))
+            {
+                errorMessage = "User not found.";
+                return;
+            }
+            
+            lastAttemptResult = await SessionService.SubmitAnswerAsync(
+                userGuid,
+                session.SessionId,
+                currentItem,
+                userAnswer.Trim(),
+                latencyMs
+            );
+            
+            lastGrade = lastAttemptResult.Grade;
+            showFeedback = true;
+            totalCount++;
+            
+            if (lastGrade.IsCorrect)
+            {
+                correctCount++;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to submit answer: {ex.Message}";
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+    
+    private async Task OverrideAsCorrect()
+    {
+        // Double-tap protection: disable immediately on first click
+        if (_overriding || lastGrade == null || lastAttemptResult == null || currentItem == null)
+            return;
+
+        _overriding = true;
+
+        // Update UI feedback immediately
+        lastGrade = lastGrade with 
+        { 
+            IsCorrect = true,
+            Verdict = "정확해요! (Overridden)"
+        };
+        
+        // Update session counts (override counts as correct for streak)
+        correctCount++;
+        
+        // Emit telemetry event for grader miss analysis
+        Logger.LogInformation(
+            "⚠️ NumberDrill grader override: user={UserId} subMode={SubMode} context={Context} " +
+            "canonicalAnswer={Canonical} userAnswer={UserAnswer} system={System} counter={Counter} " +
+            "digitValue={TargetValue} errorClass={ErrorClass}",
+            AppState?.CurrentUserProfile?.Id ?? "unknown",
+            currentItem.SubModeCode,
+            currentItem.ContextCode,
+            lastGrade.CanonicalAnswer,
+            lastGrade.UserAnswer,
+            currentItem.System,
+            currentItem.CounterId ?? "(none)",
+            currentItem.DigitValue,
+            lastGrade.ErrorClass ?? "(none)"
+        );
+        
+        StateHasChanged();
+        
+        // Auto-advance after a brief pause to show the override feedback
+        await Task.Delay(1500);
+        await NextItemAsync();
+    }
+    
+    private async Task NextItemAsync()
+    {
+        currentIndex++;
+        
+        if (currentIndex >= session!.Items.Count)
+        {
+            // End session
+            await EndSessionAsync();
+        }
+        else
+        {
+            // Move to next item
+            currentItem = session.Items[currentIndex];
+            userAnswer = "";
+            showFeedback = false;
+            _overriding = false;  // Reset double-tap protection for next item
+            lastGrade = null;
+            lastAttemptResult = null;
+            itemStartTime = DateTime.UtcNow;
+            
+            // Reset TapTheCounter state
+            selectedCounter = null;
+            correctCounter = null;
+            
+            // Reset Disambiguate state
+            selectedAnswerA = null;
+            selectedAnswerB = null;
+            isCorrectA = false;
+            isCorrectB = false;
+        }
+    }
+    
+    private async Task EndSessionAsync()
+    {
+        try
+        {
+            isBusy = true;
+            
+            sessionSummary = await SessionService.EndSessionAsync(session!.SessionId);
+            
+            // Override with our local counts (more accurate for this session)
+            sessionSummary = sessionSummary with 
+            { 
+                CorrectCount = correctCount,
+                TotalItems = totalCount
+            };
+            
+            state = State.Summary;
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to end session: {ex.Message}";
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+    
+    private void TryAgain()
+    {
+        state = State.Setup;
+        session = null;
+        currentIndex = 0;
+        currentItem = null;
+        sessionSummary = null;
+        userAnswer = "";
+        showFeedback = false;
+        correctCount = 0;
+        totalCount = 0;
+        subtitle = null;
+    }
+    
+    private async void GoBack()
+    {
+        if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
+        NavManager.NavigateTo("/");
+    }
+    
+    // TapTheCounter methods
+    private async Task TapCounter(string counter)
+    {
+        if (isBusy || currentItem == null) return;
+        
+        try
+        {
+            isBusy = true;
+            selectedCounter = counter;
+            correctCounter = currentItem.CounterText;
+            
+            var latencyMs = (int)(DateTime.UtcNow - itemStartTime).TotalMilliseconds;
+            
+            var userGuid = AppState?.CurrentUserProfile?.Id
+                ?? (await ProfileRepo.GetAsync())?.Id;
+            if (string.IsNullOrEmpty(userGuid))
+            {
+                errorMessage = "User not found. Please log in.";
+                return;
+            }
+            
+            // Submit answer (the counter the user tapped)
+            lastAttemptResult = await SessionService.SubmitAnswerAsync(
+                userGuid,
+                session!.SessionId,
+                currentItem,
+                counter,
+                latencyMs
+            );
+            
+            // Extract grade result
+            lastGrade = lastAttemptResult.Grade;
+            
+            showFeedback = true;
+            totalCount++;
+            
+            if (lastGrade.IsCorrect)
+            {
+                correctCount++;
+            }
+            
+            // Auto-advance after a beat
+            await Task.Delay(1500);
+            await NextItemAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to submit answer: {ex.Message}";
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+    
+    private string GetCounterChipClass(string counter)
+    {
+        if (selectedCounter == null) return "";
+        
+        if (counter == correctCounter)
+            return "correct";
+        else if (counter == selectedCounter)
+            return "incorrect";
+        
+        return "";
+    }
+    
+    // ListenAndPlace methods
+    private async void TapTimeCard(string timeChoice)
+    {
+        if (isBusy || currentItem == null) return;
+        
+        // Similar to TapCounter — immediate grading + auto-advance
+        try
+        {
+            isBusy = true;
+            selectedCounter = timeChoice; // Reuse selectedCounter field for state
+            correctCounter = currentItem.CanonicalAnswer;
+            
+            var isCorrect = timeChoice == currentItem.CanonicalAnswer;
+            var latencyMs = (int)(DateTime.UtcNow - itemStartTime).TotalMilliseconds;
+            
+            // Submit to backend
+            var userGuid = AppState?.CurrentUserProfile?.Id
+                ?? (await ProfileRepo.GetAsync())?.Id;
+            if (string.IsNullOrEmpty(userGuid))
+            {
+                errorMessage = "User not found. Please log in.";
+                return;
+            }
+            
+            lastAttemptResult = await SessionService.SubmitAnswerAsync(
+                userGuid,
+                session!.SessionId,
+                currentItem,
+                timeChoice,
+                latencyMs
+            );
+            
+            showFeedback = true;
+            
+            // Auto-advance after 1.5s
+            await Task.Delay(1500);
+            await NextItemAsync();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to submit answer: {ex.Message}";
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+    
+    private string GetTimeCardClass(string timeChoice)
+    {
+        if (selectedCounter == null) return "";
+        
+        if (timeChoice == correctCounter)
+            return "correct";
+        else if (timeChoice == selectedCounter)
+            return "incorrect";
+        
+        return "";
+    }
+    
+    // Disambiguate methods
+    private void SelectAnswerA(string choice)
+    {
+        selectedAnswerA = choice;
+        StateHasChanged();
+    }
+    
+    private void SelectAnswerB(string choice)
+    {
+        selectedAnswerB = choice;
+        StateHasChanged();
+    }
+    
+    private async Task SubmitBothAsync()
+    {
+        if (isBusy || currentItem == null) return;
+        
+        try
+        {
+            isBusy = true;
+            
+            // Grade both prompts
+            isCorrectA = selectedAnswerA == currentItem.CorrectAnswerA;
+            isCorrectB = selectedAnswerB == currentItem.CorrectAnswerB;
+            
+            var bothCorrect = isCorrectA && isCorrectB;
+            
+            var latencyMs = (int)(DateTime.UtcNow - itemStartTime).TotalMilliseconds;
+            
+            var userGuid = AppState?.CurrentUserProfile?.Id
+                ?? (await ProfileRepo.GetAsync())?.Id;
+            if (string.IsNullOrEmpty(userGuid))
+            {
+                errorMessage = "User not found. Please log in.";
+                return;
+            }
+            
+            // Submit combined answer (both-or-nothing for mastery tracking)
+            var combinedAnswer = $"{selectedAnswerA} | {selectedAnswerB}";
+            lastAttemptResult = await SessionService.SubmitAnswerAsync(
+                userGuid,
+                session!.SessionId,
+                currentItem,
+                combinedAnswer,
+                latencyMs
+            );
+            
+            // Build custom grade result for UI feedback
+            var verdict = bothCorrect ? Localize["NumberDrillBothCorrect"].ToString()
+                        : (isCorrectA || isCorrectB) ? Localize["NumberDrillPartialCorrect"].ToString()
+                        : Localize["NumberDrillBothIncorrect"].ToString();
+            
+            lastGrade = new SentenceStudio.Services.Numbers.GradeResult(
+                IsCorrect: bothCorrect,
+                Verdict: verdict,
+                ErrorClass: bothCorrect ? "" : "system_confusion",
+                CanonicalAnswer: $"A: {currentItem.CorrectAnswerA}, B: {currentItem.CorrectAnswerB}",
+                UserAnswer: combinedAnswer,
+                Tip: bothCorrect ? "" : "Review the hint for each prompt to understand which system applies."
+            );
+            
+            showFeedback = true;
+            totalCount++;
+            
+            if (bothCorrect)
+            {
+                correctCount++;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Failed to submit answer: {ex.Message}";
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+    
+    private string GetDisambiguateCardClass(bool isPromptA)
+    {
+        if (!showFeedback) return "";
+        
+        var isCorrect = isPromptA ? isCorrectA : isCorrectB;
+        return isCorrect ? "correct" : "incorrect";
+    }
+    
+    private string GetContextIcon(string contextCode) => contextCode switch
+    {
+        "Counting" => "bi-cup",
+        "Time" => "bi-clock",
+        "Age" => "bi-cake",
+        "Money" => "bi-currency-dollar",
+        "Date" => "bi-calendar",
+        "Ordinal" => "bi-trophy",
+        _ => "bi-123"
+    };
+    
+    /// <summary>
+    /// Generates a spacing hint with underscores showing the structure.
+    /// Example: "5시 30분" → "___시 ___분"
+    /// </summary>
+    private string GenerateSpacingHint(string answer)
+    {
+        if (string.IsNullOrEmpty(answer))
+            return "___";
+        
+        // Replace digits with underscores
+        var hint = System.Text.RegularExpressions.Regex.Replace(answer, @"\d+", "___");
+        
+        // Replace Korean number words with underscores (Sino)
+        var sinoDigits = new[] { "영", "일", "이", "삼", "사", "오", "육", "칠", "팔", "구", "십" };
+        foreach (var digit in sinoDigits)
+        {
+            hint = hint.Replace(digit, "");
+        }
+        
+        // Replace Korean number words with underscores (Native)
+        var nativeNumbers = new[] { "하나", "한", "둘", "두", "셋", "세", "넷", "네", 
+            "다섯", "여섯", "일곱", "여덟", "아홉", "열", 
+            "스물", "스무", "서른", "마흔", "쉰", "예순", "일흔", "여든", "아흔" };
+        foreach (var num in nativeNumbers.OrderByDescending(n => n.Length))
+        {
+            hint = hint.Replace(num, "");
+        }
+        
+        // Add back underscores where numbers were
+        hint = System.Text.RegularExpressions.Regex.Replace(hint, @"\s+", " ").Trim();
+        
+        // If we stripped everything, just show underscores
+        if (string.IsNullOrWhiteSpace(hint) || !hint.Contains("시") && !hint.Contains("분") && !hint.Contains("살") && !hint.Contains("개") && !hint.Contains("명"))
+            return "___";
+        
+        // Rebuild with underscores before counters
+        hint = System.Text.RegularExpressions.Regex.Replace(hint, @"(시|분|초|살|개|명|마리|권|잔|병|장|번|원|년|월|일)", "___$1");
+        
+        return hint;
+    }
+    
+    private string GetInputPlaceholder()
+    {
+        if (currentItem == null)
+            return selectedSubMode == "ListenAndType" ? "Type what you heard..." : "Type the Korean...";
+        
+        // Generate spacing hint for text-entry modes
+        var hint = GenerateSpacingHint(currentItem.CanonicalAnswer);
+        
+        if (selectedSubMode == "ListenAndType")
+            return $"Example pattern: {hint}";
+        else
+            return $"Example pattern: {hint}";
+    }
+    
+    public async ValueTask DisposeAsync()
+    {
+        Localize.CultureChanged -= OnCultureChanged;
+        if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
+        
+        audioPlayer?.Stop();
+        audioPlayer?.Dispose();
+        
+        if (jsModule != null)
+        {
+            await jsModule.DisposeAsync();
+        }
+    }
+}

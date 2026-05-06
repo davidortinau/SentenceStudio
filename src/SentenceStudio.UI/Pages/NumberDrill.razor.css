@@ -1,0 +1,20 @@
+/* Number system badges — using Bootstrap color system for theme consistency */
+.chip-system-native {
+    background: var(--bs-purple);
+    color: white;
+}
+
+.chip-system-sino {
+    background: var(--bs-teal);
+    color: white;
+}
+
+.chip-system-mixed {
+    background: linear-gradient(90deg, var(--bs-purple), var(--bs-teal));
+    color: white;
+}
+
+.chip-system-lexical {
+    background: var(--bs-warning);
+    color: var(--bs-dark);
+}

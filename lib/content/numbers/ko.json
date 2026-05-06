@@ -1,0 +1,357 @@
+{
+  "languageCode": "ko",
+  "version": 1,
+  "contexts": [
+    {
+      "code": "Counting",
+      "displayName": "Counting",
+      "icon": "🛒",
+      "defaultSystem": "Native",
+      "sortOrder": 10,
+      "isActive": true
+    },
+    {
+      "code": "Time",
+      "displayName": "Time",
+      "icon": "⏰",
+      "defaultSystem": "Mixed",
+      "sortOrder": 20,
+      "isActive": true
+    },
+    {
+      "code": "Age",
+      "displayName": "Age",
+      "icon": "🎂",
+      "defaultSystem": "Native",
+      "sortOrder": 30,
+      "isActive": true
+    },
+    {
+      "code": "Money",
+      "displayName": "Money",
+      "icon": "💰",
+      "defaultSystem": "Sino",
+      "sortOrder": 40,
+      "isActive": true
+    },
+    {
+      "code": "Date",
+      "displayName": "Date",
+      "icon": "📅",
+      "defaultSystem": "Sino",
+      "sortOrder": 50,
+      "isActive": true
+    },
+    {
+      "code": "Ordinal",
+      "displayName": "Ordinal",
+      "icon": "🏆",
+      "defaultSystem": "Native",
+      "sortOrder": 60,
+      "isActive": true
+    }
+  ],
+  "subModes": [
+    {
+      "code": "ListenAndType",
+      "displayName": "Listen & Type",
+      "phase": 1,
+      "isActive": true
+    },
+    {
+      "code": "ReadAndProduce",
+      "displayName": "Read & Produce",
+      "phase": 1,
+      "isActive": true
+    },
+    {
+      "code": "TapTheCounter",
+      "displayName": "Tap the Counter",
+      "phase": 2,
+      "isActive": true
+    },
+    {
+      "code": "Disambiguate",
+      "displayName": "Disambiguate the System",
+      "phase": 2,
+      "isActive": true
+    },
+    {
+      "code": "ListenAndPlace",
+      "displayName": "Listen & Place",
+      "phase": 2,
+      "isActive": true
+    }
+  ],
+  "counters": [
+    {
+      "counter": "잔",
+      "romanization": "jan",
+      "meaningEn": "cup/glass",
+      "system": "Native",
+      "notes": "drinks"
+    },
+    {
+      "counter": "개",
+      "romanization": "gae",
+      "meaningEn": "generic",
+      "system": "Native",
+      "notes": "default object counter"
+    },
+    {
+      "counter": "명",
+      "romanization": "myeong",
+      "meaningEn": "people",
+      "system": "Native",
+      "notes": "casual; for honorific use 분"
+    },
+    {
+      "counter": "마리",
+      "romanization": "mari",
+      "meaningEn": "animals",
+      "system": "Native",
+      "notes": ""
+    },
+    {
+      "counter": "권",
+      "romanization": "gwon",
+      "meaningEn": "books/volumes",
+      "system": "Native",
+      "notes": ""
+    }
+  ],
+  "contextNotes": {
+    "Money": {
+      "system": "Sino",
+      "particle": "원",
+      "placeValues": {
+        "만": 10000,
+        "억": 100000000
+      },
+      "ranges": [
+        { "value": 100, "korean": "백 원", "context": "small purchase" },
+        { "value": 1000, "korean": "천 원", "context": "coffee" },
+        { "value": 3000, "korean": "삼천 원", "context": "snack" },
+        { "value": 10000, "korean": "만 원", "context": "lunch" },
+        { "value": 15000, "korean": "만 오천 원", "context": "meal" },
+        { "value": 50000, "korean": "오만 원", "context": "dinner" },
+        { "value": 100000, "korean": "십만 원", "context": "shopping" },
+        { "value": 1000000, "korean": "백만 원", "context": "rent" }
+      ],
+      "notes": "Korean currency groups by 4 digits (만, 억) not 3 like Western. Sino numbers are mandatory for prices."
+    },
+    "Date": {
+      "system": "Sino",
+      "irregularMonths": {
+        "6": "유월",
+        "10": "시월"
+      },
+      "months": [
+        { "number": 1, "korean": "일월", "romanization": "ilwol" },
+        { "number": 2, "korean": "이월", "romanization": "iwol" },
+        { "number": 3, "korean": "삼월", "romanization": "samwol" },
+        { "number": 4, "korean": "사월", "romanization": "sawol" },
+        { "number": 5, "korean": "오월", "romanization": "owol" },
+        { "number": 6, "korean": "유월", "romanization": "yuwol", "irregular": true },
+        { "number": 7, "korean": "칠월", "romanization": "chirwol" },
+        { "number": 8, "korean": "팔월", "romanization": "palwol" },
+        { "number": 9, "korean": "구월", "romanization": "guwol" },
+        { "number": 10, "korean": "시월", "romanization": "siwol", "irregular": true },
+        { "number": 11, "korean": "십일월", "romanization": "sibiwol" },
+        { "number": 12, "korean": "십이월", "romanization": "sibiwol" }
+      ],
+      "sampleDates": [
+        { "date": "2026-01-01", "korean": "이천이십육 년 일월 일일", "context": "New Year's Day" },
+        { "date": "2026-03-01", "korean": "이천이십육 년 삼월 일일", "context": "Independence Movement Day" },
+        { "date": "2026-06-15", "korean": "이천이십육 년 유월 십오일", "context": "irregular month example" },
+        { "date": "2026-10-03", "korean": "이천이십육 년 시월 삼일", "context": "National Foundation Day (irregular month)" },
+        { "date": "2026-12-25", "korean": "이천이십육 년 십이월 이십오일", "context": "Christmas" }
+      ],
+      "notes": "Month 6 is 유월 (NOT 육월), month 10 is 시월 (NOT 십월). These are irregular. Days use Sino + 일 suffix."
+    },
+    "Ordinal": {
+      "system": "Native",
+      "patterns": {
+        "째": {
+          "description": "Native + 째 for ranking, family birth order, sequence",
+          "examples": [
+            { "number": 1, "korean": "첫째", "context": "first child", "notes": "irregular: 첫째 NOT 하나째" },
+            { "number": 2, "korean": "둘째", "context": "second child" },
+            { "number": 3, "korean": "셋째", "context": "third child" },
+            { "number": 4, "korean": "넷째", "context": "fourth place" },
+            { "number": 5, "korean": "다섯째", "context": "fifth in line" }
+          ]
+        },
+        "번째": {
+          "description": "Native + 번째 for occurrences, 'Nth time/turn'",
+          "examples": [
+            { "number": 1, "korean": "첫 번째", "context": "first time", "notes": "첫 번째 is spaced" },
+            { "number": 2, "korean": "두 번째", "context": "second time" },
+            { "number": 3, "korean": "세 번째", "context": "third visit" },
+            { "number": 4, "korean": "네 번째", "context": "fourth attempt" }
+          ]
+        }
+      },
+      "sampleContexts": [
+        { "ordinal": "첫째", "context": "ranking", "meaning": "first child in family" },
+        { "ordinal": "둘째", "context": "ranking", "meaning": "second child" },
+        { "ordinal": "첫 번째", "context": "occurrence", "meaning": "first time doing something" },
+        { "ordinal": "두 번째", "context": "occurrence", "meaning": "second time" },
+        { "ordinal": "세 번째", "context": "occurrence", "meaning": "third visit" }
+      ],
+      "notes": "Native + 째 is more conversational for ranks. Native + 번째 for occurrences. 첫째 is irregular (not 하나째). Generator must handle 한/두/세 contractions."
+    }
+  },
+  "disambiguatePairs": [
+    {
+      "digit": 3,
+      "contextA": "3rd floor",
+      "contextB": "3 floors of stairs",
+      "answerA": "삼 층",
+      "answerB": "세 층",
+      "hintA": "Ordinal (which floor?) uses Sino numbers",
+      "hintB": "Counting floors uses Native numbers",
+      "audioTextA": "삼 층",
+      "audioTextB": "세 층"
+    },
+    {
+      "digit": 3,
+      "contextA": "3 o'clock",
+      "contextB": "3 minutes",
+      "answerA": "세 시",
+      "answerB": "삼 분",
+      "hintA": "Hours use Native numbers",
+      "hintB": "Minutes use Sino numbers",
+      "audioTextA": "세 시",
+      "audioTextB": "삼 분"
+    },
+    {
+      "digit": 3,
+      "contextA": "3 days (duration)",
+      "contextB": "the 3rd day",
+      "answerA": "사흘",
+      "answerB": "셋째 날",
+      "hintA": "Duration days 1-4 use special native lexical forms (하루, 이틀, 사흘, 나흘)",
+      "hintB": "Ordinal day uses Native + 째",
+      "audioTextA": "사흘",
+      "audioTextB": "셋째 날"
+    },
+    {
+      "digit": 3,
+      "contextA": "3 people",
+      "contextB": "person number 3",
+      "answerA": "세 명",
+      "answerB": "삼 번",
+      "hintA": "Counting people uses Native + 명",
+      "hintB": "Numbering (ID, jersey number) uses Sino + 번",
+      "audioTextA": "세 명",
+      "audioTextB": "삼 번"
+    },
+    {
+      "digit": 20,
+      "contextA": "20 years old",
+      "contextB": "year 20 (calendar)",
+      "answerA": "스무 살",
+      "answerB": "이십 년",
+      "hintA": "Age uses Native numbers + 살 (스물 → 스무 sound change)",
+      "hintB": "Calendar years use Sino numbers + 년",
+      "audioTextA": "스무 살",
+      "audioTextB": "이십 년"
+    },
+    {
+      "digit": 5,
+      "contextA": "5 days (duration)",
+      "contextB": "5th day of the month",
+      "answerA": "닷새",
+      "answerB": "오 일",
+      "hintA": "Duration days 5-10 have special native forms ending in -새 (닷새, 엿새, 이레...)",
+      "hintB": "Calendar dates use Sino numbers + 일",
+      "audioTextA": "닷새",
+      "audioTextB": "오 일"
+    },
+    {
+      "digit": 2,
+      "contextA": "2 bottles of water",
+      "contextB": "February (month 2)",
+      "answerA": "두 병",
+      "answerB": "이월",
+      "hintA": "Counting bottles uses Native + 병 (두 = sound change of 둘)",
+      "hintB": "Months use Sino numbers + 월",
+      "audioTextA": "두 병",
+      "audioTextB": "이월"
+    },
+    {
+      "digit": 4,
+      "contextA": "4 o'clock",
+      "contextB": "April (month 4)",
+      "answerA": "네 시",
+      "answerB": "사월",
+      "hintA": "Hours use Native numbers (네 = sound change of 넷)",
+      "hintB": "Months use Sino numbers + 월",
+      "audioTextA": "네 시",
+      "audioTextB": "사월"
+    }
+  ],
+  "listenAndPlaceItems": [
+    {
+      "audioText": "세 시 사십오 분",
+      "correctAnswer": "3:45",
+      "distractors": ["3:15", "9:45"],
+      "context": "Time"
+    },
+    {
+      "audioText": "두 시 십 분",
+      "correctAnswer": "2:10",
+      "distractors": ["2:20", "12:10"],
+      "context": "Time"
+    },
+    {
+      "audioText": "일곱 시 반",
+      "correctAnswer": "7:30",
+      "distractors": ["7:00", "6:30"],
+      "context": "Time"
+    },
+    {
+      "audioText": "다섯 시",
+      "correctAnswer": "5:00",
+      "distractors": ["5:30", "15:00"],
+      "context": "Time"
+    },
+    {
+      "audioText": "열한 시 이십 분",
+      "correctAnswer": "11:20",
+      "distractors": ["11:30", "1:20"],
+      "context": "Time"
+    },
+    {
+      "audioText": "아홉 시 오십오 분",
+      "correctAnswer": "9:55",
+      "distractors": ["9:05", "9:50"],
+      "context": "Time"
+    },
+    {
+      "audioText": "열두 시",
+      "correctAnswer": "12:00",
+      "distractors": ["2:00", "12:30"],
+      "context": "Time"
+    },
+    {
+      "audioText": "여섯 시 사십 분",
+      "correctAnswer": "6:40",
+      "distractors": ["6:14", "6:04"],
+      "context": "Time"
+    },
+    {
+      "audioText": "한 시 십오 분",
+      "correctAnswer": "1:15",
+      "distractors": ["1:50", "11:15"],
+      "context": "Time"
+    },
+    {
+      "audioText": "네 시 오 분",
+      "correctAnswer": "4:05",
+      "distractors": ["4:50", "4:15"],
+      "context": "Time"
+    }
+  ]
+}

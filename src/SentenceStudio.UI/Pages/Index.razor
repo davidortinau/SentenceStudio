@@ -2,6 +2,7 @@
 @attribute [Authorize]
 @using SentenceStudio.Services.Progress
 @using SentenceStudio.Data
+@using Microsoft.EntityFrameworkCore
 @implements IAsyncDisposable
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
 
@@ -520,6 +521,55 @@ else
     </div>
 }
 
+@* ============ NUMBERS INSIGHTS ============ *@
+<h2 class="ss-title2 mb-3"><i class="bi bi-123 me-2"></i>Numbers — Mastery</h2>
+
+@if (isLoading)
+{
+    <div class="d-flex justify-content-center p-5">
+        <div class="spinner-border text-primary" role="status"></div>
+    </div>
+}
+else if (numberStats is not null && numberStats.Any())
+{
+    <div class="row g-3 mb-4">
+        @foreach (var stat in numberStats)
+        {
+            <div class="col-6 col-md-4">
+                <div class="card card-ss p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="ss-body2 fw-semibold">
+                            <i class="bi @GetContextIcon(stat.ContextCode)"></i> @stat.ContextCode
+                        </span>
+                        @if (stat.DueCount > 0)
+                        {
+                            <span class="badge bg-warning text-dark">@stat.DueCount due</span>
+                        }
+                    </div>
+                    <div class="progress mb-2" style="height: 8px;">
+                        <div class="progress-bar bg-success" role="progressbar"
+                             style="width: @stat.MasteryPercentage%"
+                             aria-valuenow="@stat.MasteryPercentage"
+                             aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                    <div class="text-secondary-ss small">
+                        @stat.CorrectCount/@stat.TotalCount correct
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+else
+{
+    <div class="card card-ss p-4 mb-4 text-center">
+        <h3 class="ss-title3 mb-2">Start mastering Korean numbers</h3>
+        <p class="text-secondary-ss mb-3">
+            Your first session unlocks Time, Age, and Counting practice.
+        </p>
+    </div>
+}
+
 } @* end of isNewUser else *@
 
 @code {
@@ -537,6 +587,7 @@ else
     [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
     [Inject] private SentenceStudio.Services.ISyncService? SyncService { get; set; }
     [Inject] private UserProfileRepository ProfileRepo { get; set; } = default!;
+    [Inject] private ApplicationDbContext Db { get; set; } = default!;
 
     private IJSObjectReference? jsModule;
     private DotNetObjectReference<Index>? dotNetRef;
@@ -549,6 +600,7 @@ else
     private bool isNarrativeExpanded = false;
     private VocabProgressSummary? vocabSummary;
     private TodaysPlan? todaysPlan;
+    private List<NumberContextStat>? numberStats;
 
     private bool isNewUser;
     private bool isCreatingStarter;
@@ -581,6 +633,7 @@ else
         new("Activity_HowDoYouSay", "bi-chat-left-dots", "how-do-you-say"),
         new("Activity_MinimalPairs", "bi-ear", "minimal-pairs"),
         new("Activity_WordAssociation", "bi-lightbulb", "word-association"),
+        new("Activity_NumberDrill", "bi-123", "numberdrill"),
     ];
 
     protected override async Task OnInitializedAsync()
@@ -635,6 +688,7 @@ else
         isTodaysPlanMode = savedMode == "TodaysPlan";
 
         await LoadVocabStatsAsync();
+        await LoadNumberStatsAsync();
 
         if (isTodaysPlanMode)
             await LoadPlanAsync();
@@ -984,6 +1038,7 @@ else
         if (item.ActivityType != PlanActivityType.VocabularyReview 
             && item.ActivityType != PlanActivityType.VocabularyGame 
             && item.ActivityType != PlanActivityType.Cloze 
+            && item.ActivityType != PlanActivityType.NumberDrill
             && !string.IsNullOrEmpty(item.ResourceId))
         {
             if (multiResourceRoutes.Contains(route))
@@ -1096,6 +1151,54 @@ else
         }
     }
 
+    private async Task LoadNumberStatsAsync()
+    {
+        try
+        {
+            var userGuid = AppState?.CurrentUserProfile?.Id;
+            if (string.IsNullOrEmpty(userGuid)) return;
+
+            var progress = await Db.NumberMasteryProgresses
+                .Where(p => p.UserProfileId == userGuid && p.LanguageCode == "ko")
+                .ToListAsync();
+
+            if (progress.Count == 0)
+            {
+                numberStats = null;
+                return;
+            }
+
+            var grouped = progress
+                .GroupBy(p => p.ContextCode)
+                .Select(g => new NumberContextStat(
+                    ContextCode: g.Key,
+                    CorrectCount: g.Sum(p => p.CorrectCount),
+                    TotalCount: g.Sum(p => p.TotalCount),
+                    DueCount: g.Count(p => p.DueDate <= DateTime.UtcNow),
+                    MasteryPercentage: g.Sum(p => p.TotalCount) > 0 
+                        ? (int)Math.Round(100.0 * g.Sum(p => p.CorrectCount) / g.Sum(p => p.TotalCount))
+                        : 0
+                ))
+                .OrderBy(s => s.ContextCode)
+                .ToList();
+
+            numberStats = grouped;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to load number stats");
+            numberStats = null;
+        }
+    }
+
+    private record NumberContextStat(
+        string ContextCode,
+        int CorrectCount,
+        int TotalCount,
+        int DueCount,
+        int MasteryPercentage
+    );
+
     private void NavigateToActivity(string route)
     {
         var query = new List<string>();
@@ -1179,6 +1282,14 @@ else
         "Text" => "bi-journal-text",
         "Vocabulary List" => "bi-card-list",
         _ => "bi-book"
+    };
+
+    private static string GetContextIcon(string contextCode) => contextCode switch
+    {
+        "Time" => "bi-clock",
+        "Counting" => "bi-cup",
+        "Age" => "bi-cake",
+        _ => "bi-123"
     };
 
     public async ValueTask DisposeAsync()

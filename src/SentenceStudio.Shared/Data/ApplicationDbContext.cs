@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 #endif
 using Microsoft.EntityFrameworkCore;
 using SentenceStudio.Shared.Models;
+using SentenceStudio.Shared.Models.Numbers;
 
 namespace SentenceStudio.Data;
 
@@ -314,6 +315,33 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             .HasIndex(pc => new { pc.PhraseWordId, pc.ConstituentWordId })
             .IsUnique();
 
+        // NumberDrill entities configuration (Phase 1 — MVP)
+        modelBuilder.Entity<NumberContext>().ToTable("NumberContext").HasKey(e => e.Id);
+        modelBuilder.Entity<NumberContext>().Property(e => e.Id).ValueGeneratedNever();
+        modelBuilder.Entity<NumberContext>().HasIndex(e => e.Code).IsUnique();
+        modelBuilder.Entity<NumberContext>().Property(e => e.DefaultSystem).HasConversion<string>();
+
+        modelBuilder.Entity<NumberCounter>().ToTable("NumberCounter").HasKey(e => e.Id);
+        modelBuilder.Entity<NumberCounter>().Property(e => e.Id).ValueGeneratedNever();
+        modelBuilder.Entity<NumberCounter>().Property(e => e.System).HasConversion<string>();
+
+        modelBuilder.Entity<NumberSubMode>().ToTable("NumberSubMode").HasKey(e => e.Id);
+        modelBuilder.Entity<NumberSubMode>().Property(e => e.Id).ValueGeneratedNever();
+        modelBuilder.Entity<NumberSubMode>().HasIndex(e => e.Code).IsUnique();
+
+        modelBuilder.Entity<NumberMasteryProgress>().ToTable("NumberMasteryProgress").HasKey(e => e.Id);
+        modelBuilder.Entity<NumberMasteryProgress>().Property(e => e.Id).ValueGeneratedNever();
+        modelBuilder.Entity<NumberMasteryProgress>().HasIndex(e => e.UserProfileId);
+        modelBuilder.Entity<NumberMasteryProgress>().Property(e => e.System).HasConversion<string>();
+        modelBuilder.Entity<NumberMasteryProgress>()
+            .HasIndex(e => new { e.UserProfileId, e.LanguageCode, e.ContextCode, e.CounterId, e.System, e.Bucket })
+            .IsUnique();
+
+        modelBuilder.Entity<NumberAttempt>().ToTable("NumberAttempt").HasKey(e => e.Id);
+        modelBuilder.Entity<NumberAttempt>().Property(e => e.Id).ValueGeneratedNever();
+        modelBuilder.Entity<NumberAttempt>().HasIndex(e => e.UserProfileId);
+        modelBuilder.Entity<NumberAttempt>().Property(e => e.System).HasConversion<string>();
+
         // Ignore entities that shouldn't be in the database
         modelBuilder.Ignore<Reply>();
         modelBuilder.Ignore<GrammarNotes>();
@@ -355,5 +383,12 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<MonitoredChannel> MonitoredChannels => Set<MonitoredChannel>();
     public DbSet<VideoImport> VideoImports => Set<VideoImport>();
     public DbSet<PhraseConstituent> PhraseConstituents => Set<PhraseConstituent>();
+
+    // NumberDrill entities (Phase 1 — MVP)
+    public DbSet<NumberContext> NumberContexts => Set<NumberContext>();
+    public DbSet<NumberCounter> NumberCounters => Set<NumberCounter>();
+    public DbSet<NumberSubMode> NumberSubModes => Set<NumberSubMode>();
+    public DbSet<NumberMasteryProgress> NumberMasteryProgresses => Set<NumberMasteryProgress>();
+    public DbSet<NumberAttempt> NumberAttempts => Set<NumberAttempt>();
 
 }

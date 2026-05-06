@@ -1785,3 +1785,214 @@ main.main-content:has(.matching-page-wrapper) {
 .activity-dot-complete {
     box-shadow: 0 0 0 2px var(--bs-success);
 }
+
+/* ─── NumberDrill TapTheCounter sub-mode ─── */
+
+.counter-blank {
+    border-bottom: 3px dashed var(--bs-border-color);
+    display: inline-block;
+    min-width: 3rem;
+    text-align: center;
+    padding: 0 0.25rem;
+    color: var(--bs-tertiary-color);
+}
+
+.counter-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 80px;
+    min-height: 80px;
+    padding: 1.25rem 1.5rem;
+    font-size: 1.75rem;
+    font-weight: 600;
+    border: 3px solid var(--bs-border-color);
+    border-radius: 12px;
+    background: var(--bs-secondary-bg);
+    color: var(--bs-body-color);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.counter-chip:hover:not(:disabled) {
+    border-color: var(--bs-primary);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.counter-chip:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.counter-chip:disabled {
+    cursor: default;
+}
+
+.counter-chip.correct {
+    border-color: var(--bs-success);
+    border-width: 4px;
+    color: var(--bs-success);
+    animation: pulse-success 0.4s ease;
+}
+
+.counter-chip.incorrect {
+    border-color: var(--bs-danger);
+    border-width: 4px;
+    color: var(--bs-danger);
+    animation: shake 0.4s ease;
+}
+
+@keyframes pulse-success {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.08); }
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-8px); }
+    75% { transform: translateX(8px); }
+}
+
+/* Mobile-responsive counter chips */
+@media (max-width: 640px) {
+    .counter-chip {
+        min-width: 70px;
+        min-height: 70px;
+        padding: 1rem 1.25rem;
+        font-size: 1.5rem;
+    }
+}
+
+/* ============================================
+   TIME CARD UI (ListenAndPlace sub-mode)
+   ============================================ */
+
+.time-card {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 120px;
+    min-height: 90px;
+    padding: 1.5rem 2rem;
+    font-size: 2rem;
+    font-weight: 700;
+    font-family: 'Courier New', monospace;
+    border: 3px solid var(--bs-border-color);
+    border-radius: 12px;
+    background: var(--bs-secondary-bg);
+    color: var(--bs-body-color);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.time-card:hover:not(:disabled) {
+    border-color: var(--bs-primary);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.time-card:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+.time-card:disabled {
+    cursor: default;
+}
+
+.time-card.correct {
+    border-color: var(--bs-success);
+    border-width: 4px;
+    color: var(--bs-success);
+    animation: pulse-success 0.4s ease;
+}
+
+.time-card.incorrect {
+    border-color: var(--bs-danger);
+    border-width: 4px;
+    color: var(--bs-danger);
+    animation: shake 0.4s ease;
+}
+
+/* Mobile-responsive time cards */
+@media (max-width: 640px) {
+    .time-card {
+        min-width: 100px;
+        min-height: 75px;
+        padding: 1rem 1.5rem;
+        font-size: 1.5rem;
+    }
+}
+
+/* ============================================
+   PAIRED-PROMPT UI (Disambiguate sub-mode)
+   ============================================ */
+
+.paired-prompt-container {
+    max-width: 640px;
+    margin: 0 auto;
+}
+
+.paired-prompt-card {
+    border: 2px solid var(--bs-border-color);
+    border-radius: 0.75rem;
+    padding: 1.25rem;
+    background: var(--bs-secondary-bg);
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.paired-prompt-card.correct {
+    border-color: var(--bs-success);
+    border-width: 4px;
+    animation: pulse-border-success 0.5s ease;
+}
+
+.paired-prompt-card.incorrect {
+    border-color: var(--bs-danger);
+    border-width: 4px;
+    animation: pulse-border-danger 0.5s ease;
+}
+
+@keyframes pulse-border-success {
+    0%, 100% { 
+        border-color: var(--bs-success); 
+        box-shadow: 0 0 0 rgba(var(--bs-success-rgb), 0);
+    }
+    50% { 
+        box-shadow: 0 0 12px rgba(var(--bs-success-rgb), 0.4);
+    }
+}
+
+@keyframes pulse-border-danger {
+    0%, 100% { 
+        border-color: var(--bs-danger); 
+        box-shadow: 0 0 0 rgba(var(--bs-danger-rgb), 0);
+    }
+    50% { 
+        box-shadow: 0 0 12px rgba(var(--bs-danger-rgb), 0.4);
+    }
+}
+
+.choice-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.75rem;
+}
+
+.choice-strip .btn {
+    flex: 1 1 calc(50% - 0.25rem);
+    min-width: 100px;
+    min-height: 44px; /* WCAG touch target */
+    font-size: 1rem;
+    font-weight: 500;
+}
+
+/* Mobile: stack choices vertically if needed */
+@media (max-width: 480px) {
+    .choice-strip .btn {
+        flex: 1 1 100%;
+    }
+}
+

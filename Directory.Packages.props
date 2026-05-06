@@ -4,16 +4,16 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- Aspire Hosting -->
-    <PackageVersion Include="Aspire.Hosting.Azure.AppContainers" Version="13.3.0-preview.1.26177.8" />
-    <PackageVersion Include="Aspire.Hosting.Azure.PostgreSQL" Version="13.3.0-preview.1.26177.8" />
-    <PackageVersion Include="Aspire.Hosting.Azure.Storage" Version="13.3.0-preview.1.26177.8" />
-    <PackageVersion Include="Aspire.Hosting.Maui" Version="13.3.0-preview.1.26177.8" />
-    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.3.0-preview.1.26177.8" />
-    <PackageVersion Include="Aspire.Hosting.Redis" Version="13.3.0-preview.1.26177.8" />
+    <PackageVersion Include="Aspire.Hosting.Azure.AppContainers" Version="13.4.0-preview.1.26256.2" />
+    <PackageVersion Include="Aspire.Hosting.Azure.PostgreSQL" Version="13.4.0-preview.1.26256.2" />
+    <PackageVersion Include="Aspire.Hosting.Azure.Storage" Version="13.4.0-preview.1.26256.2" />
+    <PackageVersion Include="Aspire.Hosting.Maui" Version="13.4.0-preview.1.26256.2" />
+    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.4.0-preview.1.26256.2" />
+    <PackageVersion Include="Aspire.Hosting.Redis" Version="13.4.0-preview.1.26256.2" />
 
     <!-- Aspire Client -->
-    <PackageVersion Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="13.3.0-preview.1.26203.28" />
-    <PackageVersion Include="Aspire.StackExchange.Redis.DistributedCaching" Version="13.3.0-preview.1.26203.28" />
+    <PackageVersion Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="13.4.0-preview.1.26256.2" />
+    <PackageVersion Include="Aspire.StackExchange.Redis.DistributedCaching" Version="13.4.0-preview.1.26256.2" />
 
     <!-- ASP.NET Core / Identity -->
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.2" />
@@ -24,11 +24,11 @@
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.1" />
 
     <!-- Entity Framework Core -->
-    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.5" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.5" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.2" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.5" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.7" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.7" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.7" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.7" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.7" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Tasks" Version="10.0.2" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
 
@@ -40,17 +40,17 @@
     <PackageVersion Include="Microsoft.Extensions.VectorData.Abstractions" Version="9.5.0" />
 
     <!-- Microsoft Extensions -->
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.5" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="10.0.5" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.5" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.5" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.7" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="10.0.7" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.7" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.7" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.7" />
     <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.1.0" />
-    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.5" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.5" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="10.0.5" />
-    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.0" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="10.0.7" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.7" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="10.0.7" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="10.0.7" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.7" />
     <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery" Version="10.2.0" />
 
     <!-- MAUI — pinned to 10.0.31 (current workload NuGet package version).
@@ -63,8 +63,8 @@
     <PackageVersion Include="Microsoft.Maui.Core" Version="10.0.31" />
     <PackageVersion Include="Microsoft.Maui.Essentials" Version="10.0.31" />
     <PackageVersion Include="Microsoft.Maui.Resizetizer" Version="10.0.31" />
-    <PackageVersion Include="Microsoft.Maui.DevFlow.Agent" Version="0.24.0-dev" />
-    <PackageVersion Include="Microsoft.Maui.DevFlow.Blazor" Version="0.24.0-dev" />
+    <PackageVersion Include="Microsoft.Maui.DevFlow.Agent" Version="0.25.0-dev" />
+    <PackageVersion Include="Microsoft.Maui.DevFlow.Blazor" Version="0.25.0-dev" />
 
     <!-- Identity / Auth -->
     <PackageVersion Include="Microsoft.Identity.Client" Version="4.83.1" />

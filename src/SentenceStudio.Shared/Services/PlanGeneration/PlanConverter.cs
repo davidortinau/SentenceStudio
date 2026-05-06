@@ -85,6 +85,7 @@ public static class PlanConverter
             "Warmup" => PlanActivityType.Conversation,
             "Conversation" => PlanActivityType.Conversation,
             "VocabularyGame" => PlanActivityType.VocabularyGame,
+            "NumberDrill" => PlanActivityType.NumberDrill,
             _ => throw new ArgumentException($"Unknown activity type: {activityType}")
         };
     }
@@ -110,6 +111,7 @@ public static class PlanConverter
             PlanActivityType.SceneDescription => "/scene",
             PlanActivityType.Conversation => "/conversation",
             PlanActivityType.VocabularyGame => "/vocabulary-matching",
+            PlanActivityType.NumberDrill => "/numberdrill",
             _ => throw new ArgumentException($"Unknown activity type: {activityType}")
         };
     }
@@ -144,6 +146,12 @@ public static class PlanConverter
             // ResourceId is intentionally NOT passed to allow loading from full user vocab pool
             if (!string.IsNullOrEmpty(skillId))
                 parameters["SkillId"] = skillId;
+        }
+        else if (activityType == PlanActivityType.NumberDrill)
+        {
+            parameters["DueOnly"] = true;
+            // Layer 2: NumberDrill is vocabulary-driven (numbers aren't tied to resources)
+            // ResourceId is intentionally NOT passed
         }
         else
         {
@@ -180,6 +188,7 @@ public static class PlanConverter
             PlanActivityType.SceneDescription => "plan_item_scene_description_title",
             PlanActivityType.Conversation => "plan_item_conversation_title",
             PlanActivityType.VocabularyGame => "plan_item_vocab_game_title",
+            PlanActivityType.NumberDrill => "PlanItemNumberDrillTitle",
             _ => "plan_item_unknown_title"
         };
     }
@@ -199,6 +208,7 @@ public static class PlanConverter
             PlanActivityType.SceneDescription => "plan_item_scene_description_desc",
             PlanActivityType.Conversation => "plan_item_conversation_desc",
             PlanActivityType.VocabularyGame => "plan_item_vocab_game_desc",
+            PlanActivityType.NumberDrill => "PlanItemNumberDrillDesc",
             _ => "plan_item_unknown_desc"
         };
     }
