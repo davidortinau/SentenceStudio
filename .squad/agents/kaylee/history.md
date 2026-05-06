@@ -585,3 +585,52 @@ This directive was established during NumberDrill Phase 1 work when DevFlow CLI 
 
 ---
 
+
+## Learnings — 2026-05-05: NumberDrill Grading Improvements
+
+### Korean Number Normalization Strategy
+
+**Location:** `src/SentenceStudio.AppLib/Services/Numbers/KoreanNumberNormalizer.cs`
+
+**Approach:** Over-permissive form generation (accepts any linguistically valid number form).
+
+**Why:** Captain explicitly prefers permissive grading for learners. Strict context-aware validation (e.g., "Native only with counters, Sino only with minutes") can be added later if needed, but wide acceptance is safer default.
+
+**Forms generated:**
+- Native: 하나, 둘, 셋, 넷, 다섯 (1-99)
+- Sound-changed: 한, 두, 세, 네 (before counters)
+- Sino: 영, 일, 이, 삼, 사, 오 (0-99)
+
+**Key challenge:** Korean has TWO number systems (Native + Sino) with different usage contexts:
+- Native (한, 두, 세): used with counters (개, 명, 마리, 잔)
+- Sino (일, 이, 삼): used for time/minutes, dates, money, phone numbers
+
+User may type EITHER form → normalizer generates all three (digit, Native, Sino) → grader accepts any match.
+
+**Limitation:** Only handles 0-99 range. Larger numbers (hundreds, thousands) require compound forms (e.g., 백, 천, 만) which aren't implemented yet. Expand if needed for future contexts.
+
+### Whitespace Normalization Quirks
+
+**Fullwidth vs Halfwidth:** Korean input methods can produce fullwidth space (`\u3000`) or halfwidth space (` `). Normalizer treats them equivalently.
+
+**Internal collapse:** Multiple consecutive spaces → single space. This handles cases like `5  시` (double space) vs `5 시` (single space).
+
+**Counter spacing:** Common user confusion: `5시` (no space) vs `5 시` (space before counter). Both are valid in Korean orthography. Normalizer accepts both.
+
+### Spacing Hint Generation
+
+**Pattern:** Replace variable parts (numbers) with underscores, preserve counters and spacing.
+
+**Example transforms:**
+- `5시 30분` → `___시 ___분`
+- `마흔둘 살` → `___살` (Native form → underscore)
+- `42살` → `___살` (numeric form → underscore)
+
+**Implementation:** Regex-based replacement of digit runs and Korean number words.
+
+**Gotcha:** Placeholder may not always update in Blazor due to timing/binding. Verify after hot reload or full rebuild.
+
+### Reusable Helper
+
+`KoreanNumberNormalizer` is a static helper class (no dependencies, pure functions). Can be extracted to a skill at `.squad/skills/korean-number-normalization/SKILL.md` if other areas need number form conversion (e.g., Quiz, TTS pronunciation variants).
+
