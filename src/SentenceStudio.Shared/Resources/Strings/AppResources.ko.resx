@@ -2425,6 +2425,10 @@
     <value>어떻게 말하나요</value>
     <comment>Activity label: How Do You Say</comment>
   </data>
+  <data name="Activity_NumberDrill" xml:space="preserve">
+    <value>숫자 연습</value>
+    <comment>Activity label: Number Drill</comment>
+  </data>
   <data name="Activity_MinimalPairs" xml:space="preserve">
     <value>최소 대립쌍</value>
     <comment>Activity label: Minimal Pairs</comment>

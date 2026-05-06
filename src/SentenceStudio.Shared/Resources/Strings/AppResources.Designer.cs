@@ -175,6 +175,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Number Drill.
+        /// </summary>
+        internal static string Activity_NumberDrill {
+            get {
+                return ResourceManager.GetString("Activity_NumberDrill", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Reading.
         /// </summary>
         internal static string Activity_Reading {

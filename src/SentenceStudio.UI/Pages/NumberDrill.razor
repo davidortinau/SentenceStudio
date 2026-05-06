@@ -19,6 +19,8 @@
 @inject SentenceStudio.Abstractions.IConnectivityService Connectivity
 @inject SentenceStudio.Abstractions.IFileSystemService FileSystemService
 @inject ToastService Toast
+@inject SentenceStudio.Services.Progress.IProgressService PlanProgressService
+@inject SentenceStudio.Services.Timer.IActivityTimerService ActivityTimer
 @implements IAsyncDisposable
 
 <div class="activity-page-wrapper">
@@ -397,6 +399,16 @@
                                 }
                             </div>
                             
+                            @* Override button (grader edge-case escape hatch) *@
+                            @if (!lastGrade.IsCorrect)
+                            {
+                                <div class="text-center mt-3">
+                                    <button class="btn btn-outline-success btn-sm" @onclick="OverrideAsCorrect">
+                                        <i class="bi bi-check2 me-1"></i>I was correct
+                                    </button>
+                                </div>
+                            }
+                            
                             <button type="button" class="btn btn-ss-primary w-100" @onclick="NextItemAsync">
                                 @if (currentIndex < session!.Items.Count - 1)
                                 {
@@ -529,6 +541,10 @@
     
     protected override async Task OnInitializedAsync()
     {
+        Localize.CultureChanged += OnCultureChanged;
+        Logger.LogInformation("🎯 NumberDrill initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
+        ActivityTimer.StartSession("NumberDrill", PlanItemId, ResourceId, null);
+        
         // Layer 4: Defense-in-depth — NumberDrill ignores ResourceId
         if (!string.IsNullOrEmpty(ResourceId))
         {
@@ -623,6 +639,8 @@
         
         return true;
     }
+    
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
     
     private async Task StartSessionAsync()
     {
@@ -795,6 +813,44 @@
         }
     }
     
+    private async Task OverrideAsCorrect()
+    {
+        if (lastGrade == null || lastAttemptResult == null || currentItem == null)
+            return;
+
+        // Update UI feedback immediately
+        lastGrade = lastGrade with 
+        { 
+            IsCorrect = true,
+            Verdict = "정확해요! (Overridden)"
+        };
+        
+        // Update session counts (override counts as correct for streak)
+        correctCount++;
+        
+        // Emit telemetry event for grader miss analysis
+        Logger.LogInformation(
+            "⚠️ NumberDrill grader override: user={UserId} subMode={SubMode} context={Context} " +
+            "canonicalAnswer={Canonical} userAnswer={UserAnswer} system={System} counter={Counter} " +
+            "digitValue={TargetValue} errorClass={ErrorClass}",
+            AppState?.CurrentUserProfile?.Id ?? "unknown",
+            currentItem.SubModeCode,
+            currentItem.ContextCode,
+            lastGrade.CanonicalAnswer,
+            lastGrade.UserAnswer,
+            currentItem.System,
+            currentItem.CounterId ?? "(none)",
+            currentItem.DigitValue,
+            lastGrade.ErrorClass ?? "(none)"
+        );
+        
+        StateHasChanged();
+        
+        // Auto-advance after a brief pause to show the override feedback
+        await Task.Delay(1500);
+        await NextItemAsync();
+    }
+    
     private async Task NextItemAsync()
     {
         currentIndex++;
@@ -867,8 +923,9 @@
         subtitle = null;
     }
     
-    private void GoBack()
+    private async void GoBack()
     {
+        if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
         NavManager.NavigateTo("/");
     }
     
@@ -1154,6 +1211,9 @@
     
     public async ValueTask DisposeAsync()
     {
+        Localize.CultureChanged -= OnCultureChanged;
+        if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
+        
         audioPlayer?.Stop();
         audioPlayer?.Dispose();
         

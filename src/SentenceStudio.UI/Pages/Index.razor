@@ -459,64 +459,6 @@ else
     </div>
 }
 
-@* ============ NUMBERS INSIGHTS ============ *@
-<h2 class="ss-title2 mb-3"><i class="bi bi-123 me-2"></i>Numbers — Mastery</h2>
-
-@if (isLoading)
-{
-    <div class="d-flex justify-content-center p-5">
-        <div class="spinner-border text-primary" role="status"></div>
-    </div>
-}
-else if (numberStats is not null && numberStats.Any())
-{
-    <div class="row g-3 mb-4">
-        @foreach (var stat in numberStats)
-        {
-            <div class="col-6 col-md-4">
-                <div class="card card-ss p-3">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
-                        <span class="ss-body2 fw-semibold">
-                            <i class="bi @GetContextIcon(stat.ContextCode)"></i> @stat.ContextCode
-                        </span>
-                        @if (stat.DueCount > 0)
-                        {
-                            <span class="badge bg-warning text-dark">@stat.DueCount due</span>
-                        }
-                    </div>
-                    <div class="progress mb-2" style="height: 8px;">
-                        <div class="progress-bar bg-success" role="progressbar"
-                             style="width: @stat.MasteryPercentage%"
-                             aria-valuenow="@stat.MasteryPercentage"
-                             aria-valuemin="0" aria-valuemax="100"></div>
-                    </div>
-                    <div class="text-secondary-ss small">
-                        @stat.CorrectCount/@stat.TotalCount correct
-                    </div>
-                </div>
-            </div>
-        }
-    </div>
-    
-    <div class="text-center mb-4">
-        <a class="btn btn-ss-primary" href="/numberdrill">
-            <i class="bi bi-play-fill me-1"></i>Open Number Drill
-        </a>
-    </div>
-}
-else
-{
-    <div class="card card-ss p-4 mb-4 text-center">
-        <h3 class="ss-title3 mb-2">Start mastering Korean numbers</h3>
-        <p class="text-secondary-ss mb-3">
-            Your first session unlocks Time, Age, and Counting practice.
-        </p>
-        <a class="btn btn-ss-primary mx-auto" style="max-width: 200px;" href="/numberdrill">
-            <i class="bi bi-play-fill me-1"></i>Start
-        </a>
-    </div>
-}
-
 @* ============ VOCABULARY STATS ============ *@
 <h2 class="ss-title2 mb-3">@Localize["Dashboard_VocabularyHeader"]</h2>
 
@@ -576,6 +518,55 @@ else
 {
     <div class="card card-ss p-4 mb-4 text-center">
         <p class="text-secondary-ss mb-0">@Localize["Dashboard_NoVocabData"]</p>
+    </div>
+}
+
+@* ============ NUMBERS INSIGHTS ============ *@
+<h2 class="ss-title2 mb-3"><i class="bi bi-123 me-2"></i>Numbers — Mastery</h2>
+
+@if (isLoading)
+{
+    <div class="d-flex justify-content-center p-5">
+        <div class="spinner-border text-primary" role="status"></div>
+    </div>
+}
+else if (numberStats is not null && numberStats.Any())
+{
+    <div class="row g-3 mb-4">
+        @foreach (var stat in numberStats)
+        {
+            <div class="col-6 col-md-4">
+                <div class="card card-ss p-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span class="ss-body2 fw-semibold">
+                            <i class="bi @GetContextIcon(stat.ContextCode)"></i> @stat.ContextCode
+                        </span>
+                        @if (stat.DueCount > 0)
+                        {
+                            <span class="badge bg-warning text-dark">@stat.DueCount due</span>
+                        }
+                    </div>
+                    <div class="progress mb-2" style="height: 8px;">
+                        <div class="progress-bar bg-success" role="progressbar"
+                             style="width: @stat.MasteryPercentage%"
+                             aria-valuenow="@stat.MasteryPercentage"
+                             aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                    <div class="text-secondary-ss small">
+                        @stat.CorrectCount/@stat.TotalCount correct
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+else
+{
+    <div class="card card-ss p-4 mb-4 text-center">
+        <h3 class="ss-title3 mb-2">Start mastering Korean numbers</h3>
+        <p class="text-secondary-ss mb-3">
+            Your first session unlocks Time, Age, and Counting practice.
+        </p>
     </div>
 }
 
@@ -642,6 +633,7 @@ else
         new("Activity_HowDoYouSay", "bi-chat-left-dots", "how-do-you-say"),
         new("Activity_MinimalPairs", "bi-ear", "minimal-pairs"),
         new("Activity_WordAssociation", "bi-lightbulb", "word-association"),
+        new("Activity_NumberDrill", "bi-123", "numberdrill"),
     ];
 
     protected override async Task OnInitializedAsync()

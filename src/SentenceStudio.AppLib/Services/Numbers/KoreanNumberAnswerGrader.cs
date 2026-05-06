@@ -116,6 +116,9 @@ public class KoreanNumberAnswerGrader : INumberAnswerGrader
         // Use KoreanNumberNormalizer for whitespace normalization
         var normalized = KoreanNumberNormalizer.NormalizeWhitespace(answer);
 
+        // Strip trailing punctuation (narrow rule: ., ,, ?, !, ?, ?, !)
+        normalized = StripTrailingPunctuation(normalized);
+
         // Convert full-width digits to half-width
         normalized = ConvertFullWidthToHalfWidth(normalized);
 
@@ -133,6 +136,16 @@ public class KoreanNumberAnswerGrader : INumberAnswerGrader
             result = result.Replace(c, (char)('0' + (c - '０')));
         }
         return result;
+    }
+
+    private string StripTrailingPunctuation(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input))
+            return input;
+
+        // Narrow permissive rule: strip trailing ASCII and fullwidth punctuation
+        // . , ? ! 。 ？ ！ (but NOTHING else — no Levenshtein, no whitespace gymnastics beyond what's already in NormalizeWhitespace)
+        return input.TrimEnd('.', ',', '?', '!', '。', '？', '！');
     }
 
     private (string ErrorClass, string Tip) ClassifyError(NumberItem item, string userNormalized, string canonicalNormalized)

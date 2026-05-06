@@ -2669,6 +2669,10 @@ Ready to practice? Say "yes" to start, or tell me what you'd like to change.</va
     <value>How Do You Say</value>
     <comment>Activity label: How Do You Say</comment>
   </data>
+  <data name="Activity_NumberDrill" xml:space="preserve">
+    <value>Number Drill</value>
+    <comment>Activity label: Number Drill</comment>
+  </data>
   <data name="Activity_MinimalPairs" xml:space="preserve">
     <value>Minimal Pairs</value>
     <comment>Activity label: Minimal Pairs</comment>
