@@ -718,3 +718,33 @@ Both sets overlap → CORRECT ✓
 Re-deploy to Azure (API rev 88) and DX24 (iOS Release build).
 Captain should test "1000원" for "천 원" again after deployment.
 
+
+## 2026-05-13: Sino Additive Number Composition Fix (Third Bug Today)
+
+**Bug Report:** Captain typed "15000 원" for canonical "만 오천 원" and got INCORRECT. This was after wash's deploy (api rev 88, webapp rev 74, iOS to DX24) following fc27ad8d fix for Sino compounds.
+
+**Root Cause:** The fc27ad8d fix added a `SinoCompounds` dictionary (`천→1000`, `만→10000`, etc.) but used simple token replacement. Korean Sino numbers are **additive composition**:
+- 만 오천 = 만 (10000) + 오 (5) × 천 (1000) = **15000**
+- 삼십칠 = 삼 (3) × 십 (10) + 칠 (7) = 37
+- Token replacement produced "10000 5000" which doesn't match 15000
+
+**Solution:** Replaced `ConvertKoreanToDigits` simple token replacement with a proper Sino number parser:
+- Left-to-right walk through Sino text
+- Track coefficient (default 1 for implicit 만 = 1만)
+- Multiply coefficient by place marker (십, 백, 천, 만, 억) and add to running total
+- Handle trailing digits (ones place) after place markers
+- Support both spaced (`만 오천`) and unspaced (`만오천`) forms
+
+**Tests Added:**
+- `KoreanNumberNormalizerTests.cs`: 14 Theory cases for parser (만 오천→15000, 삼십칠→37, etc.)
+- `KoreanNumberAnswerGraderTests.cs`: 6 end-to-end grading tests
+  - 만 오천 원 (15000): all digit shortcuts with/without spaces
+  - 오천 원 (5000), 백오십 원 (150), 삼십칠 (37)
+
+**Key Learning:** Token replacement is insufficient for Sino numbers — **must parse additively**. Sino grammar: `coefficient? place (coefficient? place)* digit?` → sum of `(coef × place)` + trailing digit.
+
+**Tests Pass:** All 17 new tests pass. Captain's bug resolved.
+
+**Commit:** 4d5ff911
+**Branch:** squad/numbers-activity-phase-1
+
