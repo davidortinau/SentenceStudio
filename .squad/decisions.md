@@ -582,3 +582,52 @@ Schema exists and is correct. Seeder simply hasn't triggered due to no user.
 
 **Decision file:** `.squad/decisions/inbox/jayne-gate3-finish.md`
 
+---
+
+### 2026-05-06: Publish #6 — NumberDrill Override Button Spacing Polish
+
+**Date:** 2026-05-06 23:31:32 UTC  
+**Coordinator:** Wash  
+**Status:** ✅ SHIPPED — Azure + iOS
+
+**Change:** Commit 33a302b8 (merged to main as 7294a302)  
+**Scope:** NumberDrill.razor CSS/markup (mb-3 spacing class on override button container)
+
+#### Deployment Summary
+
+**Azure:** ✅ SUCCESS
+- `azd deploy` completed in 2m 6s
+- API revision: `api--0000092`
+- WebApp revision: `webapp--0000078`
+- Post-deploy validation: 16 PASS / 0 FAIL / 2 SKIP / 2 WARN
+- WebApp homepage: HTTP 200 ✅
+
+**iOS to DX24:** ✅ SUCCESS
+- Built Release with net10 SDK + `-p:ValidateXcodeVersion=false`
+- App bundle created successfully
+- Initial install attempt: Failed (CoreDeviceError 4000 + NWError 57, device in deep sleep)
+- Captain unlocked DX24 at 23:35 UTC
+- Resumed install (attempt 2): SUCCESS ✅
+- App installed to bundleID `com.simplyprofound.sentencestudio`
+- App launched successfully ✅
+- Device: iPhone 15 Pro (CF4F94E3-A1C9-5617-A089-9ABB0110A09F)
+
+#### Recipe & Rationale
+
+**iOS build:** net10 SDK + `-p:ValidateXcodeVersion=false`  
+**Rationale:** Canonical recipe per repo memory. NOT using global.json swap to net11p3 (avoids 31 Razor SG errors in ImportContent.razor per prior investigation).
+
+#### Findings: CoreDevice NWError 57
+
+- **Initial failure mode:** CoreDeviceError 4000 + NWError 57 on first install
+- **Root cause:** Device deep sleep killed CoreDevice control-channel tunnel
+- **Lock state alone:** Insufficient to preserve tunnel (device deep sleep > lock state)
+- **Recovery:** Unlock + physical activity wake + retry install
+- **Outcome:** Second attempt succeeded after tunnel re-handshake
+
+**Confidence:** Medium (pattern observed once; needs validation on future deploys)
+
+#### Pending
+
+Captain manual verification: Open NumberDrill on DX24, confirm override button spacing from Next button.
+
