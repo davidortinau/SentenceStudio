@@ -278,3 +278,114 @@ The NumberDrill seeder requires a registered user to run. Cannot verify picker c
 
 ---
 
+
+---
+
+## 2026-05-06: NumberDrill Override & Normalization Tests
+
+**Mission:** Write comprehensive test suite for Captain's Phase 1 NumberDrill grader improvements.
+
+**Context:**
+- Narrow permissive rules: trailing punctuation strip, fullwidth digit normalization (０-９ → 0-9)
+- User override flow mirroring VocabQuiz "I was right" pattern
+- Kaylee implementing both in parallel — tests must catch regressions
+
+**What I Shipped:**
+
+### 1. Normalization Tests (`KoreanNumberAnswerGrader_NormalizationTests.cs`)
+- 29 tests covering trailing punctuation + fullwidth digits
+- 21 PASSING (regression checks + some normalization already working)
+- 7 FAILING (awaiting Kaylee's normalizer implementation)
+- 1 SKIPPED (internal punctuation edge case for Captain to decide)
+
+**Test Categories:**
+- Trailing punctuation tolerance: period, comma, exclamation, question mark, Japanese fullstop/question
+- Fullwidth digit normalization: pure fullwidth, mixed width, combined with trailing punct
+- Regression: existing exact-match and system-aware grading still works
+
+### 2. Override Flow Tests (`KoreanNumberAnswerGrader_OverrideFlowTests.cs`)
+- 7 tests ALL SKIPPED (awaiting Kaylee's VocabQuiz pattern integration)
+- Documents required behavior: flip result, increment streak, emit telemetry
+- Telemetry payload spec: canonical, user_input, number_system, counter, target_value, original_error_class
+
+**Key Insight:**
+Override tests are mandatory because the feature EXISTS for telemetry, not just UI flip. Without tests, telemetry could silently break and we'd lose grader-improvement data. The whole point of "I was right" is to capture which grader rules are too strict — if telemetry breaks, the feature is worthless.
+
+### 3. Edge Cases Flagged for Captain
+
+**A. Internal Punctuation (Comma Separators)**
+Should `15,000원` be accepted for `만 오천 원`?
+- Test documents current decision: NO (skipped with reason)
+- Rationale: trailing punct is noise, internal commas are deliberate formatting
+
+**B. Override on Already-Correct Results**
+What if user clicks "I was right" on a correct result?
+- Test expects: silent no-op (no telemetry, no double-count)
+- Alternative: emit telemetry with `already_correct: true` flag
+
+**C. Multiple Override Attempts**
+Can user override same result twice?
+- Test expects: second override is no-op (one event only)
+- Alternative: throw exception on second attempt
+
+**Decision File:** `.squad/decisions/inbox/jayne-override-test-strategy.md`
+
+### Test Execution Summary
+
+**Existing Tests (31 from prior work):**
+- Need to verify these still pass — filter syntax issues prevented clean run
+- System-aware grading (Directive 2026-05-06) must stay green
+- Sound change, digit shortcut, whitespace normalization all critical
+
+**New Tests (36 total):**
+- 29 normalization tests (21 pass, 7 fail awaiting impl, 1 skip)
+- 7 override tests (all skipped awaiting impl)
+
+**What's Next for Kaylee:**
+1. Implement trailing punctuation strip in `KoreanNumberNormalizer.PreNormalize()`
+2. Implement fullwidth → halfwidth digit conversion
+3. Find VocabQuiz "I was right" button, trace to service method
+4. Adapt override pattern to NumberDrill (different telemetry payload)
+5. Tests should flip from FAIL → PASS and SKIP → PASS
+
+**Commit Message:**
+```
+test(numberdrill): Add normalization + override flow tests
+
+Phase 1 test coverage for NumberDrill grader improvements:
+
+NORMALIZATION (29 tests):
+- Trailing punctuation tolerance (period, comma, !, ?, 。, ？)
+- Fullwidth digit normalization (０-９ → 0-9)
+- Mixed width digits
+- Regression checks for system-aware grading
+
+OVERRIDE FLOW (7 tests):
+- "I was right" button behavior (flip result, streak increment)
+- Telemetry event emission with grader-miss context
+- Edge cases: already-correct, multiple overrides
+
+STATUS:
+- 21 tests PASS (regressions + partial impl)
+- 7 tests FAIL (awaiting normalizer impl from Kaylee)
+- 1 test SKIP (internal punctuation — Captain decision needed)
+- 7 tests SKIP (override flow — awaiting VocabQuiz pattern)
+
+EDGE CASES FLAGGED:
+See .squad/decisions/inbox/jayne-override-test-strategy.md
+- Internal comma separators (15,000원) — accept or reject?
+- Override on already-correct results — no-op or telemetry?
+- Multiple override attempts — no-op or throw?
+
+Refs: Phase 1 NumberDrill grading improvements
+```
+
+**What I Learned:**
+
+**Override tests for telemetry are non-negotiable.** The WHOLE POINT of "I was right" is to capture which grader rules are too strict so we can improve them. Without telemetry tests, the feature could break silently and we'd lose months of grader-improvement data. This isn't just a "nice to have" — it's the REASON the feature exists. UI flip is a side effect; data capture is the goal.
+
+**Test organization matters at scale.** The original `KoreanNumberAnswerGraderTests.cs` was 603 lines and heading toward 1000+. Splitting into separate files by concern (normalization, override flow) keeps tests readable and makes it obvious which tests gate which features.
+
+**Skip-with-reason is better than no test.** The internal punctuation edge case is a Captain decision, not a Kaylee implementation detail. Documenting it as a skipped test (with detailed comment) ensures we don't forget to make the call.
+
+---
