@@ -535,3 +535,39 @@ Two DevFlow CLI bugs discovered during NumberDrill Mac Catalyst validation were 
 - 2026-05-06: **NumberDrill Sino-Additive Parser Fix (Third Publish)** — Full publish workflow for Kaylee's Sino-additive parser changes (commits 4d5ff911 + 85027187 from squad/numbers-activity-phase-1). BUG: User typed `15000 원` for canonical `만 오천 원` → marked wrong (additive Sino compound not handled). FIX: Kaylee enhanced `ParseSinoNumber` with two-stage additive compound parsing: (1) greedy match against KoreanSinoCompounds keys (천/만/백/십), (2) sum them left-to-right (만 오천 = 10000 + 5000 = 15000). Added 17 comprehensive test cases covering all additive patterns (만 육천/만 오천/천 이백 오/백 오십/십 칠). Zero changes to normalizer (pure parser enhancement) — maintains existing Sino compound dict (천=1000, 만=10000, 백=100, 십=10). **Azure**: `azd deploy` succeeded in 2m 22s, deployed API revision `api--0000089`, webapp revision `webapp--0000075`, cache/marketing/workers to `livelyforest-b32e7d63.centralus.azorecontainerapps.io`. Post-deploy validation: 16 PASS, 0 FAIL, 2 SKIP (auth flow), 2 WARN (workers scaled-to-zero, migration logs scrolled out — both non-blocking). **iOS to DX24**: Initial global.json was at net11p3 (not restored from previous run) — restored to net10 first ✅. Switched to .NET 11 Preview 3, built Release targeting production API (https://api.livelyforest-b32e7d63.centralus.azorecontainerapps.io) in 35.6s with 603 warnings (known package vulnerabilities), installed to DX24 (iPhone 15 Pro, CF4F94E3-A1C9-5617-A089-9ABB0110A09F) successfully ✅ (retry after transient connection error), launch failed (device locked, Captain will launch manually) ✅. Restored global.json to net10 ✅. **TEST PLAN**: On DX24, open NumberDrill Money/Sino context, type `15000원` for canonical `만 오천 원` → should be ACCEPTED ✅ (previous versions rejected).
 
 - 2026-05-07: **Publish #5 — NumberDrill Override UX Revisions** — Captain rulings publish (Kaylee's narrow normalizer + double-tap protection on override button; Jayne's revised tests for the 3 UX rulings) on `squad/numbers-activity-phase-1`. Pre-flight clean: global.json on net10 (10.0.101) — no restoration needed (improvement vs. Publish #3 where it was net11p3 leftover), VPN off, working tree clean, all 5 expected commits present (bcf15248 → 3e509091). **Phase A — Azure**: `azd deploy` succeeded in 1m57s — all 5 services deployed (api, cache, marketing, webapp, workers). Final revisions match expected: **api--0000091** ✅ and **webapp--0000077** ✅. `post-deploy-validate.sh` returned **16 PASS, 0 FAIL** (2 SKIP for auth flow without DEPLOY_TEST_PASSWORD, 2 WARN for workers scale-to-zero + migration log scroll-out — both non-blocking). **Phase B — iOS DX24**: Used the documented net10 + `-p:ValidateXcodeVersion=false` recipe (NOT the net11p3 swap, per AGENTS.md "deployment" memory — net11p3 causes 31 Razor SG errors in ImportContent.razor). Build succeeded in 27.77s, 282 warnings, **0 errors**, exit 0, output at `src/SentenceStudio.iOS/bin/Release/net10.0-ios/ios-arm64/SentenceStudio.iOS.app`. **Install BLOCKED**: `xcrun devicectl device install` failed with `com.apple.dt.CoreDeviceError 4000` → `Network.NWError 57 - Socket is not connected`. DX24 unreachable (locked or off-network). Per Captain's standing rule ("If install or launch fails on device lock: report the failure, do NOT retry") — did NOT retry. global.json untouched throughout (no swap was performed since net10 + ValidateXcodeVersion=false is the working recipe — no restoration needed). Captain to unlock DX24 and either re-run the install/launch commands manually or notify Wash to retry. KEY LEARNING: The net10 + ValidateXcodeVersion=false recipe is dramatically faster (27s build) and avoids the global.json swap dance entirely vs. the historical net11p3 path — this is the new gold standard for iOS publishes.
+
+## NumberDrill Phase 1 Shipped
+
+**Timestamp:** 2026-05-06T18:30:00Z  
+**Status:** ✅ Azure live, iOS pending device unlock  
+**Type:** Publish #5 (override UX revisions)  
+**Branch:** `squad/numbers-activity-phase-1`
+
+**Publish Summary:**
+
+**Phase A — Azure Deployment ✅**
+- Command: `azd deploy` (VPN off, working tree clean)
+- Duration: 1m 57s
+- Services deployed: api, cache, marketing, webapp, workers (all 5)
+- Final revisions: **api--0000091**, **webapp--0000077** ✅
+- Post-deploy validation: **16 PASS / 0 FAIL** / 2 SKIP / 2 WARN
+
+**Phase B — iOS Build ✅ (Install Pending)**
+- Build recipe: net10 SDK + `-p:ValidateXcodeVersion=false` (gold standard)
+- Build time: 27.77s, 282 warnings, **0 errors**
+- Output: `src/SentenceStudio.iOS/bin/Release/net10.0-ios/ios-arm64/SentenceStudio.iOS.app`
+- Install: ⏳ Blocked (DX24 unreachable, Socket error 57)
+- Action: Captain to unlock device + retry install + smoke test
+
+**Key Learning:**
+- **net10 + ValidateXcodeVersion=false = gold standard** for iOS publishes (27s build, no global.json swap)
+- Replaces historical net11p3 swap path (much faster, more reliable)
+- global.json left untouched throughout (no restoration needed)
+
+**What Shipped:**
+- Kaylee: override UX revisions (internal comma stripping + double-tap protection)
+- Jayne: test revisions per Captain rulings
+- Carryover: full myriad grader, dashboard integration, progress tracking
+
+**Next:** Captain smoke test on DX24 after device unlock
+

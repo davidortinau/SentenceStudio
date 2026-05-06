@@ -4,6 +4,177 @@
 
 ---
 
+### 2026-05-06: Override UX rules — Captain directive
+
+**By:** David (Captain)  
+**Status:** ✅ IMPLEMENTED — All three rulings shipped in Publish #5
+
+**What:**
+1. Internal comma separators (`15,000원`): ACCEPT — strip commas, treat as `15000원`. Add to normalizer alongside trailing-punct + fullwidth-digit rules.
+2. "I was right" button MUST NOT be visible/available when the answer was already marked correct. Gate visibility on `result.wasIncorrect == true`.
+3. After "I was right" is tapped, the app advances to the next prompt immediately — no opportunity to tap twice. Idempotency by UI flow, not by handler logic.
+
+**Why:** Decided in response to Jayne's edge-case test questions. Captain wants the override surface to be tight: button only appears when relevant, and once tapped the user is moved on.
+
+**Implementation Status (Jayne + Kaylee):**
+- ✅ Ruling 1 (Internal commas): Implemented in `KoreanNumberAnswerGrader.cs` with lookahead regex
+- ✅ Ruling 2 (Button visibility): Guard added at `NumberDrill.razor:402–410`
+- ✅ Ruling 3 (Auto-advance idempotency): Flag + disabled attribute prevents double-fire
+
+**Related decision files:** `captain-override-ux-rules-verified.md`, `kaylee-override-ux-revision.md`, `wash-publish-5-override-ux.md`
+
+---
+
+### 2026-05-06: Captain Override UX Rules — Implementation VERIFIED
+
+**Author:** Jayne (Tester)  
+**Date:** 2026-05-06  
+**Status:** ✅ KAYLEE'S IMPL PASSES ALL THREE RULINGS
+
+**Verification Summary:**
+
+#### 1. Internal Commas → ACCEPT ✅
+- **Ruling:** Strip commas like trailing punctuation. Accept `15,000원`, `1,000원`, `15,000 원`.
+- **Kaylee implementation:** `StripInternalCommas()` method in grader using regex lookahead
+- **Test coverage:** 4 new tests in `KoreanNumberAnswerGrader_NormalizationTests.cs`
+
+#### 2. Override Button Must NOT Show When Correct ✅
+- **Ruling:** Button MUST NOT be visible when `result.IsCorrect == true`. 
+- **Implementation:** Guard at `NumberDrill.razor:402–410`: `@if (!lastGrade.IsCorrect)`
+- **Test coverage:** 2 tests: `OverrideButton_MustNotShowWhenAnswerWasCorrect`, `OverrideButton_ShowsOnlyWhenAnswerWasIncorrect`
+
+#### 3. Auto-Advance Prevents Double-Click ✅
+- **Ruling:** App advances immediately after override, so user can't click twice.
+- **Implementation:** `_overriding` flag gates method body + UI (`disabled` attribute)
+- **Test coverage:** 1 test: `Override_AutoAdvancesToNextPrompt`
+
+**Telemetry Implementation Status:** ✅ IMPLEMENTED  
+All required fields logged: canonical_answer, user_input, number_system, counter, target_value, original_error_class
+
+**Summary:** NO UX GAPS. All three Captain rulings shipped in Publish #5.
+
+---
+
+### 2026-05-06: NumberDrill Dashboard Integration
+
+**Date:** 2026-05-06  
+**Agent:** Kaylee (Full-stack Dev)  
+**Status:** ✅ Implemented, merged to main via commit `7294a302`
+
+**Problems Solved:**
+
+1. **Activity tile missing:** NumberDrill had standalone "Numbers — Mastery" section instead of being a tile in activities grid
+2. **Progress tracking missing:** No Activity Log entries; no `DailyPlanCompletion` rows created
+
+**Solutions Implemented:**
+
+#### 1. Activity Tile Addition
+- Added NumberDrill to activities array in `Index.razor`
+- Icon: `bi-123` (Bootstrap)
+- Route: `/numberdrill`
+- Localization key: `Activity_NumberDrill` → "Number Drill" (en), "숫자 연습" (ko)
+
+#### 2. Mastery Section Relocation
+- Moved Numbers Mastery insights section from above Vocabulary Stats → after Vocabulary Stats
+- Preserved: per-context progress bars, mastery percentages, encouragement card
+- Removed: redundant "Open Number Drill" button
+
+#### 3. Progress Tracking Integration
+- Injected `IActivityTimerService` + `IProgressService`
+- `StartSession` in `OnInitializedAsync`, `StopSession` in GoBack/Dispose
+- Automatic `DailyPlanCompletion` creation (mirrors Shadowing.razor pattern)
+
+**Pattern:** Timer-based lifecycle tracking for Input-category activities (time spent = success metric). Reusable for other Input activities.
+
+**Files Changed:** Index.razor, NumberDrill.razor, localization resources
+
+---
+
+### 2026-05-06: NumberDrill Override Test Strategy
+
+**Author:** Jayne (Tester)  
+**Date:** 2026-05-06  
+**Status:** ✅ Tests implemented, all edge cases resolved
+
+**Test Coverage:**
+
+#### Normalization Tests (29 total)
+- **Passing:** 21 tests (regression checks, trailing punctuation, some fullwidth digits)
+- **Failing (initially):** 7 tests (internal commas, fullwidth digits) — NOW PASSING after Kaylee impl
+- **Skipped:** 1 edge case (internal punctuation) — RESOLVED by Captain ruling
+
+#### Override Flow Tests (7 total)
+- All tests verify: button visibility, streak increment, telemetry payload, idempotency, error class capture
+- Coverage: all error types (SinoNativeSwap, CounterMismatch, SoundChange, etc.)
+
+**Edge Cases Resolved by Captain:**
+1. Internal punctuation (commas): ACCEPT via normalizer
+2. Override on already-correct: Silent no-op (no duplicate telemetry)
+3. Multiple overrides: Flag prevents second tap during auto-advance
+
+**Commit Strategy:** Normalization + override tests committed with test suite; override flow tests skipped pending VocabQuiz pattern — all resolved in this ship.
+
+---
+
+### 2026-05-06: NumberDrill Override UX Revision (Rev 1)
+
+**Author:** Kaylee (Full-stack Dev)  
+**Date:** 2026-05-12 (revised from initial impl)  
+**Status:** ✅ Implemented  
+
+**Two Revisions to Initial Implementation:**
+
+#### 1. Internal Comma Stripping (Ruling #1: Accept `15,000원`)
+- **Problem:** Mobile IME auto-inserts commas; initial normalizer rejected them
+- **Solution:** `StripInternalCommas()` method with regex `(?<=\d),(?=\d)` (lookahead/lookbehind)
+- **Why:** Comma is typing artifact, not semantic content. Mobile keyboard friction without pedagogy value.
+- **Safety:** Regex only matches digit-adjacent commas, won't affect Korean text like `아니, 괜찮아요`
+
+#### 2. Double-Tap Protection (Ruling #3: Prevent race condition)
+- **Problem:** Override button + auto-advance could be double-tapped before advancing, emitting telemetry twice
+- **Solution:** `_overriding` flag gates both UI (`disabled` attribute) AND method body
+- **Flow:** Tap button → flag true → button disabled → verdict flips → auto-advance → next item loads → flag reset
+- **Edge cases:** Fast double-tap = no-op, navigate away during pause = flag clears cleanly
+
+**Files Modified:** KoreanNumberAnswerGrader.cs, NumberDrill.razor
+
+**Learnings:**
+1. Mobile IME behavior is real user data — don't design around desktop assumptions
+2. Auto-advance + tap actions need idempotency protection (flag + disabled attribute = cheap insurance)
+3. Narrow normalizer boundaries (lookahead regex) are SAFE; blanket string replacements are NOT
+
+---
+
+### 2026-05-06: Wash Publish #5: NumberDrill Override UX Revisions
+
+**Agent:** Wash (Deploy specialist)  
+**Date:** 2026-05-06  
+**Status:** ✅ Azure live, iOS pending device unlock  
+**Branch:** `squad/numbers-activity-phase-1`  
+**Commits:** Kaylee `bcf15248` (override revisions), Jayne `aa6798e9` (tests)
+
+**Phase A — Azure Deployment ✅**
+- `azd deploy`: 1m 57s
+- API revision: 91 ✅
+- Webapp revision: 77 ✅
+- Post-deploy validation: 16 PASS / 0 FAIL / 2 SKIP / 2 WARN
+
+**Phase B — iOS Build ✅ (Install ⏳)**
+- Build recipe: net10 SDK + `-p:ValidateXcodeVersion=false` (gold standard, 27s build)
+- Build time: 27.77s, 282 warnings, 0 errors
+- Install: ⏳ Blocked on device unlock (DX24 unreachable, Socket not connected)
+- Action: Captain to unlock device + retry install + smoke test
+
+**Key Learning:** net10 + ValidateXcodeVersion=false is the gold standard for iOS publishes (no global.json swap needed, dramatically faster than historical net11p3 path).
+
+---
+
+## Active Decisions
+
+(Most recent decisions below. Archived decisions in `decisions-archive-2026-04-25.md`)
+
+---
+
 ### 2026-05-06: NumberDrill Grading Must Be System-Aware
 
 **By:** Kaylee (Frontend Dev), on directive from Captain via copilot-directive-2026-05-06T034509Z.md  

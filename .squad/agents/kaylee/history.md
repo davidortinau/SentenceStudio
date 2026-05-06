@@ -750,3 +750,46 @@ Captain should test "1000원" for "천 원" again after deployment.
 **Commit:** 4d5ff911
 **Branch:** squad/numbers-activity-phase-1
 
+
+## NumberDrill Phase 1 Shipped
+
+**Timestamp:** 2026-05-06T18:30:00Z  
+**Status:** ✅ COMPLETE — Merged to main via commit `7294a302`  
+**Scope:** Full NumberDrill integration: system-aware grading + dashboard tile + override UX + progress tracking
+
+**What Shipped:**
+
+1. **System-Aware Grading** (commit `ac88a0c8`)
+   - Accepts bare digit shortcut OR linguistically-correct Korean form
+   - Rejects wrong number system (e.g., Sino for Native counter)
+   - 31 tests pass
+
+2. **Dashboard Integration** (Phase 4 consolidation)
+   - Activity tile added to grid
+   - Numbers Mastery insights section relocated (after Vocabulary Stats)
+   - Progress tracking via `IActivityTimerService` (automatic `DailyPlanCompletion` creation)
+
+3. **Override UX Revisions** (commits `d152e558` + `bcf15248`)
+   - Internal comma stripping (lookahead regex)
+   - Button visibility guard (only shows when incorrect)
+   - Double-tap protection (`_overriding` flag + disabled attribute)
+   - Telemetry capture (all Captain-mandated fields)
+
+4. **Test Coverage** (Jayne)
+   - 29 normalization tests (21 passing after impl)
+   - 7 override flow tests (documented contracts)
+   - Edge cases resolved per Captain rulings
+
+**Key Files Modified:**
+- NumberDrill.razor (override button, lifecycle hooks, telemetry, spacing, progress tracking)
+- Index.razor (dashboard tile, mastery section relocation)
+- KoreanNumberAnswerGrader.cs (grading system-aware, override handler, internal comma normalization)
+- Localization resources (Activity_NumberDrill keys)
+
+**Lessons Learned:**
+1. Mobile IME behavior is real data — accept `15,000원` because phones auto-insert commas
+2. Auto-advance + tap actions need idempotency protection (flag + disabled = cheap insurance)
+3. Input-category activities follow timer-based lifecycle pattern (reusable)
+
+**Next:** Captain E2E validation on DX24 (pending device unlock + smoke tests)
+
