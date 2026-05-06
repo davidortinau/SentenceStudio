@@ -10,9 +10,9 @@ public class KoreanNumberAnswerGrader : INumberAnswerGrader
         var normalized = NormalizeAnswer(userAnswer);
         var canonicalNormalized = NormalizeAnswer(item.CanonicalAnswer);
 
-        // Generate equivalent forms for permissive matching
-        var userForms = KoreanNumberNormalizer.GenerateEquivalentForms(normalized);
-        var canonicalForms = KoreanNumberNormalizer.GenerateEquivalentForms(canonicalNormalized);
+        // Generate equivalent forms for permissive matching (system-aware)
+        var userForms = KoreanNumberNormalizer.GenerateEquivalentForms(normalized, item.System);
+        var canonicalForms = KoreanNumberNormalizer.GenerateEquivalentForms(canonicalNormalized, item.System);
 
         // Check if any user form matches any canonical form
         var isMatch = userForms.Any(uf => canonicalForms.Any(cf => 
@@ -33,7 +33,7 @@ public class KoreanNumberAnswerGrader : INumberAnswerGrader
         // Check acceptable alternates
         foreach (var alternate in item.AcceptableAlternates)
         {
-            var alternateForms = KoreanNumberNormalizer.GenerateEquivalentForms(NormalizeAnswer(alternate));
+            var alternateForms = KoreanNumberNormalizer.GenerateEquivalentForms(NormalizeAnswer(alternate), item.System);
             if (userForms.Any(uf => alternateForms.Any(af => 
                 string.Equals(uf, af, StringComparison.OrdinalIgnoreCase))))
             {

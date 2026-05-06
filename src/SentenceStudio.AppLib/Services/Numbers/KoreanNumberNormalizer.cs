@@ -1,12 +1,13 @@
 using System.Text;
 using System.Text.RegularExpressions;
+using SentenceStudio.Shared.Models.Numbers;
 
 namespace SentenceStudio.Services.Numbers;
 
 /// <summary>
 /// Normalizes Korean number expressions to support permissive grading.
-/// Generates equivalent forms (numeric ↔ Native ↔ Sino) so user can type either.
-/// Strategy: OVER-PERMISSIVE (accepts any linguistically valid form regardless of context).
+/// Generates equivalent forms based on the specified number system.
+/// Strategy: SYSTEM-AWARE (accepts only forms matching the item's NumberSystem + bare digits as shortcut).
 /// </summary>
 public static class KoreanNumberNormalizer
 {
@@ -60,11 +61,11 @@ public static class KoreanNumberNormalizer
     }
 
     /// <summary>
-    /// Generates all linguistically valid forms for a given answer.
-    /// Detects digit runs and Korean number words, generates equivalents.
-    /// Returns list of normalized candidate forms (all whitespace-normalized).
+    /// Generates all linguistically valid forms for a given answer based on the specified number system.
+    /// Strategy: Accept bare digits always + forms matching the specified system + whitespace variants.
+    /// Rejects wrong number system to enforce pedagogical correctness.
     /// </summary>
-    public static List<string> GenerateEquivalentForms(string answer)
+    public static List<string> GenerateEquivalentForms(string answer, NumberSystem system)
     {
         var forms = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         
@@ -72,19 +73,38 @@ public static class KoreanNumberNormalizer
         var normalized = NormalizeWhitespace(answer);
         forms.Add(normalized);
 
-        // Try to convert digits to Korean (both Native and Sino)
-        var withNative = ConvertDigitsToNative(normalized);
-        if (withNative != normalized)
-            forms.Add(NormalizeWhitespace(withNative));
-        
-        var withSino = ConvertDigitsToSino(normalized);
-        if (withSino != normalized)
-            forms.Add(NormalizeWhitespace(withSino));
-
-        // Try to convert Korean words to digits
+        // ALWAYS accept bare digits as a shortcut (regardless of system)
         var withDigits = ConvertKoreanToDigits(normalized);
         if (withDigits != normalized)
             forms.Add(NormalizeWhitespace(withDigits));
+
+        // Generate system-appropriate Korean forms
+        switch (system)
+        {
+            case NumberSystem.Native:
+                var withNative = ConvertDigitsToNative(normalized);
+                if (withNative != normalized)
+                    forms.Add(NormalizeWhitespace(withNative));
+                break;
+                
+            case NumberSystem.Sino:
+                var withSino = ConvertDigitsToSino(normalized);
+                if (withSino != normalized)
+                    forms.Add(NormalizeWhitespace(withSino));
+                break;
+                
+            case NumberSystem.Mixed:
+            case NumberSystem.Lexical:
+                // For mixed/lexical, accept both forms (backward compatibility)
+                var mixedNative = ConvertDigitsToNative(normalized);
+                if (mixedNative != normalized)
+                    forms.Add(NormalizeWhitespace(mixedNative));
+                    
+                var mixedSino = ConvertDigitsToSino(normalized);
+                if (mixedSino != normalized)
+                    forms.Add(NormalizeWhitespace(mixedSino));
+                break;
+        }
 
         // Generate variants with/without spaces before counters
         var additionalForms = new List<string>();
