@@ -101,11 +101,26 @@ public class ServerAuthService : IAuthService
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
         var user = await userManager.FindByEmailAsync(email);
-        if (user is null || !await userManager.CheckPasswordAsync(user, password))
+        if (user is null)
         {
-            _logger.LogWarning("Sign-in failed for {Email}", email);
+            _logger.LogWarning("Sign-in failed for {Email}: user not found", email);
             return null;
         }
+
+        if (await userManager.IsLockedOutAsync(user))
+        {
+            _logger.LogWarning("Sign-in rejected for {Email}: account is locked out", email);
+            return null;
+        }
+
+        if (!await userManager.CheckPasswordAsync(user, password))
+        {
+            await userManager.AccessFailedAsync(user);
+            _logger.LogWarning("Sign-in failed for {Email}: wrong password", email);
+            return null;
+        }
+
+        await userManager.ResetAccessFailedCountAsync(user);
 
         // Generate a one-time auto-sign-in token
         var token = await userManager.GenerateUserTokenAsync(

@@ -132,16 +132,25 @@ public static class AuthEndpoints
             return Results.Unauthorized();
         }
 
-        if (!await userManager.IsEmailConfirmedAsync(user))
+        // Enforce account lockout before checking the password
+        if (await userManager.IsLockedOutAsync(user))
         {
-            // Auto-confirm migrated accounts (they had no email confirmation requirement before)
-            // and dev-mode accounts
-            var confirmToken = await userManager.GenerateEmailConfirmationTokenAsync(user);
-            await userManager.ConfirmEmailAsync(user, confirmToken);
-            logger.LogInformation("Auto-confirmed email for {Email} (migrated or unconfirmed account)", request.Email);
+            logger.LogWarning("Login rejected for {Email}: account is locked out", request.Email);
+            return Results.Problem("Account is temporarily locked. Please try again later.", statusCode: 429);
         }
 
         if (!await userManager.CheckPasswordAsync(user, request.Password))
+        {
+            await userManager.AccessFailedAsync(user);
+            return Results.Unauthorized();
+        }
+
+        // Password is correct — reset the failure counter
+        await userManager.ResetAccessFailedCountAsync(user);
+
+        // Email confirmation check moved here (after password verification) so that a wrong-password
+        // request cannot auto-confirm an account as a side-effect
+        if (!await userManager.IsEmailConfirmedAsync(user))
         {
             return Results.Unauthorized();
         }
