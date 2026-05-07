@@ -942,3 +942,241 @@ dotnet build src/SentenceStudio.iOS/SentenceStudio.iOS.csproj \
 | iOS Install | ✅ PASS | Installed + launched on DX24 |
 | **Overall** | **✅ PUBLISHED** | Ready for manual layout validation |
 
+---
+
+### 2026-05-07: Publish #9 — NumberDrill Footer Gap Fix
+
+**Date:** 2026-05-07  
+**Requested by:** David (Captain)  
+**Published by:** Wash (DevOps/Release Engineering)
+
+## Change Summary
+
+**Component:** NumberDrill.razor (one-line HTML fix)  
+**Commit Shipped:**
+- `0acacf5d` — fix(numberdrill): remove empty activity-input-bar div causing footer gap
+
+**What Changed:** Removed stray empty `<div class="activity-input-bar">` that was producing visible gap below progress footer. Class carries `border-top`, padding, and `safe-area-inset-bottom` padding-bottom — creating a dead block. VocabQuiz has no such div, which is why its footer is flush. Comment in code already noted this div was dead ("Input bar rendered above in mobile-friendly layout").
+
+## Deployment Execution
+
+### Azure Deploy
+
+- **Command:** `azd deploy` (net10 SDK)
+- **Duration:** 1m 57s
+- **Result:** ✅ SUCCESS
+
+**API Revision:** `api--0000095` (new)  
+**WebApp Revision:** `webapp--0000081` (new)  
+
+### Post-Deploy Validation
+
+**Script:** `./scripts/post-deploy-validate.sh`  
+**Result:** ✅ ALL CHECKS PASSED
+
+- PASS: 16/16
+- FAIL: 0
+- SKIP: 2 (auth flow — expected)
+- WARN: 2 (workers scaled-to-zero, migration logs scrolled — both non-blocking)
+
+### iOS Build + Install to DX24
+
+**Build Result:** ✅ SUCCESS (net10 SDK, 0 errors, canonical recipe)
+
+**Install to DX24 (CF4F94E3-A1C9-5617-A089-9ABB0110A09F):**
+- **Attempt #1 (before wake):** ❌ CoreDeviceError 4000 + NWError 57
+- **Attempt #2 (after device wake):** ✅ SUCCESS
+  - Tunnel acquired ✅
+  - App installed ✅
+  - Database UUID: `BFB39C79-6089-4E5D-AD37-0B84FF06BDA3` ✅
+
+**Launch on DX24:** ✅ SUCCESS
+
+## Final Status
+
+| Component | Status |
+|-----------|--------|
+| Azure Deploy | ✅ api--0000095, webapp--0000081 |
+| Validation | ✅ 16/16 PASS |
+| iOS Build | ✅ 0 errors |
+| iOS Install + Launch | ✅ DX24 |
+| **Overall** | **✅ PUBLISHED** |
+
+**Manual validation:** Captain to confirm footer is now flush (no gap below progress bar).
+
+---
+
+## Friction Log
+
+### 2026-05-07: Empty divs with chromed CSS render visible strips
+
+**Finding:** Stray empty `<div class="activity-input-bar">` and similar divs carry CSS classes with border/padding but no content, silently rendering visible strips. Hard to spot without visual diff tools (screenshot comparison).
+
+**Component:** NumberDrill.razor  
+**Fix:** Removed stray div (commit 0acacf5d)
+
+**Candidate Lint/CI:** Add pre-commit check to flag `<div class="...">` with no text/child content AND CSS rules (border, padding, margin). Many editor linters miss empty utility-class divs because they're technically valid HTML.
+
+**Impact:** Publish #9 blocked until root-cause analysis; easy miss without visual validation.
+
+---
+
+### 2026-05-06: Publish #3 — NumberDrill Sino-Additive Parser Fix
+
+**Status:** ✅ DEPLOYED (Azure + iOS)
+
+**What Changed:** Fixed `KoreanNumberNormalizer.ConvertKoreanToDigits()` to handle Sino compound numbers (천=1000, 백=100, 십=10, 만=10000). Previous implementation treated all place markers additively (e.g., "십만" = 10+10000 = 10010 ❌ instead of 10×10000 = 100000 ✅).
+
+**Azure:** `azd deploy` succeeded in 2m 9s. Deployed: api--0000088, webapp--0000074.  
+**Post-Deploy Validation:** 16 PASS, 0 FAIL, 2 SKIP (auth flow), 2 WARN (workers scaled-to-zero, migration logs scrolled — both non-blocking).
+
+**iOS to DX24:** Switched to .NET 11 Preview 3, built Release, first install failed (connection error), retry succeeded, app launched ✅. Restored global.json to net10.
+
+**Test Plan:** On DX24, type `1000원` for canonical `천 원` → ACCEPT ✅. Type `10000원` for `만 원` → ACCEPT ✅. Type `천원` (no space) for `천 원` → ACCEPT ✅ (whitespace tolerance).
+
+**Decision Drop:** `.squad/decisions/inbox/wash-publish-3-sino-additive.md`
+
+---
+
+### 2026-05-06: Publish #4 — NumberDrill Myriad Chunking Implementation
+
+**Status:** ✅ DEPLOYED (Azure + iOS)
+
+**What Changed:** Implemented full Sino-Korean myriad chunking (십만=100,000, 백만=1,000,000, 천만=10,000,000) + Native compound parsing (스물 셋=23).
+
+**Root Cause:** Prior parser treated ALL place markers additively instead of multiplicatively. FIX: Parser now splits tokens at myriad boundaries (만, 억), parses each chunk as 4-digit segment with place×coefficient math, multiplies chunk value by myriad scale, sums all chunks.
+
+**Blocking Issue:** Azure deploy initially failed with NuGet package downgrade errors. Npgsql.EntityFrameworkCore.PostgreSQL 10.0.1 requires EF Core ≥10.0.7, but Directory.Packages.props pinned 10.0.5. RESOLUTION: Bumped EF Core (10.0.5 → 10.0.7) AND all Microsoft.Extensions.* packages (10.0.5 → 10.0.7) for transitive dep alignment.
+
+**Azure:** `azd deploy` succeeded in 2m 3s on SECOND attempt. Deployed: api--0000090, webapp--0000076.  
+**Post-Deploy Validation:** 16 PASS, 0 FAIL, 2 SKIP (auth flow), 2 WARN (workers scaled-to-zero, migration logs scrolled — both non-blocking).
+
+**iOS to DX24:** Built Release targeting production API, first install failed (connection error), retry succeeded, app launched ✅.
+
+**Lesson:** Package bumps are now a recurring publish workflow step. Keep watch on `NU1605` "package downgrade" errors; they BLOCK `azd deploy` manifest generation.
+
+**Decision Drop:** `.squad/decisions/inbox/wash-publish-4-myriad.md`
+
+---
+
+### 2026-05-06: Publish #5 — Grader System-Aware v2
+
+**Status:** ✅ DEPLOYED (Azure + iOS)
+
+**What Changed:** Kaylee's system-aware grading implementation (commits ac88a0c8 + be1604ee):
+
+**Backend Changes:**
+- `KoreanNumberNormalizer`: Added `NumberSystem` parameter to enforce system-specific normalization
+- `KoreanNumberAnswerGrader`: Passes `item.System` to normalizer for system-aware grading
+- `KoreanNumberAnswerGraderTests`: 17 new test cases (31 pass total, 1 skipped)
+
+**Behavior Changes:**
+1. **Bare digits:** ALWAYS accepted (e.g., `46` for "마흔여섯 개") ✅
+2. **Correct Korean form:** Accepted when matching `item.System` (e.g., Native `마흔여섯` for Native counter) ✅
+3. **Wrong system:** REJECTED with `SinoNativeSwap` error (e.g., Sino `사십육` for Native counter) ❌
+4. **Whitespace:** Still permissive (e.g., `46 개` accepted)
+5. **Counter mismatch:** Still detected (e.g., `46 잔` instead of `46 개` → error)
+
+**Previous behavior:** Accepted ANY number system form regardless of counter context (pedagogically wrong).
+
+**Azure:** `azd deploy` succeeded in 2m 8s. Deployed: api--0000087, webapp--0000073.  
+**Post-Deploy Validation:** 16 PASS, 0 FAIL, 2 SKIP (auth flow), 2 WARN (workers scaled-to-zero, migration logs scrolled — both non-blocking).
+
+**iOS to DX24:** Switched to .NET 11 Preview 3, built Release in 47.1s, installed + launched ✅. Restored global.json to net10.
+
+**Decision Drop:** `.squad/decisions/inbox/wash-publish-grader-v2.md`
+
+---
+
+### 2026-05-06: Publish #6 — Sino-Compound Normalizer Fix
+
+**Status:** ✅ DEPLOYED (Azure + iOS)
+
+**What Changed:** Kaylee added KoreanSinoCompounds dict (천=1000, 만=10000, 백=100, 십=10) in `KoreanNumberNormalizer`, handles bare-digit + counter + optional whitespace (e.g., `1000 원` OR `1000원` both → `천 원`).
+
+**Bug:** User typed `1000원` for canonical `천 원` → marked wrong (system-aware grader correct, normalizer lacked Sino mapping). All 63 tests green after fix.
+
+**Azure:** `azd deploy` succeeded in 2m 9s. Deployed: api--0000088, webapp--0000074.  
+**Post-Deploy Validation:** 16 PASS, 0 FAIL, 2 SKIP (auth flow), 2 WARN (workers scaled-to-zero, migration logs scrolled — both non-blocking).
+
+**iOS to DX24:** Switched to .NET 11 Preview 3, built Release, first install failed (connection error), retry succeeded ✅. Restored global.json to net10.
+
+**Test Plan:** On DX24, type `1000원` for canonical `천 원` → ACCEPT ✅. Type `10000원` for `만 원` → ACCEPT ✅. Type `천원` (no space) for `천 원` → ACCEPT ✅.
+
+**Decision Drop:** `.squad/decisions/inbox/wash-publish-sino-compounds.md`
+
+---
+
+### 2026-05-06: Decision — 1000원 Grading Bug Fix (Kaylee)
+
+**Status:** ✅ IMPLEMENTED (commit fc27ad8d)
+
+**Problem:** User typed `1000원` for canonical `천 원` → marked WRONG. Expected: bare digits + counter should be accepted with whitespace tolerance.
+
+**Root Cause:** `ConvertKoreanToDigits()` method only handled single Sino digits (영, 일, 이, ..., 구) and Native numbers (하나, 둘, ...). Missing large Sino compounds: 천 (1000), 만 (10000), 백 (100), 십 (10), and multi-digit versions.
+
+**Consequence:** Canonical "천 원" generated `['천 원', '천원']` (no digit forms). User "1000원" generated `['1000 원', '1000원']` (digit forms only). NO OVERLAP → match failed.
+
+**Solution:** Added `SinoCompounds` dictionary with mappings (천→1000, 만→10000, 백→100, 십→10, 이천→2000, ..., 십만→100000). Updated `ConvertKoreanToDigits()` order: replace compound numbers BEFORE individual digits (longest match first).
+
+**Fix Quality:** All existing tests pass. Bug now handles mixed Sino/Native/digit forms correctly.
+
+**Decision Drop:** `.squad/decisions/inbox/kaylee-1000won-bug.md`
+
+---
+
+### 2026-05-06: Decision — Sino-Additive Parser Bug (Kaylee)
+
+**Status:** ✅ FIXED
+
+**Problem:** Korean numbers with place markers treated additively, not multiplicatively. Example: "십만" (100,000) parsed as 십 (10) + 만 (10,000) = 10,010 ❌ instead of 십 × 만 = 100,000 ✅.
+
+**Manifestation:** User types `100000원` for canonical `십만 원` → system detects user meant 100,000, canonical is 100,000, but parser output differs → rejection.
+
+**Root Cause:** Parser did not split on myriad boundaries (만, 억, 조, ...). All markers treated as additive increments.
+
+**Solution:** Restructured parser to split tokens at myriad boundaries. For each chunk, parse as 4-digit Sino segment (place value × coefficient), multiply by myriad scale, sum all chunks.
+
+**Test Coverage:** 31 tests, 1 skipped (sound change detection — future feature).
+
+**Decision Drop:** `.squad/decisions/inbox/kaylee-sino-additive-parse.md`
+
+---
+
+### 2026-05-06: Decision — Myriad Chunking Expansion (Kaylee)
+
+**Status:** ✅ IMPLEMENTED
+
+**Feature:** Full Sino-Korean myriad chunking (십만=100,000, 백만=1,000,000, 천만=10,000,000) + Native compound parsing (스물 셋=23).
+
+**Pedagogical Value:** Korean place-marker system is hierarchical: 일 (1's), 십 (10's), 백 (100's), 천 (1,000's), 만 (10,000's), 억 (1,000,000's), 조 (1,000,000,000's). Myriad boundaries reset the 4-digit counter. This feature teaches both additive (within chunk) and multiplicative (across myriad) structure.
+
+**Implementation:** Parser splits on {만, 억, 조}, generates per-chunk coefficient-place products, multiplies by myriad scale, sums all chunks.
+
+**Test Coverage:** Full matrix covering all combinations.
+
+**Decision Drop:** `.squad/decisions/inbox/kaylee-myriad-chunking.md`
+
+---
+
+### 2026-05-06: Decision — Grader Override Button (Kaylee)
+
+**Status:** ✅ IMPLEMENTED
+
+**Pattern:** Human-in-the-loop + telemetry. Instead of perfecting grader (anticipate every input, add rules forever), let user override when grader is wrong, mine logs for patterns.
+
+**Implementation:** Override button (mirrored from VocabQuiz.razor) flips result, updates streak, emits telemetry event, and auto-advances after 1.5s. Telemetry captures: canonical answer, user input, number system (Sino/Native), counter, target digit value, error class — everything needed to reverse-engineer missing grader rules.
+
+**Narrow Normalizer Rules (BEFORE permissive grading):**
+1. Strip trailing punctuation (`.`, `,`, `?`, `!`, `。`, `？`, `！`) — users copy-paste from messages or iOS autocorrect adds periods
+2. Normalize fullwidth digits (`０１２３４５６７８９` → `0123456789`) — Korean IME on mobile emits these
+3. NOTHING fuzzier — no Levenshtein, no typo tolerance. Captain explicitly rejected fuzzy matching.
+
+**Override Semantics:** UI-only; grader verdict + DB attempt remain unchanged. Future: if telemetry identifies confident new rules, ADD them to grader (but override doesn't retroactively change past attempts).
+
+**Pattern Reusability:** Reusable for any automated-grading activity (Cloze, Translation, Writing).
+
+**Files:** `KoreanNumberAnswerGrader.cs` (added `StripTrailingPunctuation()` in `NormalizeAnswer()`), `NumberDrill.razor` (override button UI + `OverrideAsCorrect()` method).
+
+**Decision Drop:** `.squad/decisions/inbox/kaylee-grader-override.md`
+
