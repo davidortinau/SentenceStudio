@@ -64,6 +64,13 @@ public static class ImportEndpoints
         if (string.IsNullOrWhiteSpace(request.VideoUrl))
             return Results.BadRequest("VideoUrl is required");
 
+        if (!Uri.TryCreate(request.VideoUrl, UriKind.Absolute, out var videoUri) ||
+            (videoUri.Host != "www.youtube.com" && videoUri.Host != "youtube.com" && videoUri.Host != "youtu.be") ||
+            videoUri.Scheme != "https")
+        {
+            return Results.BadRequest("VideoUrl must be a valid YouTube URL.");
+        }
+
         // Create the import record and return immediately
         var import = new VideoImport
         {
