@@ -418,6 +418,7 @@ main.main-content {
     margin-right: -1rem;
     padding: 1rem 1rem 0.5rem; /* restore alignment inside */
     margin-bottom: 0.5rem;
+    flex-shrink: 0; /* prevent shrinking in flex container (activity-page-wrapper) */
 }
 
 /* Remove Blazor's focus-on-navigate outline from content area */
