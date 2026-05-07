@@ -250,6 +250,8 @@ services__api__https__0=https://api.livelyforest-b32e7d63.centralus.azurecontain
 
 ### 2c. Install and launch on DX24
 
+> **Before running install:** wake DX24 and confirm unlocked. **Budget for one retry** on the `devicectl install` command — first attempt frequently fails with `NWError 57` due to deep-sleep tunnel teardown, second attempt succeeds. This is a known, validated pattern (publishes #6–#9). See [`.squad/skills/maui-ios-dx24-install/SKILL.md`](../.squad/skills/maui-ios-dx24-install/SKILL.md) for the full preemptive procedure and recovery path.
+
 ```bash
 xcrun devicectl device install app \
   --device CF4F94E3-A1C9-5617-A089-9ABB0110A09F \

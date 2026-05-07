@@ -665,6 +665,12 @@ For detailed platform-specific setup, simulator/emulator management, and trouble
 - **Linux / GTK**: See [references/linux.md](references/linux.md)
 - **Troubleshooting**: See [references/troubleshooting.md](references/troubleshooting.md)
 
+### iOS Device Install on DX24 (SentenceStudio-specific)
+
+When installing to **DX24** (Captain's iPhone 15 Pro, device ID `CF4F94E3-A1C9-5617-A089-9ABB0110A09F`) via `xcrun devicectl device install`, the first attempt frequently fails with `NWError 57` / `CoreDeviceError 4000` because the device's CoreDevice control-channel tunnel is killed when the device enters deep sleep. **Wake + unlock the device first; budget for one retry on the install command.** This is a known pattern, not a build error.
+
+Full procedure, evidence, and recipe: [`.squad/skills/maui-ios-dx24-install/SKILL.md`](../../../.squad/skills/maui-ios-dx24-install/SKILL.md).
+
 ## ⚠️ Non-Disruptive Operation
 
 **CRITICAL:** Never run commands that steal focus, move windows, simulate mouse/keyboard input,

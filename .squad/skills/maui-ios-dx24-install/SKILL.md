@@ -2,8 +2,8 @@
 
 **Domain:** iOS device deployment  
 **Context:** SentenceStudio publish workflow (DX24 = iPhone 15 Pro, CF4F94E3-A1C9-5617-A089-9ABB0110A09F)  
-**Status:** ⚠️ Medium confidence (observed once; pattern needs validation across future deploys)  
-**Last Updated:** 2026-05-06 23:36:29Z
+**Status:** ✅ High confidence (observed 4+ times across publishes #6–#9, 2026-05-06 / 2026-05-07)  
+**Last Updated:** 2026-05-07
 
 ## Problem: NWError 57 During CoreDevice App Install
 
@@ -38,12 +38,29 @@ NWError 57: <network error details>
 3. **Retry install:** `xcrun devicectl device install app --device CF4F94E3... app.app/`
 4. **Outcome:** Second attempt typically succeeds ✅
 
-### Evidence (2026-05-06 Publish #6)
+### Preemptive Procedure (do this BEFORE first install attempt)
 
-- **Attempt 1:** 23:31 UTC, device locked → CoreDeviceError 4000 + NWError 57 ❌
-- **Unlock:** 23:35 UTC, Captain unlocked DX24 (physical unlock + tap)
-- **Attempt 2:** Immediately after → Install succeeded ✅
-- **App launch:** Successful ✅
+**Apply this every publish.** It is faster to wake the device once than to recover from NWError 57.
+
+1. **Wake DX24:** Ask Captain to tap the device screen (or do it yourself if physically present). If locked, unlock with Face ID / passcode.
+2. **Confirm device is reachable:**
+   ```bash
+   xcrun devicectl list devices | grep CF4F94E3
+   ```
+   Expect `available (paired)`. If not, wait 5–10 seconds and recheck.
+3. **Run install.** First attempt should now succeed.
+4. **If first attempt still fails with NWError 57 / CoreDeviceError 4000 / ControlChannelConnectionError 1:** retry the SAME command immediately. **This is expected and not a build error.** Do NOT change build flags, do NOT rebuild, do NOT panic. Retry once. If it fails twice in a row → fall through to "Recovery Path" above (deeper sleep / paired-state issue).
+
+> **Heuristic for publish agents (Wash, etc.):** Budget for 1 retry on every iOS install. If it succeeds first try, great. If it doesn't, retry without escalating to Captain unless the second attempt also fails.
+
+### Evidence
+
+- **2026-05-06 Publish #6:** Attempt 1 failed (NWError 57, device locked). Captain unlocked + tapped. Attempt 2 succeeded.
+- **2026-05-07 Publish #7:** Same pattern — first attempt failed, retry succeeded.
+- **2026-05-07 Publish #8:** Same pattern — first attempt failed, retry succeeded.
+- **2026-05-07 Publish #9:** Same pattern — first attempt failed, retry succeeded.
+
+Pattern is now reliable enough to treat as a known retry-once recipe rather than an investigation.
 
 ## Deployment Recipes
 
@@ -84,10 +101,10 @@ services__api__https__0=https://api.livelyforest-b32e7d63.centralus.azurecontain
 
 ## Future Investigations
 
-1. **Pattern validation:** Does NWError 57 recur on future iOS deploys if device is in deep sleep?
-2. **Automation resilience:** Can CI/CD detect NWError 57 and auto-retry?
-3. **Xcode integration:** Does Xcode 26.3's devicectl have known tunnel bugs?
-4. **Upstream issue:** File with dotnet/maui or Apple if pattern confirmed across many deploys.
+1. ~~**Pattern validation:** Does NWError 57 recur on future iOS deploys if device is in deep sleep?~~ ✅ **Validated** (publishes #6–#9).
+2. ~~**Automation resilience:** Can CI/CD detect NWError 57 and auto-retry?~~ ✅ **Resolved by recipe** (retry-once is now standard).
+3. **Xcode integration:** Does Xcode 26.3's devicectl have known tunnel bugs? (still open — low priority since recipe works)
+4. **Upstream issue:** File with dotnet/maui or Apple — confirmed reproducible, worth a minimal-repro issue when bandwidth allows.
 
 ## References
 

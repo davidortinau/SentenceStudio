@@ -73,6 +73,45 @@ The Copilot CLI environment has 55+ skills and custom agents available. Agents s
 | `localize` | String resources and UI localization |
 | `csharp-dotnet-janitor` | Code cleanup, modernization, tech debt |
 
+## Squad-local skills (project-specific, in `.squad/skills/`)
+
+These live in the repo and are **invisible to general-purpose Copilot agents** unless explicitly loaded. When spawning Squad agents (Wash, Kaylee, Scribe, etc.), reference these by path so the agent reads them before working.
+
+| Skill | Use For |
+|-------|---------|
+| `maui-ios-dx24-install` | iOS publish to DX24 — preemptive wake/unlock + NWError 57 retry-once recipe |
+| `blazor-activity-layout-shell` | Building a new Blazor activity page — copy VocabQuiz shell verbatim, anti-patterns from publishes #5–#9 |
+| `agent-progress-diagnostic` | Decide whether a long-running background agent is hung vs. making progress |
+| `maui-devflow-blazor-hybrid` | DevFlow + Blazor Hybrid integration, tunnel issues |
+| `dotnet-sdk-detection` | 4-layer SDK selection diagnostic before claiming "SDK isn't installed" |
+| `ef-dual-provider-migrations` | EF migrations affecting both PostgreSQL (API) and SQLite (mobile) |
+| `single-flight-async` | SemaphoreSlim + cached Task<T>? to collapse duplicate in-flight async ops |
+| `async-single-flight-testing` | xUnit pattern for testing exactly-one-call semantics under concurrent load |
+| `activity-audio-playback` | Audio playback patterns in activity pages |
+| `activity-audit-checklist` | Pre-ship audit checklist for activity pages |
+| `activity-picker-gating` | Activity picker visibility/gating rules |
+| `adding-smart-resources` | Adding smart-resource integrations |
+| `aspire-maui-bundle-shim` | Aspire + MAUI bundle shim |
+| `aspire-orphan-recovery` | Recover orphaned Aspire processes |
+| `aspnetcore-azure-monitor` | ASP.NET Core + Azure Monitor wiring |
+| `auth-e2e-testing` | End-to-end auth testing |
+| `azure-predeploy-validation` | Pre-deploy validation gates for Azure |
+| `blazor-hybrid-firstrender-jsinit` | First-render JS init in Blazor Hybrid |
+| `blazor-localization` | Localization in Blazor Hybrid pages |
+| `blazor-nav-state-preservation` | Navigation state preservation in Blazor |
+| `blazor-readonly-mode` | Readonly mode patterns |
+| `empty-table-startup-diagnostic` | Diagnose empty-table-on-startup issues |
+| `grader-override-pattern` | Grader override pattern for activities |
+| `maui-azure-monitor` | MAUI + Azure Monitor wiring |
+| `mcp-tool-discovery` | MCP tool discovery patterns |
+| `number-content-seeding` | Number-content seeding for NumberDrill |
+| `paired-prompt-ui` | Paired-prompt UI pattern |
+| `project-conventions` | Repo-wide conventions |
+| `resource-id-decoupling` / `resourceid-decoupling` | Resource ID decoupling |
+| `sqlite-migration-generation` | Generate SQLite migrations |
+| `sqlite-migration-history-reconcile` | Reconcile SQLite migration history |
+| `structured-import-results` | Structured import result handling |
+
 ## Usage Pattern
 
 When spawning an agent, include relevant skill references:

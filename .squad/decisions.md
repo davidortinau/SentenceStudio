@@ -1180,3 +1180,299 @@ dotnet build src/SentenceStudio.iOS/SentenceStudio.iOS.csproj \
 
 **Decision Drop:** `.squad/decisions/inbox/kaylee-grader-override.md`
 
+
+---
+
+# Skill Trainer — Recent Session Review (Publishes #5–#9)
+
+**Author:** SkillTrainer (delegated by Coordinator)
+**Requested by:** Captain (David Ortinau)
+**Date:** 2026-05-07
+**Scope:** Last ~30 turns of session — NumberDrill Phase 1 publishes #5–#9 across Azure + DX24
+**Status:** Assessment only. **No edits applied.** No Arena eval requests filed.
+**Next action:** Captain picks which proposals to ship; Trainer applies and logs.
+
+---
+
+## Assessment Summary
+
+Five publishes shipped. Three of them (#7, #8, #9) were rejected on visual inspection AFTER the publish recipe and automated validation reported success. That pattern — "build green, deploy green, captain says no" — points at gaps in **layout-parity guidance** and **visual diagnosis tooling**, not at the deploy recipe itself. The deploy recipe (Azure + DX24) is solid. The DX24 install half-step has a known retry pattern that recurred 3× without being preemptively applied. There is also a Squad operational gap around "is this long-running agent hung?"
+
+Of the five friction events, **only one (DX24 NWError 57) has a documented skill**. That skill exists but the agents driving the publishes either didn't read it or it isn't routed into their default-load set.
+
+---
+
+## Skills Read for This Assessment
+
+| Skill | Path | Length | Relevance |
+|-------|------|--------|-----------|
+| `maui-ios-dx24-install` | `.squad/skills/maui-ios-dx24-install/SKILL.md` | 76 lines | **Direct hit** for NWError 57 — but stale confidence label and not surfaced to publish agents |
+| `maui-ai-debugging` (project) | `.claude/skills/maui-ai-debugging/SKILL.md` | 44 KB | Build/deploy/inspect loop — does NOT cover DX24 NWError 57, does NOT cover Blazor Hybrid layout parity |
+| `maui-visual-review` (user) | `~/.copilot/skills/maui-visual-review/SKILL.md` | 31 KB | Design-vs-impl visual diff — **almost** covers the visual diagnosis pattern but trigger phrasing is "design vs implementation," not "two implementations side by side" |
+| `e2e-testing` (project) | `.claude/skills/e2e-testing/SKILL.md` | ~120 lines | Functional verification only — no visual parity step |
+| `available-copilot-skills` | `.squad/skills/available-copilot-skills/SKILL.md` | index | Index does not list `maui-ios-dx24-install` or `maui-visual-review` |
+
+Repo evidence cross-checked:
+- `src/SentenceStudio.UI/Pages/VocabQuiz.razor` lines 8–27, 382 — canonical activity layout shell
+- `src/SentenceStudio.UI/Pages/NumberDrill.razor` lines 26–29, 465 — layout shell now matches after Publish #9 fix
+- `src/SentenceStudio.UI/wwwroot/css/app.css` lines 1381–1424 — definitions of `.activity-page-wrapper`, `.activity-content`, `.activity-input-bar`, `.activity-footer`. **Lines 1395–1403 are the trap**: an empty `<div class="activity-input-bar">` renders as visible chrome (border-top, padding, safe-area-inset-bottom) even with zero children.
+
+---
+
+## Ranked Issues
+
+### ❌ #1 — DX24 NWError 57 retry recipe is documented but not preemptively applied
+
+**Severity:** ❌ wrong (recurs every publish, costs ~60s + Captain attention each time)
+
+**Hypothesis:** The skill `.squad/skills/maui-ios-dx24-install/SKILL.md` exists with the right answer, but:
+1. Its status line says "Medium confidence (observed once)" (line 5) — stale; we now have 4+ observations across publishes #6–#9.
+2. It is not referenced from `docs/deploy-runbook.md` or from `.claude/skills/maui-ai-debugging/SKILL.md` — the two places a publish agent actually loads.
+3. The recipe is *reactive* ("if NWError 57, unlock + retry") rather than *preemptive* ("first install on a possibly-sleeping device — wake it first, expect to retry once").
+
+**Evidence:**
+- Publishes #7, #8, #9 all hit NWError 57 on attempt #1, succeeded on attempt #2, every single time.
+- Captain has been physically unlocking DX24 each publish. Wash agents have been asking "should I retry?" each time as if it's novel.
+
+**Proposed edits (no changes made):**
+
+1. **Edit:** `.squad/skills/maui-ios-dx24-install/SKILL.md`
+   - Line 5: change `Status: ⚠️ Medium confidence (observed once...)` → `Status: ✅ High confidence (observed 4+ times across publishes #6–#9, 2026-05-06 and 2026-05-07)`
+   - Add new section after "Recovery Path": **"Preemptive Procedure (do this BEFORE first install attempt)"** — wake device, confirm unlocked, then run install. If it still fails, retry once is expected and not an error.
+   - Update "Future Investigations" → demote items 1 and 2 (validated).
+
+2. **Edit:** `.claude/skills/maui-ai-debugging/SKILL.md`
+   - Add a section "iOS Device Install on DX24 (SentenceStudio-specific)" near the existing iOS section, with a one-paragraph summary and a link to `.squad/skills/maui-ios-dx24-install/SKILL.md`. Keep the link, not a copy — the squad skill is the source of truth.
+
+3. **Edit:** `docs/deploy-runbook.md`
+   - In the "iOS to DX24" step, add a "⚠️ Pre-install" callout: **"Wake DX24 and unlock before running `xcrun devicectl device install`. If first attempt fails with NWError 57, retry once — this is a known device-tunnel pattern, not a build error."**
+
+4. **Edit:** `.squad/skills/available-copilot-skills/SKILL.md`
+   - Add `maui-ios-dx24-install` to the index under a new "Squad-local skills" section so agents discover it.
+
+**Why no Arena eval:** This is a recipe correction, not a model-behavior test. Measurable success = next publish does not hit NWError 57 surprise.
+
+---
+
+### ❌ #2 — Blazor activity-page layout parity has no skill
+
+**Severity:** ❌ wrong (caused 2 of the 3 visual rejections — Publishes #7 and #8, plus the empty-div rejection in #9)
+
+**Hypothesis:** Wash and Kaylee built NumberDrill's footer/wrapper from scratch instead of copying VocabQuiz verbatim. Each rebuild introduced a different defect. There is no skill or charter note that says "VocabQuiz is the canonical activity shell; copy it, only swap inner content."
+
+**Evidence:**
+- Publish #7: card wrapper around footer that VocabQuiz doesn't have, plus footer not pinned.
+- Publish #8: footer pinned but card wrapper still wrong + unbalanced div from manual surgery.
+- Publish #9: stray empty `<div class="activity-input-bar"></div>` after the footer. The CSS at `app.css` line 1395 gives it `border-top`, `padding`, and safe-area padding — so an empty div renders as a visible strip below the footer. **This is a CSS-class-as-API trap**: `activity-input-bar` is not "a wrapper for an input," it's "a chrome strip with input styling baked in." Empty = still visible.
+
+**Proposed edits (no changes made):**
+
+1. **NEW SKILL:** `.squad/skills/blazor-activity-layout-shell/SKILL.md`
+   - Domain: SentenceStudio webapp (`src/SentenceStudio.UI/Pages/*.razor`)
+   - Canonical reference: `VocabQuiz.razor` lines 8–27, 382
+   - Rule: New activity page = copy VocabQuiz's outer shell (`<div class="activity-page-wrapper">` → `<div class="activity-content">` → `<div class="activity-footer">`) verbatim. Only inner content differs.
+   - Anti-patterns:
+     - Wrapping the footer in a `card` (breaks pin-to-bottom because flex-shrink:0 chain is broken)
+     - Leaving an empty `.activity-input-bar` (renders as visible chrome — border-top + safe-area padding fire even with no children)
+     - Wrapping `.activity-content` in another flex container (breaks `flex: 1` + `min-height: 0` math)
+   - "How to test parity" section: take side-by-side iPhone screenshots, look for chrome-strip differences below the footer.
+   - Cite the CSS evidence at `app.css` lines 1381–1424.
+
+2. **Edit:** `.squad/decisions.md` — add a CONVENTION entry pointing at this new skill so future activity work routes through it.
+
+3. **Edit:** `.squad/skills/available-copilot-skills/SKILL.md` — add the new skill to the index.
+
+**Why this is a SKILL not just a doc:** Three publishes failed the same way; the agent population is not converging on the canonical pattern. This is exactly the "if it blocks twice, capture it" rule from `AGENTS.md`.
+
+**Why no Arena eval:** This is a documentation gap, not a guidance-quality issue. We'd test it organically with Phase 2 of NumberDrill (or whoever builds the next activity).
+
+---
+
+### ⚠️ #3 — Visual diff diagnosis pattern: existing skill has wrong trigger
+
+**Severity:** ⚠️ incomplete (worked anyway, but only because Coordinator improvised)
+
+**Hypothesis:** When Captain provided two iPhone screenshots (IMG_4275 NumberDrill vs IMG_4276 VocabQuiz) and asked "which one is wrong?", Coordinator used the `view` tool on PNG files and visually narrated the diff. **The right tool was `maui-visual-review`** — it has a structured discrepancy-report workflow at `~/.copilot/skills/maui-visual-review/SKILL.md`. Coordinator did not invoke it because the skill description (lines 8–10) is keyed to **"design reference vs implementation"**, not **"two implementations compared for parity."**
+
+**Evidence:**
+- `~/.copilot/skills/maui-visual-review/SKILL.md` line 8: trigger phrases are "compare to design", "does this match the mockup", "redline review"
+- Line 21: "Developer provides a design image (Figma export, screenshot of another app, hand-drawn mockup) and a screenshot of their current implementation"
+- The session use case ("compare reference activity page to new activity page") is functionally identical but doesn't match those triggers.
+
+**Proposed edits (no changes made):**
+
+1. **Edit:** `~/.copilot/skills/maui-visual-review/SKILL.md`
+   - Lines 8–10: add trigger phrases: `"layout parity"`, `"compare two pages"`, `"why does this look different"`, `"reference page vs new page"`, `"chrome strip"`, `"footer alignment"`.
+   - Line 21: broaden "Developer provides a design image" → "Developer provides a target image (design export, mockup, OR a screenshot of an existing reference page) and a screenshot of the current implementation."
+   - Add a "When the reference is another implementation" note in the inputs section: same skill applies, just record both as "implementation-A vs implementation-B" in the discrepancy report.
+
+2. **Optional Arena eval (DEFERRED — Captain decides):** would test "does the model invoke `maui-visual-review` when given two app screenshots and asked 'why are these different?'" Currently the answer is no; after the trigger broadening, expected yes. **Trainer recommends NOT running this until Captain approves the edit, because the eval would fail today and we already know why.**
+
+---
+
+### ⚠️ #4 — Empty-div CSS chrome trap (Blazor Hybrid specific)
+
+**Severity:** ⚠️ incomplete (subset of #2, but worth calling out separately because it's a transferable pattern)
+
+**Hypothesis:** This is a **Blazor + Bootstrap-inspired CSS** anti-pattern that will recur on any activity. The class `.activity-input-bar` carries:
+- `border-top: 1px solid var(--bs-border-color)` (always renders)
+- `padding: 0.75rem 1rem` (always renders)
+- `padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px))` (always renders, can be 30+px on iPhone)
+- `margin: 0 -1rem` + `margin-bottom: -1rem` (bleeds edge-to-edge)
+
+So `<div class="activity-input-bar"></div>` with zero children paints a ~50px-tall strip. The class is named for its *purpose* (input bar) but styled for its *appearance* (chrome strip). **Naming is the bug.**
+
+**Proposed edits (no changes made):**
+
+1. **Edit:** `src/SentenceStudio.UI/wwwroot/css/app.css` lines 1395–1414 — add a comment block explaining the trap:
+   ```css
+   /*
+    * ⚠️ TRAP: This class paints visible chrome (border-top + padding + safe-area)
+    * even when the div has zero children. If you don't need an input bar, OMIT
+    * the div entirely. Do not leave it empty "for symmetry" — it will render
+    * as a strip below your footer. See decisions.md "Publish #9" for repro.
+    */
+   ```
+
+2. **Optional refactor (NOT proposed today):** rename `.activity-input-bar` → `.activity-input-chrome` so the name matches the behavior. Defer until after Captain approves the layout-shell skill (#2) so we don't churn class names while documenting the current state.
+
+3. **Cross-link:** the new `.squad/skills/blazor-activity-layout-shell/SKILL.md` (proposal #2 above) should call this out explicitly as anti-pattern #1.
+
+---
+
+### 💡 #5 — "Is the long-running agent hung?" diagnostic gap
+
+**Severity:** 💡 nice-to-have (one occurrence, recoverable, but Captain explicitly flagged it)
+
+**Hypothesis:** When Wash hit ~83 tool calls during Publish #9, there was no rubric for "is this making progress or stuck?" Coordinator improvised by sending a status `write_agent` message; it returned immediately, confirming Wash was finishing the inbox decision file write. That worked, but only because Coordinator guessed correctly.
+
+**Proposed edits (no changes made):**
+
+1. **NEW SKILL:** `.squad/skills/agent-progress-diagnostic/SKILL.md`
+   - Trigger: "is X hung?", "should I kill X?", "X has been running a long time"
+   - Diagnostic procedure:
+     1. Check tool-call count vs typical envelope for the agent's role (Wash publish ≈ 80–100 tool calls is normal).
+     2. Send a 1-line status `write_agent` (e.g., "status check — what step are you on?"). If reply is fast, agent is alive.
+     3. Check the agent's log/history file for a recent timestamp.
+     4. Only kill if all three signals say stuck.
+   - Include the Wash Publish #9 case as example evidence.
+
+2. **Edit:** `.squad/orchestration.md` (or `.squad/ceremonies.md`) — add a paragraph "Long-running agent rubric" pointing at the new skill.
+
+**Why low priority:** One occurrence, the right answer was "it's fine," and Coordinator guessed correctly. But Captain asked, so we should encode it.
+
+---
+
+## Cross-Cutting Recommendation
+
+The skill ecosystem has **three tiers** that don't talk to each other:
+1. `~/.copilot/skills/` — user-global, well-described, broad
+2. `.claude/skills/` — project, MAUI-focused, fine
+3. `.squad/skills/` — squad-local, project-specific, **invisible** to agents that don't explicitly load Squad context
+
+The three publishes' visual rejections all come from gap #2 → gap #3: the Squad-local knowledge (`maui-ios-dx24-install`, the would-be `blazor-activity-layout-shell`) isn't being routed into general-purpose agents like Wash. **`available-copilot-skills/SKILL.md` is the index that should fix this** — it currently lists user-global skills but not Squad-local ones.
+
+**Proposed edit (no changes made):**
+- Add a "Squad-local skills (project-specific)" section to `.squad/skills/available-copilot-skills/SKILL.md` listing every `.squad/skills/*` directory with a one-line "use for" description. This makes them discoverable to any agent that loads the index.
+
+---
+
+## What I Did NOT Do
+
+- ❌ No file edits applied. All proposals are gated on Captain approval.
+- ❌ No Arena eval requests filed. The optional one for `maui-visual-review` (#3) is flagged as "deferred — would fail today, fix the skill first."
+- ❌ No new skill files created.
+- ❌ No training-log entries written yet — those come AFTER Captain picks which fixes ship and Trainer applies them.
+
+## Suggested Next Step for Captain
+
+Pick from the ranked list:
+- **Easy wins (low risk, high value):** #1 (DX24 retry), #4 (CSS comment).
+- **Medium effort, high value:** #2 (new layout-shell skill), #3 (broaden visual-review triggers).
+- **Optional:** #5 (agent progress diagnostic).
+- **Mechanical:** Cross-cutting fix to `available-copilot-skills` index.
+
+Once approved, Trainer applies edits one at a time (per skill-trainer protocol: one change per eval cycle), validates with eval if measurable, and writes training-log entries to:
+- `.claude/skills/training-logs/maui-ai-debugging.md` (#1, #4 cross-link)
+- `.claude/skills/training-logs/blazor-activity-layout-shell.md` (#2 — NEW)
+- `~/.copilot/skills/training-logs/maui-visual-review.md` (#3)
+- `.squad/skills/training-logs/agent-progress-diagnostic.md` (#5 — NEW)
+
+---
+
+## Files cited (for Scribe traceability)
+
+- `.squad/decisions.md` (current state, Publish #5–#9 entries)
+- `.squad/skills/maui-ios-dx24-install/SKILL.md`
+- `.claude/skills/maui-ai-debugging/SKILL.md`
+- `~/.copilot/skills/maui-visual-review/SKILL.md`
+- `.claude/skills/e2e-testing/SKILL.md`
+- `.squad/skills/available-copilot-skills/SKILL.md`
+- `src/SentenceStudio.UI/Pages/VocabQuiz.razor` (canonical layout reference)
+- `src/SentenceStudio.UI/Pages/NumberDrill.razor` (now matches)
+- `src/SentenceStudio.UI/wwwroot/css/app.css` lines 1381–1424 (the trap)
+- `docs/deploy-runbook.md` (publish workflow)
+
+---
+
+# Skill Trainer — Fixes Applied (Recent Session Review)
+
+**Author:** SkillTrainer (delegated by Coordinator)
+**Date:** 2026-05-07
+**Source proposal:** `.squad/decisions/inbox/skill-trainer-recent-review.md`
+**Captain approval:** All 5 findings + index update approved.
+**Status:** ✅ All edits applied.
+
+---
+
+## Outcomes (one-line each)
+
+| # | Finding | Files touched | Outcome |
+|---|---------|---------------|---------|
+| 1 | DX24 NWError 57 retry recipe | `.squad/skills/maui-ios-dx24-install/SKILL.md`, `.claude/skills/maui-ai-debugging/SKILL.md`, `docs/deploy-runbook.md` | Status bumped to ✅ High confidence; preemptive procedure added; "budget for 1 retry" recipe linked from both runbook and maui-ai-debugging skill |
+| 2 | NEW: Blazor activity-page layout shell | `.squad/skills/blazor-activity-layout-shell/SKILL.md` (created) | Canonical VocabQuiz shell documented; 4 anti-patterns from publishes #7–#9 captured (empty input-bar, card wrapper, unpinned footer, custom class invention) |
+| 3 | Broaden maui-visual-review triggers | `~/.copilot/skills/maui-visual-review/SKILL.md` | Description and "When to Use" section now cover implementation-vs-implementation visual diffs ("layout parity", "spot the difference", "compare two pages") |
+| 4 | Empty-div CSS chrome warning | `src/SentenceStudio.UI/wwwroot/css/app.css` lines ~1395 | Comment block added above `.activity-input-bar` warning that empty div renders visible chrome (~50px on iPhone) |
+| 5 | NEW: Agent progress diagnostic | `.squad/skills/agent-progress-diagnostic/SKILL.md` (created) | 4-step rubric (envelope check → ping → fs check → log check) before reaching for stop_bash; Wash Publish #9 founding case included |
+| Idx | Squad-local skills index | `.squad/skills/available-copilot-skills/SKILL.md` | New "Squad-local skills" section listing all 30+ `.squad/skills/*` directories with one-line "use for" — fixes the discoverability gap that caused the DX24 skill to be invisible to publish agents |
+
+---
+
+## Detailed file paths
+
+### Edited
+- `/Users/davidortinau/work/SentenceStudio/.squad/skills/maui-ios-dx24-install/SKILL.md` — 3 edits (status, preemptive section, future investigations)
+- `/Users/davidortinau/work/SentenceStudio/.claude/skills/maui-ai-debugging/SKILL.md` — added "iOS Device Install on DX24 (SentenceStudio-specific)" subsection in Platform Details
+- `/Users/davidortinau/work/SentenceStudio/docs/deploy-runbook.md` — added single-paragraph callout at the top of Step 2c "Install and launch on DX24"
+- `/Users/davidortinau/.copilot/skills/maui-visual-review/SKILL.md` — 2 edits (frontmatter description + "When to Use" section)
+- `/Users/davidortinau/work/SentenceStudio/src/SentenceStudio.UI/wwwroot/css/app.css` — comment block above `.activity-input-bar`
+- `/Users/davidortinau/work/SentenceStudio/.squad/skills/available-copilot-skills/SKILL.md` — added "Squad-local skills" section before "Usage Pattern"
+
+### Created
+- `/Users/davidortinau/work/SentenceStudio/.squad/skills/blazor-activity-layout-shell/SKILL.md`
+- `/Users/davidortinau/work/SentenceStudio/.squad/skills/agent-progress-diagnostic/SKILL.md`
+- `/Users/davidortinau/work/SentenceStudio/.squad/agents/scribe/training-log.md` (5 entries, see below)
+
+---
+
+## What was NOT done (per Captain's constraints)
+
+- ❌ **No Arena eval requests filed.** Captain wants to ship the fixes and observe organically. Trainer notes that finding #3 (broaden visual-review triggers) would be a good first eval candidate after a publish or two.
+- ❌ **VocabQuiz.razor and NumberDrill.razor untouched.** They are already correct after publish #9.
+- ❌ **No CSS class rename** (`.activity-input-bar` → `.activity-input-chrome`). Deferred per original proposal — adding a warning comment is enough for now; rename can come later if the trap recurs.
+
+---
+
+## Verification suggestions (for next publish)
+
+- **#1 (DX24):** next publish should preemptively wake DX24 + budget for 1 retry. Wash agent now has the link from `maui-ai-debugging` SKILL.md.
+- **#2 (layout shell):** when Phase 2 of NumberDrill (or any new activity) starts, agent should be told to read `.squad/skills/blazor-activity-layout-shell/SKILL.md` first. Expected: zero footer/chrome rejections on first publish.
+- **#3 (visual-review triggers):** next time Captain provides two screenshots, observe whether Coordinator invokes `maui-visual-review` instead of improvising with `view`.
+- **#4 (CSS warning):** passive — caught by future code review.
+- **#5 (agent progress):** next time Coordinator suspects a hung agent, run the rubric and narrate the result.
+
+---
+
+## Training log
+
+Per skill-trainer-knowledge protocol, a Training Log Entry per fix has been appended to `.squad/agents/scribe/training-log.md`.

@@ -1392,6 +1392,20 @@ h3:focus,
     min-height: 0; /* allow flex child to shrink */
 }
 
+/*
+ * ⚠️ TRAP — empty-div chrome strip (see decisions Publish #9, 2026-05-07)
+ *
+ * This class paints visible chrome (border-top + padding + safe-area-inset-bottom)
+ * EVEN WHEN THE DIV HAS ZERO CHILDREN. An empty `<div class="activity-input-bar"></div>`
+ * left in markup will render as a ~50px-tall visible strip below the footer on iOS
+ * (safe-area padding can be 30+px on devices with home-indicator).
+ *
+ * Rule: if you don't need an input bar, OMIT the div entirely. Do not leave it
+ * empty "for symmetry" with VocabQuiz — VocabQuiz only emits this div when an
+ * input is actually shown.
+ *
+ * Reference: .squad/skills/blazor-activity-layout-shell/SKILL.md (anti-pattern #1)
+ */
 .activity-input-bar {
     flex-shrink: 0;
     background: var(--bs-body-bg);
