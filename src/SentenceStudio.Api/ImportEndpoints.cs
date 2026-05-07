@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using SentenceStudio.Services;
 using SentenceStudio.Shared.Models;
 
@@ -55,7 +56,8 @@ public static class ImportEndpoints
     private static async Task<IResult> StartImport(
         [FromBody] StartImportRequest request,
         ClaimsPrincipal user,
-        [FromServices] VideoImportPipelineService pipelineService)
+        [FromServices] VideoImportPipelineService pipelineService,
+        [FromServices] ILoggerFactory loggerFactory)
     {
         var userProfileId = user.FindFirstValue("user_profile_id");
         if (string.IsNullOrEmpty(userProfileId))
@@ -82,7 +84,9 @@ public static class ImportEndpoints
             }
             catch (Exception ex)
             {
-                // Logging happens inside the pipeline service
+                var logger = loggerFactory.CreateLogger(nameof(ImportEndpoints));
+                logger.LogError(ex, "Unhandled exception in import pipeline for import {ImportId}", import.Id);
+                await pipelineService.FailImportAsync(import, ex.Message);
             }
         });
 
@@ -97,7 +101,8 @@ public static class ImportEndpoints
     private static async Task<IResult> RetryImport(
         string id,
         ClaimsPrincipal user,
-        [FromServices] VideoImportPipelineService pipelineService)
+        [FromServices] VideoImportPipelineService pipelineService,
+        [FromServices] ILoggerFactory loggerFactory)
     {
         var userProfileId = user.FindFirstValue("user_profile_id");
         if (string.IsNullOrEmpty(userProfileId))
@@ -132,7 +137,9 @@ public static class ImportEndpoints
             }
             catch (Exception ex)
             {
-                // Logging happens inside the pipeline service
+                var logger = loggerFactory.CreateLogger(nameof(ImportEndpoints));
+                logger.LogError(ex, "Unhandled exception in import pipeline for import {ImportId}", import.Id);
+                await pipelineService.FailImportAsync(import, ex.Message);
             }
         });
 

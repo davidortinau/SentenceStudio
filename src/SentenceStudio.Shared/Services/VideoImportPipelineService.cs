@@ -396,7 +396,7 @@ public class VideoImportPipelineService
         _logger.LogDebug("Import {Id} → {Status}", import.Id, status);
     }
 
-    private async Task FailImportAsync(VideoImport import, string errorMessage)
+    public async Task FailImportAsync(VideoImport import, string errorMessage)
     {
         import.Status = VideoImportStatus.Failed;
         import.ErrorMessage = errorMessage;
