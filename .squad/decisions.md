@@ -631,3 +631,132 @@ Schema exists and is correct. Seeder simply hasn't triggered due to no user.
 
 Captain manual verification: Open NumberDrill on DX24, confirm override button spacing from Next button.
 
+
+---
+
+### 2026-05-07: Activity Page Progress Footer Convention — All Activities Use Quiz-Style Pattern
+
+**Date:** 2026-05-07  
+**Author:** Kaylee (Frontend Dev)  
+**Status:** ✅ Implemented (Commit 77071f91)  
+**Decision File:** kaylee-progress-footer-parity.md
+
+## Context
+
+NumberDrill initially shipped with top-of-page dot progress indicators (onboarding-style). VocabQuiz uses a bottom-anchored progress footer ("X / Y" text + success badge). Goal: **UX consistency across all activity pages.**
+
+## Decision
+
+**All activity pages (Input category: VocabQuiz, NumberDrill, future Cloze/Translation) use the Quiz-style progress footer pattern.**
+
+## Pattern Details
+
+**Source:** `VocabQuiz.razor` lines 382–385
+
+```html
+@if (state == State.InSession && currentItem != null)
+{
+    <div class="activity-footer d-flex justify-content-between align-items-center">
+        <span id="drill-progress" class="ss-body1 text-secondary-ss">@(currentIndex + 1) / @session!.Items.Count</span>
+        <span id="drill-correct-count" class="badge bg-success rounded-pill px-3"><i class="bi bi-check-lg me-1"></i>@correctCount correct</span>
+    </div>
+}
+```
+
+**Key classes:** `activity-footer`, Bootstrap flex/badge utilities, `ss-body1`, `bi-check-lg` icon
+
+**Placement:** AFTER `activity-content`, BEFORE `activity-input-bar`
+
+## Why NOT Top Dots?
+
+Top dots are reserved for onboarding (multi-step wizards). **NOT** for session drills (10–20+ items overflow on mobile). Footer pattern scales better: "7 / 20" is compact, accessible, works at any item count.
+
+## Convention for Future Activities
+
+1. Use `activity-footer` div (bottom, not top)
+2. Copy VocabQuiz.razor:382–385 markup pattern exactly
+3. Use Bootstrap icons (`bi-*`), no emojis
+4. Place AFTER `activity-content`, BEFORE `activity-input-bar`
+5. Localization: Add activity-specific `_CorrectCount` key to resource files
+
+## Implementation Notes
+
+- **Commit:** 77071f91 (NumberDrill.razor: 9 lines removed dots, 8 lines added footer)
+- **Bookkeeping:** 1b2a214c (docs)
+- **Testing:** Build clean; E2E pending Captain validation on DX24
+
+---
+
+### 2026-05-07: Publish #7 — NumberDrill Progress Footer UX Consistency
+
+**Date:** 2026-05-07  
+**Coordinator:** Wash (DevOps)  
+**Status:** ✅ Published (Azure + iOS)  
+**Decision File:** wash-publish-7.md
+
+## Change Summary
+
+**Component:** NumberDrill.razor (UI-only)  
+**Commits Shipped:**
+- `77071f91` — feat(numberdrill): Replace dot progress indicators with Quiz-style progress footer
+- `1b2a214c` — docs(kaylee): Record progress footer parity implementation
+
+## Deployment Execution
+
+### Azure Deploy (net10 SDK)
+
+- **Command:** `azd deploy`
+- **Duration:** 3m 6s
+- **Result:** ✅ SUCCESS
+
+**API Revision:** `api--0000093` (new)  
+**WebApp Revision:** `webapp--0000079` (new)
+
+### Post-Deploy Validation
+
+**Script:** `./scripts/post-deploy-validate.sh`  
+**Result:** ✅ ALL CHECKS PASSED (16/16)
+
+- Infrastructure: ✅ All services Running
+- Revisions: ✅ Latest active
+- Endpoints: ✅ HTTP 200
+- Database: ✅ Connected
+- Migrations: ✅ No crash indicators
+
+### iOS Build + Install to DX24
+
+**Build:**
+- SDK: net10 GA
+- Target: net10.0-ios (ios-arm64)
+- Option: `-p:ValidateXcodeVersion=false`
+- Result: ✅ SUCCESS
+
+**Install:**
+- Attempt #1: ❌ Timeout (device asleep)
+- Device wake: Captain intervened
+- Attempt #2: ✅ SUCCESS
+  - App: `com.simplyprofound.sentencestudio`
+  - Device: CF4F94E3-A1C9-5617-A089-9ABB0110A09F (iPhone 15 Pro)
+  - Database UUID: BFB39C79-6089-4E5D-AD37-0B84FF06BDA3
+
+## Final Status
+
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Azure API Deploy | ✅ PASS | api--0000093 active |
+| WebApp Deploy | ✅ PASS | webapp--0000079 active |
+| Infrastructure Validation | ✅ PASS | 16/16 checks |
+| iOS Build | ✅ PASS | net10 + ValidateXcodeVersion=false |
+| iOS Install | ✅ PASS | Installed + launched on DX24 |
+| **Overall** | **✅ PUBLISHED** | Ready for manual UX validation |
+
+## Decision Trail
+
+- **SDK:** net10 GA (NOT net11p3 swap — avoids 31 Razor SG errors)
+- **API Target:** Production endpoint `https://api.livelyforest-b32e7d63.centralus.azurecontainerapps.io`
+- **Device Tunnel Pattern:** Handshake timeout on attempt #1; retry after wake succeeded
+
+## Pending
+
+Captain manual UX validation on DX24: Confirm dot indicators GONE, "X / Y" footer VISIBLE.
+
