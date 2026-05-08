@@ -242,6 +242,13 @@ builder.Services.AddSingleton<ISyncProvider>(sp =>
     return new PostgreSQLSyncProvider(configurationBuilder.Build(), ProviderMode.Remote);
 });
 
+// User profile repository (lives in SentenceStudio.Shared; not pulled in via the
+// AppLib core-services extension because the API project does not reference AppLib).
+builder.Services.AddSingleton<UserProfileRepository>();
+
+// Voice discovery (ElevenLabs) — registered here for the same reason as above.
+builder.Services.AddSingleton<SentenceStudio.Services.Speech.IVoiceDiscoveryService, SentenceStudio.Services.Speech.VoiceDiscoveryService>();
+
 // Vocabulary progress services
 builder.Services.AddSingleton<VocabularyProgressRepository>();
 builder.Services.AddSingleton<VocabularyLearningContextRepository>();
@@ -445,6 +452,15 @@ app.MapFeedbackEndpoints();
 
 // Version and release notes endpoints (public)
 app.MapVersionEndpoints();
+
+// User profile endpoints (per-user GET/PUT)
+app.MapProfileEndpoints();
+
+// Speech / voice discovery
+app.MapSpeechEndpoints();
+
+// Debug-only maintenance endpoints (hidden from OpenAPI)
+app.MapMaintenanceEndpoints();
 
 app.MapGet("/api/v1/auth/bootstrap", (ClaimsPrincipal user, ITenantContext tenantContext) =>
     Results.Ok(new BootstrapResponse
