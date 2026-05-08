@@ -195,7 +195,7 @@ public static class ProfileEndpoints
         if (!string.IsNullOrWhiteSpace(request.Email))
         {
             var trimmed = request.Email.Trim();
-            if (!new EmailAddressAttribute().IsValid(trimmed))
+            if (!IsStrictlyValidEmail(trimmed))
             {
                 errors[nameof(request.Email)] = new[] { "Email is not a valid address." };
             }
@@ -224,4 +224,28 @@ public static class ProfileEndpoints
         PreferredSessionMinutes: profile.PreferredSessionMinutes,
         OpenAiApiKey: profile.OpenAI_APIKey,
         ElevenLabsApiKey: null);
+
+    // Stricter email check than EmailAddressAttribute (which accepts e.g. "missing@tld"
+    // and other inputs without a dotted domain). Requires a non-empty local part with
+    // no whitespace, and a domain with at least one dot.
+    private static bool IsStrictlyValidEmail(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return false;
+        if (!new EmailAddressAttribute().IsValid(value)) return false;
+
+        var atIndex = value.IndexOf('@');
+        if (atIndex <= 0 || atIndex == value.Length - 1) return false;
+
+        var local = value[..atIndex];
+        var domain = value[(atIndex + 1)..];
+
+        if (local.Length == 0 || domain.Length == 0) return false;
+        if (local.Any(char.IsWhiteSpace) || domain.Any(char.IsWhiteSpace)) return false;
+        if (!domain.Contains('.')) return false;
+
+        var labels = domain.Split('.');
+        if (labels.Any(string.IsNullOrEmpty)) return false;
+
+        return true;
+    }
 }

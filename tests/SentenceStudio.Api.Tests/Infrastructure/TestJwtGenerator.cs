@@ -30,6 +30,7 @@ public static class TestJwtGenerator
         string? displayName = null,
         string? email = null,
         string? scopes = null,
+        string? userProfileId = null,
         TimeSpan? lifetime = null)
     {
         var claims = new List<Claim>
@@ -41,6 +42,11 @@ public static class TestJwtGenerator
             new(ClaimTypes.Name, displayName ?? DefaultDisplayName),
             new(ClaimTypes.Email, email ?? DefaultEmail),
         };
+
+        if (!string.IsNullOrWhiteSpace(userProfileId))
+        {
+            claims.Add(new Claim("user_profile_id", userProfileId));
+        }
 
         if (!string.IsNullOrWhiteSpace(scopes))
         {
