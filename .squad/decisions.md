@@ -4,6 +4,130 @@
 
 ---
 
+### 2026-05-08: Convention — No Fetch-All-Then-Filter in Multi-User API Endpoints
+
+**By:** Wash (Backend Dev)  
+**Date:** 2026-05-08  
+**Status:** 🔴 BLOCKING — commit 398a7690 review → ✅ REMEDIATION COMPLETE  
+**Context:** API endpoint code review
+
+#### Decision
+
+**API endpoints MUST NOT use `repository.ListAsync().FirstOrDefault(predicate)` to fetch individual records.**
+
+Instead, scope queries by ID (and userId where applicable) at the database layer.
+
+#### Rationale
+
+**Problem Pattern Found:**
+```csharp
+// ❌ WRONG — ProfileEndpoints.cs:58
+var profile = (await repository.ListAsync()).FirstOrDefault(p => p.Id == profileId);
+```
+
+**Why This Is Bad:**
+1. **Performance bomb:** Fetches ALL rows from the table into memory, then filters client-side
+2. **Scales poorly:** Works fine with 10 users, dies at 10,000 users
+3. **IDOR-adjacent:** Suggests author didn't understand authorization scoping
+4. **Wastes bandwidth:** Transfers entire table over wire (PostgreSQL → API container)
+
+**Correct Pattern:**
+```csharp
+// ✅ CORRECT
+var profile = await db.UserProfiles.FirstOrDefaultAsync(p => p.Id == profileId && p.UserId == userId);
+```
+
+Or add a repository method:
+```csharp
+public async Task<UserProfile?> GetByIdAsync(string id, string userId)
+{
+    using var scope = _serviceProvider.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    return await db.UserProfiles.FirstOrDefaultAsync(p => p.Id == id && p.UserId == userId);
+}
+```
+
+#### Affected Code (commit 398a7690)
+
+- `ProfileEndpoints.cs:58` (GET) — fetches all profiles, then filters by ID
+- `ProfileEndpoints.cs:73` (PUT) — fetches all profiles, then filters by ID
+- `MaintenanceEndpoints.cs` (streak migrate) — missing userId filter entirely
+
+#### Resolution (Squad remediation, 2026-05-08)
+
+- ✅ ProfileEndpoints: Rewritten with `GetByIdAsync(id, userId)` pattern (Kaylee, commit 4fe6e2ba)
+- ✅ SpeechEndpoints: Rewritten with same pattern (Kaylee, commit 4fe6e2ba)
+- ✅ ChannelEndpoints, ImportEndpoints, FeedbackEndpoints: Swept (Kaylee, commit 4fe6e2ba)
+- ✅ MaintenanceEndpoints: Removed entirely (Zoe, commit 35133e36 — one-shot migration, never ships)
+- ✅ Integration tests: 27 tests covering IDOR, 404/401, validation (Jayne, 3 commits)
+
+#### Detection Heuristic
+
+```bash
+grep -r "\.ListAsync().*\.FirstOrDefault" src/SentenceStudio.Api
+```
+
+Any hit is a candidate for this anti-pattern.
+
+#### Related
+
+- `.squad/skills/api-endpoint-review-checklist/SKILL.md` — full endpoint review checklist
+- `.squad/orchestration-log/2026-05-08T15:16:12Z-wash.md` — full review details
+- `.squad/log/2026-05-08-398a7690-remediation.md` — remediation session log
+
+---
+
+### 2026-05-08: Convention — Use `AuthClaimTypes` constants for all custom JWT claim names
+
+**By:** Kaylee  
+**Date:** 2026-05-08  
+**Status:** ✅ IMPLEMENTED (squad/wash-398a7690-fixes-profile-speech, commits 4fe6e2ba + cefe6db6)  
+**Context:** Wash review of commit 398a7690 (SIGNIFICANT #5)
+
+#### Decision
+
+Custom JWT claim names MUST live in `src/SentenceStudio.Api/AuthClaimTypes.cs` as `public const string` fields on a `public static class`.
+
+```csharp
+namespace SentenceStudio.Api;
+
+public static class AuthClaimTypes
+{
+    public const string UserProfileId = "user_profile_id";
+}
+```
+
+All endpoints, handlers, and tests must reference these constants:
+
+```csharp
+// ✅ correct
+var profileId = ctx.User.FindFirst(AuthClaimTypes.UserProfileId)?.Value;
+
+// ❌ banned
+var profileId = ctx.User.FindFirst("user_profile_id")?.Value;
+```
+
+Standard ASP.NET Core claim types (`ClaimTypes.NameIdentifier`, `ClaimTypes.Email`, etc.) continue to come from `System.Security.Claims.ClaimTypes` — `AuthClaimTypes` is for SentenceStudio-specific claims only.
+
+#### Rationale
+
+Magic-string claim names scattered across 7 files (Profile, Speech, Channel, Import, Feedback, JwtTokenService, DevAuthHandler) create silent failure risk: a typo in any one of them degrades to "anonymous user" with no compile-time warning. This bug surfaces only in production. Constants prevent this.
+
+#### Compliance status (398a7690 remediation)
+
+- ✅ `ProfileEndpoints.cs`, `SpeechEndpoints.cs` — new code uses the constant
+- ✅ `ChannelEndpoints.cs`, `ImportEndpoints.cs`, `FeedbackEndpoints.cs` — swept on this branch
+- ✅ `Auth/JwtTokenService.cs`, `Auth/DevAuthHandler.cs` — swept on this branch (with `using SentenceStudio.Api;` added)
+- ⚠️ `MaintenanceEndpoints.cs` — Zoe's lane on sibling branch (moot since endpoint deleted)
+
+#### Follow-ups
+
+1. **Lint enforcement:** Add a Roslyn analyzer or unit test that greps `src/SentenceStudio.Api/**/*.cs` for the literal `"user_profile_id"` and fails if found outside `AuthClaimTypes.cs`.
+2. **New claim names:** Anyone adding a new custom claim must extend `AuthClaimTypes` first; PR review must reject magic-string claim names.
+3. **Tests:** `TestJwtGenerator.cs` should reference the constant once all branches land (Jayne's branch).
+
+---
+
 ### 2026-05-06: Override UX rules — Captain directive
 
 **By:** David (Captain)  
