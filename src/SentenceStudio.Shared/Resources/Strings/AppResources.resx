@@ -4602,30 +4602,6 @@ For example: {0} ...</value>
     <value>Database Migrations</value>
     <comment>Section heading</comment>
   </data>
-  <data name="Settings_StreakMigrationComplete" xml:space="preserve">
-    <value>Streak migration complete</value>
-    <comment>Alert text</comment>
-  </data>
-  <data name="Settings_RunStreakMigration" xml:space="preserve">
-    <value>Run Streak Migration</value>
-    <comment>Button text</comment>
-  </data>
-  <data name="Settings_RunningMigration" xml:space="preserve">
-    <value>Running migration...</value>
-    <comment>Status message</comment>
-  </data>
-  <data name="Settings_MigrationSuccess" xml:space="preserve">
-    <value>Migration completed successfully</value>
-    <comment>Status message</comment>
-  </data>
-  <data name="Settings_MigrationFailed" xml:space="preserve">
-    <value>Migration failed: {0}</value>
-    <comment>Status message</comment>
-  </data>
-  <data name="Settings_StreakMigrationCompleteToast" xml:space="preserve">
-    <value>Streak migration complete</value>
-    <comment>Toast success</comment>
-  </data>
   <data name="Settings_About" xml:space="preserve">
     <value>About</value>
     <comment>Section heading</comment>
@@ -4738,10 +4714,6 @@ For example: {0} ...</value>
     <value>Data Management</value>
     <comment>Section heading</comment>
   </data>
-  <data name="Settings_DatabaseMigrationsSection" xml:space="preserve">
-    <value>Database Migrations</value>
-    <comment>Section heading (dev only)</comment>
-  </data>
   <data name="Settings_AboutSection" xml:space="preserve">
     <value>About</value>
     <comment>Section heading</comment>
@@ -4756,10 +4728,6 @@ For example: {0} ...</value>
   </data>
   <data name="Settings_ExportSuccess" xml:space="preserve">
     <value>Data exported successfully</value>
-    <comment>Toast success</comment>
-  </data>
-  <data name="Settings_MigrationComplete" xml:space="preserve">
-    <value>Streak migration complete</value>
     <comment>Toast success</comment>
   </data>
   <data name="VocabWordEdit_VocabTermsSection" xml:space="preserve">

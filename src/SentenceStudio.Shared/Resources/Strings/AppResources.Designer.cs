@@ -9371,15 +9371,6 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Database Migrations.
-        /// </summary>
-        internal static string Settings_DatabaseMigrationsSection {
-            get {
-                return ResourceManager.GetString("Settings_DatabaseMigrationsSection", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to Data Management.
         /// </summary>
         internal static string Settings_DataManagement {
@@ -9457,33 +9448,6 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Settings_LightMode {
             get {
                 return ResourceManager.GetString("Settings_LightMode", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Streak migration complete.
-        /// </summary>
-        internal static string Settings_MigrationComplete {
-            get {
-                return ResourceManager.GetString("Settings_MigrationComplete", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Migration failed: {0}.
-        /// </summary>
-        internal static string Settings_MigrationFailed {
-            get {
-                return ResourceManager.GetString("Settings_MigrationFailed", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Migration completed successfully.
-        /// </summary>
-        internal static string Settings_MigrationSuccess {
-            get {
-                return ResourceManager.GetString("Settings_MigrationSuccess", resourceCulture);
             }
         }
         
@@ -9659,24 +9623,6 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
-        ///   Looks up a localized string similar to Running migration....
-        /// </summary>
-        internal static string Settings_RunningMigration {
-            get {
-                return ResourceManager.GetString("Settings_RunningMigration", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Run Streak Migration.
-        /// </summary>
-        internal static string Settings_RunStreakMigration {
-            get {
-                return ResourceManager.GetString("Settings_RunStreakMigration", resourceCulture);
-            }
-        }
-        
-        /// <summary>
         ///   Looks up a localized string similar to Save Preferences.
         /// </summary>
         internal static string Settings_SavePreferences {
@@ -9691,24 +9637,6 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Settings_ShowMnemonics {
             get {
                 return ResourceManager.GetString("Settings_ShowMnemonics", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Streak migration complete.
-        /// </summary>
-        internal static string Settings_StreakMigrationComplete {
-            get {
-                return ResourceManager.GetString("Settings_StreakMigrationComplete", resourceCulture);
-            }
-        }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to Streak migration complete.
-        /// </summary>
-        internal static string Settings_StreakMigrationCompleteToast {
-            get {
-                return ResourceManager.GetString("Settings_StreakMigrationCompleteToast", resourceCulture);
             }
         }
         
