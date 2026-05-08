@@ -459,9 +459,6 @@ app.MapProfileEndpoints();
 // Speech / voice discovery
 app.MapSpeechEndpoints();
 
-// Debug-only maintenance endpoints (hidden from OpenAPI)
-app.MapMaintenanceEndpoints();
-
 app.MapGet("/api/v1/auth/bootstrap", (ClaimsPrincipal user, ITenantContext tenantContext) =>
     Results.Ok(new BootstrapResponse
     {
