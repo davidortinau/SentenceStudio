@@ -15,7 +15,10 @@ internal static class TestApiHostConfigurator
     public const string DummyPostgresConnectionString =
         "Host=localhost;Database=sentencestudio_test;Username=test;Password=test";
 
-    public static void ConfigureSqliteDatabaseAndSync(IServiceCollection services, string dbPath)
+    public static void ConfigureSqliteDatabaseAndSync(
+        IServiceCollection services,
+        string dbPath,
+        IInterceptor? interceptor = null)
     {
         services.RemoveAll<ApplicationDbContext>();
         services.RemoveAll<DbContextOptions>();
@@ -34,6 +37,10 @@ internal static class TestApiHostConfigurator
         services.AddDbContext<ApplicationDbContext>(options =>
         {
             options.UseSqlite($"Data Source={dbPath}");
+            if (interceptor is not null)
+            {
+                options.AddInterceptors(interceptor);
+            }
             options.ConfigureWarnings(w => w.Ignore(RelationalEventId.PendingModelChangesWarning));
         });
 

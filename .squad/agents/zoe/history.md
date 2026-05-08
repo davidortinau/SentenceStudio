@@ -117,3 +117,7 @@ This directive was established during NumberDrill Phase 1 work when DevFlow CLI 
 
 ---
 
+
+---
+
+**[TEAM UPDATE — 2026-05-08]** Wash completed thorough review of commit 398a7690 (Profile, Speech, Maintenance endpoints) → **BLOCK verdict** with 3 blocking security/correctness issues: (1) Fetch-all anti-pattern in ProfileEndpoints (IDOR-adjacent, performance bomb), (2) Missing per-user filter on maintenance endpoints (authorization model broken), (3) Missing input validation despite commit message claim. Zoe assigned to revise Maintenance endpoints (per-user filter, authorization model). See `.squad/orchestration-log/2026-05-08T15:16:12Z-wash.md` and `.squad/decisions.md` section "2026-05-08: Convention — No Fetch-All-Then-Filter."

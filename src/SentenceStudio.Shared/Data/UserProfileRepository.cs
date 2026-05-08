@@ -29,6 +29,20 @@ public class UserProfileRepository
         return await db.UserProfiles.ToListAsync();
     }
 
+    /// <summary>
+    /// Returns the <see cref="UserProfile"/> with the given id, or <c>null</c> when no
+    /// row exists. Uses an indexed primary-key lookup — never load all profiles to
+    /// filter in memory.
+    /// </summary>
+    public async Task<UserProfile?> GetByIdAsync(string id, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrEmpty(id)) return null;
+
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.UserProfiles.FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
+    }
+
     private static bool _backfillDone;
 
     /// <summary>

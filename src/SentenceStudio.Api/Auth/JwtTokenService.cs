@@ -3,6 +3,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Configuration;
+using SentenceStudio.Api;
 using Microsoft.IdentityModel.Tokens;
 using SentenceStudio.Shared.Models;
 
@@ -44,7 +45,7 @@ public sealed class JwtTokenService
 
         if (!string.IsNullOrEmpty(user.UserProfileId))
         {
-            claims.Add(new("user_profile_id", user.UserProfileId));
+            claims.Add(new(AuthClaimTypes.UserProfileId, user.UserProfileId));
         }
 
         var token = new JwtSecurityToken(

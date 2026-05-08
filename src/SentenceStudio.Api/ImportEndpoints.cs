@@ -24,7 +24,7 @@ public static class ImportEndpoints
         [FromServices] VideoImportPipelineService pipelineService,
         [FromQuery] int limit = 50)
     {
-        var userProfileId = user.FindFirstValue("user_profile_id");
+        var userProfileId = user.FindFirstValue(AuthClaimTypes.UserProfileId);
         if (string.IsNullOrEmpty(userProfileId))
             return Results.Unauthorized();
 
@@ -37,7 +37,7 @@ public static class ImportEndpoints
         ClaimsPrincipal user,
         [FromServices] VideoImportPipelineService pipelineService)
     {
-        var userProfileId = user.FindFirstValue("user_profile_id");
+        var userProfileId = user.FindFirstValue(AuthClaimTypes.UserProfileId);
         if (string.IsNullOrEmpty(userProfileId))
             return Results.Unauthorized();
 
@@ -57,7 +57,7 @@ public static class ImportEndpoints
         ClaimsPrincipal user,
         [FromServices] VideoImportPipelineService pipelineService)
     {
-        var userProfileId = user.FindFirstValue("user_profile_id");
+        var userProfileId = user.FindFirstValue(AuthClaimTypes.UserProfileId);
         if (string.IsNullOrEmpty(userProfileId))
             return Results.Unauthorized();
 
@@ -99,7 +99,7 @@ public static class ImportEndpoints
         ClaimsPrincipal user,
         [FromServices] VideoImportPipelineService pipelineService)
     {
-        var userProfileId = user.FindFirstValue("user_profile_id");
+        var userProfileId = user.FindFirstValue(AuthClaimTypes.UserProfileId);
         if (string.IsNullOrEmpty(userProfileId))
             return Results.Unauthorized();
 

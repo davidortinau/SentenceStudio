@@ -9,6 +9,7 @@
 **By:** Wash (Backend Dev)  
 **Date:** 2026-05-08  
 **Status:** 🔴 BLOCKING — commit 398a7690 review → ✅ REMEDIATION COMPLETE  
+**Status:** 🔴 BLOCKING — commit 398a7690 review  
 **Context:** API endpoint code review
 
 #### Decision
@@ -125,6 +126,15 @@ Magic-string claim names scattered across 7 files (Profile, Speech, Channel, Imp
 1. **Lint enforcement:** Add a Roslyn analyzer or unit test that greps `src/SentenceStudio.Api/**/*.cs` for the literal `"user_profile_id"` and fails if found outside `AuthClaimTypes.cs`.
 2. **New claim names:** Anyone adding a new custom claim must extend `AuthClaimTypes` first; PR review must reject magic-string claim names.
 3. **Tests:** `TestJwtGenerator.cs` should reference the constant once all branches land (Jayne's branch).
+- commit 398a7690 review verdict: BLOCK (3 blocking issues)
+- `.squad/orchestration-log/2026-05-08T15:16:12Z-wash.md` — full review details
+
+#### Next Steps
+
+1. Fix ProfileEndpoints (replace ListAsync + add userId filter)
+2. Fix MaintenanceEndpoints (add userId filter)
+3. Audit all existing `*Endpoints.cs` for same pattern
+4. Add integration test verifying query plan (should NOT scan full table)
 
 ---
 

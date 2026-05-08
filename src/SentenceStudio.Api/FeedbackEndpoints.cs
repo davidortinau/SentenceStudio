@@ -43,7 +43,7 @@ public static class FeedbackEndpoints
     {
         var logger = loggerFactory.CreateLogger("FeedbackEndpoints");
 
-        var userProfileId = user.FindFirstValue("user_profile_id");
+        var userProfileId = user.FindFirstValue(AuthClaimTypes.UserProfileId);
         if (string.IsNullOrEmpty(userProfileId))
             return Results.Unauthorized();
 
@@ -104,7 +104,7 @@ public static class FeedbackEndpoints
     {
         var logger = loggerFactory.CreateLogger("FeedbackEndpoints");
 
-        var userProfileId = user.FindFirstValue("user_profile_id");
+        var userProfileId = user.FindFirstValue(AuthClaimTypes.UserProfileId);
         if (string.IsNullOrEmpty(userProfileId))
             return Results.Unauthorized();
 

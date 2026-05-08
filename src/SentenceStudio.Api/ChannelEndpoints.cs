@@ -24,7 +24,7 @@ public static class ChannelEndpoints
         ClaimsPrincipal user,
         [FromServices] ChannelMonitorService channelService)
     {
-        var userProfileId = user.FindFirstValue("user_profile_id");
+        var userProfileId = user.FindFirstValue(AuthClaimTypes.UserProfileId);
         if (string.IsNullOrEmpty(userProfileId))
             return Results.Unauthorized();
 
@@ -37,7 +37,7 @@ public static class ChannelEndpoints
         ClaimsPrincipal user,
         [FromServices] ChannelMonitorService channelService)
     {
-        var userProfileId = user.FindFirstValue("user_profile_id");
+        var userProfileId = user.FindFirstValue(AuthClaimTypes.UserProfileId);
         if (string.IsNullOrEmpty(userProfileId))
             return Results.Unauthorized();
 
@@ -70,7 +70,7 @@ public static class ChannelEndpoints
         ClaimsPrincipal user,
         [FromServices] ChannelMonitorService channelService)
     {
-        var userProfileId = user.FindFirstValue("user_profile_id");
+        var userProfileId = user.FindFirstValue(AuthClaimTypes.UserProfileId);
         if (string.IsNullOrEmpty(userProfileId))
             return Results.Unauthorized();
 
@@ -92,7 +92,7 @@ public static class ChannelEndpoints
         ClaimsPrincipal user,
         [FromServices] ChannelMonitorService channelService)
     {
-        var userProfileId = user.FindFirstValue("user_profile_id");
+        var userProfileId = user.FindFirstValue(AuthClaimTypes.UserProfileId);
         if (string.IsNullOrEmpty(userProfileId))
             return Results.Unauthorized();
 
@@ -113,7 +113,7 @@ public static class ChannelEndpoints
         [FromServices] ChannelMonitorService channelService,
         [FromServices] VideoImportPipelineService pipelineService)
     {
-        var userProfileId = user.FindFirstValue("user_profile_id");
+        var userProfileId = user.FindFirstValue(AuthClaimTypes.UserProfileId);
         if (string.IsNullOrEmpty(userProfileId))
             return Results.Unauthorized();
 

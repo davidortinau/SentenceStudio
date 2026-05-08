@@ -800,3 +800,117 @@ Captain should test "1000원" for "천 원" again after deployment.
 - 2026-05-18: **NumberDrill Card Wrapper Removal** — Captain reported NumberDrill had a card wrapper around session content that VocabQuiz doesn't use, creating visual inconsistency. VocabQuiz uses flat full-bleed layout for active session (cards only for setup/summary screens). Removed `<div class="card card-ss p-4">` wrapper from NumberDrill session content (lines 116-417). **Pattern established:** Activity pages use flat layout for active session content (no card chrome, no elevation) — cards are ONLY for setup and summary screens where visual grouping aids comprehension. Card wrappers add visual weight, reduce screen space for large prompts, and compete with footer for bottom-edge positioning. Flat layout keeps focus on the prompt/drill, not the container. Also helps footer pin correctly by removing intermediate padding/margin. Files: `NumberDrill.razor` (2 lines removed - card opening/closing div). Build: ✅ clean. Commit: `d09c233c`. Combined with footer layout fix (`577852ff`), NumberDrill now has full outer-page parity with VocabQuiz.
 
 - 2026-05-07: **SkillTrainer Review Applied — Blazor Activity Layout Shell Canonical Reference** — Five findings from publishes #5–#9 consolidated and applied. KEY FOR KAYLEE: (1) NEW: `blazor-activity-layout-shell/SKILL.md` documenting canonical VocabQuiz shell + 4 anti-patterns identified from Phase 1 publishes (footer card wrap, empty-div chrome, unpinned footer, custom classes). Use this as reference for Phase 2 NumberDrill + future activities (Cloze, Translation) to avoid footer/chrome rejections. (2) CSS warning added to `.activity-input-bar` explaining the empty-div trap — empty divs with this class still render visible chrome (~50px strip). (3) Also applied: DX24 NWError 57 preemptive procedure, visual-review skill trigger expansion, agent-progress diagnostic skill, squad-local skills index. Read the skill for Phase 2 design.
+
+---
+
+**[TEAM UPDATE — 2026-05-08]** Wash completed thorough review of commit 398a7690 (Profile, Speech, Maintenance endpoints) → **BLOCK verdict** with 3 blocking security/correctness issues: (1) Fetch-all anti-pattern in ProfileEndpoints (IDOR-adjacent, performance bomb), (2) Missing per-user filter on maintenance endpoints (authorization model broken), (3) Missing input validation despite commit message claim. Kaylee assigned to revise Profile endpoints (IDOR fix, validation, logging, CancellationToken). See `.squad/orchestration-log/2026-05-08T15:16:12Z-wash.md` and `.squad/decisions.md` section "2026-05-08: Convention — No Fetch-All-Then-Filter."
+
+---
+
+## Learnings — 2026-05-08 — Wash 398a7690 remediation (Profile + Speech + clients)
+
+### Wash-checklist patterns I applied
+
+The 10-point `api-endpoint-review-checklist` is the right level of detail for
+endpoint review — every item turned into a concrete code change:
+
+1. **No fetch-all-then-filter.** Replaced `ListAsync().Where(p => p.Id == id)`
+   in `ProfileEndpoints.GetProfile` with a new
+   `UserProfileRepository.GetByIdAsync(string id, CancellationToken ct)`
+   doing an indexed PK lookup. This is the same pattern Wash flagged on
+   Maintenance — it scales O(N) per request and is IDOR-adjacent. Now O(1).
+2. **Existence-then-ownership ordering** (PUT). 404-then-403 produces clean
+   semantics for the client and avoids the "log a 403 for a profile that
+   doesn't exist" smell. The DB cost is one indexed PK lookup, not a scan.
+3. **`ValidateUpdateRequest`** returning `Dictionary<string, string[]>?` →
+   `TypedResults.ValidationProblem(...)` is the canonical RFC 7807 shape.
+   Both Refit (.NET) and Dio (Flutter) parse this natively. Captured in
+   `.squad/skills/validation-problem-details/SKILL.md`.
+4. **`AuthClaimTypes` constant** removes a magic-string bug class. Decision
+   filed at `.squad/decisions/inbox/kaylee-authclaimtypes-constants.md`.
+   Auth handlers (`JwtTokenService`, `DevAuthHandler`) live in
+   `SentenceStudio.Api.Auth` namespace; they need an explicit
+   `using SentenceStudio.Api;` directive — easy to miss.
+5. **`ILoggerFactory` injected per-endpoint** matches the FeedbackEndpoints
+   pattern — request-scoped category names, structured logging with
+   `{ProfileId}`/`{Language}` placeholders for Application Insights.
+6. **`CancellationToken` propagated** to repo + EF queries. Caveat:
+   `IVoiceDiscoveryService.GetVoicesForLanguageAsync` does NOT accept a CT
+   today — propagating CT through that interface is out of scope for this
+   PR.
+7. **`.Trim()` on free-text query params** (Speech `Gender`/`Accent`) before
+   any `string.Equals` comparison — Wash NIT but a real bug, "MALE " never
+   matched.
+8. **Reload-after-save** on PUT prevents partial updates from being returned
+   to the client and makes the contract idempotent.
+
+### Flutter contract drift findings
+
+The Flutter Profile feature was **completely broken** against the deployed
+API before this PR — three independent bugs:
+
+- Path: `/api/profile/{id}` — should be `/api/v1/profile/{id}`. Always 404.
+- Field name: server returns `displayName`, Flutter expected `name`. Even
+  after the path fix, `name` would deserialise to null.
+- Required `createdAt`: server doesn't return it; `DateTime.parse(null)`
+  throws.
+
+Fixed all three in `SentenceStudioFlutter` on this same branch:
+- `@JsonKey(name: 'displayName')` on the Dart `name` field maps server
+  ↔ client without renaming the Drift column.
+- `createdAt` made optional with epoch fallback;
+  `@JsonKey(includeFromJson: false, includeToJson: false)` so it never
+  travels over the wire.
+- `targetLanguages` (local-only multi-language string) marked
+  `includeToJson: false` — it stays in Drift but isn't sent to the server.
+- New `ProfileValidationException` parses `ValidationProblemDetails` and
+  surfaces field errors to the controller's `errorMessage`. Repository no
+  longer silently caches a rejected save.
+
+**Drift + json_serializable gotcha:** both packages export `JsonKey`. Without
+`import 'package:drift/drift.dart' hide JsonKey;` the build_runner fails
+with the cryptic "Could not resolve annotation for `String? name`" instead
+of pointing at the ambiguous import.
+
+### Branch contamination recovery
+
+Working in a shared checkout with parallel agents (Zoe on maintenance,
+Jayne on tests) caused `HEAD` to switch under me at least twice. Untracked
+files survive `git switch` only when they don't conflict with the target
+branch; new test files from Jayne sat untracked across branches and
+confused `git status`. Recovery procedure that worked:
+
+1. Stash my modifications immediately (`git stash push -m "kaylee-..." <files>`).
+2. Note untracked-only files (e.g. `AuthClaimTypes.cs`,
+   `SpeechEndpoints.cs` rewrite) and copy them to `.squad/_kaylee_scratch/`
+   before any `git switch` — `git stash` does not capture untracked-by-
+   default. (`-u` would, but conflicts with sibling agents' untracked work.)
+3. Switch to my branch.
+4. Pop the stash.
+5. Restore the scratched files into place.
+6. Verify build before continuing.
+
+The scratch-dir copy is the safety net. The lesson: **on a shared
+checkout, treat every `git switch` as a hostile operation** — assume you
+will lose untracked files, plan for it, copy first.
+
+### Lane-crossing
+
+I touched `JwtTokenService.cs` and `DevAuthHandler.cs` (Wash's lane in
+spirit — they live under `Auth/`) because the `AuthClaimTypes` introduction
+is incomplete without sweeping the auth pipeline that issues the claims.
+Filed in the decision doc; flagged for Wash review on the PR.
+
+I deliberately did **not** touch `MaintenanceEndpoints.cs` even though it
+contains the same `"user_profile_id"` magic string — Zoe owns that file on
+her branch. Flagged in the decision doc for cross-branch follow-up.
+
+### Files that need follow-up (not in scope here)
+
+- `Services/VoiceDiscoveryService.cs` — emoji in `_logger.LogInformation`
+  calls (lines 98, 112, 138, 148, 153). Pre-existing, violates the "no
+  emoji" rule. Not in Wash's review scope.
+- `IVoiceDiscoveryService.GetVoicesForLanguageAsync` — no CT parameter. Out
+  of scope; opens a contract change across at least one consumer.
+- `MaintenanceEndpoints.cs` — needs the same `AuthClaimTypes` sweep on
+  Zoe's branch.
