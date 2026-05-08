@@ -68,7 +68,7 @@ SentenceStudio-specific claims only.
 
 1. **Lint enforcement.** Open an issue to add a Roslyn analyzer or a unit-test
    that greps `src/**/*.cs` for the literal `"user_profile_id"` and fails if
-   found outside `AuthClaimTypes.cs`. *(Not yet filed.)*
+   found outside `AuthClaimTypes.cs`. *(Tracked as [#202](https://github.com/davidortinau/SentenceStudio/issues/202) — 2026-05-08.)*
 2. **New claim names.** Anyone adding a new custom claim must extend
    `AuthClaimTypes` first; PR review must reject magic-string claim names.
 3. ~~`tests/SentenceStudio.Api.Tests/Infrastructure/TestJwtGenerator.cs`

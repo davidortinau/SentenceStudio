@@ -25,7 +25,7 @@ Full doc: [`.squad/decisions/processed/2026-05-08/kaylee-authclaimtypes-constant
 
 #### Follow-ups (not yet filed as issues)
 
-1. Roslyn analyzer / unit test that fails on the literal `"user_profile_id"` outside `AuthClaimTypes.cs`.
+1. Roslyn analyzer / unit test that fails on the literal `"user_profile_id"` outside `AuthClaimTypes.cs`. — tracked as [#202](https://github.com/davidortinau/SentenceStudio/issues/202).
 2. PR review rule: new custom claims must extend `AuthClaimTypes` first.
 3. ~~TestJwtGenerator references the constant.~~ ✅ DONE.
 
