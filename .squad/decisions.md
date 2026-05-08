@@ -4,6 +4,78 @@
 
 ---
 
+### 2026-05-08: Convention — No Fetch-All-Then-Filter in Multi-User API Endpoints
+
+**By:** Wash (Backend Dev)  
+**Date:** 2026-05-08  
+**Status:** 🔴 BLOCKING — commit 398a7690 review  
+**Context:** API endpoint code review
+
+#### Decision
+
+**API endpoints MUST NOT use `repository.ListAsync().FirstOrDefault(predicate)` to fetch individual records.**
+
+Instead, scope queries by ID (and userId where applicable) at the database layer.
+
+#### Rationale
+
+**Problem Pattern Found:**
+```csharp
+// ❌ WRONG — ProfileEndpoints.cs:58
+var profile = (await repository.ListAsync()).FirstOrDefault(p => p.Id == profileId);
+```
+
+**Why This Is Bad:**
+1. **Performance bomb:** Fetches ALL rows from the table into memory, then filters client-side
+2. **Scales poorly:** Works fine with 10 users, dies at 10,000 users
+3. **IDOR-adjacent:** Suggests author didn't understand authorization scoping
+4. **Wastes bandwidth:** Transfers entire table over wire (PostgreSQL → API container)
+
+**Correct Pattern:**
+```csharp
+// ✅ CORRECT
+var profile = await db.UserProfiles.FirstOrDefaultAsync(p => p.Id == profileId && p.UserId == userId);
+```
+
+Or add a repository method:
+```csharp
+public async Task<UserProfile?> GetByIdAsync(string id, string userId)
+{
+    using var scope = _serviceProvider.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    return await db.UserProfiles.FirstOrDefaultAsync(p => p.Id == id && p.UserId == userId);
+}
+```
+
+#### Affected Code (commit 398a7690)
+
+- `ProfileEndpoints.cs:58` (GET) — fetches all profiles, then filters by ID
+- `ProfileEndpoints.cs:73` (PUT) — fetches all profiles, then filters by ID
+- `MaintenanceEndpoints.cs` (streak migrate) — missing userId filter entirely
+
+#### Detection Heuristic
+
+```bash
+grep -r "\.ListAsync().*\.FirstOrDefault" src/SentenceStudio.Api
+```
+
+Any hit is a candidate for this anti-pattern.
+
+#### Related
+
+- `.squad/skills/api-endpoint-review-checklist/SKILL.md` — full endpoint review checklist
+- commit 398a7690 review verdict: BLOCK (3 blocking issues)
+- `.squad/orchestration-log/2026-05-08T15:16:12Z-wash.md` — full review details
+
+#### Next Steps
+
+1. Fix ProfileEndpoints (replace ListAsync + add userId filter)
+2. Fix MaintenanceEndpoints (add userId filter)
+3. Audit all existing `*Endpoints.cs` for same pattern
+4. Add integration test verifying query plan (should NOT scan full table)
+
+---
+
 ### 2026-05-06: Override UX rules — Captain directive
 
 **By:** David (Captain)  
