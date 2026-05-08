@@ -4358,30 +4358,6 @@
     <value>데이터베이스 마이그레이션</value>
     <comment>Section heading</comment>
   </data>
-  <data name="Settings_StreakMigrationComplete" xml:space="preserve">
-    <value>연속 기록 마이그레이션 완료</value>
-    <comment>Alert text</comment>
-  </data>
-  <data name="Settings_RunStreakMigration" xml:space="preserve">
-    <value>연속 기록 마이그레이션 실행</value>
-    <comment>Button text</comment>
-  </data>
-  <data name="Settings_RunningMigration" xml:space="preserve">
-    <value>마이그레이션 실행 중...</value>
-    <comment>Status message</comment>
-  </data>
-  <data name="Settings_MigrationSuccess" xml:space="preserve">
-    <value>마이그레이션이 성공적으로 완료되었습니다</value>
-    <comment>Status message</comment>
-  </data>
-  <data name="Settings_MigrationFailed" xml:space="preserve">
-    <value>마이그레이션 실패: {0}</value>
-    <comment>Status message</comment>
-  </data>
-  <data name="Settings_StreakMigrationCompleteToast" xml:space="preserve">
-    <value>연속 기록 마이그레이션 완료</value>
-    <comment>Toast success</comment>
-  </data>
   <data name="Settings_About" xml:space="preserve">
     <value>정보</value>
     <comment>Section heading</comment>
@@ -4494,10 +4470,6 @@
     <value>데이터 관리</value>
     <comment>Section heading</comment>
   </data>
-  <data name="Settings_DatabaseMigrationsSection" xml:space="preserve">
-    <value>데이터베이스 마이그레이션</value>
-    <comment>Section heading (dev only)</comment>
-  </data>
   <data name="Settings_AboutSection" xml:space="preserve">
     <value>정보</value>
     <comment>Section heading</comment>
@@ -4512,10 +4484,6 @@
   </data>
   <data name="Settings_ExportSuccess" xml:space="preserve">
     <value>데이터가 성공적으로 내보내졌습니다</value>
-    <comment>Toast success</comment>
-  </data>
-  <data name="Settings_MigrationComplete" xml:space="preserve">
-    <value>스트릭 마이그레이션 완료</value>
     <comment>Toast success</comment>
   </data>
   <data name="VocabWordEdit_VocabTermsSection" xml:space="preserve">

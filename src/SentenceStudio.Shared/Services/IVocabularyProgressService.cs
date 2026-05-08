@@ -62,12 +62,6 @@ public interface IVocabularyProgressService
         string? learningResourceId = null);
 
     /// <summary>
-    /// Migrates existing vocabulary progress to streak-based scoring system.
-    /// Returns the count of records migrated.
-    /// </summary>
-    Task<int> MigrateToStreakBasedScoringAsync();
-
-    /// <summary>
     /// Sets a user-declared status for a vocabulary word ("Trust but Verify").
     /// Familiar: sets grace period, excludes from quizzes for 14 days, then soft verification probes.
     /// Learning/Unknown: resets to algorithmic tracking.

@@ -163,34 +163,6 @@
     </button>
 </div>
 
-@if (isDebugBuild)
-{
-    @* Database Migrations - Dev Only *@
-    <div class="card card-ss p-4 mb-3">
-        <h5 class="ss-title3 mb-3">@Localize["Settings_DatabaseMigrationsSection"]</h5>
-
-        @if (streakMigrationComplete)
-        {
-            <div class="alert alert-success ss-body2">@Localize["Settings_StreakMigrationComplete"]</div>
-        }
-        else
-        {
-            <button class="btn btn-ss-secondary w-100" @onclick="RunStreakMigration" disabled="@isMigrating">
-                @if (isMigrating)
-                {
-                    <span class="spinner-border spinner-border-sm me-2"></span>
-                }
-                @Localize["Settings_RunStreakMigration"]
-            </button>
-        }
-
-        @if (!string.IsNullOrEmpty(statusMessage))
-        {
-            <p class="ss-caption1 mt-2">@statusMessage</p>
-        }
-    </div>
-}
-
 @* About *@
 <div class="card card-ss p-4 mb-3">
     <h5 class="ss-title3 mb-2">@Localize["Settings_AboutSection"]</h5>
@@ -208,7 +180,6 @@
     OnDismissed="@DismissWhatsNew" />
 
 @code {
-    [Inject] private IVocabularyProgressService VocabProgressService { get; set; }
     [Inject] private DataExportService ExportService { get; set; }
     [Inject] private SentenceStudio.Services.Speech.IVoiceDiscoveryService VoiceDiscovery { get; set; }
     [Inject] private SpeechVoicePreferences VoicePrefs { get; set; }
@@ -230,11 +201,7 @@
     private double quizAutoAdvanceDuration = 3.0;
     private double fontScale = 1.0;
     private bool isExporting;
-    private bool isMigrating;
-    private bool streakMigrationComplete;
-    private string statusMessage = "";
     private string currentVersion = "1.0";
-    private bool isDebugBuild;
     private bool showWhatsNew;
     private string whatsNewTitle = "What's New";
     private string whatsNewVersion = "";
@@ -248,9 +215,6 @@
         var asm = typeof(Settings).Assembly;
         var infoVersion = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
         currentVersion = infoVersion ?? asm.GetName().Version?.ToString() ?? "1.0";
-#if DEBUG
-        isDebugBuild = true;
-#endif
         LoadPreferences();
         await LoadVoicesAsync();
     }
@@ -373,28 +337,6 @@
         finally
         {
             isExporting = false;
-        }
-    }
-
-    private async Task RunStreakMigration()
-    {
-        isMigrating = true;
-        statusMessage = "Running migration...";
-        try
-        {
-            await VocabProgressService.MigrateToStreakBasedScoringAsync();
-            streakMigrationComplete = true;
-            statusMessage = "Migration completed successfully";
-            Toast.ShowSuccess($"{Localize["Settings_MigrationComplete"]}");
-        }
-        catch (Exception ex)
-        {
-            statusMessage = $"{string.Format(Localize["Settings_MigrationFailed"], ex.Message)}";
-            Toast.ShowError(statusMessage);
-        }
-        finally
-        {
-            isMigrating = false;
         }
     }
 

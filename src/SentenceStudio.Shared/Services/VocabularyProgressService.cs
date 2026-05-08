@@ -80,46 +80,6 @@ public class VocabularyProgressService : IVocabularyProgressService
     }
 
     /// <summary>
-    /// Migrates existing progress data to the new streak-based scoring system.
-    /// Call this from UI (e.g., VocabularyLearningProgressPage) to convert existing data.
-    /// </summary>
-    /// <returns>Number of records migrated</returns>
-    public async Task<int> MigrateToStreakBasedScoringAsync()
-    {
-        _logger.LogInformation("🔄 Starting migration to streak-based scoring system...");
-
-        var allProgress = await _progressRepo.ListAsync();
-        int migratedCount = 0;
-
-        foreach (var progress in allProgress)
-        {
-            // Convert old phase-based tracking to streak-based
-            // CurrentStreak = RecognitionCorrect + ProductionCorrect (capped at 10)
-#pragma warning disable CS0618 // Suppress obsolete warnings during migration
-            progress.CurrentStreak = Math.Min(10, progress.RecognitionCorrect + progress.ProductionCorrect);
-            progress.ProductionInStreak = Math.Min((int)progress.CurrentStreak, progress.ProductionCorrect);
-#pragma warning restore CS0618
-
-            // Recalculate MasteryScore using new formula
-            float effectiveStreak = progress.CurrentStreak + (progress.ProductionInStreak * 0.5f);
-            progress.MasteryScore = Math.Min(effectiveStreak / EFFECTIVE_STREAK_DIVISOR, 1.0f);
-
-            // Preserve MasteredAt for words that already reached mastery
-            // (don't overwrite existing timestamps)
-
-            progress.UpdatedAt = DateTime.Now;
-            await _progressRepo.SaveAsync(progress);
-            migratedCount++;
-
-            _logger.LogDebug("🔄 Migrated word {WordId}: Streak={Streak}, ProdInStreak={ProdStreak}, Mastery={Mastery:F2}",
-                progress.VocabularyWordId, progress.CurrentStreak, progress.ProductionInStreak, progress.MasteryScore);
-        }
-
-        _logger.LogInformation("✅ Migration complete! Migrated {Count} vocabulary progress records.", migratedCount);
-        return migratedCount;
-    }
-
-    /// <summary>
     /// Records a vocabulary learning attempt using NEW streak-based scoring
     /// </summary>
     public async Task<VocabularyProgress> RecordAttemptAsync(VocabularyAttempt attempt)
