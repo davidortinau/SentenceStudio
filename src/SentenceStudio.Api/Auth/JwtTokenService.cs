@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Configuration;
 using SentenceStudio.Api;
+using SentenceStudio.Contracts;
 using Microsoft.IdentityModel.Tokens;
 using SentenceStudio.Shared.Models;
 

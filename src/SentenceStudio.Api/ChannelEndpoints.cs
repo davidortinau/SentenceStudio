@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
+using SentenceStudio.Contracts;
 using SentenceStudio.Services;
 using SentenceStudio.Shared.Models;
 

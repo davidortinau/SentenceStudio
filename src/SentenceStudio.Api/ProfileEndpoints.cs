@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http.HttpResults;
 using Microsoft.AspNetCore.Mvc;
+using SentenceStudio.Contracts;
 using SentenceStudio.Data;
 using SentenceStudio.Shared.Models;
 

@@ -2,6 +2,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 using Microsoft.IdentityModel.Tokens;
+using SentenceStudio.Contracts;
 
 namespace SentenceStudio.Api.Tests.Infrastructure;
 
@@ -45,7 +46,7 @@ public static class TestJwtGenerator
 
         if (!string.IsNullOrWhiteSpace(userProfileId))
         {
-            claims.Add(new Claim("user_profile_id", userProfileId));
+            claims.Add(new Claim(AuthClaimTypes.UserProfileId, userProfileId));
         }
 
         if (!string.IsNullOrWhiteSpace(scopes))

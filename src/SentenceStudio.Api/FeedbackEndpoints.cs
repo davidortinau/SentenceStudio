@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.AI;
+using SentenceStudio.Contracts;
 using SentenceStudio.Contracts.Feedback;
 
 namespace SentenceStudio.Api;

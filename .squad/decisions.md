@@ -4,6 +4,33 @@
 
 ---
 
+### 2026-05-08: Convention — Custom JWT claim names live in `SentenceStudio.Contracts.AuthClaimTypes`
+
+**By:** Kaylee (Auth)
+**Date:** 2026-05-08
+**Status:** ✅ ACCEPTED
+**Context:** Wash review of commit 398a7690 (Flutter-endpoint work) → finalized post-deploy
+
+#### Decision
+
+Custom JWT claim names live in `src/SentenceStudio.Contracts/AuthClaimTypes.cs` as `public const string` fields on `SentenceStudio.Contracts.AuthClaimTypes`. Both producers (Api `JwtTokenService` / `DevAuthHandler`, WebApp `ServerAuthService`) and consumers (every endpoint that scopes by user) reference the constant — no magic strings.
+
+Rationale for the Contracts home (vs. original Api proposal): claim names are wire contract; both Api and WebApp produce tokens; peer Aspire services should not project-reference each other; both already reference `SentenceStudio.Contracts`.
+
+#### Compliance (current `main`)
+
+✅ All endpoint files, both auth handlers, JwtTokenService, **and** WebApp ServerAuthService swept. `grep -rn 'user_profile_id' src/` returns only the constant definition.
+
+Full doc: [`.squad/decisions/processed/2026-05-08/kaylee-authclaimtypes-constants.md`](decisions/processed/2026-05-08/kaylee-authclaimtypes-constants.md)
+
+#### Follow-ups (not yet filed as issues)
+
+1. Roslyn analyzer / unit test that fails on the literal `"user_profile_id"` outside `AuthClaimTypes.cs`.
+2. PR review rule: new custom claims must extend `AuthClaimTypes` first.
+3. ~~TestJwtGenerator references the constant.~~ ✅ DONE.
+
+---
+
 ### 2026-05-08: Convention — No Fetch-All-Then-Filter in Multi-User API Endpoints
 
 **By:** Wash (Backend Dev)  

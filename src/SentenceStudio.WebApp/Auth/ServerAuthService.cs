@@ -4,6 +4,7 @@ using System.Text;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
+using SentenceStudio.Contracts;
 using SentenceStudio.Data;
 using SentenceStudio.Services;
 using SentenceStudio.Shared.Models;
@@ -216,7 +217,7 @@ public class ServerAuthService : IAuthService
         var appUser = await userManager.FindByIdAsync(identityUserId);
         if (!string.IsNullOrEmpty(appUser?.UserProfileId))
         {
-            claims.Add(new("user_profile_id", appUser.UserProfileId));
+            claims.Add(new(AuthClaimTypes.UserProfileId, appUser.UserProfileId));
         }
 
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(signingKey));
