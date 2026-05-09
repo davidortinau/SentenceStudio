@@ -95,10 +95,10 @@
     <PackageVersion Include="Platform.Maui.MacOS.BlazorWebView" Version="0.3.0" />
 
     <!-- CoreSync -->
-    <PackageVersion Include="CoreSync.Http.Client" Version="0.1.127" />
-    <PackageVersion Include="CoreSync.Http.Server" Version="0.1.127" />
-    <PackageVersion Include="CoreSync.PostgreSQL" Version="0.1.127" />
-    <PackageVersion Include="CoreSync.Sqlite" Version="0.1.127" />
+    <PackageVersion Include="CoreSync.Http.Client" Version="0.1.129" />
+    <PackageVersion Include="CoreSync.Http.Server" Version="0.1.129" />
+    <PackageVersion Include="CoreSync.PostgreSQL" Version="0.1.129-local2" />
+    <PackageVersion Include="CoreSync.Sqlite" Version="0.1.129" />
 
     <!-- Audio / Media -->
     <PackageVersion Include="Plugin.Maui.Audio" Version="4.0.0" />
