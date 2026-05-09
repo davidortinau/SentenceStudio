@@ -203,9 +203,9 @@ else if (currentItem != null)
             <h1 class="ss-display mb-2" style="color: var(--bs-primary);">@(showTextPrompt ? questionText : promptTitle)</h1>
 
             <div class="d-flex justify-content-center gap-3 mb-2">
-                @if (showAudioPromptControl)
+                @if (audioPromptAvailable)
                 {
-                    <button class="btn btn-outline-secondary btn-sm rounded-circle"
+                    <button class="btn btn-outline-secondary btn-sm rounded-circle d-inline-flex align-items-center justify-content-center p-0"
                             style="width: 44px; height: 44px;"
                             title="Play audio"
                             disabled="@isPlayingAudio"
@@ -215,14 +215,14 @@ else if (currentItem != null)
                 }
                 @if (showPhotoPromptControl)
                 {
-                    <button class="btn btn-outline-secondary btn-sm rounded-circle"
+                    <button class="btn btn-outline-secondary btn-sm rounded-circle d-inline-flex align-items-center justify-content-center p-0"
                             style="width: 44px; height: 44px;"
                             title="@(showMnemonicImage ? "Hide image" : "Show image")"
                             @onclick="ToggleMnemonicImage">
                         <i class="bi @(showMnemonicImage ? "bi-eye-slash" : "bi-image")"></i>
                     </button>
                 }
-                <button id="quiz-info-button" class="btn btn-outline-secondary btn-sm rounded-circle"
+                <button id="quiz-info-button" class="btn btn-outline-secondary btn-sm rounded-circle d-inline-flex align-items-center justify-content-center p-0"
                         style="width: 44px; height: 44px;"
                         title="Word learning details"
                         @onclick="() => showInfoPanel = true">
