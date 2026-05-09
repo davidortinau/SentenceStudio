@@ -31,11 +31,12 @@ public class KoreanNumberAnswerGrader : INumberAnswerGrader
         // Special case: If user typed ONLY Korean number words (no digits, no counter), check if it matches
         if (!ContainsDigits(normalized) && !ContainsAnyCounter(normalized))
         {
-            // Convert user's Korean to digits and compare
-            var userAsDigits = ConvertFullWidthToHalfWidth(KoreanToDigitString(normalized));
+            // Convert user's Korean to digits and compare — guard against cross-system swap.
+            var userAsDigits = ConvertFullWidthToHalfWidth(KoreanToDigitString(normalized, item.System));
             if (!string.IsNullOrWhiteSpace(userAsDigits) && Regex.IsMatch(userAsDigits, @"^\d+$"))
             {
-                if (int.TryParse(userAsDigits, out var userValue) && userValue == item.DigitValue)
+                if (int.TryParse(userAsDigits, out var userValue) && userValue == item.DigitValue
+                    && !UsesWrongNumberSystem(normalized, canonicalNormalized, item.System))
                 {
                     return new GradeResult(
                         IsCorrect: true,
@@ -57,7 +58,7 @@ public class KoreanNumberAnswerGrader : INumberAnswerGrader
         var isMatch = userForms.Any(uf => canonicalForms.Any(cf => 
             string.Equals(uf, cf, StringComparison.OrdinalIgnoreCase)));
 
-        if (isMatch)
+        if (isMatch && !UsesWrongNumberSystem(normalized, canonicalNormalized, item.System))
         {
             return new GradeResult(
                 IsCorrect: true,
@@ -72,9 +73,11 @@ public class KoreanNumberAnswerGrader : INumberAnswerGrader
         // Check acceptable alternates
         foreach (var alternate in item.AcceptableAlternates)
         {
-            var alternateForms = KoreanNumberNormalizer.GenerateEquivalentForms(NormalizeAnswer(alternate), item.System);
+            var alternateNormalized = NormalizeAnswer(alternate);
+            var alternateForms = KoreanNumberNormalizer.GenerateEquivalentForms(alternateNormalized, item.System);
             if (userForms.Any(uf => alternateForms.Any(af => 
-                string.Equals(uf, af, StringComparison.OrdinalIgnoreCase))))
+                string.Equals(uf, af, StringComparison.OrdinalIgnoreCase)))
+                && !UsesWrongNumberSystem(normalized, alternateNormalized, item.System))
             {
                 return new GradeResult(
                     IsCorrect: true,
@@ -100,10 +103,11 @@ public class KoreanNumberAnswerGrader : INumberAnswerGrader
         );
     }
 
-    private string KoreanToDigitString(string text)
+    private string KoreanToDigitString(string text, NumberSystem system)
     {
-        // Use the normalizer's conversion, but we need to expose it or duplicate the logic
-        var forms = KoreanNumberNormalizer.GenerateEquivalentForms(text, NumberSystem.Sino);
+        // Use the normalizer's conversion in the item's system so Sino input
+        // can't bridge to a Native item (or vice versa).
+        var forms = KoreanNumberNormalizer.GenerateEquivalentForms(text, system);
         // Find the first form that contains only digits
         return forms.FirstOrDefault(f => Regex.IsMatch(f, @"^\d+$")) ?? text;
     }
@@ -241,6 +245,48 @@ public class KoreanNumberAnswerGrader : INumberAnswerGrader
     {
         var sinoDigits = new[] { "일", "이", "삼", "사", "오", "육", "칠", "팔", "구", "영" };
         return sinoDigits.Any(d => text.Contains(d));
+    }
+
+    /// <summary>
+    /// Detects when the user has typed digits using the wrong number system for the item.
+    /// E.g., item.System=Native, canonical "쉰여덟 잔", user typed "오십팔 잔" (Sino digits).
+    /// Both normalize to "58 잔" via ConvertKoreanToDigits, but the user used the wrong system.
+    /// Returns true if user input contains opposite-system digit words that the canonical does NOT.
+    /// </summary>
+    private bool UsesWrongNumberSystem(string userText, string canonicalText, NumberSystem system)
+    {
+        // Mixed/Lexical accept either system — no guard.
+        if (system != NumberSystem.Native && system != NumberSystem.Sino)
+            return false;
+
+        // Sino-exclusive digits (1-9). Place words 십/백/천/만 are shared with Native context (e.g. "백" alone for 100).
+        var sinoExclusiveDigits = new[] { "일", "이", "삼", "사", "오", "육", "칠", "팔", "구" };
+        // Native-exclusive number words (full forms + sound-changed forms + tens 10-90).
+        var nativeExclusiveWords = new[]
+        {
+            "하나", "둘", "셋", "넷", "다섯", "여섯", "일곱", "여덟", "아홉",
+            "한", "두", "세", "네",
+            "열", "스물", "스무", "서른", "마흔", "쉰", "예순", "일흔", "여든", "아흔"
+        };
+
+        if (system == NumberSystem.Native)
+        {
+            // User used Sino digits where Native is required, and canonical doesn't have them
+            var userHasSino = sinoExclusiveDigits.Any(d => userText.Contains(d));
+            var canonicalHasSino = sinoExclusiveDigits.Any(d => canonicalText.Contains(d));
+            if (userHasSino && !canonicalHasSino)
+                return true;
+        }
+        else // Sino
+        {
+            // User used Native words where Sino is required, and canonical doesn't have them
+            var userHasNative = nativeExclusiveWords.Any(n => userText.Contains(n));
+            var canonicalHasNative = nativeExclusiveWords.Any(n => canonicalText.Contains(n));
+            if (userHasNative && !canonicalHasNative)
+                return true;
+        }
+
+        return false;
     }
 
     private bool ContainsNativeNumbers(string text)

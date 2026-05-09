@@ -100,7 +100,7 @@ public static class KoreanNumberNormalizer
         forms.Add(normalized);
 
         // ALWAYS accept bare digits as a shortcut (regardless of system)
-        var withDigits = ConvertKoreanToDigits(normalized);
+        var withDigits = ConvertKoreanToDigits(normalized, system);
         if (withDigits != normalized)
             forms.Add(NormalizeWhitespace(withDigits));
 
@@ -191,22 +191,21 @@ public static class KoreanNumberNormalizer
 
     /// <summary>
     /// Converts Korean number words back to Arabic digits (best-effort).
-    /// Detects Native/Sino runs and replaces with digits.
     /// </summary>
-    private static string ConvertKoreanToDigits(string text)
+    private static string ConvertKoreanToDigits(string text, NumberSystem system)
     {
         // Parse Sino numbers with myriad chunking (십만 = 100000)
         text = ParseSinoNumbers(text);
-        
+
         // Parse Native compound numbers (스물 셋 = 23)
         text = ParseNativeNumbers(text);
-        
+
         // Replace remaining Sino digits (0-9) that weren't part of larger numbers
         foreach (var kvp in SinoDigits.OrderByDescending(x => x.Value.Length))
         {
             text = text.Replace(kvp.Value, kvp.Key.ToString());
         }
-        
+
         return text;
     }
 
