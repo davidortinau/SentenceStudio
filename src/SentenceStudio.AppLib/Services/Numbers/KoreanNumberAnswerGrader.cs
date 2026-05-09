@@ -10,6 +10,26 @@ public class KoreanNumberAnswerGrader : INumberAnswerGrader
         var normalized = NormalizeAnswer(userAnswer);
         var canonicalNormalized = NormalizeAnswer(item.CanonicalAnswer);
 
+        // TapTheCounter sub-mode: user tapped a counter chip; the answer is just the counter text.
+        // Compare directly to item.CounterText — KoreanNumberAnswerGrader's number-form pipeline
+        // doesn't apply because the user never produced a number word.
+        if (item.SubModeCode == "TapTheCounter")
+        {
+            var expectedCounter = (item.CounterText ?? string.Empty).Trim();
+            var userCounter = userAnswer?.Trim() ?? string.Empty;
+            var isCorrect = !string.IsNullOrEmpty(expectedCounter)
+                && string.Equals(expectedCounter, userCounter, StringComparison.Ordinal);
+
+            return new GradeResult(
+                IsCorrect: isCorrect,
+                Verdict: isCorrect ? "정확해요!" : "다시 해 볼까요?",
+                ErrorClass: isCorrect ? null : "CounterMismatch",
+                CanonicalAnswer: item.CanonicalAnswer,
+                UserAnswer: userCounter,
+                Tip: isCorrect ? null : $"The correct counter is: {expectedCounter}"
+            );
+        }
+
         // Special case: If user typed ONLY bare digits (no Korean, no counter), accept as shortcut
         if (Regex.IsMatch(normalized, @"^\d+$"))
         {
