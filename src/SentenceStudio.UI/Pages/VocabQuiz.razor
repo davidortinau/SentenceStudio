@@ -336,6 +336,7 @@ else if (currentItem != null)
                 <label class="form-label text-secondary-ss">@Localize["VocabQuiz_TypeTranslation"]</label>
                 <input id="quiz-text-input" type="text" class="form-control form-control-ss form-control-lg"
                        @bind="userInput"
+                       @bind:event="oninput"
                        disabled="@(showAnswer && !requireCorrectTyping)"
                        placeholder='@(requireCorrectTyping ? Localize["VocabQuiz_TypeCorrect"] : Localize["VocabQuiz_TypeAnswer"])' />
                 @* #192 — explicit Submit button for text-entry mode (mirrors Enter key). Hidden once feedback is shown
