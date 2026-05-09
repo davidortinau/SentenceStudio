@@ -53,12 +53,6 @@ public class ClozureService
             return await GetSentencesFromDueWords(numberOfSentences, skillID);
         }
 
-        if (string.IsNullOrEmpty(skillID))
-        {
-            _logger.LogDebug("Skill ID is 0 - no skill selected");
-            return new List<Challenge>();
-        }
-
         var resource = await _resourceRepository.GetResourceAsync(resourceID);
         _logger.LogDebug("Resource retrieved: {ResourceTitle}", resource?.Title ?? "null");
 
@@ -174,14 +168,19 @@ public class ClozureService
 
     private async Task<List<Challenge>> GenerateSentencesFromWords(List<VocabularyWord> words, int numberOfSentences, string skillID, string? targetLanguage = null)
     {
-        if (string.IsNullOrEmpty(skillID))
+        // Skill is optional — when empty (e.g. launched from dashboard tile with no skill picker),
+        // we still generate cloze sentences without grammar-pattern bias. The Scriban template
+        // already gracefully omits the "Prioritize grammar patterns" hint when {{skills}} is empty.
+        SkillProfile? skillProfile = null;
+        if (!string.IsNullOrEmpty(skillID))
         {
-            _logger.LogDebug("Skill ID is empty - no skill selected");
-            return new List<Challenge>();
+            skillProfile = await _skillRepository.GetSkillProfileAsync(skillID);
+            _logger.LogDebug("Skill profile retrieved: {SkillTitle}", skillProfile?.Title ?? "null");
         }
-
-        var skillProfile = await _skillRepository.GetSkillProfileAsync(skillID);
-        _logger.LogDebug("Skill profile retrieved: {SkillTitle}", skillProfile?.Title ?? "null");
+        else
+        {
+            _logger.LogDebug("No skill specified - generating cloze without grammar-pattern bias");
+        }
 
         // Get user's native language and use provided target language or fall back to user profile
         var userProfileRepo = _serviceProvider.GetRequiredService<UserProfileRepository>();
