@@ -72,7 +72,7 @@ const string JwtOrDevAuthScheme = "JwtOrDev";
 // JWT Bearer authentication for Identity-issued tokens
 var jwtSigningKey = builder.Configuration["Jwt:SigningKey"];
 var enableDevAuthFallback = builder.Environment.IsDevelopment()
-    && builder.Configuration.GetValue("Auth:EnableDevAuthFallback", true);
+    && builder.Configuration.GetValue("Auth:EnableDevAuthFallback", false);
 if (!string.IsNullOrWhiteSpace(jwtSigningKey))
 {
     var defaultScheme = enableDevAuthFallback
