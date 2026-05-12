@@ -132,17 +132,14 @@ public static class AuthEndpoints
             return Results.Unauthorized();
         }
 
-        if (!await userManager.IsEmailConfirmedAsync(user))
-        {
-            // Auto-confirm migrated accounts (they had no email confirmation requirement before)
-            // and dev-mode accounts
-            var confirmToken = await userManager.GenerateEmailConfirmationTokenAsync(user);
-            await userManager.ConfirmEmailAsync(user, confirmToken);
-            logger.LogInformation("Auto-confirmed email for {Email} (migrated or unconfirmed account)", request.Email);
-        }
-
         if (!await userManager.CheckPasswordAsync(user, request.Password))
         {
+            return Results.Unauthorized();
+        }
+
+        if (!await userManager.IsEmailConfirmedAsync(user))
+        {
+            logger.LogInformation("Login blocked for {Email}: email not confirmed", request.Email);
             return Results.Unauthorized();
         }
 
