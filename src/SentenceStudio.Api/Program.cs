@@ -26,6 +26,7 @@ using SentenceStudio.Api;
 using SentenceStudio.Api.Auth;
 using SentenceStudio.Api.Diagnostics;
 using SentenceStudio.Api.Platform;
+using SentenceStudio.Contracts;
 using SentenceStudio.Contracts.Ai;
 using SentenceStudio.Contracts.Auth;
 using SentenceStudio.Contracts.Plans;
@@ -827,38 +828,29 @@ static Type? ResolveResponseType(string? responseType)
         return typeof(string);
     }
 
-    // Try full assembly-qualified name first (works for simple and generic types)
-    var resolved = Type.GetType(responseType, throwOnError: false);
-    if (resolved != null) return resolved;
-
-    // Strip outer assembly info while preserving generic type arguments.
-    // For generic types like "List`1[[..., Assembly]], mscorlib, ..."
-    // we need to strip only the OUTER assembly, not the inner ones.
-    var normalized = StripOuterAssembly(responseType);
-    resolved = Type.GetType(normalized, throwOnError: false);
-    if (resolved != null) return resolved;
-
-    // Scan loaded assemblies
-    return AppDomain.CurrentDomain
-        .GetAssemblies()
-        .Select(assembly => assembly.GetType(normalized, throwOnError: false))
-        .FirstOrDefault(type => type != null);
+    // Allow-list lookup by FullName only. The client transmits
+    // typeof(T).AssemblyQualifiedName, but we strip the assembly suffix and
+    // match against a hard-coded set so a caller cannot coax the server into
+    // hydrating arbitrary loaded types via System.Text.Json. Adding a new DTO
+    // requires editing AiResponseTypeRegistry.AllowedTypes.
+    var fullName = StripAssemblyQualification(responseType);
+    return AiResponseTypeRegistry.AllowedTypes.TryGetValue(fullName, out var type) ? type : null;
 }
 
-static string StripOuterAssembly(string aqn)
+static string StripAssemblyQualification(string assemblyQualifiedName)
 {
     // Find the end of the type name portion (after any generic args in [[ ]])
     int depth = 0;
-    for (int i = 0; i < aqn.Length; i++)
+    for (int i = 0; i < assemblyQualifiedName.Length; i++)
     {
-        if (aqn[i] == '[') depth++;
-        else if (aqn[i] == ']') depth--;
-        else if (aqn[i] == ',' && depth == 0)
+        if (assemblyQualifiedName[i] == '[') depth++;
+        else if (assemblyQualifiedName[i] == ']') depth--;
+        else if (assemblyQualifiedName[i] == ',' && depth == 0)
         {
-            return aqn[..i].Trim();
+            return assemblyQualifiedName[..i].Trim();
         }
     }
-    return aqn.Trim();
+    return assemblyQualifiedName.Trim();
 }
 
 app.Run();
