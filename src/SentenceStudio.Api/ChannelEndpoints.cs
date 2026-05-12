@@ -112,7 +112,8 @@ public static class ChannelEndpoints
         string id,
         ClaimsPrincipal user,
         [FromServices] ChannelMonitorService channelService,
-        [FromServices] VideoImportPipelineService pipelineService)
+        [FromServices] VideoImportPipelineService pipelineService,
+        [FromServices] ILogger<ChannelEndpointsLog> logger)
     {
         var userProfileId = user.FindFirstValue(AuthClaimTypes.UserProfileId);
         if (string.IsNullOrEmpty(userProfileId))
@@ -148,6 +149,7 @@ public static class ChannelEndpoints
             };
 
             // Run pipeline in background (non-blocking)
+            var importIdForLog = import.Id;
             _ = Task.Run(async () =>
             {
                 try
@@ -156,7 +158,9 @@ public static class ChannelEndpoints
                 }
                 catch (Exception ex)
                 {
-                    // Logging happens inside the pipeline service
+                    logger.LogError(ex,
+                        "Background channel-triggered pipeline crashed for VideoImport {ImportId} (user {UserProfileId}, channel {ChannelId})",
+                        importIdForLog, userProfileId, channel.Id);
                 }
             });
 
@@ -177,3 +181,6 @@ public static class ChannelEndpoints
         });
     }
 }
+
+// Marker type for ILogger<T> category name on channel-triggered background tasks.
+internal sealed class ChannelEndpointsLog { }

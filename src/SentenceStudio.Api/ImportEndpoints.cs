@@ -59,7 +59,8 @@ public static class ImportEndpoints
     private static async Task<IResult> StartImport(
         [FromBody] StartImportRequest request,
         ClaimsPrincipal user,
-        [FromServices] VideoImportPipelineService pipelineService)
+        [FromServices] VideoImportPipelineService pipelineService,
+        [FromServices] ILogger<ImportEndpointsLog> logger)
     {
         var userProfileId = user.FindFirstValue(AuthClaimTypes.UserProfileId);
         if (string.IsNullOrEmpty(userProfileId))
@@ -77,7 +78,10 @@ public static class ImportEndpoints
             CreatedAt = DateTime.UtcNow
         };
 
-        // Run pipeline in background (non-blocking)
+        // Run pipeline in background (non-blocking). Capture the import id so
+        // the catch block can correlate the failure even if 'import' has been
+        // mutated by the time the exception bubbles.
+        var importIdForLog = import.Id;
         _ = Task.Run(async () =>
         {
             try
@@ -86,7 +90,9 @@ public static class ImportEndpoints
             }
             catch (Exception ex)
             {
-                // Logging happens inside the pipeline service
+                logger.LogError(ex,
+                    "Background import pipeline crashed for VideoImport {ImportId} (user {UserProfileId}, url {VideoUrl})",
+                    importIdForLog, userProfileId, request.VideoUrl);
             }
         });
 
@@ -101,7 +107,8 @@ public static class ImportEndpoints
     private static async Task<IResult> RetryImport(
         string id,
         ClaimsPrincipal user,
-        [FromServices] VideoImportPipelineService pipelineService)
+        [FromServices] VideoImportPipelineService pipelineService,
+        [FromServices] ILogger<ImportEndpointsLog> logger)
     {
         var userProfileId = user.FindFirstValue(AuthClaimTypes.UserProfileId);
         if (string.IsNullOrEmpty(userProfileId))
@@ -128,6 +135,7 @@ public static class ImportEndpoints
         import.ErrorMessage = null;
 
         // Run pipeline in background
+        var importIdForLog = import.Id;
         _ = Task.Run(async () =>
         {
             try
@@ -136,7 +144,9 @@ public static class ImportEndpoints
             }
             catch (Exception ex)
             {
-                // Logging happens inside the pipeline service
+                logger.LogError(ex,
+                    "Background retry pipeline crashed for VideoImport {ImportId} (user {UserProfileId})",
+                    importIdForLog, userProfileId);
             }
         });
 
@@ -148,5 +158,8 @@ public static class ImportEndpoints
         });
     }
 }
+
+// Marker type for ILogger<T> category name on background import tasks.
+internal sealed class ImportEndpointsLog { }
 
 public record StartImportRequest(string VideoUrl, string? Language);
