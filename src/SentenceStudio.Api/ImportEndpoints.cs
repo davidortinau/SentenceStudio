@@ -20,6 +20,8 @@ public static class ImportEndpoints
         return app;
     }
 
+    private const int MaxImportHistoryLimit = 200;
+
     private static async Task<IResult> GetImports(
         ClaimsPrincipal user,
         [FromServices] VideoImportPipelineService pipelineService,
@@ -29,7 +31,8 @@ public static class ImportEndpoints
         if (string.IsNullOrEmpty(userProfileId))
             return Results.Unauthorized();
 
-        var imports = await pipelineService.GetImportHistoryAsync(userProfileId, limit);
+        var clampedLimit = Math.Clamp(limit, 1, MaxImportHistoryLimit);
+        var imports = await pipelineService.GetImportHistoryAsync(userProfileId, clampedLimit);
         return Results.Ok(imports);
     }
 
