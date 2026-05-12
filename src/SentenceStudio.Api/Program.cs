@@ -616,8 +616,20 @@ app.MapPost("/api/v1/speech/synthesize", async (SynthesizeRequest request, [From
     })
     .RequireAuthorization();
 
-app.MapPost("/api/v1/plans/generate", (GeneratePlanRequest request) =>
-        Results.Ok(BuildPlanResponse(request)))
+app.MapPost("/api/v1/plans/generate", (
+        GeneratePlanRequest request,
+        ClaimsPrincipal user,
+        ILogger<PlansLog> logger) =>
+    {
+        var userProfileId = user.FindFirstValue(AuthClaimTypes.UserProfileId);
+        if (string.IsNullOrWhiteSpace(userProfileId))
+        {
+            return Results.Unauthorized();
+        }
+
+        logger.LogInformation("plans/generate for {UserProfileId}", userProfileId);
+        return Results.Ok(BuildPlanResponse(request));
+    })
     .RequireAuthorization();
 
 app.MapPost("/api/v1/vocabulary/{wordId}/status", async (
@@ -812,6 +824,9 @@ static string StripOuterAssembly(string aqn)
 }
 
 app.Run();
+
+// Marker types for ILogger<T> category names on top-level endpoint delegates.
+internal sealed class PlansLog { }
 
 // Enable WebApplicationFactory<Program> in integration tests
 public partial class Program { }
