@@ -89,21 +89,22 @@ public static class ProfileEndpoints
     {
         var logger = loggerFactory.CreateLogger("ProfileEndpoints");
 
-        // Existence first, then ownership — keeps intent clear and produces 404
-        // vs 403 with stable semantics. The DB lookup is a single indexed
-        // primary-key fetch, never a table scan.
-        var profile = await repository.GetByIdAsync(profileId, cancellationToken);
-        if (profile is null)
-        {
-            logger.LogWarning("UpdateProfile: profile {ProfileId} not found", profileId);
-            return Results.NotFound();
-        }
-
+        // Ownership first, then existence. Checking existence first would leak
+        // whether arbitrary profileIds exist on the server (404 vs 403 split
+        // against the same probed id) — the caller can never legitimately
+        // target a profile other than their own, so 403 should win immediately.
         var ownership = ResolveOwnership(profileId, user);
         if (ownership is not null)
         {
             logger.LogWarning("UpdateProfile: ownership rejected for profile {ProfileId}", profileId);
             return ownership;
+        }
+
+        var profile = await repository.GetByIdAsync(profileId, cancellationToken);
+        if (profile is null)
+        {
+            logger.LogWarning("UpdateProfile: profile {ProfileId} not found", profileId);
+            return Results.NotFound();
         }
 
         var validationErrors = ValidateUpdateRequest(request);
