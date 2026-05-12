@@ -623,10 +623,10 @@ app.MapPost("/api/v1/plans/generate", (GeneratePlanRequest request) =>
 app.MapPost("/api/v1/vocabulary/{wordId}/status", async (
     string wordId,
     SetVocabularyStatusRequest request,
-    ITenantContext tenantContext,
+    ClaimsPrincipal user,
     IVocabularyProgressService progressService) =>
 {
-    var userId = tenantContext.UserId;
+    var userId = user.FindFirstValue(AuthClaimTypes.UserProfileId);
     if (string.IsNullOrWhiteSpace(userId))
     {
         return Results.Unauthorized();
