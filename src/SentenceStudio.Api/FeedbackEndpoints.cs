@@ -80,10 +80,9 @@ public static class FeedbackEndpoints
             (title, feedbackType, labels, formattedBody) = BuildFallbackPreview(request);
         }
 
-        var signingKey = configuration["Jwt:SigningKey"]
-            ?? throw new InvalidOperationException("Jwt:SigningKey is not configured.");
+        var signingKey = ResolveFeedbackHmacKey(configuration, logger);
 
-        var previewToken = CreatePreviewToken(title, formattedBody, labels, feedbackType, signingKey);
+        var previewToken = CreatePreviewToken(title, formattedBody, labels, feedbackType, userProfileId, signingKey);
 
         return Results.Ok(new FeedbackPreviewResponse
         {
@@ -112,12 +111,20 @@ public static class FeedbackEndpoints
         if (string.IsNullOrWhiteSpace(request.PreviewToken))
             return Results.BadRequest("PreviewToken is required.");
 
-        var signingKey = configuration["Jwt:SigningKey"]
-            ?? throw new InvalidOperationException("Jwt:SigningKey is not configured.");
+        var signingKey = ResolveFeedbackHmacKey(configuration, logger);
 
         var payload = ValidatePreviewToken(request.PreviewToken, signingKey);
         if (payload is null)
             return Results.BadRequest("Invalid or expired preview token.");
+
+        if (!string.Equals(payload.OwnerProfileId, userProfileId, StringComparison.Ordinal))
+        {
+            logger.LogWarning(
+                "Feedback preview token owner mismatch: token={TokenOwner} caller={Caller}",
+                payload.OwnerProfileId,
+                userProfileId);
+            return Results.BadRequest("Invalid or expired preview token.");
+        }
 
         var githubPat = configuration["GitHub:Pat"];
         if (string.IsNullOrWhiteSpace(githubPat))
@@ -347,15 +354,28 @@ public static class FeedbackEndpoints
 
     #region HMAC Preview Token
 
-    private sealed record PreviewPayload(string Title, string Body, string[] Labels, string FeedbackType, long Exp);
+    private sealed record PreviewPayload(
+        string Title,
+        string Body,
+        string[] Labels,
+        string FeedbackType,
+        string OwnerProfileId,
+        long Exp);
 
-    private static string CreatePreviewToken(string title, string body, string[] labels, string feedbackType, string signingKey)
+    private static string CreatePreviewToken(
+        string title,
+        string body,
+        string[] labels,
+        string feedbackType,
+        string ownerProfileId,
+        string signingKey)
     {
         var payload = new PreviewPayload(
             title,
             body,
             labels,
             feedbackType,
+            ownerProfileId,
             DateTimeOffset.UtcNow.Add(TokenExpiry).ToUnixTimeSeconds());
 
         var payloadJson = JsonSerializer.Serialize(payload, JsonOptions);
@@ -367,6 +387,34 @@ public static class FeedbackEndpoints
         var signatureBase64 = Base64UrlEncode(signatureBytes);
 
         return $"{payloadBase64}.{signatureBase64}";
+    }
+
+    /// <summary>
+    /// Resolves the HMAC key used to sign feedback preview tokens. Prefers a
+    /// dedicated <c>Feedback:HmacKey</c> entry so the key can be rotated
+    /// independently of <c>Jwt:SigningKey</c>; falls back to the JWT signing
+    /// key with a deprecation warning during the transition.
+    /// </summary>
+    private static string ResolveFeedbackHmacKey(IConfiguration configuration, ILogger logger)
+    {
+        var dedicated = configuration["Feedback:HmacKey"];
+        if (!string.IsNullOrWhiteSpace(dedicated))
+        {
+            return dedicated;
+        }
+
+        var fallback = configuration["Jwt:SigningKey"];
+        if (!string.IsNullOrWhiteSpace(fallback))
+        {
+            logger.LogWarning(
+                "Feedback:HmacKey is not configured; falling back to Jwt:SigningKey. " +
+                "Configure a dedicated Feedback:HmacKey so feedback tokens can be rotated " +
+                "independently of authentication tokens.");
+            return fallback;
+        }
+
+        throw new InvalidOperationException(
+            "Neither Feedback:HmacKey nor Jwt:SigningKey is configured.");
     }
 
     private static PreviewPayload? ValidatePreviewToken(string token, string signingKey)
