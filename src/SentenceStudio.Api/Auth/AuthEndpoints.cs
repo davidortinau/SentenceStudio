@@ -48,7 +48,20 @@ public static class AuthEndpoints
         var result = await userManager.CreateAsync(user, request.Password);
         if (!result.Succeeded)
         {
-            return Results.BadRequest(new { errors = result.Errors.Select(e => e.Description) });
+            // Don't reveal whether an email is already registered (user enumeration).
+            // If the only failures are duplicate-user-or-email errors, return the
+            // same generic "check your email" success the happy path returns.
+            var nonDuplicateErrors = result.Errors
+                .Where(e => e.Code != "DuplicateUserName" && e.Code != "DuplicateEmail")
+                .ToList();
+
+            if (nonDuplicateErrors.Count == 0)
+            {
+                logger.LogInformation("Register suppressed duplicate-user error for {Email}", request.Email);
+                return Results.Ok(new { message = "Check your email to confirm your account." });
+            }
+
+            return Results.BadRequest(new { errors = nonDuplicateErrors.Select(e => e.Description) });
         }
 
         // Create a linked UserProfile
@@ -307,13 +320,15 @@ public static class AuthEndpoints
         var user = await userManager.FindByIdAsync(userId);
         if (user is null)
         {
-            return Results.BadRequest(new { error = "Invalid user." });
+            // Same generic response as a token failure so the endpoint
+            // can't be used to enumerate registered user ids.
+            return Results.BadRequest(new { error = "Invalid or expired confirmation link." });
         }
 
         var result = await userManager.ConfirmEmailAsync(user, token);
         if (!result.Succeeded)
         {
-            return Results.BadRequest(new { errors = result.Errors.Select(e => e.Description) });
+            return Results.BadRequest(new { error = "Invalid or expired confirmation link." });
         }
 
         return Results.Ok(new { message = "Email confirmed." });
@@ -355,13 +370,26 @@ public static class AuthEndpoints
         var user = await userManager.FindByEmailAsync(request.Email);
         if (user is null)
         {
-            return Results.BadRequest(new { error = "Invalid request." });
+            // Same generic response as a token failure so the endpoint
+            // can't be used to enumerate registered emails.
+            return Results.BadRequest(new { error = "Invalid or expired reset link." });
         }
 
         var result = await userManager.ResetPasswordAsync(user, request.Token, request.NewPassword);
         if (!result.Succeeded)
         {
-            return Results.BadRequest(new { errors = result.Errors.Select(e => e.Description) });
+            // If there are password-complexity errors (not token errors), surface those
+            // so the user can fix their input.
+            var nonTokenErrors = result.Errors
+                .Where(e => e.Code != "InvalidToken")
+                .ToList();
+
+            if (nonTokenErrors.Count > 0)
+            {
+                return Results.BadRequest(new { errors = nonTokenErrors.Select(e => e.Description) });
+            }
+
+            return Results.BadRequest(new { error = "Invalid or expired reset link." });
         }
 
         return Results.Ok(new { message = "Password has been reset." });
