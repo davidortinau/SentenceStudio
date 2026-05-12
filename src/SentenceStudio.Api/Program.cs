@@ -572,7 +572,45 @@ app.MapPost("/api/v1/ai/analyze-image", async (AnalyzeImageRequest request, [Fro
             return Results.Problem("OpenAI client is not configured.", statusCode: StatusCodes.Status503ServiceUnavailable);
         }
 
-        var imageBytes = Convert.FromBase64String(request.ImageBase64);
+        if (string.IsNullOrWhiteSpace(request.ImageBase64))
+        {
+            return Results.BadRequest("ImageBase64 is required.");
+        }
+
+        // Hard cap on the base64-encoded payload size. 14 MB of base64 decodes
+        // to ~10 MB of raw image bytes, well above any photo the client would
+        // legitimately send. Strings of unbounded size let a caller hold a
+        // request thread + AI quota hostage.
+        const int MaxImageBase64Length = 14 * 1024 * 1024;
+        if (request.ImageBase64.Length > MaxImageBase64Length)
+        {
+            return Results.StatusCode(StatusCodes.Status413PayloadTooLarge);
+        }
+
+        // Allow-list of media types the downstream multimodal model actually
+        // accepts. Anything else gets rejected before we burn a token on it.
+        var allowedMediaTypes = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "image/jpeg",
+            "image/png",
+            "image/webp",
+            "image/gif"
+        };
+        if (string.IsNullOrWhiteSpace(request.MediaType) || !allowedMediaTypes.Contains(request.MediaType))
+        {
+            return Results.BadRequest("MediaType must be one of: image/jpeg, image/png, image/webp, image/gif.");
+        }
+
+        byte[] imageBytes;
+        try
+        {
+            imageBytes = Convert.FromBase64String(request.ImageBase64);
+        }
+        catch (FormatException)
+        {
+            return Results.BadRequest("ImageBase64 is not valid base64.");
+        }
+
         var dataUri = $"data:{request.MediaType};base64,{request.ImageBase64}";
 
         var message = new ChatMessage(ChatRole.User, request.Prompt);
