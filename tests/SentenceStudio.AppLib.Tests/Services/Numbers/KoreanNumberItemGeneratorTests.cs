@@ -198,15 +198,18 @@ public class KoreanNumberItemGeneratorTests
     }
 
     [Fact]
-    public void GenerateTimeItem_Phase1Minutes_AreZeroOrQuarterHours()
+    public void GenerateTimeItem_Minutes_AreFiveMinuteIncrements()
     {
+        // Minutes are now generated in 5-minute increments (0, 5, 10, ..., 55)
+        // for richer realism. Quarter-hour-only generation was the Phase 1 limitation.
         for (int i = 0; i < 100; i++)
         {
             var request = new NumberItemRequest("Time", "ReadAndProduce", RandomSeed: i);
             var item = _generator.GenerateItem(request);
             
             var minute = (int)(item.DigitValue % 100);
-            Assert.Contains(minute, new[] { 0, 15, 30, 45 });
+            Assert.True(minute >= 0 && minute < 60, $"Minute out of range: {minute}");
+            Assert.Equal(0, minute % 5);
         }
     }
 

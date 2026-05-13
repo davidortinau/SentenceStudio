@@ -116,6 +116,7 @@ public class KoreanNumberItemGenerator : INumberItemGenerator
                 Hints: hints,
                 AcceptableAlternates: new List<string>(),
                 ErrorClassHints: null,
+                DigitDisplay: $"{value} {counterText}",
                 NounCue: nounCue,
                 CounterChoices: choices
             );
@@ -156,16 +157,17 @@ public class KoreanNumberItemGenerator : INumberItemGenerator
             DisplayPrompt: regularDisplayPrompt,
             AudioCue: regularAudioCue,
             Hints: regularHints,
-            AcceptableAlternates: alternates
+            AcceptableAlternates: alternates,
+            DigitDisplay: $"{value} {counterText}"
         );
     }
 
     private NumberItem GenerateTimeItem(NumberItemRequest request, Random random)
     {
-        // Phase 1: 12-hour only, H:MM where H in 1-12, MM in {00, 15, 30, 45}
+        // 12-hour time. Hours 1-12. Minutes in 5-minute increments (00-55)
+        // for richer realism while remaining naturally pronounceable.
         var hour = random.Next(1, 13); // 1-12
-        var minuteOptions = new[] { 0, 15, 30, 45 };
-        var minute = minuteOptions[random.Next(minuteOptions.Length)];
+        var minute = random.Next(0, 12) * 5; // 0,5,10,...,55
 
         // Hour uses NATIVE (with sound change for 12)
         var hourNative = ConvertToNative(hour, beforeCounter: true);
@@ -216,16 +218,32 @@ public class KoreanNumberItemGenerator : INumberItemGenerator
             DisplayPrompt: displayPrompt,
             AudioCue: audioCue,
             Hints: hints,
-            AcceptableAlternates: alternates
+            AcceptableAlternates: alternates,
+            DigitDisplay: displayTime
         );
     }
 
     private NumberItem GenerateAgeItem(NumberItemRequest request, Random random)
     {
-        // Skew toward 5-60 for realism, but allow 1-99
-        var value = random.Next(0, 100) < 80 
-            ? random.Next(5, 61)  // 80% chance: 5-60
-            : random.Next(1, 100); // 20% chance: 1-99
+        // Realistic human age range: 1-99. Weighted toward common adult/student ages
+        // so learners hit them often, but every age in range is reachable.
+        // (Native Korean numerals only support 1-99 cleanly; 0살 and 100살 are not
+        // idiomatic in everyday speech.)
+        // Distribution:
+        //   55% : 5-60   (kids through working adults — most common)
+        //   20% : 1-4    (babies/toddlers)
+        //   20% : 61-90  (seniors)
+        //    5% : 91-99  (rare but realistic)
+        var roll = random.Next(100);
+        int value;
+        if (roll < 55)
+            value = random.Next(5, 61);
+        else if (roll < 75)
+            value = random.Next(1, 5);
+        else if (roll < 95)
+            value = random.Next(61, 91);
+        else
+            value = random.Next(91, 100);
 
         var bucket = GetBucket(value);
 
@@ -266,53 +284,98 @@ public class KoreanNumberItemGenerator : INumberItemGenerator
             DisplayPrompt: displayPrompt,
             AudioCue: audioCue,
             Hints: hints,
-            AcceptableAlternates: alternates
+            AcceptableAlternates: alternates,
+            DigitDisplay: $"{value}살"
         );
     }
 
     private NumberItem GenerateMoneyItem(NumberItemRequest request, Random random)
     {
-        // Price range weights (from seed contextNotes.Money.ranges)
-        // Small: 100-3000 (60%), Medium: 10k-50k (30%), Large: 100k-1M (10%)
+        // Realistic Korean Won denominations. Korean prices typically end in 00 or 000
+        // (no 1원/10원 in everyday transactions). Weighted toward everyday amounts
+        // but with the full realistic spectrum represented.
+        //
+        // Buckets (with weights):
+        //   45% Small        — coins/snacks/coffee:  500 ~ 9,500
+        //   30% Medium       — meals/groceries:      10,000 ~ 99,000
+        //   18% Large        — shopping/utilities:   100,000 ~ 990,000
+        //    6% Very large   — rent/electronics:     1,000,000 ~ 9,500,000
+        //    1% Huge         — real estate/cars:     10,000,000 ~ 95,000,000
         int value;
         string context;
-        
+
         var rangeRoll = random.Next(100);
-        if (rangeRoll < 60)
+        if (rangeRoll < 45)
         {
-            // Small purchase (100-3000)
+            // Small: prefer common coffee/snack prices, otherwise round 500s
             value = random.Next(0, 100) switch
             {
-                < 30 => 1000,      // 천 원 (coffee)
-                < 50 => 3000,      // 삼천 원 (snack)
-                < 70 => 2000,      // 이천 원
-                < 90 => 5000,      // 오천 원
-                _ => random.Next(1, 10) * 1000 // 1k-9k random
+                < 15 => 1000,    // 천 원 (편의점 음료)
+                < 25 => 1500,    // 천오백 원 (커피 small)
+                < 40 => 2000,    // 이천 원
+                < 50 => 3000,    // 삼천 원
+                < 60 => 4500,    // 사천오백 원 (아이스 아메리카노)
+                < 70 => 5000,    // 오천 원
+                < 80 => 6500,    // 육천오백 원
+                < 90 => 8000,    // 팔천 원
+                _    => random.Next(1, 20) * 500   // 500 ~ 9,500 (any 500-step)
             };
-            context = "small purchase";
+            context = "snack/coffee";
         }
-        else if (rangeRoll < 90)
+        else if (rangeRoll < 75)
         {
-            // Medium purchase (10k-50k)
+            // Medium: meals & groceries
             value = random.Next(0, 100) switch
             {
-                < 40 => 10000,     // 만 원 (lunch)
-                < 60 => 15000,     // 만 오천 원 (meal)
-                < 80 => 20000,     // 이만 원
-                _ => random.Next(3, 6) * 10000 // 30k-50k
+                < 20 => 10000,   // 만 원 (점심 한 그릇)
+                < 30 => 12000,
+                < 40 => 15000,   // 만 오천 원
+                < 50 => 18000,
+                < 60 => 25000,
+                < 70 => 35000,
+                < 85 => random.Next(1, 10) * 5000 + 10000, // 15k-55k step 5k
+                _    => random.Next(2, 10) * 10000          // 20k-90k step 10k
             };
-            context = "meal/shopping";
+            context = "meal/groceries";
+        }
+        else if (rangeRoll < 93)
+        {
+            // Large: clothing/electronics/utilities
+            value = random.Next(0, 100) switch
+            {
+                < 25 => 100000,  // 십만 원
+                < 40 => 150000,
+                < 55 => 200000,
+                < 70 => 350000,
+                < 85 => 500000,  // 오십만 원
+                _    => random.Next(1, 10) * 100000   // 100k-900k step 100k
+            };
+            context = "clothing/electronics";
+        }
+        else if (rangeRoll < 99)
+        {
+            // Very large: monthly rent, big appliances, savings
+            value = random.Next(0, 100) switch
+            {
+                < 30 => 1000000, // 백만 원
+                < 50 => 1500000,
+                < 70 => 2500000,
+                < 85 => 5000000, // 오백만 원
+                _    => random.Next(1, 20) * 500000   // 500k-9.5M step 500k
+            };
+            context = "rent/appliance";
         }
         else
         {
-            // Large purchase (100k-1M)
+            // Huge: real estate / car
             value = random.Next(0, 100) switch
             {
-                < 60 => 100000,    // 십만 원 (shopping)
-                < 85 => 500000,    // 오십만 원
-                _ => 1000000       // 백만 원 (rent)
+                < 30 => 10000000,  // 천만 원 (used car)
+                < 60 => 30000000,  // 삼천만 원 (new car)
+                < 85 => 50000000,
+                _    => random.Next(1, 20) * 5000000  // 5M-95M step 5M
             };
-            context = "shopping/rent";
+            context = "car/real-estate";
         }
 
         var bucket = GetBucket(value);
@@ -368,7 +431,8 @@ public class KoreanNumberItemGenerator : INumberItemGenerator
             AudioCue: audioCue,
             Hints: hints,
             AcceptableAlternates: alternates,
-            ErrorClassHints: errorHints.Count > 0 ? errorHints : null
+            ErrorClassHints: errorHints.Count > 0 ? errorHints : null,
+            DigitDisplay: $"{displayValue}원"
         );
     }
 
@@ -384,9 +448,11 @@ public class KoreanNumberItemGenerator : INumberItemGenerator
         };
         var day = random.Next(1, maxDay + 1);
 
-        // Optional: include year at higher difficulty (20% chance)
-        var includeYear = random.Next(100) < 20;
-        var year = includeYear ? 2026 : 0;
+        // Optional: include year at higher difficulty (30% chance)
+        // Spread across realistic recent/contemporary years so learners hear varied
+        // year readings (not always 2026).
+        var includeYear = random.Next(100) < 30;
+        var year = includeYear ? random.Next(1990, 2031) : 0;
 
         // Month irregular handling (from seed contextNotes.Date.irregularMonths)
         var monthReading = month switch
@@ -445,6 +511,8 @@ public class KoreanNumberItemGenerator : INumberItemGenerator
 
         var bucket = includeYear ? "with_year" : "month_day_only";
 
+        var dateDigitDisplay = includeYear ? $"{year}-{month:D2}-{day:D2}" : $"{month}월 {day}일";
+
         return new NumberItem(
             Id: Guid.NewGuid(),
             ContextCode: "Date",
@@ -459,14 +527,18 @@ public class KoreanNumberItemGenerator : INumberItemGenerator
             AudioCue: audioCue,
             Hints: hints,
             AcceptableAlternates: alternates,
-            ErrorClassHints: errorHints.Count > 0 ? errorHints : null
+            ErrorClassHints: errorHints.Count > 0 ? errorHints : null,
+            DigitDisplay: dateDigitDisplay
         );
     }
 
     private NumberItem GenerateOrdinalItem(NumberItemRequest request, Random random)
     {
-        // Phase 1: 1-10 only for ordinals
-        var value = random.Next(1, 11);
+        // Native ordinals 1-10 are essential daily-use forms with irregular
+        // first-position (첫째 / 첫 번째). 11+ uses regular compounds:
+        // 열한째 / 열한 번째, 스무째 / 스무 번째, etc. Cap at 20 to stay within
+        // ConvertToNative's range and to mirror typical conversational use.
+        var value = random.Next(1, 21);
 
         // Two patterns: 째 (ranking) vs 번째 (occurrence)
         // 60% ranking, 40% occurrence
@@ -478,8 +550,9 @@ public class KoreanNumberItemGenerator : INumberItemGenerator
         string ordinalReading;
         if (isRanking)
         {
-            // Native + 째 (첫째, 둘째, 셋째...)
-            // Special case: 첫째 NOT 하나째
+            // Native + 째 (첫째, 둘째, 셋째 ... 열째 ... 스무째)
+            // Special case at exactly 1: 첫째 NOT 하나째
+            // For 11-20 we build "<native (counter form)>째" e.g. 열한째, 스무째.
             ordinalReading = value switch
             {
                 1 => "첫째",
@@ -492,7 +565,7 @@ public class KoreanNumberItemGenerator : INumberItemGenerator
                 8 => "여덟째",
                 9 => "아홉째",
                 10 => "열째",
-                _ => throw new ArgumentException($"Invalid ordinal: {value}")
+                _ => $"{ConvertToNative(value, beforeCounter: true)}째"
             };
         }
         else
@@ -511,7 +584,7 @@ public class KoreanNumberItemGenerator : INumberItemGenerator
                 8 => "여덟",
                 9 => "아홉",
                 10 => "열",
-                _ => throw new ArgumentException($"Invalid ordinal: {value}")
+                _ => ConvertToNative(value, beforeCounter: true)  // 11-20: 열한, 열두, ... 스무
             };
             ordinalReading = $"{nativeBase} 번째";
         }
@@ -574,7 +647,8 @@ public class KoreanNumberItemGenerator : INumberItemGenerator
             AudioCue: audioCue,
             Hints: hints,
             AcceptableAlternates: alternates,
-            ErrorClassHints: errorHints
+            ErrorClassHints: errorHints,
+            DigitDisplay: isRanking ? $"{value}째" : $"{value}번째"
         );
     }
 
@@ -826,6 +900,7 @@ public class KoreanNumberItemGenerator : INumberItemGenerator
             Hints: hints,
             AcceptableAlternates: new List<string>(), // Exact match only
             ErrorClassHints: errorHints,
+            DigitDisplay: item.CorrectAnswer,
             // Reuse CounterChoices for the 3 time options
             CounterChoices: choices
         );
@@ -894,6 +969,7 @@ public class KoreanNumberItemGenerator : INumberItemGenerator
             Hints: new List<string> { pair.HintA, pair.HintB },
             AcceptableAlternates: new List<string>(), // Not used — grading is exact-match per choice
             ErrorClassHints: errorHints,
+            DigitDisplay: $"{pair.Digit}",
             // Paired-prompt fields
             PromptA: pair.ContextA,
             PromptB: pair.ContextB,

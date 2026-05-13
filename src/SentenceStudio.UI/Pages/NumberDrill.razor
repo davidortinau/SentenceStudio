@@ -368,8 +368,17 @@
                                     </div>
                                 }
                                 
+                                @* Always show BOTH the digit form and the Korean word form
+                                   so learners reinforce the digit↔word mapping in either
+                                   direction (right or wrong, ListenAndType or ReadAndProduce). *@
+                                @if (currentItem != null && !string.IsNullOrEmpty(currentItem.DigitDisplay))
+                                {
+                                    <div class="ss-body2 mb-1">
+                                        <strong>Number:</strong> @currentItem.DigitDisplay
+                                    </div>
+                                }
                                 <div class="ss-body2 mb-2">
-                                    <strong>Correct answer:</strong> @lastGrade.CanonicalAnswer
+                                    <strong>Korean:</strong> @lastGrade.CanonicalAnswer
                                 </div>
                                 
                                 @if (!lastGrade.IsCorrect && !string.IsNullOrEmpty(lastGrade.ErrorClass))
