@@ -1,5 +1,6 @@
 <Project>
   <PropertyGroup>
+    <IncludeNet11Targets>true</IncludeNet11Targets>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
