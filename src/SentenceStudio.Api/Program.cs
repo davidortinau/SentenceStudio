@@ -655,6 +655,113 @@ app.MapPost("/api/v1/speech/synthesize", async (SynthesizeRequest request, [From
     })
     .RequireAuthorization();
 
+// Maps friendly voice slugs used by Flutter clients to ElevenLabs voice IDs.
+// Keep in sync with VoiceOptions in ElevenLabsSpeechService (MAUI in-process service).
+static string ResolveTimestampedVoiceId(string? requested, IConfiguration config)
+{
+    var fallback = config["AI:ElevenLabs:DefaultVoice"] ?? "21m00Tcm4TlvDq8ikWAM";
+    if (string.IsNullOrWhiteSpace(requested)) return fallback;
+
+    return requested switch
+    {
+        "jiyoung" => "ZJCNdZEjYwkOElxugmW2",
+        "rachel"  => "21m00Tcm4TlvDq8ikWAM",
+        _ => requested
+    };
+}
+
+app.MapPost("/api/v1/speech/synthesize-timestamped", async (
+        SynthesizeTimestampedRequest request,
+        ClaimsPrincipal user,
+        [FromServices] ElevenLabsClient? client,
+        [FromServices] ApplicationDbContext db,
+        ILoggerFactory loggerFactory,
+        CancellationToken cancellationToken) =>
+    {
+        var logger = loggerFactory.CreateLogger("SpeechEndpoints");
+
+        if (client == null)
+        {
+            return Results.Problem("ElevenLabs client is not configured.", statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+
+        var userProfileId = user.FindFirstValue(AuthClaimTypes.UserProfileId);
+        if (string.IsNullOrWhiteSpace(userProfileId))
+        {
+            return Results.Unauthorized();
+        }
+
+        if (string.IsNullOrWhiteSpace(request.ResourceId))
+        {
+            return Results.BadRequest(new { error = "ResourceId is required." });
+        }
+
+        var resource = await db.LearningResources
+            .AsNoTracking()
+            .FirstOrDefaultAsync(r => r.Id == request.ResourceId, cancellationToken);
+
+        if (resource is null)
+        {
+            return Results.NotFound(new { error = $"LearningResource '{request.ResourceId}' not found." });
+        }
+
+        if (string.IsNullOrWhiteSpace(resource.Transcript))
+        {
+            return Results.BadRequest(new { error = "LearningResource has no transcript to synthesize." });
+        }
+
+        var voiceId = ResolveTimestampedVoiceId(request.VoiceId, app.Configuration);
+
+        try
+        {
+            var voice = await client.VoicesEndpoint.GetVoiceAsync(voiceId, cancellationToken: cancellationToken);
+
+            var ttsRequest = new TextToSpeechRequest(
+                voice: voice,
+                text: resource.Transcript,
+                voiceSettings: new VoiceSettings(request.Stability, request.SimilarityBoost) { Speed = request.Speed },
+                model: Model.MultiLingualV2,
+                withTimestamps: true);
+
+            var voiceClip = await client.TextToSpeechEndpoint.TextToSpeechAsync(ttsRequest, cancellationToken: cancellationToken);
+
+            var chars = voiceClip.TimestampedTranscriptCharacters;
+            var characters = new List<CharacterTimestamp>(chars?.Length ?? 0);
+            if (chars is not null)
+            {
+                foreach (var c in chars)
+                {
+                    characters.Add(new CharacterTimestamp
+                    {
+                        Char = c.Character.ToString() ?? string.Empty,
+                        StartMs = c.StartTime * 1000.0,
+                        EndMs = c.EndTime * 1000.0
+                    });
+                }
+            }
+
+            var durationSeconds = chars is { Length: > 0 } ? chars[^1].EndTime : 0.0;
+            var base64 = Convert.ToBase64String(voiceClip.ClipData.ToArray());
+
+            logger.LogInformation(
+                "synthesize-timestamped: resource {ResourceId} user {UserProfileId} voice {VoiceId} chars {CharCount} duration {Duration:F2}s",
+                request.ResourceId, userProfileId, voiceId, characters.Count, durationSeconds);
+
+            return Results.Ok(new SynthesizeTimestampedResponse
+            {
+                AudioUrl = $"data:audio/mpeg;base64,{base64}",
+                DurationSeconds = durationSeconds,
+                Characters = characters
+            });
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "synthesize-timestamped failed for resource {ResourceId}", request.ResourceId);
+            return Results.Problem("Failed to synthesize timestamped audio.", statusCode: StatusCodes.Status502BadGateway);
+        }
+    })
+    .RequireAuthorization();
+
 app.MapPost("/api/v1/plans/generate", (
         GeneratePlanRequest request,
         ClaimsPrincipal user,
