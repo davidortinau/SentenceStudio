@@ -288,7 +288,10 @@ builder.Services.AddHttpClient("GitHub", client =>
 var elevenLabsKey = builder.Configuration["ElevenLabsKey"];
 if (!string.IsNullOrWhiteSpace(elevenLabsKey))
 {
-    builder.Services.AddSingleton(new ElevenLabsClient(elevenLabsKey));
+    // Korean transcripts can run several thousand chars; the SDK's default HttpClient
+    // timeout (100s) trips on /synthesize-timestamped with long input. Bump to 5 min.
+    var elevenLabsHttp = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
+    builder.Services.AddSingleton(new ElevenLabsClient(elevenLabsKey, httpClient: elevenLabsHttp));
 }
 
 var app = builder.Build();
@@ -657,16 +660,32 @@ app.MapPost("/api/v1/speech/synthesize", async (SynthesizeRequest request, [From
 
 // Maps friendly voice slugs used by Flutter clients to ElevenLabs voice IDs.
 // Keep in sync with VoiceOptions in ElevenLabsSpeechService (MAUI in-process service).
+// Hard-coded allow-list: unknown slugs fall back to the default voice rather
+// than being forwarded verbatim to ElevenLabs (prevents callers from smuggling
+// arbitrary voice IDs through the API).
 static string ResolveTimestampedVoiceId(string? requested, IConfiguration config)
 {
     var fallback = config["AI:ElevenLabs:DefaultVoice"] ?? "21m00Tcm4TlvDq8ikWAM";
     if (string.IsNullOrWhiteSpace(requested)) return fallback;
 
+    // Slug map mirrors ElevenLabsSpeechService.VoiceOptions in AppLib.
     return requested switch
     {
-        "jiyoung" => "ZJCNdZEjYwkOElxugmW2",
-        "rachel"  => "21m00Tcm4TlvDq8ikWAM",
-        _ => requested
+        // Korean
+        "yuna"     => "xi3rF0t7dg7uN2M0WUhr",
+        "jiyoung"  => "AW5wrnG1jVizOYY7R1Oo",
+        "hyunbin"  => "s07IwTCOrCDCaETjUVjx",
+        "jennie"   => "z6Kj0hecH20CdetSElRT",
+        "jina"     => "sSoVF9lUgTGJz0Xz3J9y",
+        "dohyeon"  => "FQ3MuLxZh0jHcZmA5vW1",
+        "yohankoo" => "4JJwo477JUAx3HV0T7n7",
+        // English
+        "echo"    or "rachel"  => "21m00Tcm4TlvDq8ikWAM",
+        "onyx"    or "antoni"  => "ED0k6LqFEfpMua5GXpMG",
+        "nova"    or "elli"    => "jsCqWAovK2LkecY7zXl4",
+        "shimmer" or "adam"    => "kgG8YXSrynzpPIncHKrx",
+        "fable"   or "dorothy" => "5Q0t7uMcjvnagumLfvZi",
+        _ => fallback
     };
 }
 
@@ -696,9 +715,14 @@ app.MapPost("/api/v1/speech/synthesize-timestamped", async (
             return Results.BadRequest(new { error = "ResourceId is required." });
         }
 
+        // Scope by caller so an authenticated user can't synthesize another
+        // user's resource by GUID (IDOR). Matches LearningResourceRepository
+        // contract (r.UserProfileId == userId).
         var resource = await db.LearningResources
             .AsNoTracking()
-            .FirstOrDefaultAsync(r => r.Id == request.ResourceId, cancellationToken);
+            .FirstOrDefaultAsync(
+                r => r.Id == request.ResourceId && r.UserProfileId == userProfileId,
+                cancellationToken);
 
         if (resource is null)
         {
@@ -710,7 +734,26 @@ app.MapPost("/api/v1/speech/synthesize-timestamped", async (
             return Results.BadRequest(new { error = "LearningResource has no transcript to synthesize." });
         }
 
+        // Cap synthesis size: ElevenLabs is paid per character and long
+        // transcripts already push the 5-minute HTTP timeout. ~20k chars is
+        // a generous upper bound (a typical chapter is well under that).
+        const int kMaxTranscriptChars = 20_000;
+        if (resource.Transcript.Length > kMaxTranscriptChars)
+        {
+            return Results.BadRequest(new
+            {
+                error = $"Transcript exceeds maximum length of {kMaxTranscriptChars} characters."
+            });
+        }
+
         var voiceId = ResolveTimestampedVoiceId(request.VoiceId, app.Configuration);
+
+        // Clamp VoiceSettings to documented ElevenLabs ranges so callers can't
+        // pass NaN / out-of-band values that either error from upstream or
+        // produce undefined behaviour.
+        var stability = Math.Clamp(float.IsFinite(request.Stability) ? request.Stability : 0.5f, 0f, 1f);
+        var similarityBoost = Math.Clamp(float.IsFinite(request.SimilarityBoost) ? request.SimilarityBoost : 0.75f, 0f, 1f);
+        var speed = Math.Clamp(float.IsFinite(request.Speed) ? request.Speed : 1.0f, 0.7f, 1.2f);
 
         try
         {
@@ -719,7 +762,7 @@ app.MapPost("/api/v1/speech/synthesize-timestamped", async (
             var ttsRequest = new TextToSpeechRequest(
                 voice: voice,
                 text: resource.Transcript,
-                voiceSettings: new VoiceSettings(request.Stability, request.SimilarityBoost) { Speed = request.Speed },
+                voiceSettings: new VoiceSettings(stability, similarityBoost) { Speed = speed },
                 model: Model.MultiLingualV2,
                 withTimestamps: true);
 
@@ -756,8 +799,12 @@ app.MapPost("/api/v1/speech/synthesize-timestamped", async (
         }
         catch (Exception ex)
         {
+            // Log full exception server-side; return generic message to caller
+            // so we don't leak internal types / URLs / upstream auth details.
             logger.LogError(ex, "synthesize-timestamped failed for resource {ResourceId}", request.ResourceId);
-            return Results.Problem("Failed to synthesize timestamped audio.", statusCode: StatusCodes.Status502BadGateway);
+            return Results.Problem(
+                detail: "Failed to synthesize timestamped audio.",
+                statusCode: StatusCodes.Status502BadGateway);
         }
     })
     .RequireAuthorization();

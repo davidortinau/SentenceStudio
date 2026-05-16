@@ -1,5 +1,7 @@
 namespace SentenceStudio.Contracts.Speech;
 
+using System.Text.Json.Serialization;
+
 /// <summary>
 /// Request body for <c>POST /api/v1/speech/synthesize-timestamped</c>.
 /// Generates audio for a <see cref="SentenceStudio.Shared.Models.LearningResource"/>
@@ -7,9 +9,9 @@ namespace SentenceStudio.Contracts.Speech;
 /// </summary>
 public sealed class SynthesizeTimestampedRequest
 {
-    public string ResourceId { get; set; } = string.Empty;
-    public string? VoiceId { get; set; }
-    public float Stability { get; set; } = 0.5f;
-    public float SimilarityBoost { get; set; } = 0.75f;
-    public float Speed { get; set; } = 1.0f;
+    [JsonPropertyName("ResourceId")] public string ResourceId { get; set; } = string.Empty;
+    [JsonPropertyName("VoiceId")] public string? VoiceId { get; set; }
+    [JsonPropertyName("Stability")] public float Stability { get; set; } = 0.5f;
+    [JsonPropertyName("SimilarityBoost")] public float SimilarityBoost { get; set; } = 0.75f;
+    [JsonPropertyName("Speed")] public float Speed { get; set; } = 1.0f;
 }

@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace SentenceStudio.Contracts.Speech;
 
 /// <summary>
@@ -7,9 +9,9 @@ namespace SentenceStudio.Contracts.Speech;
 /// </summary>
 public sealed class CharacterTimestamp
 {
-    public string Char { get; set; } = string.Empty;
-    public double StartMs { get; set; }
-    public double EndMs { get; set; }
+    [JsonPropertyName("Char")] public string Char { get; set; } = string.Empty;
+    [JsonPropertyName("StartMs")] public double StartMs { get; set; }
+    [JsonPropertyName("EndMs")] public double EndMs { get; set; }
 }
 
 /// <summary>
@@ -20,7 +22,7 @@ public sealed class CharacterTimestamp
 /// </summary>
 public sealed class SynthesizeTimestampedResponse
 {
-    public string AudioUrl { get; set; } = string.Empty;
-    public double DurationSeconds { get; set; }
-    public List<CharacterTimestamp> Characters { get; set; } = new();
+    [JsonPropertyName("AudioUrl")] public string AudioUrl { get; set; } = string.Empty;
+    [JsonPropertyName("DurationSeconds")] public double DurationSeconds { get; set; }
+    [JsonPropertyName("Characters")] public List<CharacterTimestamp> Characters { get; set; } = new();
 }
