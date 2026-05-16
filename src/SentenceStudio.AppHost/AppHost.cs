@@ -1,5 +1,4 @@
 using Projects;
-using Azure.Provisioning.AppContainers;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
@@ -27,11 +26,7 @@ var postgresServer = builder.AddAzurePostgresFlexibleServer("db")
 
 var postgres = postgresServer.AddDatabase("sentencestudio");
 
-var redis = builder.AddRedis("cache")
-    .PublishAsAzureContainerApp((infra, app) =>
-    {
-        app.Template.Scale.MinReplicas = 0;
-    });
+var redis = builder.AddRedis("cache");
 
 var storage = builder.AddAzureStorage("storage")
     .RunAsEmulator()
@@ -60,19 +55,10 @@ var webapp = builder.AddProject<SentenceStudio_WebApp>("webapp")
     .WithReference(redis)
     .WithReference(postgres)
     .WaitFor(postgres)
-    .WithExternalHttpEndpoints()
-    .PublishAsAzureContainerApp((infra, app) =>
-    {
-        // Scale-to-zero when idle to stay inside the MSDN credit; cold-start is acceptable for the webapp.
-        app.Template.Scale.MinReplicas = 0;
-    });
+    .WithExternalHttpEndpoints();
 
 builder.AddProject<SentenceStudio_Marketing>("marketing")
-    .WithExternalHttpEndpoints()
-    .PublishAsAzureContainerApp((infra, app) =>
-    {
-        app.Template.Scale.MinReplicas = 0;
-    });
+    .WithExternalHttpEndpoints();
 
 builder.AddProject<SentenceStudio_Workers>("workers")
     .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
@@ -81,9 +67,6 @@ builder.AddProject<SentenceStudio_Workers>("workers")
     .WithReference(postgres)
     .WithReference(redis)
     .WithReference(storage);
-    // NOTE: workers is intentionally NOT scaled to zero. It hosts a continuous
-    // BackgroundService (30-min channel-polling loop) with no HTTP endpoint, so
-    // a min=0 instance would never get woken back up. Keeping default min=1.
 
 // MAUI clients and dev tunnels are local-dev only — excluded from Azure publish
 if (builder.ExecutionContext.IsRunMode)
