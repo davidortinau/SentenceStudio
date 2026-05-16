@@ -139,6 +139,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Diary.
+        /// </summary>
+        internal static string Activity_Diary {
+            get {
+                return ResourceManager.GetString("Activity_Diary", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Activity.
         /// </summary>
         internal static string Activity_Generic {
@@ -2853,6 +2862,294 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Details {
             get {
                 return ResourceManager.GetString("Details", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to AI feedback.
+        /// </summary>
+        internal static string Diary_AiFeedback {
+            get {
+                return ResourceManager.GetString("Diary_AiFeedback", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Analyzing….
+        /// </summary>
+        internal static string Diary_Analyzing {
+            get {
+                return ResourceManager.GetString("Diary_Analyzing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Continue today&apos;s entry.
+        /// </summary>
+        internal static string Diary_ContinueToday {
+            get {
+                return ResourceManager.GetString("Diary_ContinueToday", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Start writing your entry….
+        /// </summary>
+        internal static string Diary_EditorPlaceholder {
+            get {
+                return ResourceManager.GetString("Diary_EditorPlaceholder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No diary entries yet. Tap above to start one..
+        /// </summary>
+        internal static string Diary_EmptyState {
+            get {
+                return ResourceManager.GetString("Diary_EmptyState", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Could not generate feedback. Try again later..
+        /// </summary>
+        internal static string Diary_FeedbackFailed {
+            get {
+                return ResourceManager.GetString("Diary_FeedbackFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Tap &quot;Get feedback&quot; to receive AI suggestions on this entry..
+        /// </summary>
+        internal static string Diary_FeedbackHint {
+            get {
+                return ResourceManager.GetString("Diary_FeedbackHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Get feedback.
+        /// </summary>
+        internal static string Diary_GetFeedback {
+            get {
+                return ResourceManager.GetString("Diary_GetFeedback", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Has AI feedback.
+        /// </summary>
+        internal static string Diary_HasFeedback {
+            get {
+                return ResourceManager.GetString("Diary_HasFeedback", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to New prompt.
+        /// </summary>
+        internal static string Diary_NewPrompt {
+            get {
+                return ResourceManager.GetString("Diary_NewPrompt", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Tap &quot;New prompt&quot; to get a writing prompt..
+        /// </summary>
+        internal static string Diary_NoPromptYet {
+            get {
+                return ResourceManager.GetString("Diary_NoPromptYet", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Notes.
+        /// </summary>
+        internal static string Diary_Notes {
+            get {
+                return ResourceManager.GetString("Diary_Notes", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to This entry could not be found..
+        /// </summary>
+        internal static string Diary_NotFound {
+            get {
+                return ResourceManager.GetString("Diary_NotFound", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Past entries.
+        /// </summary>
+        internal static string Diary_PastEntries {
+            get {
+                return ResourceManager.GetString("Diary_PastEntries", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} / {1} words.
+        /// </summary>
+        internal static string Diary_Progress {
+            get {
+                return ResourceManager.GetString("Diary_Progress", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Prompt.
+        /// </summary>
+        internal static string Diary_Prompt {
+            get {
+                return ResourceManager.GetString("Diary_Prompt", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Could not generate a prompt right now..
+        /// </summary>
+        internal static string Diary_PromptFailed {
+            get {
+                return ResourceManager.GetString("Diary_PromptFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Recommended rewrite.
+        /// </summary>
+        internal static string Diary_Recommended {
+            get {
+                return ResourceManager.GetString("Diary_Recommended", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Regenerate.
+        /// </summary>
+        internal static string Diary_Regenerate {
+            get {
+                return ResourceManager.GetString("Diary_Regenerate", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Saved.
+        /// </summary>
+        internal static string Diary_Saved {
+            get {
+                return ResourceManager.GetString("Diary_Saved", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Could not save your entry. Try again..
+        /// </summary>
+        internal static string Diary_SaveFailed {
+            get {
+                return ResourceManager.GetString("Diary_SaveFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Saving….
+        /// </summary>
+        internal static string Diary_Saving {
+            get {
+                return ResourceManager.GetString("Diary_Saving", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} words.
+        /// </summary>
+        internal static string Diary_Stars {
+            get {
+                return ResourceManager.GetString("Diary_Stars", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to 50 words = 1 star, 100 = 2 stars, 150 = 3 stars (goal: 200).
+        /// </summary>
+        internal static string Diary_StarsTooltip {
+            get {
+                return ResourceManager.GetString("Diary_StarsTooltip", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Start today&apos;s entry.
+        /// </summary>
+        internal static string Diary_StartToday {
+            get {
+                return ResourceManager.GetString("Diary_StartToday", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Write a freeform diary entry in your target language..
+        /// </summary>
+        internal static string Diary_StartTodayHint {
+            get {
+                return ResourceManager.GetString("Diary_StartTodayHint", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Strengths.
+        /// </summary>
+        internal static string Diary_Strengths {
+            get {
+                return ResourceManager.GetString("Diary_Strengths", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Today.
+        /// </summary>
+        internal static string Diary_Today {
+            get {
+                return ResourceManager.GetString("Diary_Today", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Today&apos;s Entry.
+        /// </summary>
+        internal static string Diary_TodayTitle {
+            get {
+                return ResourceManager.GetString("Diary_TodayTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Show or hide prompt.
+        /// </summary>
+        internal static string Diary_TogglePrompt {
+            get {
+                return ResourceManager.GetString("Diary_TogglePrompt", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} words.
+        /// </summary>
+        internal static string Diary_WordCount {
+            get {
+                return ResourceManager.GetString("Diary_WordCount", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Yesterday.
+        /// </summary>
+        internal static string Diary_Yesterday {
+            get {
+                return ResourceManager.GetString("Diary_Yesterday", resourceCulture);
             }
         }
         

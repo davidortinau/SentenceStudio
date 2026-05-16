@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Components.WebView.Maui;
 using Microsoft.Maui.Controls;
-using Microsoft.Maui.Platform.MacOS.Controls;
+using Microsoft.Maui.Platforms.MacOS.Controls;
 using SentenceStudio.WebUI;
 
 namespace SentenceStudio.MacOS;

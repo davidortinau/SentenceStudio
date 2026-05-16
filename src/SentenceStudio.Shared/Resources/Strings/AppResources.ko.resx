@@ -2405,6 +2405,105 @@
     <value>쓰기</value>
     <comment>Activity label: Writing</comment>
   </data>
+  <data name="Activity_Diary" xml:space="preserve">
+    <value>일기</value>
+  </data>
+  <data name="Diary_TodayTitle" xml:space="preserve">
+    <value>오늘의 일기</value>
+  </data>
+  <data name="Diary_StartToday" xml:space="preserve">
+    <value>오늘 일기 시작하기</value>
+  </data>
+  <data name="Diary_StartTodayHint" xml:space="preserve">
+    <value>학습 언어로 자유롭게 일기를 작성해 보세요.</value>
+  </data>
+  <data name="Diary_ContinueToday" xml:space="preserve">
+    <value>오늘 일기 계속 쓰기</value>
+  </data>
+  <data name="Diary_PastEntries" xml:space="preserve">
+    <value>지난 일기</value>
+  </data>
+  <data name="Diary_EmptyState" xml:space="preserve">
+    <value>아직 일기가 없습니다. 위를 눌러 시작하세요.</value>
+  </data>
+  <data name="Diary_WordCount" xml:space="preserve">
+    <value>{0}단어</value>
+  </data>
+  <data name="Diary_Progress" xml:space="preserve">
+    <value>{0} / {1}단어</value>
+  </data>
+  <data name="Diary_Stars" xml:space="preserve">
+    <value>{0}단어</value>
+  </data>
+  <data name="Diary_StarsTooltip" xml:space="preserve">
+    <value>50단어 = 1별, 100단어 = 2별, 150단어 = 3별 (목표: 200)</value>
+  </data>
+  <data name="Diary_TogglePrompt" xml:space="preserve">
+    <value>주제 표시/숨기기</value>
+  </data>
+  <data name="Diary_Prompt" xml:space="preserve">
+    <value>주제</value>
+  </data>
+  <data name="Diary_NewPrompt" xml:space="preserve">
+    <value>새 주제</value>
+  </data>
+  <data name="Diary_NoPromptYet" xml:space="preserve">
+    <value>"새 주제"를 눌러 글쓰기 주제를 받으세요.</value>
+  </data>
+  <data name="Diary_EditorPlaceholder" xml:space="preserve">
+    <value>일기를 작성하세요…</value>
+  </data>
+  <data name="Diary_Saving" xml:space="preserve">
+    <value>저장 중…</value>
+  </data>
+  <data name="Diary_Saved" xml:space="preserve">
+    <value>저장됨</value>
+  </data>
+  <data name="Diary_SaveFailed" xml:space="preserve">
+    <value>저장하지 못했습니다. 다시 시도해 주세요.</value>
+  </data>
+  <data name="Diary_PromptFailed" xml:space="preserve">
+    <value>지금은 주제를 생성할 수 없습니다.</value>
+  </data>
+  <data name="Diary_NotFound" xml:space="preserve">
+    <value>일기를 찾을 수 없습니다.</value>
+  </data>
+  <data name="Diary_AiFeedback" xml:space="preserve">
+    <value>AI 피드백</value>
+  </data>
+  <data name="Diary_GetFeedback" xml:space="preserve">
+    <value>피드백 받기</value>
+  </data>
+  <data name="Diary_Regenerate" xml:space="preserve">
+    <value>다시 생성</value>
+  </data>
+  <data name="Diary_Analyzing" xml:space="preserve">
+    <value>분석 중…</value>
+  </data>
+  <data name="Diary_FeedbackHint" xml:space="preserve">
+    <value>"피드백 받기"를 눌러 이 일기에 대한 AI 의견을 받으세요.</value>
+  </data>
+  <data name="Diary_FeedbackFailed" xml:space="preserve">
+    <value>피드백을 생성하지 못했습니다. 나중에 다시 시도해 주세요.</value>
+  </data>
+  <data name="Diary_Recommended" xml:space="preserve">
+    <value>추천 다시 쓰기</value>
+  </data>
+  <data name="Diary_Notes" xml:space="preserve">
+    <value>메모</value>
+  </data>
+  <data name="Diary_Strengths" xml:space="preserve">
+    <value>잘한 점</value>
+  </data>
+  <data name="Diary_Today" xml:space="preserve">
+    <value>오늘</value>
+  </data>
+  <data name="Diary_Yesterday" xml:space="preserve">
+    <value>어제</value>
+  </data>
+  <data name="Diary_HasFeedback" xml:space="preserve">
+    <value>AI 피드백 있음</value>
+  </data>
   <data name="Activity_Reading" xml:space="preserve">
     <value>읽기</value>
     <comment>Activity label: Reading</comment>

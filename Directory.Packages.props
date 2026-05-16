@@ -4,16 +4,16 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- Aspire Hosting -->
-    <PackageVersion Include="Aspire.Hosting.Azure.AppContainers" Version="13.4.0-preview.1.26256.2" />
-    <PackageVersion Include="Aspire.Hosting.Azure.PostgreSQL" Version="13.4.0-preview.1.26256.2" />
-    <PackageVersion Include="Aspire.Hosting.Azure.Storage" Version="13.4.0-preview.1.26256.2" />
-    <PackageVersion Include="Aspire.Hosting.Maui" Version="13.4.0-preview.1.26256.2" />
-    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.4.0-preview.1.26256.2" />
-    <PackageVersion Include="Aspire.Hosting.Redis" Version="13.4.0-preview.1.26256.2" />
+    <PackageVersion Include="Aspire.Hosting.Azure.AppContainers" Version="13.4.0-preview.1.26264.7" />
+    <PackageVersion Include="Aspire.Hosting.Azure.PostgreSQL" Version="13.4.0-preview.1.26264.7" />
+    <PackageVersion Include="Aspire.Hosting.Azure.Storage" Version="13.4.0-preview.1.26264.7" />
+    <PackageVersion Include="Aspire.Hosting.Maui" Version="13.4.0-preview.1.26264.7" />
+    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.4.0-preview.1.26264.7" />
+    <PackageVersion Include="Aspire.Hosting.Redis" Version="13.4.0-preview.1.26264.7" />
 
     <!-- Aspire Client -->
-    <PackageVersion Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="13.4.0-preview.1.26256.2" />
-    <PackageVersion Include="Aspire.StackExchange.Redis.DistributedCaching" Version="13.4.0-preview.1.26256.2" />
+    <PackageVersion Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="13.4.0-preview.1.26264.7" />
+    <PackageVersion Include="Aspire.StackExchange.Redis.DistributedCaching" Version="13.4.0-preview.1.26264.7" />
 
     <!-- ASP.NET Core / Identity -->
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.2" />
@@ -24,11 +24,11 @@
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.1" />
 
     <!-- Entity Framework Core -->
-    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.7" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.7" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.7" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.7" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.7" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.8" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.8" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.8" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.8" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.8" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Tasks" Version="10.0.2" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
 
@@ -94,6 +94,11 @@
     <PackageVersion Include="Platform.Maui.Essentials.MacOS" Version="0.2.0-beta.5" />
     <PackageVersion Include="Platform.Maui.MacOS" Version="0.3.0" />
     <PackageVersion Include="Platform.Maui.MacOS.BlazorWebView" Version="0.3.0" />
+    <!-- net11.0-macos packages built locally from ~/work/maui-labs (squad/macos-net11p4 branch).
+         Replaces the legacy Platform.Maui.MacOS.* packages which only ship net10.0-macos26.0. -->
+    <PackageVersion Include="Microsoft.Maui.Platforms.MacOS" Version="0.26.0-dev" />
+    <PackageVersion Include="Microsoft.Maui.Platforms.MacOS.BlazorWebView" Version="0.26.0-dev" />
+    <PackageVersion Include="Microsoft.Maui.Platforms.MacOS.Essentials" Version="0.26.0-dev" />
 
     <!-- CoreSync -->
     <PackageVersion Include="CoreSync.Http.Client" Version="0.1.129" />

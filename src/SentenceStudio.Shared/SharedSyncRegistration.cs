@@ -1,6 +1,6 @@
 using CoreSync;
 using CoreSync.Sqlite;
-#if !IOS && !ANDROID && !MACCATALYST
+#if !IOS && !ANDROID && !MACCATALYST && !MACOS
 using CoreSync.PostgreSQL;
 #endif
 using SentenceStudio.Shared.Models;
@@ -30,10 +30,11 @@ public static class SharedSyncRegistration
             .Table<VideoImport>("VideoImport", syncDirection: SyncDirection.UploadAndDownload)
             .Table<DailyPlanCompletion>("DailyPlanCompletion", syncDirection: SyncDirection.UploadAndDownload)
             .Table<UserActivity>("UserActivity", syncDirection: SyncDirection.UploadAndDownload)
+            .Table<DiaryEntry>("DiaryEntry", syncDirection: SyncDirection.UploadAndDownload)
             .Table<PhraseConstituent>("PhraseConstituent", syncDirection: SyncDirection.UploadAndDownload);
     }
 
-#if !IOS && !ANDROID && !MACCATALYST
+#if !IOS && !ANDROID && !MACCATALYST && !MACOS
     public static PostgreSQLSyncConfigurationBuilder ConfigureSyncTables(this PostgreSQLSyncConfigurationBuilder builder)
     {
         return builder
@@ -52,6 +53,7 @@ public static class SharedSyncRegistration
             .Table<VideoImport>("VideoImport", syncDirection: SyncDirection.UploadAndDownload)
             .Table<DailyPlanCompletion>("DailyPlanCompletion", syncDirection: SyncDirection.UploadAndDownload)
             .Table<UserActivity>("UserActivity", syncDirection: SyncDirection.UploadAndDownload)
+            .Table<DiaryEntry>("DiaryEntry", syncDirection: SyncDirection.UploadAndDownload)
             .Table<PhraseConstituent>("PhraseConstituent", syncDirection: SyncDirection.UploadAndDownload);
     }
 #endif

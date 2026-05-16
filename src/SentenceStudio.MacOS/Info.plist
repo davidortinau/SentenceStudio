@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key>
+	<string>SentenceStudio</string>
+	<key>CFBundleDisplayName</key>
+	<string>SentenceStudio</string>
+	<key>CFBundleIdentifier</key>
+	<string>com.simplyprofound.sentencestudio</string>
+	<key>CFBundleVersion</key>
+	<string>1.0</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleExecutable</key>
+	<string>SentenceStudio</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleSignature</key>
+	<string>????</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>LSApplicationCategoryType</key>
+	<string>public.app-category.lifestyle</string>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+
+	<!-- Privacy usage descriptions. These are required by macOS when an app
+	     (or any framework it loads, e.g. CoreBluetooth via audio plugins)
+	     touches a privacy-protected API. Without them macOS terminates the
+	     process with a TCC violation (bug_type 309). -->
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>SentenceStudio does not use Bluetooth directly. This is required because audio frameworks may enumerate Bluetooth audio devices.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>SentenceStudio does not use Bluetooth peripherals directly. This is required because audio frameworks may enumerate Bluetooth audio devices.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>SentenceStudio uses the microphone for speech recognition during language practice activities.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>SentenceStudio uses speech recognition to evaluate your spoken language practice.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>SentenceStudio uses the camera to capture images for vocabulary learning activities.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>SentenceStudio accesses the photo library to import images for vocabulary learning activities.</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>SentenceStudio uses the Documents folder to import and export learning content.</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>SentenceStudio uses the Downloads folder to import learning content.</string>
+
+	<!-- Custom URL scheme for MSAL authentication callback -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>com.simplyprofound.sentencestudio.msalauth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>msal68d5abeb-9ca7-46cc-9572-42e33f15a0ba</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

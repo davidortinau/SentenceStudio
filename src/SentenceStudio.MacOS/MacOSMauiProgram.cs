@@ -3,9 +3,10 @@ using CommunityToolkit.Maui.Storage;
 using Microsoft.Maui.DevFlow.Agent;
 using Microsoft.Maui.DevFlow.Blazor;
 using Microsoft.AspNetCore.Components.WebView.Maui;
-using Microsoft.Maui.Essentials.MacOS;
+using Microsoft.Maui.Platforms.MacOS.Essentials;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Maui.Platform.MacOS.Hosting;
+using Microsoft.Maui.Platforms.MacOS.Hosting;
 using Plugin.Maui.Audio;
 using SentenceStudio;
 using SentenceStudio.WebUI.Services;
@@ -22,6 +23,8 @@ public static class MacOSMauiProgram
             .AddMacOSEssentials()
             .UseMauiCommunityToolkit()
             .UseSentenceStudioApp();
+
+        builder.AddMauiServiceDefaults("MacOS");
 
         builder.Configuration.AddEmbeddedAppSettings();
 

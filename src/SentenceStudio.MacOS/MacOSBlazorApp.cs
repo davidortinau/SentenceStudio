@@ -1,5 +1,6 @@
 using Microsoft.Maui.Controls;
-using Microsoft.Maui.Platform.MacOS;
+using Microsoft.Maui.Platforms.MacOS;
+using Microsoft.Maui.Platforms.MacOS.Platform;
 
 namespace SentenceStudio.MacOS;
 

@@ -156,8 +156,22 @@ public static class AuthEndpoints
             return Results.Unauthorized();
         }
 
-        // Link or create a UserProfile if one doesn't exist (accounts from before registration fix, or migrated data)
-        if (string.IsNullOrEmpty(user.UserProfileId))
+        // Link or create a UserProfile if one doesn't exist (accounts from before registration fix, or migrated data).
+        // Also re-link when UserProfileId points to a profile row that no longer exists (data was wiped or
+        // the user was migrated between databases) — leaving the orphan FK in place puts the client into an
+        // infinite onboarding loop because the profile load returns 404 forever after.
+        bool profileMissing = string.IsNullOrEmpty(user.UserProfileId);
+        if (!profileMissing)
+        {
+            var exists = await db.UserProfiles.AnyAsync(p => p.Id == user.UserProfileId);
+            if (!exists)
+            {
+                logger.LogWarning("Login: UserProfileId {ProfileId} on user {Email} is stale (profile row missing); will re-link or create",
+                    user.UserProfileId, request.Email);
+                profileMissing = true;
+            }
+        }
+        if (profileMissing)
         {
             // First, try to find an existing profile matching this user's email (e.g., migrated data)
             var existing = await db.UserProfiles

@@ -1,0 +1,29 @@
+You are helping a language learner pick a casual diary topic for today's entry.
+
+Generate a single everyday, conversational diary writing prompt in {{ target_language }}. Aim for the kind of small-talk question a friend might ask — not deep introspection.
+
+Strong examples (rotate across these kinds of topics):
+- "What did you eat for dinner last night?"
+- "Did you do anything fun last weekend?"
+- "What are your plans for the day?" / "for this weekend?"
+- "What was the last movie or show you watched? What was it about?"
+- "What's the weather like today?"
+- "Who did you talk to today?"
+- "What did you buy recently?"
+- "Where did you go this week?"
+- "What song have you been listening to a lot lately?"
+- "What's something small that annoyed you today?"
+- "What did you do at work / school today?"
+- "What time did you wake up, and how did you feel?"
+
+Guidelines:
+- ONE or TWO short sentences. No more than ~20 words in the target language.
+- Mostly mundane, everyday topics — meals, weekend plans, movies, errands, weather, routines, small observations.
+- AVOID introspective or sentimental framing. Do NOT default to: favorite color, best moment, proudest achievement, gratitude, life goals, what you love about X, what makes you happy, deepest memory.
+- An occasional light "favorite" question is fine (e.g. "What's your favorite kind of bread?") but should be RARE — at most 1 in 8 prompts.
+- No motivational coaching tone. Sound like a friend, not a therapist.
+- Accessible vocabulary and simple grammar — appropriate for a learner.
+
+Also provide a brief one-line hint in {{ native_language }} that translates or explains the prompt so lower-level learners can engage.
+
+Return the prompt and the hint via the response schema fields.

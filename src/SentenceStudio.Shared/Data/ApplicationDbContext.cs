@@ -1,4 +1,4 @@
-#if !IOS && !ANDROID && !MACCATALYST
+#if !IOS && !ANDROID && !MACCATALYST && !MACOS
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 #endif
 using Microsoft.EntityFrameworkCore;
@@ -7,7 +7,7 @@ using SentenceStudio.Shared.Models.Numbers;
 
 namespace SentenceStudio.Data;
 
-#if IOS || ANDROID || MACCATALYST
+#if IOS || ANDROID || MACCATALYST || MACOS
 public class ApplicationDbContext : DbContext
 #else
 public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
@@ -23,7 +23,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     {
         if (!optionsBuilder.IsConfigured)
         {
-#if IOS || ANDROID || MACCATALYST
+#if IOS || ANDROID || MACCATALYST || MACOS
             optionsBuilder.UseSqlite("Data Source=dummy.db");
 #else
             optionsBuilder.UseNpgsql("Host=localhost;Database=sentencestudio_design;Username=postgres;Password=postgres");
@@ -46,7 +46,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     /// </summary>
     public void EnableWalMode()
     {
-#if IOS || ANDROID || MACCATALYST
+#if IOS || ANDROID || MACCATALYST || MACOS
         Database.ExecuteSqlRaw("PRAGMA journal_mode=WAL;");
 #endif
     }
@@ -107,6 +107,20 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         
         modelBuilder.Entity<UserActivity>().ToTable("UserActivity").HasKey(e => e.Id);
         modelBuilder.Entity<UserActivity>().Property(e => e.Id).ValueGeneratedNever();
+
+        modelBuilder.Entity<DiaryEntry>().ToTable("DiaryEntry").HasKey(e => e.Id);
+        modelBuilder.Entity<DiaryEntry>().Property(e => e.Id).ValueGeneratedNever();
+        modelBuilder.Entity<DiaryEntry>().Property(e => e.Language).IsRequired(false);
+        modelBuilder.Entity<DiaryEntry>().Property(e => e.PromptText).IsRequired(false);
+        modelBuilder.Entity<DiaryEntry>().Property(e => e.PromptHint).IsRequired(false);
+        modelBuilder.Entity<DiaryEntry>().Property(e => e.FeedbackRecommended).IsRequired(false);
+        modelBuilder.Entity<DiaryEntry>().Property(e => e.FeedbackNotes).IsRequired(false);
+        modelBuilder.Entity<DiaryEntry>().Property(e => e.FeedbackStrengths).IsRequired(false);
+        // One diary entry per (user, day, language). Allows multi-language diaries later
+        // without breaking the one-per-day-per-language rule.
+        modelBuilder.Entity<DiaryEntry>()
+            .HasIndex(e => new { e.UserProfileId, e.EntryDate, e.Language })
+            .IsUnique();
         
         // Non-synced entities (keep int auto-increment PKs)
         modelBuilder.Entity<StreamHistory>().ToTable("StreamHistory").HasKey(e => e.Id);
@@ -365,6 +379,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<Story> Stories => Set<Story>();
     public DbSet<GradeResponse> GradeResponses => Set<GradeResponse>();
     public DbSet<UserActivity> UserActivities => Set<UserActivity>();
+    public DbSet<DiaryEntry> DiaryEntries => Set<DiaryEntry>();
     public DbSet<SceneImage> SceneImages => Set<SceneImage>();
     public DbSet<Conversation> Conversations => Set<Conversation>();
     public DbSet<ConversationChunk> ConversationChunks => Set<ConversationChunk>();

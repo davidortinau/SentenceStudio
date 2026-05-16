@@ -1427,6 +1427,25 @@ h3:focus,
     border-bottom: 1px solid var(--bs-border-color);
 }
 
+/* Diary editor — borderless, fills available space */
+.diary-editor-textarea {
+    width: 100%;
+    min-height: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: var(--bs-body-color);
+    resize: none;
+    padding: 0.5rem 0;
+    line-height: 1.6;
+    font-family: inherit;
+}
+
+.diary-editor-textarea:focus {
+    outline: none;
+    box-shadow: none;
+}
+
 .activity-footer {
     flex-shrink: 0;
     background: var(--bs-body-bg);

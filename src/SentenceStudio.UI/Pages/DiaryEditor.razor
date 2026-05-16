@@ -1,0 +1,311 @@
+@page "/diary/today"
+@attribute [Authorize]
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@inject DiaryEntryRepository DiaryRepo
+@inject DiaryService DiaryAi
+@inject UserProfileRepository UserProfileRepo
+@inject NavigationManager NavManager
+@inject ToastService Toast
+@inject ILogger<DiaryEditor> Logger
+@implements IAsyncDisposable
+
+<div class="activity-page-wrapper">
+
+<PageHeader Title='@Localize["Diary_TodayTitle"]' ShowBack="true" OnBack="GoBack" />
+
+<div class="activity-content d-flex flex-column">
+    @if (isLoading)
+    {
+        <div class="d-flex flex-column align-items-center justify-content-center flex-grow-1">
+            <div class="spinner-border text-primary mb-3" role="status"></div>
+        </div>
+    }
+    else
+    {
+        @* Prompt banner (collapsible) *@
+        <div class="card card-ss p-3 mb-3 flex-shrink-0">
+            <div class="d-flex justify-content-between align-items-center gap-2 @(isPromptCollapsed ? "" : "mb-1")">
+                <button class="btn btn-sm btn-ss-secondary border-0 bg-transparent p-0 d-flex align-items-center gap-2 text-start flex-grow-1"
+                        @onclick="TogglePromptCollapsed"
+                        title="@Localize["Diary_TogglePrompt"]"
+                        aria-expanded="@((!isPromptCollapsed).ToString().ToLowerInvariant())">
+                    <i class="bi @(isPromptCollapsed ? "bi-chevron-right" : "bi-chevron-down")"></i>
+                    <small class="text-secondary-ss text-uppercase">@Localize["Diary_Prompt"]</small>
+                    @if (isPromptCollapsed && !string.IsNullOrWhiteSpace(entry.PromptText))
+                    {
+                        <small class="text-secondary-ss text-truncate ms-2 flex-grow-1" style="opacity: 0.75;">@entry.PromptText</small>
+                    }
+                </button>
+                @if (!isPromptCollapsed)
+                {
+                    <button class="btn btn-sm btn-ss-secondary" @onclick="RefreshPrompt" disabled="@isLoadingPrompt">
+                        @if (isLoadingPrompt)
+                        {
+                            <span class="spinner-border spinner-border-sm"></span>
+                        }
+                        else
+                        {
+                            <i class="bi bi-arrow-clockwise"></i>
+                            <span class="d-none d-md-inline ms-1">@Localize["Diary_NewPrompt"]</span>
+                        }
+                    </button>
+                }
+            </div>
+            @if (!isPromptCollapsed)
+            {
+                @if (!string.IsNullOrWhiteSpace(entry.PromptText))
+                {
+                    <p class="ss-body1 mb-1">@entry.PromptText</p>
+                    @if (!string.IsNullOrWhiteSpace(entry.PromptHint))
+                    {
+                        <small class="text-secondary-ss">@entry.PromptHint</small>
+                    }
+                }
+                else
+                {
+                    <p class="ss-body2 text-secondary-ss mb-0">@Localize["Diary_NoPromptYet"]</p>
+                }
+            }
+        </div>
+
+        @* Editor textarea — borderless, fills remaining space *@
+        <textarea class="diary-editor-textarea flex-grow-1"
+                  style="font-size: @(editorFontSize)px;"
+                  placeholder='@Localize["Diary_EditorPlaceholder"]'
+                  @bind="entry.Content"
+                  @bind:event="oninput"
+                  @bind:after="OnContentChanged"></textarea>
+    }
+</div>
+
+@if (!isLoading)
+{
+<div class="activity-input-bar">
+    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+        <div class="d-flex align-items-center gap-2" title="@Localize["Diary_StarsTooltip"]">
+            <span class="diary-stars" aria-label="@($"{starCount} of 3 stars")">
+                @for (var i = 1; i <= 3; i++)
+                {
+                    <i class="bi @(i <= starCount ? "bi-star-fill text-warning" : "bi-star text-secondary-ss")"></i>
+                }
+            </span>
+            <span class="ss-body2 text-secondary-ss">
+                @string.Format(Localize["Diary_Stars"], wordCount)
+            </span>
+        </div>
+        <div class="d-flex align-items-center gap-2">
+            @* Font size controls *@
+            <div class="btn-group btn-group-sm" role="group" aria-label="Font size">
+                <button type="button" class="btn btn-ss-secondary" @onclick="DecreaseFontSize"
+                        disabled="@(editorFontSize <= MinFontSize)" title="Decrease font size">
+                    <i class="bi bi-dash"></i>
+                </button>
+                <button type="button" class="btn btn-ss-secondary" disabled style="min-width: 3rem;">
+                    @editorFontSize<small>px</small>
+                </button>
+                <button type="button" class="btn btn-ss-secondary" @onclick="IncreaseFontSize"
+                        disabled="@(editorFontSize >= MaxFontSize)" title="Increase font size">
+                    <i class="bi bi-plus"></i>
+                </button>
+            </div>
+            @if (saveStatus == SaveStatus.Saving)
+            {
+                <small class="text-secondary-ss">
+                    <span class="spinner-border spinner-border-sm me-1"></span>@Localize["Diary_Saving"]
+                </small>
+            }
+            else if (saveStatus == SaveStatus.Saved)
+            {
+                <small class="text-success"><i class="bi bi-check-circle"></i> @Localize["Diary_Saved"]</small>
+            }
+            <button class="btn btn-sm btn-ss-primary" @onclick="() => SaveNow(false)" disabled="@(saveStatus == SaveStatus.Saving)">
+                <i class="bi bi-save"></i>
+                <span class="d-none d-md-inline ms-1">@Localize["Common_Save"]</span>
+            </button>
+        </div>
+    </div>
+</div>
+}
+
+</div>
+
+@inject SentenceStudio.Abstractions.IPreferencesService Preferences
+
+@code {
+    private const int MinFontSize = 12;
+    private const int MaxFontSize = 32;
+    private const int DefaultFontSize = 16;
+    private const string FontSizePrefKey = "diary_editor_font_size";
+    private const string PromptCollapsedPrefKey = "diary_prompt_collapsed";
+
+    // Angry Birds-style star thresholds (goal = 200 words):
+    //   0-49   = 0 stars
+    //   50-100 = 1 star
+    //   101-150 = 2 stars
+    //   151+   = 3 stars
+    private const int Star1Threshold = 50;
+    private const int Star2Threshold = 101;
+    private const int Star3Threshold = 151;
+
+    private bool isLoading = true;
+    private bool isLoadingPrompt;
+    private bool isPromptCollapsed;
+    private DiaryEntry entry = new() { WordGoal = 200 };
+    private int wordCount;
+    private int editorFontSize = DefaultFontSize;
+    private SaveStatus saveStatus = SaveStatus.Idle;
+    private string targetLanguage = "Korean";
+    private string nativeLanguage = "English";
+    private System.Timers.Timer? autosaveTimer;
+    private string lastSavedContent = string.Empty;
+
+    private enum SaveStatus { Idle, Saving, Saved }
+
+    private int starCount => wordCount switch
+    {
+        >= Star3Threshold => 3,
+        >= Star2Threshold => 2,
+        >= Star1Threshold => 1,
+        _ => 0,
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        Localize.CultureChanged += OnCultureChanged;
+
+        editorFontSize = Math.Clamp(Preferences.Get(FontSizePrefKey, DefaultFontSize), MinFontSize, MaxFontSize);
+        isPromptCollapsed = Preferences.Get(PromptCollapsedPrefKey, false);
+
+        var profile = await UserProfileRepo.GetAsync();
+        targetLanguage = profile?.TargetLanguage ?? "Korean";
+        nativeLanguage = profile?.NativeLanguage ?? "English";
+
+        var today = DiaryEntryRepository.NormalizeEntryDate(DateTime.UtcNow);
+        var existing = await DiaryRepo.GetByDateAsync(today, targetLanguage);
+        if (existing is not null)
+        {
+            entry = existing;
+        }
+        else
+        {
+            entry = new DiaryEntry
+            {
+                EntryDate = today,
+                Language = targetLanguage,
+                WordGoal = 200,
+                Content = string.Empty
+            };
+            await RefreshPrompt();
+        }
+
+        lastSavedContent = entry.Content ?? string.Empty;
+        wordCount = DiaryEntryRepository.CountWords(entry.Content);
+        SetupAutosaveTimer();
+        isLoading = false;
+    }
+
+    private void SetupAutosaveTimer()
+    {
+        autosaveTimer = new System.Timers.Timer(5000) { AutoReset = false };
+        autosaveTimer.Elapsed += async (_, _) => await InvokeAsync(async () => await SaveNow(silent: true));
+    }
+
+    private void OnContentChanged()
+    {
+        wordCount = DiaryEntryRepository.CountWords(entry.Content);
+        saveStatus = SaveStatus.Idle;
+        autosaveTimer?.Stop();
+        autosaveTimer?.Start();
+    }
+
+    private async Task SaveNow(bool silent = false)
+    {
+        if ((entry.Content ?? string.Empty) == lastSavedContent && !string.IsNullOrEmpty(entry.Id))
+        {
+            if (!silent) saveStatus = SaveStatus.Saved;
+            return;
+        }
+
+        saveStatus = SaveStatus.Saving;
+        StateHasChanged();
+        try
+        {
+            entry = await DiaryRepo.UpsertAsync(entry);
+            lastSavedContent = entry.Content ?? string.Empty;
+            wordCount = entry.WordCount;
+            saveStatus = SaveStatus.Saved;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to save diary entry");
+            Toast.ShowError($"{Localize["Diary_SaveFailed"]}");
+            saveStatus = SaveStatus.Idle;
+        }
+        StateHasChanged();
+    }
+
+    private async Task RefreshPrompt()
+    {
+        isLoadingPrompt = true;
+        StateHasChanged();
+        try
+        {
+            var result = await DiaryAi.GeneratePromptAsync(targetLanguage, nativeLanguage);
+            if (result is not null)
+            {
+                entry.PromptText = result.Prompt;
+                entry.PromptHint = result.Hint;
+                if (!string.IsNullOrEmpty(entry.Id))
+                {
+                    entry = await DiaryRepo.UpsertAsync(entry);
+                    lastSavedContent = entry.Content ?? string.Empty;
+                }
+            }
+            else
+            {
+                Toast.ShowWarning($"{Localize["Diary_PromptFailed"]}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to generate diary prompt");
+            Toast.ShowError($"{Localize["Diary_PromptFailed"]}");
+        }
+        isLoadingPrompt = false;
+        StateHasChanged();
+    }
+
+    private void IncreaseFontSize()
+    {
+        editorFontSize = Math.Min(MaxFontSize, editorFontSize + 2);
+        Preferences.Set(FontSizePrefKey, editorFontSize);
+    }
+
+    private void DecreaseFontSize()
+    {
+        editorFontSize = Math.Max(MinFontSize, editorFontSize - 2);
+        Preferences.Set(FontSizePrefKey, editorFontSize);
+    }
+
+    private void TogglePromptCollapsed()
+    {
+        isPromptCollapsed = !isPromptCollapsed;
+        Preferences.Set(PromptCollapsedPrefKey, isPromptCollapsed);
+    }
+
+    private async void GoBack()
+    {
+        await SaveNow(silent: true);
+        NavManager.NavigateTo("/diary");
+    }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
+
+    public async ValueTask DisposeAsync()
+    {
+        Localize.CultureChanged -= OnCultureChanged;
+        autosaveTimer?.Stop();
+        autosaveTimer?.Dispose();
+        try { await SaveNow(silent: true); } catch { /* best-effort flush */ }
+    }
+}

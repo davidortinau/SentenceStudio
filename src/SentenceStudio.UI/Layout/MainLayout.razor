@@ -10,6 +10,7 @@
 @inject SentenceStudio.Services.ISyncService SyncService
 @inject SentenceStudio.Services.IPostLoginRouter PostLoginRouter
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthStateProvider
 @implements IDisposable
 
 <div class="d-flex vh-100">
@@ -102,6 +103,7 @@
     {
         Localize.CultureChanged += OnCultureChanged;
         NavigationManager.LocationChanged += OnLocationChanged;
+        AuthStateProvider.AuthenticationStateChanged += OnAuthStateChanged;
 
         SyncService.InitialSyncCompleted += OnInitialSyncCompleted;
 
@@ -123,6 +125,25 @@
         {
             await ApplyPostLoginRouteAsync();
         }
+    }
+
+    private void OnAuthStateChanged(Task<Microsoft.AspNetCore.Components.Authorization.AuthenticationState> task)
+    {
+        // Logout (or login from another tab/window) raised AuthenticationStateChanged.
+        // Re-evaluate isAuthenticated so the sidebar / offcanvas nav hides immediately.
+        _ = InvokeAsync(async () =>
+        {
+            var state = await task;
+            isAuthenticated = state.User?.Identity?.IsAuthenticated ?? false;
+            if (!isAuthenticated)
+            {
+                // User signed out — collapse any onboarding/sync flags too so a re-login
+                // gets a clean MainLayout render.
+                isOnboarding = false;
+                isSyncing = false;
+            }
+            StateHasChanged();
+        });
     }
 
     private async Task ApplyPostLoginRouteAsync()
@@ -316,6 +337,7 @@
         Localize.CultureChanged -= OnCultureChanged;
         ThemeService.ThemeChanged -= OnThemeChanged;
         NavigationManager.LocationChanged -= OnLocationChanged;
+        AuthStateProvider.AuthenticationStateChanged -= OnAuthStateChanged;
         SyncService.InitialSyncCompleted -= OnInitialSyncCompleted;
         jsModule?.DisposeAsync();
     }

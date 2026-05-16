@@ -2649,6 +2649,109 @@ Ready to practice? Say "yes" to start, or tell me what you'd like to change.</va
     <value>Writing</value>
     <comment>Activity label: Writing</comment>
   </data>
+  <data name="Activity_Diary" xml:space="preserve">
+    <value>Diary</value>
+    <comment>Activity label: Diary</comment>
+  </data>
+  <data name="Diary_TodayTitle" xml:space="preserve">
+    <value>Today's Entry</value>
+  </data>
+  <data name="Diary_StartToday" xml:space="preserve">
+    <value>Start today's entry</value>
+  </data>
+  <data name="Diary_StartTodayHint" xml:space="preserve">
+    <value>Write a freeform diary entry in your target language.</value>
+  </data>
+  <data name="Diary_ContinueToday" xml:space="preserve">
+    <value>Continue today's entry</value>
+  </data>
+  <data name="Diary_PastEntries" xml:space="preserve">
+    <value>Past entries</value>
+  </data>
+  <data name="Diary_EmptyState" xml:space="preserve">
+    <value>No diary entries yet. Tap above to start one.</value>
+  </data>
+  <data name="Diary_WordCount" xml:space="preserve">
+    <value>{0} words</value>
+    <comment>{0} is word count</comment>
+  </data>
+  <data name="Diary_Progress" xml:space="preserve">
+    <value>{0} / {1} words</value>
+    <comment>{0} current word count, {1} goal</comment>
+  </data>
+  <data name="Diary_Stars" xml:space="preserve">
+    <value>{0} words</value>
+    <comment>{0} is word count — shown alongside star rating</comment>
+  </data>
+  <data name="Diary_StarsTooltip" xml:space="preserve">
+    <value>50 words = 1 star, 100 = 2 stars, 150 = 3 stars (goal: 200)</value>
+  </data>
+  <data name="Diary_TogglePrompt" xml:space="preserve">
+    <value>Show or hide prompt</value>
+  </data>
+  <data name="Diary_Prompt" xml:space="preserve">
+    <value>Prompt</value>
+  </data>
+  <data name="Diary_NewPrompt" xml:space="preserve">
+    <value>New prompt</value>
+  </data>
+  <data name="Diary_NoPromptYet" xml:space="preserve">
+    <value>Tap "New prompt" to get a writing prompt.</value>
+  </data>
+  <data name="Diary_EditorPlaceholder" xml:space="preserve">
+    <value>Start writing your entry…</value>
+  </data>
+  <data name="Diary_Saving" xml:space="preserve">
+    <value>Saving…</value>
+  </data>
+  <data name="Diary_Saved" xml:space="preserve">
+    <value>Saved</value>
+  </data>
+  <data name="Diary_SaveFailed" xml:space="preserve">
+    <value>Could not save your entry. Try again.</value>
+  </data>
+  <data name="Diary_PromptFailed" xml:space="preserve">
+    <value>Could not generate a prompt right now.</value>
+  </data>
+  <data name="Diary_NotFound" xml:space="preserve">
+    <value>This entry could not be found.</value>
+  </data>
+  <data name="Diary_AiFeedback" xml:space="preserve">
+    <value>AI feedback</value>
+  </data>
+  <data name="Diary_GetFeedback" xml:space="preserve">
+    <value>Get feedback</value>
+  </data>
+  <data name="Diary_Regenerate" xml:space="preserve">
+    <value>Regenerate</value>
+  </data>
+  <data name="Diary_Analyzing" xml:space="preserve">
+    <value>Analyzing…</value>
+  </data>
+  <data name="Diary_FeedbackHint" xml:space="preserve">
+    <value>Tap "Get feedback" to receive AI suggestions on this entry.</value>
+  </data>
+  <data name="Diary_FeedbackFailed" xml:space="preserve">
+    <value>Could not generate feedback. Try again later.</value>
+  </data>
+  <data name="Diary_Recommended" xml:space="preserve">
+    <value>Recommended rewrite</value>
+  </data>
+  <data name="Diary_Notes" xml:space="preserve">
+    <value>Notes</value>
+  </data>
+  <data name="Diary_Strengths" xml:space="preserve">
+    <value>Strengths</value>
+  </data>
+  <data name="Diary_Today" xml:space="preserve">
+    <value>Today</value>
+  </data>
+  <data name="Diary_Yesterday" xml:space="preserve">
+    <value>Yesterday</value>
+  </data>
+  <data name="Diary_HasFeedback" xml:space="preserve">
+    <value>Has AI feedback</value>
+  </data>
   <data name="Activity_Reading" xml:space="preserve">
     <value>Reading</value>
     <comment>Activity label: Reading</comment>

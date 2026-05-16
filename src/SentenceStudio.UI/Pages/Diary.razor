@@ -1,0 +1,157 @@
+@page "/diary"
+@attribute [Authorize]
+@using SentenceStudio.Shared.Models
+@using SentenceStudio.Data
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@inject DiaryEntryRepository DiaryRepo
+@inject NavigationManager NavManager
+@inject ILogger<Diary> Logger
+@implements IDisposable
+
+<div class="activity-page-wrapper">
+
+<PageHeader Title='@Localize["Activity_Diary"]' ShowBack="true" OnBack="GoBack" />
+
+<div class="activity-content">
+    @if (isLoading)
+    {
+        <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 40vh;">
+            <div class="spinner-border text-primary mb-3" role="status"></div>
+        </div>
+    }
+    else
+    {
+        @* Today CTA card *@
+        <div class="card card-ss p-3 mb-4" role="button" @onclick="OpenToday">
+            <div class="d-flex align-items-center gap-3">
+                <div class="fs-2"><i class="bi bi-pencil-square text-primary"></i></div>
+                <div class="flex-grow-1">
+                    @if (todayEntry is null)
+                    {
+                        <div class="ss-body1 fw-semibold">@Localize["Diary_StartToday"]</div>
+                        <small class="text-secondary-ss">@Localize["Diary_StartTodayHint"]</small>
+                    }
+                    else
+                    {
+                        <div class="ss-body1 fw-semibold">@Localize["Diary_ContinueToday"]</div>
+                        <small class="text-secondary-ss">
+                            @string.Format(Localize["Diary_WordCount"], todayEntry.WordCount)
+                        </small>
+                    }
+                </div>
+                <i class="bi bi-chevron-right text-secondary-ss"></i>
+            </div>
+        </div>
+
+        @* Past entries list *@
+        @if (pastEntries.Any())
+        {
+            <h2 class="ss-title2 mb-3">@Localize["Diary_PastEntries"]</h2>
+            <div class="d-flex flex-column gap-2">
+                @foreach (var entry in pastEntries)
+                {
+                    var e = entry;
+                    <div class="card card-ss p-3" role="button" @onclick="() => OpenEntry(e.Id)">
+                        <div class="d-flex justify-content-between align-items-start gap-3">
+                            <div class="flex-grow-1 min-w-0">
+                                <div class="ss-body1 fw-semibold mb-1">@FormatDate(e.EntryDate)</div>
+                                @if (!string.IsNullOrWhiteSpace(e.Content))
+                                {
+                                    <small class="text-secondary-ss d-block text-truncate" style="max-width: 100%;">
+                                        @Snippet(e.Content)
+                                    </small>
+                                }
+                            </div>
+                            <div class="text-end text-nowrap">
+                                <span class="badge bg-secondary-subtle text-secondary-ss">
+                                    @string.Format(Localize["Diary_WordCount"], e.WordCount)
+                                </span>
+                                @if (e.HasFeedback)
+                                {
+                                    <div><i class="bi bi-stars text-primary" title="@Localize["Diary_HasFeedback"]"></i></div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        else if (todayEntry is null)
+        {
+            <div class="text-center p-4">
+                <i class="bi bi-journal-text fs-1 text-secondary-ss d-block mb-2"></i>
+                <p class="ss-body2 text-secondary-ss">@Localize["Diary_EmptyState"]</p>
+            </div>
+        }
+    }
+</div>
+
+</div>
+
+@code {
+    private bool isLoading = true;
+    private DiaryEntry? todayEntry;
+    private List<DiaryEntry> pastEntries = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        Localize.CultureChanged += OnCultureChanged;
+        NavManager.LocationChanged += OnLocationChanged;
+        await LoadEntries();
+    }
+
+    private async Task LoadEntries()
+    {
+        isLoading = true;
+        try
+        {
+            var all = await DiaryRepo.ListAsync();
+            var today = DiaryEntryRepository.NormalizeEntryDate(DateTime.UtcNow);
+            todayEntry = all.FirstOrDefault(e => e.EntryDate == today);
+            pastEntries = all.Where(e => e.EntryDate != today).ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading diary entries");
+        }
+        finally
+        {
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+
+    private void OpenToday() => NavManager.NavigateTo("/diary/today");
+    private void OpenEntry(string id) => NavManager.NavigateTo($"/diary/{id}");
+    private void GoBack() => NavManager.NavigateTo("/");
+
+    private string FormatDate(DateTime date)
+    {
+        var today = DiaryEntryRepository.NormalizeEntryDate(DateTime.UtcNow);
+        var yesterday = today.AddDays(-1);
+        if (date == today) return $"{Localize["Diary_Today"]}";
+        if (date == yesterday) return $"{Localize["Diary_Yesterday"]}";
+        return date.ToString("ddd, MMM d, yyyy", System.Globalization.CultureInfo.CurrentCulture);
+    }
+
+    private static string Snippet(string content)
+    {
+        var trimmed = content.Trim();
+        if (trimmed.Length <= 120) return trimmed;
+        return trimmed.Substring(0, 120) + "…";
+    }
+
+    private async void OnLocationChanged(object? sender, Microsoft.AspNetCore.Components.Routing.LocationChangedEventArgs e)
+    {
+        if (e.Location.EndsWith("/diary", StringComparison.OrdinalIgnoreCase))
+            await LoadEntries();
+    }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnCultureChanged;
+        NavManager.LocationChanged -= OnLocationChanged;
+    }
+}

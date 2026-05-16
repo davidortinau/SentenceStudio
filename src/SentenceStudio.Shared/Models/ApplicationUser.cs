@@ -1,10 +1,10 @@
-#if !IOS && !ANDROID && !MACCATALYST
+#if !IOS && !ANDROID && !MACCATALYST && !MACOS
 using Microsoft.AspNetCore.Identity;
 #endif
 
 namespace SentenceStudio.Shared.Models;
 
-#if IOS || ANDROID || MACCATALYST
+#if IOS || ANDROID || MACCATALYST || MACOS
 // On mobile, ApplicationUser is a plain DTO — Identity types aren't available
 public class ApplicationUser
 {

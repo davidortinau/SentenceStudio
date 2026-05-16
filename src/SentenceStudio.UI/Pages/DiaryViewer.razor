@@ -1,0 +1,168 @@
+@page "/diary/{Id}"
+@attribute [Authorize]
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@inject DiaryEntryRepository DiaryRepo
+@inject DiaryService DiaryAi
+@inject NavigationManager NavManager
+@inject ToastService Toast
+@inject ILogger<DiaryViewer> Logger
+@implements IDisposable
+
+<div class="activity-page-wrapper">
+
+<PageHeader Title='@HeaderTitle' ShowBack="true" OnBack="GoBack" />
+
+<div class="activity-content">
+    @if (isLoading)
+    {
+        <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 40vh;">
+            <div class="spinner-border text-primary mb-3" role="status"></div>
+        </div>
+    }
+    else if (entry is null)
+    {
+        <div class="text-center p-4">
+            <i class="bi bi-exclamation-triangle fs-1 text-warning-ss d-block mb-2"></i>
+            <p class="ss-body1 text-secondary-ss">@Localize["Diary_NotFound"]</p>
+            <button class="btn btn-ss-secondary mt-2" @onclick="GoBack">@Localize["Common_GoBack"]</button>
+        </div>
+    }
+    else
+    {
+        @if (!string.IsNullOrWhiteSpace(entry.PromptText))
+        {
+            <div class="card card-ss p-3 mb-3">
+                <small class="text-secondary-ss text-uppercase mb-1">@Localize["Diary_Prompt"]</small>
+                <p class="ss-body1 mb-0">@entry.PromptText</p>
+                @if (!string.IsNullOrWhiteSpace(entry.PromptHint))
+                {
+                    <small class="text-secondary-ss mt-1">@entry.PromptHint</small>
+                }
+            </div>
+        }
+
+        <div class="card card-ss p-3 mb-3">
+            <div class="d-flex justify-content-between mb-2">
+                <small class="text-secondary-ss">@FormatDate(entry.EntryDate)</small>
+                <small class="text-secondary-ss">@string.Format(Localize["Diary_WordCount"], entry.WordCount)</small>
+            </div>
+            <p class="ss-body1 mb-0" style="white-space: pre-wrap;">@entry.Content</p>
+        </div>
+
+        @* Feedback section *@
+        <div class="card card-ss p-3 mb-3">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h2 class="ss-title3 mb-0"><i class="bi bi-stars text-primary me-1"></i>@Localize["Diary_AiFeedback"]</h2>
+                <button class="btn btn-sm btn-ss-secondary" @onclick="LoadFeedback" disabled="@isLoadingFeedback">
+                    @if (isLoadingFeedback)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1"></span>
+                        <span>@Localize["Diary_Analyzing"]</span>
+                    }
+                    else
+                    {
+                        <i class="bi bi-arrow-clockwise"></i>
+                        <span class="ms-1">@(entry.HasFeedback ? Localize["Diary_Regenerate"] : Localize["Diary_GetFeedback"])</span>
+                    }
+                </button>
+            </div>
+
+            @if (entry.HasFeedback)
+            {
+                @if (!string.IsNullOrWhiteSpace(entry.FeedbackRecommended))
+                {
+                    <div class="mb-3">
+                        <small class="text-secondary-ss text-uppercase">@Localize["Diary_Recommended"]</small>
+                        <p class="ss-body1 mb-0" style="white-space: pre-wrap;">@entry.FeedbackRecommended</p>
+                    </div>
+                }
+                @if (!string.IsNullOrWhiteSpace(entry.FeedbackNotes))
+                {
+                    <div class="mb-3">
+                        <small class="text-secondary-ss text-uppercase">@Localize["Diary_Notes"]</small>
+                        <p class="ss-body2 mb-0" style="white-space: pre-wrap;">@entry.FeedbackNotes</p>
+                    </div>
+                }
+                @if (!string.IsNullOrWhiteSpace(entry.FeedbackStrengths))
+                {
+                    <div>
+                        <small class="text-secondary-ss text-uppercase">@Localize["Diary_Strengths"]</small>
+                        <p class="ss-body2 mb-0" style="white-space: pre-wrap;">@entry.FeedbackStrengths</p>
+                    </div>
+                }
+            }
+            else if (!isLoadingFeedback)
+            {
+                <p class="ss-body2 text-secondary-ss mb-0">@Localize["Diary_FeedbackHint"]</p>
+            }
+        </div>
+    }
+</div>
+
+</div>
+
+@code {
+    [Parameter] public string Id { get; set; } = string.Empty;
+
+    private bool isLoading = true;
+    private bool isLoadingFeedback;
+    private DiaryEntry? entry;
+
+    private string HeaderTitle => entry is null
+        ? $"{Localize["Activity_Diary"]}"
+        : FormatDate(entry.EntryDate);
+
+    protected override async Task OnInitializedAsync()
+    {
+        Localize.CultureChanged += OnCultureChanged;
+        await Load();
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (entry is not null && entry.Id != Id)
+            await Load();
+    }
+
+    private async Task Load()
+    {
+        isLoading = true;
+        try { entry = await DiaryRepo.GetByIdAsync(Id); }
+        catch (Exception ex) { Logger.LogError(ex, "Error loading diary entry {Id}", Id); }
+        isLoading = false;
+        StateHasChanged();
+    }
+
+    private async Task LoadFeedback()
+    {
+        if (entry is null || string.IsNullOrWhiteSpace(entry.Content)) return;
+        isLoadingFeedback = true;
+        StateHasChanged();
+        try
+        {
+            var result = await DiaryAi.GetFeedbackAsync(entry.Content, entry.PromptText, entry.Language);
+            if (result is not null)
+            {
+                entry = await DiaryRepo.SaveFeedbackAsync(entry.Id, result.Recommended, result.Notes, result.Strengths);
+            }
+            else
+            {
+                Toast.ShowWarning($"{Localize["Diary_FeedbackFailed"]}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Diary feedback failed");
+            Toast.ShowError($"{Localize["Diary_FeedbackFailed"]}");
+        }
+        isLoadingFeedback = false;
+        StateHasChanged();
+    }
+
+    private string FormatDate(DateTime date)
+        => date.ToString("ddd, MMM d, yyyy", System.Globalization.CultureInfo.CurrentCulture);
+
+    private void GoBack() => NavManager.NavigateTo("/diary");
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
+    public void Dispose() => Localize.CultureChanged -= OnCultureChanged;
+}

@@ -77,7 +77,7 @@ public class SyncService : ISyncService
             using var scope = _serviceProvider.CreateScope();
             var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-#if IOS || ANDROID || MACCATALYST
+#if IOS || ANDROID || MACCATALYST || MACOS
             _logger.LogDebug("Running EF Core migrations on mobile...");
             
             // Handle transition from legacy EnsureCreated() to MigrateAsync().
@@ -244,7 +244,7 @@ public class SyncService : ISyncService
             }
 #endif
 
-#if DEBUG && (IOS || ANDROID || MACCATALYST)
+#if DEBUG && (IOS || ANDROID || MACCATALYST || MACOS)
             // Mobile schema sanity check — validates critical columns/tables exist after migration.
             // In Debug: throws on failure to surface schema drift immediately.
             // In Release: logs Critical but continues (don't brick user apps).
@@ -413,7 +413,7 @@ public class SyncService : ISyncService
         }
     }
 
-#if IOS || ANDROID || MACCATALYST
+#if IOS || ANDROID || MACCATALYST || MACOS
     /// <summary>
     /// Adds any columns that InitialSqlite would have created but that are
     /// missing from a legacy database whose migration history was seeded.

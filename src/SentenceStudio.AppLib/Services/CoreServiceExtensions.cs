@@ -23,6 +23,7 @@ public static class CoreServiceExtensions
         // Activity services
         services.AddSingleton<TeacherService>();
         services.AddSingleton<ConversationService>();
+        services.AddSingleton<DiaryService>();
         services.AddSingleton<AiService>();
         services.AddSingleton<IAiService>(sp => sp.GetRequiredService<AiService>());
         services.AddSingleton<SceneImageService>();
@@ -71,6 +72,7 @@ public static class CoreServiceExtensions
         services.AddSingleton<StoryRepository>();
         services.AddSingleton<UserProfileRepository>();
         services.AddSingleton<UserActivityRepository>();
+        services.AddSingleton<DiaryEntryRepository>();
         services.AddSingleton<SkillProfileRepository>();
         services.AddSingleton<LearningResourceRepository>();
         services.AddSingleton<StreamHistoryRepository>();

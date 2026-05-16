@@ -210,6 +210,7 @@
     [Inject] private ToastService Toast { get; set; }
     [Inject] private ILogger<Onboarding> Logger { get; set; }
     [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
+    [Inject] private IAuthService Auth { get; set; } = default!;
 
     private int currentStep = 0;
     private string name = "";
@@ -358,6 +359,7 @@
             var profile = new UserProfile
             {
                 Name = name,
+                Email = Auth.UserName ?? string.Empty,
                 NativeLanguage = nativeLanguage,
                 TargetLanguage = targetLanguage,
                 DisplayLanguage = "English",

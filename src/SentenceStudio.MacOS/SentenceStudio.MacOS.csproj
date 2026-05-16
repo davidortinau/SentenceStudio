@@ -18,9 +18,9 @@
 		<PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" />
 		<PackageReference Include="CommunityToolkit.Maui" />
 		<PackageReference Include="Plugin.Maui.Audio" />
-		<PackageReference Include="Platform.Maui.MacOS" />
-		<PackageReference Include="Platform.Maui.MacOS.BlazorWebView" />
-		<PackageReference Include="Platform.Maui.Essentials.MacOS" />
+		<PackageReference Include="Microsoft.Maui.Platforms.MacOS" />
+		<PackageReference Include="Microsoft.Maui.Platforms.MacOS.BlazorWebView" />
+		<PackageReference Include="Microsoft.Maui.Platforms.MacOS.Essentials" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" />
 		<PackageReference Include="Microsoft.Maui.DevFlow.Agent" Condition="'$(Configuration)'=='Debug'" />
 		<PackageReference Include="Microsoft.Maui.DevFlow.Blazor" Condition="'$(Configuration)'=='Debug'" />
@@ -29,6 +29,7 @@
 	<ItemGroup>
 		<ProjectReference Include="..\SentenceStudio.AppLib\SentenceStudio.AppLib.csproj" />
 		<ProjectReference Include="..\SentenceStudio.UI\SentenceStudio.UI.csproj" />
+		<ProjectReference Include="..\SentenceStudio.MauiServiceDefaults\SentenceStudio.MauiServiceDefaults.csproj" />
 	</ItemGroup>
 
 	<ItemGroup>

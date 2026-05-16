@@ -1,4 +1,4 @@
-#if !IOS && !ANDROID && !MACCATALYST
+#if !IOS && !ANDROID && !MACCATALYST && !MACOS
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Shared.Models;

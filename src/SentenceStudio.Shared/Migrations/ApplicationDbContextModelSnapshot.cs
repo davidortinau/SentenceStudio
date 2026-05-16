@@ -17,7 +17,7 @@ namespace SentenceStudio.Shared.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.5")
+                .HasAnnotation("ProductVersion", "10.0.8")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -470,6 +470,63 @@ namespace SentenceStudio.Shared.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("DailyPlanCompletion", (string)null);
+                });
+
+            modelBuilder.Entity("SentenceStudio.Shared.Models.DiaryEntry", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Content")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("EntryDate")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("FeedbackAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("FeedbackNotes")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FeedbackRecommended")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FeedbackStrengths")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Language")
+                        .HasColumnType("text");
+
+                    b.Property<string>("PromptHint")
+                        .HasColumnType("text");
+
+                    b.Property<string>("PromptText")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserProfileId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("WordCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("WordGoal")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserProfileId", "EntryDate", "Language")
+                        .IsUnique();
+
+                    b.ToTable("DiaryEntry", (string)null);
                 });
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.ExampleSentence", b =>

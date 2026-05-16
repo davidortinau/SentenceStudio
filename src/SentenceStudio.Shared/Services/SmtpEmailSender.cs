@@ -1,4 +1,4 @@
-#if !IOS && !ANDROID && !MACCATALYST
+#if !IOS && !ANDROID && !MACCATALYST && !MACOS
 using System.Net;
 using System.Net.Mail;
 using Microsoft.AspNetCore.Identity;
