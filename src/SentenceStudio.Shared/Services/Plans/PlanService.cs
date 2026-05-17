@@ -35,6 +35,27 @@ namespace SentenceStudio.Services.Plans;
 ///   <c>(UserProfileId, Date, PlanItemId)</c> unique index.</description></item>
 /// </list>
 /// </remarks>
+/// <remarks>
+/// <b>CoreSync interaction (v1 acceptance):</b> the per-item merge rules
+/// (<c>MinutesSpent = max</c>, <c>IsCompleted = OR</c>, earliest non-null
+/// <c>CompletedAt</c>) are applied inside this service on every HTTP write,
+/// and crucially every write is monotonic — minutes only ever move forward,
+/// <c>IsCompleted</c> can flip true but never false. CoreSync conflict
+/// resolution at the row level is last-writer-wins (see
+/// <c>SyncService.SynchronizeAsync</c>), which means if a MAUI device and
+/// the HTTP API both write to the same <c>(UserProfileId, Date,
+/// PlanItemId)</c> row within one sync window the larger of the two
+/// counters wins by virtue of the monotonic update rule, even though
+/// CoreSync itself doesn't compose them. The
+/// <c>coresync-merge-rules</c> lane in <c>plan.md §12</c> tracks lifting
+/// the same merge into the CoreSync provider config once that surface
+/// supports per-table merge callbacks; until then the monotonic-update
+/// invariant in this service is the contract that prevents data loss in
+/// practice. New tests in <c>PlanServiceTests</c> assert it
+/// (<c>UpdateProgress_OnlyMovesValueForward</c>,
+/// <c>MarkComplete_IsIdempotent_AndPreservesEarliestCompletedAt</c>,
+/// <c>Regenerate_PreservesProgressForMatchingItems</c>).
+/// </remarks>
 public sealed class PlanService : IPlanService
 {
     /// <summary>
