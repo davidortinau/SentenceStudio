@@ -1,6 +1,7 @@
 #if !IOS && !ANDROID && !MACCATALYST && !MACOS
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 #endif
+using System;
 using Microsoft.EntityFrameworkCore;
 using SentenceStudio.Shared.Models;
 using SentenceStudio.Shared.Models.Numbers;
@@ -104,6 +105,19 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         // Synced entities (string GUID PKs)
         modelBuilder.Entity<DailyPlanCompletion>().ToTable("DailyPlanCompletion").HasKey(e => e.Id);
         modelBuilder.Entity<DailyPlanCompletion>().Property(e => e.Id).ValueGeneratedNever();
+        // §14a: Date is a user-local calendar day, not an instant. On PG we
+        // force the column to `date` (TZ-less) so Npgsql's legacy-timestamp
+        // behavior cannot shift the value on read in non-UTC server zones.
+        // SQLite stores DateTime as ISO8601 TEXT regardless and has no TZ
+        // arithmetic, so the legacy bug doesn't apply there — leave its
+        // mapping alone to avoid disrupting CoreSync wire format on devices.
+        var isNpgsql = Database.ProviderName?.Contains("Npgsql", StringComparison.OrdinalIgnoreCase) == true;
+        if (isNpgsql)
+        {
+            modelBuilder.Entity<DailyPlanCompletion>()
+                .Property(e => e.Date)
+                .HasColumnType("date");
+        }
         // Strict uniqueness: one row per (user, local-day, plan-item). Prevents
         // CoreSync ↔ HTTP duplicate inserts when both write the same logical item.
         modelBuilder.Entity<DailyPlanCompletion>()
@@ -116,6 +130,13 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.Entity<DailyPlan>().Property(e => e.Id).ValueGeneratedNever();
         modelBuilder.Entity<DailyPlan>().Property(e => e.RationaleFacts).IsRequired(false);
         modelBuilder.Entity<DailyPlan>().Property(e => e.NarrativeFacts).IsRequired(false);
+        if (isNpgsql)
+        {
+            // §14a — same rationale as DailyPlanCompletion.Date above.
+            modelBuilder.Entity<DailyPlan>()
+                .Property(e => e.Date)
+                .HasColumnType("date");
+        }
         modelBuilder.Entity<DailyPlan>()
             .HasIndex(e => new { e.UserProfileId, e.Date })
             .IsUnique();
