@@ -113,6 +113,20 @@ public static class CoreServiceExtensions
         services.AddSingleton<ILlmPlanGenerationService, LlmPlanGenerationService>();
         services.AddSingleton<VocabularyExampleGenerationService>();
 
+        // New split: IDeterministicPlanGenerator is ALWAYS registered.
+        // ILlmPlanGenerator is registered conditionally below, only if an
+        // IChatClient is available. Callers (IPlanService, future thin
+        // clients) resolve ILlmPlanGenerator as optional and fall back to
+        // the deterministic generator when absent. v1 has no real LLM call;
+        // see LlmPlanGenerator XML doc.
+        services.AddSingleton<SentenceStudio.Services.Plans.IDeterministicPlanGenerator,
+                              SentenceStudio.Services.Plans.DeterministicPlanGenerator>();
+        if (services.Any(d => d.ServiceType == typeof(Microsoft.Extensions.AI.IChatClient)))
+        {
+            services.AddSingleton<SentenceStudio.Services.Plans.ILlmPlanGenerator,
+                                  SentenceStudio.Services.Plans.LlmPlanGenerator>();
+        }
+
         // Plan scope + date context (device side).
         //   - DeviceUserScopeProvider wraps the single active user profile id;
         //     auth/sign-in flow calls SetActiveUser(...) after login.

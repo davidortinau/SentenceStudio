@@ -327,7 +327,7 @@ public class DeterministicPlanBuilder
         var selected = candidates
             .Where(c => c.Score > -500) // Filter out disqualified (yesterday's resource)
             .OrderByDescending(c => c.Score)
-            .ThenBy(c => c.Resource.Id.GetHashCode() ^ today.GetHashCode()) // Deterministic tiebreaker
+            .ThenBy(c => DeterministicHash.Combine(c.Resource.Id, today)) // Deterministic tiebreaker (process-stable)
             .FirstOrDefault();
 
         if (selected == null)
@@ -807,7 +807,7 @@ public class DeterministicPlanBuilder
         // Prefer least recently used, with deterministic tiebreaker so the same day always produces the same order
         var selected = inputActivities
             .OrderBy(a => recentActivities.Count(r => r == a))
-            .ThenBy(a => HashCode.Combine(today, a))
+            .ThenBy(a => DeterministicHash.Combine(a, today))
             .First();
 
         return selected;
@@ -833,7 +833,7 @@ public class DeterministicPlanBuilder
         // Prefer least recently used, with deterministic tiebreaker so the same day always produces the same order
         var selected = outputActivities
             .OrderBy(a => recentActivities.Count(r => r == a))
-            .ThenBy(a => HashCode.Combine(today, a))
+            .ThenBy(a => DeterministicHash.Combine(a, today))
             .First();
 
         return selected;
