@@ -1,6 +1,7 @@
 using Xunit;
 using FluentAssertions;
 using SentenceStudio.Services.PlanGeneration;
+using SentenceStudio.Services.Plans;
 using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.UnitTests.PlanGeneration;
@@ -11,7 +12,8 @@ namespace SentenceStudio.UnitTests.PlanGeneration;
 /// </summary>
 public class PlanValidationTests
 {
-    private readonly GeneratedPlanValidator _validator = new();
+    private readonly GeneratedPlanValidator _validator = new(
+        new PlanDateContext(TimeZoneInfo.Utc));
 
     private static PlanSkeleton CreateValidPlan()
     {

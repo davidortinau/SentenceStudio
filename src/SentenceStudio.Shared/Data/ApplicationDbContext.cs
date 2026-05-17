@@ -104,7 +104,22 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         // Synced entities (string GUID PKs)
         modelBuilder.Entity<DailyPlanCompletion>().ToTable("DailyPlanCompletion").HasKey(e => e.Id);
         modelBuilder.Entity<DailyPlanCompletion>().Property(e => e.Id).ValueGeneratedNever();
-        
+        // Strict uniqueness: one row per (user, local-day, plan-item). Prevents
+        // CoreSync ↔ HTTP duplicate inserts when both write the same logical item.
+        modelBuilder.Entity<DailyPlanCompletion>()
+            .HasIndex(e => new { e.UserProfileId, e.Date, e.PlanItemId })
+            .IsUnique();
+
+        // Parent DailyPlan — owns generation metadata + language-neutral
+        // narrative/rationale facts. One row per (user, local-day).
+        modelBuilder.Entity<DailyPlan>().ToTable("DailyPlan").HasKey(e => e.Id);
+        modelBuilder.Entity<DailyPlan>().Property(e => e.Id).ValueGeneratedNever();
+        modelBuilder.Entity<DailyPlan>().Property(e => e.RationaleFacts).IsRequired(false);
+        modelBuilder.Entity<DailyPlan>().Property(e => e.NarrativeFacts).IsRequired(false);
+        modelBuilder.Entity<DailyPlan>()
+            .HasIndex(e => new { e.UserProfileId, e.Date })
+            .IsUnique();
+
         modelBuilder.Entity<UserActivity>().ToTable("UserActivity").HasKey(e => e.Id);
         modelBuilder.Entity<UserActivity>().Property(e => e.Id).ValueGeneratedNever();
 
@@ -388,6 +403,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<VocabularyProgress> VocabularyProgresses => Set<VocabularyProgress>();
     public DbSet<VocabularyLearningContext> VocabularyLearningContexts => Set<VocabularyLearningContext>();
     public DbSet<DailyPlanCompletion> DailyPlanCompletions => Set<DailyPlanCompletion>();
+    public DbSet<DailyPlan> DailyPlans => Set<DailyPlan>();
     public DbSet<ExampleSentence> ExampleSentences => Set<ExampleSentence>();
     public DbSet<MinimalPair> MinimalPairs => Set<MinimalPair>();
     public DbSet<MinimalPairSession> MinimalPairSessions => Set<MinimalPairSession>();

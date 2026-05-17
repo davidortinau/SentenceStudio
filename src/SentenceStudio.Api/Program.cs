@@ -247,6 +247,16 @@ builder.Services.AddSingleton<ISyncProvider>(sp =>
 // AppLib core-services extension because the API project does not reference AppLib).
 builder.Services.AddSingleton<UserProfileRepository>();
 
+// Plan-generation scope + date context — both per-request (scoped). Fail-closed
+// on missing user; X-Timezone header (IANA, Windows ids also accepted) drives
+// per-request "today" so the daily plan rolls over at the device's local
+// midnight, not server UTC.
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<SentenceStudio.Services.Plans.IUserScopeProvider,
+    SentenceStudio.Api.Plans.HttpUserScopeProvider>();
+builder.Services.AddScoped<SentenceStudio.Services.Plans.IPlanDateContext,
+    SentenceStudio.Api.Plans.HttpPlanDateContext>();
+
 // Voice discovery (ElevenLabs) — registered here for the same reason as above.
 builder.Services.AddSingleton<SentenceStudio.Services.Speech.IVoiceDiscoveryService, SentenceStudio.Services.Speech.VoiceDiscoveryService>();
 

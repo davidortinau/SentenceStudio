@@ -4,7 +4,7 @@ set -euo pipefail
 # Builds Mac Catalyst Debug, launches via maui devflow, watches logs for
 # migration errors, fails if any are found. Intended as a pre-deploy gate.
 
-TFM="net10.0-maccatalyst"
+TFM="net11.0-maccatalyst"
 PROJECT="src/SentenceStudio.MacCatalyst/SentenceStudio.MacCatalyst.csproj"
 LOG_DIR=$(mktemp -d -t ss-migration-XXXX)
 LOG_PREFIX="$LOG_DIR/migration-validation"

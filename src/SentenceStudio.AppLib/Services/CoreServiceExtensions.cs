@@ -109,8 +109,22 @@ public static class CoreServiceExtensions
 
         // Plan generation — use local DeterministicPlanBuilder for rich narratives
         services.AddSingleton<DeterministicPlanBuilder>();
+        services.AddSingleton<GeneratedPlanValidator>();
         services.AddSingleton<ILlmPlanGenerationService, LlmPlanGenerationService>();
         services.AddSingleton<VocabularyExampleGenerationService>();
+
+        // Plan scope + date context (device side).
+        //   - DeviceUserScopeProvider wraps the single active user profile id;
+        //     auth/sign-in flow calls SetActiveUser(...) after login.
+        //   - IPlanDateContext is resolved on-demand from TimeZoneInfo.Local so
+        //     DST shifts and travel-induced timezone changes apply immediately
+        //     without re-creating the singleton.
+        services.AddSingleton<SentenceStudio.Services.DeviceUserScopeProvider>();
+        services.AddSingleton<SentenceStudio.Services.Plans.IUserScopeProvider>(sp =>
+            sp.GetRequiredService<SentenceStudio.Services.DeviceUserScopeProvider>());
+        services.AddSingleton<SentenceStudio.Services.DevicePlanDateContextProvider>();
+        services.AddTransient<SentenceStudio.Services.Plans.IPlanDateContext>(sp =>
+            sp.GetRequiredService<SentenceStudio.Services.DevicePlanDateContextProvider>().Current());
 
         // App state
         services.AddSingleton<IAppState, AppState>();

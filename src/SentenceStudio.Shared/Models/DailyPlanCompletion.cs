@@ -32,14 +32,27 @@ public class DailyPlanCompletion
     /// The LLM-generated rationale explaining why this plan was created.
     /// Stored redundantly in all items for the same date for easy reconstruction.
     /// </summary>
+    /// <remarks>
+    /// Deprecated by the AddDailyPlan migration — the canonical source is the
+    /// parent <see cref="DailyPlan.RationaleFacts"/> (language-neutral JSON,
+    /// localized at the API edge). This column will be dropped in the
+    /// follow-up DropDailyPlanCompletionLegacyColumns migration once
+    /// ProgressService and the Blazor dashboard read from DailyPlan instead.
+    /// Do not introduce new write sites.
+    /// </remarks>
+    [Obsolete("Read/write via DailyPlan.RationaleFacts. Column scheduled for removal in DropDailyPlanCompletionLegacyColumns.")]
     public string Rationale { get; set; } = string.Empty;
 
     /// <summary>
     /// The narrative data model serialized as JSON.
     /// Stored redundantly in all items for the same date for easy reconstruction.
     /// </summary>
+    /// <remarks>
+    /// Deprecated by the AddDailyPlan migration — see <see cref="Rationale"/>.
+    /// </remarks>
+    [Obsolete("Read/write via DailyPlan.NarrativeFacts. Column scheduled for removal in DropDailyPlanCompletionLegacyColumns.")]
     public string? NarrativeJson { get; set; }
-    
+
     // NOTE: Route and RouteParameters are NOT stored - they're derived from ActivityType, 
     // ResourceId, and SkillId during reconstruction using PlanConverter logic.
     // This ensures route logic stays in one place and adapts to future changes.

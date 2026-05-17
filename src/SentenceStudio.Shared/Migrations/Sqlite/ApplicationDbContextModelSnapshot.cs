@@ -461,7 +461,49 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
 
                     b.HasKey("Id");
 
+                    b.HasIndex("UserProfileId", "Date", "PlanItemId")
+                        .IsUnique();
+
                     b.ToTable("DailyPlanCompletion", (string)null);
+                });
+
+            modelBuilder.Entity("SentenceStudio.Shared.Models.DailyPlan", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("Date")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("GeneratedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("NarrativeFacts")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("RationaleFacts")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Strategy")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserProfileId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserProfileId", "Date")
+                        .IsUnique();
+
+                    b.ToTable("DailyPlan", (string)null);
                 });
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.ExampleSentence", b =>

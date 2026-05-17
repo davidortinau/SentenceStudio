@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Data;
+using SentenceStudio.Services.Plans;
 using SentenceStudio.Shared.Models.DailyPlanGeneration;
 using SentenceStudio.Services.Progress;
 
@@ -51,7 +53,20 @@ public class DeterministicPlanBuilder
         }
 
         var sessionMinutes = userProfile.PreferredSessionMinutes;
-        var today = DateTime.UtcNow.Date;
+        // Resolve the per-request/per-call IPlanDateContext through the service
+        // provider so this Singleton builder doesn't capture a stale date
+        // context across DST shifts or device-local timezone changes. The user
+        // local date is the SOLE authority for "today" — see
+        // PlanDateContextBannedSymbolsTests for the build-time guard.
+        //
+        // Kind=Utc preserves the prior behavior of the legacy code path that
+        // used the system clock's UTC date directly. The tiebreaker hash
+        // (today.GetHashCode) and the EF SQLite TEXT storage format stay
+        // byte-identical to what's already on disk. Don't switch to
+        // Unspecified without a data + tiebreaker audit.
+        var dateContext = _serviceProvider.GetRequiredService<IPlanDateContext>();
+        var userLocalDate = dateContext.UserLocalDate;
+        var today = userLocalDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
 
         // Step 1: Determine vocabulary review needs (SRS algorithm)
         var vocabReview = await DetermineVocabularyReviewAsync(today, ct);
@@ -472,7 +487,7 @@ public class DeterministicPlanBuilder
         // STEP 2: Input activity (lower cognitive load, comprehensible input)
         if (remainingMinutes >= 8)
         {
-            var inputActivity = SelectInputActivity(resource, yesterdayActivities, recentActivityTypes);
+            var inputActivity = SelectInputActivity(resource, yesterdayActivities, recentActivityTypes, today);
             
             // Only add input activity if resource supports at least one (has transcript, audio, or video)
             if (!string.IsNullOrEmpty(inputActivity))
@@ -499,7 +514,7 @@ public class DeterministicPlanBuilder
         // STEP 3: Output activity (higher cognitive load, production practice)
         if (remainingMinutes >= 8)
         {
-            var outputActivity = SelectOutputActivity(resource, yesterdayActivities, recentActivityTypes);
+            var outputActivity = SelectOutputActivity(resource, yesterdayActivities, recentActivityTypes, today);
             var outputMinutes = Math.Min(10, remainingMinutes);
 
             activities.Add(new PlannedActivity
@@ -517,7 +532,7 @@ public class DeterministicPlanBuilder
         // STEP 4: Light closer (if time remains)
         if (remainingMinutes >= 5)
         {
-            var closerActivity = await SelectCloserActivityAsync(skill, userProfileId, ct);
+            var closerActivity = await SelectCloserActivityAsync(skill, userProfileId, today, ct);
             
             if (closerActivity != null)
             {
@@ -545,11 +560,12 @@ public class DeterministicPlanBuilder
     private async Task<string?> SelectCloserActivityAsync(
         SkillInfo? skill,
         string userProfileId,
+        DateTime today,
         CancellationToken ct)
     {
         // Check if NumberDrill is due (any NumberMasteryProgress row with DueDate <= tomorrow)
         // Resolve scoped ApplicationDbContext from a service scope (this class is registered Singleton).
-        var tomorrow = DateTime.UtcNow.AddDays(1);
+        var tomorrow = today.AddDays(1);
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var numbersDue = await db.NumberMasteryProgresses
@@ -753,7 +769,8 @@ public class DeterministicPlanBuilder
     private string SelectInputActivity(
         SelectedResource resource,
         HashSet<string> yesterdayActivities,
-        List<string> recentActivities)
+        List<string> recentActivities,
+        DateTime today)
     {
         var inputActivities = new List<string>();
 
@@ -790,7 +807,7 @@ public class DeterministicPlanBuilder
         // Prefer least recently used, with deterministic tiebreaker so the same day always produces the same order
         var selected = inputActivities
             .OrderBy(a => recentActivities.Count(r => r == a))
-            .ThenBy(a => HashCode.Combine(DateTime.Today, a))
+            .ThenBy(a => HashCode.Combine(today, a))
             .First();
 
         return selected;
@@ -799,7 +816,8 @@ public class DeterministicPlanBuilder
     private string SelectOutputActivity(
         SelectedResource resource,
         HashSet<string> yesterdayActivities,
-        List<string> recentActivities)
+        List<string> recentActivities,
+        DateTime today)
     {
         var outputActivities = new List<string> { "Translation", "Cloze", "Writing" };
 
@@ -815,7 +833,7 @@ public class DeterministicPlanBuilder
         // Prefer least recently used, with deterministic tiebreaker so the same day always produces the same order
         var selected = outputActivities
             .OrderBy(a => recentActivities.Count(r => r == a))
-            .ThenBy(a => HashCode.Combine(DateTime.Today, a))
+            .ThenBy(a => HashCode.Combine(today, a))
             .First();
 
         return selected;

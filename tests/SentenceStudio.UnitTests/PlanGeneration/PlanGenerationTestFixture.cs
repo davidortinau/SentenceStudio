@@ -58,6 +58,13 @@ public class PlanGenerationTestFixture : IDisposable
 
         // The builder under test
         services.AddScoped<DeterministicPlanBuilder>();
+        services.AddScoped<GeneratedPlanValidator>();
+
+        // Live-clock date context — preserves the prior "today == real now" semantics
+        // that existing tests depend on. Tests that need a frozen clock can
+        // replace this registration with PlanDateContext(TimeZoneInfo.Utc, fixedNow).
+        services.AddScoped<SentenceStudio.Services.Plans.IPlanDateContext>(_ =>
+            new SentenceStudio.Services.Plans.PlanDateContext(TimeZoneInfo.Utc));
 
         // Logging
         services.AddLogging(b => b.SetMinimumLevel(LogLevel.Debug));
@@ -304,8 +311,12 @@ public class PlanGenerationTestFixture : IDisposable
         return scope.ServiceProvider.GetRequiredService<DeterministicPlanBuilder>();
     }
 
-    /// <summary>Creates a GeneratedPlanValidator.</summary>
-    public GeneratedPlanValidator CreateValidator() => new();
+    /// <summary>Creates a GeneratedPlanValidator with the fixture's IPlanDateContext.</summary>
+    public GeneratedPlanValidator CreateValidator()
+    {
+        var scope = ServiceProvider.CreateScope();
+        return scope.ServiceProvider.GetRequiredService<GeneratedPlanValidator>();
+    }
 
     /// <summary>Gets all learning resources as a lookup dictionary.</summary>
     public Dictionary<string, LearningResource> GetResourceLookup()
