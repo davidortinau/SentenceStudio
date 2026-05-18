@@ -405,6 +405,45 @@ namespace SentenceStudio.Shared.Migrations
                     b.ToTable("ConversationScenario", (string)null);
                 });
 
+            modelBuilder.Entity("SentenceStudio.Shared.Models.DailyPlan", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime>("GeneratedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("NarrativeFacts")
+                        .HasColumnType("text");
+
+                    b.Property<string>("RationaleFacts")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Strategy")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserProfileId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserProfileId", "Date")
+                        .IsUnique();
+
+                    b.ToTable("DailyPlan", (string)null);
+                });
+
             modelBuilder.Entity("SentenceStudio.Shared.Models.DailyPlanCompletion", b =>
                 {
                     b.Property<string>("Id")
@@ -421,7 +460,7 @@ namespace SentenceStudio.Shared.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime>("Date")
-                        .HasColumnType("timestamp with time zone");
+                        .HasColumnType("date");
 
                     b.Property<string>("DescriptionKey")
                         .IsRequired()
@@ -468,6 +507,9 @@ namespace SentenceStudio.Shared.Migrations
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("UserProfileId", "Date", "PlanItemId")
+                        .IsUnique();
 
                     b.ToTable("DailyPlanCompletion", (string)null);
                 });

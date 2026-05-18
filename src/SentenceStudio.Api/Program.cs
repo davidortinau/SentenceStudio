@@ -26,6 +26,7 @@ using SentenceStudio.Api;
 using SentenceStudio.Api.Auth;
 using SentenceStudio.Api.Diagnostics;
 using SentenceStudio.Api.Platform;
+using SentenceStudio.Api.Plans;
 using SentenceStudio.Contracts;
 using SentenceStudio.Contracts.Ai;
 using SentenceStudio.Contracts.Auth;
@@ -247,6 +248,30 @@ builder.Services.AddSingleton<ISyncProvider>(sp =>
 // AppLib core-services extension because the API project does not reference AppLib).
 builder.Services.AddSingleton<UserProfileRepository>();
 
+// Plan-generation scope + date context — both per-request (scoped). Fail-closed
+// on missing user; X-Timezone header (IANA, Windows ids also accepted) drives
+// per-request "today" so the daily plan rolls over at the device's local
+// midnight, not server UTC.
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<SentenceStudio.Services.Plans.IUserScopeProvider,
+    SentenceStudio.Api.Plans.HttpUserScopeProvider>();
+builder.Services.AddScoped<SentenceStudio.Services.Plans.IPlanDateContext,
+    SentenceStudio.Api.Plans.HttpPlanDateContext>();
+
+// Daily-plan service surface (see plan.md §7). Persistence + progress are
+// wired against ApplicationDbContext; generator wireup remains a stub on
+// the API head until the Phase B repo refactor lands (DPB still hardcodes
+// to the single-user UserProfileRepository.GetAsync() path). The MAUI
+// Blazor head registers a full DeterministicPlanGenerator implementation
+// via AppLib's CoreServiceExtensions.
+builder.Services.AddSingleton<SentenceStudio.Services.Plans.IPlanCopyProvider,
+    SentenceStudio.Services.Plans.EnglishPlanCopyProvider>();
+builder.Services.AddScoped<SentenceStudio.Services.Plans.IDeterministicPlanGenerator,
+    SentenceStudio.Api.Plans.StubDeterministicPlanGenerator>();
+builder.Services.AddScoped<SentenceStudio.Services.Plans.IPlanService,
+    SentenceStudio.Services.Plans.PlanService>();
+
+
 // Voice discovery (ElevenLabs) — registered here for the same reason as above.
 builder.Services.AddSingleton<SentenceStudio.Services.Speech.IVoiceDiscoveryService, SentenceStudio.Services.Speech.VoiceDiscoveryService>();
 
@@ -446,6 +471,11 @@ app.UseCoreSyncHttpServer(optionsConfigure: options =>
 
 // Auth endpoints (anonymous — they handle login/register)
 app.MapAuthEndpoints();
+
+// Daily plan v2 endpoints — see docs/daily-plan-server-contract.md /
+// plan.md. Replaces the legacy /api/v1/plans/generate stub below (kept
+// for backward compat during the MAUI Blazor v2 flip).
+app.MapPlans();
 
 // YouTube channel monitoring endpoints
 app.MapChannelEndpoints();

@@ -213,7 +213,7 @@ public static class PlanConverter
         };
     }
 
-    private static string GeneratePlanItemId(DateTime date, PlanActivityType activityType, string? resourceId, string? skillId)
+    public static string GeneratePlanItemId(DateTime date, PlanActivityType activityType, string? resourceId, string? skillId)
     {
         var components = new List<string>
         {

@@ -1,3 +1,4 @@
+using SentenceStudio.Services.Plans;
 using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Services.PlanGeneration;
@@ -8,6 +9,19 @@ namespace SentenceStudio.Services.PlanGeneration;
 /// </summary>
 public class GeneratedPlanValidator
 {
+    private readonly IPlanDateContext _dateContext;
+
+    public GeneratedPlanValidator(IPlanDateContext dateContext)
+    {
+        _dateContext = dateContext ?? throw new ArgumentNullException(nameof(dateContext));
+    }
+
+    /// <summary>"Today" in the user's local timezone, expressed as a Kind=Utc
+    /// DateTime so the value (and hash) matches the prior code path that used
+    /// the system clock's UTC date directly. Compatible with the
+    /// <c>DailyPlanCompletion.Date</c> column's storage format.</summary>
+    private DateTime UserLocalTodayUtc => _dateContext.UserLocalDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+
     public PlanValidationResult Validate(
         PlanSkeleton plan,
         List<DailyPlanCompletion> recentCompletions,
@@ -110,7 +124,7 @@ public class GeneratedPlanValidator
         }
 
         // Invariant 6: No primary resource used yesterday
-        var yesterday = DateTime.UtcNow.Date.AddDays(-1);
+        var yesterday = UserLocalTodayUtc.AddDays(-1);
         var yesterdayResources = recentCompletions
             .Where(c => c.Date.Date == yesterday && !string.IsNullOrEmpty(c.ResourceId))
             .Select(c => c.ResourceId!)
@@ -186,7 +200,7 @@ public class GeneratedPlanValidator
         PlanValidationResult result)
     {
         // Warning 9: Activity types should not repeat from yesterday
-        var yesterday = DateTime.UtcNow.Date.AddDays(-1);
+        var yesterday = UserLocalTodayUtc.AddDays(-1);
         var yesterdayTypes = recentCompletions
             .Where(c => c.Date.Date == yesterday)
             .Select(c => c.ActivityType)
@@ -213,7 +227,7 @@ public class GeneratedPlanValidator
         if (plan.PrimaryResource == null) return;
 
         // Warning 10: Same resource should not appear more than twice in recent 5-day window
-        var fiveDaysAgo = DateTime.UtcNow.Date.AddDays(-5);
+        var fiveDaysAgo = UserLocalTodayUtc.AddDays(-5);
         var recentResourceUsage = recentCompletions
             .Where(c => c.Date.Date >= fiveDaysAgo && c.ResourceId == plan.PrimaryResource.Id)
             .Select(c => c.Date.Date)

@@ -67,6 +67,8 @@ public class SmartResourcePhrasesTests : IDisposable
         
         // DeterministicPlanBuilder for planner exclusion tests
         services.AddScoped<DeterministicPlanBuilder>();
+        services.AddScoped<SentenceStudio.Services.Plans.IPlanDateContext>(
+            _ => new SentenceStudio.Services.Plans.PlanDateContext(TimeZoneInfo.Utc));
 
         // Logging
         services.AddLogging(b => b.SetMinimumLevel(LogLevel.Debug));

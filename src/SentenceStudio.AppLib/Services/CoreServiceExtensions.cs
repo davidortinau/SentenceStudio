@@ -109,8 +109,36 @@ public static class CoreServiceExtensions
 
         // Plan generation — use local DeterministicPlanBuilder for rich narratives
         services.AddSingleton<DeterministicPlanBuilder>();
+        services.AddSingleton<GeneratedPlanValidator>();
         services.AddSingleton<ILlmPlanGenerationService, LlmPlanGenerationService>();
         services.AddSingleton<VocabularyExampleGenerationService>();
+
+        // New split: IDeterministicPlanGenerator is ALWAYS registered.
+        // ILlmPlanGenerator is registered conditionally below, only if an
+        // IChatClient is available. Callers (IPlanService, future thin
+        // clients) resolve ILlmPlanGenerator as optional and fall back to
+        // the deterministic generator when absent. v1 has no real LLM call;
+        // see LlmPlanGenerator XML doc.
+        services.AddSingleton<SentenceStudio.Services.Plans.IDeterministicPlanGenerator,
+                              SentenceStudio.Services.Plans.DeterministicPlanGenerator>();
+        if (services.Any(d => d.ServiceType == typeof(Microsoft.Extensions.AI.IChatClient)))
+        {
+            services.AddSingleton<SentenceStudio.Services.Plans.ILlmPlanGenerator,
+                                  SentenceStudio.Services.Plans.LlmPlanGenerator>();
+        }
+
+        // Plan scope + date context (device side).
+        //   - DeviceUserScopeProvider wraps the single active user profile id;
+        //     auth/sign-in flow calls SetActiveUser(...) after login.
+        //   - IPlanDateContext is resolved on-demand from TimeZoneInfo.Local so
+        //     DST shifts and travel-induced timezone changes apply immediately
+        //     without re-creating the singleton.
+        services.AddSingleton<SentenceStudio.Services.DeviceUserScopeProvider>();
+        services.AddSingleton<SentenceStudio.Services.Plans.IUserScopeProvider>(sp =>
+            sp.GetRequiredService<SentenceStudio.Services.DeviceUserScopeProvider>());
+        services.AddSingleton<SentenceStudio.Services.DevicePlanDateContextProvider>();
+        services.AddTransient<SentenceStudio.Services.Plans.IPlanDateContext>(sp =>
+            sp.GetRequiredService<SentenceStudio.Services.DevicePlanDateContextProvider>().Current());
 
         // App state
         services.AddSingleton<IAppState, AppState>();

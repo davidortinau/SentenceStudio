@@ -14,6 +14,13 @@
 		<InternalsVisibleTo Include="SentenceStudio.UnitTests" />
 	</ItemGroup>
 
+	<!-- IPlanService lives in this project so both the API head (HTTP) and the
+	     MAUI Blazor head (in-process via Features:DailyPlanV2) can resolve a
+	     single implementation. The DTOs it returns live in Contracts. -->
+	<ItemGroup>
+		<ProjectReference Include="..\SentenceStudio.Contracts\SentenceStudio.Contracts.csproj" />
+	</ItemGroup>
+
 	<!-- ASP.NET Core Identity: server-only (no iOS/Android runtime pack) -->
 	<ItemGroup Condition="$([MSBuild]::GetTargetPlatformIdentifier('$(TargetFramework)')) == ''">
 		<FrameworkReference Include="Microsoft.AspNetCore.App" />
