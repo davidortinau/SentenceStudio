@@ -10,9 +10,16 @@ public class LearningResourceRepository
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<LearningResourceRepository> _logger;
     private ISyncService _syncService;
-    private AiService _aiService;
     private readonly IFileSystemService _fileSystem;
     private readonly SentenceStudio.Abstractions.IPreferencesService? _preferences;
+
+    // Lazily resolved so this repo can be registered on hosts (like the API)
+    // that don't wire up the full AiService config section. Only needed by
+    // EnsureStarterVocabularyAsync today; plan-generation paths never touch it.
+    private AiService? _aiService;
+    private AiService AiService => _aiService ??= _serviceProvider.GetService<AiService>()
+        ?? throw new InvalidOperationException(
+            "AiService is not registered or could not be constructed in this host.");
 
     public LearningResourceRepository(
         IServiceProvider serviceProvider,
@@ -25,7 +32,6 @@ public class LearningResourceRepository
         if (serviceProvider != null)
         {
             _syncService = serviceProvider.GetService<ISyncService>();
-            _aiService = serviceProvider.GetService<AiService>();
             _preferences = serviceProvider.GetService<SentenceStudio.Abstractions.IPreferencesService>();
         }
     }
@@ -507,7 +513,7 @@ public class LearningResourceRepository
 
         try
         {
-            var response = await _aiService.SendPrompt<string>(prompt);
+            var response = await AiService.SendPrompt<string>(prompt);
 
             if (string.IsNullOrWhiteSpace(response))
             {
