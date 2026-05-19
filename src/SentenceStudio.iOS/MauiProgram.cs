@@ -55,6 +55,7 @@ public static class MauiProgram
             ModifyEntry();
             ModifyPicker();
             ConfigureWebView();
+            ConfigureBlazorWebView();
         });
 
         builder.Services.AddMauiBlazorWebView();
@@ -100,6 +101,39 @@ public static class MauiProgram
             config.MediaTypesRequiringUserActionForPlayback = WebKit.WKAudiovisualMediaTypes.None;
             return new Microsoft.Maui.Platform.MauiWKWebView(CoreGraphics.CGRect.Empty, (Microsoft.Maui.Handlers.WebViewHandler)handler, config);
         };
+#endif
+    }
+
+    /// <summary>
+    /// Defensive belt-and-suspenders for the mobile keyboard fix on iOS.
+    /// The primary fix lives in <c>wwwroot/index.html</c> (JS that locks
+    /// <c>window.scrollTo(0,0)</c> and sets a <c>--app-h</c> CSS variable from
+    /// <c>visualViewport.height</c>) plus <c>.app-vh</c> in <c>app.css</c>.
+    /// 
+    /// Setting <c>ScrollView.ScrollEnabled = false</c> here only blocks
+    /// user pan gestures — it does NOT stop WKWebView's programmatic
+    /// auto-scroll on input focus. That's why the JS handler is the
+    /// actual fix. We still disable user scrolling so a stray flick can't
+    /// push the document off and reveal the gap above the sticky header.
+    /// Related: dotnet/maui#28790, dotnet/maui#18964.
+    /// </summary>
+    private static void ConfigureBlazorWebView()
+    {
+#if IOS
+        Microsoft.AspNetCore.Components.WebView.Maui.BlazorWebViewHandler.BlazorWebViewMapper.AppendToMapping(
+            "DisableOuterScroll",
+            (handler, view) =>
+            {
+                var wk = handler.PlatformView;
+                if (wk?.ScrollView is { } sv)
+                {
+                    sv.ScrollEnabled = false;
+                    sv.Bounces = false;
+                    sv.BouncesZoom = false;
+                    sv.ShowsVerticalScrollIndicator = false;
+                    sv.ShowsHorizontalScrollIndicator = false;
+                }
+            });
 #endif
     }
 

@@ -1,4 +1,24 @@
 {
-  "lastSuccessful": null,
-  "lastFailed": null
+  "lastSuccessful": {
+    "platform": "iOS",
+    "deviceName": "iPhone 17 Pro",
+    "udid": "95EC018A-A8CF-4FAB-98A4-EF49D2E626B3",
+    "runtime": "iOS 26.2",
+    "tfm": "net11.0-ios",
+    "appBundleId": "com.simplyprofound.sentencestudio",
+    "hasData": true,
+    "lastUsed": "2026-05-18T20:30:00Z",
+    "outcome": "success",
+    "notes": "Mobile keyboard scroll fix verified — sticky header stays pinned when keyboard opens on /feedback textarea."
+  },
+  "lastFailed": {
+    "platform": "Android",
+    "deviceName": "Pixel_8a_API_35",
+    "serial": "emulator-5556",
+    "tfm": "net11.0-android",
+    "appBundleId": "com.simplyprofound.sentencestudio",
+    "lastUsed": "2026-05-18T20:53:00Z",
+    "outcome": "blocked",
+    "reason": "App stuck on splash. Aspire localhost services unreachable from emulator even with adb reverse (sync API at localhost:5081 returns Connection refused). DevFlow agent never registered. Keyboard fix code is in place but not visually verified on Android."
+  }
 }
