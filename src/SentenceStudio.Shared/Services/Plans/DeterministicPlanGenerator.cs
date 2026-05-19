@@ -15,27 +15,44 @@ namespace SentenceStudio.Services.Plans;
 public sealed class DeterministicPlanGenerator : IDeterministicPlanGenerator
 {
     private readonly DeterministicPlanBuilder _builder;
+    private readonly IUserScopeProvider? _scope;
     private readonly ILogger<DeterministicPlanGenerator> _logger;
 
     public DeterministicPlanGenerator(
         DeterministicPlanBuilder builder,
-        ILogger<DeterministicPlanGenerator> logger)
+        ILogger<DeterministicPlanGenerator> logger,
+        IUserScopeProvider? scope = null)
     {
         _builder = builder;
         _logger = logger;
+        _scope = scope;
     }
 
     public Task<PlanSkeleton?> GenerateAsync(string? userProfileId = null, CancellationToken ct = default)
     {
-        // userProfileId is reserved for Phase B; today the builder still
-        // routes through the single-user repos. See IPlanGenerator XML doc.
-        if (!string.IsNullOrEmpty(userProfileId))
+        // Phase B: userProfileId is threaded all the way down through
+        // DeterministicPlanBuilder so the HTTP API (multi-user) and the in-
+        // process MAUI path (single-user with IPreferences fallback) share
+        // one user-scoped pipeline.
+        //
+        // Fail-soft: when an IUserScopeProvider is in DI (API head registers
+        // HttpUserScopeProvider, AppLib registers DeviceUserScopeProvider)
+        // and no explicit userProfileId was supplied, resolve from the
+        // request principal / device session. If the provider can't resolve
+        // (e.g. AppLib cold start before SetActiveUser), fall through to
+        // the builder's legacy IPreferences-based fallback so we don't
+        // regress the mobile pre-onboarding path. On the API host the
+        // scope provider always resolves (PlanService is the only caller
+        // and only routes authenticated requests), so the "fall through"
+        // branch is unreachable in practice from HTTP.
+        if (string.IsNullOrEmpty(userProfileId) && _scope is not null)
         {
-            _logger.LogDebug(
-                "DeterministicPlanGenerator: userProfileId='{UserProfileId}' is reserved for Phase B repo scoping; ignored for now.",
-                userProfileId);
+            if (_scope.TryGetUserProfileId(out var resolved))
+            {
+                userProfileId = resolved;
+            }
         }
 
-        return _builder.BuildPlanAsync(ct)!;
+        return _builder.BuildPlanAsync(userProfileId, ct)!;
     }
 }

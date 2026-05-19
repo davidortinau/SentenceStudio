@@ -20,11 +20,16 @@ public class SkillProfileRepository
 
     private string ActiveUserId => _preferences?.Get("active_profile_id", string.Empty) ?? string.Empty;
 
-    public async Task<List<SkillProfile>> ListAsync()
+    /// <summary>
+    /// Lists skill profiles. When <paramref name="userProfileId"/> is provided
+    /// it scopes the results to that profile (required on multi-user hosts
+    /// like the API where <c>IPreferencesService</c> isn't registered).
+    /// </summary>
+    public async Task<List<SkillProfile>> ListAsync(string? userProfileId = null)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var userId = ActiveUserId;
+        var userId = !string.IsNullOrEmpty(userProfileId) ? userProfileId : ActiveUserId;
         if (!string.IsNullOrEmpty(userId))
             return await db.SkillProfiles.Where(s => s.UserProfileId == userId).ToListAsync();
         return await db.SkillProfiles.ToListAsync();

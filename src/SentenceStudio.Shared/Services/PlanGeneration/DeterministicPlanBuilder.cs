@@ -41,16 +41,45 @@ public class DeterministicPlanBuilder
     /// <summary>
     /// Builds a complete study plan deterministically using pedagogical rules.
     /// </summary>
-    public async Task<PlanSkeleton> BuildPlanAsync(CancellationToken ct = default)
+    /// <param name="userProfileId">
+    /// Explicit user scope. When supplied (always on the multi-user HTTP API),
+    /// the builder resolves <see cref="UserProfile"/> by id and threads the
+    /// scope through every downstream query so users never see each other's
+    /// resources, skills, vocab progress, or completion history. When
+    /// <c>null</c>/empty (single-user MAUI mobile) the builder falls back to
+    /// the legacy <c>UserProfileRepository.GetAsync()</c> path that reads
+    /// the active profile id from <c>IPreferencesService</c>.
+    /// </param>
+    public async Task<PlanSkeleton?> BuildPlanAsync(string? userProfileId = null, CancellationToken ct = default)
     {
-        _logger.LogInformation("🎯 Starting deterministic plan generation");
+        _logger.LogInformation("🎯 Starting deterministic plan generation (userProfileId='{UserProfileId}')",
+            userProfileId);
 
-        var userProfile = await _userProfileRepo.GetAsync();
+        UserProfile? userProfile = !string.IsNullOrEmpty(userProfileId)
+            ? await _userProfileRepo.GetByIdAsync(userProfileId!, ct)
+            : await _userProfileRepo.GetAsync();
         if (userProfile == null)
         {
-            _logger.LogWarning("❌ No user profile found");
+            _logger.LogWarning("❌ No user profile found (userProfileId='{UserProfileId}')", userProfileId);
             return null;
         }
+
+        // GetByIdAsync skips the side effects that GetAsync() runs on the
+        // legacy path (smart-resource seeding). Mirror that here so the
+        // API-host plan generation has the same Daily Review / New Words /
+        // Phrases smart resources available as a freshly-onboarded mobile
+        // user. EnsureSmartResourcesAsync is per-profile idempotent and
+        // already swallows failures with a warning.
+        if (!string.IsNullOrEmpty(userProfileId))
+        {
+            await _userProfileRepo.EnsureSmartResourcesAsync(userProfile);
+        }
+
+        // Use the resolved profile id as the SOLE authority for user scoping
+        // downstream. This keeps both code paths (explicit userProfileId on
+        // the API, IPreferences fallback on mobile) on the same internal
+        // contract: every db/repo call below is filtered to this user.
+        var scopedUserId = userProfile.Id;
 
         var sessionMinutes = userProfile.PreferredSessionMinutes;
         // Resolve the per-request/per-call IPlanDateContext through the service
@@ -69,7 +98,7 @@ public class DeterministicPlanBuilder
         var today = userLocalDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
 
         // Step 1: Determine vocabulary review needs (SRS algorithm)
-        var vocabReview = await DetermineVocabularyReviewAsync(today, ct);
+        var vocabReview = await DetermineVocabularyReviewAsync(today, scopedUserId, ct);
 
         if (vocabReview != null)
         {
@@ -78,7 +107,7 @@ public class DeterministicPlanBuilder
         }
 
         // Step 2: Select primary resource (avoid recent, prefer vocab-rich)
-        var primaryResource = await SelectPrimaryResourceAsync(today, vocabReview?.ResourceId, ct);
+        var primaryResource = await SelectPrimaryResourceAsync(today, vocabReview?.ResourceId, scopedUserId, ct);
 
         if (primaryResource == null)
         {
@@ -118,7 +147,7 @@ public class DeterministicPlanBuilder
             primaryResource.Title, primaryResource.Id, primaryResource.DaysSinceLastUse);
 
         // Step 3: Determine skill level (use primary skill or default)
-        var skill = await DetermineSkillAsync(primaryResource, ct);
+        var skill = await DetermineSkillAsync(primaryResource, scopedUserId, ct);
 
         // Step 4: Build activity sequence (cognitive load progression)
         var activities = await BuildActivitySequenceAsync(
@@ -127,7 +156,7 @@ public class DeterministicPlanBuilder
             vocabReview,
             sessionMinutes,
             today,
-            userProfile.Id,
+            scopedUserId,
             ct);
 
         var totalMinutes = activities.Sum(a => a.EstimatedMinutes);
@@ -156,9 +185,10 @@ public class DeterministicPlanBuilder
     /// </summary>
     private async Task<VocabularyReviewBlock?> DetermineVocabularyReviewAsync(
         DateTime today,
+        string userProfileId,
         CancellationToken ct)
     {
-        var dueWords = await _vocabProgressRepo.GetDueVocabularyAsync(today);
+        var dueWords = await _vocabProgressRepo.GetDueVocabularyAsync(today, userProfileId);
 
         if (dueWords.Count < 5)
         {
@@ -191,7 +221,9 @@ public class DeterministicPlanBuilder
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
             var recentSkill = await db.DailyPlanCompletions
-                .Where(c => c.ResourceId == resourceId && !string.IsNullOrEmpty(c.SkillId))
+                .Where(c => c.UserProfileId == userProfileId
+                    && c.ResourceId == resourceId
+                    && !string.IsNullOrEmpty(c.SkillId))
                 .OrderByDescending(c => c.Date)
                 .Select(c => c.SkillId)
                 .FirstOrDefaultAsync(ct);
@@ -235,6 +267,7 @@ public class DeterministicPlanBuilder
     private async Task<SelectedResource?> SelectPrimaryResourceAsync(
         DateTime today,
         string? vocabResourceId,
+        string userProfileId,
         CancellationToken ct)
     {
         using var scope = _serviceProvider.CreateScope();
@@ -242,7 +275,9 @@ public class DeterministicPlanBuilder
 
         // Get recent activity to analyze resource usage patterns
         var recentActivity = await db.DailyPlanCompletions
-            .Where(c => c.Date >= today.AddDays(-30) && !string.IsNullOrEmpty(c.ResourceId))
+            .Where(c => c.UserProfileId == userProfileId
+                && c.Date >= today.AddDays(-30)
+                && !string.IsNullOrEmpty(c.ResourceId))
             .OrderByDescending(c => c.Date)
             .ToListAsync(ct);
 
@@ -257,8 +292,8 @@ public class DeterministicPlanBuilder
                 g => g.Max(a => a.Date)
             );
 
-        // Get all available resources with vocabulary counts
-        var resources = await _resourceRepo.GetAllResourcesLightweightAsync();
+        // Get all available resources with vocabulary counts (user-scoped)
+        var resources = await _resourceRepo.GetAllResourcesLightweightAsync(userProfileId: userProfileId);
 
         var vocabularyCounts = await db.ResourceVocabularyMappings
             .GroupBy(rvm => rvm.ResourceId)
@@ -367,6 +402,7 @@ public class DeterministicPlanBuilder
     /// </summary>
     private async Task<SkillInfo?> DetermineSkillAsync(
         SelectedResource resource,
+        string userProfileId,
         CancellationToken ct)
     {
         using var scope = _serviceProvider.CreateScope();
@@ -374,7 +410,9 @@ public class DeterministicPlanBuilder
 
         // Try to find skill from recent activity with this resource
         var recentSkill = await db.DailyPlanCompletions
-            .Where(c => c.ResourceId == resource.Id && !string.IsNullOrEmpty(c.SkillId))
+            .Where(c => c.UserProfileId == userProfileId
+                && c.ResourceId == resource.Id
+                && !string.IsNullOrEmpty(c.SkillId))
             .OrderByDescending(c => c.Date)
             .Select(c => c.SkillId!)
             .FirstOrDefaultAsync(ct);
@@ -393,9 +431,10 @@ public class DeterministicPlanBuilder
             }
         }
 
-        // Fallback: Use most recently practiced skill overall
+        // Fallback: Use most recently practiced skill overall (still user-scoped)
         var fallbackSkill = await db.DailyPlanCompletions
-            .Where(c => !string.IsNullOrEmpty(c.SkillId))
+            .Where(c => c.UserProfileId == userProfileId
+                && !string.IsNullOrEmpty(c.SkillId))
             .OrderByDescending(c => c.Date)
             .Select(c => c.SkillId!)
             .FirstOrDefaultAsync(ct);
@@ -414,8 +453,8 @@ public class DeterministicPlanBuilder
             }
         }
 
-        // Last resort: Get any available skill
-        var skills = await _skillRepo.ListAsync();
+        // Last resort: Get any available skill (user-scoped)
+        var skills = await _skillRepo.ListAsync(userProfileId);
         var anySkill = skills.FirstOrDefault();
 
         if (anySkill != null)
@@ -458,12 +497,14 @@ public class DeterministicPlanBuilder
 
         // Exclude today's completions so that completing an activity doesn't change what gets selected on regeneration
         var recentActivityTypes = await db.DailyPlanCompletions
-            .Where(c => c.Date >= today.AddDays(-3) && c.Date < today)
+            .Where(c => c.UserProfileId == userProfileId
+                && c.Date >= today.AddDays(-3) && c.Date < today)
             .Select(c => c.ActivityType)
             .ToListAsync(ct);
 
         var yesterdayActivityList = await db.DailyPlanCompletions
-            .Where(c => c.Date == today.AddDays(-1))
+            .Where(c => c.UserProfileId == userProfileId
+                && c.Date == today.AddDays(-1))
             .Select(c => c.ActivityType)
             .ToListAsync(ct);
         var yesterdayActivities = yesterdayActivityList.ToHashSet();

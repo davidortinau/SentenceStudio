@@ -50,7 +50,11 @@ public class LlmPlanGenerationService : ILlmPlanGenerationService
             _logger.LogInformation("🎯 Starting plan generation with deterministic builder");
 
             // Step 1: Generate deterministic plan (90% of work - fast, reliable, pedagogically sound)
-            var planSkeleton = await _deterministicBuilder.BuildPlanAsync(ct);
+            // Phase B: userProfileId left null so the builder falls back to the
+            // legacy IPreferences active-profile lookup. This service is wired
+            // only on the MAUI mobile head (single-user); the API uses
+            // IDeterministicPlanGenerator + IPlanService instead.
+            var planSkeleton = await _deterministicBuilder.BuildPlanAsync(ct: ct);
 
             if (planSkeleton == null)
             {

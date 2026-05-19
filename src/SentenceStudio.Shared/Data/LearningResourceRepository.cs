@@ -171,14 +171,26 @@ public class LearningResourceRepository
     /// Lightweight query: resources without vocabulary navigation properties.
     /// Supports optional type/language filters pushed to SQL.
     /// </summary>
+    /// <param name="filterType">Optional MediaType filter (pass "All" or null to disable).</param>
+    /// <param name="filterLanguages">Optional language whitelist.</param>
+    /// <param name="userProfileId">
+    /// When non-empty, restrict results to resources owned by this profile id.
+    /// On multi-user hosts (the API) the caller MUST pass this — falling back
+    /// to <c>ActiveUserId</c> from <see cref="SentenceStudio.Abstractions.IPreferencesService"/>
+    /// is correct only on single-user devices (MAUI / mobile). When the
+    /// preferences service isn't registered (API host) and this argument is
+    /// empty, the query would return rows across all users; callers like
+    /// <c>DeterministicPlanBuilder</c> must therefore thread the
+    /// request-scoped <c>UserProfileId</c> through.
+    /// </param>
     public async Task<List<LearningResource>> GetAllResourcesLightweightAsync(
-        string filterType = null, List<string> filterLanguages = null)
+        string filterType = null, List<string> filterLanguages = null, string? userProfileId = null)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         IQueryable<LearningResource> query = db.LearningResources.AsNoTracking();
 
-        var userId = ActiveUserId;
+        var userId = !string.IsNullOrEmpty(userProfileId) ? userProfileId : ActiveUserId;
         if (!string.IsNullOrEmpty(userId))
             query = query.Where(r => r.UserProfileId == userId);
 

@@ -259,15 +259,30 @@ builder.Services.AddScoped<SentenceStudio.Services.Plans.IPlanDateContext,
     SentenceStudio.Api.Plans.HttpPlanDateContext>();
 
 // Daily-plan service surface (see plan.md §7). Persistence + progress are
-// wired against ApplicationDbContext; generator wireup remains a stub on
-// the API head until the Phase B repo refactor lands (DPB still hardcodes
-// to the single-user UserProfileRepository.GetAsync() path). The MAUI
-// Blazor head registers a full DeterministicPlanGenerator implementation
-// via AppLib's CoreServiceExtensions.
+// wired against ApplicationDbContext. Phase B (this commit) wires the full
+// DeterministicPlanBuilder on the API head: every repo call now threads
+// the request-scoped UserProfileId so no data leaks across users. The MAUI
+// Blazor head registers the same DeterministicPlanGenerator via AppLib's
+// CoreServiceExtensions and falls back to IPreferences when no id is passed.
 builder.Services.AddSingleton<SentenceStudio.Services.Plans.IPlanCopyProvider,
     SentenceStudio.Services.Plans.EnglishPlanCopyProvider>();
+
+// Repos required by DeterministicPlanBuilder. Registered as Singleton to
+// match AppLib (they manage their own EF scopes internally via
+// IServiceProvider.CreateScope()). NOTE: when IPreferencesService is not
+// registered (this host), each repo's `ActiveUserId` returns empty — so
+// EVERY caller from here must pass an explicit userProfileId or the query
+// will return rows across all users. DeterministicPlanBuilder does so.
+builder.Services.AddSingleton<LearningResourceRepository>();
+builder.Services.AddSingleton<SkillProfileRepository>();
+
+// DeterministicPlanBuilder is Scoped on the API because it resolves the
+// per-request IPlanDateContext from the injected IServiceProvider; AppLib
+// registers it Singleton because its IPlanDateContext is transient-from-
+// singleton. The interface adapter below stays Scoped to match.
+builder.Services.AddScoped<SentenceStudio.Services.PlanGeneration.DeterministicPlanBuilder>();
 builder.Services.AddScoped<SentenceStudio.Services.Plans.IDeterministicPlanGenerator,
-    SentenceStudio.Api.Plans.StubDeterministicPlanGenerator>();
+    SentenceStudio.Services.Plans.DeterministicPlanGenerator>();
 builder.Services.AddScoped<SentenceStudio.Services.Plans.IPlanService,
     SentenceStudio.Services.Plans.PlanService>();
 
