@@ -50,6 +50,9 @@ public sealed class DeterministicPlanGenerator : IDeterministicPlanGenerator
             if (_scope.TryGetUserProfileId(out var resolved))
             {
                 userProfileId = resolved;
+                _logger.LogDebug(
+                    "DeterministicPlanGenerator: resolved userProfileId='{UserProfileId}' from IUserScopeProvider.",
+                    resolved);
             }
         }
 
