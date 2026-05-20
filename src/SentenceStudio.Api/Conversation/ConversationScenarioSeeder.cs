@@ -31,10 +31,17 @@ public class ConversationScenarioSeeder
         var isPostgres = _db.Database.IsNpgsql();
         if (isPostgres)
         {
-            await using var tx = await _db.Database.BeginTransactionAsync(ct);
-            await _db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(42424242);", ct);
-            await SeedCoreAsync(ct);
-            await tx.CommitAsync(ct);
+            // Npgsql retry strategy requires user-initiated transactions to run inside
+            // an IExecutionStrategy.ExecuteAsync block. The strategy may retry the whole
+            // delegate on transient failure — SeedCoreAsync is idempotent so that's safe.
+            var strategy = _db.Database.CreateExecutionStrategy();
+            await strategy.ExecuteAsync(async cancel =>
+            {
+                await using var tx = await _db.Database.BeginTransactionAsync(cancel);
+                await _db.Database.ExecuteSqlRawAsync("SELECT pg_advisory_xact_lock(42424242);", cancel);
+                await SeedCoreAsync(cancel);
+                await tx.CommitAsync(cancel);
+            }, ct);
             return;
         }
 
@@ -43,6 +50,10 @@ public class ConversationScenarioSeeder
 
     private async Task SeedCoreAsync(CancellationToken ct)
     {
+        // Reset the change tracker so this method is safe to invoke multiple times
+        // (the Npgsql retry strategy may re-execute the delegate on transient failure).
+        _db.ChangeTracker.Clear();
+
         var seedData = ConversationScenarioSeedData.GetPredefinedScenarios();
 
         // Load existing predefined rows once; match on Name (case-sensitive — seed names are canonical English).
