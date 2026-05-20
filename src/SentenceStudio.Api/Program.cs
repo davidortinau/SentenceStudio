@@ -221,6 +221,7 @@ builder.AddNpgsqlDbContext<ApplicationDbContext>("sentencestudio", configureDbCo
 // NumberDrill content seeder — populates NumberContext / NumberSubMode / NumberCounter
 // from lib/content/numbers/{language}.json (idempotent upsert by natural key).
 builder.Services.AddScoped<SentenceStudio.Services.Numbers.NumberContentSeeder>();
+builder.Services.AddScoped<SentenceStudio.Api.Conversation.ConversationScenarioSeeder>();
 
 // Multi-worktree footgun: if the API binds to a fresh Postgres volume (different worktree
 // or freshly-provisioned Aspire environment), AspNetUsers will be empty and login will return
@@ -372,6 +373,11 @@ if (!skipDatabaseInitialization)
         // Seed Korean number content (NumberDrill activity — idempotent upsert by natural key)
         var numberSeeder = scope.ServiceProvider.GetRequiredService<SentenceStudio.Services.Numbers.NumberContentSeeder>();
         await numberSeeder.SeedAsync("ko");
+
+        // Seed predefined Conversation scenarios (idempotent upsert keyed on Name + IsPredefined=true).
+        // Shared seed data with MAUI lives in SentenceStudio.Data.ConversationScenarioSeedData.
+        var scenarioSeeder = scope.ServiceProvider.GetRequiredService<SentenceStudio.Api.Conversation.ConversationScenarioSeeder>();
+        await scenarioSeeder.SeedAsync();
     }
 
     // Apply CoreSync provisioning (creates change-tracking tables if missing)
