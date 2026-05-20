@@ -167,11 +167,10 @@ builder.Services.AddSingleton<IEnumerable<ILanguageSegmenter>>(provider =>
 
 // YouTube channel monitoring services
 builder.Services.AddSingleton<ChannelMonitorService>();
-builder.Services.AddSingleton<VideoImportPipelineService>();
 builder.Services.AddSingleton<YouTubeImportService>();
 builder.Services.AddSingleton<AudioAnalyzer>();
-builder.Services.AddSingleton<TranscriptFormattingService>();
-builder.Services.AddSingleton<AiService>();
+// VideoImportPipelineService, TranscriptFormattingService, AiService all
+// transitively depend on IChatClient — registered conditionally below.
 
 // Release notes service
 builder.Services.AddSingleton<ReleaseNotesService>();
@@ -287,8 +286,16 @@ builder.Services.AddScoped<SentenceStudio.Services.Plans.IPlanService,
     SentenceStudio.Services.Plans.PlanService>();
 
 
-// Voice discovery (ElevenLabs) — registered here for the same reason as above.
-builder.Services.AddSingleton<SentenceStudio.Services.Speech.IVoiceDiscoveryService, SentenceStudio.Services.Speech.VoiceDiscoveryService>();
+// Voice discovery (ElevenLabs) — depends on ElevenLabsClient which is
+// registered conditionally below.
+
+// Conversation activity — server-side stateless analogue of the MAUI agent
+// service. ScenarioRepository is reused from SentenceStudio.Shared (no MAUI
+// deps); the server service is a thin IChatClient wrapper. See
+// specs/004-conversation-http-endpoints/spec.md. The IServerConversationService
+// registration is conditional on IChatClient being available; endpoints return
+// 503 when it isn't (parity with /api/v1/ai/chat).
+builder.Services.AddSingleton<ScenarioRepository>();
 
 // Vocabulary progress services
 builder.Services.AddSingleton<VocabularyProgressRepository>();
@@ -314,6 +321,14 @@ if (!string.IsNullOrWhiteSpace(openAiApiKey))
         return new OpenAIClient(new System.ClientModel.ApiKeyCredential(openAiApiKey), clientOptions)
             .GetChatClient(chatModel).AsIChatClient();
     });
+
+    // Services that depend on IChatClient (directly or transitively via AiService).
+    builder.Services.AddSingleton<AiService>();
+    builder.Services.AddSingleton<TranscriptFormattingService>();
+    builder.Services.AddSingleton<VideoImportPipelineService>();
+
+    builder.Services.AddScoped<SentenceStudio.Api.Conversation.IServerConversationService,
+        SentenceStudio.Api.Conversation.ServerConversationService>();
 }
 
 // GitHub API client for feedback issue creation
@@ -332,6 +347,8 @@ if (!string.IsNullOrWhiteSpace(elevenLabsKey))
     // timeout (100s) trips on /synthesize-timestamped with long input. Bump to 5 min.
     var elevenLabsHttp = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
     builder.Services.AddSingleton(new ElevenLabsClient(elevenLabsKey, httpClient: elevenLabsHttp));
+    builder.Services.AddSingleton<SentenceStudio.Services.Speech.IVoiceDiscoveryService,
+        SentenceStudio.Services.Speech.VoiceDiscoveryService>();
 }
 
 var app = builder.Build();
@@ -507,6 +524,9 @@ app.MapProfileEndpoints();
 
 // Speech / voice discovery
 app.MapSpeechEndpoints();
+
+// Conversation activity (Flutter client)
+app.MapConversationEndpoints();
 
 app.MapGet("/api/v1/auth/bootstrap", (ClaimsPrincipal user, ITenantContext tenantContext) =>
     Results.Ok(new BootstrapResponse
