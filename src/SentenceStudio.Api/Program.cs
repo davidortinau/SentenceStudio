@@ -144,8 +144,14 @@ builder.Services.AddSingleton<IAppEmailSender, ConsoleEmailSender>();
 
 builder.Services.AddScoped<ITenantContext, TenantContext>();
 
-// Platform abstractions for API server
-var appDataDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "sentencestudio", "api");
+// Platform abstractions for API server.
+// AppDataDirectory: ACA's /app filesystem is read-only for the runtime user, so resolving
+// Environment.SpecialFolder.LocalApplicationData (→ /app/sentencestudio) throws on
+// Directory.CreateDirectory. The API doesn't persist anything here in practice (the
+// dependency is structural — pulled in transitively by MAUI-oriented services). Default
+// to a writable temp path, allow override via the AppDataDirectory config key.
+var appDataDirectory = builder.Configuration["AppDataDirectory"]
+    ?? Path.Combine(Path.GetTempPath(), "sentencestudio", "api");
 builder.Services.AddSingleton<IConnectivityService, ApiConnectivityService>();
 builder.Services.AddSingleton<IFileSystemService>(_ => new ApiFileSystemService(appDataDirectory));
 
