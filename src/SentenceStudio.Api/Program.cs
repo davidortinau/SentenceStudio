@@ -23,6 +23,7 @@ using OpenTelemetry.Trace;
 using SentenceStudio;
 using SentenceStudio.Abstractions;
 using SentenceStudio.Api;
+using SentenceStudio.Api.Activity;
 using SentenceStudio.Api.Auth;
 using SentenceStudio.Api.Diagnostics;
 using SentenceStudio.Api.Platform;
@@ -38,6 +39,7 @@ using SentenceStudio.Domain.Abstractions;
 using SentenceStudio.Infrastructure;
 using SentenceStudio.Services;
 using SentenceStudio.Services.LanguageSegmentation;
+using SentenceStudio.Services.Progress;
 using SentenceStudio.Shared.Models;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -304,6 +306,13 @@ builder.Services.AddScoped<SentenceStudio.Services.Plans.IPlanService,
 // 503 when it isn't (parity with /api/v1/ai/chat).
 builder.Services.AddSingleton<ScenarioRepository>();
 
+// Activity Log — Flutter client read endpoint (activity-log-api-spec.md).
+// Extracted from ProgressService so the API doesn't need the full progress
+// graph (LLM plan generation, vocabulary services, sync). MAUI continues to
+// resolve IProgressService which delegates Activity Log work here.
+// Scoped because it consumes the request-scoped IUserScopeProvider.
+builder.Services.AddScoped<IActivityLogService, ActivityLogService>();
+
 // Vocabulary progress services
 builder.Services.AddSingleton<VocabularyProgressRepository>();
 builder.Services.AddSingleton<VocabularyLearningContextRepository>();
@@ -520,6 +529,7 @@ app.MapAuthEndpoints();
 // plan.md. Replaces the legacy /api/v1/plans/generate stub below (kept
 // for backward compat during the MAUI Blazor v2 flip).
 app.MapPlans();
+app.MapActivityLog();
 
 // YouTube channel monitoring endpoints
 app.MapChannelEndpoints();
