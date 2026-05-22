@@ -144,8 +144,9 @@ builder.Services.AddSingleton<IAppEmailSender, ConsoleEmailSender>();
 
 builder.Services.AddScoped<ITenantContext, TenantContext>();
 
-// Platform abstractions for API server
-var appDataDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "sentencestudio", "api");
+// Platform abstractions for API server. In Linux containers LocalApplicationData
+// resolves under /app, which is read-only for the ACA runtime user.
+var appDataDirectory = Path.Combine(GetWritableAppDataRoot(), "sentencestudio", "api");
 builder.Services.AddSingleton<IConnectivityService, ApiConnectivityService>();
 builder.Services.AddSingleton<IFileSystemService>(_ => new ApiFileSystemService(appDataDirectory));
 
@@ -1054,6 +1055,19 @@ static string StripAssemblyQualification(string assemblyQualifiedName)
 }
 
 app.Run();
+
+static string GetWritableAppDataRoot()
+{
+    var configuredRoot = Environment.GetEnvironmentVariable("SENTENCESTUDIO_APPDATA_ROOT");
+    if (!string.IsNullOrWhiteSpace(configuredRoot))
+    {
+        return configuredRoot;
+    }
+
+    return string.Equals(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"), "true", StringComparison.OrdinalIgnoreCase)
+        ? Path.GetTempPath()
+        : Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+}
 
 // Marker types for ILogger<T> category names on top-level endpoint delegates.
 internal sealed class PlansLog { }

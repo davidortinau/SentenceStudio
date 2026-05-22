@@ -21,8 +21,9 @@ builder.AddNpgsqlDbContext<ApplicationDbContext>("sentencestudio", configureDbCo
         w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
 });
 
-// Platform abstractions
-var appDataDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "sentencestudio", "worker");
+// Platform abstractions. In Linux containers LocalApplicationData resolves under
+// /app, which is read-only for the ACA runtime user.
+var appDataDirectory = Path.Combine(GetWritableAppDataRoot(), "sentencestudio", "worker");
 builder.Services.AddSingleton<IConnectivityService, WorkerConnectivityService>();
 builder.Services.AddSingleton<IFileSystemService>(_ => new WorkerFileSystemService(appDataDirectory));
 
@@ -76,3 +77,16 @@ builder.Services.AddHostedService<Worker>();
 
 var host = builder.Build();
 host.Run();
+
+static string GetWritableAppDataRoot()
+{
+    var configuredRoot = Environment.GetEnvironmentVariable("SENTENCESTUDIO_APPDATA_ROOT");
+    if (!string.IsNullOrWhiteSpace(configuredRoot))
+    {
+        return configuredRoot;
+    }
+
+    return string.Equals(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"), "true", StringComparison.OrdinalIgnoreCase)
+        ? Path.GetTempPath()
+        : Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+}
