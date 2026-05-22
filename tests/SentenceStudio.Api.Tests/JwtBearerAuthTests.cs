@@ -45,7 +45,7 @@ public class JwtBearerAuthTests : IClassFixture<JwtBearerApiFactory>
     [Fact]
     public async Task API_AcceptsValidJwtToken()
     {
-        var token = TestJwtGenerator.GenerateToken();
+        var token = TestJwtGenerator.GenerateToken(userProfileId: $"jwt-plan-{Guid.NewGuid():N}");
         _client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", token);
 
@@ -92,7 +92,7 @@ public class JwtBearerAuthTests : IClassFixture<JwtBearerApiFactory>
     [Fact]
     public async Task CoreSync_AcceptsValidJwtToken()
     {
-        var token = TestJwtGenerator.GenerateToken();
+        var token = TestJwtGenerator.GenerateToken(userProfileId: $"jwt-plan-{Guid.NewGuid():N}");
         _client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", token);
 
@@ -133,7 +133,7 @@ public class JwtBearerAuthTests : IClassFixture<JwtBearerApiFactory>
     [Fact]
     public async Task API_PlansEndpointWorksWithValidToken()
     {
-        var token = TestJwtGenerator.GenerateToken();
+        var token = TestJwtGenerator.GenerateToken(userProfileId: $"jwt-plan-{Guid.NewGuid():N}");
         _client.DefaultRequestHeaders.Authorization =
             new AuthenticationHeaderValue("Bearer", token);
 

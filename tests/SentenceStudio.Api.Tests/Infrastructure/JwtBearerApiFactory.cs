@@ -26,6 +26,8 @@ public class JwtBearerApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Jwt:SigningKey", TestJwtGenerator.TestSigningKeyValue);
         builder.UseSetting("Jwt:Issuer", TestJwtGenerator.TestIssuer);
         builder.UseSetting("Jwt:Audience", TestJwtGenerator.TestAudience);
+        builder.UseSetting("AI:OpenAI:ApiKey", "test-openai-key");
+        builder.UseSetting("ElevenLabsKey", "test-elevenlabs-key");
 
         builder.ConfigureServices(services =>
         {

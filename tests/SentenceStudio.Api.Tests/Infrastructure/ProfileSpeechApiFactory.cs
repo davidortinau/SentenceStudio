@@ -36,6 +36,7 @@ public class ProfileSpeechApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Jwt:SigningKey", TestJwtGenerator.TestSigningKeyValue);
         builder.UseSetting("Jwt:Issuer", TestJwtGenerator.TestIssuer);
         builder.UseSetting("Jwt:Audience", TestJwtGenerator.TestAudience);
+        builder.UseSetting("AI:OpenAI:ApiKey", "test-openai-key");
 
         builder.ConfigureServices(services =>
         {

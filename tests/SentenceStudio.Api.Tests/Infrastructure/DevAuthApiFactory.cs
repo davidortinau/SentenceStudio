@@ -21,6 +21,8 @@ public class DevAuthApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Database:SkipMigrateOnStartup", "true");
         // Clear JWT key so the API falls back to DevAuthHandler
         builder.UseSetting("Jwt:SigningKey", "");
+        builder.UseSetting("AI:OpenAI:ApiKey", "test-openai-key");
+        builder.UseSetting("ElevenLabsKey", "test-elevenlabs-key");
 
         builder.ConfigureServices(services =>
         {

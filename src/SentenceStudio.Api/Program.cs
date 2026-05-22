@@ -491,6 +491,7 @@ app.MapAuthEndpoints();
 // plan.md. Replaces the legacy /api/v1/plans/generate stub below (kept
 // for backward compat during the MAUI Blazor v2 flip).
 app.MapPlans();
+app.MapActivityLog();
 
 // YouTube channel monitoring endpoints
 app.MapChannelEndpoints();
