@@ -23,6 +23,7 @@ using OpenTelemetry.Trace;
 using SentenceStudio;
 using SentenceStudio.Abstractions;
 using SentenceStudio.Api;
+using SentenceStudio.Api.Activity;
 using SentenceStudio.Api.Auth;
 using SentenceStudio.Api.Diagnostics;
 using SentenceStudio.Api.Platform;
@@ -38,6 +39,7 @@ using SentenceStudio.Domain.Abstractions;
 using SentenceStudio.Infrastructure;
 using SentenceStudio.Services;
 using SentenceStudio.Services.LanguageSegmentation;
+using SentenceStudio.Services.Progress;
 using SentenceStudio.Shared.Models;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -144,8 +146,14 @@ builder.Services.AddSingleton<IAppEmailSender, ConsoleEmailSender>();
 
 builder.Services.AddScoped<ITenantContext, TenantContext>();
 
-// Platform abstractions for API server
-var appDataDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "sentencestudio", "api");
+// Platform abstractions for API server.
+// AppDataDirectory: ACA's /app filesystem is read-only for the runtime user, so resolving
+// Environment.SpecialFolder.LocalApplicationData (→ /app/sentencestudio) throws on
+// Directory.CreateDirectory. The API doesn't persist anything here in practice (the
+// dependency is structural — pulled in transitively by MAUI-oriented services). Default
+// to a writable temp path, allow override via the AppDataDirectory config key.
+var appDataDirectory = builder.Configuration["AppDataDirectory"]
+    ?? Path.Combine(Path.GetTempPath(), "sentencestudio", "api");
 builder.Services.AddSingleton<IConnectivityService, ApiConnectivityService>();
 builder.Services.AddSingleton<IFileSystemService>(_ => new ApiFileSystemService(appDataDirectory));
 
@@ -167,11 +175,10 @@ builder.Services.AddSingleton<IEnumerable<ILanguageSegmenter>>(provider =>
 
 // YouTube channel monitoring services
 builder.Services.AddSingleton<ChannelMonitorService>();
-builder.Services.AddSingleton<VideoImportPipelineService>();
 builder.Services.AddSingleton<YouTubeImportService>();
 builder.Services.AddSingleton<AudioAnalyzer>();
-builder.Services.AddSingleton<TranscriptFormattingService>();
-builder.Services.AddSingleton<AiService>();
+// VideoImportPipelineService, TranscriptFormattingService, AiService all
+// transitively depend on IChatClient — registered conditionally below.
 
 // Release notes service
 builder.Services.AddSingleton<ReleaseNotesService>();
@@ -222,6 +229,7 @@ builder.AddNpgsqlDbContext<ApplicationDbContext>("sentencestudio", configureDbCo
 // NumberDrill content seeder — populates NumberContext / NumberSubMode / NumberCounter
 // from lib/content/numbers/{language}.json (idempotent upsert by natural key).
 builder.Services.AddScoped<SentenceStudio.Services.Numbers.NumberContentSeeder>();
+builder.Services.AddScoped<SentenceStudio.Api.Conversation.ConversationScenarioSeeder>();
 
 // Multi-worktree footgun: if the API binds to a fresh Postgres volume (different worktree
 // or freshly-provisioned Aspire environment), AspNetUsers will be empty and login will return
@@ -287,8 +295,23 @@ builder.Services.AddScoped<SentenceStudio.Services.Plans.IPlanService,
     SentenceStudio.Services.Plans.PlanService>();
 
 
-// Voice discovery (ElevenLabs) — registered here for the same reason as above.
-builder.Services.AddSingleton<SentenceStudio.Services.Speech.IVoiceDiscoveryService, SentenceStudio.Services.Speech.VoiceDiscoveryService>();
+// Voice discovery (ElevenLabs) — depends on ElevenLabsClient which is
+// registered conditionally below.
+
+// Conversation activity — server-side stateless analogue of the MAUI agent
+// service. ScenarioRepository is reused from SentenceStudio.Shared (no MAUI
+// deps); the server service is a thin IChatClient wrapper. See
+// specs/004-conversation-http-endpoints/spec.md. The IServerConversationService
+// registration is conditional on IChatClient being available; endpoints return
+// 503 when it isn't (parity with /api/v1/ai/chat).
+builder.Services.AddSingleton<ScenarioRepository>();
+
+// Activity Log — Flutter client read endpoint (activity-log-api-spec.md).
+// Extracted from ProgressService so the API doesn't need the full progress
+// graph (LLM plan generation, vocabulary services, sync). MAUI continues to
+// resolve IProgressService which delegates Activity Log work here.
+// Scoped because it consumes the request-scoped IUserScopeProvider.
+builder.Services.AddScoped<IActivityLogService, ActivityLogService>();
 
 // Vocabulary progress services
 builder.Services.AddSingleton<VocabularyProgressRepository>();
@@ -314,6 +337,14 @@ if (!string.IsNullOrWhiteSpace(openAiApiKey))
         return new OpenAIClient(new System.ClientModel.ApiKeyCredential(openAiApiKey), clientOptions)
             .GetChatClient(chatModel).AsIChatClient();
     });
+
+    // Services that depend on IChatClient (directly or transitively via AiService).
+    builder.Services.AddSingleton<AiService>();
+    builder.Services.AddSingleton<TranscriptFormattingService>();
+    builder.Services.AddSingleton<VideoImportPipelineService>();
+
+    builder.Services.AddScoped<SentenceStudio.Api.Conversation.IServerConversationService,
+        SentenceStudio.Api.Conversation.ServerConversationService>();
 }
 
 // GitHub API client for feedback issue creation
@@ -332,6 +363,8 @@ if (!string.IsNullOrWhiteSpace(elevenLabsKey))
     // timeout (100s) trips on /synthesize-timestamped with long input. Bump to 5 min.
     var elevenLabsHttp = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
     builder.Services.AddSingleton(new ElevenLabsClient(elevenLabsKey, httpClient: elevenLabsHttp));
+    builder.Services.AddSingleton<SentenceStudio.Services.Speech.IVoiceDiscoveryService,
+        SentenceStudio.Services.Speech.VoiceDiscoveryService>();
 }
 
 var app = builder.Build();
@@ -355,6 +388,11 @@ if (!skipDatabaseInitialization)
         // Seed Korean number content (NumberDrill activity — idempotent upsert by natural key)
         var numberSeeder = scope.ServiceProvider.GetRequiredService<SentenceStudio.Services.Numbers.NumberContentSeeder>();
         await numberSeeder.SeedAsync("ko");
+
+        // Seed predefined Conversation scenarios (idempotent upsert keyed on Name + IsPredefined=true).
+        // Shared seed data with MAUI lives in SentenceStudio.Data.ConversationScenarioSeedData.
+        var scenarioSeeder = scope.ServiceProvider.GetRequiredService<SentenceStudio.Api.Conversation.ConversationScenarioSeeder>();
+        await scenarioSeeder.SeedAsync();
     }
 
     // Apply CoreSync provisioning (creates change-tracking tables if missing)
@@ -491,6 +529,8 @@ app.MapAuthEndpoints();
 // plan.md. Replaces the legacy /api/v1/plans/generate stub below (kept
 // for backward compat during the MAUI Blazor v2 flip).
 app.MapPlans();
+app.MapAdhocPlan();
+app.MapActivityLog();
 
 // YouTube channel monitoring endpoints
 app.MapChannelEndpoints();
@@ -507,6 +547,9 @@ app.MapProfileEndpoints();
 
 // Speech / voice discovery
 app.MapSpeechEndpoints();
+
+// Conversation activity (Flutter client)
+app.MapConversationEndpoints();
 
 app.MapGet("/api/v1/auth/bootstrap", (ClaimsPrincipal user, ITenantContext tenantContext) =>
     Results.Ok(new BootstrapResponse

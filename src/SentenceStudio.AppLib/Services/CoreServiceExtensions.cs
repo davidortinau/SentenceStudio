@@ -105,6 +105,7 @@ public static class CoreServiceExtensions
 
         // Progress & timing
         services.AddSingleton<ProgressCacheService>();
+        services.AddSingleton<IActivityLogService, ActivityLogService>();
         services.AddSingleton<IProgressService, ProgressService>();
 
         // Plan generation — use local DeterministicPlanBuilder for rich narratives
