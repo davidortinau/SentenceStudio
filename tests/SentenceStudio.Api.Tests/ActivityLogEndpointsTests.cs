@@ -142,10 +142,21 @@ public sealed class ActivityLogEndpointsTests : IClassFixture<ActivityLogApiFact
         var raw = await response.Content.ReadAsStringAsync();
         // Wire contract: camelCase keys, PascalCase enum values, yyyy-MM-dd dates.
         raw.Should().Contain("\"weekStart\"");
+        raw.Should().Contain("\"weekEnd\"");
+        raw.Should().Contain("\"activityCount\"");
+        raw.Should().Contain("\"plansCompleted\"");
+        raw.Should().Contain("\"plansTotal\"");
         raw.Should().Contain("\"hasActivity\"");
         raw.Should().Contain("\"inputMinutes\"");
         raw.Should().Contain("\"outputMinutes\"");
+        raw.Should().Contain("\"estimatedMinutes\"");
+        raw.Should().Contain("\"isCompleted\"");
         raw.Should().Contain("\"completedAtUtc\"");
+        raw.Should().Contain("\"resourceTitle\"");
+        raw.Should().Contain("\"skillName\"");
+        raw.Should().Contain("\"title\"");
+        raw.Should().Contain("\"description\"");
+        raw.Should().Contain("\"planItemId\"");
         raw.Should().Contain("\"category\":\"Input\"");
         raw.Should().Contain("\"category\":\"Output\"");
         raw.Should().Contain("\"activityType\":\"Reading\"");
@@ -158,6 +169,12 @@ public sealed class ActivityLogEndpointsTests : IClassFixture<ActivityLogApiFact
         var week = weeks![0];
         week.Days.Should().HaveCount(7, "weeks always have 7 day entries Mon–Sun");
         week.WeekStart.DayOfWeek.Should().Be(DayOfWeek.Monday);
+        week.TotalMinutes.Should().Be(20);
+        week.InputMinutes.Should().Be(12);
+        week.OutputMinutes.Should().Be(8);
+        week.ActivityCount.Should().Be(2);
+        week.PlansCompleted.Should().Be(1);
+        week.PlansTotal.Should().Be(1);
 
         var tuesdayDay = week.Days.Single(d => d.Date == "2026-03-31");
         tuesdayDay.HasActivity.Should().BeTrue();
@@ -173,11 +190,19 @@ public sealed class ActivityLogEndpointsTests : IClassFixture<ActivityLogApiFact
         plan.TotalMinutes.Should().Be(20);
         plan.Completed.Should().BeTrue();
         plan.Entries.Should().HaveCount(2);
-        plan.Entries[0].ActivityType.Should().Be("Reading");
-        plan.Entries[0].Category.Should().Be("Input");
-        plan.Entries[0].CompletedAtUtc.Should().NotBeNull();
-        plan.Entries[1].ActivityType.Should().Be("Writing");
-        plan.Entries[1].Category.Should().Be("Output");
+
+        var reading = plan.Entries.Single(e => e.ActivityType == "Reading");
+        reading.Category.Should().Be("Input");
+        reading.PlanItemId.Should().Be("item-1");
+        reading.MinutesSpent.Should().Be(12);
+        reading.EstimatedMinutes.Should().Be(12);
+        reading.IsCompleted.Should().BeTrue();
+        reading.CompletedAtUtc.Should().NotBeNull();
+        reading.Title.Should().Be("PlanItem.Title", "passthrough TitleKey while server-side localization pending");
+        reading.Description.Should().Be("PlanItem.Description");
+
+        var writing = plan.Entries.Single(e => e.ActivityType == "Writing");
+        writing.Category.Should().Be("Output");
 
         // Empty days still present with hasActivity=false and zero totals.
         var monday = week.Days.Single(d => d.Date == "2026-03-30");

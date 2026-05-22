@@ -17,6 +17,24 @@ public sealed record ActivityLogWeekDto
     [JsonPropertyName("weekEnd")]
     public DateTime WeekEnd { get; init; }
 
+    [JsonPropertyName("totalMinutes")]
+    public int TotalMinutes { get; init; }
+
+    [JsonPropertyName("inputMinutes")]
+    public int InputMinutes { get; init; }
+
+    [JsonPropertyName("outputMinutes")]
+    public int OutputMinutes { get; init; }
+
+    [JsonPropertyName("activityCount")]
+    public int ActivityCount { get; init; }
+
+    [JsonPropertyName("plansCompleted")]
+    public int PlansCompleted { get; init; }
+
+    [JsonPropertyName("plansTotal")]
+    public int PlansTotal { get; init; }
+
     [JsonPropertyName("days")]
     public required IReadOnlyList<ActivityLogDayDto> Days { get; init; }
 }
@@ -76,6 +94,9 @@ public sealed record ActivityLogPlanDto
 
 public sealed record ActivityLogEntryDto
 {
+    [JsonPropertyName("planItemId")]
+    public required string PlanItemId { get; init; }
+
     /// <summary>PascalCase enum name — e.g. <c>Reading</c>, <c>Writing</c>,
     /// <c>VocabularyReview</c>. Matches the <c>PlanActivityType</c> enum.</summary>
     [JsonPropertyName("activityType")]
@@ -89,8 +110,32 @@ public sealed record ActivityLogEntryDto
     [JsonPropertyName("minutesSpent")]
     public int MinutesSpent { get; init; }
 
+    [JsonPropertyName("estimatedMinutes")]
+    public int EstimatedMinutes { get; init; }
+
+    [JsonPropertyName("isCompleted")]
+    public bool IsCompleted { get; init; }
+
     /// <summary>ISO 8601 UTC timestamp with <c>Z</c> suffix. Null when the
     /// activity is in-progress (i.e. <c>IsCompleted=false</c>).</summary>
     [JsonPropertyName("completedAtUtc")]
     public DateTime? CompletedAtUtc { get; init; }
+
+    [JsonPropertyName("resourceTitle")]
+    public string? ResourceTitle { get; init; }
+
+    [JsonPropertyName("skillName")]
+    public string? SkillName { get; init; }
+
+    /// <summary>Display title. TEMPORARY: currently returns the <c>TitleKey</c>
+    /// resource identifier (e.g. <c>"PlanItemReadingTitle"</c>) until the API
+    /// gains server-side localization. The MAUI client renders these via
+    /// <c>LocalizationManager</c>; Flutter currently does the same via its own
+    /// localization assets. See activity-log-api-spec.md.</summary>
+    [JsonPropertyName("title")]
+    public required string Title { get; init; }
+
+    /// <summary>Display description. TEMPORARY — see <see cref="Title"/>.</summary>
+    [JsonPropertyName("description")]
+    public required string Description { get; init; }
 }

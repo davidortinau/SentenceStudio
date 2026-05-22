@@ -109,6 +109,12 @@ public static class ActivityLogEndpoints
         {
             WeekStart = DateTime.SpecifyKind(week.WeekStart.Date, DateTimeKind.Utc),
             WeekEnd = DateTime.SpecifyKind(weekEnd, DateTimeKind.Utc),
+            TotalMinutes = week.TotalMinutes,
+            InputMinutes = week.InputMinutes,
+            OutputMinutes = week.OutputMinutes,
+            ActivityCount = week.ActivityCount,
+            PlansCompleted = week.PlansCompleted,
+            PlansTotal = week.PlansTotal,
             Days = week.Days.Select(MapDay).ToList(),
         };
     }
@@ -166,12 +172,26 @@ public static class ActivityLogEndpoints
         var completedAt = entry.CompletedAt is { } ts
             ? DateTime.SpecifyKind(ts, DateTimeKind.Utc)
             : (DateTime?)null;
+        // TitleKey/DescriptionKey are resource keys for now (e.g.
+        // "PlanItemReadingTitle"). Spec activity-log-api-spec.md explicitly
+        // permits this passthrough until server-side localization lands.
+        var title = !string.IsNullOrEmpty(entry.TitleKey)
+            ? entry.TitleKey
+            : entry.ActivityType.ToString();
+        var description = entry.DescriptionKey ?? string.Empty;
         return new ActivityLogEntryDto
         {
+            PlanItemId = entry.PlanItemId ?? string.Empty,
             ActivityType = entry.ActivityType.ToString(),
             Category = entry.Category.ToString(),
             MinutesSpent = entry.MinutesSpent,
+            EstimatedMinutes = entry.EstimatedMinutes,
+            IsCompleted = entry.IsCompleted,
             CompletedAtUtc = completedAt,
+            ResourceTitle = entry.ResourceTitle,
+            SkillName = entry.SkillName,
+            Title = title,
+            Description = description,
         };
     }
 
