@@ -13,7 +13,7 @@
 @inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthStateProvider
 @implements IDisposable
 
-<div class="d-flex app-vh">
+<div class="d-flex vh-100">
     <EnvironmentBadge />
     @if (!isOnboarding && isAuthenticated && !isSyncing)
     {
