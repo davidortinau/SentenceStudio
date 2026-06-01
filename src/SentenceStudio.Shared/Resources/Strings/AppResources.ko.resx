@@ -2748,6 +2748,26 @@
     <value>사용 가능한 문장이 없습니다.</value>
     <comment>Empty state</comment>
   </data>
+  <data name="Translation_Intro_Title" xml:space="preserve">
+    <value>번역 준비</value>
+    <comment>Intro card header</comment>
+  </data>
+  <data name="Translation_Intro_Vocabulary" xml:space="preserve">
+    <value>이번 라운드의 어휘</value>
+    <comment>Intro card vocab section</comment>
+  </data>
+  <data name="Translation_Intro_GrammarFocus" xml:space="preserve">
+    <value>문법 포인트</value>
+    <comment>Intro card grammar section</comment>
+  </data>
+  <data name="Translation_Intro_Resource" xml:space="preserve">
+    <value>출처</value>
+    <comment>Intro card resource label</comment>
+  </data>
+  <data name="Translation_Intro_Start" xml:space="preserve">
+    <value>시작</value>
+    <comment>Intro card start button</comment>
+  </data>
   <data name="WordAssoc_RoundComplete" xml:space="preserve">
     <value>라운드 완료!</value>
     <comment>Summary header</comment>

@@ -1,24 +1,35 @@
-Using the following {{ target_language }} vocabulary ({{ for t in terms }}{{- t.target_language_term -}} ({{- t.native_language_term -}}){{if for.last == false }}, {{ else }}{{ end }}{{ end }}), generate {{ number_of_sentences }} natural {{ target_language }} sentences for translation practice.
+Generate {{ number_of_sentences }} short, natural {{ target_language }} sentences for translation practice.
 
-**VOCABULARY CONSTRAINT: You may ONLY use these exact vocabulary words:**
+**VOCABULARY (use ONLY these — do not introduce other words beyond basic particles, pronouns, and high-frequency function words):**
 {{ for t in terms }}
 - {{ t.target_language_term }} = {{ t.native_language_term }}
 {{ end }}
 
-**CRITICAL REQUIREMENTS:**
-1. **Each sentence must include at least 1 vocabulary word from the provided list** - use 1-3 vocabulary words per sentence
-2. Generate natural conversational {{ target_language }} sentences that incorporate the vocabulary words (conjugated as needed)
-3. Use normal {{ target_language }} grammar and common words - just ensure each sentence features vocabulary from our list
-4. Provide natural {{ native_language }} translations that reflect the vocabulary words used
-5. List ALL {{ target_language }} words/components from the sentence so learners can see every "building block" in multiple choice mode
-6. **Do not invent new vocabulary words** - only use the vocabulary words we've provided for the lesson content
-7. Focus on creating realistic, practical sentences that a {{ target_language }} learner would encounter
+**SIMPLICITY RULES (the most important rules — follow strictly):**
+1. **Short.** 5–10 words per sentence. Hard ceiling: 12 words. Shorter is better.
+2. **One clause.** Prefer single-clause sentences. Use a compound/connector only when it is the most natural way a native speaker would say it.
+3. **One target grammar pattern per sentence.** Do NOT stack two or more target patterns in the same sentence. Vary which pattern appears across the set so all are practiced, but never crammed together.
+4. **1–2 vocabulary words per sentence** (not 3). One vocabulary word is fine and often preferable.
+5. **Native-natural.** Every sentence must be something a native speaker would actually say in everyday conversation. If it sounds contrived or textbook-only, rewrite it.
+6. **Grammatical.** No invented constructions. If you cannot form a clean, correct sentence with the vocabulary + target pattern, pick a different vocabulary word.
 
-**EXAMPLE FORMAT:**
-- {{ target_language }}: "Natural sentence using vocabulary" → {{ native_language }}: "Translation" → TranslationVocabulary: ["word1", "word2", "word3"]
+**ANTI-EXAMPLES (do NOT produce sentences like these):**
+- ❌ "시장에 가려면 이틀 더 기다려야지요." — stacks `-(으)려면` and `-야지요`.
+- ❌ "하루 종일 기다렸다가 지금 퇴근하는 길이에요." — stacks `-다가` and `-는 길이에요`.
+- ❌ "교회에서 오는 길에 시간이 비슷하다 정도가 아니에요." — contrived, awkward semantics.
+
+**GOOD EXAMPLES (style and length to match):**
+- ✅ "우체국에 가는 길이에요." — one pattern, natural, short.
+- ✅ "비가 계속되면 좋겠어요." — one pattern, natural, short.
+- ✅ "혼자 여행 가게 됐어요." — one pattern, natural, short.
+
+**OUTPUT REQUIREMENTS:**
+- Provide a natural {{ native_language }} translation that matches the vocabulary actually used.
+- List every {{ target_language }} word/component of the sentence in `TranslationVocabulary` so the learner sees each building block in multiple-choice mode.
 
 {{ if skills }}
-Prioritize grammar patterns: {{ skills }}
+**Target grammar patterns to practice (pick ONE per sentence; distribute across the set):**
+{{ skills }}
 {{ end }}
 
-Generate {{ number_of_sentences }} diverse translation exercises.
+Generate exactly {{ number_of_sentences }} sentences. Vary topics and vary which target pattern each sentence uses.

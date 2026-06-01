@@ -43,6 +43,51 @@ else if (isBusy)
         <p class="ss-body1 text-secondary-ss">@Localize["Translation_LoadingSentences"]</p>
     </div>
 }
+else if (showIntro)
+{
+    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 60vh;">
+        <h2 class="ss-title1 mb-4"><i class="bi bi-bookmark-star me-2"></i>@Localize["Translation_Intro_Title"]</h2>
+        <div class="card card-ss p-4" style="min-width: 340px; max-width: 560px;">
+            @if (!string.IsNullOrWhiteSpace(introResourceTitle))
+            {
+                <p class="ss-caption1 text-secondary-ss mb-3">
+                    <strong>@Localize["Translation_Intro_Resource"]:</strong> @introResourceTitle
+                </p>
+            }
+
+            @if (introVocabulary.Any())
+            {
+                <h3 class="ss-title3 mb-2"><i class="bi bi-card-list me-2"></i>@Localize["Translation_Intro_Vocabulary"]</h3>
+                <ul class="ss-body2 mb-3" style="padding-left: 1.25rem;">
+                    @foreach (var word in introVocabulary)
+                    {
+                        <li>
+                            <strong>@word.TargetLanguageTerm</strong>
+                            @if (!string.IsNullOrEmpty(word.NativeLanguageTerm))
+                            {
+                                <span class="text-secondary-ss"> — @word.NativeLanguageTerm</span>
+                            }
+                        </li>
+                    }
+                </ul>
+            }
+
+            @if (introGrammarBullets.Any())
+            {
+                <h3 class="ss-title3 mb-2"><i class="bi bi-mortarboard me-2"></i>@Localize["Translation_Intro_GrammarFocus"]</h3>
+                <ul class="ss-body2 mb-2" style="padding-left: 1.25rem;">
+                    @foreach (var bullet in introGrammarBullets)
+                    {
+                        <li>@bullet</li>
+                    }
+                </ul>
+            }
+        </div>
+        <button class="btn btn-ss-primary mt-4" @onclick="StartFromIntro">
+            <i class="bi bi-play-fill me-1"></i>@Localize["Translation_Intro_Start"]
+        </button>
+    </div>
+}
 else if (sentences.Any())
 {
     @* Feedback — minimal chips + collapsible details (matches Writing activity) *@
@@ -109,7 +154,7 @@ else
 }
 </div>
 
-@if (sentences.Any() && !showSessionSummary && !isBusy)
+@if (sentences.Any() && !showSessionSummary && !showIntro && !isBusy)
 {
 <div class="activity-input-bar">
     @* Prompt sentence — pinned with input so it remains visible when keyboard is open *@
@@ -180,6 +225,8 @@ else
     [Inject] private AiService AiSvc { get; set; } = default!;
     [Inject] private UserActivityRepository ActivityRepo { get; set; } = default!;
     [Inject] private VocabularyProgressService ProgressService { get; set; } = default!;
+    [Inject] private SkillProfileRepository SkillProfileRepo { get; set; } = default!;
+    [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private ILogger<Translation> Logger { get; set; } = default!;
@@ -192,6 +239,10 @@ else
     private bool isGrading;
     private bool showFeedback;
     private bool showSessionSummary;
+    private bool showIntro;
+    private string introResourceTitle = "";
+    private List<VocabularyWord> introVocabulary = new();
+    private List<string> introGrammarBullets = new();
     private string userInput = "";
     private string lastSubmittedInput = "";
     private string currentSentence = "";
@@ -230,6 +281,8 @@ else
             if (result?.Any() == true)
             {
                 sentences = result;
+                await BuildIntroAsync(resourceId, skillId);
+                showIntro = introVocabulary.Any() || introGrammarBullets.Any() || !string.IsNullOrEmpty(introResourceTitle);
                 SetCurrentSentence();
             }
             else
@@ -246,6 +299,63 @@ else
         {
             isBusy = false;
         }
+    }
+
+    private async Task BuildIntroAsync(string resourceId, string skillId)
+    {
+        introResourceTitle = "";
+        introVocabulary = new List<VocabularyWord>();
+        introGrammarBullets = new List<string>();
+
+        try
+        {
+            if (!string.IsNullOrEmpty(resourceId))
+            {
+                var resource = await ResourceRepo.GetResourceAsync(resourceId);
+                introResourceTitle = resource?.Title ?? "";
+            }
+
+            if (!string.IsNullOrEmpty(skillId))
+            {
+                var profile = await SkillProfileRepo.GetSkillProfileAsync(skillId);
+                introGrammarBullets = ParseGrammarBullets(profile?.Description);
+            }
+
+            introVocabulary = sentences
+                .SelectMany(s => s.Vocabulary ?? Enumerable.Empty<VocabularyWord>())
+                .Where(v => !string.IsNullOrEmpty(v.TargetLanguageTerm))
+                .GroupBy(v => v.TargetLanguageTerm)
+                .Select(g => g.First())
+                .OrderBy(v => v.TargetLanguageTerm)
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to build translation intro context");
+        }
+    }
+
+    private static List<string> ParseGrammarBullets(string? description)
+    {
+        if (string.IsNullOrWhiteSpace(description)) return new List<string>();
+
+        var bullets = new List<string>();
+        foreach (var raw in description.Split('\n'))
+        {
+            var line = raw.Trim().TrimStart('-', '*', '•', ' ', '\t');
+            if (string.IsNullOrWhiteSpace(line)) continue;
+            // Stop at example/heading sections so we don't dump example sentences into the intro
+            if (line.StartsWith("###") || line.StartsWith("Examples", StringComparison.OrdinalIgnoreCase)
+                || line.StartsWith("Example:", StringComparison.OrdinalIgnoreCase)) break;
+            bullets.Add(line);
+            if (bullets.Count >= 8) break;
+        }
+        return bullets;
+    }
+
+    private void StartFromIntro()
+    {
+        showIntro = false;
     }
 
     private void SetCurrentSentence()

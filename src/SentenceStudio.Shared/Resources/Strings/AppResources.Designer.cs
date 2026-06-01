@@ -10811,6 +10811,51 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Grammar focus.
+        /// </summary>
+        internal static string Translation_Intro_GrammarFocus {
+            get {
+                return ResourceManager.GetString("Translation_Intro_GrammarFocus", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to From.
+        /// </summary>
+        internal static string Translation_Intro_Resource {
+            get {
+                return ResourceManager.GetString("Translation_Intro_Resource", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Start.
+        /// </summary>
+        internal static string Translation_Intro_Start {
+            get {
+                return ResourceManager.GetString("Translation_Intro_Start", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Ready to translate.
+        /// </summary>
+        internal static string Translation_Intro_Title {
+            get {
+                return ResourceManager.GetString("Translation_Intro_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Vocabulary in this round.
+        /// </summary>
+        internal static string Translation_Intro_Vocabulary {
+            get {
+                return ResourceManager.GetString("Translation_Intro_Vocabulary", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Loading sentences....
         /// </summary>
         internal static string Translation_LoadingSentences {

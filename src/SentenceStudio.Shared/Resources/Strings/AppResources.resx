@@ -2996,6 +2996,26 @@ Ready to practice? Say "yes" to start, or tell me what you'd like to change.</va
     <value>No sentences available.</value>
     <comment>Empty state</comment>
   </data>
+  <data name="Translation_Intro_Title" xml:space="preserve">
+    <value>Ready to translate</value>
+    <comment>Intro card header</comment>
+  </data>
+  <data name="Translation_Intro_Vocabulary" xml:space="preserve">
+    <value>Vocabulary in this round</value>
+    <comment>Intro card vocab section</comment>
+  </data>
+  <data name="Translation_Intro_GrammarFocus" xml:space="preserve">
+    <value>Grammar focus</value>
+    <comment>Intro card grammar section</comment>
+  </data>
+  <data name="Translation_Intro_Resource" xml:space="preserve">
+    <value>From</value>
+    <comment>Intro card resource label</comment>
+  </data>
+  <data name="Translation_Intro_Start" xml:space="preserve">
+    <value>Start</value>
+    <comment>Intro card start button</comment>
+  </data>
   <data name="WordAssoc_RoundComplete" xml:space="preserve">
     <value>Round Complete!</value>
     <comment>Summary header</comment>
