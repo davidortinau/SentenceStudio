@@ -22,6 +22,7 @@ public class JwtBearerApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("ConnectionStrings:sentencestudio",
             TestApiHostConfigurator.DummyPostgresConnectionString);
         builder.UseSetting("Database:SkipMigrateOnStartup", "true");
+        builder.UseSetting("Auth:SeedDevTestAccounts", "false");
         builder.UseSetting("Auth:EnableDevAuthFallback", "false");
         builder.UseSetting("Jwt:SigningKey", TestJwtGenerator.TestSigningKeyValue);
         builder.UseSetting("Jwt:Issuer", TestJwtGenerator.TestIssuer);

@@ -142,6 +142,12 @@ builder.Services.AddScoped<JwtTokenService>();
 // swap for SmtpEmailSender in production.
 builder.Services.AddSingleton<IAppEmailSender, ConsoleEmailSender>();
 
+if (builder.Environment.IsDevelopment()
+    && builder.Configuration.GetValue("Auth:SeedDevTestAccounts", true))
+{
+    builder.Services.AddHostedService<DevTestAccountSeeder>();
+}
+
 builder.Services.AddScoped<ITenantContext, TenantContext>();
 
 // Platform abstractions for API server. In Linux containers LocalApplicationData

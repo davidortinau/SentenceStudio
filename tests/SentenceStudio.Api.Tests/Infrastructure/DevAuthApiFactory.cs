@@ -19,6 +19,7 @@ public class DevAuthApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("ConnectionStrings:sentencestudio",
             TestApiHostConfigurator.DummyPostgresConnectionString);
         builder.UseSetting("Database:SkipMigrateOnStartup", "true");
+        builder.UseSetting("Auth:SeedDevTestAccounts", "false");
         // Clear JWT key so the API falls back to DevAuthHandler
         builder.UseSetting("Jwt:SigningKey", "");
         builder.UseSetting("AI:OpenAI:ApiKey", "test-openai-key");

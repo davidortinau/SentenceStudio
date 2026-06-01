@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
@@ -50,6 +51,7 @@ public class ServerAuthService : IAuthService
         using var scope = _scopeFactory.CreateScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var env = scope.ServiceProvider.GetRequiredService<IWebHostEnvironment>();
 
         var user = new ApplicationUser
         {
@@ -82,6 +84,13 @@ public class ServerAuthService : IAuthService
 
         user.UserProfileId = profile.Id;
         await userManager.UpdateAsync(user);
+
+        if (env.IsDevelopment())
+        {
+            var confirmToken = await userManager.GenerateEmailConfirmationTokenAsync(user);
+            await userManager.ConfirmEmailAsync(user, confirmToken);
+            _logger.LogInformation("Auto-confirmed {Email} for development WebApp registration", email);
+        }
 
         // Generate a one-time auto-sign-in token (cookie can't be set from Blazor Server)
         var token = await userManager.GenerateUserTokenAsync(

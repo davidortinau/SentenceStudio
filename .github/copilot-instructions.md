@@ -44,3 +44,13 @@ If you make a decision that affects other team members, write it to:
 .squad/decisions/inbox/copilot-{brief-slug}.md
 ```
 The Scribe will merge it into the shared decisions file.
+
+## Local-dev test accounts
+
+| Purpose | Email | Password |
+|---|---|---|
+| Captain's daily-driver | `captain@test.local` | `Captain1!` |
+| iOS auto-login | `testsailor@test.local` | `TestPass123!` |
+| E2E / scripts | `e2e@test.local` | `E2E1234!` |
+
+See `docs/local-dev-test-accounts.md`; keep fixture updates in seeder, doc, and instructions together.
