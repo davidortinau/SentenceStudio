@@ -9,66 +9,6 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
     <link href="https://cdn.jsdelivr.net/npm/tom-select@2.3.1/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet" />
     <link href="_content/SentenceStudio.UI/css/app.css" rel="stylesheet" />
-    <style>
-        /* MAUI BlazorWebView only: lock document scrolling so the inner
-           <main class="overflow-auto"> is the only scroller. Prevents the
-           WKWebView / Android WebView from carrying the sticky PageHeader
-           off-screen when the on-screen keyboard auto-scrolls a focused
-           input into view. NOT shared with the standalone WebApp. */
-        html, body {
-            overflow: hidden;
-            overscroll-behavior: none;
-        }
-    </style>
-    <script>
-        // Mobile keyboard handling (Blazor Hybrid on iOS/Android).
-        // Problem: WKWebView/Android WebView auto-scrolls the focused input
-        // into view by scrolling the *whole document*, which carries the
-        // sticky PageHeader off-screen. Also, iOS 100dvh does NOT update
-        // when the soft keyboard appears (only when the URL bar collapses).
-        //
-        // Fix:
-        //  1. Set a CSS variable --app-h from visualViewport.height so the
-        //     root layout (.app-vh) actually shrinks when the keyboard shows.
-        //  2. Lock window scroll to (0,0): WKWebView's auto-scroll sets
-        //     contentOffset programmatically (ScrollEnabled=false only blocks
-        //     pan gestures). Resetting on every scroll event neutralises it.
-        //  3. On input focus, scroll the inner <main class="overflow-auto">
-        //     so the focused element is visible above the keyboard.
-        (function () {
-            var root = document.documentElement;
-            function updateHeight() {
-                var h = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
-                root.style.setProperty('--app-h', h + 'px');
-            }
-            updateHeight();
-            if (window.visualViewport) {
-                window.visualViewport.addEventListener('resize', updateHeight);
-            }
-            window.addEventListener('resize', updateHeight);
-
-            var lockingScroll = false;
-            window.addEventListener('scroll', function () {
-                if (lockingScroll) { return; }
-                if (window.scrollY !== 0 || window.scrollX !== 0) {
-                    lockingScroll = true;
-                    window.scrollTo(0, 0);
-                    setTimeout(function () { lockingScroll = false; }, 0);
-                }
-            }, { passive: true });
-
-            document.addEventListener('focusin', function (e) {
-                var t = e.target;
-                if (!t) { return; }
-                var tag = t.tagName;
-                if (tag === 'INPUT' || tag === 'TEXTAREA' || t.isContentEditable) {
-                    setTimeout(function () {
-                        try { t.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (_) { }
-                    }, 150);
-                }
-            });
-        })();
-    </script>
 </head>
 <body style="background-color:#1a1a2e;margin:0;">
     <div id="app">

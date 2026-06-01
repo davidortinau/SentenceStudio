@@ -11,10 +11,7 @@
 		<ApplicationId>com.simplyprofound.sentencestudio</ApplicationId>
 		<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
 		<ApplicationVersion>1</ApplicationVersion>
-		<!-- Bumped from 21.0 to 23.0: androidx.lifecycle.runtime (transitively pulled in
-		     by Microsoft.Maui.DevFlow.Agent and other AndroidX deps) declares minSdk 23.
-		     Android 6.0 (API 23) is universal — global share of Android 5.x is <0.5% as of 2026. -->
-		<SupportedOSPlatformVersion>23.0</SupportedOSPlatformVersion>
+		<SupportedOSPlatformVersion>21.0</SupportedOSPlatformVersion>
 	</PropertyGroup>
 
 	<ItemGroup>

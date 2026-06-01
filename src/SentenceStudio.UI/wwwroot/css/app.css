@@ -399,20 +399,6 @@ html, body {
     height: 100%;
 }
 
-/* Document-level scroll lock is applied ONLY in the MAUI BlazorWebView
-   (see <style> in src/SentenceStudio.AppLib/wwwroot/index.html). The
-   standalone WebApp uses normal document scrolling. */
-
-/* Root layout height — uses --app-h set from JS visualViewport.height (so the
-   layout shrinks when the on-screen keyboard appears). Falls back to 100dvh
-   (modern browsers), then 100vh (legacy). 100dvh on iOS does NOT update on
-   keyboard show/hide — only the JS-driven --app-h does. */
-.app-vh {
-    height: 100vh;
-    height: 100dvh;
-    height: var(--app-h, 100dvh);
-}
-
 #app {
     height: 100%;
     background-color: var(--bs-body-bg);
@@ -1801,7 +1787,6 @@ main.main-content:has(.matching-page-wrapper) {
     left: 0;
     width: 100vw;
     height: 100vh;
-    height: 100dvh;
     background: rgba(0, 0, 0, 0.85);
     z-index: 9999;
     display: flex;
