@@ -209,43 +209,31 @@ aspire deploy -e production
 
 DX24 is Captain's iPhone 15 Pro. Device ID: `CF4F94E3-A1C9-5617-A089-9ABB0110A09F`
 
-### 2a. Switch to .NET 11 Preview 3 SDK (required for Xcode 26.3)
+### 2a. SDK requirements (no swap needed)
 
-> **Why this works:** The net11 preview 3 MAUI workload ships iOS SDK packs named
-> `Microsoft.iOS.Sdk.net11.0_26.2/26.2.11*-net11-p*` (e.g. `26.2.11588-net11-p3`).
-> Despite the `_26.2` folder name, those pack VERSIONS support Xcode 26.3.
-> The `_26.2` in the folder is the SDK generation, NOT the Xcode requirement.
+> **As of June 2026, the repo targets `net11.0-ios` directly** — no `global.json`
+> swap is required. Captain's local `global.json` already pins to a `net11.0`
+> preview SDK (currently preview 4, `11.0.100-preview.4.26230.115`) with
+> `rollForward: latestPatch` and `allowPrerelease: true`. The net11 preview 4 MAUI
+> workload ships iOS SDK packs that support Xcode 26.3.
 >
 > If a build errors with `This version of .NET for iOS (26.2.xxxx) requires Xcode 26.2`,
 > look at the pack version in the error:
-> - `26.2.10xxx` (no suffix) = **net10 pack**, Xcode 26.2 only — SDK resolution fell back to net10
+> - `26.2.10xxx` (no suffix) = **net10 pack** — SDK resolution fell back to net10
+>   (this should not happen on the current branch; check `dotnet --version` reports
+>   a `11.0.100-preview.*` SDK from this directory)
 > - `26.2.11xxx-net11-pN` = **net11 preview pack**, Xcode 26.3 compatible — correct
 >
-> If you see the net10 pack version, verify `dotnet --version` reports
-> `11.0.100-preview.3.26209.122` from this directory. If it does and the error still
-> points at a net10 pack, retry the build (sometimes the first restore under the
-> new SDK resolves stale pack references).
-
-```bash
-cd /Users/davidortinau/work/SentenceStudio
-cp global.json global.json.bak
-cat > global.json << 'EOF'
-{
-  "sdk": {
-    "version": "11.0.100-preview.3.26209.122",
-    "rollForward": "latestFeature",
-    "allowPrerelease": true
-  }
-}
-EOF
-```
+> Historical note: prior to migrating the iOS head to `net11.0-ios`, this step
+> required a temporary swap to `11.0.100-preview.3.26209.122`. That swap is no
+> longer needed.
 
 ### 2b. Build Release with Azure API URL
 
 ```bash
 services__api__https__0=https://api.livelyforest-b32e7d63.centralus.azurecontainerapps.io \
   dotnet build src/SentenceStudio.iOS/SentenceStudio.iOS.csproj \
-  -f net10.0-ios -c Release -p:RuntimeIdentifier=ios-arm64
+  -f net11.0-ios -c Release -p:RuntimeIdentifier=ios-arm64
 ```
 
 ### 2c. Install and launch on DX24
@@ -255,7 +243,7 @@ services__api__https__0=https://api.livelyforest-b32e7d63.centralus.azurecontain
 ```bash
 xcrun devicectl device install app \
   --device CF4F94E3-A1C9-5617-A089-9ABB0110A09F \
-  src/SentenceStudio.iOS/bin/Release/net10.0-ios/ios-arm64/SentenceStudio.iOS.app
+  src/SentenceStudio.iOS/bin/Release/net11.0-ios/ios-arm64/SentenceStudio.iOS.app
 
 xcrun devicectl device process launch \
   --device CF4F94E3-A1C9-5617-A089-9ABB0110A09F \
@@ -273,12 +261,6 @@ xcrun devicectl device process launch \
 > is screen-locked. Unlock it and either retry the launch command or just tap
 > the app icon. Install already succeeded — only launch was blocked.
 
-### 2d. Restore global.json
-
-```bash
-cp global.json.bak global.json && rm global.json.bak
-```
-
 ---
 
 ## Local Development Build (NOT for publish)
@@ -288,7 +270,7 @@ For local Aspire development only. Points at localhost, requires Aspire running.
 ```bash
 # Debug build — uses appsettings.json (localhost:5081)
 dotnet build src/SentenceStudio.iOS/SentenceStudio.iOS.csproj \
-  -f net10.0-ios -c Debug -p:RuntimeIdentifier=ios-arm64
+  -f net11.0-ios -c Debug -p:RuntimeIdentifier=ios-arm64
 ```
 
 
@@ -302,8 +284,8 @@ dotnet build src/SentenceStudio.iOS/SentenceStudio.iOS.csproj \
 | `aspire deploy` creates wrong RG | Check `~/.aspire/deployments/.../production.json` has `rg-sstudio-prod` |
 | `aspire deploy` principal error | Ensure AppHost has `AddAzureContainerAppEnvironment` |
 | `aspire deploy` stale state | Run `aspire deploy --clear-cache` to reset |
-| Xcode version mismatch (26.2 vs 26.3) | Use .NET 11 Preview 3 SDK (step 2a). Verify pack version in error is `26.2.11*-net11-pN`, NOT `26.2.10*` |
-| Build keeps picking net10 iOS pack after global.json swap | Confirm `dotnet --version` from repo reports `11.0.100-preview.3.26209.122`; delete `obj/` under `src/SentenceStudio.iOS/` and rebuild |
+| Xcode version mismatch (26.2 vs 26.3) | Verify `dotnet --version` reports a `11.0.100-preview.*` SDK from this directory and that the pack version in the error is `26.2.11*-net11-pN`, NOT `26.2.10*` |
+| Build keeps picking net10 iOS pack | Confirm iOS csproj `<TargetFramework>` is `net11.0-ios`; confirm `dotnet --version` reports `11.0.100-preview.*`; delete `obj/` under `src/SentenceStudio.iOS/` and rebuild |
 | `devicectl` install fails with `Socket is not connected` | Transient — retry once after a few seconds. Check `xcrun devicectl list devices` shows DX24 `available (paired)` |
 | Device locked error on install | Unlock DX24, retry |
 | LOCAL ribbon on phone | Built with Debug config — rebuild with Release + env var (step 2b) |
