@@ -263,4 +263,39 @@ public class DeterministicPlanBuilderResourceSelectionTests : IClassFixture<Plan
             "same inputs should always produce same resource selection, " +
             "but Guid.NewGuid() tiebreaker introduces randomness");
     }
+
+    [Fact]
+    public async Task PenalizesFrequentlyUsedResource_InLastWeek()
+    {
+        // Arrange: both resources are otherwise similar, but one was used on
+        // multiple recent days. The less-reused resource should be selected.
+        _fixture.SeedUserProfile(20);
+        var today = DateTime.UtcNow.Date;
+
+        var resFrequent = _fixture.SeedResource(
+            id: "res-frequent-weekly", title: "Frequently Used",
+            mediaType: "Podcast", transcript: "Frequent text", vocabWordCount: 10);
+        var resLessUsed = _fixture.SeedResource(
+            id: "res-light-weekly", title: "Lightly Used",
+            mediaType: "Podcast", transcript: "Light text", vocabWordCount: 10);
+        _fixture.SeedSkill();
+
+        // Frequent resource appeared on 3 separate days in the last week.
+        _fixture.SeedCompletion(today.AddDays(-6), "Listening", resourceId: resFrequent.Id);
+        _fixture.SeedCompletion(today.AddDays(-5), "Reading", resourceId: resFrequent.Id);
+        _fixture.SeedCompletion(today.AddDays(-4), "Translation", resourceId: resFrequent.Id);
+
+        // Less-used resource appeared once.
+        _fixture.SeedCompletion(today.AddDays(-6), "Listening", resourceId: resLessUsed.Id);
+
+        // Act
+        var builder = _fixture.CreateBuilder();
+        var plan = await builder.BuildPlanAsync();
+
+        // Assert
+        plan.Should().NotBeNull();
+        plan!.PrimaryResource.Should().NotBeNull();
+        plan.PrimaryResource!.Id.Should().Be(resLessUsed.Id,
+            "resource reuse penalty in the last week should favor the less-reused alternative");
+    }
 }

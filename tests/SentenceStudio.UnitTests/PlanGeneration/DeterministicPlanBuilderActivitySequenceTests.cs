@@ -217,4 +217,41 @@ public class DeterministicPlanBuilderActivitySequenceTests : IClassFixture<PlanG
         totalMinutes.Should().BeLessThanOrEqualTo(20,
             "total activity minutes should not exceed the session budget of 20 minutes");
     }
+
+    [Fact]
+    public async Task NarrativeReflectsWhenResourceCoversOnlyPartOfPlan()
+    {
+        // Arrange: A short session with enough due vocab tends to produce one
+        // resource-linked activity plus vocab-focused work.
+        _fixture.SeedUserProfile(20);
+        var resource = _fixture.SeedResource(
+            title: "Narrative Honesty Resource",
+            mediaType: "Podcast",
+            transcript: "Narrative transcript",
+            vocabWordCount: 20);
+        _fixture.SeedSkill();
+
+        var wordIds = _fixture.GetResourceVocabularyWordIds(resource.Id);
+        foreach (var wordId in wordIds)
+        {
+            _fixture.SeedVocabularyProgress(
+                vocabularyWordId: wordId,
+                masteryScore: 0.35f,
+                nextReviewDate: DateTime.UtcNow.AddDays(-1),
+                resourceId: resource.Id);
+        }
+
+        // Act
+        var builder = _fixture.CreateBuilder();
+        var plan = await builder.BuildPlanAsync();
+
+        // Assert
+        plan.Should().NotBeNull();
+        plan!.Narrative.Should().NotBeNull();
+        plan.Narrative!.Story.Should().Contain("mixes vocabulary-focused work",
+            "the story should be explicit that the plan is not entirely resource-driven");
+        plan.Narrative.Resources.Should().ContainSingle();
+        plan.Narrative.Resources[0].SelectionReason.Should().Contain("Used for",
+            "resource summary should report partial coverage when not all activities use it");
+    }
 }

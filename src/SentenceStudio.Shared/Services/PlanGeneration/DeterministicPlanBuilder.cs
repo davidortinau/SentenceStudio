@@ -291,6 +291,12 @@ public class DeterministicPlanBuilder
                 g => g.Key,
                 g => g.Max(a => a.Date)
             );
+        var resourceRecentUsageDays = recentActivity
+            .Where(a => a.Date >= today.AddDays(-7))
+            .GroupBy(a => a.ResourceId!)
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(a => a.Date.Date).Distinct().Count());
 
         // Get all available resources with vocabulary counts (user-scoped)
         var resources = await _resourceRepo.GetAllResourcesLightweightAsync(userProfileId: userProfileId);
@@ -354,6 +360,15 @@ public class DeterministicPlanBuilder
             // RULE 5: Prefer resources with audio (enables more activity types)
             if (candidate.Resource.MediaType == "Video" || candidate.Resource.MediaType == "Podcast")
                 score += 20;
+
+            // RULE 6: Penalize frequent reuse across the last week so we rotate
+            // through resources more aggressively (even when several are eligible).
+            var recentUsageDays = resourceRecentUsageDays.TryGetValue(candidate.Resource.Id, out var usageDays)
+                ? usageDays
+                : 0;
+            score -= recentUsageDays * 18;
+            if (recentUsageDays >= 3)
+                score -= 25;
 
             candidate.Score = score;
         }
@@ -643,22 +658,40 @@ public class DeterministicPlanBuilder
         VocabInsight? vocabInsight = null;
         var focusAreas = new List<string>();
         var storyParts = new List<string>();
+        var totalActivities = activities.Count;
+        var totalMinutes = activities.Sum(a => a.EstimatedMinutes);
+        var resourceLinkedActivities = activities.Where(a => !string.IsNullOrWhiteSpace(a.ResourceId)).ToList();
+        var resourceLinkedCount = resourceLinkedActivities.Count;
+        var resourceLinkedMinutes = resourceLinkedActivities.Sum(a => a.EstimatedMinutes);
 
         // 1. Resource summary
-        if (primaryResource != null)
+        if (primaryResource != null && resourceLinkedCount > 0)
         {
+            var resourceCoverageReason = resourceLinkedCount == totalActivities
+                ? $"{primaryResource.SelectionReason}. Used across the full plan."
+                : $"{primaryResource.SelectionReason}. Used for {resourceLinkedCount} of {totalActivities} activities ({resourceLinkedMinutes} of {totalMinutes} minutes).";
+
             resources.Add(new PlanResourceSummary(
                 primaryResource.Id,
                 primaryResource.Title,
                 primaryResource.MediaType,
-                primaryResource.SelectionReason));
-            
-            storyParts.Add($"Today you'll be working with \"{primaryResource.Title}\"");
-            
-            if (primaryResource.DaysSinceLastUse >= 5)
-                storyParts.Add($"It's been {primaryResource.DaysSinceLastUse} days since you last studied this — a good time to revisit");
-            else if (primaryResource.DaysSinceLastUse == 999)
-                storyParts.Add("This is new content you haven't explored yet");
+                resourceCoverageReason));
+        }
+
+        if (primaryResource != null)
+        {
+            if (resourceLinkedCount == 0)
+            {
+                storyParts.Add("Today's plan is focused on vocabulary and skill drills; no specific learning resource is required");
+            }
+            else if (resourceLinkedCount == totalActivities)
+            {
+                storyParts.Add($"Today's plan is built around \"{primaryResource.Title}\" across all {totalActivities} activities");
+            }
+            else
+            {
+                storyParts.Add($"Today's plan mixes vocabulary-focused work with contextual practice from \"{primaryResource.Title}\" ({resourceLinkedCount} of {totalActivities} activities)");
+            }
         }
 
         // 2. Vocab insight analysis
