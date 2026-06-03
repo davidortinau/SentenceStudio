@@ -772,6 +772,18 @@ public class DeterministicPlanBuilder
                 focusWords = new List<string>();
             }
 
+            var previewWords = dueWords
+                .Where(w => w.VocabularyWord is not null
+                    && !string.IsNullOrWhiteSpace(w.VocabularyWord.TargetLanguageTerm)
+                    && !string.IsNullOrWhiteSpace(w.VocabularyWord.NativeLanguageTerm))
+                .GroupBy(w => w.VocabularyWordId)
+                .Select(g => g.First())
+                .Select(w => new PlanPreviewWord(
+                    w.VocabularyWordId,
+                    w.VocabularyWord!.TargetLanguageTerm.Trim(),
+                    w.VocabularyWord.NativeLanguageTerm!.Trim()))
+                .ToList();
+
             // Build pattern insight with correct framing: untested vs struggling
             string? patternInsight = null;
             if (strugglingTags.Any())
@@ -792,7 +804,8 @@ public class DeterministicPlanBuilder
                 avgMastery,
                 tagGroups,
                 focusWords,
-                patternInsight);
+                patternInsight,
+                previewWords);
 
             // Build the story for vocab
             if (newWords.Count > 0 && reviewWords.Count > 0)

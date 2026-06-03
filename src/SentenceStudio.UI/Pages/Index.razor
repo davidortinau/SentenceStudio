@@ -219,6 +219,16 @@ else
                                     }
                                 </div>
 
+                                @if (insight.PreviewWords?.Any() == true)
+                                {
+                                    <div class="mb-3">
+                                        <button class="btn btn-sm btn-outline-primary"
+                                                @onclick="OpenFlashcardActivity">
+                                            <i class="bi bi-stack me-1"></i>Preview plan vocabulary
+                                        </button>
+                                    </div>
+                                }
+
                                 @if (insight.StrugglingCategories.Any())
                                 {
                                     var newCategories = insight.StrugglingCategories
@@ -1066,6 +1076,12 @@ else
 
         var url = $"/{route}" + (query.Count > 0 ? "?" + string.Join("&", query) : "");
         NavManager.NavigateTo(url);
+    }
+
+    private void OpenFlashcardActivity()
+    {
+        var date = todaysPlan?.GeneratedForDate.Date ?? DateTime.UtcNow.Date;
+        NavManager.NavigateTo($"/flashcard-activity?date={date:yyyy-MM-dd}");
     }
 
     // ---- Choose My Own ----

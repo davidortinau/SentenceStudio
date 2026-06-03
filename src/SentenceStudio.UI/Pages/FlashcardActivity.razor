@@ -1,0 +1,251 @@
+@page "/flashcard-activity"
+@attribute [Authorize]
+@using Microsoft.AspNetCore.Components.Web
+@using SentenceStudio.Services.Progress
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+
+<div class="activity-page-wrapper">
+    <PageHeader Title="Flashcard Preview" ShowBack="true" OnBack="GoBack" />
+
+    <div class="activity-content">
+        @if (isBusy)
+        {
+            <div class="d-flex justify-content-center p-5">
+                <div class="spinner-border text-primary" role="status"></div>
+            </div>
+        }
+        else if (!string.IsNullOrWhiteSpace(loadError))
+        {
+            <div class="text-center p-5">
+                <p class="ss-body1 text-secondary-ss">@loadError</p>
+                <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">@Localize["Common_GoBack"]</button>
+            </div>
+        }
+        else if (showSummary)
+        {
+            <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 60vh;">
+                <h2 class="ss-title1 mb-4"><i class="bi bi-journal-check me-2"></i>Flashcard summary</h2>
+                <div class="card card-ss p-4 w-100" style="max-width: 560px;">
+                    <div class="d-flex justify-content-around mb-3">
+                        <div class="text-center">
+                            <div class="ss-title2 text-success">@results.Count(r => r.WasCorrect)</div>
+                            <small class="text-secondary-ss">@Localize["Common_Correct"]</small>
+                        </div>
+                        <div class="text-center">
+                            <div class="ss-title2 text-danger">@results.Count(r => !r.WasCorrect)</div>
+                            <small class="text-secondary-ss">@Localize["Common_Incorrect"]</small>
+                        </div>
+                        <div class="text-center">
+                            <div class="ss-title2">@results.Count</div>
+                            <small class="text-secondary-ss">Total</small>
+                        </div>
+                    </div>
+
+                    <hr class="border-secondary" />
+                    @foreach (var result in results)
+                    {
+                        <div class="d-flex align-items-center gap-2 py-1">
+                            <i class="bi @(result.WasCorrect ? "bi-check-circle-fill text-success" : "bi-x-circle-fill text-danger")"></i>
+                            <span class="ss-body1 fw-bold" style="color: var(--bs-primary);">@result.Word.TargetTerm</span>
+                            <span class="text-secondary-ss">→</span>
+                            <span class="ss-body1">@result.Word.NativeTerm</span>
+                        </div>
+                    }
+                </div>
+                <button class="btn btn-ss-secondary mt-3" @onclick="GoBack">@Localize["Common_Done"]</button>
+            </div>
+        }
+        else if (currentWord is not null)
+        {
+            <div class="mx-auto d-flex flex-column gap-3" style="max-width: 560px;">
+                <div class="d-flex justify-content-between align-items-center">
+                    <span class="ss-body2 text-secondary-ss">Card @(currentIndex + 1) / @words.Count</span>
+                    <span class="ss-body2 text-secondary-ss">
+                        <span class="text-success">@results.Count(r => r.WasCorrect) @Localize["Common_Correct"]</span>
+                        <span class="mx-1">·</span>
+                        <span class="text-danger">@results.Count(r => !r.WasCorrect) @Localize["Common_Incorrect"]</span>
+                    </span>
+                </div>
+
+                <div class="card card-ss p-4 text-center d-flex align-items-center justify-content-center"
+                     style="@CardStyle"
+                     @onpointerdown="OnCardPointerDown"
+                     @onpointermove="OnCardPointerMove"
+                     @onpointerup="OnCardPointerUp"
+                     @onpointercancel="OnCardPointerCancel">
+                    <h1 class="ss-display mb-0" style="color: var(--bs-primary);">
+                        @(isFlipped ? currentWord.NativeTerm : currentWord.TargetTerm)
+                    </h1>
+                </div>
+
+                <div class="d-flex gap-2">
+                    <button class="btn btn-outline-danger flex-fill"
+                            disabled="@isSwipeAnimating"
+                            @onclick="() => SwipeByButtonAsync(false)">
+                        <i class="bi bi-arrow-left me-1"></i>@Localize["Common_Incorrect"]
+                    </button>
+                    <button class="btn btn-outline-success flex-fill"
+                            disabled="@isSwipeAnimating"
+                            @onclick="() => SwipeByButtonAsync(true)">
+                        @Localize["Common_Correct"]<i class="bi bi-arrow-right ms-1"></i>
+                    </button>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "date")]
+    public string? DateParam { get; set; }
+
+    [Inject] private SentenceStudio.Services.Progress.IProgressService PlanProgressService { get; set; } = default!;
+    [Inject] private NavigationManager NavManager { get; set; } = default!;
+
+    private readonly List<FlashcardResult> results = new();
+    private List<PlanPreviewWord> words = new();
+    private bool isBusy;
+    private bool showSummary;
+    private bool isFlipped;
+    private string? loadError;
+    private int currentIndex;
+    private double pointerStartX;
+    private double dragOffsetX;
+    private bool pointerActive;
+    private bool isSwipeAnimating;
+    private const double SwipeThreshold = 110d;
+    private const double TapFlipThreshold = 12d;
+    private const double SwipeThrowDistance = 560d;
+
+    private PlanPreviewWord? currentWord => currentIndex >= 0 && currentIndex < words.Count ? words[currentIndex] : null;
+    private string CardStyle => $"min-height: 280px; touch-action: pan-y; user-select: none; transform: translateX({dragOffsetX:0}px) rotate({CardRotationDegrees:0.0}deg); transition: {(pointerActive ? "none" : "transform 160ms ease-out")};";
+    private double CardRotationDegrees => Math.Clamp(dragOffsetX / 18d, -18d, 18d);
+
+    protected override async Task OnInitializedAsync()
+    {
+        isBusy = true;
+        try
+        {
+            var planDate = ResolvePlanDate();
+            var plan = await PlanProgressService.GetCachedPlanAsync(planDate);
+            if (plan?.Narrative?.VocabInsight?.PreviewWords == null || !plan.Narrative.VocabInsight.PreviewWords.Any())
+            {
+                loadError = "No flashcard preview vocabulary is available for this daily plan.";
+                return;
+            }
+
+            words = plan.Narrative.VocabInsight.PreviewWords
+                .Where(w => !string.IsNullOrWhiteSpace(w.TargetTerm) && !string.IsNullOrWhiteSpace(w.NativeTerm))
+                .ToList();
+
+            if (!words.Any())
+            {
+                loadError = "No flashcard preview vocabulary is available for this daily plan.";
+            }
+        }
+        finally
+        {
+            isBusy = false;
+        }
+    }
+
+    private DateTime ResolvePlanDate()
+    {
+        if (!string.IsNullOrWhiteSpace(DateParam) && DateTime.TryParse(DateParam, out var parsed))
+        {
+            return parsed.Date;
+        }
+        return DateTime.UtcNow.Date;
+    }
+
+    private void OnCardPointerDown(PointerEventArgs args)
+    {
+        if (isSwipeAnimating)
+        {
+            return;
+        }
+
+        pointerStartX = args.ClientX;
+        dragOffsetX = 0;
+        pointerActive = true;
+    }
+
+    private void OnCardPointerMove(PointerEventArgs args)
+    {
+        if (!pointerActive)
+        {
+            return;
+        }
+
+        dragOffsetX = args.ClientX - pointerStartX;
+    }
+
+    private async Task OnCardPointerUp(PointerEventArgs args)
+    {
+        if (!pointerActive || isSwipeAnimating)
+        {
+            return;
+        }
+
+        pointerActive = false;
+        var delta = args.ClientX - pointerStartX;
+        dragOffsetX = delta;
+        if (Math.Abs(delta) >= SwipeThreshold)
+        {
+            await AnimateSwipeAsync(delta > 0);
+            return;
+        }
+
+        dragOffsetX = 0;
+        if (Math.Abs(delta) <= TapFlipThreshold)
+        {
+            isFlipped = !isFlipped;
+        }
+    }
+
+    private void OnCardPointerCancel(PointerEventArgs _)
+    {
+        pointerActive = false;
+        dragOffsetX = 0;
+    }
+
+    private Task SwipeByButtonAsync(bool wasCorrect) => AnimateSwipeAsync(wasCorrect);
+
+    private async Task AnimateSwipeAsync(bool wasCorrect)
+    {
+        if (currentWord is null || isSwipeAnimating)
+        {
+            return;
+        }
+
+        isSwipeAnimating = true;
+        pointerActive = false;
+        dragOffsetX = wasCorrect ? SwipeThrowDistance : -SwipeThrowDistance;
+        await InvokeAsync(StateHasChanged);
+        await Task.Delay(160);
+        RecordAnswer(wasCorrect);
+        dragOffsetX = 0;
+        isSwipeAnimating = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void RecordAnswer(bool wasCorrect)
+    {
+        if (currentWord is null)
+        {
+            return;
+        }
+
+        results.Add(new FlashcardResult(currentWord, wasCorrect));
+        isFlipped = false;
+        currentIndex++;
+        if (currentIndex >= words.Count)
+        {
+            showSummary = true;
+        }
+    }
+
+    private void GoBack() => NavManager.NavigateTo("/");
+
+    private sealed record FlashcardResult(PlanPreviewWord Word, bool WasCorrect);
+}

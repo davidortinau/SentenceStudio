@@ -27,6 +27,43 @@ namespace SentenceStudio.Shared.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            // Existing unique indexes were created while Date was timestamptz.
+            // Multiple rows can still exist for the same logical local day if
+            // they differ by time-of-day, and those collisions surface only
+            // after converting to a plain date. Drop indexes before conversion,
+            // dedupe by projected UTC date, then recreate indexes.
+            migrationBuilder.Sql(@"
+DROP INDEX IF EXISTS ""IX_DailyPlanCompletion_UserProfileId_Date_PlanItemId"";
+DROP INDEX IF EXISTS ""IX_DailyPlan_UserProfileId_Date"";");
+
+            migrationBuilder.Sql(@"
+WITH ranked AS (
+    SELECT ""Id"", ROW_NUMBER() OVER (
+        PARTITION BY ""UserProfileId"", (""Date"" AT TIME ZONE 'UTC')::date, ""PlanItemId""
+        ORDER BY ""IsCompleted"" DESC,
+                 ""UpdatedAt"" DESC,
+                 ""CreatedAt"" DESC,
+                 ""Id""
+    ) AS rn
+    FROM ""DailyPlanCompletion""
+)
+DELETE FROM ""DailyPlanCompletion""
+WHERE ""Id"" IN (SELECT ""Id"" FROM ranked WHERE rn > 1);");
+
+            migrationBuilder.Sql(@"
+WITH ranked AS (
+    SELECT ""Id"", ROW_NUMBER() OVER (
+        PARTITION BY ""UserProfileId"", (""Date"" AT TIME ZONE 'UTC')::date
+        ORDER BY ""GeneratedAtUtc"" DESC,
+                 ""UpdatedAt"" DESC,
+                 ""CreatedAt"" DESC,
+                 ""Id""
+    ) AS rn
+    FROM ""DailyPlan""
+)
+DELETE FROM ""DailyPlan""
+WHERE ""Id"" IN (SELECT ""Id"" FROM ranked WHERE rn > 1);");
+
             // EF emits AlterColumn without a USING clause; PG rejects the
             // cast. Use raw ALTER COLUMN with the projection instead.
             migrationBuilder.Sql(@"
@@ -38,6 +75,18 @@ ALTER TABLE ""DailyPlanCompletion""
 ALTER TABLE ""DailyPlan""
     ALTER COLUMN ""Date"" TYPE date
     USING (""Date"" AT TIME ZONE 'UTC')::date;");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_DailyPlanCompletion_UserProfileId_Date_PlanItemId",
+                table: "DailyPlanCompletion",
+                columns: new[] { "UserProfileId", "Date", "PlanItemId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_DailyPlan_UserProfileId_Date",
+                table: "DailyPlan",
+                columns: new[] { "UserProfileId", "Date" },
+                unique: true);
         }
 
         /// <inheritdoc />

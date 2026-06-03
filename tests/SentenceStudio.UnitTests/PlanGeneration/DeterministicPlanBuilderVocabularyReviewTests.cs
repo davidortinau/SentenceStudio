@@ -272,4 +272,34 @@ public class DeterministicPlanBuilderVocabularyReviewTests : IClassFixture<PlanG
         plan.VocabularyReview!.WordCount.Should().Be(plan.VocabularyReview.DueWords.Count,
             "WordCount should exactly match the number of words actually selected for review");
     }
+
+    [Fact]
+    public async Task NarrativeIncludesFrozenPreviewWords_FromSelectedDueWords()
+    {
+        _fixture.SeedUserProfile(20);
+        var resource = _fixture.SeedResource(title: "Preview Word Resource", vocabWordCount: 8);
+        _fixture.SeedSkill();
+
+        var wordIds = _fixture.GetResourceVocabularyWordIds(resource.Id);
+        foreach (var wordId in wordIds)
+        {
+            _fixture.SeedVocabularyProgress(
+                vocabularyWordId: wordId,
+                masteryScore: 0.25f,
+                nextReviewDate: DateTime.UtcNow.AddDays(-1),
+                resourceId: resource.Id);
+        }
+
+        var builder = _fixture.CreateBuilder();
+        var plan = await builder.BuildPlanAsync();
+
+        plan.Should().NotBeNull();
+        plan!.Narrative.Should().NotBeNull();
+        plan.Narrative!.VocabInsight.Should().NotBeNull();
+        plan.Narrative.VocabInsight!.PreviewWords.Should().NotBeNullOrEmpty();
+        plan.Narrative.VocabInsight.PreviewWords!.Count.Should().Be(plan.VocabularyReview!.DueWords.Count,
+            "preview words should be frozen from the exact selected due words");
+        plan.Narrative.VocabInsight.PreviewWords.Should().OnlyContain(w =>
+            !string.IsNullOrWhiteSpace(w.TargetTerm) && !string.IsNullOrWhiteSpace(w.NativeTerm));
+    }
 }

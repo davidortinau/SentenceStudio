@@ -108,7 +108,14 @@ public record VocabInsight(
     float AverageMastery,  // Average MasteryScore of due words
     List<TagInsight> StrugglingCategories, // Tags where accuracy is low
     List<string> SampleStrugglingWords,    // Example words (TargetLanguageTerm) for display
-    string? PatternInsight  // e.g. "You're having trouble with time-related vocabulary"
+    string? PatternInsight,  // e.g. "You're having trouble with time-related vocabulary"
+    List<PlanPreviewWord>? PreviewWords = null
+);
+
+public record PlanPreviewWord(
+    string WordId,
+    string TargetTerm,
+    string NativeTerm
 );
 
 public record TagInsight(

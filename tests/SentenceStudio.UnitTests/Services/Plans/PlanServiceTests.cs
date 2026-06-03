@@ -98,6 +98,38 @@ public sealed class PlanServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task GenerateToday_MapsNarrativePreviewWords()
+    {
+        _generator.SetActivities(("VocabularyReview", null, null, 10, 1));
+        _generator.SetNarrative(new PlanNarrative(
+            Resources: new List<PlanResourceSummary>(),
+            VocabInsight: new VocabInsight(
+                TotalDue: 4,
+                ReviewCount: 2,
+                NewCount: 2,
+                AverageMastery: 0.45f,
+                StrugglingCategories: new List<TagInsight>(),
+                SampleStrugglingWords: new List<string> { "단어" },
+                PatternInsight: "Pattern",
+                PreviewWords: new List<PlanPreviewWord>
+                {
+                    new("w1", "안녕하세요", "hello"),
+                    new("w2", "감사합니다", "thank you"),
+                }),
+            Story: "story",
+            FocusAreas: new List<string> { "focus" }));
+
+        var service = NewService();
+        var plan = await service.GenerateTodayAsync(new GenerateTodaysPlanRequest());
+
+        Assert.NotNull(plan.Narrative);
+        Assert.NotNull(plan.Narrative!.VocabInsight);
+        Assert.Equal(2, plan.Narrative.VocabInsight!.PreviewWords.Count);
+        Assert.Equal("안녕하세요", plan.Narrative.VocabInsight.PreviewWords[0].TargetTerm);
+        Assert.Equal("hello", plan.Narrative.VocabInsight.PreviewWords[0].NativeTerm);
+    }
+
+    [Fact]
     public async Task UpdateProgress_ClampsToMaxMinutes_AndPersists()
     {
         _generator.SetActivities(("Reading", "resource-1", null, 15, 1));
@@ -289,6 +321,7 @@ public sealed class PlanServiceTests : IDisposable
     private sealed class FakeDeterministicGenerator : IDeterministicPlanGenerator
     {
         private List<PlannedActivity> _activities = new();
+        private PlanNarrative? _narrative;
 
         public void SetActivities(params (string Type, string? ResourceId, string? SkillId, int Minutes, int Priority)[] activities)
         {
@@ -303,6 +336,8 @@ public sealed class PlanServiceTests : IDisposable
             }).ToList();
         }
 
+        public void SetNarrative(PlanNarrative? narrative) => _narrative = narrative;
+
         public Task<PlanSkeleton?> GenerateAsync(string? userProfileId = null, CancellationToken ct = default)
         {
             return Task.FromResult<PlanSkeleton?>(new PlanSkeleton
@@ -310,6 +345,7 @@ public sealed class PlanServiceTests : IDisposable
                 Activities = _activities.ToList(),
                 TotalMinutes = _activities.Sum(a => a.EstimatedMinutes),
                 ResourceSelectionReason = "test reason",
+                Narrative = _narrative,
             });
         }
     }

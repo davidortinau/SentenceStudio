@@ -21,6 +21,9 @@ var dbPassword = builder.AddParameter("dbPassword", secret: true);
 var postgresServer = builder.AddAzurePostgresFlexibleServer("db")
     .WithPasswordAuthentication(dbUser, dbPassword)
     .RunAsContainer(c => c
+        // Pin local dev image to PostgreSQL 17 to keep compatibility with existing
+        // persistent volumes created before Docker's PostgreSQL 18+ data-layout change.
+        .WithImageTag("17")
         .WithLifetime(ContainerLifetime.Persistent)
         .WithDataVolume());
 

@@ -606,6 +606,12 @@ public sealed class PlanService : IPlanService
                         NewCount = vi.NewCount,
                         AverageMastery = vi.AverageMastery,
                         SampleStrugglingWords = vi.SampleStrugglingWords ?? new List<string>(),
+                        PreviewWords = vi.PreviewWords?.Select(w => new NarrativePreviewWordFacts
+                        {
+                            WordId = w.WordId,
+                            TargetTerm = w.TargetTerm,
+                            NativeTerm = w.NativeTerm,
+                        }).ToList() ?? new List<NarrativePreviewWordFacts>(),
                         StrugglingCategories = vi.StrugglingCategories?.Select(t => new NarrativeTagInsightFacts
                         {
                             Tag = t.Tag,
@@ -676,6 +682,14 @@ public sealed class PlanService : IPlanService
                     NewCount = facts.VocabInsight.NewCount,
                     AverageMastery = facts.VocabInsight.AverageMastery,
                     SampleStrugglingWords = facts.VocabInsight.SampleStrugglingWords ?? new List<string>(),
+                    PreviewWords = facts.VocabInsight.PreviewWords?
+                        .Where(w => !string.IsNullOrWhiteSpace(w.TargetTerm) && !string.IsNullOrWhiteSpace(w.NativeTerm))
+                        .Select(w => new PlanPreviewWordDto
+                        {
+                            WordId = w.WordId ?? string.Empty,
+                            TargetTerm = w.TargetTerm ?? string.Empty,
+                            NativeTerm = w.NativeTerm ?? string.Empty,
+                        }).ToList() ?? new List<PlanPreviewWordDto>(),
                     StrugglingCategories = facts.VocabInsight.StrugglingCategories?
                         .Select(t => new TagInsightDto
                         {
@@ -724,7 +738,15 @@ public sealed class PlanService : IPlanService
         public float AverageMastery { get; set; }
         public List<NarrativeTagInsightFacts>? StrugglingCategories { get; set; }
         public List<string>? SampleStrugglingWords { get; set; }
+        public List<NarrativePreviewWordFacts>? PreviewWords { get; set; }
         public string? PatternInsight { get; set; }
+    }
+
+    private sealed class NarrativePreviewWordFacts
+    {
+        public string? WordId { get; set; }
+        public string? TargetTerm { get; set; }
+        public string? NativeTerm { get; set; }
     }
 
     private sealed class NarrativeTagInsightFacts

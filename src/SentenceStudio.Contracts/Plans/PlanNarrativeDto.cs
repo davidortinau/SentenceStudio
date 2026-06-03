@@ -40,9 +40,17 @@ public sealed class VocabInsightDto
 
     public required List<TagInsightDto> StrugglingCategories { get; init; }
     public required List<string> SampleStrugglingWords { get; init; }
+    public List<PlanPreviewWordDto> PreviewWords { get; init; } = new();
 
     /// <summary>Already-localized pattern insight, e.g. "trouble with time-related vocab".</summary>
     public string? PatternInsight { get; init; }
+}
+
+public sealed class PlanPreviewWordDto
+{
+    public required string WordId { get; init; }
+    public required string TargetTerm { get; init; }
+    public required string NativeTerm { get; init; }
 }
 
 public sealed class TagInsightDto
