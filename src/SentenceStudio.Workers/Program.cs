@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
+using Azure.AI.OpenAI;
+using Azure.Identity;
 using OpenAI;
 using SentenceStudio.Abstractions;
 using SentenceStudio.Data;
@@ -51,25 +53,32 @@ builder.Services.AddSingleton<AudioAnalyzer>();
 builder.Services.AddSingleton<TranscriptFormattingService>();
 builder.Services.AddSingleton<AiService>();
 
-// OpenAI client
+// OpenAI client. Chat → Foundry uses keyless Entra auth (DefaultAzureCredential).
+// AiService still reads Settings:OpenAIKey for the OpenAI audio (TTS) fallback client, so
+// bridge it from the Aspire env var when present.
 var openAiApiKey = builder.Configuration["AI:OpenAI:ApiKey"];
 if (!string.IsNullOrWhiteSpace(openAiApiKey))
 {
-    // AiService reads from Settings:OpenAIKey — bridge the Aspire env var
     builder.Configuration["Settings:OpenAIKey"] = openAiApiKey;
+}
 
+var aiEndpoint = builder.Configuration["AI:OpenAI:Endpoint"];
+if (!string.IsNullOrWhiteSpace(aiEndpoint))
+{
     // Resilient HttpClient for OpenAI — server defaults (AddServiceDefaults) provide
     // Polly retry/circuit-breaker via ConfigureHttpClientDefaults.
     builder.Services.AddResilientOpenAIHttpClient();
 
-    var chatModel = builder.Configuration["AI:OpenAI:ChatModel"] ?? "gpt-4o-mini";
-    builder.Services.AddSingleton<Microsoft.Extensions.AI.IChatClient>(sp =>
+    // Default (fast) + keyed fast/reasoning chat clients via AzureOpenAIClient + Entra.
+    var azureEndpoint = AiClientRegistration.AzureResourceEndpoint(builder.Configuration);
+    builder.Services.AddTieredChatClients(builder.Configuration, sp =>
     {
         var httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient("openai");
-        var transport = new System.ClientModel.Primitives.HttpClientPipelineTransport(httpClient);
-        var clientOptions = new OpenAI.OpenAIClientOptions { Transport = transport };
-        return new OpenAI.OpenAIClient(new System.ClientModel.ApiKeyCredential(openAiApiKey), clientOptions)
-            .GetChatClient(chatModel).AsIChatClient();
+        var options = new AzureOpenAIClientOptions
+        {
+            Transport = new System.ClientModel.Primitives.HttpClientPipelineTransport(httpClient)
+        };
+        return new AzureOpenAIClient(new Uri(azureEndpoint), new DefaultAzureCredential(), options);
     });
 }
 

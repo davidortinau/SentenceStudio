@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
+using Azure.AI.OpenAI;
+using Azure.Identity;
 using OpenAI;
 using SentenceStudio;
 using SentenceStudio.Abstractions;
@@ -141,18 +143,25 @@ if (string.IsNullOrWhiteSpace(openAiApiKey))
 // Polly retry/circuit-breaker via ConfigureHttpClientDefaults.
 builder.Services.AddResilientOpenAIHttpClient();
 
-var chatModel = builder.Configuration["AI:OpenAI:ChatModel"] ?? "gpt-4o-mini";
+// openAiApiKey is retained only for the OpenAI audio (TTS) fallback path; chat → Foundry
+// uses keyless Entra auth (DefaultAzureCredential) below.
 builder.Configuration["Settings:OpenAIKey"] = openAiApiKey;
-builder.Services
-    .AddChatClient(sp =>
+
+var aiEndpoint = builder.Configuration["AI:OpenAI:Endpoint"];
+if (!string.IsNullOrWhiteSpace(aiEndpoint))
+{
+    // Default (fast) + keyed fast/reasoning chat clients via AzureOpenAIClient + Entra.
+    var azureEndpoint = AiClientRegistration.AzureResourceEndpoint(builder.Configuration);
+    builder.Services.AddTieredChatClients(builder.Configuration, sp =>
     {
         var httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient("openai");
-        var transport = new System.ClientModel.Primitives.HttpClientPipelineTransport(httpClient);
-        var clientOptions = new OpenAIClientOptions { Transport = transport };
-        return (IChatClient)new OpenAIClient(new System.ClientModel.ApiKeyCredential(openAiApiKey), clientOptions)
-            .GetChatClient(chatModel).AsIChatClient();
-    })
-    .UseLogging();
+        var options = new AzureOpenAIClientOptions
+        {
+            Transport = new System.ClientModel.Primitives.HttpClientPipelineTransport(httpClient)
+        };
+        return new AzureOpenAIClient(new Uri(azureEndpoint), new DefaultAzureCredential(), options);
+    });
+}
 
 var elevenLabsKey = builder.Configuration["Settings:ElevenLabsKey"];
 if (string.IsNullOrWhiteSpace(elevenLabsKey))

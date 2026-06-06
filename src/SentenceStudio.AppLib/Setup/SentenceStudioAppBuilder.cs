@@ -11,6 +11,7 @@ using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using SentenceStudio.Abstractions;
+using SentenceStudio.Services;
 
 namespace SentenceStudio;
 
@@ -49,17 +50,9 @@ public static class SentenceStudioAppBuilder
                 options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(300);
             });
 
-        var chatModel = builder.Configuration["AI:OpenAI:ChatModel"] ?? "gpt-4o-mini";
-        builder.Services
-            .AddChatClient(sp =>
-            {
-                var httpClient = sp.GetRequiredService<System.Net.Http.IHttpClientFactory>().CreateClient("openai");
-                var transport = new System.ClientModel.Primitives.HttpClientPipelineTransport(httpClient);
-                var clientOptions = new OpenAIClientOptions { Transport = transport };
-                return (IChatClient)new OpenAIClient(new System.ClientModel.ApiKeyCredential(openAiApiKey), clientOptions)
-                    .GetChatClient(chatModel).AsIChatClient();
-            })
-            .UseLogging();
+        // Default (fast) + keyed fast/reasoning chat clients, all pointed at the configured
+        // (Foundry) endpoint. See AiClientRegistration / AiTier.
+        builder.Services.AddTieredChatClients(builder.Configuration, openAiApiKey);
 
         var elevenLabsKey = (DeviceInfo.Idiom == DeviceIdiom.Desktop)
             ? Environment.GetEnvironmentVariable("ElevenLabsKey")!

@@ -1,6 +1,7 @@
 using Microsoft.Agents.AI;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Abstractions;
 using SentenceStudio.Data;
@@ -63,10 +64,12 @@ public class ConversationAgentService : IConversationAgentService
             name: "ConversationPartner",
             tools: [_vocabularyTool.CreateFunction()]);
 
-        // Create grading agent (no vocabulary tool - just evaluates)
+        // Create grading agent (no vocabulary tool - just evaluates). Grading is a reasoning
+        // task, so run it on the reasoning tier; fall back to the default client if unkeyed.
         var gradingPrompt = await GetGradingAgentPromptAsync();
-        
-        _gradingAgent = _chatClient.AsAIAgent(
+        var gradingChatClient = _serviceProvider.GetKeyedService<IChatClient>(AiTier.Reasoning.ToKey()) ?? _chatClient;
+
+        _gradingAgent = gradingChatClient.AsAIAgent(
             instructions: gradingPrompt,
             name: "GradingAgent");
 

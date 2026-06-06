@@ -86,7 +86,7 @@ public class DiaryService
                 });
             }
 
-            return await _aiService.SendPrompt<DiaryFeedbackResponse>(prompt);
+            return await _aiService.SendPrompt<DiaryFeedbackResponse>(prompt, AiTier.Reasoning);
         }
         catch (Exception ex)
         {

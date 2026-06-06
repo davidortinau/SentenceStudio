@@ -13,6 +13,14 @@ var elevenlabskey = builder.AddParameter("elevenlabskey", secret: true);
 var jwtkey = builder.AddParameter("jwtkey", secret: true);
 var githubpat = builder.AddParameter("githubpat", secret: true);
 
+// Azure AI Foundry (daortin-sstudio) — non-secret config for the server hosts, which
+// authenticate to Foundry keyless via Entra (DefaultAzureCredential / managed identity).
+// Injected as env vars so deployed containers get correct config regardless of the
+// (git-ignored) appsettings.json baked into the image.
+const string aiEndpoint = "https://daortin-sstudio.openai.azure.com/openai/v1";
+const string aiFastModel = "gpt-5-mini";
+const string aiReasoningModel = "gpt-5";
+
 // Managed Azure PostgreSQL Flexible Server in production;
 // local Docker container for dev (RunAsContainer).
 var dbUser = builder.AddParameter("dbUser");
@@ -37,6 +45,9 @@ var storage = builder.AddAzureStorage("storage")
 
 var api = builder.AddProject<SentenceStudio_Api>("api")
     .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
+    .WithEnvironment("AI__OpenAI__Endpoint", aiEndpoint)
+    .WithEnvironment("AI__OpenAI__Models__Fast", aiFastModel)
+    .WithEnvironment("AI__OpenAI__Models__Reasoning", aiReasoningModel)
     .WithEnvironment("ElevenLabsKey", elevenlabskey)
     .WithEnvironment("Jwt__SigningKey", jwtkey)
     .WithEnvironment("GitHub__Pat", githubpat)
@@ -52,6 +63,9 @@ var api = builder.AddProject<SentenceStudio_Api>("api")
     //   .WithEnvironment("Email__Password", "<smtp-password>")   // user-secrets
 
 var webapp = builder.AddProject<SentenceStudio_WebApp>("webapp")
+    .WithEnvironment("AI__OpenAI__Endpoint", aiEndpoint)
+    .WithEnvironment("AI__OpenAI__Models__Fast", aiFastModel)
+    .WithEnvironment("AI__OpenAI__Models__Reasoning", aiReasoningModel)
     .WithEnvironment("ElevenLabsKey", elevenlabskey)
     .WithEnvironment("Jwt__SigningKey", jwtkey)
     .WithReference(api)
@@ -65,6 +79,9 @@ builder.AddProject<SentenceStudio_Marketing>("marketing")
 
 builder.AddProject<SentenceStudio_Workers>("workers")
     .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
+    .WithEnvironment("AI__OpenAI__Endpoint", aiEndpoint)
+    .WithEnvironment("AI__OpenAI__Models__Fast", aiFastModel)
+    .WithEnvironment("AI__OpenAI__Models__Reasoning", aiReasoningModel)
     .WithEnvironment("ElevenLabsKey", elevenlabskey)
     .WithReference(api)
     .WithReference(postgres)

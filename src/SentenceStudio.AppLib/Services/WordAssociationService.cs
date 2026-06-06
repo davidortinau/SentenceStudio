@@ -94,7 +94,7 @@ public class WordAssociationService
 
             _logger.LogDebug("Grading {ClueCount} clues for word '{Word}'", clues.Count, vocabWord.TargetLanguageTerm);
 
-            var response = await _aiService.SendPrompt<WordAssociationGradeResponse>(prompt);
+            var response = await _aiService.SendPrompt<WordAssociationGradeResponse>(prompt, AiTier.Reasoning);
             return response ?? new WordAssociationGradeResponse();
         }
         catch (Exception ex)

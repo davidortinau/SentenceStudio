@@ -17,6 +17,8 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.AI;
 using Microsoft.IdentityModel.Tokens;
+using Azure.AI.OpenAI;
+using Azure.Identity;
 using OpenAI;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
@@ -305,21 +307,26 @@ builder.Services.AddSingleton<VocabularyClassificationBackfillService>();
 builder.Services.AddSingleton<IVocabularyProgressService>(provider =>
     provider.GetRequiredService<VocabularyProgressService>());
 
-var openAiApiKey = builder.Configuration["AI:OpenAI:ApiKey"];
-if (!string.IsNullOrWhiteSpace(openAiApiKey))
+// Server → Foundry uses keyless Entra auth (DefaultAzureCredential): `az login` locally,
+// managed identity in Azure. No OpenAI API key required for chat.
+var aiEndpoint = builder.Configuration["AI:OpenAI:Endpoint"];
+if (!string.IsNullOrWhiteSpace(aiEndpoint))
 {
     // Resilient HttpClient for OpenAI — server defaults (AddServiceDefaults) provide
     // Polly retry/circuit-breaker via ConfigureHttpClientDefaults.
     builder.Services.AddResilientOpenAIHttpClient();
 
-    var chatModel = builder.Configuration["AI:OpenAI:ChatModel"] ?? "gpt-4o-mini";
-    builder.Services.AddSingleton<IChatClient>(sp =>
+    // Default (fast) + keyed fast/reasoning chat clients. AzureOpenAIClient derives from
+    // OpenAIClient, so the tiered registration is shared with the MAUI (key-based) path.
+    var azureEndpoint = AiClientRegistration.AzureResourceEndpoint(builder.Configuration);
+    builder.Services.AddTieredChatClients(builder.Configuration, sp =>
     {
         var httpClient = sp.GetRequiredService<IHttpClientFactory>().CreateClient("openai");
-        var transport = new System.ClientModel.Primitives.HttpClientPipelineTransport(httpClient);
-        var clientOptions = new OpenAIClientOptions { Transport = transport };
-        return new OpenAIClient(new System.ClientModel.ApiKeyCredential(openAiApiKey), clientOptions)
-            .GetChatClient(chatModel).AsIChatClient();
+        var options = new AzureOpenAIClientOptions
+        {
+            Transport = new System.ClientModel.Primitives.HttpClientPipelineTransport(httpClient)
+        };
+        return new AzureOpenAIClient(new Uri(azureEndpoint), new DefaultAzureCredential(), options);
     });
 }
 
@@ -526,8 +533,9 @@ app.MapGet("/api/v1/auth/bootstrap", (ClaimsPrincipal user, ITenantContext tenan
     }))
     .RequireAuthorization();
 
-app.MapPost("/api/v1/ai/chat", async (ChatRequest request, [FromServices] IChatClient? chatClient, CancellationToken cancellationToken) =>
+app.MapPost("/api/v1/ai/chat", async (ChatRequest request, [FromServices] IServiceProvider sp, CancellationToken cancellationToken) =>
     {
+        var chatClient = ResolveTieredChatClient(sp, request.Tier);
         if (chatClient == null)
         {
             return Results.Problem("OpenAI client is not configured.", statusCode: StatusCodes.Status503ServiceUnavailable);
@@ -1021,6 +1029,19 @@ static async Task<object?> GetTypedResponseFromMessagesAsync<T>(
         options,
         cancellationToken: cancellationToken);
     return response.Result;
+}
+
+// Resolves the tier-keyed IChatClient for an incoming gateway request, falling back to the
+// default (fast) client when the tier is unset/unknown or no keyed client is registered.
+static IChatClient? ResolveTieredChatClient(IServiceProvider sp, string? requestedTier)
+{
+    var tier = string.Equals(requestedTier, nameof(AiTier.Reasoning), StringComparison.OrdinalIgnoreCase)
+        ? AiTier.Reasoning
+        : AiTier.Fast;
+
+    return Microsoft.Extensions.DependencyInjection.ServiceProviderKeyedServiceExtensions
+            .GetKeyedService<IChatClient>(sp, tier.ToKey())
+        ?? (IChatClient?)sp.GetService(typeof(IChatClient));
 }
 
 static Type? ResolveResponseType(string? responseType)

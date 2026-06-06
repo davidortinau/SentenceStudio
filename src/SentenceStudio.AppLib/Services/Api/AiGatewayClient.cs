@@ -14,12 +14,13 @@ public sealed class AiGatewayClient(IAiApiClient aiApiClient, ILogger<AiGatewayC
     private readonly IAiApiClient _aiApiClient = aiApiClient;
     private readonly ILogger<AiGatewayClient> _logger = logger;
 
-    public async Task<T?> SendPromptAsync<T>(string prompt, CancellationToken cancellationToken = default)
+    public async Task<T?> SendPromptAsync<T>(string prompt, AiTier tier = AiTier.Fast, CancellationToken cancellationToken = default)
     {
         var request = new ChatRequest
         {
             Message = prompt,
-            ResponseType = typeof(T).AssemblyQualifiedName
+            ResponseType = typeof(T).AssemblyQualifiedName,
+            Tier = tier.ToString()
         };
 
         var response = await _aiApiClient.SendChatAsync(request, cancellationToken);

@@ -1,9 +1,7 @@
 using System.ClientModel;
-using System.ClientModel.Primitives;
-using OpenAI;
 using OpenAI.Audio;
 using OpenAI.Chat;
-using OpenAI.Images;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using CommunityToolkit.Mvvm.Messaging;
 using SentenceStudio.Abstractions;
@@ -15,7 +13,6 @@ public class AIClient
 {
     private readonly ChatClient _client;
     private readonly AudioClient _audio;
-    private readonly ImageClient _image;
     private readonly ILogger<AIClient>? _logger;
     private readonly IConnectivityService _connectivity;
 
@@ -23,23 +20,21 @@ public class AIClient
         System.Net.Http.HttpClient httpClient,
         string apiKey,
         IConnectivityService connectivity,
+        IConfiguration configuration,
         ILogger<AIClient>? logger = null,
         bool hd = false,
-        string chatModel = "gpt-4o",
-        string ttsModel = "tts-1",
-        string imageModel = "gpt-4o")
+        string chatModel = "gpt-5-mini",
+        string ttsModel = "tts-1")
     {
         _connectivity = connectivity;
         _logger = logger;
 
-        // Route all OpenAI SDK traffic through the provided HttpClient (Polly-backed)
-        var transport = new HttpClientPipelineTransport(httpClient);
-        var clientOptions = new OpenAIClientOptions { Transport = transport };
-        var openAiClient = new OpenAIClient(new ApiKeyCredential(apiKey), clientOptions);
+        // Route all OpenAI SDK traffic through the provided HttpClient (Polly-backed) and the
+        // configured (Foundry) endpoint.
+        var openAiClient = AiClientRegistration.CreateOpenAIClient(configuration, apiKey, httpClient);
 
         _client = openAiClient.GetChatClient(chatModel);
         _audio = openAiClient.GetAudioClient(ttsModel);
-        _image = openAiClient.GetImageClient(imageModel);
     }
 
     public async Task<Stream> TextToSpeechAsync(string text, string voice, float speed = 1.0f)

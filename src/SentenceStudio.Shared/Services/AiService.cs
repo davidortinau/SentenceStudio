@@ -1,16 +1,13 @@
 using Microsoft.Extensions.Configuration;
 using OpenAI.Audio;
 using Microsoft.Extensions.AI;
-using OpenAI.Images;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using System.Net.Http;
 using CommunityToolkit.Mvvm.Messaging;
 using SentenceStudio.Abstractions;
 using SentenceStudio.Messages;
 using SentenceStudio.Services.Api;
-using OpenAI;
-using System.ClientModel;
-using System.ClientModel.Primitives;
 
 namespace SentenceStudio.Services;
 
@@ -20,20 +17,21 @@ public class AiService : IAiService
     private readonly string _openAiApiKey;
     private readonly IChatClient _client;
     private readonly AudioClient _audio;
-    private readonly ImageClient _image;
     private readonly ILogger<AiService> _logger;
     private readonly IConnectivityService _connectivity;
     private readonly IAiGatewayClient? _aiGatewayClient;
     private readonly ISpeechGatewayClient? _speechGatewayClient;
     private readonly IHttpClientFactory _httpClientFactory;
+    private readonly IServiceProvider _serviceProvider;
+    private readonly IConfiguration _configuration;
     private readonly string _ttsModel;
-    private readonly string _imageModel;
     public AiService(
         IConfiguration configuration,
         IChatClient client,
         ILogger<AiService> logger,
         IConnectivityService connectivity,
         IHttpClientFactory httpClientFactory,
+        IServiceProvider serviceProvider,
         IAiGatewayClient? aiGatewayClient = null,
         ISpeechGatewayClient? speechGatewayClient = null)
     {
@@ -41,26 +39,34 @@ public class AiService : IAiService
         _logger = logger;
         _connectivity = connectivity;
         _httpClientFactory = httpClientFactory;
+        _serviceProvider = serviceProvider;
+        _configuration = configuration;
         _aiGatewayClient = aiGatewayClient;
         _speechGatewayClient = speechGatewayClient;
         _openAiApiKey = configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
 
-        var ttsModel = configuration["AI:OpenAI:TtsModel"] ?? "tts-1";
-        var imageModel = configuration["AI:OpenAI:ImageModel"] ?? "gpt-4o";
-        _ttsModel = ttsModel;
-        _imageModel = imageModel;
+        _ttsModel = configuration["AI:OpenAI:TtsModel"] ?? "tts-1";
 
-        // Route audio and image clients through Polly-backed HttpClient
+        // Route the audio client through the Polly-backed HttpClient and the configured
+        // (Foundry) endpoint, same as the tiered chat clients.
         var httpClient = _httpClientFactory.CreateClient("openai");
-        var transport = new HttpClientPipelineTransport(httpClient);
-        var clientOptions = new OpenAIClientOptions { Transport = transport };
-        var openAiClient = new OpenAIClient(new ApiKeyCredential(_openAiApiKey), clientOptions);
+        var openAiClient = AiClientRegistration.CreateOpenAIClient(configuration, _openAiApiKey, httpClient);
 
-        _audio = openAiClient.GetAudioClient(ttsModel);
-        _image = openAiClient.GetImageClient(imageModel);
+        _audio = openAiClient.GetAudioClient(_ttsModel);
     }
 
-    public async Task<T> SendPrompt<T>(string prompt)
+    /// <summary>Resolves the keyed IChatClient for the requested tier, falling back to the default client.</summary>
+    private IChatClient ResolveClient(AiTier tier)
+    {
+        var client = _serviceProvider.GetKeyedService<IChatClient>(tier.ToKey());
+        if (client == null)
+        {
+            return _client;
+        }
+        return client;
+    }
+
+    public async Task<T> SendPrompt<T>(string prompt, AiTier tier = AiTier.Fast)
     {
         if (!_connectivity.IsInternetAvailable)
         {
@@ -71,15 +77,21 @@ public class AiService : IAiService
 
         try
         {
+            var model = tier == AiTier.Reasoning
+                ? AiClientRegistration.ReasoningModel(_configuration)
+                : AiClientRegistration.FastModel(_configuration);
+
             if (_aiGatewayClient != null)
             {
-                var gatewayResult = await _aiGatewayClient.SendPromptAsync<T>(prompt);
+                _logger.LogDebug("Sending prompt to AI via gateway (tier: {Tier} → {Model})", tier, model);
+                var gatewayResult = await _aiGatewayClient.SendPromptAsync<T>(prompt, tier);
                 _logger.LogDebug("AI gateway response received: {HasResult}", gatewayResult != null);
                 return gatewayResult;
             }
 
-            _logger.LogDebug("Sending prompt to AI via direct client (length: {PromptLength} chars)", prompt?.Length ?? 0);
-            var response = await _client.GetResponseAsync<T>(prompt);
+            _logger.LogDebug("Sending prompt to AI via direct client (tier: {Tier} → {Model}, length: {PromptLength} chars)",
+                tier, model, prompt?.Length ?? 0);
+            var response = await ResolveClient(tier).GetResponseAsync<T>(prompt);
             var hasResult = response != null && response.Result != null;
             _logger.LogDebug("AI response received: {HasResult}", hasResult);
             return response.Result;
@@ -124,7 +136,8 @@ public class AiService : IAiService
                 message.Contents.Add(new DataContent(new Uri(imagePath), mediaType: "image/jpeg"));
             }
 
-            var response = await _client.GetResponseAsync<string>(new List<ChatMessage> { message });
+            // Vision/description grading is a reasoning task — run it on the reasoning tier.
+            var response = await ResolveClient(AiTier.Reasoning).GetResponseAsync<string>(new List<ChatMessage> { message });
 
             _logger.LogDebug("SendImage response received: {ResponseLength} chars", response.Result?.Length ?? 0);
             return response.Result;
@@ -158,7 +171,7 @@ public class AiService : IAiService
         var httpClient = _httpClientFactory.CreateClient("openai");
         var aiClient = new AIClient(
             httpClient, _openAiApiKey, _connectivity,
-            ttsModel: _ttsModel, imageModel: _imageModel);
+            configuration: _configuration, ttsModel: _ttsModel);
         return await aiClient.TextToSpeechAsync(text, voice, speed);
     }
 }

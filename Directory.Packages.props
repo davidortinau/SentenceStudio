@@ -4,16 +4,16 @@
   </PropertyGroup>
   <ItemGroup>
     <!-- Aspire Hosting -->
-    <PackageVersion Include="Aspire.Hosting.Azure.AppContainers" Version="13.5.0-preview.1.26302.3" />
-    <PackageVersion Include="Aspire.Hosting.Azure.PostgreSQL" Version="13.5.0-preview.1.26302.3" />
-    <PackageVersion Include="Aspire.Hosting.Azure.Storage" Version="13.5.0-preview.1.26302.3" />
-    <PackageVersion Include="Aspire.Hosting.Maui" Version="13.5.0-preview.1.26302.3" />
-    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.5.0-preview.1.26302.3" />
-    <PackageVersion Include="Aspire.Hosting.Redis" Version="13.5.0-preview.1.26302.3" />
+    <PackageVersion Include="Aspire.Hosting.Azure.AppContainers" Version="13.5.0-preview.1.26306.1" />
+    <PackageVersion Include="Aspire.Hosting.Azure.PostgreSQL" Version="13.5.0-preview.1.26306.1" />
+    <PackageVersion Include="Aspire.Hosting.Azure.Storage" Version="13.5.0-preview.1.26306.1" />
+    <PackageVersion Include="Aspire.Hosting.Maui" Version="13.5.0-preview.1.26306.1" />
+    <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.5.0-preview.1.26306.1" />
+    <PackageVersion Include="Aspire.Hosting.Redis" Version="13.5.0-preview.1.26306.1" />
 
     <!-- Aspire Client -->
-    <PackageVersion Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="13.5.0-preview.1.26302.3" />
-    <PackageVersion Include="Aspire.StackExchange.Redis.DistributedCaching" Version="13.5.0-preview.1.26302.3" />
+    <PackageVersion Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" Version="13.5.0-preview.1.26306.1" />
+    <PackageVersion Include="Aspire.StackExchange.Redis.DistributedCaching" Version="13.5.0-preview.1.26306.1" />
 
     <!-- ASP.NET Core / Identity -->
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.2" />
@@ -33,6 +33,8 @@
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
 
     <!-- AI / Agents -->
+    <PackageVersion Include="Azure.AI.OpenAI" Version="2.9.0-beta.1" />
+    <PackageVersion Include="Azure.Identity" Version="1.21.0" />
     <PackageVersion Include="Microsoft.Agents.AI" Version="1.0.0-preview.260121.1" />
     <PackageVersion Include="Microsoft.Agents.AI.OpenAI" Version="1.0.0-preview.260121.1" />
     <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="9.5.0" />

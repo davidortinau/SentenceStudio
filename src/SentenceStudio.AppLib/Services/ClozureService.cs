@@ -419,7 +419,7 @@ public class ClozureService
                 //Debug.WriteLine(prompt);
             }
 
-            var response = await _aiService.SendPrompt<GradeResponse>(prompt);
+            var response = await _aiService.SendPrompt<GradeResponse>(prompt, AiTier.Reasoning);
             return response;
         }
         catch (Exception ex)
@@ -468,7 +468,7 @@ public class ClozureService
                 //Debug.WriteLine(prompt);
             }
 
-            var response = await _aiService.SendPrompt<GradeResponse>(prompt);
+            var response = await _aiService.SendPrompt<GradeResponse>(prompt, AiTier.Reasoning);
             return response;
         }
         catch (Exception ex)
@@ -493,7 +493,7 @@ public class ClozureService
                 //Debug.WriteLine(prompt);
             }
 
-            var response = await _aiService.SendPrompt<GradeResponse>(prompt);
+            var response = await _aiService.SendPrompt<GradeResponse>(prompt, AiTier.Reasoning);
             return response;
         }
         catch (Exception ex)
