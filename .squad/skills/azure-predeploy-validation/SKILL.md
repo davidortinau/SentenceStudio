@@ -267,7 +267,7 @@ Test run output:
 PASS: All expected resource locks present
 
 --- Checking PostgreSQL Flexible Server ---
-PASS: Flexible Server 'db-3ovvqiybthkb6' is Ready
+PASS: Flexible Server 'db-rsn72awybem6s' is Ready
 
 --- Checking Container Apps Environment ---
 PASS: Container Apps Environment is provisioned

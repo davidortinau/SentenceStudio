@@ -545,7 +545,7 @@ See `docs/deploy-runbook.md` for full details. Quick reference:
 2. **Post-deploy validation:** `./scripts/post-deploy-validate.sh` — **MANDATORY**. Exit code 0 from `azd deploy` means the upload worked, not that the system works. This script runs 16 automated checks (infrastructure health, service availability, auth smoke test, revision health). Never skip this step.
 3. **iOS to DX24 (iPhone 15 Pro, device CF4F94E3-A1C9-5617-A089-9ABB0110A09F):**
    - Switch `global.json` to .NET 11 Preview 3 (`allowPrerelease: true`, sdk `11.0.100-preview.3.26209.122`)
-   - Build: `services__api__https__0=https://api.livelyforest-b32e7d63.centralus.azurecontainerapps.io dotnet build src/SentenceStudio.iOS/SentenceStudio.iOS.csproj -f net10.0-ios -c Release -p:RuntimeIdentifier=ios-arm64`
+   - Build: `services__api__https__0=https://api.agreeablesky-76d2f81f.westus3.azurecontainerapps.io dotnet build src/SentenceStudio.iOS/SentenceStudio.iOS.csproj -f net11.0-ios -c Release -p:RuntimeIdentifier=ios-arm64`
    - Install: `xcrun devicectl device install app --device CF4F94E3-A1C9-5617-A089-9ABB0110A09F src/SentenceStudio.iOS/bin/Release/net10.0-ios/ios-arm64/SentenceStudio.iOS.app`
    - Launch: `xcrun devicectl device process launch --device CF4F94E3-A1C9-5617-A089-9ABB0110A09F com.simplyprofound.sentencestudio`
    - Restore `global.json` after

@@ -10,7 +10,7 @@
 
 1. The AGENTS.md in the Flutter repo explicitly forbids modifying `~/work/SentenceStudio` from there.
 2. The Azure Container App deploy story for the backend lives in this repo (`docs/deploy-runbook.md`, `azure.yaml`) and isn't owned by the Flutter port.
-3. The endpoint must be live in the Azure Container App at `api.livelyforest-b32e7d63.centralus.azurecontainerapps.io` before the Flutter release build on DX24 can verify it.
+3. The endpoint must be live in the Azure Container App at `api.agreeablesky-76d2f81f.westus3.azurecontainerapps.io` before the Flutter release build on DX24 can verify it.
 
 ---
 
@@ -179,7 +179,7 @@ Add to `tests/` following the existing API test conventions (whatever pattern `S
 
 Per `docs/deploy-runbook.md`, after the endpoint lands in main and deploys to Azure Container Apps:
 
-1. Hit `GET https://api.livelyforest-b32e7d63.centralus.azurecontainerapps.io/api/v1/conversation/scenarios` with a valid bearer token — expect 200 + non-empty list.
+1. Hit `GET https://api.agreeablesky-76d2f81f.westus3.azurecontainerapps.io/api/v1/conversation/scenarios` with a valid bearer token — expect 200 + non-empty list.
 2. Notify the Flutter team (or the `davidortinau/dx24-release-deploy` session) that the endpoint is live, so they can:
    - Remove the `LD-15 API_USE_FIXTURES` escape hatch comment in `lib/features/activities/conversation/data/conversation_repository.dart:13`.
    - Rebuild the DX24 release and verify end-to-end against production.

@@ -10,6 +10,43 @@
 
 ---
 
+## Current Production Stack (as of 2026-06-07)
+
+Production was migrated to the **business tenant** so the server hosts can authenticate
+keyless to Azure AI Foundry (the Foundry resource has local-auth disabled by policy, and
+managed identities cannot authenticate cross-tenant). The old personal-tenant stack
+(`rg-sstudio-prod`, centralus, `livelyforest-b32e7d63`) is retained as a rollback path
+pending decommission — do **not** target it.
+
+| Thing | Value |
+|---|---|
+| Subscription (business) | `66f9fa8f-604f-4688-bec1-16ff9a86a8e5` |
+| Resource group | `rg-sstudio-prod-biz` |
+| azd environment | `sstudio-prod-biz` |
+| Region | `westus3` |
+| ACA environment | `cae-rsn72awybem6s` (domain `agreeablesky-76d2f81f.westus3.azurecontainerapps.io`) |
+| Container Registry | `acrrsn72awybem6s` |
+| PostgreSQL Flexible Server | `db-rsn72awybem6s` (db `sentencestudio`) |
+| Key Vault | `dbkv-rsn72awybem6s` |
+| Log Analytics | `law-rsn72awybem6s` |
+| App Insights | `appi-sstudio-biz` |
+| Managed identity (UAMI) | `mi-rsn72awybem6s` |
+| Storage | `storagersn72awybem6s` (blob container `media`) |
+| **API** | `https://api.agreeablesky-76d2f81f.westus3.azurecontainerapps.io` |
+| **WebApp** | `https://webapp.agreeablesky-76d2f81f.westus3.azurecontainerapps.io` |
+| **Marketing** | `https://marketing.agreeablesky-76d2f81f.westus3.azurecontainerapps.io` |
+| Aspire dashboard | `https://aspire-dashboard.ext.agreeablesky-76d2f81f.westus3.azurecontainerapps.io` |
+
+**AI / Azure AI Foundry:** server hosts call Foundry resource **`daortin-sstudio-eus2`**
+(eastus2, rg `rg-daortin-4819`, same business sub). Endpoint
+`https://daortin-sstudio-eus2.openai.azure.com/openai/v1` is injected as the
+`AI__OpenAI__Endpoint` env var by `AppHost.cs`. Auth is **keyless via Entra** — the prod
+UAMI `mi-rsn72awybem6s` holds the **Cognitive Services OpenAI User** role on that account.
+This one account carries chat (`gpt-5-mini` fast / `gpt-5` reasoning) plus realtime +
+transcribe model availability. See memory `ai-foundry-model-tiers`.
+
+---
+
 ## MANDATORY Pre-Deploy Safety Checklist
 
 **Every step below MUST pass before ANY production deploy command is executed.**  
@@ -31,14 +68,14 @@ For infrastructure changes (like provisioning the Flexible Server), use `azd pro
 # pg_dump via the Flexible Server's public endpoint
 # (requires psql client and network access — use az postgres flexible-server connect)
 az postgres flexible-server execute \
-  --name <flexible-server-name> --resource-group rg-sstudio-prod \
+  --name db-rsn72awybem6s --resource-group rg-sstudio-prod-biz \
   --admin-user <admin> --admin-password <password> \
   --database-name sentencestudio \
   --querytext "SELECT count(*) FROM \"Users\";"
 
 # Full backup: use az postgres flexible-server backup (built-in, daily, 35-day retention)
 az postgres flexible-server backup list \
-  --resource-group rg-sstudio-prod --server-name <flexible-server-name>
+  --resource-group rg-sstudio-prod-biz --server-name db-rsn72awybem6s
 ```
 
 **Pass condition:** Backup list is non-empty, or you've verified the built-in backup schedule is active.
@@ -48,7 +85,7 @@ az postgres flexible-server backup list \
 
 ```bash
 az postgres flexible-server show \
-  --name <flexible-server-name> --resource-group rg-sstudio-prod \
+  --name db-rsn72awybem6s --resource-group rg-sstudio-prod-biz \
   --query "{name:name, state:state, version:version, sku:sku.name}" -o json
 ```
 
@@ -57,7 +94,7 @@ az postgres flexible-server show \
 ### Step 3: Verify resource locks exist
 
 ```bash
-az lock list --resource-group rg-sstudio-prod --output table
+az lock list --resource-group rg-sstudio-prod-biz --output table
 ```
 
 **Pass condition:** Output shows a lock on the Flexible Server resource (CanNotDelete).
@@ -66,8 +103,8 @@ az lock list --resource-group rg-sstudio-prod --output table
 
 ```bash
 az lock create --name do-not-delete-postgres \
-  --resource-group rg-sstudio-prod \
-  --resource <flexible-server-name> \
+  --resource-group rg-sstudio-prod-biz \
+  --resource db-rsn72awybem6s \
   --resource-type Microsoft.DBforPostgreSQL/flexibleServers \
   --lock-type CanNotDelete \
   --notes "Protect production managed PostgreSQL from accidental deletion"
@@ -143,7 +180,7 @@ See `docs/specs/post-deploy-validation.md` Phase 3 for common validation pattern
 **DB connectivity:**
 ```bash
 az postgres flexible-server execute \
-  --name <flexible-server-name> --resource-group rg-sstudio-prod \
+  --name db-rsn72awybem6s --resource-group rg-sstudio-prod-biz \
   --admin-user <admin> --admin-password <password> \
   --database-name sentencestudio \
   --querytext "SELECT count(*) FROM \"Users\";"
@@ -152,7 +189,7 @@ az postgres flexible-server execute \
 **API endpoint check:**
 ```bash
 curl -s -o /dev/null -w "%{http_code}" \
-  -X POST https://api.livelyforest-b32e7d63.centralus.azurecontainerapps.io/api/auth/login \
+  -X POST https://api.agreeablesky-76d2f81f.westus3.azurecontainerapps.io/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"x","password":"x"}'
 # Expected: 400 or 401 (API is alive, DB reachable)
@@ -161,7 +198,15 @@ curl -s -o /dev/null -w "%{http_code}" \
 
 **EF Core migrations:**
 ```bash
-az containerapp logs show --name api --resource-group rg-sstudio-prod --tail 50 | grep -i migrat
+az containerapp logs show --name api --resource-group rg-sstudio-prod-biz --tail 50 | grep -i migrat
+```
+
+**AI / Foundry keyless auth (confirm chat calls succeed, no 401s):**
+```bash
+az containerapp logs show --name api --resource-group rg-sstudio-prod-biz --tail 50 \
+  | grep -iE "daortin-sstudio-eus2|chat/completions|401|unauthor"
+# Good: POST https://daortin-sstudio-eus2.openai.azure.com/openai/deployments/gpt-5-mini/...
+# Bad:  401 / Unauthorized (UAMI missing the Cognitive Services OpenAI User role)
 ```
 
 ---
@@ -179,7 +224,7 @@ When the Captain says **"publish"**, **"deploy"**, or **"push to my phone"**, ex
 ```bash
 # Ensure VPN is OFF (management.azure.com times out on VPN)
 cd /Users/davidortinau/work/SentenceStudio
-azd deploy
+azd deploy -e sstudio-prod-biz
 ```
 
 ### Option B: `aspire deploy` (Preview)
@@ -190,7 +235,7 @@ cd /Users/davidortinau/work/SentenceStudio
 aspire deploy -e production
 ```
 
-**How it works:** The AppHost declares `AddAzureContainerAppEnvironment("aca-env").WithAzdResourceNaming()` which makes `aspire deploy` target the same resources in `rg-sstudio-prod` that `azd` created. Deployment state is stored in `~/.aspire/deployments/`.
+**How it works:** The AppHost declares `AddAzureContainerAppEnvironment("aca-env").WithAzdResourceNaming()` which makes `aspire deploy` target the same resources in `rg-sstudio-prod-biz` that `azd` created. Deployment state is stored in `~/.aspire/deployments/`.
 
 **Useful flags:**
 - `aspire deploy --log-level debug` — verbose output for troubleshooting
@@ -199,9 +244,9 @@ aspire deploy -e production
 
 **Note:** `aspire deploy` is Preview (CLI 13.3.0-preview.1). If it fails, fall back to `azd deploy`.
 
-**Expected output:** All services succeed (api, webapp, cache, db, marketing, workers).  
-**Webapp URL:** `https://webapp.livelyforest-b32e7d63.centralus.azurecontainerapps.io/`  
-**API URL:** `https://api.livelyforest-b32e7d63.centralus.azurecontainerapps.io/`
+**Expected output:** All services succeed (api, webapp, cache, marketing, workers).  
+**Webapp URL:** `https://webapp.agreeablesky-76d2f81f.westus3.azurecontainerapps.io/`  
+**API URL:** `https://api.agreeablesky-76d2f81f.westus3.azurecontainerapps.io/`
 
 ---
 
@@ -215,7 +260,7 @@ DX24 is Captain's iPhone 15 Pro. Device ID: `CF4F94E3-A1C9-5617-A089-9ABB0110A09
 > swap is required. Captain's local `global.json` already pins to a `net11.0`
 > preview SDK (currently preview 4, `11.0.100-preview.4.26230.115`) with
 > `rollForward: latestPatch` and `allowPrerelease: true`. The net11 preview 4 MAUI
-> workload ships iOS SDK packs that support Xcode 26.3.
+> workload ships iOS SDK packs that support Xcode 26.3+.
 >
 > If a build errors with `This version of .NET for iOS (26.2.xxxx) requires Xcode 26.2`,
 > look at the pack version in the error:
@@ -231,10 +276,15 @@ DX24 is Captain's iPhone 15 Pro. Device ID: `CF4F94E3-A1C9-5617-A089-9ABB0110A09
 ### 2b. Build Release with Azure API URL
 
 ```bash
-services__api__https__0=https://api.livelyforest-b32e7d63.centralus.azurecontainerapps.io \
+services__api__https__0=https://api.agreeablesky-76d2f81f.westus3.azurecontainerapps.io \
   dotnet build src/SentenceStudio.iOS/SentenceStudio.iOS.csproj \
   -f net11.0-ios -c Release -p:RuntimeIdentifier=ios-arm64
 ```
+
+> The committed `src/SentenceStudio.AppLib/appsettings.Production.json` already points
+> `Services:api`/`Services:web` at the westus3 URLs, so Release device builds resolve the
+> correct API even without the env var. Passing `services__api__https__0` at build time is
+> belt-and-suspenders and matches the historical procedure — keep it.
 
 ### 2c. Install and launch on DX24
 
@@ -280,24 +330,33 @@ dotnet build src/SentenceStudio.iOS/SentenceStudio.iOS.csproj \
 | Problem | Fix |
 |---------|-----|
 | `azd deploy` times out | Turn off VPN, retry |
-| `azd provision` fails on Flexible Server | Check subscription quota for PostgreSQL Flexible Servers in the region |
-| `aspire deploy` creates wrong RG | Check `~/.aspire/deployments/.../production.json` has `rg-sstudio-prod` |
+| `azd deploy` targets wrong stack | Pass `-e sstudio-prod-biz` (the new business-tenant env); confirm `azd env list` shows it as DEFAULT |
+| `azd provision` fails on Flexible Server | Check subscription quota AND offer restrictions (`LocationIsOfferRestricted`) for PostgreSQL Flexible Servers in the region — westus3 is the known-open region for this sub |
+| `aspire deploy` creates wrong RG | Check `~/.aspire/deployments/.../production.json` has `rg-sstudio-prod-biz` |
 | `aspire deploy` principal error | Ensure AppHost has `AddAzureContainerAppEnvironment` |
 | `aspire deploy` stale state | Run `aspire deploy --clear-cache` to reset |
+| AI calls 401 / Unauthorized | UAMI `mi-rsn72awybem6s` missing **Cognitive Services OpenAI User** on `daortin-sstudio-eus2`; or role assignment hasn't propagated yet (wait 5–10 min) |
 | Xcode version mismatch (26.2 vs 26.3) | Verify `dotnet --version` reports a `11.0.100-preview.*` SDK from this directory and that the pack version in the error is `26.2.11*-net11-pN`, NOT `26.2.10*` |
 | Build keeps picking net10 iOS pack | Confirm iOS csproj `<TargetFramework>` is `net11.0-ios`; confirm `dotnet --version` reports `11.0.100-preview.*`; delete `obj/` under `src/SentenceStudio.iOS/` and rebuild |
 | `devicectl` install fails with `Socket is not connected` | Transient — retry once after a few seconds. Check `xcrun devicectl list devices` shows DX24 `available (paired)` |
 | Device locked error on install | Unlock DX24, retry |
 | LOCAL ribbon on phone | Built with Debug config — rebuild with Release + env var (step 2b) |
-| Phone app can't reach API | Missing `services__api__https__0` env var at build time |
+| Phone app can't reach API | Missing `services__api__https__0` env var at build time, or stale `appsettings.Production.json` URL |
 | EF Core can't connect to Flexible Server | Check firewall rules allow ACA subnet; verify connection string in Aspire dashboard |
 | Mixed azd + aspire deploy | **NEVER do this.** See "NEVER mix deploy tools" warning above. |
 
 ---
 
-## Legacy: Containerized Postgres (deprecated)
+## Legacy: old personal-tenant stack (pending decommission)
 
-> The old `db` container app and Azure File share (`vol3ovvqiybthkb6`) may still exist in
-> `rg-sstudio-prod` with CanNotDelete locks. They are no longer referenced by the AppHost.
-> Leave them in place until you're confident the managed Flexible Server is stable, then
-> remove the locks and delete them to avoid ongoing storage costs.
+> The original production stack lives in `rg-sstudio-prod` (personal tenant, centralus,
+> ACA domain `livelyforest-b32e7d63`, resource token `3ovvqiybthkb6`). It is **retained as a
+> rollback path** after the 2026-06 migration to `rg-sstudio-prod-biz` and is no longer the
+> deploy target. When confident in the new stack, decommission it: take a final `pg_dump`,
+> remove `CanNotDelete` locks, delete the RG. Also remove the temporary migration grants
+> (firewall rule `migrate-client` on both old and new Postgres servers; Key Vault Secrets
+> User grant on the old `dbkv-3ovvqiybthkb6`).
+>
+> Separately, the old containerized `db` app + Azure File share (`vol3ovvqiybthkb6`) from
+> before the Flexible Server migration may still exist there with `CanNotDelete` locks;
+> they go away when that RG is deleted.

@@ -38,7 +38,7 @@ Verify all container app revisions are **Running** (not Activating, not Activati
 ```bash
 for APP in api webapp marketing workers; do
   REVISION_STATE=$(az containerapp revision list \
-    --name "$APP" --resource-group rg-sstudio-prod \
+    --name "$APP" --resource-group rg-sstudio-prod-biz \
     --query "[?properties.trafficWeight > \`0\`].{name:name, state:properties.runningState, weight:properties.trafficWeight, created:properties.createdTime}" \
     -o json 2>/dev/null)
   echo "=== $APP ==="
@@ -56,10 +56,10 @@ Verify the revision receiving traffic (trafficWeight=100) is the **most recently
 ```bash
 for APP in api webapp; do
   LATEST=$(az containerapp revision list \
-    --name "$APP" --resource-group rg-sstudio-prod \
+    --name "$APP" --resource-group rg-sstudio-prod-biz \
     --query "sort_by(@, &properties.createdTime)[-1].name" -o tsv)
   ACTIVE=$(az containerapp revision list \
-    --name "$APP" --resource-group rg-sstudio-prod \
+    --name "$APP" --resource-group rg-sstudio-prod-biz \
     --query "[?properties.trafficWeight > \`0\`].name | [0]" -o tsv)
   if [ "$LATEST" = "$ACTIVE" ]; then
     echo "PASS: $APP active revision is latest ($ACTIVE)"
@@ -77,7 +77,7 @@ Check the last 60 seconds of API container logs for crash indicators.
 
 ```bash
 az containerapp logs show \
-  --name api --resource-group rg-sstudio-prod \
+  --name api --resource-group rg-sstudio-prod-biz \
   --tail 100 --type system 2>/dev/null | grep -iE "backoff|crash|oom|killed|exit code [^0]|unhealthy"
 ```
 
@@ -91,7 +91,7 @@ Verify the API can actually reach the Postgres Flexible Server.
 ```bash
 # Option A: Direct DB query (requires admin creds)
 az postgres flexible-server execute \
-  --name <flexible-server-name> --resource-group rg-sstudio-prod \
+  --name <flexible-server-name> --resource-group rg-sstudio-prod-biz \
   --admin-user <admin> --admin-password <password> \
   --database-name sentencestudio \
   --querytext "SELECT 1 AS alive;"
@@ -100,7 +100,7 @@ az postgres flexible-server execute \
 # The /api/auth/login endpoint talks to the DB. A 400/401 response means the DB is reachable.
 # A 500/503 means DB connection failed.
 HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
-  -X POST https://api.livelyforest-b32e7d63.centralus.azurecontainerapps.io/api/auth/login \
+  -X POST https://api.agreeablesky-76d2f81f.westus3.azurecontainerapps.io/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"healthcheck@test.invalid","password":"x"}')
 # 400 or 401 = DB reachable (auth failed correctly). 500/502/503 = DB unreachable.
@@ -115,9 +115,9 @@ Verify all public endpoints return expected status codes.
 
 | Endpoint | Method | Expected | Meaning |
 |----------|--------|----------|---------|
-| `https://webapp.livelyforest-b32e7d63.centralus.azurecontainerapps.io/` | GET | 200 (with redirect to /auth/login) | WebApp is alive |
-| `https://api.livelyforest-b32e7d63.centralus.azurecontainerapps.io/api/auth/login` | POST (bad creds) | 400 or 401 | API is alive, DB reachable |
-| `https://api.livelyforest-b32e7d63.centralus.azurecontainerapps.io/api/v1/auth/bootstrap` | GET (no JWT) | 401 | Auth middleware working |
+| `https://webapp.agreeablesky-76d2f81f.westus3.azurecontainerapps.io/` | GET | 200 (with redirect to /auth/login) | WebApp is alive |
+| `https://api.agreeablesky-76d2f81f.westus3.azurecontainerapps.io/api/auth/login` | POST (bad creds) | 400 or 401 | API is alive, DB reachable |
+| `https://api.agreeablesky-76d2f81f.westus3.azurecontainerapps.io/api/v1/auth/bootstrap` | GET (no JWT) | 401 | Auth middleware working |
 | `https://www.sentencestudio.com` | GET | 200 | Marketing site alive |
 
 ```bash
@@ -143,7 +143,7 @@ Verify migrations applied successfully on startup.
 
 ```bash
 az containerapp logs show \
-  --name api --resource-group rg-sstudio-prod \
+  --name api --resource-group rg-sstudio-prod-biz \
   --tail 50 | grep -iE "applying migration|database is up to date|migrat"
 ```
 
@@ -160,7 +160,7 @@ az containerapp logs show \
 Use a dedicated test account. Do NOT use real user credentials in scripts.
 
 ```bash
-API_BASE="https://api.livelyforest-b32e7d63.centralus.azurecontainerapps.io"
+API_BASE="https://api.agreeablesky-76d2f81f.westus3.azurecontainerapps.io"
 
 # Try login with test account
 LOGIN_RESPONSE=$(curl -s -X POST "$API_BASE/api/auth/login" \
@@ -200,7 +200,7 @@ fi
 Verify the webapp loads a real page (not a blank page or error screen).
 
 ```bash
-WEBAPP_URL="https://webapp.livelyforest-b32e7d63.centralus.azurecontainerapps.io"
+WEBAPP_URL="https://webapp.agreeablesky-76d2f81f.westus3.azurecontainerapps.io"
 WEBAPP_BODY=$(curl -sL "$WEBAPP_URL" --max-time 15)
 
 # Check for key indicators that the Blazor app loaded
@@ -221,7 +221,7 @@ fi
 
 For deeper webapp validation when running from an AI agent context:
 
-1. Navigate to `https://webapp.livelyforest-b32e7d63.centralus.azurecontainerapps.io/`
+1. Navigate to `https://webapp.agreeablesky-76d2f81f.westus3.azurecontainerapps.io/`
 2. Verify redirect to `/auth/login`
 3. Verify login form is visible (email + password fields)
 4. Login with test credentials
@@ -268,7 +268,7 @@ DEPLOY CHANGELIST:
 
 ```bash
 # Verify the API's connection string points to Flexible Server, not the container
-az containerapp show --name api --resource-group rg-sstudio-prod \
+az containerapp show --name api --resource-group rg-sstudio-prod-biz \
   --query "properties.template.containers[0].env[?name=='ConnectionStrings__sentencestudio'].value" -o tsv \
   | grep -q "postgres.database.azure.com" && echo "PASS: Using managed Postgres" || echo "FAIL: Still using container DB"
 ```
@@ -292,7 +292,7 @@ curl -s -o /dev/null -w "%{http_code}" \
 ### 4.1 Core API Endpoints
 
 ```bash
-API_BASE="https://api.livelyforest-b32e7d63.centralus.azurecontainerapps.io"
+API_BASE="https://api.agreeablesky-76d2f81f.westus3.azurecontainerapps.io"
 
 # These should all return expected codes
 check_endpoint "$API_BASE/api/v1/auth/bootstrap" GET "401" "Bootstrap (auth guard)"
@@ -374,7 +374,7 @@ After running all checks, produce a summary:
 If validation fails:
 
 1. **Do NOT declare the deploy successful.**
-2. Check container logs: `az containerapp logs show --name api --resource-group rg-sstudio-prod --tail 200`
+2. Check container logs: `az containerapp logs show --name api --resource-group rg-sstudio-prod-biz --tail 200`
 3. Check if the old revision is still handling traffic (1.2 above).
 4. If the new revision is crash-looping, the ACA platform may auto-route traffic back to the old revision — this is why "login works" does NOT mean "deploy worked."
 5. Fix the issue, re-deploy, re-validate. The validation cycle is: deploy → wait 30s → validate → if fail → fix → deploy → wait 30s → validate.

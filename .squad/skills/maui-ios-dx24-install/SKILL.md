@@ -93,7 +93,7 @@ xcrun devicectl device process launch \
 ### Environment
 
 ```bash
-services__api__https__0=https://api.livelyforest-b32e7d63.centralus.azurecontainerapps.io \
+services__api__https__0=https://api.agreeablesky-76d2f81f.westus3.azurecontainerapps.io \
   dotnet build ...
 ```
 

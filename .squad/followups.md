@@ -102,7 +102,12 @@ Earlier framing (below) treated this as "net11p3 broken on main, runbook activel
 
 ### Verified path forward
 
-**Canonical iOS Release recipe** (no SDK swap needed):
+> **Superseded (2026-06):** the repo now targets **`net11.0-ios`** directly (no
+> `ValidateXcodeVersion=false` needed), and prod moved to westus3. The recipe below is
+> kept for historical context — see `docs/deploy-runbook.md` §2 for the current,
+> verified iOS Release recipe and API URL.
+
+**Canonical iOS Release recipe** (net10-era, historical):
 
 ```bash
 services__api__https__0=https://api.livelyforest-b32e7d63.centralus.azurecontainerapps.io \
