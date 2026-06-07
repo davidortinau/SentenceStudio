@@ -13,11 +13,13 @@ var elevenlabskey = builder.AddParameter("elevenlabskey", secret: true);
 var jwtkey = builder.AddParameter("jwtkey", secret: true);
 var githubpat = builder.AddParameter("githubpat", secret: true);
 
-// Azure AI Foundry (daortin-sstudio) — non-secret config for the server hosts, which
+// Azure AI Foundry (daortin-sstudio-eus2) — non-secret config for the server hosts, which
 // authenticate to Foundry keyless via Entra (DefaultAzureCredential / managed identity).
 // Injected as env vars so deployed containers get correct config regardless of the
 // (git-ignored) appsettings.json baked into the image.
-const string aiEndpoint = "https://daortin-sstudio.openai.azure.com/openai/v1";
+// eus2 account carries chat (gpt-5/gpt-5-mini) + realtime + transcribe in one resource;
+// AzureResourceEndpoint() strips the /openai/v1 suffix to the bare resource root for AzureOpenAIClient.
+const string aiEndpoint = "https://daortin-sstudio-eus2.openai.azure.com/openai/v1";
 const string aiFastModel = "gpt-5-mini";
 const string aiReasoningModel = "gpt-5";
 
