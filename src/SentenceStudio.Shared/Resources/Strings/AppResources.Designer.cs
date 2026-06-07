@@ -11748,6 +11748,123 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Add Tags.
+        /// </summary>
+        internal static string Vocabulary_BulkActionAddTags {
+            get {
+                return ResourceManager.GetString("Vocabulary_BulkActionAddTags", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Delete.
+        /// </summary>
+        internal static string Vocabulary_BulkActionDelete {
+            get {
+                return ResourceManager.GetString("Vocabulary_BulkActionDelete", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Set Language.
+        /// </summary>
+        internal static string Vocabulary_BulkActionSetLanguage {
+            get {
+                return ResourceManager.GetString("Vocabulary_BulkActionSetLanguage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Set Status.
+        /// </summary>
+        internal static string Vocabulary_BulkActionSetStatus {
+            get {
+                return ResourceManager.GetString("Vocabulary_BulkActionSetStatus", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Tags (comma-separated).
+        /// </summary>
+        internal static string Vocabulary_BulkAddTagsPlaceholder {
+            get {
+                return ResourceManager.GetString("Vocabulary_BulkAddTagsPlaceholder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Apply.
+        /// </summary>
+        internal static string Vocabulary_BulkApply {
+            get {
+                return ResourceManager.GetString("Vocabulary_BulkApply", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Delete Selected.
+        /// </summary>
+        internal static string Vocabulary_BulkApplyDelete {
+            get {
+                return ResourceManager.GetString("Vocabulary_BulkApplyDelete", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Delete {0} vocabulary word(s)? This will remove the words from all associated resources and cannot be undone..
+        /// </summary>
+        internal static string Vocabulary_BulkConfirmDeleteMessage {
+            get {
+                return ResourceManager.GetString("Vocabulary_BulkConfirmDeleteMessage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Confirm Bulk Delete.
+        /// </summary>
+        internal static string Vocabulary_BulkConfirmDeleteTitle {
+            get {
+                return ResourceManager.GetString("Vocabulary_BulkConfirmDeleteTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Bulk delete failed: {0}.
+        /// </summary>
+        internal static string Vocabulary_BulkDeleteFailed {
+            get {
+                return ResourceManager.GetString("Vocabulary_BulkDeleteFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Bulk delete failed. Please try again..
+        /// </summary>
+        internal static string Vocabulary_BulkDeleteFailedGeneric {
+            get {
+                return ResourceManager.GetString("Vocabulary_BulkDeleteFailedGeneric", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Deleted {0} word(s).
+        /// </summary>
+        internal static string Vocabulary_BulkDeleteSuccess {
+            get {
+                return ResourceManager.GetString("Vocabulary_BulkDeleteSuccess", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Bulk Edit.
+        /// </summary>
+        internal static string Vocabulary_BulkEdit {
+            get {
+                return ResourceManager.GetString("Vocabulary_BulkEdit", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Cancel.
         /// </summary>
         internal static string Vocabulary_BulkEditCancel {
@@ -11811,11 +11928,56 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Bulk language update failed: {0}.
+        /// </summary>
+        internal static string Vocabulary_BulkLanguageFailed {
+            get {
+                return ResourceManager.GetString("Vocabulary_BulkLanguageFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Set language for {0} word(s) to {1}.
+        /// </summary>
+        internal static string Vocabulary_BulkLanguageSuccess {
+            get {
+                return ResourceManager.GetString("Vocabulary_BulkLanguageSuccess", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to {0} selected.
         /// </summary>
         internal static string Vocabulary_BulkSelected {
             get {
                 return ResourceManager.GetString("Vocabulary_BulkSelected", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Choose language....
+        /// </summary>
+        internal static string Vocabulary_BulkSetLanguagePlaceholder {
+            get {
+                return ResourceManager.GetString("Vocabulary_BulkSetLanguagePlaceholder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Bulk tag update failed: {0}.
+        /// </summary>
+        internal static string Vocabulary_BulkTagsFailed {
+            get {
+                return ResourceManager.GetString("Vocabulary_BulkTagsFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Added tags to {0} word(s).
+        /// </summary>
+        internal static string Vocabulary_BulkTagsSuccess {
+            get {
+                return ResourceManager.GetString("Vocabulary_BulkTagsSuccess", resourceCulture);
             }
         }
         

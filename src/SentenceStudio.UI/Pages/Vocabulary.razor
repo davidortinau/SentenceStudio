@@ -30,7 +30,7 @@
         <li><button class="dropdown-item" @onclick="FixSwappedLanguages"><i class="bi bi-arrow-left-right me-2"></i>@Localize["Vocabulary_FixSwappedLanguages"]</button></li>
         <li><button class="dropdown-item" @onclick="AssignOrphanedWords"><i class="bi bi-box-arrow-in-right me-2"></i>@Localize["Vocabulary_AssignOrphanedWords"]</button></li>
         <li><hr class="dropdown-divider"></li>
-        <li><button class="dropdown-item" @onclick="EnterBulkEditMode"><i class="bi bi-check2-square me-2"></i>@Localize["Vocabulary_BulkEditStatus"]</button></li>
+        <li><button class="dropdown-item" @onclick="EnterBulkEditMode"><i class="bi bi-check2-square me-2"></i>@Localize["Vocabulary_BulkEdit"]</button></li>
     </SecondaryActions>
 </PageHeader>
 
@@ -64,19 +64,57 @@ else
     {
         <div class="d-flex flex-wrap gap-2 mb-3 align-items-center bg-body-tertiary rounded p-2 border">
             <span class="fw-semibold">@string.Format(Localize["Vocabulary_BulkSelected"], selectedWordIds.Count)</span>
-            <select class="form-select form-select-sm" style="max-width:160px;" @bind="bulkStatus">
-                <option value="">@Localize["Vocabulary_SetStatus"]</option>
-                <option value="Unknown">@Localize["VocabWordEdit_Unknown"]</option>
-                <option value="Learning">@Localize["VocabWordEdit_Learning"]</option>
-                <option value="Familiar">@Localize["VocabWordEdit_Familiar"]</option>
+
+            <select class="form-select form-select-sm" style="max-width:170px;" @bind="bulkAction">
+                <option value="status">@Localize["Vocabulary_BulkActionSetStatus"]</option>
+                <option value="language">@Localize["Vocabulary_BulkActionSetLanguage"]</option>
+                <option value="tags">@Localize["Vocabulary_BulkActionAddTags"]</option>
+                <option value="delete">@Localize["Vocabulary_BulkActionDelete"]</option>
             </select>
-            <button class="btn btn-sm btn-primary" disabled="@(selectedWordIds.Count == 0 || string.IsNullOrEmpty(bulkStatus) || isBulkSaving)" @onclick="SaveBulkStatus">
-                @if (isBulkSaving)
-                {
-                    <span class="spinner-border spinner-border-sm me-1"></span>
-                }
-                @Localize["Common_Save"]
-            </button>
+
+            @if (bulkAction == "status")
+            {
+                <select class="form-select form-select-sm" style="max-width:160px;" @bind="bulkStatus">
+                    <option value="">@Localize["Vocabulary_SetStatus"]</option>
+                    <option value="Unknown">@Localize["VocabWordEdit_Unknown"]</option>
+                    <option value="Learning">@Localize["VocabWordEdit_Learning"]</option>
+                    <option value="Familiar">@Localize["VocabWordEdit_Familiar"]</option>
+                </select>
+            }
+            else if (bulkAction == "language")
+            {
+                <select class="form-select form-select-sm" style="max-width:180px;" @bind="bulkLanguage">
+                    <option value="">@Localize["Vocabulary_BulkSetLanguagePlaceholder"]</option>
+                    @foreach (var lang in SentenceStudio.Common.Constants.Languages)
+                    {
+                        <option value="@lang">@lang</option>
+                    }
+                </select>
+            }
+            else if (bulkAction == "tags")
+            {
+                <input type="text" class="form-control form-control-sm" style="max-width:240px;"
+                       placeholder="@Localize["Vocabulary_BulkAddTagsPlaceholder"]"
+                       @bind="bulkTagsInput" />
+            }
+
+            @if (bulkAction == "delete")
+            {
+                <button class="btn btn-sm btn-danger" disabled="@(selectedWordIds.Count == 0 || isBulkSaving)" @onclick="RequestBulkDelete">
+                    <i class="bi bi-trash me-1"></i>@Localize["Vocabulary_BulkApplyDelete"]
+                </button>
+            }
+            else
+            {
+                <button class="btn btn-sm btn-primary" disabled="@(!CanApplyBulkAction() || isBulkSaving)" @onclick="ApplyBulkAction">
+                    @if (isBulkSaving)
+                    {
+                        <span class="spinner-border spinner-border-sm me-1"></span>
+                    }
+                    @Localize["Vocabulary_BulkApply"]
+                </button>
+            }
+
             <button class="btn btn-sm btn-outline-secondary" @onclick="ExitBulkEditMode" disabled="@isBulkSaving">@Localize["Common_Cancel"]</button>
             <div class="w-100 d-flex gap-2 d-md-inline-flex w-md-auto">
                 <button class="btn btn-sm btn-outline-secondary" @onclick="SelectAll">@Localize["Vocabulary_SelectAll"]</button>
@@ -572,6 +610,36 @@ else
 }
 </div>
 
+@if (showBulkDeleteConfirm)
+{
+    <div class="modal-backdrop fade show"></div>
+    <div class="modal fade show d-block" tabindex="-1" role="dialog">
+        <div class="modal-dialog modal-dialog-centered" role="document">
+            <div class="modal-content bg-surface">
+                <div class="modal-header border-0">
+                    <h5 class="modal-title text-error-ss">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i>@Localize["Vocabulary_BulkConfirmDeleteTitle"]
+                    </h5>
+                    <button type="button" class="btn-close" @onclick="CancelBulkDelete" disabled="@isBulkSaving"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="ss-body2">@string.Format(Localize["Vocabulary_BulkConfirmDeleteMessage"], selectedWordIds.Count)</p>
+                </div>
+                <div class="modal-footer border-0">
+                    <button type="button" class="btn btn-ss-secondary" @onclick="CancelBulkDelete" disabled="@isBulkSaving">@Localize["Common_Cancel"]</button>
+                    <button type="button" class="btn btn-ss-danger" @onclick="ConfirmBulkDelete" disabled="@isBulkSaving">
+                        @if (isBulkSaving)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        @Localize["Common_Delete"]
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
     [Inject] private VocabularyProgressService ProgressService { get; set; } = default!;
@@ -600,8 +668,12 @@ else
     private string viewMode = "grid"; // "grid" or "list"
     private bool isBulkEditMode;
     private HashSet<string> selectedWordIds = new();
+    private string bulkAction = "status"; // status | language | tags | delete
     private string bulkStatus = "";
+    private string bulkLanguage = "";
+    private string bulkTagsInput = "";
     private bool isBulkSaving;
+    private bool showBulkDeleteConfirm;
 
     // Search query (unified with filter syntax)
     private string searchQuery = "";
@@ -956,14 +1028,22 @@ else
     {
         isBulkEditMode = true;
         selectedWordIds.Clear();
+        bulkAction = "status";
         bulkStatus = "";
+        bulkLanguage = "";
+        bulkTagsInput = "";
+        showBulkDeleteConfirm = false;
     }
 
     private void ExitBulkEditMode()
     {
         isBulkEditMode = false;
         selectedWordIds.Clear();
+        bulkAction = "status";
         bulkStatus = "";
+        bulkLanguage = "";
+        bulkTagsInput = "";
+        showBulkDeleteConfirm = false;
     }
 
     private void ToggleWordSelection(string wordId)
@@ -980,6 +1060,90 @@ else
     private void SelectNone()
     {
         selectedWordIds.Clear();
+    }
+
+    private bool CanApplyBulkAction()
+    {
+        if (selectedWordIds.Count == 0) return false;
+        return bulkAction switch
+        {
+            "status" => !string.IsNullOrEmpty(bulkStatus),
+            "language" => !string.IsNullOrWhiteSpace(bulkLanguage),
+            "tags" => ParseTagInput(bulkTagsInput).Count > 0,
+            _ => false
+        };
+    }
+
+    private static List<string> ParseTagInput(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return new List<string>();
+        return input
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private async Task ApplyBulkAction()
+    {
+        if (!CanApplyBulkAction()) return;
+
+        switch (bulkAction)
+        {
+            case "status":
+                await SaveBulkStatus();
+                break;
+            case "language":
+                await SaveBulkLanguage();
+                break;
+            case "tags":
+                await SaveBulkTags();
+                break;
+        }
+    }
+
+    private void RequestBulkDelete()
+    {
+        if (selectedWordIds.Count == 0) return;
+        showBulkDeleteConfirm = true;
+    }
+
+    private void CancelBulkDelete()
+    {
+        if (isBulkSaving) return;
+        showBulkDeleteConfirm = false;
+    }
+
+    private async Task ConfirmBulkDelete()
+    {
+        if (selectedWordIds.Count == 0) return;
+
+        isBulkSaving = true;
+        try
+        {
+            var ids = selectedWordIds.ToList();
+            var ok = await ResourceRepo.BulkDeleteVocabularyWordsAsync(ids);
+            if (ok)
+            {
+                CacheService.InvalidateVocabSummary();
+                await LoadData();
+                Toast.ShowSuccess($"{string.Format(Localize["Vocabulary_BulkDeleteSuccess"], ids.Count)}");
+                showBulkDeleteConfirm = false;
+                ExitBulkEditMode();
+            }
+            else
+            {
+                Toast.ShowError($"{Localize["Vocabulary_BulkDeleteFailedGeneric"]}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Bulk delete failed");
+            Toast.ShowError($"{string.Format(Localize["Vocabulary_BulkDeleteFailed"], ex.Message)}");
+        }
+        finally
+        {
+            isBulkSaving = false;
+        }
     }
 
     private async Task SaveBulkStatus()
@@ -1034,6 +1198,61 @@ else
         {
             Logger.LogError(ex, "Bulk status update failed");
             Toast.ShowError($"{string.Format(Localize["Vocabulary_BulkUpdateFailed"], ex.Message)}");
+        }
+        finally
+        {
+            isBulkSaving = false;
+        }
+    }
+
+    private async Task SaveBulkLanguage()
+    {
+        if (selectedWordIds.Count == 0 || string.IsNullOrWhiteSpace(bulkLanguage)) return;
+
+        isBulkSaving = true;
+        try
+        {
+            var ids = selectedWordIds.ToList();
+            var updated = await ResourceRepo.BulkSetLanguageAsync(ids, bulkLanguage);
+
+            CacheService.InvalidateVocabSummary();
+            await LoadData();
+
+            Toast.ShowSuccess($"{string.Format(Localize["Vocabulary_BulkLanguageSuccess"], updated, bulkLanguage)}");
+            ExitBulkEditMode();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Bulk language update failed");
+            Toast.ShowError($"{string.Format(Localize["Vocabulary_BulkLanguageFailed"], ex.Message)}");
+        }
+        finally
+        {
+            isBulkSaving = false;
+        }
+    }
+
+    private async Task SaveBulkTags()
+    {
+        var tags = ParseTagInput(bulkTagsInput);
+        if (selectedWordIds.Count == 0 || tags.Count == 0) return;
+
+        isBulkSaving = true;
+        try
+        {
+            var ids = selectedWordIds.ToList();
+            var updated = await ResourceRepo.BulkAddTagsAsync(ids, tags);
+
+            CacheService.InvalidateVocabSummary();
+            await LoadData();
+
+            Toast.ShowSuccess($"{string.Format(Localize["Vocabulary_BulkTagsSuccess"], updated)}");
+            ExitBulkEditMode();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Bulk tags update failed");
+            Toast.ShowError($"{string.Format(Localize["Vocabulary_BulkTagsFailed"], ex.Message)}");
         }
         finally
         {

@@ -1022,6 +1022,114 @@ public class LearningResourceRepository
     }
 
     /// <summary>
+    /// Bulk set the Language property on multiple vocabulary words.
+    /// Returns the number of words updated.
+    /// </summary>
+    public async Task<int> BulkSetLanguageAsync(List<string> vocabularyWordIds, string language)
+    {
+        if (vocabularyWordIds == null || vocabularyWordIds.Count == 0 || string.IsNullOrWhiteSpace(language))
+            return 0;
+
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        try
+        {
+            var words = await db.VocabularyWords
+                .Where(vw => vocabularyWordIds.Contains(vw.Id))
+                .ToListAsync();
+
+            var now = DateTime.UtcNow;
+            foreach (var word in words)
+            {
+                word.Language = language;
+                word.UpdatedAt = now;
+            }
+
+            if (words.Count > 0)
+                await db.SaveChangesAsync();
+
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+
+            return words.Count;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error bulk setting vocabulary word language");
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// Bulk add tags (additive, deduped, case-insensitive) to multiple vocabulary words.
+    /// Existing tags on each word are preserved; new tags are merged in.
+    /// Returns the number of words updated.
+    /// </summary>
+    public async Task<int> BulkAddTagsAsync(List<string> vocabularyWordIds, IEnumerable<string> tagsToAdd)
+    {
+        if (vocabularyWordIds == null || vocabularyWordIds.Count == 0 || tagsToAdd == null)
+            return 0;
+
+        var normalizedNewTags = tagsToAdd
+            .Where(t => !string.IsNullOrWhiteSpace(t))
+            .Select(t => t.Trim())
+            .Where(t => t.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (normalizedNewTags.Count == 0)
+            return 0;
+
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        try
+        {
+            var words = await db.VocabularyWords
+                .Where(vw => vocabularyWordIds.Contains(vw.Id))
+                .ToListAsync();
+
+            var now = DateTime.UtcNow;
+            int updated = 0;
+            foreach (var word in words)
+            {
+                var existing = (word.Tags ?? string.Empty)
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .ToList();
+
+                bool changed = false;
+                foreach (var tag in normalizedNewTags)
+                {
+                    if (!existing.Any(e => string.Equals(e, tag, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        existing.Add(tag);
+                        changed = true;
+                    }
+                }
+
+                if (changed)
+                {
+                    word.Tags = string.Join(", ", existing);
+                    word.UpdatedAt = now;
+                    updated++;
+                }
+            }
+
+            if (updated > 0)
+                await db.SaveChangesAsync();
+
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+
+            return updated;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error bulk adding tags to vocabulary words");
+            return 0;
+        }
+    }
+
+    /// <summary>
     /// Merge duplicate vocabulary words: reassign all resource mappings from source words
     /// to the keeper word, then delete the source words.
     /// </summary>

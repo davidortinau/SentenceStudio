@@ -4441,6 +4441,78 @@ For example: {0} ...</value>
     <value>Bulk update failed: {0}</value>
     <comment>Toast error</comment>
   </data>
+  <data name="Vocabulary_BulkEdit" xml:space="preserve">
+    <value>Bulk Edit</value>
+    <comment>Vocabulary toolbar menu item — opens bulk edit toolbar</comment>
+  </data>
+  <data name="Vocabulary_BulkActionSetStatus" xml:space="preserve">
+    <value>Set Status</value>
+    <comment>Bulk action option</comment>
+  </data>
+  <data name="Vocabulary_BulkActionSetLanguage" xml:space="preserve">
+    <value>Set Language</value>
+    <comment>Bulk action option</comment>
+  </data>
+  <data name="Vocabulary_BulkActionAddTags" xml:space="preserve">
+    <value>Add Tags</value>
+    <comment>Bulk action option</comment>
+  </data>
+  <data name="Vocabulary_BulkActionDelete" xml:space="preserve">
+    <value>Delete</value>
+    <comment>Bulk action option</comment>
+  </data>
+  <data name="Vocabulary_BulkApply" xml:space="preserve">
+    <value>Apply</value>
+    <comment>Bulk apply button</comment>
+  </data>
+  <data name="Vocabulary_BulkApplyDelete" xml:space="preserve">
+    <value>Delete Selected</value>
+    <comment>Bulk delete button</comment>
+  </data>
+  <data name="Vocabulary_BulkSetLanguagePlaceholder" xml:space="preserve">
+    <value>Choose language...</value>
+    <comment>Bulk set language dropdown placeholder</comment>
+  </data>
+  <data name="Vocabulary_BulkAddTagsPlaceholder" xml:space="preserve">
+    <value>Tags (comma-separated)</value>
+    <comment>Bulk add tags input placeholder</comment>
+  </data>
+  <data name="Vocabulary_BulkLanguageSuccess" xml:space="preserve">
+    <value>Set language for {0} word(s) to {1}</value>
+    <comment>Toast success</comment>
+  </data>
+  <data name="Vocabulary_BulkLanguageFailed" xml:space="preserve">
+    <value>Bulk language update failed: {0}</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="Vocabulary_BulkTagsSuccess" xml:space="preserve">
+    <value>Added tags to {0} word(s)</value>
+    <comment>Toast success</comment>
+  </data>
+  <data name="Vocabulary_BulkTagsFailed" xml:space="preserve">
+    <value>Bulk tag update failed: {0}</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="Vocabulary_BulkConfirmDeleteTitle" xml:space="preserve">
+    <value>Confirm Bulk Delete</value>
+    <comment>Modal title</comment>
+  </data>
+  <data name="Vocabulary_BulkConfirmDeleteMessage" xml:space="preserve">
+    <value>Delete {0} vocabulary word(s)? This will remove the words from all associated resources and cannot be undone.</value>
+    <comment>Modal body</comment>
+  </data>
+  <data name="Vocabulary_BulkDeleteSuccess" xml:space="preserve">
+    <value>Deleted {0} word(s)</value>
+    <comment>Toast success</comment>
+  </data>
+  <data name="Vocabulary_BulkDeleteFailed" xml:space="preserve">
+    <value>Bulk delete failed: {0}</value>
+    <comment>Toast error</comment>
+  </data>
+  <data name="Vocabulary_BulkDeleteFailedGeneric" xml:space="preserve">
+    <value>Bulk delete failed. Please try again.</value>
+    <comment>Toast error</comment>
+  </data>
   <data name="Vocabulary_DuplicatesTitle" xml:space="preserve">
     <value>Find Duplicates</value>
     <comment>Cleanup panel title</comment>
