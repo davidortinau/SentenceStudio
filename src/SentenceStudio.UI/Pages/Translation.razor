@@ -1,5 +1,6 @@
 @page "/translation"
 @attribute [Authorize]
+@using SentenceStudio.Shared.Services
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
 @implements IAsyncDisposable
 
@@ -220,6 +221,9 @@ else
     [SupplyParameterFromQuery(Name = "planItemId")]
     public string? PlanItemId { get; set; }
 
+    [SupplyParameterFromQuery(Name = "FocusVocabularyIds")]
+    public string? FocusVocabularyIdsParam { get; set; }
+
     [Inject] private TranslationService TranslationSvc { get; set; } = default!;
     [Inject] private TeacherService TeacherSvc { get; set; } = default!;
     [Inject] private AiService AiSvc { get; set; } = default!;
@@ -257,12 +261,14 @@ else
 
     private List<Challenge> sentences = new();
     private List<VocabularyWord>? currentVocabulary;
+    private List<VocabularyWord> focusVocabularyWords = new();
+    private IReadOnlyList<string> focusVocabularyIds = Array.Empty<string>();
     private List<string> vocabBlocks = new();
 
     protected override async Task OnInitializedAsync()
     {
         Localize.CultureChanged += OnCultureChanged;
-        Logger.LogInformation("🎯 Translation initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
+        Logger.LogInformation("Translation initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
         ActivityTimer.StartSession("Translation", PlanItemId, ResourceIdParam, SkillIdParam);
         await LoadSentences();
     }
@@ -276,8 +282,13 @@ else
         {
             var resourceId = ResourceIdParam ?? "";
             var skillId = SkillIdParam ?? "";
+            focusVocabularyIds = FocusVocabularySelection.ParseFocusVocabularyIds(FocusVocabularyIdsParam);
+            if (focusVocabularyIds.Count == 0)
+            {
+                Logger.LogWarning("Activity {ActivityName} launched without FocusVocabularyIds (planItemId={PlanItemId}); falling back to legacy selection", nameof(Translation), PlanItemId);
+            }
 
-            var result = await TranslationSvc.GetTranslationSentences(resourceId, 5, skillId);
+            var result = await TranslationSvc.GetTranslationSentences(resourceId, 5, skillId, focusVocabularyIds);
             if (result?.Any() == true)
             {
                 sentences = result;
@@ -315,18 +326,26 @@ else
                 introResourceTitle = resource?.Title ?? "";
             }
 
+            if (focusVocabularyIds.Count > 0)
+            {
+                var userVocabulary = await ResourceRepo.GetAllVocabularyWordsWithResourcesAsync();
+                focusVocabularyWords = FocusVocabularySelection.SelectFocusWords(userVocabulary, focusVocabularyIds);
+            }
+            else
+            {
+                focusVocabularyWords = new List<VocabularyWord>();
+            }
+
             if (!string.IsNullOrEmpty(skillId))
             {
                 var profile = await SkillProfileRepo.GetSkillProfileAsync(skillId);
                 introGrammarBullets = ParseGrammarBullets(profile?.Description);
             }
 
-            introVocabulary = sentences
-                .SelectMany(s => s.Vocabulary ?? Enumerable.Empty<VocabularyWord>())
-                .Where(v => !string.IsNullOrEmpty(v.TargetLanguageTerm))
-                .GroupBy(v => v.TargetLanguageTerm)
-                .Select(g => g.First())
-                .OrderBy(v => v.TargetLanguageTerm)
+            introVocabulary = FocusVocabularySelection.BuildRequiredFirstPromptVocabulary(
+                    focusVocabularyWords,
+                    sentences.SelectMany(s => s.Vocabulary ?? Enumerable.Empty<VocabularyWord>()),
+                    maxVocabularyWords: 12)
                 .ToList();
         }
         catch (Exception ex)
@@ -372,11 +391,17 @@ else
         lastFeedback = null;
         inputMode = "Text";
 
-        vocabBlocks = challenge.Vocabulary?
+        var vocabularyForBlocks = focusVocabularyWords.Any()
+            ? FocusVocabularySelection.BuildRequiredFirstPromptVocabulary(focusVocabularyWords, challenge.Vocabulary, maxVocabularyWords: 12)
+            : (challenge.Vocabulary ?? new List<VocabularyWord>())
+                .Where(FocusVocabularySelection.IsUsableVocabularyWord)
+                .OrderBy(_ => Random.Shared.Next())
+                .ToList();
+
+        vocabBlocks = vocabularyForBlocks
             .Select(v => v.TargetLanguageTerm)
             .Where(t => !string.IsNullOrEmpty(t))
-            .OrderBy(_ => Random.Shared.Next())
-            .ToList() ?? new();
+            .ToList();
     }
 
     private async Task SubmitInput()
@@ -493,7 +518,7 @@ else
         {
             var resourceId = ResourceIdParam ?? "";
             var skillId = SkillIdParam ?? "";
-            var more = await TranslationSvc.GetTranslationSentences(resourceId, 5, skillId);
+            var more = await TranslationSvc.GetTranslationSentences(resourceId, 5, skillId, focusVocabularyIds);
             if (more?.Any() == true)
             {
                 sentences.AddRange(more);

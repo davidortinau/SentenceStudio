@@ -69,7 +69,8 @@ public record DailyPlanItem
     string? SkillName,
     int? VocabDueCount,
     string? DifficultyLevel,
-    int MinutesSpent = 0  // Track actual time spent (can be in-progress or completed)
+    int MinutesSpent = 0,  // Track actual time spent (can be in-progress or completed)
+    IReadOnlyList<string>? FocusVocabularyIds = null
 );
 
 public record TodaysPlan
@@ -84,7 +85,8 @@ public record TodaysPlan
     string? ResourceTitles = null,
     string? SkillTitle = null,
     string? Rationale = null,
-    PlanNarrative? Narrative = null
+    PlanNarrative? Narrative = null,
+    IReadOnlyList<string>? FocusVocabularyIds = null
 );
 
 public record PlanNarrative(
@@ -205,8 +207,21 @@ public interface IProgressService
     Task<IReadOnlyList<PracticeHeatPoint>> GetPracticeHeatAsync(DateTime fromUtc, DateTime toUtc, CancellationToken ct = default);
 
     Task<TodaysPlan> GenerateTodaysPlanAsync(CancellationToken ct = default);
-    Task<TodaysPlan?> GetCachedPlanAsync(DateTime date, CancellationToken ct = default);
-    Task ClearCachedPlanAsync(DateTime date, CancellationToken ct = default);
+
+    /// <summary>
+    /// Returns today's cached plan, hydrating from the database if needed. The optional
+    /// <paramref name="date"/> override exists for tests; production callers should pass
+    /// <c>null</c> so the service resolves "today" via <see cref="SentenceStudio.Services.Plans.IPlanDateContext"/>.
+    /// Passing a raw <c>DateTime.UtcNow.Date</c> or <c>DateTime.Today</c> drifts across midnight UTC vs. the user's local day.
+    /// </summary>
+    Task<TodaysPlan?> GetCachedPlanAsync(DateTime? date = null, CancellationToken ct = default);
+
+    /// <summary>
+    /// Invalidates the cached plan and deletes today's <c>DailyPlanCompletion</c> rows so the next
+    /// <see cref="GenerateTodaysPlanAsync"/> regenerates fresh. Optional <paramref name="date"/> override
+    /// for tests; production callers should pass <c>null</c> (see <see cref="GetCachedPlanAsync"/>).
+    /// </summary>
+    Task ClearCachedPlanAsync(DateTime? date = null, CancellationToken ct = default);
     Task MarkPlanItemCompleteAsync(string planItemId, int minutesSpent, CancellationToken ct = default);
     Task UpdatePlanItemProgressAsync(string planItemId, int minutesSpent, CancellationToken ct = default);
 

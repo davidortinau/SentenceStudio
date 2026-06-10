@@ -258,14 +258,31 @@ public class SmartResourceService
     /// </summary>
     private async Task<List<string>> GetDailyReviewVocabularyIdsAsync(string userId = "")
     {
-        var dueWords = await _progressRepo.GetDueVocabularyAsync(DateTime.Today, userId);
+        // Resolve "today" via IPlanDateContext (user-local date) so this cutoff
+        // matches DeterministicPlanBuilder.BuildPlanAsync, ProgressService.
+        // ResolveTodayKey, and PlanService.ToDateKey — all of which stamp the
+        // user-local date as a UTC-kinded byte sequence (NOT a true UTC
+        // instant) so on-disk parity with DailyPlan.Date / DailyPlanCompletion
+        // .Date / VocabularyProgress.NextReviewDate is preserved. Calling
+        // ToUtcMidnight here would do a real TZ conversion and drift from
+        // those values by the user's UTC offset.
+        //
+        // SmartResourceService is a singleton, so IPlanDateContext (transient
+        // on mobile, scoped on server) must be resolved per-call via the
+        // service provider.
+        using var scope = _serviceProvider.CreateScope();
+        var dateContext = scope.ServiceProvider.GetRequiredService<Plans.IPlanDateContext>();
+        var today = dateContext.UserLocalDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+
+        var dueWords = await _progressRepo.GetDueVocabularyAsync(today, userId);
 
         var wordIds = dueWords
             .Where(vp => vp.MasteryScore < MASTERY_THRESHOLD) // Not graduated
             .Select(vp => vp.VocabularyWordId)
             .ToList();
 
-        _logger.LogDebug("📅 Daily Review found {Count} due words", wordIds.Count);
+        _logger.LogDebug("📅 Daily Review found {Count} due words (cutoff {Cutoff:yyyy-MM-dd} user-local)",
+            wordIds.Count, dateContext.UserLocalDate);
         return wordIds;
     }
 

@@ -3,6 +3,7 @@ using System.Diagnostics;
 using Scriban;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Abstractions;
+using SentenceStudio.Shared.Services;
 
 namespace SentenceStudio.Services;
 
@@ -15,6 +16,7 @@ public class ClozureService
     private LearningResourceRepository _resourceRepository;
     private ISyncService _syncService;
     private readonly IFileSystemService _fileSystem;
+    private readonly IPreferencesService? _preferences;
 
     private List<VocabularyWord> _words;
 
@@ -27,6 +29,7 @@ public class ClozureService
     }
 
     private readonly VocabularyProgressService _progressService;
+    private string ActiveUserId => _preferences?.Get("active_profile_id", string.Empty) ?? string.Empty;
 
     public ClozureService(IServiceProvider serviceProvider, ILogger<ClozureService> logger)
     {
@@ -37,15 +40,28 @@ public class ClozureService
         _resourceRepository = serviceProvider.GetRequiredService<LearningResourceRepository>();
         _syncService = serviceProvider.GetService<ISyncService>();
         _fileSystem = serviceProvider.GetRequiredService<IFileSystemService>();
+        _preferences = serviceProvider.GetService<IPreferencesService>();
         _progressService = serviceProvider.GetRequiredService<VocabularyProgressService>();
     }
 
-    public async Task<List<Challenge>> GetSentences(string resourceID, int numberOfSentences, string skillID, bool dueOnly = false)
+    public async Task<List<Challenge>> GetSentences(string resourceID, int numberOfSentences, string skillID, bool dueOnly = false, IReadOnlyList<string>? focusVocabularyIds = null)
     {
-        _logger.LogDebug("GetSentences called with resourceID={ResourceID}, numberOfSentences={NumberOfSentences}, skillID={SkillID}, dueOnly={DueOnly}",
-            resourceID, numberOfSentences, skillID, dueOnly);
+        var normalizedFocusIds = FocusVocabularySelection.NormalizeFocusVocabularyIds(focusVocabularyIds);
+        _logger.LogDebug("GetSentences called with resourceID={ResourceID}, numberOfSentences={NumberOfSentences}, skillID={SkillID}, dueOnly={DueOnly}, focusVocabularyCount={FocusVocabularyCount}",
+            resourceID, numberOfSentences, skillID, dueOnly, normalizedFocusIds.Count);
         var watch = new Stopwatch();
         watch.Start();
+
+        if (normalizedFocusIds.Count > 0)
+        {
+            var focusSentences = await GetSentencesFromFocusWords(normalizedFocusIds, resourceID, numberOfSentences, skillID, dueOnly);
+            if (focusSentences.Any())
+            {
+                return focusSentences;
+            }
+
+            _logger.LogWarning("FocusVocabularyIds were provided for Cloze but no matching words generated sentences; falling back to legacy selection");
+        }
 
         // DEFENSE IN DEPTH: When dueOnly=true (plan-initiated), ignore resourceID and load from full vocab pool
         if (dueOnly || string.IsNullOrEmpty(resourceID))
@@ -65,7 +81,7 @@ public class ClozureService
         // Send vocabulary words to AI, excluding Familiar words in grace period
         var allVocab = resource.Vocabulary.ToList();
         var wordIds = allVocab.Select(w => w.Id).ToList();
-        var progressDict = await _progressService.GetProgressForWordsAsync(wordIds);
+        var progressDict = await _progressService.GetProgressForWordsAsync(wordIds, ActiveUserId);
         var eligibleWords = allVocab
             .Where(w => !progressDict.ContainsKey(w.Id) || !progressDict[w.Id].IsInGracePeriod)
             .ToList();
@@ -93,6 +109,71 @@ public class ClozureService
         return await GenerateSentencesFromWords(_words, numberOfSentences, skillID, resource.Language);
     }
 
+    private async Task<List<Challenge>> GetSentencesFromFocusWords(
+        IReadOnlyList<string> focusVocabularyIds,
+        string resourceID,
+        int numberOfSentences,
+        string skillID,
+        bool dueOnly)
+    {
+        _logger.LogDebug("GetSentencesFromFocusWords called with {FocusVocabularyCount} focus vocabulary IDs", focusVocabularyIds.Count);
+
+        var allWords = await _resourceRepository.GetAllVocabularyWordsWithResourcesAsync();
+        var focusWords = FocusVocabularySelection.SelectFocusWords(allWords, focusVocabularyIds);
+        if (!focusWords.Any())
+        {
+            _logger.LogWarning("No focus vocabulary words matched the provided IDs for Cloze");
+            return new List<Challenge>();
+        }
+
+        var contextWords = new List<VocabularyWord>();
+        string? targetLanguage = null;
+        if (!dueOnly && !string.IsNullOrEmpty(resourceID))
+        {
+            var resource = await _resourceRepository.GetResourceAsync(resourceID);
+            if (resource?.Vocabulary?.Any() == true)
+            {
+                contextWords.AddRange(resource.Vocabulary);
+                targetLanguage = resource.Language;
+            }
+        }
+
+        if (!contextWords.Any())
+        {
+            contextWords.AddRange(await GetDueVocabularyWordsAsync(allWords));
+        }
+
+        _words = FocusVocabularySelection.BuildRequiredFirstPromptVocabulary(focusWords, contextWords);
+        return await GenerateSentencesFromWords(_words, numberOfSentences, skillID, targetLanguage, focusWords);
+    }
+
+    private async Task<List<VocabularyWord>> GetDueVocabularyWordsAsync(List<VocabularyWord> allWords)
+    {
+        var wordIds = allWords.Select(w => w.Id).ToList();
+        var progressDict = await _progressService.GetProgressForWordsAsync(wordIds, ActiveUserId);
+        var now = DateTime.Now;
+
+        return allWords.Where(w =>
+        {
+            if (!progressDict.TryGetValue(w.Id, out var progress))
+                return true;
+
+            if (progress.IsInGracePeriod)
+                return false;
+
+            var totalAttempts = progress.TotalAttempts;
+            var nextReview = progress.NextReviewDate;
+
+            if (totalAttempts == 0)
+                return true;
+
+            if (nextReview.HasValue && nextReview.Value <= now)
+                return true;
+
+            return false;
+        }).ToList();
+    }
+
     private async Task<List<Challenge>> GetSentencesFromDueWords(int numberOfSentences, string skillID)
     {
         _logger.LogDebug("GetSentencesFromDueWords called - loading due vocabulary from full user pool");
@@ -107,7 +188,7 @@ public class ClozureService
 
         // Get progress for filtering
         var wordIds = allWords.Select(w => w.Id).ToList();
-        var progressDict = await _progressService.GetProgressForWordsAsync(wordIds);
+        var progressDict = await _progressService.GetProgressForWordsAsync(wordIds, ActiveUserId);
 
         // Filter to due words (same logic as VocabQuiz)
         var now = DateTime.Now;
@@ -166,7 +247,12 @@ public class ClozureService
         return await GenerateSentencesFromWords(_words, numberOfSentences, skillID, targetLanguage);
     }
 
-    private async Task<List<Challenge>> GenerateSentencesFromWords(List<VocabularyWord> words, int numberOfSentences, string skillID, string? targetLanguage = null)
+    private async Task<List<Challenge>> GenerateSentencesFromWords(
+        List<VocabularyWord> words,
+        int numberOfSentences,
+        string skillID,
+        string? targetLanguage = null,
+        IReadOnlyList<VocabularyWord>? requiredFocusWords = null)
     {
         // Skill is optional — when empty (e.g. launched from dashboard tile with no skill picker),
         // we still generate cloze sentences without grammar-pattern bias. The Scriban template
@@ -193,9 +279,17 @@ public class ClozureService
         using (StreamReader reader = new StreamReader(templateStream))
         {
             var template = Template.Parse(await reader.ReadToEndAsync());
-            prompt = await template.RenderAsync(new { 
-                terms = words, 
-                number_of_sentences = numberOfSentences, 
+            var requiredTerms = requiredFocusWords?.Where(FocusVocabularySelection.IsUsableVocabularyWord).ToList() ?? new List<VocabularyWord>();
+            var requiredIdSet = requiredTerms.Select(word => word.Id).ToHashSet(StringComparer.Ordinal);
+            var contextTerms = requiredTerms.Any()
+                ? words.Where(word => !requiredIdSet.Contains(word.Id)).ToList()
+                : words;
+            prompt = await template.RenderAsync(new {
+                terms = words,
+                required_terms = requiredTerms,
+                context_terms = contextTerms,
+                has_required_terms = requiredTerms.Any(),
+                number_of_sentences = numberOfSentences,
                 skills = skillProfile?.Description,
                 native_language = nativeLanguage,
                 target_language = targetLanguage
@@ -212,7 +306,7 @@ public class ClozureService
             {
                 _logger.LogDebug("AI returned {SentenceCount} sentences", reply.Sentences.Count);
 
-                // 🏴‍☠️ IMPORTANT: Convert ClozureDto objects to Challenge objects and link vocabulary
+                // Convert ClozureDto objects to Challenge objects and link vocabulary
                 _logger.LogDebug("Converting {DtoCount} ClozureDto objects to Challenge objects", reply.Sentences.Count);
                 var challenges = new List<Challenge>();
 
@@ -223,7 +317,7 @@ public class ClozureService
                     _logger.LogDebug("DTO.VocabularyWordAsUsed: '{VocabularyWordAsUsed}'", clozureDto.VocabularyWordAsUsed);
                     _logger.LogDebug("DTO.VocabularyWordGuesses: {GuessCount} items", clozureDto.VocabularyWordGuesses?.Count ?? 0);
 
-                    // 🏴‍☠️ Normalize and self-heal the AI response so the UI never receives a broken cloze.
+                    // Normalize and self-heal the AI response so the UI never receives a broken cloze.
                     // Two frequent AI failure modes are handled here:
                     //   (1) vocabularyWordAsUsed isn't a verbatim substring of sentenceText (particles split, etc.)
                     //   (2) the correct answer is missing from the guesses list

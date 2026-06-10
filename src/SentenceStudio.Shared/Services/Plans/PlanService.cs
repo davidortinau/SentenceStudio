@@ -81,11 +81,9 @@ public sealed class PlanService : IPlanService
     private readonly IPlanCopyProvider _copy;
     private readonly ILogger<PlanService> _logger;
 
-    private static readonly JsonSerializerOptions FactsJsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        WriteIndented = false,
-    };
+    // JSON options + facts DTOs hoisted to PlanFactsSerializer (shared with
+    // ProgressService). DO NOT add new private serialization options here —
+    // any drift breaks the CoreSync round-trip silently.
 
     public PlanService(
         ApplicationDbContext db,
@@ -242,7 +240,7 @@ public sealed class PlanService : IPlanService
         var planRow = await _db.DailyPlans
             .FirstOrDefaultAsync(p => p.UserProfileId == userId && p.Date == todayKey, ct);
 
-        var (rationaleFactsJson, narrativeFactsJson) = SerializeFacts(skeleton);
+        var (rationaleFactsJson, narrativeFactsJson, focusVocabularyFactsJson) = SerializeFacts(skeleton);
 
         if (planRow is null)
         {
@@ -255,6 +253,7 @@ public sealed class PlanService : IPlanService
                 Strategy = strategy,
                 RationaleFacts = rationaleFactsJson,
                 NarrativeFacts = narrativeFactsJson,
+                FocusVocabularyFacts = focusVocabularyFactsJson,
                 CreatedAt = nowUtc,
                 UpdatedAt = nowUtc,
             };
@@ -266,6 +265,7 @@ public sealed class PlanService : IPlanService
             planRow.Strategy = strategy;
             planRow.RationaleFacts = rationaleFactsJson;
             planRow.NarrativeFacts = narrativeFactsJson;
+            planRow.FocusVocabularyFacts = focusVocabularyFactsJson;
             planRow.UpdatedAt = nowUtc;
         }
 
@@ -367,7 +367,20 @@ public sealed class PlanService : IPlanService
         row.UpdatedAt = nowUtc;
         await _db.SaveChangesAsync(ct);
 
-        return MapItem(row);
+        var planFacts = await _db.DailyPlans.AsNoTracking()
+            .Where(p => p.UserProfileId == userId && p.Date == dateKey)
+            .Select(p => new { p.FocusVocabularyFacts, p.NarrativeFacts })
+            .FirstOrDefaultAsync(ct);
+        var focusVocabularyIds = DeserializeFocusVocabularyFacts(planFacts?.FocusVocabularyFacts);
+        if (focusVocabularyIds.Count == 0)
+        {
+            var narrative = TryDeserializeNarrative(planFacts?.NarrativeFacts);
+            if (narrative?.VocabInsight?.PreviewWords is { Count: > 0 } previewWords)
+            {
+                focusVocabularyIds = NormalizeFocusVocabularyIds(previewWords.Select(w => w.WordId));
+            }
+        }
+        return MapItem(row, focusVocabularyIds);
     }
 
     public async Task ResetTodayAsync(CancellationToken ct = default)
@@ -505,10 +518,25 @@ public sealed class PlanService : IPlanService
 
     private TodaysPlanDto BuildDto(DailyPlan plan, List<DailyPlanCompletion> completions, StreakDto streak)
     {
+        var focusVocabularyIds = DeserializeFocusVocabularyFacts(plan.FocusVocabularyFacts);
+        var narrative = TryDeserializeNarrative(plan.NarrativeFacts);
+        var rationale = TryDeserializeRationale(plan.RationaleFacts);
+
+        // Fallback: if DailyPlan.FocusVocabularyFacts is empty (legacy rows written
+        // before the AddFocusVocabularyFacts migration, or LLM responses that did
+        // not propagate FocusVocabularyIds), hydrate from the narrative's
+        // PreviewWords. The narrative powers the dashboard insight and the
+        // "Preview plan vocabulary" flashcard, so it's the right source to keep
+        // activities aligned with what the user previewed.
+        if (focusVocabularyIds.Count == 0 && narrative?.VocabInsight?.PreviewWords is { Count: > 0 } previewWords)
+        {
+            focusVocabularyIds = NormalizeFocusVocabularyIds(previewWords.Select(w => w.WordId));
+        }
+
         var items = completions
             .OrderBy(c => c.Priority)
             .ThenBy(c => c.PlanItemId, StringComparer.Ordinal)
-            .Select(MapItem)
+            .Select(c => MapItem(c, focusVocabularyIds))
             .ToList();
 
         var estimatedTotal = items.Sum(i => i.EstimatedMinutes);
@@ -516,15 +544,13 @@ public sealed class PlanService : IPlanService
         var totalCount = items.Count;
         var percent = totalCount == 0 ? 0d : (completedCount * 100d) / totalCount;
 
-        var narrative = TryDeserializeNarrative(plan.NarrativeFacts);
-        var rationale = TryDeserializeRationale(plan.RationaleFacts);
-
         return new TodaysPlanDto
         {
             GeneratedForDate = DateOnly.FromDateTime(plan.Date),
             GeneratedAtUtc = DateTime.SpecifyKind(plan.GeneratedAtUtc, DateTimeKind.Utc),
             Strategy = string.IsNullOrWhiteSpace(plan.Strategy) ? "deterministic" : plan.Strategy,
             Items = items,
+            FocusVocabularyIds = focusVocabularyIds,
             EstimatedTotalMinutes = estimatedTotal,
             CompletedCount = completedCount,
             TotalCount = totalCount,
@@ -535,11 +561,14 @@ public sealed class PlanService : IPlanService
         };
     }
 
-    private PlanItemDto MapItem(DailyPlanCompletion row)
+    private PlanItemDto MapItem(DailyPlanCompletion row, IReadOnlyList<string> planFocusVocabularyIds)
     {
         var activityType = Enum.TryParse<PlanActivityType>(row.ActivityType, out var parsed)
             ? parsed
             : PlanActivityType.VocabularyReview;
+        var itemFocusVocabularyIds = ShouldUsePlanFocusVocabularyIds(activityType)
+            ? planFocusVocabularyIds.ToList()
+            : new List<string>();
 
         // v1: copy provider runs without resource/skill metadata cached on
         // the row; richer titles land with the resx lane.
@@ -560,6 +589,7 @@ public sealed class PlanService : IPlanService
             ResourceTitle = null,
             SkillId = row.SkillId,
             SkillName = null,
+            FocusVocabularyIds = itemFocusVocabularyIds,
             VocabDueCount = null,
             DifficultyLevel = null,
         };
@@ -571,189 +601,128 @@ public sealed class PlanService : IPlanService
     /// tags, sample words, etc.) land with the narrative-localization-resx
     /// lane.
     /// </summary>
-    private static (string? Rationale, string? Narrative) SerializeFacts(PlanSkeleton skeleton)
+    private static (string? Rationale, string? Narrative, string? FocusVocabulary) SerializeFacts(PlanSkeleton skeleton)
     {
-        string? rationaleJson = null;
-        if (!string.IsNullOrWhiteSpace(skeleton.ResourceSelectionReason))
-        {
-            rationaleJson = JsonSerializer.Serialize(new RationaleFacts
-            {
-                ResourceSelectionReason = skeleton.ResourceSelectionReason,
-            }, FactsJsonOptions);
-        }
+        var rationaleJson = PlanFactsSerializer.SerializeRationaleFacts(skeleton.ResourceSelectionReason);
 
-        string? narrativeJson = null;
+        NarrativeFactsDto? narrativeDto = null;
         if (skeleton.Narrative is not null
             || skeleton.PrimaryResource is not null
             || skeleton.VocabularyReview is not null)
         {
-            var facts = new NarrativeFacts
+            narrativeDto = new NarrativeFactsDto
             {
                 Story = skeleton.Narrative?.Story,
                 FocusAreas = skeleton.Narrative?.FocusAreas ?? new List<string>(),
-                Resources = skeleton.Narrative?.Resources?.Select(r => new NarrativeResourceFacts
+                Resources = skeleton.Narrative?.Resources?.Select(r => new NarrativeResourceFactsDto
                 {
                     Id = r.Id,
                     Title = r.Title,
                     MediaType = r.MediaType,
                     SelectionReason = r.SelectionReason,
-                }).ToList() ?? new List<NarrativeResourceFacts>(),
+                }).ToList() ?? new List<NarrativeResourceFactsDto>(),
                 VocabInsight = skeleton.Narrative?.VocabInsight is { } vi
-                    ? new NarrativeVocabInsightFacts
+                    ? new NarrativeVocabInsightFactsDto
                     {
                         TotalDue = vi.TotalDue,
                         ReviewCount = vi.ReviewCount,
                         NewCount = vi.NewCount,
                         AverageMastery = vi.AverageMastery,
                         SampleStrugglingWords = vi.SampleStrugglingWords ?? new List<string>(),
-                        PreviewWords = vi.PreviewWords?.Select(w => new NarrativePreviewWordFacts
+                        PreviewWords = vi.PreviewWords?.Select(w => new NarrativePreviewWordFactsDto
                         {
                             WordId = w.WordId,
                             TargetTerm = w.TargetTerm,
                             NativeTerm = w.NativeTerm,
-                        }).ToList() ?? new List<NarrativePreviewWordFacts>(),
-                        StrugglingCategories = vi.StrugglingCategories?.Select(t => new NarrativeTagInsightFacts
+                        }).ToList() ?? new List<NarrativePreviewWordFactsDto>(),
+                        StrugglingCategories = vi.StrugglingCategories?.Select(t => new NarrativeTagInsightFactsDto
                         {
                             Tag = t.Tag,
                             WordCount = t.WordCount,
                             AverageAccuracy = t.AverageAccuracy,
                             TotalAttempts = t.TotalAttempts,
-                        }).ToList() ?? new List<NarrativeTagInsightFacts>(),
+                        }).ToList() ?? new List<NarrativeTagInsightFactsDto>(),
                         PatternInsight = vi.PatternInsight,
                     }
                     : null,
             };
-            narrativeJson = JsonSerializer.Serialize(facts, FactsJsonOptions);
         }
+        var narrativeJson = PlanFactsSerializer.SerializeNarrativeFacts(narrativeDto);
 
-        return (rationaleJson, narrativeJson);
+        var focusVocabularyJson = PlanFactsSerializer.SerializeFocusVocabularyFacts(skeleton.FocusVocabularyIds);
+
+        return (rationaleJson, narrativeJson, focusVocabularyJson);
+    }
+
+    private static List<string> DeserializeFocusVocabularyFacts(string? json) =>
+        PlanFactsSerializer.DeserializeFocusVocabularyFacts(json);
+
+    private static List<string> NormalizeFocusVocabularyIds(IEnumerable<string>? focusVocabularyIds) =>
+        PlanFactsSerializer.NormalizeFocusVocabularyIds(focusVocabularyIds);
+
+    private static bool ShouldUsePlanFocusVocabularyIds(PlanActivityType activityType)
+    {
+        return activityType is PlanActivityType.VocabularyReview
+            or PlanActivityType.VocabularyGame
+            or PlanActivityType.Cloze
+            or PlanActivityType.Writing
+            or PlanActivityType.Translation
+            or PlanActivityType.Reading;
     }
 
     private string? TryDeserializeRationale(string? json)
     {
-        if (string.IsNullOrWhiteSpace(json))
+        var facts = PlanFactsSerializer.DeserializeRationaleFacts(json);
+        if (facts is null || string.IsNullOrWhiteSpace(facts.ResourceSelectionReason))
         {
             return null;
         }
-        try
-        {
-            var facts = JsonSerializer.Deserialize<RationaleFacts>(json, FactsJsonOptions);
-            if (string.IsNullOrWhiteSpace(facts?.ResourceSelectionReason))
-            {
-                return null;
-            }
-            return _copy.GetRationale(facts!.ResourceSelectionReason!);
-        }
-        catch (JsonException ex)
-        {
-            _logger.LogDebug(ex, "Failed to deserialize RationaleFacts; returning null.");
-            return null;
-        }
+        return _copy.GetRationale(facts.ResourceSelectionReason!);
     }
 
     private PlanNarrativeDto? TryDeserializeNarrative(string? json)
     {
-        if (string.IsNullOrWhiteSpace(json))
+        var facts = PlanFactsSerializer.DeserializeNarrativeFacts(json);
+        if (facts is null)
         {
             return null;
         }
-        try
+        return new PlanNarrativeDto
         {
-            var facts = JsonSerializer.Deserialize<NarrativeFacts>(json, FactsJsonOptions);
-            if (facts is null)
+            Story = string.IsNullOrWhiteSpace(facts.Story) ? string.Empty : facts.Story!,
+            FocusAreas = facts.FocusAreas?.Select(_copy.GetFocusArea).ToList() ?? new List<string>(),
+            Resources = facts.Resources?.Select(r => new PlanResourceSummaryDto
             {
-                return null;
-            }
-            return new PlanNarrativeDto
+                Id = r.Id ?? string.Empty,
+                Title = r.Title ?? string.Empty,
+                MediaType = r.MediaType ?? string.Empty,
+                SelectionReason = _copy.GetSelectionReason(r.SelectionReason ?? string.Empty),
+            }).ToList() ?? new List<PlanResourceSummaryDto>(),
+            VocabInsight = facts.VocabInsight is null ? null : new VocabInsightDto
             {
-                Story = string.IsNullOrWhiteSpace(facts.Story) ? string.Empty : facts.Story!,
-                FocusAreas = facts.FocusAreas?.Select(_copy.GetFocusArea).ToList() ?? new List<string>(),
-                Resources = facts.Resources?.Select(r => new PlanResourceSummaryDto
-                {
-                    Id = r.Id ?? string.Empty,
-                    Title = r.Title ?? string.Empty,
-                    MediaType = r.MediaType ?? string.Empty,
-                    SelectionReason = _copy.GetSelectionReason(r.SelectionReason ?? string.Empty),
-                }).ToList() ?? new List<PlanResourceSummaryDto>(),
-                VocabInsight = facts.VocabInsight is null ? null : new VocabInsightDto
-                {
-                    TotalDue = facts.VocabInsight.TotalDue,
-                    ReviewCount = facts.VocabInsight.ReviewCount,
-                    NewCount = facts.VocabInsight.NewCount,
-                    AverageMastery = facts.VocabInsight.AverageMastery,
-                    SampleStrugglingWords = facts.VocabInsight.SampleStrugglingWords ?? new List<string>(),
-                    PreviewWords = facts.VocabInsight.PreviewWords?
-                        .Where(w => !string.IsNullOrWhiteSpace(w.TargetTerm) && !string.IsNullOrWhiteSpace(w.NativeTerm))
-                        .Select(w => new PlanPreviewWordDto
-                        {
-                            WordId = w.WordId ?? string.Empty,
-                            TargetTerm = w.TargetTerm ?? string.Empty,
-                            NativeTerm = w.NativeTerm ?? string.Empty,
-                        }).ToList() ?? new List<PlanPreviewWordDto>(),
-                    StrugglingCategories = facts.VocabInsight.StrugglingCategories?
-                        .Select(t => new TagInsightDto
-                        {
-                            Tag = t.Tag ?? string.Empty,
-                            WordCount = t.WordCount,
-                            AverageAccuracy = t.AverageAccuracy,
-                            TotalAttempts = t.TotalAttempts,
-                        }).ToList() ?? new List<TagInsightDto>(),
-                    PatternInsight = facts.VocabInsight.PatternInsight,
-                },
-            };
-        }
-        catch (JsonException ex)
-        {
-            _logger.LogDebug(ex, "Failed to deserialize NarrativeFacts; returning null.");
-            return null;
-        }
-    }
-
-    private sealed class RationaleFacts
-    {
-        public string? ResourceSelectionReason { get; set; }
-    }
-
-    private sealed class NarrativeFacts
-    {
-        public string? Story { get; set; }
-        public List<string>? FocusAreas { get; set; }
-        public List<NarrativeResourceFacts>? Resources { get; set; }
-        public NarrativeVocabInsightFacts? VocabInsight { get; set; }
-    }
-
-    private sealed class NarrativeResourceFacts
-    {
-        public string? Id { get; set; }
-        public string? Title { get; set; }
-        public string? MediaType { get; set; }
-        public string? SelectionReason { get; set; }
-    }
-
-    private sealed class NarrativeVocabInsightFacts
-    {
-        public int TotalDue { get; set; }
-        public int ReviewCount { get; set; }
-        public int NewCount { get; set; }
-        public float AverageMastery { get; set; }
-        public List<NarrativeTagInsightFacts>? StrugglingCategories { get; set; }
-        public List<string>? SampleStrugglingWords { get; set; }
-        public List<NarrativePreviewWordFacts>? PreviewWords { get; set; }
-        public string? PatternInsight { get; set; }
-    }
-
-    private sealed class NarrativePreviewWordFacts
-    {
-        public string? WordId { get; set; }
-        public string? TargetTerm { get; set; }
-        public string? NativeTerm { get; set; }
-    }
-
-    private sealed class NarrativeTagInsightFacts
-    {
-        public string? Tag { get; set; }
-        public int WordCount { get; set; }
-        public float AverageAccuracy { get; set; }
-        public int TotalAttempts { get; set; }
+                TotalDue = facts.VocabInsight.TotalDue,
+                ReviewCount = facts.VocabInsight.ReviewCount,
+                NewCount = facts.VocabInsight.NewCount,
+                AverageMastery = facts.VocabInsight.AverageMastery,
+                SampleStrugglingWords = facts.VocabInsight.SampleStrugglingWords ?? new List<string>(),
+                PreviewWords = facts.VocabInsight.PreviewWords?
+                    .Where(w => !string.IsNullOrWhiteSpace(w.TargetTerm) && !string.IsNullOrWhiteSpace(w.NativeTerm))
+                    .Select(w => new PlanPreviewWordDto
+                    {
+                        WordId = w.WordId ?? string.Empty,
+                        TargetTerm = w.TargetTerm ?? string.Empty,
+                        NativeTerm = w.NativeTerm ?? string.Empty,
+                    }).ToList() ?? new List<PlanPreviewWordDto>(),
+                StrugglingCategories = facts.VocabInsight.StrugglingCategories?
+                    .Select(t => new TagInsightDto
+                    {
+                        Tag = t.Tag ?? string.Empty,
+                        WordCount = t.WordCount,
+                        AverageAccuracy = t.AverageAccuracy,
+                        TotalAttempts = t.TotalAttempts,
+                    }).ToList() ?? new List<TagInsightDto>(),
+                PatternInsight = facts.VocabInsight.PatternInsight,
+            },
+        };
     }
 }

@@ -1,6 +1,7 @@
 @page "/vocab-matching"
 @attribute [Authorize]
 @using SentenceStudio.Pages.VocabularyMatching
+@using SentenceStudio.Shared.Services
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
 @implements IAsyncDisposable
 
@@ -96,6 +97,9 @@ else
     [SupplyParameterFromQuery(Name = "DueOnly")]
     public bool DueOnly { get; set; }
 
+    [SupplyParameterFromQuery(Name = "FocusVocabularyIds")]
+    public string? FocusVocabularyIdsParam { get; set; }
+
     [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
     [Inject] private UserActivityRepository ActivityRepo { get; set; } = default!;
     [Inject] private VocabularyProgressService ProgressService { get; set; } = default!;
@@ -121,7 +125,7 @@ else
     protected override async Task OnInitializedAsync()
     {
         Localize.CultureChanged += OnCultureChanged;
-        Logger.LogInformation("🎯 VocabMatching initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
+        Logger.LogInformation("VocabMatching initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
         var firstResourceId = ResourceIdsParam?.Split(',', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
         ActivityTimer.StartSession("VocabularyGame", PlanItemId, firstResourceId, null);
         await LoadVocabulary();
@@ -134,35 +138,53 @@ else
         isBusy = true;
         try
         {
-            // DEFENSE IN DEPTH: When DueOnly=true (plan-initiated SRS mode), ignore ResourceIds
-            // and load from full user vocabulary pool, same pattern as VocabQuiz
-            var resourceIds = DueOnly ? Array.Empty<string>() : ParseResourceIds();
-
+            var focusVocabularyIds = FocusVocabularySelection.ParseFocusVocabularyIds(FocusVocabularyIdsParam);
+            var usingFocusVocabularyIds = focusVocabularyIds.Count > 0;
             var allWords = new List<VocabularyWord>();
-            
-            if (DueOnly)
+
+            async Task LoadLegacyVocabularyAsync()
             {
-                // Load ALL user vocabulary when in DueOnly/plan mode (same pattern as VocabQuiz)
-                var words = await ResourceRepo.GetAllVocabularyWordsWithResourcesAsync();
-                allWords.AddRange(words);
-            }
-            else
-            {
-                // Resource-filtered mode (user-initiated from resource detail page)
-                if (resourceIds.Length == 0) { isBusy = false; return; }
-                
-                foreach (var id in resourceIds)
+                Logger.LogWarning("Activity {ActivityName} launched without FocusVocabularyIds (planItemId={PlanItemId}); falling back to legacy selection", nameof(VocabMatching), PlanItemId);
+
+                var resourceIds = DueOnly ? Array.Empty<string>() : ParseResourceIds();
+                if (DueOnly)
                 {
-                    var resource = await ResourceRepo.GetResourceAsync(id);
-                    if (resource?.Vocabulary?.Any() == true)
-                        allWords.AddRange(resource.Vocabulary);
+                    var words = await ResourceRepo.GetAllVocabularyWordsWithResourcesAsync();
+                    allWords.AddRange(words);
+                }
+                else
+                {
+                    if (resourceIds.Length == 0) { isBusy = false; return; }
+
+                    foreach (var id in resourceIds)
+                    {
+                        var resource = await ResourceRepo.GetResourceAsync(id);
+                        if (resource?.Vocabulary?.Any() == true)
+                            allWords.AddRange(resource.Vocabulary);
+                    }
                 }
             }
 
-            // Deduplicate and filter
+            if (usingFocusVocabularyIds)
+            {
+                var userVocabulary = await ResourceRepo.GetAllVocabularyWordsWithResourcesAsync();
+                allWords.AddRange(FocusVocabularySelection.SelectFocusWords(userVocabulary, focusVocabularyIds));
+
+                if (allWords.Count == 0)
+                {
+                    Logger.LogWarning("Activity {ActivityName} received FocusVocabularyIds but no matching vocabulary was found (planItemId={PlanItemId}); falling back to legacy selection", nameof(VocabMatching), PlanItemId);
+                    usingFocusVocabularyIds = false;
+                    await LoadLegacyVocabularyAsync();
+                }
+            }
+            else
+            {
+                await LoadLegacyVocabularyAsync();
+            }
+
             allWords = allWords
-                .Where(w => !string.IsNullOrWhiteSpace(w.NativeLanguageTerm) && !string.IsNullOrWhiteSpace(w.TargetLanguageTerm))
-                .GroupBy(w => w.Id).Select(g => g.First()).ToList();
+                .Where(FocusVocabularySelection.IsUsableVocabularyWord)
+                .GroupBy(w => w.Id, StringComparer.Ordinal).Select(g => g.First()).ToList();
 
             if (!allWords.Any())
             {
@@ -171,19 +193,21 @@ else
                 return;
             }
 
-            // Get progress and prioritize
+            var activeUserId = Preferences.Get("active_profile_id", "");
             var wordIds = allWords.Select(w => w.Id).ToList();
-            var progressDict = await ProgressService.GetProgressForWordsAsync(wordIds);
+            var progressDict = await ProgressService.GetProgressForWordsAsync(wordIds, activeUserId);
 
-            var selectedWords = allWords
-                .Select(w => new { Word = w, Progress = progressDict.ContainsKey(w.Id) ? progressDict[w.Id] : null })
-                .Where(wp => !(wp.Progress?.IsKnown ?? false))
-                .Where(wp => !(wp.Progress?.IsInGracePeriod ?? false))
-                .OrderBy(wp => wp.Progress?.MasteryScore ?? 0f)
-                .ThenBy(_ => Guid.NewGuid())
-                .Take(8)
-                .Select(wp => wp.Word)
-                .ToList();
+            var selectedWords = usingFocusVocabularyIds
+                ? allWords.Take(8).ToList()
+                : allWords
+                    .Select(w => new { Word = w, Progress = progressDict.ContainsKey(w.Id) ? progressDict[w.Id] : null })
+                    .Where(wp => !(wp.Progress?.IsKnown ?? false))
+                    .Where(wp => !(wp.Progress?.IsInGracePeriod ?? false))
+                    .OrderBy(wp => wp.Progress?.MasteryScore ?? 0f)
+                    .ThenBy(_ => Guid.NewGuid())
+                    .Take(8)
+                    .Select(wp => wp.Word)
+                    .ToList();
 
             if (!selectedWords.Any())
                 selectedWords = allWords.OrderBy(_ => Guid.NewGuid()).Take(8).ToList();

@@ -1,16 +1,21 @@
+{{ if has_required_terms }}
+Using the REQUIRED focus vocabulary ({{ for t in required_terms }}{{- t.target_language_term -}}{{if for.last == false }}, {{ else }}{{ end }}{{ end }}) plus optional context vocabulary ({{ for t in context_terms }}{{- t.target_language_term -}}{{if for.last == false }}, {{ else }}{{ end }}{{ end }}), generate {{ number_of_sentences }} {{ target_language }} sentences for clozure exercises.
+{{ else }}
 Using the following {{ target_language }} vocabulary ({{ for t in terms }}{{- t.target_language_term -}}{{if for.last == false }}, {{ else }}{{ end }}{{ end }}), generate {{ number_of_sentences }} {{ target_language }} sentences for clozure exercises.
+{{ end }}
 
 **CRITICAL REQUIREMENTS:**
-1. **Use EXACTLY one vocabulary word from the provided list in each sentence** - do not create new words
-2. **Create complete, natural {{ target_language }} sentences** using the vocabulary word appropriately conjugated/inflected
-3. Provide the vocabulary word in its exact dictionary form from the provided list (vocabularyWord)
-4. **vocabularyWordAsUsed MUST appear VERBATIM as a contiguous substring of sentenceText.** The UI blanks it out with a literal string replace — if it is not present exactly, the exercise breaks.
-5. **vocabularyWordAsUsed MUST include any attached particles/markers** that follow the word in the sentence. For Korean: include 을/를/이/가/은/는/에/에서/의/도/만/와/과/로/으로 when they are directly attached. For example, if the sentence is "나는 밥을 먹어요", vocabularyWordAsUsed MUST be "밥을" (NOT "밥"). The blank must cover the word AND its particle so no dangling particle appears next to the blank.
-6. **Create exactly 5 options in vocabularyWordGuesses:**
+- **Use EXACTLY one vocabulary word from the provided list in each sentence** - do not create new words
+{{ if has_required_terms }}- **Prioritize REQUIRED focus vocabulary first.** Each sentence should exercise a REQUIRED focus word until the generated set is full; optional context vocabulary is only for variety or distractors.
+{{ end }}- **Create complete, natural {{ target_language }} sentences** using the vocabulary word appropriately conjugated/inflected
+- Provide the vocabulary word in its exact dictionary form from the provided list (vocabularyWord)
+- **vocabularyWordAsUsed MUST appear VERBATIM as a contiguous substring of sentenceText.** The UI blanks it out with a literal string replace — if it is not present exactly, the exercise breaks.
+- **vocabularyWordAsUsed MUST include any attached particles/markers** that follow the word in the sentence. For Korean: include 을/를/이/가/은/는/에/에서/의/도/만/와/과/로/으로 when they are directly attached. For example, if the sentence is "나는 밥을 먹어요", vocabularyWordAsUsed MUST be "밥을" (NOT "밥"). The blank must cover the word AND its particle so no dangling particle appears next to the blank.
+- **Create exactly 5 options in vocabularyWordGuesses:**
    - **The FIRST option MUST be the exact string of vocabularyWordAsUsed** (the correct answer, including particle).
    - Add 4 plausible {{ target_language }} distractors that match the same grammatical pattern — if the correct answer includes a particle, distractors should also include matching particles so all options read naturally when placed in the blank.
    - All 5 options must be unique. No duplicates.
-7. Provide a natural {{ native_language }} translation of the complete sentence
+- Provide a natural {{ native_language }} translation of the complete sentence
 
 **EXAMPLE (Korean):**
 - sentenceText: "나는 매일 아침에 밥을 먹어요."

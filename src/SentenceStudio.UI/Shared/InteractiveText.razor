@@ -15,7 +15,7 @@
                 {
                     if (word.IsVocabulary)
                     {
-                        <span class="word word--vocab"
+                        <span class="word word--vocab @(word.IsFocusVocabulary ? "word--focus-vocab" : "")"
                               @onclick="() => HandleWordClick(word)"
                               @onclick:stopPropagation="true">@word.Text</span>
                     }
@@ -38,6 +38,7 @@
 @code {
     [Parameter] public string Text { get; set; } = string.Empty;
     [Parameter] public List<VocabularyWord>? VocabularyWords { get; set; }
+    [Parameter] public IReadOnlyCollection<string>? FocusVocabularyIds { get; set; }
     [Parameter] public List<string>? Sentences { get; set; }
     [Parameter] public int SelectedSentenceIndex { get; set; } = -1;
 
@@ -53,6 +54,7 @@
         public string Text { get; set; } = string.Empty;
         public bool IsWord { get; set; }
         public bool IsVocabulary { get; set; }
+        public bool IsFocusVocabulary { get; set; }
         public VocabularyWord? VocabularyWord { get; set; }
         public int SentenceIndex { get; set; }
     }
@@ -67,6 +69,7 @@
         _sentenceSpans = new();
         var vocabLookup = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var vocabDict = new Dictionary<string, VocabularyWord>(StringComparer.OrdinalIgnoreCase);
+        var focusVocabularyIdSet = FocusVocabularyIds?.ToHashSet(StringComparer.Ordinal) ?? new HashSet<string>(StringComparer.Ordinal);
 
         if (VocabularyWords is not null)
         {
@@ -99,13 +102,15 @@
             {
                 bool isWord = !string.IsNullOrWhiteSpace(token) && token.Any(char.IsLetterOrDigit);
                 bool isVocab = isWord && vocabLookup.Contains(token.Trim());
+                var vocabularyWord = isVocab && vocabDict.TryGetValue(token.Trim(), out var vw) ? vw : null;
 
                 words.Add(new WordSpan
                 {
                     Text = token,
                     IsWord = isWord,
                     IsVocabulary = isVocab,
-                    VocabularyWord = isVocab && vocabDict.TryGetValue(token.Trim(), out var vw) ? vw : null,
+                    IsFocusVocabulary = vocabularyWord is not null && focusVocabularyIdSet.Contains(vocabularyWord.Id),
+                    VocabularyWord = vocabularyWord,
                     SentenceIndex = si
                 });
             }

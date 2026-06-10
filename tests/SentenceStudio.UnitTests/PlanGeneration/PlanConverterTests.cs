@@ -102,6 +102,53 @@ public class PlanConverterTests
     }
 
     [Fact]
+    public void FocusVocabularyIds_ArePassedAsRouteParam_ForVocabularyAlignedActivities()
+    {
+        var response = CreateTestResponse(
+            new PlanActivity
+            {
+                ActivityType = "VocabularyReview",
+                ResourceId = null,
+                SkillId = null,
+                EstimatedMinutes = 5,
+                Priority = 1,
+                VocabWordCount = 2,
+                FocusVocabularyIds = new List<string> { "word-1", "word-2" }
+            });
+
+        var plan = PlanConverter.ConvertToTodaysPlan(
+            response, DateTime.Today, TestResourceTitles, TestSkillNames, vocabDueCount: 2);
+
+        plan.FocusVocabularyIds.Should().Equal("word-1", "word-2");
+        plan.Items[0].FocusVocabularyIds.Should().Equal("word-1", "word-2");
+        plan.Items[0].RouteParameters.Should().ContainKey("FocusVocabularyIds");
+        plan.Items[0].RouteParameters!["FocusVocabularyIds"].Should().Be("word-1,word-2");
+    }
+
+    [Fact]
+    public void FocusVocabularyIds_DoNotAffectStablePlanItemId()
+    {
+        var date = new DateTime(2026, 6, 9);
+        var idWithoutFocus = PlanConverter.GeneratePlanItemId(date, PlanActivityType.VocabularyReview, null, null);
+
+        var response = CreateTestResponse(
+            new PlanActivity
+            {
+                ActivityType = "VocabularyReview",
+                EstimatedMinutes = 5,
+                Priority = 1,
+                VocabWordCount = 2,
+                FocusVocabularyIds = new List<string> { "word-1", "word-2" }
+            });
+
+        var plan = PlanConverter.ConvertToTodaysPlan(
+            response, date, TestResourceTitles, TestSkillNames, vocabDueCount: 2);
+
+        plan.Items[0].Id.Should().Be(idWithoutFocus,
+            "focus IDs are launch data, not part of the progress-row identity hash");
+    }
+
+    [Fact]
     public void VocabWordCount_FallsBackToTotalWhenNull()
     {
         var response = CreateTestResponse(

@@ -41,16 +41,21 @@ public class MigrationSanityCheckService
             ("VocabularyProgress", "LastExposedAt"),
             ("VocabularyProgress", "CurrentStreak"), // Should be REAL after CurrentStreakToFloat migration
             ("DailyPlanCompletion", "NarrativeJson"),
+            // Phase 1/Phase 2 — DailyPlan-level facts columns. Without these the plan
+            // preview and quiz-vocabulary will diverge silently across CoreSync.
+            ("DailyPlan", "FocusVocabularyFacts"),
+            ("DailyPlan", "NarrativeFacts"),
+            ("DailyPlan", "RationaleFacts"),
         };
 
         // Critical tables that must exist. NOTE: table names match ApplicationDbContext.OnModelCreating
-        // ToTable() calls — singular (e.g. "DailyPlanCompletion", not "DailyPlans"). There is no
-        // standalone "DailyPlan" table — daily plans are represented solely via DailyPlanCompletion.
+        // ToTable() calls — singular (e.g. "DailyPlanCompletion", not "DailyPlans").
         var requiredTables = new[]
         {
             "VocabularyWord",
             "VocabularyProgress",
             "PhraseConstituent",
+            "DailyPlan",
             "DailyPlanCompletion",
             "UserProfile",
             "SkillProfile",

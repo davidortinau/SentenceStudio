@@ -3,6 +3,7 @@ using System.Diagnostics;
 using Scriban;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Abstractions;
+using SentenceStudio.Shared.Services;
 
 namespace SentenceStudio.Services
 {
@@ -15,6 +16,7 @@ namespace SentenceStudio.Services
         private readonly ISyncService _syncService;
         private readonly IFileSystemService _fileSystem;
         private readonly ILogger<TranslationService> _logger;
+        private readonly IPreferencesService? _preferences;
 
         private List<VocabularyWord> _words;
 
@@ -27,6 +29,7 @@ namespace SentenceStudio.Services
         }
 
         private readonly VocabularyProgressService _progressService;
+        private string ActiveUserId => _preferences?.Get("active_profile_id", string.Empty) ?? string.Empty;
 
         public TranslationService(IServiceProvider serviceProvider, ILogger<TranslationService> logger)
         {
@@ -37,81 +40,125 @@ namespace SentenceStudio.Services
             _skillRepository = serviceProvider.GetRequiredService<SkillProfileRepository>();
             _syncService = serviceProvider.GetService<ISyncService>();
             _fileSystem = serviceProvider.GetRequiredService<IFileSystemService>();
+            _preferences = serviceProvider.GetService<IPreferencesService>();
             _progressService = serviceProvider.GetRequiredService<VocabularyProgressService>();
         }
 
-        public async Task<List<Challenge>> GetTranslationSentences(string resourceID, int numberOfSentences, string skillID)
+        public async Task<List<Challenge>> GetTranslationSentences(
+            string resourceID,
+            int numberOfSentences,
+            string skillID,
+            IReadOnlyList<string>? focusVocabularyIds = null)
         {
-            _logger.LogDebug("GetTranslationSentences called with resourceID={ResourceID}, numberOfSentences={NumberOfSentences}, skillID={SkillID}", resourceID, numberOfSentences, skillID);
+            var normalizedFocusIds = FocusVocabularySelection.NormalizeFocusVocabularyIds(focusVocabularyIds);
+            _logger.LogDebug("GetTranslationSentences called with resourceID={ResourceID}, numberOfSentences={NumberOfSentences}, skillID={SkillID}, focusVocabularyCount={FocusVocabularyCount}",
+                resourceID, numberOfSentences, skillID, normalizedFocusIds.Count);
             var watch = new Stopwatch();
             watch.Start();
 
-            if (string.IsNullOrEmpty(resourceID))
+            var userProfileRepo = _serviceProvider.GetRequiredService<UserProfileRepository>();
+            var userProfile = await userProfileRepo.GetAsync();
+            string nativeLanguage = userProfile?.NativeLanguage ?? "English";
+            string targetLanguage = userProfile?.TargetLanguage ?? "Korean";
+
+            LearningResource? resource = null;
+            if (!string.IsNullOrEmpty(resourceID))
             {
-                _logger.LogWarning("Resource ID is 0 - no resource selected");
+                resource = await _resourceRepo.GetResourceAsync(resourceID);
+                _logger.LogDebug("Resource retrieved: {ResourceTitle}", resource?.Title ?? "null");
+                targetLanguage = resource?.Language ?? targetLanguage;
+            }
+            else if (normalizedFocusIds.Count == 0)
+            {
+                _logger.LogWarning("Resource ID is empty and no FocusVocabularyIds were provided - no translation source selected");
                 return new List<Challenge>();
             }
 
-            if (string.IsNullOrEmpty(skillID))
+            if (string.IsNullOrEmpty(skillID) && normalizedFocusIds.Count == 0)
             {
-                _logger.LogWarning("Skill ID is 0 - no skill selected");
+                _logger.LogWarning("Skill ID is empty - no skill selected");
                 return new List<Challenge>();
             }
 
-            var resource = await _resourceRepo.GetResourceAsync(resourceID);
-            _logger.LogDebug("Resource retrieved: {ResourceTitle}", resource?.Title ?? "null");
-
-            if (resource is null || resource.Vocabulary is null || !resource.Vocabulary.Any())
+            var resourceVocabulary = resource?.Vocabulary?.ToList() ?? new List<VocabularyWord>();
+            if (resourceVocabulary.Count == 0 && normalizedFocusIds.Count == 0)
             {
                 _logger.LogWarning("No resource or vocabulary found - returning empty list");
                 return new List<Challenge>();
             }
 
-            // Send vocabulary words to AI, excluding Familiar words in grace period
-            var allVocab = resource.Vocabulary.ToList();
-            var wordIds = allVocab.Select(w => w.Id).ToList();
-            var progressDict = await _progressService.GetProgressForWordsAsync(wordIds);
-            var eligibleWords = allVocab
+            var allUserVocabulary = normalizedFocusIds.Count > 0
+                ? await _resourceRepo.GetAllVocabularyWordsWithResourcesAsync()
+                : new List<VocabularyWord>();
+            var focusWords = FocusVocabularySelection.SelectFocusWords(allUserVocabulary, normalizedFocusIds);
+            if (normalizedFocusIds.Count > 0 && focusWords.Count == 0)
+            {
+                _logger.LogWarning("FocusVocabularyIds were provided for Translation but no matching vocabulary was found; falling back to resource vocabulary");
+            }
+
+            var contextVocabulary = resourceVocabulary.Any() ? resourceVocabulary : allUserVocabulary;
+            var wordIds = contextVocabulary.Select(w => w.Id).ToList();
+            var progressDict = await _progressService.GetProgressForWordsAsync(wordIds, ActiveUserId);
+            var eligibleWords = contextVocabulary
+                .Where(FocusVocabularySelection.IsUsableVocabularyWord)
                 .Where(w => !progressDict.ContainsKey(w.Id) || !progressDict[w.Id].IsInGracePeriod)
                 .ToList();
 
-            // Cap vocab sample sent to AI. Dynamic resources (e.g. "New Words") can return
-            // thousands of eligible words, which blows past Scriban's 1000-iteration loop limit
-            // and would overwhelm the LLM context anyway. A random sample keeps variety.
             const int MaxVocabSample = 40;
-            if (eligibleWords.Count > MaxVocabSample)
+            if (focusWords.Any())
+            {
+                var sampledContext = eligibleWords.Count > MaxVocabSample
+                    ? eligibleWords.OrderBy(_ => Random.Shared.Next()).Take(MaxVocabSample).ToList()
+                    : eligibleWords;
+                _words = FocusVocabularySelection.BuildRequiredFirstPromptVocabulary(focusWords, sampledContext, MaxVocabSample);
+                _logger.LogDebug("Sending {FocusCount} required focus words and {TotalCount} total vocabulary words to translation AI",
+                    focusWords.Count, _words.Count);
+            }
+            else if (eligibleWords.Count > MaxVocabSample)
             {
                 _words = eligibleWords
                     .OrderBy(_ => Random.Shared.Next())
                     .Take(MaxVocabSample)
                     .ToList();
                 _logger.LogDebug("Sampled {SampleCount} of {EligibleCount} eligible vocabulary words for AI prompt ({Excluded} excluded for grace period)",
-                    _words.Count, eligibleWords.Count, allVocab.Count - eligibleWords.Count);
+                    _words.Count, eligibleWords.Count, contextVocabulary.Count - eligibleWords.Count);
             }
             else
             {
                 _words = eligibleWords;
                 _logger.LogDebug("Sending {VocabularyCount} vocabulary words to AI ({Excluded} excluded for grace period)",
-                    _words.Count, allVocab.Count - _words.Count);
+                    _words.Count, contextVocabulary.Count - _words.Count);
             }
 
-            var skillProfile = await _skillRepository.GetSkillProfileAsync(skillID);
-            _logger.LogDebug("Skill profile retrieved: {SkillProfileTitle}", skillProfile?.Title ?? "null");
+            if (!_words.Any())
+            {
+                _logger.LogWarning("No eligible translation vocabulary found - returning empty list");
+                return new List<Challenge>();
+            }
 
-            // Get user's native language and use resource's language as target
-            var userProfileRepo = _serviceProvider.GetRequiredService<UserProfileRepository>();
-            var userProfile = await userProfileRepo.GetAsync();
-            string nativeLanguage = userProfile?.NativeLanguage ?? "English";
-            string targetLanguage = resource.Language ?? userProfile?.TargetLanguage ?? "Korean";
+            SkillProfile? skillProfile = null;
+            if (!string.IsNullOrEmpty(skillID))
+            {
+                skillProfile = await _skillRepository.GetSkillProfileAsync(skillID);
+                _logger.LogDebug("Skill profile retrieved: {SkillProfileTitle}", skillProfile?.Title ?? "null");
+            }
 
+            var requiredTerms = focusWords.Where(FocusVocabularySelection.IsUsableVocabularyWord).ToList();
+            var requiredIdSet = requiredTerms.Select(word => word.Id).ToHashSet(StringComparer.Ordinal);
+            var contextTerms = requiredTerms.Any()
+                ? _words.Where(word => !requiredIdSet.Contains(word.Id)).ToList()
+                : _words;
             var prompt = string.Empty;
             using Stream templateStream = await _fileSystem.OpenAppPackageFileAsync("GetTranslations.scriban-txt");
             using (StreamReader reader = new StreamReader(templateStream))
             {
                 var template = Template.Parse(await reader.ReadToEndAsync());
-                prompt = await template.RenderAsync(new { 
-                    terms = _words, 
-                    number_of_sentences = numberOfSentences, 
+                prompt = await template.RenderAsync(new {
+                    terms = _words,
+                    required_terms = requiredTerms,
+                    context_terms = contextTerms,
+                    has_required_terms = requiredTerms.Any(),
+                    number_of_sentences = numberOfSentences,
                     skills = skillProfile?.Description,
                     native_language = nativeLanguage,
                     target_language = targetLanguage
@@ -130,6 +177,10 @@ namespace SentenceStudio.Services
 
                     // Convert TranslationDto objects to Challenge objects and link vocabulary
                     _logger.LogTrace("Converting {SentenceCount} TranslationDto objects to Challenge objects", reply.Sentences.Count);
+                    var vocabularyByTargetTerm = _words
+                        .Where(FocusVocabularySelection.IsUsableVocabularyWord)
+                        .GroupBy(word => word.TargetLanguageTerm!, StringComparer.OrdinalIgnoreCase)
+                        .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
                     var challenges = new List<Challenge>();
 
                     foreach (var translationDto in reply.Sentences)
@@ -139,39 +190,41 @@ namespace SentenceStudio.Services
                         _logger.LogTrace("DTO.RecommendedTranslation: '{RecommendedTranslation}'", translationDto.RecommendedTranslation);
                         _logger.LogTrace("DTO.TranslationVocabulary: [{TranslationVocabulary}]", string.Join(", ", translationDto.TranslationVocabulary));
 
-                        // Create Challenge object from DTO - simply map TranslationVocabulary to Challenge.Vocabulary
                         var challenge = new Challenge
                         {
                             SentenceText = translationDto.SentenceText,
                             RecommendedTranslation = translationDto.RecommendedTranslation,
-                            Vocabulary = translationDto.TranslationVocabulary.Select(word => new VocabularyWord
-                            {
-                                TargetLanguageTerm = word,
-                                NativeLanguageTerm = "", // We don't need this for the vocabulary building blocks
-                                CreatedAt = DateTime.UtcNow,
-                                UpdatedAt = DateTime.UtcNow
-                            }).ToList(),
+                            Vocabulary = translationDto.TranslationVocabulary.Select(word =>
+                                vocabularyByTargetTerm.TryGetValue(word, out var existingWord)
+                                    ? existingWord
+                                    : new VocabularyWord
+                                    {
+                                        TargetLanguageTerm = word,
+                                        NativeLanguageTerm = "",
+                                        CreatedAt = DateTime.UtcNow,
+                                        UpdatedAt = DateTime.UtcNow
+                                    }).ToList(),
                             CreatedAt = DateTime.UtcNow,
                             UpdatedAt = DateTime.UtcNow
                         };
 
                         challenges.Add(challenge);
-                        _logger.LogTrace($"🏴‍☠️ TranslationService: ✅ Added challenge with {translationDto.TranslationVocabulary.Count} vocabulary building blocks");
+                        _logger.LogTrace("TranslationService added challenge with {VocabularyCount} vocabulary building blocks", translationDto.TranslationVocabulary.Count);
                     }
 
                     watch.Stop();
-                    _logger.LogTrace($"🏴‍☠️ TranslationService: Generated {challenges.Count} translation challenges in {watch.Elapsed}");
+                    _logger.LogTrace("TranslationService generated {ChallengeCount} translation challenges in {Elapsed}", challenges.Count, watch.Elapsed);
                     return challenges;
                 }
                 else
                 {
-                    _logger.LogTrace("🏴‍☠️ TranslationService: Reply or Sentences is null");
+                    _logger.LogTrace("TranslationService reply or Sentences is null");
                     return new List<Challenge>();
                 }
             }
             catch (Exception ex)
             {
-                _logger.LogError($"🏴‍☠️ TranslationService: Error in GetTranslationSentences - {ex.Message}");
+                _logger.LogError(ex, "TranslationService error in GetTranslationSentences");
                 return new List<Challenge>();
             }
         }

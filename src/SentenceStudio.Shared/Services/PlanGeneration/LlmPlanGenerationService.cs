@@ -83,8 +83,10 @@ public class LlmPlanGenerationService : ILlmPlanGenerationService
                     Priority = a.Priority,
                     ResourceId = a.ResourceId,
                     SkillId = a.SkillId,
-                    VocabWordCount = a.ActivityType == "VocabularyReview" ? planSkeleton.VocabularyReview?.WordCount : null
+                    VocabWordCount = a.ActivityType == "VocabularyReview" ? planSkeleton.VocabularyReview?.WordCount : null,
+                    FocusVocabularyIds = a.FocusVocabularyIds
                 }).ToList(),
+                FocusVocabularyIds = planSkeleton.FocusVocabularyIds,
                 Rationale = BuildRationale(planSkeleton),
                 Narrative = planSkeleton.Narrative
             };

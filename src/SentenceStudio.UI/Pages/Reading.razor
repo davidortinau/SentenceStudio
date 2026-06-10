@@ -4,6 +4,7 @@
 @using SentenceStudio.Models
 @using SentenceStudio.Services
 @using SentenceStudio.Services.Speech
+@using SentenceStudio.Shared.Services
 @using SentenceStudio.Services.Timer
 @using Plugin.Maui.Audio
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
@@ -68,8 +69,9 @@
                 <InteractiveText
                     Sentences="@sentences"
                     VocabularyWords="@vocabularyWords"
-                    SelectedSentenceIndex="@currentSentenceIndex"
-                    OnWordClicked="HandleWordClicked"
+                FocusVocabularyIds="@readingFocusVocabularyIds"
+                SelectedSentenceIndex="@currentSentenceIndex"
+                OnWordClicked="HandleWordClicked"
                     OnVocabularyWordClicked="HandleVocabularyWordClicked"
                     OnSentenceClicked="HandleSentenceClicked"
                     OnSentenceDoubleClicked="HandleSentenceDoubleClicked" />
@@ -211,6 +213,9 @@
     [SupplyParameterFromQuery(Name = "planItemId")]
     public string? PlanItemId { get; set; }
 
+    [SupplyParameterFromQuery(Name = "FocusVocabularyIds")]
+    public string? FocusVocabularyIdsParam { get; set; }
+
     [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
     [Inject] private ElevenLabsSpeechService SpeechService { get; set; } = default!;
     [Inject] private TranslationService TranslationSvc { get; set; } = default!;
@@ -235,6 +240,7 @@
     private LearningResource? resource;
     private List<string> sentences = new();
     private List<VocabularyWord> vocabularyWords = new();
+    private HashSet<string> readingFocusVocabularyIds = new(StringComparer.Ordinal);
 
     // Audio state
     private TimestampedAudioManager? _audioManager;
@@ -263,7 +269,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        Logger.LogInformation("🎯 Reading initialized — planItemId={PlanItemId}, resourceId={ResourceId}, skillId={SkillId}",
+        Logger.LogInformation("Reading initialized — planItemId={PlanItemId}, resourceId={ResourceId}, skillId={SkillId}",
             PlanItemId ?? "(none)", ResourceIdParam ?? "(none)", SkillIdParam ?? "(none)");
         ActivityTimer.StartSession("Reading", PlanItemId, ResourceIdParam, SkillIdParam);
         fromPlan = FromPlanParam;
@@ -291,6 +297,18 @@
             }
 
             vocabularyWords = resource.Vocabulary ?? new();
+            var focusVocabularyIds = FocusVocabularySelection.ParseFocusVocabularyIds(FocusVocabularyIdsParam);
+            if (focusVocabularyIds.Count == 0)
+            {
+                Logger.LogWarning("Activity {ActivityName} launched without FocusVocabularyIds (planItemId={PlanItemId}); falling back to legacy selection", nameof(Reading), PlanItemId);
+                readingFocusVocabularyIds = new HashSet<string>(StringComparer.Ordinal);
+            }
+            else
+            {
+                var resourceFocusWords = FocusVocabularySelection.SelectFocusWords(vocabularyWords, focusVocabularyIds);
+                readingFocusVocabularyIds = resourceFocusWords.Select(w => w.Id).ToHashSet(StringComparer.Ordinal);
+                Logger.LogInformation("Reading resource contains {FocusOverlapCount} planned focus vocabulary words (planItemId={PlanItemId})", readingFocusVocabularyIds.Count, PlanItemId);
+            }
 
             if (!string.IsNullOrEmpty(resource.Transcript))
             {

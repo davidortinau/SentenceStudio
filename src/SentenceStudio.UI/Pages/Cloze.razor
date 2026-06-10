@@ -1,5 +1,6 @@
 @page "/cloze"
 @attribute [Authorize]
+@using SentenceStudio.Shared.Services
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
 @implements IAsyncDisposable
 
@@ -155,6 +156,9 @@ else
     [SupplyParameterFromQuery(Name = "DueOnly")]
     public bool DueOnly { get; set; }
 
+    [SupplyParameterFromQuery(Name = "FocusVocabularyIds")]
+    public string? FocusVocabularyIdsParam { get; set; }
+
     [Inject] private ClozureService ClozureSvc { get; set; } = default!;
     [Inject] private UserActivityRepository ActivityRepo { get; set; } = default!;
     [Inject] private VocabularyProgressService ProgressService { get; set; } = default!;
@@ -188,7 +192,7 @@ else
     protected override async Task OnInitializedAsync()
     {
         Localize.CultureChanged += OnCultureChanged;
-        Logger.LogInformation("🎯 Cloze initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
+        Logger.LogInformation("Cloze initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
         ActivityTimer.StartSession("Cloze", PlanItemId, ResourceIdParam, SkillIdParam);
         await LoadSentences();
     }
@@ -200,12 +204,16 @@ else
         isBusy = true;
         try
         {
-            // DEFENSE IN DEPTH: When DueOnly=true (plan-initiated SRS mode), ignore ResourceId
-            // and load from full user vocabulary pool, same pattern as VocabQuiz
+            var focusVocabularyIds = FocusVocabularySelection.ParseFocusVocabularyIds(FocusVocabularyIdsParam);
+            if (focusVocabularyIds.Count == 0)
+            {
+                Logger.LogWarning("Activity {ActivityName} launched without FocusVocabularyIds (planItemId={PlanItemId}); falling back to legacy selection", nameof(Cloze), PlanItemId);
+            }
+
             var resourceId = DueOnly ? "" : (ResourceIdParam ?? "");
             var skillId = SkillIdParam ?? "";
 
-            var result = await ClozureSvc.GetSentences(resourceId, 8, skillId, DueOnly);
+            var result = await ClozureSvc.GetSentences(resourceId, 8, skillId, DueOnly, focusVocabularyIds);
             if (result?.Any() == true)
             {
                 sentences = result;

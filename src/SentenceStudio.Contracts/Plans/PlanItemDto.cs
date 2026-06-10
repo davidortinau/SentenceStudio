@@ -32,6 +32,10 @@ public sealed class PlanItemDto
     public string? ResourceTitle { get; init; }
     public string? SkillId { get; init; }
     public string? SkillName { get; init; }
+
+    /// <summary>Ordered vocabulary word IDs this activity should prioritize when launched from the daily plan.</summary>
+    public List<string> FocusVocabularyIds { get; init; } = new();
+
     public int? VocabDueCount { get; init; }
     public string? DifficultyLevel { get; init; }
 }

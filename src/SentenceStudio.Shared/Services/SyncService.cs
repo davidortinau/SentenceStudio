@@ -433,7 +433,10 @@ public class SyncService : ISyncService
             ("VocabularyWord", "MnemonicText", "TEXT", null),                       // nullable in model, NULL OK
             ("VocabularyWord", "MnemonicImageUri", "TEXT", null),                   // nullable in model, NULL OK
             ("VocabularyWord", "AudioPronunciationUri", "TEXT", null),              // nullable in model, NULL OK
-            ("DailyPlanCompletion", "NarrativeJson", "TEXT", null),                 // nullable in model, NULL OK
+            ("DailyPlanCompletion", "NarrativeJson", "TEXT", null),                 // nullable in model, NULL OK (legacy, scheduled for removal)
+            ("DailyPlan", "FocusVocabularyFacts", "TEXT", null),                    // Phase 1 — plan-level vocabulary IDs
+            ("DailyPlan", "NarrativeFacts", "TEXT", null),                          // Phase 2 — plan-level narrative JSON (camelCase)
+            ("DailyPlan", "RationaleFacts", "TEXT", null),                          // Phase 2 — plan-level rationale JSON (camelCase)
             ("VocabularyProgress", "LastExposedAt", "TEXT", null),                  // nullable in model, NULL OK
             ("VocabularyProgress", "ExposureCount", "INTEGER NOT NULL DEFAULT 0", "UPDATE \"VocabularyProgress\" SET \"ExposureCount\" = 0 WHERE \"ExposureCount\" IS NULL"),
         };

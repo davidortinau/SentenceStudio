@@ -130,6 +130,32 @@ public sealed class PlanServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task GenerateToday_PersistsFocusVocabularyIds_OnPlanAndItems()
+    {
+        _generator.SetActivities(
+            ("VocabularyReview", null, null, 10, 1),
+            ("Writing", "resource-1", null, 10, 2));
+        _generator.SetFocusVocabularyIds("word-1", "word-2");
+
+        var service = NewService();
+        var plan = await service.GenerateTodayAsync(new GenerateTodaysPlanRequest());
+
+        Assert.Equal(new[] { "word-1", "word-2" }, plan.FocusVocabularyIds);
+        Assert.All(plan.Items, item => Assert.Equal(new[] { "word-1", "word-2" }, item.FocusVocabularyIds));
+
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var planRow = await db.DailyPlans.AsNoTracking().SingleAsync();
+        Assert.Contains("word-1", planRow.FocusVocabularyFacts);
+        Assert.Equal(2, await db.DailyPlanCompletions.AsNoTracking().CountAsync());
+
+        var reloaded = await service.GetTodayAsync();
+        Assert.NotNull(reloaded);
+        Assert.Equal(new[] { "word-1", "word-2" }, reloaded!.FocusVocabularyIds);
+        Assert.All(reloaded.Items, item => Assert.Equal(new[] { "word-1", "word-2" }, item.FocusVocabularyIds));
+    }
+
+    [Fact]
     public async Task UpdateProgress_ClampsToMaxMinutes_AndPersists()
     {
         _generator.SetActivities(("Reading", "resource-1", null, 15, 1));
@@ -322,6 +348,7 @@ public sealed class PlanServiceTests : IDisposable
     {
         private List<PlannedActivity> _activities = new();
         private PlanNarrative? _narrative;
+        private List<string> _focusVocabularyIds = new();
 
         public void SetActivities(params (string Type, string? ResourceId, string? SkillId, int Minutes, int Priority)[] activities)
         {
@@ -337,12 +364,19 @@ public sealed class PlanServiceTests : IDisposable
         }
 
         public void SetNarrative(PlanNarrative? narrative) => _narrative = narrative;
+        public void SetFocusVocabularyIds(params string[] focusVocabularyIds) => _focusVocabularyIds = focusVocabularyIds.ToList();
 
         public Task<PlanSkeleton?> GenerateAsync(string? userProfileId = null, CancellationToken ct = default)
         {
+            var focusIds = _focusVocabularyIds.ToList();
             return Task.FromResult<PlanSkeleton?>(new PlanSkeleton
             {
-                Activities = _activities.ToList(),
+                Activities = _activities.Select(a =>
+                {
+                    a.FocusVocabularyIds = focusIds.ToList();
+                    return a;
+                }).ToList(),
+                FocusVocabularyIds = focusIds,
                 TotalMinutes = _activities.Sum(a => a.EstimatedMinutes),
                 ResourceSelectionReason = "test reason",
                 Narrative = _narrative,

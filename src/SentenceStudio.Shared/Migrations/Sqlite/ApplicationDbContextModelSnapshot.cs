@@ -481,6 +481,9 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                     b.Property<DateTime>("GeneratedAtUtc")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("FocusVocabularyFacts")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("NarrativeFacts")
                         .HasColumnType("TEXT");
 

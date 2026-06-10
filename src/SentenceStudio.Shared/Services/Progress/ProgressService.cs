@@ -1,5 +1,6 @@
 using SentenceStudio.Data;
 using SentenceStudio.Services.PlanGeneration;
+using SentenceStudio.Services.Plans;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -43,6 +44,28 @@ public class ProgressService : IProgressService
         _logger = logger;
         _userProfileRepo = userProfileRepo;
         _syncService = syncService;
+    }
+
+    /// <summary>
+    /// Resolves the canonical "today" key for plan storage and cache lookups.
+    /// All plan code in ProgressService MUST use this — never call
+    /// <c>DateTime.UtcNow.Date</c> or <c>DateTime.Today</c> directly for plan
+    /// dates. Resolves <see cref="IPlanDateContext"/> per-call so DST shifts
+    /// and travel-induced timezone changes apply without re-registering.
+    /// </summary>
+    /// <returns>UTC midnight that opens the user's local calendar day.</returns>
+    private DateTime ResolveTodayKey()
+    {
+        var dateContext = _serviceProvider.GetService(typeof(IPlanDateContext)) as IPlanDateContext;
+        if (dateContext != null)
+        {
+            return dateContext.UserLocalDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        }
+
+        // Fallback for partially-constructed DI graphs (older tests). We log so this is
+        // observable, and we still produce a UTC-kinded date so cache key math is consistent.
+        _logger.LogDebug("⚠️ IPlanDateContext not available — falling back to DateTime.UtcNow.Date");
+        return DateTime.SpecifyKind(DateTime.UtcNow.Date, DateTimeKind.Utc);
     }
 
     public async Task<List<ResourceProgress>> GetRecentResourceProgressAsync(DateTime fromUtc, int max = 3, CancellationToken ct = default)
@@ -206,7 +229,7 @@ public class ProgressService : IProgressService
 
     public async Task<TodaysPlan> GenerateTodaysPlanAsync(CancellationToken ct = default)
     {
-        var today = DateTime.UtcNow.Date;
+        var today = ResolveTodayKey();
 
         var existingPlan = await GetCachedPlanAsync(today, ct);
         if (existingPlan != null)
@@ -303,7 +326,8 @@ public class ProgressService : IProgressService
                 ResourceTitles: uniqueResourceTitles.Any() ? string.Join(", ", uniqueResourceTitles) : null,
                 SkillTitle: skillTitle,
                 Rationale: plan.Rationale,
-                Narrative: plan.Narrative
+                Narrative: plan.Narrative,
+                FocusVocabularyIds: plan.FocusVocabularyIds
             );
 
             // Enrich with any existing completion data from database (resume support)
@@ -381,7 +405,11 @@ public class ProgressService : IProgressService
             Streak: streak,
             ResourceTitles: null,
             SkillTitle: null,
-            Rationale: "Generated fallback plan due to insufficient data or service unavailability. Focusing on vocabulary review to maintain learning momentum."
+            // Rationale must be null (not a sentinel string) so the update branch
+            // in InitializePlanCompletionRecordsAsync can preserve a previously-
+            // saved LLM rationale via the `?? planRow.RationaleFacts` coalesce.
+            // A non-null fallback string would silently overwrite real rationale.
+            Rationale: null
         );
 
         plan = await EnrichPlanWithCompletionDataAsync(plan, ct);
@@ -390,11 +418,12 @@ public class ProgressService : IProgressService
         return plan;
     }
 
-    public async Task<TodaysPlan?> GetCachedPlanAsync(DateTime date, CancellationToken ct = default)
+    public async Task<TodaysPlan?> GetCachedPlanAsync(DateTime? date = null, CancellationToken ct = default)
     {
-        _logger.LogDebug("🔍 GetCachedPlanAsync for {Date:yyyy-MM-dd} (Kind={Kind})", date, date.Kind);
+        var resolvedDate = date ?? ResolveTodayKey();
+        _logger.LogDebug("🔍 GetCachedPlanAsync for {Date:yyyy-MM-dd} (Kind={Kind})", resolvedDate, resolvedDate.Kind);
 
-        var cachedPlan = _cache.GetTodaysPlan();
+        var cachedPlan = _cache.GetTodaysPlan(resolvedDate);
         if (cachedPlan == null)
         {
             _logger.LogDebug("⚠️ No plan in memory cache - checking database...");
@@ -402,12 +431,12 @@ public class ProgressService : IProgressService
             // Try to reconstruct from database (resilient to schema mismatches on mobile)
             try
             {
-                var reconstructedPlan = await ReconstructPlanFromDatabase(date, ct);
+                var reconstructedPlan = await ReconstructPlanFromDatabase(resolvedDate, ct);
                 if (reconstructedPlan != null)
                 {
                     _logger.LogDebug("✅ Reconstructed plan from database with {Count} items", reconstructedPlan.Items.Count);
                     reconstructedPlan = await ValidatePlanActivitiesAsync(reconstructedPlan, ct);
-                    _cache.SetTodaysPlan(reconstructedPlan);
+                    _cache.SetTodaysPlan(resolvedDate, reconstructedPlan);
                     return reconstructedPlan;
                 }
             }
@@ -423,20 +452,20 @@ public class ProgressService : IProgressService
         _logger.LogDebug("📊 Cache contains plan for {CachedDate:yyyy-MM-dd} (Kind={Kind})", cachedPlan.GeneratedForDate, cachedPlan.GeneratedForDate.Kind);
 
         // Validate cached plan is for the requested date
-        if (cachedPlan.GeneratedForDate.Date != date.Date)
+        if (cachedPlan.GeneratedForDate.Date != resolvedDate.Date)
         {
-            _logger.LogDebug("❌ Cache date mismatch: requested={RequestedDate:yyyy-MM-dd}, cached={CachedDate:yyyy-MM-dd}", date.Date, cachedPlan.GeneratedForDate.Date);
-            _cache.InvalidateTodaysPlan();
+            _logger.LogDebug("❌ Cache date mismatch: requested={RequestedDate:yyyy-MM-dd}, cached={CachedDate:yyyy-MM-dd}", resolvedDate.Date, cachedPlan.GeneratedForDate.Date);
+            _cache.InvalidateTodaysPlan(resolvedDate);
 
             // Try database before giving up (resilient to schema mismatches)
             try
             {
-                var reconstructedPlan = await ReconstructPlanFromDatabase(date, ct);
+                var reconstructedPlan = await ReconstructPlanFromDatabase(resolvedDate, ct);
                 if (reconstructedPlan != null)
                 {
                     _logger.LogDebug("✅ Found plan in database for correct date");
                     reconstructedPlan = await ValidatePlanActivitiesAsync(reconstructedPlan, ct);
-                    _cache.SetTodaysPlan(reconstructedPlan);
+                    _cache.SetTodaysPlan(resolvedDate, reconstructedPlan);
                     return reconstructedPlan;
                 }
             }
@@ -457,14 +486,15 @@ public class ProgressService : IProgressService
         enrichedPlan = await ValidatePlanActivitiesAsync(enrichedPlan, ct);
 
         // Update cache with enriched data
-        _cache.UpdateTodaysPlan(enrichedPlan);
+        _cache.UpdateTodaysPlan(resolvedDate, enrichedPlan);
 
         return enrichedPlan;
     }
 
-    public async Task ClearCachedPlanAsync(DateTime date, CancellationToken ct = default)
+    public async Task ClearCachedPlanAsync(DateTime? date = null, CancellationToken ct = default)
     {
-        _logger.LogDebug("🗑️ ClearCachedPlanAsync for {Date:yyyy-MM-dd}", date);
+        var resolvedDate = date ?? ResolveTodayKey();
+        _logger.LogDebug("🗑️ ClearCachedPlanAsync for {Date:yyyy-MM-dd}", resolvedDate);
 
         var userProfile = await _userProfileRepo.GetAsync();
         if (userProfile == null)
@@ -474,7 +504,7 @@ public class ProgressService : IProgressService
         }
 
         // Clear from memory cache
-        _cache.InvalidateTodaysPlan();
+        _cache.InvalidateTodaysPlan(resolvedDate);
         _logger.LogDebug("✅ Cleared memory cache");
 
         // CRITICAL: Also delete database records to prevent reconstruction
@@ -483,7 +513,7 @@ public class ProgressService : IProgressService
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         var completionsToDelete = await db.DailyPlanCompletions
-            .Where(c => c.Date == date.Date && c.UserProfileId == userProfile.Id)
+            .Where(c => c.Date == resolvedDate.Date && c.UserProfileId == userProfile.Id)
             .ToListAsync(ct);
 
         if (completionsToDelete.Any())
@@ -509,11 +539,11 @@ public class ProgressService : IProgressService
             return;
         }
 
-        // CRITICAL: Use UTC date to match plan generation
-        var today = DateTime.UtcNow.Date;
-        _logger.LogDebug("📅 Using UTC date: {Today:yyyy-MM-dd}", today);
+        // Resolve today via IPlanDateContext so the key matches plan generation across timezones.
+        var today = ResolveTodayKey();
+        _logger.LogDebug("📅 Plan-today key: {Today:yyyy-MM-dd}", today);
 
-        var plan = _cache.GetTodaysPlan();
+        var plan = _cache.GetTodaysPlan(today);
 
         if (plan == null)
         {
@@ -617,7 +647,7 @@ public class ProgressService : IProgressService
             CompletionPercentage = completionPercentage
         };
 
-        _cache.UpdateTodaysPlan(updatedPlan);
+        _cache.UpdateTodaysPlan(today, updatedPlan);
         _logger.LogDebug("✅ Cache updated - {Percentage:F0}% complete ({Spent}/{Estimated} min)", completionPercentage, totalMinutesSpent, totalEstimatedMinutes);
     }
 
@@ -633,9 +663,9 @@ public class ProgressService : IProgressService
             return;
         }
 
-        // CRITICAL: Use UTC date to match plan generation
-        var today = DateTime.UtcNow.Date;
-        _logger.LogDebug("📅 Using UTC date: {Today:yyyy-MM-dd}", today);
+        // Resolve today via IPlanDateContext so the key matches plan generation across timezones.
+        var today = ResolveTodayKey();
+        _logger.LogDebug("📅 Plan-today key: {Today:yyyy-MM-dd}", today);
 
         // Update database FIRST - this should always work if plan was initialized
         using var scope = _serviceProvider.CreateScope();
@@ -668,7 +698,7 @@ public class ProgressService : IProgressService
             _logger.LogDebug("⚠️ No DailyPlanCompletion record found for planItemId='{PlanItemId}' on {Today:yyyy-MM-dd} — creating one", planItemId, today);
 
             // Create a new record from cached plan data to prevent data loss
-            var cachedPlan = _cache.GetTodaysPlan();
+            var cachedPlan = _cache.GetTodaysPlan(today);
             var planItem = cachedPlan?.Items.FirstOrDefault(i => i.Id == planItemId);
             if (planItem != null)
             {
@@ -714,7 +744,7 @@ public class ProgressService : IProgressService
         }
 
         // Also update cache if it exists (optional, for UI responsiveness)
-        var plan = _cache.GetTodaysPlan();
+        var plan = _cache.GetTodaysPlan(today);
         if (plan != null)
         {
             _logger.LogDebug("✅ Cache exists - updating cache too");
@@ -748,7 +778,7 @@ public class ProgressService : IProgressService
                     CompletionPercentage = completionPercentage,
                     CompletedCount = plan.Items.Count(i => i.IsCompleted)
                 };
-                _cache.UpdateTodaysPlan(updatedPlan);
+                _cache.UpdateTodaysPlan(today, updatedPlan);
                 _logger.LogDebug("✅ Cache updated - {Completed}/{Total} complete, {Percentage:F0}%",
                     updatedPlan.CompletedCount, updatedPlan.TotalCount, completionPercentage);
             }
@@ -779,7 +809,7 @@ public class ProgressService : IProgressService
             return $"adhoc-{Guid.NewGuid()}";
         }
 
-        var today = DateTime.UtcNow.Date;
+        var today = ResolveTodayKey();
         var planItemId = $"adhoc-{Guid.NewGuid()}";
 
         using var scope = _serviceProvider.CreateScope();
@@ -1064,9 +1094,90 @@ public class ProgressService : IProgressService
 
     private Task CachePlanAsync(TodaysPlan plan, CancellationToken ct)
     {
-        _cache.SetTodaysPlan(plan);
+        // Use the plan's own generated-for date so the cache key always matches the data,
+        // even if the calling context's "today" has drifted.
+        _cache.SetTodaysPlan(plan.GeneratedForDate.Date, plan);
         return Task.CompletedTask;
     }
+
+    private static string? SerializeFocusVocabularyFacts(IReadOnlyList<string>? focusVocabularyIds)
+        => PlanFactsSerializer.SerializeFocusVocabularyFacts(focusVocabularyIds);
+
+    private static string? SerializeNarrativeFacts(PlanNarrative? narrative)
+    {
+        if (narrative is null)
+        {
+            return null;
+        }
+
+        var facts = new NarrativeFactsDto
+        {
+            Story = narrative.Story,
+            FocusAreas = narrative.FocusAreas?.ToList(),
+            Resources = narrative.Resources?
+                .Select(r => new NarrativeResourceFactsDto
+                {
+                    Id = r.Id,
+                    Title = r.Title,
+                    MediaType = r.MediaType,
+                    SelectionReason = r.SelectionReason
+                })
+                .ToList(),
+            VocabInsight = narrative.VocabInsight is null
+                ? null
+                : new NarrativeVocabInsightFactsDto
+                {
+                    TotalDue = narrative.VocabInsight.TotalDue,
+                    ReviewCount = narrative.VocabInsight.ReviewCount,
+                    NewCount = narrative.VocabInsight.NewCount,
+                    AverageMastery = narrative.VocabInsight.AverageMastery,
+                    StrugglingCategories = narrative.VocabInsight.StrugglingCategories?
+                        .Select(t => new NarrativeTagInsightFactsDto
+                        {
+                            Tag = t.Tag,
+                            WordCount = t.WordCount,
+                            AverageAccuracy = t.AverageAccuracy,
+                            TotalAttempts = t.TotalAttempts
+                        })
+                        .ToList(),
+                    SampleStrugglingWords = narrative.VocabInsight.SampleStrugglingWords?.ToList(),
+                    PreviewWords = narrative.VocabInsight.PreviewWords?
+                        .Select(w => new NarrativePreviewWordFactsDto
+                        {
+                            WordId = w.WordId,
+                            TargetTerm = w.TargetTerm,
+                            NativeTerm = w.NativeTerm
+                        })
+                        .ToList(),
+                    PatternInsight = narrative.VocabInsight.PatternInsight
+                }
+        };
+
+        return PlanFactsSerializer.SerializeNarrativeFacts(facts);
+    }
+
+    private static string? SerializeRationaleFacts(string? rationale)
+        => PlanFactsSerializer.SerializeRationaleFacts(rationale);
+
+    private static List<string> DeserializeFocusVocabularyFacts(string? json)
+        => PlanFactsSerializer.DeserializeFocusVocabularyFacts(json);
+
+    private static List<string> NormalizeFocusVocabularyIds(IEnumerable<string>? focusVocabularyIds)
+        => PlanFactsSerializer.NormalizeFocusVocabularyIds(focusVocabularyIds);
+
+    private static bool ShouldUsePlanFocusVocabularyIds(PlanActivityType activityType)
+    {
+        return activityType is PlanActivityType.VocabularyReview
+            or PlanActivityType.VocabularyGame
+            or PlanActivityType.Cloze
+            or PlanActivityType.Writing
+            or PlanActivityType.Translation
+            or PlanActivityType.Reading;
+    }
+
+    // Facts DTOs hoisted to PlanFactsSerializer (shared with PlanService).
+    // DO NOT re-introduce private DTOs here — any drift breaks the CoreSync
+    // round-trip silently. See PlanFactsSerializer.cs class docstring.
 
     /// <summary>
     /// Pre-create DailyPlanCompletion records for all plan items.
@@ -1086,6 +1197,53 @@ public class ProgressService : IProgressService
 
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var nowUtc = DateTime.UtcNow;
+        var planFocusVocabularyIds = NormalizeFocusVocabularyIds(
+            plan.FocusVocabularyIds ?? plan.Items.SelectMany(i => i.FocusVocabularyIds ?? Array.Empty<string>()));
+        var focusVocabularyFactsJson = SerializeFocusVocabularyFacts(planFocusVocabularyIds);
+        var narrativeFactsJson = SerializeNarrativeFacts(plan.Narrative);
+        var rationaleFactsJson = SerializeRationaleFacts(plan.Rationale);
+        var planRow = await db.DailyPlans
+            .FirstOrDefaultAsync(p => p.Date == plan.GeneratedForDate.Date && p.UserProfileId == userProfile.Id, ct);
+        if (planRow is null)
+        {
+            db.DailyPlans.Add(new DailyPlan
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                UserProfileId = userProfile.Id,
+                Date = plan.GeneratedForDate.Date,
+                GeneratedAtUtc = nowUtc,
+                Strategy = "deterministic",
+                FocusVocabularyFacts = focusVocabularyFactsJson,
+                NarrativeFacts = narrativeFactsJson,
+                RationaleFacts = rationaleFactsJson,
+                CreatedAt = nowUtc,
+                UpdatedAt = nowUtc
+            });
+        }
+        else
+        {
+            // Don't clobber previously-good facts with NULL — the fallback plan
+            // path (exception recovery) constructs a TodaysPlan with null Narrative
+            // and null Rationale; we must not destroy a previously-built plan row
+            // in that case. Coalesce on null only. (Fallback FocusVocabularyIds
+            // are also null/empty → SerializeFocusVocabularyFacts returns null,
+            // so the same coalesce protects FocusVocabularyFacts.)
+            // Regression-guarded by NarrativeFacts_FallbackPlanDoesNotClobberPreviousFacts_SqliteRoundTrip.
+            planRow.FocusVocabularyFacts = focusVocabularyFactsJson ?? planRow.FocusVocabularyFacts;
+            planRow.NarrativeFacts = narrativeFactsJson ?? planRow.NarrativeFacts;
+            planRow.RationaleFacts = rationaleFactsJson ?? planRow.RationaleFacts;
+            planRow.UpdatedAt = nowUtc;
+            if (planRow.GeneratedAtUtc == default)
+            {
+                planRow.GeneratedAtUtc = nowUtc;
+            }
+            if (string.IsNullOrWhiteSpace(planRow.Strategy))
+            {
+                planRow.Strategy = "deterministic";
+            }
+        }
 
         foreach (var item in plan.Items)
         {
@@ -1170,6 +1328,12 @@ public class ProgressService : IProgressService
 
         _logger.LogDebug("📊 Found {Count} completion records, reconstructing plan...", completions.Count);
 
+        var planFocusVocabularyFacts = await db.DailyPlans.AsNoTracking()
+            .Where(p => p.Date == date.Date && p.UserProfileId == userProfile.Id)
+            .Select(p => p.FocusVocabularyFacts)
+            .FirstOrDefaultAsync(ct);
+        var planFocusVocabularyIds = DeserializeFocusVocabularyFacts(planFocusVocabularyFacts);
+
         // Extract rationale from first record (stored redundantly in all records for same date)
         var rationale = completions.FirstOrDefault()?.Rationale ?? string.Empty;
 
@@ -1188,6 +1352,21 @@ public class ProgressService : IProgressService
             }
         }
 
+        // Fallback: when the DailyPlan row is missing or has empty FocusVocabularyFacts
+        // (e.g. legacy rows written before the AddFocusVocabularyFacts migration, or
+        // mobile clients that haven't yet synced the DailyPlan row from the server),
+        // hydrate FocusVocabularyIds from the narrative's PreviewWords. The narrative
+        // is what powers the dashboard insight & "Preview plan vocabulary" flashcard,
+        // so it's the right source to keep activities aligned with the preview.
+        if (planFocusVocabularyIds.Count == 0 && narrative?.VocabInsight?.PreviewWords is { Count: > 0 } previewWords)
+        {
+            planFocusVocabularyIds = NormalizeFocusVocabularyIds(previewWords.Select(w => w.WordId));
+            if (planFocusVocabularyIds.Count > 0)
+            {
+                _logger.LogDebug("🩹 Hydrated FocusVocabularyIds from narrative PreviewWords ({Count} ids) — DailyPlan.FocusVocabularyFacts was empty", planFocusVocabularyIds.Count);
+            }
+        }
+
         // Convert DailyPlanCompletion records back to PlanItems
         var planItems = new List<DailyPlanItem>();
 
@@ -1195,8 +1374,11 @@ public class ProgressService : IProgressService
         {
             // Derive route and parameters from ActivityType and IDs using PlanConverter
             var activityType = Enum.Parse<PlanActivityType>(completion.ActivityType);
+            var focusVocabularyIds = ShouldUsePlanFocusVocabularyIds(activityType)
+                ? planFocusVocabularyIds
+                : new List<string>();
             var route = PlanConverter.GetRouteForActivity(activityType);
-            var routeParams = PlanConverter.BuildRouteParameters(activityType, completion.ResourceId, completion.SkillId);
+            var routeParams = PlanConverter.BuildRouteParameters(activityType, completion.ResourceId, completion.SkillId, focusVocabularyIds);
 
             // Self-healing: if time spent meets/exceeds estimate, treat as complete
             var effectiveCompleted = completion.IsCompleted
@@ -1219,7 +1401,8 @@ public class ProgressService : IProgressService
                 SkillName: null, // Will be enriched later if needed
                 VocabDueCount: null,
                 DifficultyLevel: null,
-                MinutesSpent: completion.MinutesSpent
+                MinutesSpent: completion.MinutesSpent,
+                FocusVocabularyIds: focusVocabularyIds
             );
 
             planItems.Add(planItem);
@@ -1247,7 +1430,11 @@ public class ProgressService : IProgressService
             ResourceTitles: null, // Will be enriched later if needed
             SkillTitle: null,
             Rationale: rationale,
-            Narrative: narrative
+            Narrative: narrative,
+            FocusVocabularyIds: planItems
+                .SelectMany(i => i.FocusVocabularyIds ?? Array.Empty<string>())
+                .Distinct(StringComparer.Ordinal)
+                .ToList()
         );
 
         _logger.LogDebug("✅ Reconstructed plan: {Percentage:F0}% complete ({Spent}/{Estimated} min)", completionPercentage, totalMinutesSpent, totalEstimatedMinutes);

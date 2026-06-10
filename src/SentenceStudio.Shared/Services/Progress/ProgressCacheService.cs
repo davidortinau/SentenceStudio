@@ -125,38 +125,55 @@ public class ProgressCacheService
         _skillProgressCache.Remove($"{UserId}:{skillId}");
     }
 
-    public TodaysPlan? GetTodaysPlan()
+    // Plan cache methods take an explicit date parameter to avoid timezone drift.
+    // Callers MUST pass DateTime.UtcNow.Date (or whichever date semantics they need) — the cache
+    // never invents its own "today". This eliminates the bug where the cache keyed on
+    // DateTime.Today (LOCAL) while the rest of the plan pipeline keys on DateTime.UtcNow.Date,
+    // causing cache misses and incorrect deletes near midnight UTC.
+    // Regression-guarded by: ProgressCacheServiceTimezoneTests.cs
+
+    public TodaysPlan? GetTodaysPlan(DateTime date)
     {
-        // Date-keyed cache: plan persists for the entire day, not just 5 minutes
-        var key = $"{UserId}:plan_{DateTime.Today:yyyy-MM-dd}";
+        var key = BuildPlanKey(date);
         if (!_todaysPlanCache.TryGetValue(key, out var entry) || entry.IsExpired())
             return null;
 
-        _logger.LogDebug("Cache HIT: TodaysPlan for user {UserId}, date {Date}", UserId, DateTime.Today);
+        _logger.LogDebug("Cache HIT: TodaysPlan for user {UserId}, date {Date:yyyy-MM-dd}", UserId, date.Date);
         return entry.Data;
     }
 
-    public void SetTodaysPlan(TodaysPlan data)
+    public void SetTodaysPlan(DateTime date, TodaysPlan data)
     {
-        var key = $"{UserId}:plan_{DateTime.Today:yyyy-MM-dd}";
-        // Expire at the end of the current day (local midnight)
-        var untilMidnight = DateTime.Today.AddDays(1) - DateTime.Now;
-        _todaysPlanCache[key] = new CacheEntry<TodaysPlan>(data, untilMidnight);
-        _logger.LogDebug("Cache SET: TodaysPlan for user {UserId}, date {Date}, expires in {Minutes}min", UserId, DateTime.Today, (int)untilMidnight.TotalMinutes);
+        var key = BuildPlanKey(date);
+        var ttl = ComputePlanCacheTtl(date);
+        _todaysPlanCache[key] = new CacheEntry<TodaysPlan>(data, ttl);
+        _logger.LogDebug("Cache SET: TodaysPlan for user {UserId}, date {Date:yyyy-MM-dd}, expires in {Minutes}min", UserId, date.Date, (int)ttl.TotalMinutes);
     }
 
-    public void InvalidateTodaysPlan()
+    public void InvalidateTodaysPlan(DateTime date)
     {
-        var key = $"{UserId}:plan_{DateTime.Today:yyyy-MM-dd}";
+        var key = BuildPlanKey(date);
         _todaysPlanCache.Remove(key);
     }
 
-    public void UpdateTodaysPlan(TodaysPlan data)
+    public void UpdateTodaysPlan(DateTime date, TodaysPlan data)
     {
-        var key = $"{UserId}:plan_{DateTime.Today:yyyy-MM-dd}";
-        var untilMidnight = DateTime.Today.AddDays(1) - DateTime.Now;
-        _todaysPlanCache[key] = new CacheEntry<TodaysPlan>(data, untilMidnight);
-        _logger.LogDebug("Cache UPDATE: TodaysPlan for user {UserId}, date {Date}", UserId, DateTime.Today);
+        var key = BuildPlanKey(date);
+        var ttl = ComputePlanCacheTtl(date);
+        _todaysPlanCache[key] = new CacheEntry<TodaysPlan>(data, ttl);
+        _logger.LogDebug("Cache UPDATE: TodaysPlan for user {UserId}, date {Date:yyyy-MM-dd}", UserId, date.Date);
+    }
+
+    private string BuildPlanKey(DateTime date) => $"{UserId}:plan_{date.Date:yyyy-MM-dd}";
+
+    private static TimeSpan ComputePlanCacheTtl(DateTime date)
+    {
+        // Cache entry expires at the next UTC midnight after the keyed date.
+        // Floor at 1 minute to avoid negative or zero TTLs when the caller is past midnight
+        // for the requested date (e.g., reconstructing yesterday's plan after midnight UTC).
+        var expiresAt = DateTime.SpecifyKind(date.Date.AddDays(1), DateTimeKind.Utc);
+        var ttl = expiresAt - DateTime.UtcNow;
+        return ttl > TimeSpan.FromMinutes(1) ? ttl : TimeSpan.FromMinutes(1);
     }
 
     private class CacheEntry<T>

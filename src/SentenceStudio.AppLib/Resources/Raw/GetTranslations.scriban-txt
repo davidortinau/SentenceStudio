@@ -1,27 +1,40 @@
 Generate {{ number_of_sentences }} short, natural {{ target_language }} sentences for translation practice.
 
+{{ if has_required_terms }}
+**REQUIRED FOCUS VOCABULARY (each sentence should use one of these before optional context words):**
+{{ for t in required_terms }}
+- {{ t.target_language_term }} = {{ t.native_language_term }}
+{{ end }}
+
+**OPTIONAL CONTEXT VOCABULARY (use for natural context only after required focus words are covered):**
+{{ for t in context_terms }}
+- {{ t.target_language_term }} = {{ t.native_language_term }}
+{{ end }}
+{{ else }}
 **VOCABULARY (use ONLY these — do not introduce other words beyond basic particles, pronouns, and high-frequency function words):**
 {{ for t in terms }}
 - {{ t.target_language_term }} = {{ t.native_language_term }}
 {{ end }}
+{{ end }}
 
 **SIMPLICITY RULES (the most important rules — follow strictly):**
-1. **Short.** 5–10 words per sentence. Hard ceiling: 12 words. Shorter is better.
-2. **One clause.** Prefer single-clause sentences. Use a compound/connector only when it is the most natural way a native speaker would say it.
-3. **One target grammar pattern per sentence.** Do NOT stack two or more target patterns in the same sentence. Vary which pattern appears across the set so all are practiced, but never crammed together.
-4. **1–2 vocabulary words per sentence** (not 3). One vocabulary word is fine and often preferable.
-5. **Native-natural.** Every sentence must be something a native speaker would actually say in everyday conversation. If it sounds contrived or textbook-only, rewrite it.
-6. **Grammatical.** No invented constructions. If you cannot form a clean, correct sentence with the vocabulary + target pattern, pick a different vocabulary word.
+- **Short.** 5–10 words per sentence. Hard ceiling: 12 words. Shorter is better.
+- **One clause.** Prefer single-clause sentences. Use a compound/connector only when it is the most natural way a native speaker would say it.
+- **One target grammar pattern per sentence.** Do NOT stack two or more target patterns in the same sentence. Vary which pattern appears across the set so all are practiced, but never crammed together.
+- **1–2 vocabulary words per sentence** (not 3). One vocabulary word is fine and often preferable.
+{{ if has_required_terms }}- **Focus-first.** Use REQUIRED FOCUS VOCABULARY for the sentence vocabulary before optional context words. Optional words may appear only when needed for natural sentence variety.
+{{ end }}- **Native-natural.** Every sentence must be something a native speaker would actually say in everyday conversation. If it sounds contrived or textbook-only, rewrite it.
+- **Grammatical.** No invented constructions. If you cannot form a clean, correct sentence with the vocabulary + target pattern, pick a different vocabulary word.
 
 **ANTI-EXAMPLES (do NOT produce sentences like these):**
-- ❌ "시장에 가려면 이틀 더 기다려야지요." — stacks `-(으)려면` and `-야지요`.
-- ❌ "하루 종일 기다렸다가 지금 퇴근하는 길이에요." — stacks `-다가` and `-는 길이에요`.
-- ❌ "교회에서 오는 길에 시간이 비슷하다 정도가 아니에요." — contrived, awkward semantics.
+- "시장에 가려면 이틀 더 기다려야지요." — stacks `-(으)려면` and `-야지요`.
+- "하루 종일 기다렸다가 지금 퇴근하는 길이에요." — stacks `-다가` and `-는 길이에요`.
+- "교회에서 오는 길에 시간이 비슷하다 정도가 아니에요." — contrived, awkward semantics.
 
 **GOOD EXAMPLES (style and length to match):**
-- ✅ "우체국에 가는 길이에요." — one pattern, natural, short.
-- ✅ "비가 계속되면 좋겠어요." — one pattern, natural, short.
-- ✅ "혼자 여행 가게 됐어요." — one pattern, natural, short.
+- "우체국에 가는 길이에요." — one pattern, natural, short.
+- "비가 계속되면 좋겠어요." — one pattern, natural, short.
+- "혼자 여행 가게 됐어요." — one pattern, natural, short.
 
 **OUTPUT REQUIREMENTS:**
 - Provide a natural {{ native_language }} translation that matches the vocabulary actually used.

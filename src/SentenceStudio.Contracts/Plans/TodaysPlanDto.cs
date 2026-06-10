@@ -17,6 +17,9 @@ public sealed class TodaysPlanDto
 
     public required List<PlanItemDto> Items { get; init; }
 
+    /// <summary>Ordered vocabulary word IDs selected as today's deterministic focus set.</summary>
+    public List<string> FocusVocabularyIds { get; init; } = new();
+
     public required int EstimatedTotalMinutes { get; init; }
     public required int CompletedCount { get; init; }
     public required int TotalCount { get; init; }

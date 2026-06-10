@@ -124,7 +124,8 @@ public class DeterministicPlanBuilder
                         SkillId = vocabReview.SkillId,
                         EstimatedMinutes = Math.Min(vocabReview.EstimatedMinutes, sessionMinutes),
                         Priority = 1,
-                        Rationale = $"Review {vocabReview.WordCount} of {vocabReview.TotalDue} words due today"
+                        Rationale = $"Review {vocabReview.WordCount} of {vocabReview.TotalDue} words due today",
+                        FocusVocabularyIds = vocabReview.FocusVocabularyIds
                     }
                 };
 
@@ -137,7 +138,8 @@ public class DeterministicPlanBuilder
                     PrimaryResource = null,
                     VocabularyReview = vocabReview,
                     TotalMinutes = Math.Min(vocabReview.EstimatedMinutes, sessionMinutes),
-                    Narrative = fallbackNarrative
+                    Narrative = fallbackNarrative,
+                    FocusVocabularyIds = vocabReview.FocusVocabularyIds
                 };
             }
             return null;
@@ -175,7 +177,8 @@ public class DeterministicPlanBuilder
             VocabularyReview = vocabReview,
             TotalMinutes = totalMinutes,
             ResourceSelectionReason = primaryResource.SelectionReason,
-            Narrative = narrative
+            Narrative = narrative,
+            FocusVocabularyIds = vocabReview?.FocusVocabularyIds ?? new List<string>()
         };
     }
 
@@ -243,17 +246,27 @@ public class DeterministicPlanBuilder
         // Estimate time: ~3-4 words per minute with MC→text entry progression
         var estimatedMinutes = (int)Math.Ceiling(reviewCount / 3.5);
 
-        var selectedDueWords = dueWords.Take(reviewCount).ToList();
+        var selectedDueWords = dueWords
+            .OrderBy(w => w.NextReviewDate)
+            .ThenBy(w => w.VocabularyWordId, StringComparer.Ordinal)
+            .Take(reviewCount)
+            .ToList();
+        var focusVocabularyIds = selectedDueWords
+            .Select(w => w.VocabularyWordId)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
 
         return new VocabularyReviewBlock
         {
-            WordCount = reviewCount,
+            WordCount = selectedDueWords.Count,
             TotalDue = dueWords.Count,
             ResourceId = resourceId,
             SkillId = skillId,
             EstimatedMinutes = estimatedMinutes,
             IsContextual = !string.IsNullOrEmpty(resourceId),
-            DueWords = selectedDueWords
+            DueWords = selectedDueWords,
+            FocusVocabularyIds = focusVocabularyIds
         };
     }
 
@@ -505,6 +518,7 @@ public class DeterministicPlanBuilder
         var activities = new List<PlannedActivity>();
         var remainingMinutes = sessionMinutes;
         var priority = 1;
+        var focusVocabularyIds = vocabReview?.FocusVocabularyIds ?? new List<string>();
 
         // Get recent activity types to ensure variety
         using var scope = _serviceProvider.CreateScope();
@@ -535,7 +549,8 @@ public class DeterministicPlanBuilder
                 SkillId = vocabReview.SkillId ?? skill?.Id,
                 EstimatedMinutes = vocabMinutes,
                 Priority = priority++,
-                Rationale = $"Review {vocabReview.WordCount} of {vocabReview.TotalDue} words due today"
+                Rationale = $"Review {vocabReview.WordCount} of {vocabReview.TotalDue} words due today",
+                FocusVocabularyIds = focusVocabularyIds
             });
             remainingMinutes -= vocabMinutes;
         }
@@ -557,7 +572,8 @@ public class DeterministicPlanBuilder
                     SkillId = skill?.Id,
                     EstimatedMinutes = inputMinutes,
                     Priority = priority++,
-                    Rationale = GetActivityRationale(inputActivity, "input")
+                    Rationale = GetActivityRationale(inputActivity, "input"),
+                    FocusVocabularyIds = GetFocusVocabularyIdsForActivity(inputActivity, focusVocabularyIds)
                 });
                 remainingMinutes -= inputMinutes;
             }
@@ -580,7 +596,8 @@ public class DeterministicPlanBuilder
                 SkillId = skill?.Id,
                 EstimatedMinutes = outputMinutes,
                 Priority = priority++,
-                Rationale = GetActivityRationale(outputActivity, "output")
+                Rationale = GetActivityRationale(outputActivity, "output"),
+                FocusVocabularyIds = GetFocusVocabularyIdsForActivity(outputActivity, focusVocabularyIds)
             });
             remainingMinutes -= outputMinutes;
         }
@@ -601,12 +618,20 @@ public class DeterministicPlanBuilder
                     Priority = priority++,
                     Rationale = closerActivity == "NumberDrill"
                         ? "Number drill to build automaticity with Korean number systems"
-                        : "Light game activity to reinforce vocabulary in a low-pressure way"
+                        : "Light game activity to reinforce vocabulary in a low-pressure way",
+                    FocusVocabularyIds = GetFocusVocabularyIdsForActivity(closerActivity, focusVocabularyIds)
                 });
             }
         }
 
         return activities;
+    }
+
+    private static List<string> GetFocusVocabularyIdsForActivity(string activityType, IReadOnlyList<string> focusVocabularyIds)
+    {
+        return activityType is "VocabularyReview" or "VocabularyGame" or "Cloze" or "Writing" or "Translation" or "Reading"
+            ? focusVocabularyIds.ToList()
+            : new List<string>();
     }
 
     /// <summary>
@@ -698,8 +723,9 @@ public class DeterministicPlanBuilder
         if (vocabReview != null && vocabReview.DueWords.Any())
         {
             var dueWords = vocabReview.DueWords;
-            var newWords = dueWords.Where(w => w.TotalAttempts == 0).ToList();
-            var reviewWords = dueWords.Where(w => w.TotalAttempts > 0).ToList();
+            var focusSet = dueWords;
+            var newWords = focusSet.Where(w => w.TotalAttempts == 0).ToList();
+            var reviewWords = focusSet.Where(w => w.TotalAttempts > 0).ToList();
             var avgMastery = reviewWords.Any() ? reviewWords.Average(w => w.MasteryScore) : 0f;
 
             // Analyze categories from Tags — separate untested from genuinely struggling
@@ -772,7 +798,7 @@ public class DeterministicPlanBuilder
                 focusWords = new List<string>();
             }
 
-            var previewWords = dueWords
+            var previewWords = focusSet
                 .Where(w => w.VocabularyWord is not null
                     && !string.IsNullOrWhiteSpace(w.VocabularyWord.TargetLanguageTerm)
                     && !string.IsNullOrWhiteSpace(w.VocabularyWord.NativeLanguageTerm))
@@ -954,6 +980,7 @@ public class VocabularyReviewBlock
     public int EstimatedMinutes { get; set; }
     public bool IsContextual { get; set; }
     public List<VocabularyProgress> DueWords { get; set; } = new(); // The actual due words for analysis
+    public List<string> FocusVocabularyIds { get; set; } = new();
 }
 
 /// <summary>
@@ -992,6 +1019,7 @@ public class PlanSkeleton
     public SelectedResource? PrimaryResource { get; set; }
     public SkillInfo? PrimarySkill { get; set; }
     public VocabularyReviewBlock? VocabularyReview { get; set; }
+    public List<string> FocusVocabularyIds { get; set; } = new();
     public int TotalMinutes { get; set; }
     public string ResourceSelectionReason { get; set; }
     public PlanNarrative? Narrative { get; set; }
@@ -1008,6 +1036,7 @@ public class PlannedActivity
     public int EstimatedMinutes { get; set; }
     public int Priority { get; set; }
     public string Rationale { get; set; }
+    public List<string> FocusVocabularyIds { get; set; } = new();
 }
 
 /// <summary>

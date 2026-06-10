@@ -130,6 +130,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.Entity<DailyPlan>().Property(e => e.Id).ValueGeneratedNever();
         modelBuilder.Entity<DailyPlan>().Property(e => e.RationaleFacts).IsRequired(false);
         modelBuilder.Entity<DailyPlan>().Property(e => e.NarrativeFacts).IsRequired(false);
+        modelBuilder.Entity<DailyPlan>().Property(e => e.FocusVocabularyFacts).IsRequired(false);
         if (isNpgsql)
         {
             // §14a — same rationale as DailyPlanCompletion.Date above.

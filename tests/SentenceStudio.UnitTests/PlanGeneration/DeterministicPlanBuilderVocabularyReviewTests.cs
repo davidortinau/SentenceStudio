@@ -274,6 +274,43 @@ public class DeterministicPlanBuilderVocabularyReviewTests : IClassFixture<PlanG
     }
 
     [Fact]
+    public async Task FocusVocabularyIds_AreDeterministic_AndPreviewMatchesFocusSet()
+    {
+        _fixture.SeedUserProfile(20);
+        var resource = _fixture.SeedResource(title: "Focus Word Resource", vocabWordCount: 8);
+        _fixture.SeedSkill();
+
+        var wordIds = _fixture.GetResourceVocabularyWordIds(resource.Id).Take(6).ToList();
+        var seeded = new List<SentenceStudio.Shared.Models.VocabularyProgress>();
+        for (var i = 0; i < wordIds.Count; i++)
+        {
+            seeded.Add(_fixture.SeedVocabularyProgress(
+                vocabularyWordId: wordIds[i],
+                masteryScore: 0.25f,
+                nextReviewDate: DateTime.UtcNow.AddDays(-1 * (wordIds.Count - i)),
+                resourceId: resource.Id));
+        }
+
+        var expectedFocusIds = seeded
+            .OrderBy(p => p.NextReviewDate)
+            .ThenBy(p => p.VocabularyWordId, StringComparer.Ordinal)
+            .Select(p => p.VocabularyWordId)
+            .ToList();
+
+        var builder = _fixture.CreateBuilder();
+        var plan = await builder.BuildPlanAsync();
+
+        plan.Should().NotBeNull();
+        plan!.FocusVocabularyIds.Should().Equal(expectedFocusIds);
+        plan.VocabularyReview!.FocusVocabularyIds.Should().Equal(expectedFocusIds);
+        plan.Narrative!.VocabInsight!.PreviewWords!.Select(w => w.WordId).Should().Equal(expectedFocusIds,
+            "preview words must be a projection of the deterministic focus set");
+        plan.Activities
+            .Where(a => a.ActivityType is "VocabularyReview" or "Cloze" or "Writing" or "Translation" or "Reading" or "VocabularyGame")
+            .Should().OnlyContain(a => a.FocusVocabularyIds.SequenceEqual(expectedFocusIds));
+    }
+
+    [Fact]
     public async Task NarrativeIncludesFrozenPreviewWords_FromSelectedDueWords()
     {
         _fixture.SeedUserProfile(20);

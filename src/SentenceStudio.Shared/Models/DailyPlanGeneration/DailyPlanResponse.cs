@@ -8,6 +8,9 @@ public class DailyPlanResponse
     [Description("List of 1-5 learning activities for today, ordered by priority (1=first, 2=second, etc)")]
     public List<PlanActivity> Activities { get; set; } = new();
 
+    [Description("Ordered vocabulary word IDs selected as today's deterministic focus set")]
+    public List<string> FocusVocabularyIds { get; set; } = new();
+
     [Description("Brief explanation of why these activities were chosen (optional, for debugging)")]
     public string Rationale { get; set; } = string.Empty;
 
@@ -33,4 +36,7 @@ public class PlanActivity
 
     [Description("For VocabularyReview: actual number of words selected for review (may be capped for pedagogical reasons)")]
     public int? VocabWordCount { get; set; }
+
+    [Description("Ordered vocabulary word IDs this activity should prioritize when launched from the daily plan")]
+    public List<string> FocusVocabularyIds { get; set; } = new();
 }

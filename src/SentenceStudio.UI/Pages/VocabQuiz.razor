@@ -526,6 +526,9 @@ else
     [SupplyParameterFromQuery(Name = "DueOnly")]
     public bool DueOnly { get; set; }
 
+    [SupplyParameterFromQuery(Name = "FocusVocabularyIds")]
+    public string? FocusVocabularyIdsParam { get; set; }
+
     [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
     [Inject] private VocabularyProgressService ProgressService { get; set; } = default!;
     [Inject] private TeacherService TeacherSvc { get; set; } = default!;
@@ -581,6 +584,8 @@ else
     private List<VocabularyQuizItem> vocabItems = new();
     private List<VocabularyQuizItem> sessionItems = new();
     private List<VocabularyQuizItem> roundWordOrder = new();
+    private IReadOnlyList<string> focusVocabularyIds = Array.Empty<string>();
+    private bool usingFocusVocabularyIds;
     // #190 — full vocabulary scope used as the distractor pool, so MC always has 4 options
     // even when only 1 word remains in the active round. Populated in LoadVocabulary after dedup.
     private List<VocabularyWord> distractorScope = new();
@@ -624,7 +629,7 @@ else
     protected override async Task OnInitializedAsync()
     {
         Localize.CultureChanged += OnCultureChanged;
-        Logger.LogInformation("🎯 VocabQuiz initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
+        Logger.LogInformation("VocabQuiz initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
         var firstResourceId = ResourceIdsParam?.Split(',', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
         ActivityTimer.StartSession("VocabularyReview", PlanItemId, firstResourceId, SkillIdParam);
 
@@ -639,25 +644,46 @@ else
         isBusy = true;
         try
         {
-            // DEFENSE IN DEPTH: When DueOnly=true (SRS mode), ignore ResourceIds even if passed
-            // This ensures VocabularyReview always loads from full user vocabulary pool
-            var resourceIds = DueOnly ? Array.Empty<string>() : ParseResourceIds();
+            focusVocabularyIds = FocusVocabularySelection.ParseFocusVocabularyIds(FocusVocabularyIdsParam);
+            usingFocusVocabularyIds = focusVocabularyIds.Count > 0;
             var allWords = new List<VocabularyWord>();
 
-            if (resourceIds.Length > 0)
+            async Task LoadLegacyVocabularyAsync()
             {
-                foreach (var id in resourceIds)
+                Logger.LogWarning("Activity {ActivityName} launched without FocusVocabularyIds (planItemId={PlanItemId}); falling back to legacy selection", nameof(VocabQuiz), PlanItemId);
+
+                var resourceIds = DueOnly ? Array.Empty<string>() : ParseResourceIds();
+                if (resourceIds.Length > 0)
                 {
-                    var resource = await ResourceRepo.GetResourceAsync(id);
-                    if (resource?.Vocabulary?.Any() == true)
-                        allWords.AddRange(resource.Vocabulary);
+                    foreach (var id in resourceIds)
+                    {
+                        var resource = await ResourceRepo.GetResourceAsync(id);
+                        if (resource?.Vocabulary?.Any() == true)
+                            allWords.AddRange(resource.Vocabulary);
+                    }
+                }
+                else
+                {
+                    var words = await ResourceRepo.GetAllVocabularyWordsWithResourcesAsync();
+                    allWords.AddRange(words);
+                }
+            }
+
+            if (usingFocusVocabularyIds)
+            {
+                var userVocabulary = await ResourceRepo.GetAllVocabularyWordsWithResourcesAsync();
+                allWords.AddRange(FocusVocabularySelection.SelectFocusWords(userVocabulary, focusVocabularyIds));
+
+                if (allWords.Count == 0)
+                {
+                    Logger.LogWarning("Activity {ActivityName} received FocusVocabularyIds but no matching vocabulary was found (planItemId={PlanItemId}); falling back to legacy selection", nameof(VocabQuiz), PlanItemId);
+                    usingFocusVocabularyIds = false;
+                    await LoadLegacyVocabularyAsync();
                 }
             }
             else
             {
-                // No specific resources — load all user vocabulary (e.g. from daily plan fallback)
-                var words = await ResourceRepo.GetAllVocabularyWordsWithResourcesAsync();
-                allWords.AddRange(words);
+                await LoadLegacyVocabularyAsync();
             }
 
             if (!allWords.Any())
@@ -667,19 +693,15 @@ else
                 return;
             }
 
-            // Deduplicate
             allWords = allWords
-                .Where(w => !string.IsNullOrWhiteSpace(w.NativeLanguageTerm) && !string.IsNullOrWhiteSpace(w.TargetLanguageTerm))
-                .GroupBy(w => w.Id).Select(g => g.First()).ToList();
+                .Where(FocusVocabularySelection.IsUsableVocabularyWord)
+                .GroupBy(w => w.Id, StringComparer.Ordinal).Select(g => g.First()).ToList();
 
-            // #190 — capture the full filtered+deduped vocabulary scope for distractor sampling.
-            // GenerateChoiceOptions draws from this so we always show 4 MC options regardless of
-            // how many words remain in the active round.
             distractorScope = allWords;
 
-            // Get progress
+            var activeUserId = Preferences.Get("active_profile_id", "");
             var wordIds = allWords.Select(w => w.Id).ToList();
-            var progressDict = await ProgressService.GetProgressForWordsAsync(wordIds);
+            var progressDict = await ProgressService.GetProgressForWordsAsync(wordIds, activeUserId);
 
             var quizCandidates = allWords.Select(word =>
             {
@@ -690,37 +712,40 @@ else
                         TotalAttempts = 0, CorrectAttempts = 0
                     };
                 return new VocabularyQuizItem { Word = word, Progress = progress };
-            })
-            .Where(i => !(i.IsKnown))  // Bug A fix: use IsKnown (computed) not IsCompleted (stale persisted bool)
-            .Where(i => !(i.Progress?.IsInGracePeriod ?? false));
+            });
 
-            // Fix 2: when SRS plan sends DueOnly=true, only include words actually due for review
-            if (DueOnly)
+            if (!usingFocusVocabularyIds)
             {
-                var now = DateTime.Now;
-                quizCandidates = quizCandidates.Where(i =>
+                quizCandidates = quizCandidates
+                    .Where(i => !(i.IsKnown))
+                    .Where(i => !(i.Progress?.IsInGracePeriod ?? false));
+
+                if (DueOnly)
                 {
-                    var totalAttempts = i.Progress?.TotalAttempts ?? 0;
-                    var nextReview = i.Progress?.NextReviewDate;
-                    
-                    // Include truly unseen words (never attempted)
-                    if (totalAttempts == 0)
-                        return true;
-                    
-                    // Include words due for review (NextReviewDate <= now)
-                    if (nextReview.HasValue && nextReview.Value <= now)
-                        return true;
-                    
-                    // EXCLUDE words not yet due (NextReviewDate > now AND TotalAttempts > 0)
-                    return false;
-                });
+                    var now = DateTime.Now;
+                    quizCandidates = quizCandidates.Where(i =>
+                    {
+                        var totalAttempts = i.Progress?.TotalAttempts ?? 0;
+                        var nextReview = i.Progress?.NextReviewDate;
+
+                        if (totalAttempts == 0)
+                            return true;
+
+                        if (nextReview.HasValue && nextReview.Value <= now)
+                            return true;
+
+                        return false;
+                    });
+                }
             }
 
-            batchPool = quizCandidates
-            .OrderBy(i => i.Progress?.MasteryScore ?? 0f)
-            .ThenBy(_ => Guid.NewGuid())
-            .Take(BatchSize)
-            .ToList();
+            batchPool = usingFocusVocabularyIds
+                ? quizCandidates.Take(BatchSize).ToList()
+                : quizCandidates
+                    .OrderBy(i => i.Progress?.MasteryScore ?? 0f)
+                    .ThenBy(_ => Guid.NewGuid())
+                    .Take(BatchSize)
+                    .ToList();
             
             // Fix 3: Mark items with DueOnly session flag
             foreach (var item in batchPool)
@@ -762,14 +787,16 @@ else
             return;
         }
 
-        // Each round: randomly select up to ActiveWordCount from the full batch pool
-        vocabItems = batchPool
-            .OrderBy(_ => Guid.NewGuid())
-            .Take(ActiveWordCount)
-            .ToList();
+        vocabItems = usingFocusVocabularyIds
+            ? batchPool.Take(ActiveWordCount).ToList()
+            : batchPool
+                .OrderBy(_ => Guid.NewGuid())
+                .Take(ActiveWordCount)
+                .ToList();
 
-        // Shuffle for round presentation order
-        roundWordOrder = vocabItems.OrderBy(_ => Guid.NewGuid()).ToList();
+        roundWordOrder = usingFocusVocabularyIds
+            ? vocabItems.ToList()
+            : vocabItems.OrderBy(_ => Guid.NewGuid()).ToList();
         currentTurnInRound = 0;
         await LoadCurrentItem();
     }

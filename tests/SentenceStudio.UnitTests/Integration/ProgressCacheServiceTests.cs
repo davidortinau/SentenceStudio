@@ -16,6 +16,7 @@ public class ProgressCacheServiceTests
 {
     private readonly ProgressCacheService _cache;
     private readonly Mock<IPreferencesService> _mockPreferences;
+    private static readonly DateTime _today = DateTime.UtcNow.Date;
 
     private const string TestUserId = "test-user-cache";
     private const string OtherUserId = "other-user-cache";
@@ -38,7 +39,7 @@ public class ProgressCacheServiceTests
     public void GetTodaysPlan_ReturnsNull_WhenNotSet()
     {
         // Act
-        var plan = _cache.GetTodaysPlan();
+        var plan = _cache.GetTodaysPlan(_today);
 
         // Assert
         plan.Should().BeNull("no plan has been cached yet");
@@ -51,8 +52,8 @@ public class ProgressCacheServiceTests
         var plan = CreateTestPlan();
 
         // Act
-        _cache.SetTodaysPlan(plan);
-        var cached = _cache.GetTodaysPlan();
+        _cache.SetTodaysPlan(_today, plan);
+        var cached = _cache.GetTodaysPlan(_today);
 
         // Assert
         cached.Should().NotBeNull();
@@ -65,11 +66,11 @@ public class ProgressCacheServiceTests
         // Arrange
         var plan1 = CreateTestPlan(completedCount: 0);
         var plan2 = CreateTestPlan(completedCount: 2);
-        _cache.SetTodaysPlan(plan1);
+        _cache.SetTodaysPlan(_today, plan1);
 
         // Act
-        _cache.UpdateTodaysPlan(plan2);
-        var cached = _cache.GetTodaysPlan();
+        _cache.UpdateTodaysPlan(_today, plan2);
+        var cached = _cache.GetTodaysPlan(_today);
 
         // Assert
         cached.Should().NotBeNull();
@@ -80,14 +81,14 @@ public class ProgressCacheServiceTests
     public void InvalidateTodaysPlan_RemovesCachedPlan()
     {
         // Arrange
-        _cache.SetTodaysPlan(CreateTestPlan());
-        _cache.GetTodaysPlan().Should().NotBeNull("precondition: plan is cached");
+        _cache.SetTodaysPlan(_today, CreateTestPlan());
+        _cache.GetTodaysPlan(_today).Should().NotBeNull("precondition: plan is cached");
 
         // Act
-        _cache.InvalidateTodaysPlan();
+        _cache.InvalidateTodaysPlan(_today);
 
         // Assert
-        _cache.GetTodaysPlan().Should().BeNull("plan should be removed after invalidation");
+        _cache.GetTodaysPlan(_today).Should().BeNull("plan should be removed after invalidation");
     }
 
     #endregion
@@ -98,13 +99,13 @@ public class ProgressCacheServiceTests
     public void CacheEntries_AreKeyedByUser_NoCrossBleed()
     {
         // Arrange: set plan for TestUserId
-        _cache.SetTodaysPlan(CreateTestPlan(completedCount: 1));
+        _cache.SetTodaysPlan(_today, CreateTestPlan(completedCount: 1));
 
         // Act: switch to different user
         _mockPreferences.Setup(p => p.Get("active_profile_id", It.IsAny<string>()))
             .Returns(OtherUserId);
 
-        var otherPlan = _cache.GetTodaysPlan();
+        var otherPlan = _cache.GetTodaysPlan(_today);
 
         // Assert: other user should not see TestUserId's plan
         otherPlan.Should().BeNull("cache entries are keyed by userId, no cross-bleed");
@@ -114,17 +115,17 @@ public class ProgressCacheServiceTests
     public void DifferentUsers_HaveIndependentCaches()
     {
         // Arrange: set plan for TestUserId
-        _cache.SetTodaysPlan(CreateTestPlan(completedCount: 1));
+        _cache.SetTodaysPlan(_today, CreateTestPlan(completedCount: 1));
 
         // Switch to other user, set different plan
         _mockPreferences.Setup(p => p.Get("active_profile_id", It.IsAny<string>()))
             .Returns(OtherUserId);
-        _cache.SetTodaysPlan(CreateTestPlan(completedCount: 5));
+        _cache.SetTodaysPlan(_today, CreateTestPlan(completedCount: 5));
 
         // Switch back to first user
         _mockPreferences.Setup(p => p.Get("active_profile_id", It.IsAny<string>()))
             .Returns(TestUserId);
-        var firstUserPlan = _cache.GetTodaysPlan();
+        var firstUserPlan = _cache.GetTodaysPlan(_today);
 
         // Assert: first user's plan is unaffected
         firstUserPlan.Should().NotBeNull();
@@ -209,7 +210,7 @@ public class ProgressCacheServiceTests
     public void InvalidateAll_ClearsEverything()
     {
         // Arrange: populate all caches
-        _cache.SetTodaysPlan(CreateTestPlan());
+        _cache.SetTodaysPlan(_today, CreateTestPlan());
         _cache.SetVocabSummary(new VocabProgressSummary(1, 2, 3, 4, 5, 0.8));
         _cache.SetSkillProgress("s1", new SkillProgress("s1", "Test", 0.5, 0, DateTime.UtcNow));
         _cache.SetResourceProgress(new List<ResourceProgress>
@@ -225,7 +226,7 @@ public class ProgressCacheServiceTests
         _cache.InvalidateAll();
 
         // Assert
-        _cache.GetTodaysPlan().Should().BeNull();
+        _cache.GetTodaysPlan(_today).Should().BeNull();
         _cache.GetVocabSummary().Should().BeNull();
         _cache.GetSkillProgress("s1").Should().BeNull();
         _cache.GetResourceProgress().Should().BeNull();

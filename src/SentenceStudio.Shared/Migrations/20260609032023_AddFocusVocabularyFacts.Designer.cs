@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using SentenceStudio.Data;
@@ -11,9 +12,11 @@ using SentenceStudio.Data;
 namespace SentenceStudio.Shared.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260609032023_AddFocusVocabularyFacts")]
+    partial class AddFocusVocabularyFacts
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -416,11 +419,11 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<DateTime>("Date")
                         .HasColumnType("date");
 
-                    b.Property<DateTime>("GeneratedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<string>("FocusVocabularyFacts")
                         .HasColumnType("text");
+
+                    b.Property<DateTime>("GeneratedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("NarrativeFacts")
                         .HasColumnType("text");

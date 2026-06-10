@@ -3,6 +3,7 @@
 @using SentenceStudio.Services.Progress
 @using SentenceStudio.Data
 @using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.WebUtilities
 @implements IAsyncDisposable
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
 
@@ -929,7 +930,7 @@ else
         StateHasChanged();
         try
         {
-            todaysPlan = await ProgressService.GetCachedPlanAsync(DateTime.UtcNow.Date);
+            todaysPlan = await ProgressService.GetCachedPlanAsync();
             todaysPlan ??= await ProgressService.GenerateTodaysPlanAsync();
         }
         catch (HttpRequestException ex)
@@ -985,7 +986,11 @@ else
         StateHasChanged();
         try
         {
-            await ProgressService.ClearCachedPlanAsync(DateTime.Today);
+            // Date defaults to IPlanDateContext.UserLocalDate-derived UTC midnight via ProgressService.
+            // Earlier code passed DateTime.Today (LOCAL) which deleted the wrong day's rows past 5pm Pacific,
+            // and even DateTime.UtcNow.Date drifts vs the user's local day. Letting the service resolve
+            // via the date context is the only correct option.
+            await ProgressService.ClearCachedPlanAsync();
             todaysPlan = await ProgressService.GenerateTodaysPlanAsync();
         }
         catch (Exception ex)
@@ -1039,49 +1044,55 @@ else
     private void LaunchPlanItem(DailyPlanItem item)
     {
         var route = MapActivityRoute(item.ActivityType);
-        // Pass resource/skill via query params when available
-        var query = new List<string>();
+        var query = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
         var multiResourceRoutes = new HashSet<string> { "vocab-quiz", "vocab-matching" };
-        
-        // CRITICAL: For vocabulary-driven activities (VocabularyReview, VocabularyGame),
-        // NEVER pass ResourceId (even if persisted on the plan item)
-        // These activities are vocabulary-driven, NOT resource-driven
-        if (item.ActivityType != PlanActivityType.VocabularyReview 
-            && item.ActivityType != PlanActivityType.VocabularyGame 
-            && item.ActivityType != PlanActivityType.Cloze 
+
+        if (item.ActivityType != PlanActivityType.VocabularyReview
+            && item.ActivityType != PlanActivityType.VocabularyGame
+            && item.ActivityType != PlanActivityType.Cloze
             && item.ActivityType != PlanActivityType.NumberDrill
             && !string.IsNullOrEmpty(item.ResourceId))
         {
             if (multiResourceRoutes.Contains(route))
-                query.Add($"resourceIds={item.ResourceId}");
+                query["resourceIds"] = item.ResourceId;
             else
-                query.Add($"resourceId={item.ResourceId}");
+                query["resourceId"] = item.ResourceId;
         }
         if (!string.IsNullOrEmpty(item.SkillId))
-            query.Add($"skillId={item.SkillId}");
-        query.Add($"planItemId={item.Id}");
+            query["skillId"] = item.SkillId;
+        query["planItemId"] = item.Id;
 
-        // Pass ALL route parameters from the plan (DueOnly, Mode, etc.)
+        if (item.FocusVocabularyIds?.Any() == true)
+        {
+            query["FocusVocabularyIds"] = string.Join(",", item.FocusVocabularyIds.Where(id => !string.IsNullOrWhiteSpace(id)));
+        }
+
         if (item.RouteParameters != null)
         {
             foreach (var kvp in item.RouteParameters)
             {
                 var key = kvp.Key;
-                // Skip params already added above
                 if (key is "ResourceId" or "resourceId" or "resourceIds" or "SkillId" or "skillId")
                     continue;
-                query.Add($"{key}={Uri.EscapeDataString(kvp.Value?.ToString() ?? "")}");
+                if (query.ContainsKey(key))
+                    continue;
+
+                query[key] = kvp.Value?.ToString() ?? string.Empty;
             }
         }
 
-        var url = $"/{route}" + (query.Count > 0 ? "?" + string.Join("&", query) : "");
+        var url = QueryHelpers.AddQueryString($"/{route}", query);
         NavManager.NavigateTo(url);
     }
 
     private void OpenFlashcardActivity()
     {
         var date = todaysPlan?.GeneratedForDate.Date ?? DateTime.UtcNow.Date;
-        NavManager.NavigateTo($"/flashcard-activity?date={date:yyyy-MM-dd}");
+        var url = QueryHelpers.AddQueryString("/flashcard-activity", new Dictionary<string, string?>
+        {
+            ["date"] = date.ToString("yyyy-MM-dd")
+        });
+        NavManager.NavigateTo(url);
     }
 
     // ---- Choose My Own ----

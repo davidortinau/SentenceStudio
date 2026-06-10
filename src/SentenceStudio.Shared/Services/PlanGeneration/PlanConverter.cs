@@ -50,8 +50,15 @@ public static class PlanConverter
                 VocabDueCount: activityType == PlanActivityType.VocabularyReview
                     ? (activity.VocabWordCount ?? vocabDueCount) // Use actual selected count if available, fallback to total
                     : null,
-                DifficultyLevel: null
+                DifficultyLevel: null,
+                FocusVocabularyIds: activity.FocusVocabularyIds
             ));
+        }
+
+        var focusVocabularyIds = NormalizeFocusVocabularyIds(llmResponse.FocusVocabularyIds);
+        if (focusVocabularyIds.Count == 0)
+        {
+            focusVocabularyIds = NormalizeFocusVocabularyIds(planItems.SelectMany(i => i.FocusVocabularyIds ?? Array.Empty<string>()).ToList());
         }
 
         return new TodaysPlan(
@@ -65,7 +72,8 @@ public static class PlanConverter
             ResourceTitles: null,
             SkillTitle: null,
             Rationale: llmResponse.Rationale,
-            Narrative: narrative
+            Narrative: narrative,
+            FocusVocabularyIds: focusVocabularyIds
         );
     }
 
@@ -120,9 +128,19 @@ public static class PlanConverter
     /// Builds route parameters for a given activity type with resource/skill IDs.
     /// Public to allow plan reconstruction from database without storing parameters.
     /// </summary>
-    public static Dictionary<string, object> BuildRouteParameters(PlanActivityType activityType, string? resourceId, string? skillId)
+    public static Dictionary<string, object> BuildRouteParameters(
+        PlanActivityType activityType,
+        string? resourceId,
+        string? skillId,
+        IReadOnlyList<string>? focusVocabularyIds = null)
     {
         var parameters = new Dictionary<string, object>();
+
+        var normalizedFocusIds = NormalizeFocusVocabularyIds(focusVocabularyIds);
+        if (ShouldPassFocusVocabularyIds(activityType) && normalizedFocusIds.Count > 0)
+        {
+            parameters["FocusVocabularyIds"] = string.Join(",", normalizedFocusIds);
+        }
 
         if (activityType == PlanActivityType.VocabularyReview)
         {
@@ -170,7 +188,26 @@ public static class PlanConverter
     /// </summary>
     private static Dictionary<string, object> BuildRouteParameters(PlanActivity activity, PlanActivityType activityType)
     {
-        return BuildRouteParameters(activityType, activity.ResourceId, activity.SkillId);
+        return BuildRouteParameters(activityType, activity.ResourceId, activity.SkillId, activity.FocusVocabularyIds);
+    }
+
+    private static bool ShouldPassFocusVocabularyIds(PlanActivityType activityType)
+    {
+        return activityType is PlanActivityType.VocabularyReview
+            or PlanActivityType.VocabularyGame
+            or PlanActivityType.Cloze
+            or PlanActivityType.Writing
+            or PlanActivityType.Translation
+            or PlanActivityType.Reading;
+    }
+
+    private static List<string> NormalizeFocusVocabularyIds(IReadOnlyList<string>? focusVocabularyIds)
+    {
+        return focusVocabularyIds?
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Select(id => id.Trim())
+            .Distinct(StringComparer.Ordinal)
+            .ToList() ?? new List<string>();
     }
 
     private static string GetTitleKeyForActivity(PlanActivityType activityType)

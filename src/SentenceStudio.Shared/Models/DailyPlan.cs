@@ -64,6 +64,12 @@ public class DailyPlan
     /// </summary>
     public string? NarrativeFacts { get; set; }
 
+    /// <summary>
+    /// Canonical JSON facts for the ordered vocabulary focus set selected for
+    /// this plan. The set is deterministic, small, and date-scoped.
+    /// </summary>
+    public string? FocusVocabularyFacts { get; set; }
+
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }

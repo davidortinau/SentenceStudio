@@ -57,7 +57,7 @@ public class StudyPlanIntegrationTests : IClassFixture<PlanGenerationTestFixture
 
             // Check that primary resource activities reference the same resource
             var resourceActivities = plan.Activities
-                .Where(a => a.ActivityType != "VocabularyReview" && a.ActivityType != "VocabularyGame")
+                .Where(a => a.ActivityType is not "VocabularyReview" and not "VocabularyGame" and not "Cloze" and not "NumberDrill")
                 .ToList();
 
             if (resourceActivities.Any())

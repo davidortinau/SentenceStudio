@@ -27,6 +27,11 @@
     background-color: rgba(33, 214, 164, 0.15);
 }
 
+.word--focus-vocab {
+    background-color: rgba(107, 140, 255, 0.10);
+    border-bottom-color: var(--bs-primary);
+}
+
 .sentence--selected {
     background-color: rgba(107, 140, 255, 0.12);
     border-radius: var(--ss-radius-sm);
