@@ -15,6 +15,11 @@ namespace SentenceStudio.Services.PlanGeneration;
 /// </summary>
 public class DeterministicPlanBuilder
 {
+    private const int MinimumDueVocabularyWords = 5;
+    private const int MaxDueVocabularyWords = 20;
+    private const int BootstrapVocabularyTarget = 15;
+    private const int ResourceFreshnessLookbackDays = 30;
+
     private readonly UserProfileRepository _userProfileRepo;
     private readonly LearningResourceRepository _resourceRepo;
     private readonly SkillProfileRepository _skillRepo;
@@ -124,7 +129,7 @@ public class DeterministicPlanBuilder
                         SkillId = vocabReview.SkillId,
                         EstimatedMinutes = Math.Min(vocabReview.EstimatedMinutes, sessionMinutes),
                         Priority = 1,
-                        Rationale = $"Review {vocabReview.WordCount} of {vocabReview.TotalDue} words due today",
+                        Rationale = GetVocabularyReviewRationale(vocabReview),
                         FocusVocabularyIds = vocabReview.FocusVocabularyIds
                     }
                 };
@@ -145,8 +150,11 @@ public class DeterministicPlanBuilder
             return null;
         }
 
-        _logger.LogInformation("📖 Selected resource: {ResourceTitle} (ID: {ResourceId}, not used for {DaysSince} days)",
-            primaryResource.Title, primaryResource.Id, primaryResource.DaysSinceLastUse);
+        var lastUseDescription = primaryResource.DaysSinceLastUse.HasValue
+            ? $"not used for {primaryResource.DaysSinceLastUse.Value} days"
+            : "never used before";
+        _logger.LogInformation("📖 Selected resource: {ResourceTitle} (ID: {ResourceId}, {LastUseDescription})",
+            primaryResource.Title, primaryResource.Id, lastUseDescription);
 
         // Step 3: Determine skill level (use primary skill or default)
         var skill = await DetermineSkillAsync(primaryResource, scopedUserId, ct);
@@ -192,18 +200,51 @@ public class DeterministicPlanBuilder
         CancellationToken ct)
     {
         var dueWords = await _vocabProgressRepo.GetDueVocabularyAsync(today, userProfileId);
+        var useBootstrap = false;
+        var unseenWords = new List<VocabularyProgress>();
 
-        if (dueWords.Count < 5)
+        if (dueWords.Count < MinimumDueVocabularyWords)
         {
-            _logger.LogDebug("⏭️ Skipping vocab review - only {Count} words due (need 5+)", dueWords.Count);
-            return null;
+            var unseenLimit = Math.Max(0, BootstrapVocabularyTarget - dueWords.Count);
+            unseenWords = await _vocabProgressRepo.GetUnseenMappedVocabularyAsync(userProfileId, unseenLimit, ct);
+
+            if (unseenWords.Count == 0)
+            {
+                _logger.LogDebug("⏭️ Skipping vocab review - only {Count} words due (need {Minimum}+), and no unseen mapped words available",
+                    dueWords.Count, MinimumDueVocabularyWords);
+                return null;
+            }
+
+            useBootstrap = true;
+            _logger.LogInformation("📚 Bootstrapping vocab review: {DueCount} due + {UnseenCount} unseen mapped words",
+                dueWords.Count, unseenWords.Count);
         }
 
-        // Cap at manageable amount (research shows 15-20 words optimal per session)
-        var reviewCount = Math.Min(20, dueWords.Count);
+        // Cap at manageable amount (research shows 15-20 words optimal per session).
+        // Bootstrap sessions are capped lower so first-time learners see enough
+        // vocabulary to start learning without being overwhelmed.
+        var reviewCount = useBootstrap
+            ? Math.Min(BootstrapVocabularyTarget, dueWords.Count + unseenWords.Count)
+            : Math.Min(MaxDueVocabularyWords, dueWords.Count);
+
+        var selectedDueWords = dueWords
+            .OrderBy(w => w.NextReviewDate)
+            .ThenBy(w => w.VocabularyWordId, StringComparer.Ordinal)
+            .Take(Math.Min(dueWords.Count, reviewCount))
+            .ToList();
+
+        var remainingBootstrapSlots = Math.Max(0, reviewCount - selectedDueWords.Count);
+        var selectedUnseenWords = unseenWords
+            .OrderBy(w => w.VocabularyWordId, StringComparer.Ordinal)
+            .Take(remainingBootstrapSlots)
+            .ToList();
+
+        var selectedWords = selectedDueWords
+            .Concat(selectedUnseenWords)
+            .ToList();
 
         // Group by resource to find best vocabulary-resource match
-        var wordsByResource = dueWords
+        var wordsByResource = selectedWords
             .SelectMany(w => w.LearningContexts
                 .Where(lc => !string.IsNullOrEmpty(lc.LearningResourceId))
                 .Select(lc => new { Word = w, ResourceId = lc.LearningResourceId! }))
@@ -214,7 +255,7 @@ public class DeterministicPlanBuilder
         string? resourceId = null;
         string? skillId = null;
 
-        if (wordsByResource != null && wordsByResource.Count() >= 5)
+        if (wordsByResource != null && wordsByResource.Count() >= MinimumDueVocabularyWords)
         {
             // Found a resource with significant vocab due - use it for contextual learning!
             resourceId = wordsByResource.Key;
@@ -234,24 +275,22 @@ public class DeterministicPlanBuilder
             skillId = recentSkill;
 
             _logger.LogInformation("🎯 Contextual vocab review: {Count}/{Total} words from resource {ResourceId}",
-                wordsByResource.Count(), dueWords.Count, resourceId);
+                wordsByResource.Count(), selectedWords.Count, resourceId);
         }
         else
         {
             // No strong resource match - review from general pool
             _logger.LogInformation("📚 General vocab review: {ReviewCount}/{Total} words",
-                reviewCount, dueWords.Count);
+                reviewCount, selectedWords.Count);
         }
 
-        // Estimate time: ~3-4 words per minute with MC→text entry progression
+        // Estimate time: ~3-4 words per minute with MC→text entry progression.
+        // Bootstrap plans must reserve a meaningful activity slot even for a tiny first batch.
         var estimatedMinutes = (int)Math.Ceiling(reviewCount / 3.5);
+        if (useBootstrap)
+            estimatedMinutes = Math.Max(5, estimatedMinutes);
 
-        var selectedDueWords = dueWords
-            .OrderBy(w => w.NextReviewDate)
-            .ThenBy(w => w.VocabularyWordId, StringComparer.Ordinal)
-            .Take(reviewCount)
-            .ToList();
-        var focusVocabularyIds = selectedDueWords
+        var focusVocabularyIds = selectedWords
             .Select(w => w.VocabularyWordId)
             .Where(id => !string.IsNullOrWhiteSpace(id))
             .Distinct(StringComparer.Ordinal)
@@ -259,14 +298,16 @@ public class DeterministicPlanBuilder
 
         return new VocabularyReviewBlock
         {
-            WordCount = selectedDueWords.Count,
-            TotalDue = dueWords.Count,
+            WordCount = selectedWords.Count,
+            TotalDue = useBootstrap ? selectedWords.Count : dueWords.Count,
             ResourceId = resourceId,
             SkillId = skillId,
             EstimatedMinutes = estimatedMinutes,
             IsContextual = !string.IsNullOrEmpty(resourceId),
-            DueWords = selectedDueWords,
-            FocusVocabularyIds = focusVocabularyIds
+            DueWords = selectedWords,
+            FocusVocabularyIds = focusVocabularyIds,
+            UnseenWordCount = selectedUnseenWords.Count,
+            IsBootstrap = useBootstrap
         };
     }
 
@@ -286,23 +327,25 @@ public class DeterministicPlanBuilder
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        // Get recent activity to analyze resource usage patterns
-        var recentActivity = await db.DailyPlanCompletions
+        // Get all activity for accurate last-used display, then keep the
+        // 30-day window only for freshness/rotation scoring.
+        var resourceActivity = await db.DailyPlanCompletions
             .Where(c => c.UserProfileId == userProfileId
-                && c.Date >= today.AddDays(-30)
                 && !string.IsNullOrEmpty(c.ResourceId))
             .OrderByDescending(c => c.Date)
             .ToListAsync(ct);
+        var recentActivity = resourceActivity
+            .Where(c => c.Date >= today.AddDays(-ResourceFreshnessLookbackDays))
+            .ToList();
 
         var yesterday = today.AddDays(-1);
-        var fiveDaysAgo = today.AddDays(-5);
 
         // Build resource usage map
-        var resourceLastUsed = recentActivity
+        var resourceLastUsed = resourceActivity
             .GroupBy(a => a.ResourceId!)
             .ToDictionary(
                 g => g.Key,
-                g => g.Max(a => a.Date)
+                g => g.Max(a => a.Date.Date)
             );
         var resourceRecentUsageDays = recentActivity
             .Where(a => a.Date >= today.AddDays(-7))
@@ -324,16 +367,18 @@ public class DeterministicPlanBuilder
             .Where(r => !string.IsNullOrEmpty(r.Id) && !string.IsNullOrEmpty(r.Title))
             .Where(r => r.MediaType != "Other") // Skip test/invalid resources
             .Where(r => !r.IsSmartResource) // Exclude smart resources (intent-driven, not auto-selected)
-            .Select(r => new ResourceCandidate
+            .Select(r =>
             {
-                Resource = r,
-                LastUsed = resourceLastUsed.TryGetValue(r.Id, out var date) ? date : (DateTime?)null,
-                DaysSinceLastUse = resourceLastUsed.TryGetValue(r.Id, out var d)
-                    ? (today - d).Days
-                    : 999, // Never used = high score
-                VocabCount = vocabularyCounts.TryGetValue(r.Id, out var count) ? count : 0,
-                IsVocabResource = r.Id == vocabResourceId,
-                Score = 0.0
+                var lastUsed = resourceLastUsed.TryGetValue(r.Id, out var date) ? date : (DateTime?)null;
+                return new ResourceCandidate
+                {
+                    Resource = r,
+                    LastUsed = lastUsed,
+                    DaysSinceLastUse = lastUsed.HasValue ? Math.Max(0, (today - lastUsed.Value.Date).Days) : null,
+                    VocabCount = vocabularyCounts.TryGetValue(r.Id, out var count) ? count : 0,
+                    IsVocabResource = r.Id == vocabResourceId,
+                    Score = 0.0
+                };
             })
             .ToList();
 
@@ -355,13 +400,17 @@ public class DeterministicPlanBuilder
                 continue;
             }
 
-            // RULE 2: Strong bonus for resources not used in 5+ days
-            if (candidate.DaysSinceLastUse >= 5)
+            // RULE 2: Strong bonus for resources not used in 5+ days.
+            // Truly never-used resources get the same freshness bonus without
+            // pretending they were used 999 days ago.
+            if (!candidate.DaysSinceLastUse.HasValue)
                 score += 100;
-            else if (candidate.DaysSinceLastUse >= 2)
+            else if (candidate.DaysSinceLastUse.Value >= 5)
+                score += 100;
+            else if (candidate.DaysSinceLastUse.Value >= 2)
                 score += 50;
             else
-                score += candidate.DaysSinceLastUse * 10; // Linear scale for 0-1 days
+                score += candidate.DaysSinceLastUse.Value * 10; // Linear scale for 0-1 days
 
             // RULE 3: Bonus for contextual learning (matches vocab due)
             if (candidate.IsVocabResource)
@@ -399,13 +448,15 @@ public class DeterministicPlanBuilder
             return null;
         }
 
-        var reason = selected.DaysSinceLastUse >= 5
-            ? $"Fresh resource (not used for {selected.DaysSinceLastUse} days)"
-            : selected.IsVocabResource
-                ? $"Matches vocabulary due for review ({selected.VocabCount} words)"
-                : selected.DaysSinceLastUse >= 2
-                    ? $"Good variety (used {selected.DaysSinceLastUse} days ago)"
-                    : "Best available option";
+        var reason = !selected.DaysSinceLastUse.HasValue
+            ? "New resource for today's plan"
+            : selected.DaysSinceLastUse.Value > ResourceFreshnessLookbackDays
+                ? "Resource not used recently"
+                : selected.DaysSinceLastUse.Value >= 1
+                    ? $"Last used {selected.DaysSinceLastUse.Value} days ago"
+                    : selected.IsVocabResource
+                        ? $"Matches vocabulary due for review ({selected.VocabCount} words)"
+                        : "Best available option";
 
         return new SelectedResource
         {
@@ -539,7 +590,7 @@ public class DeterministicPlanBuilder
         var yesterdayActivities = yesterdayActivityList.ToHashSet();
 
         // STEP 1: Vocab review (if needed)
-        if (vocabReview != null && remainingMinutes >= 5)
+        if (vocabReview != null && remainingMinutes > 0)
         {
             var vocabMinutes = Math.Min(vocabReview.EstimatedMinutes, remainingMinutes);
             activities.Add(new PlannedActivity
@@ -549,7 +600,7 @@ public class DeterministicPlanBuilder
                 SkillId = vocabReview.SkillId ?? skill?.Id,
                 EstimatedMinutes = vocabMinutes,
                 Priority = priority++,
-                Rationale = $"Review {vocabReview.WordCount} of {vocabReview.TotalDue} words due today",
+                Rationale = GetVocabularyReviewRationale(vocabReview),
                 FocusVocabularyIds = focusVocabularyIds
             });
             remainingMinutes -= vocabMinutes;
@@ -625,6 +676,18 @@ public class DeterministicPlanBuilder
         }
 
         return activities;
+    }
+
+    private static string GetVocabularyReviewRationale(VocabularyReviewBlock vocabReview)
+    {
+        if (!vocabReview.IsBootstrap)
+            return $"Review {vocabReview.WordCount} of {vocabReview.TotalDue} words due today";
+
+        var dueCount = vocabReview.WordCount - vocabReview.UnseenWordCount;
+        if (dueCount <= 0)
+            return $"Learn {vocabReview.UnseenWordCount} new vocabulary words";
+
+        return $"Review {dueCount} due words and learn {vocabReview.UnseenWordCount} new vocabulary words";
     }
 
     private static List<string> GetFocusVocabularyIdsForActivity(string activityType, IReadOnlyList<string> focusVocabularyIds)
@@ -979,7 +1042,9 @@ public class VocabularyReviewBlock
     public string? SkillId { get; set; }
     public int EstimatedMinutes { get; set; }
     public bool IsContextual { get; set; }
-    public List<VocabularyProgress> DueWords { get; set; } = new(); // The actual due words for analysis
+    public bool IsBootstrap { get; set; }
+    public int UnseenWordCount { get; set; }
+    public List<VocabularyProgress> DueWords { get; set; } = new(); // The actual selected words for analysis, including bootstrap words.
     public List<string> FocusVocabularyIds { get; set; } = new();
 }
 
@@ -993,7 +1058,7 @@ public class SelectedResource
     public string MediaType { get; set; }
     public string Language { get; set; }
     public int VocabularyCount { get; set; }
-    public int DaysSinceLastUse { get; set; }
+    public int? DaysSinceLastUse { get; set; }
     public string SelectionReason { get; set; }
     public bool HasAudio { get; set; }
     public bool HasTranscript { get; set; }
@@ -1046,7 +1111,7 @@ internal class ResourceCandidate
 {
     public LearningResource Resource { get; set; }
     public DateTime? LastUsed { get; set; }
-    public int DaysSinceLastUse { get; set; }
+    public int? DaysSinceLastUse { get; set; }
     public int VocabCount { get; set; }
     public bool IsVocabResource { get; set; }
     public double Score { get; set; }

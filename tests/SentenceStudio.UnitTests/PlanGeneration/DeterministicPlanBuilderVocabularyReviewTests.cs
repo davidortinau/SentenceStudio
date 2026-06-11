@@ -23,9 +23,9 @@ public class DeterministicPlanBuilderVocabularyReviewTests : IClassFixture<PlanG
     [Fact]
     public async Task NoReviewBlock_WhenFewerThan5DueWords()
     {
-        // Arrange: Only 3 due words (< 5 threshold)
+        // Arrange: Only 3 due words (< 5 threshold) and no unseen mapped words to bootstrap
         _fixture.SeedUserProfile(20);
-        var resource = _fixture.SeedResource(title: "Test Podcast", vocabWordCount: 10);
+        var resource = _fixture.SeedResource(title: "Test Podcast", vocabWordCount: 3);
         _fixture.SeedSkill();
 
         var wordIds = _fixture.GetResourceVocabularyWordIds(resource.Id);
@@ -44,7 +44,7 @@ public class DeterministicPlanBuilderVocabularyReviewTests : IClassFixture<PlanG
 
         // Assert
         plan.Should().NotBeNull("plan should still be generated (resource-based activities)");
-        plan!.VocabularyReview.Should().BeNull("fewer than 5 due words should skip vocab review");
+        plan!.VocabularyReview.Should().BeNull("fewer than 5 due words should skip vocab review when there are no unseen mapped words to bootstrap");
     }
 
     [Fact]

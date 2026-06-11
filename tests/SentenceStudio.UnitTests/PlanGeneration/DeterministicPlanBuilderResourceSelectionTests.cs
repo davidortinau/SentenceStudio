@@ -70,10 +70,10 @@ public class DeterministicPlanBuilderResourceSelectionTests : IClassFixture<Plan
 
         var resStale = _fixture.SeedResource(
             id: "res-stale", title: "Recently Used",
-            mediaType: "Podcast", transcript: "Text A", vocabWordCount: 10);
+            mediaType: "Podcast", transcript: "Text A", vocabWordCount: 0);
         var resFresh = _fixture.SeedResource(
             id: "res-old", title: "Fresh Resource",
-            mediaType: "Podcast", transcript: "Text B", vocabWordCount: 10);
+            mediaType: "Podcast", transcript: "Text B", vocabWordCount: 0);
         _fixture.SeedSkill();
 
         // Resource A used 2 days ago, Resource B used 6 days ago
@@ -114,15 +114,62 @@ public class DeterministicPlanBuilderResourceSelectionTests : IClassFixture<Plan
         var builder = _fixture.CreateBuilder();
         var plan = await builder.BuildPlanAsync();
 
-        // Assert — THIS WILL LIKELY FAIL
-        // Bug: 14-day window means the 15-day-old usage is invisible.
-        // Both resources get DaysSinceLastUse = 999, making them equivalent.
+        // Assert
         plan.Should().NotBeNull();
         plan!.PrimaryResource.Should().NotBeNull();
 
         // The 15-day resource should have DaysSinceLastUse = 15, not 999
         plan.PrimaryResource!.DaysSinceLastUse.Should().NotBe(999,
             "a resource used 15 days ago should have DaysSinceLastUse=15, not 999 (never-used sentinel)");
+    }
+
+    [Fact]
+    public async Task ResourceUsed31DaysAgo_ShouldNotReportAs999Days()
+    {
+        _fixture.SeedUserProfile(20);
+        var today = DateTime.UtcNow.Date;
+
+        var res31Days = _fixture.SeedResource(
+            id: "res-31d", title: "Used 31 Days Ago",
+            mediaType: "Podcast", transcript: "Text 31", vocabWordCount: 10);
+        _fixture.SeedSkill();
+
+        _fixture.SeedCompletion(today.AddDays(-31), "Listening", resourceId: res31Days.Id);
+
+        var builder = _fixture.CreateBuilder();
+        var plan = await builder.BuildPlanAsync();
+
+        plan.Should().NotBeNull();
+        plan!.PrimaryResource.Should().NotBeNull();
+        plan.PrimaryResource!.Id.Should().Be(res31Days.Id);
+        plan.PrimaryResource.DaysSinceLastUse.Should().Be(31,
+            "resources outside the freshness lookback should still report actual last-use age");
+        plan.PrimaryResource.SelectionReason.Should().NotContain("999");
+        plan.PrimaryResource.SelectionReason.Should().Be("Resource not used recently");
+    }
+
+    [Fact]
+    public async Task ResourceUsed8DaysAgo_ShouldUseNeutralSelectionReason_NotFresh()
+    {
+        _fixture.SeedUserProfile(20);
+        var today = DateTime.UtcNow.Date;
+
+        var res8Days = _fixture.SeedResource(
+            id: "res-8d", title: "Used 8 Days Ago",
+            mediaType: "Podcast", transcript: "Text 8", vocabWordCount: 0);
+        _fixture.SeedSkill();
+
+        _fixture.SeedCompletion(today.AddDays(-8), "Listening", resourceId: res8Days.Id);
+
+        var builder = _fixture.CreateBuilder();
+        var plan = await builder.BuildPlanAsync();
+
+        plan.Should().NotBeNull();
+        plan!.PrimaryResource.Should().NotBeNull();
+        plan.PrimaryResource!.Id.Should().Be(res8Days.Id);
+        plan.PrimaryResource.DaysSinceLastUse.Should().Be(8);
+        plan.PrimaryResource.SelectionReason.Should().NotContain("Fresh");
+        plan.PrimaryResource.SelectionReason.Should().Be("Last used 8 days ago");
     }
 
     [Fact]
@@ -216,10 +263,10 @@ public class DeterministicPlanBuilderResourceSelectionTests : IClassFixture<Plan
         var resAudio = _fixture.SeedResource(
             id: "res-audio", title: "Audio Resource",
             mediaType: "Video", transcript: "Audio transcript",
-            mediaUrl: "https://youtube.com/watch?v=123", vocabWordCount: 10);
+            mediaUrl: "https://youtube.com/watch?v=123", vocabWordCount: 0);
         var resText = _fixture.SeedResource(
             id: "res-text-only", title: "Text Only Resource",
-            mediaType: "Text", transcript: "Text only content", vocabWordCount: 10);
+            mediaType: "Text", transcript: "Text only content", vocabWordCount: 0);
         _fixture.SeedSkill();
 
         // Act

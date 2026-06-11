@@ -23,16 +23,20 @@ public class VocabularyProgressRepository
 
     public async Task<List<VocabularyProgress>> ListAsync()
     {
+        var userId = ActiveUserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning("VocabularyProgressRepository.ListAsync called without an active user — returning empty result to prevent cross-tenant data leak.");
+            return new List<VocabularyProgress>();
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var userId = ActiveUserId;
-        var query = db.VocabularyProgresses
+        return await db.VocabularyProgresses
             .Include(vp => vp.VocabularyWord)
             .Include(vp => vp.LearningContexts)
-            .AsQueryable();
-        if (!string.IsNullOrEmpty(userId))
-            query = query.Where(vp => vp.UserId == userId);
-        return await query.ToListAsync();
+            .Where(vp => vp.UserId == userId)
+            .ToListAsync();
     }
 
     public async Task<VocabularyProgress?> GetByWordIdAndUserIdAsync(string vocabularyWordId, string userId)
@@ -51,17 +55,22 @@ public class VocabularyProgressRepository
 
     public async Task<VocabularyProgress?> GetByWordIdAsync(string vocabularyWordId)
     {
+        var userId = ActiveUserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning("VocabularyProgressRepository.GetByWordIdAsync called without an active user — returning null to prevent cross-tenant data leak.");
+            return null;
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var userId = ActiveUserId;
-        var query = db.VocabularyProgresses
+        return await db.VocabularyProgresses
             .Include(vp => vp.VocabularyWord)
             .Include(vp => vp.LearningContexts)
                 .ThenInclude(lc => lc.LearningResource)
-            .Where(vp => vp.VocabularyWordId == vocabularyWordId);
-        if (!string.IsNullOrEmpty(userId))
-            query = query.Where(vp => vp.UserId == userId);
-        return await query.FirstOrDefaultAsync();
+            .Where(vp => vp.VocabularyWordId == vocabularyWordId)
+            .Where(vp => vp.UserId == userId)
+            .FirstOrDefaultAsync();
     }
 
     /// <summary>
@@ -334,6 +343,98 @@ public class VocabularyProgressRepository
             .ToListAsync();
 
         return dueWords;
+    }
+
+    /// <summary>
+    /// Get mapped vocabulary words that have no progress row for this user.
+    /// Returned records are synthetic, untracked progress objects for plan preview only.
+    /// </summary>
+    public async Task<List<VocabularyProgress>> GetUnseenMappedVocabularyAsync(string userId = "", int limit = 15, CancellationToken ct = default)
+    {
+        if (string.IsNullOrEmpty(userId)) userId = !string.IsNullOrEmpty(ActiveUserId) ? ActiveUserId : string.Empty;
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning("GetUnseenMappedVocabularyAsync called without an active user — returning empty result to prevent cross-tenant data leak.");
+            return new List<VocabularyProgress>();
+        }
+
+        if (limit <= 0)
+            return new List<VocabularyProgress>();
+
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var candidates = await db.ResourceVocabularyMappings
+            .Join(
+                db.LearningResources.Where(resource => resource.UserProfileId == userId),
+                mapping => mapping.ResourceId,
+                resource => resource.Id,
+                (mapping, resource) => new { mapping.ResourceId, mapping.VocabularyWordId })
+            .Where(candidate => !db.VocabularyProgresses.Any(progress =>
+                progress.UserId == userId && progress.VocabularyWordId == candidate.VocabularyWordId))
+            .GroupBy(candidate => candidate.VocabularyWordId)
+            .Select(group => new
+            {
+                VocabularyWordId = group.Key,
+                ResourceId = group.Min(candidate => candidate.ResourceId)
+            })
+            .OrderBy(candidate => candidate.VocabularyWordId)
+            .Take(limit)
+            .ToListAsync(ct);
+
+        if (candidates.Count == 0)
+            return new List<VocabularyProgress>();
+
+        var wordIds = candidates.Select(candidate => candidate.VocabularyWordId).ToList();
+        var wordsById = await db.VocabularyWords
+            .AsNoTracking()
+            .Where(word => wordIds.Contains(word.Id))
+            .ToDictionaryAsync(word => word.Id, ct);
+
+        var now = DateTime.UtcNow;
+        var unseen = new List<VocabularyProgress>(candidates.Count);
+        foreach (var candidate in candidates)
+        {
+            if (!wordsById.TryGetValue(candidate.VocabularyWordId, out var word))
+                continue;
+
+            var syntheticProgressId = $"unseen-{candidate.VocabularyWordId}";
+            unseen.Add(new VocabularyProgress
+            {
+                Id = syntheticProgressId,
+                VocabularyWordId = candidate.VocabularyWordId,
+                UserId = userId,
+                MasteryScore = 0f,
+                TotalAttempts = 0,
+                CorrectAttempts = 0,
+                CurrentStreak = 0f,
+                ProductionInStreak = 0,
+                ReviewInterval = 1,
+                EaseFactor = 2.5f,
+                NextReviewDate = null,
+                FirstSeenAt = now,
+                LastPracticedAt = DateTime.MinValue,
+                CreatedAt = now,
+                UpdatedAt = now,
+                VocabularyWord = word,
+                LearningContexts = new List<VocabularyLearningContext>
+                {
+                    new()
+                    {
+                        Id = $"unseen-context-{candidate.VocabularyWordId}",
+                        VocabularyProgressId = syntheticProgressId,
+                        LearningResourceId = candidate.ResourceId,
+                        Activity = "VocabularyReview",
+                        InputMode = "Bootstrap",
+                        LearnedAt = now,
+                        CreatedAt = now,
+                        UpdatedAt = now
+                    }
+                }
+            });
+        }
+
+        return unseen;
     }
 
     /// <summary>
