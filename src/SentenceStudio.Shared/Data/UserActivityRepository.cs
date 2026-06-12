@@ -24,34 +24,50 @@ public class UserActivityRepository
 
     public async Task<List<UserActivity>> ListAsync()
     {
+        var userId = ActiveUserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning("UserActivityRepository.ListAsync called without an active user — returning empty result to prevent cross-tenant data leak.");
+            return new List<UserActivity>();
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var userId = ActiveUserId;
-        if (!string.IsNullOrEmpty(userId))
-            return await db.UserActivities.Where(a => a.UserProfileId == userId).ToListAsync();
-        return await db.UserActivities.ToListAsync();
+        return await db.UserActivities.Where(a => a.UserProfileId == userId).ToListAsync();
     }
 
     public async Task<List<UserActivity>> GetAsync(SentenceStudio.Shared.Models.Activity activity)
     {
+        var userId = ActiveUserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning("UserActivityRepository.GetAsync(Activity) called without an active user — returning empty result to prevent cross-tenant data leak.");
+            return new List<UserActivity>();
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var userId = ActiveUserId;
-        var query = db.UserActivities.Where(i => i.Activity == activity.ToString());
-        if (!string.IsNullOrEmpty(userId))
-            query = query.Where(a => a.UserProfileId == userId);
-        return await query.ToListAsync();
+        return await db.UserActivities
+            .Where(i => i.Activity == activity.ToString())
+            .Where(a => a.UserProfileId == userId)
+            .ToListAsync();
     }
 
     public async Task<List<UserActivity>> GetByDateRangeAsync(DateTime fromUtc, DateTime toUtc)
     {
+        var userId = ActiveUserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning("UserActivityRepository.GetByDateRangeAsync called without an active user — returning empty result to prevent cross-tenant data leak.");
+            return new List<UserActivity>();
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var userId = ActiveUserId;
-        var query = db.UserActivities.Where(a => a.CreatedAt >= fromUtc && a.CreatedAt <= toUtc);
-        if (!string.IsNullOrEmpty(userId))
-            query = query.Where(a => a.UserProfileId == userId);
-        return await query.ToListAsync();
+        return await db.UserActivities
+            .Where(a => a.CreatedAt >= fromUtc && a.CreatedAt <= toUtc)
+            .Where(a => a.UserProfileId == userId)
+            .ToListAsync();
     }
 
     public async Task<int> SaveAsync(UserActivity item)

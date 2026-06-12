@@ -27,23 +27,33 @@ public class SkillProfileRepository
     /// </summary>
     public async Task<List<SkillProfile>> ListAsync(string? userProfileId = null)
     {
+        var userId = !string.IsNullOrEmpty(userProfileId) ? userProfileId : ActiveUserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning("SkillProfileRepository.ListAsync called without an active user — returning empty result to prevent cross-tenant data leak.");
+            return new List<SkillProfile>();
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var userId = !string.IsNullOrEmpty(userProfileId) ? userProfileId : ActiveUserId;
-        if (!string.IsNullOrEmpty(userId))
-            return await db.SkillProfiles.Where(s => s.UserProfileId == userId).ToListAsync();
-        return await db.SkillProfiles.ToListAsync();
+        return await db.SkillProfiles.Where(s => s.UserProfileId == userId).ToListAsync();
     }
 
     public async Task<List<SkillProfile>> GetSkillsByLanguageAsync(string language)
     {
+        var userId = ActiveUserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning("SkillProfileRepository.GetSkillsByLanguageAsync called without an active user — returning empty result to prevent cross-tenant data leak.");
+            return new List<SkillProfile>();
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var userId = ActiveUserId;
-        var query = db.SkillProfiles.Where(s => s.Language == language);
-        if (!string.IsNullOrEmpty(userId))
-            query = query.Where(s => s.UserProfileId == userId);
-        return await query.ToListAsync();
+        return await db.SkillProfiles
+            .Where(s => s.Language == language)
+            .Where(s => s.UserProfileId == userId)
+            .ToListAsync();
     }
 
     public async Task<string> SaveAsync(SkillProfile item)

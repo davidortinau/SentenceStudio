@@ -127,10 +127,13 @@ public class UserProfileRepository
         if (!string.IsNullOrEmpty(activeId))
         {
             profile = await db.UserProfiles.FirstOrDefaultAsync(p => p.Id == activeId);
+            if (profile is null)
+                _logger.LogWarning("GetAsync: active_profile_id '{ActiveId}' not found in UserProfiles — returning null", activeId);
         }
-
-        // Fall back to first profile if active profile not found
-        profile ??= await db.UserProfiles.FirstOrDefaultAsync();
+        else
+        {
+            _logger.LogWarning("GetAsync: no active_profile_id set — returning null");
+        }
 
         // Ensure DisplayLanguage is never null or empty for existing profiles
         if (profile != null && string.IsNullOrEmpty(profile.DisplayLanguage))

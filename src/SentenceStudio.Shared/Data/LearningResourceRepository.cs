@@ -59,17 +59,19 @@ public class LearningResourceRepository
 
     public async Task<List<VocabularyWord>> GetAllVocabularyWordsAsync()
     {
+        var userId = ActiveUserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning("GetAllVocabularyWordsAsync called without an active user — returning empty result to prevent cross-tenant data leak.");
+            return new List<VocabularyWord>();
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var userId = ActiveUserId;
-        if (!string.IsNullOrEmpty(userId))
-        {
-            var userWordIds = db.ResourceVocabularyMappings
-                .Join(db.LearningResources.Where(r => r.UserProfileId == userId),
-                    m => m.ResourceId, r => r.Id, (m, r) => m.VocabularyWordId);
-            return await db.VocabularyWords.Where(w => userWordIds.Contains(w.Id)).ToListAsync();
-        }
-        return await db.VocabularyWords.ToListAsync();
+        var userWordIds = db.ResourceVocabularyMappings
+            .Join(db.LearningResources.Where(r => r.UserProfileId == userId),
+                m => m.ResourceId, r => r.Id, (m, r) => m.VocabularyWordId);
+        return await db.VocabularyWords.Where(w => userWordIds.Contains(w.Id)).ToListAsync();
     }
 
     /// <summary>
@@ -77,6 +79,13 @@ public class LearningResourceRepository
     /// </summary>
     public async Task<List<string>> GetVocabularyTargetTermsByLanguageAsync(string language, int? limit = null)
     {
+        var userId = ActiveUserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning("GetVocabularyTargetTermsByLanguageAsync called without an active user — returning empty result to prevent cross-tenant data leak.");
+            return new List<string>();
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
@@ -93,11 +102,8 @@ public class LearningResourceRepository
                 resource => resource.Id,
                 (wm, resource) => new { wm.Word, Resource = resource }
             )
-            .Where(wr => wr.Resource.Language == language);
-
-        var userId = ActiveUserId;
-        if (!string.IsNullOrEmpty(userId))
-            query = query.Where(wr => wr.Resource.UserProfileId == userId);
+            .Where(wr => wr.Resource.Language == language)
+            .Where(wr => wr.Resource.UserProfileId == userId);
 
         var termsQuery = query
             .Select(wr => wr.Word.TargetLanguageTerm)
@@ -163,14 +169,18 @@ public class LearningResourceRepository
 
     public async Task<List<LearningResource>> GetAllResourcesAsync()
     {
+        var userId = ActiveUserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning("GetAllResourcesAsync called without an active user — returning empty result to prevent cross-tenant data leak.");
+            return new List<LearningResource>();
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var query = db.LearningResources
             .Include(r => r.Vocabulary);
-        var userId = ActiveUserId;
-        if (!string.IsNullOrEmpty(userId))
-            return await query.Where(r => r.UserProfileId == userId).ToListAsync();
-        return await query.ToListAsync();
+        return await query.Where(r => r.UserProfileId == userId).ToListAsync();
     }
 
     /// <summary>
@@ -192,13 +202,17 @@ public class LearningResourceRepository
     public async Task<List<LearningResource>> GetAllResourcesLightweightAsync(
         string filterType = null, List<string> filterLanguages = null, string? userProfileId = null)
     {
+        var userId = !string.IsNullOrEmpty(userProfileId) ? userProfileId : ActiveUserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning("GetAllResourcesLightweightAsync called without an active user — returning empty result to prevent cross-tenant data leak.");
+            return new List<LearningResource>();
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        IQueryable<LearningResource> query = db.LearningResources.AsNoTracking();
-
-        var userId = !string.IsNullOrEmpty(userProfileId) ? userProfileId : ActiveUserId;
-        if (!string.IsNullOrEmpty(userId))
-            query = query.Where(r => r.UserProfileId == userId);
+        IQueryable<LearningResource> query = db.LearningResources.AsNoTracking()
+            .Where(r => r.UserProfileId == userId);
 
         if (!string.IsNullOrEmpty(filterType) && filterType != "All")
             query = query.Where(r => r.MediaType == filterType);
@@ -332,30 +346,40 @@ public class LearningResourceRepository
 
     public async Task<List<LearningResource>> SearchResourcesAsync(string query)
     {
+        var userId = ActiveUserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning("SearchResourcesAsync called without an active user — returning empty result to prevent cross-tenant data leak.");
+            return new List<LearningResource>();
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         var results = db.LearningResources
             .AsNoTracking()
+            .Where(r => r.UserProfileId == userId)
             .Where(r => r.Title.Contains(query) || r.Description.Contains(query) ||
                    r.Tags.Contains(query) || r.Language.Contains(query));
-        var userId = ActiveUserId;
-        if (!string.IsNullOrEmpty(userId))
-            results = results.Where(r => r.UserProfileId == userId);
         return await results.ToListAsync();
     }
 
     // Get resources of a specific type
     public async Task<List<LearningResource>> GetResourcesByTypeAsync(string mediaType)
     {
+        var userId = ActiveUserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning("GetResourcesByTypeAsync called without an active user — returning empty result to prevent cross-tenant data leak.");
+            return new List<LearningResource>();
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         var results = db.LearningResources
+            .Where(r => r.UserProfileId == userId)
             .Where(r => r.MediaType == mediaType);
-        var userId = ActiveUserId;
-        if (!string.IsNullOrEmpty(userId))
-            results = results.Where(r => r.UserProfileId == userId);
         return await results.ToListAsync();
     }
 
@@ -368,42 +392,57 @@ public class LearningResourceRepository
     // Get resources by language
     public async Task<List<LearningResource>> GetResourcesByLanguageAsync(string language)
     {
+        var userId = ActiveUserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning("GetResourcesByLanguageAsync called without an active user — returning empty result to prevent cross-tenant data leak.");
+            return new List<LearningResource>();
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         var results = db.LearningResources
+            .Where(r => r.UserProfileId == userId)
             .Where(r => r.Language == language);
-        var userId = ActiveUserId;
-        if (!string.IsNullOrEmpty(userId))
-            results = results.Where(r => r.UserProfileId == userId);
         return await results.ToListAsync();
     }
 
     // Get all smart resources
     public async Task<List<LearningResource>> GetSmartResourcesAsync()
     {
+        var userId = ActiveUserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning("GetSmartResourcesAsync called without an active user — returning empty result to prevent cross-tenant data leak.");
+            return new List<LearningResource>();
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         var results = db.LearningResources
+            .Where(r => r.UserProfileId == userId)
             .Where(r => r.IsSmartResource);
-        var userId = ActiveUserId;
-        if (!string.IsNullOrEmpty(userId))
-            results = results.Where(r => r.UserProfileId == userId);
         return await results.ToListAsync();
     }
 
     // Get smart resource by type
     public async Task<LearningResource?> GetSmartResourceByTypeAsync(string smartResourceType)
     {
+        var userId = ActiveUserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning("GetSmartResourceByTypeAsync called without an active user — returning null to prevent cross-tenant data leak.");
+            return null;
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         var results = db.LearningResources
+            .Where(r => r.UserProfileId == userId)
             .Where(r => r.IsSmartResource && r.SmartResourceType == smartResourceType);
-        var userId = ActiveUserId;
-        if (!string.IsNullOrEmpty(userId))
-            results = results.Where(r => r.UserProfileId == userId);
         return await results.FirstOrDefaultAsync();
     }
 
@@ -478,15 +517,19 @@ public class LearningResourceRepository
 
     public async Task<bool> StarterResourceExistsAsync(string? targetLanguage = null)
     {
+        var userId = ActiveUserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning("StarterResourceExistsAsync called without an active user — returning false to prevent cross-tenant data leak (and to avoid blocking starter creation).");
+            return false;
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var userId = ActiveUserId;
 
         var query = db.LearningResources
+            .Where(r => r.UserProfileId == userId)
             .Where(r => r.Tags != null && r.Tags.Contains("starter"));
-
-        if (!string.IsNullOrEmpty(userId))
-            query = query.Where(r => r.UserProfileId == userId);
 
         if (!string.IsNullOrEmpty(targetLanguage))
             query = query.Where(r => r.Language == targetLanguage);
@@ -572,26 +615,24 @@ public class LearningResourceRepository
     /// </summary>
     public async Task<List<VocabularyWord>> GetAllVocabularyWordsWithResourcesAsync()
     {
+        var userId = ActiveUserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning("GetAllVocabularyWordsWithResourcesAsync called without an active user — returning empty result to prevent cross-tenant data leak.");
+            return new List<VocabularyWord>();
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        var userId = ActiveUserId;
-        if (!string.IsNullOrEmpty(userId))
-        {
-            var userWordIds = db.ResourceVocabularyMappings
-                .Join(db.LearningResources.Where(r => r.UserProfileId == userId),
-                    m => m.ResourceId, r => r.Id, (m, r) => m.VocabularyWordId);
-            return await db.VocabularyWords
-                .AsNoTracking()
-                .Include(vw => vw.LearningResources)
-                .AsSplitQuery()
-                .Where(w => userWordIds.Contains(w.Id))
-                .ToListAsync();
-        }
+        var userWordIds = db.ResourceVocabularyMappings
+            .Join(db.LearningResources.Where(r => r.UserProfileId == userId),
+                m => m.ResourceId, r => r.Id, (m, r) => m.VocabularyWordId);
         return await db.VocabularyWords
             .AsNoTracking()
             .Include(vw => vw.LearningResources)
             .AsSplitQuery()
+            .Where(w => userWordIds.Contains(w.Id))
             .ToListAsync();
     }
 
@@ -603,29 +644,25 @@ public class LearningResourceRepository
         if (string.IsNullOrWhiteSpace(query))
             return await GetAllVocabularyWordsWithResourcesAsync();
 
+        var userId = ActiveUserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning("SearchVocabularyWordsAsync called without an active user — returning empty result to prevent cross-tenant data leak.");
+            return new List<VocabularyWord>();
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         var searchTerm = query.ToLower().Trim();
 
-        var userId = ActiveUserId;
-        if (!string.IsNullOrEmpty(userId))
-        {
-            var userWordIds = db.ResourceVocabularyMappings
-                .Join(db.LearningResources.Where(r => r.UserProfileId == userId),
-                    m => m.ResourceId, r => r.Id, (m, r) => m.VocabularyWordId);
-            return await db.VocabularyWords
-                .Include(vw => vw.LearningResources)
-                .AsSplitQuery()
-                .Where(vw => userWordIds.Contains(vw.Id))
-                .Where(vw =>
-                    (vw.TargetLanguageTerm != null && vw.TargetLanguageTerm.ToLower().Contains(searchTerm)) ||
-                    (vw.NativeLanguageTerm != null && vw.NativeLanguageTerm.ToLower().Contains(searchTerm)))
-                .ToListAsync();
-        }
+        var userWordIds = db.ResourceVocabularyMappings
+            .Join(db.LearningResources.Where(r => r.UserProfileId == userId),
+                m => m.ResourceId, r => r.Id, (m, r) => m.VocabularyWordId);
         return await db.VocabularyWords
             .Include(vw => vw.LearningResources)
             .AsSplitQuery()
+            .Where(vw => userWordIds.Contains(vw.Id))
             .Where(vw =>
                 (vw.TargetLanguageTerm != null && vw.TargetLanguageTerm.ToLower().Contains(searchTerm)) ||
                 (vw.NativeLanguageTerm != null && vw.NativeLanguageTerm.ToLower().Contains(searchTerm)))
@@ -705,28 +742,21 @@ public class LearningResourceRepository
     /// </summary>
     public async Task<(int TotalWords, int AssociatedWords, int OrphanedWords)> GetVocabularyStatsAsync()
     {
+        var userId = ActiveUserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning("GetVocabularyStatsAsync called without an active user — returning zeroed stats to prevent cross-tenant data leak.");
+            return (0, 0, 0);
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        var userId = ActiveUserId;
-        int totalWords;
-        int associatedWords;
-        if (!string.IsNullOrEmpty(userId))
-        {
-            var userWordIds = db.ResourceVocabularyMappings
-                .Join(db.LearningResources.Where(r => r.UserProfileId == userId),
-                    m => m.ResourceId, r => r.Id, (m, r) => m.VocabularyWordId);
-            totalWords = await db.VocabularyWords.Where(w => userWordIds.Contains(w.Id)).CountAsync();
-            associatedWords = await userWordIds.Distinct().CountAsync();
-        }
-        else
-        {
-            totalWords = await db.VocabularyWords.CountAsync();
-            associatedWords = await db.ResourceVocabularyMappings
-                .Select(rvm => rvm.VocabularyWordId)
-                .Distinct()
-                .CountAsync();
-        }
+        var userWordIds = db.ResourceVocabularyMappings
+            .Join(db.LearningResources.Where(r => r.UserProfileId == userId),
+                m => m.ResourceId, r => r.Id, (m, r) => m.VocabularyWordId);
+        int totalWords = await db.VocabularyWords.Where(w => userWordIds.Contains(w.Id)).CountAsync();
+        int associatedWords = await userWordIds.Distinct().CountAsync();
         var orphanedWords = totalWords - associatedWords;
 
         return (totalWords, associatedWords, orphanedWords);

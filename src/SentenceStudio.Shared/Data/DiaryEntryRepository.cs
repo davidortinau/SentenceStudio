@@ -42,13 +42,20 @@ public class DiaryEntryRepository
     /// </summary>
     public async Task<List<DiaryEntry>> ListAsync()
     {
+        var userId = ActiveUserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning("DiaryEntryRepository.ListAsync called without an active user — returning empty result to prevent cross-tenant data leak.");
+            return new List<DiaryEntry>();
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var userId = ActiveUserId;
-        var query = db.DiaryEntries.AsQueryable();
-        if (!string.IsNullOrEmpty(userId))
-            query = query.Where(e => e.UserProfileId == userId);
-        return await query.OrderByDescending(e => e.EntryDate).ThenByDescending(e => e.UpdatedAt).ToListAsync();
+        return await db.DiaryEntries
+            .Where(e => e.UserProfileId == userId)
+            .OrderByDescending(e => e.EntryDate)
+            .ThenByDescending(e => e.UpdatedAt)
+            .ToListAsync();
     }
 
     public async Task<DiaryEntry?> GetByDateAsync(DateTime date, string language)
@@ -66,11 +73,17 @@ public class DiaryEntryRepository
     public async Task<DiaryEntry?> GetByIdAsync(string id)
     {
         if (string.IsNullOrEmpty(id)) return null;
+        var userId = ActiveUserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning("DiaryEntryRepository.GetByIdAsync called without an active user — returning null to prevent cross-tenant data leak.");
+            return null;
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var userId = ActiveUserId;
         return await db.DiaryEntries.FirstOrDefaultAsync(e =>
-            e.Id == id && (string.IsNullOrEmpty(userId) || e.UserProfileId == userId));
+            e.Id == id && e.UserProfileId == userId);
     }
 
     /// <summary>
