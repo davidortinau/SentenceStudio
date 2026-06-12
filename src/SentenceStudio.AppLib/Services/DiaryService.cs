@@ -1,7 +1,7 @@
-using System.ComponentModel;
 using Microsoft.Extensions.Logging;
 using Scriban;
 using SentenceStudio.Abstractions;
+using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Services;
 
@@ -94,25 +94,4 @@ public class DiaryService
             return null;
         }
     }
-}
-
-public class DiaryPromptResponse
-{
-    [Description("A short, open-ended diary writing prompt in the learner's target language. One or two sentences, max ~20 target-language words.")]
-    public string Prompt { get; set; } = string.Empty;
-
-    [Description("A brief one-line hint in the learner's native language explaining what the prompt is asking, for lower-level learners.")]
-    public string Hint { get; set; } = string.Empty;
-}
-
-public class DiaryFeedbackResponse
-{
-    [Description("The learner's diary entry rewritten in clear, natural target-language prose. Preserves the learner's meaning and voice. Do not add content the learner did not express.")]
-    public string Recommended { get; set; } = string.Empty;
-
-    [Description("Grammar, vocabulary, and style observations written in the learner's native language. 2-4 short bullet-style sentences focused on the most useful corrections.")]
-    public string Notes { get; set; } = string.Empty;
-
-    [Description("1-2 short sentences in the learner's native language pointing out what the learner did well. Be specific and genuine.")]
-    public string Strengths { get; set; } = string.Empty;
 }

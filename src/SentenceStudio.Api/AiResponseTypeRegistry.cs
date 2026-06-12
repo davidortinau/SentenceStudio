@@ -22,6 +22,8 @@ internal static class AiResponseTypeRegistry
         {
             typeof(BulkTranslationResponse),
             typeof(ClozureResponse),
+            typeof(DiaryFeedbackResponse),
+            typeof(DiaryPromptResponse),
             typeof(FreeTextVocabularyExtractionResponse),
             typeof(GradeResponse),
             typeof(Reply),
