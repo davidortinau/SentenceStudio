@@ -136,7 +136,7 @@ public class ScenarioRepository
             }
 
             await db.SaveChangesAsync();
-            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            TriggerSync();
 
             _logger.LogInformation("Saved scenario: {Name} (ID: {Id})", scenario.Name, scenario.Id);
             return scenario.Id;
@@ -182,7 +182,7 @@ public class ScenarioRepository
 
             db.ConversationScenarios.Remove(scenario);
             await db.SaveChangesAsync();
-            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            TriggerSync();
 
             _logger.LogInformation("Deleted scenario: {Name} (ID: {Id})", scenario.Name, id);
             return true;
@@ -193,4 +193,14 @@ public class ScenarioRepository
             return false;
         }
     }
+    private void TriggerSync()
+    {
+        if (_syncService is null) return;
+        _ = Task.Run(async () =>
+        {
+            try { await _syncService.TriggerSyncAsync(); }
+            catch (Exception ex) { _logger.LogError(ex, "Background sync trigger failed"); }
+        });
+    }
+
 }

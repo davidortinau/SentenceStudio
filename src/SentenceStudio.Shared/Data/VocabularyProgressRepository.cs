@@ -185,7 +185,7 @@ public class VocabularyProgressRepository
 
             await db.SaveChangesAsync();
 
-            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            TriggerSync();
 
             return item;
         }
@@ -206,7 +206,7 @@ public class VocabularyProgressRepository
             db.VocabularyProgresses.Remove(item);
             int result = await db.SaveChangesAsync();
 
-            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            TriggerSync();
 
             return result;
         }
@@ -523,6 +523,16 @@ public class VocabularyProgressRepository
             .FirstOrDefaultAsync();
 
         return result;
+    }
+
+    private void TriggerSync()
+    {
+        if (_syncService is null) return;
+        _ = Task.Run(async () =>
+        {
+            try { await _syncService.TriggerSyncAsync(); }
+            catch (Exception ex) { _logger.LogError(ex, "Background sync trigger failed"); }
+        });
     }
 }
 
