@@ -81,6 +81,43 @@ public class VocabularyQuizItem
     public bool IsReadyToSkipInCurrentPhase { get; set; }
     public bool WasCorrectThisSession { get; set; }
 
+    /// <summary>
+    /// Apply the in-session state mutations that happen when the user marks
+    /// a graded-wrong answer as correct via the "I was correct" override.
+    ///
+    /// Shared by VocabQuiz.razor's OverrideAsCorrect and the regression tests
+    /// in VocabQuizOverrideRegressionTests so a future regression on
+    /// PendingRecognitionCheck clearing is caught by the test suite, not just
+    /// by Captain reporting the bug again.
+    ///
+    /// IMPORTANT: PendingRecognitionCheck must be cleared for BOTH modes.
+    /// The wrong-text demotion to MC never should have fired once the user
+    /// confirmed they were correct — leaving the flag true forces the same
+    /// word back into MC on its next session appearance with a debug pane
+    /// reading "Recognition check (wrong text answer earlier)". See Captain's
+    /// 2026-06-12 report and VocabQuizOverrideRegressionTests.
+    ///
+    /// Does NOT touch persistence — the caller is responsible for mutating
+    /// the deferred pending attempt's WasCorrect and calling the persistence
+    /// service. This method only handles the in-memory session model.
+    /// </summary>
+    /// <param name="userMode">"MultipleChoice" or "Text" — the mode the
+    /// override was issued from.</param>
+    public void ApplyOverrideAsCorrect(string userMode)
+    {
+        SessionCorrectCount++;
+        if (userMode == "MultipleChoice")
+            SessionMCCorrect++;
+        else
+            SessionTextCorrect++;
+
+        // Override means the user WAS correct — clear the gentle-demotion
+        // flag for either mode so the same word does not cycle back as a
+        // forced MC "recognition check" in the same session.
+        PendingRecognitionCheck = false;
+        WasCorrectThisSession = true;
+    }
+
     // Status helpers
     public bool IsUnknown => Progress?.IsUnknown ?? true;
     public bool IsLearning => Progress?.IsLearning ?? false;

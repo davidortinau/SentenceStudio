@@ -1390,20 +1390,10 @@ else
         requireCorrectTyping = false;
         feedbackMessage = "Marked correct ✓";
 
-        // Update session counters (override counts as correct)
-        currentItem.SessionCorrectCount++;
-        if (userMode == "MultipleChoice")
-        {
-            currentItem.SessionMCCorrect++;
-            currentItem.PendingRecognitionCheck = false;
-        }
-        else
-        {
-            currentItem.SessionTextCorrect++;
-        }
-
-        // Fix 1: Also mark as correct in session
-        currentItem.WasCorrectThisSession = true;
+        // Apply session-state mutations via the shared method on
+        // VocabularyQuizItem so the regression tests bind to the same code.
+        // Clears PendingRecognitionCheck for both modes — see method docs.
+        currentItem.ApplyOverrideAsCorrect(userMode);
 
         // Update the deferred attempt to correct and persist it
         if (pendingAttempt != null)
