@@ -18,11 +18,21 @@
 set -uo pipefail
 
 # ── Configuration ────────────────────────────────────────────────────────────
+# Defaults target the current business-tenant production stack (rg-sstudio-prod-biz,
+# westus3, agreeablesky-76d2f81f). All four URL/RG values can be overridden via env
+# vars to target a different stack (e.g. the legacy rg-sstudio-prod for rollback
+# validation).
+#
+# To validate the legacy personal-tenant stack:
+#   RG=rg-sstudio-prod \
+#   API_BASE=https://api.livelyforest-b32e7d63.centralus.azurecontainerapps.io \
+#   WEBAPP_URL=https://webapp.livelyforest-b32e7d63.centralus.azurecontainerapps.io \
+#   ./scripts/post-deploy-validate.sh
 
-RG="rg-sstudio-prod"
-API_BASE="https://api.livelyforest-b32e7d63.centralus.azurecontainerapps.io"
-WEBAPP_URL="https://webapp.livelyforest-b32e7d63.centralus.azurecontainerapps.io"
-MARKETING_URL="https://www.sentencestudio.com"
+RG="${RG:-rg-sstudio-prod-biz}"
+API_BASE="${API_BASE:-https://api.agreeablesky-76d2f81f.westus3.azurecontainerapps.io}"
+WEBAPP_URL="${WEBAPP_URL:-https://webapp.agreeablesky-76d2f81f.westus3.azurecontainerapps.io}"
+MARKETING_URL="${MARKETING_URL:-https://www.sentencestudio.com}"
 CONTAINER_APPS="api webapp marketing workers"
 
 DEPLOY_TEST_EMAIL="${DEPLOY_TEST_EMAIL:-deploy-test@sentencestudio.app}"
