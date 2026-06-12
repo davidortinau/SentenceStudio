@@ -328,18 +328,64 @@ public class LearningResourceRepository
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
+        using var tx = await db.Database.BeginTransactionAsync();
         try
         {
-            db.LearningResources.Remove(resource);
-            int result = await db.SaveChangesAsync();
+            // Capture the vocab IDs reachable via this resource BEFORE removing the resource;
+            // ResourceVocabularyMapping cascades to gone, so we can't read them after the fact.
+            var resourceWordIds = await db.ResourceVocabularyMappings
+                .Where(m => m.ResourceId == resource.Id)
+                .Select(m => m.VocabularyWordId)
+                .Distinct()
+                .ToListAsync();
 
+            db.LearningResources.Remove(resource);
+            int affected = await db.SaveChangesAsync();
+
+            // Cascade orphan sweep: for each vocab word this resource owned a mapping for,
+            // check whether the SAME user can still reach the word via another of their
+            // resources. If not, delete the user's VocabularyProgress row so it doesn't become
+            // an "eternally due" orphan that pollutes plan generation. Matches the user's
+            // mental model — "if I removed the resource, my progress on its words is gone too".
+            // See Brot incident, 2026-06-12.
+            var ownerUserId = resource.UserProfileId;
+            if (resourceWordIds.Count > 0 && !string.IsNullOrEmpty(ownerUserId))
+            {
+                var stillReachableWordIds = await db.ResourceVocabularyMappings
+                    .Where(m => resourceWordIds.Contains(m.VocabularyWordId))
+                    .Join(db.LearningResources.Where(r => r.UserProfileId == ownerUserId),
+                          m => m.ResourceId,
+                          r => r.Id,
+                          (m, r) => m.VocabularyWordId)
+                    .Distinct()
+                    .ToListAsync();
+                var orphanedWordIds = resourceWordIds.Except(stillReachableWordIds).ToList();
+                if (orphanedWordIds.Count > 0)
+                {
+                    var orphanProgress = await db.VocabularyProgresses
+                        .Where(vp => vp.UserId == ownerUserId
+                            && orphanedWordIds.Contains(vp.VocabularyWordId))
+                        .ToListAsync();
+                    if (orphanProgress.Count > 0)
+                    {
+                        db.VocabularyProgresses.RemoveRange(orphanProgress);
+                        await db.SaveChangesAsync();
+                        _logger.LogInformation(
+                            "DeleteResourceAsync orphan sweep: removed {Count} VocabularyProgress rows for user {UserId} that lost their last reachable mapping after deleting resource {ResourceId}",
+                            orphanProgress.Count, ownerUserId, resource.Id);
+                    }
+                }
+            }
+
+            await tx.CommitAsync();
             _syncService?.TriggerSyncAsync().ConfigureAwait(false);
 
-            return result;
+            return affected;
         }
         catch (Exception ex)
         {
-            // UXDivers popup removed - error already logged above
+            _logger.LogError(ex, "❌ DeleteResourceAsync error for resource {ResourceId}", resource.Id);
+            try { await tx.RollbackAsync(); } catch { }
             return -1;
         }
     }

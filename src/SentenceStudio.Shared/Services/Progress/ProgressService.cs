@@ -235,8 +235,38 @@ public class ProgressService : IProgressService
         if (existingPlan != null)
             return existingPlan;
 
-        _logger.LogDebug("🤖 Generating new plan with LLM...");
+        // Single-flight per user — without this gate, two concurrent cache-misses
+        // (e.g. Blazor circuit reconnect + a parallel mobile sync) both call the LLM and both
+        // write DailyPlanCompletion rows with different content-hashed PlanItemIds. The first
+        // pass's rows then leak stale NarrativeJson into the dashboard via
+        // ReconstructPlanFromDatabase. See Brot incident, 2026-06-12. Keyed on userId only
+        // (not user×date) to keep the gate dictionary bounded by user count rather than
+        // unbounded growth over time. Inside the gate we always check the cache for today.
+        var profile = await _userProfileRepo.GetAsync();
+        var lockKey = profile?.Id ?? "unknown";
+        var gate = _planGenGates.GetOrAdd(lockKey, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(ct);
+        try
+        {
+            // Double-check after acquiring the gate: another caller may have just produced it.
+            existingPlan = await GetCachedPlanAsync(today, ct);
+            if (existingPlan != null)
+                return existingPlan;
 
+            _logger.LogDebug("🤖 Generating new plan with LLM...");
+
+            return await GenerateTodaysPlanCoreAsync(today, ct);
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, SemaphoreSlim> _planGenGates = new();
+
+    private async Task<TodaysPlan> GenerateTodaysPlanCoreAsync(DateTime today, CancellationToken ct)
+    {
         try
         {
             // Use LLM to generate the plan
@@ -292,7 +322,7 @@ public class ProgressService : IProgressService
                 vocabDueCount,
                 llmResponse.Narrative
             );
-            
+
             // NumberDrill telemetry (Phase 2)
             var numberDrillItem = plan.Items.FirstOrDefault(i => i.ActivityType == PlanActivityType.NumberDrill);
             if (numberDrillItem != null)
@@ -1251,15 +1281,15 @@ public class ProgressService : IProgressService
             var existing = await db.DailyPlanCompletions
                 .FirstOrDefaultAsync(c => c.Date == plan.GeneratedForDate.Date && c.PlanItemId == item.Id && c.UserProfileId == userProfile.Id, ct);
 
+            // Serialize narrative to JSON once per loop
+            string? narrativeJson = null;
+            if (plan.Narrative != null)
+            {
+                narrativeJson = System.Text.Json.JsonSerializer.Serialize(plan.Narrative);
+            }
+
             if (existing == null)
             {
-                // Serialize narrative to JSON
-                string? narrativeJson = null;
-                if (plan.Narrative != null)
-                {
-                    narrativeJson = System.Text.Json.JsonSerializer.Serialize(plan.Narrative);
-                }
-
                 var completion = new DailyPlanCompletion
                 {
                     Id = Guid.NewGuid().ToString(),
@@ -1285,8 +1315,45 @@ public class ProgressService : IProgressService
             }
             else
             {
-                _logger.LogDebug("  ⏭️ Record already exists for {TitleKey} ({MinutesSpent} min)", item.TitleKey, existing.MinutesSpent);
+                // REFRESH (don't skip): the plan re-generation must update the descriptive
+                // fields (narrative/rationale/labels/priority) so the dashboard preview never
+                // diverges from the activities. PRESERVE user-progress fields
+                // (MinutesSpent/IsCompleted/CompletedAt) so we don't destroy work.
+                // See Brot incident, 2026-06-12 — INSERT-only behaviour kept a stale narrative
+                // from an earlier pass alive after the canonical pass replaced it.
+                existing.ActivityType = item.ActivityType.ToString();
+                existing.ResourceId = item.ResourceId;
+                existing.SkillId = item.SkillId;
+                existing.EstimatedMinutes = item.EstimatedMinutes;
+                existing.Priority = item.Priority;
+                existing.TitleKey = item.TitleKey;
+                existing.DescriptionKey = item.DescriptionKey;
+                existing.Rationale = plan.Rationale ?? existing.Rationale;
+                existing.NarrativeJson = narrativeJson ?? existing.NarrativeJson;
+                existing.UpdatedAt = DateTime.UtcNow;
+                _logger.LogDebug("  ♻️ Refreshed record for {TitleKey} ({MinutesSpent} min preserved)", item.TitleKey, existing.MinutesSpent);
             }
+        }
+
+        // Orphan cleanup: remove completion rows for PlanItemIds no longer in today's plan,
+        // BUT only when they have zero user progress (MinutesSpent=0 AND !IsCompleted).
+        // This eliminates leftover rows from a prior plan-gen pass without ever destroying
+        // user work. Adhoc rows (PlanItemId starts with "adhoc-") are out of scope — those
+        // are manual additions and should never be auto-removed.
+        var currentPlanItemIds = plan.Items.Select(i => i.Id).ToHashSet(StringComparer.Ordinal);
+        var staleRows = await db.DailyPlanCompletions
+            .Where(c => c.Date == plan.GeneratedForDate.Date
+                && c.UserProfileId == userProfile.Id
+                && !c.PlanItemId.StartsWith("adhoc-")
+                && !currentPlanItemIds.Contains(c.PlanItemId)
+                && c.MinutesSpent == 0
+                && !c.IsCompleted)
+            .ToListAsync(ct);
+        if (staleRows.Count > 0)
+        {
+            db.DailyPlanCompletions.RemoveRange(staleRows);
+            _logger.LogInformation("🧹 Removed {Count} stale DailyPlanCompletion rows from a previous plan-gen pass (PlanItemIds: {Ids})",
+                staleRows.Count, string.Join(",", staleRows.Select(r => r.PlanItemId)));
         }
 
         await db.SaveChangesAsync(ct);
@@ -1334,17 +1401,29 @@ public class ProgressService : IProgressService
             .FirstOrDefaultAsync(ct);
         var planFocusVocabularyIds = DeserializeFocusVocabularyFacts(planFocusVocabularyFacts);
 
-        // Extract rationale from first record (stored redundantly in all records for same date)
-        var rationale = completions.FirstOrDefault()?.Rationale ?? string.Empty;
+        // Pick the FRESHEST surviving completion as the narrative/rationale source.
+        // InitializePlanCompletionRecordsAsync now refreshes existing rows + deletes orphaned
+        // PlanItemIds from prior plan-gen passes, so all surviving rows should already carry
+        // the same narrative. This UpdatedAt-DESC ordering is belt-and-suspenders: if a row
+        // survives orphan cleanup (e.g. it has user-progress on it), its narrative will be
+        // the most recently refreshed, never the stale one from a previous pass.
+        // See Brot incident, 2026-06-12.
+        var freshest = completions
+            .OrderByDescending(c => c.UpdatedAt)
+            .ThenByDescending(c => c.CreatedAt)
+            .FirstOrDefault();
 
-        // Deserialize narrative from first record (stored redundantly)
+        // Extract rationale from freshest record (stored redundantly in all records for same date)
+        var rationale = freshest?.Rationale ?? string.Empty;
+
+        // Deserialize narrative from freshest record (stored redundantly)
         PlanNarrative? narrative = null;
-        var firstNarrativeJson = completions.FirstOrDefault()?.NarrativeJson;
-        if (!string.IsNullOrEmpty(firstNarrativeJson))
+        var freshestNarrativeJson = freshest?.NarrativeJson;
+        if (!string.IsNullOrEmpty(freshestNarrativeJson))
         {
             try
             {
-                narrative = System.Text.Json.JsonSerializer.Deserialize<PlanNarrative>(firstNarrativeJson);
+                narrative = System.Text.Json.JsonSerializer.Deserialize<PlanNarrative>(freshestNarrativeJson);
             }
             catch (Exception ex)
             {
