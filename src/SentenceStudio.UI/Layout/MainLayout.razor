@@ -108,10 +108,17 @@
         SyncService.InitialSyncCompleted += OnInitialSyncCompleted;
 
         // Resolve authentication state from CascadingAuthenticationState
+        string? activeProfileIdClaim = null;
         if (AuthStateTask is not null)
         {
             var authState = await AuthStateTask;
             isAuthenticated = authState.User?.Identity?.IsAuthenticated ?? false;
+            // Read the user_profile_id claim directly from the cascaded principal.
+            // This works in BOTH the SSR prerender pass AND the InteractiveServer
+            // circuit pass — AuthenticationState is preserved across the boundary,
+            // unlike IHttpContextAccessor.HttpContext which is null during interactive
+            // rendering in Blazor Web App. (Fixes deploy-onboarding regression.)
+            activeProfileIdClaim = authState.User?.FindFirst(SentenceStudio.Contracts.AuthClaimTypes.UserProfileId)?.Value;
         }
 
         var uri = NavigationManager.ToAbsoluteUri(NavigationManager.Uri);
@@ -123,7 +130,7 @@
         // and consistent across login flow + fresh-install fallback. (issue #187)
         if (isAuthenticated && !isOnboardingPath)
         {
-            await ApplyPostLoginRouteAsync();
+            await ApplyPostLoginRouteAsync(activeProfileIdClaim);
         }
     }
 
@@ -146,9 +153,12 @@
         });
     }
 
-    private async Task ApplyPostLoginRouteAsync()
+    private async Task ApplyPostLoginRouteAsync(string? activeProfileIdClaim = null)
     {
-        var route = await PostLoginRouter.DecideRouteAsync();
+        // Pass the explicit claim value when available so PostLoginRouter doesn't
+        // need to consult IPreferencesService (which can't resolve per-user state
+        // during the InteractiveServer circuit pass — see OnInitializedAsync).
+        var route = await PostLoginRouter.DecideRouteAsync(activeProfileIdClaim);
 
         if (route.DeferUntilSyncCompletes)
         {

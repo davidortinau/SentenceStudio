@@ -78,7 +78,6 @@ public static class AccountEndpoints
             [FromQuery] string? returnUrl,
             UserManager<ApplicationUser> userManager,
             SignInManager<ApplicationUser> signInManager,
-            IPreferencesService preferences,
             HttpContext httpContext) =>
         {
             var user = await userManager.FindByIdAsync(userId);
@@ -174,22 +173,12 @@ public static class AccountEndpoints
 
             await signInManager.SignInAsync(user, isPersistent: true);
 
-            // Set the active profile so Profile page and other features find it
-            if (!string.IsNullOrEmpty(user.UserProfileId))
-            {
-                preferences.Set("active_profile_id", user.UserProfileId);
-
-                // Auto-mark returning users as onboarded so they skip the onboarding flow
-                var db2 = httpContext.RequestServices.GetRequiredService<ApplicationDbContext>();
-                var profile = await db2.UserProfiles.FindAsync(user.UserProfileId);
-                if (profile is not null
-                    && !string.IsNullOrEmpty(profile.TargetLanguage)
-                    && !string.IsNullOrEmpty(profile.Name)
-                    && !string.IsNullOrEmpty(profile.NativeLanguage))
-                {
-                    preferences.Set("is_onboarded", true);
-                }
-            }
+            // active_profile_id and is_onboarded are now derived from the auth
+            // cookie's user_profile_id claim (added by AppUserClaimsPrincipalFactory)
+            // and from a per-request lookup in PostLoginRouter. The legacy
+            // preferences writes here were leaky (singleton WebPreferencesService
+            // shared across all webapp users) and got wiped on every container
+            // revision restart. Source of truth is now the cookie.
 
             return Results.LocalRedirect(returnUrl ?? "/");
         });
@@ -297,9 +286,11 @@ public static class AccountEndpoints
                 }
             }
 
-            preferences.Remove("active_profile_id");
+            // app_is_authenticated is still a webapp-wide flag for non-auth
+            // code paths; clearing it on delete is fine. active_profile_id and
+            // is_onboarded are now derived from the auth cookie's claims, so
+            // SignOutAsync above is the real "remove".
             preferences.Remove("app_is_authenticated");
-            preferences.Set("is_onboarded", false);
 
             return Results.Redirect("/auth");
         });

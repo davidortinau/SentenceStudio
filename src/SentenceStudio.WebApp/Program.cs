@@ -78,7 +78,8 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
     options.User.RequireUniqueEmail = true;
 })
 .AddEntityFrameworkStores<ApplicationDbContext>()
-.AddDefaultTokenProviders();
+.AddDefaultTokenProviders()
+.AddClaimsPrincipalFactory<SentenceStudio.WebApp.Auth.AppUserClaimsPrincipalFactory>();
 
 builder.Services.ConfigureApplicationCookie(options =>
 {
@@ -102,7 +103,20 @@ builder.Services.AddAuthorization(options =>
 // swap for SmtpEmailSender in production.
 builder.Services.AddSingleton<IAppEmailSender, ConsoleEmailSender>();
 
-builder.Services.AddSingleton<IPreferencesService>(_ => new WebPreferencesService(preferencesPath));
+// Webapp-only per-user state: captured per-circuit by CircuitUserStateHandler
+// so the singleton WebPreferencesService can resolve active_profile_id during
+// the Blazor InteractiveServer pass (HttpContext is null in that context).
+// See CircuitUserStateAccessor.cs for the full pattern explanation.
+builder.Services.AddSingleton<SentenceStudio.WebApp.Platform.CircuitUserStateAccessor>();
+builder.Services.AddScoped<Microsoft.AspNetCore.Components.Server.Circuits.CircuitHandler,
+    SentenceStudio.WebApp.Platform.CircuitUserStateHandler>();
+
+builder.Services.AddSingleton<IPreferencesService>(sp =>
+    new WebPreferencesService(
+        preferencesPath,
+        sp.GetRequiredService<Microsoft.AspNetCore.Http.IHttpContextAccessor>(),
+        sp.GetRequiredService<SentenceStudio.WebApp.Platform.CircuitUserStateAccessor>(),
+        sp.GetRequiredService<ILoggerFactory>().CreateLogger<WebPreferencesService>()));
 builder.Services.AddSingleton<ISecureStorageService>(sp =>
     new WebSecureStorageService(
         sp.GetRequiredService<IPreferencesService>(),

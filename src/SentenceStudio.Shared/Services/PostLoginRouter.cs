@@ -19,6 +19,19 @@ public interface IPostLoginRouter
     /// wait for <see cref="ISyncService.InitialSyncCompleted"/> before re-deciding.
     /// </returns>
     Task<PostLoginRoute> DecideRouteAsync();
+
+    /// <summary>
+    /// Resolves the post-login destination using an explicit user profile id, bypassing
+    /// the <c>IPreferencesService</c>-based lookup. Required for the Blazor Web App
+    /// interactive circuit pass where <c>IHttpContextAccessor.HttpContext</c> is null
+    /// and the per-user preference cannot be resolved from request state.
+    /// </summary>
+    /// <param name="activeProfileId">
+    /// The active user's <see cref="UserProfile.Id"/>, typically read from the
+    /// <c>user_profile_id</c> claim on the cascaded <c>AuthenticationState</c>.
+    /// When null or empty, falls back to <see cref="DecideRouteAsync()"/>.
+    /// </param>
+    Task<PostLoginRoute> DecideRouteAsync(string? activeProfileId);
 }
 
 /// <summary>
@@ -46,6 +59,9 @@ public class PostLoginRouter : IPostLoginRouter
     }
 
     public async Task<PostLoginRoute> DecideRouteAsync()
+        => await DecideRouteAsync(activeProfileId: null);
+
+    public async Task<PostLoginRoute> DecideRouteAsync(string? activeProfileId)
     {
         if (_syncService.IsInitialSyncInProgress)
         {
@@ -56,7 +72,14 @@ public class PostLoginRouter : IPostLoginRouter
         UserProfile? profile = null;
         try
         {
-            profile = await _profileRepo.GetAsync();
+            // When the caller supplied an explicit profile id (e.g. from a Blazor
+            // cascaded AuthenticationState claim), bypass the IPreferencesService
+            // lookup entirely. This is required for the Blazor Web App interactive
+            // circuit pass where HttpContext is null and per-user state can't be
+            // resolved from request state.
+            profile = string.IsNullOrEmpty(activeProfileId)
+                ? await _profileRepo.GetAsync()
+                : await _profileRepo.GetByIdAsync(activeProfileId);
         }
         catch (Exception ex)
         {
