@@ -225,6 +225,11 @@ public class VocabularyProgressRepository
     public async Task<(int New, int Learning, int Familiar, int Review, int Known)> GetVocabSummaryCountsAsync(string userId = "")
     {
         if (string.IsNullOrEmpty(userId)) userId = !string.IsNullOrEmpty(ActiveUserId) ? ActiveUserId : string.Empty;
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning("GetVocabSummaryCountsAsync called with no active userId — returning empty counts");
+            return (0, 0, 0, 0, 0);
+        }
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
@@ -239,8 +244,16 @@ public class VocabularyProgressRepository
             .CountAsync();
 
         // PHASE 2: Load progress records for words that have been practiced
+        // Apply reachability filter: only count progress for words still mapped to one of
+        // this user's resources. Without this, orphan VocabularyProgress rows (e.g. left
+        // over from a deleted resource) inflate Learning/Review/Known counts and skew
+        // wordsNeverSeen math. See Brot incident, 2026-06-12.
         var allProgress = await db.VocabularyProgresses
-            .Where(vp => vp.UserId == userId)
+            .Where(vp => vp.UserId == userId
+                && db.Set<ResourceVocabularyMapping>().Any(rvm =>
+                    rvm.VocabularyWordId == vp.VocabularyWordId
+                    && db.Set<LearningResource>().Any(lr =>
+                        lr.Id == rvm.ResourceId && lr.UserProfileId == userId)))
             .Select(vp => new
             {
                 vp.TotalAttempts,
@@ -306,17 +319,29 @@ public class VocabularyProgressRepository
     /// <summary>
     /// Get count of vocabulary words due for review based on SRS schedule.
     /// Excludes words that are already Known (MasteryScore >= 0.85 AND ProductionInStreak >= 2).
+    /// REACHABILITY-SCOPED: only counts words reachable via a ResourceVocabularyMapping to a
+    /// LearningResource owned by the same user. Without this filter, orphan progress rows
+    /// (e.g. left behind when a resource was removed in the past) count as "due forever"
+    /// and pollute plan generation. See Brot incident, 2026-06-12.
     /// </summary>
     public async Task<int> GetDueVocabCountAsync(DateTime asOfDate, string userId = "")
     {
         if (string.IsNullOrEmpty(userId)) userId = !string.IsNullOrEmpty(ActiveUserId) ? ActiveUserId : string.Empty;
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning("GetDueVocabCountAsync called without an active user — returning 0 to prevent cross-tenant data leak.");
+            return 0;
+        }
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         var dueCount = await db.VocabularyProgresses
             .Where(vp => vp.UserId == userId
                 && vp.NextReviewDate <= asOfDate
-                && !(vp.MasteryScore >= 0.85f && vp.ProductionInStreak >= 2))
+                && !(vp.MasteryScore >= 0.85f && vp.ProductionInStreak >= 2)
+                && db.ResourceVocabularyMappings.Any(m =>
+                    m.VocabularyWordId == vp.VocabularyWordId
+                    && db.LearningResources.Any(r => r.Id == m.ResourceId && r.UserProfileId == userId)))
             .CountAsync();
 
         return dueCount;
@@ -326,10 +351,19 @@ public class VocabularyProgressRepository
     /// Get vocabulary words due for review with word and resource details for planning.
     /// Excludes words that are already Known (MasteryScore >= 0.85 AND ProductionInStreak >= 2)
     /// so that the Today Plan focuses on words that still need active learning.
+    /// REACHABILITY-SCOPED: only returns words reachable via a ResourceVocabularyMapping to a
+    /// LearningResource owned by the same user. Symmetric with GetUnseenMappedVocabularyAsync
+    /// below. Without this filter, orphan progress rows (e.g. words from a resource the user
+    /// removed in the past) get picked into "due review" lists. See Brot incident, 2026-06-12.
     /// </summary>
     public async Task<List<VocabularyProgress>> GetDueVocabularyAsync(DateTime asOfDate, string userId = "")
     {
         if (string.IsNullOrEmpty(userId)) userId = !string.IsNullOrEmpty(ActiveUserId) ? ActiveUserId : string.Empty;
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning("GetDueVocabularyAsync called without an active user — returning empty result to prevent cross-tenant data leak.");
+            return new List<VocabularyProgress>();
+        }
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
@@ -339,7 +373,10 @@ public class VocabularyProgressRepository
                 .ThenInclude(lc => lc.LearningResource)
             .Where(vp => vp.UserId == userId
                 && vp.NextReviewDate <= asOfDate
-                && !(vp.MasteryScore >= 0.85f && vp.ProductionInStreak >= 2))
+                && !(vp.MasteryScore >= 0.85f && vp.ProductionInStreak >= 2)
+                && db.ResourceVocabularyMappings.Any(m =>
+                    m.VocabularyWordId == vp.VocabularyWordId
+                    && db.LearningResources.Any(r => r.Id == m.ResourceId && r.UserProfileId == userId)))
             .ToListAsync();
 
         return dueWords;

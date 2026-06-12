@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Abstractions;
 
@@ -6,6 +7,9 @@ namespace SentenceStudio.Services.Progress;
 /// <summary>
 /// PHASE 2 OPTIMIZATION: Simple in-memory cache for progress data.
 /// All entries are keyed by userId to prevent cross-profile data bleed.
+/// Backed by <see cref="ConcurrentDictionary{TKey, TValue}"/> because this service is
+/// registered as a Singleton and read/written from many concurrent Blazor circuits + sync
+/// callbacks. Plain Dictionary was a latent race (see Brot incident, 2026-06-12).
 /// </summary>
 public class ProgressCacheService
 {
@@ -20,11 +24,11 @@ public class ProgressCacheService
     }
 
     // Cache entries keyed by userId
-    private readonly Dictionary<string, CacheEntry<VocabProgressSummary>> _vocabSummaryCache = new();
-    private readonly Dictionary<string, CacheEntry<IReadOnlyList<PracticeHeatPoint>>> _practiceHeatCache = new();
-    private readonly Dictionary<string, CacheEntry<List<ResourceProgress>>> _resourceProgressCache = new();
-    private readonly Dictionary<string, CacheEntry<SkillProgress>> _skillProgressCache = new();
-    private readonly Dictionary<string, CacheEntry<TodaysPlan>> _todaysPlanCache = new();
+    private readonly ConcurrentDictionary<string, CacheEntry<VocabProgressSummary>> _vocabSummaryCache = new();
+    private readonly ConcurrentDictionary<string, CacheEntry<IReadOnlyList<PracticeHeatPoint>>> _practiceHeatCache = new();
+    private readonly ConcurrentDictionary<string, CacheEntry<List<ResourceProgress>>> _resourceProgressCache = new();
+    private readonly ConcurrentDictionary<string, CacheEntry<SkillProgress>> _skillProgressCache = new();
+    private readonly ConcurrentDictionary<string, CacheEntry<TodaysPlan>> _todaysPlanCache = new();
 
     private string UserId => _preferences.Get("active_profile_id", string.Empty);
 
@@ -107,22 +111,22 @@ public class ProgressCacheService
 
     public void InvalidateVocabSummary()
     {
-        _vocabSummaryCache.Remove(UserId);
+        _vocabSummaryCache.TryRemove(UserId, out _);
     }
 
     public void InvalidatePracticeHeat()
     {
-        _practiceHeatCache.Remove(UserId);
+        _practiceHeatCache.TryRemove(UserId, out _);
     }
 
     public void InvalidateResourceProgress()
     {
-        _resourceProgressCache.Remove(UserId);
+        _resourceProgressCache.TryRemove(UserId, out _);
     }
 
     public void InvalidateSkillProgress(string skillId)
     {
-        _skillProgressCache.Remove($"{UserId}:{skillId}");
+        _skillProgressCache.TryRemove($"{UserId}:{skillId}", out _);
     }
 
     // Plan cache methods take an explicit date parameter to avoid timezone drift.
@@ -153,7 +157,7 @@ public class ProgressCacheService
     public void InvalidateTodaysPlan(DateTime date)
     {
         var key = BuildPlanKey(date);
-        _todaysPlanCache.Remove(key);
+        _todaysPlanCache.TryRemove(key, out _);
     }
 
     public void UpdateTodaysPlan(DateTime date, TodaysPlan data)
