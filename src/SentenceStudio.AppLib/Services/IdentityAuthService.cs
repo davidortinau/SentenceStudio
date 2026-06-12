@@ -414,11 +414,15 @@ public sealed class IdentityAuthService : IAuthService
 
             // Re-tag any orphaned local data (e.g. after server wipe + re-registration)
             // before sync pushes records to the server.
-            if (_dataRecovery != null)
+            // Gated by enable_automatic_data_recovery (default false) — set to true only when
+            // a known server wipe has occurred. Safeguards inside the service provide a second
+            // line of defence even when the flag is on.
+            if (_dataRecovery != null && _preferences.Get("enable_automatic_data_recovery", false))
             {
                 try
                 {
-                    await _dataRecovery.RecoverOrphanedDataAsync(response.UserProfileId);
+                    var emailForRecovery = ExtractEmailFromJwt(response.Token);
+                    await _dataRecovery.RecoverOrphanedDataAsync(response.UserProfileId!, emailForRecovery);
                 }
                 catch (Exception ex)
                 {
@@ -546,6 +550,22 @@ public sealed class IdentityAuthService : IAuthService
                 ?? jwt.Claims.FirstOrDefault(c => c.Type == "email")?.Value
                 ?? jwt.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Name)?.Value
                 ?? jwt.Claims.FirstOrDefault(c => c.Type == "name")?.Value;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string? ExtractEmailFromJwt(string? token)
+    {
+        if (token is null) return null;
+        try
+        {
+            var handler = new JwtSecurityTokenHandler();
+            var jwt = handler.ReadJwtToken(token);
+            return jwt.Claims.FirstOrDefault(c => c.Type == ClaimTypes.Email)?.Value
+                ?? jwt.Claims.FirstOrDefault(c => c.Type == "email")?.Value;
         }
         catch
         {

@@ -116,6 +116,8 @@ If any of those four turn up something unexpected, read `.squad/skills/dotnet-sd
 
 If you encounter errors like "unable to open database file" or migration conflicts, investigate and fix the root cause rather than starting fresh.
 
+**DataRecoveryService (NON-NEGOTIABLE):** `DataRecoveryService` contains three safeguards that must ALL pass before any retag runs — email mismatch abort, temporal sanity abort, and first-run gate. The caller in `IdentityAuthService.StoreTokens` is additionally gated by `enable_automatic_data_recovery` preference (default `false`). NEVER invoke `RecoverOrphanedDataAsync` or flip that flag without reading the full RCA at `.squad/decisions/inbox/captain-rca-datarecoveryservice-cross-tenant-corruption.md`. Regression tests are in `tests/SentenceStudio.UnitTests/Data/DataRecoveryServiceTests.cs`. See also the multi-tenant scoping rule in `.github/copilot-instructions.md`.
+
 ## Database Migrations
 
 **CRITICAL: Always use EF Core migrations for schema changes. NEVER use raw SQL ALTER TABLE statements.**
