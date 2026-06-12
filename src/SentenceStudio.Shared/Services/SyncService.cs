@@ -562,6 +562,11 @@ public class SyncService : ISyncService
 
             // Only stamp migrations whose schema artifacts we can verify present in the DB.
             // Each tuple: (migrationId, predicateSql returning count>0 when artifacts exist)
+            //
+            // IMPORTANT — adding a new EF migration whose columns are ALSO added by
+            // PatchMissingColumnsAsync above? You MUST add a matching entry here, or
+            // EF's MigrateAsync() will crash on existing DBs with "duplicate column name"
+            // (the patch added the column; without stamping, EF tries to re-apply).
             var checks = new (string MigrationId, string Sql)[]
             {
                 // AddPassiveExposureFields — adds ExposureCount + LastExposedAt to VocabularyProgress
@@ -570,6 +575,11 @@ public class SyncService : ISyncService
                 // AddLexicalUnitTypeAndConstituents — adds LexicalUnitType to VocabularyWord + PhraseConstituent table
                 ("20260423213242_AddLexicalUnitTypeAndConstituents",
                     "SELECT CASE WHEN ((SELECT COUNT(*) FROM pragma_table_info('VocabularyWord') WHERE name='LexicalUnitType') > 0 AND (SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='PhraseConstituent') > 0) THEN 1 ELSE 0 END"),
+                // AddFocusVocabularyFacts — adds FocusVocabularyFacts column to DailyPlan.
+                // Column is also added defensively by PatchMissingColumnsAsync above, so this
+                // migration MUST be stamped or MigrateAsync crashes with "duplicate column name".
+                ("20260609032023_AddFocusVocabularyFacts",
+                    "SELECT CASE WHEN (SELECT COUNT(*) FROM pragma_table_info('DailyPlan') WHERE name='FocusVocabularyFacts') > 0 THEN 1 ELSE 0 END"),
             };
 
             foreach (var (migrationId, sql) in checks)

@@ -60,12 +60,18 @@ public static class MauiProgram
         builder.Services.AddMauiBlazorWebView();
         builder.Services.AddBlazorUIServices();
 
+        // Enable Safari Web Inspector for Release builds on personal/dogfooding devices.
+        // Sets WKWebView.Inspectable = true on iOS 16.4+. NOT gated to #if DEBUG because
+        // we sideload Release builds to DX24 and still need to diagnose Blazor WebView
+        // issues that only reproduce in Release (e.g. JS interop, click handlers).
+        // Safe to leave on outside the App Store path (this repo is not App-Store-published).
+        builder.Services.AddBlazorWebViewDeveloperTools();
+
 #if DEBUG
         builder.Logging
             .AddDebug()
             .AddConsole()
             .SetMinimumLevel(LogLevel.Debug);
-        builder.Services.AddBlazorWebViewDeveloperTools();
         builder.AddMauiDevFlowAgent(options => { options.Port = 9224; });
         builder.AddMauiBlazorDevFlowTools();
 #endif

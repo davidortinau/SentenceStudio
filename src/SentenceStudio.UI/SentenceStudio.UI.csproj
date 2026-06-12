@@ -17,6 +17,13 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Components.Authorization" />
     <PackageReference Include="Microsoft.AspNetCore.Components.Web" />
+    <!--
+      QueryHelpers.AddQueryString in Index.razor needs this assembly at runtime.
+      It is NOT brought in transitively by Components.Web in v11 preview (constraint pins to v10),
+      so it must be declared explicitly or the runtime fails with "Could not load file or assembly
+      'Microsoft.AspNetCore.WebUtilities, Version=11.0.0.0'" on first call.
+    -->
+    <PackageReference Include="Microsoft.AspNetCore.WebUtilities" />
   </ItemGroup>
 
   <ItemGroup>
