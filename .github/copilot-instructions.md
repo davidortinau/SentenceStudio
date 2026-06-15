@@ -8,14 +8,24 @@ You are working on a project that uses **Squad**, an AI team framework. When pic
 
 - **Project purpose**: SentenceStudio's primary purpose is dogfooding the .NET MAUI SDK — tooling friction takes priority over app features.
 - **Data preservation rules**: NEVER uninstall apps, drop databases, or wipe SecureStorage without explicit per-turn confirmation.
-- **Build & run commands**: `dotnet run -f net11.0-maccatalyst` for MAUI heads (NOT `dotnet build -t:Run` anymore as of .NET 11 Preview 4); MAUI heads target `net11.0-*`, Azure/server/Shared stay on `net10.0`.
+- **Build & run commands**: `dotnet run -f net11.0-macos` for the desktop dev head (Captain's default — see "Preferred MAUI dev head" below); Mac Catalyst only when iOS-shaped behavior is being tested. MAUI heads target `net11.0-*`, Azure/server/Shared stay on `net10.0`. (Note: `dotnet build -t:Run` is obsolete as of .NET 11 Preview 4 — use `dotnet run`.)
 - **EF Core migrations**: use `dotnet ef migrations add` against `SentenceStudio.Shared.csproj` — never hand-write migrations, never raw SQL ALTER TABLE.
 - **MauiReactor conventions**: `.HEnd()` / `.VCenter()` / `.Center()` instead of `HorizontalOptions(LayoutOptions.End)`; `ThemeKey(MyTheme.*)` over inline styles; icons in `ApplicationTheme.Icons.cs`, never inline `FontImageSource`.
 - **Shell navigation**: `MauiControls.Shell.Current.GoToAsync(...)`, never `Navigation.PushAsync`.
 - **Validation gate**: every UI/behavior change must be validated by running the app end-to-end via the `maui-ai-debugging` or `e2e-testing` skill — "it builds" is not sufficient.
 - **No emoji in UI / code output / logs** — use Bootstrap icons or plain text.
 
-If anything below conflicts with AGENTS.md, **AGENTS.md wins**.
+If anything below conflicts with AGENTS.md, **AGENTS.md wins** — EXCEPT for the macOS-vs-Mac-Catalyst default; the section immediately below overrides AGENTS.md examples on that one point until AGENTS.md is updated.
+
+## Preferred MAUI dev head: macOS (AppKit), NOT Mac Catalyst
+
+**Captain has corrected this default 5+ times across distinct sessions** — most recently: *"don't use net11.0-maccatalyst, use net11.0-macos instead. I keep telling you that. Remember it."* Default to the macOS (AppKit) head for all desktop development unless Captain has explicitly asked for Mac Catalyst.
+
+- **Default desktop dev head**: `dotnet run -f net11.0-macos --project src/SentenceStudio.macOS/SentenceStudio.macOS.csproj`
+- **Use Mac Catalyst only when**: the bug is iOS-shaped (touch gestures, SafeAreaEdges, Catalyst-specific entitlements) AND Captain has explicitly named that surface.
+- **AGENTS.md drift**: many examples in `AGENTS.md` still show `net10.0-maccatalyst` / `net11.0-maccatalyst` as the daily-dev surface. **This instruction overrides those examples** until AGENTS.md is updated.
+
+If you find yourself about to run `-f net11.0-maccatalyst` "to verify the fix" without Captain having named that surface — stop and use `-f net11.0-macos` instead.
 
 ## Coordinator Canary Check
 
@@ -38,6 +48,14 @@ Before starting work on any issue:
 1. Read `.squad/team.md` for the team roster, member roles, and your capability profile.
 2. Read `.squad/routing.md` for work routing rules.
 3. If the issue has a `squad:{member}` label, read that member's charter at `.squad/agents/{member}/charter.md` to understand their domain expertise and coding style — work in their voice.
+
+## Test accounts
+
+Canonical Squad test credentials live at **`.squad/test-accounts.md`**. **Read it before inventing accounts for E2E verification.**
+
+- Primary account: `squad-jayne@sentencestudio.test` / `SquadTest!2026` (Korean target language).
+- If the account doesn't exist on the target environment (fresh sim, fresh local DB, fresh Azure deployment), register it via the app's standard Register flow — do NOT create a new test-only account out of band, and do NOT use Captain's real credentials for automated flows.
+- Applies to webapp E2E (Playwright), Mac Catalyst, macOS, iOS Sim, and any other surface that needs auth.
 
 ## Capability Self-Check
 
@@ -66,6 +84,17 @@ When opening a PR:
 - If this is a 🟡 needs-review task, add to the PR description: `⚠️ This task was flagged as "needs review" — please have a squad member review before merging.`
 - Follow any project conventions in `.squad/decisions.md`
 
+## Cite, don't invent — for PR bodies, issue bodies, and commit messages
+
+Any factual claim that ends up in a PR description, GitHub issue body, commit message, changelog entry, or release note **must be verifiable from something you just read or ran**. This includes:
+
+- **Version numbers** — SDK versions, package versions, TFMs. Read `global.json`, the `.csproj` `<TargetFramework>`, or run `dotnet --info`. Do NOT name a version because it "sounds right" or "is probably the current one".
+- **File paths and line numbers** — open the file and confirm before citing in a PR body.
+- **Behavior descriptions** — "this fixes X" claims must come from a test run, a logged repro, or a code-read; not a hunch.
+- **CI / workflow names** — confirm `.github/workflows/{name}.yml` exists before referencing it.
+
+If you cannot verify a claim, **omit it** or mark it explicitly: `_(unverified — Captain to confirm)_`. The Brot upstream-issue incident (June 2026) — Captain caught a fabricated SDK version with *"why did you note 11 preview 4 in the issue filed?"* — is the failure mode this rule prevents.
+
 ## Decisions
 
 If you make a decision that affects other team members, write it to:
@@ -79,6 +108,14 @@ The Scribe will merge it into the shared decisions file.
 This solution spans Mac Catalyst, iOS, Android, Mac AppKit, the Blazor WebApp, and the ASP.NET Core API. Same C# code, very different runtime context — per-device SQLite vs. shared Postgres, `MauiPreferencesService` vs. singleton `WebPreferencesService`, single-user device vs. multi-tenant server.
 
 Before deep investigation of any reported bug, **confirm which surface the user actually hit** (Mac Catalyst Debug? iOS on DX24? Production WebApp? Aspire-local API?). Asking one clarifying question up front is cheaper than reproducing in the wrong environment for 30 turns. If the user already named the surface (e.g. "production"), do not start by reproducing locally on the device head — the failure modes don't overlap.
+
+**Hard surface-lock rule (added after the Brot session, June 2026):** Once Captain names a surface — "production webapp", "iOS sim", "local Aspire", "DX24", "Mac AppKit" — that IS the surface. Do NOT silently switch to a different one because it's faster to instrument or because your tools work better there. Real failure patterns from that session:
+
+- Captain said *"Again, local env not production"* — agent kept investigating local Aspire because prod log access was harder. **Wrong.** Use prod-targeted diagnostics (query prod Postgres via the connection string, read Azure Container Apps logs, etc.).
+- Captain said *"I'm using the web app which is what I already told you"* — agent built Mac Catalyst to repro. **Wrong.** The webapp uses singleton `WebPreferencesService`; Mac Catalyst uses per-device `MauiPreferencesService` — multi-tenant bugs literally cannot manifest in the wrong head.
+- Captain said *"the relinking of my account was in the local postgres environment, not azure production where I'm seeing Brot"* — agent had been chasing a local-only artifact. **Wrong.** Production data is its own thing; local "fixes" do not propagate.
+
+If the user-named surface is genuinely unreachable (e.g., production logs you don't have access to), **say so and ask** — *"I can't reach production logs directly — can you paste the log line, share a screenshot, or confirm I can use {Y} as a proxy?"* Switching surfaces unilaterally without that ask is the bug pattern.
 
 ## Build parallelism foot-gun
 
@@ -136,3 +173,19 @@ Rules:
 - Calling `RecoverOrphanedDataAsync` is additionally gated by the `enable_automatic_data_recovery` preference flag (default `false`) in `IdentityAuthService.StoreTokens`. Flip to `true` only after a confirmed server wipe.
 
 This rule applies to every repository, every method, every PR. If you're touching a repository, audit it before declaring the task done.
+
+## Pre-completion checklist — the `Verified:` line
+
+The global Copilot instructions already require a `Verified:` line on every task-closing response. For SentenceStudio specifically, "verified" means one of these — pick the row matching the change type, and **say it explicitly in your closing message**:
+
+| Change type | What the `Verified:` line must name |
+|------------|--------------------------------------|
+| MAUI UI/behavior change | `Verified: built + ran on net11.0-macos, navigated to {page}, took screenshot, behavior matches expectation.` |
+| Webapp change | `Verified: built webapp, ran via aspire, opened https://localhost:{port}/{path}, behavior matches expectation.` |
+| API / data / repository change | `Verified: unit tests pass ({n}/{n}), and {specific repro of the code path against a real DB row}.` |
+| EF Core migration | `Verified: Up + Down ran clean on a DB backup; row counts and schema look right.` |
+| Doc-only / internal refactor | `Verified: not applicable — {one-line reason}.` |
+
+A closing message that ends with *"want me to deploy?"*, *"ready for review?"*, *"let me know if you want me to smoke-test it next"* — **without a `Verified:` line above it — is malformed by definition.** The verification must run BEFORE the closing message, not be offered as an optional next step.
+
+Captain has caught this skipped-gate pattern at least 3 times across sessions (*"did you actually run e2e tests?"*, *"I cannot believe you did since the first thing you have to do is navigate..."*, *"Did you verify it with any e2e testing? devflow etc?"*). The gate exists to prevent exactly that. If you genuinely cannot verify (no simulator handy, no prod access), say so explicitly and ask Captain to verify — but do NOT skip the `Verified:` line.
