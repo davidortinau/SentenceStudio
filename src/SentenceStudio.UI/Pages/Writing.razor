@@ -231,14 +231,15 @@ else
             if (usingFocusVocabularyIds)
             {
                 var userVocabulary = await ResourceRepo.GetAllVocabularyWordsWithResourcesAsync();
-                allVocabulary = FocusVocabularySelection.SelectFocusWords(userVocabulary, focusVocabularyIds);
+                var selected = FocusVocabularySelection.SelectFocusWords(userVocabulary, focusVocabularyIds);
+                allVocabulary = FilterToWordsOnly(selected);
                 if (allVocabulary.Any())
                 {
                     ShuffleVocab();
                     return;
                 }
 
-                Logger.LogWarning("Activity {ActivityName} received FocusVocabularyIds but no matching vocabulary was found (planItemId={PlanItemId}); falling back to legacy selection", nameof(Writing), PlanItemId);
+                Logger.LogWarning("Activity {ActivityName} received FocusVocabularyIds but no Word-type vocabulary was found after filter (planItemId={PlanItemId}, selected={SelectedCount}); falling back to legacy selection", nameof(Writing), PlanItemId, selected.Count);
                 usingFocusVocabularyIds = false;
             }
             else
@@ -254,10 +255,15 @@ else
                     var activeUserId = Preferences.Get("active_profile_id", "");
                     var wordIds = resource.Vocabulary.Select(w => w.Id).ToList();
                     var progressDict = await ProgressService.GetProgressForWordsAsync(wordIds, activeUserId);
-                    allVocabulary = resource.Vocabulary
+                    var usable = resource.Vocabulary
                         .Where(FocusVocabularySelection.IsUsableVocabularyWord)
                         .Where(w => !progressDict.ContainsKey(w.Id) || !progressDict[w.Id].IsInGracePeriod)
                         .ToList();
+                    allVocabulary = FilterToWordsOnly(usable);
+                    if (!allVocabulary.Any() && usable.Any())
+                    {
+                        Logger.LogWarning("Writing activity filtered out all {Count} entries for resource {ResourceId} (no LexicalUnitType.Word entries; resource may contain only phrases/sentences/unclassified)", usable.Count, resourceId);
+                    }
                     ShuffleVocab();
                 }
                 else
@@ -280,6 +286,13 @@ else
             isBusy = false;
         }
     }
+
+    // Writing activity practices producing original sentences — phrases and full sentences
+    // from the user's vocabulary aren't appropriate building blocks here. Filter to Word-type
+    // entries only. (Per Captain directive, June 2026 — "Filter to Word for now".)
+    // See WritingActivityVocabularyFilter for the canonical implementation + tests.
+    private static List<VocabularyWord> FilterToWordsOnly(IEnumerable<VocabularyWord> source) =>
+        WritingActivityVocabularyFilter.FilterToWordsOnly(source);
 
     private void ShuffleVocab()
     {
