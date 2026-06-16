@@ -34,11 +34,17 @@ For each vocabulary item, classify it as:
   - Simple nouns (책, 학교)
   - Sino-Korean compound verbs with 하다 (공부하다, 운동하다) — treat as ONE word
   - Single adjectives/adverbs (예쁘다, 빨리)
-- **Phrase**: Multi-word collocation or idiom that functions as a unit:
+- **Phrase**: Multi-word collocation that functions as a unit:
   - Verb phrases (비가 오다, 시간이 없다)
   - Noun phrases (한국 음식, 이번 주)
-  - Idiomatic expressions (마음에 들다)
+  - Fixed collocations that lose meaning when split
   - For Phrases, populate "relatedTerms" with the constituent words in dictionary form
+- **Idiom**: Idiomatic expression whose meaning cannot be deduced from its literal parts:
+  - Figurative expressions (하나부터 열까지 = from A to Z / every single detail)
+  - Cultural idioms (영혼 있어요? = are you even paying attention?)
+  - Metaphorical expressions (목각 인형처럼 행동하다 = act like a wooden puppet)
+  - Proverbs and four-character idioms (사자성어)
+  - For Idioms, populate "relatedTerms" with the constituent words in dictionary form
 - **Sentence**: Complete utterance with subject + predicate:
   - Must end with sentence-final endings (다/요/까/네/군요) + terminal punctuation
   - Punctuation alone without semantic completeness is NOT a sentence
@@ -68,7 +74,7 @@ If the source text is Korean paste like "오늘 학교에서 친구들이랑 밥
       "confidence": "high | medium | low",
       "notes": "Optional notes about uncertainty or extraction context",
       "partOfSpeech": "noun | verb | adjective | adverb | expression | counter | particle",
-      "lexicalUnitType": "Word | Phrase | Sentence",
+      "lexicalUnitType": "Word | Phrase | Idiom | Sentence",
       "relatedTerms": ["constituent1", "constituent2"]
     }
   ]

@@ -35,11 +35,17 @@ For each vocabulary item, classify it as:
   - Sino-Korean compound verbs with 하다 (공부하다, 운동하다, 시작하다) — treat as ONE word
   - Single adjectives/adverbs (예쁘다, 빨리)
   - When extracting the term, strip particles (이/가/을/를/은/는/에/의/로/와/과) to get the base form, but present the base form
-- **Phrase**: Multi-word collocation or idiom that functions as a unit:
+- **Phrase**: Multi-word collocation that functions as a unit:
   - Verb phrases (비가 오다, 시간이 없다)
   - Noun phrases (한국 음식, 이번 주)
-  - Idiomatic expressions (마음에 들다)
+  - Fixed collocations that lose meaning when split
   - For Phrases, populate "relatedTerms" with the constituent words in dictionary form
+- **Idiom**: Idiomatic expression whose meaning cannot be deduced from its literal parts:
+  - Figurative expressions (하나부터 열까지 = from A to Z / every single detail)
+  - Cultural idioms (영혼 있어요? = are you even alive/paying attention?)
+  - Metaphorical expressions (목각 인형처럼 행동하다 = act like a wooden puppet)
+  - Proverbs and four-character idioms (사자성어)
+  - For Idioms, populate "relatedTerms" with the constituent words in dictionary form
 - **Sentence**: Complete utterance with subject + predicate:
   - Must end with sentence-final endings (다/요/까/네/군요) + terminal punctuation
   - Punctuation alone without semantic completeness is NOT a sentence
@@ -60,7 +66,7 @@ For each vocabulary item, classify it as:
       "exampleSentence": "A complete sentence FROM the transcript containing this word",
       "exampleSentenceTranslation": "{{ native_language }} translation of that sentence",
       "tags": "comma-separated context tags from the video topic",
-      "lexicalUnitType": "Word | Phrase | Sentence",
+      "lexicalUnitType": "Word | Phrase | Idiom | Sentence",
       "relatedTerms": ["constituent1", "constituent2"]
     }
   ]

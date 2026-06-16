@@ -25,10 +25,11 @@ For EACH input line, emit ONE sentence entry:
 {{ if harvest_phrases }}
 **{{ if harvest_sentences }}Step 2{{ else }}Step 1{{ end }} — Phrase-level entries** (lexicalUnitType = "Phrase"):
 Extract sub-sentence patterns — idiomatic collocations, verb phrases, and clauses that function as learnable units:
-- Multi-word collocations and idioms (e.g., "시간이 없다", "빨리 가다").
+- Multi-word collocations (e.g., "시간이 없다", "빨리 가다") — classify as Phrase.
+- Idiomatic expressions whose meaning is non-literal (e.g., "하나부터 열까지", "영혼 있어요?") — classify as Idiom.
 - Verb phrases that learners should memorize as units (e.g., "맥주를 마시다").
 - Strip sentence-final politeness endings to get the base pattern.
-- For each phrase, populate `relatedTerms` with its constituent words in dictionary form.
+- For each phrase or idiom, populate `relatedTerms` with its constituent words in dictionary form.
 {{ end }}
 
 {{ if harvest_words }}
@@ -174,7 +175,7 @@ Should produce just one entry:
       "notes": "Optional: source line number or extraction context",
       "partOfSpeech": "noun | verb | adjective | adverb | expression | counter | particle",
       "topikLevel": 3,
-      "lexicalUnitType": "Word | Phrase | Sentence",
+      "lexicalUnitType": "Word | Phrase | Idiom | Sentence",
       "relatedTerms": ["constituent1", "constituent2"]
     }
   ]
@@ -182,7 +183,7 @@ Should produce just one entry:
 
 **RULES:**
 - Return ONLY valid JSON. No markdown fences, no commentary.
-- Every entry MUST have lexicalUnitType set correctly: "Sentence" for full-line entries, "Phrase" for multi-word sub-patterns, "Word" for single dictionary entries.
+- Every entry MUST have lexicalUnitType set correctly: "Sentence" for full-line entries, "Idiom" for figurative/cultural expressions, "Phrase" for multi-word collocations, "Word" for single dictionary entries.
 {{ if harvest_sentences }}- CRITICAL: Each input line MUST produce at least one Sentence entry with the full text preserved verbatim. This is the primary purpose of sentence import — do NOT skip or decompose it.{{ end }}
 - Sentence entries preserve the ORIGINAL text (conjugated forms, punctuation) — do NOT normalize to dictionary form.
 - Phrase and Word entries use dictionary form as usual.

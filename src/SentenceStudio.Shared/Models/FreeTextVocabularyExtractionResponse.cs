@@ -35,7 +35,7 @@ public class ExtractedVocabularyItemWithConfidence
     [Description("noun, verb, adjective, adverb, expression, counter, or particle")]
     public string? PartOfSpeech { get; set; }
 
-    [Description("Classification of this lexical unit. Word = single dictionary entry (including Korean compounds like 공부하다). Phrase = multi-word unit or fragment (noun phrase, idiom, collocation). Sentence = complete utterance, typically ending in terminal punctuation. Be conservative — if uncertain between Word and Phrase, choose Word.")]
+    [Description("Classification of this lexical unit. Word = single dictionary entry (including Korean compounds like 공부하다). Phrase = multi-word collocation or verb/noun phrase (비가 오다, 한국 음식). Idiom = idiomatic expression whose meaning cannot be deduced from its literal parts (하나부터 열까지, 영혼 있어요?, 마음에 들다). Sentence = complete utterance, typically ending in terminal punctuation. Be conservative — if uncertain between Word and Phrase, choose Word.")]
     public LexicalUnitType LexicalUnitType { get; set; } = LexicalUnitType.Word;
 
     [Description("If this item is a Phrase or Sentence, list the target-language words that compose it as they should appear as separate vocabulary entries. Use dictionary/lemma form (e.g. 공부하다, not 공부하고). Empty array for single Words.")]

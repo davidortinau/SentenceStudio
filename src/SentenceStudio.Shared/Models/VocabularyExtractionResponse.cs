@@ -60,7 +60,7 @@ public class ExtractedVocabularyItem
     public string? Tags { get; set; }
 
     [JsonPropertyName("lexicalUnitType")]
-    [Description("Classification of this lexical unit. Word = single dictionary entry (including Korean compounds like 공부하다). Phrase = multi-word unit or fragment (noun phrase, idiom, collocation). Sentence = complete utterance, typically ending in terminal punctuation. Be conservative — if uncertain between Word and Phrase, choose Word.")]
+    [Description("Classification of this lexical unit. Word = single dictionary entry (including Korean compounds like 공부하다). Phrase = multi-word collocation or verb/noun phrase (비가 오다, 한국 음식). Idiom = idiomatic expression whose meaning cannot be deduced from its literal parts (하나부터 열까지, 영혼 있어요?, 마음에 들다). Sentence = complete utterance, typically ending in terminal punctuation. Be conservative — if uncertain between Word and Phrase, choose Word.")]
     public LexicalUnitType LexicalUnitType { get; set; } = LexicalUnitType.Word;
 
     [JsonPropertyName("relatedTerms")]

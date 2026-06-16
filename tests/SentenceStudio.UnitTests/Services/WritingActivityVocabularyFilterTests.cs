@@ -80,6 +80,7 @@ public class WritingActivityVocabularyFilterTests
             MakeWord("w1", "first-word", LexicalUnitType.Word),
             MakeWord("p1", "phrase", LexicalUnitType.Phrase),
             MakeWord("w2", "second-word", LexicalUnitType.Word),
+            MakeWord("i1", "idiom", LexicalUnitType.Idiom),
             MakeWord("u1", "unknown", LexicalUnitType.Unknown),
             MakeWord("w3", "third-word", LexicalUnitType.Word),
         };
@@ -104,6 +105,7 @@ public class WritingActivityVocabularyFilterTests
             MakeWord("p1", "phrase one", LexicalUnitType.Phrase),
             MakeWord("s1", "sentence one", LexicalUnitType.Sentence),
             MakeWord("p2", "phrase two", LexicalUnitType.Phrase),
+            MakeWord("i1", "하나부터 열까지", LexicalUnitType.Idiom),
         };
 
         var result = WritingActivityVocabularyFilter.FilterToWordsOnly(input);
@@ -123,6 +125,7 @@ public class WritingActivityVocabularyFilterTests
     [InlineData(LexicalUnitType.Phrase, false)]
     [InlineData(LexicalUnitType.Sentence, false)]
     [InlineData(LexicalUnitType.Unknown, false)]
+    [InlineData(LexicalUnitType.Idiom, false)]
     public void IsWordEntry_MatchesExpectedClassification(LexicalUnitType type, bool expected)
     {
         var word = MakeWord("x", "term", type);

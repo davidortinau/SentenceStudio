@@ -12,7 +12,7 @@ You are a {{ target_language }} language learning specialist. Extract vocabulary
 {{ end }}
 
 **IMPORTANT — WORD-BIASED EXTRACTION:**
-This is a transcript (continuous prose). Transcripts are best suited for harvesting **individual words**, NOT phrases. Your default instinct should be to extract single dictionary entries. You MAY occasionally surface a multi-word idiom or collocation if it is genuinely a fixed expression that a learner must memorize as a unit (e.g., 마음에 들다, 시원섭섭하다), but these should be rare exceptions — aim for **90%+ Word-type entries**.
+This is a transcript (continuous prose). Transcripts are best suited for harvesting **individual words**, NOT phrases. Your default instinct should be to extract single dictionary entries. You MAY occasionally surface a multi-word idiom or collocation if it is genuinely a fixed expression that a learner must memorize as a unit (e.g., 마음에 들다, 시원섭섭하다), but these should be rare exceptions — aim for **85%+ Word-type entries**. Actively look for idiomatic expressions whose meaning cannot be deduced from their parts — classify those as Idiom (not Phrase).
 
 **EXTRACTION RULES:**
 1. Extract up to {{ max_words }} of the most useful {{ target_language }} vocabulary **words** for a language learner.
@@ -38,11 +38,17 @@ For each vocabulary item, classify it as:
   - Sino-Korean compound verbs with 하다 (공부하다, 운동하다, 시작하다) — treat as ONE word
   - Single adjectives/adverbs (예쁘다, 빨리)
   - When extracting, strip particles (이/가/을/를/은/는/에/의/로/와/과) to get the base form
-- **Phrase** (RARE — only for genuinely fixed multi-word expressions): Multi-word collocation or idiom that a learner must memorize as a unit:
-  - Idiomatic expressions (마음에 들다, 시원섭섭하다)
-  - Fixed collocations that lose meaning when split
+- **Phrase** (RARE — only for genuinely fixed multi-word collocations): Multi-word collocation that a learner must memorize as a unit:
+  - Fixed collocations that lose meaning when split (비가 오다, 시간이 없다)
+  - Common noun phrases used as set expressions (이번 주, 한국 음식)
   - Do NOT classify common verb-object pairs as phrases — extract the verb and noun separately as Words instead
   - For Phrases, populate "relatedTerms" with the constituent words in dictionary form
+- **Idiom** (when present — actively look for these): Idiomatic expression whose meaning cannot be deduced from its literal parts:
+  - Figurative expressions (하나부터 열까지 = from A to Z / every single detail)
+  - Cultural idioms (영혼 있어요? = are you even alive/paying attention?)
+  - Metaphorical expressions (목각 인형처럼 행동하다 = act like a wooden puppet)
+  - Proverbs and four-character idioms (사자성어)
+  - For Idioms, populate "relatedTerms" with the constituent words in dictionary form
 - **When in doubt**, ALWAYS prefer Word and leave relatedTerms empty.
 
 **RESPONSE FORMAT — Return a JSON object exactly like this:**
@@ -59,7 +65,7 @@ For each vocabulary item, classify it as:
       "exampleSentence": "A complete sentence FROM the transcript containing this word",
       "exampleSentenceTranslation": "{{ native_language }} translation of that sentence",
       "tags": "comma-separated context tags from the video topic",
-      "lexicalUnitType": "Word | Phrase",
+      "lexicalUnitType": "Word | Phrase | Idiom",
       "relatedTerms": ["constituent1", "constituent2"]
     }
   ]
@@ -72,4 +78,4 @@ For each vocabulary item, classify it as:
 - Romanization must follow Revised Romanization of Korean (국어의 로마자 표기법), NOT McCune-Reischauer.
 - For compound expressions or 하다-verbs, include the full expression (e.g. "몰입하다" not just "몰입").
 - Do NOT include English loanwords written in Korean (e.g. 커피, 샐러드) unless they have cultural significance or are used differently than in English.
-- **Word-bias reminder:** aim for 90%+ Word entries. Only classify as Phrase if the expression is truly a fixed idiom that must be learned as a unit.
+- **Word-bias reminder:** aim for 85%+ Word entries. Classify as Phrase only for fixed collocations. Classify as Idiom for figurative/cultural expressions whose meaning is non-literal.

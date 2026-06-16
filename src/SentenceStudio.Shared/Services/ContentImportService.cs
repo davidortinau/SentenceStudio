@@ -1145,8 +1145,9 @@ public class ContentImportService : IContentImportService
         if (!hasWhitespace)
             return LexicalUnitType.Word;
 
-        // Multi-token: trust Phrase/Sentence classification from caller or AI.
-        if (aiClassification == LexicalUnitType.Phrase || aiClassification == LexicalUnitType.Sentence)
+        // Multi-token: trust Phrase/Sentence/Idiom classification from caller or AI.
+        if (aiClassification == LexicalUnitType.Phrase || aiClassification == LexicalUnitType.Sentence
+            || aiClassification == LexicalUnitType.Idiom)
             return aiClassification;
 
         // Multi-token term with Word/Unknown hint: use terminal punctuation heuristic.
@@ -1176,7 +1177,7 @@ public class ContentImportService : IContentImportService
             var type = r.LexicalUnitType;
             if (harvestWords && (type == LexicalUnitType.Word || type == LexicalUnitType.Unknown))
                 return true;
-            if (harvestPhrases && type == LexicalUnitType.Phrase)
+            if (harvestPhrases && (type == LexicalUnitType.Phrase || type == LexicalUnitType.Idiom))
                 return true;
             if (harvestSentences && type == LexicalUnitType.Sentence)
                 return true;

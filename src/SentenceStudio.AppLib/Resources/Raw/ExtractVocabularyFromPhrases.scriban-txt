@@ -23,8 +23,9 @@ For EACH input line, emit ONE phrase entry that preserves the full expression:
 
 Additionally, extract sub-phrase patterns — idiomatic collocations and verb phrases that function as learnable units:
 - Strip sentence-final politeness endings to get the base pattern (e.g., "잘 못 보고, 잘 못 들어요" yields "잘 못 보다" and "잘 못 듣다").
-- Idiomatic expressions (e.g., "눈하고 귀가 안 좋다" yields "눈이 안 좋다", "귀가 안 좋다").
-- For each sub-phrase, populate `relatedTerms` with its constituent words.
+- Idiomatic expressions whose meaning is non-literal should be classified as Idiom, not Phrase (e.g., "하나부터 열까지" = every single detail, "영혼 있어요?" = are you even paying attention?).
+- Regular collocations remain Phrase (e.g., "눈이 안 좋다", "귀가 안 좋다").
+- For each sub-phrase or idiom, populate `relatedTerms` with its constituent words.
 {{ end }}
 
 {{ if harvest_words }}
@@ -143,7 +144,7 @@ Should produce:
       "notes": "Optional: source line number or extraction context",
       "partOfSpeech": "noun | verb | adjective | adverb | expression | counter | particle",
       "topikLevel": 3,
-      "lexicalUnitType": "Word | Phrase",
+      "lexicalUnitType": "Word | Phrase | Idiom",
       "relatedTerms": ["constituent1", "constituent2"]
     }
   ]
@@ -151,7 +152,7 @@ Should produce:
 
 **RULES:**
 - Return ONLY valid JSON. No markdown fences, no commentary.
-- Every entry MUST have lexicalUnitType set correctly: "Word" for single dictionary entries, "Phrase" for multi-word units or full-line expressions.
+- Every entry MUST have lexicalUnitType set correctly: "Word" for single dictionary entries, "Phrase" for multi-word collocations, "Idiom" for figurative/cultural expressions whose meaning is non-literal.
 {{ if harvest_phrases }}- CRITICAL: Each input line MUST produce at least one Phrase entry with the full expression. This is the primary purpose of phrase import — do NOT skip it.{{ end }}
 - Phrase entries MUST have relatedTerms populated with constituent words in dictionary form.
 - Word entries should have relatedTerms as an empty array.

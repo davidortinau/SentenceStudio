@@ -67,6 +67,7 @@ public class VocabularyClassificationBackfillService
             { LexicalUnitType.Word, 0 },
             { LexicalUnitType.Phrase, 0 },
             { LexicalUnitType.Sentence, 0 },
+            { LexicalUnitType.Idiom, 0 },
             { LexicalUnitType.Unknown, 0 }
         };
 
@@ -82,11 +83,12 @@ public class VocabularyClassificationBackfillService
         var elapsed = (DateTime.UtcNow - startTime).TotalMilliseconds;
         _logger.LogInformation(
             "Vocabulary classification backfill complete. " +
-            "Total: {Total}, Word: {Word}, Phrase: {Phrase}, Sentence: {Sentence}, Unknown: {StillUnknown}. " +
+            "Total: {Total}, Word: {Word}, Phrase: {Phrase}, Idiom: {Idiom}, Sentence: {Sentence}, Unknown: {StillUnknown}. " +
             "Elapsed: {ElapsedMs}ms",
             unknownWords.Count,
             counts[LexicalUnitType.Word],
             counts[LexicalUnitType.Phrase],
+            counts[LexicalUnitType.Idiom],
             counts[LexicalUnitType.Sentence],
             counts[LexicalUnitType.Unknown],
             elapsed);
@@ -95,7 +97,7 @@ public class VocabularyClassificationBackfillService
     /// <summary>
     /// Pure static classification heuristic. Exposed for unit testing without DB dependency.
     /// Classification priority:
-    /// 1. Tags check: if Tags contains "phrase" → Phrase; if contains "sentence" → Sentence.
+    /// 1. Tags check: if Tags contains "sentence" → Sentence; "idiom" → Idiom; "phrase" → Phrase.
     /// 2. Terminal punctuation: if term ends with . ? ! 。 ？ ！ → Sentence.
     /// 3. Whitespace OR length threshold: if term contains whitespace OR length > 12 → Phrase.
     /// 4. Default: Word.
@@ -118,6 +120,8 @@ public class VocabularyClassificationBackfillService
             var tagsLower = tags.ToLowerInvariant();
             if (tagsLower.Contains("sentence"))
                 return LexicalUnitType.Sentence;
+            if (tagsLower.Contains("idiom"))
+                return LexicalUnitType.Idiom;
             if (tagsLower.Contains("phrase"))
                 return LexicalUnitType.Phrase;
         }

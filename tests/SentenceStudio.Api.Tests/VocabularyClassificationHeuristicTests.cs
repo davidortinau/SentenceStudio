@@ -54,6 +54,34 @@ public class VocabularyClassificationHeuristicTests
         result.Should().Be(expected, $"comma-separated tags containing 'phrase' should classify as Phrase");
     }
 
+    [Theory]
+    [InlineData("hello", "idiom", LexicalUnitType.Idiom)]
+    [InlineData("hello", "Idiom", LexicalUnitType.Idiom)]
+    [InlineData("hello", "IDIOM", LexicalUnitType.Idiom)]
+    [InlineData("하나부터 열까지", "idiom", LexicalUnitType.Idiom)]
+    public void ClassifyHeuristic_TagsContainIdiom_ReturnsIdiom(
+        string term, string tags, LexicalUnitType expected)
+    {
+        var result = VocabularyClassificationBackfillService.ClassifyHeuristic(term, tags);
+        result.Should().Be(expected, $"term '{term}' with tags '{tags}' should be classified as Idiom");
+    }
+
+    [Fact]
+    public void ClassifyHeuristic_TagsContainIdiomAndPhrase_ReturnsIdiom()
+    {
+        // Idiom tag takes priority over phrase tag
+        var result = VocabularyClassificationBackfillService.ClassifyHeuristic("마음에 들다", "idiom,phrase");
+        result.Should().Be(LexicalUnitType.Idiom, "idiom tag takes priority over phrase tag");
+    }
+
+    [Fact]
+    public void ClassifyHeuristic_TagsContainSentenceAndIdiom_ReturnsSentence()
+    {
+        // Sentence tag still takes top priority
+        var result = VocabularyClassificationBackfillService.ClassifyHeuristic("hello", "sentence,idiom");
+        result.Should().Be(LexicalUnitType.Sentence, "sentence tag takes priority over idiom tag");
+    }
+
     #endregion
 
     #region Terminal Punctuation Tests (Scenarios 4-5)
