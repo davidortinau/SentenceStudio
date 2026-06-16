@@ -93,48 +93,55 @@ builder.AddProject<SentenceStudio_Workers>("workers")
 // MAUI clients and dev tunnels are local-dev only — excluded from Azure publish
 if (builder.ExecutionContext.IsRunMode)
 {
-    var syncfusionkey = builder.AddParameter("syncfusionkey", secret: true);
+    // MAUI desktop/mobile projects and dev tunnels are opt-in via ASPIRE_MAUI env var.
+    // They slow startup significantly (build time) and Windows projects can't build on macOS.
+    // Desktop webapp dev (the common case) doesn't need them.
+    var enableMaui = !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("ASPIRE_MAUI"));
+    if (enableMaui)
+    {
+        var syncfusionkey = builder.AddParameter("syncfusionkey", secret: true);
 
-    var maccatalyst = builder.AddMauiProject("maccatalyst", "../SentenceStudio.MacCatalyst/SentenceStudio.MacCatalyst.csproj");
+        var maccatalyst = builder.AddMauiProject("maccatalyst", "../SentenceStudio.MacCatalyst/SentenceStudio.MacCatalyst.csproj");
 
-    maccatalyst.AddMacCatalystDevice()
-        .WithEnvironment("SyncfusionKey", syncfusionkey)
-        .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
-        .WithEnvironment("ElevenLabsKey", elevenlabskey)
-        .WithReference(api);
+        maccatalyst.AddMacCatalystDevice()
+            .WithEnvironment("SyncfusionKey", syncfusionkey)
+            .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
+            .WithEnvironment("ElevenLabsKey", elevenlabskey)
+            .WithReference(api);
 
-    var windows = builder.AddMauiProject("windows", "../SentenceStudio.Windows/SentenceStudio.Windows.csproj");
+        var windows = builder.AddMauiProject("windows", "../SentenceStudio.Windows/SentenceStudio.Windows.csproj");
 
-    windows.AddWindowsDevice()
-        .WithEnvironment("SyncfusionKey", syncfusionkey)
-        .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
-        .WithEnvironment("ElevenLabsKey", elevenlabskey)
-        .WithReference(api);
+        windows.AddWindowsDevice()
+            .WithEnvironment("SyncfusionKey", syncfusionkey)
+            .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
+            .WithEnvironment("ElevenLabsKey", elevenlabskey)
+            .WithReference(api);
 
-    // Dev tunnel for mobile platforms (iOS/Android can't reach localhost directly)
-    var publicDevTunnel = builder.AddDevTunnel("devtunnel-public")
-        .WithAnonymousAccess()
-        .WithReference(api.GetEndpoint("https"));
+        // Dev tunnel for mobile platforms (iOS/Android can't reach localhost directly)
+        var publicDevTunnel = builder.AddDevTunnel("devtunnel-public")
+            .WithAnonymousAccess()
+            .WithReference(api.GetEndpoint("http"));
 
-    // Android
-    var android = builder.AddMauiProject("android", "../SentenceStudio.Android/SentenceStudio.Android.csproj");
+        // Android
+        var android = builder.AddMauiProject("android", "../SentenceStudio.Android/SentenceStudio.Android.csproj");
 
-    android.AddAndroidEmulator()
-        .WithOtlpDevTunnel()
-        .WithEnvironment("SyncfusionKey", syncfusionkey)
-        .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
-        .WithEnvironment("ElevenLabsKey", elevenlabskey)
-        .WithReference(api, publicDevTunnel);
+        android.AddAndroidEmulator()
+            .WithOtlpDevTunnel()
+            .WithEnvironment("SyncfusionKey", syncfusionkey)
+            .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
+            .WithEnvironment("ElevenLabsKey", elevenlabskey)
+            .WithReference(api, publicDevTunnel);
 
-    // iOS
-    var ios = builder.AddMauiProject("ios", "../SentenceStudio.iOS/SentenceStudio.iOS.csproj");
+        // iOS
+        var ios = builder.AddMauiProject("ios", "../SentenceStudio.iOS/SentenceStudio.iOS.csproj");
 
-    ios.AddiOSSimulator()
-        .WithOtlpDevTunnel()
-        .WithEnvironment("SyncfusionKey", syncfusionkey)
-        .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
-        .WithEnvironment("ElevenLabsKey", elevenlabskey)
-        .WithReference(api, publicDevTunnel);
+        ios.AddiOSSimulator()
+            .WithOtlpDevTunnel()
+            .WithEnvironment("SyncfusionKey", syncfusionkey)
+            .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
+            .WithEnvironment("ElevenLabsKey", elevenlabskey)
+            .WithReference(api, publicDevTunnel);
+    }
 }
 
 builder.Build().Run();
