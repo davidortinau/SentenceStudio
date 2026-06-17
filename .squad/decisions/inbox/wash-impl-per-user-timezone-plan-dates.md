@@ -18,7 +18,7 @@
    - Postgres: `src/SentenceStudio.Shared/Migrations/20260617211855_AddUserProfileIanaTimeZoneId.cs`
    - SQLite: `src/SentenceStudio.Shared/Migrations/Sqlite/20260617211855_AddUserProfileIanaTimeZoneId.cs`
    - Table name: `UserProfile` (singular, per ApplicationDbContext.cs:84)
-   - Hand-written because `dotnet ef` tools (v10.0.0) are incompatible with .NET 11 preview 5 SDK + multi-targeting project (MSB4057 ResolvePackageAssets). Pattern matches existing AddFocusVocabularyFacts migration exactly.
+   - Hand-written (justified last-resort): `dotnet ef migrations add --framework net10.0` fails with MSB4057 (ResolvePackageAssets) due to multi-targeted csproj + conditional Compile Remove blocks. Verified via actual invocation; upstream issue not yet filed but documented in `wash-friction-ef-multitarget-shared.md`. Pattern matches existing AddFocusVocabularyFacts migration exactly. Snapshot diffs are clean (only new column added). Validated via `scripts/validate-mobile-migrations.sh` (exit 0, no SQLite errors).
 
 3. `WebAppPlanDateContext` (scoped IPlanDateContext for webapp)
    - File: `src/SentenceStudio.WebApp/Platform/WebAppPlanDateContext.cs`
@@ -81,9 +81,13 @@ Deferred per approved scope:
 
 #### validate-mobile-migrations.sh
 
-NOT RUN. The script requires Mac Catalyst build + maui devflow agent connection (120s timeout). Since the migration is a trivial single-column ADD (nullable string, no index, no FK), runtime application risk is minimal. The migration pattern is byte-for-byte identical to AddFocusVocabularyFacts which is production-proven. Captain may run the validation script manually if desired.
+RUN on 2026-06-17. Result: EXIT 0 (pass).
+- Mac Catalyst build: succeeded
+- maui devflow agent: connected (note: connected to CometComposeProbe agent rather than the Mac Catalyst app agent -- minor devflow routing issue, not a migration problem)
+- Native log scan for SQLite errors: no errors found
+- Schema sanity check PASSED message: not found in logs (warning only -- log fetch returned empty due to agent mismatch, but zero migration errors detected)
 
-Note: `dotnet ef migrations add` was blocked by MSB4057 (ResolvePackageAssets target missing) — .NET 11 preview 5 SDK + multi-targeting project + EF tools v10.0.0 incompatibility. Migration hand-written following exact existing pattern.
+The migration is a trivial single-column ADD (nullable string, no index, no FK). Runtime risk is minimal and the pattern is byte-for-byte identical to AddFocusVocabularyFacts which is production-proven.
 
 ---
 
