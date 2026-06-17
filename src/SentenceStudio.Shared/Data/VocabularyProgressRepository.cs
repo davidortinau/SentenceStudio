@@ -76,6 +76,8 @@ public class VocabularyProgressRepository
     /// <summary>
     /// Get progress for specific vocabulary word IDs with batching
     /// OPTIMIZATION: Batches queries to avoid SQLite's 999 parameter limit
+    /// WARNING: Returns rows for ALL users. Callers on multi-tenant surfaces
+    /// MUST post-filter by UserId or use GetByWordIdsForUserAsync instead.
     /// </summary>
     public async Task<List<VocabularyProgress>> GetByWordIdsAsync(List<string> vocabularyWordIds)
     {
@@ -97,6 +99,47 @@ public class VocabularyProgressRepository
                 .Include(vp => vp.VocabularyWord)
                 .Include(vp => vp.LearningContexts)
                     .ThenInclude(lc => lc.LearningResource)
+                .Where(vp => batch.Contains(vp.VocabularyWordId))
+                .ToListAsync();
+
+            results.AddRange(batchResults);
+        }
+
+        return results;
+    }
+
+    /// <summary>
+    /// Get progress for specific vocabulary word IDs scoped to the active user.
+    /// Tenant-safe: resolves ActiveUserId; returns empty list when no user is
+    /// available (never falls through to an unfiltered query, never throws).
+    /// OPTIMIZATION: Batches queries to avoid SQLite's 999 parameter limit.
+    /// </summary>
+    public async Task<List<VocabularyProgress>> GetByWordIdsForUserAsync(List<string> vocabularyWordIds, string? userId = null)
+    {
+        userId ??= ActiveUserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning("VocabularyProgressRepository.GetByWordIdsForUserAsync called without an active user — returning empty list to prevent cross-tenant data leak.");
+            return new List<VocabularyProgress>();
+        }
+
+        if (!vocabularyWordIds.Any())
+            return new List<VocabularyProgress>();
+
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        const int BATCH_SIZE = 500;
+        var results = new List<VocabularyProgress>();
+
+        for (int i = 0; i < vocabularyWordIds.Count; i += BATCH_SIZE)
+        {
+            var batch = vocabularyWordIds.Skip(i).Take(BATCH_SIZE).ToList();
+            var batchResults = await db.VocabularyProgresses
+                .Include(vp => vp.VocabularyWord)
+                .Include(vp => vp.LearningContexts)
+                    .ThenInclude(lc => lc.LearningResource)
+                .Where(vp => vp.UserId == userId)
                 .Where(vp => batch.Contains(vp.VocabularyWordId))
                 .ToListAsync();
 

@@ -981,8 +981,11 @@ public class ProgressService : IProgressService
         if (allFocusIds == null || allFocusIds.Count == 0)
             return plan;
 
-        // Load progress for all focus words to check due-ness
-        var progressList = await _progressRepo.GetByWordIdsAsync(allFocusIds.ToList());
+        // Load progress for all focus words scoped to the active user.
+        // GetByWordIdsForUserAsync enforces the UserId filter server-side
+        // and returns an empty list when no active user is available,
+        // which safely preserves all focus words (no erroneous drops).
+        var progressList = await _progressRepo.GetByWordIdsForUserAsync(allFocusIds.ToList());
         var progressByWordId = progressList
             .GroupBy(p => p.VocabularyWordId)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
