@@ -466,6 +466,7 @@ public class ProgressService : IProgressService
                 {
                     _logger.LogDebug("✅ Reconstructed plan from database with {Count} items", reconstructedPlan.Items.Count);
                     reconstructedPlan = await ValidatePlanActivitiesAsync(reconstructedPlan, ct);
+                    reconstructedPlan = await ApplyFocusVocabularyFreshnessAsync(reconstructedPlan, ct);
                     _cache.SetTodaysPlan(resolvedDate, reconstructedPlan);
                     return reconstructedPlan;
                 }
@@ -495,6 +496,7 @@ public class ProgressService : IProgressService
                 {
                     _logger.LogDebug("✅ Found plan in database for correct date");
                     reconstructedPlan = await ValidatePlanActivitiesAsync(reconstructedPlan, ct);
+                    reconstructedPlan = await ApplyFocusVocabularyFreshnessAsync(reconstructedPlan, ct);
                     _cache.SetTodaysPlan(resolvedDate, reconstructedPlan);
                     return reconstructedPlan;
                 }
@@ -514,6 +516,9 @@ public class ProgressService : IProgressService
 
         // Validate activities against current resource state (e.g., Reading without transcript)
         enrichedPlan = await ValidatePlanActivitiesAsync(enrichedPlan, ct);
+
+        // Plan freshness: drop focus words that are no longer due (studied mid-day)
+        enrichedPlan = await ApplyFocusVocabularyFreshnessAsync(enrichedPlan, ct);
 
         // Update cache with enriched data
         _cache.UpdateTodaysPlan(resolvedDate, enrichedPlan);
@@ -957,6 +962,88 @@ public class ProgressService : IProgressService
         _logger.LogDebug("📊 Plan enriched: {Percentage:F0}% complete ({Spent}/{Estimated} min)", completionPercentage, totalMinutesSpent, totalEstimatedMinutes);
 
         return enrichedPlan;
+    }
+
+    /// <summary>
+    /// Plan freshness check: removes focus vocabulary words from the plan that are no
+    /// longer due (NextReviewDate > now AND TotalAttempts > 0). Brand-new words (0 attempts)
+    /// are kept because they haven't been studied yet. This prevents the stale-pin bug where
+    /// studying a word mid-day doesn't remove it from the rest of the day's plan.
+    ///
+    /// Decision: this runs at serve-time (GetCachedPlanAsync) rather than in the quiz UI
+    /// because it ensures ALL consumers of the plan (dashboard preview, activity list, API)
+    /// see a consistent set of focus words. The VocabQuiz DueOnly filter is a secondary
+    /// guard at the quiz level; this is the primary data-layer enforcement.
+    /// </summary>
+    private async Task<TodaysPlan> ApplyFocusVocabularyFreshnessAsync(TodaysPlan plan, CancellationToken ct)
+    {
+        var allFocusIds = plan.FocusVocabularyIds;
+        if (allFocusIds == null || allFocusIds.Count == 0)
+            return plan;
+
+        // Load progress for all focus words to check due-ness
+        var progressList = await _progressRepo.GetByWordIdsAsync(allFocusIds.ToList());
+        var progressByWordId = progressList
+            .GroupBy(p => p.VocabularyWordId)
+            .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+
+        var nowUtc = DateTime.UtcNow;
+        var freshIds = new List<string>(allFocusIds.Count);
+
+        foreach (var wordId in allFocusIds)
+        {
+            if (!progressByWordId.TryGetValue(wordId, out var progress))
+            {
+                // No progress record = brand new word, keep it
+                freshIds.Add(wordId);
+                continue;
+            }
+
+            if (progress.TotalAttempts == 0)
+            {
+                // Zero attempts = never studied, keep it
+                freshIds.Add(wordId);
+                continue;
+            }
+
+            // Word has been attempted: only keep if still due
+            if (progress.NextReviewDate == null || progress.NextReviewDate.Value <= nowUtc)
+            {
+                freshIds.Add(wordId);
+            }
+            else
+            {
+                _logger.LogDebug(
+                    "Plan freshness: dropping word '{WordId}' — NextReviewDate {NextReview:yyyy-MM-dd} > now, {Attempts} attempts",
+                    wordId, progress.NextReviewDate.Value, progress.TotalAttempts);
+            }
+        }
+
+        if (freshIds.Count == allFocusIds.Count)
+            return plan; // No change
+
+        _logger.LogInformation(
+            "Plan freshness: filtered {Removed} no-longer-due words from plan ({Remaining} remaining)",
+            allFocusIds.Count - freshIds.Count, freshIds.Count);
+
+        // Rebuild the plan with filtered focus vocabulary
+        var updatedItems = plan.Items.Select(item =>
+        {
+            if (item.FocusVocabularyIds == null || item.FocusVocabularyIds.Count == 0)
+                return item;
+
+            var filteredItemFocus = item.FocusVocabularyIds
+                .Where(id => freshIds.Contains(id))
+                .ToList();
+
+            return item with { FocusVocabularyIds = filteredItemFocus };
+        }).ToList();
+
+        return plan with
+        {
+            Items = updatedItems,
+            FocusVocabularyIds = freshIds
+        };
     }
 
     /// <summary>

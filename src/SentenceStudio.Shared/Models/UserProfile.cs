@@ -27,6 +27,18 @@ public class UserProfile
     public string? OpenAI_APIKey { get; set; }
     public int PreferredSessionMinutes { get; set; } = 20;
     public string? TargetCEFRLevel { get; set; }
+    /// <summary>
+    /// IANA timezone identifier (e.g. "America/Chicago", "Asia/Seoul") captured from
+    /// the user's browser (webapp) or device (MAUI). Used by IPlanDateContext to resolve
+    /// the user's local "today" for plan-date keying. When null, plan dates fall back to
+    /// UTC — which is correct for server-created plans before the user's timezone is known,
+    /// but means the day boundary aligns with UTC midnight, not the user's local midnight.
+    /// The null-means-UTC fallback is intentional: it avoids hardcoding any locale
+    /// (America/Chicago was explicitly rejected) and ensures deterministic behavior
+    /// until the user's actual timezone is captured.
+    /// </summary>
+    public string? IanaTimeZoneId { get; set; }
+
     public DateTime CreatedAt { get; set; }
     
     [NotMapped]

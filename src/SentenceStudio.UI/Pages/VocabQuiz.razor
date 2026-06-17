@@ -722,7 +722,8 @@ else
 
                 if (DueOnly)
                 {
-                    var now = DateTime.Now;
+                    // Use UtcNow for due-date comparisons (NextReviewDate is stored as UTC)
+                    var now = DateTime.UtcNow;
                     quizCandidates = quizCandidates.Where(i =>
                     {
                         var totalAttempts = i.Progress?.TotalAttempts ?? 0;
@@ -1359,7 +1360,7 @@ else
                 if (currentItem.LostKnownThisSession && updatedProgress.IsKnown)
                 {
                     updatedProgress.ReviewInterval = 14;
-                    updatedProgress.NextReviewDate = DateTime.Now.AddDays(14);
+                    updatedProgress.NextReviewDate = DateTime.UtcNow.AddDays(14);
                     // Persist the shorter interval
                     await ProgressService.UpdateProgressAsync(updatedProgress);
                 }

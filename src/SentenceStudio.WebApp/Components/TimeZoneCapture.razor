@@ -1,0 +1,57 @@
+@* 
+    TimeZoneCapture: headless component that captures the user's browser timezone
+    on first interactive circuit connect via JS interop and persists it to their
+    UserProfile.IanaTimeZoneId. No visible UI.
+    
+    FLAG FOR KAYLEE: This component needs to be placed inside the interactive render
+    tree (e.g. in Routes.razor or a layout that renders under InteractiveServer mode).
+    The JS interop call only works in an interactive circuit — NOT during SSR prerender.
+    Add <TimeZoneCapture /> inside the <CascadingAuthenticationState> in a layout
+    component that runs interactively.
+*@
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.JSInterop
+@inject IJSRuntime JS
+@inject AuthenticationStateProvider AuthStateProvider
+@inject SentenceStudio.WebApp.Platform.TimeZoneCaptureService TimeZoneCaptureService
+
+@code {
+    private bool _captured;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || _captured)
+            return;
+
+        _captured = true;
+
+        try
+        {
+            var authState = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = authState.User;
+            if (user?.Identity?.IsAuthenticated != true)
+                return;
+
+            var profileId = user.FindFirst(SentenceStudio.Contracts.AuthClaimTypes.UserProfileId)?.Value;
+            if (string.IsNullOrEmpty(profileId))
+                return;
+
+            // JS interop: read browser IANA timezone
+            var ianaId = await JS.InvokeAsync<string>(
+                "eval", "Intl.DateTimeFormat().resolvedOptions().timeZone");
+
+            if (!string.IsNullOrWhiteSpace(ianaId))
+            {
+                await TimeZoneCaptureService.CaptureAsync(profileId, ianaId);
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+            // Circuit disconnected before JS completed — safe to ignore
+        }
+        catch (Exception)
+        {
+            // Non-critical: timezone capture failing should never crash the app
+        }
+    }
+}

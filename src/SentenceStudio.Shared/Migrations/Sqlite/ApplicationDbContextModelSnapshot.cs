@@ -1084,6 +1084,9 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("IanaTimeZoneId")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("TargetLanguages")
                         .HasColumnType("TEXT");
 
