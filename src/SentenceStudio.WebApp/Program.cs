@@ -252,4 +252,16 @@ static void RegisterSentenceStudioServices(IServiceCollection services)
     
     // Release notes service (reads from embedded resources)
     services.AddSingleton<ReleaseNotesService>();
+
+    // Override the device-local IPlanDateContext (from CoreServiceExtensions) with a
+    // user-profile-backed resolver. On Azure, TimeZoneInfo.Local = UTC which is wrong
+    // for plan-date keying. This scoped registration reads the authenticated user's
+    // persisted IanaTimeZoneId from the database. Mirrors the API's HttpPlanDateContext
+    // but sources timezone from UserProfile rather than an HTTP header.
+    services.AddScoped<SentenceStudio.Services.Plans.IPlanDateContext,
+        SentenceStudio.WebApp.Platform.WebAppPlanDateContext>();
+
+    // Service for persisting the browser-reported IANA timezone to UserProfile.
+    // Called from a Blazor component on first interactive circuit connect via JS interop.
+    services.AddScoped<SentenceStudio.WebApp.Platform.TimeZoneCaptureService>();
 }

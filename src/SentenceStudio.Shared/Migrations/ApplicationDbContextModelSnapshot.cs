@@ -1380,6 +1380,9 @@ namespace SentenceStudio.Shared.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("IanaTimeZoneId")
+                        .HasColumnType("text");
+
                     b.Property<string>("TargetLanguages")
                         .HasColumnType("text");
 
