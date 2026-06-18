@@ -11,7 +11,10 @@ namespace SentenceStudio.WebApp.Platform;
 ///   (a) no authenticated user in the current circuit/request, or
 ///   (b) the user has not yet captured their timezone (IanaTimeZoneId is null).
 ///
-/// Registered as Scoped so each circuit/request gets a fresh resolution.
+/// Registered as Transient (see WebApp/Program.cs) so it is compatible with the
+/// singleton plan services that capture or root-resolve IPlanDateContext. The
+/// current user is resolved via CircuitUserStateAccessor (AsyncLocal), so a
+/// transient instance constructed from any provider still sees the right user.
 /// Mirrors the API's <c>HttpPlanDateContext</c> pattern but sources the timezone
 /// from the database rather than an HTTP header.
 /// </summary>
