@@ -255,10 +255,18 @@ static void RegisterSentenceStudioServices(IServiceCollection services)
 
     // Override the device-local IPlanDateContext (from CoreServiceExtensions) with a
     // user-profile-backed resolver. On Azure, TimeZoneInfo.Local = UTC which is wrong
-    // for plan-date keying. This scoped registration reads the authenticated user's
-    // persisted IanaTimeZoneId from the database. Mirrors the API's HttpPlanDateContext
-    // but sources timezone from UserProfile rather than an HTTP header.
-    services.AddScoped<SentenceStudio.Services.Plans.IPlanDateContext,
+    // for plan-date keying. Reads the authenticated user's persisted IanaTimeZoneId
+    // from the database. Mirrors the API's HttpPlanDateContext but sources timezone
+    // from UserProfile rather than an HTTP header.
+    //
+    // Registered Transient (NOT Scoped) to match AppLib's device registration: the
+    // singleton plan services (GeneratedPlanValidator captures it in its ctor;
+    // ProgressService/DeterministicPlanBuilder resolve it from the ROOT provider)
+    // cannot consume a scoped service — DI validation fails at startup and root
+    // resolution throws at runtime. Transient is safe here because the current user
+    // is resolved via CircuitUserStateAccessor (AsyncLocal, ambient across scopes),
+    // not via the DI scope, so each construction still sees the right user.
+    services.AddTransient<SentenceStudio.Services.Plans.IPlanDateContext,
         SentenceStudio.WebApp.Platform.WebAppPlanDateContext>();
 
     // Service for persisting the browser-reported IANA timezone to UserProfile.
