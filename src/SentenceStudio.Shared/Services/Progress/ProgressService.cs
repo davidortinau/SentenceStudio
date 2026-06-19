@@ -985,12 +985,29 @@ public class ProgressService : IProgressService
         // GetByWordIdsForUserAsync enforces the UserId filter server-side
         // and returns an empty list when no active user is available,
         // which safely preserves all focus words (no erroneous drops).
-        var progressList = await _progressRepo.GetByWordIdsForUserAsync(allFocusIds.ToList());
+        // Freshness is a best-effort serve-time refinement — never let a
+        // transient DB error 500 the Blazor circuit; fail open (serve as-is).
+        List<SentenceStudio.Shared.Models.VocabularyProgress> progressList;
+        try
+        {
+            progressList = await _progressRepo.GetByWordIdsForUserAsync(allFocusIds.ToList());
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Plan freshness: progress lookup failed — serving plan unfiltered");
+            return plan;
+        }
         var progressByWordId = progressList
             .GroupBy(p => p.VocabularyWordId)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
 
-        var nowUtc = DateTime.UtcNow;
+        // Compare against DateTime.Now (local), NOT UtcNow: NextReviewDate is
+        // WRITTEN with DateTime.Now (VocabularyProgressService) and read with
+        // DateTime.Now (VocabularyProgress.IsDueForReview). On the webapp/API the
+        // server runs in UTC so Now == UtcNow; on a non-UTC MAUI device this keeps
+        // the comparison in the same local frame the value was stored in. Using
+        // UtcNow here would skew due-ness by the device's UTC offset.
+        var now = DateTime.Now; // allow:srs-local-frame — match NextReviewDate writers + IsDueForReview
         var freshIds = new List<string>(allFocusIds.Count);
 
         foreach (var wordId in allFocusIds)
@@ -1010,7 +1027,7 @@ public class ProgressService : IProgressService
             }
 
             // Word has been attempted: only keep if still due
-            if (progress.NextReviewDate == null || progress.NextReviewDate.Value <= nowUtc)
+            if (progress.NextReviewDate == null || progress.NextReviewDate.Value <= now)
             {
                 freshIds.Add(wordId);
             }

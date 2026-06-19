@@ -722,8 +722,11 @@ else
 
                 if (DueOnly)
                 {
-                    // Use UtcNow for due-date comparisons (NextReviewDate is stored as UTC)
-                    var now = DateTime.UtcNow;
+                    // Compare in local frame (DateTime.Now): NextReviewDate is written
+                    // and read with DateTime.Now elsewhere (VocabularyProgressService,
+                    // IsDueForReview). On the webapp Now == UtcNow; on a non-UTC device
+                    // this stays consistent with the stored local-frame value.
+                    var now = DateTime.Now; // allow:srs-local-frame — match NextReviewDate writers + IsDueForReview
                     quizCandidates = quizCandidates.Where(i =>
                     {
                         var totalAttempts = i.Progress?.TotalAttempts ?? 0;
@@ -1360,7 +1363,7 @@ else
                 if (currentItem.LostKnownThisSession && updatedProgress.IsKnown)
                 {
                     updatedProgress.ReviewInterval = 14;
-                    updatedProgress.NextReviewDate = DateTime.UtcNow.AddDays(14);
+                    updatedProgress.NextReviewDate = DateTime.Now.AddDays(14); // allow:srs-local-frame — match NextReviewDate writers + IsDueForReview
                     // Persist the shorter interval
                     await ProgressService.UpdateProgressAsync(updatedProgress);
                 }

@@ -276,7 +276,8 @@ public class Concern2TimezoneRegressionTests
             if (line.TrimStart().StartsWith("//") || line.TrimStart().StartsWith("*")
                 || line.TrimStart().StartsWith("///"))
                 continue;
-            if (line.Contains("// allow:plan-date", StringComparison.Ordinal))
+            if (line.Contains("// allow:plan-date", StringComparison.Ordinal)
+                || line.Contains("// allow:srs-local-frame", StringComparison.Ordinal))
                 continue;
 
             if (line.Contains("DateTime.Now", StringComparison.Ordinal)
@@ -321,6 +322,13 @@ public class Concern2TimezoneRegressionTests
 
     private const string AllowMarker = "// allow:plan-date";
 
+    // SRS due-date (NextReviewDate) comparisons legitimately use DateTime.Now to stay
+    // consistent with the writers (VocabularyProgressService.cs) and the canonical reader
+    // (VocabularyProgress.IsDueForReview). That is a DIFFERENT concern from the plan-row
+    // timestamp columns (CreatedAt/Date/GeneratedAtUtc) this guard protects, so lines
+    // carrying this marker are exempt. Removing the marker MUST still flag plan-timestamp misuse.
+    private const string SrsLocalFrameMarker = "// allow:srs-local-frame";
+
     [Fact]
     public void ProgressServiceCode_DoesNotCallDateTimeNow()
     {
@@ -346,7 +354,8 @@ public class Concern2TimezoneRegressionTests
                 for (int i = 0; i < lines.Length; i++)
                 {
                     var line = lines[i];
-                    if (line.Contains(AllowMarker, StringComparison.Ordinal))
+                    if (line.Contains(AllowMarker, StringComparison.Ordinal)
+                        || line.Contains(SrsLocalFrameMarker, StringComparison.Ordinal))
                         continue;
                     if (line.TrimStart().StartsWith("//") || line.TrimStart().StartsWith("///"))
                         continue;
@@ -397,7 +406,8 @@ public class Concern2TimezoneRegressionTests
         for (int i = 0; i < lines.Length; i++)
         {
             var line = lines[i];
-            if (line.Contains(AllowMarker, StringComparison.Ordinal))
+            if (line.Contains(AllowMarker, StringComparison.Ordinal)
+                || line.Contains(SrsLocalFrameMarker, StringComparison.Ordinal))
                 continue;
             if (line.TrimStart().StartsWith("//") || line.TrimStart().StartsWith("///")
                 || line.TrimStart().StartsWith("*") || line.TrimStart().StartsWith("@*"))
