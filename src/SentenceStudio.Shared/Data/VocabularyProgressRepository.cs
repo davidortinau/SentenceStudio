@@ -110,8 +110,10 @@ public class VocabularyProgressRepository
 
     /// <summary>
     /// Get progress for specific vocabulary word IDs scoped to the active user.
-    /// Tenant-safe: resolves ActiveUserId; returns empty list when no user is
-    /// available (never falls through to an unfiltered query, never throws).
+    /// Tenant-safe: resolves ActiveUserId and returns an empty list when no user
+    /// is available (never falls through to an unfiltered query, never throws on
+    /// an unresolved user). The underlying EF query can still surface transient
+    /// DB errors — callers on the Blazor circuit must guard accordingly.
     /// OPTIMIZATION: Batches queries to avoid SQLite's 999 parameter limit.
     /// </summary>
     public async Task<List<VocabularyProgress>> GetByWordIdsForUserAsync(List<string> vocabularyWordIds, string? userId = null)
