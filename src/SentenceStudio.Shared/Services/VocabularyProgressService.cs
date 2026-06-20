@@ -15,23 +15,11 @@ public class VocabularyProgressService : IVocabularyProgressService
     private readonly IPreferencesService? _preferences;
     private readonly IServiceProvider _serviceProvider;
 
-    // NEW: Streak-based scoring constants
-    private const float MASTERY_THRESHOLD = 0.85f;                // MasteryScore threshold for "Known"
-    private const int MIN_PRODUCTION_FOR_KNOWN = 2;               // Minimum production attempts to be "Known"
-    // Issue #191: divisor raised 7.0 → 12.0 so a fresh, all-correct word
-    // doesn't reach mastery 1.0 in 5 turns. With 12.0, an all-correct fresh
-    // word lands at mastery ≈ 0.583 by turn 5 and ≈ 0.917 by turn 7, aligning
-    // mastery growth with the rotation gate in VocabularyQuizItem.ReadyToRotateOut.
-    // See .squad/decisions/inbox/wash-vocab-quiz-scoring-proposal-191.md and
-    // tools/quiz-rotation-sim/sim.py for the simulation that justifies this value.
-    private const float EFFECTIVE_STREAK_DIVISOR = 12.0f;         // EffectiveStreak / 12.0 = MasteryScore (capped at 1.0)
-
-    // Phase 0: Scoring engine constants
-    private const float WRONG_ANSWER_FLOOR = 0.6f;               // Scaled penalty never softer than this
-    private const float MAX_WRONG_PENALTY = 0.4f;                 // Maximum penalty portion for wrong answers
-    private const float MAX_STREAK_PRESERVE = 0.5f;               // Never keep more than half the streak on wrong answer
-    private const float STREAK_PRESERVE_DIVISOR = 8.0f;           // Divisor for streak preservation fraction
-    private const float RECOVERY_BOOST = 0.02f;                   // Small boost so correct answers always show progress
+    // Streak-based scoring math now lives in VocabularyMasteryCalculator — the single source of truth
+    // shared by the live attempt path, duplicate-merge recalculation, and the word-page mastery chart.
+    // The constant below is still referenced by HandleVerificationProbeResultAsync; it aliases the
+    // calculator's value so the two can never drift.
+    private const int MIN_PRODUCTION_FOR_KNOWN = VocabularyMasteryCalculator.MIN_PRODUCTION_FOR_KNOWN;
 
     // LEGACY: Old constants kept for reference during migration
     [Obsolete("Use EFFECTIVE_STREAK_DIVISOR instead")]
@@ -86,63 +74,20 @@ public class VocabularyProgressService : IVocabularyProgressService
     {
         var progress = await GetOrCreateProgressAsync(attempt.VocabularyWordId, attempt.UserId);
 
-        // Update total counts
-        progress.TotalAttempts++;
-        if (attempt.WasCorrect)
-            progress.CorrectAttempts++;
+        // Capture mastered state so the mastery transition can be logged without the pure calculator
+        // needing a logger dependency.
+        bool wasMasteredBefore = progress.MasteredAt.HasValue;
 
-        // Determine if this is a production attempt (Text or Voice input)
-        bool isProduction = attempt.InputMode == InputMode.Text.ToString() ||
-                           attempt.InputMode == InputMode.Voice.ToString() ||
-                           attempt.InputMode == "TextEntry"; // Legacy support
+        // Core streak / mastery / spaced-repetition scoring. This is shared verbatim with duplicate-merge
+        // recalculation and the word-page mastery chart via VocabularyMasteryCalculator so the live path,
+        // a merge replay, and the rendered curve can never disagree.
+        VocabularyMasteryCalculator.ApplyAttempt(progress, attempt, DateTime.Now);
 
-        // NEW: Streak-based scoring
-        if (attempt.WasCorrect)
+        if (!wasMasteredBefore && progress.MasteredAt.HasValue)
         {
-            // Correct answer: increment streak by DifficultyWeight
-            float weight = attempt.DifficultyWeight > 0 ? attempt.DifficultyWeight : 1.0f;
-            progress.CurrentStreak += weight;
-            if (isProduction)
-            {
-                progress.ProductionInStreak++;
-            }
-
-            // Calculate new MasteryScore with recovery awareness
-            float effectiveStreak = progress.CurrentStreak + (progress.ProductionInStreak * 0.5f);
-            float streakScore = MathF.Min(effectiveStreak / EFFECTIVE_STREAK_DIVISOR, 1.0f);
-            float recoveryBoost = (progress.MasteryScore > streakScore) ? RECOVERY_BOOST : 0f;
-            progress.MasteryScore = MathF.Max(streakScore, progress.MasteryScore) + recoveryBoost;
-            progress.MasteryScore = MathF.Min(progress.MasteryScore, 1.0f);
-
-            _logger.LogDebug("Correct! Word {WordId}: Streak={Streak:F1}, Weight={Weight:F1}, ProdInStreak={ProdStreak}, EffStreak={EffStreak:F1}, Mastery={Mastery:F2}",
-                progress.VocabularyWordId, progress.CurrentStreak, weight, progress.ProductionInStreak, effectiveStreak, progress.MasteryScore);
-        }
-        else
-        {
-            // Wrong answer: scaled penalty and partial streak preservation
-            // Temporal weighting — established words penalized less
-            float penaltyFactor = MathF.Max(
-                WRONG_ANSWER_FLOOR,
-                1.0f - (MAX_WRONG_PENALTY / (1f + MathF.Log(1 + progress.CorrectAttempts))));
-
-            // PenaltyOverride: if the caller provided an override (e.g., Conversation's 0.8),
-            // use it directly instead of the computed scaled penalty
-            if (attempt.PenaltyOverride.HasValue)
-            {
-                penaltyFactor = attempt.PenaltyOverride.Value;
-            }
-
-            progress.MasteryScore *= penaltyFactor;
-
-            // Partial streak preservation — experienced words keep some streak
-            float preserveFraction = MathF.Min(
-                MAX_STREAK_PRESERVE,
-                MathF.Log(1 + progress.CorrectAttempts) / STREAK_PRESERVE_DIVISOR);
-            progress.CurrentStreak = progress.CurrentStreak * preserveFraction;
-            progress.ProductionInStreak = (int)(progress.ProductionInStreak * preserveFraction);
-
-            _logger.LogDebug("Wrong! Word {WordId}: PenaltyFactor={Penalty:F2}, PreserveFrac={Preserve:F2}, Streak={Streak:F1}, Mastery={Mastery:F2}",
-                progress.VocabularyWordId, penaltyFactor, preserveFraction, progress.CurrentStreak, progress.MasteryScore);
+            _logger.LogInformation(
+                "Word {WordId} mastered. Mastery={Mastery:F2}, ProdInStreak={ProdStreak}. Next review in {Interval} days.",
+                progress.VocabularyWordId, progress.MasteryScore, progress.ProductionInStreak, progress.ReviewInterval);
         }
 
         // LEGACY: Update old phase-specific fields for backward compatibility during migration
@@ -150,29 +95,6 @@ public class VocabularyProgressService : IVocabularyProgressService
         UpdatePhaseMetrics(progress, attempt);
         UpdateLegacyFields(progress, attempt);
 #pragma warning restore CS0618
-
-        // Update spaced repetition schedule
-        UpdateSpacedRepetitionSchedule(progress, attempt);
-
-        // Update timestamps
-        progress.LastPracticedAt = DateTime.Now;
-        progress.UpdatedAt = DateTime.Now;
-
-        // Mark as mastered if threshold reached with production evidence
-        if (progress.MasteryScore >= MASTERY_THRESHOLD &&
-            progress.ProductionInStreak >= MIN_PRODUCTION_FOR_KNOWN)
-        {
-            if (!progress.MasteredAt.HasValue)
-            {
-                progress.MasteredAt = DateTime.Now;
-                _logger.LogInformation("🎉 Word {WordId} mastered! Mastery={Mastery:F2}, ProdInStreak={ProdStreak}. Next review in 60 days.",
-                    progress.VocabularyWordId, progress.MasteryScore, progress.ProductionInStreak);
-            }
-            // Known words always get a long review interval — SM-2 would
-            // set a short one since it doesn't know about mastery status
-            progress.ReviewInterval = 60;
-            progress.NextReviewDate = DateTime.Now.AddDays(60);
-        }
 
         // Save progress
         progress = await _progressRepo.SaveAsync(progress);
@@ -393,36 +315,6 @@ public class VocabularyProgressService : IVocabularyProgressService
     private void UpdateLearningPhaseRigorous(VocabularyProgress progress)
     {
         // No longer advances phases - kept for backward compatibility
-    }
-
-    private void UpdateSpacedRepetitionSchedule(VocabularyProgress progress, VocabularyAttempt attempt)
-    {
-        // Simple SM-2 algorithm implementation with safety limits
-        const int MAX_REVIEW_INTERVAL_DAYS = 365; // Cap at 1 year maximum
-
-        if (!attempt.WasCorrect)
-        {
-            // Reset on incorrect answer
-            progress.ReviewInterval = 1;
-            progress.EaseFactor = Math.Max(1.3f, progress.EaseFactor - 0.2f);
-        }
-        else
-        {
-            // Increase interval on correct answer
-            if (progress.ReviewInterval == 1)
-            {
-                progress.ReviewInterval = 6;
-            }
-            else
-            {
-                progress.ReviewInterval = (int)(progress.ReviewInterval * progress.EaseFactor);
-                // Cap the interval to prevent DateTime.AddDays overflow
-                progress.ReviewInterval = Math.Min(progress.ReviewInterval, MAX_REVIEW_INTERVAL_DAYS);
-                progress.EaseFactor = Math.Min(2.5f, progress.EaseFactor + 0.1f);
-            }
-        }
-
-        progress.NextReviewDate = DateTime.Now.AddDays(progress.ReviewInterval);
     }
 
     private Task RecordLearningContextAsync(string vocabularyProgressId, VocabularyAttempt attempt)

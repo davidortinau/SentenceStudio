@@ -4089,6 +4089,42 @@ For example: {0} ...</value>
     <value>Learning Progress</value>
     <comment>Section heading</comment>
   </data>
+  <data name="VocabWordEdit_HistoryTitle" xml:space="preserve">
+    <value>Practice History</value>
+    <comment>Section heading for the per-attempt learning history</comment>
+  </data>
+  <data name="VocabWordEdit_HistoryEmpty" xml:space="preserve">
+    <value>No practice attempts recorded yet. Start practicing to build a history.</value>
+    <comment>Empty state for practice history</comment>
+  </data>
+  <data name="VocabWordEdit_HistorySummary" xml:space="preserve">
+    <value>{0} attempts · {1} exposures</value>
+    <comment>History summary; {0} = attempt count, {1} = passive exposure count</comment>
+  </data>
+  <data name="VocabWordEdit_HistoryChartAria" xml:space="preserve">
+    <value>Mastery over time</value>
+    <comment>Accessible label for the mastery-over-time chart</comment>
+  </data>
+  <data name="VocabWordEdit_HistoryKnownLine" xml:space="preserve">
+    <value>Known (85%)</value>
+    <comment>Label for the mastery threshold line on the chart</comment>
+  </data>
+  <data name="VocabWordEdit_HistoryCorrect" xml:space="preserve">
+    <value>Correct</value>
+    <comment>Legend / entry label for a correct attempt</comment>
+  </data>
+  <data name="VocabWordEdit_HistoryIncorrect" xml:space="preserve">
+    <value>Incorrect</value>
+    <comment>Legend / entry label for an incorrect attempt</comment>
+  </data>
+  <data name="VocabWordEdit_HistoryExposure" xml:space="preserve">
+    <value>Exposure</value>
+    <comment>Entry label for a passive reading exposure</comment>
+  </data>
+  <data name="VocabWordEdit_HistoryPractice" xml:space="preserve">
+    <value>Practice</value>
+    <comment>Fallback activity label for a history entry</comment>
+  </data>
   <data name="VocabWordEdit_Status" xml:space="preserve">
     <value>Status</value>
     <comment>Label</comment>
