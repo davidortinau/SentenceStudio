@@ -83,7 +83,7 @@ public class SpacedRepetitionIntegrationTests : IClassFixture<PlanGenerationTest
     }
 
     [Fact]
-    public async Task IncorrectAnswer_ResetsIntervalTo1Day()
+    public async Task IncorrectAnswer_SoftensIntervalProportionally()
     {
         // Arrange: build up an interval
         var resource = _fixture.SeedResource(vocabWordCount: 1);
@@ -93,14 +93,17 @@ public class SpacedRepetitionIntegrationTests : IClassFixture<PlanGenerationTest
         await _progressService.RecordAttemptAsync(MakeAttempt(wordId, wasCorrect: true));
 
         var before = await _progressService.GetProgressAsync(wordId, PlanGenerationTestFixture.TestUserId);
-        before.ReviewInterval.Should().BeGreaterThan(1, "should have grown interval");
+        before.ReviewInterval.Should().Be(15, "two correct answers grow the interval to 15");
 
         // Act: wrong answer
         var result = await _progressService.RecordAttemptAsync(MakeAttempt(wordId, wasCorrect: false));
 
-        // Assert
-        result.ReviewInterval.Should().Be(1, "incorrect answer resets interval to 1");
-        result.NextReviewDate.Should().BeCloseTo(DateTime.Now.AddDays(1), TimeSpan.FromMinutes(5));
+        // Assert: a lapse SOFTENS the interval to ~20% (15 -> round(15*0.2) = 3),
+        // NOT a hard reset to 1. A single slip on a spaced word should stay well-spaced
+        // rather than flood the due pool back to "due tomorrow". Repeated failures still
+        // compound down toward 1.
+        result.ReviewInterval.Should().Be(3, "incorrect answer softens interval to round(15 * 0.2) = 3, not reset to 1");
+        result.NextReviewDate.Should().BeCloseTo(DateTime.Now.AddDays(3), TimeSpan.FromMinutes(5));
     }
 
     [Fact]

@@ -592,6 +592,8 @@ else
     private VocabularyQuizItem? currentItem;
 
     private int currentTurnInRound;
+    // F1: rotating-window cursor for need-weighted sampling without replacement (plan path).
+    private int roundCursor;
     private int roundsCompleted;
     private int wordsMastered;
     private int totalTurns;
@@ -791,16 +793,27 @@ else
             return;
         }
 
-        vocabItems = usingFocusVocabularyIds
-            ? batchPool.Take(ActiveWordCount).ToList()
-            : batchPool
+        // F1: need-weighted sampling WITHOUT replacement across rounds.
+        // batchPool stays in SRS-need order (most-overdue first) from plan selection,
+        // so a rotating window preserves overdue priority while guaranteeing every word
+        // is shown before any repeats — fixes "same 10 every round / never see all 20".
+        // Within-round order is always shuffled so the sequence isn't memorizable.
+        // Legacy (non-plan) path keeps its full-pool random draw.
+        if (usingFocusVocabularyIds)
+        {
+            var (window, nextCursor) = RoundSampler.NextWindow(batchPool, roundCursor, ActiveWordCount);
+            roundCursor = nextCursor;
+            vocabItems = window;
+        }
+        else
+        {
+            vocabItems = batchPool
                 .OrderBy(_ => Guid.NewGuid())
                 .Take(ActiveWordCount)
                 .ToList();
+        }
 
-        roundWordOrder = usingFocusVocabularyIds
-            ? vocabItems.ToList()
-            : vocabItems.OrderBy(_ => Guid.NewGuid()).ToList();
+        roundWordOrder = vocabItems.OrderBy(_ => Guid.NewGuid()).ToList();
         currentTurnInRound = 0;
         await LoadCurrentItem();
     }

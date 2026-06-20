@@ -120,7 +120,13 @@ public static class VocabularyMasteryCalculator
     {
         if (!wasCorrect)
         {
-            progress.ReviewInterval = 1;
+            // Soften the lapse: proportional stability reduction, NOT a hard reset to 1.
+            // A single slip (typo / momentary miss) on a long-interval word should not
+            // send it back to "due tomorrow" and flood the due pool with already-known
+            // words. Keep ~20% of the interval; repeated failures still compound down
+            // (365 -> 73 -> 15 -> 3 -> 1), so genuine forgetting recovers quickly while a
+            // one-off slip stays well-spaced. Relearning-step pattern (FSRS/SM-17). See SME review.
+            progress.ReviewInterval = Math.Max(1, (int)Math.Round(progress.ReviewInterval * 0.2));
             progress.EaseFactor = Math.Max(1.3f, progress.EaseFactor - 0.2f);
         }
         else

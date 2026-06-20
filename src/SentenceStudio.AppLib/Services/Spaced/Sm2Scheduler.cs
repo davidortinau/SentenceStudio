@@ -44,8 +44,10 @@ public static class Sm2Scheduler
         
         if (!wasCorrect)
         {
-            // Reset on incorrect answer
-            newInterval = 1;
+            // Soften the lapse: proportional stability reduction instead of a hard reset
+            // to 1. A single slip on a long-interval item should not send it back to
+            // "due tomorrow". Repeated failures still compound down toward 1. Keep ~20%.
+            newInterval = Math.Max(1, (int)Math.Round(interval * 0.2));
             newEaseFactor = Math.Max(1.3, easeFactor - 0.2);
         }
         else
