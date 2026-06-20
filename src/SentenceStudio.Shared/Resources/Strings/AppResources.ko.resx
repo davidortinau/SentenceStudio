@@ -3841,6 +3841,42 @@
     <value>학습 진행 상황</value>
     <comment>Section heading</comment>
   </data>
+  <data name="VocabWordEdit_HistoryTitle" xml:space="preserve">
+    <value>연습 기록</value>
+    <comment>Section heading for the per-attempt learning history</comment>
+  </data>
+  <data name="VocabWordEdit_HistoryEmpty" xml:space="preserve">
+    <value>아직 기록된 연습 시도가 없습니다. 연습을 시작하여 기록을 쌓아보세요.</value>
+    <comment>Empty state for practice history</comment>
+  </data>
+  <data name="VocabWordEdit_HistorySummary" xml:space="preserve">
+    <value>시도 {0}회 · 노출 {1}회</value>
+    <comment>History summary; {0} = attempt count, {1} = passive exposure count</comment>
+  </data>
+  <data name="VocabWordEdit_HistoryChartAria" xml:space="preserve">
+    <value>시간에 따른 숙련도</value>
+    <comment>Accessible label for the mastery-over-time chart</comment>
+  </data>
+  <data name="VocabWordEdit_HistoryKnownLine" xml:space="preserve">
+    <value>알고 있음 (85%)</value>
+    <comment>Label for the mastery threshold line on the chart</comment>
+  </data>
+  <data name="VocabWordEdit_HistoryCorrect" xml:space="preserve">
+    <value>정답</value>
+    <comment>Legend / entry label for a correct attempt</comment>
+  </data>
+  <data name="VocabWordEdit_HistoryIncorrect" xml:space="preserve">
+    <value>오답</value>
+    <comment>Legend / entry label for an incorrect attempt</comment>
+  </data>
+  <data name="VocabWordEdit_HistoryExposure" xml:space="preserve">
+    <value>노출</value>
+    <comment>Entry label for a passive reading exposure</comment>
+  </data>
+  <data name="VocabWordEdit_HistoryPractice" xml:space="preserve">
+    <value>연습</value>
+    <comment>Fallback activity label for a history entry</comment>
+  </data>
   <data name="VocabWordEdit_Status" xml:space="preserve">
     <value>상태</value>
     <comment>Label</comment>

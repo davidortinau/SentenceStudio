@@ -253,6 +253,100 @@ else
                 <div class="col-8 col-md-4 ss-body2">@reviewDateText</div>
             </div>
         </div>
+
+        @* Practice History + mastery-over-time chart *@
+        <div class="card card-ss p-4 mb-3">
+            <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-3">
+                <h5 class="ss-title3 mb-0">@Localize["VocabWordEdit_HistoryTitle"]</h5>
+                @if (learningContexts.Count > 0)
+                {
+                    <small class="text-secondary-ss">@string.Format(Localize["VocabWordEdit_HistorySummary"], historyAttemptCount, historyExposureCount)</small>
+                }
+            </div>
+
+            @if (learningContexts.Count == 0)
+            {
+                <p class="text-secondary-ss ss-body2 mb-0 fst-italic">@Localize["VocabWordEdit_HistoryEmpty"]</p>
+            }
+            else
+            {
+                @if (masteryChartPoints.Count > 0)
+                {
+                    <div class="mb-2">
+                        <svg viewBox="0 0 320 150" width="100%" height="150" preserveAspectRatio="xMidYMid meet"
+                             role="img" aria-label='@Localize["VocabWordEdit_HistoryChartAria"]'>
+                            @* axes *@
+                            <line x1="@Svg(ChartLeftPad)" y1="@Svg(ChartTopPad)" x2="@Svg(ChartLeftPad)" y2="@Svg(chartBaselineY)" stroke="#dee2e6" stroke-width="1" />
+                            <line x1="@Svg(ChartLeftPad)" y1="@Svg(chartBaselineY)" x2="@Svg(ChartRightX)" y2="@Svg(chartBaselineY)" stroke="#dee2e6" stroke-width="1" />
+                            @* known threshold *@
+                            <line x1="@Svg(ChartLeftPad)" y1="@Svg(knownLineY)" x2="@Svg(ChartRightX)" y2="@Svg(knownLineY)" stroke="#198754" stroke-width="1" stroke-dasharray="4 3" />
+                            <text x="@Svg(ChartRightX)" y="@Svg(knownLineY - 3)" text-anchor="end" font-size="8" fill="#198754">@Localize["VocabWordEdit_HistoryKnownLine"]</text>
+                            @* y-axis labels *@
+                            <text x="@Svg(ChartLeftPad - 4)" y="@Svg(ChartTopPad + 3)" text-anchor="end" font-size="8" fill="#6c757d">100%</text>
+                            <text x="@Svg(ChartLeftPad - 4)" y="@Svg(chartBaselineY)" text-anchor="end" font-size="8" fill="#6c757d">0%</text>
+                            @* mastery line *@
+                            <polyline points="@masteryChartPolyline" fill="none" stroke="#0d6efd" stroke-width="1.5" />
+                            @* per-attempt dots *@
+                            @foreach (var p in masteryChartPoints)
+                            {
+                                <circle cx="@Svg(p.X)" cy="@Svg(p.Y)" r="2.5" fill="@(p.Correct ? "#198754" : "#dc3545")">
+                                    <title>@p.Title</title>
+                                </circle>
+                            }
+                        </svg>
+                    </div>
+                    <div class="d-flex gap-3 flex-wrap mb-3 ss-caption1 text-secondary-ss">
+                        <span><span class="d-inline-block rounded-circle me-1" style="width:8px;height:8px;background:#198754;"></span>@Localize["VocabWordEdit_HistoryCorrect"]</span>
+                        <span><span class="d-inline-block rounded-circle me-1" style="width:8px;height:8px;background:#dc3545;"></span>@Localize["VocabWordEdit_HistoryIncorrect"]</span>
+                        <span><span class="d-inline-block me-1" style="width:12px;height:0;border-top:2px dashed #198754;vertical-align:middle;"></span>@Localize["VocabWordEdit_HistoryKnownLine"]</span>
+                    </div>
+                }
+
+                @* Per-attempt entries (newest first) *@
+                <div class="vstack gap-2" style="max-height: 320px; overflow-y: auto;">
+                    @foreach (var ctx in learningContexts)
+                    {
+                        var passive = VocabularyMasteryCalculator.IsPassive(ctx);
+                        <div class="d-flex align-items-center justify-content-between gap-2 border-bottom pb-2">
+                            <div class="d-flex align-items-center gap-2">
+                                @if (passive)
+                                {
+                                    <i class="bi bi-eye text-secondary-ss"></i>
+                                }
+                                else if (ctx.WasCorrect)
+                                {
+                                    <i class="bi bi-check-circle-fill text-success"></i>
+                                }
+                                else
+                                {
+                                    <i class="bi bi-x-circle-fill text-danger"></i>
+                                }
+                                <div>
+                                    <div class="ss-body2">@ActivityLabel(ctx)</div>
+                                    <small class="text-secondary-ss">
+                                        @ctx.LearnedAt.ToString("MMM d, yyyy · h:mm tt")
+                                        @if (ctx.LearningResource != null && !string.IsNullOrWhiteSpace(ctx.LearningResource.Title))
+                                        {
+                                            <span> · @ctx.LearningResource.Title</span>
+                                        }
+                                    </small>
+                                </div>
+                            </div>
+                            <div class="text-end">
+                                @if (passive)
+                                {
+                                    <span class="badge bg-light text-secondary-ss">@Localize["VocabWordEdit_HistoryExposure"]</span>
+                                }
+                                else if (masteryAfterByContextId.TryGetValue(ctx.Id, out var m))
+                                {
+                                    <span class="badge bg-light text-dark">@((int)Math.Round(m * 100))%</span>
+                                }
+                            </div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
     }
 
     @* Resource Associations *@
@@ -331,6 +425,7 @@ else
 
     [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
     [Inject] private VocabularyProgressService ProgressService { get; set; } = default!;
+    [Inject] private VocabularyLearningContextRepository ContextRepo { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
@@ -390,6 +485,27 @@ else
     private bool isSettingStatus;
     private bool IsExistingWord => !string.IsNullOrEmpty(Id) && Id != "0";
 
+    // Practice history + mastery-over-time chart
+    private List<VocabularyLearningContext> learningContexts = new();
+    private int historyAttemptCount;
+    private int historyExposureCount;
+    private readonly Dictionary<string, float> masteryAfterByContextId = new();
+    private readonly List<ChartPoint> masteryChartPoints = new();
+    private string masteryChartPolyline = "";
+    private double knownLineY;
+    private double chartBaselineY = 128;
+    private const double ChartLeftPad = 30;
+    private const double ChartRightPad = 12;
+    private const double ChartTopPad = 12;
+    private const double ChartBottomPad = 22;
+    private const double ChartViewWidth = 320;
+    private const double ChartViewHeight = 150;
+    private double ChartRightX => ChartViewWidth - ChartRightPad;
+
+    private readonly record struct ChartPoint(double X, double Y, bool Correct, int Pct, string Title);
+
+    private static string Svg(double v) => v.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+
     private bool IsFormValid =>
         !string.IsNullOrWhiteSpace(targetLanguageTerm) &&
         !string.IsNullOrWhiteSpace(nativeLanguageTerm);
@@ -445,6 +561,8 @@ else
                 originalResourceIds = new HashSet<string>(selectedResourceIds);
                 selectedConstituents = constituentWords;
                 originalConstituents = new List<VocabularyWord>(constituentWords);
+
+                await LoadHistoryAsync();
 
                 UpdateProgressDisplay();
                 UpdateEncodingStrength();
@@ -515,6 +633,106 @@ else
                 : reviewDate <= now.AddDays(7) ? $"{(reviewDate - now).Days} days away"
                 : $"{reviewDate:MMM d}";
         }
+    }
+
+    private async Task LoadHistoryAsync()
+    {
+        learningContexts = new();
+        historyAttemptCount = 0;
+        historyExposureCount = 0;
+        masteryAfterByContextId.Clear();
+        masteryChartPoints.Clear();
+        masteryChartPolyline = "";
+
+        if (progress == null)
+            return;
+
+        // GetByProgressIdAsync returns newest-first (good for the list); replay needs oldest-first.
+        learningContexts = await SafeLoadAsync(() => ContextRepo.GetByProgressIdAsync(progress.Id)) ?? new();
+        if (learningContexts.Count == 0)
+            return;
+
+        BuildMasteryTrajectory();
+    }
+
+    private void BuildMasteryTrajectory()
+    {
+        // Replay every recorded attempt chronologically through the shared scoring engine so the chart
+        // and per-entry mastery reflect exactly what the live attempt path would have produced.
+        var ordered = learningContexts
+            .OrderBy(c => c.LearnedAt)
+            .ThenBy(c => c.CreatedAt)
+            .ToList();
+
+        var clone = new VocabularyProgress
+        {
+            Id = progress!.Id,
+            VocabularyWordId = progress.VocabularyWordId,
+            UserId = progress.UserId
+        };
+
+        var correctText = $"{Localize["VocabWordEdit_HistoryCorrect"]}";
+        var incorrectText = $"{Localize["VocabWordEdit_HistoryIncorrect"]}";
+
+        var activePoints = new List<(int Pct, bool Correct, string Title)>();
+        foreach (var ctx in ordered)
+        {
+            if (VocabularyMasteryCalculator.IsPassive(ctx))
+            {
+                historyExposureCount++;
+                continue;
+            }
+
+            historyAttemptCount++;
+            var attempt = VocabularyMasteryCalculator.ToAttempt(ctx, clone.VocabularyWordId, clone.UserId);
+            VocabularyMasteryCalculator.ApplyAttempt(clone, attempt, ctx.LearnedAt);
+
+            int pct = (int)Math.Round(Math.Clamp(clone.MasteryScore, 0f, 1f) * 100);
+            masteryAfterByContextId[ctx.Id] = clone.MasteryScore;
+            string outcome = ctx.WasCorrect ? correctText : incorrectText;
+            activePoints.Add((pct, ctx.WasCorrect, $"{pct}% · {outcome} · {ctx.LearnedAt:MMM d, yyyy}"));
+        }
+
+        BuildChartGeometry(activePoints);
+    }
+
+    private void BuildChartGeometry(List<(int Pct, bool Correct, string Title)> active)
+    {
+        masteryChartPoints.Clear();
+        masteryChartPolyline = "";
+        chartBaselineY = ChartTopPad + (ChartViewHeight - ChartTopPad - ChartBottomPad);
+        knownLineY = ChartTopPad + (1 - 0.85) * (ChartViewHeight - ChartTopPad - ChartBottomPad);
+
+        if (active.Count == 0)
+            return;
+
+        double plotW = ChartViewWidth - ChartLeftPad - ChartRightPad;
+        double plotH = ChartViewHeight - ChartTopPad - ChartBottomPad;
+        int n = active.Count;
+
+        var sb = new System.Text.StringBuilder();
+        for (int i = 0; i < n; i++)
+        {
+            double x = ChartLeftPad + (n == 1 ? plotW / 2 : plotW * i / (n - 1));
+            double m = Math.Clamp(active[i].Pct / 100.0, 0.0, 1.0);
+            double y = ChartTopPad + (1 - m) * plotH;
+
+            if (i > 0) sb.Append(' ');
+            sb.Append($"{Svg(x)},{Svg(y)}");
+
+            masteryChartPoints.Add(new ChartPoint(x, y, active[i].Correct, active[i].Pct, active[i].Title));
+        }
+
+        masteryChartPolyline = sb.ToString();
+    }
+
+    private string ActivityLabel(VocabularyLearningContext ctx)
+    {
+        if (VocabularyMasteryCalculator.IsPassive(ctx))
+            return $"{Localize["VocabWordEdit_HistoryExposure"]}";
+        return string.IsNullOrWhiteSpace(ctx.Activity)
+            ? $"{Localize["VocabWordEdit_HistoryPractice"]}"
+            : ctx.Activity;
     }
 
     private void UpdateEncodingStrength()

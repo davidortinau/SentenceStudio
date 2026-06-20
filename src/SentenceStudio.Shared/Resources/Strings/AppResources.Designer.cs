@@ -13656,6 +13656,87 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Mastery over time.
+        /// </summary>
+        internal static string VocabWordEdit_HistoryChartAria {
+            get {
+                return ResourceManager.GetString("VocabWordEdit_HistoryChartAria", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Correct.
+        /// </summary>
+        internal static string VocabWordEdit_HistoryCorrect {
+            get {
+                return ResourceManager.GetString("VocabWordEdit_HistoryCorrect", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No practice attempts recorded yet. Start practicing to build a history..
+        /// </summary>
+        internal static string VocabWordEdit_HistoryEmpty {
+            get {
+                return ResourceManager.GetString("VocabWordEdit_HistoryEmpty", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Exposure.
+        /// </summary>
+        internal static string VocabWordEdit_HistoryExposure {
+            get {
+                return ResourceManager.GetString("VocabWordEdit_HistoryExposure", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Incorrect.
+        /// </summary>
+        internal static string VocabWordEdit_HistoryIncorrect {
+            get {
+                return ResourceManager.GetString("VocabWordEdit_HistoryIncorrect", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Known (85%).
+        /// </summary>
+        internal static string VocabWordEdit_HistoryKnownLine {
+            get {
+                return ResourceManager.GetString("VocabWordEdit_HistoryKnownLine", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Practice.
+        /// </summary>
+        internal static string VocabWordEdit_HistoryPractice {
+            get {
+                return ResourceManager.GetString("VocabWordEdit_HistoryPractice", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} attempts · {1} exposures.
+        /// </summary>
+        internal static string VocabWordEdit_HistorySummary {
+            get {
+                return ResourceManager.GetString("VocabWordEdit_HistorySummary", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Practice History.
+        /// </summary>
+        internal static string VocabWordEdit_HistoryTitle {
+            get {
+                return ResourceManager.GetString("VocabWordEdit_HistoryTitle", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Known.
         /// </summary>
         internal static string VocabWordEdit_Known {

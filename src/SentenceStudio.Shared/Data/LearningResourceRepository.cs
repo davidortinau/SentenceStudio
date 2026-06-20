@@ -1206,12 +1206,24 @@ public class LearningResourceRepository
     }
 
     /// <summary>
-    /// Merge duplicate vocabulary words: reassign all resource mappings from source words
-    /// to the keeper word, then delete the source words.
+    /// Merge duplicate vocabulary words into the keeper. Reassigns all resource mappings, then — critically —
+    /// PRESERVES learning history: every <see cref="VocabularyProgress"/> and per-attempt
+    /// <see cref="VocabularyLearningContext"/> belonging to a duplicate is folded into the keeper instead of
+    /// being destroyed by the database's ON DELETE CASCADE.
+    ///
+    /// Mastery is recalculated "as if it had always been one word" by re-parenting every learning context to
+    /// the keeper and replaying them chronologically through <see cref="VocabularyMasteryCalculator"/> (the same
+    /// engine the live attempt path uses). Progress is merged PER USER — each user keeps exactly one combined
+    /// keeper record; users are never collapsed together.
     /// </summary>
     public async Task<int> MergeVocabularyWordsAsync(string keeperWordId, List<string> deleteWordIds)
     {
         if (string.IsNullOrWhiteSpace(keeperWordId) || deleteWordIds == null || !deleteWordIds.Any())
+            return 0;
+
+        // Never let the keeper appear in its own delete list.
+        deleteWordIds = deleteWordIds.Where(id => !string.IsNullOrWhiteSpace(id) && id != keeperWordId).Distinct().ToList();
+        if (!deleteWordIds.Any())
             return 0;
 
         using var scope = _serviceProvider.CreateScope();
@@ -1245,8 +1257,15 @@ public class LearningResourceRepository
                 }
                 db.ResourceVocabularyMappings.Remove(mapping);
             }
+        }
 
-            // Delete the duplicate word
+        // Preserve + recombine learning history before the words (and their cascade) are removed.
+        await MergeLearningProgressAsync(db, keeperWordId, deleteWordIds);
+
+        foreach (var deleteId in deleteWordIds)
+        {
+            // Delete the duplicate word. Any progress/context rows that still reference it have already
+            // been re-parented to the keeper above, so the cascade has nothing left to destroy.
             var word = await db.VocabularyWords.FindAsync(deleteId);
             if (word != null)
             {
@@ -1257,10 +1276,181 @@ public class LearningResourceRepository
 
         if (deleted > 0)
         {
+            // Single SaveChanges => EF wraps everything (mapping reassignment, history merge, word deletes)
+            // in one transaction. EF's FK-aware command ordering updates the re-parented contexts before
+            // deleting the old duplicate progress rows, so no learning history is lost to the cascade.
             await db.SaveChangesAsync();
             _syncService?.TriggerSyncAsync().ConfigureAwait(false);
         }
 
         return deleted;
+    }
+
+    /// <summary>
+    /// Folds the learning progress and per-attempt contexts of the duplicate words into the keeper, per user.
+    /// Mutates the tracked <paramref name="db"/> graph only; the caller owns the single SaveChanges.
+    /// </summary>
+    private async Task MergeLearningProgressAsync(ApplicationDbContext db, string keeperWordId, List<string> deleteWordIds)
+    {
+        var allWordIds = new List<string>(deleteWordIds) { keeperWordId };
+
+        // Load tracked so mutations + re-parenting flush on the caller's SaveChanges.
+        var allProgresses = await db.VocabularyProgresses
+            .Where(p => allWordIds.Contains(p.VocabularyWordId))
+            .ToListAsync();
+
+        if (allProgresses.Count == 0)
+            return; // No practiced history on any of these words — nothing to preserve.
+
+        var progressIds = allProgresses.Select(p => p.Id).ToList();
+        var allContexts = await db.VocabularyLearningContexts
+            .Where(c => progressIds.Contains(c.VocabularyProgressId))
+            .ToListAsync();
+
+        var contextsByProgress = allContexts
+            .GroupBy(c => c.VocabularyProgressId)
+            .ToDictionary(g => g.Key, g => g.ToList());
+
+        int usersMerged = 0;
+        int contextsReparented = 0;
+
+        foreach (var userGroup in allProgresses.GroupBy(p => p.UserId))
+        {
+            var userId = userGroup.Key;
+            var userProgresses = userGroup.ToList();
+            var keeperProg = userProgresses.FirstOrDefault(p => p.VocabularyWordId == keeperWordId);
+            var dupProgresses = userProgresses.Where(p => p.VocabularyWordId != keeperWordId).ToList();
+
+            if (dupProgresses.Count == 0)
+                continue; // This user only had keeper progress — already correct, leave untouched.
+
+            // Every learning context belonging to this user across keeper + duplicates.
+            var userContexts = userProgresses
+                .SelectMany(p => contextsByProgress.TryGetValue(p.Id, out var list) ? list : Enumerable.Empty<VocabularyLearningContext>())
+                .ToList();
+
+            // Pre-merge aggregates — used to reconcile so counts/dates never regress, even for ancient
+            // history that predates per-attempt context tracking (where replay alone would undercount).
+            int summedTotal = userProgresses.Sum(p => p.TotalAttempts);
+            int summedCorrect = userProgresses.Sum(p => p.CorrectAttempts);
+            int summedExposure = userProgresses.Sum(p => p.ExposureCount);
+            // Best mastery/streak across sources — used only to prevent regression when source history
+            // predates per-attempt context tracking (so replay cannot fully reconstruct it).
+            float maxSourceMastery = userProgresses.Max(p => p.MasteryScore);
+            float maxSourceStreak = userProgresses.Max(p => p.CurrentStreak);
+            int maxSourceProductionInStreak = userProgresses.Max(p => p.ProductionInStreak);
+            DateTime minFirstSeen = userProgresses.Min(p => p.FirstSeenAt);
+            DateTime minCreated = userProgresses.Min(p => p.CreatedAt);
+            DateTime maxLastPracticed = userProgresses.Max(p => p.LastPracticedAt);
+            DateTime? maxLastExposed = userProgresses
+                .Where(p => p.LastExposedAt.HasValue)
+                .Select(p => (DateTime?)p.LastExposedAt!.Value)
+                .Max();
+            DateTime? earliestMastered = userProgresses
+                .Where(p => p.MasteredAt.HasValue)
+                .Select(p => (DateTime?)p.MasteredAt!.Value)
+                .Min();
+            var declared = userProgresses
+                .Where(p => p.IsUserDeclared)
+                .OrderByDescending(p => p.UserDeclaredAt ?? DateTime.MinValue)
+                .FirstOrDefault();
+            // Most-recently-practiced source's spaced-repetition schedule. Used only to restore the SR
+            // cadence when replay cannot reconstruct it (aggregate-only legacy history with no contexts),
+            // so a merged word still resurfaces for review on time instead of going dormant.
+            var scheduleSource = userProgresses
+                .Where(p => p.NextReviewDate.HasValue)
+                .OrderByDescending(p => p.LastPracticedAt)
+                .FirstOrDefault()
+                ?? userProgresses.OrderByDescending(p => p.LastPracticedAt).First();
+
+            bool createdKeeper = keeperProg == null;
+            if (createdKeeper)
+            {
+                // This user practiced a duplicate but never the keeper word — give them a keeper record.
+                keeperProg = new VocabularyProgress
+                {
+                    VocabularyWordId = keeperWordId,
+                    UserId = userId
+                };
+                db.VocabularyProgresses.Add(keeperProg);
+            }
+
+            // Recalculate mastery as if all of this user's contexts had always belonged to the keeper.
+            VocabularyMasteryCalculator.RecalculateInto(keeperProg!, userContexts, out _);
+
+            // Number of active attempts the replay actually reconstructed (= keeper.TotalAttempts before
+            // count reconciliation). When this is less than the summed aggregate, source history predates
+            // per-attempt context tracking and replay is incomplete.
+            int replayedActiveAttempts = keeperProg!.TotalAttempts;
+            bool hasPreContextHistory = summedTotal > replayedActiveAttempts;
+
+            // Reconcile so the merge is monotonic — never lose attempts, exposures, or historical dates.
+            keeperProg.TotalAttempts = Math.Max(keeperProg.TotalAttempts, summedTotal);
+            keeperProg.CorrectAttempts = Math.Min(keeperProg.TotalAttempts, Math.Max(keeperProg.CorrectAttempts, summedCorrect));
+            keeperProg.ExposureCount = Math.Max(keeperProg.ExposureCount, summedExposure);
+
+            // For fully context-backed (modern) data the replay is exact and authoritative, so the wrong
+            // answers it replays are allowed to lower mastery — that's the faithful "as if one word" result.
+            // Only when there's a pre-context gap do we protect against regressing below the best source,
+            // otherwise ancient words (aggregate-only, no contexts) would be wrongly reset toward Unknown.
+            if (hasPreContextHistory)
+            {
+                keeperProg.MasteryScore = Math.Max(keeperProg.MasteryScore, maxSourceMastery);
+                keeperProg.CurrentStreak = Math.Max(keeperProg.CurrentStreak, maxSourceStreak);
+                keeperProg.ProductionInStreak = Math.Max(keeperProg.ProductionInStreak, maxSourceProductionInStreak);
+            }
+
+            // Replay resets the SR schedule to defaults (NextReviewDate=null, Interval=1, Ease=2.5). When it
+            // reconstructed at least one active attempt, that replayed schedule reflects the most recent
+            // context-backed attempt and is authoritative — leave it. When replay produced no active attempts
+            // (aggregate-only legacy data, or a user-declared "Familiar" duplicate that was never quizzed) the
+            // replayed schedule is still the default, so carry a real source schedule forward — otherwise the
+            // merged word would have NextReviewDate=null and never become due (IsDueForReview) again.
+            if (replayedActiveAttempts == 0 && scheduleSource.NextReviewDate.HasValue)
+            {
+                keeperProg.NextReviewDate = scheduleSource.NextReviewDate;
+                keeperProg.ReviewInterval = scheduleSource.ReviewInterval;
+                keeperProg.EaseFactor = scheduleSource.EaseFactor;
+            }
+
+            keeperProg.FirstSeenAt = minFirstSeen;
+            keeperProg.CreatedAt = minCreated;
+            if (maxLastPracticed > keeperProg.LastPracticedAt)
+                keeperProg.LastPracticedAt = maxLastPracticed;
+            if (maxLastExposed.HasValue && (!keeperProg.LastExposedAt.HasValue || maxLastExposed > keeperProg.LastExposedAt))
+                keeperProg.LastExposedAt = maxLastExposed;
+            // MasteredAt is a historical "first reached mastery" fact; keep the earliest known date.
+            if (earliestMastered.HasValue && (!keeperProg.MasteredAt.HasValue || earliestMastered < keeperProg.MasteredAt))
+                keeperProg.MasteredAt = earliestMastered;
+            // Carry an explicit user declaration ("I know this word") — strong signal we must not drop.
+            if (declared != null)
+            {
+                keeperProg.IsUserDeclared = true;
+                keeperProg.UserDeclaredAt = declared.UserDeclaredAt;
+                keeperProg.VerificationState = declared.VerificationState;
+            }
+            keeperProg.UpdatedAt = DateTime.Now;
+
+            // Re-parent every duplicate context onto the keeper BEFORE the duplicate progress rows are
+            // removed, so the database cascade has no children left to delete.
+            foreach (var ctx in userContexts.Where(c => c.VocabularyProgressId != keeperProg.Id))
+            {
+                ctx.VocabularyProgressId = keeperProg.Id;
+                ctx.UpdatedAt = DateTime.Now;
+                contextsReparented++;
+            }
+
+            foreach (var dp in dupProgresses)
+                db.VocabularyProgresses.Remove(dp);
+
+            usersMerged++;
+        }
+
+        if (usersMerged > 0)
+        {
+            _logger.LogInformation(
+                "Vocab merge: folded learning history into keeper {KeeperWordId} for {UserCount} user(s), re-parented {ContextCount} learning context(s) from {DuplicateCount} duplicate word(s).",
+                keeperWordId, usersMerged, contextsReparented, deleteWordIds.Count);
+        }
     }
 }
