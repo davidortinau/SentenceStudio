@@ -78,6 +78,10 @@ Example: `squad/42-fix-login-validation`
 
 ## PR Guidelines
 
+**Interactive sessions: do NOT open PRs.** Captain is a solo developer who merges directly to `main`. When he says "merge to main" / "ship it" in a session he is driving, commit and merge straight into `main` — no PR, no `gh pr create`, no `create_pull_request` tool — then push. See AGENTS.md › "Git Workflow: Direct Merge to Main — No PRs". `main` CI runs on `push`, so nothing is lost. Open a PR only if Captain explicitly asks.
+
+**The guidance below applies ONLY to autonomous cloud Coding Agent work on an assigned GitHub issue**, where a PR is the async delivery + review channel:
+
 When opening a PR:
 - Reference the issue: `Closes #{issue-number}`
 - If the issue had a `squad:{member}` label, mention the member: `Working as {member} ({role})`

@@ -11,6 +11,16 @@ Please call me Captain and talk like a pirate.
 
 This is a .NET MAUI project that targets mobile and desktop.
 
+## Git Workflow: Direct Merge to Main — No PRs
+
+Captain is a **solo developer** who merges his own work. When Captain says "merge to main," "ship it," or similar in an **interactive session he is driving**, do a **direct merge** — commit on the branch, fast-forward/merge into `main`, and push. **Do NOT open a pull request, and never offer one as the default path.**
+
+A PR buys nothing here: there is no second reviewer, no branch protection on `main`, and CI (`ci.yml`, `test.yml`) triggers on `push: [main]` exactly as it does on `pull_request: [main]` — so a direct push to `main` gets the **same** build + test coverage. A PR only adds ceremony, an extra branch round-trip, and a `(#NNN)` suffix on the commit.
+
+- The pre-push gate still applies: review must be clean (run `/review` or a code-review pass) and Captain must have approved before pushing.
+- Open a PR **only** if Captain explicitly asks for one.
+- Exception: autonomous **cloud Copilot Coding Agent** work on an assigned GitHub *issue* still delivers via PR (that's the async review channel — see `.github/copilot-instructions.md`). This direct-merge rule governs interactive sessions, not unattended issue pickup.
+
 ## Project Purpose: Dogfooding .NET MAUI
 
 **SentenceStudio's PRIMARY purpose is dogfooding the .NET MAUI SDK and developer experience.** The shipping app is the vehicle; surfacing and fixing tooling friction is the destination. This affects how Squad prioritizes work.
