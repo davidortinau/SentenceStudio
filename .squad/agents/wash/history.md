@@ -38,3 +38,23 @@ Earlier work included:
 ---
 
 - 2026-06-11: **Unseen vocabulary bootstrap + wording cascade fix** — Deterministic planner now detects zero SRS-due words and queries ResourceVocabularyMapping (multi-tenant safe) for 15-word capped bootstrap cohort. DaysSinceLastUse changed from int (999 sentinel) to int? (null = never used). Wording: 4-branch cascade with boundary guards at 0/1/30 days. Unit-test-vs-runtime gap risk: passing tests can hide data-distribution mismatches. Live diagnosis is expensive — clarify target surface upfront (Mac Catalyst? iOS? WebApp?) before digging. 583/583 tests passing (999-sentinel bug fixed as side effect). Commit 386b4550.
+
+---
+
+Team update (2026-06-17T15:10:57-05:00): Mastery calibration + plan staleness dual RCA — decided by Zoe.
+
+Concern #1 (mastery calibration): CALIBRATION BUG confirmed. The /12 divisor at VocabularyProgressService.cs:27 governs both in-session rotation pacing (correct use) and the lifetime IsKnown gate (incorrect double-use). Fix: SRS-interval-aware IsKnown pathway (ReviewInterval >= 60, Accuracy >= 0.80, ProductionInStreak >= 1) plus srsBonus to displayed mastery using prior-interval. boda/mun -> 92%, seonsaengnim -> 88%. Must use prior interval to prevent fresh-word gaming.
+
+Concern #2 (plan staleness): TIMEZONE/DATE-KEY BUG + STALE-PIN. Root cause: DevicePlanDateContextProvider uses TimeZoneInfo.Local (= UTC on Azure Linux). Between 7pm-midnight CDT the server pre-generates "tomorrow's" plan with today's still-due vocabulary. Plan pinned in Postgres; morning short-circuit returns stale plan. Fix: override IPlanDateContext in WebApp registration (interim America/Chicago) + freshness check in GetCachedPlanAsync reconstruction. Long-term: IanaTimeZoneId in UserProfile. SHIPS after Captain confirms Query 4 = STALE from production Postgres.
+
+Baseline: 636/636 (not 534/535). copilot-instructions.md baseline note + "THIS WILL LIKELY FAIL" comment sweep = required follow-up PR.
+
+---
+
+Team update (2026-06-17T16:08:31-05:00): Concern #2 per-user timezone fix — LANDED AND APPROVED.
+
+Wash's implementation (commits c7f192e5, 0cdda7ba, 7e7d67ef): UserProfile.IanaTimeZoneId, dual-provider EF migration 20260617211855_AddUserProfileIanaTimeZoneId (hand-written — MSB4057 tooling friction documented), WebAppPlanDateContext, TimeZoneCaptureService, TimeZoneCapture.razor, UTC normalization in VocabQuiz.razor, ApplyFocusVocabularyFreshnessAsync wired into all 3 GetCachedPlanAsync return paths. Zoe initial review rejected (two blockers owned by Kaylee and Simon — NOT Wash). Re-review APPROVED after both fixes landed. Final suite: 633/633.
+
+Carry-forward for Wash:
+- File dotnet/efcore upstream issue: `--framework` flag fails to isolate TFM evaluation in multi-targeted projects with conditional Compile Remove. Repro: SentenceStudio.Shared.csproj.
+- AGENTS.md + copilot-instructions.md TFM doc fix (Shared is multi-targeted, not plain net10.0) — separate docs-only PR.

@@ -12,7 +12,7 @@ You are working on a project that uses **Squad**, an AI team framework. When pic
 - **EF Core migrations**: use `dotnet ef migrations add` against `SentenceStudio.Shared.csproj` — never hand-write migrations, never raw SQL ALTER TABLE.
 - **MauiReactor conventions**: `.HEnd()` / `.VCenter()` / `.Center()` instead of `HorizontalOptions(LayoutOptions.End)`; `ThemeKey(MyTheme.*)` over inline styles; icons in `ApplicationTheme.Icons.cs`, never inline `FontImageSource`.
 - **Shell navigation**: `MauiControls.Shell.Current.GoToAsync(...)`, never `Navigation.PushAsync`.
-- **Validation gate**: every UI/behavior change must be validated by running the app end-to-end via the `maui-ai-debugging` or `e2e-testing` skill — "it builds" is not sufficient.
+- **Validation gate**: every UI/behavior change must be validated by running the app end-to-end via the MAUI DevFlow skills (`maui-devflow-debug` for build/deploy/inspect/fix loops, `maui-devflow-onboard` for first-time setup, `maui-devflow-session-review` for friction reports) or the `e2e-testing` skill — "it builds" is not sufficient.
 - **No emoji in UI / code output / logs** — use Bootstrap icons or plain text.
 
 If anything below conflicts with AGENTS.md, **AGENTS.md wins** — EXCEPT for the macOS-vs-Mac-Catalyst default; the section immediately below overrides AGENTS.md examples on that one point until AGENTS.md is updated.

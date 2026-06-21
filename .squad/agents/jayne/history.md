@@ -35,3 +35,25 @@
 ---
 
 - 2026-06-11: **Vocab bootstrap E2E (Mac Catalyst clean-build)** — Initial E2E failed: running old pre-bootstrap code from stale MonoBundle DLL. Root cause: partial clean left AppLib/bin with old code. After nuking MacCatalyst/bin, MacCatalyst/obj, Shared/bin, Shared/obj, **AppLib/bin, AppLib/obj**, rebuilt and verified correct Jun 11 13:49 binary (UTF-16 scan: "need 5+" absent, "Bootstrapping vocab" present). E2E PASSED 6/6 criteria: vocab activity on dashboard, FocusVocabularyFacts populated (15 words), preview matches activity, resource footer wording updated ("Last used 8 days ago"), Study Insight VocabInsight section present. Key learning: build cache — partial cleans leave stale shared DLLs in MonoBundle. Add AGENTS.md checklist for "nuke ALL bin/obj before release rebuild". Decisions inbox: vocab-bootstrap-e2e.md, vocab-bootstrap-cleanbuild-e2e.md.
+
+---
+
+Team update (2026-06-17T15:10:57-05:00): Mastery calibration + plan staleness dual RCA — decided by Zoe.
+
+Jayne's work this session: added 19 characterization tests to tests/SentenceStudio.UnitTests/Services/MasteryScoring/MasteryCalibrationCharacterizationTests.cs (untracked — Captain needs to commit). Verified 636/636 passing. Key test: Sm2_And_Mastery_Are_Decoupled_FiveCorrects proves the Concern #1 RCA.
+
+When the fix lands: retire IsKnown_False_AtMastery625_BelowBothGates and IsKnown_False_AtMastery583_BelowBothGates in the same PR that ships the SRS-aware IsKnown fix. Add the 6 target-behavior tests from lla's recommendations (see MasteryAlgorithmTargetTests.cs).
+
+Baseline is now 636/636. Formerly-intentional fail ResourceUsed15DaysAgo_ShouldNotBeTreatedAsNeverUsed now passes. The "THIS WILL LIKELY FAIL" comments at five locations in PlanGeneration tests need a sweep PR — verify each underlying bug is actually fixed before removing.
+
+Concern #2 tests needed (post-fix): (1) IPlanDateContext resolves user-local date in WebApp; (2) GetCachedPlanAsync invalidates reconstructed plan when > 50% focus vocabulary is no longer due; (3) plan generated in UTC-ahead window does not carry non-due words; (4) CoreSync DailyPlan round-trip across timezone boundaries.
+
+---
+
+Team update (2026-06-17T16:08:31-05:00): Concern #2 per-user timezone fix — LANDED AND APPROVED.
+
+Jayne's work: 16 regression tests in Concern2TimezoneRegressionTests.cs. First pass (commit 4bacc447): 14 cases — timezone math near midnight CDT, UTC fallback paths, freshness algorithm, source-scan recurrence guards (Services/Progress, VocabQuiz.razor). After Simon + Kaylee blocker fixes, second pass (commit 2b5eb73e): added multi-tenant freshness isolation test (real in-memory SQLite, 2 users, shared word id) + WebAppPlanDateContext skip marker + extended recurrence guard to Services/Plans. Final: 633/633.
+
+Carry-forward for Jayne:
+- Banned-symbol guard for `GetByWordIdsAsync` callers in `src/SentenceStudio.Shared/Services/Progress/` (with `// allow:multi-tenant-safe` inline opt-out for VocabularyProgressService.cs:280). Same source-scan pattern as DateTime.Now guards.
+- WebAppPlanDateContext integration test: requires dedicated integration test project (Blazor WebApp test host) or extract TZ-lookup DB read into a testable helper in SentenceStudio.Shared. Marker test Concern2TimezoneRegressionTests.cs:617 keeps the gap visible.

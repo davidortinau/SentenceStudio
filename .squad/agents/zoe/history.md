@@ -28,3 +28,27 @@
 ---
 
 - 2026-06-11: **Vocab bootstrap review + wording cascade audit** — Reviewed multi-tenant scoping (matches post-May hotfix), blend logic edges, synthetic VocabularyProgress safety. Bootstrap 🟢 after stale comment removed per AGENTS.md. Wording cascade approved 🟢 — 4 branches exhaustive at boundaries (0/1/30 days). Cascade boundary audits are non-obvious; each threshold needs exact-value verification, not just range checks. Pre-existing latent NRE noted (PrimaryResource.Title dereference in fallback path); not blocking, file follow-up. Zoe notes: smart-resource inclusion (Captain's design call), wordsByResource semantic shift (intentional, document for archaeology), grammar nit "1 days" (non-blocking). Decisions inbox: vocab-bootstrap-review.md, wording-fix-review.md.
+
+---
+
+Team update (2026-06-17T15:10:57-05:00): Mastery calibration + plan staleness dual RCA synthesis — authored by Zoe.
+
+Two decisions adjudicated and recorded in decisions.md. Both are P0, parallel:
+
+Concern #1 (mastery): chose lla Option 1 — SRS-interval-aware IsKnown + srsBonus (using prior interval). Pre-condition: LLA Test 6 (FreshWord_InSingleSession_DoesNotGetSrsBonus) must be in the test suite and passing before the bonus calculation goes live.
+
+Concern #2 (plan staleness): two-fix approach (IPlanDateContext webapp override + GetCachedPlanAsync freshness check) ships after Captain confirms Wash Query 4 = STALE from production. DueOnly bypass at VocabQuiz.razor:717-740 is KEPT (correct semantics — the staleness fix is upstream).
+
+Cross-cutting: baseline is 636/636 (stale 534/535 note in copilot-instructions.md needs a cleanup PR). Five "THIS WILL LIKELY FAIL" comments at known locations need a verification sweep before removal. Zoe should review the baseline-update PR when it arrives.
+
+---
+
+Team update (2026-06-17T16:08:31-05:00): Concern #2 per-user timezone fix — APPROVED on re-review.
+
+Zoe initial review: REJECTED (two blockers). Blocker #1 — TimeZoneCapture.razor unrendered (owner: Kaylee). Blocker #2 — cross-tenant freshness leak via unscoped GetByWordIdsAsync (owner: Simon). After both fixes landed, re-review: APPROVED. Test suite 633/633.
+
+Key ruling preserved: AppRoutes.razor (not shared MainLayout) is the correct webapp-only placement for TimeZoneCapture — MainLayout is compiled into MAUI heads. Prior review named MainLayout in error; retracted.
+
+Carry-forward for Zoe:
+- Review the docs-only PR for AGENTS.md / copilot-instructions.md TFM fix when it arrives.
+- Review WebAppPlanDateContext integration test PR when Jayne files it (after test-infra decision).

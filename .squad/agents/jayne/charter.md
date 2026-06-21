@@ -11,7 +11,7 @@
 
 ## What I Own
 
-- E2E test execution — Playwright on webapp, maui-ai-debugging for native
+- E2E test execution — Playwright on webapp, maui-devflow-debug for native
 - Test verification — UI state, database records, Aspire logs
 - Quality gates — confirming features work before marking done
 - Edge case identification — what happens with empty data, bad input, timeout, missing resources

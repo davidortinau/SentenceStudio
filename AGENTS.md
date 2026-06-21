@@ -444,10 +444,10 @@ Use `ILogger<T>` for all production logging. Only use `System.Diagnostics.Debug.
 
 **CRITICAL: Every UI or behavior change MUST be validated by running the app!**
 
-Do NOT mark a task as complete after only a successful build. You MUST use the **maui-ai-debugging** skill (or **appium-automation** skill when appropriate) to verify changes end-to-end on a running app.
+Do NOT mark a task as complete after only a successful build. You MUST verify changes end-to-end on a running app using the **MAUI DevFlow** skills (see "MAUI DevFlow skill workflow" below).
 
 ### Required validation steps for UI changes:
-1. **Build & deploy** to Mac Catalyst: `dotnet build -t:Run -f net10.0-maccatalyst`
+1. **Build & run** the macOS head (Captain's default desktop dev surface): `dotnet run -f net11.0-macos --project src/SentenceStudio.MacOS/SentenceStudio.MacOS.csproj` (use Mac Catalyst only when iOS-shaped behavior is being tested)
 2. **Navigate** to the affected page/feature in the running app
 3. **Take a screenshot** to confirm the UI renders correctly
 4. **Interact** with the changed elements — tap buttons, open popups, fill forms, trigger actions
@@ -455,13 +455,26 @@ Do NOT mark a task as complete after only a successful build. You MUST use the *
 6. **Verify edge cases** — dismiss popups, cancel actions, trigger error states when feasible
 
 ### Required validation steps for non-UI changes (services, models, data):
-1. **Build** the project: `dotnet build -f net10.0-maccatalyst`
+1. **Build** the project: `dotnet build -f net11.0-macos`
 2. **Run existing tests** if they cover the changed code: `dotnet test`
 3. If no tests exist and the change is observable in the app, **run the app** and verify the behavior as described above
 
-### When to use which skill:
-- **maui-ai-debugging**: For build-deploy-inspect-fix loops, visual tree inspection, tapping elements, taking screenshots, reading logs
-- **appium-automation**: For more complex interaction sequences, multi-step flows, or when you need to automate repetitive validation
+### MAUI DevFlow skill workflow (primary):
+
+DevFlow is already integrated in all five heads (`Microsoft.Maui.DevFlow.Agent` + `Microsoft.Maui.DevFlow.Blazor`, registered via `builder.AddMauiDevFlowAgent()` under `#if DEBUG`; pinned to `0.25.0-dev`). Agent ports: macOS/Android `9225`, iOS/Windows `9224`.
+
+- **maui-devflow-onboard**: One-time setup — add MAUI DevFlow to a project that does NOT yet reference `Microsoft.Maui.DevFlow.*`. The existing heads are already onboarded, so you only need this for a brand-new head.
+- **maui-devflow-debug**: After the app is running — build/deploy/inspect/fix loops, visual tree inspection, tapping elements, taking screenshots, reading logs. This is the day-to-day verification tool.
+- **maui-devflow-session-review**: Turn long or stuck DevFlow sessions into opt-in MAUI DevFlow product feedback (do not run automatically — only when a session was painful enough to be worth reporting).
+
+**Manual fallback** (only if the skills can't be used): add the `Microsoft.Maui.DevFlow.Agent` package (plus `Microsoft.Maui.DevFlow.Blazor` for the Blazor WebView heads), call `builder.AddMauiDevFlowAgent()` under `#if DEBUG` in the head's `MauiProgram.cs`, then build and run the app.
+
+**After onboarding, or to verify a running app, confirm health with:**
+```bash
+maui devflow diagnose          # broker, agents, and project integration health
+maui devflow wait              # block until the agent connects
+maui devflow ui tree --depth 1 # confirm the visual tree is reachable
+```
 
 ### What "done" means:
 - ✅ Build passes

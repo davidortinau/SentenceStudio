@@ -6,7 +6,7 @@ description: >
   "does it work", "try it", "make sure", or any variation of testing a feature or fix in a running app.
   Also use after EVERY bug fix or feature implementation as a mandatory final verification step — even
   if you think a build check is enough. Covers: launching via Aspire, interacting with Playwright (webapp)
-  or maui-ai-debugging (native), verifying UI state, checking database records, and reading structured logs.
+  or maui-devflow-debug (native), verifying UI state, checking database records, and reading structured logs.
   If someone asks you to test anything in this app, or to verify a fix works, or to run a smoke test,
   or to check that CRUD operations work, or to confirm audio/quiz/import/activity features behave correctly
   — this is the skill to use. Do NOT skip this skill when verification is needed.
@@ -29,8 +29,8 @@ The rule is simple: **if you changed it, you test it**.
 | Platform | Tool | When to use |
 |----------|------|-------------|
 | **Webapp** (Blazor Server) | Aspire + Playwright | Default — fastest feedback loop |
-| **Mac Catalyst** | maui-ai-debugging skill | When testing native audio, MAUI handlers, platform features |
-| **iOS / Android** | maui-ai-debugging skill | When testing mobile-specific behavior |
+| **macOS (AppKit)** / **Mac Catalyst** | maui-devflow-debug skill | macOS is the preferred native surface; Mac Catalyst only for iOS-shaped behavior |
+| **iOS / Android** | maui-devflow-debug skill | When testing mobile-specific behavior |
 
 Always test on webapp first. Only test native when the feature is platform-specific.
 
@@ -72,17 +72,18 @@ Stop the async shell running `aspire run`.
 
 ## Native App Testing Workflow
 
-Use the **maui-ai-debugging** skill for native testing. Key commands:
+Use the **maui-devflow-debug** skill for native testing. Key commands:
 
 ```bash
-# Build and run Mac Catalyst
-dotnet build -f net10.0-maccatalyst -t:Run
+# Build and run the macOS head (preferred native surface)
+dotnet run -f net11.0-macos --project src/SentenceStudio.MacOS/SentenceStudio.MacOS.csproj
 
-# Wait for agent
+# Verify integration health, then wait for the agent
+maui devflow diagnose
 maui devflow wait
 
 # Inspect UI
-maui devflow ui tree
+maui devflow ui tree --depth 1
 maui devflow ui screenshot --output test.png
 
 # Check logs
