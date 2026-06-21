@@ -159,7 +159,7 @@ echo ""
 echo "--- 1.3 No Crash Loops ---"
 CRASH_RAW=$(az containerapp logs show \
   --name api --resource-group "$RG" \
-  --tail 100 --type system 2>/dev/null | grep -ciE "backoff|crash|oom|killed|exit code [^0]|unhealthy" || true)
+  --tail 100 --type system 2>/dev/null | grep -ciE "backoff|crash|oom|killed|exit code '?[1-9][0-9]*|unhealthy" || true)
 CRASH_INDICATORS=$(echo "$CRASH_RAW" | tr -d '[:space:]')
 CRASH_INDICATORS=${CRASH_INDICATORS:-0}
 
