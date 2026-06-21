@@ -197,6 +197,14 @@
                  style="width: 8px; height: 8px; opacity: @(step == currentStep ? 1 : 0.3);"></div>
         }
     </div>
+
+    @* Escape hatch: lets the user return to the login form to switch accounts even
+       before onboarding is complete (the main nav isn't rendered on this screen). *@
+    <div class="text-center pb-4">
+        <button class="btn btn-link btn-sm text-muted-ss" @onclick="Logout">
+            <i class="bi bi-box-arrow-left me-1"></i> @Localize["Nav_Logout"]
+        </button>
+    </div>
 </div>
 
 @code {
@@ -211,6 +219,8 @@
     [Inject] private ILogger<Onboarding> Logger { get; set; }
     [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
     [Inject] private IAuthService Auth { get; set; } = default!;
+    [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
+    [Inject] private ProgressCacheService CacheService { get; set; } = default!;
 
     private int currentStep = 0;
     private string name = "";
@@ -275,6 +285,27 @@
     private void PrevStep()
     {
         currentStep = Math.Max(currentStep - 1, 0);
+    }
+
+    private async Task Logout()
+    {
+        // Mirrors NavMenu.Logout so onboarding has the same sign-out behavior as the
+        // main nav (which isn't rendered on this screen). Clears caches + auth state,
+        // then returns to the login form so the user can sign in with another account.
+        CacheService.InvalidateAll();
+
+        if (AuthStateProvider is SentenceStudio.Services.MauiAuthenticationStateProvider mauiAuth)
+        {
+            await mauiAuth.LogOutAsync();
+        }
+
+        Preferences.Set("app_is_authenticated", false);
+        Preferences.Remove("active_profile_id");
+        AppState.CurrentUserProfile = null;
+
+        var baseUri = NavManager.BaseUri;
+        var isWeb = !baseUri.StartsWith("app://") && !baseUri.Contains("0.0.0.0");
+        NavManager.NavigateTo(isWeb ? "/account-action/SignOut" : "/auth/login", forceLoad: isWeb);
     }
 
     private async Task LoadSuggestedNames()

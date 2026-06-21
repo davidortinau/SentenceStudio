@@ -1,7 +1,9 @@
 using CommunityToolkit.Maui;
 using CommunityToolkit.Maui.Storage;
+#if DEBUG
 using Microsoft.Maui.DevFlow.Agent;
 using Microsoft.Maui.DevFlow.Blazor;
+#endif
 using Microsoft.AspNetCore.Components.WebView.Maui;
 using Microsoft.Maui.Platforms.MacOS.Essentials;
 using Microsoft.Extensions.Hosting;
@@ -32,7 +34,7 @@ public static class MacOSMauiProgram
 
         builder.Services.AddMauiBlazorWebView();
         builder.AddMacOSBlazorWebView();
-        RegisterBlazorServices(builder.Services);
+        builder.Services.AddBlazorUIServices();
 
 #if DEBUG
         builder.Services.AddBlazorWebViewDeveloperTools();
@@ -46,16 +48,6 @@ public static class MacOSMauiProgram
 
         var app = builder.Build();
         return SentenceStudioAppBuilder.InitializeApp(app);
-    }
-
-    private static void RegisterBlazorServices(IServiceCollection services)
-    {
-        services.AddSingleton<ToastService>();
-        services.AddSingleton<ModalService>();
-        services.AddScoped<BlazorLocalizationService>();
-        services.AddSingleton<BlazorNavigationService>();
-        services.AddScoped<NavigationMemoryService>();
-        services.AddScoped<JsInteropService>();
     }
 
 }
