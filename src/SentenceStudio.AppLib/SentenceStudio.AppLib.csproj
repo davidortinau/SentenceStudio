@@ -46,6 +46,7 @@
 		<PackageReference Include="SkiaSharp.Views.Maui.Controls" />
 		<PackageReference Include="Syncfusion.Maui.Toolkit" />
 		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" />
+		<PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" />
 		<PackageReference Include="Microsoft.Extensions.Configuration.Json" />
 		<PackageReference Include="Microsoft.Extensions.Logging" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" />
