@@ -356,3 +356,23 @@ Files: `LearningResourceRepository.cs` (13 methods), `VocabularyProgressReposito
 - ProgressService.GetStreakInfoAsync at line 1072: streak math still uses raw `DateTime.UtcNow.Date`. Display-layer drift only; defer.
 - Index.razor:1090 (flashcard nav fallback): `todaysPlan?.GeneratedForDate.Date ?? DateTime.UtcNow.Date`. Defer.
 - The "BannedSymbols.txt" referenced in the IPlanDateContext docstring doesn't actually exist in the repo. Would be a nice future build-time guard but is not blocking this PR.
+# Duplicate merge decision criteria
+
+## Decision
+
+Vocabulary duplicate cleanup should distinguish merge safety from keeper selection:
+
+- Learning progress is combined during merge and is not a user decision criterion.
+- Resource associations are combined during merge and are not a user decision criterion.
+- Automatic merge safety depends on stable semantic identity: normalized target term, native term, language, and lexical unit type must match.
+- Keeper selection should prioritize encoding strength and memory aids, not resource count.
+- Duplicate review UI should hide raw IDs and resource counts from the primary decision view.
+- Batch merge and single-group merge use the same recommendation logic; they must not imply different "auto" versus "keep best" behavior.
+
+## Rationale
+
+The user needs to decide only when merge safety is uncertain or when retained memory/encoding content differs. Showing progress, resource counts, and raw IDs creates noise because those values are preserved or internal implementation details.
+
+## Follow-up
+
+If future duplicate merge work combines complementary memory aids field-by-field, update this decision to describe conflict handling for competing non-empty mnemonic, image, and audio fields.
