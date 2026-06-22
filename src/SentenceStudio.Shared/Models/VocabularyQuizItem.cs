@@ -30,6 +30,11 @@ public class VocabularyQuizItem
     // Track if this is a DueOnly session
     public bool IsDueOnlySession { get; set; }
 
+    // Daily-plan focus vocabulary is an explicit practice contract: if the plan
+    // sends the word to Vocab Quiz, the session must show 3 recognition and
+    // 3 production successes before rotating it out, regardless of prior mastery.
+    public bool RequiresFullSessionDemonstration { get; set; }
+
     // Tiered rotation model (spec §1.2.2 / §1.3)
     //
     // Issue #191: Tier 2 trigger tightened from OR → AND, and demonstration
@@ -46,6 +51,13 @@ public class VocabularyQuizItem
     {
         get
         {
+            if (RequiresFullSessionDemonstration)
+            {
+                return SessionMCCorrect >= 3
+                    && SessionTextCorrect >= 3
+                    && !PendingRecognitionCheck;
+            }
+
             var mastery = Progress?.MasteryScore ?? 0f;
             var streak = Progress?.CurrentStreak ?? 0f;
 
@@ -65,6 +77,19 @@ public class VocabularyQuizItem
             // DueOnly bonus: globally known words can also rotate out
             return tieredReady || (Progress?.IsKnown ?? false);
         }
+    }
+
+    public string ChooseInteractionMode()
+    {
+        if (PendingRecognitionCheck)
+            return "MultipleChoice";
+
+        if (RequiresFullSessionDemonstration)
+            return SessionMCCorrect >= 3 ? "Text" : "MultipleChoice";
+
+        return ((Progress?.CurrentStreak ?? 0f) >= 3f || (Progress?.MasteryScore ?? 0f) >= 0.50f)
+            ? "Text"
+            : "MultipleChoice";
     }
 
     // Streak-based computed properties

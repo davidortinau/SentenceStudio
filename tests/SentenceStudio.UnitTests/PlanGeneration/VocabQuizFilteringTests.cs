@@ -473,6 +473,53 @@ public class VocabQuizFilteringTests
     }
 
     [Fact]
+    public void FocusPlan_KnownWord_StillRequiresThreeMcAndThreeTextBeforeRotation()
+    {
+        var item = MakeQuizItem(new VocabularyProgress
+        {
+            MasteryScore = 1.0f,
+            CurrentStreak = 8f,
+            ProductionInStreak = 2
+        });
+        item.RequiresFullSessionDemonstration = true;
+        item.SessionMCCorrect = 3;
+        item.SessionTextCorrect = 2;
+        item.SessionCorrectCount = 5;
+
+        item.IsKnown.Should().BeTrue("the word starts globally Known");
+        item.ReadyToRotateOut.Should().BeFalse(
+            "daily-plan focus vocabulary must produce all 3 MC + 3 Text successes in this session, even when already Known");
+
+        item.SessionTextCorrect = 3;
+
+        item.ReadyToRotateOut.Should().BeTrue(
+            "the focus-plan contract is satisfied only after 3 MC + 3 Text successes");
+    }
+
+    [Fact]
+    public void FocusPlan_ModeSelection_ForcesThreeMcBeforeText()
+    {
+        var item = MakeQuizItem(new VocabularyProgress
+        {
+            MasteryScore = 1.0f,
+            CurrentStreak = 8f,
+            ProductionInStreak = 2
+        });
+        item.RequiresFullSessionDemonstration = true;
+
+        item.ChooseInteractionMode().Should().Be("MultipleChoice",
+            "focus-plan words need three in-session MC successes before production, regardless of global mastery");
+
+        item.SessionMCCorrect = 2;
+        item.ChooseInteractionMode().Should().Be("MultipleChoice",
+            "two MC successes are not enough for the focus-plan demonstration contract");
+
+        item.SessionMCCorrect = 3;
+        item.ChooseInteractionMode().Should().Be("Text",
+            "after three MC successes, the focus-plan word moves to text entry");
+    }
+
+    [Fact]
     public void SessionCounters_AreCumulative_NeverResetOnWrong()
     {
         var item = MakeQuizItem(new VocabularyProgress

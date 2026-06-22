@@ -757,6 +757,7 @@ else
             foreach (var item in batchPool)
             {
                 item.IsDueOnlySession = DueOnly;
+                item.RequiresFullSessionDemonstration = usingFocusVocabularyIds;
             }
 
             if (!batchPool.Any())
@@ -843,17 +844,7 @@ else
         isCorrect = false;
         requireCorrectTyping = false;
 
-        // Unified mode-selection algorithm (spec §1.2)
-        // Priority 1: Gentle demotion override — must prove recognition first
-        if (currentItem.PendingRecognitionCheck)
-            userMode = "MultipleChoice";
-        // Priority 2: Lifetime progress indicates production readiness
-        else if ((currentItem.Progress?.CurrentStreak ?? 0f) >= 3f
-                 || (currentItem.Progress?.MasteryScore ?? 0f) >= 0.50f)
-            userMode = "Text";
-        // Priority 3: Default — still learning
-        else
-            userMode = "MultipleChoice";
+        userMode = currentItem.ChooseInteractionMode();
 
         if (userMode == "MultipleChoice")
         {
