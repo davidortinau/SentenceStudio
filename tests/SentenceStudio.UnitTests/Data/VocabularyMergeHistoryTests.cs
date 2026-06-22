@@ -127,6 +127,143 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
     }
 
     [Fact]
+    public async Task Merge_ReparentsDependentVocabularyArtifacts_DoesNotCascadeDelete()
+    {
+        // Arrange — duplicate carries downstream artifacts that EF would otherwise cascade-delete.
+        var keeper = SeedWord("불", "fire");
+        var dup = SeedWord(" 불 ", "fire duplicate");
+        var contrastWord = SeedWord("물", "water");
+        EnsureWordsMappedToUser(UserA, keeper, dup, contrastWord);
+
+        var exampleId = SeedExampleSentence(dup, targetSentence: "불이 뜨겁다.", learningResourceId: GetResourceIdForUser(UserA));
+        var pairId = SeedMinimalPair(UserA, dup, contrastWord);
+        var attemptId = SeedMinimalPairAttempt(UserA, pairId, promptWordId: dup, selectedWordId: contrastWord);
+
+        // Act
+        await MergeAsync(keeper, dup);
+
+        // Assert — every artifact survives and now references the keeper instead of the deleted duplicate.
+        WordExists(dup).Should().BeFalse();
+        GetExampleSentence(exampleId)!.VocabularyWordId.Should().Be(keeper);
+
+        var pair = GetMinimalPair(pairId)!;
+        new[] { pair.VocabularyWordAId, pair.VocabularyWordBId }.Should().BeEquivalentTo(new[] { keeper, contrastWord });
+
+        var attempt = GetMinimalPairAttempt(attemptId)!;
+        attempt.PairId.Should().Be(pairId);
+        attempt.PromptWordId.Should().Be(keeper);
+        attempt.SelectedWordId.Should().Be(contrastWord);
+    }
+
+    [Fact]
+    public async Task Merge_DeduplicatesDependentArtifacts_WhenKeeperAlreadyHasEquivalentLinks()
+    {
+        // Arrange — duplicate and keeper both point at equivalent minimal-pair and phrase links.
+        var keeper = SeedWord("밤", "night");
+        var dup = SeedWord(" 밤 ", "night duplicate");
+        var contrastWord = SeedWord("밥", "rice");
+        EnsureWordsMappedToUser(UserA, keeper, dup, contrastWord);
+
+        var existingPairId = SeedMinimalPair(UserA, keeper, contrastWord);
+        var duplicatePairId = SeedMinimalPair(UserA, dup, contrastWord);
+        var attemptId = SeedMinimalPairAttempt(UserA, duplicatePairId, promptWordId: dup, selectedWordId: contrastWord);
+
+        // Act
+        await MergeAsync(keeper, dup);
+
+        // Assert — duplicate links collapse into existing keeper links, preserving attempts.
+        WordExists(dup).Should().BeFalse();
+        MinimalPairExists(duplicatePairId).Should().BeFalse("the duplicate pair should collapse into the existing keeper pair");
+        CountMinimalPairs(UserA, keeper, contrastWord).Should().Be(1);
+
+        var attempt = GetMinimalPairAttempt(attemptId)!;
+        attempt.PairId.Should().Be(existingPairId);
+        attempt.PromptWordId.Should().Be(keeper);
+        attempt.SelectedWordId.Should().Be(contrastWord);
+    }
+
+    [Fact]
+    public async Task Merge_DoesNotReparentUnownedPhraseConstituents_WhenDuplicateIsShared()
+    {
+        // Arrange — phrase constituents have no owner column, so shared duplicate words must leave them untouched.
+        SeedUserProfile(UserB);
+        var keeper = SeedWord("눈", "snow");
+        var dup = SeedWord(" 눈 ", "snow duplicate");
+        var contrastWord = SeedWord("눈물", "tears");
+        EnsureWordsMappedToUser(UserA, keeper, dup, contrastWord);
+        EnsureWordsMappedToUser(UserB, dup);
+        var exampleId = SeedExampleSentence(dup, targetSentence: "눈이 온다.");
+        var linkId = SeedPhraseConstituent(dup, contrastWord);
+
+        // Act
+        await MergeAsync(keeper, dup);
+
+        // Assert — active-user mappings/progress may merge, but the shared unowned phrase graph is unchanged.
+        WordExists(dup).Should().BeTrue("another user still maps to the duplicate, so it cannot be deleted");
+        GetExampleSentence(exampleId)!.VocabularyWordId.Should().Be(dup);
+        var link = GetPhraseConstituent(linkId)!;
+        link.PhraseWordId.Should().Be(dup);
+        link.ConstituentWordId.Should().Be(contrastWord);
+    }
+
+    [Fact]
+    public async Task Merge_RefusesWhenKeeperIsSharedOutsideActiveUser()
+    {
+        // Arrange — moving artifacts onto a keeper shared by another user would leak ownerless examples/links.
+        SeedUserProfile(UserB);
+        var keeper = SeedWord("길", "road");
+        var dup = SeedWord(" 길 ", "road duplicate");
+        EnsureWordsMappedToUser(UserA, keeper, dup);
+        EnsureWordsMappedToUser(UserB, keeper);
+        var exampleId = SeedExampleSentence(dup, targetSentence: "길이 멀다.");
+
+        // Act
+        var deleted = await MergeAsync(keeper, dup);
+
+        // Assert
+        deleted.Should().Be(0);
+        WordExists(dup).Should().BeTrue();
+        GetExampleSentence(exampleId)!.VocabularyWordId.Should().Be(dup);
+    }
+
+    [Fact]
+    public async Task Merge_DeduplicatesArtifactLinksAcrossMultipleDuplicates()
+    {
+        // Arrange — two duplicate rows both have equivalent links that collapse to keeper+contrast.
+        var keeper = SeedWord("달", "moon");
+        var dup1 = SeedWord(" 달 ", "moon duplicate 1");
+        var dup2 = SeedWord("달  ", "moon duplicate 2");
+        var contrastWord = SeedWord("딸", "daughter");
+        EnsureWordsMappedToUser(UserA, keeper, dup1, dup2, contrastWord);
+        SeedMinimalPair(UserA, dup1, contrastWord);
+        SeedMinimalPair(UserA, dup2, contrastWord);
+
+        // Act
+        var deleted = await MergeAsync(keeper, dup1, dup2);
+
+        // Assert
+        deleted.Should().Be(2);
+        CountMinimalPairs(UserA, keeper, contrastWord).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task Merge_RemovesMinimalPairsThatCollapseToKeeperSelfPair()
+    {
+        // Arrange — a keeper-vs-duplicate pair becomes keeper-vs-keeper after merge and is no longer valid.
+        var keeper = SeedWord("말", "horse");
+        var dup = SeedWord(" 말 ", "horse duplicate");
+        EnsureWordsMappedToUser(UserA, keeper, dup);
+        var pairId = SeedMinimalPair(UserA, keeper, dup);
+        SeedMinimalPairAttempt(UserA, pairId, promptWordId: dup, selectedWordId: keeper);
+
+        // Act
+        await MergeAsync(keeper, dup);
+
+        // Assert
+        MinimalPairExists(pairId).Should().BeFalse();
+    }
+
+    [Fact]
     public async Task Merge_IsolatesProgressPerUser()
     {
         // Arrange — two users practiced the duplicate; only user A also practiced the keeper.
@@ -151,24 +288,122 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
         });
 
         var oracleA = BuildOracle(keeper, UserA, keeperProgA, dupProgA);
-        var oracleB = BuildOracle(keeper, UserB, dupProgB);
+        EnsureWordsMappedToUser(UserB, dup);
 
         // Act
         await MergeAsync(keeper, dup);
 
-        // Assert — each user keeps exactly one combined keeper record; users are never collapsed together.
+        // Assert — active-user merge changes only UserA; UserB's duplicate progress stays untouched.
         GetProgress(dup, UserA).Should().BeNull();
-        GetProgress(dup, UserB).Should().BeNull();
-        CountProgressFor(keeper).Should().Be(2, "exactly one keeper progress per user");
+        GetProgress(dup, UserB).Should().NotBeNull();
+        CountProgressFor(keeper).Should().Be(1, "only active-user progress is folded into the keeper");
+        WordExists(dup).Should().BeTrue("another user still maps to this word, so it must not be globally deleted");
 
         var mergedA = GetProgress(keeper, UserA)!;
         mergedA.TotalAttempts.Should().Be(3);
         mergedA.MasteryScore.Should().BeApproximately(oracleA.MasteryScore, 0.0001f);
+        GetProgress(keeper, UserB).Should().BeNull("active-user cleanup must not retag another user's practice history");
+    }
 
-        var mergedB = GetProgress(keeper, UserB)!;
-        mergedB.Should().NotBeNull("user B practiced only the duplicate, so a keeper record must be created");
-        mergedB.TotalAttempts.Should().Be(2);
-        mergedB.MasteryScore.Should().BeApproximately(oracleB.MasteryScore, 0.0001f);
+    [Fact]
+    public async Task FindDuplicateVocabularyGroups_ScopesToActiveUserResources()
+    {
+        // Arrange — same target exists for two users, but the active user owns only one copy.
+        SeedUserProfile(UserB);
+        var userAWord = SeedWord("사과", "apple");
+        var userBWord = SeedWord(" 사과 ", "apple");
+        EnsureWordsMappedToUser(UserA, userAWord);
+        EnsureWordsMappedToUser(UserB, userBWord);
+
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+
+        // Act
+        var result = await repo.FindDuplicateVocabularyGroupsAsync();
+
+        // Assert
+        result.TotalGroupCount.Should().Be(0, "duplicate cleanup must not compare active-user words with another tenant's vocabulary");
+    }
+
+    [Fact]
+    public async Task FindDuplicateVocabularyGroups_AllowsNativeMeaningConflictAndKeepsRecommendedNativeMeaning()
+    {
+        // Arrange — normalized target matches, but native meanings differ. The form-level duplicate rule
+        // prevents editing one native meaning to match another, so merge must allow this and keep the keeper.
+        var basicCar = SeedWord("자동차", "car");
+        var automobile = SeedWord(" 자동차 ", "automobile");
+        AddEncodingAids(automobile);
+        EnsureWordsMappedToUser(UserA, basicCar, automobile);
+
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+
+        // Act
+        var result = await repo.FindDuplicateVocabularyGroupsAsync("자동차");
+
+        // Assert
+        result.TotalGroupCount.Should().Be(1);
+        var group = result.Groups.Single();
+        group.NormalizedTerm.Should().Be(VocabularyDuplicatePolicy.NormalizeTargetTerm("자동차"));
+        group.CanMergeAutomatically.Should().BeTrue("same target with different native meanings is a safe merge; the recommended keeper's native meaning wins");
+        group.MergeBlockedReason.Should().BeNull();
+        group.RecommendedKeeperId.Should().Be(automobile);
+
+        var deleted = await repo.MergeVocabularyWordsAsync(group.RecommendedKeeperId, group.Words.Select(w => w.Word.Id).Where(id => id != group.RecommendedKeeperId).ToList());
+
+        deleted.Should().Be(1);
+        GetWord(automobile)!.NativeLanguageTerm.Should().Be("automobile");
+        WordExists(basicCar).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task FindDuplicateVocabularyGroups_BlocksLanguageAndLexicalTypeConflicts()
+    {
+        // Arrange — target matches, but language/type differences still mean these may be different lexical entries.
+        var koreanWord = SeedWord("자동차", "car");
+        var japaneseWord = SeedWord("자동차 ", "car");
+        UpdateWord(japaneseWord, word =>
+        {
+            word.Language = "Japanese";
+            word.LexicalUnitType = LexicalUnitType.Phrase;
+        });
+        EnsureWordsMappedToUser(UserA, koreanWord, japaneseWord);
+
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+
+        // Act
+        var result = await repo.FindDuplicateVocabularyGroupsAsync("자동차");
+
+        // Assert
+        var group = result.Groups.Single();
+        group.CanMergeAutomatically.Should().BeFalse("language and lexical type conflicts still require editing before merge");
+        group.MergeBlockedReason.Should().Contain("language");
+        group.MergeBlockedReason.Should().Contain("lexical type");
+        group.MergeBlockedReason.Should().NotContain("native meaning");
+    }
+
+    [Fact]
+    public async Task FindDuplicateVocabularyGroups_RecommendsBestEncodingOverResourceCount()
+    {
+        // Arrange — resource links are combined by merge, so they must not decide the keeper.
+        var basicManyResources = SeedWord("열쇠", "key");
+        var strongOneResource = SeedWord("열쇠 ", "key");
+        AddEncodingAids(strongOneResource);
+        EnsureWordsMappedToUser(UserA, basicManyResources, strongOneResource);
+        EnsureAdditionalResourceMapping(UserA, basicManyResources);
+        EnsureAdditionalResourceMapping(UserA, basicManyResources);
+
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
+
+        // Act
+        var result = await repo.FindDuplicateVocabularyGroupsAsync("열쇠");
+
+        // Assert
+        var group = result.Groups.Single();
+        group.RecommendedKeeperId.Should().Be(strongOneResource, "keeper selection should favor the record with stronger encoding and memory aids");
+        group.Words.First().Word.Id.Should().Be(strongOneResource, "the review UI should show the recommended keeper first");
     }
 
     [Fact]
@@ -506,9 +741,184 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
 
     private async Task<int> MergeAsync(string keeperWordId, params string[] dupIds)
     {
+        EnsureWordsMappedToUser(UserA, new[] { keeperWordId }.Concat(dupIds).ToArray());
+
         using var scope = _fixture.ServiceProvider.CreateScope();
         var repo = scope.ServiceProvider.GetRequiredService<LearningResourceRepository>();
         return await repo.MergeVocabularyWordsAsync(keeperWordId, dupIds.ToList());
+    }
+
+    private void EnsureWordsMappedToUser(string userId, params string[] wordIds)
+    {
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var resource = db.LearningResources.FirstOrDefault(r => r.UserProfileId == userId);
+        if (resource == null)
+        {
+            resource = new LearningResource
+            {
+                Id = Guid.NewGuid().ToString(),
+                Title = $"Resource {userId}",
+                MediaType = "Vocabulary List",
+                Language = "Korean",
+                UserProfileId = userId,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            db.LearningResources.Add(resource);
+        }
+
+        foreach (var wordId in wordIds)
+        {
+            if (db.ResourceVocabularyMappings.Any(m => m.ResourceId == resource.Id && m.VocabularyWordId == wordId))
+                continue;
+
+            db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping
+            {
+                Id = Guid.NewGuid().ToString(),
+                ResourceId = resource.Id,
+                VocabularyWordId = wordId
+            });
+        }
+
+        db.SaveChanges();
+    }
+
+    private void EnsureAdditionalResourceMapping(string userId, string wordId)
+    {
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var resource = new LearningResource
+        {
+            Id = Guid.NewGuid().ToString(),
+            UserProfileId = userId,
+            Title = $"Extra resource {Guid.NewGuid()}",
+            MediaType = "Text",
+            Language = "Korean",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        db.LearningResources.Add(resource);
+        db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping
+        {
+            Id = Guid.NewGuid().ToString(),
+            ResourceId = resource.Id,
+            VocabularyWordId = wordId
+        });
+        db.SaveChanges();
+    }
+
+    private void AddEncodingAids(string wordId)
+    {
+        UpdateWord(wordId, word =>
+        {
+            word.MnemonicText = "Imagine a bright key opening the lock.";
+            word.MnemonicImageUri = "https://example.test/key.png";
+            word.AudioPronunciationUri = "https://example.test/key.mp3";
+            word.UpdatedAt = DateTime.UtcNow.AddMinutes(1);
+        });
+    }
+
+    private int SeedExampleSentence(string wordId, string targetSentence, string? learningResourceId = null)
+    {
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var example = new ExampleSentence
+        {
+            VocabularyWordId = wordId,
+            LearningResourceId = learningResourceId,
+            TargetSentence = targetSentence,
+            NativeSentence = "Example native sentence",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        db.ExampleSentences.Add(example);
+        db.SaveChanges();
+        return example.Id;
+    }
+
+    private string GetResourceIdForUser(string userId)
+    {
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return db.LearningResources.AsNoTracking().First(r => r.UserProfileId == userId).Id;
+    }
+
+    private int SeedMinimalPair(string userId, string wordAId, string wordBId)
+    {
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        (wordAId, wordBId) = NormalizePairOrder(wordAId, wordBId);
+        var pair = new MinimalPair
+        {
+            UserId = userId,
+            VocabularyWordAId = wordAId,
+            VocabularyWordBId = wordBId,
+            ContrastLabel = "contrast",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        db.MinimalPairs.Add(pair);
+        db.SaveChanges();
+        return pair.Id;
+    }
+
+    private int SeedMinimalPairAttempt(string userId, int pairId, string promptWordId, string selectedWordId)
+    {
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var session = new MinimalPairSession
+        {
+            UserId = userId,
+            Mode = "Focus",
+            StartedAt = DateTime.UtcNow,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        db.MinimalPairSessions.Add(session);
+        db.SaveChanges();
+
+        var attempt = new MinimalPairAttempt
+        {
+            UserId = userId,
+            SessionId = session.Id,
+            PairId = pairId,
+            PromptWordId = promptWordId,
+            SelectedWordId = selectedWordId,
+            IsCorrect = promptWordId == selectedWordId,
+            SequenceNumber = 1,
+            CreatedAt = DateTime.UtcNow
+        };
+        db.MinimalPairAttempts.Add(attempt);
+        db.SaveChanges();
+        return attempt.Id;
+    }
+
+    private string SeedPhraseConstituent(string phraseWordId, string constituentWordId)
+    {
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var link = new PhraseConstituent
+        {
+            Id = Guid.NewGuid().ToString(),
+            PhraseWordId = phraseWordId,
+            ConstituentWordId = constituentWordId,
+            CreatedAt = DateTime.UtcNow
+        };
+        db.PhraseConstituents.Add(link);
+        db.SaveChanges();
+        return link.Id;
+    }
+
+    private void UpdateWord(string wordId, Action<VocabularyWord> update)
+    {
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var word = db.VocabularyWords.Single(w => w.Id == wordId);
+        update(word);
+        db.SaveChanges();
     }
 
     private VocabularyProgress? GetProgress(string wordId, string userId)
@@ -546,6 +956,70 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         return db.VocabularyWords.AsNoTracking().Any(w => w.Id == wordId);
     }
+
+    private ExampleSentence? GetExampleSentence(int id)
+    {
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return db.ExampleSentences.AsNoTracking().FirstOrDefault(e => e.Id == id);
+    }
+
+    private MinimalPair? GetMinimalPair(int id)
+    {
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return db.MinimalPairs.AsNoTracking().FirstOrDefault(p => p.Id == id);
+    }
+
+    private MinimalPairAttempt? GetMinimalPairAttempt(int id)
+    {
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return db.MinimalPairAttempts.AsNoTracking().FirstOrDefault(a => a.Id == id);
+    }
+
+    private PhraseConstituent? GetPhraseConstituent(string id)
+    {
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return db.PhraseConstituents.AsNoTracking().FirstOrDefault(pc => pc.Id == id);
+    }
+
+    private bool MinimalPairExists(int id)
+    {
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return db.MinimalPairs.AsNoTracking().Any(p => p.Id == id);
+    }
+
+    private int CountMinimalPairs(string userId, string wordAId, string wordBId)
+    {
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        (wordAId, wordBId) = NormalizePairOrder(wordAId, wordBId);
+        return db.MinimalPairs.AsNoTracking()
+            .Count(p => p.UserId == userId && p.VocabularyWordAId == wordAId && p.VocabularyWordBId == wordBId);
+    }
+
+    private int CountPhraseConstituents(string phraseWordId, string constituentWordId)
+    {
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return db.PhraseConstituents.AsNoTracking()
+            .Count(pc => pc.PhraseWordId == phraseWordId && pc.ConstituentWordId == constituentWordId);
+    }
+
+    private VocabularyWord? GetWord(string wordId)
+    {
+        using var scope = _fixture.ServiceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return db.VocabularyWords.AsNoTracking().FirstOrDefault(w => w.Id == wordId);
+    }
+
+    private static (string WordAId, string WordBId) NormalizePairOrder(string wordAId, string wordBId) =>
+        StringComparer.Ordinal.Compare(wordAId, wordBId) <= 0
+            ? (wordAId, wordBId)
+            : (wordBId, wordAId);
 
     #endregion
 }

@@ -1024,16 +1024,142 @@ public class LearningResourceRepository
     /// <summary>
     /// Check if a vocabulary word exists with the same terms
     /// </summary>
-    public async Task<VocabularyWord?> FindDuplicateVocabularyWordAsync(string targetTerm, string nativeTerm)
+    public async Task<VocabularyWord?> FindDuplicateVocabularyWordAsync(string targetTerm, string nativeTerm, CancellationToken ct = default)
     {
+        var userId = ActiveUserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning("FindDuplicateVocabularyWordAsync called without an active user — returning null to prevent cross-tenant data leak.");
+            return null;
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        return await db.VocabularyWords
-            .FirstOrDefaultAsync(vw =>
-                vw.TargetLanguageTerm != null && vw.TargetLanguageTerm.Trim().ToLower() == targetTerm.Trim().ToLower() &&
-                vw.NativeLanguageTerm != null && vw.NativeLanguageTerm.Trim().ToLower() == nativeTerm.Trim().ToLower());
+        var targetKey = VocabularyDuplicatePolicy.NormalizeTargetTerm(targetTerm);
+        var nativeKey = VocabularyDuplicatePolicy.NormalizeKeyPart(nativeTerm);
+
+        var candidates = await (
+                from mapping in db.ResourceVocabularyMappings.AsNoTracking()
+                join resource in db.LearningResources.AsNoTracking() on mapping.ResourceId equals resource.Id
+                join word in db.VocabularyWords.AsNoTracking() on mapping.VocabularyWordId equals word.Id
+                where resource.UserProfileId == userId
+                select word)
+            .Distinct()
+            .ToListAsync(ct);
+
+        return candidates.FirstOrDefault(word =>
+            VocabularyDuplicatePolicy.NormalizeTargetTerm(word.TargetLanguageTerm) == targetKey &&
+            VocabularyDuplicatePolicy.NormalizeKeyPart(word.NativeLanguageTerm) == nativeKey);
     }
+
+    public async Task<VocabularyDuplicateScanResult> FindDuplicateVocabularyGroupsAsync(
+        string? focusTerm = null,
+        int skip = 0,
+        int take = 20,
+        CancellationToken ct = default)
+    {
+        var userId = ActiveUserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning("FindDuplicateVocabularyGroupsAsync called without an active user — returning empty result to prevent cross-tenant data leak.");
+            return new VocabularyDuplicateScanResult(Array.Empty<VocabularyDuplicateGroup>(), 0, 0);
+        }
+
+        take = Math.Clamp(take, 1, 100);
+        skip = Math.Max(0, skip);
+        var focusKey = VocabularyDuplicatePolicy.NormalizeTargetTerm(focusTerm);
+
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var rows = await (
+                from mapping in db.ResourceVocabularyMappings.AsNoTracking()
+                join resource in db.LearningResources.AsNoTracking() on mapping.ResourceId equals resource.Id
+                join word in db.VocabularyWords.AsNoTracking() on mapping.VocabularyWordId equals word.Id
+                where resource.UserProfileId == userId && word.TargetLanguageTerm != null
+                select new
+                {
+                    WordId = word.Id,
+                    Word = word,
+                    ResourceId = resource.Id
+                })
+            .ToListAsync(ct);
+
+        var wordInfos = rows
+            .GroupBy(row => row.WordId)
+            .Select(group =>
+            {
+                var word = group.First().Word;
+                return new
+                {
+                    Key = VocabularyDuplicatePolicy.BuildTargetKey(word),
+                    Info = new VocabularyDuplicateWordInfo(
+                        word,
+                        group.Select(row => row.ResourceId).Distinct(StringComparer.Ordinal).Count(),
+                        EncodingScoreHelper.CalculateWithLabel(word, 0).Score)
+                };
+            })
+            .Where(item => !string.IsNullOrWhiteSpace(item.Key))
+            .Where(item => string.IsNullOrWhiteSpace(focusKey) || item.Key == focusKey)
+            .GroupBy(item => item.Key)
+            .Where(group => group.Count() > 1)
+            .Select(group =>
+            {
+                var words = VocabularyDuplicateGroup.OrderWordsByMergePreference(group.Select(item => item.Info));
+
+                var safetySignatures = words
+                    .Select(info => VocabularyDuplicatePolicy.BuildSafetySignature(info.Word))
+                    .Distinct(StringComparer.Ordinal)
+                    .Count();
+                var canMergeAutomatically = safetySignatures == 1;
+                var blockedReason = canMergeAutomatically
+                    ? null
+                    : BuildDuplicateMergeBlockedReason(words);
+
+                return new VocabularyDuplicateGroup(
+                    group.Key,
+                    words.First().Word.TargetLanguageTerm?.Trim() ?? group.Key,
+                    words,
+                    canMergeAutomatically,
+                    blockedReason);
+            })
+            .OrderByDescending(group => group.Words.Count)
+            .ThenBy(group => group.DisplayTerm, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var total = wordInfos.Count;
+        var extra = wordInfos.Sum(group => group.Words.Count - 1);
+        return new VocabularyDuplicateScanResult(wordInfos.Skip(skip).Take(take).ToList(), total, extra);
+    }
+
+    private static string BuildDuplicateMergeBlockedReason(IReadOnlyList<VocabularyDuplicateWordInfo> words)
+    {
+        var mismatches = new List<string>();
+
+        if (HasMultipleNormalizedValues(words.Select(info => info.Word.Language)))
+            mismatches.Add("language");
+
+        if (words.Select(info => info.Word.LexicalUnitType).Distinct().Count() > 1)
+            mismatches.Add("lexical type");
+
+        var mismatchText = mismatches.Count switch
+        {
+            0 => "merge-safety fields",
+            1 => mismatches[0],
+            2 => $"{mismatches[0]} and {mismatches[1]}",
+            _ => $"{string.Join(", ", mismatches.Take(mismatches.Count - 1))}, and {mismatches[^1]}"
+        };
+
+        return $"Cannot merge yet because {mismatchText} differs. Edit the records so those fields match, then run Find Duplicates again.";
+    }
+
+    private static bool HasMultipleNormalizedValues(IEnumerable<string?> values) =>
+        values
+            .Select(VocabularyDuplicatePolicy.NormalizeKeyPart)
+            .Distinct(StringComparer.Ordinal)
+            .Count() > 1;
+
 
     /// <summary>
     /// Get learning resources that contain a specific vocabulary word
@@ -1216,7 +1342,7 @@ public class LearningResourceRepository
     /// engine the live attempt path uses). Progress is merged PER USER — each user keeps exactly one combined
     /// keeper record; users are never collapsed together.
     /// </summary>
-    public async Task<int> MergeVocabularyWordsAsync(string keeperWordId, List<string> deleteWordIds)
+    public async Task<int> MergeVocabularyWordsAsync(string keeperWordId, List<string> deleteWordIds, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(keeperWordId) || deleteWordIds == null || !deleteWordIds.Any())
             return 0;
@@ -1226,23 +1352,70 @@ public class LearningResourceRepository
         if (!deleteWordIds.Any())
             return 0;
 
+        var userId = ActiveUserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning("MergeVocabularyWordsAsync called without an active user — refusing to merge to prevent cross-tenant data changes.");
+            return 0;
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         int deleted = 0;
+        bool changed = false;
+        var userResourceIds = await db.LearningResources
+            .Where(r => r.UserProfileId == userId)
+            .Select(r => r.Id)
+            .ToListAsync(ct);
 
-        // Get existing mappings for the keeper to avoid duplicates
-        var keeperResourceIds = await db.ResourceVocabularyMappings
-            .Where(m => m.VocabularyWordId == keeperWordId)
-            .Select(m => m.ResourceId)
-            .ToListAsync();
-
-        foreach (var deleteId in deleteWordIds)
+        if (userResourceIds.Count == 0)
         {
-            // Reassign resource mappings from the duplicate to the keeper
+            _logger.LogWarning("MergeVocabularyWordsAsync found no resources for active user {UserId} — refusing to merge.", userId);
+            return 0;
+        }
+
+        // Get current-user mappings for the keeper to avoid duplicate resource links.
+        var keeperResourceIds = await db.ResourceVocabularyMappings
+            .Where(m => m.VocabularyWordId == keeperWordId && userResourceIds.Contains(m.ResourceId))
+            .Select(m => m.ResourceId)
+            .ToListAsync(ct);
+
+        if (keeperResourceIds.Count == 0)
+        {
+            _logger.LogWarning("MergeVocabularyWordsAsync keeper word {KeeperWordId} is not mapped to active user {UserId} — refusing to merge.", keeperWordId, userId);
+            return 0;
+        }
+
+        var keeperHasOtherUserReferences = (await GetDeleteWordIdsWithOtherUserReferencesAsync(
+                db, new[] { keeperWordId }, userId, userResourceIds, ct))
+            .Contains(keeperWordId);
+        if (keeperHasOtherUserReferences)
+        {
+            _logger.LogWarning(
+                "MergeVocabularyWordsAsync keeper word {KeeperWordId} is shared outside active user {UserId} — refusing to merge to prevent cross-tenant artifact leaks.",
+                keeperWordId, userId);
+            return 0;
+        }
+
+        var deleteWordIdsWithUnownedArtifacts = await GetDeleteWordIdsWithUnownedArtifactsAsync(db, deleteWordIds, userId, ct);
+        var mergeableDeleteWordIds = deleteWordIds
+            .Where(id => !deleteWordIdsWithUnownedArtifacts.Contains(id))
+            .ToList();
+        if (mergeableDeleteWordIds.Count == 0)
+        {
+            _logger.LogWarning(
+                "MergeVocabularyWordsAsync found only unowned-artifact-linked duplicates for active user {UserId} — refusing to merge to avoid orphaning data.",
+                userId);
+            return 0;
+        }
+
+        foreach (var deleteId in mergeableDeleteWordIds)
+        {
+            // Reassign only the active user's resource mappings from the duplicate to the keeper.
             var mappingsToReassign = await db.ResourceVocabularyMappings
-                .Where(m => m.VocabularyWordId == deleteId)
-                .ToListAsync();
+                .Where(m => m.VocabularyWordId == deleteId && userResourceIds.Contains(m.ResourceId))
+                .ToListAsync(ct);
 
             foreach (var mapping in mappingsToReassign)
             {
@@ -1250,62 +1423,350 @@ public class LearningResourceRepository
                 {
                     db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping
                     {
+                        Id = Guid.NewGuid().ToString(),
                         ResourceId = mapping.ResourceId,
                         VocabularyWordId = keeperWordId
                     });
                     keeperResourceIds.Add(mapping.ResourceId);
                 }
                 db.ResourceVocabularyMappings.Remove(mapping);
+                changed = true;
             }
         }
 
-        // Preserve + recombine learning history before the words (and their cascade) are removed.
-        await MergeLearningProgressAsync(db, keeperWordId, deleteWordIds);
+        var deleteWordIdsWithOtherUserReferences = await GetDeleteWordIdsWithOtherUserReferencesAsync(
+            db, mergeableDeleteWordIds, userId, userResourceIds, ct);
+        var unsharedDeleteWordIds = mergeableDeleteWordIds
+            .Where(id => !deleteWordIdsWithOtherUserReferences.Contains(id))
+            .ToList();
 
-        foreach (var deleteId in deleteWordIds)
+        // Preserve + recombine learning history before the words (and their cascade) are removed.
+        changed |= await MergeLearningProgressAsync(db, keeperWordId, mergeableDeleteWordIds, userId, ct);
+        changed |= await ReparentDependentVocabularyArtifactsAsync(db, keeperWordId, mergeableDeleteWordIds, unsharedDeleteWordIds, userId, ct);
+
+        foreach (var deleteId in mergeableDeleteWordIds)
         {
-            // Delete the duplicate word. Any progress/context rows that still reference it have already
-            // been re-parented to the keeper above, so the cascade has nothing left to destroy.
-            var word = await db.VocabularyWords.FindAsync(deleteId);
+            if (deleteWordIdsWithOtherUserReferences.Contains(deleteId))
+                continue;
+
+            var word = await db.VocabularyWords.FindAsync(new object[] { deleteId }, ct);
             if (word != null)
             {
                 db.VocabularyWords.Remove(word);
                 deleted++;
+                changed = true;
             }
         }
 
-        if (deleted > 0)
+        if (changed)
         {
             // Single SaveChanges => EF wraps everything (mapping reassignment, history merge, word deletes)
             // in one transaction. EF's FK-aware command ordering updates the re-parented contexts before
             // deleting the old duplicate progress rows, so no learning history is lost to the cascade.
-            await db.SaveChangesAsync();
+            await db.SaveChangesAsync(ct);
             _syncService?.TriggerSyncAsync().ConfigureAwait(false);
         }
 
         return deleted;
     }
 
+    private static async Task<bool> ReparentDependentVocabularyArtifactsAsync(
+        ApplicationDbContext db,
+        string keeperWordId,
+        IReadOnlyCollection<string> deleteWordIds,
+        IReadOnlyCollection<string> unsharedDeleteWordIds,
+        string userId,
+        CancellationToken ct)
+    {
+        if (deleteWordIds.Count == 0)
+            return false;
+
+        var changed = false;
+
+        var examples = await db.ExampleSentences
+            .Where(e =>
+                deleteWordIds.Contains(e.VocabularyWordId) &&
+                db.LearningResources.Any(r => r.Id == e.LearningResourceId && r.UserProfileId == userId))
+            .ToListAsync(ct);
+        foreach (var example in examples)
+        {
+            example.VocabularyWordId = keeperWordId;
+            example.UpdatedAt = DateTime.UtcNow;
+            changed = true;
+        }
+
+        var minimalPairAttempts = await db.MinimalPairAttempts
+            .Where(a => a.UserId == userId && (deleteWordIds.Contains(a.PromptWordId) || deleteWordIds.Contains(a.SelectedWordId)))
+            .ToListAsync(ct);
+        foreach (var attempt in minimalPairAttempts)
+        {
+            if (deleteWordIds.Contains(attempt.PromptWordId))
+                attempt.PromptWordId = keeperWordId;
+
+            if (deleteWordIds.Contains(attempt.SelectedWordId))
+                attempt.SelectedWordId = keeperWordId;
+
+            changed = true;
+        }
+
+        var allUserMinimalPairs = await db.MinimalPairs
+            .Where(p => p.UserId == userId)
+            .ToListAsync(ct);
+        var minimalPairByKey = allUserMinimalPairs
+            .ToDictionary(pair => BuildPairKey(pair.VocabularyWordAId, pair.VocabularyWordBId), StringComparer.Ordinal);
+        var minimalPairs = allUserMinimalPairs
+            .Where(p => deleteWordIds.Contains(p.VocabularyWordAId) || deleteWordIds.Contains(p.VocabularyWordBId))
+            .ToList();
+        foreach (var pair in minimalPairs)
+        {
+            minimalPairByKey.Remove(BuildPairKey(pair.VocabularyWordAId, pair.VocabularyWordBId));
+            var wordAId = deleteWordIds.Contains(pair.VocabularyWordAId) ? keeperWordId : pair.VocabularyWordAId;
+            var wordBId = deleteWordIds.Contains(pair.VocabularyWordBId) ? keeperWordId : pair.VocabularyWordBId;
+            (wordAId, wordBId) = NormalizePairOrder(wordAId, wordBId);
+
+            if (wordAId == wordBId)
+            {
+                var attemptsToRemove = await db.MinimalPairAttempts
+                    .Where(a => a.PairId == pair.Id)
+                    .ToListAsync(ct);
+                db.MinimalPairAttempts.RemoveRange(attemptsToRemove);
+                db.MinimalPairs.Remove(pair);
+                changed = true;
+                continue;
+            }
+
+            var targetKey = BuildPairKey(wordAId, wordBId);
+            minimalPairByKey.TryGetValue(targetKey, out var existingPair);
+
+            if (existingPair != null)
+            {
+                var attemptsToMove = await db.MinimalPairAttempts
+                    .Where(a => a.PairId == pair.Id)
+                    .ToListAsync(ct);
+                foreach (var attempt in attemptsToMove)
+                    attempt.PairId = existingPair.Id;
+
+                db.MinimalPairs.Remove(pair);
+            }
+            else
+            {
+                pair.VocabularyWordAId = wordAId;
+                pair.VocabularyWordBId = wordBId;
+                pair.UpdatedAt = DateTime.UtcNow;
+                minimalPairByKey[targetKey] = pair;
+            }
+
+            changed = true;
+        }
+
+        if (unsharedDeleteWordIds.Count > 0)
+        {
+            var allPhraseConstituents = await db.PhraseConstituents
+                .ToListAsync(ct);
+            var phraseConstituentByKey = allPhraseConstituents
+                .GroupBy(pc => BuildPhraseConstituentKey(pc.PhraseWordId, pc.ConstituentWordId), StringComparer.Ordinal)
+                .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
+            var phraseConstituents = allPhraseConstituents
+                .Where(pc => unsharedDeleteWordIds.Contains(pc.PhraseWordId) || (pc.ConstituentWordId != null && unsharedDeleteWordIds.Contains(pc.ConstituentWordId)))
+                .ToList();
+            foreach (var phraseConstituent in phraseConstituents)
+            {
+                phraseConstituentByKey.Remove(BuildPhraseConstituentKey(phraseConstituent.PhraseWordId, phraseConstituent.ConstituentWordId));
+                var phraseWordId = unsharedDeleteWordIds.Contains(phraseConstituent.PhraseWordId)
+                    ? keeperWordId
+                    : phraseConstituent.PhraseWordId;
+                var constituentWordId = phraseConstituent.ConstituentWordId != null && unsharedDeleteWordIds.Contains(phraseConstituent.ConstituentWordId)
+                    ? keeperWordId
+                    : phraseConstituent.ConstituentWordId;
+
+                var targetKey = BuildPhraseConstituentKey(phraseWordId, constituentWordId);
+                phraseConstituentByKey.TryGetValue(targetKey, out var existingLink);
+
+                if (existingLink != null)
+                {
+                    db.PhraseConstituents.Remove(phraseConstituent);
+                }
+                else
+                {
+                    phraseConstituent.PhraseWordId = phraseWordId;
+                    phraseConstituent.ConstituentWordId = constituentWordId;
+                    phraseConstituentByKey[targetKey] = phraseConstituent;
+                }
+
+                changed = true;
+            }
+        }
+
+        return changed;
+    }
+
+    private static async Task<HashSet<string>> GetDeleteWordIdsWithOtherUserReferencesAsync(
+        ApplicationDbContext db,
+        IReadOnlyCollection<string> deleteWordIds,
+        string userId,
+        IReadOnlyCollection<string> userResourceIds,
+        CancellationToken ct)
+    {
+        var sharedWordIds = new HashSet<string>(StringComparer.Ordinal);
+
+        var otherUserMappings = await db.ResourceVocabularyMappings
+            .Where(m => deleteWordIds.Contains(m.VocabularyWordId) && !userResourceIds.Contains(m.ResourceId))
+            .Select(m => m.VocabularyWordId)
+            .Distinct()
+            .ToListAsync(ct);
+        sharedWordIds.UnionWith(otherUserMappings);
+
+        var otherUserProgress = await db.VocabularyProgresses
+            .Where(p => deleteWordIds.Contains(p.VocabularyWordId) && p.UserId != userId)
+            .Select(p => p.VocabularyWordId)
+            .Distinct()
+            .ToListAsync(ct);
+        sharedWordIds.UnionWith(otherUserProgress);
+
+        var otherUserMinimalPairWords = await db.MinimalPairs
+            .Where(p => p.UserId != userId && (deleteWordIds.Contains(p.VocabularyWordAId) || deleteWordIds.Contains(p.VocabularyWordBId)))
+            .Select(p => new { p.VocabularyWordAId, p.VocabularyWordBId })
+            .ToListAsync(ct);
+        foreach (var pair in otherUserMinimalPairWords)
+        {
+            if (deleteWordIds.Contains(pair.VocabularyWordAId))
+                sharedWordIds.Add(pair.VocabularyWordAId);
+            if (deleteWordIds.Contains(pair.VocabularyWordBId))
+                sharedWordIds.Add(pair.VocabularyWordBId);
+        }
+
+        var otherUserAttemptWords = await db.MinimalPairAttempts
+            .Where(a => a.UserId != userId && (deleteWordIds.Contains(a.PromptWordId) || deleteWordIds.Contains(a.SelectedWordId)))
+            .Select(a => new { a.PromptWordId, a.SelectedWordId })
+            .ToListAsync(ct);
+        foreach (var attempt in otherUserAttemptWords)
+        {
+            if (deleteWordIds.Contains(attempt.PromptWordId))
+                sharedWordIds.Add(attempt.PromptWordId);
+            if (deleteWordIds.Contains(attempt.SelectedWordId))
+                sharedWordIds.Add(attempt.SelectedWordId);
+        }
+
+        var exampleReferences = await db.ExampleSentences
+            .Where(example => deleteWordIds.Contains(example.VocabularyWordId))
+            .Select(example => new { example.VocabularyWordId, example.LearningResourceId })
+            .ToListAsync(ct);
+        var exampleResourceIds = exampleReferences
+            .Select(example => example.LearningResourceId)
+            .Where(id => id != null)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        var exampleResourceOwners = exampleResourceIds.Count == 0
+            ? new Dictionary<string, string?>(StringComparer.Ordinal)
+            : await db.LearningResources
+                .Where(resource => exampleResourceIds.Contains(resource.Id))
+                .ToDictionaryAsync(resource => resource.Id, resource => resource.UserProfileId, StringComparer.Ordinal, ct);
+        foreach (var example in exampleReferences)
+        {
+            if (example.LearningResourceId == null ||
+                !exampleResourceOwners.TryGetValue(example.LearningResourceId, out var ownerId) ||
+                ownerId != userId)
+            {
+                sharedWordIds.Add(example.VocabularyWordId);
+            }
+        }
+
+        var phraseConstituentWords = await db.PhraseConstituents
+            .Where(pc => deleteWordIds.Contains(pc.PhraseWordId) || (pc.ConstituentWordId != null && deleteWordIds.Contains(pc.ConstituentWordId)))
+            .Select(pc => new { pc.PhraseWordId, pc.ConstituentWordId })
+            .ToListAsync(ct);
+        foreach (var phraseConstituent in phraseConstituentWords)
+        {
+            if (deleteWordIds.Contains(phraseConstituent.PhraseWordId))
+                sharedWordIds.Add(phraseConstituent.PhraseWordId);
+            if (phraseConstituent.ConstituentWordId != null && deleteWordIds.Contains(phraseConstituent.ConstituentWordId))
+                sharedWordIds.Add(phraseConstituent.ConstituentWordId);
+        }
+
+        return sharedWordIds;
+    }
+
+    private static async Task<HashSet<string>> GetDeleteWordIdsWithUnownedArtifactsAsync(
+        ApplicationDbContext db,
+        IReadOnlyCollection<string> deleteWordIds,
+        string userId,
+        CancellationToken ct)
+    {
+        var blockedWordIds = new HashSet<string>(StringComparer.Ordinal);
+
+        var phraseConstituentWords = await db.PhraseConstituents
+            .Where(pc => deleteWordIds.Contains(pc.PhraseWordId) || (pc.ConstituentWordId != null && deleteWordIds.Contains(pc.ConstituentWordId)))
+            .Select(pc => new { pc.PhraseWordId, pc.ConstituentWordId })
+            .ToListAsync(ct);
+        foreach (var phraseConstituent in phraseConstituentWords)
+        {
+            if (deleteWordIds.Contains(phraseConstituent.PhraseWordId))
+                blockedWordIds.Add(phraseConstituent.PhraseWordId);
+            if (phraseConstituent.ConstituentWordId != null && deleteWordIds.Contains(phraseConstituent.ConstituentWordId))
+                blockedWordIds.Add(phraseConstituent.ConstituentWordId);
+        }
+
+        var exampleReferences = await db.ExampleSentences
+            .Where(example => deleteWordIds.Contains(example.VocabularyWordId))
+            .Select(example => new { example.VocabularyWordId, example.LearningResourceId })
+            .ToListAsync(ct);
+        var exampleResourceIds = exampleReferences
+            .Select(example => example.LearningResourceId)
+            .Where(id => id != null)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        var exampleResourceOwners = exampleResourceIds.Count == 0
+            ? new Dictionary<string, string?>(StringComparer.Ordinal)
+            : await db.LearningResources
+                .Where(resource => exampleResourceIds.Contains(resource.Id))
+                .ToDictionaryAsync(resource => resource.Id, resource => resource.UserProfileId, StringComparer.Ordinal, ct);
+        foreach (var example in exampleReferences)
+        {
+            if (example.LearningResourceId == null ||
+                !exampleResourceOwners.TryGetValue(example.LearningResourceId, out var ownerId) ||
+                ownerId != userId)
+            {
+                blockedWordIds.Add(example.VocabularyWordId);
+            }
+        }
+
+        return blockedWordIds;
+    }
+
+    private static (string WordAId, string WordBId) NormalizePairOrder(string wordAId, string wordBId) =>
+        StringComparer.Ordinal.Compare(wordAId, wordBId) <= 0
+            ? (wordAId, wordBId)
+            : (wordBId, wordAId);
+
+    private static string BuildPairKey(string wordAId, string wordBId)
+    {
+        (wordAId, wordBId) = NormalizePairOrder(wordAId, wordBId);
+        return $"{wordAId}\u001f{wordBId}";
+    }
+
+    private static string BuildPhraseConstituentKey(string phraseWordId, string? constituentWordId) =>
+        $"{phraseWordId}\u001f{constituentWordId ?? string.Empty}";
+
     /// <summary>
     /// Folds the learning progress and per-attempt contexts of the duplicate words into the keeper, per user.
     /// Mutates the tracked <paramref name="db"/> graph only; the caller owns the single SaveChanges.
     /// </summary>
-    private async Task MergeLearningProgressAsync(ApplicationDbContext db, string keeperWordId, List<string> deleteWordIds)
+    private async Task<bool> MergeLearningProgressAsync(ApplicationDbContext db, string keeperWordId, List<string> deleteWordIds, string userId, CancellationToken ct)
     {
         var allWordIds = new List<string>(deleteWordIds) { keeperWordId };
 
         // Load tracked so mutations + re-parenting flush on the caller's SaveChanges.
         var allProgresses = await db.VocabularyProgresses
-            .Where(p => allWordIds.Contains(p.VocabularyWordId))
-            .ToListAsync();
+            .Where(p => p.UserId == userId && allWordIds.Contains(p.VocabularyWordId))
+            .ToListAsync(ct);
 
         if (allProgresses.Count == 0)
-            return; // No practiced history on any of these words — nothing to preserve.
+            return false; // No practiced history on any of these words — nothing to preserve.
 
         var progressIds = allProgresses.Select(p => p.Id).ToList();
         var allContexts = await db.VocabularyLearningContexts
             .Where(c => progressIds.Contains(c.VocabularyProgressId))
-            .ToListAsync();
+            .ToListAsync(ct);
 
         var contextsByProgress = allContexts
             .GroupBy(c => c.VocabularyProgressId)
@@ -1316,7 +1777,6 @@ public class LearningResourceRepository
 
         foreach (var userGroup in allProgresses.GroupBy(p => p.UserId))
         {
-            var userId = userGroup.Key;
             var userProgresses = userGroup.ToList();
             var keeperProg = userProgresses.FirstOrDefault(p => p.VocabularyWordId == keeperWordId);
             var dupProgresses = userProgresses.Where(p => p.VocabularyWordId != keeperWordId).ToList();
@@ -1452,5 +1912,7 @@ public class LearningResourceRepository
                 "Vocab merge: folded learning history into keeper {KeeperWordId} for {UserCount} user(s), re-parented {ContextCount} learning context(s) from {DuplicateCount} duplicate word(s).",
                 keeperWordId, usersMerged, contextsReparented, deleteWordIds.Count);
         }
+
+        return usersMerged > 0;
     }
 }

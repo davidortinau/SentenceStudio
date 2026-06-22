@@ -95,9 +95,15 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         
         modelBuilder.Entity<ResourceVocabularyMapping>().ToTable("ResourceVocabularyMapping").HasKey(e => e.Id);
         modelBuilder.Entity<ResourceVocabularyMapping>().Property(e => e.Id).ValueGeneratedNever();
+        modelBuilder.Entity<ResourceVocabularyMapping>()
+            .HasIndex(e => new { e.ResourceId, e.VocabularyWordId });
+        modelBuilder.Entity<ResourceVocabularyMapping>()
+            .HasIndex(e => e.VocabularyWordId);
         
         modelBuilder.Entity<VocabularyProgress>().ToTable("VocabularyProgress").HasKey(e => e.Id);
         modelBuilder.Entity<VocabularyProgress>().Property(e => e.Id).ValueGeneratedNever();
+        modelBuilder.Entity<LearningResource>()
+            .HasIndex(e => e.UserProfileId);
         
         modelBuilder.Entity<VocabularyLearningContext>().ToTable("VocabularyLearningContext").HasKey(e => e.Id);
         modelBuilder.Entity<VocabularyLearningContext>().Property(e => e.Id).ValueGeneratedNever();

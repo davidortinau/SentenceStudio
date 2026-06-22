@@ -429,10 +429,13 @@ else
                                 Focused on <strong>@duplicateFocusLabel</strong> so you can manage this word's copies faster.
                             </div>
                         }
-                        @if (duplicateGroups.Count > 0)
+                        <div class="small text-secondary-ss mb-2">
+                            Learning progress and resource associations are combined automatically. The keeper is chosen by encoding strength and memory aids.
+                        </div>
+                        @if (string.IsNullOrWhiteSpace(duplicateFocusLabel) && duplicateGroups.Count > 1)
                         {
-                            <button class="btn btn-primary btn-sm me-2" @onclick="AutoMergeAllDuplicates" disabled="@isCleanupRunning">
-                                Auto-merge All
+                            <button class="btn btn-primary btn-sm me-2" @onclick="AutoMergeAllDuplicates" disabled="@(isCleanupRunning || !duplicateGroups.Any(g => g.CanMergeAutomatically))">
+                                Merge all safe groups using recommendations
                             </button>
                         }
                     </div>
@@ -446,13 +449,17 @@ else
                     else if (!isCleanupRunning)
                     {
                         <div class="list-group" style="max-height: 60vh; overflow-y: auto;">
-                            @foreach (var group in duplicateGroups.Take(duplicateVisibleCount))
+                            @foreach (var group in duplicateGroups)
                             {
                                 <div class="list-group-item @(IsFocusedDuplicateGroup(group) ? "border border-primary-subtle bg-primary-subtle" : "")">
                                     <div class="d-flex justify-content-between align-items-start gap-2">
                                         <div>
                                             <strong>@group.DisplayTerm</strong>
                                             <span class="badge bg-secondary ms-2">@group.Words.Count copies</span>
+                                            @if (!group.CanMergeAutomatically)
+                                            {
+                                                <span class="badge bg-warning text-dark ms-2">Edit before merge</span>
+                                            }
                                         </div>
                                         @if (IsFocusedDuplicateGroup(group))
                                         {
@@ -460,40 +467,65 @@ else
                                         }
                                     </div>
                                     <div class="mt-2">
-                                        @foreach (var wordInfo in group.Words)
+                                       @foreach (var wordInfo in VocabularyDuplicateGroup.OrderWordsByMergePreference(group.Words))
                                         {
-                                            <div class="d-flex flex-wrap align-items-center gap-2 py-1">
-                                                <small class="text-muted">@wordInfo.Word.NativeLanguageTerm</small>
-                                                <span class="badge bg-info">@wordInfo.ResourceCount resources</span>
-                                                <span class="badge bg-secondary">@(wordInfo.EncodingScore >= 0.67 ? "Strong" : wordInfo.EncodingScore >= 0.34 ? "Good" : "Basic")</span>
-                                                @if (wordInfo.Word.Id == group.RecommendedKeeperId)
-                                                {
-                                                    <span class="badge bg-success">Recommended keeper</span>
-                                                }
-                                                @if (wordInfo.Word.Id == focusedDuplicateWordId)
-                                                {
-                                                    <span class="badge bg-primary">Current word</span>
-                                                }
-                                                <small class="text-muted">ID: @wordInfo.Word.Id[..8]...</small>
-                                                <button class="btn btn-sm btn-outline-secondary"
-                                                        @onclick="() => EditWord(wordInfo.Word.Id)" disabled="@isCleanupRunning">
-                                                    <i class="bi bi-pencil-square me-1"></i>Edit
-                                                </button>
-                                            </div>
-                                        }
+                                           <div class="border rounded p-2 mb-2">
+                                               <div class="d-flex flex-wrap align-items-center gap-2">
+                                                   <strong>@wordInfo.Word.NativeLanguageTerm</strong>
+                                                   <span class="badge @GetEncodingBadgeClass(wordInfo.EncodingScore)">@GetEncodingLabel(wordInfo.EncodingScore)</span>
+                                                   @if (wordInfo.Word.Id == group.RecommendedKeeperId)
+                                                   {
+                                                       <span class="badge bg-success">Recommended keeper</span>
+                                                   }
+                                                   @if (wordInfo.Word.Id == focusedDuplicateWordId)
+                                                   {
+                                                       <span class="badge bg-primary">Current word</span>
+                                                   }
+                                               </div>
+                                               <div class="small text-secondary-ss mt-1">
+                                                   @GetMemoryAidSummary(wordInfo)
+                                               </div>
+                                               @if (wordInfo.Word.Id == group.RecommendedKeeperId)
+                                               {
+                                                   <div class="small text-success mt-1">Best retained version based on encoding strength and memory aids.</div>
+                                               }
+                                               @if (!group.CanMergeAutomatically)
+                                               {
+                                                   <button class="btn btn-sm btn-outline-secondary mt-2"
+                                                           @onclick="() => EditWord(wordInfo.Word.Id)" disabled="@isCleanupRunning">
+                                                       <i class="bi bi-pencil-square me-1"></i>Edit record
+                                                   </button>
+                                               }
+                                           </div>
+                                       }
                                     </div>
-                                    <button class="btn btn-sm btn-outline-primary mt-1"
-                                            @onclick="() => MergeDuplicateGroup(group)" disabled="@isCleanupRunning">
-                                        Merge (keep best)
-                                    </button>
+                                    @if (!group.CanMergeAutomatically)
+                                    {
+                                        <div class="alert alert-warning py-2 mt-2 mb-2">
+                                            <div class="fw-semibold">Merge is not available yet.</div>
+                                            <div class="small">
+                                                @(group.MergeBlockedReason ?? "Edit these records so language and lexical type match before merging.")
+                                            </div>
+                                            <div class="small mt-1">
+                                                Use <strong>Edit record</strong> above to align the fields, then run <strong>Find Duplicates</strong> again.
+                                            </div>
+                                        </div>
+                                    }
+                                    @if (group.CanMergeAutomatically)
+                                    {
+                                        <button class="btn btn-sm btn-outline-primary mt-1"
+                                                @onclick="() => MergeDuplicateGroup(group)" disabled="@isCleanupRunning">
+                                            Merge duplicates, keeping recommended
+                                        </button>
+                                    }
                                 </div>
                             }
                         </div>
-                        @if (duplicateVisibleCount < duplicateGroups.Count)
+                        @if (duplicateGroups.Count < duplicateTotalGroupCount)
                         {
                             <div class="text-center mt-2">
-                                <button class="btn btn-sm btn-outline-secondary" @onclick="ShowMoreDuplicates">
-                                    Show more (@(duplicateGroups.Count - duplicateVisibleCount) remaining)
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="ShowMoreDuplicates" disabled="@isCleanupRunning">
+                                    Show more (@(duplicateTotalGroupCount - duplicateGroups.Count) remaining)
                                 </button>
                             </div>
                         }
@@ -697,13 +729,14 @@ else
     private string cleanupStatus = "";
     private int cleanupProgress;
     private int cleanupTotal;
-    private List<DuplicateGroup> duplicateGroups = new();
+    private List<VocabularyDuplicateGroup> duplicateGroups = new();
     private List<string> cleanupResults = new();
     private string? duplicateFocusLabel;
     private string? duplicateFocusNormalizedTerm;
     private string? focusedDuplicateWordId;
     private int duplicatePageSize = 20;
-    private int duplicateVisibleCount = 20;
+    private int duplicateTotalGroupCount;
+    private int duplicateExtraRecordCount;
     private bool pendingCleanupScroll;
 
     private bool HasActiveFilters => !string.IsNullOrWhiteSpace(searchQuery);
@@ -1328,6 +1361,46 @@ else
         _ => "bg-secondary bg-opacity-25 text-secondary-ss"
     };
 
+    private static string GetEncodingLabel(double score) => EncodingScoreHelper.GetLabel(score);
+
+    private static string GetEncodingBadgeClass(double score) => GetEncodingLabel(score) switch
+    {
+        "Strong" => "bg-success bg-opacity-25 text-success",
+        "Good" => "bg-warning bg-opacity-25 text-warning",
+        _ => "bg-secondary bg-opacity-25 text-secondary-ss"
+    };
+
+    private static string GetMemoryAidSummary(VocabularyDuplicateWordInfo wordInfo)
+    {
+        var word = wordInfo.Word;
+        var aids = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(word.MnemonicText))
+        {
+            aids.Add($"Memory aid: {Truncate(word.MnemonicText, 120)}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(word.MnemonicImageUri))
+        {
+            aids.Add("image aid");
+        }
+
+        if (!string.IsNullOrWhiteSpace(word.AudioPronunciationUri))
+        {
+            aids.Add("audio");
+        }
+
+        return aids.Count > 0
+            ? string.Join(" | ", aids)
+            : "No memory aids on this copy.";
+    }
+
+    private static string Truncate(string value, int maxLength)
+    {
+        var trimmed = value.Trim();
+        return trimmed.Length <= maxLength ? trimmed : $"{trimmed[..maxLength]}...";
+    }
+
     private static string GetFilterTypeBadgeClass(string filterType) => filterType.ToLower() switch
     {
         "tag" => "bg-info",
@@ -1367,9 +1440,29 @@ else
     // ===== FIND DUPLICATES =====
     private Task FindDuplicates() => OpenDuplicateManagerAsync();
 
-    private void ShowMoreDuplicates()
+    private async Task ShowMoreDuplicates()
     {
-        duplicateVisibleCount += duplicatePageSize;
+        if (isCleanupRunning)
+            return;
+
+        isCleanupRunning = true;
+        cleanupStatus = "Loading more duplicate groups...";
+        StateHasChanged();
+
+        try
+        {
+            await LoadDuplicateGroupsAsync(append: true);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading more duplicate groups");
+            cleanupResults.Add($"Error loading more duplicate groups: {ex.Message}");
+        }
+        finally
+        {
+            isCleanupRunning = false;
+            StateHasChanged();
+        }
     }
 
     private async Task OpenDuplicateManagerAsync(string? focusTerm = null, string? focusWordId = null)
@@ -1377,9 +1470,13 @@ else
         showCleanupPanel = true;
         showDuplicatePanel = true;
         isCleanupRunning = true;
-        duplicateVisibleCount = duplicatePageSize;
+        duplicateGroups.Clear();
+        duplicateTotalGroupCount = 0;
+        duplicateExtraRecordCount = 0;
+        cleanupTotal = 0;
+        cleanupProgress = 0;
         duplicateFocusLabel = string.IsNullOrWhiteSpace(focusTerm) ? null : focusTerm.Trim();
-        duplicateFocusNormalizedTerm = NormalizeDuplicateTerm(focusTerm);
+        duplicateFocusNormalizedTerm = VocabularyDuplicatePolicy.NormalizeTargetTerm(focusTerm);
         focusedDuplicateWordId = string.IsNullOrWhiteSpace(focusWordId) ? null : focusWordId;
         cleanupTitle = string.IsNullOrWhiteSpace(duplicateFocusLabel)
             ? "Find Duplicates"
@@ -1389,11 +1486,10 @@ else
             : $"Scanning for duplicates matching “{duplicateFocusLabel}”...";
         cleanupResults.Clear();
         StateHasChanged();
-        await Task.Delay(50); // let the spinner paint before synchronous scan
 
         try
         {
-            RefreshDuplicateGroups();
+            await LoadDuplicateGroupsAsync(append: false);
 
             if (duplicateGroups.Count > 0)
                 Toast.ShowSuccess(cleanupStatus);
@@ -1414,18 +1510,21 @@ else
         }
     }
 
-    private async Task MergeDuplicateGroup(DuplicateGroup group)
+    private async Task MergeDuplicateGroup(VocabularyDuplicateGroup group)
     {
+        if (!group.CanMergeAutomatically)
+        {
+            Toast.ShowInfo(group.MergeBlockedReason ?? "This duplicate group needs review before merging.");
+            return;
+        }
+
         isCleanupRunning = true;
         cleanupStatus = $"Merging group: {group.NormalizedTerm}...";
         StateHasChanged();
 
         try
         {
-            var sorted = group.Words
-                .OrderByDescending(w => w.ResourceCount)
-                .ThenByDescending(w => w.EncodingScore)
-                .ToList();
+            var sorted = VocabularyDuplicateGroup.OrderWordsByMergePreference(group.Words);
 
             var keeper = sorted.First();
             var deleteIds = sorted.Skip(1).Select(w => w.Word.Id).ToList();
@@ -1434,7 +1533,7 @@ else
             cleanupResults.Add($"Merged '{group.DisplayTerm}': kept 1, removed {deleted}");
             CacheService.InvalidateVocabSummary();
             await LoadData();
-            RefreshDuplicateGroups();
+            await LoadDuplicateGroupsAsync(append: false);
             if (deleted > 0)
                 Toast.ShowSuccess($"Merged {deleted} duplicate record(s) for '{group.DisplayTerm}'.");
             else
@@ -1455,25 +1554,21 @@ else
     private async Task AutoMergeAllDuplicates()
     {
         isCleanupRunning = true;
-        cleanupTotal = duplicateGroups.Count;
+        var groupsToProcess = duplicateGroups.Where(g => g.CanMergeAutomatically).ToList();
+        cleanupTotal = groupsToProcess.Count;
         cleanupProgress = 0;
-        cleanupStatus = "Auto-merging all duplicates...";
+        cleanupStatus = "Merging safe duplicate groups using recommendations...";
         cleanupResults.Clear();
         StateHasChanged();
 
         int totalMerged = 0;
         int errors = 0;
 
-        var groupsToProcess = duplicateGroups.ToList();
-
         foreach (var group in groupsToProcess)
         {
             try
             {
-                var sorted = group.Words
-                    .OrderByDescending(w => w.ResourceCount)
-                    .ThenByDescending(w => w.EncodingScore)
-                    .ToList();
+                var sorted = VocabularyDuplicateGroup.OrderWordsByMergePreference(group.Words);
 
                 var keeper = sorted.First();
                 var deleteIds = sorted.Skip(1).Select(w => w.Word.Id).ToList();
@@ -1483,7 +1578,7 @@ else
             }
             catch (Exception ex)
             {
-                Logger.LogError(ex, "Error auto-merging group {Term}", group.NormalizedTerm);
+                Logger.LogError(ex, "Error merging duplicate group {Term}", group.NormalizedTerm);
                 errors++;
             }
 
@@ -1492,13 +1587,13 @@ else
         }
 
         duplicateGroups.Clear();
-        cleanupResults.Add($"Auto-merge complete: removed {totalMerged} duplicate(s)" + (errors > 0 ? $", {errors} error(s)" : ""));
+        cleanupResults.Add($"Merge complete: removed {totalMerged} duplicate(s)" + (errors > 0 ? $", {errors} error(s)" : ""));
         isCleanupRunning = false;
 
         CacheService.InvalidateVocabSummary();
         await LoadData();
-        RefreshDuplicateGroups();
-        Toast.ShowSuccess($"Auto-merge complete: removed {totalMerged} duplicate(s).");
+        await LoadDuplicateGroupsAsync(append: false);
+        Toast.ShowSuccess($"Merge complete: removed {totalMerged} duplicate(s).");
         StateHasChanged();
     }
 
@@ -1826,57 +1921,29 @@ Return JSON like: {{""lemmas"": [{{""id"": 1, ""lemma"": ""dictionary form""}}, 
             : $"/vocabulary/edit/{id}?{string.Join("&", queryParts)}";
     }
 
-    private static string NormalizeDuplicateTerm(string? term)
+    private async Task LoadDuplicateGroupsAsync(bool append)
     {
-        if (string.IsNullOrWhiteSpace(term))
-            return "";
+        var result = await ResourceRepo.FindDuplicateVocabularyGroupsAsync(
+            duplicateFocusLabel,
+            append ? duplicateGroups.Count : 0,
+            duplicatePageSize);
 
-        var normalized = term.Trim()
-            .Normalize(System.Text.NormalizationForm.FormKC)
-            .ToLowerInvariant();
+        if (append)
+            duplicateGroups.AddRange(result.Groups);
+        else
+            duplicateGroups = result.Groups.ToList();
 
-        normalized = System.Text.RegularExpressions.Regex.Replace(normalized, @"\s+", " ");
-        normalized = System.Text.RegularExpressions.Regex.Replace(normalized, @"^[\p{P}\p{S}]+|[\p{P}\p{S}]+$", "");
+        duplicateTotalGroupCount = result.TotalGroupCount;
+        duplicateExtraRecordCount = result.ExtraRecordCount;
 
-        return normalized;
-    }
-
-    private void RefreshDuplicateGroups()
-    {
-        duplicateGroups = allWords
-            .Where(w => !string.IsNullOrWhiteSpace(w.Word.TargetLanguageTerm))
-            .Where(w => string.IsNullOrWhiteSpace(duplicateFocusNormalizedTerm)
-                || NormalizeDuplicateTerm(w.Word.TargetLanguageTerm) == duplicateFocusNormalizedTerm)
-            .GroupBy(w => NormalizeDuplicateTerm(w.Word.TargetLanguageTerm))
-            .Where(g => g.Count() > 1)
-            .Select(group =>
-            {
-                var words = group.Select(w => new DuplicateWordInfo(
-                        w.Word,
-                        w.AssociatedResources.Count,
-                        w.EncodingScore))
-                    .OrderByDescending(w => w.ResourceCount)
-                    .ThenByDescending(w => w.EncodingScore)
-                    .ThenBy(w => w.Word.NativeLanguageTerm)
-                    .ToList();
-
-                return new DuplicateGroup(
-                    group.Key,
-                    group.First().Word.TargetLanguageTerm?.Trim() ?? group.Key,
-                    words);
-            })
-            .OrderByDescending(g => g.Words.Count)
-            .ThenBy(g => g.DisplayTerm, StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
-        cleanupStatus = duplicateGroups.Count > 0
-            ? $"Found {duplicateGroups.Count} group(s) of duplicate words with {duplicateGroups.Sum(g => g.Words.Count - 1)} extra record(s)."
+        cleanupStatus = duplicateTotalGroupCount > 0
+            ? $"Found {duplicateTotalGroupCount} group(s) of duplicate words with {duplicateExtraRecordCount} extra record(s). Showing {duplicateGroups.Count}."
             : string.IsNullOrWhiteSpace(duplicateFocusLabel)
                 ? "No duplicates found."
                 : $"No duplicates found for '{duplicateFocusLabel}'.";
     }
 
-    private bool IsFocusedDuplicateGroup(DuplicateGroup group) =>
+    private bool IsFocusedDuplicateGroup(VocabularyDuplicateGroup group) =>
         !string.IsNullOrWhiteSpace(duplicateFocusNormalizedTerm)
         && group.NormalizedTerm == duplicateFocusNormalizedTerm;
 
@@ -1892,13 +1959,6 @@ Return JSON like: {{""lemmas"": [{{""id"": 1, ""lemma"": ""dictionary form""}}, 
         {
             // Navigation interrupted the pending scroll; safe to ignore.
         }
-    }
-
-    private record DuplicateWordInfo(VocabularyWord Word, int ResourceCount, double EncodingScore);
-
-    private record DuplicateGroup(string NormalizedTerm, string DisplayTerm, List<DuplicateWordInfo> Words)
-    {
-        public string RecommendedKeeperId => Words.FirstOrDefault()?.Word.Id ?? "";
     }
 
     public void Dispose()

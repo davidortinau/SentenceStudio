@@ -32,7 +32,9 @@ public class ContentImportServiceTests : IDisposable
 
         // Mock dependencies
         var mockPreferences = new Mock<IPreferencesService>();
-        mockPreferences.Setup(p => p.Get(It.IsAny<string>(), It.IsAny<string>()))
+        mockPreferences.Setup(p => p.Get("active_profile_id", It.IsAny<string>()))
+            .Returns(_testUserId);
+        mockPreferences.Setup(p => p.Get(It.Is<string>(key => key != "active_profile_id"), It.IsAny<string>()))
             .Returns((string key, string defaultValue) => defaultValue);
 
         _mockFileSystem = new Mock<IFileSystemService>();
@@ -70,6 +72,48 @@ public class ContentImportServiceTests : IDisposable
         _serviceProvider.Dispose();
         _connection.Close();
         _connection.Dispose();
+    }
+
+    private async Task MapAllVocabularyWordsToActiveUserResourceAsync(ApplicationDbContext db)
+    {
+        var resource = await db.LearningResources.FirstOrDefaultAsync(r => r.UserProfileId == _testUserId);
+        if (resource == null)
+        {
+            resource = new LearningResource
+            {
+                Id = Guid.NewGuid().ToString(),
+                Title = "Existing test vocabulary",
+                MediaType = "Vocabulary List",
+                Language = "Korean",
+                UserProfileId = _testUserId,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
+            };
+            db.LearningResources.Add(resource);
+        }
+
+        var mappedWordIds = await db.ResourceVocabularyMappings
+            .Where(m => m.ResourceId == resource.Id)
+            .Select(m => m.VocabularyWordId)
+            .ToListAsync();
+        var mapped = mappedWordIds.ToHashSet(StringComparer.Ordinal);
+
+        var unmappedWords = await db.VocabularyWords
+            .Where(word => !mapped.Contains(word.Id))
+            .Select(word => word.Id)
+            .ToListAsync();
+
+        foreach (var wordId in unmappedWords)
+        {
+            db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping
+            {
+                Id = Guid.NewGuid().ToString(),
+                ResourceId = resource.Id,
+                VocabularyWordId = wordId
+            });
+        }
+
+        await db.SaveChangesAsync();
     }
     [Fact]
     public async Task ParseContentAsync_DetectsCSV_WhenCommaDelimiterDominates()
@@ -559,6 +603,473 @@ public class ContentImportServiceTests : IDisposable
         // Reload the word from database to get the updated version
         await dbContext.Entry(existingWord).ReloadAsync();
         existingWord.NativeLanguageTerm.Should().Be("hello updated");
+    }
+
+    [Fact]
+    public async Task CommitImportAsync_ExistingResource_UsesResourceLanguageForDedup()
+    {
+        // Arrange
+        using var scope = _serviceProvider.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<ContentImportService>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var existingWord = new VocabularyWord
+        {
+            Id = Guid.NewGuid().ToString(),
+            TargetLanguageTerm = "hola",
+            NativeLanguageTerm = "hello",
+            Language = "Spanish",
+            LexicalUnitType = LexicalUnitType.Word,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        dbContext.VocabularyWords.Add(existingWord);
+
+        var existingResource = new LearningResource
+        {
+            Id = Guid.NewGuid().ToString(),
+            Title = "Existing Spanish List",
+            Language = "Spanish",
+            MediaType = "Vocabulary List",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            UserProfileId = _testUserId
+        };
+        dbContext.LearningResources.Add(existingResource);
+        dbContext.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping
+        {
+            Id = Guid.NewGuid().ToString(),
+            ResourceId = existingResource.Id,
+            VocabularyWordId = existingWord.Id
+        });
+        await dbContext.SaveChangesAsync();
+
+        var commitRequest = new ContentImportCommit
+        {
+            Preview = new ContentImportPreview
+            {
+                Rows = new List<ImportRow>
+                {
+                    new()
+                    {
+                        RowNumber = 1,
+                        TargetLanguageTerm = "hola",
+                        NativeLanguageTerm = "hello changed",
+                        LexicalUnitType = LexicalUnitType.Word,
+                        Status = RowStatus.Ok,
+                        IsSelected = true
+                    }
+                }
+            },
+            Target = new ImportTarget
+            {
+                Mode = ImportTargetMode.Existing,
+                ExistingResourceId = existingResource.Id
+                // Deliberately leave TargetLanguage at its default Korean value.
+            },
+            DedupMode = DedupMode.Skip
+        };
+
+        // Act
+        var result = await service.CommitImportAsync(commitRequest);
+
+        // Assert
+        result.SkippedCount.Should().Be(1, "existing-resource imports must derive language from the resource, not the DTO default");
+        dbContext.VocabularyWords.Count().Should().Be(1);
+    }
+
+    [Fact]
+    public async Task CommitImportAsync_DedupUpdate_ClonesSharedWordInsteadOfMutatingOtherTenant()
+    {
+        // Arrange
+        using var scope = _serviceProvider.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<ContentImportService>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        const string otherUserId = "other-user";
+
+        var sharedWord = new VocabularyWord
+        {
+            Id = Guid.NewGuid().ToString(),
+            TargetLanguageTerm = "안녕하세요",
+            NativeLanguageTerm = "hello",
+            Language = "Korean",
+            LexicalUnitType = LexicalUnitType.Word,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        dbContext.VocabularyWords.Add(sharedWord);
+
+        var activeResource = new LearningResource
+        {
+            Id = Guid.NewGuid().ToString(),
+            Title = "Active List",
+            Language = "Korean",
+            MediaType = "Vocabulary List",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            UserProfileId = _testUserId
+        };
+        var otherResource = new LearningResource
+        {
+            Id = Guid.NewGuid().ToString(),
+            Title = "Other List",
+            Language = "Korean",
+            MediaType = "Vocabulary List",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            UserProfileId = otherUserId
+        };
+        dbContext.LearningResources.AddRange(activeResource, otherResource);
+        dbContext.ResourceVocabularyMappings.AddRange(
+            new ResourceVocabularyMapping
+            {
+                Id = Guid.NewGuid().ToString(),
+                ResourceId = activeResource.Id,
+                VocabularyWordId = sharedWord.Id
+            },
+            new ResourceVocabularyMapping
+            {
+                Id = Guid.NewGuid().ToString(),
+                ResourceId = otherResource.Id,
+                VocabularyWordId = sharedWord.Id
+            });
+        dbContext.VocabularyProgresses.Add(new VocabularyProgress
+        {
+            Id = Guid.NewGuid().ToString(),
+            VocabularyWordId = sharedWord.Id,
+            UserId = _testUserId,
+            MasteryScore = 0.75f,
+            TotalAttempts = 4,
+            CorrectAttempts = 3,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        await dbContext.SaveChangesAsync();
+
+        var commitRequest = new ContentImportCommit
+        {
+            Preview = new ContentImportPreview
+            {
+                Rows = new List<ImportRow>
+                {
+                    new()
+                    {
+                        RowNumber = 1,
+                        TargetLanguageTerm = "안녕하세요",
+                        NativeLanguageTerm = "hello updated",
+                        LexicalUnitType = LexicalUnitType.Word,
+                        Status = RowStatus.Ok,
+                        IsSelected = true
+                    }
+                }
+            },
+            Target = new ImportTarget
+            {
+                Mode = ImportTargetMode.Existing,
+                ExistingResourceId = activeResource.Id
+            },
+            DedupMode = DedupMode.Update
+        };
+
+        // Act
+        var result = await service.CommitImportAsync(commitRequest);
+
+        // Assert
+        result.UpdatedCount.Should().Be(1);
+
+        var original = await dbContext.VocabularyWords.AsNoTracking().SingleAsync(w => w.Id == sharedWord.Id);
+        original.NativeLanguageTerm.Should().Be("hello", "another tenant still maps to the original row");
+
+        var activeWordId = await dbContext.ResourceVocabularyMappings.AsNoTracking()
+            .Where(m => m.ResourceId == activeResource.Id)
+            .Select(m => m.VocabularyWordId)
+            .SingleAsync();
+        activeWordId.Should().NotBe(sharedWord.Id);
+
+        var activeClone = await dbContext.VocabularyWords.AsNoTracking().SingleAsync(w => w.Id == activeWordId);
+        activeClone.NativeLanguageTerm.Should().Be("hello updated");
+        var activeProgress = await dbContext.VocabularyProgresses.AsNoTracking()
+            .SingleAsync(p => p.UserId == _testUserId);
+        activeProgress.VocabularyWordId.Should().Be(activeWordId);
+        activeProgress.MasteryScore.Should().Be(0.75f);
+
+        var otherWordId = await dbContext.ResourceVocabularyMappings.AsNoTracking()
+            .Where(m => m.ResourceId == otherResource.Id)
+            .Select(m => m.VocabularyWordId)
+            .SingleAsync();
+        otherWordId.Should().Be(sharedWord.Id);
+    }
+
+    [Fact]
+    public async Task CommitImportAsync_DedupUpdate_ClonesWhenOtherTenantHasProgressWithoutMapping()
+    {
+        // Arrange
+        using var scope = _serviceProvider.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<ContentImportService>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        const string otherUserId = "other-user";
+
+        var sharedWord = new VocabularyWord
+        {
+            Id = Guid.NewGuid().ToString(),
+            TargetLanguageTerm = "감사합니다",
+            NativeLanguageTerm = "thank you",
+            Language = "Korean",
+            LexicalUnitType = LexicalUnitType.Word,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        var activeResource = new LearningResource
+        {
+            Id = Guid.NewGuid().ToString(),
+            Title = "Active List",
+            Language = "Korean",
+            MediaType = "Vocabulary List",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            UserProfileId = _testUserId
+        };
+        dbContext.VocabularyWords.Add(sharedWord);
+        dbContext.LearningResources.Add(activeResource);
+        dbContext.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping
+        {
+            Id = Guid.NewGuid().ToString(),
+            ResourceId = activeResource.Id,
+            VocabularyWordId = sharedWord.Id
+        });
+        dbContext.VocabularyProgresses.Add(new VocabularyProgress
+        {
+            Id = Guid.NewGuid().ToString(),
+            VocabularyWordId = sharedWord.Id,
+            UserId = otherUserId,
+            MasteryScore = 0.5f,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        await dbContext.SaveChangesAsync();
+
+        var commitRequest = new ContentImportCommit
+        {
+            Preview = new ContentImportPreview
+            {
+                Rows = new List<ImportRow>
+                {
+                    new()
+                    {
+                        RowNumber = 1,
+                        TargetLanguageTerm = "감사합니다",
+                        NativeLanguageTerm = "thanks",
+                        LexicalUnitType = LexicalUnitType.Word,
+                        Status = RowStatus.Ok,
+                        IsSelected = true
+                    }
+                }
+            },
+            Target = new ImportTarget
+            {
+                Mode = ImportTargetMode.Existing,
+                ExistingResourceId = activeResource.Id
+            },
+            DedupMode = DedupMode.Update
+        };
+
+        // Act
+        await service.CommitImportAsync(commitRequest);
+
+        // Assert
+        var original = await dbContext.VocabularyWords.AsNoTracking().SingleAsync(w => w.Id == sharedWord.Id);
+        original.NativeLanguageTerm.Should().Be("thank you");
+        dbContext.VocabularyWords.AsNoTracking().Count(w => w.TargetLanguageTerm == "감사합니다").Should().Be(2);
+    }
+
+    [Fact]
+    public async Task CommitImportAsync_DedupUpdate_ClonesWhenOtherTenantHasExampleWithoutMapping()
+    {
+        // Arrange
+        using var scope = _serviceProvider.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<ContentImportService>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        const string otherUserId = "other-user";
+
+        var sharedWord = new VocabularyWord
+        {
+            Id = Guid.NewGuid().ToString(),
+            TargetLanguageTerm = "사랑",
+            NativeLanguageTerm = "love",
+            Language = "Korean",
+            LexicalUnitType = LexicalUnitType.Word,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        var activeResource = new LearningResource
+        {
+            Id = Guid.NewGuid().ToString(),
+            Title = "Active List",
+            Language = "Korean",
+            MediaType = "Vocabulary List",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            UserProfileId = _testUserId
+        };
+        var otherResource = new LearningResource
+        {
+            Id = Guid.NewGuid().ToString(),
+            Title = "Other List",
+            Language = "Korean",
+            MediaType = "Vocabulary List",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            UserProfileId = otherUserId
+        };
+        dbContext.VocabularyWords.Add(sharedWord);
+        dbContext.LearningResources.AddRange(activeResource, otherResource);
+        dbContext.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping
+        {
+            Id = Guid.NewGuid().ToString(),
+            ResourceId = activeResource.Id,
+            VocabularyWordId = sharedWord.Id
+        });
+        dbContext.ExampleSentences.Add(new ExampleSentence
+        {
+            VocabularyWordId = sharedWord.Id,
+            LearningResourceId = otherResource.Id,
+            TargetSentence = "사랑합니다.",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        await dbContext.SaveChangesAsync();
+
+        var commitRequest = new ContentImportCommit
+        {
+            Preview = new ContentImportPreview
+            {
+                Rows = new List<ImportRow>
+                {
+                    new()
+                    {
+                        RowNumber = 1,
+                        TargetLanguageTerm = "사랑",
+                        NativeLanguageTerm = "affection",
+                        LexicalUnitType = LexicalUnitType.Word,
+                        Status = RowStatus.Ok,
+                        IsSelected = true
+                    }
+                }
+            },
+            Target = new ImportTarget
+            {
+                Mode = ImportTargetMode.Existing,
+                ExistingResourceId = activeResource.Id
+            },
+            DedupMode = DedupMode.Update
+        };
+
+        // Act
+        await service.CommitImportAsync(commitRequest);
+
+        // Assert
+        var original = await dbContext.VocabularyWords.AsNoTracking().SingleAsync(w => w.Id == sharedWord.Id);
+        original.NativeLanguageTerm.Should().Be("love");
+        dbContext.VocabularyWords.AsNoTracking().Count(w => w.TargetLanguageTerm == "사랑").Should().Be(2);
+    }
+
+    [Fact]
+    public async Task CommitImportAsync_DedupUpdate_SkipsPhraseLinkedWord()
+    {
+        // Arrange
+        using var scope = _serviceProvider.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<ContentImportService>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var phraseWord = new VocabularyWord
+        {
+            Id = Guid.NewGuid().ToString(),
+            TargetLanguageTerm = "좋아요",
+            NativeLanguageTerm = "like",
+            Language = "Korean",
+            LexicalUnitType = LexicalUnitType.Word,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        var constituentWord = new VocabularyWord
+        {
+            Id = Guid.NewGuid().ToString(),
+            TargetLanguageTerm = "좋다",
+            NativeLanguageTerm = "good",
+            Language = "Korean",
+            LexicalUnitType = LexicalUnitType.Word,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        var resource = new LearningResource
+        {
+            Id = Guid.NewGuid().ToString(),
+            Title = "Active List",
+            Language = "Korean",
+            MediaType = "Vocabulary List",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            UserProfileId = _testUserId
+        };
+        dbContext.VocabularyWords.AddRange(phraseWord, constituentWord);
+        dbContext.LearningResources.Add(resource);
+        dbContext.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping
+        {
+            Id = Guid.NewGuid().ToString(),
+            ResourceId = resource.Id,
+            VocabularyWordId = phraseWord.Id
+        });
+        dbContext.PhraseConstituents.Add(new PhraseConstituent
+        {
+            Id = Guid.NewGuid().ToString(),
+            PhraseWordId = phraseWord.Id,
+            ConstituentWordId = constituentWord.Id,
+            CreatedAt = DateTime.UtcNow
+        });
+        await dbContext.SaveChangesAsync();
+
+        var commitRequest = new ContentImportCommit
+        {
+            Preview = new ContentImportPreview
+            {
+                Rows = new List<ImportRow>
+                {
+                    new()
+                    {
+                        RowNumber = 1,
+                        TargetLanguageTerm = "좋아요",
+                        NativeLanguageTerm = "I like it",
+                        LexicalUnitType = LexicalUnitType.Word,
+                        Status = RowStatus.Ok,
+                        IsSelected = true
+                    },
+                    new()
+                    {
+                        RowNumber = 2,
+                        TargetLanguageTerm = "좋아요",
+                        NativeLanguageTerm = "liking it",
+                        LexicalUnitType = LexicalUnitType.Word,
+                        Status = RowStatus.Ok,
+                        IsSelected = true
+                    }
+                }
+            },
+            Target = new ImportTarget
+            {
+                Mode = ImportTargetMode.Existing,
+                ExistingResourceId = resource.Id
+            },
+            DedupMode = DedupMode.Update
+        };
+
+        // Act
+        var result = await service.CommitImportAsync(commitRequest);
+
+        // Assert
+        result.SkippedCount.Should().Be(2);
+        dbContext.VocabularyWords.AsNoTracking().Count(w => w.TargetLanguageTerm == "좋아요").Should().Be(1);
+        var original = await dbContext.VocabularyWords.AsNoTracking().SingleAsync(w => w.Id == phraseWord.Id);
+        original.NativeLanguageTerm.Should().Be("like");
     }
 
     [Fact]
@@ -1063,6 +1574,7 @@ public class ContentImportServiceTests : IDisposable
         };
         dbContext.VocabularyWords.Add(existingWord);
         await dbContext.SaveChangesAsync();
+        await MapAllVocabularyWordsToActiveUserResourceAsync(dbContext);
 
         var preview = new ContentImportPreview
         {
@@ -1107,6 +1619,7 @@ public class ContentImportServiceTests : IDisposable
         };
         dbContext.VocabularyWords.Add(existingWord);
         await dbContext.SaveChangesAsync();
+        await MapAllVocabularyWordsToActiveUserResourceAsync(dbContext);
 
         var preview = new ContentImportPreview
         {
@@ -1246,6 +1759,7 @@ public class ContentImportServiceTests : IDisposable
         };
         dbContext.VocabularyWords.Add(existingWord);
         await dbContext.SaveChangesAsync();
+        await MapAllVocabularyWordsToActiveUserResourceAsync(dbContext);
 
         var preview = new ContentImportPreview
         {
@@ -1354,6 +1868,7 @@ public class ContentImportServiceTests : IDisposable
             UpdatedAt = DateTime.UtcNow
         });
         await db.SaveChangesAsync();
+        await MapAllVocabularyWordsToActiveUserResourceAsync(db);
 
         var service = scope.ServiceProvider.GetRequiredService<ContentImportService>();
         var preview = new ContentImportPreview
@@ -1392,6 +1907,7 @@ public class ContentImportServiceTests : IDisposable
             UpdatedAt = DateTime.UtcNow
         });
         await db.SaveChangesAsync();
+        await MapAllVocabularyWordsToActiveUserResourceAsync(db);
 
         var service = scope.ServiceProvider.GetRequiredService<ContentImportService>();
         var preview = new ContentImportPreview
@@ -1430,6 +1946,7 @@ public class ContentImportServiceTests : IDisposable
             });
         }
         await db.SaveChangesAsync();
+        await MapAllVocabularyWordsToActiveUserResourceAsync(db);
 
         var service = scope.ServiceProvider.GetRequiredService<ContentImportService>();
         var rows = new List<ImportRow>();
@@ -1486,6 +2003,7 @@ public class ContentImportServiceTests : IDisposable
             UpdatedAt = DateTime.UtcNow
         });
         await db.SaveChangesAsync();
+        await MapAllVocabularyWordsToActiveUserResourceAsync(db);
 
         var service = scope.ServiceProvider.GetRequiredService<ContentImportService>();
 
