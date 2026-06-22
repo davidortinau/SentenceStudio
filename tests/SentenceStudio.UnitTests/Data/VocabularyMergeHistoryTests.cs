@@ -156,6 +156,31 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
     }
 
     [Fact]
+    public async Task Merge_CopiesMissingKeeperEncodingFieldsFromDuplicates()
+    {
+        // Arrange — keeper wins conflicts, but missing keeper value should not cause duplicate-authored aids to be lost.
+        var keeper = SeedWord("문", "door");
+        var dup = SeedWord(" 문 ", "door duplicate");
+        UpdateWord(dup, word =>
+        {
+            word.MnemonicText = "Picture a door shaped like the character.";
+            word.MnemonicImageUri = "https://example.test/door.png";
+            word.AudioPronunciationUri = "https://example.test/door.mp3";
+            word.Tags = "house";
+        });
+
+        // Act
+        await MergeAsync(keeper, dup);
+
+        // Assert
+        var merged = GetWord(keeper)!;
+        merged.MnemonicText.Should().Be("Picture a door shaped like the character.");
+        merged.MnemonicImageUri.Should().Be("https://example.test/door.png");
+        merged.AudioPronunciationUri.Should().Be("https://example.test/door.mp3");
+        merged.Tags.Should().Be("house");
+    }
+
+    [Fact]
     public async Task Merge_DeduplicatesDependentArtifacts_WhenKeeperAlreadyHasEquivalentLinks()
     {
         // Arrange — duplicate and keeper both point at equivalent minimal-pair and phrase links.

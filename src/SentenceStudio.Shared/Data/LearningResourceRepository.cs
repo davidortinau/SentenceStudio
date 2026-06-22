@@ -1441,6 +1441,7 @@ public class LearningResourceRepository
             .ToList();
 
         // Preserve + recombine learning history before the words (and their cascade) are removed.
+        changed |= await MergeVocabularyWordFieldsAsync(db, keeperWordId, unsharedDeleteWordIds, ct);
         changed |= await MergeLearningProgressAsync(db, keeperWordId, mergeableDeleteWordIds, userId, ct);
         changed |= await ReparentDependentVocabularyArtifactsAsync(db, keeperWordId, mergeableDeleteWordIds, unsharedDeleteWordIds, userId, ct);
 
@@ -1598,6 +1599,53 @@ public class LearningResourceRepository
         }
 
         return changed;
+    }
+
+    private static async Task<bool> MergeVocabularyWordFieldsAsync(
+        ApplicationDbContext db,
+        string keeperWordId,
+        IReadOnlyCollection<string> deleteWordIds,
+        CancellationToken ct)
+    {
+        var keeper = await db.VocabularyWords.FirstOrDefaultAsync(w => w.Id == keeperWordId, ct);
+        if (keeper == null || deleteWordIds.Count == 0)
+            return false;
+
+        var duplicates = await db.VocabularyWords
+            .Where(w => deleteWordIds.Contains(w.Id))
+            .ToListAsync(ct);
+
+        var changed = false;
+        foreach (var duplicate in duplicates)
+        {
+            changed |= CopyIfMissing(() => keeper.Lemma, value => keeper.Lemma = value, duplicate.Lemma);
+            changed |= CopyIfMissing(() => keeper.Tags, value => keeper.Tags = value, duplicate.Tags);
+            changed |= CopyIfMissing(() => keeper.MnemonicText, value => keeper.MnemonicText = value, duplicate.MnemonicText);
+            changed |= CopyIfMissing(() => keeper.MnemonicImageUri, value => keeper.MnemonicImageUri = value, duplicate.MnemonicImageUri);
+            changed |= CopyIfMissing(() => keeper.AudioPronunciationUri, value => keeper.AudioPronunciationUri = value, duplicate.AudioPronunciationUri);
+
+            if (keeper.LexicalUnitType == LexicalUnitType.Unknown && duplicate.LexicalUnitType != LexicalUnitType.Unknown)
+            {
+                keeper.LexicalUnitType = duplicate.LexicalUnitType;
+                changed = true;
+            }
+
+            changed |= CopyIfMissing(() => keeper.Language, value => keeper.Language = value, duplicate.Language);
+        }
+
+        if (changed)
+            keeper.UpdatedAt = DateTime.UtcNow;
+
+        return changed;
+    }
+
+    private static bool CopyIfMissing(Func<string?> getCurrent, Action<string?> setCurrent, string? candidate)
+    {
+        if (!string.IsNullOrWhiteSpace(getCurrent()) || string.IsNullOrWhiteSpace(candidate))
+            return false;
+
+        setCurrent(candidate);
+        return true;
     }
 
     private static async Task<HashSet<string>> GetDeleteWordIdsWithOtherUserReferencesAsync(
