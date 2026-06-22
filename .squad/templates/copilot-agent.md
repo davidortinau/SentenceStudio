@@ -1,69 +1,96 @@
-# Copilot Coding Agent Member Reference
+# Copilot Coding Agent Member
 
-> On-demand reference for adding and managing @copilot as a squad member.
+On-demand reference for adding the GitHub Copilot coding agent (@copilot) to the Squad roster.
 
 ## Adding @copilot
 
-1. Add to `team.md` under `## Coding Agent`:
+When the user says "add copilot", "add the coding agent", or "use @copilot for issues":
+
+1. **Add to team.md roster:**
    ```markdown
-   ## Coding Agent
-   <!-- copilot-auto-assign: false -->
-   | Name | Role | Charter | Status |
-   |------|------|---------|--------|
    | @copilot | Coding Agent | — | 🤖 Coding Agent |
    ```
+2. **Add capability profile** (below the roster table):
+   ```markdown
+   <!-- copilot-auto-assign: true -->
+   ### @copilot — Capability Profile
 
-2. Add capability profile (🟢/🟡/🔴) below the roster entry
-
-3. Add routing entry to `routing.md`:
+   | Capability | Level | Notes |
+   |-----------|-------|-------|
+   | Bug fixes (well-scoped) | 🟢 | Best for isolated, test-covered fixes |
+   | Feature implementation | 🟡 | Works well with clear specs; may need review |
+   | Refactoring | 🟡 | Handles mechanical refactors; verify scope |
+   | Architecture decisions | 🔴 | Cannot make cross-cutting design choices |
+   | Multi-repo coordination | 🔴 | Limited to single-repo context |
+   | Test writing | 🟢 | Strong at adding tests for existing code |
+   | Documentation | 🟢 | Generates docs from code effectively |
    ```
-   | Async issue work (bugs, tests, small features) | @copilot 🤖 | Well-defined tasks matching capability profile |
-   ```
+3. **Add routing entries** to routing.md for appropriate work types.
+4. **Do not create** `charter.md` — @copilot uses `copilot-instructions.md` instead.
 
-## Comparison: AI Agent vs @copilot
+## Comparison: Spawned Agent vs. @copilot
 
-| Aspect | Squad AI Agent | @copilot |
-|--------|---------------|----------|
-| Badge | Role emoji | 🤖 Coding Agent |
-| Name | Cast name | Always "@copilot" (no casting) |
-| Charter | `.squad/agents/{name}/charter.md` | Uses `copilot-instructions.md` |
-| Spawnable | ✅ In-session via `task` tool | ❌ Async via issue assignment |
-| Interaction | Direct prompt/response | Issue → branch → PR |
-| Branch pattern | `squad/{issue}-{slug}` | `copilot/*` |
-| Review | In-session reviewer gate | PR review (human or squad) |
+| | Spawned Agent | @copilot |
+|---|--------------|----------|
+| Execution model | Sync sub-task within session | Async — picks up assigned issues |
+| Branch convention | `squad/{issue}-{slug}` | `copilot/{slug}` |
+| Trigger | Coordinator spawns directly | Issue assignment |
+| Charter source | `.squad/agents/{name}/charter.md` | `.github/copilot-instructions.md` |
+| Context window | Inherits full session context | Fresh context per issue |
+| Reviewer gating | ✅ Enforced by coordinator | ✅ Via PR review process |
+| Speed | Immediate (in-session) | Minutes (async queue) |
 
-## Capability Profile Format
+## Roster Format
+
+In `team.md`, @copilot always appears as:
 
 ```markdown
-**🟢 Good fit — auto-route when enabled:**
-- Bug fixes with clear reproduction steps
-- Test coverage gaps
-- Dependency updates
-- Small isolated features
-
-**🟡 Needs review — route but flag for PR review:**
-- Medium features with specs
-- Refactoring with test coverage
-- API additions following patterns
-
-**🔴 Not suitable — route to squad member:**
-- Architecture decisions
-- Multi-system integration
-- Ambiguous requirements
-- Security-critical changes
+| @copilot | Coding Agent | — | 🤖 Coding Agent |
 ```
 
-## Auto-Assign
+- **No casting** — always "@copilot" (literal handle).
+- **No charter file** — configuration lives in `.github/copilot-instructions.md`.
+- **No history file** — work is tracked via PRs and issue comments.
 
-Controlled by HTML comment in `team.md`:
-- `<!-- copilot-auto-assign: true -->` — @copilot auto-assigned on `squad:copilot` issues
-- `<!-- copilot-auto-assign: false -->` — manual assignment only
+## Auto-Assign Behavior
 
-## Lead Triage for @copilot
+Controlled by the HTML comment in team.md:
 
-When triaging issues, the Lead evaluates:
-1. Is it well-defined? Clear steps/criteria → 🟢
-2. Does it follow existing patterns? → 🟢
-3. Does it need design judgment? → 🔴
-4. Is it security-sensitive? → 🔴
-5. Medium complexity with specs? → 🟡
+```markdown
+<!-- copilot-auto-assign: true -->
+```
+
+| Setting | Behavior |
+|---------|----------|
+| `true` | Lead assigns routed issues to @copilot automatically via `gh issue edit --add-assignee @copilot` |
+| `false` | Lead presents recommendation; user confirms before assignment |
+
+## Lead Triage Integration
+
+During triage, Lead evaluates each issue against @copilot's capability profile:
+
+1. **🟢 Match** — Auto-assign (if enabled) or recommend assignment.
+2. **🟡 Match** — Assign with note: "⚠️ May need review — @copilot is 🟡 for this type of work."
+3. **🔴 Match** — Skip @copilot; route to appropriate spawned agent or human.
+
+## Routing Details
+
+Add to `routing.md`:
+
+```markdown
+| bug fixes (isolated, test-covered) | @copilot 🤖 | Single-file fixes, test additions |
+| documentation updates | @copilot 🤖 | README, API docs, inline comments |
+| test coverage gaps | @copilot 🤖 | Adding missing test cases |
+```
+
+Work that routes to @copilot:
+- Creates/assigns the GitHub issue (if not already)
+- Does NOT spawn a sub-agent — @copilot works asynchronously
+- Coordinator reports: "🤖 Assigned #{number} to @copilot — will open a PR when ready."
+- Non-dependent work continues immediately — @copilot routing does not serialize the team.
+
+## Monitoring @copilot Work
+
+On each watch cycle (or when user asks "status"):
+- Check for open PRs from `copilot/*` branches.
+- Report: "🤖 @copilot: {N} PRs open ({list}). {M} issues assigned, pending."

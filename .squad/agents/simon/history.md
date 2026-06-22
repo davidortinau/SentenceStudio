@@ -190,3 +190,12 @@ This directive was established during NumberDrill Phase 1 work when DevFlow CLI 
 
 ---
 
+
+---
+
+Team update (2026-06-17T16:08:31-05:00): Concern #2 per-user timezone fix — LANDED AND APPROVED.
+
+Simon's work (commit 03750fad): fixed cross-tenant freshness leak (Zoe blocker #2). Added `VocabularyProgressRepository.GetByWordIdsForUserAsync` — applies UserId filter server-side before word-id filter; empty-userId safe default returns empty list (freshness refinement, not gate); retains 500-row batch optimization; warning doc on old `GetByWordIdsAsync`. Switched `ProgressService.ApplyFocusVocabularyFreshnessAsync:985` to the new scoped method. Build: 0 errors. Jayne pinned the fix with a multi-tenant isolation test (real in-memory SQLite, 2 users, shared word id).
+
+Carry-forward for Simon:
+- Switch `VocabularyProgressService.cs:280` from `GetByWordIdsAsync` to `GetByWordIdsForUserAsync` (perf improvement — avoids loading other tenants' rows into memory before post-filter at :284). Not a correctness fix (safe today), but the right long-term pattern.

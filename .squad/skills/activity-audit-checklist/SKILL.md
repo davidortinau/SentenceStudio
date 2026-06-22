@@ -223,7 +223,7 @@ LIMIT 5;
 - Pass/Fail per negative picker test
 - Sign-off: "All SHIP + negative tests pass → APPROVE for DX24. Any failure → BLOCK."
 
-**Script format:** Markdown checklist suitable for both manual execution (tester follows steps) AND scripted execution (Playwright/maui-ai-debugging automation).
+**Script format:** Markdown checklist suitable for both manual execution (tester follows steps) AND scripted execution (Playwright/maui-devflow-debug automation).
 
 **Reference:** `.squad/decisions/inbox/jayne-numberdrill-validation-script.md`
 

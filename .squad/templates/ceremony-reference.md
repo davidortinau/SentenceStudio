@@ -1,53 +1,82 @@
 # Ceremony Reference
 
-> On-demand reference for ceremony configuration, facilitator spawn template, and execution rules.
+On-demand reference for ceremony configuration, facilitator spawn, and execution rules.
 
-## Config Format (ceremonies.md)
+## Config Format
 
-Each ceremony is a section with a config table:
+Ceremonies are declared in `.squad/ceremonies.md`. Each ceremony is a section with a table of fields:
 
-| Field | Values |
-|-------|--------|
-| **Trigger** | `auto` (coordinator checks conditions) or `manual` (user requests) |
-| **When** | `before` (runs before work batch) or `after` (runs after work completes) |
-| **Condition** | When to auto-trigger (e.g., "multi-agent task involving 2+ agents") |
-| **Facilitator** | Who runs it: `lead`, or a specific agent name |
-| **Participants** | `all-relevant`, `all-involved`, or comma-separated names |
-| **Time budget** | `focused` (tight), `normal`, or `open` (exploratory) |
-| **Enabled** | `✅ yes` or `❌ no` |
+```markdown
+## {CeremonyName}
+
+| Field | Value |
+|-------|-------|
+| **Trigger** | auto \| manual |
+| **When** | before \| after |
+| **Condition** | {when auto-triggered: natural language condition} |
+| **Facilitator** | lead \| {specific-agent} |
+| **Participants** | all-relevant \| all-involved \| {comma-separated names} |
+| **Time budget** | focused \| extended |
+| **Enabled** | ✅ yes \| ❌ no |
+
+**Agenda:**
+1. {Step 1}
+2. {Step 2}
+...
+```
+
+### Field Definitions
+
+| Field | Values | Meaning |
+|-------|--------|---------|
+| Trigger | `auto` | Fires automatically when Condition matches |
+| Trigger | `manual` | Only when user says "run {ceremony}" |
+| When | `before` | Runs before work batch spawns |
+| When | `after` | Runs after work batch completes |
+| Condition | free text | Evaluated against current task context |
+| Facilitator | agent name | Who runs the meeting |
+| Participants | selector | Who attends |
+| Time budget | `focused` | Keep it short — key decisions only |
+| Time budget | `extended` | Thorough discussion — all angles |
+| Enabled | boolean | Skip disabled ceremonies entirely |
 
 ## Facilitator Spawn Template
 
+When a ceremony triggers, spawn the facilitator (sync) with this prompt structure:
+
 ```
-agent_type: "general-purpose"
-model: "{lead_model}"
-mode: "sync"
-description: "🏗️ {Lead}: Facilitating {CeremonyName}"
-prompt: |
-  You are {Lead}, facilitating a {CeremonyName} ceremony.
-  TEAM ROOT: {team_root}
+You are {FacilitatorName}, facilitating the "{CeremonyName}" ceremony.
 
-  Read .squad/ceremonies.md for the agenda.
-  Read .squad/decisions.md for context.
+PARTICIPANTS: {participant list}
+TRIGGER CONDITION: {what triggered this ceremony}
+AGENDA:
+{numbered agenda items from config}
 
-  PARTICIPANTS: {participant_list}
-  TASK CONTEXT: {brief description of the work being planned/reviewed}
+RULES:
+- Follow the agenda in order.
+- For each agenda item, spawn relevant participants as sub-tasks to gather their input.
+- Synthesize participant input into clear decisions and action items.
+- Keep to the time budget: {focused|extended}.
+- Output a structured summary at the end.
 
-  Follow the agenda. For each participant, spawn them as sub-tasks to get input.
-  Synthesize findings into decisions.
-
-  Write ceremony summary to .squad/decisions/inbox/{lead}-{ceremony-slug}.md
-
-  ⚠️ RESPONSE ORDER: After ALL tool calls, write plain text summary as FINAL output.
+TASK CONTEXT:
+{description of the work that triggered this ceremony}
 ```
 
 ## Execution Rules
 
-1. Before spawning a work batch, check `ceremonies.md` for auto-triggered `before` ceremonies
-2. After a batch completes, check for `after` ceremonies
-3. Manual ceremonies run only when the user asks
-4. Spawn the facilitator (sync) — facilitator spawns participants as sub-tasks
-5. Include ceremony summary in subsequent work batch spawn prompts
-6. Spawn Scribe (background) to record ceremony outcomes
-7. **Cooldown:** Skip auto-triggered checks for the immediately following step
-8. Report: `📋 {CeremonyName} completed — facilitated by {Lead}. Decisions: {count} | Action items: {count}.`
+1. **Before ceremonies** fire AFTER routing decisions but BEFORE agent spawn. The ceremony summary is included in all subsequent work-batch spawn prompts.
+2. **After ceremonies** fire when ALL agents in the batch have completed (success or failure).
+3. **Manual ceremonies** fire only on explicit user request ("run retro", "do a design review").
+4. **Cooldown:** After a ceremony completes, skip auto-trigger checks for the immediately following step. This prevents ceremony loops.
+5. **Participant resolution:**
+   - `all-relevant` → agents routed to the current task
+   - `all-involved` → agents that participated in the completed batch
+   - Named agents → spawn only those specific agents
+6. **Scribe integration:** Spawn Scribe (background) at ceremony start to record decisions and action items.
+7. **Output format:**
+   ```
+   📋 {CeremonyName} completed — facilitated by {Facilitator}.
+   Decisions: {count} | Action items: {count}.
+   ```
+8. **Failure handling:** If the facilitator fails or times out, log a warning and proceed with work. Ceremonies must never block the pipeline indefinitely.

@@ -24,5 +24,11 @@ public static class ConfigurationExtensions
         using var envStream = assembly.GetManifestResourceStream($"SentenceStudio.appsettings.{envName}.json");
         if (envStream != null)
             configuration.AddJsonStream(envStream);
+
+        // Highest-precedence overrides via environment variables. Lets any build (including
+        // Debug) be pointed at a different API without rebuilding config, e.g.:
+        //   services__api__https__0=https://api.<env>.azurecontainerapps.io dotnet run ...
+        // which service discovery resolves for the "https+http://api" client base address.
+        configuration.AddEnvironmentVariables();
     }
 }

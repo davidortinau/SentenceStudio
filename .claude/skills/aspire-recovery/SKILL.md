@@ -1,3 +1,8 @@
+---
+name: aspire-recovery
+description: "Systematic recovery procedure for Aspire AppHost failures caused by orphaned processes holding critical ports (especially 22070). Covers diagnostics, two-pass cleanup (AppHost + dcp tree, then orphaned services), verification, and restart validation. USE FOR: \"aspire won't start\", \"cannot access disposed object\", \"address already in use\", \"aspire dashboard not loading\", \"port 22070 in use\", \"aspire restart failed\", \"orphaned dcp processes\", dashboard stuck on \"starting\", build succeeds but services won't start, previous Aspire session crashed and won't restart. DO NOT USE FOR: initial Aspire setup, configuration changes, deployment issues, or general Aspire CLI usage (use the aspire skill instead)."
+---
+
 # Aspire Orphan Recovery
 
 **USE FOR**: "aspire won't start", "cannot access disposed object", "address already in use", "aspire dashboard not loading", "port 22070 in use", "aspire restart failed", "orphaned dcp processes"
