@@ -207,6 +207,21 @@ else
   warn "No migration log entries found (may have scrolled out of recent logs)"
 fi
 
+# ── 1.7 Blazor Server Circuit Affinity ───────────────────────────────────────
+
+echo ""
+echo "--- 1.7 Blazor Server Circuit Affinity ---"
+WEBAPP_STICKY=$(az containerapp show \
+  --name webapp --resource-group "$RG" \
+  --query "properties.configuration.ingress.stickySessions.affinity" \
+  -o tsv 2>/dev/null || echo "")
+
+if [ "$WEBAPP_STICKY" = "sticky" ]; then
+  pass "WebApp ingress sticky sessions enabled for Blazor Server circuits"
+else
+  fail "WebApp ingress sticky sessions disabled — Blazor Server _blazor circuit can 404 across replicas"
+fi
+
 # ══════════════════════════════════════════════════════════════════════════════
 # PHASE 2: FUNCTIONAL SMOKE TEST
 # ══════════════════════════════════════════════════════════════════════════════

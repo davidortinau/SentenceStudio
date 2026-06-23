@@ -53,13 +53,17 @@ builder.Services.AddSingleton<AudioAnalyzer>();
 builder.Services.AddSingleton<TranscriptFormattingService>();
 builder.Services.AddSingleton<AiService>();
 
-// OpenAI client. Chat → Foundry uses keyless Entra auth (DefaultAzureCredential).
+// OpenAI client. Chat -> Foundry uses keyless Entra auth (DefaultAzureCredential).
 // AiService still reads Settings:OpenAIKey for the OpenAI audio (TTS) fallback client, so
-// bridge it from the Aspire env var when present.
+// keep it optional and never make production Foundry deploys depend on an API key secret.
 var openAiApiKey = builder.Configuration["AI:OpenAI:ApiKey"];
 if (!string.IsNullOrWhiteSpace(openAiApiKey))
 {
     builder.Configuration["Settings:OpenAIKey"] = openAiApiKey;
+}
+else if (string.IsNullOrWhiteSpace(builder.Configuration["Settings:OpenAIKey"]))
+{
+    builder.Configuration["Settings:OpenAIKey"] = "not-configured";
 }
 
 var aiEndpoint = builder.Configuration["AI:OpenAI:Endpoint"];

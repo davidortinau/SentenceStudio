@@ -295,6 +295,11 @@ public class PlanGenerationTestFixture : IDisposable
 
         db.VocabularyLearningContexts.RemoveRange(db.VocabularyLearningContexts);
         db.VocabularyProgresses.RemoveRange(db.VocabularyProgresses);
+        db.MinimalPairAttempts.RemoveRange(db.MinimalPairAttempts);
+        db.MinimalPairSessions.RemoveRange(db.MinimalPairSessions);
+        db.MinimalPairs.RemoveRange(db.MinimalPairs);
+        db.PhraseConstituents.RemoveRange(db.PhraseConstituents);
+        db.ExampleSentences.RemoveRange(db.ExampleSentences);
         db.ResourceVocabularyMappings.RemoveRange(db.ResourceVocabularyMappings);
         db.DailyPlanCompletions.RemoveRange(db.DailyPlanCompletions);
         db.VocabularyWords.RemoveRange(db.VocabularyWords);

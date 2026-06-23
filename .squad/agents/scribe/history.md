@@ -46,3 +46,23 @@ For detailed work history, see:
 - Reduces auth flakiness for multi-agent E2E runs
 
 **Scope boundary:** This run restricted to `.squad/` work only — no domain changes.
+
+---
+
+## 2026-06-21 — Vocabulary Duplicate Merge Criteria Logging
+
+**Status:** ✅ Complete
+
+**Session logged:**
+1. ✅ Session log created: `.squad/log/2026-06-21T15-44-06Z-duplicate-cleanup.md`
+2. ✅ Inbox merge: `copilot-duplicate-merge-criteria.md` → decisions.md (1 file processed)
+3. ✅ Orchestration log: `.squad/orchestration-log/2026-06-21T15-44-06Z-scribe.md`
+
+**Decision captured:**
+- Vocabulary duplicate detection focuses on semantic safety (target term, native term, language, lexical unit type match)
+- Keeper selection prioritizes encoding strength + memory aids, NOT resource count
+- Duplicate review UI hides raw IDs, resource counts, and internal implementation details
+- Batch merge and single-group merge use unified recommendation logic
+- Learning progress and resource associations are combined during merge (not user-facing criteria)
+
+**Scope boundary:** This run restricted to `.squad/` work only — no domain changes. Duplicate cleanup is a focused UX refinement with code verification (unit tests, E2E on Mac Catalyst webapp).

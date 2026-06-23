@@ -8,7 +8,6 @@ var builder = DistributedApplication.CreateBuilder(args);
 //   builder.AddAzureContainerAppEnvironment("aca-env").WithAzdResourceNaming();
 // and run `aspire deploy` instead of `azd deploy`.
 
-var openaikey = builder.AddParameter("openaikey", secret: true);
 var elevenlabskey = builder.AddParameter("elevenlabskey", secret: true);
 var jwtkey = builder.AddParameter("jwtkey", secret: true);
 var githubpat = builder.AddParameter("githubpat", secret: true);
@@ -46,7 +45,6 @@ var storage = builder.AddAzureStorage("storage")
     .AddBlobs("media");
 
 var api = builder.AddProject<SentenceStudio_Api>("api")
-    .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
     .WithEnvironment("AI__OpenAI__Endpoint", aiEndpoint)
     .WithEnvironment("AI__OpenAI__Models__Fast", aiFastModel)
     .WithEnvironment("AI__OpenAI__Models__Reasoning", aiReasoningModel)
@@ -80,7 +78,6 @@ builder.AddProject<SentenceStudio_Marketing>("marketing")
     .WithExternalHttpEndpoints();
 
 builder.AddProject<SentenceStudio_Workers>("workers")
-    .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
     .WithEnvironment("AI__OpenAI__Endpoint", aiEndpoint)
     .WithEnvironment("AI__OpenAI__Models__Fast", aiFastModel)
     .WithEnvironment("AI__OpenAI__Models__Reasoning", aiReasoningModel)
@@ -93,6 +90,7 @@ builder.AddProject<SentenceStudio_Workers>("workers")
 // MAUI clients and dev tunnels are local-dev only — excluded from Azure publish
 if (builder.ExecutionContext.IsRunMode)
 {
+    var openaikey = builder.AddParameter("openaikey", secret: true);
     var syncfusionkey = builder.AddParameter("syncfusionkey", secret: true);
 
     var maccatalyst = builder.AddMauiProject("maccatalyst", "../SentenceStudio.MacCatalyst/SentenceStudio.MacCatalyst.csproj");

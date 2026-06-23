@@ -36,9 +36,11 @@ public static class SentenceStudioAppBuilder
 
         RegisterServices(builder.Services);
 
+        var settings = builder.Configuration.GetSection("Settings").Get<Settings>() ?? new Settings();
+
         var openAiApiKey = (DeviceInfo.Idiom == DeviceIdiom.Desktop)
             ? Environment.GetEnvironmentVariable("AI__OpenAI__ApiKey")!
-            : builder.Configuration.GetRequiredSection("Settings").Get<Settings>().OpenAIKey;
+            : settings.OpenAIKey ?? "not-configured";
 
         // Resilient HttpClient for OpenAI — MAUI doesn't call AddServiceDefaults so
         // we add explicit Polly resilience (429/5xx retry, circuit breaker, timeout).
@@ -56,7 +58,7 @@ public static class SentenceStudioAppBuilder
 
         var elevenLabsKey = (DeviceInfo.Idiom == DeviceIdiom.Desktop)
             ? Environment.GetEnvironmentVariable("ElevenLabsKey")!
-            : builder.Configuration.GetRequiredSection("Settings").Get<Settings>().ElevenLabsKey;
+            : settings.ElevenLabsKey ?? "not-configured";
 
         builder.Services.AddSingleton(new ElevenLabsClient(elevenLabsKey));
 

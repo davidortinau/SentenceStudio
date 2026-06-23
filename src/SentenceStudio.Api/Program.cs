@@ -182,6 +182,20 @@ builder.Services.AddSingleton<AudioAnalyzer>();
 builder.Services.AddSingleton<TranscriptFormattingService>();
 builder.Services.AddSingleton<AiService>();
 
+// Server chat uses Azure AI Foundry keyless auth through DefaultAzureCredential below.
+// Settings:OpenAIKey is retained only for the OpenAI audio fallback client, so production
+// deploys must not require an opaquely named OpenAI key secret for Foundry chat.
+var openAiApiKey = builder.Configuration["Settings:OpenAIKey"];
+if (string.IsNullOrWhiteSpace(openAiApiKey))
+{
+    openAiApiKey = Environment.GetEnvironmentVariable("AI__OpenAI__ApiKey");
+}
+if (string.IsNullOrWhiteSpace(openAiApiKey))
+{
+    openAiApiKey = "not-configured";
+}
+builder.Configuration["Settings:OpenAIKey"] = openAiApiKey;
+
 // Release notes service
 builder.Services.AddSingleton<ReleaseNotesService>();
 

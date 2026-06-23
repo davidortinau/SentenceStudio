@@ -45,6 +45,11 @@ UAMI `mi-rsn72awybem6s` holds the **Cognitive Services OpenAI User** role on tha
 This one account carries chat (`gpt-5-mini` fast / `gpt-5` reasoning) plus realtime +
 transcribe model availability. See memory `ai-foundry-model-tiers`.
 
+Production deploys must **not** require an `openaikey` / `AI__OpenAI__ApiKey` parameter
+for server hosts. That legacy key is only for local direct-client fallback paths; if
+`azd deploy` asks for `openaikey`, stop and fix AppHost/deploy wiring instead of copying
+or inventing a secret.
+
 ---
 
 ## MANDATORY Pre-Deploy Safety Checklist
@@ -145,6 +150,7 @@ This gate catches iOS/Android-specific migration failures that desktop/server bu
 
 **This script covers:**
 - Phase 1: Infrastructure health (revision status, active=latest, no crash loops, DB connectivity, endpoint codes, EF migrations)
+- Blazor Server circuit safety (`webapp` ingress sticky sessions must be enabled; otherwise `_blazor` WebSocket/long-polling requests can 404 across replicas)
 - Phase 2: Functional smoke test (auth flow, protected endpoints, webapp renders)
 - Phase 4: Regression check (core API endpoints, marketing site)
 
