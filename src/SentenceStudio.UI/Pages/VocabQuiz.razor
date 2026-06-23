@@ -1375,12 +1375,10 @@ else
 
             if (updatedProgress.IsFamiliar)
             {
+                // Still record the verification-probe result for SRS; no per-answer toast —
+                // inline feedback ("Correct!" / "The answer is: …") already covers it.
                 await ProgressService.HandleVerificationProbeResultAsync(
                     attempt.VocabularyWordId, attempt.UserId, attempt.WasCorrect);
-                if (attempt.WasCorrect)
-                    Toast.ShowSuccess("Confirmed! This one is solid.");
-                else
-                    Toast.ShowInfo("This one is tricky in context. A few more reps will help.");
             }
 
             CacheService.InvalidateVocabSummary();
