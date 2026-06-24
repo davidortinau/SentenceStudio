@@ -484,7 +484,7 @@ else if (vocabSummary is not null)
     var total = vocabSummary.New + vocabSummary.Learning + vocabSummary.Familiar + vocabSummary.Review + vocabSummary.Known;
     <div class="row g-3 mb-4">
         <div class="col-6 col-md">
-            <div class="card card-ss p-3 text-center">
+            <div class="card card-ss p-3 text-center" title="@Localize["Dashboard_VocabNewTooltip"]">
                 <div class="fs-3 fw-bold" style="color: var(--bs-primary);">@vocabSummary.New</div>
                 <div class="text-secondary-ss small">@Localize["Dashboard_VocabNew"]</div>
             </div>

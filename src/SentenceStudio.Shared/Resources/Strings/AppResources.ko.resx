@@ -2345,6 +2345,10 @@
     <value>신규</value>
     <comment>Dashboard: vocab status New</comment>
   </data>
+  <data name="Dashboard_VocabNewTooltip" xml:space="preserve">
+    <value>아직 연습을 시작하지 않은 단어</value>
+    <comment>Dashboard: tooltip clarifying the New vocab count</comment>
+  </data>
   <data name="Dashboard_VocabLearning" xml:space="preserve">
     <value>학습 중</value>
     <comment>Dashboard: vocab status Learning</comment>
@@ -4088,6 +4092,22 @@
   <data name="Vocabulary_ListView" xml:space="preserve">
     <value>목록 보기</value>
     <comment>View toggle title</comment>
+  </data>
+  <data name="Vocabulary_SortAdded" xml:space="preserve">
+    <value>추가일</value>
+    <comment>Vocabulary list: sort by date added toggle label</comment>
+  </data>
+  <data name="Vocabulary_SortUpdated" xml:space="preserve">
+    <value>수정일</value>
+    <comment>Vocabulary list: sort by last updated toggle label</comment>
+  </data>
+  <data name="Vocabulary_SortAddedTooltip" xml:space="preserve">
+    <value>추가일순 정렬 (최신/오래된순)</value>
+    <comment>Vocabulary list: sort by date added toggle tooltip</comment>
+  </data>
+  <data name="Vocabulary_SortUpdatedTooltip" xml:space="preserve">
+    <value>수정일순 정렬 (최신/오래된순)</value>
+    <comment>Vocabulary list: sort by last updated toggle tooltip</comment>
   </data>
   <data name="Vocabulary_SelectedCount" xml:space="preserve">
     <value>{0}개 선택됨</value>

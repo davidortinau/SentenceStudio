@@ -1112,6 +1112,39 @@ h3:focus,
     font-weight: 500;
 }
 
+/* Keep resource/combo titles on a single line — truncate with ellipsis, never wrap.
+   Applies to both the open dropdown options and the selected items/chips. */
+.ts-wrapper .ts-dropdown .option {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.ts-wrapper.single .ts-control .item {
+    display: block;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Multi-select chips: truncate the title but keep the remove (×) button visible. */
+.ts-wrapper.multi .ts-control .item {
+    display: inline-flex;
+    align-items: center;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.ts-wrapper.multi .ts-control .item > * {
+    flex: 0 0 auto;
+}
+
+.ts-wrapper.multi .ts-control .item {
+    text-overflow: ellipsis;
+}
+
 /* ============================================
    THEME SWATCH PICKER (Settings page)
    ============================================ */

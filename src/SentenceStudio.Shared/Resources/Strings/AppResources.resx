@@ -2589,6 +2589,10 @@ Ready to practice? Say "yes" to start, or tell me what you'd like to change.</va
     <value>New</value>
     <comment>Dashboard: vocab status New</comment>
   </data>
+  <data name="Dashboard_VocabNewTooltip" xml:space="preserve">
+    <value>Words you haven't started practicing yet</value>
+    <comment>Dashboard: tooltip clarifying the New vocab count</comment>
+  </data>
   <data name="Dashboard_VocabLearning" xml:space="preserve">
     <value>Learning</value>
     <comment>Dashboard: vocab status Learning</comment>
@@ -4336,6 +4340,22 @@ For example: {0} ...</value>
   <data name="Vocabulary_ListView" xml:space="preserve">
     <value>List view</value>
     <comment>View toggle title</comment>
+  </data>
+  <data name="Vocabulary_SortAdded" xml:space="preserve">
+    <value>Added</value>
+    <comment>Vocabulary list: sort by date added toggle label</comment>
+  </data>
+  <data name="Vocabulary_SortUpdated" xml:space="preserve">
+    <value>Updated</value>
+    <comment>Vocabulary list: sort by last updated toggle label</comment>
+  </data>
+  <data name="Vocabulary_SortAddedTooltip" xml:space="preserve">
+    <value>Sort by date added (newest/oldest)</value>
+    <comment>Vocabulary list: sort by date added toggle tooltip</comment>
+  </data>
+  <data name="Vocabulary_SortUpdatedTooltip" xml:space="preserve">
+    <value>Sort by last updated (newest/oldest)</value>
+    <comment>Vocabulary list: sort by last updated toggle tooltip</comment>
   </data>
   <data name="Vocabulary_SelectedCount" xml:space="preserve">
     <value>{0} selected</value>

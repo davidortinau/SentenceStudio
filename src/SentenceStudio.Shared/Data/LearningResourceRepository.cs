@@ -167,6 +167,20 @@ public class LearningResourceRepository
         }
     }
 
+    /// <summary>
+    /// Canonical display ordering for resource lists across the app: smart (system-generated)
+    /// resources first, alphabetical by Title within that group; user resources after,
+    /// most-recently-updated first. Done in memory so the conditional grouping is provider-agnostic
+    /// (Postgres + SQLite) — resource lists are small (tens of rows).
+    /// </summary>
+    public static List<LearningResource> OrderResourcesSmartFirst(IEnumerable<LearningResource> resources) =>
+        resources
+            .OrderByDescending(r => r.IsSmartResource)
+            .ThenBy(r => r.IsSmartResource ? (r.Title ?? string.Empty) : string.Empty, StringComparer.CurrentCultureIgnoreCase)
+            .ThenByDescending(r => r.IsSmartResource ? DateTime.MinValue : r.UpdatedAt)
+            .ThenByDescending(r => r.CreatedAt)
+            .ToList();
+
     public async Task<List<LearningResource>> GetAllResourcesAsync()
     {
         var userId = ActiveUserId;
@@ -180,7 +194,8 @@ public class LearningResourceRepository
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var query = db.LearningResources
             .Include(r => r.Vocabulary);
-        return await query.Where(r => r.UserProfileId == userId).ToListAsync();
+        var list = await query.Where(r => r.UserProfileId == userId).ToListAsync();
+        return OrderResourcesSmartFirst(list);
     }
 
     /// <summary>
@@ -220,10 +235,11 @@ public class LearningResourceRepository
         if (filterLanguages != null && filterLanguages.Count > 0)
             query = query.Where(r => filterLanguages.Contains(r.Language));
 
-        return await query
+        var list = await query
             .OrderByDescending(r => r.UpdatedAt)
             .ThenByDescending(r => r.CreatedAt)
             .ToListAsync();
+        return OrderResourcesSmartFirst(list);
     }
 
     public async Task<LearningResource> GetResourceAsync(string resourceId)

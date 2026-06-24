@@ -50,13 +50,25 @@ else
         <span class="badge bg-primary rounded-pill flex-shrink-0">@string.Format(Localize["Vocabulary_StatsLearning"], statLearning)</span>
         <span class="badge bg-warning text-dark rounded-pill flex-shrink-0">@string.Format(Localize["Vocabulary_StatsFamiliar"], statFamiliar)</span>
         <span class="badge bg-success rounded-pill flex-shrink-0">@string.Format(Localize["Vocabulary_StatsKnown"], statKnown)</span>
-        <div class="ms-auto btn-group btn-group-sm flex-shrink-0" role="group">
-            <button class="btn @(viewMode == "grid" ? "btn-secondary" : "btn-outline-secondary")" @onclick='() => SetViewMode("grid")' title="Grid view">
-                <i class="bi bi-grid-3x3-gap"></i>
-            </button>
-            <button class="btn @(viewMode == "list" ? "btn-secondary" : "btn-outline-secondary")" @onclick='() => SetViewMode("list")' title="List view">
-                <i class="bi bi-list-ul"></i>
-            </button>
+        <div class="ms-auto d-flex gap-2 flex-shrink-0">
+            <div class="btn-group btn-group-sm" role="group" aria-label="Sort">
+                <button class="btn @(sortField == "added" ? "btn-secondary" : "btn-outline-secondary")" @onclick='() => SetSort("added")' title="@Localize["Vocabulary_SortAddedTooltip"]">
+                    @Localize["Vocabulary_SortAdded"]@if (sortField == "added")
+                    {<i class="bi @(sortDescending ? "bi-arrow-down" : "bi-arrow-up") ms-1"></i>}
+                </button>
+                <button class="btn @(sortField == "updated" ? "btn-secondary" : "btn-outline-secondary")" @onclick='() => SetSort("updated")' title="@Localize["Vocabulary_SortUpdatedTooltip"]">
+                    @Localize["Vocabulary_SortUpdated"]@if (sortField == "updated")
+                    {<i class="bi @(sortDescending ? "bi-arrow-down" : "bi-arrow-up") ms-1"></i>}
+                </button>
+            </div>
+            <div class="btn-group btn-group-sm" role="group">
+                <button class="btn @(viewMode == "grid" ? "btn-secondary" : "btn-outline-secondary")" @onclick='() => SetViewMode("grid")' title="Grid view">
+                    <i class="bi bi-grid-3x3-gap"></i>
+                </button>
+                <button class="btn @(viewMode == "list" ? "btn-secondary" : "btn-outline-secondary")" @onclick='() => SetViewMode("list")' title="List view">
+                    <i class="bi bi-list-ul"></i>
+                </button>
+            </div>
         </div>
     </div>
 
@@ -698,6 +710,8 @@ else
     private int statTotal, statUnknown, statLearning, statFamiliar, statKnown;
     private bool isLoading = true;
     private string viewMode = "grid"; // "grid" or "list"
+    private string sortField = "added"; // "added" (CreatedAt) | "updated" (UpdatedAt)
+    private bool sortDescending = true; // true = newest / most-recently-updated first
     private bool isBulkEditMode;
     private HashSet<string> selectedWordIds = new();
     private string bulkAction = "status"; // status | language | tags | delete
@@ -1027,6 +1041,14 @@ else
             }
         }
 
+        filtered = (sortField, sortDescending) switch
+        {
+            ("updated", true) => filtered.OrderByDescending(v => v.Word.UpdatedAt),
+            ("updated", false) => filtered.OrderBy(v => v.Word.UpdatedAt),
+            (_, false) => filtered.OrderBy(v => v.Word.CreatedAt),
+            _ => filtered.OrderByDescending(v => v.Word.CreatedAt),
+        };
+
         filteredWords = filtered.ToList();
 
         statUnknown = filteredWords.Count(w => w.StatusText == "Unknown");
@@ -1308,6 +1330,25 @@ else
         catch { /* ignore if JS not available */ }
     }
 
+    private async Task SetSort(string field)
+    {
+        if (sortField == field)
+            sortDescending = !sortDescending; // toggle direction on the active field
+        else
+        {
+            sortField = field;
+            sortDescending = true; // default to newest / most-recently-updated first
+        }
+
+        ApplyFilters();
+
+        try
+        {
+            await JS.InvokeVoidAsync("localStorage.setItem", "vocab-sort", $"{sortField}:{(sortDescending ? "desc" : "asc")}");
+        }
+        catch { /* ignore if JS not available */ }
+    }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
@@ -1319,6 +1360,24 @@ else
                 {
                     viewMode = savedMode;
                     StateHasChanged();
+                }
+            }
+            catch { /* ignore if JS not available */ }
+
+            try
+            {
+                var savedSort = await JS.InvokeAsync<string>("localStorage.getItem", "vocab-sort");
+                if (!string.IsNullOrEmpty(savedSort) && savedSort.Contains(':'))
+                {
+                    var parts = savedSort.Split(':');
+                    var field = parts[0];
+                    if (field == "added" || field == "updated")
+                    {
+                        sortField = field;
+                        sortDescending = parts[1] != "asc";
+                        ApplyFilters();
+                        StateHasChanged();
+                    }
                 }
             }
             catch { /* ignore if JS not available */ }

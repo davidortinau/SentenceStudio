@@ -2443,6 +2443,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Words you haven&apos;t started practicing yet.
+        /// </summary>
+        internal static string Dashboard_VocabNewTooltip {
+            get {
+                return ResourceManager.GetString("Dashboard_VocabNewTooltip", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Review.
         /// </summary>
         internal static string Dashboard_VocabReview {
@@ -13130,6 +13139,42 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Vocabulary_SetStatus {
             get {
                 return ResourceManager.GetString("Vocabulary_SetStatus", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Added.
+        /// </summary>
+        internal static string Vocabulary_SortAdded {
+            get {
+                return ResourceManager.GetString("Vocabulary_SortAdded", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Sort by date added (newest/oldest).
+        /// </summary>
+        internal static string Vocabulary_SortAddedTooltip {
+            get {
+                return ResourceManager.GetString("Vocabulary_SortAddedTooltip", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Updated.
+        /// </summary>
+        internal static string Vocabulary_SortUpdated {
+            get {
+                return ResourceManager.GetString("Vocabulary_SortUpdated", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Sort by last updated (newest/oldest).
+        /// </summary>
+        internal static string Vocabulary_SortUpdatedTooltip {
+            get {
+                return ResourceManager.GetString("Vocabulary_SortUpdatedTooltip", resourceCulture);
             }
         }
         
