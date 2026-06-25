@@ -1,0 +1,386 @@
+@namespace SentenceStudio.WebUI.Components
+@using SentenceStudio.Services.DTOs
+@using Microsoft.Extensions.DependencyInjection
+@inject IServiceProvider Services
+@inject VocabularyExampleGenerationService ExampleGen
+@inject ToastService Toast
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@inject ILogger<ReferenceSentencesSection> Logger
+
+<div class="card card-ss p-4 mb-3">
+    <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap mb-2">
+        <h5 class="ss-title3 mb-0">@Localize["RefSentences_Title"]</h5>
+        <button class="btn btn-sm btn-outline-primary" type="button"
+                @onclick="GenerateAsync" disabled="@isGenerating">
+            @if (isGenerating)
+            {
+                <span class="spinner-border spinner-border-sm me-1"></span>
+                @Localize["RefSentences_Generating"]
+            }
+            else
+            {
+                <i class="bi bi-stars me-1"></i>
+                @Localize["RefSentences_Generate"]
+            }
+        </button>
+    </div>
+    <p class="ss-body2 text-secondary-ss mb-3">@Localize["RefSentences_Help"]</p>
+
+    @* Add a sentence manually *@
+    <div class="row g-2 align-items-end mb-3">
+        <div class="col-12 col-md-5">
+            <input type="text" class="form-control form-control-ss" @bind="newTarget"
+                   placeholder='@Localize["RefSentences_AddTargetPlaceholder"]' />
+        </div>
+        <div class="col-12 col-md-4">
+            <input type="text" class="form-control form-control-ss" @bind="newNative"
+                   placeholder='@Localize["RefSentences_AddNativePlaceholder"]' />
+        </div>
+        <div class="col-8 col-md-2">
+            <select class="form-select form-control-ss" @bind="newRegister">
+                @foreach (var r in Registers)
+                {
+                    <option value="@r">@RegisterLabel(r)</option>
+                }
+            </select>
+        </div>
+        <div class="col-4 col-md-1 d-grid">
+            <button class="btn btn-ss-primary" type="button"
+                    @onclick="AddManualAsync"
+                    disabled="@string.IsNullOrWhiteSpace(newTarget)">
+                @Localize["RefSentences_Add"]
+            </button>
+        </div>
+    </div>
+
+    @* AI suggestion tray *@
+    @if (suggestions.Count > 0)
+    {
+        <div class="alert alert-ss-info p-3 mb-3">
+            <div class="ss-body2-strong mb-2"><i class="bi bi-stars me-1"></i>@Localize["RefSentences_Suggestions"]</div>
+            @foreach (var s in suggestions)
+            {
+                <div class="border rounded p-2 mb-2 bg-body">
+                    <input type="text" class="form-control form-control-ss form-control-sm mb-1" @bind="s.TargetSentence" />
+                    <input type="text" class="form-control form-control-ss form-control-sm mb-2" @bind="s.NativeSentence"
+                           placeholder='@Localize["RefSentences_AddNativePlaceholder"]' />
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        @RenderRegisterBadge(s.Register)
+                        @RenderDifficultyBadge(s.DifficultyLevel)
+                        <span class="flex-grow-1"></span>
+                        <button class="btn btn-sm btn-ss-primary" type="button" @onclick="() => KeepAsync(s)">
+                            <i class="bi bi-check-lg me-1"></i>@Localize["RefSentences_Keep"]
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" type="button" @onclick="() => DiscardSuggestion(s)">
+                            <i class="bi bi-x-lg me-1"></i>@Localize["RefSentences_Discard"]
+                        </button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+
+    @* Saved sentences *@
+    @if (sentences.Count == 0 && suggestions.Count == 0)
+    {
+        <p class="ss-body2 text-secondary-ss mb-0">@Localize["RefSentences_Empty"]</p>
+    }
+    else
+    {
+        @foreach (var s in OrderedSentences)
+        {
+            <div class="border rounded p-3 mb-2 @(s.IsFlagged ? "border-warning" : "")">
+                @if (editingId == s.Id)
+                {
+                    <input type="text" class="form-control form-control-ss form-control-sm mb-1" @bind="editTarget" />
+                    <input type="text" class="form-control form-control-ss form-control-sm mb-2" @bind="editNative"
+                           placeholder='@Localize["RefSentences_AddNativePlaceholder"]' />
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <select class="form-select form-control-ss form-select-sm" style="width:auto" @bind="editRegister">
+                            @foreach (var r in Registers)
+                            {
+                                <option value="@r">@RegisterLabel(r)</option>
+                            }
+                        </select>
+                        <span class="flex-grow-1"></span>
+                        <button class="btn btn-sm btn-ss-primary" type="button" @onclick="() => SaveEditAsync(s)"
+                                disabled="@string.IsNullOrWhiteSpace(editTarget)">
+                            @Localize["RefSentences_Save"]
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" type="button" @onclick="CancelEdit">
+                            @Localize["RefSentences_Cancel"]
+                        </button>
+                    </div>
+                }
+                else
+                {
+                    <div class="d-flex justify-content-between align-items-start gap-2">
+                        <div class="flex-grow-1">
+                            <div class="ss-body1">@s.TargetSentence</div>
+                            @if (!string.IsNullOrWhiteSpace(s.NativeSentence))
+                            {
+                                <div class="ss-body2 text-secondary-ss">@s.NativeSentence</div>
+                            }
+                            <div class="d-flex align-items-center gap-2 flex-wrap mt-2">
+                                @if (s.IsCore)
+                                {
+                                    <span class="badge text-bg-primary"><i class="bi bi-star-fill me-1"></i>@Localize["RefSentences_Core"]</span>
+                                }
+                                @RenderSourceBadge(s.Source)
+                                @RenderRegisterBadge(s.Register)
+                                @RenderDifficultyBadge(s.DifficultyLevel)
+                                @if (s.IsFlagged)
+                                {
+                                    <span class="badge text-bg-warning"><i class="bi bi-flag-fill me-1"></i>@Localize["RefSentences_Flagged"]</span>
+                                }
+                            </div>
+                        </div>
+                        <div class="btn-group btn-group-sm flex-shrink-0">
+                            <button class="btn btn-outline-secondary" type="button"
+                                    title='@Localize["RefSentences_SetCore"]'
+                                    @onclick="() => SetCoreAsync(s)">
+                                <i class="bi @(s.IsCore ? "bi-star-fill" : "bi-star")"></i>
+                            </button>
+                            <button class="btn btn-outline-secondary" type="button"
+                                    title='@Localize["RefSentences_Edit"]'
+                                    @onclick="() => StartEdit(s)">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-outline-secondary" type="button"
+                                    title='@(s.IsFlagged ? Localize["RefSentences_Unflag"] : Localize["RefSentences_Flag"])'
+                                    @onclick="() => ToggleFlagAsync(s)">
+                                <i class="bi @(s.IsFlagged ? "bi-flag-fill" : "bi-flag")"></i>
+                            </button>
+                            <button class="btn btn-outline-danger" type="button"
+                                    title='@Localize["RefSentences_Delete"]'
+                                    @onclick="() => DeleteAsync(s)">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public VocabularyWord Word { get; set; } = default!;
+    [Parameter] public string NativeLanguage { get; set; } = "English";
+    [Parameter] public string TargetLanguage { get; set; } = "Korean";
+    [Parameter] public EventCallback<int> OnCountChanged { get; set; }
+
+    private List<ExampleSentence> sentences = new();
+    private readonly List<ExampleSentence> suggestions = new();
+    private bool isGenerating;
+
+    private string newTarget = "";
+    private string newNative = "";
+    private SpeechRegister newRegister = SpeechRegister.Unspecified;
+
+    private int editingId = -1;
+    private string editTarget = "";
+    private string editNative = "";
+    private SpeechRegister editRegister = SpeechRegister.Unspecified;
+
+    private static readonly SpeechRegister[] Registers = (SpeechRegister[])Enum.GetValues(typeof(SpeechRegister));
+
+    private IEnumerable<ExampleSentence> OrderedSentences =>
+        sentences.OrderByDescending(s => s.IsCore).ThenBy(s => s.CreatedAt);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Word is { Id: { Length: > 0 } } && sentences.Count == 0 && suggestions.Count == 0)
+            await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            using var scope = Services.CreateScope();
+            var repo = scope.ServiceProvider.GetRequiredService<ExampleSentenceRepository>();
+            sentences = await repo.GetByVocabularyWordIdAsync(Word.Id);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to load example sentences for word {WordId}", Word.Id);
+        }
+    }
+
+    private async Task NotifyCountAsync()
+    {
+        if (OnCountChanged.HasDelegate)
+            await OnCountChanged.InvokeAsync(sentences.Count);
+    }
+
+    private async Task GenerateAsync()
+    {
+        if (isGenerating) return;
+        isGenerating = true;
+        try
+        {
+            var drafts = await ExampleGen.GenerateSuggestionsAsync(
+                Word, NativeLanguage, TargetLanguage, count: 4);
+            if (drafts.Count == 0)
+            {
+                Toast.ShowError($"{Localize["RefSentences_GenerateFailed"]}");
+                return;
+            }
+            suggestions.AddRange(drafts);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Example generation failed for word {WordId}", Word.Id);
+            Toast.ShowError($"{Localize["RefSentences_GenerateFailed"]}");
+        }
+        finally
+        {
+            isGenerating = false;
+        }
+    }
+
+    private async Task KeepAsync(ExampleSentence s)
+    {
+        if (string.IsNullOrWhiteSpace(s.TargetSentence)) return;
+        s.TargetSentence = s.TargetSentence.Trim();
+        s.NativeSentence = string.IsNullOrWhiteSpace(s.NativeSentence) ? null : s.NativeSentence.Trim();
+        s.Status = ExampleSentenceStatus.Curated;
+        using var scope = Services.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<ExampleSentenceRepository>();
+        var saved = await repo.CreateAsync(s);
+        suggestions.Remove(s);
+        sentences.Add(saved);
+        Toast.ShowSuccess($"{Localize["RefSentences_Kept"]}");
+        await NotifyCountAsync();
+    }
+
+    private void DiscardSuggestion(ExampleSentence s) => suggestions.Remove(s);
+
+    private async Task AddManualAsync()
+    {
+        if (string.IsNullOrWhiteSpace(newTarget)) return;
+        var s = new ExampleSentence
+        {
+            VocabularyWordId = Word.Id,
+            TargetSentence = newTarget.Trim(),
+            NativeSentence = string.IsNullOrWhiteSpace(newNative) ? null : newNative.Trim(),
+            Source = ExampleSentenceSource.UserAuthored,
+            Status = ExampleSentenceStatus.Curated,
+            Register = newRegister,
+            IsCore = sentences.Count == 0,
+        };
+        using var scope = Services.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<ExampleSentenceRepository>();
+        var saved = await repo.CreateAsync(s);
+        sentences.Add(saved);
+        newTarget = "";
+        newNative = "";
+        newRegister = SpeechRegister.Unspecified;
+        Toast.ShowSuccess($"{Localize["RefSentences_Saved"]}");
+        await NotifyCountAsync();
+    }
+
+    private void StartEdit(ExampleSentence s)
+    {
+        editingId = s.Id;
+        editTarget = s.TargetSentence;
+        editNative = s.NativeSentence ?? "";
+        editRegister = s.Register;
+    }
+
+    private void CancelEdit() => editingId = -1;
+
+    private async Task SaveEditAsync(ExampleSentence s)
+    {
+        if (string.IsNullOrWhiteSpace(editTarget)) return;
+        s.TargetSentence = editTarget.Trim();
+        s.NativeSentence = string.IsNullOrWhiteSpace(editNative) ? null : editNative.Trim();
+        s.Register = editRegister;
+        using var scope = Services.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<ExampleSentenceRepository>();
+        await repo.UpdateAsync(s);
+        editingId = -1;
+        Toast.ShowSuccess($"{Localize["RefSentences_Saved"]}");
+    }
+
+    private async Task SetCoreAsync(ExampleSentence s)
+    {
+        var makeCore = !s.IsCore;
+        using (var scope = Services.CreateScope())
+        {
+            var repo = scope.ServiceProvider.GetRequiredService<ExampleSentenceRepository>();
+            await repo.SetCoreAsync(s.Id, makeCore);
+        }
+        // Reflect single-core invariant locally.
+        if (makeCore)
+            foreach (var other in sentences)
+                other.IsCore = other.Id == s.Id;
+        else
+            s.IsCore = false;
+    }
+
+    private async Task ToggleFlagAsync(ExampleSentence s)
+    {
+        s.IsFlagged = !s.IsFlagged;
+        using var scope = Services.CreateScope();
+        var repo = scope.ServiceProvider.GetRequiredService<ExampleSentenceRepository>();
+        await repo.UpdateAsync(s);
+    }
+
+    private async Task DeleteAsync(ExampleSentence s)
+    {
+        using (var scope = Services.CreateScope())
+        {
+            var repo = scope.ServiceProvider.GetRequiredService<ExampleSentenceRepository>();
+            await repo.DeleteAsync(s.Id);
+        }
+        sentences.Remove(s);
+        Toast.ShowSuccess($"{Localize["RefSentences_Deleted"]}");
+        await NotifyCountAsync();
+    }
+
+    private string RegisterLabel(SpeechRegister r) => r switch
+    {
+        SpeechRegister.FormalPolite => $"{Localize["Register_FormalPolite"]}",
+        SpeechRegister.InformalPolite => $"{Localize["Register_InformalPolite"]}",
+        SpeechRegister.Casual => $"{Localize["Register_Casual"]}",
+        SpeechRegister.PlainWritten => $"{Localize["Register_PlainWritten"]}",
+        _ => $"{Localize["Register_Unspecified"]}",
+    };
+
+    private RenderFragment RenderSourceBadge(ExampleSentenceSource source) => builder =>
+    {
+        var (icon, key) = source switch
+        {
+            ExampleSentenceSource.AiGenerated => ("bi-stars", "RefSentences_SourceAi"),
+            ExampleSentenceSource.UserAuthored => ("bi-person", "RefSentences_SourceUser"),
+            ExampleSentenceSource.FromReading => ("bi-book", "RefSentences_SourceReading"),
+            _ => ("", ""),
+        };
+        if (icon.Length == 0) return;
+        builder.OpenElement(0, "span");
+        builder.AddAttribute(1, "class", "badge text-bg-light border");
+        builder.AddMarkupContent(2, $"<i class=\"bi {icon} me-1\"></i>");
+        builder.AddContent(3, $"{Localize[key]}");
+        builder.CloseElement();
+    };
+
+    private RenderFragment RenderRegisterBadge(SpeechRegister r) => builder =>
+    {
+        if (r == SpeechRegister.Unspecified) return;
+        builder.OpenElement(0, "span");
+        builder.AddAttribute(1, "class", "badge text-bg-light border");
+        builder.AddContent(2, RegisterLabel(r));
+        builder.CloseElement();
+    };
+
+    private RenderFragment RenderDifficultyBadge(int? level) => builder =>
+    {
+        if (level is null) return;
+        builder.OpenElement(0, "span");
+        builder.AddAttribute(1, "class", "badge text-bg-light border");
+        builder.AddContent(2, $"Lv {level}");
+        builder.CloseElement();
+    };
+}

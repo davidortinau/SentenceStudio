@@ -589,7 +589,13 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int?>("DifficultyLevel")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("IsCore")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsFlagged")
                         .HasColumnType("boolean");
 
                     b.Property<string>("LearningResourceId")
@@ -598,6 +604,15 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<string>("NativeSentence")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
+
+                    b.Property<int>("Register")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Source")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
 
                     b.Property<string>("TargetSentence")
                         .IsRequired()

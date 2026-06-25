@@ -6757,4 +6757,140 @@ For example: {0} ...</value>
     <value>Play Audio</value>
     <comment>Button to play audio in Listen &amp; Place sub-mode</comment>
   </data>
+  <data name="RefSentences_Title" xml:space="preserve">
+    <value>Reference Sentences</value>
+    <comment>Vocabulary word: reference/example sentences section header</comment>
+  </data>
+  <data name="RefSentences_Help" xml:space="preserve">
+    <value>Sentences that show this word in real context. Add your own or generate a starter set with AI, then keep the good ones.</value>
+    <comment>RefSentences: section help text</comment>
+  </data>
+  <data name="RefSentences_Generate" xml:space="preserve">
+    <value>Generate</value>
+    <comment>RefSentences: generate AI examples button</comment>
+  </data>
+  <data name="RefSentences_Generating" xml:space="preserve">
+    <value>Generating…</value>
+    <comment>RefSentences: generating in progress</comment>
+  </data>
+  <data name="RefSentences_Empty" xml:space="preserve">
+    <value>No reference sentences yet.</value>
+    <comment>RefSentences: empty state</comment>
+  </data>
+  <data name="RefSentences_AddTargetPlaceholder" xml:space="preserve">
+    <value>Sentence in target language</value>
+    <comment>RefSentences: add target placeholder</comment>
+  </data>
+  <data name="RefSentences_AddNativePlaceholder" xml:space="preserve">
+    <value>Translation (optional)</value>
+    <comment>RefSentences: add native placeholder</comment>
+  </data>
+  <data name="RefSentences_Add" xml:space="preserve">
+    <value>Add</value>
+    <comment>RefSentences: add button</comment>
+  </data>
+  <data name="RefSentences_Suggestions" xml:space="preserve">
+    <value>AI suggestions — keep the good ones</value>
+    <comment>RefSentences: suggestion tray header</comment>
+  </data>
+  <data name="RefSentences_Keep" xml:space="preserve">
+    <value>Keep</value>
+    <comment>RefSentences: keep suggestion</comment>
+  </data>
+  <data name="RefSentences_Edit" xml:space="preserve">
+    <value>Edit</value>
+    <comment>RefSentences: edit</comment>
+  </data>
+  <data name="RefSentences_Discard" xml:space="preserve">
+    <value>Discard</value>
+    <comment>RefSentences: discard suggestion</comment>
+  </data>
+  <data name="RefSentences_Save" xml:space="preserve">
+    <value>Save</value>
+    <comment>RefSentences: save edit</comment>
+  </data>
+  <data name="RefSentences_Cancel" xml:space="preserve">
+    <value>Cancel</value>
+    <comment>RefSentences: cancel edit</comment>
+  </data>
+  <data name="RefSentences_Delete" xml:space="preserve">
+    <value>Delete</value>
+    <comment>RefSentences: delete sentence</comment>
+  </data>
+  <data name="RefSentences_SetCore" xml:space="preserve">
+    <value>Set as core example</value>
+    <comment>RefSentences: set core tooltip</comment>
+  </data>
+  <data name="RefSentences_Core" xml:space="preserve">
+    <value>Core</value>
+    <comment>RefSentences: core badge</comment>
+  </data>
+  <data name="RefSentences_Flag" xml:space="preserve">
+    <value>Flag as a bad example</value>
+    <comment>RefSentences: flag tooltip</comment>
+  </data>
+  <data name="RefSentences_Unflag" xml:space="preserve">
+    <value>Remove flag</value>
+    <comment>RefSentences: unflag tooltip</comment>
+  </data>
+  <data name="RefSentences_Flagged" xml:space="preserve">
+    <value>Flagged</value>
+    <comment>RefSentences: flagged badge</comment>
+  </data>
+  <data name="RefSentences_Suggested" xml:space="preserve">
+    <value>Suggested</value>
+    <comment>RefSentences: suggested (unverified) badge</comment>
+  </data>
+  <data name="RefSentences_GenerateFailed" xml:space="preserve">
+    <value>Couldn't generate sentences. Please try again.</value>
+    <comment>RefSentences: generate failed toast</comment>
+  </data>
+  <data name="RefSentences_Saved" xml:space="preserve">
+    <value>Sentence saved</value>
+    <comment>RefSentences: saved toast</comment>
+  </data>
+  <data name="RefSentences_Kept" xml:space="preserve">
+    <value>Suggestion kept</value>
+    <comment>RefSentences: kept toast</comment>
+  </data>
+  <data name="RefSentences_Deleted" xml:space="preserve">
+    <value>Sentence deleted</value>
+    <comment>RefSentences: deleted toast</comment>
+  </data>
+  <data name="RefSentences_SourceAi" xml:space="preserve">
+    <value>AI</value>
+    <comment>RefSentences: source AI badge</comment>
+  </data>
+  <data name="RefSentences_SourceUser" xml:space="preserve">
+    <value>You</value>
+    <comment>RefSentences: source user badge</comment>
+  </data>
+  <data name="RefSentences_SourceReading" xml:space="preserve">
+    <value>Reading</value>
+    <comment>RefSentences: source reading badge</comment>
+  </data>
+  <data name="RefSentences_Register" xml:space="preserve">
+    <value>Register</value>
+    <comment>RefSentences: register label</comment>
+  </data>
+  <data name="Register_Unspecified" xml:space="preserve">
+    <value>Unspecified</value>
+    <comment>Korean speech register: unspecified</comment>
+  </data>
+  <data name="Register_FormalPolite" xml:space="preserve">
+    <value>Formal polite (합쇼체)</value>
+    <comment>Korean speech register: formal polite</comment>
+  </data>
+  <data name="Register_InformalPolite" xml:space="preserve">
+    <value>Polite (해요체)</value>
+    <comment>Korean speech register: informal polite</comment>
+  </data>
+  <data name="Register_Casual" xml:space="preserve">
+    <value>Casual (반말)</value>
+    <comment>Korean speech register: casual</comment>
+  </data>
+  <data name="Register_PlainWritten" xml:space="preserve">
+    <value>Written (한다체)</value>
+    <comment>Korean speech register: plain written</comment>
+  </data>
 </root>

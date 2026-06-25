@@ -152,6 +152,16 @@ else
         </div>
     </div>
 
+    @* Reference / Example Sentences *@
+    @if (IsExistingWord)
+    {
+        <SentenceStudio.WebUI.Components.ReferenceSentencesSection
+            Word="word"
+            TargetLanguage="@(string.IsNullOrWhiteSpace(wordLanguage) ? "Korean" : wordLanguage)"
+            NativeLanguage="English"
+            OnCountChanged="OnExampleCountChanged" />
+    }
+
     @* Constituent Editor (Phrase/Sentence only) *@
     @if (selectedLexicalUnitType == LexicalUnitType.Phrase || selectedLexicalUnitType == LexicalUnitType.Sentence)
     {
@@ -737,9 +747,18 @@ else
 
     private void UpdateEncodingStrength()
     {
-        var exampleCount = word.ExampleSentences?.Count ?? 0;
+        var exampleCount = exampleSentenceCount ?? word.ExampleSentences?.Count ?? 0;
         var (score, label) = EncodingScoreHelper.CalculateWithLabel(word, exampleCount);
         encodingStrengthLabel = label;
+    }
+
+    private int? exampleSentenceCount;
+
+    private void OnExampleCountChanged(int count)
+    {
+        exampleSentenceCount = count;
+        UpdateEncodingStrength();
+        StateHasChanged();
     }
 
     private void ToggleResource(string resourceId)

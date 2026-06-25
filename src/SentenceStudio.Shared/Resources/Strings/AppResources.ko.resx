@@ -6506,4 +6506,106 @@
     <value>오디오 재생</value>
     <comment>Button to play audio in Listen &amp; Place sub-mode</comment>
   </data>
+  <data name="RefSentences_Title" xml:space="preserve">
+    <value>예문</value>
+  </data>
+  <data name="RefSentences_Help" xml:space="preserve">
+    <value>이 단어가 실제 문맥에서 어떻게 쓰이는지 보여 주는 문장입니다. 직접 추가하거나 AI로 초안을 만든 뒤 좋은 것만 남기세요.</value>
+  </data>
+  <data name="RefSentences_Generate" xml:space="preserve">
+    <value>생성</value>
+  </data>
+  <data name="RefSentences_Generating" xml:space="preserve">
+    <value>생성 중…</value>
+  </data>
+  <data name="RefSentences_Empty" xml:space="preserve">
+    <value>아직 예문이 없습니다.</value>
+  </data>
+  <data name="RefSentences_AddTargetPlaceholder" xml:space="preserve">
+    <value>목표 언어 문장</value>
+  </data>
+  <data name="RefSentences_AddNativePlaceholder" xml:space="preserve">
+    <value>번역 (선택)</value>
+  </data>
+  <data name="RefSentences_Add" xml:space="preserve">
+    <value>추가</value>
+  </data>
+  <data name="RefSentences_Suggestions" xml:space="preserve">
+    <value>AI 추천 — 좋은 문장을 남기세요</value>
+  </data>
+  <data name="RefSentences_Keep" xml:space="preserve">
+    <value>보관</value>
+  </data>
+  <data name="RefSentences_Edit" xml:space="preserve">
+    <value>편집</value>
+  </data>
+  <data name="RefSentences_Discard" xml:space="preserve">
+    <value>버리기</value>
+  </data>
+  <data name="RefSentences_Save" xml:space="preserve">
+    <value>저장</value>
+  </data>
+  <data name="RefSentences_Cancel" xml:space="preserve">
+    <value>취소</value>
+  </data>
+  <data name="RefSentences_Delete" xml:space="preserve">
+    <value>삭제</value>
+  </data>
+  <data name="RefSentences_SetCore" xml:space="preserve">
+    <value>핵심 예문으로 설정</value>
+  </data>
+  <data name="RefSentences_Core" xml:space="preserve">
+    <value>핵심</value>
+  </data>
+  <data name="RefSentences_Flag" xml:space="preserve">
+    <value>잘못된 예문으로 표시</value>
+  </data>
+  <data name="RefSentences_Unflag" xml:space="preserve">
+    <value>표시 해제</value>
+  </data>
+  <data name="RefSentences_Flagged" xml:space="preserve">
+    <value>표시됨</value>
+  </data>
+  <data name="RefSentences_Suggested" xml:space="preserve">
+    <value>추천</value>
+  </data>
+  <data name="RefSentences_GenerateFailed" xml:space="preserve">
+    <value>문장을 생성하지 못했습니다. 다시 시도해 주세요.</value>
+  </data>
+  <data name="RefSentences_Saved" xml:space="preserve">
+    <value>문장이 저장되었습니다</value>
+  </data>
+  <data name="RefSentences_Kept" xml:space="preserve">
+    <value>추천 문장을 보관했습니다</value>
+  </data>
+  <data name="RefSentences_Deleted" xml:space="preserve">
+    <value>문장이 삭제되었습니다</value>
+  </data>
+  <data name="RefSentences_SourceAi" xml:space="preserve">
+    <value>AI</value>
+  </data>
+  <data name="RefSentences_SourceUser" xml:space="preserve">
+    <value>나</value>
+  </data>
+  <data name="RefSentences_SourceReading" xml:space="preserve">
+    <value>읽기</value>
+  </data>
+  <data name="RefSentences_Register" xml:space="preserve">
+    <value>말투</value>
+  </data>
+  <data name="Register_Unspecified" xml:space="preserve">
+    <value>지정 안 함</value>
+  </data>
+  <data name="Register_FormalPolite" xml:space="preserve">
+    <value>격식체 (합쇼체)</value>
+  </data>
+  <data name="Register_InformalPolite" xml:space="preserve">
+    <value>존댓말 (해요체)</value>
+  </data>
+  <data name="Register_Casual" xml:space="preserve">
+    <value>반말</value>
+  </data>
+  <data name="Register_PlainWritten" xml:space="preserve">
+    <value>문어체 (한다체)</value>
+  </data>
 </root>

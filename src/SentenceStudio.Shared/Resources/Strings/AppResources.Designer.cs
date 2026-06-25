@@ -7789,6 +7789,267 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Add.
+        /// </summary>
+        internal static string RefSentences_Add {
+            get {
+                return ResourceManager.GetString("RefSentences_Add", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Translation (optional).
+        /// </summary>
+        internal static string RefSentences_AddNativePlaceholder {
+            get {
+                return ResourceManager.GetString("RefSentences_AddNativePlaceholder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Sentence in target language.
+        /// </summary>
+        internal static string RefSentences_AddTargetPlaceholder {
+            get {
+                return ResourceManager.GetString("RefSentences_AddTargetPlaceholder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Cancel.
+        /// </summary>
+        internal static string RefSentences_Cancel {
+            get {
+                return ResourceManager.GetString("RefSentences_Cancel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Core.
+        /// </summary>
+        internal static string RefSentences_Core {
+            get {
+                return ResourceManager.GetString("RefSentences_Core", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Delete.
+        /// </summary>
+        internal static string RefSentences_Delete {
+            get {
+                return ResourceManager.GetString("RefSentences_Delete", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Sentence deleted.
+        /// </summary>
+        internal static string RefSentences_Deleted {
+            get {
+                return ResourceManager.GetString("RefSentences_Deleted", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Discard.
+        /// </summary>
+        internal static string RefSentences_Discard {
+            get {
+                return ResourceManager.GetString("RefSentences_Discard", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Edit.
+        /// </summary>
+        internal static string RefSentences_Edit {
+            get {
+                return ResourceManager.GetString("RefSentences_Edit", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No reference sentences yet..
+        /// </summary>
+        internal static string RefSentences_Empty {
+            get {
+                return ResourceManager.GetString("RefSentences_Empty", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Flag as a bad example.
+        /// </summary>
+        internal static string RefSentences_Flag {
+            get {
+                return ResourceManager.GetString("RefSentences_Flag", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Flagged.
+        /// </summary>
+        internal static string RefSentences_Flagged {
+            get {
+                return ResourceManager.GetString("RefSentences_Flagged", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Generate.
+        /// </summary>
+        internal static string RefSentences_Generate {
+            get {
+                return ResourceManager.GetString("RefSentences_Generate", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Couldn&apos;t generate sentences. Please try again..
+        /// </summary>
+        internal static string RefSentences_GenerateFailed {
+            get {
+                return ResourceManager.GetString("RefSentences_GenerateFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Generating….
+        /// </summary>
+        internal static string RefSentences_Generating {
+            get {
+                return ResourceManager.GetString("RefSentences_Generating", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Sentences that show this word in real context. Add your own or generate a starter set with AI, then keep the good ones..
+        /// </summary>
+        internal static string RefSentences_Help {
+            get {
+                return ResourceManager.GetString("RefSentences_Help", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Keep.
+        /// </summary>
+        internal static string RefSentences_Keep {
+            get {
+                return ResourceManager.GetString("RefSentences_Keep", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Suggestion kept.
+        /// </summary>
+        internal static string RefSentences_Kept {
+            get {
+                return ResourceManager.GetString("RefSentences_Kept", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Register.
+        /// </summary>
+        internal static string RefSentences_Register {
+            get {
+                return ResourceManager.GetString("RefSentences_Register", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Save.
+        /// </summary>
+        internal static string RefSentences_Save {
+            get {
+                return ResourceManager.GetString("RefSentences_Save", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Sentence saved.
+        /// </summary>
+        internal static string RefSentences_Saved {
+            get {
+                return ResourceManager.GetString("RefSentences_Saved", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Set as core example.
+        /// </summary>
+        internal static string RefSentences_SetCore {
+            get {
+                return ResourceManager.GetString("RefSentences_SetCore", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to AI.
+        /// </summary>
+        internal static string RefSentences_SourceAi {
+            get {
+                return ResourceManager.GetString("RefSentences_SourceAi", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Reading.
+        /// </summary>
+        internal static string RefSentences_SourceReading {
+            get {
+                return ResourceManager.GetString("RefSentences_SourceReading", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to You.
+        /// </summary>
+        internal static string RefSentences_SourceUser {
+            get {
+                return ResourceManager.GetString("RefSentences_SourceUser", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Suggested.
+        /// </summary>
+        internal static string RefSentences_Suggested {
+            get {
+                return ResourceManager.GetString("RefSentences_Suggested", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to AI suggestions — keep the good ones.
+        /// </summary>
+        internal static string RefSentences_Suggestions {
+            get {
+                return ResourceManager.GetString("RefSentences_Suggestions", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Reference Sentences.
+        /// </summary>
+        internal static string RefSentences_Title {
+            get {
+                return ResourceManager.GetString("RefSentences_Title", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Remove flag.
+        /// </summary>
+        internal static string RefSentences_Unflag {
+            get {
+                return ResourceManager.GetString("RefSentences_Unflag", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Already have an account?.
         /// </summary>
         internal static string Register_AlreadyHaveAccount {
@@ -7803,6 +8064,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Register_AtLeast8Chars {
             get {
                 return ResourceManager.GetString("Register_AtLeast8Chars", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Casual (반말).
+        /// </summary>
+        internal static string Register_Casual {
+            get {
+                return ResourceManager.GetString("Register_Casual", resourceCulture);
             }
         }
         
@@ -7870,11 +8140,29 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Formal polite (합쇼체).
+        /// </summary>
+        internal static string Register_FormalPolite {
+            get {
+                return ResourceManager.GetString("Register_FormalPolite", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Go to Sign In.
         /// </summary>
         internal static string Register_GoToSignIn {
             get {
                 return ResourceManager.GetString("Register_GoToSignIn", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Polite (해요체).
+        /// </summary>
+        internal static string Register_InformalPolite {
+            get {
+                return ResourceManager.GetString("Register_InformalPolite", resourceCulture);
             }
         }
         
@@ -7911,6 +8199,24 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Register_PasswordsDoNotMatch {
             get {
                 return ResourceManager.GetString("Register_PasswordsDoNotMatch", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Written (한다체).
+        /// </summary>
+        internal static string Register_PlainWritten {
+            get {
+                return ResourceManager.GetString("Register_PlainWritten", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Unspecified.
+        /// </summary>
+        internal static string Register_Unspecified {
+            get {
+                return ResourceManager.GetString("Register_Unspecified", resourceCulture);
             }
         }
         

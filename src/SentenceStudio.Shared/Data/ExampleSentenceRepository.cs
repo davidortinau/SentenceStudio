@@ -58,12 +58,42 @@ public class ExampleSentenceRepository
     }
 
     /// <summary>
+    /// Get quiz/review-eligible example sentences for a vocabulary word
+    /// (Curated or Verified, not flagged). Core first, then by creation order.
+    /// </summary>
+    public Task<List<ExampleSentence>> GetQuizEligibleAsync(string vocabularyWordId)
+    {
+        return _context.ExampleSentences
+            .Where(es => es.VocabularyWordId == vocabularyWordId
+                && !es.IsFlagged
+                && (es.Status == ExampleSentenceStatus.Curated || es.Status == ExampleSentenceStatus.Verified))
+            .OrderByDescending(es => es.IsCore)
+            .ThenBy(es => es.CreatedAt)
+            .ToListAsync();
+    }
+
+    /// <summary>
+    /// Get the single best example to surface for a word on study/review cards:
+    /// the core example if one exists, otherwise the earliest quiz-eligible sentence.
+    /// Returns null when the word has no eligible example.
+    /// </summary>
+    public async Task<ExampleSentence?> GetCoreOrFirstEligibleAsync(string vocabularyWordId)
+    {
+        var eligible = await GetQuizEligibleAsync(vocabularyWordId);
+        return eligible.FirstOrDefault();
+    }
+
+    /// <summary>
     /// Create a new example sentence
     /// </summary>
     public async Task<ExampleSentence> CreateAsync(ExampleSentence sentence)
     {
         sentence.CreatedAt = DateTime.UtcNow;
         sentence.UpdatedAt = DateTime.UtcNow;
+
+        // Enforce a single core example per word.
+        if (sentence.IsCore)
+            await DemoteOtherCoresAsync(sentence.VocabularyWordId, exceptId: null);
 
         _context.ExampleSentences.Add(sentence);
         await _context.SaveChangesAsync();
@@ -105,13 +135,17 @@ public class ExampleSentenceRepository
     }
 
     /// <summary>
-    /// Toggle the IsCore flag on an example sentence
+    /// Toggle the IsCore flag on an example sentence. Setting a sentence as core
+    /// demotes any other core example for the same word (single-core invariant).
     /// </summary>
     public async Task<ExampleSentence> SetCoreAsync(int id, bool isCore)
     {
         var sentence = await _context.ExampleSentences.FindAsync(id);
         if (sentence == null)
             throw new InvalidOperationException($"Example sentence {id} not found");
+
+        if (isCore)
+            await DemoteOtherCoresAsync(sentence.VocabularyWordId, exceptId: id);
 
         sentence.IsCore = isCore;
         sentence.UpdatedAt = DateTime.UtcNow;
@@ -121,5 +155,22 @@ public class ExampleSentenceRepository
         _logger.LogInformation("⭐ Set example sentence {Id} IsCore = {IsCore}", id, isCore);
 
         return sentence;
+    }
+
+    /// <summary>
+    /// Clear IsCore on all other example sentences for a word so at most one stays core.
+    /// </summary>
+    private async Task DemoteOtherCoresAsync(string vocabularyWordId, int? exceptId)
+    {
+        var existingCores = await _context.ExampleSentences
+            .Where(es => es.VocabularyWordId == vocabularyWordId && es.IsCore
+                && (exceptId == null || es.Id != exceptId.Value))
+            .ToListAsync();
+
+        foreach (var core in existingCores)
+        {
+            core.IsCore = false;
+            core.UpdatedAt = DateTime.UtcNow;
+        }
     }
 }
