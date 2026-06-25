@@ -1718,50 +1718,104 @@ main.main-content:has(.matching-page-wrapper) {
 }
 
 /* ============================================
-   ENVIRONMENT BADGE
+   ENVIRONMENT BAR (dev/local only — hidden in production)
    ============================================ */
 
-.env-badge {
-    position: fixed;
-    top: 0;
-    right: 0;
-    z-index: 10000;
-    padding: 2px 24px;
+.env-bar {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 12px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--bs-border-color);
+    color: var(--bs-secondary-color, #6c757d);
+    gap: 8px;
+    line-height: 1.4;
+}
+
+.env-bar-left,
+.env-bar-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow: hidden;
+}
+
+.env-bar-left {
+    flex: 1;
+    min-width: 0;
+}
+
+.env-bar-right {
+    flex-shrink: 0;
+}
+
+.env-bar-appname {
+    font-weight: 600;
+    color: var(--bs-body-color);
+    letter-spacing: 0.02em;
+    flex-shrink: 0;
+}
+
+.env-bar-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 1px 6px;
+    border-radius: 3px;
     font-size: 0.65rem;
     font-weight: 700;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
     color: #fff;
-    transform: rotate(45deg) translate(22%, -40%);
-    transform-origin: top right;
-    pointer-events: none;
-    opacity: 0.9;
-    line-height: 1.6;
+    line-height: 1.4;
+    flex-shrink: 0;
+}
+
+.env-bar-apihost {
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
+    opacity: 0.8;
+    font-family: var(--bs-font-monospace, monospace);
+    font-size: 0.67rem;
 }
 
-.env-badge-production {
-    background: #e74c3c;
-    animation: pulse-production 2s ease-in-out infinite;
+.env-bar-version {
+    opacity: 0.7;
+    font-family: var(--bs-font-monospace, monospace);
+    font-size: 0.67rem;
+    flex-shrink: 0;
 }
 
-@keyframes pulse-production {
-    0%, 100% { opacity: 0.95; }
-    50% { opacity: 0.7; }
+/* LOCAL: green */
+.env-bar-local {
+    background-color: rgba(39, 174, 96, 0.08);
+    border-bottom-color: rgba(39, 174, 96, 0.25);
 }
 
-.env-badge-dev {
-    background: #e67e22;
+.env-bar-local .env-bar-pill {
+    background-color: #27ae60;
 }
 
-.env-badge-local {
-    background: #27ae60;
+/* DEV / DEV TUNNEL: orange */
+.env-bar-dev {
+    background-color: rgba(230, 126, 34, 0.08);
+    border-bottom-color: rgba(230, 126, 34, 0.25);
 }
 
-/* Safe area adjustment for iOS notch */
+.env-bar-dev .env-bar-pill {
+    background-color: #e67e22;
+}
+
+/* Safe area: expand bar for iOS notch */
 @supports (padding-top: env(safe-area-inset-top)) {
-    .env-badge {
-        top: env(safe-area-inset-top, 0px);
+    .env-bar {
+        padding-top: calc(env(safe-area-inset-top, 0px) + 4px);
     }
 }
 

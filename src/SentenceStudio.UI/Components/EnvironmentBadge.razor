@@ -1,9 +1,22 @@
 @inject Microsoft.Extensions.Configuration.IConfiguration Configuration
+@using System.Reflection
 
 @if (!string.IsNullOrEmpty(envLabel))
 {
-    <div class="env-badge env-badge-@envClass" title="@envDetail">
-        @envLabel
+    <div class="env-bar env-bar-@envClass" title="@envDetail">
+        <div class="env-bar-left">
+            <span class="env-bar-appname">SentenceStudio</span>
+            <span class="env-bar-pill">@envLabel</span>
+            @if (!string.IsNullOrEmpty(apiHost))
+            {
+                <span class="env-bar-apihost">
+                    <i class="bi bi-hdd-network" aria-hidden="true"></i> @apiHost
+                </span>
+            }
+        </div>
+        <div class="env-bar-right">
+            <span class="env-bar-version">@appVersion</span>
+        </div>
     </div>
 }
 
@@ -11,6 +24,8 @@
     private string envLabel = "";
     private string envClass = "";
     private string envDetail = "";
+    private string appVersion = "";
+    private string apiHost = "";
 
     protected override void OnInitialized()
     {
@@ -29,36 +44,38 @@
         // Collect all known URLs to check for production indicators
         var allUrls = $"{aspireApiUrl} {configApiUrl} {fallbackUrl}";
 
+        string? resolvedApiUrl = null;
+
         if (allUrls.Contains("azurecontainerapps.io"))
         {
-            // Production Azure — no badge needed, this is the normal state
+            // Production Azure — no bar needed, this is the normal state
+            return;
         }
         else if (!string.IsNullOrEmpty(aspireApiUrl))
         {
+            resolvedApiUrl = aspireApiUrl;
             if (aspireApiUrl.Contains("devtunnels.ms"))
             {
                 envLabel = "DEV TUNNEL";
                 envClass = "dev";
-                envDetail = $"API: {aspireApiUrl}";
             }
             else
             {
                 envLabel = "LOCAL";
                 envClass = "local";
-                envDetail = $"API: {aspireApiUrl}";
             }
         }
         else if (configApiUrl.Contains("localhost") || fallbackUrl.Contains("localhost"))
         {
             envLabel = "LOCAL";
             envClass = "local";
-            envDetail = $"API: {(string.IsNullOrEmpty(configApiUrl) ? fallbackUrl : configApiUrl)}";
+            resolvedApiUrl = string.IsNullOrEmpty(configApiUrl) ? fallbackUrl : configApiUrl;
         }
         else if (configApiUrl.Contains("devtunnels.ms") || fallbackUrl.Contains("devtunnels.ms"))
         {
             envLabel = "DEV TUNNEL";
             envClass = "dev";
-            envDetail = $"API: {(string.IsNullOrEmpty(configApiUrl) ? fallbackUrl : configApiUrl)}";
+            resolvedApiUrl = string.IsNullOrEmpty(configApiUrl) ? fallbackUrl : configApiUrl;
         }
         else
         {
@@ -69,8 +86,26 @@
             {
                 envLabel = "DEV";
                 envClass = "dev";
-                envDetail = $"Environment: {env}";
             }
         }
+
+        if (string.IsNullOrEmpty(envLabel)) return;
+
+        // Extract hostname for display (most useful dogfooding info — tells you which backend you're hitting)
+        if (!string.IsNullOrEmpty(resolvedApiUrl) && Uri.TryCreate(resolvedApiUrl, UriKind.Absolute, out var uri))
+        {
+            apiHost = uri.IsDefaultPort ? uri.Host : $"{uri.Host}:{uri.Port}";
+            envDetail = $"API: {resolvedApiUrl}";
+        }
+
+        // App version from assembly (SentenceStudio.UI.csproj <Version>)
+        var version = typeof(EnvironmentBadge).Assembly.GetName().Version;
+        appVersion = version is not null ? $"v{version.ToString(3)}" : "";
+
+        // Include full informational version (with build timestamp) in tooltip
+        var infoVersion = typeof(EnvironmentBadge).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
+        if (!string.IsNullOrEmpty(infoVersion))
+            envDetail = string.IsNullOrEmpty(envDetail) ? infoVersion : $"{envDetail} | {infoVersion}";
     }
 }

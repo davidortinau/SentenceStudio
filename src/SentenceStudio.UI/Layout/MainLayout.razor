@@ -13,8 +13,9 @@
 @inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthStateProvider
 @implements IDisposable
 
-<div class="d-flex vh-100">
+<div class="d-flex flex-column vh-100">
     <EnvironmentBadge />
+    <div class="d-flex flex-row flex-grow-1 overflow-hidden">
     @if (!isOnboarding && isAuthenticated && !isSyncing)
     {
         @* Sidebar navigation (desktop only) *@
@@ -81,6 +82,7 @@
             </div>
         </div>
     }
+    </div>
 </div>
 
 @code {
