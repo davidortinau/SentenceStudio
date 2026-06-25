@@ -132,6 +132,15 @@ bash scripts/validate-mobile-migrations.sh
 
 This gate catches iOS/Android-specific migration failures that desktop/server builds may not exhibit. It builds Mac Catalyst DEBUG, launches via `maui devflow`, and scans startup logs for migration errors.
 
+**Expected non-fatal warnings (validated 2026-06-24):** the script may print
+`⚠️ Could not fetch native logs via maui devflow` and
+`⚠️ Schema sanity check PASSED message not found` while still exiting 0 — this happens when
+the `maui devflow` agent connection is flaky and native logs can't be pulled. A **clean
+build + launch with no `SQLite Error` / `no such column` / `MigrateAsync failed` in the
+captured logs is still a pass** for a purely additive migration (`AddColumn` only). For
+riskier migrations (table rebuilds, data moves), re-run until the agent connects and the
+`Schema sanity check PASSED` line appears, or validate manually on a Catalyst run.
+
 **Skip this step ONLY if:** The deploy contains NO changes to files under `src/SentenceStudio.Shared/Migrations/`.
 
 ### All checks passed? Proceed to deploy.
@@ -171,6 +180,31 @@ To enable auth flow tests, set the test account credentials:
 DEPLOY_TEST_PASSWORD="..." ./scripts/post-deploy-validate.sh
 ```
 
+### Step 5a: Re-apply webapp sticky sessions (recurring — `azd deploy` resets it)
+
+**Known drift (validated publish 2026-06-24):** `azd deploy` updates the `webapp`
+Container App from the Aspire-generated manifest, which does **not** declare ingress
+sticky sessions. As a result, the webapp ingress affinity is reset to `null` on **every**
+deploy, and the post-deploy validator's "Blazor Server circuit affinity" check FAILs.
+Because `webapp` scales to multiple replicas (`maxReplicas: 10`), a disabled affinity lets
+Blazor Server `_blazor` WebSocket/long-polling requests 404 across replicas — interactive
+pages (e.g. vocabulary word edit) break under load.
+
+**Fix (idempotent, non-destructive — re-run after every `azd deploy`):**
+```bash
+az containerapp ingress sticky-sessions set \
+  -n webapp -g rg-sstudio-prod-biz --affinity sticky
+
+# verify
+az containerapp show -n webapp -g rg-sstudio-prod-biz \
+  --query "properties.configuration.ingress.stickySessions.affinity" -o tsv   # -> sticky
+```
+Then re-run `./scripts/post-deploy-validate.sh --skip-wait` and confirm 0 FAIL.
+
+> **Permanent fix (TODO):** declare `stickySessions.affinity = "sticky"` on the `webapp`
+> ingress in the AppHost/Bicep so `azd deploy` stops reverting it. Until then this is a
+> mandatory manual step on each deploy.
+
 ### Step 6: Change-specific validation (manual)
 
 After the automated script passes, verify the **specific change you deployed**:
@@ -180,6 +214,30 @@ After the automated script passes, verify the **specific change you deployed**:
 3. Does it behave correctly? (Expected data shape, correct UI, proper error handling)
 
 See `docs/specs/post-deploy-validation.md` Phase 3 for common validation patterns.
+
+**Verify a migration applied to production (recipe — validated 2026-06-24):**
+The prod DB connection string lives in Key Vault; pull it and query with `psql` directly —
+no need to know the admin password by heart:
+```bash
+cs=$(az keyvault secret show --vault-name dbkv-rsn72awybem6s \
+  --name connectionstrings--sentencestudio --query value -o tsv)
+host=$(echo "$cs" | grep -oE 'Host=[^;]+' | cut -d= -f2)
+db=$(echo   "$cs" | grep -oE 'Database=[^;]+' | cut -d= -f2)
+user=$(echo "$cs" | grep -oE 'Username=[^;]+' | cut -d= -f2)
+pass=$(echo "$cs" | grep -oE 'Password=[^;]+' | cut -d= -f2)
+
+# Was the migration recorded?
+PGPASSWORD="$pass" psql "host=$host dbname=$db user=$user sslmode=require" -t \
+  -c "SELECT \"MigrationId\" FROM \"__EFMigrationsHistory\" ORDER BY \"MigrationId\" DESC LIMIT 5;"
+
+# Do the new columns exist? (adjust table/column names)
+PGPASSWORD="$pass" psql "host=$host dbname=$db user=$user sslmode=require" -t \
+  -c "SELECT column_name FROM information_schema.columns WHERE table_name='ExampleSentence';"
+```
+> Note: a healthy API revision (active=latest, no crash loop, DB connectivity PASS) is
+> already strong evidence the migration applied — EF `MigrateAsync` runs at startup, so a
+> failed migration crash-loops the revision and it never becomes active. The query above is
+> the definitive confirmation.
 
 ### Legacy individual checks (still valid for manual spot-checking)
 
