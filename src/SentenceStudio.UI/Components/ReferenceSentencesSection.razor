@@ -81,6 +81,10 @@
     }
 
     @* Saved sentences *@
+    @if (openMenuId != -1)
+    {
+        <div class="ref-menu-backdrop" @onclick="CloseMenu"></div>
+    }
     @if (sentences.Count == 0 && suggestions.Count == 0)
     {
         <p class="ss-body2 text-secondary-ss mb-0">@Localize["RefSentences_Empty"]</p>
@@ -89,7 +93,7 @@
     {
         @foreach (var s in OrderedSentences)
         {
-            <div class="border rounded p-3 mb-2 @(s.IsFlagged ? "border-warning" : "")">
+            <div class="ref-sentence-card border rounded p-3 mb-2 @(s.IsFlagged ? "border-warning" : "")">
                 @if (editingId == s.Id)
                 {
                     <input type="text" class="form-control form-control-ss form-control-sm mb-1" @bind="editTarget" />
@@ -114,49 +118,49 @@
                 }
                 else
                 {
-                    <div class="d-flex justify-content-between align-items-start gap-2">
-                        <div class="flex-grow-1">
-                            <div class="ss-body1">@s.TargetSentence</div>
-                            @if (!string.IsNullOrWhiteSpace(s.NativeSentence))
-                            {
-                                <div class="ss-body2 text-secondary-ss">@s.NativeSentence</div>
-                            }
-                            <div class="d-flex align-items-center gap-2 flex-wrap mt-2">
-                                @if (s.IsCore)
-                                {
-                                    <span class="badge text-bg-primary"><i class="bi bi-star-fill me-1"></i>@Localize["RefSentences_Core"]</span>
-                                }
-                                @RenderSourceBadge(s.Source)
-                                @RenderRegisterBadge(s.Register)
-                                @RenderDifficultyBadge(s.DifficultyLevel)
-                                @if (s.IsFlagged)
-                                {
-                                    <span class="badge text-bg-warning"><i class="bi bi-flag-fill me-1"></i>@Localize["RefSentences_Flagged"]</span>
-                                }
+                    <div class="ref-sentence-actions dropdown">
+                        <button class="btn btn-sm btn-icon" type="button"
+                                title='@Localize["RefSentences_Actions"]'
+                                aria-label='@Localize["RefSentences_Actions"]'
+                                @onclick="() => ToggleMenu(s.Id)">
+                            <i class="bi bi-three-dots-vertical"></i>
+                        </button>
+                        @if (openMenuId == s.Id)
+                        {
+                            <div class="dropdown-menu dropdown-menu-end show ref-sentence-menu">
+                                <button class="dropdown-item" type="button" @onclick="() => SetCoreAsync(s)">
+                                    <i class="bi @(s.IsCore ? "bi-star-fill" : "bi-star") me-2"></i>@Localize["RefSentences_SetCore"]
+                                </button>
+                                <button class="dropdown-item" type="button" @onclick="() => StartEdit(s)">
+                                    <i class="bi bi-pencil me-2"></i>@Localize["RefSentences_Edit"]
+                                </button>
+                                <button class="dropdown-item" type="button" @onclick="() => ToggleFlagAsync(s)">
+                                    <i class="bi @(s.IsFlagged ? "bi-flag-fill" : "bi-flag") me-2"></i>@(s.IsFlagged ? Localize["RefSentences_Unflag"] : Localize["RefSentences_Flag"])
+                                </button>
+                                <div class="dropdown-divider"></div>
+                                <button class="dropdown-item text-danger" type="button" @onclick="() => DeleteAsync(s)">
+                                    <i class="bi bi-trash me-2"></i>@Localize["RefSentences_Delete"]
+                                </button>
                             </div>
-                        </div>
-                        <div class="btn-group btn-group-sm flex-shrink-0">
-                            <button class="btn btn-outline-secondary" type="button"
-                                    title='@Localize["RefSentences_SetCore"]'
-                                    @onclick="() => SetCoreAsync(s)">
-                                <i class="bi @(s.IsCore ? "bi-star-fill" : "bi-star")"></i>
-                            </button>
-                            <button class="btn btn-outline-secondary" type="button"
-                                    title='@Localize["RefSentences_Edit"]'
-                                    @onclick="() => StartEdit(s)">
-                                <i class="bi bi-pencil"></i>
-                            </button>
-                            <button class="btn btn-outline-secondary" type="button"
-                                    title='@(s.IsFlagged ? Localize["RefSentences_Unflag"] : Localize["RefSentences_Flag"])'
-                                    @onclick="() => ToggleFlagAsync(s)">
-                                <i class="bi @(s.IsFlagged ? "bi-flag-fill" : "bi-flag")"></i>
-                            </button>
-                            <button class="btn btn-outline-danger" type="button"
-                                    title='@Localize["RefSentences_Delete"]'
-                                    @onclick="() => DeleteAsync(s)">
-                                <i class="bi bi-trash"></i>
-                            </button>
-                        </div>
+                        }
+                    </div>
+                    <div class="ss-body1">@s.TargetSentence</div>
+                    @if (!string.IsNullOrWhiteSpace(s.NativeSentence))
+                    {
+                        <div class="ss-body2 text-secondary-ss">@s.NativeSentence</div>
+                    }
+                    <div class="d-flex align-items-center gap-2 flex-wrap mt-2">
+                        @if (s.IsCore)
+                        {
+                            <span class="badge text-bg-primary"><i class="bi bi-star-fill me-1"></i>@Localize["RefSentences_Core"]</span>
+                        }
+                        @RenderSourceBadge(s.Source)
+                        @RenderRegisterBadge(s.Register)
+                        @RenderDifficultyBadge(s.DifficultyLevel)
+                        @if (s.IsFlagged)
+                        {
+                            <span class="badge text-bg-warning"><i class="bi bi-flag-fill me-1"></i>@Localize["RefSentences_Flagged"]</span>
+                        }
                     </div>
                 }
             </div>
@@ -182,6 +186,10 @@
     private string editTarget = "";
     private string editNative = "";
     private SpeechRegister editRegister = SpeechRegister.Unspecified;
+
+    private int openMenuId = -1;
+    private void ToggleMenu(int id) => openMenuId = openMenuId == id ? -1 : id;
+    private void CloseMenu() => openMenuId = -1;
 
     private static readonly SpeechRegister[] Registers = (SpeechRegister[])Enum.GetValues(typeof(SpeechRegister));
 
@@ -283,6 +291,7 @@
 
     private void StartEdit(ExampleSentence s)
     {
+        openMenuId = -1;
         editingId = s.Id;
         editTarget = s.TargetSentence;
         editNative = s.NativeSentence ?? "";
@@ -306,6 +315,7 @@
 
     private async Task SetCoreAsync(ExampleSentence s)
     {
+        openMenuId = -1;
         var makeCore = !s.IsCore;
         using (var scope = Services.CreateScope())
         {
@@ -322,6 +332,7 @@
 
     private async Task ToggleFlagAsync(ExampleSentence s)
     {
+        openMenuId = -1;
         s.IsFlagged = !s.IsFlagged;
         using var scope = Services.CreateScope();
         var repo = scope.ServiceProvider.GetRequiredService<ExampleSentenceRepository>();
@@ -330,6 +341,7 @@
 
     private async Task DeleteAsync(ExampleSentence s)
     {
+        openMenuId = -1;
         using (var scope = Services.CreateScope())
         {
             var repo = scope.ServiceProvider.GetRequiredService<ExampleSentenceRepository>();

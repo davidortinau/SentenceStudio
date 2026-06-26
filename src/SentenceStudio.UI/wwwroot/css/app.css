@@ -2117,3 +2117,56 @@ main.main-content:has(.matching-page-wrapper) {
     }
 }
 
+
+/* Reference-sentence card: kebab overflow menu, full-width text/tags */
+.ref-sentence-card::after {
+    content: "";
+    display: block;
+    clear: both;
+}
+.ref-sentence-actions {
+    float: right;
+    margin-left: 0.5rem;
+    margin-bottom: 0.25rem;
+    position: relative;
+}
+.ref-sentence-menu {
+    position: absolute;
+    right: 0;
+    top: 100%;
+    z-index: 1002;
+    min-width: 11rem;
+}
+.ref-menu-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: transparent;
+}
+.ref-sentence-actions > .btn-icon {
+    position: relative;
+    z-index: 1001;
+}
+
+/* ============================================
+   SHARED-INGEST ACTIVITY TOAST
+   Bottom-anchored floating toast for share-to-vocab processing/completion.
+   Sits above content, centered, respects the iOS home-indicator safe area.
+   ============================================ */
+.shared-ingest-toast {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+    z-index: 1080;
+    width: calc(100% - 1.5rem);
+    max-width: 440px;
+    pointer-events: none;
+}
+
+.shared-ingest-toast-inner {
+    pointer-events: auto;
+    border-radius: 0.5rem;
+    box-shadow: 0 0.5rem 1.25rem rgba(0, 0, 0, 0.25);
+    font-size: 0.85rem;
+}

@@ -1,0 +1,113 @@
+@inject SentenceStudio.Services.SharedIngestNotifier Notifier
+@inject NavigationManager Nav
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@implements IDisposable
+
+@if (Notifier.State == SharedIngestState.Processing)
+{
+    <div class="shared-ingest-toast" role="status">
+        <div class="alert alert-primary shared-ingest-toast-inner d-flex align-items-center gap-2 mb-0 py-2 px-3">
+            <span class="spinner-border spinner-border-sm text-primary" aria-hidden="true"></span>
+            <span>@ProcessingMessage</span>
+        </div>
+    </div>
+}
+else if (Notifier.State == SharedIngestState.Completed)
+{
+    <div class="shared-ingest-toast" role="alert">
+        <div class="alert alert-success shared-ingest-toast-inner d-flex align-items-center justify-content-between gap-2 mb-0 py-2 px-3">
+            <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
+                <span>@CompletedMessage</span>
+            </div>
+            <div class="d-flex align-items-center gap-1">
+                <button type="button" class="btn btn-sm btn-outline-success py-0 px-2"
+                        @onclick="ViewAction">
+                    @ViewLabel
+                </button>
+                <button type="button" class="btn-close ms-1"
+                        @onclick="Dismiss"
+                        aria-label='@Localize["SharedIngest_Dismiss"]'
+                        style="font-size: 0.65rem;"></button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private System.Threading.Timer? _autoDismissTimer;
+    private bool _disposed;
+
+    private string ProcessingMessage => Notifier.Kind switch
+    {
+        SharedIngestNotificationKind.VideoImportStarted => $"{Localize["SharedIngest_ImportingVideo"]}",
+        SharedIngestNotificationKind.ResourceImported   => $"{Localize["SharedIngest_ImportingLink"]}",
+        _                                               => $"{Localize["SharedIngest_Processing"]}"
+    };
+
+    private string CompletedMessage => Notifier.Kind switch
+    {
+        SharedIngestNotificationKind.VideoImportStarted =>
+            $"{Localize["SharedIngest_VideoStarted"]}",
+        SharedIngestNotificationKind.ResourceImported =>
+            string.Format($"{Localize["SharedIngest_ImportedFormat"]}", Notifier.Title),
+        _ =>
+            string.Format($"{Localize["SharedIngest_AddedFormat"]}", Notifier.Count)
+    };
+
+    private string ViewLabel => Notifier.Kind == SharedIngestNotificationKind.VideoImportStarted
+        ? $"{Localize["SharedIngest_TrackImport"]}"
+        : $"{Localize["SharedIngest_View"]}";
+
+    protected override void OnInitialized()
+    {
+        Notifier.Changed += OnNotifierChanged;
+
+        if (Notifier.State == SharedIngestState.Completed
+            && Notifier.LastCompletedAtUtc.HasValue
+            && (DateTime.UtcNow - Notifier.LastCompletedAtUtc.Value).TotalSeconds < 30)
+        {
+            ScheduleAutoDismiss();
+        }
+    }
+
+    private void OnNotifierChanged()
+    {
+        _ = InvokeAsync(() =>
+        {
+            StateHasChanged();
+            if (Notifier.State == SharedIngestState.Completed)
+                ScheduleAutoDismiss();
+        });
+    }
+
+    private void ScheduleAutoDismiss()
+    {
+        _autoDismissTimer?.Dispose();
+        _autoDismissTimer = new System.Threading.Timer(_ =>
+        {
+            if (_disposed) return;
+            _ = InvokeAsync(() =>
+            {
+                Notifier.ClearCompleted();
+                StateHasChanged();
+            });
+        }, null, TimeSpan.FromSeconds(6), System.Threading.Timeout.InfiniteTimeSpan);
+    }
+
+    private void ViewAction()
+    {
+        var route = Notifier.ActionRoute ?? "/vocabulary";
+        Notifier.ClearCompleted();
+        Nav.NavigateTo(route);
+    }
+
+    private void Dismiss() => Notifier.ClearCompleted();
+
+    public void Dispose()
+    {
+        _disposed = true;
+        Notifier.Changed -= OnNotifierChanged;
+        _autoDismissTimer?.Dispose();
+    }
+}

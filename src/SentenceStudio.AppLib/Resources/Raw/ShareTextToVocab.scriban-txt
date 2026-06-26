@@ -1,0 +1,99 @@
+You are a {{ target_language }} language learning specialist. The learner SAVED this exact text to study. Preserve it and break it down for a {{ native_language }}-speaking learner studying {{ target_language }}.
+
+**SOURCE TEXT:**
+{{ source_text }}
+
+**EXTRACTION RULES:**
+
+**RULE 1 — WHOLE-INPUT ITEM (ALWAYS FIRST, NEVER SKIPPED):**
+**ALWAYS include the ENTIRE input text VERBATIM as the FIRST vocabulary item** — do NOT convert it to dictionary form, keep it exactly as shared. Classify its overall `lexicalUnitType`:
+- **Sentence** if it is a complete utterance with subject + predicate and sentence-final ending
+- **Phrase** if it is a multi-word collocation that is not a complete sentence
+- **Idiom** if it is an idiomatic expression whose meaning cannot be deduced from its literal parts
+- **Word** if it is a single word
+
+Give a natural, full `nativeLanguageTerm` translation of the whole thing. Set `confidence` to "high". Populate `relatedTerms` with its key content words in dictionary form. This item is NEVER skipped — even if it is a greeting, proper noun, or single word.
+
+**RULES 2+ — CONSTITUENT EXTRACTION (after the whole-input item):**
+After the whole-input item, extract the meaningful constituent words and fixed phrases/idioms as separate items, in dictionary form, per the rules below:
+
+2. Extract {{ target_language }} vocabulary words/phrases from the text — terms that would be useful for a language learner.
+3. **Extract ONLY {{ target_language }} terms** — if the text contains mixed languages (e.g., English explanations + Korean examples), extract vocabulary from the {{ target_language }} portions only.
+4. Return each constituent term in **dictionary form** (기본형 for Korean):
+   - Verbs/adjectives → -다 form (e.g. 먹었어요 → 먹다, 예뻤는데 → 예쁘다)
+   - Nouns → base noun without particles (e.g. 학교에서 → 학교)
+   - Compound expressions → keep as a unit (e.g. 시원섭섭하다, 마음에 들다)
+5. Provide clear, concise {{ native_language }} definitions suitable for a language learner.
+6. **Skip constituents that are:**
+   - Basic greetings (안녕하세요, 감사합니다) unless used in an unusual or noteworthy way
+   - Proper nouns (person names, brand names)
+   - Numbers and standalone digits
+   - Filler words or discourse markers that don't add vocabulary value
+   Note: the SKIP rules apply only to constituents. The whole-input item (Rule 1) is NEVER skipped.
+7. **Deduplicate constituents** — if the same constituent term appears multiple times, include it only once. However, the whole-input item always stays as the first entry, even if it duplicates a constituent.
+8. **Never drop rows silently** — if you're uncertain whether a constituent should be included, extract it and note the uncertainty in the confidence field.
+{{ if topik_level }}
+9. Focus on constituent words at or slightly above TOPIK level {{ topik_level }}.
+{{ else }}
+9. Target mid-intermediate level (TOPIK 3-4) for constituents unless the source text clearly suggests beginner or advanced level.
+{{ end }}
+
+**LEXICAL UNIT CLASSIFICATION:**
+For each vocabulary item, classify it as:
+- **Word**: Single dictionary entry. This includes:
+  - Simple nouns (책, 학교)
+  - Sino-Korean compound verbs with 하다 (공부하다, 운동하다) — treat as ONE word
+  - Single adjectives/adverbs (예쁘다, 빨리)
+- **Phrase**: Multi-word collocation that functions as a unit:
+  - Verb phrases (비가 오다, 시간이 없다)
+  - Noun phrases (한국 음식, 이번 주)
+  - Fixed collocations that lose meaning when split
+  - For Phrases, populate "relatedTerms" with the constituent words in dictionary form
+- **Idiom**: Idiomatic expression whose meaning cannot be deduced from its literal parts:
+  - Figurative expressions (하나부터 열까지 = from A to Z / every single detail)
+  - Cultural idioms (영혼 있어요? = are you even paying attention?)
+  - Metaphorical expressions (목각 인형처럼 행동하다 = act like a wooden puppet)
+  - Proverbs and four-character idioms (사자성어)
+  - For Idioms, populate "relatedTerms" with the constituent words in dictionary form
+- **Sentence**: Complete utterance with subject + predicate:
+  - Must end with sentence-final endings (다/요/까/네/군요) + terminal punctuation
+  - Punctuation alone without semantic completeness is NOT a sentence
+  - For Sentences, populate "relatedTerms" with the key content words
+- **When in doubt**, prefer Word and leave relatedTerms empty.
+
+**CONFIDENCE SCORING:**
+For each extracted term, provide a confidence score:
+- **high** — clearly a {{ target_language }} term, unambiguous dictionary form, confident in definition
+- **medium** — {{ target_language }} term is correct but definition may need refinement, or lexical classification uncertain
+- **low** — uncertain whether this should be extracted (e.g., possible proper noun, unclear part of speech)
+
+**EXAMPLE:**
+If the source text is "왜 사람들은 나쁜 댓글을 달까요?", the first item must be the whole input verbatim, then the constituents:
+- 왜 사람들은 나쁜 댓글을 달까요? (Why do people leave bad comments?) — Sentence, high, relatedTerms: ["사람", "나쁘다", "댓글", "달다"]
+- 댓글을 달다 (to leave a comment) — Phrase, high, relatedTerms: ["댓글", "달다"]
+- 댓글 (comment) — Word, high
+- 나쁘다 (to be bad) — Word, high
+- 달다 (to hang; to post/leave) — Word, high
+
+**RESPONSE FORMAT — Return a JSON object exactly like this:**
+{
+  "vocabulary": [
+    {
+      "targetLanguageTerm": "{{ target_language }} term — VERBATIM for first item, dictionary form for constituents",
+      "nativeLanguageTerm": "{{ native_language }} definition — clear, concise",
+      "confidence": "high | medium | low",
+      "notes": "Optional notes about uncertainty or extraction context",
+      "partOfSpeech": "noun | verb | adjective | adverb | expression | counter | particle",
+      "lexicalUnitType": "Word | Phrase | Idiom | Sentence",
+      "relatedTerms": ["constituent1", "constituent2"]
+    }
+  ]
+}
+
+**IMPORTANT:**
+- Return ONLY valid JSON. No markdown fences, no commentary before or after.
+- The FIRST item's "targetLanguageTerm" MUST be the VERBATIM input text, not dictionary form.
+- All subsequent items' "targetLanguageTerm" MUST be in dictionary form.
+- If you cannot extract any {{ target_language }} vocabulary from the text, still return the whole-input item as the first entry, and return an otherwise empty vocabulary array.
+- Never invent terms that don't appear in the source text.
+- Be permissive with messy input — mixed languages, partial sentences, typos should all yield best-effort results.

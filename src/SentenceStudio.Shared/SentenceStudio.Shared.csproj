@@ -19,6 +19,7 @@
 	     single implementation. The DTOs it returns live in Contracts. -->
 	<ItemGroup>
 		<ProjectReference Include="..\SentenceStudio.Contracts\SentenceStudio.Contracts.csproj" />
+		<ProjectReference Include="..\SentenceStudio.Sharing\SentenceStudio.Sharing.csproj" />
 	</ItemGroup>
 
 	<!-- ASP.NET Core Identity: server-only (no iOS/Android runtime pack) -->

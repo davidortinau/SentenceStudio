@@ -9,11 +9,26 @@ using SentenceStudio.Shared.Models;
 namespace SentenceStudio.Services;
 
 /// <summary>
+/// Minimal interface over <see cref="VideoImportPipelineService"/> so the shared-ingest
+/// processor (and its unit tests) can depend on an abstraction rather than the concrete class.
+/// </summary>
+public interface IVideoImportPipeline
+{
+    /// <summary>
+    /// Kicks off the full YouTube import pipeline (fetch transcript, AI cleanup, vocab
+    /// generation, persist LearningResource + vocab).  Long-running — call from a
+    /// detached <c>Task.Run</c> when invoked from the shared-ingest drain.
+    /// </summary>
+    Task<SentenceStudio.Shared.Models.VideoImport> ImportFromUrlAsync(
+        string videoUrl, string userProfileId, string? language = null);
+}
+
+/// <summary>
 /// Orchestrates the YouTube video import pipeline:
 ///   fetch transcript → AI cleanup → vocab generation → save LearningResource + VocabWords.
 /// Works for both manual single-video imports and channel-polled imports.
 /// </summary>
-public class VideoImportPipelineService
+public class VideoImportPipelineService : IVideoImportPipeline
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<VideoImportPipelineService> _logger;

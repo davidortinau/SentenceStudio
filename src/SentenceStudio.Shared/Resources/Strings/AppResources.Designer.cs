@@ -7789,6 +7789,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Actions.
+        /// </summary>
+        internal static string RefSentences_Actions {
+            get {
+                return ResourceManager.GetString("RefSentences_Actions", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Add.
         /// </summary>
         internal static string RefSentences_Add {
@@ -10465,6 +10474,87 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Share {
             get {
                 return ResourceManager.GetString("Share", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to {0} items added from sharing.
+        /// </summary>
+        internal static string SharedIngest_AddedFormat {
+            get {
+                return ResourceManager.GetString("SharedIngest_AddedFormat", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Dismiss.
+        /// </summary>
+        internal static string SharedIngest_Dismiss {
+            get {
+                return ResourceManager.GetString("SharedIngest_Dismiss", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Imported {0}.
+        /// </summary>
+        internal static string SharedIngest_ImportedFormat {
+            get {
+                return ResourceManager.GetString("SharedIngest_ImportedFormat", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Importing link….
+        /// </summary>
+        internal static string SharedIngest_ImportingLink {
+            get {
+                return ResourceManager.GetString("SharedIngest_ImportingLink", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Importing video….
+        /// </summary>
+        internal static string SharedIngest_ImportingVideo {
+            get {
+                return ResourceManager.GetString("SharedIngest_ImportingVideo", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Processing shared content….
+        /// </summary>
+        internal static string SharedIngest_Processing {
+            get {
+                return ResourceManager.GetString("SharedIngest_Processing", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Track.
+        /// </summary>
+        internal static string SharedIngest_TrackImport {
+            get {
+                return ResourceManager.GetString("SharedIngest_TrackImport", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Video import started — track in Media Import.
+        /// </summary>
+        internal static string SharedIngest_VideoStarted {
+            get {
+                return ResourceManager.GetString("SharedIngest_VideoStarted", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to View.
+        /// </summary>
+        internal static string SharedIngest_View {
+            get {
+                return ResourceManager.GetString("SharedIngest_View", resourceCulture);
             }
         }
         

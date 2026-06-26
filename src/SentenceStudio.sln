@@ -39,6 +39,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SentenceStudio.Workers", "S
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SentenceStudio.MauiServiceDefaults", "SentenceStudio.MauiServiceDefaults\SentenceStudio.MauiServiceDefaults.csproj", "{2B873680-1734-44F2-9D0F-62F8CA4C5814}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SentenceStudio.Sharing", "SentenceStudio.Sharing\SentenceStudio.Sharing.csproj", "{5B1ABD94-F4D0-42E7-94B4-F8ADB17ADB1B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SentenceStudio.ShareExtension", "SentenceStudio.ShareExtension\SentenceStudio.ShareExtension.csproj", "{056DC50C-2512-4D62-9808-894677E6953A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -265,6 +269,30 @@ Global
 		{2B873680-1734-44F2-9D0F-62F8CA4C5814}.Release|x64.Build.0 = Release|Any CPU
 		{2B873680-1734-44F2-9D0F-62F8CA4C5814}.Release|x86.ActiveCfg = Release|Any CPU
 		{2B873680-1734-44F2-9D0F-62F8CA4C5814}.Release|x86.Build.0 = Release|Any CPU
+		{5B1ABD94-F4D0-42E7-94B4-F8ADB17ADB1B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5B1ABD94-F4D0-42E7-94B4-F8ADB17ADB1B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5B1ABD94-F4D0-42E7-94B4-F8ADB17ADB1B}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{5B1ABD94-F4D0-42E7-94B4-F8ADB17ADB1B}.Debug|x64.Build.0 = Debug|Any CPU
+		{5B1ABD94-F4D0-42E7-94B4-F8ADB17ADB1B}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{5B1ABD94-F4D0-42E7-94B4-F8ADB17ADB1B}.Debug|x86.Build.0 = Debug|Any CPU
+		{5B1ABD94-F4D0-42E7-94B4-F8ADB17ADB1B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5B1ABD94-F4D0-42E7-94B4-F8ADB17ADB1B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5B1ABD94-F4D0-42E7-94B4-F8ADB17ADB1B}.Release|x64.ActiveCfg = Release|Any CPU
+		{5B1ABD94-F4D0-42E7-94B4-F8ADB17ADB1B}.Release|x64.Build.0 = Release|Any CPU
+		{5B1ABD94-F4D0-42E7-94B4-F8ADB17ADB1B}.Release|x86.ActiveCfg = Release|Any CPU
+		{5B1ABD94-F4D0-42E7-94B4-F8ADB17ADB1B}.Release|x86.Build.0 = Release|Any CPU
+		{056DC50C-2512-4D62-9808-894677E6953A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{056DC50C-2512-4D62-9808-894677E6953A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{056DC50C-2512-4D62-9808-894677E6953A}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{056DC50C-2512-4D62-9808-894677E6953A}.Debug|x64.Build.0 = Debug|Any CPU
+		{056DC50C-2512-4D62-9808-894677E6953A}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{056DC50C-2512-4D62-9808-894677E6953A}.Debug|x86.Build.0 = Debug|Any CPU
+		{056DC50C-2512-4D62-9808-894677E6953A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{056DC50C-2512-4D62-9808-894677E6953A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{056DC50C-2512-4D62-9808-894677E6953A}.Release|x64.ActiveCfg = Release|Any CPU
+		{056DC50C-2512-4D62-9808-894677E6953A}.Release|x64.Build.0 = Release|Any CPU
+		{056DC50C-2512-4D62-9808-894677E6953A}.Release|x86.ActiveCfg = Release|Any CPU
+		{056DC50C-2512-4D62-9808-894677E6953A}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

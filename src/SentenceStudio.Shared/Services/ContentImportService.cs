@@ -40,6 +40,15 @@ public interface IContentImportService
     /// Uses the same normalization policy as CommitImportAsync.
     /// </summary>
     Task EnrichPreviewWithDuplicateInfoAsync(ContentImportPreview preview, CancellationToken ct = default);
+
+    /// <summary>
+    /// Parse shared text using the share-specific extraction prompt that ALWAYS preserves the
+    /// complete input as the first vocabulary item (verbatim, classified, translated), then
+    /// extracts constituent words/phrases/idioms as subsequent items.
+    /// Used by <see cref="SharedIngestProcessor"/> for TEXT-kind shared items only.
+    /// URL/article items continue to use <see cref="ParseContentAsync"/>.
+    /// </summary>
+    Task<ContentImportPreview> ParseSharedTextAsync(string text, string targetLanguage, string nativeLanguage, CancellationToken ct = default);
 }
 
 public class ContentImportService : IContentImportService
@@ -813,6 +822,89 @@ public class ContentImportService : IContentImportService
 
         _logger.LogInformation("Extracted {Count} vocabulary items from free text", rows.Count);
         return rows;
+    }
+
+    /// <inheritdoc/>
+    public async Task<ContentImportPreview> ParseSharedTextAsync(string text, string targetLanguage, string nativeLanguage, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            _logger.LogWarning("ParseSharedTextAsync called with empty text — returning empty preview.");
+            return new ContentImportPreview
+            {
+                Rows = Array.Empty<ImportRow>(),
+                DetectedFormat = "Shared text",
+                SourceText = text ?? string.Empty,
+                DetectedContentType = new ContentTypeDetectionResult { ContentType = ContentType.Vocabulary, Confidence = 1f }
+            };
+        }
+
+        _logger.LogInformation("ParseSharedTextAsync: extracting vocab from shared text ({Length} chars) via AI...", text.Length);
+
+        using Stream templateStream = await _fileSystem.OpenAppPackageFileAsync("ShareTextToVocab.scriban-txt");
+        using var reader = new StreamReader(templateStream);
+        var templateContent = await reader.ReadToEndAsync(ct);
+        var scribanTemplate = Template.Parse(templateContent);
+
+        var prompt = scribanTemplate.Render(new
+        {
+            source_text = text,
+            target_language = targetLanguage,
+            native_language = nativeLanguage
+        });
+
+        var response = await _aiService.SendPrompt<FreeTextVocabularyExtractionResponse>(prompt);
+
+        if (response == null || response.Vocabulary == null || !response.Vocabulary.Any())
+        {
+            _logger.LogWarning("ParseSharedTextAsync: AI returned no vocabulary items.");
+            return new ContentImportPreview
+            {
+                Rows = Array.Empty<ImportRow>(),
+                DetectedFormat = "Shared text",
+                SourceText = text,
+                DetectedContentType = new ContentTypeDetectionResult { ContentType = ContentType.Vocabulary, Confidence = 1f }
+            };
+        }
+
+        var rows = new List<ImportRow>();
+        for (int i = 0; i < response.Vocabulary.Count; i++)
+        {
+            var item = response.Vocabulary[i];
+            var status = item.Confidence.ToLowerInvariant() switch
+            {
+                "high" => RowStatus.Ok,
+                "medium" => RowStatus.Warning,
+                "low" => RowStatus.Error,
+                _ => RowStatus.Warning
+            };
+
+            var error = status != RowStatus.Ok
+                ? $"Confidence: {item.Confidence}" + (string.IsNullOrWhiteSpace(item.Notes) ? "" : $" — {item.Notes}")
+                : null;
+
+            rows.Add(new ImportRow
+            {
+                RowNumber = i + 1,
+                TargetLanguageTerm = item.TargetLanguageTerm,
+                NativeLanguageTerm = item.NativeLanguageTerm,
+                Status = status,
+                Error = error,
+                IsSelected = status != RowStatus.Error,
+                IsAiTranslated = true,
+                LexicalUnitType = ResolveLexicalUnitType(item.LexicalUnitType, item.TargetLanguageTerm)
+            });
+        }
+
+        _logger.LogInformation("ParseSharedTextAsync: extracted {Count} vocabulary items (whole-input + constituents).", rows.Count);
+
+        return new ContentImportPreview
+        {
+            Rows = rows.AsReadOnly(),
+            DetectedFormat = "Shared text",
+            SourceText = text,
+            DetectedContentType = new ContentTypeDetectionResult { ContentType = ContentType.Vocabulary, Confidence = 1f }
+        };
     }
 
     private async Task TranslateMissingNativeTermsAsync(List<ImportRow> rows, string targetLanguage, string nativeLanguage, CancellationToken ct)

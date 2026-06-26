@@ -12,6 +12,7 @@
 		<ApplicationDisplayVersion>1.1.0</ApplicationDisplayVersion>
 		<ApplicationVersion>3</ApplicationVersion>
 		<SupportedOSPlatformVersion>15.0</SupportedOSPlatformVersion>
+		<CodesignEntitlements>Platforms/iOS/Entitlements.plist</CodesignEntitlements>
 	</PropertyGroup>
 
 	<!-- Enable Mono interpreter for Release builds so EF Core can build its model dynamically.
@@ -19,6 +20,15 @@
 	     EF Core 10 throws "Model building is not supported when publishing with NativeAOT." -->
 	<PropertyGroup Condition="'$(Configuration)' == 'Release'">
 		<UseInterpreter>true</UseInterpreter>
+	</PropertyGroup>
+
+	<!-- Work around _xamarin_r2r_module_count / _xamarin_r2r_modules undefined-symbol linker
+	     failure on iossimulator-arm64 Debug with Microsoft.iOS.Sdk.net11.0_26.5 26.5.11546-net11-p5.
+	     The static registrar emits r2r_modules.o referencing those symbols but the simulator
+	     framework doesn't export them in this SDK version. Dynamic registrar avoids the issue
+	     entirely for local Debug builds; static registrar is still used for Release/device. -->
+	<PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+		<Registrar>dynamic</Registrar>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -37,6 +47,10 @@
 		<ProjectReference Include="..\SentenceStudio.AppLib\SentenceStudio.AppLib.csproj" />
 		<ProjectReference Include="..\SentenceStudio.UI\SentenceStudio.UI.csproj" />
 		<ProjectReference Include="..\SentenceStudio.MauiServiceDefaults\SentenceStudio.MauiServiceDefaults.csproj" />
+		<ProjectReference Include="..\SentenceStudio.ShareExtension\SentenceStudio.ShareExtension.csproj">
+			<IsAppExtension>true</IsAppExtension>
+			<IsWatchApp>false</IsWatchApp>
+		</ProjectReference>
 	</ItemGroup>
 
 	<!--

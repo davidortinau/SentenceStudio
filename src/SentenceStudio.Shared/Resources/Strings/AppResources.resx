@@ -6869,6 +6869,10 @@ For example: {0} ...</value>
     <value>Reading</value>
     <comment>RefSentences: source reading badge</comment>
   </data>
+  <data name="RefSentences_Actions" xml:space="preserve">
+    <value>Actions</value>
+    <comment>RefSentences: kebab overflow menu aria-label</comment>
+  </data>
   <data name="RefSentences_Register" xml:space="preserve">
     <value>Register</value>
     <comment>RefSentences: register label</comment>
@@ -6892,5 +6896,41 @@ For example: {0} ...</value>
   <data name="Register_PlainWritten" xml:space="preserve">
     <value>Written (한다체)</value>
     <comment>Korean speech register: plain written</comment>
+  </data>
+  <data name="SharedIngest_Processing" xml:space="preserve">
+    <value>Processing shared content…</value>
+    <comment>Banner shown while the share-extension content is being processed</comment>
+  </data>
+  <data name="SharedIngest_ImportingVideo" xml:space="preserve">
+    <value>Importing video…</value>
+    <comment>Banner shown while a shared YouTube URL is being queued for video import</comment>
+  </data>
+  <data name="SharedIngest_ImportingLink" xml:space="preserve">
+    <value>Importing link…</value>
+    <comment>Banner shown while a shared article URL is being fetched and imported</comment>
+  </data>
+  <data name="SharedIngest_AddedFormat" xml:space="preserve">
+    <value>{0} items added from sharing</value>
+    <comment>Banner shown when sharing is complete; {0} is the count of vocab items added</comment>
+  </data>
+  <data name="SharedIngest_ImportedFormat" xml:space="preserve">
+    <value>Imported {0}</value>
+    <comment>Banner shown when a shared article URL has been imported as a learning resource; {0} is the resource title</comment>
+  </data>
+  <data name="SharedIngest_VideoStarted" xml:space="preserve">
+    <value>Video import started — track in Media Import</value>
+    <comment>Banner shown after a shared YouTube URL has been queued for background video import</comment>
+  </data>
+  <data name="SharedIngest_View" xml:space="preserve">
+    <value>View</value>
+    <comment>Button to view the vocabulary list after share processing completes</comment>
+  </data>
+  <data name="SharedIngest_TrackImport" xml:space="preserve">
+    <value>Track</value>
+    <comment>Button to navigate to Media Import after a shared YouTube video import has started</comment>
+  </data>
+  <data name="SharedIngest_Dismiss" xml:space="preserve">
+    <value>Dismiss</value>
+    <comment>Accessibility label for the close button on the shared-ingest banner</comment>
   </data>
 </root>

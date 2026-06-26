@@ -6,12 +6,16 @@ using Microsoft.Maui.DevFlow.Blazor;
 #endif
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Maui.LifecycleEvents;
 using Plugin.Maui.Audio;
 using SentenceStudio;
+using SentenceStudio.Services;
+using SentenceStudio.Sharing;
 using SentenceStudio.WebUI.Services;
 using Shiny;
 #if IOS
 using AVFoundation;
+using Foundation;
 #endif
 
 namespace SentenceStudio.iOS;
@@ -74,6 +78,47 @@ public static class MauiProgram
             .SetMinimumLevel(LogLevel.Debug);
         builder.AddMauiDevFlowAgent(options => { options.Port = 9224; });
         builder.AddMauiBlazorDevFlowTools();
+#endif
+
+#if IOS
+        // iOS App Group shared ingest queue — written by the Share Extension.
+        builder.Services.AddSingleton<ISharedIngestQueue>(_ =>
+        {
+            var container = NSFileManager.DefaultManager.GetContainerUrl(SharingConstants.AppGroupId);
+            var dir = container?.Append(SharingConstants.QueueDirectoryName, true)?.Path
+                      ?? System.IO.Path.Combine(FileSystem.AppDataDirectory, SharingConstants.QueueDirectoryName);
+            return new FileSystemSharedIngestQueue(dir);
+        });
+
+        // Processor is Scoped to match IContentImportService (Scoped dep). Resolved inside
+        // a created scope at drain time so it never lives longer than one drain cycle.
+        builder.Services.AddScoped<ISharedIngestProcessor, SharedIngestProcessor>();
+
+        // Drain queue on every app activation (safe: processor single-flights + auth-gates)
+        builder.ConfigureLifecycleEvents(lifecycle =>
+        {
+            lifecycle.AddiOS(ios => ios.OnActivated(uiApp =>
+            {
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        var services = IPlatformApplication.Current?.Services;
+                        if (services == null) return;
+
+                        using var scope = services.CreateScope();
+                        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+                        var processor = scope.ServiceProvider.GetRequiredService<ISharedIngestProcessor>();
+
+                        await processor.DrainAsync(cts.Token);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[SharedIngest] Drain error: {ex.Message}");
+                    }
+                });
+            }));
+        });
 #endif
 
         var app = builder.Build();

@@ -41,6 +41,7 @@ public static class CoreServiceExtensions
         // YouTube channel monitoring services
         services.AddSingleton<ChannelMonitorService>();
         services.AddSingleton<VideoImportPipelineService>();
+        services.AddSingleton<IVideoImportPipeline>(sp => sp.GetRequiredService<VideoImportPipelineService>());
         services.AddSingleton<NameGenerationService>();
         services.AddSingleton<VocabularyQuizPreferences>();
         services.AddSingleton<SpeechVoicePreferences>();
@@ -102,6 +103,13 @@ public static class CoreServiceExtensions
 
         // Content import
         services.AddScoped<IContentImportService, ContentImportService>();
+
+        // Shared ingest supporting services (cross-platform; queue is iOS-only, registered per head)
+        services.AddSingleton<SharedIngestNotifier>();
+        services.AddSingleton<SharedIngestDrainGate>();
+        services.AddHttpClient<IWebArticleFetcher, WebArticleFetcher>();
+        services.AddScoped<ISharedInboxResourceFinder, LearningResourceSharedInboxFinder>();
+        services.AddScoped<IActiveUserProfileProvider, UserProfileActiveProvider>();
 
         // Progress & timing
         services.AddSingleton<ProgressCacheService>();
