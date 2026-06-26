@@ -99,6 +99,23 @@ public static class MauiProgram
         {
             lifecycle.AddiOS(ios => ios.OnActivated(uiApp =>
             {
+                // Request a background-task assertion so the drain (which runs a ~20s AI call)
+                // can finish even if the user locks the phone or switches away right after
+                // sharing. iOS grants ~30s; on expiration we cancel the drain and end the
+                // assertion so the OS never kills the app.
+                var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+                nint bgTaskId = 0;
+                bgTaskId = uiApp.BeginBackgroundTask("SharedIngestDrain", () =>
+                {
+                    try { cts.Cancel(); } catch { }
+                    if (bgTaskId != 0)
+                    {
+                        var expiring = bgTaskId;
+                        bgTaskId = 0;
+                        uiApp.EndBackgroundTask(expiring);
+                    }
+                });
+
                 _ = Task.Run(async () =>
                 {
                     try
@@ -107,7 +124,6 @@ public static class MauiProgram
                         if (services == null) return;
 
                         using var scope = services.CreateScope();
-                        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
                         var processor = scope.ServiceProvider.GetRequiredService<ISharedIngestProcessor>();
 
                         await processor.DrainAsync(cts.Token);
@@ -115,6 +131,16 @@ public static class MauiProgram
                     catch (Exception ex)
                     {
                         Console.WriteLine($"[SharedIngest] Drain error: {ex.Message}");
+                    }
+                    finally
+                    {
+                        cts.Dispose();
+                        if (bgTaskId != 0)
+                        {
+                            var ending = bgTaskId;
+                            bgTaskId = 0;
+                            MainThread.BeginInvokeOnMainThread(() => uiApp.EndBackgroundTask(ending));
+                        }
                     }
                 });
             }));
