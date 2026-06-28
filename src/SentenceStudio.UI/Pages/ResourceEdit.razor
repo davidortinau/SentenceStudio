@@ -129,45 +129,124 @@ else
         @if (!resource.IsSmartResource)
         {
             <div class="mb-3">
-                <label class="form-label ss-body2 text-secondary-ss">@Localize["ResourceEdit_ImportVocabLabel"]</label>
-                <textarea class="form-control form-control-ss" @bind="vocabList" rows="4"
-                          placeholder='@Localize["ResourceEdit_VocabPlaceholder"]'></textarea>
+                <label class="form-label ss-body2 text-secondary-ss" for="quickAddVocabulary">@Localize["ResourceEdit_QuickAddLabel"]</label>
+                @if (!CanUseQuickAdd)
+                {
+                    <input id="quickAddVocabulary" type="text" class="form-control form-control-ss"
+                           placeholder='@Localize["ResourceEdit_QuickAddPlaceholder"]' disabled />
+                    <div class="form-text text-secondary-ss">@Localize["ResourceEdit_SetLanguageFirst"]</div>
+                }
+                else
+                {
+                    <div class="position-relative">
+                        <input id="quickAddVocabulary" @ref="quickAddInput" type="text" class="form-control form-control-ss"
+                               value="@quickAddQuery" @oninput="HandleQuickAddInput" @onkeydown="HandleQuickAddKeyDown"
+                               placeholder='@Localize["ResourceEdit_QuickAddPlaceholder"]'
+                               autocomplete="off" disabled="@isQuickAddAttaching" />
+                        @if (isQuickAddSearching)
+                        {
+                            <span class="spinner-border spinner-border-sm text-primary resource-quick-add-spinner"></span>
+                        }
+                        @if (ShowQuickAddDropdown)
+                        {
+                            <div class="resource-quick-add-dropdown card card-ss shadow-sm p-1 mt-1" role="listbox">
+                                @for (var i = 0; i < quickAddResults.Count; i++)
+                                {
+                                    var word = quickAddResults[i];
+                                    var index = i;
+                                    <button type="button" class="@GetQuickAddResultClass(index)" role="option"
+                                            aria-selected="@(quickAddHighlightedIndex == index)"
+                                            @onclick="() => AddExistingVocabularyAsync(word)">
+                                        <div class="d-flex flex-column text-start">
+                                            <strong>@word.TargetLanguageTerm</strong>
+                                            <span class="@(quickAddHighlightedIndex == index ? "text-white-50" : "text-secondary-ss")">@word.NativeLanguageTerm</span>
+                                        </div>
+                                    </button>
+                                }
+                                @if (CanShowCreateSuggestion)
+                                {
+                                    <div class="px-3 py-2 ss-caption1 text-secondary-ss">@Localize["ResourceEdit_NoMatches"]</div>
+                                    <button type="button" class="@GetQuickAddResultClass(quickAddResults.Count)" role="option"
+                                            aria-selected="@(quickAddHighlightedIndex == quickAddResults.Count)"
+                                            @onclick="ShowQuickAddCreateForm">
+                                        @string.Format(Localize["ResourceEdit_AddNewWord"], quickAddQuery.Trim())
+                                    </button>
+                                }
+                            </div>
+                        }
+                    </div>
+                    @if (showQuickAddCreateForm)
+                    {
+                        <div class="d-flex gap-2 mt-2">
+                            <input type="text" class="form-control form-control-ss form-control-sm"
+                                   @bind="quickAddNativeTerm" @bind:event="oninput"
+                                   placeholder='@Localize["ResourceEdit_NativeTermPrompt"]'
+                                   disabled="@isQuickAddAttaching" />
+                            <button type="button" class="btn btn-ss-secondary btn-sm" @onclick="ConfirmCreateQuickAddWordAsync"
+                                    disabled="@isQuickAddAttaching">
+                                @if (isQuickAddAttaching)
+                                {
+                                    <span class="spinner-border spinner-border-sm me-1"></span>
+                                }
+                                @Localize["ResourceEdit_QuickAddLabel"]
+                            </button>
+                        </div>
+                    }
+                }
             </div>
 
-            <div class="d-flex align-items-center gap-3 mb-3">
-                <div class="form-check">
-                    <input class="form-check-input" type="radio" name="editDelimiter" id="editDelimComma"
-                           checked="@(delimiter == "comma")" @onchange="SetDelimiterComma" />
-                    <label class="form-check-label ss-body2" for="editDelimComma">@Localize["ResourceEdit_Comma"]</label>
-                </div>
-                <div class="form-check">
-                    <input class="form-check-input" type="radio" name="editDelimiter" id="editDelimTab"
-                           checked="@(delimiter == "tab")" @onchange="SetDelimiterTab" />
-                    <label class="form-check-label ss-body2" for="editDelimTab">@Localize["ResourceEdit_Tab"]</label>
-                </div>
-                <button class="btn btn-ss-secondary btn-sm ms-auto" @onclick="ImportVocabulary"
-                        disabled="@string.IsNullOrWhiteSpace(vocabList)">
-                    @Localize["ResourceEdit_Import"]
+            <div class="border-top pt-3 mb-3">
+                <button type="button" class="btn btn-link ss-body2 p-0 text-decoration-none" @onclick="ToggleBulkImport"
+                        aria-expanded="@showBulkImport" aria-controls="resourceBulkImport">
+                    <i class="bi @(showBulkImport ? "bi-chevron-down" : "bi-chevron-right") me-1"></i>@Localize["ResourceEdit_BulkImportToggle"]
                 </button>
-            </div>
 
-            <div class="mb-3">
-                <label class="form-label ss-body2 text-secondary-ss">@Localize["ResourceEdit_OrImportFile"]</label>
-                <div class="d-flex align-items-center gap-2">
-                    <label class="btn btn-ss-secondary btn-sm mb-0" for="fileImportEdit" role="button" style="cursor:pointer">
-                        <i class="bi bi-file-earmark-arrow-up me-1"></i>@Localize["ResourceEdit_ChooseFile"]
-                    </label>
-                    <InputFile id="fileImportEdit" OnChange="HandleFileImport" accept=".txt,.csv" class="d-none" />
-                    @if (isImportingFile)
-                    {
-                        <span class="spinner-border spinner-border-sm text-primary"></span>
-                        <span class="ss-body2 text-secondary-ss">@Localize["ResourceEdit_Importing"]</span>
-                    }
-                    @if (!string.IsNullOrEmpty(fileImportStatus))
-                    {
-                        <span class="ss-body2 text-secondary-ss">@fileImportStatus</span>
-                    }
-                </div>
+                @if (showBulkImport)
+                {
+                    <div id="resourceBulkImport" class="mt-3">
+                        <div class="mb-3">
+                            <label class="form-label ss-body2 text-secondary-ss">@Localize["ResourceEdit_ImportVocabLabel"]</label>
+                            <textarea class="form-control form-control-ss" @bind="vocabList" rows="4"
+                                      placeholder='@Localize["ResourceEdit_VocabPlaceholder"]'></textarea>
+                        </div>
+
+                        <div class="d-flex align-items-center gap-3 mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="editDelimiter" id="editDelimComma"
+                                       checked="@(delimiter == "comma")" @onchange="SetDelimiterComma" />
+                                <label class="form-check-label ss-body2" for="editDelimComma">@Localize["ResourceEdit_Comma"]</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="editDelimiter" id="editDelimTab"
+                                       checked="@(delimiter == "tab")" @onchange="SetDelimiterTab" />
+                                <label class="form-check-label ss-body2" for="editDelimTab">@Localize["ResourceEdit_Tab"]</label>
+                            </div>
+                            <button class="btn btn-ss-secondary btn-sm ms-auto" @onclick="ImportVocabulary"
+                                    disabled="@string.IsNullOrWhiteSpace(vocabList)">
+                                @Localize["ResourceEdit_Import"]
+                            </button>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label ss-body2 text-secondary-ss">@Localize["ResourceEdit_OrImportFile"]</label>
+                            <div class="d-flex align-items-center gap-2">
+                                <label class="btn btn-ss-secondary btn-sm mb-0" for="fileImportEdit" role="button" style="cursor:pointer">
+                                    <i class="bi bi-file-earmark-arrow-up me-1"></i>@Localize["ResourceEdit_ChooseFile"]
+                                </label>
+                                <InputFile id="fileImportEdit" OnChange="HandleFileImport" accept=".txt,.csv" class="d-none" />
+                                @if (isImportingFile)
+                                {
+                                    <span class="spinner-border spinner-border-sm text-primary"></span>
+                                    <span class="ss-body2 text-secondary-ss">@Localize["ResourceEdit_Importing"]</span>
+                                }
+                                @if (!string.IsNullOrEmpty(fileImportStatus))
+                                {
+                                    <span class="ss-body2 text-secondary-ss">@fileImportStatus</span>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
             </div>
         }
 
@@ -176,11 +255,18 @@ else
             <div class="list-group list-group-flush">
                 @foreach (var word in resource.Vocabulary)
                 {
-                    <div class="list-group-item d-flex justify-content-between align-items-center bg-transparent border-secondary px-0">
+                    <div class="list-group-item d-flex justify-content-between align-items-center bg-transparent border-secondary px-0 gap-2">
                         <div>
                             <strong class="ss-body1">@word.TargetLanguageTerm</strong>
                             <span class="text-secondary-ss ms-2">@word.NativeLanguageTerm</span>
                         </div>
+                        @if (!resource.IsSmartResource)
+                        {
+                            <button type="button" class="btn btn-link btn-sm text-secondary-ss p-1" title='@Localize["ResourceEdit_RemoveWord"]'
+                                    aria-label='@Localize["ResourceEdit_RemoveWord"]' @onclick="() => RemoveVocabularyWordAsync(word)">
+                                <i class="bi bi-x-lg"></i>
+                            </button>
+                        }
                     </div>
                 }
             </div>
@@ -244,6 +330,28 @@ else
     private string fileImportStatus = "";
     private string deleteConfirmMessage = "";
     private bool isDeleting;
+    private bool showBulkImport;
+    private ElementReference quickAddInput;
+    private CancellationTokenSource? quickAddSearchCts;
+    private List<VocabularyWord> quickAddResults = new();
+    private string quickAddQuery = "";
+    private string quickAddNativeTerm = "";
+    private int quickAddHighlightedIndex = -1;
+    private bool isQuickAddSearching;
+    private bool isQuickAddAttaching;
+    private bool showQuickAddCreateForm;
+    private bool showQuickAddDropdown;
+
+    private bool CanUseQuickAdd => !resource.IsSmartResource
+        && !string.IsNullOrWhiteSpace(resource.Language)
+        && !resource.Language.Equals("Other", StringComparison.OrdinalIgnoreCase);
+
+    private bool CanShowCreateSuggestion => CanUseQuickAdd
+        && !isQuickAddSearching
+        && !string.IsNullOrWhiteSpace(quickAddQuery)
+        && quickAddResults.Count == 0;
+
+    private bool ShowQuickAddDropdown => showQuickAddDropdown && (quickAddResults.Count > 0 || CanShowCreateSuggestion);
 
     private void SetDelimiterComma() => delimiter = "comma";
     private void SetDelimiterTab() => delimiter = "tab";
@@ -356,6 +464,211 @@ else
             isDeleting = false;
             showDeleteConfirm = false;
         }
+    }
+
+    private void ToggleBulkImport() => showBulkImport = !showBulkImport;
+
+    private async Task HandleQuickAddInput(ChangeEventArgs e)
+    {
+        quickAddQuery = e.Value?.ToString() ?? "";
+        quickAddNativeTerm = "";
+        showQuickAddCreateForm = false;
+
+        quickAddSearchCts?.Cancel();
+        quickAddSearchCts?.Dispose();
+        quickAddSearchCts = null;
+
+        if (!CanUseQuickAdd || string.IsNullOrWhiteSpace(quickAddQuery))
+        {
+            ClearQuickAddSearch(keepQuery: true);
+            return;
+        }
+
+        var cts = new CancellationTokenSource();
+        quickAddSearchCts = cts;
+        isQuickAddSearching = true;
+        showQuickAddDropdown = false;
+
+        try
+        {
+            await Task.Delay(250, cts.Token);
+            var results = await ResourceRepo.SearchVocabularyWordsForResourceAsync(
+                quickAddQuery.Trim(),
+                resource.Language ?? string.Empty,
+                resource.Id);
+
+            if (cts.IsCancellationRequested)
+                return;
+
+            quickAddResults = results ?? new List<VocabularyWord>();
+            showQuickAddDropdown = true;
+            quickAddHighlightedIndex = quickAddResults.Count > 0 || !string.IsNullOrWhiteSpace(quickAddQuery) ? 0 : -1;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Quick-add vocabulary search failed for resource {ResourceId}", resource.Id);
+            Toast.ShowError($"{string.Format(Localize["FailedToLoadVocabularyData"], ex.Message)}");
+        }
+        finally
+        {
+            if (quickAddSearchCts == cts)
+            {
+                isQuickAddSearching = false;
+                quickAddSearchCts = null;
+            }
+        }
+    }
+
+    private async Task HandleQuickAddKeyDown(KeyboardEventArgs e)
+    {
+        if (!ShowQuickAddDropdown && e.Key != "Escape")
+            return;
+
+        var selectableCount = quickAddResults.Count + (CanShowCreateSuggestion ? 1 : 0);
+
+        switch (e.Key)
+        {
+            case "ArrowDown":
+                if (selectableCount > 0)
+                    quickAddHighlightedIndex = (quickAddHighlightedIndex + 1 + selectableCount) % selectableCount;
+                break;
+            case "ArrowUp":
+                if (selectableCount > 0)
+                    quickAddHighlightedIndex = (quickAddHighlightedIndex - 1 + selectableCount) % selectableCount;
+                break;
+            case "Enter":
+                if (quickAddHighlightedIndex >= 0 && quickAddHighlightedIndex < quickAddResults.Count)
+                    await AddExistingVocabularyAsync(quickAddResults[quickAddHighlightedIndex]);
+                else if (CanShowCreateSuggestion && quickAddHighlightedIndex == quickAddResults.Count)
+                    ShowQuickAddCreateForm();
+                break;
+            case "Escape":
+                ClearQuickAddSearch();
+                break;
+        }
+    }
+
+    private string GetQuickAddResultClass(int index)
+    {
+        var active = quickAddHighlightedIndex == index ? " active" : "";
+        return $"list-group-item list-group-item-action border-0 rounded-2{active}";
+    }
+
+    private void ShowQuickAddCreateForm()
+    {
+        showQuickAddCreateForm = true;
+        showQuickAddDropdown = false;
+        quickAddHighlightedIndex = -1;
+    }
+
+    private async Task AddExistingVocabularyAsync(VocabularyWord word)
+    {
+        if (resource.IsSmartResource || isQuickAddAttaching || string.IsNullOrWhiteSpace(word.Id))
+            return;
+
+        isQuickAddAttaching = true;
+        try
+        {
+            var added = await ResourceRepo.AddVocabularyToResourceAsync(resource.Id, word.Id);
+            if (added)
+            {
+                AppendVocabularyWord(word);
+                Toast.ShowSuccess($"{Localize["VocabWordEdit_WordAdded"]}");
+                isQuickAddAttaching = false;
+                ClearQuickAddSearch();
+                await InvokeAsync(StateHasChanged);
+                await FocusQuickAddInputAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Quick-add attach failed for resource {ResourceId} word {VocabularyWordId}", resource.Id, word.Id);
+            Toast.ShowError($"{string.Format(Localize["FailedToAssociateVocabulary"], ex.Message)}");
+        }
+        finally
+        {
+            isQuickAddAttaching = false;
+        }
+    }
+
+    private async Task ConfirmCreateQuickAddWordAsync()
+    {
+        var targetTerm = quickAddQuery.Trim();
+        if (string.IsNullOrWhiteSpace(targetTerm) || resource.IsSmartResource || isQuickAddAttaching)
+            return;
+
+        isQuickAddAttaching = true;
+        try
+        {
+            var word = await GetOrCreateWordAsync(targetTerm, quickAddNativeTerm.Trim(), lemma: null, language: resource.Language);
+            var added = await ResourceRepo.AddVocabularyToResourceAsync(resource.Id, word.Id);
+            if (added)
+            {
+                AppendVocabularyWord(word);
+                Toast.ShowSuccess($"{Localize["VocabWordEdit_WordAdded"]}");
+                isQuickAddAttaching = false;
+                ClearQuickAddSearch();
+                await InvokeAsync(StateHasChanged);
+                await FocusQuickAddInputAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Quick-add create failed for resource {ResourceId} term {TargetTerm}", resource.Id, targetTerm);
+            Toast.ShowError($"{string.Format(Localize["FailedToAssociateVocabulary"], ex.Message)}");
+        }
+        finally
+        {
+            isQuickAddAttaching = false;
+        }
+    }
+
+    private async Task RemoveVocabularyWordAsync(VocabularyWord word)
+    {
+        if (resource.IsSmartResource || string.IsNullOrWhiteSpace(word.Id))
+            return;
+
+        try
+        {
+            var removed = await ResourceRepo.RemoveVocabularyFromResourceAsync(resource.Id, word.Id);
+            if (removed && resource.Vocabulary is not null)
+            {
+                resource.Vocabulary.RemoveAll(w => w.Id == word.Id);
+                Toast.ShowSuccess($"{Localize["ResourceEdit_RemoveWord"]}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Remove vocabulary failed for resource {ResourceId} word {VocabularyWordId}", resource.Id, word.Id);
+            Toast.ShowError($"{string.Format(Localize["FailedToDeleteVocabulary"], ex.Message)}");
+        }
+    }
+
+    private void AppendVocabularyWord(VocabularyWord word)
+    {
+        resource.Vocabulary ??= new List<VocabularyWord>();
+        if (!resource.Vocabulary.Any(existing => existing.Id == word.Id))
+            resource.Vocabulary.Add(word);
+    }
+
+    private void ClearQuickAddSearch(bool keepQuery = false)
+    {
+        if (!keepQuery)
+            quickAddQuery = "";
+        quickAddNativeTerm = "";
+        quickAddResults.Clear();
+        quickAddHighlightedIndex = -1;
+        showQuickAddCreateForm = false;
+        showQuickAddDropdown = false;
+    }
+
+    private async Task FocusQuickAddInputAsync()
+    {
+        await Task.Yield();
+        await quickAddInput.FocusAsync();
     }
 
     private async Task ImportVocabulary()
@@ -670,6 +983,8 @@ Transcript:
 
     public void Dispose()
     {
+        quickAddSearchCts?.Cancel();
+        quickAddSearchCts?.Dispose();
         Localize.CultureChanged -= OnCultureChanged;
     }
 }

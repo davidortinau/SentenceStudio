@@ -3641,6 +3641,38 @@
     <value>대본에서 생성</value>
     <comment>Button text</comment>
   </data>
+  <data name="ResourceEdit_QuickAddLabel" xml:space="preserve">
+    <value>어휘 추가</value>
+    <comment>Quick-add vocabulary input label</comment>
+  </data>
+  <data name="ResourceEdit_QuickAddPlaceholder" xml:space="preserve">
+    <value>어휘에서 검색할 단어를 입력하세요…</value>
+    <comment>Quick-add vocabulary input placeholder</comment>
+  </data>
+  <data name="ResourceEdit_AddNewWord" xml:space="preserve">
+    <value>'{0}'을(를) 새 단어로 추가</value>
+    <comment>Quick-add create-new option (arg0 = typed term)</comment>
+  </data>
+  <data name="ResourceEdit_NativeTermPrompt" xml:space="preserve">
+    <value>번역 (선택 사항)</value>
+    <comment>Quick-add new word native term input placeholder</comment>
+  </data>
+  <data name="ResourceEdit_BulkImportToggle" xml:space="preserve">
+    <value>일괄 가져오기</value>
+    <comment>Bulk import collapsible section label</comment>
+  </data>
+  <data name="ResourceEdit_RemoveWord" xml:space="preserve">
+    <value>제거</value>
+    <comment>Remove vocabulary association button label</comment>
+  </data>
+  <data name="ResourceEdit_SetLanguageFirst" xml:space="preserve">
+    <value>빠른 추가를 사용하려면 리소스 언어를 설정하세요.</value>
+    <comment>Quick-add disabled hint</comment>
+  </data>
+  <data name="ResourceEdit_NoMatches" xml:space="preserve">
+    <value>일치하는 단어가 없습니다.</value>
+    <comment>Quick-add empty search result message</comment>
+  </data>
   <data name="ResourceEdit_ImportVocabLabel" xml:space="preserve">
     <value>어휘 가져오기 (한 줄에 한 쌍)</value>
     <comment>Form label</comment>

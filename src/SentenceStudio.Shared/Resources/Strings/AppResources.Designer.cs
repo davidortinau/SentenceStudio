@@ -8671,6 +8671,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Add &apos;{0}&apos; as a new word.
+        /// </summary>
+        internal static string ResourceEdit_AddNewWord {
+            get {
+                return ResourceManager.GetString("ResourceEdit_AddNewWord", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to — Auto-updated by the system.
         /// </summary>
         internal static string ResourceEdit_AutoUpdated {
@@ -8685,6 +8694,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string ResourceEdit_BasicInfo {
             get {
                 return ResourceManager.GetString("ResourceEdit_BasicInfo", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Bulk import.
+        /// </summary>
+        internal static string ResourceEdit_BulkImportToggle {
+            get {
+                return ResourceManager.GetString("ResourceEdit_BulkImportToggle", resourceCulture);
             }
         }
         
@@ -8959,11 +8977,29 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Translation (optional).
+        /// </summary>
+        internal static string ResourceEdit_NativeTermPrompt {
+            get {
+                return ResourceManager.GetString("ResourceEdit_NativeTermPrompt", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to No new vocabulary words found in file (may be duplicates or wrong format)..
         /// </summary>
         internal static string ResourceEdit_NoDuplicatesInFile {
             get {
                 return ResourceManager.GetString("ResourceEdit_NoDuplicatesInFile", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No matching words found..
+        /// </summary>
+        internal static string ResourceEdit_NoMatches {
+            get {
+                return ResourceManager.GetString("ResourceEdit_NoMatches", resourceCulture);
             }
         }
         
@@ -9013,6 +9049,33 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Add vocabulary.
+        /// </summary>
+        internal static string ResourceEdit_QuickAddLabel {
+            get {
+                return ResourceManager.GetString("ResourceEdit_QuickAddLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Type a word to search your vocabulary….
+        /// </summary>
+        internal static string ResourceEdit_QuickAddPlaceholder {
+            get {
+                return ResourceManager.GetString("ResourceEdit_QuickAddPlaceholder", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Remove.
+        /// </summary>
+        internal static string ResourceEdit_RemoveWord {
+            get {
+                return ResourceManager.GetString("ResourceEdit_RemoveWord", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Resource saved..
         /// </summary>
         internal static string ResourceEdit_SavedSuccess {
@@ -9027,6 +9090,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string ResourceEdit_SaveFailed {
             get {
                 return ResourceManager.GetString("ResourceEdit_SaveFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Set the resource language to enable quick add..
+        /// </summary>
+        internal static string ResourceEdit_SetLanguageFirst {
+            get {
+                return ResourceManager.GetString("ResourceEdit_SetLanguageFirst", resourceCulture);
             }
         }
         

@@ -732,6 +732,58 @@ public class LearningResourceRepository
     }
 
     /// <summary>
+    /// Search active-user vocabulary in a single language, excluding words already attached to the resource.
+    /// </summary>
+    public async Task<List<VocabularyWord>> SearchVocabularyWordsForResourceAsync(string query, string language, string resourceId, int limit = 20)
+    {
+        var userId = ActiveUserId;
+        if (string.IsNullOrEmpty(userId))
+        {
+            _logger.LogWarning("SearchVocabularyWordsForResourceAsync called without an active user — returning empty result to prevent cross-tenant data leak.");
+            return new List<VocabularyWord>();
+        }
+
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var searchTerm = query?.ToLower().Trim() ?? string.Empty;
+        var safeLimit = Math.Max(0, limit);
+
+        var userWordIds = db.ResourceVocabularyMappings
+            .Join(db.LearningResources.Where(r => r.UserProfileId == userId),
+                m => m.ResourceId, r => r.Id, (m, r) => m.VocabularyWordId);
+
+        var resourceWordIds = db.ResourceVocabularyMappings
+            .Where(m => m.ResourceId == resourceId)
+            .Select(m => m.VocabularyWordId);
+
+        var results = db.VocabularyWords
+            .AsNoTracking()
+            .AsSplitQuery()
+            .Where(vw => userWordIds.Contains(vw.Id))
+            .Where(vw => !resourceWordIds.Contains(vw.Id))
+            .Where(vw => !string.IsNullOrEmpty(vw.Language) && vw.Language == language);
+
+        if (!string.IsNullOrEmpty(searchTerm))
+        {
+            results = results
+                .Where(vw =>
+                    (vw.TargetLanguageTerm != null && vw.TargetLanguageTerm.ToLower().Contains(searchTerm)) ||
+                    (vw.NativeLanguageTerm != null && vw.NativeLanguageTerm.ToLower().Contains(searchTerm)))
+                .OrderBy(vw => vw.TargetLanguageTerm == null || !vw.TargetLanguageTerm.ToLower().StartsWith(searchTerm))
+                .ThenBy(vw => vw.TargetLanguageTerm);
+        }
+        else
+        {
+            results = results.OrderBy(vw => vw.TargetLanguageTerm);
+        }
+
+        return await results
+            .Take(safeLimit)
+            .ToListAsync();
+    }
+
+    /// <summary>
     /// Get vocabulary words that are not associated with any learning resources (orphaned)
     /// </summary>
     public async Task<List<VocabularyWord>> GetOrphanedVocabularyWordsAsync()
