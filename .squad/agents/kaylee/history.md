@@ -44,3 +44,7 @@ Team update (2026-06-17T16:08:31-05:00): Concern #2 per-user timezone fix — LA
 Kaylee's work (commit fa2a25d4): wired `<TimeZoneCapture />` into `src/SentenceStudio.WebApp/Components/AppRoutes.razor` (immediately before `<Router>`), resolving Zoe blocker #1. AppRoutes.razor chosen over shared MainLayout because MainLayout is compiled into MAUI heads — placing a WebApp-project component there would break MAUI builds. AppRoutes.razor is webapp-only; inherits InteractiveServer from App.razor:23; CascadingAuthenticationState cascades auth context from App.razor:22. Component is headless, one-shot per circuit, multi-tenant guarded. Build: 0 errors, MAUI heads unaffected. Zoe re-review: AppRoutes placement explicitly approved (prior MainLayout suggestion retracted).
 
 No carry-forward items for Kaylee from this session.
+
+---
+
+Team update (2026-06-26T21:30:56-05:00): Quick-add existing vocabulary feature — Kaylee updated ResourceEdit with debounced typeahead, keyboard navigation, refocus after add, inline create-on-miss stamping `Language=resource.Language`, per-word remove, language guard, localized strings, minimal CSS, and collapsed Bulk import. Carry-forward: strict-language lookup means NULL-language bulk-import rows are intentionally not suggested.

@@ -57,3 +57,7 @@ Jayne's work: 16 regression tests in Concern2TimezoneRegressionTests.cs. First p
 Carry-forward for Jayne:
 - Banned-symbol guard for `GetByWordIdsAsync` callers in `src/SentenceStudio.Shared/Services/Progress/` (with `// allow:multi-tenant-safe` inline opt-out for VocabularyProgressService.cs:280). Same source-scan pattern as DateTime.Now guards.
 - WebAppPlanDateContext integration test: requires dedicated integration test project (Blazor WebApp test host) or extract TZ-lookup DB read into a testable helper in SentenceStudio.Shared. Marker test Concern2TimezoneRegressionTests.cs:617 keeps the gap visible.
+
+---
+
+Team update (2026-06-26T21:30:56-05:00): Quick-add existing vocabulary feature — Jayne verified the WebApp flow end-to-end through Aspire + Playwright + Postgres: quick-add match, attached-word exclusion, inline create persistence, Bulk import collapse/expand, remove persistence, zero console errors, and zero Aspire exceptions. Key finding: existing bulk-import words with `Language=NULL` are excluded by design under the strict language filter.

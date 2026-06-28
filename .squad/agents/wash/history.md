@@ -58,3 +58,7 @@ Wash's implementation (commits c7f192e5, 0cdda7ba, 7e7d67ef): UserProfile.IanaTi
 Carry-forward for Wash:
 - File dotnet/efcore upstream issue: `--framework` flag fails to isolate TFM evaluation in multi-targeted projects with conditional Compile Remove. Repro: SentenceStudio.Shared.csproj.
 - AGENTS.md + copilot-instructions.md TFM doc fix (Shared is multi-targeted, not plain net10.0) — separate docs-only PR.
+
+---
+
+Team update (2026-06-26T21:30:56-05:00): Quick-add existing vocabulary feature — Wash added user-scoped strict-language lookup in LearningResourceRepository, excluding words already mapped to the resource and ranking best matches first. Repository lookup tests passed 5/5. Carry-forward: strict language filtering intentionally excludes bulk-imported `Language=NULL` rows; do not relax without a product/data-quality decision.
