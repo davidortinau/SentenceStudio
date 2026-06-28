@@ -558,12 +558,14 @@ app.MapPost("/api/v1/ai/chat", async (ChatRequest request, [FromServices] IServi
         var responseType = ResolveResponseType(request.ResponseType);
         // If type resolution fails, fall back to string/text response rather than 400.
         // The client prompt already requests JSON format, so the client can parse it.
+        if (!AiChatOptionsFactory.IsSupportedReasoningEffort(request.ReasoningEffort))
+        {
+            return Results.BadRequest("ReasoningEffort must be one of: minimal, low, medium, high.");
+        }
 
         if (responseType == null || responseType == typeof(string))
         {
-            var options = string.IsNullOrWhiteSpace(request.Scenario)
-                ? null
-                : new ChatOptions { Instructions = request.Scenario };
+            var options = AiChatOptionsFactory.Create(request.Scenario, request.ReasoningEffort);
 
             var response = await chatClient.GetResponseAsync(
                 new[]
@@ -584,6 +586,7 @@ app.MapPost("/api/v1/ai/chat", async (ChatRequest request, [FromServices] IServi
             chatClient,
             request.Message,
             request.Scenario,
+            request.ReasoningEffort,
             responseType,
             cancellationToken);
 
@@ -994,6 +997,7 @@ static async Task<object?> GetTypedResponseAsync(
     IChatClient chatClient,
     string message,
     string? instructions,
+    string? reasoningEffort,
     Type responseType,
     CancellationToken cancellationToken)
 {
@@ -1004,7 +1008,7 @@ static async Task<object?> GetTypedResponseAsync(
 
     var genericMethod = method.MakeGenericMethod(responseType);
 
-    var task = (Task<object?>)genericMethod.Invoke(null, new object?[] { chatClient, message, instructions, cancellationToken })!;
+    var task = (Task<object?>)genericMethod.Invoke(null, new object?[] { chatClient, message, instructions, reasoningEffort, cancellationToken })!;
     return await task;
 }
 
@@ -1012,11 +1016,10 @@ static async Task<object?> GetTypedResponseCoreAsync<T>(
     IChatClient chatClient,
     string message,
     string? instructions,
+    string? reasoningEffort,
     CancellationToken cancellationToken)
 {
-    var options = string.IsNullOrWhiteSpace(instructions)
-        ? null
-        : new ChatOptions { Instructions = instructions };
+    var options = AiChatOptionsFactory.Create(instructions, reasoningEffort);
 
     var response = await chatClient.GetResponseAsync<T>(
         new[]

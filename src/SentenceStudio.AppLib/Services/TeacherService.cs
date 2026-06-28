@@ -164,7 +164,7 @@ namespace SentenceStudio.Services
                     // //Debug.WriteLine(prompt);
                 }
 
-                var response = await _aiService.SendPrompt<GradeResponse>(prompt, AiTier.Reasoning);
+                var response = await _aiService.SendPrompt<GradeResponse>(prompt, AiTier.Reasoning, reasoningEffort: "minimal");
                 return response;
             }
             catch (Exception ex)
@@ -248,7 +248,7 @@ namespace SentenceStudio.Services
                     // //Debug.WriteLine(prompt);
                 }
 
-                var response = await _aiService.SendPrompt<GradeResponse>(prompt, AiTier.Reasoning);
+                var response = await _aiService.SendPrompt<GradeResponse>(prompt, AiTier.Reasoning, reasoningEffort: "minimal");
                 return response ?? throw new InvalidOperationException("AI grading returned no response.");
             }
             catch (Exception ex)
@@ -286,7 +286,7 @@ namespace SentenceStudio.Services
                     // //Debug.WriteLine(prompt);
                 }
 
-                var response = await _aiService.SendPrompt<GradeResponse>(prompt, AiTier.Reasoning);
+                var response = await _aiService.SendPrompt<GradeResponse>(prompt, AiTier.Reasoning, reasoningEffort: "minimal");
                 return response;
             }
             catch (Exception ex)

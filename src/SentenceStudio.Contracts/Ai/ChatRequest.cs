@@ -11,4 +11,10 @@ public sealed class ChatRequest
     /// Sent as a string to keep Contracts free of a dependency on the AiTier enum.
     /// </summary>
     public string? Tier { get; set; }
+
+    /// <summary>
+    /// Optional OpenAI reasoning effort override ("minimal", "low", "medium", or "high").
+    /// Null preserves the provider/model default.
+    /// </summary>
+    public string? ReasoningEffort { get; set; }
 }

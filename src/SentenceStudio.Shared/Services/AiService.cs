@@ -66,7 +66,7 @@ public class AiService : IAiService
         return client;
     }
 
-    public async Task<T> SendPrompt<T>(string prompt, AiTier tier = AiTier.Fast)
+    public async Task<T> SendPrompt<T>(string prompt, AiTier tier = AiTier.Fast, string? reasoningEffort = null)
     {
         if (!_connectivity.IsInternetAvailable)
         {
@@ -81,17 +81,29 @@ public class AiService : IAiService
                 ? AiClientRegistration.ReasoningModel(_configuration)
                 : AiClientRegistration.FastModel(_configuration);
 
+            if (!AiChatOptionsFactory.IsSupportedReasoningEffort(reasoningEffort))
+            {
+                throw new ArgumentOutOfRangeException(nameof(reasoningEffort),
+                    "Reasoning effort must be one of: minimal, low, medium, high.");
+            }
+
             if (_aiGatewayClient != null)
             {
-                _logger.LogDebug("Sending prompt to AI via gateway (tier: {Tier} → {Model})", tier, model);
-                var gatewayResult = await _aiGatewayClient.SendPromptAsync<T>(prompt, tier);
+                _logger.LogDebug("Sending prompt to AI via gateway (tier: {Tier} → {Model}, effort: {ReasoningEffort})",
+                    tier, model, reasoningEffort ?? "<default>");
+                var gatewayResult = await _aiGatewayClient.SendPromptAsync<T>(prompt, tier, reasoningEffort);
                 _logger.LogDebug("AI gateway response received: {HasResult}", gatewayResult != null);
                 return gatewayResult;
             }
 
-            _logger.LogDebug("Sending prompt to AI via direct client (tier: {Tier} → {Model}, length: {PromptLength} chars)",
-                tier, model, prompt?.Length ?? 0);
-            var response = await ResolveClient(tier).GetResponseAsync<T>(prompt);
+            _logger.LogDebug("Sending prompt to AI via direct client (tier: {Tier} → {Model}, effort: {ReasoningEffort}, length: {PromptLength} chars)",
+                tier, model, reasoningEffort ?? "<default>", prompt?.Length ?? 0);
+            var response = await ResolveClient(tier).GetResponseAsync<T>(
+                new[]
+                {
+                    new ChatMessage(ChatRole.User, prompt)
+                },
+                AiChatOptionsFactory.Create(reasoningEffort: reasoningEffort));
             var hasResult = response != null && response.Result != null;
             _logger.LogDebug("AI response received: {HasResult}", hasResult);
             return response.Result;

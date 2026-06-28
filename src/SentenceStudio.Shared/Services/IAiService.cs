@@ -12,6 +12,7 @@ public interface IAiService
     /// <typeparam name="T">The type to deserialize the AI response into. Must be compatible with JSON deserialization.</typeparam>
     /// <param name="prompt">The text prompt to send to the AI model. Should be well-formed and provide sufficient context for the model to generate a valid response of type T.</param>
     /// <param name="tier">Which model tier to run on. Defaults to <see cref="AiTier.Fast"/>; grading/feedback callers should pass <see cref="AiTier.Reasoning"/>.</param>
+    /// <param name="reasoningEffort">Optional OpenAI reasoning effort override ("minimal", "low", "medium", or "high"). Null preserves provider defaults.</param>
     /// <returns>
     /// A task that represents the asynchronous operation. The task result contains the deserialized response of type T.
     /// Returns default(T) if no internet connection is available or if an error occurs during processing.
@@ -21,7 +22,7 @@ public interface IAiService
     /// Checks internet connectivity before making requests and sends a ConnectivityChangedMessage(false) if offline.
     /// Logs warnings and errors for diagnostic purposes.
     /// </remarks>
-    Task<T> SendPrompt<T>(string prompt, AiTier tier = AiTier.Fast);
+    Task<T> SendPrompt<T>(string prompt, AiTier tier = AiTier.Fast, string? reasoningEffort = null);
 
     /// <summary>
     /// Sends an image along with a text prompt to the AI model for image analysis and returns the model's text response.
