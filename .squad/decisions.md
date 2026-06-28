@@ -70,3 +70,64 @@ Surface: Blazor WebApp ResourceEdit page
 ## Rationale
 
 The CTS debounce keeps the repository lookup responsive while cancelling stale searches as Captain types. The Razor toggle keeps existing import handlers and state intact while making the bulky import UI collapsed by default. Minimal CSS keeps the Resource details page decluttered without creating a new component or style system.
+
+---
+
+### 2026-06-28 — Sentence grading uses gpt-5 minimal reasoning effort
+
+**Session:** Optimize Writing/sentence grading latency
+**Surface:** Writing, Translation, and Description grading AI calls
+**Requested by:** Captain (David Ortinau)
+**Status:** Implemented, reviewed, committed, and pushed to `main` as `4d7ce37b`.
+
+#### Decision
+
+Sentence grading for Writing, Translation, and Description now runs `gpt-5` with `reasoning_effort = minimal`. The model stays `gpt-5`; only the per-call reasoning effort changes for these grading paths.
+
+#### Rationale
+
+River found the root cause of grading latency was `gpt-5` running at the provider default reasoning effort, effectively medium, because no `reasoning_effort` override was configured. Real Azure OpenAI/Foundry measurements using the production grading prompt showed median latency improving from 16.4s on `gpt-5` default to 7.2s on `gpt-5` minimal across three runs, about a 2.3x speedup, with no spot-check quality regression. `gpt-5-mini` default measured slower than `gpt-5` minimal at 12.8s median and was not adopted.
+
+#### Scope
+
+River added explicit reasoning-effort plumbing through `AiChatOptionsFactory`, `IAiService.SendPrompt`, `AiGatewayClient`, the `ChatRequest` wire contract, and `/api/v1/ai/chat`. Unknown or blank effort values fall back to the provider default. Vision/`SendImage` and Fast-tier callers remain unchanged, and there is no global default change.
+
+#### Validation
+
+Code review verified both AI paths reach Foundry, parsing is safe, and the change is caller-scoped. Unit tests passed: 735/735.
+
+#### Source notes merged
+
+##### river-grade-perf.md
+
+# River grading performance measurement
+
+Date: 2026-06-28
+Author: River
+
+## Decision
+
+Reasoning effort plumbing is added as an explicit optional override, but production defaults remain unchanged. The override flows through `IAiService.SendPrompt`, `TeacherService.GradeSentence`, `IAiGatewayClient.SendPromptAsync`, `ChatRequest.ReasoningEffort`, and the API `/api/v1/ai/chat` endpoint. Null means the provider default, preserving current behavior.
+
+## Measurement
+
+Harness: throwaway console harness (deleted after run) calling the real Azure OpenAI/Foundry endpoint directly via `AzureOpenAIClient` and `Microsoft.Extensions.AI`, using the production `GradeSentence.scriban-txt` prompt with sample `저는 매일 아침에 한국어를 공부해요.` meaning `I study Korean every morning.` Three runs per arm.
+
+| Arm | Runs wall-clock ms | Median wall-clock | Output tokens | Reasoning tokens | Quality |
+| --- | ---: | ---: | ---: | ---: | --- |
+| gpt-5 default | 16931, 16443, 14943 | 16443 ms | 2063, 2343, 2388 | 1472, 1728, 1728 | Coherent; accuracy 100, fluency 100; vocabulary present |
+| gpt-5 minimal | 7155, 7158, 6777 | 7155 ms | 574, 569, 537 | 0, 0, 0 | Coherent; accuracy 100, fluency 100; vocabulary present |
+| gpt-5-mini default | 11903, 12822, 13625 | 12822 ms | 1690, 1830, 1901 | 1024, 1216, 1280 | Coherent; accuracy 100, fluency 95-100; vocabulary present |
+
+## Recommendation
+
+Recommend switching grading to `gpt-5` with `reasoning_effort = minimal` after Captain approval. It preserved quality on the spot-check and cut median latency from 16.4s to 7.2s, faster than `gpt-5-mini` default while keeping the stronger model.
+
+## Adoption note
+
+The one-line production adoption is to pass `reasoningEffort: "minimal"` from the Writing grading call (or set the equivalent configuration/caller override once Captain approves). Do not change model defaults yet.
+## Validation
+
+- Added unit coverage for `AiChatOptionsFactory` supported effort parsing and OpenAI raw options creation.
+- Built affected projects sequentially with 0 errors: Shared net10.0, AppLib net11.0, API net10.0, WebApp net11.0.
+- Ran `dotnet test tests/SentenceStudio.UnitTests/SentenceStudio.UnitTests.csproj -f net10.0 --no-restore`: 735/735 passed.

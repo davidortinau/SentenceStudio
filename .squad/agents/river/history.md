@@ -33,3 +33,7 @@ Concern #1: CALIBRATION BUG in VocabularyProgressService.cs:27. The /12 divisor 
 Concern #2: TIMEZONE BUG in Webapp's IPlanDateContext. Azure Linux server resolves TimeZoneInfo.Local as UTC, which is 5 hours ahead of Captain (CDT). Between 7pm-midnight CDT, the server pre-generates next-day's plan with stale vocabulary, pins it in Postgres, and the morning short-circuit serves it without freshness validation. Fix pending Captain's Query 4 confirmation from production Postgres.
 
 Baseline: 636/636 tests passing. New test file (19 tests): tests/SentenceStudio.UnitTests/Services/MasteryScoring/MasteryCalibrationCharacterizationTests.cs — untracked, awaiting Captain's commit.
+
+---
+
+Team update (2026-06-28T15:20:00-05:00): Grading latency win shipped. Writing/Translation/Description grading now keeps `gpt-5` but passes `reasoning_effort = minimal`, based on River's real Foundry measurements: median latency improved from 16.4s to 7.2s (about 2.3x) with no spot-check quality regression. Reasoning-effort plumbing is explicit and caller-scoped; blank/unknown effort falls back to provider default, and Vision/SendImage plus Fast-tier callers remain unchanged. Tests passed 735/735; commit `4d7ce37b` pushed to main.
