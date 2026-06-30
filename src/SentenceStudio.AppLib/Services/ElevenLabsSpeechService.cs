@@ -38,6 +38,8 @@ public static class Voices
 /// </summary>
 public class ElevenLabsSpeechService
 {
+    private static readonly Model ElevenV3Model = new("eleven_v3");
+
     private readonly ElevenLabsClient _client;
     private readonly ConcurrentDictionary<string, Voice> _cachedVoices = new();
     private readonly ILogger<ElevenLabsSpeechService> _logger;
@@ -98,7 +100,7 @@ public class ElevenLabsSpeechService
         _fileSystem = fileSystem;
         _interactiveModel = ResolveModel(
             configuration["AI:ElevenLabs:InteractiveModel"],
-            Model.FlashV2_5);
+            ElevenV3Model);
     }
 
     /// <summary>
@@ -189,7 +191,12 @@ public class ElevenLabsSpeechService
             var request = new TextToSpeechRequest(
                 voice,
                 text,
-                voiceSettings: new VoiceSettings(stability, similarityBoost) { Speed = speed },
+                voiceSettings: new VoiceSettings(stability, similarityBoost)
+                {
+                    SpeakerBoost = true,
+                    Speed = speed,
+                    Style = 0f
+                },
                 model: selectedModel,
                 previousText: previousText,
                 nextText: nextText);
@@ -352,6 +359,7 @@ public class ElevenLabsSpeechService
         var normalized = configuredModel.Trim();
         return normalized switch
         {
+            "V3" or "v3" or "eleven_v3" => ElevenV3Model,
             "FlashV2_5" or "eleven_flash_v2_5" => Model.FlashV2_5,
             "TurboV2_5" or "eleven_turbo_v2_5" => Model.TurboV2_5,
             "TurboV2" or "eleven_turbo_v2" => Model.TurboV2,

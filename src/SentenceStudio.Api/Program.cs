@@ -725,7 +725,7 @@ app.MapPost("/api/v1/speech/synthesize", async (
         var voiceId = ResolveSpeechVoiceId(request.VoiceId, app.Configuration);
         var model = ResolveElevenLabsModel(
             app.Configuration["AI:ElevenLabs:InteractiveModel"],
-            Model.FlashV2_5);
+            new Model("eleven_v3"));
 
         try
         {
@@ -733,6 +733,12 @@ app.MapPost("/api/v1/speech/synthesize", async (
             var ttsRequest = new TextToSpeechRequest(
                 voice,
                 request.Text,
+                voiceSettings: new VoiceSettings(0.75f, 0.75f)
+                {
+                    SpeakerBoost = true,
+                    Speed = 1.0f,
+                    Style = 0f
+                },
                 model: model);
 
             var audioBytes = await client.TextToSpeechEndpoint.TextToSpeechAsync(
@@ -796,6 +802,7 @@ static Model ResolveElevenLabsModel(string? configuredModel, Model fallback)
     var normalized = configuredModel.Trim();
     return normalized switch
     {
+        "V3" or "v3" or "eleven_v3" => new Model("eleven_v3"),
         "FlashV2_5" or "eleven_flash_v2_5" => Model.FlashV2_5,
         "TurboV2_5" or "eleven_turbo_v2_5" => Model.TurboV2_5,
         "TurboV2" or "eleven_turbo_v2" => Model.TurboV2,
