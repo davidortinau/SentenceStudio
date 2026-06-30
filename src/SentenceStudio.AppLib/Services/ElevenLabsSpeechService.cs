@@ -1,9 +1,11 @@
+using System.Collections.Concurrent;
 using ElevenLabs;
 using ElevenLabs.Models;
 using ElevenLabs.TextToSpeech;
 using ElevenLabs.Voices;
 using SentenceStudio.Abstractions;
 using SentenceStudio.Models;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Services;
@@ -37,9 +39,10 @@ public static class Voices
 public class ElevenLabsSpeechService
 {
     private readonly ElevenLabsClient _client;
-    private readonly Dictionary<string, Voice> _cachedVoices = new();
+    private readonly ConcurrentDictionary<string, Voice> _cachedVoices = new();
     private readonly ILogger<ElevenLabsSpeechService> _logger;
     private readonly IFileSystemService _fileSystem;
+    private readonly Model _interactiveModel;
     private bool _voicesInitialized = false;
 
     /// <summary>
@@ -84,11 +87,18 @@ public class ElevenLabsSpeechService
     /// </summary>
     /// <param name="client">The ElevenLabs client instance.</param>
     /// <param name="logger">The logger instance.</param>
-    public ElevenLabsSpeechService(ElevenLabsClient client, ILogger<ElevenLabsSpeechService> logger, IFileSystemService fileSystem)
+    public ElevenLabsSpeechService(
+        ElevenLabsClient client,
+        ILogger<ElevenLabsSpeechService> logger,
+        IFileSystemService fileSystem,
+        IConfiguration configuration)
     {
         _client = client;
         _logger = logger;
         _fileSystem = fileSystem;
+        _interactiveModel = ResolveModel(
+            configuration["AI:ElevenLabs:InteractiveModel"],
+            Model.FlashV2_5);
     }
 
     /// <summary>
@@ -133,6 +143,7 @@ public class ElevenLabsSpeechService
     /// <param name="speed">Speech speed multiplier (0.5 to 2.0).</param>
     /// <param name="previousText">Optional previous sentence for better context and flow.</param>
     /// <param name="nextText">Optional next sentence for better context and flow.</param>
+    /// <param name="model">Optional ElevenLabs model override. Defaults to AI:ElevenLabs:InteractiveModel.</param>
     /// <param name="cancellationToken">A cancellation token.</param>
     /// <returns>A memory stream containing the generated audio.</returns>
     [Obsolete("Use GenerateTimestampedAudioAsync for better performance and synchronization")]
@@ -144,6 +155,7 @@ public class ElevenLabsSpeechService
         float speed = 1.0f,
         string? previousText = null,
         string? nextText = null,
+        Model? model = null,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -156,32 +168,31 @@ public class ElevenLabsSpeechService
                 voiceId = VoiceOptions[voiceId];
             }
 
-            Console.Error.WriteLine($"🎙️ TextToSpeech: Fetching voice {voiceId}");
-            _logger.LogDebug("🎙️ TextToSpeech: Fetching voice {VoiceId} for text '{Text}'", voiceId, text.Length > 50 ? text[..50] + "..." : text);
-
-            Voice voice;
-            try
+            if (string.IsNullOrWhiteSpace(voiceId))
             {
-                // Get the voice - this works for voices in the user's account
-                voice = await _client.VoicesEndpoint
-                    .GetVoiceAsync(voiceId, cancellationToken: cancellationToken);
-                Console.Error.WriteLine($"✅ Got voice: {voice.Name}");
-            }
-            catch (Exception voiceEx)
-            {
-                Console.Error.WriteLine($"❌ GetVoiceAsync failed for {voiceId}: {voiceEx.Message}");
-                _logger.LogError(voiceEx, "❌ Voice {VoiceId} not accessible. Make sure the voice is added to your ElevenLabs account.", voiceId);
+                _logger.LogError("TextToSpeechAsync called without a voice id");
                 return Stream.Null;
             }
+
+            var voice = _cachedVoices.TryGetValue(voiceId, out var cachedVoice)
+                ? cachedVoice
+                : new Voice(voiceId, voiceId);
+
+            var selectedModel = model ?? _interactiveModel;
+            _logger.LogDebug(
+                "TextToSpeech: synthesizing voice {VoiceId} with model {Model} for text '{Text}'",
+                voiceId,
+                selectedModel,
+                text.Length > 50 ? text[..50] + "..." : text);
 
             // Create audio generation options with latest model and context parameters
             var request = new TextToSpeechRequest(
                 voice,
                 text,
                 voiceSettings: new VoiceSettings(stability, similarityBoost) { Speed = speed },
-                model: Model.MultiLingualV2,
+                model: selectedModel,
                 previousText: previousText,
-                nextText: nextText); // Using latest multilingual model
+                nextText: nextText);
 
             // Generate the speech using the proper API call
             var audioBytes = await _client.TextToSpeechEndpoint.TextToSpeechAsync(
@@ -192,13 +203,13 @@ public class ElevenLabsSpeechService
             // Create a memory stream from the audio bytes
             var audioStream = new MemoryStream(audioBytes.ClipData.ToArray());
 
-            _logger.LogDebug("🎙️ TextToSpeech: Generated {Bytes} bytes of audio", audioBytes.ClipData.Length);
+            _logger.LogDebug("TextToSpeech: generated {Bytes} bytes of audio", audioBytes.ClipData.Length);
 
             return audioStream;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ Error in TextToSpeechAsync for voice {VoiceId} and text '{Text}'", voiceId, text);
+            _logger.LogError(ex, "Error in TextToSpeechAsync for voice {VoiceId} and text '{Text}'", voiceId, text);
             return Stream.Null;
         }
     }
@@ -245,13 +256,13 @@ public class ElevenLabsSpeechService
                         cachedResult.AudioData = new ReadOnlyMemory<byte>(audioData);
                         cachedResult.CacheFilePath = cacheFilePath;
 
-                        _logger.LogDebug("🏴‍☠️ Using cached timestamped audio for resource {ResourceId}", resource.Id);
+                        _logger.LogDebug("Using cached timestamped audio for resource {ResourceId}", resource.Id);
                         return cachedResult;
                     }
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogWarning(ex, "⚠️ Failed to load cached audio");
+                    _logger.LogWarning(ex, "Failed to load cached audio");
                     // Continue with fresh generation
                 }
             }
@@ -274,7 +285,7 @@ public class ElevenLabsSpeechService
                 withTimestamps: true  // KEY: Enable character-level timestamps
             );
 
-            _logger.LogInformation("🏴‍☠️ Generating timestamped audio for resource {ResourceId} using voice {VoiceName} ({VoiceId})", resource.Id, voice.Name, voiceId);
+            _logger.LogInformation("Generating timestamped audio for resource {ResourceId} using voice {VoiceName} ({VoiceId})", resource.Id, voice.Name, voiceId);
 
             // Generate the speech with timestamps
             var voiceClip = await _client.TextToSpeechEndpoint.TextToSpeechAsync(
@@ -314,11 +325,11 @@ public class ElevenLabsSpeechService
                 var metaJson = System.Text.Json.JsonSerializer.Serialize(metaData);
                 await File.WriteAllTextAsync(cacheMetaPath, metaJson, cancellationToken);
 
-                _logger.LogDebug("🏴‍☠️ Cached timestamped audio: {AudioSize} bytes, {CharCount} characters, {Duration:F1}s", voiceClip.ClipData.Length, result.Characters.Length, duration.TotalSeconds);
+                _logger.LogDebug("Cached timestamped audio: {AudioSize} bytes, {CharCount} characters, {Duration:F1}s", voiceClip.ClipData.Length, result.Characters.Length, duration.TotalSeconds);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "⚠️ Failed to cache timestamped audio");
+                _logger.LogWarning(ex, "Failed to cache timestamped audio");
                 // Continue without caching
             }
 
@@ -326,9 +337,28 @@ public class ElevenLabsSpeechService
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "🏴‍☠️ Error in GenerateTimestampedAudioAsync");
+            _logger.LogError(ex, "Error in GenerateTimestampedAudioAsync");
             throw;
         }
+    }
+
+    private static Model ResolveModel(string? configuredModel, Model fallback)
+    {
+        if (string.IsNullOrWhiteSpace(configuredModel))
+        {
+            return fallback;
+        }
+
+        var normalized = configuredModel.Trim();
+        return normalized switch
+        {
+            "FlashV2_5" or "eleven_flash_v2_5" => Model.FlashV2_5,
+            "TurboV2_5" or "eleven_turbo_v2_5" => Model.TurboV2_5,
+            "TurboV2" or "eleven_turbo_v2" => Model.TurboV2,
+            "FlashV2" or "eleven_flash_v2" => Model.FlashV2,
+            "MultiLingualV2" or "eleven_multilingual_v2" => Model.MultiLingualV2,
+            _ => fallback
+        };
     }
 
     /// <summary>

@@ -709,30 +709,49 @@ app.MapPost("/api/v1/ai/analyze-image", async (AnalyzeImageRequest request, [Fro
     })
     .RequireAuthorization();
 
-app.MapPost("/api/v1/speech/synthesize", async (SynthesizeRequest request, [FromServices] ElevenLabsClient? client) =>
+app.MapPost("/api/v1/speech/synthesize", async (
+        SynthesizeRequest request,
+        [FromServices] ElevenLabsClient? client,
+        ILoggerFactory loggerFactory,
+        CancellationToken cancellationToken) =>
     {
+        var logger = loggerFactory.CreateLogger("SpeechEndpoints");
+
         if (client == null)
         {
             return Results.Problem("ElevenLabs client is not configured.", statusCode: StatusCodes.Status503ServiceUnavailable);
         }
 
-        var voiceId = string.IsNullOrWhiteSpace(request.VoiceId)
-            ? app.Configuration["AI:ElevenLabs:DefaultVoice"] ?? "21m00Tcm4TlvDq8ikWAM"
-            : request.VoiceId;
+        var voiceId = ResolveSpeechVoiceId(request.VoiceId, app.Configuration);
+        var model = ResolveElevenLabsModel(
+            app.Configuration["AI:ElevenLabs:InteractiveModel"],
+            Model.FlashV2_5);
 
-        var voice = await client.VoicesEndpoint.GetVoiceAsync(voiceId);
-        var ttsRequest = new TextToSpeechRequest(
-            voice,
-            request.Text,
-            model: Model.MultiLingualV2);
-
-        var audioBytes = await client.TextToSpeechEndpoint.TextToSpeechAsync(ttsRequest);
-        var base64 = Convert.ToBase64String(audioBytes.ClipData.ToArray());
-
-        return Results.Ok(new SynthesizeResponse
+        try
         {
-            AudioUrl = $"data:audio/mpeg;base64,{base64}"
-        });
+            var voice = new Voice(voiceId, voiceId);
+            var ttsRequest = new TextToSpeechRequest(
+                voice,
+                request.Text,
+                model: model);
+
+            var audioBytes = await client.TextToSpeechEndpoint.TextToSpeechAsync(
+                ttsRequest,
+                cancellationToken: cancellationToken);
+            var base64 = Convert.ToBase64String(audioBytes.ClipData.ToArray());
+
+            return Results.Ok(new SynthesizeResponse
+            {
+                AudioUrl = $"data:audio/mpeg;base64,{base64}"
+            });
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "synthesize failed for voice {VoiceId}", voiceId);
+            return Results.Problem(
+                detail: "Failed to synthesize audio.",
+                statusCode: StatusCodes.Status502BadGateway);
+        }
     })
     .RequireAuthorization();
 
@@ -741,7 +760,7 @@ app.MapPost("/api/v1/speech/synthesize", async (SynthesizeRequest request, [From
 // Hard-coded allow-list: unknown slugs fall back to the default voice rather
 // than being forwarded verbatim to ElevenLabs (prevents callers from smuggling
 // arbitrary voice IDs through the API).
-static string ResolveTimestampedVoiceId(string? requested, IConfiguration config)
+static string ResolveSpeechVoiceId(string? requested, IConfiguration config)
 {
     var fallback = config["AI:ElevenLabs:DefaultVoice"] ?? "21m00Tcm4TlvDq8ikWAM";
     if (string.IsNullOrWhiteSpace(requested)) return fallback;
@@ -763,6 +782,25 @@ static string ResolveTimestampedVoiceId(string? requested, IConfiguration config
         "nova"    or "elli"    => "jsCqWAovK2LkecY7zXl4",
         "shimmer" or "adam"    => "kgG8YXSrynzpPIncHKrx",
         "fable"   or "dorothy" => "5Q0t7uMcjvnagumLfvZi",
+        _ => fallback
+    };
+}
+
+static Model ResolveElevenLabsModel(string? configuredModel, Model fallback)
+{
+    if (string.IsNullOrWhiteSpace(configuredModel))
+    {
+        return fallback;
+    }
+
+    var normalized = configuredModel.Trim();
+    return normalized switch
+    {
+        "FlashV2_5" or "eleven_flash_v2_5" => Model.FlashV2_5,
+        "TurboV2_5" or "eleven_turbo_v2_5" => Model.TurboV2_5,
+        "TurboV2" or "eleven_turbo_v2" => Model.TurboV2,
+        "FlashV2" or "eleven_flash_v2" => Model.FlashV2,
+        "MultiLingualV2" or "eleven_multilingual_v2" => Model.MultiLingualV2,
         _ => fallback
     };
 }
@@ -824,7 +862,7 @@ app.MapPost("/api/v1/speech/synthesize-timestamped", async (
             });
         }
 
-        var voiceId = ResolveTimestampedVoiceId(request.VoiceId, app.Configuration);
+        var voiceId = ResolveSpeechVoiceId(request.VoiceId, app.Configuration);
 
         // Clamp VoiceSettings to documented ElevenLabs ranges so callers can't
         // pass NaN / out-of-band values that either error from upstream or
