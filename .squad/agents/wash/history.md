@@ -62,3 +62,8 @@ Carry-forward for Wash:
 ---
 
 Team update (2026-06-26T21:30:56-05:00): Quick-add existing vocabulary feature — Wash added user-scoped strict-language lookup in LearningResourceRepository, excluding words already mapped to the resource and ranking best matches first. Repository lookup tests passed 5/5. Carry-forward: strict language filtering intentionally excludes bulk-imported `Language=NULL` rows; do not relax without a product/data-quality decision.
+
+
+---
+
+Team update (2026-06-29T21:55:00-05:00): ElevenLabs interactive TTS latency win — Wash switched short-form app/API speech synthesis to configurable Flash v2.5 with a code default, kept Reading long-form on MultiLingualV2, and removed per-utterance `GetVoiceAsync` by constructing/caching `Voice` from the known id. Measured time-to-audio improved from about 1090 ms to 274 ms. Review follow-up converted cached voices to `ConcurrentDictionary`.

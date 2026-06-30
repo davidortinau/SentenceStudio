@@ -37,3 +37,8 @@ Baseline: 636/636 tests passing. New test file (19 tests): tests/SentenceStudio.
 ---
 
 Team update (2026-06-28T15:20:00-05:00): Grading latency win shipped. Writing/Translation/Description grading now keeps `gpt-5` but passes `reasoning_effort = minimal`, based on River's real Foundry measurements: median latency improved from 16.4s to 7.2s (about 2.3x) with no spot-check quality regression. Reasoning-effort plumbing is explicit and caller-scoped; blank/unknown effort falls back to provider default, and Vision/SendImage plus Fast-tier callers remain unchanged. Tests passed 735/735; commit `4d7ce37b` pushed to main.
+
+
+## 2026-06-29 — ElevenLabs v3 fidelity adoption
+
+Captain ear-tested River's Korean TTS fidelity matrix and selected `eleven_v3`: "v3 wins everywhere." Interactive short-form TTS now defaults to `eleven_v3` in both the MAUI in-process service and API gateway, with `AI:ElevenLabs:InteractiveModel=eleven_multilingual_v2` available as the flip-back. Reading long-form/timestamped synthesis stays on `eleven_multilingual_v2` pending a separate v3 Reading evaluation for chunking and timestamp support.
