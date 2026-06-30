@@ -114,7 +114,7 @@
     <PackageVersion Include="Plugin.Maui.Audio" Version="4.0.0" />
     <PackageVersion Include="NAudio" Version="2.2.1" />
     <PackageVersion Include="NLayer.NAudioSupport" Version="1.4.0" />
-    <PackageVersion Include="ElevenLabs-DotNet" Version="3.7.1" />
+    <PackageVersion Include="ElevenLabs-DotNet" Version="3.7.2" />
 
     <!-- YouTube -->
     <PackageVersion Include="YoutubeExplode" Version="6.5.6" />
