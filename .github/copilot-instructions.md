@@ -9,7 +9,7 @@ You are working on a project that uses **Squad**, an AI team framework. When pic
 - **Project purpose**: SentenceStudio's primary purpose is dogfooding the .NET MAUI SDK — tooling friction takes priority over app features.
 - **Data preservation rules**: NEVER uninstall apps, drop databases, or wipe SecureStorage without explicit per-turn confirmation.
 - **Build & run commands**: `dotnet run -f net11.0-macos` for the desktop dev head (Captain's default — see "Preferred MAUI dev head" below); Mac Catalyst only when iOS-shaped behavior is being tested. MAUI heads target `net11.0-*`, Azure/server/Shared stay on `net10.0`. (Note: `dotnet build -t:Run` is obsolete as of .NET 11 Preview 4 — use `dotnet run`.)
-- **EF Core migrations**: use `dotnet ef migrations add` against `SentenceStudio.Shared.csproj` — never hand-write migrations, never raw SQL ALTER TABLE.
+- **EF Core migrations**: dual-provider (PostgreSQL + SQLite). `dotnet ef migrations add` scaffolds only the PostgreSQL copy; the SQLite copy under `Migrations/Sqlite/` is hand-written and **MUST carry `[DbContext]` + `[Migration("<id>")]`** or it is silently skipped on mobile (shipped to devices twice). Never use raw SQL ALTER TABLE. Run `scripts/validate-migration-attributes.sh` (also CI-enforced) + `scripts/validate-mobile-migrations.sh` before shipping. See `.squad/skills/ef-dual-provider-migrations/SKILL.md`.
 - **MauiReactor conventions**: `.HEnd()` / `.VCenter()` / `.Center()` instead of `HorizontalOptions(LayoutOptions.End)`; `ThemeKey(MyTheme.*)` over inline styles; icons in `ApplicationTheme.Icons.cs`, never inline `FontImageSource`.
 - **Shell navigation**: `MauiControls.Shell.Current.GoToAsync(...)`, never `Navigation.PushAsync`.
 - **Validation gate**: every UI/behavior change must be validated by running the app end-to-end via the MAUI DevFlow skills (`maui-devflow-debug` for build/deploy/inspect/fix loops, `maui-devflow-onboard` for first-time setup, `maui-devflow-session-review` for friction reports) or the `e2e-testing` skill — "it builds" is not sufficient.
@@ -193,7 +193,7 @@ The global Copilot instructions already require a `Verified:` line on every task
 | MAUI UI/behavior change | `Verified: built + ran on net11.0-macos, navigated to {page}, took screenshot, behavior matches expectation.` |
 | Webapp change | `Verified: built webapp, ran via aspire, opened https://localhost:{port}/{path}, behavior matches expectation.` |
 | API / data / repository change | `Verified: unit tests pass ({n}/{n}), and {specific repro of the code path against a real DB row}.` |
-| EF Core migration | `Verified: Up + Down ran clean on a DB backup; row counts and schema look right.` |
+| EF Core migration | `Verified: scripts/validate-migration-attributes.sh passes, migration DISCOVERED + applied on real SQLite (native head __EFMigrationsHistory + new schema present, WAL accounted for), Up + Down clean on a DB backup.` |
 | Doc-only / internal refactor | `Verified: not applicable — {one-line reason}.` |
 
 A closing message that ends with *"want me to deploy?"*, *"ready for review?"*, *"let me know if you want me to smoke-test it next"* — **without a `Verified:` line above it — is malformed by definition.** The verification must run BEFORE the closing message, not be offered as an optional next step.

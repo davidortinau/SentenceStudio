@@ -17,6 +17,18 @@ env:
   DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
 
 jobs:
+  migration-guard:
+    name: Migration attribute guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate EF migration [Migration]/[DbContext] attributes
+        # Catches the recurring dual-provider bug where a hand-written SQLite
+        # migration is missing [Migration("<id>")] and is silently skipped on
+        # mobile (RefreshTokenReplacedBy 2026-05-03, ActivitySession 2026-07-02).
+        # Static + deterministic + device-free — a raw-DDL test cannot catch it.
+        run: bash scripts/validate-migration-attributes.sh
+
   build:
     name: Build ${{ matrix.project }}
     runs-on: ubuntu-latest

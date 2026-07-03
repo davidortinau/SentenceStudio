@@ -149,6 +149,20 @@ If you encounter errors like "unable to open database file" or migration conflic
 
 6. **Never suppress `PendingModelChangesWarning`** — if EF detects model/migration mismatch, create the missing migration instead of hiding the warning.
 
+### 🔴 Dual-provider migrations (PostgreSQL + SQLite) — the recurring foot-gun
+
+This app runs **two** EF providers from one `ApplicationDbContext`: **PostgreSQL** (API/webapp/prod) and **SQLite** (iOS/Android/macOS/Catalyst native heads). `dotnet ef` only scaffolds for the active provider, so the **SQLite counterpart under `Migrations/Sqlite/` is hand-written** — and that is where things break. Non-negotiable rules:
+
+1. **Every migration needs BOTH a PostgreSQL copy (`Migrations/`) and a SQLite copy (`Migrations/Sqlite/`)** unless it is genuinely provider-specific (e.g. a `*PgDate*` type change). Same migration id/timestamp in both.
+2. **The SQLite copy MUST carry `[DbContext(typeof(ApplicationDbContext))]` + `[Migration("<id>")]`** on the class (normally these live in the auto-generated `.Designer.cs`; hand-written migrations must put them inline). **Without `[Migration]`, EF never discovers the migration and `MigrateAsync` SILENTLY SKIPS it on mobile** — the table/column is never created. PostgreSQL usually has the attribute, so the app works on the webapp/prod and breaks ONLY on native heads. This has shipped to devices **twice** (`AddRefreshTokenReplacedBy` 2026-05-03, `AddActivitySession` 2026-07-02 — the latter killed all dashboard buttons on iOS).
+3. **A raw-DDL / schema-copy test CANNOT catch a missing-attribute bug.** The SQL is valid; the migration is just never invoked. To verify a mobile migration you must confirm EF **discovers and applies** it — run a native head and check `__EFMigrationsHistory` + the new schema appear. (SQLite is WAL-mode: pull `db`+`-wal`+`-shm` or terminate the app first, or the DB looks stale.)
+4. **Before shipping ANY migration, run BOTH gates** (also enforced in CI `migration-guard` + the deploy runbook):
+   ```bash
+   bash scripts/validate-migration-attributes.sh   # static, catches missing [Migration] attrs
+   bash scripts/validate-mobile-migrations.sh       # real SQLite apply on a native head
+   ```
+5. Authoritative workflow + templates: `.squad/skills/ef-dual-provider-migrations/SKILL.md`. (Note: because of the multi-provider hand-off, `dotnet ef migrations add` alone is NOT sufficient here — it never produces the SQLite copy.)
+
 ## Troubleshooting and Issue Resolution
 
 When encountering build errors, runtime issues, or unexpected behavior:
@@ -596,7 +610,7 @@ Process launch failed: Launchd job spawn failed
 
 **Single-flight async:** For service methods where concurrent calls should share one operation (token refresh, config fetch, cache warming), use the single-flight pattern documented in `.squad/skills/single-flight-async/SKILL.md`. Pattern: `SemaphoreSlim(1,1)` + cached `Task<T>?` to collapse duplicate in-flight operations. Example: `IdentityAuthService.RefreshTokenAsync` (auth-persistence fix, May 2026).
 
-**EF dual-provider migrations:** When adding migrations that affect both PostgreSQL (API) and SQLite (mobile), see `.squad/skills/ef-dual-provider-migrations/SKILL.md` for the correct workflow. Both providers need migrations; always run `scripts/validate-mobile-migrations.sh` as a mandatory gate.
+**EF dual-provider migrations:** When adding migrations that affect both PostgreSQL (API) and SQLite (mobile), see `.squad/skills/ef-dual-provider-migrations/SKILL.md` for the correct workflow. Both providers need migrations, and the SQLite copy MUST carry `[DbContext]` + `[Migration("<id>")]` or it is silently skipped on mobile (shipped to devices twice — RefreshToken 2026-05-03, ActivitySession 2026-07-02). Always run `scripts/validate-migration-attributes.sh` (CI-enforced) AND `scripts/validate-mobile-migrations.sh` as mandatory gates.
 
 **Testing single-flight concurrency:** See `.squad/skills/async-single-flight-testing/SKILL.md` for the xUnit pattern to verify exactly-one-call semantics under concurrent load.
 

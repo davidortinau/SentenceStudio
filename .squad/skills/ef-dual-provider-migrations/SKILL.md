@@ -166,9 +166,20 @@ date +"%Y%m%d%H%M%S"
 
 Both PostgreSQL and SQLite migrations MUST use the **same timestamp** so EF Core applies them in the correct order.
 
-### 5. Validation (MANDATORY)
+### 5. Validation (MANDATORY — BOTH gates)
 
-Run the mobile migration validation script:
+**5a. Static attribute guard (run FIRST — fast, deterministic, catches the recurring bug):**
+
+```bash
+bash scripts/validate-migration-attributes.sh
+```
+
+Fails if any migration lacks a discoverable `[Migration("<id>")]` / `[DbContext]`
+attribute — the exact bug that silently skips a migration on mobile. This also runs in
+CI (`ci.yml` → `migration-guard`) on every push/PR, so a missing attribute can never
+merge unnoticed again.
+
+**5b. Mobile runtime validation (real SQLite apply):**
 
 ```bash
 bash scripts/validate-mobile-migrations.sh
@@ -179,12 +190,18 @@ This:
 2. Launches via `maui devflow`
 3. Waits for migrations to apply
 4. Scans logs for `SQLite Error`, `no such column`, etc.
-5. Fails if any migration errors are found
+5. HARD-FAILS if native logs can't be fetched or the `Schema sanity check PASSED` signal
+   is absent (a green grep over an empty log proves nothing — this is how the false-pass
+   happened). If DevFlow attached to the WRONG app, close the other DevFlow app and re-run.
 
-**DO NOT SKIP.** This catches:
-- Type mapping mismatches (e.g., `text` vs `TEXT`)
-- Missing columns in SQLite migration
-- Syntax errors in migration SQL
+**DO NOT SKIP EITHER.** 5a catches missing-attribute (silent-skip) bugs that 5b's log
+scan and any raw-DDL test would miss; 5b catches runtime SQL/type failures.
+
+> **⚠️ A raw-DDL / schema-copy test is NOT sufficient validation.** Applying the migration's
+> DDL to a copy of the DB only proves the SQL parses — it does NOT prove EF *discovers and
+> invokes* the migration. Both device incidents had perfectly valid DDL; the migration was
+> simply never applied. Always confirm via 5a + a real native-head apply (check
+> `__EFMigrationsHistory` — WAL-mode: pull `db`+`-wal`+`-shm` or terminate the app first).
 
 ### 6. Build Verification
 

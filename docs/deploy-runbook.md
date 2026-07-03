@@ -115,33 +115,51 @@ az lock create --name do-not-delete-postgres \
   --notes "Protect production managed PostgreSQL from accidental deletion"
 ```
 
-### Step 4: Validate mobile migrations (if PR includes migration changes)
+### Step 4: Validate migrations (if the deploy includes migration changes)
 
-**If the deploy includes a new or modified EF Core migration, RUN THIS:**
+**If the deploy includes a new or modified EF Core migration, BOTH gates below are MANDATORY and NON-SKIPPABLE.**
+
+**4a. Static attribute guard (always run — fast, deterministic, no device needed):**
+
+```bash
+bash scripts/validate-migration-attributes.sh
+```
+
+**Pass condition:** exits 0 with `✅ All migrations carry discoverable [Migration]/[DbContext] attributes.`
+
+This catches the RECURRING dual-provider bug where a hand-written SQLite migration is
+missing its `[Migration("<id>")]` attribute and is **silently skipped** on mobile
+(`AddRefreshTokenReplacedBy` 2026-05-03, `AddActivitySession` 2026-07-02 — both reached
+devices; the second killed dashboard interactivity on iOS). **A raw-DDL/schema-copy test
+CANNOT catch this** — the SQL is valid; EF just never invokes the migration. This same
+check runs in CI (`ci.yml` → `migration-guard`).
+
+**4b. Mobile runtime validation (real SQLite apply):**
 
 ```bash
 bash scripts/validate-mobile-migrations.sh
 ```
 
-**Pass condition:** Script exits with code 0 and prints `✅ Mobile migrations validated`.
+**Pass condition:** exits 0 AND prints `Mobile schema sanity check PASSED`. The script now
+HARD-FAILS if native logs can't be fetched or the sanity signal is absent — a green grep
+over an empty log proves nothing. If it fails because MAUI DevFlow attached to the WRONG
+app (another DevFlow app running), close the other app and re-run; do NOT treat an
+unverified run as a pass.
 
-**If this fails:** DO NOT DEPLOY. Fix the migration. Common failures:
+> **Device-free fallback when DevFlow is unreliable:** you may additionally confirm on a
+> real SQLite DB copy that the migration is DISCOVERED and APPLIED (not just that the DDL
+> parses) — run the native head and check `__EFMigrationsHistory` + the new table/column
+> appear. See `.squad/skills/ef-dual-provider-migrations/SKILL.md` → "Validating a migration
+> WITHOUT a device". Remember SQLite WAL mode: pull `db` + `-wal` + `-shm`, or terminate the
+> app first, or the DB looks stale.
+
+**If either gate fails: DO NOT DEPLOY.** Fix the migration first. Common failures:
+- Missing `[Migration]` attribute on the SQLite copy → migration silently skipped (4a catches this)
 - Unsupported SQLite operation (e.g., ALTER COLUMN) → use PatchMissingColumnsAsync pattern
-- Missing column/table after migration → migration threw exception or was silently skipped
+- Missing column/table after migration → migration failed or was silently skipped
 - Sanity check failed → critical schema piece missing
 
-This gate catches iOS/Android-specific migration failures that desktop/server builds may not exhibit. It builds Mac Catalyst DEBUG, launches via `maui devflow`, and scans startup logs for migration errors.
-
-**Expected non-fatal warnings (validated 2026-06-24):** the script may print
-`⚠️ Could not fetch native logs via maui devflow` and
-`⚠️ Schema sanity check PASSED message not found` while still exiting 0 — this happens when
-the `maui devflow` agent connection is flaky and native logs can't be pulled. A **clean
-build + launch with no `SQLite Error` / `no such column` / `MigrateAsync failed` in the
-captured logs is still a pass** for a purely additive migration (`AddColumn` only). For
-riskier migrations (table rebuilds, data moves), re-run until the agent connects and the
-`Schema sanity check PASSED` line appears, or validate manually on a Catalyst run.
-
-**Skip this step ONLY if:** The deploy contains NO changes to files under `src/SentenceStudio.Shared/Migrations/`.
+**Skip these steps ONLY if:** The deploy contains NO changes to files under `src/SentenceStudio.Shared/Migrations/`.
 
 ### All checks passed? Proceed to deploy.
 
