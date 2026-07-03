@@ -64,6 +64,36 @@ Pattern is now reliable enough to treat as a known retry-once recipe rather than
 
 ## Deployment Recipes
 
+### App-extension restore gotcha (NETSDK1047 — validated publish 2026-07-02)
+
+**Symptom:** the Release build fails with
+`NETSDK1047: Assets file '.../SentenceStudio.ShareExtension/obj/project.assets.json'
+doesn't have a target for 'net11.0-ios/ios-arm64'`.
+
+**Cause:** `SentenceStudio.ShareExtension` is an app extension (`<IsAppExtension>true</IsAppExtension>`,
+TFM `net11.0-ios`, no `<RuntimeIdentifiers>`). When the iOS app builds with
+`-p:RuntimeIdentifier=ios-arm64`, that RID flows to the extension, but the build's
+*implicit restore* does not produce the RID-specific asset target for the extension —
+and it CLOBBERS any RID-specific assets you restored beforehand. Seen on SDK
+`11.0.100-preview.5` (may differ on other previews).
+
+**Fix (restore the extension + app with the RID, then build with `--no-restore`):**
+```bash
+dotnet restore src/SentenceStudio.ShareExtension/SentenceStudio.ShareExtension.csproj -r ios-arm64
+dotnet restore src/SentenceStudio.iOS/SentenceStudio.iOS.csproj -r ios-arm64
+# confirm: grep -o '"net11.0-ios/ios-arm64"' src/SentenceStudio.ShareExtension/obj/project.assets.json
+services__api__https__0=https://api.agreeablesky-76d2f81f.westus3.azurecontainerapps.io \
+  dotnet build src/SentenceStudio.iOS/SentenceStudio.iOS.csproj \
+  -f net11.0-ios -c Release -p:RuntimeIdentifier=ios-arm64 --no-restore
+```
+`--no-restore` is the key — it stops the build from re-restoring the extension without
+the RID and clobbering the assets. (If `obj` is in a weird state, `rm -rf
+src/SentenceStudio.ShareExtension/obj` first, then the two restores.)
+
+> **Permanent fix (TODO):** add `<RuntimeIdentifiers>ios-arm64</RuntimeIdentifiers>` to
+> `SentenceStudio.ShareExtension.csproj` so a normal `-p:RuntimeIdentifier` build restores
+> it correctly and `--no-restore` is no longer required.
+
 ### Net10 SDK (Canonical)
 
 ```bash
