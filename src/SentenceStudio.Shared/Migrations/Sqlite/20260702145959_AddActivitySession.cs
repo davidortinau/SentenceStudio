@@ -1,11 +1,15 @@
 using System;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
+using SentenceStudio.Data;
 
 #nullable disable
 
 namespace SentenceStudio.Shared.Migrations.Sqlite
 {
     /// <inheritdoc />
+    [DbContext(typeof(ApplicationDbContext))]
+    [Migration("20260702145959_AddActivitySession")]
     public partial class AddActivitySession : Migration
     {
         /// <inheritdoc />

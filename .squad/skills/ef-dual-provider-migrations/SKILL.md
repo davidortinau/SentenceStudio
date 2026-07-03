@@ -40,14 +40,29 @@ Copy an existing migration from `src/SentenceStudio.Shared/Migrations/` (e.g., `
 
 **File:** `src/SentenceStudio.Shared/Migrations/20260503221947_AddRefreshTokenReplacedBy.cs`
 
+> **🔴 CRITICAL — the `[Migration]` + `[DbContext]` attributes are MANDATORY.**
+> A hand-written migration class that lacks `[Migration("id")]` is INVISIBLE to EF Core:
+> `MigrateAsync()` never discovers or applies it. Normally these attributes live in the
+> auto-generated `.Designer.cs`; when you create migrations by hand you MUST put them
+> inline on the class (or hand-write the `.Designer.cs`). Miss this on the SQLite copy
+> and the migration silently no-ops on mobile — the table never gets created — while the
+> PostgreSQL side (if it HAS the attributes) applies fine, so the app works on the webapp
+> and breaks only on iOS/Android. This exact split shipped to a device on 2026-07-02
+> (ActivitySession missing on iOS, dashboard interactivity dead). **Both provider copies
+> must carry both attributes.**
+
 ```csharp
+using Microsoft.EntityFrameworkCore.Infrastructure;   // ← for [DbContext]
 using Microsoft.EntityFrameworkCore.Migrations;
+using SentenceStudio.Data;                             // ← for ApplicationDbContext
 
 #nullable disable
 
 namespace SentenceStudio.Shared.Migrations
 {
     /// <inheritdoc />
+    [DbContext(typeof(ApplicationDbContext))]                    // ← MANDATORY
+    [Migration("20260503221947_AddRefreshTokenReplacedBy")]      // ← MANDATORY (exact id)
     public partial class AddRefreshTokenReplacedBy : Migration
     {
         /// <inheritdoc />
@@ -76,17 +91,22 @@ namespace SentenceStudio.Shared.Migrations
 Copy the SAME migration to `src/SentenceStudio.Shared/Migrations/Sqlite/` and change:
 1. Namespace to `SentenceStudio.Shared.Migrations.Sqlite`
 2. Type mapping to SQLite equivalents
+3. **Keep the `[DbContext]` + `[Migration]` attributes** (same id) — do NOT drop them on the copy
 
 **File:** `src/SentenceStudio.Shared/Migrations/Sqlite/20260503221947_AddRefreshTokenReplacedBy.cs`
 
 ```csharp
+using Microsoft.EntityFrameworkCore.Infrastructure;   // ← for [DbContext]
 using Microsoft.EntityFrameworkCore.Migrations;
+using SentenceStudio.Data;                             // ← for ApplicationDbContext
 
 #nullable disable
 
 namespace SentenceStudio.Shared.Migrations.Sqlite  // ← Note namespace
 {
     /// <inheritdoc />
+    [DbContext(typeof(ApplicationDbContext))]                    // ← MANDATORY (same as Postgres)
+    [Migration("20260503221947_AddRefreshTokenReplacedBy")]      // ← MANDATORY (same id)
     public partial class AddRefreshTokenReplacedBy : Migration
     {
         /// <inheritdoc />
@@ -109,6 +129,19 @@ namespace SentenceStudio.Shared.Migrations.Sqlite  // ← Note namespace
     }
 }
 ```
+
+> **Verify discovery before shipping:** after creating both files, confirm each has
+> `[Migration("<id>")]`. A quick guard:
+> `grep -L 'Migration("<id>")' src/SentenceStudio.Shared/Migrations/<id>_*.cs src/SentenceStudio.Shared/Migrations/Sqlite/<id>_*.cs`
+> (any file listed is MISSING the attribute). Then run `scripts/validate-mobile-migrations.sh`
+> — it fails if the migration doesn't actually apply on a real SQLite mobile run.
+
+### 3. Type Mapping Reference (PostgreSQL ↔ SQLite)
+
+| .NET Type | PostgreSQL | SQLite |
+|-----------|-----------|--------|
+| `string` (nullable) | `text` | `TEXT` |
+| `int` | `integer` | `INTEGER` |
 
 ### 3. Type Mapping Reference (PostgreSQL ↔ SQLite)
 
@@ -232,6 +265,7 @@ But `dotnet ef` cannot determine which TFM to target → MSBuild error.
 - [ ] Model class updated in `src/SentenceStudio.Shared/Models/`
 - [ ] PostgreSQL migration created in `Migrations/` with correct type (`text`, `integer`, `timestamp with time zone`)
 - [ ] SQLite migration created in `Migrations/Sqlite/` with SQLite types (`TEXT`, `INTEGER`)
+- [ ] **BOTH migration `.cs` files carry `[DbContext(typeof(ApplicationDbContext))]` + `[Migration("<id>")]`** (else EF never applies them — silent no-op on the provider that's missing it)
 - [ ] Both migrations use the SAME timestamp
 - [ ] `dotnet build` passes for Shared (net10.0) and Api (net10.0)
 - [ ] `scripts/validate-mobile-migrations.sh` passes (no SQLite errors)
