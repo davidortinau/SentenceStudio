@@ -129,6 +129,34 @@ services__api__https__0=https://api.agreeablesky-76d2f81f.westus3.azurecontainer
 
 (Points to production API for release builds)
 
+## Verifying a migration actually applied on-device (WAL gotcha)
+
+To confirm an EF migration applied on DX24, pull the app's SQLite DB and inspect it:
+
+```bash
+xcrun devicectl device copy from --device CF4F94E3-A1C9-5617-A089-9ABB0110A09F \
+  --domain-type appDataContainer --domain-identifier com.simplyprofound.sentencestudio \
+  --source Library/sstudio.db3 --destination /tmp/dx24.db3
+```
+
+**🔴 WAL gotcha (validated 2026-07-02):** the app runs SQLite in **WAL mode**. While the
+app is running, recent writes — including a just-applied migration — live in the
+uncheckpointed `sstudio.db3-wal` file, NOT the main `sstudio.db3`. Pulling only the main
+file shows STALE data and can make a working migration look like it FAILED. Pull all
+three parts so SQLite replays the WAL on open:
+
+```bash
+for suf in "" "-wal" "-shm"; do
+  xcrun devicectl device copy from --device CF4F94E3-A1C9-5617-A089-9ABB0110A09F \
+    --domain-type appDataContainer --domain-identifier com.simplyprofound.sentencestudio \
+    --source "Library/sstudio.db3${suf}" --destination "/tmp/dx24.db3${suf}"; done
+sqlite3 /tmp/dx24.db3 "SELECT \"MigrationId\" FROM \"__EFMigrationsHistory\" ORDER BY 1 DESC LIMIT 3;"
+sqlite3 /tmp/dx24.db3 "SELECT name FROM sqlite_master WHERE name='YourNewTable';"
+```
+
+(Or terminate the app first — a clean shutdown checkpoints the WAL into the main file —
+then pull just `sstudio.db3`.)
+
 ## Future Investigations
 
 1. ~~**Pattern validation:** Does NWError 57 recur on future iOS deploys if device is in deep sleep?~~ ✅ **Validated** (publishes #6–#9).
