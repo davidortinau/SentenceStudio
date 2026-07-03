@@ -2864,6 +2864,18 @@
     <value>퀴즈 계속</value>
     <comment>Resume button</comment>
   </data>
+  <data name="VocabQuiz_ResumePrompt" xml:space="preserve">
+    <value>이전 퀴즈를 이어서 하시겠어요?</value>
+    <comment>Resume prompt title</comment>
+  </data>
+  <data name="VocabQuiz_Resume" xml:space="preserve">
+    <value>이어서 하기</value>
+    <comment>Resume button</comment>
+  </data>
+  <data name="VocabQuiz_StartFresh" xml:space="preserve">
+    <value>새로 시작</value>
+    <comment>Start fresh button</comment>
+  </data>
   <data name="VocabQuiz_WriteOneSentence" xml:space="preserve">
     <value>{0}을(를) 사용하여 하나 이상의 문장을 작성하세요.</value>
     <comment>Instructions</comment>

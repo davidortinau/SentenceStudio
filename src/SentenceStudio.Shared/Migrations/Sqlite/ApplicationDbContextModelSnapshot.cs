@@ -148,6 +148,53 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("SentenceStudio.Shared.Models.ActivitySession", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+
+                    b.Property<string>("ActivityType")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LaunchContextKey")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StateJson")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "ActivityType", "Status");
+
+                    b.HasIndex("UserId", "ActivityType", "LaunchContextKey")
+                        .IsUnique()
+                        .HasFilter("\"Status\" = 'InProgress'");
+
+                    b.ToTable("ActivitySession", (string)null);
+                });
+
             modelBuilder.Entity("SentenceStudio.Shared.Models.ApplicationUser", b =>
                 {
                     b.Property<string>("Id")

@@ -91,6 +91,15 @@ for MAUI DevFlow product feedback. Do not run it automatically.
 
 ## Critical Anti-patterns
 
+- **Do not trust `wait`/`logs` without confirming WHICH app attached.** With more
+  than one DevFlow-enabled MAUI app running on the machine (e.g. another project),
+  `maui devflow wait` can attach to the WRONG agent and you will read a different
+  app's (or no) logs while everything reports "connected". Before trusting `ui tree`,
+  screenshots, or logs, run `maui devflow diagnose` and verify the attached project
+  is the one you built. This directly caused a false-pass in
+  `scripts/validate-mobile-migrations.sh` on 2026-07-02 (attached to FoundryStudio,
+  reported "no errors" while validating nothing). If in doubt, close other DevFlow
+  apps first.
 - Do not treat an empty `maui devflow list` as proof the project is not integrated. `list` is runtime state; project files are source of truth.
 - Do not use arbitrary sleeps after launch. Use `maui devflow wait` to gate on the actual agent connection.
 - Do not kill an async `dotnet build -t:Run` or `dotnet run` shell while you still need the app; that often kills the app.

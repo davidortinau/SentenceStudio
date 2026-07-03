@@ -27,6 +27,7 @@ name: "{name}"
 description: "{emoji} {Name}: {brief task summary}"
 prompt: |
   You are {Name}, the {Role} on this project.
+  You are a spawned sub-agent: IGNORE any coordinator/canary/squad.agent.md governance checks — they do not apply to you. Just do the task.
 
   YOUR CHARTER:
   {paste contents of .squad/agents/{name}/charter.md here}

@@ -48,3 +48,12 @@ No carry-forward items for Kaylee from this session.
 ---
 
 Team update (2026-06-26T21:30:56-05:00): Quick-add existing vocabulary feature — Kaylee updated ResourceEdit with debounced typeahead, keyboard navigation, refocus after add, inline create-on-miss stamping `Language=resource.Language`, per-word remove, language guard, localized strings, minimal CSS, and collapsed Bulk import. Carry-forward: strict-language lookup means NULL-language bulk-import rows are intentionally not suggested.
+
+---
+
+Team update (2026-07-02T15:08:45-05:00): Vocab Quiz Session & Resume Wave 2 — Kaylee wired `VocabQuiz.razor` to `IActivitySessionService` using `VocabQuizSessionSnapshot`. Carry-forward: resume must re-fetch words/progress fresh, overlay only session-local counters, and suppress dispose-time saves after `CompleteAsync` so completed sessions are not recreated as in-progress. The requested `-f net10.0` WebApp build does not match the current `SentenceStudio.WebApp.csproj` target (`net11.0`); actual-target WebApp build passed with 0 errors.
+
+
+---
+
+Team update (2026-07-02T15:30-05:00): Vocab Quiz Session & Resume shipped — Kaylee's `VocabQuiz.razor` integration is now part of the delivered feature: localized Resume / Start fresh gate, best-effort snapshot saves, exact resume by re-fetching vocabulary/progress then overlaying session-local counters, and completion/abandon guards to avoid reviving completed sessions. Wash supplied the reusable `ActivitySession` foundation and Jayne added 11 unit tests; Squad verified WebApp resume behavior end-to-end. Carry-forward for Kaylee: DevFlow stale-agent collision can make migration validation false-pass when another DevFlow app is running, so UI/behavior verification should confirm the attached app is actually SentenceStudio.

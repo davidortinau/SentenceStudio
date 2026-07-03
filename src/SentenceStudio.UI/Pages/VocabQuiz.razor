@@ -25,7 +25,23 @@ else
 }
 
 <div class="activity-content">
-@if (showSessionSummary)
+@if (showResumePrompt)
+{
+    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 60vh;">
+        <div class="card card-ss p-4 text-center" style="min-width: 340px; max-width: 520px;">
+            <h2 class="ss-title1 mb-4"><i class="bi bi-clock-history me-2"></i>@($"{Localize["VocabQuiz_ResumePrompt"]}")</h2>
+            <div class="d-flex flex-column flex-sm-row justify-content-center gap-2">
+                <button class="btn btn-ss-primary" @onclick="ResumePreviousSessionAsync">
+                    <i class="bi bi-play-circle me-1"></i>@($"{Localize["VocabQuiz_Resume"]}")
+                </button>
+                <button class="btn btn-ss-secondary" @onclick="StartFreshSessionAsync">
+                    <i class="bi bi-arrow-clockwise me-1"></i>@($"{Localize["VocabQuiz_StartFresh"]}")
+                </button>
+            </div>
+        </div>
+    </div>
+}
+else if (showSessionSummary)
 {
     <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 60vh;">
         <h2 class="ss-title1 mb-4"><i class="bi bi-journal-check me-2"></i>@Localize["VocabQuiz_SessionSummary"]</h2>
@@ -548,6 +564,7 @@ else
     [Inject] private SentenceStudio.Services.Progress.IProgressService PlanProgressService { get; set; } = default!;
     [Inject] private SentenceStudio.Services.Timer.IActivityTimerService ActivityTimer { get; set; } = default!;
     [Inject] private UserProfileRepository UserProfileRepo { get; set; } = default!;
+    [Inject] private IActivitySessionService SessionService { get; set; } = default!;
 
     private const int BatchSize = 20;
     private const int ActiveWordCount = 10;
@@ -569,6 +586,7 @@ else
     private bool audioPromptAvailable = true;
     private bool audioAnswerModeAvailable = true;
     private bool showInfoPanel;
+    private bool showResumePrompt;
     private IAudioPlayer? audioPlayer;
     private CancellationTokenSource? autoAdvanceCts;
     private string userInput = "";
@@ -590,6 +608,10 @@ else
     // even when only 1 word remains in the active round. Populated in LoadVocabulary after dedup.
     private List<VocabularyWord> distractorScope = new();
     private VocabularyQuizItem? currentItem;
+    private ActivitySession? resumableSession;
+    private int? activeSessionId;
+    private string launchContextKey = string.Empty;
+    private bool sessionMarkedComplete;
 
     private int currentTurnInRound;
     // F1: rotating-window cursor for need-weighted sampling without replacement (plan path).
@@ -638,55 +660,37 @@ else
         var userProfile = await UserProfileRepo.GetAsync();
         nativeLanguage = userProfile?.NativeLanguage ?? "English";
         targetLanguage = userProfile?.TargetLanguage ?? "Korean";
+
+        focusVocabularyIds = FocusVocabularySelection.ParseFocusVocabularyIds(FocusVocabularyIdsParam);
+        launchContextKey = VocabQuizSessionSnapshot.BuildLaunchContextKey(
+            PlanItemId,
+            focusVocabularyIds,
+            ParseResourceIds(),
+            DueOnly,
+            SkillIdParam);
+
+        var activeUserId = GetActiveUserId();
+        if (!string.IsNullOrWhiteSpace(activeUserId))
+        {
+            var session = await SessionService.GetResumableAsync(activeUserId, "VocabularyReview", launchContextKey);
+            if (session != null && TryDeserializeSnapshot(session.StateJson, out _))
+            {
+                resumableSession = session;
+                showResumePrompt = true;
+                return;
+            }
+        }
+
         await LoadVocabulary();
     }
 
     private async Task LoadVocabulary()
     {
         isBusy = true;
+        sessionMarkedComplete = false;
         try
         {
-            focusVocabularyIds = FocusVocabularySelection.ParseFocusVocabularyIds(FocusVocabularyIdsParam);
-            usingFocusVocabularyIds = focusVocabularyIds.Count > 0;
-            var allWords = new List<VocabularyWord>();
-
-            async Task LoadLegacyVocabularyAsync()
-            {
-                Logger.LogWarning("Activity {ActivityName} launched without FocusVocabularyIds (planItemId={PlanItemId}); falling back to legacy selection", nameof(VocabQuiz), PlanItemId);
-
-                var resourceIds = DueOnly ? Array.Empty<string>() : ParseResourceIds();
-                if (resourceIds.Length > 0)
-                {
-                    foreach (var id in resourceIds)
-                    {
-                        var resource = await ResourceRepo.GetResourceAsync(id);
-                        if (resource?.Vocabulary?.Any() == true)
-                            allWords.AddRange(resource.Vocabulary);
-                    }
-                }
-                else
-                {
-                    var words = await ResourceRepo.GetAllVocabularyWordsWithResourcesAsync();
-                    allWords.AddRange(words);
-                }
-            }
-
-            if (usingFocusVocabularyIds)
-            {
-                var userVocabulary = await ResourceRepo.GetAllVocabularyWordsWithResourcesAsync();
-                allWords.AddRange(FocusVocabularySelection.SelectFocusWords(userVocabulary, focusVocabularyIds));
-
-                if (allWords.Count == 0)
-                {
-                    Logger.LogWarning("Activity {ActivityName} received FocusVocabularyIds but no matching vocabulary was found (planItemId={PlanItemId}); falling back to legacy selection", nameof(VocabQuiz), PlanItemId);
-                    usingFocusVocabularyIds = false;
-                    await LoadLegacyVocabularyAsync();
-                }
-            }
-            else
-            {
-                await LoadLegacyVocabularyAsync();
-            }
+            var allWords = await LoadVocabularyWordsForCurrentLaunchAsync();
 
             if (!allWords.Any())
             {
@@ -780,6 +784,292 @@ else
         }
     }
 
+    private async Task<List<VocabularyWord>> LoadVocabularyWordsForCurrentLaunchAsync()
+    {
+        focusVocabularyIds = FocusVocabularySelection.ParseFocusVocabularyIds(FocusVocabularyIdsParam);
+        usingFocusVocabularyIds = focusVocabularyIds.Count > 0;
+        var allWords = new List<VocabularyWord>();
+
+        async Task LoadLegacyVocabularyAsync()
+        {
+            Logger.LogWarning("Activity {ActivityName} launched without FocusVocabularyIds (planItemId={PlanItemId}); falling back to legacy selection", nameof(VocabQuiz), PlanItemId);
+
+            var resourceIds = DueOnly ? Array.Empty<string>() : ParseResourceIds();
+            if (resourceIds.Length > 0)
+            {
+                foreach (var id in resourceIds)
+                {
+                    var resource = await ResourceRepo.GetResourceAsync(id);
+                    if (resource?.Vocabulary?.Any() == true)
+                        allWords.AddRange(resource.Vocabulary);
+                }
+            }
+            else
+            {
+                var words = await ResourceRepo.GetAllVocabularyWordsWithResourcesAsync();
+                allWords.AddRange(words);
+            }
+        }
+
+        if (usingFocusVocabularyIds)
+        {
+            var userVocabulary = await ResourceRepo.GetAllVocabularyWordsWithResourcesAsync();
+            allWords.AddRange(FocusVocabularySelection.SelectFocusWords(userVocabulary, focusVocabularyIds));
+
+            if (allWords.Count == 0)
+            {
+                Logger.LogWarning("Activity {ActivityName} received FocusVocabularyIds but no matching vocabulary was found (planItemId={PlanItemId}); falling back to legacy selection", nameof(VocabQuiz), PlanItemId);
+                usingFocusVocabularyIds = false;
+                await LoadLegacyVocabularyAsync();
+            }
+        }
+        else
+        {
+            await LoadLegacyVocabularyAsync();
+        }
+
+        return allWords
+            .Where(FocusVocabularySelection.IsUsableVocabularyWord)
+            .GroupBy(w => w.Id, StringComparer.Ordinal)
+            .Select(g => g.First())
+            .ToList();
+    }
+
+    private async Task ResumePreviousSessionAsync()
+    {
+        if (resumableSession == null)
+        {
+            showResumePrompt = false;
+            await LoadVocabulary();
+            return;
+        }
+
+        try
+        {
+            var snapshot = VocabQuizSessionSnapshot.Deserialize(resumableSession.StateJson);
+            var allWords = await LoadVocabularyWordsForCurrentLaunchAsync();
+            if (!allWords.Any())
+            {
+                showResumePrompt = false;
+                await LoadVocabulary();
+                return;
+            }
+
+            distractorScope = allWords;
+            var activeUserId = GetActiveUserId();
+            var allWordIds = allWords.Select(w => w.Id).ToList();
+            var progressDict = await ProgressService.GetProgressForWordsAsync(allWordIds, activeUserId);
+
+            var itemsById = allWords.ToDictionary(
+                word => word.Id,
+                word =>
+                {
+                    var progress = progressDict.TryGetValue(word.Id, out var existingProgress)
+                        ? existingProgress
+                        : new SentenceStudio.Shared.Models.VocabularyProgress
+                        {
+                            VocabularyWordId = word.Id,
+                            MasteryScore = 0.0f,
+                            TotalAttempts = 0,
+                            CorrectAttempts = 0
+                        };
+
+                    return new VocabularyQuizItem { Word = word, Progress = progress };
+                },
+                StringComparer.Ordinal);
+
+            foreach (var itemSnapshot in snapshot.BatchPool)
+            {
+                if (!itemsById.TryGetValue(itemSnapshot.WordId, out var item))
+                    continue;
+
+                item.SessionCorrectCount = itemSnapshot.SessionCorrectCount;
+                item.SessionMCCorrect = itemSnapshot.SessionMCCorrect;
+                item.SessionTextCorrect = itemSnapshot.SessionTextCorrect;
+                item.PendingRecognitionCheck = itemSnapshot.PendingRecognitionCheck;
+                item.LostKnownThisSession = itemSnapshot.LostKnownThisSession;
+                item.WasCorrectThisSession = itemSnapshot.WasCorrectThisSession;
+                item.IsDueOnlySession = itemSnapshot.IsDueOnlySession;
+                item.RequiresFullSessionDemonstration = itemSnapshot.RequiresFullSessionDemonstration;
+            }
+
+            batchPool = snapshot.BatchPool
+                .Select(itemSnapshot => itemsById.TryGetValue(itemSnapshot.WordId, out var item) ? item : null)
+                .Where(item => item != null)
+                .Cast<VocabularyQuizItem>()
+                .ToList();
+
+            if (!batchPool.Any())
+            {
+                Logger.LogWarning("Vocabulary quiz session {SessionId} had no resumable words after refresh", resumableSession.Id);
+                showResumePrompt = false;
+                await LoadVocabulary();
+                return;
+            }
+
+            roundWordOrder = snapshot.RoundWordOrder
+                .Select(wordId => itemsById.TryGetValue(wordId, out var item) ? item : null)
+                .Where(item => item != null)
+                .Cast<VocabularyQuizItem>()
+                .ToList();
+
+            vocabItems = roundWordOrder.Count > 0
+                ? roundWordOrder.DistinctBy(item => item.Word.Id).ToList()
+                : batchPool.Take(ActiveWordCount).ToList();
+
+            sessionItems = snapshot.SessionItemsWordIds
+                .Select(wordId => itemsById.TryGetValue(wordId, out var item) ? item : null)
+                .Where(item => item != null)
+                .Cast<VocabularyQuizItem>()
+                .ToList();
+
+            roundCursor = snapshot.RoundCursor;
+            currentTurnInRound = snapshot.CurrentTurnInRound;
+            roundsCompleted = snapshot.RoundsCompleted;
+            wordsMastered = snapshot.WordsMastered;
+            totalTurns = snapshot.TotalTurns;
+            correctCount = snapshot.CorrectCount;
+            promptUsesNativeLanguage = snapshot.PromptUsesNativeLanguage;
+            userMode = string.IsNullOrWhiteSpace(snapshot.UserMode) ? "MultipleChoice" : snapshot.UserMode;
+            activeSessionId = resumableSession.Id;
+            sessionMarkedComplete = false;
+            showResumePrompt = false;
+
+            if (roundWordOrder.Count == 0 || currentTurnInRound >= roundWordOrder.Count || currentTurnInRound >= TurnsPerRound)
+            {
+                if (!sessionItems.Any())
+                    sessionItems = vocabItems.ToList();
+
+                showSessionSummary = true;
+                currentItem = null;
+                return;
+            }
+
+            currentTurnInRound = Math.Clamp(currentTurnInRound, 0, Math.Max(roundWordOrder.Count - 1, 0));
+            await LoadCurrentItem(preservePromptState: true);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to resume vocabulary quiz session {SessionId}", resumableSession.Id);
+            showResumePrompt = false;
+            await LoadVocabulary();
+        }
+    }
+
+    private async Task StartFreshSessionAsync()
+    {
+        if (resumableSession != null)
+        {
+            try
+            {
+                await SessionService.AbandonAsync(GetActiveUserId(), resumableSession.Id);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Failed to abandon vocabulary quiz session {SessionId}", resumableSession.Id);
+            }
+        }
+
+        resumableSession = null;
+        activeSessionId = null;
+        sessionMarkedComplete = false;
+        showResumePrompt = false;
+        await LoadVocabulary();
+    }
+
+    private async Task PersistSnapshotAsync()
+    {
+        var activeUserId = GetActiveUserId();
+        if (sessionMarkedComplete || showResumePrompt || string.IsNullOrWhiteSpace(activeUserId) || string.IsNullOrWhiteSpace(launchContextKey))
+            return;
+
+        try
+        {
+            var snapshot = new VocabQuizSessionSnapshot
+            {
+                PlanItemId = PlanItemId,
+                FocusVocabularyIds = focusVocabularyIds,
+                ResourceIds = ParseResourceIds(),
+                DueOnly = DueOnly,
+                SkillId = SkillIdParam,
+                BatchPool = batchPool.Select(CreateBatchItemSnapshot).ToList(),
+                RoundWordOrder = roundWordOrder.Select(item => item.Word.Id).ToList(),
+                RoundCursor = roundCursor,
+                CurrentTurnInRound = currentTurnInRound,
+                RoundsCompleted = roundsCompleted,
+                WordsMastered = wordsMastered,
+                TotalTurns = totalTurns,
+                CorrectCount = correctCount,
+                SessionItemsWordIds = sessionItems.Select(item => item.Word.Id).ToList(),
+                PromptUsesNativeLanguage = promptUsesNativeLanguage,
+                UserMode = userMode
+            };
+
+            var session = await SessionService.SaveSnapshotAsync(
+                activeUserId,
+                "VocabularyReview",
+                launchContextKey,
+                snapshot.Serialize());
+
+            activeSessionId = session?.Id;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to persist vocabulary quiz session snapshot");
+        }
+    }
+
+    private static VocabQuizBatchItemSnapshot CreateBatchItemSnapshot(VocabularyQuizItem item) => new()
+    {
+        WordId = item.Word.Id,
+        SessionCorrectCount = item.SessionCorrectCount,
+        SessionMCCorrect = item.SessionMCCorrect,
+        SessionTextCorrect = item.SessionTextCorrect,
+        PendingRecognitionCheck = item.PendingRecognitionCheck,
+        LostKnownThisSession = item.LostKnownThisSession,
+        WasCorrectThisSession = item.WasCorrectThisSession,
+        IsDueOnlySession = item.IsDueOnlySession,
+        RequiresFullSessionDemonstration = item.RequiresFullSessionDemonstration
+    };
+
+    private async Task CompleteActiveSessionAsync()
+    {
+        if (string.IsNullOrWhiteSpace(GetActiveUserId()) || string.IsNullOrWhiteSpace(launchContextKey))
+        {
+            sessionMarkedComplete = true;
+            return;
+        }
+
+        try
+        {
+            await SessionService.CompleteAsync(GetActiveUserId(), "VocabularyReview", launchContextKey);
+            activeSessionId = null;
+            resumableSession = null;
+            sessionMarkedComplete = true;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Failed to complete vocabulary quiz session for context {LaunchContextKey}", launchContextKey);
+        }
+    }
+
+    private bool TryDeserializeSnapshot(string stateJson, out VocabQuizSessionSnapshot? snapshot)
+    {
+        try
+        {
+            snapshot = VocabQuizSessionSnapshot.Deserialize(stateJson);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Ignoring invalid vocabulary quiz session snapshot");
+            snapshot = null;
+            return false;
+        }
+    }
+
+    private string GetActiveUserId() => Preferences.Get("active_profile_id", "");
+
     private async Task SetupNewRound()
     {
         showSessionSummary = false;
@@ -790,7 +1080,8 @@ else
         if (!batchPool.Any())
         {
             Toast.ShowSuccess("All words mastered! Session complete.");
-            GoBack();
+            await CompleteActiveSessionAsync();
+            await GoBack();
             return;
         }
 
@@ -817,9 +1108,10 @@ else
         roundWordOrder = vocabItems.OrderBy(_ => Guid.NewGuid()).ToList();
         currentTurnInRound = 0;
         await LoadCurrentItem();
+        await PersistSnapshotAsync();
     }
 
-    private async Task LoadCurrentItem()
+    private async Task LoadCurrentItem(bool preservePromptState = false)
     {
         if (currentTurnInRound >= roundWordOrder.Count || currentTurnInRound >= TurnsPerRound)
         {
@@ -834,7 +1126,9 @@ else
 
         currentItem = roundWordOrder[currentTurnInRound];
         ResetSentenceShortcutState();
-        promptUsesNativeLanguage = ShouldUseNativePrompt();
+        if (!preservePromptState)
+            promptUsesNativeLanguage = ShouldUseNativePrompt();
+
         questionText = GetPromptText(currentItem.Word);
         correctAnswer = GetAnswerText(currentItem.Word);
         userInput = "";
@@ -844,7 +1138,8 @@ else
         isCorrect = false;
         requireCorrectTyping = false;
 
-        userMode = currentItem.ChooseInteractionMode();
+        if (!preservePromptState || string.IsNullOrWhiteSpace(userMode))
+            userMode = currentItem.ChooseInteractionMode();
 
         if (userMode == "MultipleChoice")
         {
@@ -1324,6 +1619,7 @@ else
                 requireCorrectTyping = false;
                 showMnemonicImage = false;
                 showInfoPanel = false;
+                await PersistSnapshotAsync();
                 return;
             }
             // Don't increment currentTurnInRound — next word slides into current index
@@ -1337,6 +1633,7 @@ else
         showMnemonicImage = false;
         showInfoPanel = false;
         await LoadCurrentItem();
+        await PersistSnapshotAsync();
     }
 
     /// <summary>
@@ -1447,8 +1744,11 @@ else
             .Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
     }
 
-    private void GoBack()
+    private async Task GoBack()
     {
+        if (showSessionSummary)
+            await CompleteActiveSessionAsync();
+
         if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
         audioPlayer?.Stop();
         audioPlayer?.Dispose();
@@ -1538,6 +1838,7 @@ else
     {
         Localize.CultureChanged -= OnCultureChanged;
         await RecordPendingAttemptAsync();
+        await PersistSnapshotAsync();
         if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
         autoAdvanceCts?.Cancel();
         autoAdvanceCts?.Dispose();

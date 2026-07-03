@@ -61,3 +61,12 @@ Carry-forward for Jayne:
 ---
 
 Team update (2026-06-26T21:30:56-05:00): Quick-add existing vocabulary feature — Jayne verified the WebApp flow end-to-end through Aspire + Playwright + Postgres: quick-add match, attached-word exclusion, inline create persistence, Bulk import collapse/expand, remove persistence, zero console errors, and zero Aspire exceptions. Key finding: existing bulk-import words with `Language=NULL` are excluded by design under the strict language filter.
+
+---
+
+Team update (2026-07-02T15:05-05:00): Vocab Quiz Session & Resume unit coverage — Jayne added 11 regression tests across `VocabQuizSessionSnapshotTests` and `ActivitySessionServiceTests`. Coverage locks launch-context key determinism, snapshot JSON round-trip with ordered lists, resume insert/update/abandon semantics, completed/abandoned exclusion, and empty-user/multi-tenant guards. Validation: targeted new tests 11/11 passed; full unit test project rerun 746/746 passed after one unrelated transient `SharedIngestProcessorTests` failure on an earlier run.
+
+
+---
+
+Team update (2026-07-02T15:30-05:00): Vocab Quiz Session & Resume shipped — Jayne's 11 regression tests now guard snapshot key determinism, JSON round-trip, session save/update/supersede behavior, resumable lookup scoping, completed/abandoned exclusion, empty-user guard, and multi-tenant isolation. Full unit suite passed 746/746 on rerun, and Squad verified exact WebApp resume via Aspire + Playwright. Carry-forward for Jayne: DevFlow stale-agent collision exposed a false-pass risk in `scripts/validate-mobile-migrations.sh`; future tests or script changes should assert attached agent identity and treat missing native logs as a failure.

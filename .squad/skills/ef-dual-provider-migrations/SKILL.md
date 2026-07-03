@@ -237,3 +237,47 @@ But `dotnet ef` cannot determine which TFM to target → MSBuild error.
 - [ ] `scripts/validate-mobile-migrations.sh` passes (no SQLite errors)
 - [ ] Decision file created in `.squad/decisions/inbox/` documenting the schema change
 - [ ] History updated in `.squad/agents/wash/history.md`
+
+## Validating a migration WITHOUT a device (when DevFlow is unreliable)
+
+`scripts/validate-mobile-migrations.sh` depends on MAUI DevFlow attaching to the
+correct app. When any other DevFlow app is running on the machine, `maui devflow
+wait` can attach to the WRONG app and the gate cannot read our logs (see the
+2026-07-02 stale-agent false-pass). When you can't trust the device gate, validate
+the DDL deterministically against real schema instead:
+
+**SQLite (mobile/desktop heads):** copy the real DB and apply the migration's DDL.
+```bash
+DB=~/Library/Containers/com.simplyprofound.sentencestudio/Data/Library/sstudio.db3
+cp "$DB" /tmp/migtest.db3
+sqlite3 /tmp/migtest.db3 <<'SQL'
+-- paste the exact CREATE TABLE / CREATE [UNIQUE] INDEX ... [WHERE ...] from the
+-- Sqlite migration's Up(), then a probe INSERT + SELECT + DROP to confirm
+SQL
+rm -f /tmp/migtest.db3   # NEVER mutate the real DB — always operate on a copy
+```
+
+**PostgreSQL (webapp/API via Aspire):** apply the DDL against the LIVE DB with a
+throwaway name, then drop it. This proves the syntax is valid AND that existing
+data satisfies any new constraint (e.g. a partial UNIQUE index), non-destructively.
+```bash
+RT=$(command -v docker || command -v podman)
+CID=$($RT ps --format '{{.Names}}' | grep -i '^db-')          # Aspire postgres:17 container
+PW=$($RT exec "$CID" printenv POSTGRES_PASSWORD)              # user is 'dbadmin', db 'sentencestudio'
+$RT exec -e PGPASSWORD="$PW" "$CID" psql -U dbadmin -d sentencestudio -v ON_ERROR_STOP=1 \
+  -c 'CREATE UNIQUE INDEX "tmp_probe" ON "MyTable" (...) WHERE "Col" = ...;' \
+  && $RT exec -e PGPASSWORD="$PW" "$CID" psql -U dbadmin -d sentencestudio -c 'DROP INDEX "tmp_probe";'
+```
+A clean CREATE (no unique violation) + DROP proves the amended DDL is valid and the
+current data is compatible.
+
+## GOTCHA: amending an already-applied migration does NOT re-apply it
+
+EF Core never re-runs a migration already recorded in `__EFMigrationsHistory`. If
+you tested a migration once (e.g. an Aspire boot applied it) and THEN amend its
+`Up()` (add an index, change a column) before committing, any dev DB that already
+ran it keeps the OLD schema — only fresh DBs and CI pick up the change. **A green
+local run does NOT prove the amended DDL applied.** To re-materialize locally: drop
+the affected table + its `__EFMigrationsHistory` row, or recreate the DB (Aspire:
+tear down the db container volume). This is the safest reason to prefer a NEW
+migration over amending — unless the original is still uncommitted/unshipped.

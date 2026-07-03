@@ -36,8 +36,13 @@ sleep 15
 
 echo "📋 Fetching native logs (last 500 lines)..."
 maui devflow MAUI logs --source native --limit 500 > "$LOG_PREFIX.native" 2>&1 || {
-    echo "⚠️  Warning: Could not fetch native logs via maui devflow"
-    echo "   Continuing with available logs..."
+    echo "❌ Could not fetch native logs via maui devflow."
+    echo "   This usually means DevFlow attached to the WRONG app (another running"
+    echo "   DevFlow app on this machine) or the SentenceStudio app never started."
+    echo "   A migration gate that cannot read the app's logs validates NOTHING —"
+    echo "   failing instead of pretending success. Close other DevFlow apps and retry."
+    echo "   Logs saved to: $LOG_PREFIX.native"
+    exit 1
 }
 
 echo "🔍 Scanning for migration/schema errors..."
@@ -52,16 +57,25 @@ if grep -iE "SQLite Error|MigrateAsync failed|Failed to initialize CoreSync|sani
     exit 1
 fi
 
-# Also check for sanity check success message
+# Require the POSITIVE sanity signal. Absence is a FAILURE, not a warning:
+# a grep-for-errors over an empty/unfetched log finds nothing and would otherwise
+# "pass" while validating nothing (the DevFlow stale-agent false-pass, 2026-07-02).
+# If DevFlow attached to the wrong app, our PASSED line will NOT be in the log,
+# so this check also catches the wrong-app case.
 if grep -q "Mobile schema sanity check PASSED" "$LOG_PREFIX.native" 2>/dev/null; then
     echo "✅ Schema sanity check passed"
 else
-    echo "⚠️  Warning: Schema sanity check PASSED message not found in logs"
-    echo "   This may indicate the check didn't run or logs were truncated."
+    echo ""
+    echo "❌ Positive sanity signal 'Mobile schema sanity check PASSED' NOT found."
+    echo "   The app did not start + migrate, the logs were truncated/unfetchable, or"
+    echo "   DevFlow attached to a DIFFERENT app. This is a FAILURE — a green grep over"
+    echo "   an empty log proves nothing. Do NOT trust a 'pass' without this signal."
+    echo "   Confirm with 'maui devflow diagnose' that the attached project is"
+    echo "   SentenceStudio (not another DevFlow app), then re-run."
     echo "   Logs saved to: $LOG_PREFIX.native"
-    # Don't fail - the error grep above would have caught actual failures
+    exit 1
 fi
 
 echo ""
-echo "✅ Mobile migrations validated on $TFM — no errors found"
+echo "✅ Mobile migrations validated on $TFM — errors scan clean AND sanity signal present"
 echo "   Logs saved to: $LOG_DIR"

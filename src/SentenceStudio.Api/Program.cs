@@ -320,6 +320,9 @@ builder.Services.AddSingleton<VocabularyProgressService>();
 builder.Services.AddSingleton<VocabularyClassificationBackfillService>();
 builder.Services.AddSingleton<IVocabularyProgressService>(provider =>
     provider.GetRequiredService<VocabularyProgressService>());
+builder.Services.AddSingleton<ActivitySessionService>();
+builder.Services.AddSingleton<IActivitySessionService>(provider =>
+    provider.GetRequiredService<ActivitySessionService>());
 
 // Server → Foundry uses keyless Entra auth (DefaultAzureCredential): `az login` locally,
 // managed identity in Azure. No OpenAI API key required for chat.

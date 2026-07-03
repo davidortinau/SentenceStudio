@@ -90,6 +90,9 @@ public static class CoreServiceExtensions
 
         services.AddScoped<MinimalPairRepository>();
         services.AddScoped<MinimalPairSessionRepository>();
+        services.AddSingleton<ActivitySessionService>();
+        services.AddSingleton<IActivitySessionService>(provider =>
+            provider.GetRequiredService<ActivitySessionService>());
 
         services.AddSingleton<ScenarioRepository>();
         services.AddSingleton<IScenarioService, ScenarioService>();

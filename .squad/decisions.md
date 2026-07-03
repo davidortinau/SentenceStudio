@@ -212,3 +212,130 @@ Interactive short-form ElevenLabs TTS should default to `eleven_v3` in both the 
 ##### river-tts-fidelity-matrix.md
 
 River generated the ElevenLabs TTS fidelity ear-test matrix with a throwaway console harness that called the real ElevenLabs REST API directly, outside app code. The HyunBin voice `s07IwTCOrCDCaETjUVjx` was used for all clips, output went to `.copilot-scratch/tts-fidelity-matrix/`, and 23 MP3 files plus `MANIFEST.md` were produced. Fixed seed `12345` was used for all `eleven_multilingual_v2` arms so Captain compared settings rather than random variation. Arms covered baseline style 0.45, style 0, punctuation, `next_text`, higher stability, and v3.
+
+
+---
+
+### 2026-07-02 — Vocab Quiz exact session resume via ActivitySession
+
+**Session:** Vocab Quiz Session & Resume feature
+**Surface:** Blazor WebApp Vocab Quiz, reusable Shared data layer, PostgreSQL and SQLite migrations
+**Requested by:** Captain (David Ortinau)
+**Status:** Implemented and verified by Squad agents.
+
+#### Decision
+
+SentenceStudio now has a reusable `ActivitySession` foundation for exact activity resume. `ActivitySession` stores activity-agnostic session rows with serialized `StateJson`; Vocab Quiz is the first consumer through `VocabQuizSessionSnapshot`, which stores launch IDs, ordered word IDs, and session-local counters rather than full vocabulary/progress graphs.
+
+Vocab Quiz computes a deterministic launch context key from query parameters, checks for an in-progress resumable snapshot, and gates startup behind localized Resume / Start fresh choices. Resume re-fetches vocabulary and progress fresh, then overlays only session-local counters onto matching quiz items. Start fresh abandons the old session.
+
+#### Data and migrations
+
+Wash added matched dual-provider migration `20260702145959_AddActivitySession` for PostgreSQL and SQLite. `ActivitySession.Status` is persisted as text via `HasConversion<string>()`. `IActivitySessionService` fails closed on empty user IDs, returns null/no-op rather than falling through to unfiltered multi-tenant queries, and enforces one in-progress row per `(UserId, ActivityType, LaunchContextKey)` by updating the newest row while abandoning older duplicates.
+
+#### UI integration
+
+Kaylee wired `src/SentenceStudio.UI/Pages/VocabQuiz.razor` to `IActivitySessionService` and `VocabQuizSessionSnapshot`. Snapshot persistence runs best-effort from answer progression, new-round setup, and disposal; failures are logged and do not block quiz behavior. Completion marks the active session completed and suppresses dispose-time flush so completed sessions are not recreated as in-progress. The prompt uses localized strings in English and Korean and Bootstrap icons only.
+
+#### Test coverage
+
+Jayne added 11 focused unit tests across `VocabQuizSessionSnapshotTests` and `ActivitySessionServiceTests`: launch-context key determinism/normalization, null/empty equivalence, snapshot round-trip with ordered lists, save insert/update behavior, duplicate in-progress cleanup, resumable lookup scoping, completed/abandoned exclusion, empty-user guard, and user isolation.
+
+#### E2E verification
+
+Squad verified through the WebApp with Aspire and Playwright: answer-time saves, resume prompt, exact resume of word/turn/stats, continued quiz progression, Start fresh plus abandon behavior, no console errors, and live PostgreSQL migration application. SQLite migration was validated deterministically against a copy of the real `sstudio.db3` schema: table/index creation, CRUD, index usage, and drop path all succeeded.
+
+#### DevFlow friction captured
+
+During mobile migration validation, `maui devflow wait` attached to a stale `FoundryStudio` DevFlow agent instead of the freshly-launched SentenceStudio app, making `scripts/validate-mobile-migrations.sh` report a false pass while validating no SentenceStudio native logs. This is dogfooding tooling friction: DevFlow needs project/app filtering for attach, and the migration validation script must fail when logs are unavailable or the attached agent does not match the built project.
+
+#### Source notes merged
+
+##### wash-activity-session.md
+
+# Wash activity session data-layer decision
+
+Date: 2026-07-02
+Author: Wash
+
+## Decision
+
+Add a reusable `ActivitySession` table and `IActivitySessionService` contract for exact activity resume. Activity-specific state is serialized into `StateJson`; the first consumer is `VocabQuizSessionSnapshot`, which stores only launch IDs, ordered word IDs, and session-local counters rather than full vocabulary/progress graphs.
+
+## Rationale
+
+The table is activity-agnostic so Reading/Writing/etc. can adopt persistent exact resume without another schema change. `ActivitySession.Status` is a small enum in code and is persisted as text via `HasConversion<string>()`, matching the existing NumberContext enum conversion style. Empty user IDs fail closed with warnings and return null/no-op so resume queries never fall through to an unfiltered multi-tenant query.
+
+## Assumptions
+
+`SaveSnapshotAsync` returns `ActivitySession?` instead of a non-null `ActivitySession` because the required empty-userId guard must no-op and return null rather than creating an invalid row. The service enforces one in-progress row per `(UserId, ActivityType, LaunchContextKey)` by updating the newest matching row and abandoning older matching in-progress rows.
+
+## Migration
+
+Migration timestamp: `20260702145959`. PostgreSQL and SQLite migration files were created with matching table/index definitions and provider-specific type casing.
+
+##### kaylee-vocab-quiz-resume.md
+
+# Kaylee Vocab Quiz resume integration
+
+Date: 2026-07-02
+Surface: `src/SentenceStudio.UI/Pages/VocabQuiz.razor`
+
+## Decision
+
+Vocab Quiz resume is wired at the Razor page boundary using Wash's reusable `IActivitySessionService` and `VocabQuizSessionSnapshot` contract. The page computes a deterministic launch context key from the query parameters once during initialization, skips resume entirely when `active_profile_id` is empty, and shows a localized Resume/Start fresh gate before loading vocabulary when a parseable in-progress snapshot exists.
+
+## Implementation notes
+
+- Resume re-fetches vocabulary and progress fresh, then overlays only session-local counters from the snapshot onto matching `VocabularyQuizItem`s. Missing word ids are dropped defensively.
+- Snapshot persistence is best-effort and non-blocking for quiz behavior: failures are logged with `ILogger<VocabQuiz>` and do not interrupt the quiz.
+- Completion marks the active session completed before summary Done navigation or natural all-mastered exit, and suppresses the dispose-time snapshot flush after completion so completed sessions are not recreated as in-progress.
+- The prompt uses Bootstrap icons only and localized strings in `AppResources.resx` / `AppResources.ko.resx`.
+
+## Validation
+
+- Requested build command `dotnet build src/SentenceStudio.WebApp/SentenceStudio.WebApp.csproj -f net10.0` could not run because `SentenceStudio.WebApp.csproj` currently targets `net11.0`, producing `NETSDK1005` for missing `net10.0` assets.
+- Actual WebApp target build passed with `dotnet build src/SentenceStudio.WebApp/SentenceStudio.WebApp.csproj`: Build succeeded, 0 errors.
+
+##### jayne-session-tests.md
+
+# Jayne session-resume unit test decision
+
+Date: 2026-07-02
+Surface: Vocab Quiz Session & Resume data layer
+Author: Jayne
+
+## Decision
+
+Add focused unit coverage for the reusable Vocab Quiz session data layer in `tests/SentenceStudio.UnitTests/` rather than waiting for Razor UI tests. Use the existing SQLite in-memory `ApplicationDbContext` harness pattern from data-layer tests so `ActivitySessionService` is exercised against real EF Core behavior.
+
+## Coverage added
+
+- `VocabQuizSessionSnapshotTests`: launch-context key determinism and normalization, null/empty equivalence, and full snapshot serialize/deserialize round-trip with list order preserved.
+- `ActivitySessionServiceTests`: save insert/update behavior, duplicate in-progress cleanup by abandoning older rows, resumable lookup scoping, completed/abandoned exclusion, empty user no-op/read-null guard, and user A/user B isolation.
+
+## Validation
+
+- Targeted new tests: 11/11 passed.
+- Full unit test project: 746/746 passed on rerun.
+- One earlier full run hit an unrelated transient failure in `SharedIngestProcessorTests.YouTubeUrlItem_VideoImportKickedOff_ItemRemoved_NotifierVideoImportStarted`; rerun passed without code changes.
+
+##### squad-devflow-stale-agent-friction.md
+
+### 2026-07-02: MAUI DevFlow stale-agent collision breaks migration validation gate
+
+**By:** Squad (Coordinator), on behalf of Captain
+**Context:** Verifying the Vocab Quiz Session/Resume feature (ActivitySession EF migration, dual-provider).
+
+**What happened:** `scripts/validate-mobile-migrations.sh` builds the SentenceStudio Mac Catalyst head and launches it, then calls `maui devflow wait` to attach and scan native logs. Instead of attaching to the freshly-launched SentenceStudio app, DevFlow attached to a DIFFERENT already-running app — `FoundryStudio` (net11.0-macos, port 9223, sessionId `dwppfoundrystudioappcsproj`). Because it attached to the wrong agent, it could not fetch SentenceStudio native logs, yet the script still exited 0 with "no errors found" — a FALSE PASS. Wash hit the identical failure earlier in the same session (attached to a FoundryStudio agent, logs unavailable).
+
+**Impact:** The mobile SQLite migration gate cannot be trusted when any other DevFlow-enabled MAUI app is running on the machine. The script reports success while validating nothing.
+
+**Root cause (suspected):** DevFlow broker/`maui devflow wait` selects the first/any connected agent rather than the agent for the project/TFM under test. No project or app-name filter on attach. The script also treats "logs unavailable" as success instead of failure.
+
+**Workarounds used this session:** (1) Verified the feature + Postgres migration live on the webapp (Aspire+Playwright). (2) Deterministically validated the SQLite migration DDL by applying it to a copy of the real `sstudio.db3` production schema (CREATE TABLE + indexes + CRUD + index-usage + DROP all clean). (3) Confirmed both mobile heads (net11.0-maccatalyst, net11.0-macos) compile the migration.
+
+**Recommended follow-ups (dogfooding — tooling friction takes priority):**
+1. `maui devflow wait` / broker should accept a `--project` or `--app-name`/`--tfm` filter and attach only to the matching agent.
+2. `scripts/validate-mobile-migrations.sh` should FAIL (non-zero) when native logs cannot be fetched or when the attached agent's project != the one it built, instead of printing "no errors found".
+3. Consider filing upstream (microsoft/dotnetdevflow) with this repro: two DevFlow apps running, `wait` attaches to the wrong one.

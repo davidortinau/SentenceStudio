@@ -175,6 +175,13 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.Entity<MinimalPair>().ToTable("MinimalPair").HasKey(e => e.Id);
         modelBuilder.Entity<MinimalPairSession>().ToTable("MinimalPairSession").HasKey(e => e.Id);
         modelBuilder.Entity<MinimalPairAttempt>().ToTable("MinimalPairAttempt").HasKey(e => e.Id);
+        modelBuilder.Entity<ActivitySession>().ToTable("ActivitySession").HasKey(e => e.Id);
+        modelBuilder.Entity<ActivitySession>().Property(e => e.Status).HasConversion<string>();
+        modelBuilder.Entity<ActivitySession>().HasIndex(e => new { e.UserId, e.ActivityType, e.Status });
+        modelBuilder.Entity<ActivitySession>()
+            .HasIndex(e => new { e.UserId, e.ActivityType, e.LaunchContextKey })
+            .IsUnique()
+            .HasFilter("\"Status\" = 'InProgress'");
         modelBuilder.Entity<ConversationMemoryState>().ToTable("ConversationMemoryState").HasKey(e => e.Id);
 
         // Configure relationships for vocabulary progress tracking
@@ -436,6 +443,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<MinimalPair> MinimalPairs => Set<MinimalPair>();
     public DbSet<MinimalPairSession> MinimalPairSessions => Set<MinimalPairSession>();
     public DbSet<MinimalPairAttempt> MinimalPairAttempts => Set<MinimalPairAttempt>();
+    public DbSet<ActivitySession> ActivitySessions => Set<ActivitySession>();
     public DbSet<ConversationMemoryState> ConversationMemoryStates => Set<ConversationMemoryState>();
     public DbSet<WordAssociationScore> WordAssociationScores => Set<WordAssociationScore>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();

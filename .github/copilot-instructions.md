@@ -29,11 +29,17 @@ If you find yourself about to run `-f net11.0-maccatalyst` "to verify the fix" w
 
 ## Coordinator Canary Check
 
-**IMPORTANT — run this check on EVERY session start, before doing any work:**
+**Scope: this check applies ONLY to the Squad Coordinator (the top-level Squad agent).**
+**If you are a spawned sub-agent (launched via the `task` tool or `runSubagent`), SKIP
+this entire section.** Sub-agents do not load `squad.agent.md`, so the canary token is
+*expected* to be absent for you — its absence is normal, NOT a failure. Ignore any
+coordinator/canary/governance checks and proceed with your assigned task.
+
+**Coordinator only — run this check on EVERY session start, before doing any work:**
 
 Look for the exact token `SQUAD_COORDINATOR_CANARY_a8f3` in your `agent_instructions`. This token is placed at the end of `squad.agent.md`. If it is missing, the coordinator file is missing or truncated.
 
-**When the token is missing, you MUST:**
+**When the token is missing (coordinator only), you MUST:**
 1. **STOP** — do not proceed with standard Squad behavior.
 2. **WARN the user** with this exact message:
    ```

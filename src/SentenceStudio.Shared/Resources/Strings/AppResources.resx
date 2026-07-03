@@ -3112,6 +3112,18 @@ Ready to practice? Say "yes" to start, or tell me what you'd like to change.</va
     <value>Continue quiz</value>
     <comment>Resume button</comment>
   </data>
+  <data name="VocabQuiz_ResumePrompt" xml:space="preserve">
+    <value>Resume your previous quiz?</value>
+    <comment>Resume prompt title</comment>
+  </data>
+  <data name="VocabQuiz_Resume" xml:space="preserve">
+    <value>Resume</value>
+    <comment>Resume button</comment>
+  </data>
+  <data name="VocabQuiz_StartFresh" xml:space="preserve">
+    <value>Start fresh</value>
+    <comment>Start fresh button</comment>
+  </data>
   <data name="VocabQuiz_WriteOneSentence" xml:space="preserve">
     <value>Write one or more sentences using {0}.</value>
     <comment>Instructions</comment>

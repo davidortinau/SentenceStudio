@@ -11828,6 +11828,24 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Resume.
+        /// </summary>
+        internal static string VocabQuiz_Resume {
+            get {
+                return ResourceManager.GetString("VocabQuiz_Resume", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Resume your previous quiz?.
+        /// </summary>
+        internal static string VocabQuiz_ResumePrompt {
+            get {
+                return ResourceManager.GetString("VocabQuiz_ResumePrompt", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Rounds.
         /// </summary>
         internal static string VocabQuiz_Rounds {
@@ -11870,6 +11888,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string VocabQuiz_SessionSummary {
             get {
                 return ResourceManager.GetString("VocabQuiz_SessionSummary", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Start fresh.
+        /// </summary>
+        internal static string VocabQuiz_StartFresh {
+            get {
+                return ResourceManager.GetString("VocabQuiz_StartFresh", resourceCulture);
             }
         }
         

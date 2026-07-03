@@ -110,6 +110,7 @@ Load **only** the reference file relevant to your change. Don't load all of them
 | [listening-activities.md](references/listening-activities.md) | Shadowing, Minimal Pairs, How Do You Say |
 | [other-activities.md](references/other-activities.md) | Conversation, Reading, Scene, Video Watching |
 | [management-pages.md](references/management-pages.md) | Resources, Vocabulary, Skills, Profile, Settings CRUD |
+| [webapp-gotchas.md](references/webapp-gotchas.md) | Blazor Server deep-link redirects, Playwright automation limits, Aspire Postgres DB verification — **read before driving the webapp** |
 
 ## Common Verification Patterns
 
