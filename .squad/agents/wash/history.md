@@ -88,3 +88,8 @@ Fixed the Vocab Quiz session resume data-layer review issues. Added a database-e
 ---
 
 Team update (2026-07-03T18:53:17-05:00): Vocab Quiz persistent demonstration counters — Wash added lifetime quiz-specific counters (`QuizRecognitionDemonstrations`, `QuizProductionDemonstrations`) to `VocabularyProgress`, created dual-provider migration `20260703190310_AddQuizDemonstrationCounters` with inline discovery attributes, updated service increment behavior, and rewired focus-word rotation to use persistent counters. Known focus words now capture a session-start shortcut baseline and skip recognition, requiring one production confirmation instead of repeating 3 recognition + 3 production every session. Coordinator verified native SQLite + PostgreSQL migration discovery/application and WebApp Playwright counter increments through the real recording path.
+
+
+---
+
+Team update (2026-07-03T19:41:30-05:00): Vocab Quiz persistent-counter deep-review hardening — Wash fixed all three adversarial findings. Rotation now captures session-start recognition/production baselines and requires non-known focus words to earn an in-session production floor before rotating out, so regressed banked-3/3 words are re-drilled instead of evicted unseen. Duplicate merge/replay preserves quiz demonstration counters as monotonic lifetime history, and counter increments moved from obsolete `UpdateLegacyFields` into `VocabularyProgressService.UpdateQuizDemonstrationCounters`. Validation reported by Coordinator: 767/767 full suite, Shared + WebApp builds clean, merged to main at `4da42e87`.

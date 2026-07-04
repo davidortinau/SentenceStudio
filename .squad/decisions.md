@@ -402,3 +402,84 @@ The requested `dotnet ef migrations add AddQuizDemonstrationCounters --project s
 ##### jayne-persistent-demonstration-tests.md
 
 Jayne added 9 persistent-demonstration regression cases across `VocabQuizPersistentDemonstrationTests` and `VocabQuizPersistentDemonstrationServiceTests`, updated the `RepairTaintedVocabularyProgressTests` fixture, and reran the full unit suite successfully at 764/764. These tests lock the persistent counter model and service behavior so the session-local focus-word regression cannot recur.
+
+
+---
+
+### 2026-07-02 — ActivitySession enforces scoped in-progress uniqueness
+
+**Session:** ActivitySession review fixes
+**Surface:** Shared data layer, dual-provider migrations, Vocab Quiz WebApp integration
+**Author:** Wash
+**Status:** Implemented and validated before the Vocab Quiz resume ship.
+
+#### Decision
+
+ActivitySession now enforces one in-progress row per `(UserId, ActivityType, LaunchContextKey)` at the database boundary, not only in service code. The resumable lookup index `(UserId, ActivityType, Status)` is retained, and the former `(UserId, LaunchContextKey)` index is replaced by a unique filtered index on `(UserId, ActivityType, LaunchContextKey)` where `Status = 'InProgress'`.
+
+`SaveSnapshotAsync` still cleans up older duplicate in-progress rows when seen. If a concurrent insert hits the unique index, it catches `DbUpdateException`, detaches the failed insert, re-queries the existing in-progress row for the same scoped context, and updates it with last-writer-wins semantics.
+
+`CompleteAsync` is context-scoped and user-scoped: `CompleteAsync(string userId, string activityType, string launchContextKey)`. It marks all matching in-progress rows completed so stale duplicate rows cannot survive. `AbandonAsync` is `AbandonAsync(string userId, int sessionId)` and filters by user id before mutating.
+
+#### Validation
+
+- Shared, API, and WebApp builds completed with 0 errors.
+- Targeted `ActivitySessionServiceTests`: 11/11 passed.
+- Full unit test rerun: 751/751 passed after one unrelated transient failure passed on rerun.
+
+---
+
+### 2026-07-02 — RCA: dual-provider SQLite migrations must prove EF discovery
+
+**Session:** Dual-provider migration recurrence RCA
+**Surface:** EF Core migrations, SQLite mobile heads, PostgreSQL web/API
+**Author:** Squad Coordinator for Captain
+**Severity:** High; this class shipped to production devices twice.
+
+#### Decision
+
+Dual-provider migrations must prove that EF discovers and applies the SQLite migration, not just that the hand-written SQL parses. Every migration needs both provider copies unless intentionally provider-specific, and hand-written SQLite migrations must include inline `[DbContext(typeof(ApplicationDbContext))]` and `[Migration("<id>")]` attributes.
+
+#### RCA
+
+Two confirmed instances had SQLite copies that lacked discovery attributes: `20260702145959_AddActivitySession` and `20260503221947_AddRefreshTokenReplacedBy`. EF therefore never discovered those migrations on mobile, while PostgreSQL/web continued to work. The recurrence came from skill examples and repo guidance that under-described the hand-written SQLite half, tests that use `EnsureCreated()` and exclude SQLite migrations from compilation, and a mobile validation gate that false-passed when DevFlow attached to the wrong app.
+
+Raw-DDL/schema-copy validation has a blind spot: it proves SQL is valid, not that EF invokes the migration. Missing attributes are invisible to that validation.
+
+#### Defenses
+
+- Added `[DbContext]` and `[Migration]` to both broken SQLite migrations.
+- Added `scripts/validate-migration-attributes.sh` and CI `migration-guard` to fail missing discovery attributes.
+- Updated runbook, AGENTS.md, Copilot instructions, and dual-provider migration skill guidance to require static guard plus real SQLite discovery/application verification.
+- Follow-up remains for unpaired migration drift: `20260404185452_AddNarrativeJson` and `20260621193737_AddVocabularyDuplicateLookupIndexes` need confirmation for mobile relevance.
+
+---
+
+### 2026-07-03 — Vocab Quiz persistent counters hardened after deep review
+
+**Session:** Vocab Quiz persistent-counter adversarial review and hardening
+**Surface:** Shared vocabulary progress, duplicate merge/replay repair, Vocab Quiz focus rotation
+**Authors:** Deep-review agents, Wash, Coordinator
+**Status:** Critical findings fixed, full suite/builds passed, merged to main at `4da42e87` and pushed.
+
+#### Decision
+
+Captain ruled that a regressed focus word should be re-drilled before leaving the focus batch. A non-known focus word with banked lifetime quiz demonstrations may keep cumulative mode graduation, but it must earn production progress in the current session before rotating out.
+
+The hardened rotation rule keeps cumulative recognition graduation while adding a session floor for non-known focus words. `RecognitionDemonstrationsBaseline` and `ProductionDemonstrationsBaseline` are captured at session start and round-tripped through `VocabQuizBatchItemSnapshot`. `ReadyToRotateOut` for non-known focus words now requires `SessionTextCorrect >= Math.Max(1, 3 - ProductionDemonstrationsBaseline)`, so a regressed banked-3/3 word must earn at least one in-session production confirmation and cannot be evicted unseen. Known-word shortcut behavior remains cumulative plus one in-session production confirmation.
+
+Duplicate vocabulary merge reconciliation treats `QuizRecognitionDemonstrations` and `QuizProductionDemonstrations` as monotonic lifetime history. Merges preserve the summed source counters with a `Math.Max` anti-regression floor, and replay recalculation starts from zero then reconstructs counters from correct `VocabularyQuiz` contexts so repair does not wipe quiz history.
+
+Quiz counter increments now live in `VocabularyProgressService.UpdateQuizDemonstrationCounters`, not in obsolete `UpdateLegacyFields`, so the live service path owns the behavior explicitly.
+
+#### Deep-review findings fixed
+
+- DR-001 High: rotate-on-entry with zero in-session practice could evict a focus word with banked >=3/>=3 counters before showing it. Fixed with the session-floor baseline and snapshot persistence described above.
+- DR-002 High/Medium: duplicate merge could drop new quiz counters. Fixed with merge reconciliation that preserves summed counter floors and repair replay that rebuilds counters from quiz attempts.
+- DR-003 Medium: counter increment was buried in obsolete `UpdateLegacyFields`. Fixed by moving increment responsibility to the non-obsolete quiz-counter update method.
+
+#### Verification
+
+- Independent full unit suite: 767/767 passed.
+- Shared and WebApp builds completed cleanly.
+- Coordinator merged and pushed `main` from `63bf7ddc` to `4da42e87`.

@@ -75,3 +75,8 @@ Team update (2026-07-02T15:30-05:00): Vocab Quiz Session & Resume shipped — Ja
 ---
 
 Team update (2026-07-03T18:53:17-05:00): Vocab Quiz persistent demonstration regression coverage — Jayne added 9 tests across `VocabQuizPersistentDemonstrationTests` and `VocabQuizPersistentDemonstrationServiceTests`, updated the `RepairTaintedVocabularyProgressTests` fixture, and reran the full suite at 764/764. Coverage locks persistent recognition/production counters, known-word shortcut behavior, snapshot round-trip, correct-attempt increments, wrong-answer non-reset behavior, and non-quiz isolation.
+
+
+---
+
+Team update (2026-07-03T19:41:30-05:00): Vocab Quiz persistent-counter hardening shipped after deep review. Three regression areas should stay in Jayne's future test radar: banked but regressed focus words must be re-drilled before rotation; duplicate merge/replay must preserve `QuizRecognitionDemonstrations` and `QuizProductionDemonstrations`; quiz counter increments must stay on the live service path, not obsolete legacy update code. Coordinator reported full-suite verification at 767/767 before merge `4da42e87`.
