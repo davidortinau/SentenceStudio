@@ -152,6 +152,76 @@ public class VocabQuizScoringRepro189And191Tests
 #pragma warning restore CS0618
     }
 
+    [Fact]
+    public async Task RecordAttemptAsync_VocabQuizCorrectAttempts_IncrementPersistentDemonstrationCounters()
+    {
+        var resource = _fixture.SeedResource(vocabWordCount: 1);
+        var wordId = _fixture.GetResourceVocabularyWordIds(resource.Id).First();
+
+        var afterRecognition = await _progressService.RecordAttemptAsync(
+            MakeRecognitionAttempt(wordId, wasCorrect: true));
+
+        afterRecognition.QuizRecognitionDemonstrations.Should().Be(1,
+            "correct Vocab Quiz MultipleChoice attempts count as persistent recognition demonstrations");
+        afterRecognition.QuizProductionDemonstrations.Should().Be(0);
+
+        var afterWrongText = await _progressService.RecordAttemptAsync(new VocabularyAttempt
+        {
+            VocabularyWordId = wordId,
+            UserId = PlanGenerationTestFixture.TestUserId,
+            Activity = "VocabularyQuiz",
+            InputMode = "Text",
+            ContextType = "Isolated",
+            WasCorrect = false,
+            DifficultyWeight = 1.5f,
+            ResponseTimeMs = 1500
+        });
+
+        afterWrongText.QuizRecognitionDemonstrations.Should().Be(1,
+            "wrong answers do not reset or decrement persistent demonstrations");
+        afterWrongText.QuizProductionDemonstrations.Should().Be(0,
+            "wrong Text attempts do not add production demonstrations");
+
+        var afterCorrectText = await _progressService.RecordAttemptAsync(new VocabularyAttempt
+        {
+            VocabularyWordId = wordId,
+            UserId = PlanGenerationTestFixture.TestUserId,
+            Activity = "VocabularyQuiz",
+            InputMode = "Text",
+            ContextType = "Isolated",
+            WasCorrect = true,
+            DifficultyWeight = 1.5f,
+            ResponseTimeMs = 1500
+        });
+
+        afterCorrectText.QuizRecognitionDemonstrations.Should().Be(1);
+        afterCorrectText.QuizProductionDemonstrations.Should().Be(1,
+            "correct Vocab Quiz Text attempts count as persistent production demonstrations");
+    }
+
+    [Fact]
+    public async Task RecordAttemptAsync_NonQuizCorrectAttempts_DoNotIncrementQuizDemonstrations()
+    {
+        var resource = _fixture.SeedResource(vocabWordCount: 1);
+        var wordId = _fixture.GetResourceVocabularyWordIds(resource.Id).First();
+
+        var result = await _progressService.RecordAttemptAsync(new VocabularyAttempt
+        {
+            VocabularyWordId = wordId,
+            UserId = PlanGenerationTestFixture.TestUserId,
+            Activity = "Reading",
+            InputMode = "Text",
+            ContextType = "Isolated",
+            WasCorrect = true,
+            DifficultyWeight = 1.5f,
+            ResponseTimeMs = 1500
+        });
+
+        result.QuizRecognitionDemonstrations.Should().Be(0);
+        result.QuizProductionDemonstrations.Should().Be(0,
+            "the dedicated counters are scoped to Vocab Quiz attempts only");
+    }
+
     // ---------------------------------------------------------------------
     // #191 — Latter quiz rounds rapidly empty
     // ---------------------------------------------------------------------

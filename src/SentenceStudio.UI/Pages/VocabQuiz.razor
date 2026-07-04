@@ -506,7 +506,11 @@ else
                         }
                         else if (userMode == "Text")
                         {
-                            @if ((currentItem.Progress?.CurrentStreak ?? 0f) >= 3f)
+                            @if (currentItem.RequiresFullSessionDemonstration && currentItem.UseKnownWordShortcut)
+                            {
+                                <text>Already known — confirming production once</text>
+                            }
+                            else if ((currentItem.Progress?.CurrentStreak ?? 0f) >= 3f)
                             {
                                 <text>Lifetime streak >= 3 (global progress)</text>
                             }
@@ -517,7 +521,14 @@ else
                         }
                         else
                         {
-                            <text>Still building recognition (streak &lt; 3, mastery &lt; 50%)</text>
+                            @if (currentItem.RequiresFullSessionDemonstration)
+                            {
+                                <text>Focus word — @Math.Clamp(currentItem.Progress?.QuizRecognitionDemonstrations ?? 0, 0, 3)/3 recognitions before Text</text>
+                            }
+                            else
+                            {
+                                <text>Still building recognition (streak &lt; 3, mastery &lt; 50%)</text>
+                            }
                         }
                     </span>
                 </div>
@@ -762,6 +773,8 @@ else
             {
                 item.IsDueOnlySession = DueOnly;
                 item.RequiresFullSessionDemonstration = usingFocusVocabularyIds;
+                if (item.RequiresFullSessionDemonstration)
+                    item.CaptureKnownWordShortcutBaseline();
             }
 
             if (!batchPool.Any())
@@ -891,6 +904,9 @@ else
                 item.WasCorrectThisSession = itemSnapshot.WasCorrectThisSession;
                 item.IsDueOnlySession = itemSnapshot.IsDueOnlySession;
                 item.RequiresFullSessionDemonstration = itemSnapshot.RequiresFullSessionDemonstration;
+                item.UseKnownWordShortcut = itemSnapshot.UseKnownWordShortcut;
+                item.RecognitionDemonstrationsBaseline = itemSnapshot.RecognitionDemonstrationsBaseline;
+                item.ProductionDemonstrationsBaseline = itemSnapshot.ProductionDemonstrationsBaseline;
             }
 
             batchPool = snapshot.BatchPool
@@ -1029,7 +1045,10 @@ else
         LostKnownThisSession = item.LostKnownThisSession,
         WasCorrectThisSession = item.WasCorrectThisSession,
         IsDueOnlySession = item.IsDueOnlySession,
-        RequiresFullSessionDemonstration = item.RequiresFullSessionDemonstration
+        RequiresFullSessionDemonstration = item.RequiresFullSessionDemonstration,
+        UseKnownWordShortcut = item.UseKnownWordShortcut,
+        RecognitionDemonstrationsBaseline = item.RecognitionDemonstrationsBaseline,
+        ProductionDemonstrationsBaseline = item.ProductionDemonstrationsBaseline
     };
 
     private async Task CompleteActiveSessionAsync()

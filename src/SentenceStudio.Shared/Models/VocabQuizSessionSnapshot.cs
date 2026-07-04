@@ -79,4 +79,7 @@ public sealed record VocabQuizBatchItemSnapshot
     public bool WasCorrectThisSession { get; init; }
     public bool IsDueOnlySession { get; init; }
     public bool RequiresFullSessionDemonstration { get; init; }
+    public bool UseKnownWordShortcut { get; init; }
+    public int RecognitionDemonstrationsBaseline { get; init; }
+    public int ProductionDemonstrationsBaseline { get; init; }
 }

@@ -1361,6 +1361,12 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                     b.Property<int>("ProductionInStreak")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("QuizProductionDemonstrations")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("QuizRecognitionDemonstrations")
+                        .HasColumnType("INTEGER");
+
                     b.Property<int>("RecognitionAttempts")
                         .HasColumnType("INTEGER");
 

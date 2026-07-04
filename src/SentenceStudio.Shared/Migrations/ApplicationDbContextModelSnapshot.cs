@@ -1660,6 +1660,12 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<int>("ProductionInStreak")
                         .HasColumnType("integer");
 
+                    b.Property<int>("QuizProductionDemonstrations")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("QuizRecognitionDemonstrations")
+                        .HasColumnType("integer");
+
                     b.Property<int>("RecognitionAttempts")
                         .HasColumnType("integer");
 

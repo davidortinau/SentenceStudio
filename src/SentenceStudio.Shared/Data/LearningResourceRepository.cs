@@ -1910,6 +1910,8 @@ public class LearningResourceRepository
             int summedTotal = userProgresses.Sum(p => p.TotalAttempts);
             int summedCorrect = userProgresses.Sum(p => p.CorrectAttempts);
             int summedExposure = userProgresses.Sum(p => p.ExposureCount);
+            int summedQuizRecognitionDemonstrations = userProgresses.Sum(p => p.QuizRecognitionDemonstrations);
+            int summedQuizProductionDemonstrations = userProgresses.Sum(p => p.QuizProductionDemonstrations);
             // Best mastery/streak across sources — used only to prevent regression when source history
             // predates per-attempt context tracking (so replay cannot fully reconstruct it).
             float maxSourceMastery = userProgresses.Max(p => p.MasteryScore);
@@ -1964,6 +1966,8 @@ public class LearningResourceRepository
             keeperProg.TotalAttempts = Math.Max(keeperProg.TotalAttempts, summedTotal);
             keeperProg.CorrectAttempts = Math.Min(keeperProg.TotalAttempts, Math.Max(keeperProg.CorrectAttempts, summedCorrect));
             keeperProg.ExposureCount = Math.Max(keeperProg.ExposureCount, summedExposure);
+            keeperProg.QuizRecognitionDemonstrations = Math.Max(keeperProg.QuizRecognitionDemonstrations, summedQuizRecognitionDemonstrations);
+            keeperProg.QuizProductionDemonstrations = Math.Max(keeperProg.QuizProductionDemonstrations, summedQuizProductionDemonstrations);
 
             // For fully context-backed (modern) data the replay is exact and authoritative, so the wrong
             // answers it replays are allowed to lower mastery — that's the faithful "as if one word" result.

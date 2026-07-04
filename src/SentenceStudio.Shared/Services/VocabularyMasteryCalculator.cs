@@ -203,6 +203,8 @@ public static class VocabularyMasteryCalculator
         target.MasteredAt = null;
         target.ExposureCount = 0;
         target.LastExposedAt = null;
+        target.QuizRecognitionDemonstrations = 0;
+        target.QuizProductionDemonstrations = 0;
 
         trajectory = new List<MasteryTrajectoryPoint>();
 
@@ -223,6 +225,7 @@ public static class VocabularyMasteryCalculator
 
             var attempt = ToAttempt(context, target.VocabularyWordId, target.UserId);
             ApplyAttempt(target, attempt, context.LearnedAt);
+            UpdateQuizDemonstrationCounters(target, attempt);
             trajectory.Add(new MasteryTrajectoryPoint(
                 context.LearnedAt,
                 target.MasteryScore,
@@ -230,5 +233,16 @@ public static class VocabularyMasteryCalculator
                 context.Activity ?? string.Empty,
                 context.InputMode ?? string.Empty));
         }
+    }
+
+    private static void UpdateQuizDemonstrationCounters(VocabularyProgress progress, VocabularyAttempt attempt)
+    {
+        if (!attempt.WasCorrect || attempt.Activity != "VocabularyQuiz")
+            return;
+
+        if (attempt.InputMode == "MultipleChoice")
+            progress.QuizRecognitionDemonstrations++;
+        else if (attempt.InputMode == "Text" || attempt.InputMode == "TextEntry")
+            progress.QuizProductionDemonstrations++;
     }
 }

@@ -446,3 +446,4 @@ src/.claude/settings.local.json
 # e2e testing scratch/rehearsal artifacts
 e2e-testing-workspace/rehearsal/
 .squad/.cache/
+.copilot-scratch/

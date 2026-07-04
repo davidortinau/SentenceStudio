@@ -83,3 +83,8 @@ Team update (2026-07-02T15:30-05:00): Vocab Quiz Session & Resume shipped — Wa
 ## 2026-07-02 — ActivitySession review fixes
 
 Fixed the Vocab Quiz session resume data-layer review issues. Added a database-enforced unique filtered ActivitySession index for one in-progress row per `(UserId, ActivityType, LaunchContextKey)`, amended both PostgreSQL and SQLite migration pairs/snapshots, made `SaveSnapshotAsync` race-safe on unique-index conflicts, changed completion to user/context-scoped `CompleteAsync(string userId, string activityType, string launchContextKey)`, and changed abandonment to user-scoped `AbandonAsync(string userId, int sessionId)`. Updated Vocab Quiz callers and expanded ActivitySessionService unit coverage. Validation: Shared/API/WebApp builds completed with 0 errors; targeted ActivitySessionServiceTests 11/11 passed; full unit test rerun 751/751 passed.
+
+
+---
+
+Team update (2026-07-03T18:53:17-05:00): Vocab Quiz persistent demonstration counters — Wash added lifetime quiz-specific counters (`QuizRecognitionDemonstrations`, `QuizProductionDemonstrations`) to `VocabularyProgress`, created dual-provider migration `20260703190310_AddQuizDemonstrationCounters` with inline discovery attributes, updated service increment behavior, and rewired focus-word rotation to use persistent counters. Known focus words now capture a session-start shortcut baseline and skip recognition, requiring one production confirmation instead of repeating 3 recognition + 3 production every session. Coordinator verified native SQLite + PostgreSQL migration discovery/application and WebApp Playwright counter increments through the real recording path.

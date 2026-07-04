@@ -339,3 +339,66 @@ Add focused unit coverage for the reusable Vocab Quiz session data layer in `tes
 1. `maui devflow wait` / broker should accept a `--project` or `--app-name`/`--tfm` filter and attach only to the matching agent.
 2. `scripts/validate-mobile-migrations.sh` should FAIL (non-zero) when native logs cannot be fetched or when the attached agent's project != the one it built, instead of printing "no errors found".
 3. Consider filing upstream (microsoft/dotnetdevflow) with this repro: two DevFlow apps running, `wait` attaches to the wrong one.
+
+
+---
+
+### 2026-07-03 — Vocab Quiz uses persistent demonstration counters
+
+**Session:** Vocab Quiz persistent demonstration counters
+**Surface:** Shared vocabulary progress model/service, dual-provider EF migrations, Blazor WebApp Vocab Quiz
+**Requested by:** Captain (David Ortinau)
+**Status:** Implemented, tested, and verified by Squad agents.
+
+#### Decision
+
+Vocab Quiz focus-word graduation now uses dedicated lifetime counters on `VocabularyProgress`: `QuizRecognitionDemonstrations` and `QuizProductionDemonstrations`. Correct `VocabularyQuiz` attempts increment the matching counter by input mode; wrong answers do not reset or decrement either counter. Non-quiz activity attempts do not affect these quiz-specific counters.
+
+Focus vocabulary words that were already known at quiz-session load time (`IsKnown`, `CurrentStreak >= 3`, or `MasteryScore >= 0.50`) capture `UseKnownWordShortcut = true`, skip recognition, and rotate after one text/production confirmation in the current session. Capturing this baseline prevents a new or weak focus word from earning recognition turns in the current session and accidentally switching into the known-word shortcut; new/weak focus words still rotate only when persistent recognition and production demonstration counters both reach 3 and no pending recognition check remains.
+
+The shortcut baseline is stored in `VocabQuizBatchItemSnapshot` so resume preserves whether the word was already-known at session start while still re-hydrating current `VocabularyProgress` counters from the database.
+
+#### Migration note
+
+The requested `dotnet ef migrations add AddQuizDemonstrationCounters --project src/SentenceStudio.Shared/SentenceStudio.Shared.csproj --startup-project src/SentenceStudio.Shared/SentenceStudio.Shared.csproj` command failed with the known multi-TFM `ResolvePackageAssets` metadata error, even when retried with `--framework net10.0`. Following the dual-provider migration skill, the PostgreSQL and SQLite migrations were created manually with inline `[DbContext(typeof(ApplicationDbContext))]` and `[Migration("20260703190310_AddQuizDemonstrationCounters")]` attributes, and both model snapshots were updated.
+
+#### Test coverage
+
+Jayne added persistent-demonstration regression coverage in `tests/SentenceStudio.UnitTests/Models/VocabQuizPersistentDemonstrationTests.cs` and `tests/SentenceStudio.UnitTests/Services/VocabQuizPersistentDemonstrationServiceTests.cs`, plus fixture updates in `RepairTaintedVocabularyProgressTests`. The 9 added cases cover snapshot round-trip, persistent recognition/production readiness, correct-attempt increments, wrong-answer non-reset behavior, non-quiz isolation, and known-word shortcut behavior.
+
+#### Verification
+
+- Migration attributes guard passed and confirmed discoverable `[Migration]` / `[DbContext]` attributes.
+- Native SQLite and PostgreSQL both discovered and applied migration `20260703190310_AddQuizDemonstrationCounters`.
+- Full unit suite passed: 764/764.
+- WebApp Playwright E2E verified the label renders honestly as `Focus word — 0/3 recognitions before Text` and persistent recognition counters incremented 0 to 1 through the real recording path for both focus (`보내다`) and non-focus (`데이트`) words.
+- macOS SQLite backup retained at `~/Library/sstudio.db3.pre-quizcounters-*.bak`.
+
+#### Source notes merged
+
+##### wash-persistent-demonstration-counters.md
+
+# Wash persistent demonstration counters
+
+Date: 2026-07-03
+Author: Wash
+
+## Decision
+
+Vocab Quiz focus-word graduation now uses dedicated lifetime counters on `VocabularyProgress`: `QuizRecognitionDemonstrations` and `QuizProductionDemonstrations`. Correct `VocabularyQuiz` attempts increment the matching counter by input mode; wrong answers do not reset or decrement either counter. Non-quiz activity attempts do not affect these quiz-specific counters.
+
+For focus vocabulary, words already known at quiz-session load time (`IsKnown`, `CurrentStreak >= 3`, or `MasteryScore >= 0.50`) capture `UseKnownWordShortcut = true`, skip recognition, and rotate after one text/production confirmation in the current session (`SessionTextCorrect >= 1`) with no pending recognition check. Capturing the shortcut baseline prevents a new/weak focus word from earning three recognition turns in the current session and accidentally switching into the known-word shortcut; new/weak focus words still rotate only when persistent recognition and production demonstration counters both reach 3 and no pending recognition check remains.
+
+The shortcut baseline is stored in `VocabQuizBatchItemSnapshot` so resume preserves whether the word was already-known at session start while still re-hydrating the current `VocabularyProgress` counters from the database.
+
+## Migration note
+
+The requested `dotnet ef migrations add AddQuizDemonstrationCounters --project src/SentenceStudio.Shared/SentenceStudio.Shared.csproj --startup-project src/SentenceStudio.Shared/SentenceStudio.Shared.csproj` command failed with the known multi-TFM `ResolvePackageAssets` metadata error, even when retried with `--framework net10.0`. Following the dual-provider migration skill, the PostgreSQL and SQLite migrations were created manually with inline `[DbContext(typeof(ApplicationDbContext))]` and `[Migration("20260703190310_AddQuizDemonstrationCounters")]` attributes, and both model snapshots were updated.
+
+## Validation
+
+`bash scripts/validate-migration-attributes.sh` passed and confirmed all migrations carry discoverable `[Migration]` / `[DbContext]` attributes. Shared and WebApp builds passed with 0 errors. Targeted Vocab Quiz tests passed after adding regression coverage for persistent counters and focus-word rotation rules.
+
+##### jayne-persistent-demonstration-tests.md
+
+Jayne added 9 persistent-demonstration regression cases across `VocabQuizPersistentDemonstrationTests` and `VocabQuizPersistentDemonstrationServiceTests`, updated the `RepairTaintedVocabularyProgressTests` fixture, and reran the full unit suite successfully at 764/764. These tests lock the persistent counter model and service behavior so the session-local focus-word regression cannot recur.

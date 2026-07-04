@@ -492,6 +492,34 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
     }
 
     [Fact]
+    public async Task Merge_LegacyAggregateOnly_SumsQuizDemonstrationCounters()
+    {
+        // Arrange — lifetime quiz demonstrations are monotonic aggregate history. When duplicate
+        // progress rows merge, the keeper must carry the sum instead of replay resetting counters to zero.
+        var keeper = SeedWord("비", "rain");
+        var dup = SeedWord(" 비 ", "rain duplicate");
+
+        SeedAggregateOnlyProgress(keeper, UserA,
+            masteryScore: 0.2f, totalAttempts: 3, correctAttempts: 2,
+            currentStreak: 1f, productionInStreak: 1,
+            quizRecognitionDemonstrations: 2, quizProductionDemonstrations: 1);
+        SeedAggregateOnlyProgress(dup, UserA,
+            masteryScore: 0.4f, totalAttempts: 7, correctAttempts: 6,
+            currentStreak: 3f, productionInStreak: 2,
+            quizRecognitionDemonstrations: 3, quizProductionDemonstrations: 4);
+
+        // Act
+        await MergeAsync(keeper, dup);
+
+        // Assert
+        var merged = GetProgress(keeper, UserA)!;
+        merged.QuizRecognitionDemonstrations.Should().Be(5,
+            "recognition demonstrations are cumulative lifetime history across duplicates");
+        merged.QuizProductionDemonstrations.Should().Be(5,
+            "production demonstrations are cumulative lifetime history across duplicates");
+    }
+
+    [Fact]
     public async Task Merge_DeclaredFamiliarDuplicate_NeverQuizzed_PreservesScheduleAndDeclaration()
     {
         // Arrange — the user marked the DUPLICATE "Familiar" (a high-value "I know this" signal) but never
@@ -613,6 +641,8 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
         replay.ProductionInStreak.Should().Be(live.ProductionInStreak);
         replay.CurrentStreak.Should().BeApproximately(live.CurrentStreak, 0.0001f);
         replay.MasteryScore.Should().BeApproximately(live.MasteryScore, 0.0001f);
+        replay.QuizRecognitionDemonstrations.Should().Be(live.QuizRecognitionDemonstrations);
+        replay.QuizProductionDemonstrations.Should().Be(live.QuizProductionDemonstrations);
     }
 
     #region Helpers
@@ -697,7 +727,8 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
     private void SeedAggregateOnlyProgress(
         string wordId, string userId, float masteryScore, int totalAttempts,
         int correctAttempts, float currentStreak, int productionInStreak,
-        DateTime? nextReviewDate = null, int reviewInterval = 1, float easeFactor = 2.5f)
+        DateTime? nextReviewDate = null, int reviewInterval = 1, float easeFactor = 2.5f,
+        int quizRecognitionDemonstrations = 0, int quizProductionDemonstrations = 0)
     {
         using var scope = _fixture.ServiceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -711,6 +742,8 @@ public class VocabularyMergeHistoryTests : IClassFixture<PlanGenerationTestFixtu
             CorrectAttempts = correctAttempts,
             CurrentStreak = currentStreak,
             ProductionInStreak = productionInStreak,
+            QuizRecognitionDemonstrations = quizRecognitionDemonstrations,
+            QuizProductionDemonstrations = quizProductionDemonstrations,
             NextReviewDate = nextReviewDate,
             ReviewInterval = reviewInterval,
             EaseFactor = easeFactor,

@@ -70,3 +70,8 @@ Team update (2026-07-02T15:05-05:00): Vocab Quiz Session & Resume unit coverage 
 ---
 
 Team update (2026-07-02T15:30-05:00): Vocab Quiz Session & Resume shipped — Jayne's 11 regression tests now guard snapshot key determinism, JSON round-trip, session save/update/supersede behavior, resumable lookup scoping, completed/abandoned exclusion, empty-user guard, and multi-tenant isolation. Full unit suite passed 746/746 on rerun, and Squad verified exact WebApp resume via Aspire + Playwright. Carry-forward for Jayne: DevFlow stale-agent collision exposed a false-pass risk in `scripts/validate-mobile-migrations.sh`; future tests or script changes should assert attached agent identity and treat missing native logs as a failure.
+
+
+---
+
+Team update (2026-07-03T18:53:17-05:00): Vocab Quiz persistent demonstration regression coverage — Jayne added 9 tests across `VocabQuizPersistentDemonstrationTests` and `VocabQuizPersistentDemonstrationServiceTests`, updated the `RepairTaintedVocabularyProgressTests` fixture, and reran the full suite at 764/764. Coverage locks persistent recognition/production counters, known-word shortcut behavior, snapshot round-trip, correct-attempt increments, wrong-answer non-reset behavior, and non-quiz isolation.

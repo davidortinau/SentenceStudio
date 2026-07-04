@@ -31,9 +31,30 @@ public class VocabularyQuizItem
     public bool IsDueOnlySession { get; set; }
 
     // Daily-plan focus vocabulary is an explicit practice contract: if the plan
-    // sends the word to Vocab Quiz, the session must show 3 recognition and
-    // 3 production successes before rotating it out, regardless of prior mastery.
+    // sends a new/weak word to Vocab Quiz, require persistent 3 recognition +
+    // 3 production demonstrations before rotation. Already-known words skip
+    // recognition and need only one production confirmation in this session.
     public bool RequiresFullSessionDemonstration { get; set; }
+
+    private const int RequiredQuizRecognitionDemonstrations = 3;
+    private const int RequiredQuizProductionDemonstrations = 3;
+
+    public bool UseKnownWordShortcut { get; set; }
+    public int RecognitionDemonstrationsBaseline { get; set; }
+    public int ProductionDemonstrationsBaseline { get; set; }
+
+    private bool MeetsKnownWordShortcutCriteria => (Progress?.IsKnown ?? false)
+        || (Progress?.CurrentStreak ?? 0f) >= 3f
+        || (Progress?.MasteryScore ?? 0f) >= 0.50f;
+
+    private bool HasKnownWordShortcut => UseKnownWordShortcut;
+
+    public void CaptureKnownWordShortcutBaseline()
+    {
+        UseKnownWordShortcut = MeetsKnownWordShortcutCriteria;
+        RecognitionDemonstrationsBaseline = Progress?.QuizRecognitionDemonstrations ?? 0;
+        ProductionDemonstrationsBaseline = Progress?.QuizProductionDemonstrations ?? 0;
+    }
 
     // Tiered rotation model (spec §1.2.2 / §1.3)
     //
@@ -53,8 +74,20 @@ public class VocabularyQuizItem
         {
             if (RequiresFullSessionDemonstration)
             {
-                return SessionMCCorrect >= 3
-                    && SessionTextCorrect >= 3
+                if (HasKnownWordShortcut)
+                {
+                    return SessionTextCorrect >= 1 && !PendingRecognitionCheck;
+                }
+
+                var recognitionDemonstrations = Progress?.QuizRecognitionDemonstrations ?? 0;
+                var productionDemonstrations = Progress?.QuizProductionDemonstrations ?? 0;
+                var requiredSessionProduction = Math.Max(
+                    1,
+                    RequiredQuizProductionDemonstrations - ProductionDemonstrationsBaseline);
+
+                return recognitionDemonstrations >= RequiredQuizRecognitionDemonstrations
+                    && productionDemonstrations >= RequiredQuizProductionDemonstrations
+                    && SessionTextCorrect >= requiredSessionProduction
                     && !PendingRecognitionCheck;
             }
 
@@ -85,7 +118,14 @@ public class VocabularyQuizItem
             return "MultipleChoice";
 
         if (RequiresFullSessionDemonstration)
-            return SessionMCCorrect >= 3 ? "Text" : "MultipleChoice";
+        {
+            if (HasKnownWordShortcut)
+                return "Text";
+
+            return (Progress?.QuizRecognitionDemonstrations ?? 0) >= RequiredQuizRecognitionDemonstrations
+                ? "Text"
+                : "MultipleChoice";
+        }
 
         return ((Progress?.CurrentStreak ?? 0f) >= 3f || (Progress?.MasteryScore ?? 0f) >= 0.50f)
             ? "Text"

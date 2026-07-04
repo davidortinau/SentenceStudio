@@ -473,7 +473,7 @@ public class VocabQuizFilteringTests
     }
 
     [Fact]
-    public void FocusPlan_KnownWord_StillRequiresThreeMcAndThreeTextBeforeRotation()
+    public void FocusPlan_KnownWord_RotatesAfterOneTextConfirmationThisSession()
     {
         var item = MakeQuizItem(new VocabularyProgress
         {
@@ -482,22 +482,20 @@ public class VocabQuizFilteringTests
             ProductionInStreak = 2
         });
         item.RequiresFullSessionDemonstration = true;
-        item.SessionMCCorrect = 3;
-        item.SessionTextCorrect = 2;
-        item.SessionCorrectCount = 5;
+        item.CaptureKnownWordShortcutBaseline();
 
         item.IsKnown.Should().BeTrue("the word starts globally Known");
         item.ReadyToRotateOut.Should().BeFalse(
-            "daily-plan focus vocabulary must produce all 3 MC + 3 Text successes in this session, even when already Known");
+            "known focus words still need one production confirmation in the current quiz cycle");
 
-        item.SessionTextCorrect = 3;
+        item.SessionTextCorrect = 1;
 
         item.ReadyToRotateOut.Should().BeTrue(
-            "the focus-plan contract is satisfied only after 3 MC + 3 Text successes");
+            "known focus words skip recognition and rotate after one text confirmation this session");
     }
 
     [Fact]
-    public void FocusPlan_ModeSelection_ForcesThreeMcBeforeText()
+    public void FocusPlan_KnownWord_ModeSelection_SkipsRecognition()
     {
         var item = MakeQuizItem(new VocabularyProgress
         {
@@ -506,17 +504,59 @@ public class VocabQuizFilteringTests
             ProductionInStreak = 2
         });
         item.RequiresFullSessionDemonstration = true;
+        item.CaptureKnownWordShortcutBaseline();
 
-        item.ChooseInteractionMode().Should().Be("MultipleChoice",
-            "focus-plan words need three in-session MC successes before production, regardless of global mastery");
-
-        item.SessionMCCorrect = 2;
-        item.ChooseInteractionMode().Should().Be("MultipleChoice",
-            "two MC successes are not enough for the focus-plan demonstration contract");
-
-        item.SessionMCCorrect = 3;
         item.ChooseInteractionMode().Should().Be("Text",
-            "after three MC successes, the focus-plan word moves to text entry");
+            "focus-plan words that are already known should confirm production without re-drilling recognition");
+    }
+
+    [Fact]
+    public void FocusPlan_NewWord_ModeSelection_UsesPersistentRecognitionDemonstrations()
+    {
+        var item = MakeQuizItem(new VocabularyProgress
+        {
+            MasteryScore = 0.10f,
+            CurrentStreak = 0f,
+            QuizRecognitionDemonstrations = 2
+        });
+        item.RequiresFullSessionDemonstration = true;
+        item.SessionMCCorrect = 99;
+
+        item.ChooseInteractionMode().Should().Be("MultipleChoice",
+            "two lifetime recognition demonstrations are not enough for the focus-plan 3-recognition threshold");
+
+        item.Progress!.QuizRecognitionDemonstrations = 3;
+
+        item.ChooseInteractionMode().Should().Be("Text",
+            "the focus-plan recognition threshold is persistent across sessions, not session-local");
+    }
+
+    [Fact]
+    public void FocusPlan_NewWord_Rotation_UsesPersistentDemonstrationCounters()
+    {
+        var item = MakeQuizItem(new VocabularyProgress
+        {
+            MasteryScore = 0.10f,
+            CurrentStreak = 0f,
+            QuizRecognitionDemonstrations = 3,
+            QuizProductionDemonstrations = 2
+        });
+        item.RequiresFullSessionDemonstration = true;
+        item.SessionMCCorrect = 99;
+        item.CaptureKnownWordShortcutBaseline();
+
+        item.ReadyToRotateOut.Should().BeFalse(
+            "session-local counters no longer satisfy the 3+3 focus graduation contract");
+
+        item.Progress!.QuizProductionDemonstrations = 3;
+
+        item.ReadyToRotateOut.Should().BeFalse(
+            "banked persistent production still needs the session production floor");
+
+        item.SessionTextCorrect = 1;
+
+        item.ReadyToRotateOut.Should().BeTrue(
+            "focus graduation uses persistent 3 recognition and 3 production demonstrations plus one in-session production");
     }
 
     [Fact]

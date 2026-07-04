@@ -28,6 +28,11 @@ public class VocabularyProgress
     public float CurrentStreak { get; set; } = 0f;  // Weighted consecutive correct answers
     public int ProductionInStreak { get; set; } = 0;  // Production attempts within current streak
 
+    // Dedicated Vocab Quiz demonstration counters. Cumulative lifetime proof used by
+    // focus-plan rotation so demonstrations survive session resume/relaunch.
+    public int QuizRecognitionDemonstrations { get; set; } = 0;
+    public int QuizProductionDemonstrations { get; set; } = 0;
+
     // LEGACY: Phase-specific tracking - to be dropped in future migration
     [Obsolete("Use CurrentStreak instead. Will be removed in future version.")]
     public int RecognitionAttempts { get; set; } = 0;

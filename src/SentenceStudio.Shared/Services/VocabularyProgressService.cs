@@ -20,6 +20,7 @@ public class VocabularyProgressService : IVocabularyProgressService
     // The constant below is still referenced by HandleVerificationProbeResultAsync; it aliases the
     // calculator's value so the two can never drift.
     private const int MIN_PRODUCTION_FOR_KNOWN = VocabularyMasteryCalculator.MIN_PRODUCTION_FOR_KNOWN;
+    private const string VocabularyQuizActivity = "VocabularyQuiz";
 
     // LEGACY: Old constants kept for reference during migration
     [Obsolete("Use EFFECTIVE_STREAK_DIVISOR instead")]
@@ -95,6 +96,7 @@ public class VocabularyProgressService : IVocabularyProgressService
         UpdatePhaseMetrics(progress, attempt);
         UpdateLegacyFields(progress, attempt);
 #pragma warning restore CS0618
+        UpdateQuizDemonstrationCounters(progress, attempt);
 
         // Save progress
         progress = await _progressRepo.SaveAsync(progress);
@@ -249,12 +251,16 @@ public class VocabularyProgressService : IVocabularyProgressService
         if (attempt.InputMode == "MultipleChoice")
         {
             if (attempt.WasCorrect)
+            {
                 progress.MultipleChoiceCorrect++;
+            }
         }
         else if (attempt.InputMode == "Text" || attempt.InputMode == "TextEntry")
         {
             if (attempt.WasCorrect)
+            {
                 progress.TextEntryCorrect++;
+            }
         }
 
         // Update promoted status based on MasteryScore (new logic)
@@ -263,6 +269,17 @@ public class VocabularyProgressService : IVocabularyProgressService
         // Update completed status based on IsKnown (new logic)
         progress.IsCompleted = progress.IsKnown;
 #pragma warning restore CS0618
+    }
+
+    private static void UpdateQuizDemonstrationCounters(VocabularyProgress progress, VocabularyAttempt attempt)
+    {
+        if (!attempt.WasCorrect || attempt.Activity != VocabularyQuizActivity)
+            return;
+
+        if (attempt.InputMode == "MultipleChoice")
+            progress.QuizRecognitionDemonstrations++;
+        else if (attempt.InputMode == "Text" || attempt.InputMode == "TextEntry")
+            progress.QuizProductionDemonstrations++;
     }
 
     // LEGACY METHODS - Kept for backward compatibility but marked obsolete

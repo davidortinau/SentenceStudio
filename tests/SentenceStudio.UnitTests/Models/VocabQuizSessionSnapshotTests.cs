@@ -108,7 +108,9 @@ public sealed class VocabQuizSessionSnapshotTests
                     LostKnownThisSession = false,
                     WasCorrectThisSession = true,
                     IsDueOnlySession = true,
-                    RequiresFullSessionDemonstration = false
+                    RequiresFullSessionDemonstration = false,
+                    RecognitionDemonstrationsBaseline = 1,
+                    ProductionDemonstrationsBaseline = 2
                 },
                 new VocabQuizBatchItemSnapshot
                 {
@@ -120,7 +122,10 @@ public sealed class VocabQuizSessionSnapshotTests
                     LostKnownThisSession = true,
                     WasCorrectThisSession = false,
                     IsDueOnlySession = true,
-                    RequiresFullSessionDemonstration = true
+                    RequiresFullSessionDemonstration = true,
+                    UseKnownWordShortcut = true,
+                    RecognitionDemonstrationsBaseline = 3,
+                    ProductionDemonstrationsBaseline = 4
                 }
             ],
             RoundWordOrder = ["word-2", "word-1"],
