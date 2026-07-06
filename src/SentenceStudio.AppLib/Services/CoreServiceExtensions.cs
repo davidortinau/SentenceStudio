@@ -106,6 +106,7 @@ public static class CoreServiceExtensions
 
         // Content import
         services.AddScoped<IContentImportService, ContentImportService>();
+        services.AddScoped<ITranscriptSentenceHarvestService, TranscriptSentenceHarvestService>();
 
         // Shared ingest supporting services (cross-platform; queue is iOS-only, registered per head)
         services.AddSingleton<SharedIngestNotifier>();

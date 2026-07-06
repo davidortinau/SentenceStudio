@@ -38,8 +38,7 @@ public class TranscriptSentenceExtractor
         if (string.IsNullOrWhiteSpace(transcript))
             return new List<string>();
 
-        // Use existing sentence splitter from SentenceTimingCalculator
-        var allSentences = SentenceTimingCalculator.SplitIntoSentences(transcript);
+        var allSentences = TranscriptSentenceSegmenter.Split(transcript);
 
         // Filter trivial sentences
         var filteredSentences = allSentences

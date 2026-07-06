@@ -10118,6 +10118,42 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Harvest example sentences from my resources.
+        /// </summary>
+        internal static string Settings_HarvestSentences {
+            get {
+                return ResourceManager.GetString("Settings_HarvestSentences", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Harvest failed: {0}.
+        /// </summary>
+        internal static string Settings_HarvestSentencesFailed {
+            get {
+                return ResourceManager.GetString("Settings_HarvestSentencesFailed", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Scanning resource {0} of {1}....
+        /// </summary>
+        internal static string Settings_HarvestSentencesProgress {
+            get {
+                return ResourceManager.GetString("Settings_HarvestSentencesProgress", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Added {0} example sentences ({1} already existed, {2} words had no match)..
+        /// </summary>
+        internal static string Settings_HarvestSentencesSuccess {
+            get {
+                return ResourceManager.GetString("Settings_HarvestSentencesSuccess", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Language.
         /// </summary>
         internal static string Settings_LanguageLabel {

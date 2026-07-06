@@ -279,52 +279,12 @@ public class SentenceTimingCalculator
     /// </summary>
     public static List<string> SplitIntoSentences(string text)
     {
-        if (string.IsNullOrWhiteSpace(text))
-            return new List<string>();
-
-        // Split by common sentence delimiters, preserving the original punctuation
-        var cleanedText = text.Replace("\r\n", " ").Replace("\n", " ").Replace("\r", " ");
-
-        var sentences = new List<string>();
-        var currentSentence = new System.Text.StringBuilder();
-
-        for (int i = 0; i < cleanedText.Length; i++)
-        {
-            char c = cleanedText[i];
-            currentSentence.Append(c);
-
-            // Check if this is a sentence delimiter
-            if (c == '.' || c == '!' || c == '?' || c == '。' || c == '！' || c == '？')
-            {
-                // Found end of sentence - trim and add if not empty
-                var sentence = currentSentence.ToString().Trim();
-                if (!string.IsNullOrWhiteSpace(sentence))
-                {
-                    sentences.Add(sentence);
-                }
-                currentSentence.Clear();
-            }
-        }
-
-        // Add any remaining text as a sentence (with period if no punctuation)
-        var remaining = currentSentence.ToString().Trim();
-        if (!string.IsNullOrWhiteSpace(remaining))
-        {
-            // Only add period if it doesn't already end with punctuation
-            if (!remaining.EndsWith('.') && !remaining.EndsWith('!') && !remaining.EndsWith('?') &&
-                !remaining.EndsWith('。') && !remaining.EndsWith('！') && !remaining.EndsWith('？'))
-            {
-                remaining += ".";
-            }
-            sentences.Add(remaining);
-        }
-
-        return sentences;
+        return TranscriptSentenceSegmenter.Split(text);
     }
 
     public static bool IsSentenceDelimiter(char c)
     {
-        return c == '.' || c == '!' || c == '?' || c == '。' || c == '！' || c == '？';
+        return TranscriptSentenceSegmenter.IsSentenceDelimiter(c);
     }
 
     public static bool IsEndOfSentence(string text, int delimiterIndex)

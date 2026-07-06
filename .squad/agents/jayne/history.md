@@ -80,3 +80,7 @@ Team update (2026-07-03T18:53:17-05:00): Vocab Quiz persistent demonstration reg
 ---
 
 Team update (2026-07-03T19:41:30-05:00): Vocab Quiz persistent-counter hardening shipped after deep review. Three regression areas should stay in Jayne's future test radar: banked but regressed focus words must be re-drilled before rotation; duplicate merge/replay must preserve `QuizRecognitionDemonstrations` and `QuizProductionDemonstrations`; quiz counter increments must stay on the live service path, not obsolete legacy update code. Coordinator reported full-suite verification at 767/767 before merge `4da42e87`.
+
+---
+
+Team update (2026-07-05T21:56:29-05:00): Transcript harvest regression coverage — Jayne added tests for FromReading repository insert/dedup/cap/validation behavior, segmenter default vs newline modes, user-scoped idempotent transcript harvesting with translations, multi-tenant isolation, and content import capture. Jayne found the punctuation-less newline transcript bug; after Wash's fix, full unit suite passed 781/781.

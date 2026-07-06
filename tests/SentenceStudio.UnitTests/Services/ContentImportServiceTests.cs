@@ -57,6 +57,7 @@ public class ContentImportServiceTests : IDisposable
         services.AddSingleton(_mockAiService.Object);
         services.AddScoped<LearningResourceRepository>();
         services.AddScoped<VocabularyProgressRepository>();
+        services.AddScoped<ExampleSentenceRepository>();
         services.AddScoped<ContentImportService>();
 
         _serviceProvider = services.BuildServiceProvider();
@@ -1290,6 +1291,60 @@ public class ContentImportServiceTests : IDisposable
             .Where(m => m.ResourceId == result.ResourceId)
             .ToListAsync();
         mappings.Should().HaveCount(1);
+    }
+
+    [Fact]
+    public async Task CommitImportAsync_SourceSentence_CreatesFromReadingExampleForImportedWord()
+    {
+        using var scope = _serviceProvider.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<ContentImportService>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var preview = new ContentImportPreview
+        {
+            Rows = new List<ImportRow>
+            {
+                new()
+                {
+                    RowNumber = 1,
+                    TargetLanguageTerm = "안녕하세요",
+                    NativeLanguageTerm = "hello",
+                    SourceSentence = "안녕하세요, 저는 제인입니다.",
+                    SourceSentenceTranslation = "Hello, I am Jayne.",
+                    Status = RowStatus.Ok,
+                    IsSelected = true
+                }
+            }
+        };
+
+        var commitRequest = new ContentImportCommit
+        {
+            Preview = preview,
+            Target = new ImportTarget
+            {
+                Mode = ImportTargetMode.New,
+                NewResourceTitle = "Transcript source sentence import",
+                TargetLanguage = "Korean",
+                NativeLanguage = "English"
+            },
+            DedupMode = DedupMode.Skip
+        };
+
+        var result = await service.CommitImportAsync(commitRequest);
+
+        result.CreatedCount.Should().Be(1);
+        result.ResourceId.Should().NotBeNullOrEmpty();
+
+        var example = await dbContext.ExampleSentences.SingleAsync();
+        var word = await dbContext.VocabularyWords.SingleAsync(w => w.TargetLanguageTerm == "안녕하세요");
+
+        example.VocabularyWordId.Should().Be(word.Id);
+        example.LearningResourceId.Should().Be(result.ResourceId);
+        example.TargetSentence.Should().Be("안녕하세요, 저는 제인입니다.");
+        example.NativeSentence.Should().Be("Hello, I am Jayne.");
+        example.Source.Should().Be(ExampleSentenceSource.FromReading);
+        example.Status.Should().Be(ExampleSentenceStatus.Curated);
+        example.IsCore.Should().BeFalse();
     }
 
     [Fact]

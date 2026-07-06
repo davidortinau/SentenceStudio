@@ -5025,6 +5025,22 @@ For example: {0} ...</value>
     <value>Data exported successfully</value>
     <comment>Toast success</comment>
   </data>
+  <data name="Settings_HarvestSentences" xml:space="preserve">
+    <value>Harvest example sentences from my resources</value>
+    <comment>Button text</comment>
+  </data>
+  <data name="Settings_HarvestSentencesProgress" xml:space="preserve">
+    <value>Scanning resource {0} of {1}...</value>
+    <comment>Progress text</comment>
+  </data>
+  <data name="Settings_HarvestSentencesSuccess" xml:space="preserve">
+    <value>Added {0} example sentences ({1} already existed, {2} words had no match).</value>
+    <comment>Toast success</comment>
+  </data>
+  <data name="Settings_HarvestSentencesFailed" xml:space="preserve">
+    <value>Harvest failed: {0}</value>
+    <comment>Toast error</comment>
+  </data>
   <data name="VocabWordEdit_VocabTermsSection" xml:space="preserve">
     <value>Vocabulary Terms</value>
     <comment>Section heading</comment>

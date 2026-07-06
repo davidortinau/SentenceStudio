@@ -812,6 +812,8 @@ public class ContentImportService : IContentImportService
                 RowNumber = i + 1,
                 TargetLanguageTerm = item.TargetLanguageTerm,
                 NativeLanguageTerm = item.NativeLanguageTerm,
+                SourceSentence = item.ExampleSentence,
+                SourceSentenceTranslation = item.ExampleSentenceTranslation,
                 Status = status,
                 Error = error,
                 IsSelected = status != RowStatus.Error, // Auto-deselect low-confidence rows
@@ -888,6 +890,8 @@ public class ContentImportService : IContentImportService
                 RowNumber = i + 1,
                 TargetLanguageTerm = item.TargetLanguageTerm,
                 NativeLanguageTerm = item.NativeLanguageTerm,
+                SourceSentence = item.ExampleSentence,
+                SourceSentenceTranslation = item.ExampleSentenceTranslation,
                 Status = status,
                 Error = error,
                 IsSelected = status != RowStatus.Error,
@@ -1076,6 +1080,8 @@ public class ContentImportService : IContentImportService
                 RowNumber = i + 1,
                 TargetLanguageTerm = item.TargetLanguageTerm,
                 NativeLanguageTerm = item.NativeLanguageTerm,
+                SourceSentence = item.ExampleSentence,
+                SourceSentenceTranslation = item.ExampleSentenceTranslation,
                 Status = RowStatus.Ok,
                 IsSelected = true,
                 IsAiTranslated = true,
@@ -1140,6 +1146,8 @@ public class ContentImportService : IContentImportService
                 RowNumber = i + 1,
                 TargetLanguageTerm = item.TargetLanguageTerm,
                 NativeLanguageTerm = item.NativeLanguageTerm,
+                SourceSentence = item.ExampleSentence,
+                SourceSentenceTranslation = item.ExampleSentenceTranslation,
                 Status = status,
                 Error = error,
                 IsSelected = status != RowStatus.Error,
@@ -1209,6 +1217,8 @@ public class ContentImportService : IContentImportService
                 RowNumber = i + 1,
                 TargetLanguageTerm = item.TargetLanguageTerm,
                 NativeLanguageTerm = item.NativeLanguageTerm,
+                SourceSentence = item.ExampleSentence,
+                SourceSentenceTranslation = item.ExampleSentenceTranslation,
                 Status = status,
                 Error = error,
                 IsSelected = status != RowStatus.Error,
@@ -1399,6 +1409,8 @@ public class ContentImportService : IContentImportService
 
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var exampleSentenceRepository = scope.ServiceProvider.GetRequiredService<ExampleSentenceRepository>();
+        await using var transaction = await db.Database.BeginTransactionAsync(ct);
         bool isNewResource = false;
 
         try
@@ -1571,6 +1583,7 @@ public class ContentImportService : IContentImportService
             // accidentally creating duplicates within a single import. Honors DedupMode:
             // ImportAll bypasses this cache so it can intentionally create duplicates.
             var batchWordsByImportKey = new Dictionary<string, VocabularyWord>(StringComparer.Ordinal);
+            var pendingExampleRows = new List<(VocabularyWord Word, ImportRow Row)>();
 
             // Step 3: Process selected rows with dedup logic
             // CRITICAL: Follow the SaveResourceAsync transaction pattern from LearningResourceRepository
@@ -1881,6 +1894,11 @@ public class ContentImportService : IContentImportService
                 {
                     _logger.LogDebug("Mapping already exists for word {WordId} in resource {ResourceId}", wordToMap.Id, targetResource.Id);
                 }
+
+                if (!string.IsNullOrWhiteSpace(row.SourceSentence))
+                {
+                    pendingExampleRows.Add((wordToMap, row));
+                }
             }
 
             // Step 5: Update resource timestamp
@@ -1893,6 +1911,35 @@ public class ContentImportService : IContentImportService
 
             // Step 6: Single SaveChanges for the entire transaction
             await db.SaveChangesAsync(ct);
+
+            if (pendingExampleRows.Count > 0)
+            {
+                var pendingWordIds = pendingExampleRows
+                    .Select(pending => pending.Word.Id)
+                    .Distinct(StringComparer.Ordinal)
+                    .ToList();
+                var existingExamples = await db.ExampleSentences
+                    .Where(example => pendingWordIds.Contains(example.VocabularyWordId))
+                    .ToListAsync(ct);
+                var existingExamplesByWordId = existingExamples
+                    .GroupBy(example => example.VocabularyWordId)
+                    .ToDictionary(group => group.Key, group => (IReadOnlyCollection<ExampleSentence>)group.ToList());
+
+                foreach (var (word, row) in pendingExampleRows)
+                {
+                    existingExamplesByWordId.TryGetValue(word.Id, out var existingForWord);
+                    await exampleSentenceRepository.CreateFromReadingIfNewAsync(
+                        word,
+                        targetResource.Id,
+                        row.SourceSentence!,
+                        row.SourceSentenceTranslation,
+                        existingForWord ?? Array.Empty<ExampleSentence>(),
+                        status: ExampleSentenceStatus.Curated,
+                        ct: ct);
+                }
+            }
+
+            await transaction.CommitAsync(ct);
 
             // Zero-vocab edge case: if transcript was stored but no vocab extracted,
             // persist the resource with a clear status message rather than failing silently.
@@ -2106,6 +2153,12 @@ public class ImportRow
 
     [Description("Native language term (e.g., English translation)")]
     public string? NativeLanguageTerm { get; set; }
+
+    [Description("Source sentence from transcript or AI extraction that contains this term")]
+    public string? SourceSentence { get; set; }
+
+    [Description("Native-language translation of SourceSentence")]
+    public string? SourceSentenceTranslation { get; set; }
 
     [Description("Row validation status: Ok, Warning, or Error")]
     public RowStatus Status { get; set; } = RowStatus.Ok;

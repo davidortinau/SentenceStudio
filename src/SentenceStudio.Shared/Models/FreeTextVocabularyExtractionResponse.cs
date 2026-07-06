@@ -32,6 +32,12 @@ public class ExtractedVocabularyItemWithConfidence
     [Description("Optional notes about uncertainty or extraction context")]
     public string? Notes { get; set; }
 
+    [Description("Actual source sentence containing this item, when available from the extraction prompt")]
+    public string? ExampleSentence { get; set; }
+
+    [Description("Native-language translation of ExampleSentence, when available")]
+    public string? ExampleSentenceTranslation { get; set; }
+
     [Description("noun, verb, adjective, adverb, expression, counter, or particle")]
     public string? PartOfSpeech { get; set; }
 

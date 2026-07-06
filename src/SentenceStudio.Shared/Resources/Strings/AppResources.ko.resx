@@ -4777,6 +4777,22 @@
     <value>데이터가 성공적으로 내보내졌습니다</value>
     <comment>Toast success</comment>
   </data>
+  <data name="Settings_HarvestSentences" xml:space="preserve">
+    <value>내 자료에서 예문 수집하기</value>
+    <comment>Button text</comment>
+  </data>
+  <data name="Settings_HarvestSentencesProgress" xml:space="preserve">
+    <value>{1}개 중 {0}번째 자료를 스캔하는 중...</value>
+    <comment>Progress text</comment>
+  </data>
+  <data name="Settings_HarvestSentencesSuccess" xml:space="preserve">
+    <value>예문 {0}개를 추가했습니다({1}개는 이미 있었고, {2}개 단어는 일치하는 문장이 없었습니다).</value>
+    <comment>Toast success</comment>
+  </data>
+  <data name="Settings_HarvestSentencesFailed" xml:space="preserve">
+    <value>예문 수집 실패: {0}</value>
+    <comment>Toast error</comment>
+  </data>
   <data name="VocabWordEdit_VocabTermsSection" xml:space="preserve">
     <value>어휘 용어</value>
     <comment>Section heading</comment>

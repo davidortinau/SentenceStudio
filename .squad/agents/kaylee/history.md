@@ -57,3 +57,7 @@ Team update (2026-07-02T15:08:45-05:00): Vocab Quiz Session & Resume Wave 2 — 
 ---
 
 Team update (2026-07-02T15:30-05:00): Vocab Quiz Session & Resume shipped — Kaylee's `VocabQuiz.razor` integration is now part of the delivered feature: localized Resume / Start fresh gate, best-effort snapshot saves, exact resume by re-fetching vocabulary/progress then overlaying session-local counters, and completion/abandon guards to avoid reviving completed sessions. Wash supplied the reusable `ActivitySession` foundation and Jayne added 11 unit tests; Squad verified WebApp resume behavior end-to-end. Carry-forward for Kaylee: DevFlow stale-agent collision can make migration validation false-pass when another DevFlow app is running, so UI/behavior verification should confirm the attached app is actually SentenceStudio.
+
+---
+
+Team update (2026-07-05T21:56:29-05:00): Settings harvest utility — Kaylee added the Data Management action for retroactively harvesting example sentences from resources, including progress/summary feedback and localized strings. Active user resolution uses `IPreferencesService` with `active_profile_id`, so the same Settings UI works across WebApp and MAUI heads without hardcoded user IDs.

@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Data;
 using SentenceStudio.Shared.Models;
+using System.Text.RegularExpressions;
 
 namespace SentenceStudio.Data;
 
@@ -10,6 +11,10 @@ namespace SentenceStudio.Data;
 /// </summary>
 public class ExampleSentenceRepository
 {
+    // Matches ExampleSentence.TargetSentence / NativeSentence [MaxLength(500)] — enforced by the
+    // Postgres provider. Guard harvest inserts against it so a run-on segment can't abort a batch.
+    private const int MaxSentenceLength = 500;
+
     private readonly ApplicationDbContext _context;
     private readonly ILogger<ExampleSentenceRepository> _logger;
 
@@ -104,6 +109,120 @@ public class ExampleSentenceRepository
         return sentence;
     }
 
+    public async Task<ExampleSentence?> CreateFromReadingIfNewAsync(
+        string vocabularyWordId,
+        string? learningResourceId,
+        string targetSentence,
+        string? nativeSentence,
+        ExampleSentenceStatus status = ExampleSentenceStatus.Curated,
+        SpeechRegister register = SpeechRegister.Unspecified,
+        int capPerWordPerResource = 2,
+        CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(vocabularyWordId) || string.IsNullOrWhiteSpace(targetSentence))
+            return null;
+
+        var word = await _context.VocabularyWords
+            .FirstOrDefaultAsync(w => w.Id == vocabularyWordId, ct);
+
+        if (word == null)
+            return null;
+
+        var existingForWord = await _context.ExampleSentences
+            .Where(es => es.VocabularyWordId == vocabularyWordId)
+            .ToListAsync(ct);
+
+        return await CreateFromReadingIfNewAsync(
+            word,
+            learningResourceId,
+            targetSentence,
+            nativeSentence,
+            existingForWord,
+            status,
+            register,
+            capPerWordPerResource,
+            ct);
+    }
+
+    public async Task<ExampleSentence?> CreateFromReadingIfNewAsync(
+        VocabularyWord word,
+        string? learningResourceId,
+        string targetSentence,
+        string? nativeSentence,
+        IReadOnlyCollection<ExampleSentence> existingForWord,
+        ExampleSentenceStatus status = ExampleSentenceStatus.Curated,
+        SpeechRegister register = SpeechRegister.Unspecified,
+        int capPerWordPerResource = 2,
+        CancellationToken ct = default)
+    {
+        if (word == null || string.IsNullOrWhiteSpace(word.Id) || string.IsNullOrWhiteSpace(targetSentence))
+            return null;
+
+        var trimmedTargetSentence = targetSentence.Trim();
+        if (!SentenceContainsWordTerm(word, trimmedTargetSentence))
+            return null;
+
+        // ExampleSentence.TargetSentence is [MaxLength(500)] — enforced as varchar(500) on the
+        // Postgres (WebApp/API) provider. An overlong segment (e.g. a long newline-delimited
+        // transcript line with no sentence-final punctuation) would throw on insert, aborting a
+        // whole harvest run. Such a run-on is a poor example anyway, so skip it rather than truncate.
+        if (trimmedTargetSentence.Length > MaxSentenceLength)
+            return null;
+
+        var normalizedTargetSentence = NormalizeForDedup(trimmedTargetSentence);
+        if (string.IsNullOrWhiteSpace(normalizedTargetSentence))
+            return null;
+
+        var existingSentences = existingForWord ?? Array.Empty<ExampleSentence>();
+        var trackedSentences = _context.ExampleSentences.Local
+            .Where(es => es.VocabularyWordId == word.Id && !existingSentences.Any(existing =>
+                ReferenceEquals(existing, es) || (existing.Id != 0 && existing.Id == es.Id)))
+            .ToList();
+        var sentencesForChecks = existingSentences
+            .Concat(trackedSentences)
+            .Where(es => es.VocabularyWordId == word.Id)
+            .ToList();
+
+        if (sentencesForChecks
+            .Any(es => NormalizeForDedup(es.TargetSentence) == normalizedTargetSentence))
+        {
+            return null;
+        }
+
+        if (learningResourceId != null)
+        {
+            var existingFromReadingCount = sentencesForChecks.Count(es =>
+                es.Source == ExampleSentenceSource.FromReading &&
+                es.LearningResourceId == learningResourceId);
+
+            if (existingFromReadingCount >= capPerWordPerResource)
+                return null;
+        }
+
+        var now = DateTime.UtcNow;
+        var sentence = new ExampleSentence
+        {
+            VocabularyWordId = word.Id,
+            LearningResourceId = learningResourceId,
+            TargetSentence = trimmedTargetSentence,
+            NativeSentence = ClampNativeSentence(nativeSentence),
+            IsCore = false,
+            Source = ExampleSentenceSource.FromReading,
+            Status = status,
+            Register = register,
+            CreatedAt = now,
+            UpdatedAt = now
+        };
+
+        _context.ExampleSentences.Add(sentence);
+        await _context.SaveChangesAsync(ct);
+
+        _logger.LogInformation("Created FromReading example sentence {Id} for word {WordId}",
+            sentence.Id, sentence.VocabularyWordId);
+
+        return sentence;
+    }
+
     /// <summary>
     /// Update an existing example sentence
     /// </summary>
@@ -155,6 +274,73 @@ public class ExampleSentenceRepository
         _logger.LogInformation("⭐ Set example sentence {Id} IsCore = {IsCore}", id, isCore);
 
         return sentence;
+    }
+
+    private static string? ClampNativeSentence(string? nativeSentence)
+    {
+        if (string.IsNullOrWhiteSpace(nativeSentence))
+            return null;
+
+        var trimmed = nativeSentence.Trim();
+        // Drop an over-long translation rather than throw on the varchar(500) column; the target
+        // sentence is still worth keeping even without its native gloss.
+        return trimmed.Length > MaxSentenceLength ? null : trimmed;
+    }
+
+    private static string NormalizeForDedup(string sentence)
+    {
+        if (string.IsNullOrWhiteSpace(sentence))
+            return string.Empty;
+
+        var normalized = Regex.Replace(sentence.Trim(), @"\s+", " ");
+        normalized = StripWrappingQuotes(normalized);
+
+        return normalized.ToUpperInvariant();
+    }
+
+    private static string StripWrappingQuotes(string value)
+    {
+        while (value.Length >= 2 && IsWrappingQuotePair(value[0], value[^1]))
+        {
+            value = value[1..^1].Trim();
+        }
+
+        return value;
+    }
+
+    private static bool IsWrappingQuotePair(char first, char last)
+    {
+        return (first == '"' && last == '"') ||
+            (first == '\'' && last == '\'') ||
+            (first == '“' && last == '”') ||
+            (first == '‘' && last == '’') ||
+            (first == '「' && last == '」') ||
+            (first == '『' && last == '』');
+    }
+
+    private static bool SentenceContainsWordTerm(VocabularyWord word, string sentence)
+    {
+        return ContainsTerm(sentence, word.TargetLanguageTerm) ||
+            ContainsTerm(sentence, word.Lemma) ||
+            ContainsKoreanDictionaryStem(sentence, word.Lemma);
+    }
+
+    private static bool ContainsTerm(string sentence, string? term)
+    {
+        return !string.IsNullOrWhiteSpace(term) &&
+            sentence.Contains(term.Trim(), StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool ContainsKoreanDictionaryStem(string sentence, string? lemma)
+    {
+        if (string.IsNullOrWhiteSpace(lemma))
+            return false;
+
+        var trimmed = lemma.Trim();
+        if (!trimmed.EndsWith('다') || trimmed.Length <= 1)
+            return false;
+
+        return sentence.Contains(trimmed[..^1], StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>

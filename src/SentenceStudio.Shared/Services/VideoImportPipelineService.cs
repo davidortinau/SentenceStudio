@@ -232,12 +232,12 @@ public class VideoImportPipelineService : IVideoImportPipeline
             // ── Stage 3: Generate vocabulary ──
             await UpdateStatusAsync(import, VideoImportStatus.GeneratingVocabulary);
 
-            var vocabWords = await ExtractVocabularyAsync(cleaned, import.Language!);
+            var vocabItems = await ExtractVocabularyAsync(cleaned, import.Language!);
 
             // ── Stage 4: Save LearningResource + VocabWords ──
             await UpdateStatusAsync(import, VideoImportStatus.SavingResource);
 
-            var resourceId = await CreateLearningResourceAsync(import, vocabWords);
+            var resourceId = await CreateLearningResourceAsync(import, vocabItems);
             import.LearningResourceId = resourceId;
 
             // ── Done ──
@@ -247,7 +247,7 @@ public class VideoImportPipelineService : IVideoImportPipeline
 
             _logger.LogInformation(
                 "Import completed: {Title} → {WordCount} vocab words",
-                import.VideoTitle, vocabWords.Count);
+                import.VideoTitle, vocabItems.Count);
         }
         catch (Exception ex)
         {
@@ -295,7 +295,7 @@ public class VideoImportPipelineService : IVideoImportPipeline
     /// <summary>
     /// Uses AI to extract vocabulary pairs from a transcript.
     /// </summary>
-    private async Task<List<VocabularyWord>> ExtractVocabularyAsync(string transcript, string language)
+    private async Task<List<ExtractedVocabularyForImport>> ExtractVocabularyAsync(string transcript, string language)
     {
         // Try to get user profile for language context (may not be available in Worker)
         string nativeLanguage = "English";
@@ -341,22 +341,24 @@ public class VideoImportPipelineService : IVideoImportPipeline
         if (result?.Vocabulary == null || !result.Vocabulary.Any())
         {
             _logger.LogWarning("AI returned no vocabulary items");
-            return new List<VocabularyWord>();
+            return new List<ExtractedVocabularyForImport>();
         }
 
-        // Convert extracted items to VocabularyWord using the built-in converter
+        // Convert extracted items to VocabularyWord while preserving source sentence metadata.
         return result.Vocabulary
-            .Select(item => item.ToVocabularyWord(targetLanguage))
+            .Select(item => new ExtractedVocabularyForImport(item.ToVocabularyWord(targetLanguage), item))
             .ToList();
     }
 
     /// <summary>
     /// Creates a LearningResource from the import and links vocabulary.
     /// </summary>
-    private async Task<string> CreateLearningResourceAsync(VideoImport import, List<VocabularyWord> vocabWords)
+    private async Task<string> CreateLearningResourceAsync(VideoImport import, List<ExtractedVocabularyForImport> vocabItems)
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var exampleSentenceRepository = scope.ServiceProvider.GetRequiredService<ExampleSentenceRepository>();
+        await using var transaction = await db.Database.BeginTransactionAsync();
 
         var resource = new LearningResource
         {
@@ -376,31 +378,81 @@ public class VideoImportPipelineService : IVideoImportPipeline
         db.LearningResources.Add(resource);
 
         // Save or match vocab words and create mappings
-        foreach (var word in vocabWords)
+        var mappedItems = new List<(VocabularyWord Word, ExtractedVocabularyItem Item)>();
+        var batchWordsByTargetTerm = new Dictionary<string, VocabularyWord>(StringComparer.OrdinalIgnoreCase);
+        var mappedWordIds = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var vocabItem in vocabItems)
         {
+            var word = vocabItem.Word;
+            var targetTerm = word.TargetLanguageTerm?.Trim();
+            if (string.IsNullOrWhiteSpace(targetTerm))
+                continue;
+
             // Check for existing word with same target term
-            var existing = await db.VocabularyWords
-                .FirstOrDefaultAsync(w => w.TargetLanguageTerm == word.TargetLanguageTerm);
+            var existing = batchWordsByTargetTerm.TryGetValue(targetTerm, out var batchWord)
+                ? batchWord
+                : await (
+                    from mapping in db.ResourceVocabularyMappings
+                    join existingResource in db.LearningResources on mapping.ResourceId equals existingResource.Id
+                    join existingWord in db.VocabularyWords on mapping.VocabularyWordId equals existingWord.Id
+                    where existingResource.UserProfileId == import.UserProfileId
+                        && existingWord.TargetLanguageTerm == targetTerm
+                    select existingWord)
+                    .FirstOrDefaultAsync();
 
             var wordId = existing?.Id ?? word.Id;
             if (existing == null)
             {
+                word.TargetLanguageTerm = targetTerm;
                 word.Language = import.Language;
                 word.CreatedAt = DateTime.UtcNow;
                 word.UpdatedAt = DateTime.UtcNow;
                 db.VocabularyWords.Add(word);
                 wordId = word.Id;
+                batchWordsByTargetTerm[targetTerm] = word;
             }
 
-            db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping
+            if (mappedWordIds.Add(wordId))
             {
-                Id = Guid.NewGuid().ToString(),
-                ResourceId = resource.Id,
-                VocabularyWordId = wordId
-            });
+                db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping
+                {
+                    Id = Guid.NewGuid().ToString(),
+                    ResourceId = resource.Id,
+                    VocabularyWordId = wordId
+                });
+            }
+
+            mappedItems.Add((existing ?? word, vocabItem.Item));
         }
 
         await db.SaveChangesAsync();
+        var mappedExampleWordIds = mappedItems
+            .Select(mapped => mapped.Word.Id)
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        var existingExamplesByWordId = await db.ExampleSentences
+            .Where(example => mappedExampleWordIds.Contains(example.VocabularyWordId))
+            .ToListAsync();
+        var existingExamplesLookup = existingExamplesByWordId
+            .GroupBy(example => example.VocabularyWordId)
+            .ToDictionary(group => group.Key, group => (IReadOnlyCollection<ExampleSentence>)group.ToList());
+
+        foreach (var (word, item) in mappedItems)
+        {
+            if (string.IsNullOrWhiteSpace(item.ExampleSentence))
+                continue;
+
+            existingExamplesLookup.TryGetValue(word.Id, out var existingForWord);
+            await exampleSentenceRepository.CreateFromReadingIfNewAsync(
+                word,
+                resource.Id,
+                item.ExampleSentence,
+                item.ExampleSentenceTranslation,
+                existingForWord ?? Array.Empty<ExampleSentence>(),
+                status: ExampleSentenceStatus.Curated);
+        }
+
+        await transaction.CommitAsync();
         return resource.Id;
     }
 
@@ -435,4 +487,6 @@ public class VideoImportPipelineService : IVideoImportPipeline
 
         _syncService?.TriggerSyncAsync().ConfigureAwait(false);
     }
+
+    private sealed record ExtractedVocabularyForImport(VocabularyWord Word, ExtractedVocabularyItem Item);
 }

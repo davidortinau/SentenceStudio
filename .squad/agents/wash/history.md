@@ -93,3 +93,7 @@ Team update (2026-07-03T18:53:17-05:00): Vocab Quiz persistent demonstration cou
 ---
 
 Team update (2026-07-03T19:41:30-05:00): Vocab Quiz persistent-counter deep-review hardening — Wash fixed all three adversarial findings. Rotation now captures session-start recognition/production baselines and requires non-known focus words to earn an in-session production floor before rotating out, so regressed banked-3/3 words are re-drilled instead of evicted unseen. Duplicate merge/replay preserves quiz demonstration counters as monotonic lifetime history, and counter increments moved from obsolete `UpdateLegacyFields` into `VocabularyProgressService.UpdateQuizDemonstrationCounters`. Validation reported by Coordinator: 767/767 full suite, Shared + WebApp builds clean, merged to main at `4da42e87`.
+
+---
+
+Team update (2026-07-05T21:56:29-05:00): Transcript example sentence capture — Wash centralized FromReading example persistence in `ExampleSentenceRepository.CreateFromReadingIfNewAsync`, preserving validation, normalized deduplication, non-core Curated status, and the two examples per word/resource cap. YouTube and content imports now persist AI-returned example sentences/translations; `TranscriptSentenceHarvestService` adds deterministic user-scoped retroactive harvesting with term/lemma/Korean-stem matching and batch translation. Segmenter default behavior remains Reading-safe; harvest opts into newline splitting.

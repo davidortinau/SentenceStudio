@@ -161,6 +161,22 @@
         }
         @Localize["Settings_ExportData"]
     </button>
+
+    <button class="btn btn-ss-secondary w-100 mt-2" @onclick="HarvestExampleSentences" disabled="@isHarvestingSentences">
+        @if (isHarvestingSentences)
+        {
+            <span class="spinner-border spinner-border-sm me-2"></span>
+        }
+        else
+        {
+            <i class="bi bi-card-text me-1"></i>
+        }
+        @Localize["Settings_HarvestSentences"]
+    </button>
+    @if (!string.IsNullOrWhiteSpace(harvestProgressText))
+    {
+        <div class="ss-caption1 text-secondary-ss mt-2">@harvestProgressText</div>
+    }
 </div>
 
 @* About *@
@@ -181,6 +197,8 @@
 
 @code {
     [Inject] private DataExportService ExportService { get; set; }
+    [Inject] private SentenceStudio.Services.ITranscriptSentenceHarvestService TranscriptSentenceHarvestService { get; set; } = default!;
+    [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
     [Inject] private SentenceStudio.Services.Speech.IVoiceDiscoveryService VoiceDiscovery { get; set; }
     [Inject] private SpeechVoicePreferences VoicePrefs { get; set; }
     [Inject] private VocabularyQuizPreferences QuizPrefs { get; set; }
@@ -201,6 +219,8 @@
     private double quizAutoAdvanceDuration = 3.0;
     private double fontScale = 1.0;
     private bool isExporting;
+    private bool isHarvestingSentences;
+    private string? harvestProgressText;
     private string currentVersion = "1.0";
     private bool showWhatsNew;
     private string whatsNewTitle = "What's New";
@@ -339,6 +359,43 @@
             isExporting = false;
         }
     }
+
+    private async Task HarvestExampleSentences()
+    {
+        isHarvestingSentences = true;
+        harvestProgressText = null;
+
+        try
+        {
+            var userId = GetActiveUserId();
+            var progress = new Progress<SentenceStudio.Services.TranscriptSentenceHarvestProgress>(report =>
+            {
+                harvestProgressText = string.Format(
+                    Localize["Settings_HarvestSentencesProgress"],
+                    report.ResourceIndex,
+                    report.TotalResources);
+                _ = InvokeAsync(StateHasChanged);
+            });
+
+            var summary = await TranscriptSentenceHarvestService.HarvestForUserAsync(userId, progress);
+            Toast.ShowSuccess($"{string.Format(
+                Localize["Settings_HarvestSentencesSuccess"],
+                summary.SentencesAdded,
+                summary.SkippedDuplicate,
+                summary.SkippedNoMatch)}");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError($"{string.Format(Localize["Settings_HarvestSentencesFailed"], ex.Message)}");
+        }
+        finally
+        {
+            isHarvestingSentences = false;
+            harvestProgressText = null;
+        }
+    }
+
+    private string GetActiveUserId() => Preferences.Get("active_profile_id", "");
 
     private async Task ShowReleaseNotes()
     {
