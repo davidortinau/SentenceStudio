@@ -77,33 +77,24 @@ Always search Microsoft documentation (MS Learn) when working with .NET, Windows
 
 ### What this repo targets
 
-- Every project under `src/SentenceStudio*` targets `net10.0-*` TFMs (net10.0, net10.0-ios, net10.0-android, net10.0-maccatalyst, net10.0-macos, net10.0-windows10.0.19041.0).
-- Daily dev (Mac Catalyst debug, tests, Aspire AppHost, ASP.NET Core API, Blazor webapp) is happy on the net10 GA SDK + net10 MAUI workload.
-- Newer SDKs (net11 previews) CAN build these net10 TFMs in principle — the wrinkle is workload manifest alignment, not framework compatibility.
+- **The MAUI heads target `net11.0-*`** — iOS (`net11.0-ios`), Android (`net11.0-android`), Mac Catalyst (`net11.0-maccatalyst`), macOS (`net11.0-macos`). `SentenceStudio.WebApp` and `SentenceStudio.AppLib` are `net11.0`.
+- **`SentenceStudio.Shared` multi-targets** `net10.0;net11.0-ios;net11.0-android;net11.0-maccatalyst;net11.0-macos` — the `net10.0` slice is what the ASP.NET Core API consumes.
+- **`SentenceStudio.Api` stays on `net10.0`.**
+- Daily dev (Mac Catalyst/macOS debug, tests, Aspire AppHost, API, Blazor webapp, device heads) runs on a **net11 preview SDK + net11 MAUI workload**. That same SDK also builds the `net10.0` projects, so one net11 preview SDK covers the whole solution.
 
 ### Why you may see a `global.json` here (and why it isn't committed)
 
 **`global.json` is explicitly gitignored** (see `.gitignore` lines 412–414: `src/global.json`, `global.json`, `_global.json`). It is **never in the repo**. If one exists on a contributor's machine, it is a per-developer artifact.
 
-Captain keeps a local `global.json` pinning to net10 (`10.0.101`, `rollForward: latestFeature`) because his default machine SDK is a net11 preview (he's all-in on previews for unrelated work). The pin forces `dotnet` commands inside this repo to use the matching net10 SDK + net10 MAUI workload, which is what the csprojs want.
+Captain keeps a local `global.json` pinning to a **net11 preview** SDK (currently `11.0.100-preview.4.26230.115`, `rollForward: latestPatch`, `allowPrerelease: true`) so the `net11.0-*` MAUI heads build against the matching net11 preview SDK + net11 MAUI workload. That same SDK also builds the `net10.0` projects (API, Shared's net10 slice), so one pin covers the whole solution.
 
-**Other contributors / CI / fresh checkouts do not need a `global.json`.** If the only installed SDK is net10 GA, the CLI selects it without a pin. If multiple SDKs are installed and you want to be explicit, create a local one — but **do not commit it**.
+**Other contributors / CI / fresh checkouts** need an SDK that can build `net11.0-*` — a net11 preview SDK with the net11 MAUI workload installed. If multiple SDKs are installed and you want to be explicit, create a local `global.json` — but **do not commit it** (it stays gitignored).
 
-### The publish workflow swap (iOS only, Xcode-driven)
+### iOS device publish — no `global.json` swap needed (Xcode-driven)
 
-The ONLY documented reason this project ever swaps `global.json` is **iOS device publish to DX24** because Captain's Xcode is 26.3 and the net10 GA SDK ships expecting Xcode 26.2. The net11 preview 3 SDK knows about Xcode 26.3.
+Since the iOS head moved to `net11.0-ios`, publishing to DX24 needs **no `global.json` swap** — the net11 preview SDK already ships iOS packs compatible with Captain's Xcode 26.3. Build Release directly (see `docs/deploy-runbook.md` Step 2a/2b).
 
-`docs/deploy-runbook.md` Step 2a documents the temporary swap (net10 → net11p3 → build iOS Release → restore net10). **This has nothing to do with Azure** — Azure runs the net10 container produced by `azd deploy` which uses the standard net10 SDK.
-
-```bash
-# ONLY for iOS device publish — restore immediately after.
-cp global.json global.json.bak
-echo '{"sdk":{"version":"11.0.100-preview.3.26209.122","rollForward":"latestFeature","allowPrerelease":true}}' > global.json
-# ... build iOS Release ...
-cp global.json.bak global.json && rm global.json.bak
-```
-
-If you see a stray `global.json.bak` in `git status` (untracked), the publish workflow was interrupted — restore it before doing anything else.
+**Historical note (obsolete):** while the iOS head was still `net10.0-ios`, this step required temporarily swapping `global.json` to `11.0.100-preview.3.26209.122` (the net10 GA SDK expected Xcode 26.2), then restoring it — the `global.json.bak` dance. That swap is **no longer needed**. If any guidance tells you to swap `global.json` for an iOS publish, it is stale. A stray `global.json.bak` in `git status` is just leftover from the old procedure — delete it.
 
 ### Required diagnostic order before claiming "the SDK isn't installed"
 
@@ -582,12 +573,11 @@ See `docs/deploy-runbook.md` for full details. Quick reference:
 
 1. **Azure:** `azd deploy` (VPN must be off)
 2. **Post-deploy validation:** `./scripts/post-deploy-validate.sh` — **MANDATORY**. Exit code 0 from `azd deploy` means the upload worked, not that the system works. This script runs 16 automated checks (infrastructure health, service availability, auth smoke test, revision health). Never skip this step.
-3. **iOS to DX24 (iPhone 15 Pro, device CF4F94E3-A1C9-5617-A089-9ABB0110A09F):**
-   - Switch `global.json` to .NET 11 Preview 3 (`allowPrerelease: true`, sdk `11.0.100-preview.3.26209.122`)
+3. **iOS to DX24 (iPhone 15 Pro, device CF4F94E3-A1C9-5617-A089-9ABB0110A09F):** No `global.json` swap needed — the iOS head is `net11.0-ios` and the net11 preview SDK handles Xcode 26.3.
    - Build: `services__api__https__0=https://api.agreeablesky-76d2f81f.westus3.azurecontainerapps.io dotnet build src/SentenceStudio.iOS/SentenceStudio.iOS.csproj -f net11.0-ios -c Release -p:RuntimeIdentifier=ios-arm64`
-   - Install: `xcrun devicectl device install app --device CF4F94E3-A1C9-5617-A089-9ABB0110A09F src/SentenceStudio.iOS/bin/Release/net10.0-ios/ios-arm64/SentenceStudio.iOS.app`
+   - Install: `xcrun devicectl device install app --device CF4F94E3-A1C9-5617-A089-9ABB0110A09F src/SentenceStudio.iOS/bin/Release/net11.0-ios/ios-arm64/SentenceStudio.iOS.app`
    - Launch: `xcrun devicectl device process launch --device CF4F94E3-A1C9-5617-A089-9ABB0110A09F com.simplyprofound.sentencestudio`
-   - Restore `global.json` after
+   - **If install fails with `CoreDeviceError 4000` / tunnel invalidated:** warm the tunnel with `xcrun devicectl device info details --device CF4F94E3-A1C9-5617-A089-9ABB0110A09F`, then immediately retry install (see runbook Step 2c).
 
 **Local dev builds** use Debug config and point at localhost (requires Aspire running). Never deploy a Debug build to DX24 for production use.
 

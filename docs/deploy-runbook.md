@@ -389,6 +389,15 @@ xcrun devicectl device process launch \
 > Verify the device is reachable first with `xcrun devicectl list devices`
 > (DX24 should show `available (paired)`).
 >
+> **If blind retries keep failing with `CoreDeviceError 4000` / `ControlChannelConnectionError error 1`**
+> (the tunnel is invalidated on the longer `install` session while short queries still
+> work), **warm the tunnel first**: run
+> `xcrun devicectl device info details --device CF4F94E3-A1C9-5617-A089-9ABB0110A09F`
+> (returns device info in a few seconds), then **immediately** retry `install app`
+> while the tunnel is warm. Validated 2026-07-13 after four straight blind-retry
+> failures — the warmed retry printed `Acquired tunnel connection to device` and
+> installed on the first try. The same warm-then-retry applies to `process launch`.
+>
 > **`FBSOpenApplicationErrorDomain error 7 (Locked)` on launch:** The iPhone
 > is screen-locked. Unlock it and either retry the launch command or just tap
 > the app icon. Install already succeeded — only launch was blocked.
@@ -421,6 +430,7 @@ dotnet build src/SentenceStudio.iOS/SentenceStudio.iOS.csproj \
 | Xcode version mismatch (26.2 vs 26.3) | Verify `dotnet --version` reports a `11.0.100-preview.*` SDK from this directory and that the pack version in the error is `26.2.11*-net11-pN`, NOT `26.2.10*` |
 | Build keeps picking net10 iOS pack | Confirm iOS csproj `<TargetFramework>` is `net11.0-ios`; confirm `dotnet --version` reports `11.0.100-preview.*`; delete `obj/` under `src/SentenceStudio.iOS/` and rebuild |
 | `devicectl` install fails with `Socket is not connected` | Transient — retry once after a few seconds. Check `xcrun devicectl list devices` shows DX24 `available (paired)` |
+| `devicectl` install keeps failing with `CoreDeviceError 4000` / tunnel invalidated | Warm the tunnel: run `xcrun devicectl device info details --device <id>`, then immediately retry `install`. See Step 2c |
 | Device locked error on install | Unlock DX24, retry |
 | LOCAL ribbon on phone | Built with Debug config — rebuild with Release + env var (step 2b) |
 | Phone app can't reach API | Missing `services__api__https__0` env var at build time, or stale `appsettings.Production.json` URL |
