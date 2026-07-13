@@ -61,3 +61,8 @@ Team update (2026-07-02T15:30-05:00): Vocab Quiz Session & Resume shipped — Ka
 ---
 
 Team update (2026-07-05T21:56:29-05:00): Settings harvest utility — Kaylee added the Data Management action for retroactively harvesting example sentences from resources, including progress/summary feedback and localized strings. Active user resolution uses `IPreferencesService` with `active_profile_id`, so the same Settings UI works across WebApp and MAUI heads without hardcoded user IDs.
+
+
+## 2026-07-11 — Vocabulary no-results Add prefill pattern
+
+Blazor Vocabulary pages now use an explicit `initialTargetTerm` query parameter for the no-results Add flow only. Gate the carryover on `filteredWords.Count == 0` plus parsed free-text search terms so filter syntax and Edit paths are not affected. On `VocabularyWordEdit.razor`, prefill `targetLanguageTerm` for new words and resolve `wordLanguage` from the active profile `TargetLanguage`, with Korean as fallback.

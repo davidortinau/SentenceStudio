@@ -643,3 +643,43 @@ Result: 781 passed, 0 failed, 0 skipped, 781 total.
 Known-baseline deterministic plan builder failure: not observed in this run.
 
 Remaining real failures: none.
+
+---
+
+### 2026-07-11 — Vocabulary Add preselects no-results search term and profile language
+
+**Session:** Vocabulary no-results Add prefill
+**Surface:** Blazor WebApp Vocabulary pages
+**Requested by:** Captain (David Ortinau)
+**Status:** Implemented and E2E verified by Kaylee; pending Captain review/commit.
+
+#### Decision
+
+When a Vocabulary search has no results and the parsed query contains free-text terms, the Add flow carries the searched term into the Add Vocabulary page through an explicit `initialTargetTerm` query parameter. The new-word form prefills the target-language term from that value and preselects `wordLanguage` from the active user profile `TargetLanguage`, with Korean as a fallback.
+
+The behavior is gated to the no-results Add path only: existing Edit remains unchanged, and empty-search Add continues to open a blank form.
+
+#### Rationale
+
+This matches the learner flow of searching for a missing word and immediately adding it, while avoiding accidental prefill from raw search/filter syntax or from edits of existing vocabulary. Using the active profile target language keeps the new entry aligned with the learner's current language context.
+
+#### Validation
+
+Kaylee validated the WebApp through Aspire E2E with the `squad-jayne@sentencestudio.test` account: searching `zzzqqqxyz` produced no results, Add opened `/vocabulary/edit/0?...initialTargetTerm=zzzqqqxyz` with the target term prefilled and Language set to Korean; empty-search Add opened blank; existing Edit was unaffected. Build validation: `dotnet build` of `SentenceStudio.UI` passed.
+
+#### Source notes merged
+
+##### kaylee-vocab-add-prefill.md
+
+# Vocabulary Add Prefill
+
+- Author: Kaylee
+- Date: 2026-07-11
+
+## Decision
+
+When launching Add Vocabulary from the Vocabulary list, carry over free-text search terms only for the no-results scenario: `filteredWords.Count == 0 && parsedQuery?.FreeTextTerms.Count > 0`.
+
+## Rationale
+
+This matches the primary user flow where a learner searches for a missing term, sees no matches, then taps Add. It avoids changing Edit behavior and avoids attaching raw search/filter syntax such as `tag:foo` or `language:Korean` to the new word form. The edit URL receives an explicit `initialTargetTerm` query parameter only from the Add path.

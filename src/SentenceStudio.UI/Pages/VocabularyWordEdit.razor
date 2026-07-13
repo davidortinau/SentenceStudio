@@ -433,7 +433,11 @@ else
     [SupplyParameterFromQuery(Name = "returnFocusWordId")]
     public string? ReturnFocusWordId { get; set; }
 
+    [SupplyParameterFromQuery(Name = "initialTargetTerm")]
+    public string? InitialTargetTerm { get; set; }
+
     [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
+    [Inject] private UserProfileRepository ProfileRepo { get; set; } = default!;
     [Inject] private VocabularyProgressService ProgressService { get; set; } = default!;
     [Inject] private VocabularyLearningContextRepository ContextRepo { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
@@ -581,6 +585,11 @@ else
             {
                 word = new VocabularyWord { CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow };
                 availableResources = await ResourceRepo.GetAllResourcesLightweightAsync();
+                if (!string.IsNullOrWhiteSpace(InitialTargetTerm))
+                    targetLanguageTerm = InitialTargetTerm;
+
+                var profile = await ProfileRepo.GetAsync();
+                wordLanguage = profile?.TargetLanguage ?? "Korean";
                 selectedLexicalUnitType = LexicalUnitType.Word; // Default for new words
                 previousLexicalUnitType = LexicalUnitType.Word;
             }

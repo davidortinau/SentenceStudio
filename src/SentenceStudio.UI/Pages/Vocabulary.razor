@@ -1068,8 +1068,22 @@ else
     private static string TruncateTitle(string? title, int maxLen) =>
         title == null ? "" : title.Length <= maxLen ? title : title[..maxLen] + "…";
 
-    private void AddWord() => NavManager.NavigateTo(BuildEditUrl("0"));
+    private void AddWord()
+    {
+        var initialTargetTerm = GetInitialTargetTermForAdd();
+        NavManager.NavigateTo(BuildEditUrl("0", initialTargetTerm));
+    }
+
     private void EditWord(string id) => NavManager.NavigateTo(BuildEditUrl(id));
+
+    private string? GetInitialTargetTermForAdd()
+    {
+        if (filteredWords.Count != 0 || parsedQuery?.FreeTextTerms.Count is not > 0)
+            return null;
+
+        var term = string.Join(" ", parsedQuery.FreeTextTerms).Trim();
+        return string.IsNullOrWhiteSpace(term) ? null : term;
+    }
 
     private void OnCardClick(VocabularyCardItem item)
     {
@@ -1962,7 +1976,7 @@ Return JSON like: {{""lemmas"": [{{""id"": 1, ""lemma"": ""dictionary form""}}, 
         };
     }
 
-    private string BuildEditUrl(string id)
+    private string BuildEditUrl(string id, string? initialTargetTerm = null)
     {
         var queryParts = new List<string>();
 
@@ -1974,6 +1988,9 @@ Return JSON like: {{""lemmas"": [{{""id"": 1, ""lemma"": ""dictionary form""}}, 
 
         if (!string.IsNullOrWhiteSpace(focusedDuplicateWordId))
             queryParts.Add($"returnFocusWordId={Uri.EscapeDataString(focusedDuplicateWordId)}");
+
+        if (!string.IsNullOrWhiteSpace(initialTargetTerm))
+            queryParts.Add($"initialTargetTerm={Uri.EscapeDataString(initialTargetTerm)}");
 
         return queryParts.Count == 0
             ? $"/vocabulary/edit/{id}"
