@@ -84,6 +84,35 @@ public class FuzzyMatcherTests
         Assert.Equal(shouldMatch, result.IsCorrect);
     }
 
+    // Adversarial: completely-wrong short-word answers that previously passed due to
+    // unguarded Levenshtein distance <= 2 with no length check. These MUST be rejected.
+    [Theory]
+    [InlineData("buy", "day", false, "Short-word collision: d→b, a→u = distance 2, but similarity 0.33")]
+    [InlineData("bag", "big", false, "Short-word collision: i→a = distance 1, but similarity 0.67")]
+    [InlineData("bug", "big", false, "Short-word collision: i→u = distance 1, but similarity 0.67")]
+    [InlineData("bog", "big", false, "Short-word collision: i→o = distance 1, but similarity 0.67")]
+    [InlineData("no", "go", false, "Short-word collision: g→n = distance 1, but similarity 0.50")]
+    [InlineData("ran", "run", false, "Short-word collision: u→a = distance 1, different tense is wrong answer")]
+    [InlineData("ron", "run", false, "Short-word collision: u→o = distance 1, completely different word")]
+    [InlineData("cat", "cut", false, "Short-word collision: a→u = distance 1, but similarity 0.67")]
+    [InlineData("cot", "cat", false, "Short-word collision: a→o = distance 1, different word")]
+    [InlineData("hat", "hot", false, "Short-word collision: a→o = distance 1, different word")]
+    [InlineData("pen", "pan", false, "Short-word collision: e→a = distance 1, different word")]
+    [InlineData("sit", "set", false, "Short-word collision: i→e = distance 1, different word")]
+    [InlineData("map", "mop", false, "Short-word collision: a→o = distance 1, different word")]
+    [InlineData("top", "tap", false, "Short-word collision: o→a = distance 1, different word")]
+    [InlineData("bed", "bad", false, "Short-word collision: e→a = distance 1, different word")]
+    [InlineData("eat", "oat", false, "Short-word collision: e→o = distance 1, different word")]
+    [InlineData("red", "rod", false, "Short-word collision: e→o = distance 1, different word")]
+    [InlineData("fix", "fox", false, "Short-word collision: i→o = distance 1, different word")]
+    [InlineData("sun", "son", false, "Short-word collision: u→o = distance 1, different word")]
+    [InlineData("tip", "top", false, "Short-word collision: i→o = distance 1, different word")]
+    public void Evaluate_ShouldRejectCompletelyWrongShortWords(string userAnswer, string expectedAnswer, bool shouldMatch, string reason)
+    {
+        var result = FuzzyMatcher.Evaluate(userAnswer, expectedAnswer);
+        Assert.Equal(shouldMatch, result.IsCorrect);
+    }
+
     [Theory]
     [InlineData("hello world", "HELLO WORLD", true)]
     [InlineData("HELLO WORLD", "hello world", true)]

@@ -12,6 +12,10 @@ public static class FuzzyMatcher
 {
     private const double TYPO_THRESHOLD = 0.75; // 75% similarity for typo tolerance
     private const int MAX_LEVENSHTEIN_DISTANCE = 2; // Maximum edit distance allowed
+    // Words shorter than this must pass the similarity threshold — the absolute distance
+    // bypass is disabled. Prevents short-word collisions: "day"→"buy" (d=2, sim=0.33),
+    // "big"→"bag" (d=1, sim=0.67), "go"→"no" (d=1, sim=0.50) from being accepted.
+    private const int MIN_LENGTH_FOR_DISTANCE_BYPASS = 5;
     
     private static readonly Regex ParenthesesPattern = 
         new Regex(@"\s*\([^)]*\)", RegexOptions.Compiled);
@@ -110,8 +114,12 @@ public static class FuzzyMatcher
         var maxLength = Math.Max(normalizedUser.Length, normalizedExpected.Length);
         var similarity = 1.0 - ((double)distance / maxLength);
         
-        // Accept if EITHER similarity threshold is met OR edit distance is small enough
-        if (similarity >= TYPO_THRESHOLD || distance <= MAX_LEVENSHTEIN_DISTANCE)
+        // Accept if similarity threshold is met (length-relative), OR if edit distance
+        // is small enough AND the word is long enough that 2 edits still implies high
+        // similarity. Without the length gate, 3-letter words allow 66% of characters to
+        // differ — that's a different word, not a typo.
+        if (similarity >= TYPO_THRESHOLD || 
+            (distance <= MAX_LEVENSHTEIN_DISTANCE && maxLength >= MIN_LENGTH_FOR_DISTANCE_BYPASS))
         {
             return new FuzzyMatchResult
             {

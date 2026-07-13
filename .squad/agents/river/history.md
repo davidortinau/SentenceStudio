@@ -42,3 +42,7 @@ Team update (2026-06-28T15:20:00-05:00): Grading latency win shipped. Writing/Tr
 ## 2026-06-29 — ElevenLabs v3 fidelity adoption
 
 Captain ear-tested River's Korean TTS fidelity matrix and selected `eleven_v3`: "v3 wins everywhere." Interactive short-form TTS now defaults to `eleven_v3` in both the MAUI in-process service and API gateway, with `AI:ElevenLabs:InteractiveModel=eleven_multilingual_v2` available as the flip-back. Reading long-form/timestamped synthesis stays on `eleven_multilingual_v2` pending a separate v3 Reading evaluation for chunking and timestamp support.
+
+## 2026-07-12 — Vocab Quiz grading strictness fix
+
+Fixed over-lenient FuzzyMatcher text grading. Added `MIN_LENGTH_FOR_DISTANCE_BYPASS = 5` to prevent short completely-wrong answers (day/buy, big/bag) from passing via absolute Levenshtein distance alone. 20 adversarial tests added, 140/140 pass. E2E verified by Jayne on live Blazor WebApp — all assertions PASS.

@@ -84,3 +84,7 @@ Team update (2026-07-03T19:41:30-05:00): Vocab Quiz persistent-counter hardening
 ---
 
 Team update (2026-07-05T21:56:29-05:00): Transcript harvest regression coverage — Jayne added tests for FromReading repository insert/dedup/cap/validation behavior, segmenter default vs newline modes, user-scoped idempotent transcript harvesting with translations, multi-tenant isolation, and content import capture. Jayne found the punctuation-less newline transcript bug; after Wash's fix, full unit suite passed 781/781.
+
+## 2026-07-12 — E2E verified FuzzyMatcher grading fix
+
+E2E tested River's FuzzyMatcher length-gate fix on Blazor WebApp via Aspire+Playwright. PASS: "lark" for link (4ch) rejected; "to wirte code" typo (13ch) accepted; exact "code" accepted. 2/3 quiz score confirmed. DB restored, no side effects.
