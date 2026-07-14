@@ -6993,4 +6993,16 @@ For example: {0} ...</value>
     <value>Dismiss</value>
     <comment>Accessibility label for the close button on the shared-ingest banner</comment>
   </data>
+  <data name="VocabQuiz_ShowText" xml:space="preserve">
+    <value>Show text</value>
+    <comment>Toolbar action to show the vocabulary term alongside the photo prompt</comment>
+  </data>
+  <data name="VocabQuiz_HideText" xml:space="preserve">
+    <value>Hide text</value>
+    <comment>Toolbar action to hide the vocabulary term when a photo prompt is active</comment>
+  </data>
+  <data name="VocabQuiz_TextToggleSaveFailed" xml:space="preserve">
+    <value>Could not save text visibility preference. Please try again.</value>
+    <comment>Error toast when persisting show/hide text preference fails</comment>
+  </data>
 </root>

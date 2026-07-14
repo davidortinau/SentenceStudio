@@ -11756,6 +11756,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Hide text.
+        /// </summary>
+        internal static string VocabQuiz_HideText {
+            get {
+                return ResourceManager.GetString("VocabQuiz_HideText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to IsKnown.
         /// </summary>
         internal static string VocabQuiz_IsKnown {
@@ -11928,6 +11937,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Show text.
+        /// </summary>
+        internal static string VocabQuiz_ShowText {
+            get {
+                return ResourceManager.GetString("VocabQuiz_ShowText", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Start fresh.
         /// </summary>
         internal static string VocabQuiz_StartFresh {
@@ -11951,6 +11969,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string VocabQuiz_TargetWordFeedback {
             get {
                 return ResourceManager.GetString("VocabQuiz_TargetWordFeedback", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Could not save text visibility preference. Please try again..
+        /// </summary>
+        internal static string VocabQuiz_TextToggleSaveFailed {
+            get {
+                return ResourceManager.GetString("VocabQuiz_TextToggleSaveFailed", resourceCulture);
             }
         }
         

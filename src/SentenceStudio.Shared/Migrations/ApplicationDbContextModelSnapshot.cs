@@ -1451,6 +1451,9 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<string>("TargetLanguages")
                         .HasColumnType("text");
 
+                    b.Property<bool>("VocabQuizShowTextWithPhoto")
+                        .HasColumnType("boolean");
+
                     b.HasKey("Id");
 
                     b.ToTable("UserProfile", (string)null);

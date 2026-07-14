@@ -16,6 +16,17 @@
                     <i class="bi bi-pencil-square me-2"></i>Use in a sentence
                 </button>
             </li>
+            @if (HasPromptImage && showPhotoPromptControl)
+            {
+                <li>
+                    <button class="dropdown-item"
+                            disabled="@isSavingTextToggle"
+                            aria-label="@(showTextWithPhoto ? $"{Localize["VocabQuiz_HideText"]}" : $"{Localize["VocabQuiz_ShowText"]}")"
+                            @onclick="ToggleShowTextWithPhotoAsync">
+                        <i class="bi @(showTextWithPhoto ? "bi-eye-slash" : "bi-eye") me-2" aria-hidden="true"></i>@(showTextWithPhoto ? $"{Localize["VocabQuiz_HideText"]}" : $"{Localize["VocabQuiz_ShowText"]}")
+                    </button>
+                </li>
+            }
         </SecondaryActions>
     </PageHeader>
 }
@@ -216,7 +227,7 @@ else if (currentItem != null)
     else
     {
         <div class="text-center my-4">
-            <h1 class="ss-display mb-2" style="color: var(--bs-primary);">@(showTextPrompt ? questionText : promptTitle)</h1>
+            <h1 class="ss-display mb-2" style="color: var(--bs-primary);">@PromptHeading</h1>
 
             <div class="d-flex justify-content-center gap-3 mb-2">
                 @if (audioPromptAvailable)
@@ -598,6 +609,8 @@ else
     private bool audioAnswerModeAvailable = true;
     private bool showInfoPanel;
     private bool showResumePrompt;
+    private bool showTextWithPhoto;
+    private bool isSavingTextToggle;
     private IAudioPlayer? audioPlayer;
     private CancellationTokenSource? autoAdvanceCts;
     private string userInput = "";
@@ -671,6 +684,7 @@ else
         var userProfile = await UserProfileRepo.GetAsync();
         nativeLanguage = userProfile?.NativeLanguage ?? "English";
         targetLanguage = userProfile?.TargetLanguage ?? "Korean";
+        showTextWithPhoto = userProfile?.VocabQuizShowTextWithPhoto ?? false;
 
         focusVocabularyIds = FocusVocabularySelection.ParseFocusVocabularyIds(FocusVocabularyIdsParam);
         launchContextKey = VocabQuizSessionSnapshot.BuildLaunchContextKey(
@@ -1776,6 +1790,39 @@ else
 
     private void ToggleMnemonicImage() => showMnemonicImage = !showMnemonicImage;
 
+    private async Task ToggleShowTextWithPhotoAsync()
+    {
+        if (isSavingTextToggle) return;
+        isSavingTextToggle = true;
+
+        var previousValue = showTextWithPhoto;
+        showTextWithPhoto = !showTextWithPhoto;
+
+        try
+        {
+            var activeUserId = GetActiveUserId();
+            if (string.IsNullOrWhiteSpace(activeUserId))
+            {
+                Logger.LogWarning("ToggleShowTextWithPhoto: no active user id — reverting");
+                showTextWithPhoto = previousValue;
+                Toast.ShowError($"{Localize["VocabQuiz_TextToggleSaveFailed"]}");
+                return;
+            }
+
+            var saved = await UserProfileRepo.SaveVocabQuizShowTextWithPhotoAsync(activeUserId, showTextWithPhoto);
+            if (!saved)
+            {
+                Logger.LogWarning("ToggleShowTextWithPhoto: save failed for user {UserId} — reverting", activeUserId);
+                showTextWithPhoto = previousValue;
+                Toast.ShowError($"{Localize["VocabQuiz_TextToggleSaveFailed"]}");
+            }
+        }
+        finally
+        {
+            isSavingTextToggle = false;
+        }
+    }
+
     private async Task PlayWordAudio()
     {
         if (currentItem?.Word == null) return;
@@ -1889,6 +1936,25 @@ else
     }
 
     private bool HasPromptImage => !string.IsNullOrWhiteSpace(currentItem?.Word?.MnemonicImageUri);
+
+    private bool ShouldHideTermForPhoto => HasPromptImage && showPhotoPromptControl && showMnemonicImage && !showTextWithPhoto;
+
+    // Computed heading: when hiding term for photo, show a generic instruction
+    // derived from the same localization keys ApplyPromptPreferences uses,
+    // so the term text is never leaked through promptTitle.
+    private string PromptHeading
+    {
+        get
+        {
+            if (ShouldHideTermForPhoto)
+            {
+                return showAudioPromptControl
+                    ? $"{Localize["VocabQuiz_ListenLookAnswer"]}"
+                    : $"{Localize["VocabQuiz_LookAndAnswer"]}";
+            }
+            return showTextPrompt ? questionText : promptTitle;
+        }
+    }
 
     private string GetTargetAudioText(VocabularyWord word) => word.TargetLanguageTerm ?? "";
 

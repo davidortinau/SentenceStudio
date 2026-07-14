@@ -39,6 +39,13 @@ public class UserProfile
     /// </summary>
     public string? IanaTimeZoneId { get; set; }
 
+    /// <summary>
+    /// When true, the vocabulary term text is shown alongside the photo in quiz items
+    /// that have an assigned/active photo. Default false hides the text so the learner
+    /// must rely on the image alone.
+    /// </summary>
+    public bool VocabQuizShowTextWithPhoto { get; set; } = false;
+
     public DateTime CreatedAt { get; set; }
     
     [NotMapped]

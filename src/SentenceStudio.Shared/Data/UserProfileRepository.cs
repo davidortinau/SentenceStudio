@@ -334,6 +334,60 @@ public class UserProfileRepository
         }
     }
 
+    /// <summary>
+    /// Persists only the <see cref="UserProfile.VocabQuizShowTextWithPhoto"/> property for
+    /// the given user. Unlike <see cref="SaveAsync"/>, this performs a tracked single-property
+    /// update and cannot overwrite unrelated concurrent changes.
+    /// </summary>
+    /// <returns><c>true</c> when the requested value is persisted for a matching user
+    /// (including the no-op case where the value was already correct); <c>false</c> otherwise.</returns>
+    public async Task<bool> SaveVocabQuizShowTextWithPhotoAsync(string userId, bool showTextWithPhoto)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            _logger.LogWarning("SaveVocabQuizShowTextWithPhotoAsync called with no userId — returning false");
+            return false;
+        }
+
+        try
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+            var profile = await db.UserProfiles.FirstOrDefaultAsync(p => p.Id == userId);
+            if (profile is null)
+            {
+                _logger.LogWarning("SaveVocabQuizShowTextWithPhotoAsync: no UserProfile found for userId '{UserId}'", userId);
+                return false;
+            }
+
+            if (profile.VocabQuizShowTextWithPhoto == showTextWithPhoto)
+                return true;
+
+            profile.VocabQuizShowTextWithPhoto = showTextWithPhoto;
+            int rows = await db.SaveChangesAsync();
+
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+
+            return rows > 0;
+        }
+        catch (DbUpdateException ex)
+        {
+            _logger.LogError(ex, "SaveVocabQuizShowTextWithPhotoAsync: persistence failure for userId '{UserId}'", userId);
+            return false;
+        }
+        catch (System.Data.Common.DbException ex)
+        {
+            _logger.LogError(ex, "SaveVocabQuizShowTextWithPhotoAsync: database error for userId '{UserId}'", userId);
+            return false;
+        }
+        catch (InvalidOperationException ex)
+        {
+            _logger.LogError(ex, "SaveVocabQuizShowTextWithPhotoAsync: invalid operation for userId '{UserId}'", userId);
+            return false;
+        }
+    }
+
     public async Task<int> DeleteAsync()
     {
         using var scope = _serviceProvider.CreateScope();

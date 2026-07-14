@@ -1152,6 +1152,9 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                     b.Property<string>("TargetLanguages")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("VocabQuizShowTextWithPhoto")
+                        .HasColumnType("INTEGER");
+
                     b.HasKey("Id");
 
                     b.ToTable("UserProfile", (string)null);

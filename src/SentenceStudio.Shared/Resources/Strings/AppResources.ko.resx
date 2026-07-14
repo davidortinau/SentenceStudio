@@ -6698,4 +6698,13 @@
   <data name="SharedIngest_Dismiss" xml:space="preserve">
     <value>닫기</value>
   </data>
+  <data name="VocabQuiz_ShowText" xml:space="preserve">
+    <value>텍스트 표시</value>
+  </data>
+  <data name="VocabQuiz_HideText" xml:space="preserve">
+    <value>텍스트 숨기기</value>
+  </data>
+  <data name="VocabQuiz_TextToggleSaveFailed" xml:space="preserve">
+    <value>텍스트 표시 설정을 저장하지 못했습니다. 다시 시도해 주세요.</value>
+  </data>
 </root>
