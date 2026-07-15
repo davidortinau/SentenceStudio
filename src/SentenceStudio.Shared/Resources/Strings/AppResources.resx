@@ -7005,4 +7005,16 @@ For example: {0} ...</value>
     <value>Could not save text visibility preference. Please try again.</value>
     <comment>Error toast when persisting show/hide text preference fails</comment>
   </data>
+  <data name="VocabQuiz_EnlargePhoto" xml:space="preserve">
+    <value>View photo full screen</value>
+    <comment>Accessible label on the quiz photo thumbnail — opens the fullscreen viewer</comment>
+  </data>
+  <data name="VocabQuiz_PhotoHint" xml:space="preserve">
+    <value>Visual hint for the vocabulary word</value>
+    <comment>Alt text for quiz mnemonic photo images</comment>
+  </data>
+  <data name="VocabQuiz_FullscreenPhoto" xml:space="preserve">
+    <value>Full screen photo viewer</value>
+    <comment>Aria label for the fullscreen image overlay dialog</comment>
+  </data>
 </root>

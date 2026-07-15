@@ -11747,6 +11747,24 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to View photo full screen.
+        /// </summary>
+        internal static string VocabQuiz_EnlargePhoto {
+            get {
+                return ResourceManager.GetString("VocabQuiz_EnlargePhoto", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Full screen photo viewer.
+        /// </summary>
+        internal static string VocabQuiz_FullscreenPhoto {
+            get {
+                return ResourceManager.GetString("VocabQuiz_FullscreenPhoto", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Grade sentences.
         /// </summary>
         internal static string VocabQuiz_GradeSentences {
@@ -11869,6 +11887,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string VocabQuiz_OnlyMeaningful {
             get {
                 return ResourceManager.GetString("VocabQuiz_OnlyMeaningful", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Visual hint for the vocabulary word.
+        /// </summary>
+        internal static string VocabQuiz_PhotoHint {
+            get {
+                return ResourceManager.GetString("VocabQuiz_PhotoHint", resourceCulture);
             }
         }
         

@@ -16,7 +16,7 @@
                     <i class="bi bi-pencil-square me-2"></i>Use in a sentence
                 </button>
             </li>
-            @if (HasPromptImage && showPhotoPromptControl)
+            @if (IsTextToggleEligible)
             {
                 <li>
                     <button class="dropdown-item"
@@ -260,8 +260,17 @@ else if (currentItem != null)
             @if (showMnemonicImage && !string.IsNullOrWhiteSpace(currentItem?.Word?.MnemonicImageUri))
             {
                 <div class="mb-3">
-                    <img src="@currentItem.Word.MnemonicImageUri" alt="Mnemonic hint"
-                         class="rounded shadow-sm" style="max-height: 160px; object-fit: contain;" />
+                    <button type="button"
+                            id="quiz-photo-thumbnail"
+                            class="btn p-0 border-0 bg-transparent"
+                            aria-label="@($"{Localize["VocabQuiz_EnlargePhoto"]}")"
+                            @ref="thumbnailButtonRef"
+                            @onclick="OpenImageFullscreen">
+                        <img src="@currentItem.Word.MnemonicImageUri"
+                             alt="@($"{Localize["VocabQuiz_PhotoHint"]}")"
+                             class="rounded shadow-sm quiz-photo-thumbnail"
+                             style="max-height: 160px; object-fit: contain; cursor: pointer;" />
+                    </button>
                 </div>
             }
 
@@ -547,6 +556,33 @@ else
         </div>
     </div>
     <div class="offcanvas-backdrop fade show" style="z-index: 1049;" @onclick="() => showInfoPanel = false"></div>
+}
+
+@* Fullscreen image viewer overlay *@
+@if (isImageFullscreen && !string.IsNullOrWhiteSpace(currentItem?.Word?.MnemonicImageUri))
+{
+    <div id="quiz-fullscreen-viewer"
+         class="quiz-fullscreen-overlay"
+         role="dialog"
+         aria-modal="true"
+         aria-label="@($"{Localize["VocabQuiz_FullscreenPhoto"]}")"
+         @onclick="CloseImageFullscreen"
+         @onkeydown="HandleFullscreenKeydown">
+        <button type="button"
+                id="quiz-fullscreen-close"
+                class="quiz-fullscreen-close-btn"
+                aria-label="@($"{Localize["Common_Close"]}")"
+                @ref="fullscreenCloseButtonRef"
+                @onclick="CloseImageFullscreen"
+                @onclick:stopPropagation="true">
+            <i class="bi bi-x-lg" aria-hidden="true"></i>
+        </button>
+        <img src="@currentItem.Word.MnemonicImageUri"
+             alt="@($"{Localize["VocabQuiz_PhotoHint"]}")"
+             id="quiz-fullscreen-image"
+             class="quiz-fullscreen-image"
+             @onclick:stopPropagation="true" />
+    </div>
 }
 
 </div> @* end activity-page-wrapper *@
@@ -1652,6 +1688,9 @@ else
                 requireCorrectTyping = false;
                 showMnemonicImage = false;
                 showInfoPanel = false;
+                isImageFullscreen = false;
+                pendingFocusIntoFullscreen = false;
+                pendingFocusRestoreToThumbnail = false;
                 await PersistSnapshotAsync();
                 return;
             }
@@ -1665,6 +1704,9 @@ else
         requireCorrectTyping = false;
         showMnemonicImage = false;
         showInfoPanel = false;
+        isImageFullscreen = false;
+        pendingFocusIntoFullscreen = false;
+        pendingFocusRestoreToThumbnail = false;
         await LoadCurrentItem();
         await PersistSnapshotAsync();
     }
@@ -1789,6 +1831,74 @@ else
     }
 
     private void ToggleMnemonicImage() => showMnemonicImage = !showMnemonicImage;
+
+    private ElementReference thumbnailButtonRef;
+    private ElementReference fullscreenCloseButtonRef;
+    private bool pendingFocusIntoFullscreen;
+    private bool pendingFocusRestoreToThumbnail;
+
+    private void OpenImageFullscreen()
+    {
+        if (isImageFullscreen) return;
+        isImageFullscreen = true;
+        pendingFocusIntoFullscreen = true;
+        pendingFocusRestoreToThumbnail = false;
+    }
+
+    private void CloseImageFullscreen()
+    {
+        if (!isImageFullscreen) return;
+        isImageFullscreen = false;
+        pendingFocusIntoFullscreen = false;
+        pendingFocusRestoreToThumbnail = true;
+    }
+
+    private void HandleFullscreenKeydown(KeyboardEventArgs e)
+    {
+        if (string.Equals(e.Key, "Escape", StringComparison.OrdinalIgnoreCase))
+            CloseImageFullscreen();
+    }
+
+    // Render-safe one-shot focus lifecycle for the fullscreen photo overlay.
+    // - Moves focus to the close button after the overlay renders so Escape
+    //   (bubbling from the focused child up to @onkeydown on the overlay div)
+    //   closes immediately without requiring Tab.
+    // - Restores focus to the invoking thumbnail after the overlay unmounts.
+    // Both flags are cleared before awaiting so a second render can queue the
+    // next transition without racing. Framework refs:
+    //   https://learn.microsoft.com/aspnet/core/blazor/components/element-references
+    //   https://learn.microsoft.com/aspnet/core/blazor/components/lifecycle#after-component-render-onafterrenderasync
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (pendingFocusIntoFullscreen && isImageFullscreen)
+        {
+            pendingFocusIntoFullscreen = false;
+            try
+            {
+                await fullscreenCloseButtonRef.FocusAsync();
+            }
+            catch (Microsoft.JSInterop.JSDisconnectedException) { }
+            catch (ObjectDisposedException) { }
+            catch (Microsoft.JSInterop.JSException) { }
+            catch (TaskCanceledException) { }
+        }
+        else if (pendingFocusRestoreToThumbnail && !isImageFullscreen)
+        {
+            pendingFocusRestoreToThumbnail = false;
+            if (showMnemonicImage
+                && !string.IsNullOrWhiteSpace(currentItem?.Word?.MnemonicImageUri))
+            {
+                try
+                {
+                    await thumbnailButtonRef.FocusAsync();
+                }
+                catch (Microsoft.JSInterop.JSDisconnectedException) { }
+                catch (ObjectDisposedException) { }
+                catch (Microsoft.JSInterop.JSException) { }
+                catch (TaskCanceledException) { }
+            }
+        }
+    }
 
     private async Task ToggleShowTextWithPhotoAsync()
     {
@@ -1937,7 +2047,24 @@ else
 
     private bool HasPromptImage => !string.IsNullOrWhiteSpace(currentItem?.Word?.MnemonicImageUri);
 
-    private bool ShouldHideTermForPhoto => HasPromptImage && showPhotoPromptControl && showMnemonicImage && !showTextWithPhoto;
+    /// <summary>
+    /// Text may be hidden ONLY when the prompt is in the learner's native language.
+    /// Target-language terms are always visible — matching a photo to native text alone has no learning value,
+    /// but seeing the target-language script alongside the image builds recognition.
+    /// </summary>
+    private bool ShouldHideTermForPhoto => HasPromptImage
+        && promptUsesNativeLanguage
+        && showPhotoPromptControl
+        && showMnemonicImage
+        && !showTextWithPhoto;
+
+    /// <summary>
+    /// The Show/Hide Text toolbar action is eligible ONLY for native-language photo prompts.
+    /// For target-language prompts, text is always visible regardless of preference.
+    /// </summary>
+    private bool IsTextToggleEligible => HasPromptImage && showPhotoPromptControl && promptUsesNativeLanguage;
+
+    private bool isImageFullscreen;
 
     // Computed heading: when hiding term for photo, show a generic instruction
     // derived from the same localization keys ApplyPromptPreferences uses,
