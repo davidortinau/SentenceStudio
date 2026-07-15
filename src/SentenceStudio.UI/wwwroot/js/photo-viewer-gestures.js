@@ -133,6 +133,12 @@ function bindEvents(s) {
     s.handlers.lostpointercapture = (e) => onLostPointerCapture(s, e);
     s.handlers.wheel = (e) => onWheel(s, e);
     s.handlers.resize = () => onResize(s);
+    // Prevent click events on the image from bubbling to the backdrop dismiss
+    // handler. Pointer Events + touch-action:none suppresses synthetic clicks on
+    // most platforms, but some desktop browsers still fire click after a
+    // non-moving pointerdown/up sequence. This DOM-level guard is the narrowest
+    // fix that never interferes with double-tap (handled via pointerdown timing).
+    s.handlers.click = (e) => { e.stopPropagation(); };
 
     img.addEventListener('pointerdown', s.handlers.pointerdown);
     img.addEventListener('pointermove', s.handlers.pointermove);
@@ -140,6 +146,7 @@ function bindEvents(s) {
     img.addEventListener('pointercancel', s.handlers.pointercancel);
     img.addEventListener('lostpointercapture', s.handlers.lostpointercapture);
     img.addEventListener('wheel', s.handlers.wheel, { passive: false });
+    img.addEventListener('click', s.handlers.click);
 
     // Observe container resize (orientation changes, window resize)
     if (typeof ResizeObserver !== 'undefined') {
@@ -162,6 +169,7 @@ function unbindEvents(s) {
     img.removeEventListener('pointercancel', s.handlers.pointercancel);
     img.removeEventListener('lostpointercapture', s.handlers.lostpointercapture);
     img.removeEventListener('wheel', s.handlers.wheel);
+    img.removeEventListener('click', s.handlers.click);
 
     if (s.resizeObserver) {
         s.resizeObserver.disconnect();
@@ -173,11 +181,11 @@ function unbindEvents(s) {
     img.style.touchAction = '';
     img.removeAttribute('data-testid');
     s.overlay.removeAttribute('data-testid');
-    s.overlay.removeAttribute('data-viewer-scale');
-    s.overlay.removeAttribute('data-viewer-tx');
-    s.overlay.removeAttribute('data-viewer-ty');
-    s.overlay.removeAttribute('data-viewer-pointers');
-    s.overlay.removeAttribute('data-viewer-reset-gen');
+    s.overlay.removeAttribute('data-debug-scale');
+    s.overlay.removeAttribute('data-debug-translate-x');
+    s.overlay.removeAttribute('data-debug-translate-y');
+    s.overlay.removeAttribute('data-debug-pointers');
+    s.overlay.removeAttribute('data-debug-reset');
 }
 
 function resetTransform(s) {
@@ -192,14 +200,12 @@ function applyTransform(s) {
 }
 
 function updateDebugAttributes(s) {
-    // Only set attributes when DEBUG mode indicators are present
-    // (always set them — in Release, the module won't be loaded at all per the #if DEBUG guard)
     const o = s.overlay;
-    o.setAttribute('data-viewer-scale', s.scale.toFixed(3));
-    o.setAttribute('data-viewer-tx', s.tx.toFixed(1));
-    o.setAttribute('data-viewer-ty', s.ty.toFixed(1));
-    o.setAttribute('data-viewer-pointers', s.pointers.size.toString());
-    o.setAttribute('data-viewer-reset-gen', s.resetGeneration.toString());
+    o.setAttribute('data-debug-scale', s.scale.toFixed(3));
+    o.setAttribute('data-debug-translate-x', s.tx.toFixed(1));
+    o.setAttribute('data-debug-translate-y', s.ty.toFixed(1));
+    o.setAttribute('data-debug-pointers', s.pointers.size.toString());
+    o.setAttribute('data-debug-reset', s.resetGeneration.toString());
 }
 
 function scheduleRender(s) {
