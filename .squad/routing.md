@@ -15,6 +15,7 @@ How to decide who handles what.
 | AI response models, structured output | River | Create response DTO, adjust JSON schema, fix parsing |
 | Code review, quality gates | Zoe | Review PRs, check quality, suggest improvements |
 | Architecture, system design | Zoe | Project structure, dependency flow, API contracts |
+| Learning-activity UX changes (modes, directions, prompts, toggles) | Zoe (Learning Value Gate) | New activity, new mode, show/hide toggle, prompt direction, photo/audio prompt — see `.squad/skills/learning-value-gate/SKILL.md` |
 | Scope & priorities | Zoe | What to build next, trade-offs, decisions |
 | Issue triage | Zoe | Analyze issues, assign labels, evaluate @copilot fit |
 | Testing, E2E verification | Jayne | Run Playwright tests, verify database, check logs |

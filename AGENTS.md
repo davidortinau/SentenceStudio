@@ -38,7 +38,7 @@ A PR buys nothing here: there is no second reviewer, no branch protection on `ma
 
 ## Documentation
 
-**IMPORTANT: All documentation files (summaries, guides, technical specs, etc.) must be placed in the `docs/` folder at the repository root.** Do not create markdown documentation files at the repository root. 
+**IMPORTANT: All documentation files (summaries, guides, technical specs, etc.) must be placed in the `docs/` folder at the repository root.** Do not create markdown documentation files at the repository root.
 
 When building the app project you MUST include a target framework moniker (TFM) like this:
 
@@ -206,7 +206,7 @@ ICONS: **NEVER create inline FontImageSource instances**. All icons MUST be defi
            Size = 20
        })
    ```
-   
+
    ✅ CORRECT:
    ```csharp
    // First, add the icon to ApplicationTheme.Icons.cs if it doesn't exist:
@@ -217,12 +217,12 @@ ICONS: **NEVER create inline FontImageSource instances**. All icons MUST be defi
        Color = Gray600,
        Size = Size200
    };
-   
+
    // Then use it in your page:
    ImageButton()
        .Source(MyTheme.IconTag)
    ```
-   
+
    When you need a new icon, add it to `ApplicationTheme.Icons.cs` following the existing pattern. Use existing icons when available (e.g., `MyTheme.IconClose`, `MyTheme.IconSearch`, `MyTheme.IconEdit`, etc.).
 
 ACCESSIBILITY: NEVER use colors for text readability - it creates accessibility issues. Use colored backgrounds, borders, or icons instead. Text should always use theme-appropriate colors (MyTheme.DarkOnLightBackground, MyTheme.LightOnDarkBackground, etc.) for maximum readability and accessibility compliance.
@@ -235,7 +235,7 @@ ACCESSIBILITY: NEVER use colors for text readability - it creates accessibility 
    - **String concatenation over multiple Labels**: Use `Label($"🎯 {variable}")` instead of `HStack(Label("🎯"), Label(variable))`
    - **Avoid unnecessary wrappers**: Don't wrap single elements in Border/VStack/HStack unless there's a visual reason
    - **No invisible Borders**: If a Border has no stroke, background, or styling, don't use it
-   
+
    ❌ WRONG:
    ```csharp
    HStack(spacing: MyTheme.MicroSpacing,
@@ -247,7 +247,7 @@ ACCESSIBILITY: NEVER use colors for text readability - it creates accessibility 
        Label("Text")
    ) // Border serves no purpose
    ```
-   
+
    ✅ CORRECT:
    ```csharp
    Label($"📚 {resourceTitle}")
@@ -261,7 +261,7 @@ ACCESSIBILITY: NEVER use colors for text readability - it creates accessibility 
    Label("Text").VerticalOptions(LayoutOptions.Center)
    Label("Text").HorizontalOptions(LayoutOptions.Center).VerticalOptions(LayoutOptions.Center)
    ```
-   
+
    ✅ CORRECT:
    ```csharp
    Label("Text").HEnd()
@@ -281,7 +281,7 @@ ACCESSIBILITY: NEVER use colors for text readability - it creates accessibility 
    Label("Text").HorizontalOptions(LayoutOptions.FillAndExpand)
    VStack(...).VerticalOptions(LayoutOptions.FillAndExpand)
    ```
-   
+
    ✅ CORRECT:
    ```csharp
    Label("Text").HFill()
@@ -300,26 +300,26 @@ ACCESSIBILITY: NEVER use colors for text readability - it creates accessibility 
        .BorderWidth(1)
        .CornerRadius(8)
        .Padding(14, 10)
-   
+
    Label("Text")
        .TextColor(Colors.Black)
        .FontSize(16)
        .FontAttributes(FontAttributes.Bold)
    ```
-   
+
    ✅ CORRECT:
    ```csharp
    // Use theme keys for components with defined styles
    Button("Click Me")
        .ThemeKey(MyTheme.Primary)  // or MyTheme.Secondary, MyTheme.Danger
-   
+
    Label("Text")
        .ThemeKey(MyTheme.Title1)  // or Body1, Headline, Caption1, etc.
-   
+
    Border()
        .ThemeKey(MyTheme.CardStyle)  // or InputWrapper
    ```
-   
+
    **When theme keys aren't available**, use theme constants instead of hardcoded values:
    ```csharp
    Label("Text")
@@ -327,7 +327,7 @@ ACCESSIBILITY: NEVER use colors for text readability - it creates accessibility 
        .FontSize(MyTheme.Size160)       // Not 16
        .Margin(MyTheme.Size80)          // Not 8
    ```
-   
+
    **Available theme keys**:
    - **Buttons**: `Primary`, `Secondary`, `Danger`
    - **Labels**: `Title1`, `Title2`, `Title3`, `LargeTitle`, `Display`, `Headline`, `SubHeadline`, `Body1`, `Body1Strong`, `Body2`, `Body2Strong`, `Caption1`, `Caption1Strong`, `Caption2`
@@ -340,12 +340,12 @@ ACCESSIBILITY: NEVER use colors for text readability - it creates accessibility 
    ```csharp
    VStack(RenderHeader()).Padding(16).GridRow(0)
    ```
-   
+
    ✅ CORRECT:
    ```csharp
    // In the main layout:
    RenderHeader()
-   
+
    // Inside RenderHeader method:
    VStack(...).Padding(16).GridRow(0)
    ```
@@ -369,7 +369,7 @@ ACCESSIBILITY: NEVER use colors for text readability - it creates accessibility 
        CollectionView() // This will try to render ALL items!
    )
    ```
-   
+
    ✅ CORRECT:
    ```csharp
    Grid(rows: "Auto,Auto,*", columns: "*",
@@ -488,6 +488,23 @@ maui devflow ui tree --depth 1 # confirm the visual tree is reachable
 - ✅ No regressions in surrounding functionality
 - ❌ "It builds" alone is NOT sufficient for UI changes
 
+### Learning Value Gate (product-pedagogy) — required for activity changes
+
+**Any change that touches a learning activity's modes, directions, prompt/response modalities, toggles, defaults, or empty states must pass the Learning Value Gate** in `.squad/skills/learning-value-gate/SKILL.md` **before Zoe will approve the merge**. This is a blocking review, not a checklist item.
+
+The gate exists because SentenceStudio's product purpose is teaching a target language. States where the learner sees only their native language, or only a photo with native-language choices, provide no L2 learning value and must be unreachable. The 2026-07-15 Vocab Quiz photo-hide-text incident is the earning event — the toggle could hide the target-language term in `TargetToNative` direction, reducing the activity to picture-matching in the learner's own language.
+
+**Author obligations before requesting review** (all six required):
+
+1. State the learning objective in one sentence (recall / recognition / production / comprehension of what?).
+2. Enumerate the direction × prompt-modality × response-modality × toggle matrix and show every row produces L2 exposure or retrieval — see the template in the skill.
+3. For each row, name the SLA action and where the target-language token is retrieved or parsed.
+4. Trace the **default preference path** through the matrix. First-time users must not land on an empty-state row.
+5. Complete the answer-leakage sub-checklist (alt text, aria, prompt audio direction, cached filenames, distractors).
+6. Add or update acceptance cases in `.claude/skills/e2e-testing/references/*.md` — one case per matrix row. Vocab Quiz's matrix is §1.2 of `quiz-activities.md`.
+
+**Reviewer (Zoe) will block** on any row where both prompt and response are native-language, on any hide-text toggle that can hide target-language artifacts in a target-prompt direction, on any default path that lands in a blocked row, on missing `Mixed` coverage where the activity supports it, or on missing acceptance tests for newly-reachable rows.
+
 ### E2E test scripts
 
 Use the **e2e-testing** skill (`.claude/skills/e2e-testing/`) to verify bug fixes and features. The skill contains step-by-step test scripts for every activity and management page, organized as reference files you load on demand. Invoke it after every change.
@@ -527,7 +544,7 @@ return $"{_localize[item.TitleKey]}"; // May not match resource file format
    Button(_localize["ButtonText"])  // Returns object, not string!
    ContentPage(_localize["Title"], ...)  // Returns object, not string!
    ```
-   
+
    ✅ CORRECT:
    ```csharp
    Label($"{_localize["Key"]}")
@@ -546,7 +563,7 @@ return $"{_localize[item.TitleKey]}"; // May not match resource file format
    .BackgroundColor(MyTheme.ButtonBackground)
    .OnTapped(() => DoSomething())
    ```
-   
+
    ✅ CORRECT:
    ```csharp
    Button($"{_localize["ButtonText"]}")
@@ -608,6 +625,6 @@ Process launch failed: Launchd job spawn failed
 
 **NEVER use emoji characters in UI, code output, logs, or any user-facing text.** This is non-negotiable. Use Bootstrap icons (bi-* classes) or plain text labels instead. Examples:
 - Instead of a checkmark emoji, use `<i class="bi bi-check-circle-fill"></i>`
-- Instead of an X emoji, use `<i class="bi bi-x-circle-fill"></i>`  
+- Instead of an X emoji, use `<i class="bi bi-x-circle-fill"></i>`
 - Instead of a clock emoji, use `<i class="bi bi-clock"></i>`
 - Instead of emoji decorations around text, just use the text with an icon prefix
