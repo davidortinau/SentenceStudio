@@ -2197,6 +2197,7 @@ main.main-content:has(.matching-page-wrapper) {
     justify-content: center;
     background: rgba(0, 0, 0, 0.92);
     cursor: pointer;
+    overflow: hidden;
     animation: quiz-fullscreen-fade-in 0.2s ease;
 }
 
@@ -2241,6 +2242,7 @@ main.main-content:has(.matching-page-wrapper) {
     cursor: default;
     user-select: none;
     -webkit-user-drag: none;
+    will-change: transform;
 }
 
 .quiz-photo-thumbnail {

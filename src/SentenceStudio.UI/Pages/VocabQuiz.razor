@@ -1838,6 +1838,13 @@ else
     private bool pendingFocusIntoFullscreen;
     private bool pendingFocusRestoreToThumbnail;
 
+#if DEBUG
+    // Pointer Events gesture module for fullscreen photo zoom/pan (Prototype A).
+    // Loaded lazily on first fullscreen open; detached on close/dispose/image-change.
+    private IJSObjectReference? gestureModule;
+    private bool gestureAttachPending;
+#endif
+
     private async Task OpenImageFullscreen()
     {
         if (isImageFullscreen) return;
@@ -1856,6 +1863,9 @@ else
         isImageFullscreen = true;
         pendingFocusIntoFullscreen = true;
         pendingFocusRestoreToThumbnail = false;
+#if DEBUG
+        gestureAttachPending = true;
+#endif
     }
 
     private void CloseImageFullscreen()
@@ -1864,6 +1874,10 @@ else
         isImageFullscreen = false;
         pendingFocusIntoFullscreen = false;
         pendingFocusRestoreToThumbnail = true;
+#if DEBUG
+        gestureAttachPending = false;
+        _ = DetachGestureModuleAsync();
+#endif
     }
 
     private void HandleFullscreenKeydown(KeyboardEventArgs e)
@@ -1911,7 +1925,43 @@ else
                 catch (TaskCanceledException) { }
             }
         }
+
+#if DEBUG
+        // Attach Pointer Events gesture module after the fullscreen image DOM element exists
+        if (gestureAttachPending && isImageFullscreen)
+        {
+            gestureAttachPending = false;
+            try
+            {
+                gestureModule ??= await JS.InvokeAsync<IJSObjectReference>(
+                    "import", "./_content/SentenceStudio.UI/js/photo-viewer-gestures.js");
+                await gestureModule.InvokeVoidAsync("attach", "quiz-fullscreen-image", "quiz-fullscreen-viewer");
+            }
+            catch (Microsoft.JSInterop.JSDisconnectedException) { }
+            catch (ObjectDisposedException) { }
+            catch (Microsoft.JSInterop.JSException ex)
+            {
+                Logger.LogDebug(ex, "Photo viewer gesture module attach failed");
+            }
+            catch (TaskCanceledException) { }
+        }
+#endif
     }
+
+#if DEBUG
+    private async Task DetachGestureModuleAsync()
+    {
+        if (gestureModule is null) return;
+        try
+        {
+            await gestureModule.InvokeVoidAsync("detach");
+        }
+        catch (Microsoft.JSInterop.JSDisconnectedException) { }
+        catch (ObjectDisposedException) { }
+        catch (Microsoft.JSInterop.JSException) { }
+        catch (TaskCanceledException) { }
+    }
+#endif
 
     private async Task ToggleShowTextWithPhotoAsync()
     {
@@ -2034,6 +2084,14 @@ else
         audioPlayer?.Stop();
         audioPlayer?.Dispose();
         audioPlayer = null;
+#if DEBUG
+        if (gestureModule is not null)
+        {
+            try { await gestureModule.InvokeVoidAsync("detach"); } catch { }
+            try { await gestureModule.DisposeAsync(); } catch { }
+            gestureModule = null;
+        }
+#endif
     }
 
     private void ApplyPromptPreferences()
