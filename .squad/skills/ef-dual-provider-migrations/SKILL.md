@@ -186,13 +186,14 @@ bash scripts/validate-mobile-migrations.sh
 ```
 
 This:
-1. Builds Mac Catalyst Debug
-2. Launches via `maui devflow`
-3. Waits for migrations to apply
-4. Scans logs for `SQLite Error`, `no such column`, etc.
-5. HARD-FAILS if native logs can't be fetched or the `Schema sanity check PASSED` signal
-   is absent (a green grep over an empty log proves nothing — this is how the false-pass
-   happened). If DevFlow attached to the WRONG app, close the other DevFlow app and re-run.
+1. Builds macOS AppKit Debug (with `ValidateXcodeVersion=false` for Xcode 26.4)
+2. Launches the binary directly (captures ILogger.AddConsole() output)
+3. Waits for DevFlow agent on port 9225 (explicit, not broker auto-discovery)
+4. Verifies attached agent identity is SentenceStudio (not a stale/foreign agent)
+5. Fetches logs via DevFlow if available; falls back to captured console output
+6. Scans for `SQLite Error`, `no such column`, etc.
+7. HARD-FAILS if the `Schema sanity check PASSED` signal is absent (a green grep over
+   an empty log proves nothing — this is how the false-pass happened).
 
 **DO NOT SKIP EITHER.** 5a catches missing-attribute (silent-skip) bugs that 5b's log
 scan and any raw-DDL test would miss; 5b catches runtime SQL/type failures.
