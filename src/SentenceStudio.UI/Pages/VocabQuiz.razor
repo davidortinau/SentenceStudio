@@ -623,6 +623,7 @@ else
     [Inject] private SentenceStudio.Services.Timer.IActivityTimerService ActivityTimer { get; set; } = default!;
     [Inject] private UserProfileRepository UserProfileRepo { get; set; } = default!;
     [Inject] private IActivitySessionService SessionService { get; set; } = default!;
+    [Inject] private SentenceStudio.Abstractions.PhotoViewerCoordinator PhotoViewer { get; set; } = default!;
 
     private const int BatchSize = 20;
     private const int ActiveWordCount = 10;
@@ -1837,9 +1838,21 @@ else
     private bool pendingFocusIntoFullscreen;
     private bool pendingFocusRestoreToThumbnail;
 
-    private void OpenImageFullscreen()
+    private async Task OpenImageFullscreen()
     {
         if (isImageFullscreen) return;
+
+        // Try native photo viewer first; fall back to Razor overlay if unavailable
+        if (SentenceStudio.Abstractions.PhotoViewerRequest.TryCreate(
+                currentItem?.Word?.MnemonicImageUri,
+                $"{Localize["VocabQuiz_PhotoHint"]}",
+                out var request))
+        {
+            var handledByNative = await PhotoViewer.TryShowNativeAsync(request);
+            if (handledByNative)
+                return;
+        }
+
         isImageFullscreen = true;
         pendingFocusIntoFullscreen = true;
         pendingFocusRestoreToThumbnail = false;

@@ -1,3 +1,4 @@
+using SentenceStudio.Abstractions;
 using SentenceStudio.Repositories;
 using SentenceStudio.Services.LanguageSegmentation;
 using SentenceStudio.Services.Numbers;
@@ -172,6 +173,20 @@ public static class CoreServiceExtensions
             return new ElevenLabsNumberTtsAdapter(elevenLabsService);
         });
         services.AddSingleton<INumberAudioCache, NumberAudioCache>();
+
+        // Photo viewer presentation seam — reversible abstraction for prototype comparison.
+        // Release: always uses DefaultPhotoViewerService (declines native → Razor overlay).
+        // Debug: DebugPhotoViewerSelector reads a preference key to choose prototype path.
+#if DEBUG
+        services.AddSingleton<IPhotoViewerService>(sp =>
+            new DebugPhotoViewerSelector(
+                sp.GetRequiredService<IPreferencesService>(),
+                sp.GetRequiredService<Microsoft.Extensions.Logging.ILoggerFactory>()
+                    .CreateLogger<DebugPhotoViewerSelector>()));
+#else
+        services.AddSingleton<IPhotoViewerService, DefaultPhotoViewerService>();
+#endif
+        services.AddSingleton<PhotoViewerCoordinator>();
 
         return services;
     }
