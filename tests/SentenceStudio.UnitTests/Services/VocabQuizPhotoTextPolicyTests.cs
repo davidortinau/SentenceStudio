@@ -64,6 +64,249 @@ public sealed class VocabQuizPhotoTextPolicyTests
         result.Should().BeTrue("native-language text is hidden by default when photo is visible");
     }
 
+    [Fact]
+    public void NativeLanguagePhotoPrompt_BeforeAnswer_TextRemainsHidden()
+    {
+        var result = VocabQuizPhotoTextPolicy.ShouldDisplayText(
+            textPromptActive: false,
+            hasImage: true,
+            photoPromptActive: true,
+            imageVisible: true,
+            promptIsNativeLanguage: true,
+            showTextOverride: false,
+            isAnswerFeedbackVisible: false);
+
+        result.Should().BeFalse("native-language text must not leak before grading");
+    }
+
+    [Fact]
+    public void NativeLanguagePhotoPrompt_DefaultTextAndPhoto_BeforeAnswer_TextIsHidden()
+    {
+        var result = VocabQuizPhotoTextPolicy.ShouldDisplayText(
+            textPromptActive: true,
+            hasImage: true,
+            photoPromptActive: true,
+            imageVisible: true,
+            promptIsNativeLanguage: true,
+            showTextOverride: false,
+            isAnswerFeedbackVisible: false);
+
+        result.Should().BeFalse("photo-hide policy must override the enabled text-prompt default");
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void NativeLanguagePhotoPrompt_DefaultTextAndPhoto_DuringFeedback_TextIsRevealed(
+        bool answerWasCorrect)
+    {
+        var result = VocabQuizPhotoTextPolicy.ShouldDisplayText(
+            textPromptActive: true,
+            hasImage: true,
+            photoPromptActive: true,
+            imageVisible: true,
+            promptIsNativeLanguage: true,
+            showTextOverride: false,
+            isAnswerFeedbackVisible: true);
+
+        result.Should().BeTrue(
+            $"answer feedback must reveal the native prompt after a {(answerWasCorrect ? "correct" : "incorrect")} answer");
+    }
+
+    [Fact]
+    public void NativeLanguagePhotoPrompt_CorrectFeedback_RevealsText()
+    {
+        var result = VocabQuizPhotoTextPolicy.ShouldDisplayText(
+            textPromptActive: false,
+            hasImage: true,
+            photoPromptActive: true,
+            imageVisible: true,
+            promptIsNativeLanguage: true,
+            showTextOverride: false,
+            isAnswerFeedbackVisible: true);
+
+        result.Should().BeTrue("correct feedback must reveal the native-language prompt");
+    }
+
+    [Fact]
+    public void NativeLanguagePhotoPrompt_IncorrectFeedback_RevealsText()
+    {
+        var result = VocabQuizPhotoTextPolicy.ShouldDisplayText(
+            textPromptActive: false,
+            hasImage: true,
+            photoPromptActive: true,
+            imageVisible: true,
+            promptIsNativeLanguage: true,
+            showTextOverride: false,
+            isAnswerFeedbackVisible: true);
+
+        result.Should().BeTrue("incorrect feedback must reveal the native-language prompt");
+    }
+
+    [Fact]
+    public void NativeLanguagePhotoPrompt_NextItem_HidesTextAgain()
+    {
+        var displayedBeforeAnswer = VocabQuizPhotoTextPolicy.ShouldDisplayText(
+            textPromptActive: false,
+            hasImage: true, photoPromptActive: true, imageVisible: true,
+            promptIsNativeLanguage: true, showTextOverride: false,
+            isAnswerFeedbackVisible: false);
+        var displayedDuringFeedback = VocabQuizPhotoTextPolicy.ShouldDisplayText(
+            textPromptActive: false,
+            hasImage: true, photoPromptActive: true, imageVisible: true,
+            promptIsNativeLanguage: true, showTextOverride: false,
+            isAnswerFeedbackVisible: true);
+        var displayedOnNextItem = VocabQuizPhotoTextPolicy.ShouldDisplayText(
+            textPromptActive: false,
+            hasImage: true, photoPromptActive: true, imageVisible: true,
+            promptIsNativeLanguage: true, showTextOverride: false,
+            isAnswerFeedbackVisible: false);
+
+        displayedBeforeAnswer.Should().BeFalse();
+        displayedDuringFeedback.Should().BeTrue();
+        displayedOnNextItem.Should().BeFalse("loading the next item resets the answer-feedback state");
+    }
+
+    [Fact]
+    public void TargetLanguagePhotoPrompt_FeedbackState_DoesNotChangeVisibility()
+    {
+        var displayedBeforeAnswer = VocabQuizPhotoTextPolicy.ShouldDisplayText(
+            textPromptActive: false,
+            hasImage: true, photoPromptActive: true, imageVisible: true,
+            promptIsNativeLanguage: false, showTextOverride: false,
+            isAnswerFeedbackVisible: false);
+        var displayedDuringFeedback = VocabQuizPhotoTextPolicy.ShouldDisplayText(
+            textPromptActive: false,
+            hasImage: true, photoPromptActive: true, imageVisible: true,
+            promptIsNativeLanguage: false, showTextOverride: false,
+            isAnswerFeedbackVisible: true);
+
+        displayedBeforeAnswer.Should().BeTrue();
+        displayedDuringFeedback.Should().BeTrue("target-language prompts are always visible");
+    }
+
+    [Fact]
+    public void NativeLanguagePhotoPrompt_UserOverride_RemainsVisibleWithoutFlicker()
+    {
+        var displayedBeforeAnswer = VocabQuizPhotoTextPolicy.ShouldDisplayText(
+            textPromptActive: false,
+            hasImage: true, photoPromptActive: true, imageVisible: true,
+            promptIsNativeLanguage: true, showTextOverride: true,
+            isAnswerFeedbackVisible: false);
+        var displayedDuringFeedback = VocabQuizPhotoTextPolicy.ShouldDisplayText(
+            textPromptActive: false,
+            hasImage: true, photoPromptActive: true, imageVisible: true,
+            promptIsNativeLanguage: true, showTextOverride: true,
+            isAnswerFeedbackVisible: true);
+
+        displayedBeforeAnswer.Should().BeTrue();
+        displayedDuringFeedback.Should().BeTrue("the user override keeps text visible across grading");
+    }
+
+    [Fact]
+    public void NonPhotoPrompt_FeedbackState_DoesNotChangeVisibility()
+    {
+        var displayedBeforeAnswer = VocabQuizPhotoTextPolicy.ShouldDisplayText(
+            textPromptActive: false,
+            hasImage: false, photoPromptActive: false, imageVisible: false,
+            promptIsNativeLanguage: true, showTextOverride: false,
+            isAnswerFeedbackVisible: false);
+        var displayedDuringFeedback = VocabQuizPhotoTextPolicy.ShouldDisplayText(
+            textPromptActive: false,
+            hasImage: false, photoPromptActive: false, imageVisible: false,
+            promptIsNativeLanguage: true, showTextOverride: false,
+            isAnswerFeedbackVisible: true);
+
+        displayedBeforeAnswer.Should().BeFalse();
+        displayedDuringFeedback.Should().BeFalse("non-photo scenarios preserve the configured text-prompt state");
+    }
+
+    // ──────────────────────────────────────────────────────────────
+    //  Prompt heading — hidden photo policy takes precedence
+    // ──────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void NativeLanguagePhotoPrompt_DefaultTextAndPhoto_BeforeAnswer_UsesGenericHeading()
+    {
+        var result = VocabQuizPhotoTextPolicy.GetPromptHeadingKind(
+            textPromptActive: true,
+            hasImage: true,
+            photoPromptActive: true,
+            imageVisible: true,
+            promptIsNativeLanguage: true,
+            showTextOverride: false,
+            isAnswerFeedbackVisible: false,
+            audioPromptActive: false);
+
+        result.Should().Be(VocabQuizPromptHeadingKind.LookAndAnswerInstruction,
+            "the enabled text prompt must not leak through promptTitle");
+    }
+
+    [Fact]
+    public void NativeLanguageAudioPhotoPrompt_DefaultText_BeforeAnswer_UsesGenericListeningHeading()
+    {
+        var result = VocabQuizPhotoTextPolicy.GetPromptHeadingKind(
+            textPromptActive: true,
+            hasImage: true,
+            photoPromptActive: true,
+            imageVisible: true,
+            promptIsNativeLanguage: true,
+            showTextOverride: false,
+            isAnswerFeedbackVisible: false,
+            audioPromptActive: true);
+
+        result.Should().Be(VocabQuizPromptHeadingKind.ListenLookAndAnswerInstruction);
+    }
+
+    [Fact]
+    public void NativeLanguagePhotoPrompt_DefaultTextAndPhoto_DuringFeedback_UsesQuestionTextHeading()
+    {
+        var result = VocabQuizPhotoTextPolicy.GetPromptHeadingKind(
+            textPromptActive: true,
+            hasImage: true,
+            photoPromptActive: true,
+            imageVisible: true,
+            promptIsNativeLanguage: true,
+            showTextOverride: false,
+            isAnswerFeedbackVisible: true,
+            audioPromptActive: false);
+
+        result.Should().Be(VocabQuizPromptHeadingKind.QuestionText);
+    }
+
+    [Fact]
+    public void NonPhotoPrompt_WithTextDisabled_PreservesConfiguredInstructionHeading()
+    {
+        var result = VocabQuizPhotoTextPolicy.GetPromptHeadingKind(
+            textPromptActive: false,
+            hasImage: false,
+            photoPromptActive: false,
+            imageVisible: false,
+            promptIsNativeLanguage: true,
+            showTextOverride: false,
+            isAnswerFeedbackVisible: false,
+            audioPromptActive: true);
+
+        result.Should().Be(VocabQuizPromptHeadingKind.ConfiguredInstruction);
+    }
+
+    [Fact]
+    public void TargetLanguagePhotoPrompt_WithTextDisabled_StillUsesQuestionTextHeading()
+    {
+        var result = VocabQuizPhotoTextPolicy.GetPromptHeadingKind(
+            textPromptActive: false,
+            hasImage: true,
+            photoPromptActive: true,
+            imageVisible: true,
+            promptIsNativeLanguage: false,
+            showTextOverride: false,
+            isAnswerFeedbackVisible: false,
+            audioPromptActive: false);
+
+        result.Should().Be(VocabQuizPromptHeadingKind.QuestionText,
+            "target-language text remains the learning-bearing prompt");
+    }
+
     // ──────────────────────────────────────────────────────────────
     //  ShouldHideText — user preference override
     // ──────────────────────────────────────────────────────────────

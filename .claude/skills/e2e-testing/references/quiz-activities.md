@@ -44,8 +44,8 @@ Symbols under test (do not invent new ones — use these exact fields):
 | C | TargetToNative | true | **false** | Photo only, **no target text** | Native-language options | ❌ **BLOCKED — no L2 on screen** | The "Hide text with photo" toggle **must be unreachable** in this direction — either not rendered, or rendered but disabled with an aria-labeled explanation. If reachable and pressed, the target term must not be hidden. Failing this row is a Learning Value Gate violation and blocks release. |
 | D | NativeToTarget | false | — | Native-language cue (text) | Target-language options | ✅ recall of form | Native prompt visible; response is target; correct answer scores. |
 | E | NativeToTarget | true | true | Native cue + photo | Target-language options | ✅ recall + visual anchor | Both visible; response is target. |
-| F | NativeToTarget | true | false | Photo only, native text hidden | Target-language options | ✅ picture → target recall | Native prompt may be hidden because response set is still target-language; learner retrieves target form from picture. |
-| G | Mixed | true | false | Per turn: rows C or F | Per turn | Depends per turn | Every native-prompt turn behaves like F. Every target-prompt turn must behave like B (target term visible) even though `ShowTextWithPhoto=false`. Rejects if any target-prompt turn hides the target term. |
+| F | NativeToTarget | true | false | Photo only before grading; native text during feedback | Target-language options | ✅ picture → target recall | Native prompt is hidden before submission, then revealed for both correct and incorrect feedback until auto/manual advance. |
+| G | Mixed | true | false | Per turn: rows C or F | Per turn | Depends per turn | Every native-prompt turn behaves like F, including feedback reveal and next-item reset. Every target-prompt turn behaves like B even though `ShowTextWithPhoto=false`. Rejects if any target-prompt turn hides the target term. |
 
 **Executable checks per row:**
 
@@ -55,11 +55,17 @@ Symbols under test (do not invent new ones — use these exact fields):
    - Row A/B/D/E/G-target: assert the target-language term text is present in the prompt heading region (`.ss-display` or equivalent).
    - Row C: assert the target-language term is **not** present in the DOM. If it is not present, this row is a **failure**, because such a state must be unreachable. Passing this row requires either that the toggle producing it is not rendered, or that clicking it does not remove the target term.
    - Row F/G-native: assert the native prompt may be absent from the DOM (permitted), and assert the response buttons contain target-language text.
-4. Answer-leakage sub-checks (all rows):
+4. For row F and native-prompt turns in row G:
+   - Before grading, assert the native prompt text is absent.
+   - Submit a correct answer and assert the native prompt text appears immediately, remains visible during the feedback interval, then is hidden again if the next item is another native photo prompt.
+   - Repeat with an incorrect answer and assert the same feedback reveal and next-item reset.
+   - With `ShowTextWithPhoto=true`, assert the prompt remains continuously visible through grading without flicker.
+   - Row F default-text subcase: set `UseTextPrompt=true`, `UsePhotoPrompt=true`, and `ShowTextWithPhoto=true`; press **Hide Text**, assert the native term is absent before grading, present during feedback, and absent again on the next native photo item.
+5. Answer-leakage sub-checks (all rows):
    - `img[alt]` on prompt photo does not contain the correct answer term.
    - The speaker button, when pressed, plays audio in the **prompt** language, never the answer language (per #193 anti-cheat, `GetPromptAudioLanguage` in `VocabQuiz.razor:1969`).
    - No MC option element contains substring-matched target-form leakage in an aria-label if the prompt is native and text is hidden.
-5. Empty-state check: with a **brand-new profile** (no preferences persisted, `VocabQuizShowTextWithPhoto` defaults from `AddVocabQuizShowTextWithPhoto` migration = `false`), toggle `UsePhotoPrompt=true` and verify the resulting state is **not** row C. This is the exact incident-repro test.
+6. Empty-state check: with a **brand-new profile** (no preferences persisted, `VocabQuizShowTextWithPhoto` defaults from `AddVocabQuizShowTextWithPhoto` migration = `false`), toggle `UsePhotoPrompt=true` and verify the resulting state is **not** row C. This is the exact incident-repro test.
 
 **Pitfalls specific to this matrix:**
 
