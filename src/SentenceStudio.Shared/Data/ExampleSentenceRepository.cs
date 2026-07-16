@@ -14,6 +14,8 @@ public class ExampleSentenceRepository
     // Matches ExampleSentence.TargetSentence / NativeSentence [MaxLength(500)] — enforced by the
     // Postgres provider. Guard harvest inserts against it so a run-on segment can't abort a batch.
     private const int MaxSentenceLength = 500;
+    private const int MaxQuizHintWordIds = 20;
+    private const int MaxQuizHintsPerWord = 3;
 
     private readonly ApplicationDbContext _context;
     private readonly ILogger<ExampleSentenceRepository> _logger;
@@ -86,6 +88,145 @@ public class ExampleSentenceRepository
     {
         var eligible = await GetQuizEligibleAsync(vocabularyWordId);
         return eligible.FirstOrDefault();
+    }
+
+    /// <summary>
+    /// Returns target-language-only sentence hints for a bounded vocabulary batch.
+    /// Ownership is proven by an exact word/resource mapping to a learning resource
+    /// owned by the explicit user. Unlinked or ambiguously owned examples are omitted.
+    /// </summary>
+    public async Task<IReadOnlyList<VocabQuizSentenceHint>> GetQuizHintsForWordsAsync(
+        string userId,
+        IEnumerable<string>? vocabularyWordIds,
+        string? targetCefrLevel,
+        int maxHintsPerWord = MaxQuizHintsPerWord,
+        CancellationToken ct = default)
+    {
+        ct.ThrowIfCancellationRequested();
+
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            _logger.LogWarning(
+                "GetQuizHintsForWordsAsync called with no userId — returning empty result to prevent cross-tenant data leak.");
+            return Array.Empty<VocabQuizSentenceHint>();
+        }
+
+        var requestedWordIds = vocabularyWordIds?
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Select(id => id.Trim())
+            .Distinct(StringComparer.Ordinal)
+            .ToList() ?? new List<string>();
+
+        if (requestedWordIds.Count == 0)
+        {
+            _logger.LogWarning(
+                "GetQuizHintsForWordsAsync called with no vocabulary word IDs — returning empty result.");
+            return Array.Empty<VocabQuizSentenceHint>();
+        }
+
+        if (requestedWordIds.Count > MaxQuizHintWordIds)
+        {
+            _logger.LogWarning(
+                "GetQuizHintsForWordsAsync called with {WordCount} distinct vocabulary word IDs; maximum is {Maximum}. Returning empty result.",
+                requestedWordIds.Count,
+                MaxQuizHintWordIds);
+            return Array.Empty<VocabQuizSentenceHint>();
+        }
+
+        if (maxHintsPerWord is < 1 or > MaxQuizHintsPerWord)
+        {
+            _logger.LogWarning(
+                "GetQuizHintsForWordsAsync called with maxHintsPerWord {Maximum}; supported range is 1-{SupportedMaximum}. Returning empty result.",
+                maxHintsPerWord,
+                MaxQuizHintsPerWord);
+            return Array.Empty<VocabQuizSentenceHint>();
+        }
+
+        var normalizedUserId = userId.Trim();
+        var ownedCandidates =
+            from sentence in _context.ExampleSentences.AsNoTracking()
+            join mapping in _context.ResourceVocabularyMappings.AsNoTracking()
+                on new
+                {
+                    sentence.VocabularyWordId,
+                    ResourceId = sentence.LearningResourceId
+                }
+                equals new
+                {
+                    mapping.VocabularyWordId,
+                    ResourceId = (string?)mapping.ResourceId
+                }
+            join resource in _context.LearningResources.AsNoTracking()
+                on mapping.ResourceId equals resource.Id
+            where requestedWordIds.Contains(sentence.VocabularyWordId)
+                && sentence.TargetSentence.Trim() != string.Empty
+                && !sentence.IsFlagged
+                && (sentence.Status == ExampleSentenceStatus.Curated
+                    || sentence.Status == ExampleSentenceStatus.Verified)
+            select new
+            {
+                resource.UserProfileId,
+                ExampleSentenceId = sentence.Id,
+                sentence.VocabularyWordId,
+                sentence.TargetSentence,
+                sentence.DifficultyLevel,
+                sentence.IsCore,
+                sentence.Status,
+                sentence.CreatedAt
+            };
+
+        var rows = await (
+            from user in _context.UserProfiles.AsNoTracking()
+            where user.Id == normalizedUserId
+            join candidate in ownedCandidates
+                on user.Id equals candidate.UserProfileId into candidateGroup
+            from candidate in candidateGroup.DefaultIfEmpty()
+            select new
+            {
+                ExistingUserId = user.Id,
+                ExampleSentenceId = (int?)candidate.ExampleSentenceId,
+                candidate.VocabularyWordId,
+                candidate.TargetSentence,
+                DifficultyLevel = (int?)candidate.DifficultyLevel,
+                IsCore = (bool?)candidate.IsCore,
+                Status = (ExampleSentenceStatus?)candidate.Status,
+                CreatedAt = (DateTime?)candidate.CreatedAt
+            })
+            .ToListAsync(ct);
+
+        if (rows.Count == 0)
+        {
+            _logger.LogWarning(
+                "GetQuizHintsForWordsAsync called with an unknown userId — returning empty result to prevent cross-tenant data leak.");
+            return Array.Empty<VocabQuizSentenceHint>();
+        }
+
+        var candidates = rows
+            .Where(row => row.ExampleSentenceId.HasValue)
+            .Select(row => new QuizHintCandidate(
+                row.ExampleSentenceId!.Value,
+                row.VocabularyWordId!,
+                row.TargetSentence!,
+                row.DifficultyLevel,
+                row.IsCore!.Value,
+                row.Status!.Value,
+                row.CreatedAt!.Value));
+        var targetDifficulty = MapCefrToDifficulty(targetCefrLevel);
+        var wordOrder = requestedWordIds
+            .Select((id, index) => new { id, index })
+            .ToDictionary(item => item.id, item => item.index, StringComparer.Ordinal);
+
+        return candidates
+            .DistinctBy(candidate => candidate.ExampleSentenceId)
+            .GroupBy(candidate => candidate.VocabularyWordId, StringComparer.Ordinal)
+            .OrderBy(group => wordOrder[group.Key])
+            .SelectMany(group => RankQuizHintCandidates(group, targetDifficulty)
+                .Take(maxHintsPerWord)
+                .Select(candidate => new VocabQuizSentenceHint(
+                    candidate.ExampleSentenceId,
+                    candidate.VocabularyWordId,
+                    candidate.TargetSentence.Trim())))
+            .ToList();
     }
 
     /// <summary>
@@ -342,6 +483,59 @@ public class ExampleSentenceRepository
 
         return sentence.Contains(trimmed[..^1], StringComparison.OrdinalIgnoreCase);
     }
+
+    private static int? MapCefrToDifficulty(string? targetCefrLevel)
+    {
+        if (string.IsNullOrWhiteSpace(targetCefrLevel))
+            return null;
+
+        return targetCefrLevel.Trim().ToUpperInvariant() switch
+        {
+            "A1" => 1,
+            "A2" => 2,
+            "B1" => 3,
+            "B2" => 4,
+            "C1" or "C2" => 5,
+            _ => null
+        };
+    }
+
+    private static IOrderedEnumerable<QuizHintCandidate> RankQuizHintCandidates(
+        IEnumerable<QuizHintCandidate> candidates,
+        int? targetDifficulty)
+    {
+        IOrderedEnumerable<QuizHintCandidate> ranked;
+        if (targetDifficulty.HasValue)
+        {
+            ranked = candidates
+                .OrderBy(candidate => IsKnownDifficulty(candidate.DifficultyLevel) ? 0 : 1)
+                .ThenBy(candidate => IsKnownDifficulty(candidate.DifficultyLevel)
+                    ? Math.Abs(candidate.DifficultyLevel!.Value - targetDifficulty.Value)
+                    : int.MaxValue);
+        }
+        else
+        {
+            ranked = candidates.OrderBy(_ => 0);
+        }
+
+        return ranked
+            .ThenByDescending(candidate => candidate.IsCore)
+            .ThenByDescending(candidate => candidate.Status == ExampleSentenceStatus.Verified)
+            .ThenBy(candidate => candidate.CreatedAt)
+            .ThenBy(candidate => candidate.ExampleSentenceId);
+    }
+
+    private static bool IsKnownDifficulty(int? difficultyLevel) =>
+        difficultyLevel is >= 1 and <= 5;
+
+    private sealed record QuizHintCandidate(
+        int ExampleSentenceId,
+        string VocabularyWordId,
+        string TargetSentence,
+        int? DifficultyLevel,
+        bool IsCore,
+        ExampleSentenceStatus Status,
+        DateTime CreatedAt);
 
     /// <summary>
     /// Clear IsCore on all other example sentences for a word so at most one stays core.
