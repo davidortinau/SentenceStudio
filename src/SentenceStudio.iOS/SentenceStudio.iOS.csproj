@@ -31,6 +31,14 @@
 		<Registrar>dynamic</Registrar>
 	</PropertyGroup>
 
+	<!-- Opt-in device validation build: defines PHOTO_VIEWER_DEVICE_VALIDATION in Release
+	     to enable DevFlow agent/tools and WebView diagnostic attributes for automated
+	     physical device testing. Does NOT define DEBUG or enable any other test code.
+	     Usage: dotnet build -f net11.0-ios -c Release -p:PhotoViewerDeviceValidation=true -->
+	<PropertyGroup Condition="'$(PhotoViewerDeviceValidation)' == 'true'">
+		<DefineConstants>$(DefineConstants);PHOTO_VIEWER_DEVICE_VALIDATION</DefineConstants>
+	</PropertyGroup>
+
 	<ItemGroup>
 		<PackageReference Include="Microsoft.Maui.Controls" />
 		<PackageReference Include="Microsoft.AspNetCore.Components.WebView.Maui" />
@@ -39,8 +47,8 @@
 		<PackageReference Include="Microsoft.Extensions.Logging.Debug" />
 		<PackageReference Include="Microsoft.Extensions.Logging.Console" />
 		<PackageReference Include="Shiny.Hosting.Maui" />
-		<PackageReference Include="Microsoft.Maui.DevFlow.Agent" Condition="'$(Configuration)'=='Debug'" />
-		<PackageReference Include="Microsoft.Maui.DevFlow.Blazor" Condition="'$(Configuration)'=='Debug'" />
+		<PackageReference Include="Microsoft.Maui.DevFlow.Agent" Condition="'$(Configuration)'=='Debug' Or '$(PhotoViewerDeviceValidation)'=='true'" />
+		<PackageReference Include="Microsoft.Maui.DevFlow.Blazor" Condition="'$(Configuration)'=='Debug' Or '$(PhotoViewerDeviceValidation)'=='true'" />
 	</ItemGroup>
 
 	<ItemGroup>

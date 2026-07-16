@@ -33,9 +33,11 @@ let state = null;
  *
  * @param {string} imageId - DOM id of the <img> element
  * @param {string} overlayId - DOM id of the overlay container (for resize observation)
+ * @param {Object} [options] - Optional configuration
+ * @param {boolean} [options.diagnostics=false] - Emit data-debug-* attributes for automation
  * @returns {boolean} true if attached successfully
  */
-export function attach(imageId, overlayId) {
+export function attach(imageId, overlayId, options) {
     // Detach any previous instance (defensive)
     detach();
 
@@ -43,10 +45,11 @@ export function attach(imageId, overlayId) {
     const overlay = document.getElementById(overlayId);
     if (!img || !overlay) return false;
 
-    state = createState(img, overlay);
+    const diagnostics = !!(options && options.diagnostics);
+    state = createState(img, overlay, diagnostics);
     bindEvents(state);
     applyTransform(state);
-    updateDebugAttributes(state);
+    if (state.diagnostics) updateDebugAttributes(state);
     return true;
 }
 
@@ -72,7 +75,7 @@ export function reset() {
     state.resetGeneration++;
     state.rafPending = false;
     applyTransform(state);
-    updateDebugAttributes(state);
+    if (state.diagnostics) updateDebugAttributes(state);
 }
 
 /**
@@ -92,10 +95,11 @@ export function getState() {
 
 // --- Internal implementation ---
 
-function createState(img, overlay) {
+function createState(img, overlay, diagnostics) {
     return {
         img,
         overlay,
+        diagnostics,
         scale: 1,
         tx: 0,
         ty: 0,
@@ -124,7 +128,10 @@ function bindEvents(s) {
 
     // Prevent default touch behavior ONLY on the image surface
     img.style.touchAction = 'none';
-    img.setAttribute('data-testid', 'photo-viewer-image');
+
+    if (s.diagnostics) {
+        img.setAttribute('data-testid', 'photo-viewer-image');
+    }
 
     s.handlers.pointerdown = (e) => onPointerDown(s, e);
     s.handlers.pointermove = (e) => onPointerMove(s, e);
@@ -157,7 +164,9 @@ function bindEvents(s) {
     }
 
     // Set initial debug attributes
-    overlay.setAttribute('data-testid', 'photo-viewer-overlay');
+    if (s.diagnostics) {
+        overlay.setAttribute('data-testid', 'photo-viewer-overlay');
+    }
 }
 
 function unbindEvents(s) {
@@ -179,13 +188,15 @@ function unbindEvents(s) {
     }
 
     img.style.touchAction = '';
-    img.removeAttribute('data-testid');
-    s.overlay.removeAttribute('data-testid');
-    s.overlay.removeAttribute('data-debug-scale');
-    s.overlay.removeAttribute('data-debug-translate-x');
-    s.overlay.removeAttribute('data-debug-translate-y');
-    s.overlay.removeAttribute('data-debug-pointers');
-    s.overlay.removeAttribute('data-debug-reset');
+    if (s.diagnostics) {
+        img.removeAttribute('data-testid');
+        s.overlay.removeAttribute('data-testid');
+        s.overlay.removeAttribute('data-debug-scale');
+        s.overlay.removeAttribute('data-debug-translate-x');
+        s.overlay.removeAttribute('data-debug-translate-y');
+        s.overlay.removeAttribute('data-debug-pointers');
+        s.overlay.removeAttribute('data-debug-reset');
+    }
 }
 
 function resetTransform(s) {
@@ -214,7 +225,7 @@ function scheduleRender(s) {
     requestAnimationFrame(() => {
         s.rafPending = false;
         applyTransform(s);
-        updateDebugAttributes(s);
+        if (s.diagnostics) updateDebugAttributes(s);
     });
 }
 
@@ -278,7 +289,7 @@ function onPointerDown(s, e) {
         s.pinchStartScale = s.scale;
     }
 
-    updateDebugAttributes(s);
+    if (s.diagnostics) updateDebugAttributes(s);
     e.preventDefault();
 }
 
@@ -348,7 +359,7 @@ function onPointerUp(s, e) {
         s.isPanning = false;
     }
 
-    updateDebugAttributes(s);
+    if (s.diagnostics) updateDebugAttributes(s);
     e.preventDefault();
 }
 
@@ -364,7 +375,7 @@ function onPointerCancel(s, e) {
             scheduleRender(s);
         }
     }
-    updateDebugAttributes(s);
+    if (s.diagnostics) updateDebugAttributes(s);
 }
 
 function onLostPointerCapture(s, e) {
@@ -374,7 +385,7 @@ function onLostPointerCapture(s, e) {
         if (s.pointers.size === 0) {
             s.isPanning = false;
         }
-        updateDebugAttributes(s);
+        if (s.diagnostics) updateDebugAttributes(s);
     }
 }
 
@@ -439,5 +450,5 @@ function handleDoubleTap(s, clientX, clientY) {
     }
 
     applyTransform(s);
-    updateDebugAttributes(s);
+    if (s.diagnostics) updateDebugAttributes(s);
 }

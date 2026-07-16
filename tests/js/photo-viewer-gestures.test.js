@@ -1,0 +1,325 @@
+// photo-viewer-gestures.test.js
+// Tests for gesture module attach/detach, diagnostics flag, and lifecycle cleanup.
+// Run: node --test tests/js/photo-viewer-gestures.test.js
+//
+// Uses a minimal JSDOM-like mock since the gesture module requires DOM APIs
+// (getElementById, addEventListener, etc.) that are not available in Node.
+import { describe, it, beforeEach, afterEach } from 'node:test';
+import assert from 'node:assert/strict';
+
+// --- Minimal DOM mock ---
+
+class MockElement {
+    constructor(id) {
+        this.id = id;
+        this.attributes = new Map();
+        this.style = {};
+        this._listeners = {};
+    }
+    setAttribute(name, value) { this.attributes.set(name, String(value)); }
+    removeAttribute(name) { this.attributes.delete(name); }
+    getAttribute(name) { return this.attributes.get(name) ?? null; }
+    hasAttribute(name) { return this.attributes.has(name); }
+    addEventListener(type, fn, opts) {
+        if (!this._listeners[type]) this._listeners[type] = [];
+        this._listeners[type].push(fn);
+    }
+    removeEventListener(type, fn, opts) {
+        if (!this._listeners[type]) return;
+        this._listeners[type] = this._listeners[type].filter(f => f !== fn);
+    }
+    setPointerCapture() {}
+    releasePointerCapture() {}
+    getBoundingClientRect() { return { left: 0, top: 0, width: 800, height: 600 }; }
+    get naturalWidth() { return 1600; }
+    get naturalHeight() { return 1200; }
+}
+
+// Mock ResizeObserver
+class MockResizeObserver {
+    observe() {}
+    disconnect() {}
+}
+
+let elements = {};
+
+function setupGlobalDom() {
+    globalThis.document = {
+        getElementById(id) { return elements[id] || null; }
+    };
+    globalThis.window = {
+        addEventListener() {},
+        removeEventListener() {}
+    };
+    globalThis.ResizeObserver = MockResizeObserver;
+    globalThis.requestAnimationFrame = (fn) => fn();
+    globalThis.Date = Date;
+}
+
+function teardownGlobalDom() {
+    delete globalThis.document;
+    delete globalThis.window;
+    delete globalThis.ResizeObserver;
+    delete globalThis.requestAnimationFrame;
+}
+
+// Dynamic import the module fresh each time to reset module-level state
+async function importFreshModule() {
+    // Use a cache-busting query param to force a fresh module evaluation
+    const cacheBuster = `?t=${Date.now()}-${Math.random()}`;
+    return import(`../../src/SentenceStudio.UI/wwwroot/js/photo-viewer-gestures.js${cacheBuster}`);
+}
+
+describe('attach with diagnostics: false (default)', () => {
+    beforeEach(() => {
+        elements = {
+            'test-image': new MockElement('test-image'),
+            'test-overlay': new MockElement('test-overlay')
+        };
+        setupGlobalDom();
+    });
+
+    afterEach(() => {
+        teardownGlobalDom();
+        elements = {};
+    });
+
+    it('should attach successfully without diagnostics', async () => {
+        const mod = await importFreshModule();
+        const result = mod.attach('test-image', 'test-overlay');
+        assert.equal(result, true);
+        mod.detach();
+    });
+
+    it('should NOT set data-testid attributes without diagnostics', async () => {
+        const mod = await importFreshModule();
+        mod.attach('test-image', 'test-overlay');
+        assert.equal(elements['test-image'].hasAttribute('data-testid'), false);
+        assert.equal(elements['test-overlay'].hasAttribute('data-testid'), false);
+        mod.detach();
+    });
+
+    it('should NOT set data-debug-* attributes without diagnostics', async () => {
+        const mod = await importFreshModule();
+        mod.attach('test-image', 'test-overlay');
+        assert.equal(elements['test-overlay'].hasAttribute('data-debug-scale'), false);
+        assert.equal(elements['test-overlay'].hasAttribute('data-debug-translate-x'), false);
+        assert.equal(elements['test-overlay'].hasAttribute('data-debug-translate-y'), false);
+        assert.equal(elements['test-overlay'].hasAttribute('data-debug-pointers'), false);
+        assert.equal(elements['test-overlay'].hasAttribute('data-debug-reset'), false);
+        mod.detach();
+    });
+
+    it('should apply touch-action:none on the image', async () => {
+        const mod = await importFreshModule();
+        mod.attach('test-image', 'test-overlay');
+        assert.equal(elements['test-image'].style.touchAction, 'none');
+        mod.detach();
+    });
+
+    it('should apply transform on attach', async () => {
+        const mod = await importFreshModule();
+        mod.attach('test-image', 'test-overlay');
+        assert.equal(elements['test-image'].style.transformOrigin, 'center center');
+        assert.ok(elements['test-image'].style.transform.includes('scale(1)'));
+        mod.detach();
+    });
+
+    it('should clean up touch-action on detach', async () => {
+        const mod = await importFreshModule();
+        mod.attach('test-image', 'test-overlay');
+        mod.detach();
+        assert.equal(elements['test-image'].style.touchAction, '');
+    });
+
+    it('should NOT try to remove data-testid on detach when diagnostics off', async () => {
+        const mod = await importFreshModule();
+        // Pre-set some attribute to verify it's NOT touched
+        elements['test-image'].setAttribute('data-testid', 'pre-existing');
+        mod.attach('test-image', 'test-overlay');
+        mod.detach();
+        // Since diagnostics is off, detach should NOT remove the pre-existing attribute
+        assert.equal(elements['test-image'].getAttribute('data-testid'), 'pre-existing');
+    });
+});
+
+describe('attach with diagnostics: true', () => {
+    beforeEach(() => {
+        elements = {
+            'test-image': new MockElement('test-image'),
+            'test-overlay': new MockElement('test-overlay')
+        };
+        setupGlobalDom();
+    });
+
+    afterEach(() => {
+        teardownGlobalDom();
+        elements = {};
+    });
+
+    it('should set data-testid attributes with diagnostics', async () => {
+        const mod = await importFreshModule();
+        mod.attach('test-image', 'test-overlay', { diagnostics: true });
+        assert.equal(elements['test-image'].getAttribute('data-testid'), 'photo-viewer-image');
+        assert.equal(elements['test-overlay'].getAttribute('data-testid'), 'photo-viewer-overlay');
+        mod.detach();
+    });
+
+    it('should set data-debug-* attributes with diagnostics', async () => {
+        const mod = await importFreshModule();
+        mod.attach('test-image', 'test-overlay', { diagnostics: true });
+        assert.equal(elements['test-overlay'].getAttribute('data-debug-scale'), '1.000');
+        assert.equal(elements['test-overlay'].getAttribute('data-debug-translate-x'), '0.0');
+        assert.equal(elements['test-overlay'].getAttribute('data-debug-translate-y'), '0.0');
+        assert.equal(elements['test-overlay'].getAttribute('data-debug-pointers'), '0');
+        assert.equal(elements['test-overlay'].getAttribute('data-debug-reset'), '0');
+        mod.detach();
+    });
+
+    it('should remove data-debug-* attributes on detach', async () => {
+        const mod = await importFreshModule();
+        mod.attach('test-image', 'test-overlay', { diagnostics: true });
+        mod.detach();
+        assert.equal(elements['test-overlay'].hasAttribute('data-debug-scale'), false);
+        assert.equal(elements['test-overlay'].hasAttribute('data-debug-translate-x'), false);
+        assert.equal(elements['test-overlay'].hasAttribute('data-debug-translate-y'), false);
+        assert.equal(elements['test-overlay'].hasAttribute('data-debug-pointers'), false);
+        assert.equal(elements['test-overlay'].hasAttribute('data-debug-reset'), false);
+    });
+
+    it('should remove data-testid attributes on detach', async () => {
+        const mod = await importFreshModule();
+        mod.attach('test-image', 'test-overlay', { diagnostics: true });
+        mod.detach();
+        assert.equal(elements['test-image'].hasAttribute('data-testid'), false);
+        assert.equal(elements['test-overlay'].hasAttribute('data-testid'), false);
+    });
+
+    it('should update debug attributes on reset', async () => {
+        const mod = await importFreshModule();
+        mod.attach('test-image', 'test-overlay', { diagnostics: true });
+        mod.reset();
+        assert.equal(elements['test-overlay'].getAttribute('data-debug-reset'), '1');
+        mod.detach();
+    });
+});
+
+describe('attach edge cases', () => {
+    beforeEach(() => {
+        elements = {};
+        setupGlobalDom();
+    });
+
+    afterEach(() => {
+        teardownGlobalDom();
+    });
+
+    it('returns false when image element not found', async () => {
+        const mod = await importFreshModule();
+        const result = mod.attach('nonexistent-image', 'nonexistent-overlay');
+        assert.equal(result, false);
+    });
+
+    it('returns false when overlay element not found', async () => {
+        elements['test-image'] = new MockElement('test-image');
+        const mod = await importFreshModule();
+        const result = mod.attach('test-image', 'nonexistent-overlay');
+        assert.equal(result, false);
+    });
+
+    it('detach is safe when not attached', async () => {
+        const mod = await importFreshModule();
+        // Should not throw
+        mod.detach();
+    });
+
+    it('reset is safe when not attached', async () => {
+        const mod = await importFreshModule();
+        // Should not throw
+        mod.reset();
+    });
+
+    it('getState returns null when not attached', async () => {
+        const mod = await importFreshModule();
+        assert.equal(mod.getState(), null);
+    });
+
+    it('getState returns state when attached', async () => {
+        elements = {
+            'test-image': new MockElement('test-image'),
+            'test-overlay': new MockElement('test-overlay')
+        };
+        const mod = await importFreshModule();
+        mod.attach('test-image', 'test-overlay');
+        const s = mod.getState();
+        assert.deepEqual(s, {
+            scale: 1,
+            tx: 0,
+            ty: 0,
+            pointerCount: 0,
+            resetGeneration: 0
+        });
+        mod.detach();
+    });
+});
+
+describe('lifecycle cleanup', () => {
+    beforeEach(() => {
+        elements = {
+            'test-image': new MockElement('test-image'),
+            'test-overlay': new MockElement('test-overlay')
+        };
+        setupGlobalDom();
+    });
+
+    afterEach(() => {
+        teardownGlobalDom();
+        elements = {};
+    });
+
+    it('detach clears transform styles', async () => {
+        const mod = await importFreshModule();
+        mod.attach('test-image', 'test-overlay');
+        // Transform was set on attach
+        assert.ok(elements['test-image'].style.transform);
+        mod.detach();
+        assert.equal(elements['test-image'].style.transform, '');
+        assert.equal(elements['test-image'].style.transformOrigin, '');
+    });
+
+    it('re-attach after detach works cleanly', async () => {
+        const mod = await importFreshModule();
+        mod.attach('test-image', 'test-overlay', { diagnostics: true });
+        mod.detach();
+        // Re-attach
+        const result = mod.attach('test-image', 'test-overlay', { diagnostics: true });
+        assert.equal(result, true);
+        assert.equal(elements['test-overlay'].getAttribute('data-debug-scale'), '1.000');
+        mod.detach();
+    });
+
+    it('double detach is safe', async () => {
+        const mod = await importFreshModule();
+        mod.attach('test-image', 'test-overlay');
+        mod.detach();
+        mod.detach(); // Should not throw
+    });
+
+    it('attach auto-detaches previous instance', async () => {
+        const mod = await importFreshModule();
+        mod.attach('test-image', 'test-overlay', { diagnostics: true });
+        assert.equal(elements['test-overlay'].hasAttribute('data-debug-scale'), true);
+
+        // Create new elements for second attach
+        const img2 = new MockElement('test-image2');
+        const ov2 = new MockElement('test-overlay2');
+        elements['test-image2'] = img2;
+        elements['test-overlay2'] = ov2;
+
+        // Second attach should detach the first (cleaning up debug attrs on first overlay)
+        mod.attach('test-image2', 'test-overlay2', { diagnostics: true });
+        assert.equal(elements['test-overlay'].hasAttribute('data-debug-scale'), false);
+        assert.equal(ov2.hasAttribute('data-debug-scale'), true);
+        mod.detach();
+    });
+});

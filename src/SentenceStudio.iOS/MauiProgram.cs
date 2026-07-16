@@ -1,6 +1,6 @@
 using CommunityToolkit.Maui;
 using CommunityToolkit.Maui.Storage;
-#if DEBUG
+#if DEBUG || PHOTO_VIEWER_DEVICE_VALIDATION
 using Microsoft.Maui.DevFlow.Agent;
 using Microsoft.Maui.DevFlow.Blazor;
 #endif
@@ -76,6 +76,8 @@ public static class MauiProgram
             .AddDebug()
             .AddConsole()
             .SetMinimumLevel(LogLevel.Debug);
+#endif
+#if DEBUG || PHOTO_VIEWER_DEVICE_VALIDATION
         builder.AddMauiDevFlowAgent(options => { options.Port = 9224; });
         builder.AddMauiBlazorDevFlowTools();
 #endif

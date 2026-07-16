@@ -5,7 +5,7 @@
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
 @implements IAsyncDisposable
 
-<div class="activity-page-wrapper">
+<div class="activity-page-wrapper" @attributes="QuizContentAttributes">
 
 @if (!isSentenceShortcutMode && !showAnswer && !requireCorrectTyping)
 {
@@ -564,8 +564,7 @@ else
     <div id="quiz-fullscreen-viewer"
          class="quiz-fullscreen-overlay"
          role="dialog"
-         aria-modal="true"
-         aria-label="@($"{Localize["VocabQuiz_FullscreenPhoto"]}")"
+         @attributes="FullscreenOverlayAttributes"
          @onclick="CloseImageFullscreen"
          @onkeydown="HandleFullscreenKeydown">
         <button type="button"
@@ -1838,12 +1837,15 @@ else
     private bool pendingFocusIntoFullscreen;
     private bool pendingFocusRestoreToThumbnail;
 
-#if DEBUG
-    // Pointer Events gesture module for fullscreen photo zoom/pan (Prototype A).
+    // Pointer Events gesture module for fullscreen photo zoom/pan.
     // Loaded lazily on first fullscreen open; detached on close/dispose/image-change.
     private IJSObjectReference? gestureModule;
     private bool gestureAttachPending;
-#endif
+
+    // Platform detection for modal accessibility strategy.
+    // iOS/Mac Catalyst WKWebView has incomplete aria-modal support; use inert instead.
+    private static bool IsWKWebViewPlatform =>
+        OperatingSystem.IsIOSVersionAtLeast(1) || OperatingSystem.IsMacCatalystVersionAtLeast(1);
 
     private async Task OpenImageFullscreen()
     {
@@ -1863,9 +1865,7 @@ else
         isImageFullscreen = true;
         pendingFocusIntoFullscreen = true;
         pendingFocusRestoreToThumbnail = false;
-#if DEBUG
         gestureAttachPending = true;
-#endif
     }
 
     private void CloseImageFullscreen()
@@ -1874,10 +1874,8 @@ else
         isImageFullscreen = false;
         pendingFocusIntoFullscreen = false;
         pendingFocusRestoreToThumbnail = true;
-#if DEBUG
         gestureAttachPending = false;
         _ = DetachGestureModuleAsync();
-#endif
     }
 
     private void HandleFullscreenKeydown(KeyboardEventArgs e)
@@ -1926,7 +1924,6 @@ else
             }
         }
 
-#if DEBUG
         // Attach Pointer Events gesture module after the fullscreen image DOM element exists
         if (gestureAttachPending && isImageFullscreen)
         {
@@ -1935,20 +1932,25 @@ else
             {
                 gestureModule ??= await JS.InvokeAsync<IJSObjectReference>(
                     "import", "./_content/SentenceStudio.UI/js/photo-viewer-gestures.js");
-                await gestureModule.InvokeVoidAsync("attach", "quiz-fullscreen-image", "quiz-fullscreen-viewer");
+
+                // Diagnostics (data-debug-* attributes) only in Debug or explicit device validation builds
+                var enableDiagnostics = false;
+#if DEBUG || PHOTO_VIEWER_DEVICE_VALIDATION
+                enableDiagnostics = true;
+#endif
+                await gestureModule.InvokeVoidAsync("attach", "quiz-fullscreen-image", "quiz-fullscreen-viewer",
+                    new { diagnostics = enableDiagnostics });
             }
             catch (Microsoft.JSInterop.JSDisconnectedException) { }
             catch (ObjectDisposedException) { }
             catch (Microsoft.JSInterop.JSException ex)
             {
-                Logger.LogDebug(ex, "Photo viewer gesture module attach failed");
+                Logger.LogWarning(ex, "Photo viewer gesture module attach failed — gestures unavailable for this image");
             }
             catch (TaskCanceledException) { }
         }
-#endif
     }
 
-#if DEBUG
     private async Task DetachGestureModuleAsync()
     {
         if (gestureModule is null) return;
@@ -1961,7 +1963,6 @@ else
         catch (Microsoft.JSInterop.JSException) { }
         catch (TaskCanceledException) { }
     }
-#endif
 
     private async Task ToggleShowTextWithPhotoAsync()
     {
@@ -2084,14 +2085,12 @@ else
         audioPlayer?.Stop();
         audioPlayer?.Dispose();
         audioPlayer = null;
-#if DEBUG
         if (gestureModule is not null)
         {
             try { await gestureModule.InvokeVoidAsync("detach"); } catch { }
             try { await gestureModule.DisposeAsync(); } catch { }
             gestureModule = null;
         }
-#endif
     }
 
     private void ApplyPromptPreferences()
@@ -2136,6 +2135,42 @@ else
     private bool IsTextToggleEligible => HasPromptImage && showPhotoPromptControl && promptUsesNativeLanguage;
 
     private bool isImageFullscreen;
+
+    /// <summary>
+    /// Declarative attributes for the quiz content wrapper. On WKWebView platforms
+    /// (iOS/Mac Catalyst), applies inert while the fullscreen overlay is open so
+    /// VoiceOver cannot reach quiz content behind the overlay.
+    /// </summary>
+    private Dictionary<string, object> QuizContentAttributes
+    {
+        get
+        {
+            var attrs = new Dictionary<string, object>();
+            if (isImageFullscreen && IsWKWebViewPlatform)
+                attrs["inert"] = true;
+            return attrs;
+        }
+    }
+
+    /// <summary>
+    /// Declarative attributes for the fullscreen overlay dialog.
+    /// WebApp/non-iOS: aria-modal="true" for standard screen reader containment.
+    /// iOS/Mac Catalyst WKWebView: omit aria-modal (incomplete VoiceOver support),
+    /// rely on inert on the underlying content instead.
+    /// </summary>
+    private Dictionary<string, object> FullscreenOverlayAttributes
+    {
+        get
+        {
+            var attrs = new Dictionary<string, object>
+            {
+                ["aria-label"] = $"{Localize["VocabQuiz_FullscreenPhoto"]}"
+            };
+            if (!IsWKWebViewPlatform)
+                attrs["aria-modal"] = "true";
+            return attrs;
+        }
+    }
 
     // Computed heading: when hiding term for photo, show a generic instruction
     // derived from the same localization keys ApplyPromptPreferences uses,
