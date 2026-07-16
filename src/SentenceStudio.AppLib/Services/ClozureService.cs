@@ -69,7 +69,7 @@ public class ClozureService
             return await GetSentencesFromDueWords(numberOfSentences, skillID);
         }
 
-        var resource = await _resourceRepository.GetResourceAsync(resourceID);
+        var resource = await _resourceRepository.GetResourceAsync(resourceID, ActiveUserId);
         _logger.LogDebug("Resource retrieved: {ResourceTitle}", resource?.Title ?? "null");
 
         if (resource is null || resource.Vocabulary is null || !resource.Vocabulary.Any())
@@ -130,7 +130,7 @@ public class ClozureService
         string? targetLanguage = null;
         if (!dueOnly && !string.IsNullOrEmpty(resourceID))
         {
-            var resource = await _resourceRepository.GetResourceAsync(resourceID);
+            var resource = await _resourceRepository.GetResourceAsync(resourceID, ActiveUserId);
             if (resource?.Vocabulary?.Any() == true)
             {
                 contextWords.AddRange(resource.Vocabulary);
@@ -260,7 +260,7 @@ public class ClozureService
         SkillProfile? skillProfile = null;
         if (!string.IsNullOrEmpty(skillID))
         {
-            skillProfile = await _skillRepository.GetSkillProfileAsync(skillID);
+            skillProfile = await _skillRepository.GetSkillProfileAsync(skillID, ActiveUserId);
             _logger.LogDebug("Skill profile retrieved: {SkillTitle}", skillProfile?.Title ?? "null");
         }
         else

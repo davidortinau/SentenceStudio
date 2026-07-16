@@ -20,6 +20,9 @@ public class SkillProfileRepository
 
     private string ActiveUserId => _preferences?.Get("active_profile_id", string.Empty) ?? string.Empty;
 
+    private string ResolveUserId(string? userProfileId) =>
+        !string.IsNullOrEmpty(userProfileId) ? userProfileId : ActiveUserId;
+
     /// <summary>
     /// Lists skill profiles. When <paramref name="userProfileId"/> is provided
     /// it scopes the results to that profile (required on multi-user hosts
@@ -28,7 +31,7 @@ public class SkillProfileRepository
     public async Task<List<SkillProfile>> ListAsync(string? userProfileId = null)
     {
         var userId = !string.IsNullOrEmpty(userProfileId) ? userProfileId : ActiveUserId;
-        if (string.IsNullOrEmpty(userId))
+        if (string.IsNullOrWhiteSpace(userId))
         {
             _logger.LogWarning("SkillProfileRepository.ListAsync called without an active user — returning empty result to prevent cross-tenant data leak.");
             return new List<SkillProfile>();
@@ -42,7 +45,7 @@ public class SkillProfileRepository
     public async Task<List<SkillProfile>> GetSkillsByLanguageAsync(string language)
     {
         var userId = ActiveUserId;
-        if (string.IsNullOrEmpty(userId))
+        if (string.IsNullOrWhiteSpace(userId))
         {
             _logger.LogWarning("SkillProfileRepository.GetSkillsByLanguageAsync called without an active user — returning empty result to prevent cross-tenant data leak.");
             return new List<SkillProfile>();
@@ -56,8 +59,15 @@ public class SkillProfileRepository
             .ToListAsync();
     }
 
-    public async Task<string> SaveAsync(SkillProfile item)
+    public async Task<string> SaveAsync(SkillProfile item, string? userProfileId = null)
     {
+        var userId = ResolveUserId(userProfileId);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            _logger.LogWarning("SkillProfileRepository.SaveAsync called without an active user — refusing write to prevent cross-tenant data changes.");
+            return string.Empty;
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
@@ -69,18 +79,20 @@ public class SkillProfileRepository
 
             item.UpdatedAt = DateTime.UtcNow;
 
-            // Ensure UserProfileId is set for new items
-            if (string.IsNullOrEmpty(item.UserProfileId))
-                item.UserProfileId = !string.IsNullOrEmpty(ActiveUserId) ? ActiveUserId : null;
-
-            // With GUID PKs, Id is always pre-set by the model constructor.
-            // Check DB existence to determine Add vs Update.
-            var exists = !string.IsNullOrEmpty(item.Id)
-                && await db.SkillProfiles.AnyAsync(p => p.Id == item.Id);
-
-            if (exists)
+            var existing = await db.SkillProfiles
+                .FirstOrDefaultAsync(p => p.Id == item.Id && p.UserProfileId == userId);
+            if (existing is null
+                && await db.SkillProfiles.AnyAsync(p => p.Id == item.Id))
             {
-                db.SkillProfiles.Update(item);
+                _logger.LogWarning("SkillProfileRepository.SaveAsync refused an unowned skill profile.");
+                return string.Empty;
+            }
+
+            item.UserProfileId = userId;
+            if (existing is not null)
+            {
+                db.Entry(existing).CurrentValues.SetValues(item);
+                existing.UserProfileId = userId;
             }
             else
             {
@@ -100,14 +112,29 @@ public class SkillProfileRepository
         }
     }
 
-    public async Task<int> DeleteAsync(SkillProfile item)
+    public async Task<int> DeleteAsync(SkillProfile item, string? userProfileId = null)
     {
+        var userId = ResolveUserId(userProfileId);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            _logger.LogWarning("SkillProfileRepository.DeleteAsync called without an active user — refusing delete to prevent cross-tenant data changes.");
+            return 0;
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         try
         {
-            db.SkillProfiles.Remove(item);
+            var owned = await db.SkillProfiles
+                .FirstOrDefaultAsync(s => s.Id == item.Id && s.UserProfileId == userId);
+            if (owned is null)
+            {
+                _logger.LogWarning("SkillProfileRepository.DeleteAsync refused a missing or unowned skill profile.");
+                return 0;
+            }
+
+            db.SkillProfiles.Remove(owned);
             int result = await db.SaveChangesAsync();
 
             _syncService?.TriggerSyncAsync().ConfigureAwait(false);
@@ -121,17 +148,45 @@ public class SkillProfileRepository
         }
     }
 
-    public async Task<SkillProfile?> GetSkillProfileAsync(string skillID)
+    public async Task<SkillProfile?> GetSkillProfileAsync(string skillID, string? userProfileId = null)
     {
+        var userId = ResolveUserId(userProfileId);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            _logger.LogWarning("SkillProfileRepository.GetSkillProfileAsync called without an active user — returning null to prevent cross-tenant data leak.");
+            return null;
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        return await db.SkillProfiles.Where(s => s.Id == skillID).FirstOrDefaultAsync();
+        var skill = await db.SkillProfiles
+            .FirstOrDefaultAsync(s => s.Id == skillID && s.UserProfileId == userId);
+        if (skill is null)
+        {
+            _logger.LogWarning("SkillProfileRepository.GetSkillProfileAsync refused a missing or unowned skill profile.");
+        }
+
+        return skill;
     }
 
-    public async Task<SkillProfile?> GetAsync(string skillId)
+    public async Task<SkillProfile?> GetAsync(string skillId, string? userProfileId = null)
     {
+        var userId = ResolveUserId(userProfileId);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            _logger.LogWarning("SkillProfileRepository.GetAsync called without an active user — returning null to prevent cross-tenant data leak.");
+            return null;
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        return await db.SkillProfiles.FirstOrDefaultAsync(s => s.Id == skillId);
+        var skill = await db.SkillProfiles
+            .FirstOrDefaultAsync(s => s.Id == skillId && s.UserProfileId == userId);
+        if (skill is null)
+        {
+            _logger.LogWarning("SkillProfileRepository.GetAsync refused a missing or unowned skill profile.");
+        }
+
+        return skill;
     }
 }

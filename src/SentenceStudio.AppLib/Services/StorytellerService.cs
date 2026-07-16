@@ -39,7 +39,9 @@ namespace SentenceStudio.Services
             var watch = new Stopwatch();
             watch.Start();
 
-            var resource = await _resourceRepo.GetResourceAsync(resourceId);
+            var userProfileRepo = _serviceProvider.GetRequiredService<UserProfileRepository>();
+            var userProfile = await userProfileRepo.GetAsync();
+            var resource = await _resourceRepo.GetResourceAsync(resourceId, userProfile?.Id);
             if (resource is null || resource.Vocabulary is null)
                 return null;
 
@@ -49,11 +51,9 @@ namespace SentenceStudio.Services
                 .Take(numberOfWords)
                 .ToList();
 
-            var skillProfile = await _skillRepository.GetSkillProfileAsync(skillID);
+            var skillProfile = await _skillRepository.GetSkillProfileAsync(skillID, userProfile?.Id);
 
             // Get user's native language and use resource's language as target
-            var userProfileRepo = _serviceProvider.GetRequiredService<UserProfileRepository>();
-            var userProfile = await userProfileRepo.GetAsync();
             string nativeLanguage = userProfile?.NativeLanguage ?? "English";
             string targetLanguage = resource.Language ?? userProfile?.TargetLanguage ?? "Korean";
 

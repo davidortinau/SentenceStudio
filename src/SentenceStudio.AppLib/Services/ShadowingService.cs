@@ -58,9 +58,11 @@ public class ShadowingService
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        
+
+        var userProfile = await _userProfileRepository.GetAsync();
+
         // Get the learning resource with vocabulary
-        LearningResource resource = await _resourceRepository.GetResourceAsync(resourceId);
+        LearningResource? resource = await _resourceRepository.GetResourceAsync(resourceId, userProfile?.Id);
 
         // If no resource found or no vocabulary available, return empty list
         if (resource == null || resource.Vocabulary == null || !resource.Vocabulary.Any())
@@ -82,7 +84,6 @@ public class ShadowingService
         _words = eligibleWords.OrderBy(t => random.Next()).Take(10).ToList();
         
         // Get the user's native language and use resource's language as target
-        var userProfile = await _userProfileRepository.GetAsync();
         string nativeLanguage = userProfile?.NativeLanguage ?? "English";
         // Use resource's language as target (supports multi-language learning)
         string targetLanguage = resource.Language ?? userProfile?.TargetLanguage ?? "Korean";
@@ -172,7 +173,8 @@ public class ShadowingService
             resourceId, count, skillId);
 
         // Load resource
-        var resource = await _resourceRepository.GetResourceAsync(resourceId);
+        var userProfile = await _userProfileRepository.GetAsync();
+        var resource = await _resourceRepository.GetResourceAsync(resourceId, userProfile?.Id);
 
         if (resource == null)
         {

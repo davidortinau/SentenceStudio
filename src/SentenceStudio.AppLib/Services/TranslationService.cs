@@ -64,7 +64,7 @@ namespace SentenceStudio.Services
             LearningResource? resource = null;
             if (!string.IsNullOrEmpty(resourceID))
             {
-                resource = await _resourceRepo.GetResourceAsync(resourceID);
+                resource = await _resourceRepo.GetResourceAsync(resourceID, userProfile?.Id);
                 _logger.LogDebug("Resource retrieved: {ResourceTitle}", resource?.Title ?? "null");
                 targetLanguage = resource?.Language ?? targetLanguage;
             }
@@ -139,7 +139,7 @@ namespace SentenceStudio.Services
             SkillProfile? skillProfile = null;
             if (!string.IsNullOrEmpty(skillID))
             {
-                skillProfile = await _skillRepository.GetSkillProfileAsync(skillID);
+                skillProfile = await _skillRepository.GetSkillProfileAsync(skillID, userProfile?.Id);
                 _logger.LogDebug("Skill profile retrieved: {SkillProfileTitle}", skillProfile?.Title ?? "null");
             }
 

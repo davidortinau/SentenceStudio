@@ -233,5 +233,18 @@ public interface IProgressService
     /// </summary>
     Task<string> StartAdHocSessionAsync(PlanActivityType activityType, string? resourceId, string? skillId, int estimatedMinutes = 10, CancellationToken ct = default);
 
+    /// <summary>
+    /// Creates an ad-hoc activity only when every supplied resource, skill, and vocabulary word
+    /// belongs to or is reachable by the same active user. Invalid mixed-owner tuples are refused
+    /// and return an empty plan item ID.
+    /// </summary>
+    Task<string> StartAdHocSessionAsync(
+        PlanActivityType activityType,
+        string? resourceId,
+        string? skillId,
+        IReadOnlyCollection<string>? vocabularyWordIds,
+        int estimatedMinutes = 10,
+        CancellationToken ct = default);
+
     Task<List<ActivityLogWeek>> GetActivityLogAsync(DateTime fromUtc, DateTime toUtc, ActivityCategory? filter = null, CancellationToken ct = default);
 }

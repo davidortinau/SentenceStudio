@@ -38,6 +38,9 @@ public class LearningResourceRepository
 
     private string ActiveUserId => _preferences?.Get("active_profile_id", string.Empty) ?? string.Empty;
 
+    private string ResolveUserId(string? userProfileId) =>
+        !string.IsNullOrEmpty(userProfileId) ? userProfileId : ActiveUserId;
+
     // --- Added for VocabularyService replacement ---
     public async Task<VocabularyWord> GetWordByNativeTermAsync(string nativeTerm)
     {
@@ -60,7 +63,7 @@ public class LearningResourceRepository
     public async Task<List<VocabularyWord>> GetAllVocabularyWordsAsync()
     {
         var userId = ActiveUserId;
-        if (string.IsNullOrEmpty(userId))
+        if (string.IsNullOrWhiteSpace(userId))
         {
             _logger.LogWarning("GetAllVocabularyWordsAsync called without an active user — returning empty result to prevent cross-tenant data leak.");
             return new List<VocabularyWord>();
@@ -80,7 +83,7 @@ public class LearningResourceRepository
     public async Task<List<string>> GetVocabularyTargetTermsByLanguageAsync(string language, int? limit = null)
     {
         var userId = ActiveUserId;
-        if (string.IsNullOrEmpty(userId))
+        if (string.IsNullOrWhiteSpace(userId))
         {
             _logger.LogWarning("GetVocabularyTargetTermsByLanguageAsync called without an active user — returning empty result to prevent cross-tenant data leak.");
             return new List<string>();
@@ -184,7 +187,7 @@ public class LearningResourceRepository
     public async Task<List<LearningResource>> GetAllResourcesAsync()
     {
         var userId = ActiveUserId;
-        if (string.IsNullOrEmpty(userId))
+        if (string.IsNullOrWhiteSpace(userId))
         {
             _logger.LogWarning("GetAllResourcesAsync called without an active user — returning empty result to prevent cross-tenant data leak.");
             return new List<LearningResource>();
@@ -218,7 +221,7 @@ public class LearningResourceRepository
         string filterType = null, List<string> filterLanguages = null, string? userProfileId = null)
     {
         var userId = !string.IsNullOrEmpty(userProfileId) ? userProfileId : ActiveUserId;
-        if (string.IsNullOrEmpty(userId))
+        if (string.IsNullOrWhiteSpace(userId))
         {
             _logger.LogWarning("GetAllResourcesLightweightAsync called without an active user — returning empty result to prevent cross-tenant data leak.");
             return new List<LearningResource>();
@@ -242,21 +245,40 @@ public class LearningResourceRepository
         return OrderResourcesSmartFirst(list);
     }
 
-    public async Task<LearningResource> GetResourceAsync(string resourceId)
+    public async Task<LearningResource?> GetResourceAsync(string resourceId, string? userProfileId = null)
     {
+        var userId = ResolveUserId(userProfileId);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            _logger.LogWarning("GetResourceAsync called without an active user — returning null to prevent cross-tenant data leak.");
+            return null;
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         var resource = await db.LearningResources
             .Include(r => r.Vocabulary) // This uses the skip navigation to load vocabulary
-            .Where(r => r.Id == resourceId)
+            .Where(r => r.Id == resourceId && r.UserProfileId == userId)
             .FirstOrDefaultAsync();
+
+        if (resource is null)
+        {
+            _logger.LogWarning("GetResourceAsync refused a missing or unowned resource for the active user.");
+        }
 
         return resource;
     }
 
-    public async Task<string> SaveResourceAsync(LearningResource resource)
+    public async Task<string> SaveResourceAsync(LearningResource resource, string? userProfileId = null)
     {
+        var userId = ResolveUserId(userProfileId);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            _logger.LogWarning("SaveResourceAsync called without an active user — refusing write to prevent cross-tenant data changes.");
+            return string.Empty;
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
@@ -272,37 +294,45 @@ public class LearningResourceRepository
             var vocabularyWords = resource.Vocabulary?.ToList() ?? new List<VocabularyWord>();
             var vocabularyWordIds = vocabularyWords.Select(v => v.Id).ToList();
 
-            // Check if this resource already exists in the database
-            var existsInDb = await db.LearningResources.AnyAsync(r => r.Id == resource.Id);
+            var existingResource = await db.LearningResources
+                .Include(r => r.Vocabulary)
+                .FirstOrDefaultAsync(r => r.Id == resource.Id && r.UserProfileId == userId);
 
-            if (existsInDb)
+            if (existingResource is null
+                && await db.LearningResources.AnyAsync(r => r.Id == resource.Id))
             {
-                var existingResource = await db.LearningResources
-                    .Include(r => r.Vocabulary)
-                    .FirstOrDefaultAsync(r => r.Id == resource.Id);
+                _logger.LogWarning("SaveResourceAsync refused an unowned resource.");
+                return string.Empty;
+            }
 
-                if (existingResource != null)
+            if (vocabularyWordIds.Count > 0
+                && !await AreVocabularyWordsAvailableToUserAsync(db, vocabularyWordIds, userId))
+            {
+                _logger.LogWarning("SaveResourceAsync refused a resource containing missing or unowned vocabulary.");
+                return string.Empty;
+            }
+
+            resource.UserProfileId = userId;
+
+            if (existingResource != null)
+            {
+                // Update resource properties without allowing ownership to change.
+                db.Entry(existingResource).CurrentValues.SetValues(resource);
+                existingResource.UserProfileId = userId;
+
+                // Handle vocabulary associations
+                var dbVocabularyWords = await db.VocabularyWords
+                    .Where(v => vocabularyWordIds.Contains(v.Id))
+                    .ToListAsync();
+
+                existingResource.Vocabulary.Clear();
+                foreach (var word in dbVocabularyWords)
                 {
-                    // Update resource properties
-                    db.Entry(existingResource).CurrentValues.SetValues(resource);
-
-                    // Handle vocabulary associations
-                    var dbVocabularyWords = await db.VocabularyWords
-                        .Where(v => vocabularyWordIds.Contains(v.Id))
-                        .ToListAsync();
-
-                    existingResource.Vocabulary.Clear();
-                    foreach (var word in dbVocabularyWords)
-                    {
-                        existingResource.Vocabulary.Add(word);
-                    }
+                    existingResource.Vocabulary.Add(word);
                 }
             }
             else
             {
-                // New resource — set user ownership
-                resource.UserProfileId ??= !string.IsNullOrEmpty(ActiveUserId) ? ActiveUserId : null;
-
                 // Clear navigation collection before Add to prevent EF Core
                 // from cascade-inserting already-saved VocabularyWord entities
                 resource.Vocabulary?.Clear();
@@ -339,10 +369,25 @@ public class LearningResourceRepository
         }
     }
 
-    public async Task<int> DeleteResourceAsync(LearningResource resource)
+    public async Task<int> DeleteResourceAsync(LearningResource resource, string? userProfileId = null)
     {
+        var userId = ResolveUserId(userProfileId);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            _logger.LogWarning("DeleteResourceAsync called without an active user — refusing delete to prevent cross-tenant data changes.");
+            return 0;
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var ownedResource = await db.LearningResources
+            .FirstOrDefaultAsync(r => r.Id == resource.Id && r.UserProfileId == userId);
+        if (ownedResource is null)
+        {
+            _logger.LogWarning("DeleteResourceAsync refused a missing or unowned resource.");
+            return 0;
+        }
 
         using var tx = await db.Database.BeginTransactionAsync();
         try
@@ -350,12 +395,12 @@ public class LearningResourceRepository
             // Capture the vocab IDs reachable via this resource BEFORE removing the resource;
             // ResourceVocabularyMapping cascades to gone, so we can't read them after the fact.
             var resourceWordIds = await db.ResourceVocabularyMappings
-                .Where(m => m.ResourceId == resource.Id)
+                .Where(m => m.ResourceId == ownedResource.Id)
                 .Select(m => m.VocabularyWordId)
                 .Distinct()
                 .ToListAsync();
 
-            db.LearningResources.Remove(resource);
+            db.LearningResources.Remove(ownedResource);
             int affected = await db.SaveChangesAsync();
 
             // Cascade orphan sweep: for each vocab word this resource owned a mapping for,
@@ -364,7 +409,7 @@ public class LearningResourceRepository
             // an "eternally due" orphan that pollutes plan generation. Matches the user's
             // mental model — "if I removed the resource, my progress on its words is gone too".
             // See Brot incident, 2026-06-12.
-            var ownerUserId = resource.UserProfileId;
+            var ownerUserId = userId;
             if (resourceWordIds.Count > 0 && !string.IsNullOrEmpty(ownerUserId))
             {
                 var stillReachableWordIds = await db.ResourceVocabularyMappings
@@ -409,7 +454,7 @@ public class LearningResourceRepository
     public async Task<List<LearningResource>> SearchResourcesAsync(string query)
     {
         var userId = ActiveUserId;
-        if (string.IsNullOrEmpty(userId))
+        if (string.IsNullOrWhiteSpace(userId))
         {
             _logger.LogWarning("SearchResourcesAsync called without an active user — returning empty result to prevent cross-tenant data leak.");
             return new List<LearningResource>();
@@ -430,7 +475,7 @@ public class LearningResourceRepository
     public async Task<List<LearningResource>> GetResourcesByTypeAsync(string mediaType)
     {
         var userId = ActiveUserId;
-        if (string.IsNullOrEmpty(userId))
+        if (string.IsNullOrWhiteSpace(userId))
         {
             _logger.LogWarning("GetResourcesByTypeAsync called without an active user — returning empty result to prevent cross-tenant data leak.");
             return new List<LearningResource>();
@@ -455,7 +500,7 @@ public class LearningResourceRepository
     public async Task<List<LearningResource>> GetResourcesByLanguageAsync(string language)
     {
         var userId = ActiveUserId;
-        if (string.IsNullOrEmpty(userId))
+        if (string.IsNullOrWhiteSpace(userId))
         {
             _logger.LogWarning("GetResourcesByLanguageAsync called without an active user — returning empty result to prevent cross-tenant data leak.");
             return new List<LearningResource>();
@@ -471,10 +516,10 @@ public class LearningResourceRepository
     }
 
     // Get all smart resources
-    public async Task<List<LearningResource>> GetSmartResourcesAsync()
+    public async Task<List<LearningResource>> GetSmartResourcesAsync(string? userProfileId = null)
     {
-        var userId = ActiveUserId;
-        if (string.IsNullOrEmpty(userId))
+        var userId = ResolveUserId(userProfileId);
+        if (string.IsNullOrWhiteSpace(userId))
         {
             _logger.LogWarning("GetSmartResourcesAsync called without an active user — returning empty result to prevent cross-tenant data leak.");
             return new List<LearningResource>();
@@ -493,7 +538,7 @@ public class LearningResourceRepository
     public async Task<LearningResource?> GetSmartResourceByTypeAsync(string smartResourceType)
     {
         var userId = ActiveUserId;
-        if (string.IsNullOrEmpty(userId))
+        if (string.IsNullOrWhiteSpace(userId))
         {
             _logger.LogWarning("GetSmartResourceByTypeAsync called without an active user — returning null to prevent cross-tenant data leak.");
             return null;
@@ -509,8 +554,18 @@ public class LearningResourceRepository
     }
 
     // Add vocabulary word to a learning resource
-    public async Task<bool> AddVocabularyToResourceAsync(string resourceId, string vocabularyWordId)
+    public async Task<bool> AddVocabularyToResourceAsync(
+        string resourceId,
+        string vocabularyWordId,
+        string? userProfileId = null)
     {
+        var userId = ResolveUserId(userProfileId);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            _logger.LogWarning("AddVocabularyToResourceAsync called without an active user — refusing write to prevent cross-tenant data changes.");
+            return false;
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
@@ -518,12 +573,20 @@ public class LearningResourceRepository
         {
             var resource = await db.LearningResources
                 .Include(r => r.Vocabulary)
-                .FirstOrDefaultAsync(r => r.Id == resourceId);
+                .FirstOrDefaultAsync(r => r.Id == resourceId && r.UserProfileId == userId);
 
             var vocabularyWord = await db.VocabularyWords
                 .FirstOrDefaultAsync(v => v.Id == vocabularyWordId);
 
-            if (resource != null && vocabularyWord != null && !resource.Vocabulary.Contains(vocabularyWord))
+            if (resource is null
+                || vocabularyWord is null
+                || !await IsVocabularyWordAvailableToUserAsync(db, vocabularyWordId, userId))
+            {
+                _logger.LogWarning("AddVocabularyToResourceAsync refused a missing or unowned resource/vocabulary pair.");
+                return false;
+            }
+
+            if (!resource.Vocabulary.Contains(vocabularyWord))
             {
                 resource.Vocabulary.Add(vocabularyWord);
                 await db.SaveChangesAsync();
@@ -543,8 +606,18 @@ public class LearningResourceRepository
     }
 
     // Remove vocabulary word from a learning resource
-    public async Task<bool> RemoveVocabularyFromResourceAsync(string resourceId, string vocabularyWordId)
+    public async Task<bool> RemoveVocabularyFromResourceAsync(
+        string resourceId,
+        string vocabularyWordId,
+        string? userProfileId = null)
     {
+        var userId = ResolveUserId(userProfileId);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            _logger.LogWarning("RemoveVocabularyFromResourceAsync called without an active user — refusing write to prevent cross-tenant data changes.");
+            return false;
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
@@ -552,7 +625,7 @@ public class LearningResourceRepository
         {
             var resource = await db.LearningResources
                 .Include(r => r.Vocabulary)
-                .FirstOrDefaultAsync(r => r.Id == resourceId);
+                .FirstOrDefaultAsync(r => r.Id == resourceId && r.UserProfileId == userId);
 
             if (resource != null)
             {
@@ -568,6 +641,7 @@ public class LearningResourceRepository
                 }
             }
 
+            _logger.LogWarning("RemoveVocabularyFromResourceAsync refused a missing or unowned resource/vocabulary pair.");
             return false;
         }
         catch (Exception ex)
@@ -972,8 +1046,18 @@ public class LearningResourceRepository
     /// <summary>
     /// Bulk associate multiple vocabulary words with a learning resource
     /// </summary>
-    public async Task<bool> BulkAssociateWordsWithResourceAsync(string resourceId, List<string> vocabularyWordIds)
+    public async Task<bool> BulkAssociateWordsWithResourceAsync(
+        string resourceId,
+        List<string> vocabularyWordIds,
+        string? userProfileId = null)
     {
+        var userId = ResolveUserId(userProfileId);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            _logger.LogWarning("BulkAssociateWordsWithResourceAsync called without an active user — refusing write to prevent cross-tenant data changes.");
+            return false;
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
@@ -981,9 +1065,14 @@ public class LearningResourceRepository
         {
             var resource = await db.LearningResources
                 .Include(r => r.Vocabulary)
-                .FirstOrDefaultAsync(r => r.Id == resourceId);
+                .FirstOrDefaultAsync(r => r.Id == resourceId && r.UserProfileId == userId);
 
-            if (resource == null) return false;
+            if (resource == null
+                || !await AreVocabularyWordsAvailableToUserAsync(db, vocabularyWordIds, userId))
+            {
+                _logger.LogWarning("BulkAssociateWordsWithResourceAsync refused a missing or unowned resource/vocabulary set.");
+                return false;
+            }
 
             var vocabularyWords = await db.VocabularyWords
                 .Where(vw => vocabularyWordIds.Contains(vw.Id))
@@ -1013,13 +1102,31 @@ public class LearningResourceRepository
     /// <summary>
     /// Bulk remove vocabulary words from a learning resource
     /// </summary>
-    public async Task<bool> BulkRemoveWordsFromResourceAsync(string resourceId, List<string> vocabularyWordIds)
+    public async Task<bool> BulkRemoveWordsFromResourceAsync(
+        string resourceId,
+        List<string> vocabularyWordIds,
+        string? userProfileId = null)
     {
+        var userId = ResolveUserId(userProfileId);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            _logger.LogWarning("BulkRemoveWordsFromResourceAsync called without an active user — refusing write to prevent cross-tenant data changes.");
+            return false;
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         try
         {
+            var ownsResource = await db.LearningResources
+                .AnyAsync(r => r.Id == resourceId && r.UserProfileId == userId);
+            if (!ownsResource)
+            {
+                _logger.LogWarning("BulkRemoveWordsFromResourceAsync refused a missing or unowned resource.");
+                return false;
+            }
+
             var mappingsToRemove = await db.ResourceVocabularyMappings
                 .Where(rvm => rvm.ResourceId == resourceId && vocabularyWordIds.Contains(rvm.VocabularyWordId))
                 .ToListAsync();
@@ -1078,15 +1185,77 @@ public class LearningResourceRepository
     /// <summary>
     /// Get vocabulary words associated with a specific learning resource
     /// </summary>
-    public async Task<List<VocabularyWord>> GetVocabularyWordsByResourceAsync(string resourceId)
+    public async Task<List<VocabularyWord>> GetVocabularyWordsByResourceAsync(
+        string resourceId,
+        string? userProfileId = null)
     {
+        var userId = ResolveUserId(userProfileId);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            _logger.LogWarning("GetVocabularyWordsByResourceAsync called without an active user — returning empty result to prevent cross-tenant data leak.");
+            return new List<VocabularyWord>();
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         return await db.VocabularyWords
             .Where(vw => db.ResourceVocabularyMappings
-                .Any(rvm => rvm.ResourceId == resourceId && rvm.VocabularyWordId == vw.Id))
+                .Any(rvm => rvm.ResourceId == resourceId
+                    && rvm.VocabularyWordId == vw.Id
+                    && db.LearningResources.Any(r => r.Id == rvm.ResourceId && r.UserProfileId == userId)))
             .ToListAsync();
+    }
+
+    private static async Task<bool> IsVocabularyWordAvailableToUserAsync(
+        ApplicationDbContext db,
+        string vocabularyWordId,
+        string userId)
+    {
+        var mappingOwners = db.ResourceVocabularyMappings
+            .Where(mapping => mapping.VocabularyWordId == vocabularyWordId)
+            .Join(
+                db.LearningResources,
+                mapping => mapping.ResourceId,
+                resource => resource.Id,
+                (mapping, resource) => resource.UserProfileId);
+
+        return !await mappingOwners.AnyAsync()
+            || await mappingOwners.AnyAsync(ownerId => ownerId == userId);
+    }
+
+    private static async Task<bool> AreVocabularyWordsAvailableToUserAsync(
+        ApplicationDbContext db,
+        IReadOnlyCollection<string> vocabularyWordIds,
+        string userId)
+    {
+        if (vocabularyWordIds.Any(string.IsNullOrWhiteSpace))
+            return false;
+
+        var distinctIds = vocabularyWordIds
+            .Select(id => id.Trim())
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        var existingCount = await db.VocabularyWords
+            .CountAsync(word => distinctIds.Contains(word.Id));
+        if (existingCount != distinctIds.Count)
+            return false;
+
+        var foreignOnlyWordCount = await db.VocabularyWords
+            .Where(word => distinctIds.Contains(word.Id))
+            .CountAsync(word =>
+                db.ResourceVocabularyMappings.Any(mapping => mapping.VocabularyWordId == word.Id)
+                && !db.ResourceVocabularyMappings
+                    .Where(mapping => mapping.VocabularyWordId == word.Id)
+                    .Join(
+                        db.LearningResources.Where(resource => resource.UserProfileId == userId),
+                        mapping => mapping.ResourceId,
+                        resource => resource.Id,
+                        (mapping, resource) => mapping.Id)
+                    .Any());
+
+        return foreignOnlyWordCount == 0;
     }
 
     /// <summary>

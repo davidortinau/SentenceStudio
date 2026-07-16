@@ -45,22 +45,18 @@ public class ActivityTimerService : IActivityTimerService
         _logger.LogDebug("⏱️ ActivityTimerService.StartSession - activityType={ActivityType}, activityId={ActivityId}, resourceId={ResourceId}, skillId={SkillId}",
             activityType, activityId, resourceId, skillId);
 
-        // Save and stop any existing session (Pause saves unsaved progress before clearing)
-        if (IsActive)
-        {
-            if (IsRunning) Pause();
-            StopSession();
-        }
-
-        _activityType = activityType;
-        _activityId = activityId;
-        _previousProgressLoaded = false;
+        PrepareSession(activityType, activityId);
 
         // If no plan item id was provided this is an ad-hoc ("choose my own") session.
         // Create a DailyPlanCompletion record so the activity shows up in the Activity Log.
         if (string.IsNullOrEmpty(activityId))
         {
-            _ = StartAdHocThenLoadAsync(activityType, resourceId, skillId);
+            _ = StartAdHocThenLoadAsync(
+                activityType,
+                resourceId,
+                skillId,
+                vocabularyWordIds: null,
+                requirePersistence: false);
         }
         else
         {
@@ -74,64 +70,141 @@ public class ActivityTimerService : IActivityTimerService
         _logger.LogDebug("✅ Timer session starting (loading previous progress)");
     }
 
+    public async Task<bool> StartValidatedSessionAsync(
+        string activityType,
+        string? activityId,
+        string? resourceId,
+        string? skillId,
+        IReadOnlyCollection<string>? vocabularyWordIds)
+    {
+        PrepareSession(activityType, activityId);
+        TimerStateChanged?.Invoke(this, EventArgs.Empty);
+
+        if (!string.IsNullOrEmpty(activityId))
+            return await LoadThenStartAsync();
+
+        return await StartAdHocThenLoadAsync(
+            activityType,
+            resourceId,
+            skillId,
+            vocabularyWordIds,
+            requirePersistence: true);
+    }
+
+    private void PrepareSession(string activityType, string? activityId)
+    {
+        // Save and stop any existing session (Pause saves unsaved progress before clearing)
+        if (IsActive)
+        {
+            if (IsRunning) Pause();
+            StopSession();
+        }
+
+        _activityType = activityType;
+        _activityId = activityId;
+        _previousProgressLoaded = false;
+    }
+
     /// <summary>
     /// For ad-hoc sessions: create the DailyPlanCompletion record, capture its synthetic PlanItemId,
     /// then start the stopwatch. No previous progress to load — ad-hoc sessions are always fresh.
     /// </summary>
-    private async Task StartAdHocThenLoadAsync(string activityType, string? resourceId, string? skillId)
+    private async Task<bool> StartAdHocThenLoadAsync(
+        string activityType,
+        string? resourceId,
+        string? skillId,
+        IReadOnlyCollection<string>? vocabularyWordIds,
+        bool requirePersistence)
     {
         if (_progressService == null)
         {
+            if (requirePersistence)
+            {
+                _logger.LogWarning("Validated ad-hoc session refused because progress persistence is unavailable.");
+                CancelSession();
+                return false;
+            }
+
             _logger.LogWarning("⚠️ No IProgressService — cannot persist ad-hoc session, timer will run but not save");
             _pausedElapsed = TimeSpan.Zero;
             _lastSavedMinutes = 0;
-            if (!IsActive) return;
+            if (!IsActive) return false;
             _previousProgressLoaded = true;
             _stopwatch.Restart();
             _tickTimer?.Start();
             TimerStateChanged?.Invoke(this, EventArgs.Empty);
-            return;
+            return true;
         }
 
         if (!Enum.TryParse<SentenceStudio.Services.Progress.PlanActivityType>(activityType, out var parsedType))
         {
+            if (requirePersistence)
+            {
+                _logger.LogWarning("Validated ad-hoc session refused because the activity type was unavailable.");
+                CancelSession();
+                return false;
+            }
+
             _logger.LogWarning("⚠️ Could not parse activityType '{ActivityType}' as PlanActivityType — ad-hoc session not persisted", activityType);
             _pausedElapsed = TimeSpan.Zero;
             _lastSavedMinutes = 0;
-            if (!IsActive) return;
+            if (!IsActive) return false;
             _previousProgressLoaded = true;
             _stopwatch.Restart();
             _tickTimer?.Start();
             TimerStateChanged?.Invoke(this, EventArgs.Empty);
-            return;
+            return true;
         }
 
         try
         {
-            var adhocId = await _progressService.StartAdHocSessionAsync(parsedType, resourceId, skillId);
+            var adhocId = vocabularyWordIds is null
+                ? await _progressService.StartAdHocSessionAsync(parsedType, resourceId, skillId)
+                : await _progressService.StartAdHocSessionAsync(
+                    parsedType,
+                    resourceId,
+                    skillId,
+                    vocabularyWordIds);
+
+            if (string.IsNullOrWhiteSpace(adhocId))
+            {
+                _logger.LogWarning("Ad-hoc session persistence was refused; the timer was not started.");
+                CancelSession();
+                return false;
+            }
+
             _activityId = adhocId;
             _pausedElapsed = TimeSpan.Zero;
             _lastSavedMinutes = 0;
 
             // Guard: session may have been stopped while we were creating the record
-            if (!IsActive) return;
+            if (!IsActive) return false;
 
             _previousProgressLoaded = true;
             _stopwatch.Restart();
             _tickTimer?.Start();
             TimerStateChanged?.Invoke(this, EventArgs.Empty);
             _logger.LogDebug("✅ Ad-hoc session '{AdhocId}' created, stopwatch started", adhocId);
+            return true;
         }
         catch (Exception ex)
         {
+            if (requirePersistence)
+            {
+                _logger.LogError(ex, "Failed to create validated ad-hoc session; the timer was not started.");
+                CancelSession();
+                return false;
+            }
+
             _logger.LogError(ex, "❌ Failed to create ad-hoc session — timer will run but not save");
             _pausedElapsed = TimeSpan.Zero;
             _lastSavedMinutes = 0;
-            if (!IsActive) return;
+            if (!IsActive) return false;
             _previousProgressLoaded = true;
             _stopwatch.Restart();
             _tickTimer?.Start();
             TimerStateChanged?.Invoke(this, EventArgs.Empty);
+            return true;
         }
     }
 
@@ -140,12 +213,12 @@ public class ActivityTimerService : IActivityTimerService
     /// Ensures the stopwatch never runs until _pausedElapsed and _lastSavedMinutes
     /// are populated with previously-persisted values.
     /// </summary>
-    private async Task LoadThenStartAsync()
+    private async Task<bool> LoadThenStartAsync()
     {
         await LoadExistingProgressAsync();
 
         // Guard: session may have been stopped while we were loading
-        if (!IsActive) return;
+        if (!IsActive) return false;
 
         _previousProgressLoaded = true;
         _stopwatch.Restart();
@@ -153,6 +226,7 @@ public class ActivityTimerService : IActivityTimerService
 
         TimerStateChanged?.Invoke(this, EventArgs.Empty);
         _logger.LogDebug("✅ Stopwatch started after loading previous progress");
+        return true;
     }
 
     public void Pause()

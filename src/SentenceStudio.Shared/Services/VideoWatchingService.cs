@@ -10,6 +10,7 @@ public class VideoWatchingService
 {
     private readonly ILogger<VideoWatchingService> _logger;
     private readonly LearningResourceRepository _resourceRepository;
+    private readonly UserProfileRepository _userProfileRepository;
 
     // YouTube URL patterns to match
     private static readonly Regex[] YouTubePatterns = new[]
@@ -35,6 +36,7 @@ public class VideoWatchingService
     {
         _logger = service.GetRequiredService<ILogger<VideoWatchingService>>();
         _resourceRepository = service.GetRequiredService<LearningResourceRepository>();
+        _userProfileRepository = service.GetRequiredService<UserProfileRepository>();
     }
 
     /// <summary>
@@ -115,7 +117,8 @@ public class VideoWatchingService
     {
         _logger.LogInformation("Loading resource {ResourceId} for video playback", resourceId);
 
-        var resource = await _resourceRepository.GetResourceAsync(resourceId);
+        var userProfile = await _userProfileRepository.GetAsync();
+        var resource = await _resourceRepository.GetResourceAsync(resourceId, userProfile?.Id);
 
         if (resource == null)
         {

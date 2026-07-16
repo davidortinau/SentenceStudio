@@ -53,6 +53,18 @@ public interface IActivityTimerService
     void StartSession(string activityType, string? activityId = null, string? resourceId = null, string? skillId = null);
 
     /// <summary>
+    /// Starts a session only after the validated ad-hoc context is persisted. The vocabulary IDs
+    /// are checked by <see cref="IProgressService.StartAdHocSessionAsync(PlanActivityType, string?, string?, IReadOnlyCollection{string}?, int, CancellationToken)"/>.
+    /// Returns <c>false</c> without starting the timer when persistence is refused.
+    /// </summary>
+    Task<bool> StartValidatedSessionAsync(
+        string activityType,
+        string? activityId,
+        string? resourceId,
+        string? skillId,
+        IReadOnlyCollection<string>? vocabularyWordIds);
+
+    /// <summary>
     /// Pause the current timer session
     /// </summary>
     void Pause();

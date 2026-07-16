@@ -829,10 +829,25 @@ public class ProgressService : IProgressService
         return _progressRepo.GetDueVocabCountAsync(date);
     }
 
+    public Task<string> StartAdHocSessionAsync(
+        PlanActivityType activityType,
+        string? resourceId,
+        string? skillId,
+        int estimatedMinutes = 10,
+        CancellationToken ct = default) =>
+        StartAdHocSessionAsync(
+            activityType,
+            resourceId,
+            skillId,
+            vocabularyWordIds: null,
+            estimatedMinutes: estimatedMinutes,
+            ct: ct);
+
     public async Task<string> StartAdHocSessionAsync(
         PlanActivityType activityType,
         string? resourceId,
         string? skillId,
+        IReadOnlyCollection<string>? vocabularyWordIds,
         int estimatedMinutes = 10,
         CancellationToken ct = default)
     {
@@ -840,15 +855,28 @@ public class ProgressService : IProgressService
         if (userProfile == null)
         {
             _logger.LogWarning("❌ No user profile found - cannot start ad-hoc session");
-            // Still return an id so callers (e.g. timer) have something to key off — just won't persist.
-            return $"adhoc-{Guid.NewGuid()}";
+            return string.Empty;
         }
 
-        var today = ResolveTodayKey();
         var planItemId = $"adhoc-{Guid.NewGuid()}";
+        var today = ResolveTodayKey();
+        var normalizedResourceId = string.IsNullOrWhiteSpace(resourceId) ? null : resourceId.Trim();
+        var normalizedSkillId = string.IsNullOrWhiteSpace(skillId) ? null : skillId.Trim();
 
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        if (!await IsOwnedAdHocContextAsync(
+                db,
+                userProfile.Id,
+                normalizedResourceId,
+                normalizedSkillId,
+                vocabularyWordIds,
+                ct))
+        {
+            _logger.LogWarning("StartAdHocSessionAsync refused missing, unowned, or mixed-owner activity context.");
+            return string.Empty;
+        }
 
         var completion = new DailyPlanCompletion
         {
@@ -857,8 +885,8 @@ public class ProgressService : IProgressService
             Date = today,
             PlanItemId = planItemId,
             ActivityType = activityType.ToString(),
-            ResourceId = resourceId,
-            SkillId = skillId,
+            ResourceId = normalizedResourceId,
+            SkillId = normalizedSkillId,
             IsCompleted = false,
             CompletedAt = null,
             MinutesSpent = 0,
@@ -876,9 +904,66 @@ public class ProgressService : IProgressService
         if (_syncService != null) await _syncService.TriggerSyncAsync();
 
         _logger.LogInformation("🎯 Started ad-hoc session '{PlanItemId}' for {ActivityType} (resource={ResourceId}, skill={SkillId})",
-            planItemId, activityType, resourceId ?? "none", skillId ?? "none");
+            planItemId, activityType, normalizedResourceId ?? "none", normalizedSkillId ?? "none");
 
         return planItemId;
+    }
+
+    private static async Task<bool> IsOwnedAdHocContextAsync(
+        ApplicationDbContext db,
+        string userId,
+        string? resourceId,
+        string? skillId,
+        IReadOnlyCollection<string>? vocabularyWordIds,
+        CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(userId))
+            return false;
+
+        if (resourceId is not null
+            && !await db.LearningResources.AnyAsync(
+                resource => resource.Id == resourceId && resource.UserProfileId == userId,
+                ct))
+        {
+            return false;
+        }
+
+        if (skillId is not null
+            && !await db.SkillProfiles.AnyAsync(
+                skill => skill.Id == skillId && skill.UserProfileId == userId,
+                ct))
+        {
+            return false;
+        }
+
+        if (vocabularyWordIds is null || vocabularyWordIds.Count == 0)
+            return true;
+
+        if (vocabularyWordIds.Any(string.IsNullOrWhiteSpace))
+            return false;
+
+        var distinctWordIds = vocabularyWordIds
+            .Select(id => id.Trim())
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        var reachableWordIds = db.ResourceVocabularyMappings
+            .Join(
+                db.LearningResources.Where(resource => resource.UserProfileId == userId),
+                mapping => mapping.ResourceId,
+                resource => resource.Id,
+                (mapping, resource) => new { mapping.ResourceId, mapping.VocabularyWordId })
+            .Where(row => distinctWordIds.Contains(row.VocabularyWordId));
+
+        if (resourceId is not null)
+            reachableWordIds = reachableWordIds.Where(row => row.ResourceId == resourceId);
+
+        var reachableCount = await reachableWordIds
+            .Select(row => row.VocabularyWordId)
+            .Distinct()
+            .CountAsync(ct);
+
+        return reachableCount == distinctWordIds.Count;
     }
 
     private async Task<TodaysPlan> EnrichPlanWithCompletionDataAsync(TodaysPlan plan, CancellationToken ct)

@@ -498,7 +498,7 @@ public class DeterministicPlanBuilder
 
         if (!string.IsNullOrEmpty(recentSkill))
         {
-            var skill = await _skillRepo.GetAsync(recentSkill);
+            var skill = await _skillRepo.GetAsync(recentSkill, userProfileId);
             if (skill != null)
             {
                 return new SkillInfo
@@ -520,7 +520,7 @@ public class DeterministicPlanBuilder
 
         if (!string.IsNullOrEmpty(fallbackSkill))
         {
-            var skill = await _skillRepo.GetAsync(fallbackSkill);
+            var skill = await _skillRepo.GetAsync(fallbackSkill, userProfileId);
             if (skill != null)
             {
                 return new SkillInfo

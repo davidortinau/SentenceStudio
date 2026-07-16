@@ -35,10 +35,11 @@ public class WordAssociationService
     {
         var ids = resourceIds?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? [];
         var allWords = new List<VocabularyWord>();
+        var userProfile = await _serviceProvider.GetRequiredService<UserProfileRepository>().GetAsync();
 
         foreach (var id in ids)
         {
-            var resource = await _resourceRepository.GetResourceAsync(id);
+            var resource = await _resourceRepository.GetResourceAsync(id, userProfile?.Id);
             if (resource?.Vocabulary != null)
                 allWords.AddRange(resource.Vocabulary);
         }

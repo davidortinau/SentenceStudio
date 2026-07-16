@@ -56,7 +56,7 @@ public class SmartResourceService
             // Per-type idempotency: check each smart resource type independently so
             // upgraded users who pre-date a newly-added type (e.g. Phrases) still
             // get the missing entry seeded without duplicating existing ones.
-            var existingSmartResources = await _resourceRepo.GetSmartResourcesAsync();
+            var existingSmartResources = await _resourceRepo.GetSmartResourcesAsync(userId);
             var existingTypes = new HashSet<string>(
                 existingSmartResources
                     .Where(r => !string.IsNullOrEmpty(r.SmartResourceType))
@@ -137,7 +137,7 @@ public class SmartResourceService
                     continue;
                 }
 
-                await _resourceRepo.SaveResourceAsync(def);
+                await _resourceRepo.SaveResourceAsync(def, userId);
                 createdResources.Add(def);
                 _logger.LogInformation("✅ Created smart resource: {Title} ({Type})", def.Title, def.SmartResourceType);
             }
@@ -172,7 +172,7 @@ public class SmartResourceService
         try
         {
             // Get the smart resource
-            var resource = await _resourceRepo.GetResourceAsync(resourceId);
+            var resource = await _resourceRepo.GetResourceAsync(resourceId, userId);
             if (resource == null || !resource.IsSmartResource)
             {
                 _logger.LogWarning("⚠️ Resource {ResourceId} is not a smart resource, skipping refresh", resourceId);
@@ -189,18 +189,18 @@ public class SmartResourceService
                 resource.Title, vocabularyWordIds.Count);
 
             // Clear existing associations
-            var existingWords = await _resourceRepo.GetVocabularyWordsByResourceAsync(resourceId);
+            var existingWords = await _resourceRepo.GetVocabularyWordsByResourceAsync(resourceId, userId);
             if (existingWords.Any())
             {
                 var existingWordIds = existingWords.Select(w => w.Id).ToList();
-                await _resourceRepo.BulkRemoveWordsFromResourceAsync(resourceId, existingWordIds);
+                await _resourceRepo.BulkRemoveWordsFromResourceAsync(resourceId, existingWordIds, userId);
                 _logger.LogDebug("🗑️ Removed {Count} existing word associations", existingWordIds.Count);
             }
 
             // Associate new words
             if (vocabularyWordIds.Any())
             {
-                await _resourceRepo.BulkAssociateWordsWithResourceAsync(resourceId, vocabularyWordIds);
+                await _resourceRepo.BulkAssociateWordsWithResourceAsync(resourceId, vocabularyWordIds, userId);
                 _logger.LogDebug("✅ Associated {Count} new words", vocabularyWordIds.Count);
             }
         }
