@@ -431,9 +431,8 @@ function handleDoubleTap(s, clientX, clientY) {
 
     if (s.scale > 1.05) {
         // Currently zoomed: reset to fit
-        s.scale = 1;
-        s.tx = 0;
-        s.ty = 0;
+        reset();
+        return;
     } else {
         // Currently at fit: zoom to useful level, anchored at tap point
         const newScale = DOUBLE_TAP_ZOOM;

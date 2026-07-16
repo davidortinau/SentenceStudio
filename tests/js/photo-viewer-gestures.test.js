@@ -28,6 +28,9 @@ class MockElement {
         if (!this._listeners[type]) return;
         this._listeners[type] = this._listeners[type].filter(f => f !== fn);
     }
+    dispatchEvent(type, event) {
+        for (const listener of this._listeners[type] || []) listener(event);
+    }
     setPointerCapture() {}
     releasePointerCapture() {}
     getBoundingClientRect() { return { left: 0, top: 0, width: 800, height: 600 }; }
@@ -68,6 +71,25 @@ async function importFreshModule() {
     // Use a cache-busting query param to force a fresh module evaluation
     const cacheBuster = `?t=${Date.now()}-${Math.random()}`;
     return import(`../../src/SentenceStudio.UI/wwwroot/js/photo-viewer-gestures.js${cacheBuster}`);
+}
+
+let nextPointerId = 1;
+
+function tap(element, x, y) {
+    const pointerId = nextPointerId++;
+    const event = {
+        pointerId,
+        clientX: x,
+        clientY: y,
+        preventDefault() {}
+    };
+    element.dispatchEvent('pointerdown', event);
+    element.dispatchEvent('pointerup', event);
+}
+
+function doubleTap(element, x = 600, y = 300) {
+    tap(element, x, y);
+    tap(element, x, y);
 }
 
 describe('attach with diagnostics: false (default)', () => {
@@ -140,6 +162,83 @@ describe('attach with diagnostics: false (default)', () => {
         mod.detach();
         // Since diagnostics is off, detach should NOT remove the pre-existing attribute
         assert.equal(elements['test-image'].getAttribute('data-testid'), 'pre-existing');
+    });
+});
+
+describe('double-tap reset generation', () => {
+    beforeEach(() => {
+        elements = {
+            'test-image': new MockElement('test-image'),
+            'test-overlay': new MockElement('test-overlay')
+        };
+        nextPointerId = 1;
+        setupGlobalDom();
+    });
+
+    afterEach(() => {
+        teardownGlobalDom();
+        elements = {};
+    });
+
+    it('increments exactly once only when a double-tap resets zoom', async () => {
+        const mod = await importFreshModule();
+        const image = elements['test-image'];
+        mod.attach('test-image', 'test-overlay', { diagnostics: true });
+
+        doubleTap(image);
+        let current = mod.getState();
+        assert.equal(current.scale, 2.5);
+        assert.notEqual(current.tx, 0);
+        assert.equal(current.resetGeneration, 0);
+
+        doubleTap(image);
+        current = mod.getState();
+        assert.deepEqual(current, {
+            scale: 1,
+            tx: 0,
+            ty: 0,
+            pointerCount: 0,
+            resetGeneration: 1
+        });
+        assert.equal(elements['test-overlay'].getAttribute('data-debug-reset'), '1');
+
+        doubleTap(image);
+        assert.equal(mod.getState().resetGeneration, 1);
+        doubleTap(image);
+        assert.deepEqual(mod.getState(), {
+            scale: 1,
+            tx: 0,
+            ty: 0,
+            pointerCount: 0,
+            resetGeneration: 2
+        });
+        assert.equal(elements['test-overlay'].getAttribute('data-debug-reset'), '2');
+        mod.detach();
+    });
+
+    it('preserves behavior without emitting diagnostic attributes', async () => {
+        const mod = await importFreshModule();
+        const image = elements['test-image'];
+        const overlay = elements['test-overlay'];
+        mod.attach('test-image', 'test-overlay', { diagnostics: false });
+
+        doubleTap(image);
+        assert.equal(mod.getState().scale, 2.5);
+        assert.equal(mod.getState().resetGeneration, 0);
+
+        doubleTap(image);
+        assert.deepEqual(mod.getState(), {
+            scale: 1,
+            tx: 0,
+            ty: 0,
+            pointerCount: 0,
+            resetGeneration: 1
+        });
+        assert.equal(
+            [...overlay.attributes.keys()].some(name => name.startsWith('data-debug-')),
+            false
+        );
+        mod.detach();
     });
 });
 
