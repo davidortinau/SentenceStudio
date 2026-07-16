@@ -6716,4 +6716,13 @@
   <data name="VocabQuiz_FullscreenPhoto" xml:space="preserve">
     <value>전체 화면 사진 뷰어</value>
   </data>
+  <data name="VocabQuiz_ShowSampleSentences" xml:space="preserve">
+    <value>예문 표시</value>
+  </data>
+  <data name="VocabQuiz_HideSampleSentences" xml:space="preserve">
+    <value>예문 숨기기</value>
+  </data>
+  <data name="VocabQuiz_SampleSentencesLabel" xml:space="preserve">
+    <value>예문</value>
+  </data>
 </root>

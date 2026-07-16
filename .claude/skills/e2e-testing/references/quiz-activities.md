@@ -73,6 +73,64 @@ Symbols under test (do not invent new ones — use these exact fields):
 - `Mixed` mode randomizes direction per turn via `ShouldUseNativePrompt()` — a single test navigation must cycle enough turns to observe both direction outcomes, or the test must seed the RNG.
 - Toggling `showTextWithPhoto` persists via `SaveVocabQuizShowTextWithPhotoAsync`. Reset the field between test runs or the state leaks across cases.
 
+### 1.3 Target-language sample-sentence hints
+
+**Learning objective:** On target-language prompt turns, the learner can opt into additional target-language context that supports comprehension without revealing the native-language answer.
+
+**Seed fixture:**
+
+1. Use the canonical Squad test account and an owned resource mapped to a quiz word.
+2. Give the profile `TargetCEFRLevel=B1`.
+3. Seed four eligible, unflagged example sentences for that exact owned word/resource mapping:
+
+| ExampleSentenceId | DifficultyLevel | IsCore | Status | CreatedAt order | TargetSentence |
+|-------------------|-----------------|--------|--------|-----------------|----------------|
+| 9101 | 3 | true | Curated | third | `LEVEL-3-CORE target sentence` |
+| 9102 | 3 | false | Verified | second | `LEVEL-3-VERIFIED target sentence` |
+| 9103 | 2 | false | Verified | first | `LEVEL-2 target sentence` |
+| 9104 | 5 | false | Verified | fourth | `LEVEL-5 target sentence` |
+
+Set every row's `NativeSentence` to the sentinel `DO-NOT-RENDER-native-translation`. Add a photo to the word for the fullscreen case. Seed a second owned word with no eligible sentences.
+
+**Executable checks:**
+
+1. Set `DisplayDirection=TargetToNative`, navigate to the seeded word, and assert:
+   - `#quiz-sentence-hint-button` exists and is enabled.
+   - Its localized `title` equals its `aria-label`.
+   - `aria-expanded="false"` and `aria-controls="quiz-sentence-hint-panel"`.
+   - `#quiz-sentence-hint-panel` is absent from the DOM.
+2. Click `#quiz-sentence-hint-button` and assert:
+   - The button now has `aria-expanded="true"` and uses `bi-chat-quote-fill`.
+   - `#quiz-sentence-hint-panel[role="region"]` exists.
+   - The panel contains one semantic `ul` with 1-3 `li[data-example-sentence-id]` rows.
+   - The IDs are exactly `9101,9102,9103` in that order for B1.
+   - The list has the target-language `lang` attribute when the word's language metadata is recognized.
+   - The panel text contains only the three `TargetSentence` values. Assert `document.body.innerText` does not contain `DO-NOT-RENDER-native-translation`, and no hint control exposes translation or answer-side audio.
+3. Click the toggle again. Assert `aria-expanded="false"` and the panel is removed from the DOM rather than CSS-hidden.
+4. Open the panel, submit a correct answer, and assert the panel stays open with the same target-only rows throughout feedback. Repeat on another target-prompt turn with an incorrect answer.
+5. Advance with Next or wait for auto-advance. Assert the next turn starts collapsed and the panel is absent.
+6. Reach the second target-prompt word with zero eligible hints. Assert `#quiz-sentence-hint-button` is absent, not disabled.
+7. Set `DisplayDirection=NativeToTarget`. On every turn assert the hint button and panel are absent, including during correct and incorrect feedback.
+8. Set `DisplayDirection=Mixed` and cycle until both prompt directions occur:
+   - Target-prompt turn with eligible hints: button is present and opt-in.
+   - Native-prompt turn for the same word: button and panel are absent.
+   - Returning to a target-prompt turn starts collapsed.
+9. Resume reset:
+   - On a target-prompt turn, open the panel, navigate away without completing the session, return, choose Resume, and assert the restored turn starts collapsed.
+   - Inspect the saved `VocabQuizSessionSnapshot` and assert it contains no sentence-hint expansion state or sentence content.
+10. Fullscreen reset:
+    - Open the panel, then click `#quiz-photo-thumbnail`.
+    - Assert the hint panel is removed before `#quiz-fullscreen-viewer` appears.
+    - Close fullscreen and assert the hint panel remains collapsed.
+11. Missing-level fallback:
+    - Set `TargetCEFRLevel` to null, start a fresh batch, open the panel, and assert IDs are `9101,9103,9102`.
+    - Repeat with an unrecognized level such as `B3`; assert the same deterministic fallback order.
+12. Ownership fail-closed:
+    - Add an otherwise eligible sentence linked only to another user's resource or without an exact resource mapping.
+    - Assert its ID never appears in any `data-example-sentence-id`.
+
+**Pass criteria:** The feature performs one scoped prefetch for the batch, exposes no button on native-prompt or empty-hint turns, renders at most three target-only sentences, preserves expansion only through feedback on the same turn, and resets on every turn/session/fullscreen boundary.
+
 ## 2. Vocabulary Matching (`/vocab-matching`)
 
 **Prereqs:** Resource with ≥6 vocab words

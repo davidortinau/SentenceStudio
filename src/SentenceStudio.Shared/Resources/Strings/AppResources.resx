@@ -7017,4 +7017,16 @@ For example: {0} ...</value>
     <value>Full screen photo viewer</value>
     <comment>Aria label for the fullscreen image overlay dialog</comment>
   </data>
+  <data name="VocabQuiz_ShowSampleSentences" xml:space="preserve">
+    <value>Show sample sentences</value>
+    <comment>Toolbar action to reveal the sample-sentence hint panel on the vocab quiz</comment>
+  </data>
+  <data name="VocabQuiz_HideSampleSentences" xml:space="preserve">
+    <value>Hide sample sentences</value>
+    <comment>Toolbar action to collapse the sample-sentence hint panel on the vocab quiz</comment>
+  </data>
+  <data name="VocabQuiz_SampleSentencesLabel" xml:space="preserve">
+    <value>Sample sentences</value>
+    <comment>Section heading for the sample-sentence hint panel on the vocab quiz</comment>
+  </data>
 </root>

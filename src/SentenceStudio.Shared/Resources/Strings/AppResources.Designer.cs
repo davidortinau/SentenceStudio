@@ -11774,6 +11774,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Hide sample sentences.
+        /// </summary>
+        internal static string VocabQuiz_HideSampleSentences {
+            get {
+                return ResourceManager.GetString("VocabQuiz_HideSampleSentences", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Hide text.
         /// </summary>
         internal static string VocabQuiz_HideText {
@@ -11927,6 +11936,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Sample sentences.
+        /// </summary>
+        internal static string VocabQuiz_SampleSentencesLabel {
+            get {
+                return ResourceManager.GetString("VocabQuiz_SampleSentencesLabel", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Write one or more sentences using &quot;{0}&quot;.
         ///For example: {0} ....
         /// </summary>
@@ -11960,6 +11978,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string VocabQuiz_SessionSummary {
             get {
                 return ResourceManager.GetString("VocabQuiz_SessionSummary", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Show sample sentences.
+        /// </summary>
+        internal static string VocabQuiz_ShowSampleSentences {
+            get {
+                return ResourceManager.GetString("VocabQuiz_ShowSampleSentences", resourceCulture);
             }
         }
         

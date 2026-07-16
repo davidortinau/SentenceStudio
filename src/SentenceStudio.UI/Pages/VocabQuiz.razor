@@ -255,6 +255,20 @@ else if (currentItem != null)
                         @onclick="() => showInfoPanel = true">
                     <i class="bi bi-info-circle"></i>
                 </button>
+                @if (ShouldShowSentenceHintButton)
+                {
+                    <button type="button"
+                            id="quiz-sentence-hint-button"
+                            class="btn btn-outline-secondary btn-sm rounded-circle d-inline-flex align-items-center justify-content-center p-0"
+                            style="width: 44px; height: 44px;"
+                            title="@SentenceHintToggleLabel"
+                            aria-label="@SentenceHintToggleLabel"
+                            aria-expanded="@SentenceHintAriaExpanded"
+                            aria-controls="quiz-sentence-hint-panel"
+                            @onclick="ToggleSentenceHintPanel">
+                        <i class="bi @(sentenceHintExpanded ? "bi-chat-quote-fill" : "bi-chat-quote")" aria-hidden="true"></i>
+                    </button>
+                }
             </div>
 
             @if (showMnemonicImage && !string.IsNullOrWhiteSpace(currentItem?.Word?.MnemonicImageUri))
@@ -279,6 +293,23 @@ else if (currentItem != null)
                 <div class="alert alert-info py-2 px-3 mb-3 mx-auto" style="max-width: 560px;">
                     <strong>Mnemonic:</strong> @currentItem.Word.MnemonicText
                 </div>
+            }
+
+            @if (sentenceHintExpanded && CurrentSentenceHints.Count > 0)
+            {
+                <section id="quiz-sentence-hint-panel"
+                         class="alert alert-info py-2 px-3 mb-3 mx-auto text-start"
+                         style="max-width: 560px;"
+                         role="region"
+                         aria-labelledby="quiz-sentence-hint-label">
+                    <strong id="quiz-sentence-hint-label" class="d-block mb-1">@($"{Localize["VocabQuiz_SampleSentencesLabel"]}")</strong>
+                    <ul class="mb-0" lang="@TargetLanguageTag">
+                        @foreach (var hint in CurrentSentenceHints)
+                        {
+                            <li data-example-sentence-id="@hint.ExampleSentenceId">@hint.TargetSentence</li>
+                        }
+                    </ul>
+                </section>
             }
 
             @if (showAnswer)
@@ -623,6 +654,8 @@ else
     [Inject] private UserProfileRepository UserProfileRepo { get; set; } = default!;
     [Inject] private IActivitySessionService SessionService { get; set; } = default!;
     [Inject] private SentenceStudio.Abstractions.PhotoViewerCoordinator PhotoViewer { get; set; } = default!;
+    [Inject] private ExampleSentenceRepository ExampleSentenceRepo { get; set; } = default!;
+    [Inject] private SentenceStudio.Services.LanguageSegmentation.LanguageSegmenterFactory LanguageSegmenters { get; set; } = default!;
 
     private const int BatchSize = 20;
     private const int ActiveWordCount = 10;
@@ -647,8 +680,11 @@ else
     private bool showResumePrompt;
     private bool showTextWithPhoto;
     private bool isSavingTextToggle;
+    private bool sentenceHintExpanded;
     private IAudioPlayer? audioPlayer;
     private CancellationTokenSource? autoAdvanceCts;
+    private CancellationTokenSource? sentenceHintLoadCts;
+    private long sentenceHintLoadVersion;
     private string userInput = "";
     private string userGuess = "";
     private string userMode = "MultipleChoice";
@@ -662,6 +698,8 @@ else
     private List<VocabularyQuizItem> vocabItems = new();
     private List<VocabularyQuizItem> sessionItems = new();
     private List<VocabularyQuizItem> roundWordOrder = new();
+    private IReadOnlyDictionary<string, IReadOnlyList<VocabQuizSentenceHint>> sentenceHintsByWordId =
+        new Dictionary<string, IReadOnlyList<VocabQuizSentenceHint>>(StringComparer.Ordinal);
     private IReadOnlyList<string> focusVocabularyIds = Array.Empty<string>();
     private bool usingFocusVocabularyIds;
     // #190 — full vocabulary scope used as the distractor pool, so MC always has 4 options
@@ -682,6 +720,7 @@ else
     private int correctCount;
     private string nativeLanguage = "English";
     private string targetLanguage = "Korean";
+    private string? targetCefrLevel;
     private bool isSentenceShortcutMode;
     private bool isSentenceShortcutSubmitting;
     private string sentenceShortcutInput = "";
@@ -709,6 +748,43 @@ else
         && QuizPrefs.UseAudioPrompt
         && audioAnswerModeAvailable;
 
+    private IReadOnlyList<VocabQuizSentenceHint> CurrentSentenceHints
+    {
+        get
+        {
+            if (currentItem?.Word == null
+                || !sentenceHintsByWordId.TryGetValue(currentItem.Word.Id, out var prefetchedHints))
+            {
+                return Array.Empty<VocabQuizSentenceHint>();
+            }
+
+            return VocabQuizSentenceHintPolicy.GetHintsForTurn(
+                promptUsesNativeLanguage,
+                prefetchedHints);
+        }
+    }
+
+    private bool ShouldShowSentenceHintButton => VocabQuizSentenceHintPolicy.ShouldShowButton(
+        promptUsesNativeLanguage,
+        CurrentSentenceHints);
+
+    private string SentenceHintToggleLabel => sentenceHintExpanded
+        ? $"{Localize["VocabQuiz_HideSampleSentences"]}"
+        : $"{Localize["VocabQuiz_ShowSampleSentences"]}";
+
+    private string SentenceHintAriaExpanded => sentenceHintExpanded ? "true" : "false";
+
+    private string? TargetLanguageTag
+    {
+        get
+        {
+            var language = currentItem?.Word?.Language ?? targetLanguage;
+            return LanguageSegmenters.HasSpecificSegmenter(language)
+                ? LanguageSegmenters.GetSegmenter(language).LanguageCode
+                : null;
+        }
+    }
+
 
     protected override async Task OnInitializedAsync()
     {
@@ -720,6 +796,7 @@ else
         var userProfile = await UserProfileRepo.GetAsync();
         nativeLanguage = userProfile?.NativeLanguage ?? "English";
         targetLanguage = userProfile?.TargetLanguage ?? "Korean";
+        targetCefrLevel = userProfile?.TargetCEFRLevel;
         showTextWithPhoto = userProfile?.VocabQuizShowTextWithPhoto ?? false;
 
         focusVocabularyIds = FocusVocabularySelection.ParseFocusVocabularyIds(FocusVocabularyIdsParam);
@@ -747,6 +824,10 @@ else
 
     private async Task LoadVocabulary()
     {
+        ResetSentenceHintFeature(
+            VocabQuizSentenceHintTransition.Restart,
+            cancelPendingLoad: true,
+            clearCache: true);
         isBusy = true;
         sessionMarkedComplete = false;
         try
@@ -766,7 +847,7 @@ else
 
             distractorScope = allWords;
 
-            var activeUserId = Preferences.Get("active_profile_id", "");
+            var activeUserId = GetActiveUserId();
             var wordIds = allWords.Select(w => w.Id).ToList();
             var progressDict = await ProgressService.GetProgressForWordsAsync(wordIds, activeUserId);
 
@@ -834,6 +915,7 @@ else
                 return;
             }
 
+            await LoadSentenceHintsForBatchAsync(activeUserId, targetCefrLevel, batchPool);
             await SetupNewRound();
         }
         catch (Exception ex)
@@ -900,6 +982,11 @@ else
 
     private async Task ResumePreviousSessionAsync()
     {
+        ResetSentenceHintFeature(
+            VocabQuizSentenceHintTransition.Resume,
+            cancelPendingLoad: true,
+            clearCache: true);
+
         if (resumableSession == null)
         {
             showResumePrompt = false;
@@ -1012,6 +1099,7 @@ else
             }
 
             currentTurnInRound = Math.Clamp(currentTurnInRound, 0, Math.Max(roundWordOrder.Count - 1, 0));
+            await LoadSentenceHintsForBatchAsync(activeUserId, targetCefrLevel, batchPool);
             await LoadCurrentItem(preservePromptState: true);
         }
         catch (Exception ex)
@@ -1024,6 +1112,11 @@ else
 
     private async Task StartFreshSessionAsync()
     {
+        ResetSentenceHintFeature(
+            VocabQuizSentenceHintTransition.Restart,
+            cancelPendingLoad: true,
+            clearCache: true);
+
         if (resumableSession != null)
         {
             try
@@ -1139,6 +1232,141 @@ else
 
     private string GetActiveUserId() => Preferences.Get("active_profile_id", "");
 
+    private async Task LoadSentenceHintsForBatchAsync(
+        string activeUserId,
+        string? cefrLevel,
+        IReadOnlyCollection<VocabularyQuizItem> items)
+    {
+        CancelSentenceHintLoad();
+        sentenceHintExpanded = false;
+        sentenceHintsByWordId =
+            new Dictionary<string, IReadOnlyList<VocabQuizSentenceHint>>(StringComparer.Ordinal);
+
+        var normalizedUserId = activeUserId.Trim();
+        var wordIds = items
+            .Select(item => item.Word.Id)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+
+        if (string.IsNullOrWhiteSpace(normalizedUserId) || wordIds.Length == 0)
+        {
+            Logger.LogWarning(
+                "Skipping Vocab Quiz sentence-hint prefetch because the active user or batch is unavailable");
+            return;
+        }
+
+        var requestVersion = Interlocked.Increment(ref sentenceHintLoadVersion);
+        var cts = new CancellationTokenSource();
+        sentenceHintLoadCts = cts;
+
+        try
+        {
+            var hints = await ExampleSentenceRepo.GetQuizHintsForWordsAsync(
+                normalizedUserId,
+                wordIds,
+                cefrLevel,
+                VocabQuizSentenceHintPolicy.MaxHintsPerTurn,
+                cts.Token);
+
+            if (!IsCurrentSentenceHintRequest(requestVersion, cts, normalizedUserId, wordIds))
+                return;
+
+            var replacement = hints
+                .GroupBy(hint => hint.VocabularyWordId, StringComparer.Ordinal)
+                .ToDictionary(
+                    group => group.Key,
+                    group => (IReadOnlyList<VocabQuizSentenceHint>)group
+                        .Take(VocabQuizSentenceHintPolicy.MaxHintsPerTurn)
+                        .ToArray(),
+                    StringComparer.Ordinal);
+
+            sentenceHintsByWordId = replacement;
+        }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested)
+        {
+            Logger.LogDebug("Vocab Quiz sentence-hint prefetch was canceled");
+        }
+        catch (Exception ex)
+        {
+            if (IsCurrentSentenceHintRequest(requestVersion, cts, normalizedUserId, wordIds))
+            {
+                sentenceHintsByWordId =
+                    new Dictionary<string, IReadOnlyList<VocabQuizSentenceHint>>(StringComparer.Ordinal);
+            }
+
+            Logger.LogError(
+                ex,
+                "Failed to prefetch Vocab Quiz sentence hints for {WordCount} words",
+                wordIds.Length);
+        }
+        finally
+        {
+            Interlocked.CompareExchange(ref sentenceHintLoadCts, null, cts);
+            cts.Dispose();
+        }
+    }
+
+    private bool IsCurrentSentenceHintRequest(
+        long requestVersion,
+        CancellationTokenSource cts,
+        string userId,
+        IReadOnlyList<string> wordIds)
+    {
+        return requestVersion == Volatile.Read(ref sentenceHintLoadVersion)
+            && ReferenceEquals(Volatile.Read(ref sentenceHintLoadCts), cts)
+            && string.Equals(GetActiveUserId().Trim(), userId, StringComparison.Ordinal)
+            && batchPool
+                .Select(item => item.Word.Id)
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Distinct(StringComparer.Ordinal)
+                .SequenceEqual(wordIds, StringComparer.Ordinal);
+    }
+
+    private void ToggleSentenceHintPanel()
+    {
+        sentenceHintExpanded = VocabQuizSentenceHintPolicy.GetExpandedState(
+            sentenceHintExpanded,
+            ShouldShowSentenceHintButton,
+            VocabQuizSentenceHintTransition.Toggle);
+    }
+
+    private void ResetSentenceHintFeature(
+        VocabQuizSentenceHintTransition transition,
+        bool cancelPendingLoad = false,
+        bool clearCache = false)
+    {
+        sentenceHintExpanded = VocabQuizSentenceHintPolicy.GetExpandedState(
+            sentenceHintExpanded,
+            ShouldShowSentenceHintButton,
+            transition);
+
+        if (cancelPendingLoad)
+            CancelSentenceHintLoad();
+
+        if (clearCache)
+        {
+            sentenceHintsByWordId =
+                new Dictionary<string, IReadOnlyList<VocabQuizSentenceHint>>(StringComparer.Ordinal);
+        }
+    }
+
+    private void CancelSentenceHintLoad()
+    {
+        Interlocked.Increment(ref sentenceHintLoadVersion);
+        var cts = Interlocked.Exchange(ref sentenceHintLoadCts, null);
+        if (cts == null)
+            return;
+
+        try
+        {
+            cts.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+    }
+
     private async Task SetupNewRound()
     {
         showSessionSummary = false;
@@ -1182,6 +1410,8 @@ else
 
     private async Task LoadCurrentItem(bool preservePromptState = false)
     {
+        ResetSentenceHintFeature(VocabQuizSentenceHintTransition.LoadCurrentItem);
+
         if (currentTurnInRound >= roundWordOrder.Count || currentTurnInRound >= TurnsPerRound)
         {
             // Round complete
@@ -1247,6 +1477,7 @@ else
         if (currentItem?.Word == null)
             return;
 
+        ResetSentenceHintFeature(VocabQuizSentenceHintTransition.SentenceShortcut);
         autoAdvanceCts?.Cancel();
         pendingAttempt = null;
         isSentenceShortcutMode = true;
@@ -1576,6 +1807,10 @@ else
             isCorrect = string.Equals(answer.Trim(), correctAnswer.Trim(), StringComparison.OrdinalIgnoreCase);
         }
         showAnswer = true;
+        sentenceHintExpanded = VocabQuizSentenceHintPolicy.GetExpandedState(
+            sentenceHintExpanded,
+            ShouldShowSentenceHintButton,
+            VocabQuizSentenceHintTransition.AnswerFeedback);
 
         // Update session counters (cumulative — never reset on wrong answers, spec §1.2.3)
         if (isCorrect)
@@ -1669,6 +1904,7 @@ else
 
     private async Task NextItem()
     {
+        ResetSentenceHintFeature(VocabQuizSentenceHintTransition.LoadCurrentItem);
         autoAdvanceCts?.Cancel();
         await RecordPendingAttemptAsync();
 
@@ -1850,6 +2086,8 @@ else
     private async Task OpenImageFullscreen()
     {
         if (isImageFullscreen) return;
+
+        ResetSentenceHintFeature(VocabQuizSentenceHintTransition.OpenFullscreen);
 
         // Try native photo viewer first; fall back to Razor overlay if unavailable
         if (SentenceStudio.Abstractions.PhotoViewerRequest.TryCreate(
@@ -2077,6 +2315,7 @@ else
     public async ValueTask DisposeAsync()
     {
         Localize.CultureChanged -= OnCultureChanged;
+        CancelSentenceHintLoad();
         await RecordPendingAttemptAsync();
         await PersistSnapshotAsync();
         if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
