@@ -84,6 +84,7 @@ public static class CoreServiceExtensions
         services.AddSingleton<IVocabularyProgressService>(provider =>
             provider.GetRequiredService<VocabularyProgressService>());
         services.AddSingleton<SmartResourceService>();
+        services.AddSingleton<VocabQuizLaunchValidator>();
 
         // Post-login routing decision (issue #187) — keep the rule out of LoginPage
         // and MainLayout so it's testable and consistent.

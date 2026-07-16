@@ -9,6 +9,13 @@
         <div class="spinner-border text-primary" role="status"></div>
     </div>
 }
+else if (profile is null)
+{
+    <div class="alert alert-warning" role="alert">
+        <i class="bi bi-exclamation-triangle me-2" aria-hidden="true"></i>@Localize["SkillEdit_NotFound"]
+    </div>
+    <button class="btn btn-ss-secondary" @onclick="GoBack">@Localize["Common_Back"]</button>
+}
 else
 {
     <PageHeader Title='@Localize["SkillEdit_Title"]' ShowBack="true" OnBack="GoBack">
@@ -87,7 +94,7 @@ else
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
 
-    private SkillProfile profile = new();
+    private SkillProfile? profile;
     private string title = "";
     private string description = "";
     private bool isLoading = true;
@@ -133,6 +140,9 @@ else
 
     private async Task SaveProfile()
     {
+        if (profile is null)
+            return;
+
         if (string.IsNullOrWhiteSpace(title))
         {
             Toast.ShowError($"{Localize["SkillAdd_TitleRequired"]}");
@@ -164,6 +174,9 @@ else
 
     private void RequestDelete()
     {
+        if (profile is null)
+            return;
+
         deleteConfirmMessage = $"{Localize["SkillEdit_DeleteMessage"]}";
         showDeleteConfirm = true;
     }
@@ -175,6 +188,9 @@ else
 
     private async Task ConfirmDelete()
     {
+        if (profile is null)
+            return;
+
         isDeleting = true;
         try
         {

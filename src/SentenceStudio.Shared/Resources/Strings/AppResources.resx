@@ -2569,6 +2569,10 @@ Ready to practice? Say "yes" to start, or tell me what you'd like to change.</va
     <value>Skill Profile</value>
     <comment>Dashboard: choose-own skill profile label</comment>
   </data>
+  <data name="Dashboard_ChooseOwnSelectionUnavailable" xml:space="preserve">
+    <value>Your saved selection is no longer available. Please choose again.</value>
+    <comment>Dashboard: stale or unavailable choose-own selection warning</comment>
+  </data>
   <data name="Dashboard_Activities" xml:space="preserve">
     <value>Activities</value>
     <comment>Dashboard: activities section header</comment>
@@ -3216,6 +3220,14 @@ For example: {0} ...</value>
   <data name="VocabQuiz_NoVocab" xml:space="preserve">
     <value>No vocabulary loaded.</value>
     <comment>Empty state</comment>
+  </data>
+  <data name="VocabQuiz_LaunchUnavailable" xml:space="preserve">
+    <value>This vocabulary quiz is no longer available for the active profile.</value>
+    <comment>Fail-closed route or activity start warning</comment>
+  </data>
+  <data name="VocabQuiz_ResumeUnavailable" xml:space="preserve">
+    <value>This saved quiz cannot be resumed safely. Start a fresh session to continue.</value>
+    <comment>Fail-closed compromised or stale resume warning</comment>
   </data>
   <data name="VocabMatching_NewGame" xml:space="preserve">
     <value>New Game</value>
@@ -3980,6 +3992,10 @@ For example: {0} ...</value>
   <data name="ResourceEdit_LoadFailed" xml:space="preserve">
     <value>Failed to load resource: {0}</value>
     <comment>Toast error</comment>
+  </data>
+  <data name="ResourceEdit_NotFound" xml:space="preserve">
+    <value>Resource not found.</value>
+    <comment>Fail-closed missing or unowned resource state</comment>
   </data>
   <data name="ResourceEdit_TitleRequired" xml:space="preserve">
     <value>Title is required.</value>

@@ -2325,6 +2325,10 @@
     <value>스킬 프로필</value>
     <comment>Dashboard: choose-own skill profile label</comment>
   </data>
+  <data name="Dashboard_ChooseOwnSelectionUnavailable" xml:space="preserve">
+    <value>저장된 선택 항목을 더 이상 사용할 수 없습니다. 다시 선택해 주세요.</value>
+    <comment>Dashboard: stale or unavailable choose-own selection warning</comment>
+  </data>
   <data name="Dashboard_Activities" xml:space="preserve">
     <value>활동</value>
     <comment>Dashboard: activities section header</comment>
@@ -2968,6 +2972,14 @@
   <data name="VocabQuiz_NoVocab" xml:space="preserve">
     <value>어휘가 없습니다.</value>
     <comment>Empty state</comment>
+  </data>
+  <data name="VocabQuiz_LaunchUnavailable" xml:space="preserve">
+    <value>현재 프로필에서는 이 어휘 퀴즈를 더 이상 사용할 수 없습니다.</value>
+    <comment>Fail-closed route or activity start warning</comment>
+  </data>
+  <data name="VocabQuiz_ResumeUnavailable" xml:space="preserve">
+    <value>저장된 퀴즈를 안전하게 다시 시작할 수 없습니다. 새 세션을 시작해 주세요.</value>
+    <comment>Fail-closed compromised or stale resume warning</comment>
   </data>
   <data name="VocabMatching_NewGame" xml:space="preserve">
     <value>새 게임</value>
@@ -3732,6 +3744,10 @@
   <data name="ResourceEdit_LoadFailed" xml:space="preserve">
     <value>리소스 로드 실패: {0}</value>
     <comment>Toast error</comment>
+  </data>
+  <data name="ResourceEdit_NotFound" xml:space="preserve">
+    <value>리소스를 찾을 수 없습니다.</value>
+    <comment>Fail-closed missing or unowned resource state</comment>
   </data>
   <data name="ResourceEdit_TitleRequired" xml:space="preserve">
     <value>제목은 필수입니다.</value>

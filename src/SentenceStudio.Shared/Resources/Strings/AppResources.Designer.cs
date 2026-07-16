@@ -2038,6 +2038,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Your saved selection is no longer available. Please choose again..
+        /// </summary>
+        internal static string Dashboard_ChooseOwnSelectionUnavailable {
+            get {
+                return ResourceManager.GetString("Dashboard_ChooseOwnSelectionUnavailable", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Create Starter Resource.
         /// </summary>
         internal static string Dashboard_CreateStarterResource {
@@ -9004,6 +9013,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to Resource not found..
+        /// </summary>
+        internal static string ResourceEdit_NotFound {
+            get {
+                return ResourceManager.GetString("ResourceEdit_NotFound", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to No transcript available to generate vocabulary from..
         /// </summary>
         internal static string ResourceEdit_NoTranscript {
@@ -11810,6 +11828,15 @@ namespace SentenceStudio.Resources.Strings {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to This vocabulary quiz is no longer available for the active profile..
+        /// </summary>
+        internal static string VocabQuiz_LaunchUnavailable {
+            get {
+                return ResourceManager.GetString("VocabQuiz_LaunchUnavailable", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to Learning Details.
         /// </summary>
         internal static string VocabQuiz_LearningDetails {
@@ -11923,6 +11950,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string VocabQuiz_ResumePrompt {
             get {
                 return ResourceManager.GetString("VocabQuiz_ResumePrompt", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to This saved quiz cannot be resumed safely. Start a fresh session to continue..
+        /// </summary>
+        internal static string VocabQuiz_ResumeUnavailable {
+            get {
+                return ResourceManager.GetString("VocabQuiz_ResumeUnavailable", resourceCulture);
             }
         }
         

@@ -1,4 +1,5 @@
 using FluentAssertions;
+using SentenceStudio.Services;
 using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.UnitTests.Models;
@@ -147,4 +148,85 @@ public sealed class VocabQuizSessionSnapshotTests
         restored.RoundWordOrder.Should().Equal("word-2", "word-1");
         restored.SessionItemsWordIds.Should().Equal("word-1", "word-2", "word-3");
     }
+
+    [Fact]
+    public void ResumeValidation_AcceptsMatchingOwnedSnapshot()
+    {
+        var snapshot = CreateResumeSnapshot();
+
+        var rejectedCount = VocabQuizLaunchValidator.CountRejectedSnapshotReferences(
+            snapshot,
+            expectedPlanItemId: "plan-a",
+            expectedFocusVocabularyIds: ["word-a", "word-b"],
+            expectedResourceIds: ["resource-a"],
+            expectedDueOnly: false,
+            expectedSkillId: "skill-a",
+            reachableWordIds: ["word-a", "word-b"]);
+
+        rejectedCount.Should().Be(0);
+    }
+
+    [Fact]
+    public void ResumeValidation_RejectsUnreachableWordWithoutPartialRestore()
+    {
+        var snapshot = CreateResumeSnapshot() with
+        {
+            BatchPool =
+            [
+                new VocabQuizBatchItemSnapshot { WordId = "word-a" },
+                new VocabQuizBatchItemSnapshot { WordId = "foreign-word" }
+            ],
+            RoundWordOrder = ["word-a", "foreign-word"],
+            SessionItemsWordIds = ["word-a"]
+        };
+
+        var rejectedCount = VocabQuizLaunchValidator.CountRejectedSnapshotReferences(
+            snapshot,
+            expectedPlanItemId: "plan-a",
+            expectedFocusVocabularyIds: ["word-a", "word-b"],
+            expectedResourceIds: ["resource-a"],
+            expectedDueOnly: false,
+            expectedSkillId: "skill-a",
+            reachableWordIds: ["word-a", "word-b"]);
+
+        rejectedCount.Should().BeGreaterThan(0);
+    }
+
+    [Fact]
+    public void ResumeValidation_RejectsMismatchedResourceSkillAndFocusMetadata()
+    {
+        var snapshot = CreateResumeSnapshot() with
+        {
+            FocusVocabularyIds = ["foreign-word"],
+            ResourceIds = ["foreign-resource"],
+            SkillId = "foreign-skill"
+        };
+
+        var rejectedCount = VocabQuizLaunchValidator.CountRejectedSnapshotReferences(
+            snapshot,
+            expectedPlanItemId: "plan-a",
+            expectedFocusVocabularyIds: ["word-a", "word-b"],
+            expectedResourceIds: ["resource-a"],
+            expectedDueOnly: false,
+            expectedSkillId: "skill-a",
+            reachableWordIds: ["word-a", "word-b"]);
+
+        rejectedCount.Should().Be(3);
+    }
+
+    private static VocabQuizSessionSnapshot CreateResumeSnapshot() => new()
+    {
+        PlanItemId = "plan-a",
+        FocusVocabularyIds = ["word-a", "word-b"],
+        ResourceIds = ["resource-a"],
+        DueOnly = false,
+        SkillId = "skill-a",
+        BatchPool =
+        [
+            new VocabQuizBatchItemSnapshot { WordId = "word-a" },
+            new VocabQuizBatchItemSnapshot { WordId = "word-b" }
+        ],
+        RoundWordOrder = ["word-b", "word-a"],
+        SessionItemsWordIds = ["word-a"]
+    };
 }

@@ -10,6 +10,13 @@
         <div class="spinner-border text-primary" role="status"></div>
     </div>
 }
+else if (resource is null)
+{
+    <div class="alert alert-warning" role="alert">
+        <i class="bi bi-exclamation-triangle me-2" aria-hidden="true"></i>@Localize["ResourceEdit_NotFound"]
+    </div>
+    <button class="btn btn-ss-secondary" @onclick="GoBack">@Localize["Common_Back"]</button>
+}
 else
 {
     <PageHeader Title="@(resource.Title ?? "Resource")" ShowBack="true" OnBack="GoBack">
@@ -319,7 +326,7 @@ else
     [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private ILogger<ResourceEdit> Logger { get; set; } = default!;
 
-    private LearningResource resource = new();
+    private LearningResource? resource;
     private bool isLoading = true;
     private bool isSaving;
     private bool isGeneratingVocabulary;
@@ -342,7 +349,8 @@ else
     private bool showQuickAddCreateForm;
     private bool showQuickAddDropdown;
 
-    private bool CanUseQuickAdd => !resource.IsSmartResource
+    private bool CanUseQuickAdd => resource is not null
+        && !resource.IsSmartResource
         && !string.IsNullOrWhiteSpace(resource.Language)
         && !resource.Language.Equals("Other", StringComparison.OrdinalIgnoreCase);
 
@@ -373,6 +381,8 @@ else
         try
         {
             resource = await ResourceRepo.GetResourceAsync(Id);
+            if (resource is null)
+                Toast.ShowError($"{Localize["ResourceEdit_NotFound"]}");
         }
         catch (Exception ex)
         {
@@ -388,6 +398,9 @@ else
 
     private async Task SaveResource()
     {
+        if (resource is null)
+            return;
+
         if (resource.IsSmartResource)
         {
             Logger.LogWarning("Attempt to save smart resource {ResourceId} blocked", resource.Id);
@@ -424,6 +437,9 @@ else
 
     private void RequestDelete()
     {
+        if (resource is null)
+            return;
+
         if (resource.IsSmartResource)
         {
             Logger.LogWarning("Attempt to delete smart resource {ResourceId} blocked", resource.Id);
@@ -441,6 +457,9 @@ else
 
     private async Task ConfirmDelete()
     {
+        if (resource is null)
+            return;
+
         if (resource.IsSmartResource)
         {
             Logger.LogWarning("Attempt to delete smart resource {ResourceId} blocked", resource.Id);
@@ -470,6 +489,9 @@ else
 
     private async Task HandleQuickAddInput(ChangeEventArgs e)
     {
+        if (resource is null)
+            return;
+
         quickAddQuery = e.Value?.ToString() ?? "";
         quickAddNativeTerm = "";
         showQuickAddCreateForm = false;
@@ -566,6 +588,9 @@ else
 
     private async Task AddExistingVocabularyAsync(VocabularyWord word)
     {
+        if (resource is null)
+            return;
+
         if (resource.IsSmartResource || isQuickAddAttaching || string.IsNullOrWhiteSpace(word.Id))
             return;
 
@@ -596,6 +621,9 @@ else
 
     private async Task ConfirmCreateQuickAddWordAsync()
     {
+        if (resource is null)
+            return;
+
         var targetTerm = quickAddQuery.Trim();
         if (string.IsNullOrWhiteSpace(targetTerm) || resource.IsSmartResource || isQuickAddAttaching)
             return;
@@ -628,6 +656,9 @@ else
 
     private async Task RemoveVocabularyWordAsync(VocabularyWord word)
     {
+        if (resource is null)
+            return;
+
         if (resource.IsSmartResource || string.IsNullOrWhiteSpace(word.Id))
             return;
 
@@ -649,6 +680,9 @@ else
 
     private void AppendVocabularyWord(VocabularyWord word)
     {
+        if (resource is null)
+            return;
+
         resource.Vocabulary ??= new List<VocabularyWord>();
         if (!resource.Vocabulary.Any(existing => existing.Id == word.Id))
             resource.Vocabulary.Add(word);
@@ -673,6 +707,9 @@ else
 
     private async Task ImportVocabulary()
     {
+        if (resource is null)
+            return;
+
         if (resource.IsSmartResource)
         {
             Logger.LogWarning("Attempt to import vocabulary into smart resource {ResourceId} blocked", resource.Id);
@@ -718,6 +755,9 @@ else
 
     private async Task HandleFileImport(InputFileChangeEventArgs e)
     {
+        if (resource is null)
+            return;
+
         if (resource.IsSmartResource)
         {
             Logger.LogWarning("Attempt to import file into smart resource {ResourceId} blocked", resource.Id);
@@ -786,6 +826,9 @@ else
 
     private async Task GenerateVocabulary()
     {
+        if (resource is null)
+            return;
+
         if (resource.IsSmartResource)
         {
             Logger.LogWarning("Attempt to generate vocabulary for smart resource {ResourceId} blocked", resource.Id);

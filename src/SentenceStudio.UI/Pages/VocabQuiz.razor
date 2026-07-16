@@ -36,15 +36,33 @@ else
 }
 
 <div class="activity-content">
-@if (showResumePrompt)
+@if (!string.IsNullOrEmpty(launchError))
+{
+    <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 60vh;">
+        <div class="alert alert-warning text-center" role="alert" style="max-width: 520px;">
+            <i class="bi bi-exclamation-triangle me-2" aria-hidden="true"></i>@launchError
+        </div>
+        <button class="btn btn-ss-secondary" @onclick="GoBack">@Localize["Common_Done"]</button>
+    </div>
+}
+else if (showResumePrompt)
 {
     <div class="d-flex flex-column align-items-center justify-content-center" style="min-height: 60vh;">
         <div class="card card-ss p-4 text-center" style="min-width: 340px; max-width: 520px;">
             <h2 class="ss-title1 mb-4"><i class="bi bi-clock-history me-2"></i>@($"{Localize["VocabQuiz_ResumePrompt"]}")</h2>
+            @if (resumeRejected)
+            {
+                <div class="alert alert-warning" role="alert">
+                    @($"{Localize["VocabQuiz_ResumeUnavailable"]}")
+                </div>
+            }
             <div class="d-flex flex-column flex-sm-row justify-content-center gap-2">
-                <button class="btn btn-ss-primary" @onclick="ResumePreviousSessionAsync">
-                    <i class="bi bi-play-circle me-1"></i>@($"{Localize["VocabQuiz_Resume"]}")
-                </button>
+                @if (!resumeRejected)
+                {
+                    <button class="btn btn-ss-primary" @onclick="ResumePreviousSessionAsync">
+                        <i class="bi bi-play-circle me-1"></i>@($"{Localize["VocabQuiz_Resume"]}")
+                    </button>
+                }
                 <button class="btn btn-ss-secondary" @onclick="StartFreshSessionAsync">
                     <i class="bi bi-arrow-clockwise me-1"></i>@($"{Localize["VocabQuiz_StartFresh"]}")
                 </button>
@@ -634,6 +652,8 @@ else
     public string? FocusVocabularyIdsParam { get; set; }
 
     [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
+    [Inject] private SkillProfileRepository SkillRepo { get; set; } = default!;
+    [Inject] private VocabQuizLaunchValidator LaunchValidator { get; set; } = default!;
     [Inject] private VocabularyProgressService ProgressService { get; set; } = default!;
     [Inject] private TeacherService TeacherSvc { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
@@ -678,6 +698,7 @@ else
     private bool audioAnswerModeAvailable = true;
     private bool showInfoPanel;
     private bool showResumePrompt;
+    private bool resumeRejected;
     private bool showTextWithPhoto;
     private bool isSavingTextToggle;
     private bool sentenceHintExpanded;
@@ -710,6 +731,13 @@ else
     private int? activeSessionId;
     private string launchContextKey = string.Empty;
     private bool sessionMarkedComplete;
+    private bool activityTimerStarted;
+    private string launchError = string.Empty;
+    private string activeUserId = string.Empty;
+    private string[] validatedResourceIds = [];
+    private string? validatedSkillId;
+    private IReadOnlyDictionary<string, LearningResource> validatedResources =
+        new Dictionary<string, LearningResource>(StringComparer.Ordinal);
 
     private int currentTurnInRound;
     // F1: rotating-window cursor for need-weighted sampling without replacement (plan path).
@@ -790,33 +818,68 @@ else
     {
         Localize.CultureChanged += OnCultureChanged;
         Logger.LogInformation("VocabQuiz initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
-        var firstResourceId = ResourceIdsParam?.Split(',', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
-        ActivityTimer.StartSession("VocabularyReview", PlanItemId, firstResourceId, SkillIdParam);
 
         var userProfile = await UserProfileRepo.GetAsync();
-        nativeLanguage = userProfile?.NativeLanguage ?? "English";
-        targetLanguage = userProfile?.TargetLanguage ?? "Korean";
-        targetCefrLevel = userProfile?.TargetCEFRLevel;
-        showTextWithPhoto = userProfile?.VocabQuizShowTextWithPhoto ?? false;
+        var routeValidation = await LaunchValidator.ValidateRouteAsync(
+            userProfile?.Id,
+            ParseResourceIds(),
+            SkillIdParam);
+        if (!routeValidation.IsValid || userProfile is null)
+        {
+            RefuseLaunch(routeValidation.RejectedCount);
+            return;
+        }
+
+        activeUserId = routeValidation.UserId;
+        validatedResourceIds = routeValidation.Resources.Select(resource => resource.Id).ToArray();
+        validatedSkillId = routeValidation.Skill?.Id;
+        validatedResources = routeValidation.Resources.ToDictionary(
+            resource => resource.Id,
+            StringComparer.Ordinal);
+
+        nativeLanguage = userProfile.NativeLanguage ?? "English";
+        targetLanguage = userProfile.TargetLanguage ?? "Korean";
+        targetCefrLevel = userProfile.TargetCEFRLevel;
+        showTextWithPhoto = userProfile.VocabQuizShowTextWithPhoto;
 
         focusVocabularyIds = FocusVocabularySelection.ParseFocusVocabularyIds(FocusVocabularyIdsParam);
         launchContextKey = VocabQuizSessionSnapshot.BuildLaunchContextKey(
             PlanItemId,
             focusVocabularyIds,
-            ParseResourceIds(),
+            validatedResourceIds,
             DueOnly,
-            SkillIdParam);
+            validatedSkillId);
 
-        var activeUserId = GetActiveUserId();
-        if (!string.IsNullOrWhiteSpace(activeUserId))
+        var session = await SessionService.GetResumableAsync(activeUserId, "VocabularyReview", launchContextKey);
+        if (session != null)
         {
-            var session = await SessionService.GetResumableAsync(activeUserId, "VocabularyReview", launchContextKey);
-            if (session != null && TryDeserializeSnapshot(session.StateJson, out _))
+            resumableSession = session;
+            if (!TryDeserializeSnapshot(session.StateJson, out var snapshot)
+                || snapshot is null)
             {
-                resumableSession = session;
                 showResumePrompt = true;
+                RejectResume(1);
                 return;
             }
+
+            var reachableWords = await LoadVocabularyWordsForCurrentLaunchAsync();
+            if (!string.IsNullOrEmpty(launchError))
+                return;
+
+            var rejectedReferenceCount = VocabQuizLaunchValidator.CountRejectedSnapshotReferences(
+                snapshot,
+                PlanItemId,
+                focusVocabularyIds,
+                validatedResourceIds,
+                DueOnly,
+                validatedSkillId,
+                reachableWords.Select(word => word.Id));
+
+            showResumePrompt = true;
+            if (rejectedReferenceCount > 0)
+                RejectResume(rejectedReferenceCount);
+
+            return;
         }
 
         await LoadVocabulary();
@@ -832,11 +895,18 @@ else
         sessionMarkedComplete = false;
         try
         {
+            if (string.IsNullOrEmpty(GetActiveUserId()))
+            {
+                RefuseLaunch(1);
+                return;
+            }
+
             var allWords = await LoadVocabularyWordsForCurrentLaunchAsync();
 
             if (!allWords.Any())
             {
-                Toast.ShowWarning("No vocabulary found in the selected resources.");
+                if (string.IsNullOrEmpty(launchError))
+                    Toast.ShowWarning($"{Localize["VocabQuiz_NoVocab"]}");
                 isBusy = false;
                 return;
             }
@@ -847,9 +917,9 @@ else
 
             distractorScope = allWords;
 
-            var activeUserId = GetActiveUserId();
+            var currentUserId = GetActiveUserId();
             var wordIds = allWords.Select(w => w.Id).ToList();
-            var progressDict = await ProgressService.GetProgressForWordsAsync(wordIds, activeUserId);
+            var progressDict = await ProgressService.GetProgressForWordsAsync(wordIds, currentUserId);
 
             var quizCandidates = allWords.Select(word =>
             {
@@ -915,7 +985,10 @@ else
                 return;
             }
 
-            await LoadSentenceHintsForBatchAsync(activeUserId, targetCefrLevel, batchPool);
+            if (!await EnsureActivityTimerStartedAsync(batchPool.Select(item => item.Word.Id).ToArray()))
+                return;
+
+            await LoadSentenceHintsForBatchAsync(currentUserId, targetCefrLevel, batchPool);
             await SetupNewRound();
         }
         catch (Exception ex)
@@ -939,12 +1012,12 @@ else
         {
             Logger.LogWarning("Activity {ActivityName} launched without FocusVocabularyIds (planItemId={PlanItemId}); falling back to legacy selection", nameof(VocabQuiz), PlanItemId);
 
-            var resourceIds = DueOnly ? Array.Empty<string>() : ParseResourceIds();
+            var resourceIds = DueOnly ? Array.Empty<string>() : validatedResourceIds;
             if (resourceIds.Length > 0)
             {
                 foreach (var id in resourceIds)
                 {
-                    var resource = await ResourceRepo.GetResourceAsync(id);
+                    validatedResources.TryGetValue(id, out var resource);
                     if (resource?.Vocabulary?.Any() == true)
                         allWords.AddRange(resource.Vocabulary);
                 }
@@ -961,11 +1034,12 @@ else
             var userVocabulary = await ResourceRepo.GetAllVocabularyWordsWithResourcesAsync();
             allWords.AddRange(FocusVocabularySelection.SelectFocusWords(userVocabulary, focusVocabularyIds));
 
-            if (allWords.Count == 0)
+            var requestedFocusCount = focusVocabularyIds.Distinct(StringComparer.Ordinal).Count();
+            var resolvedFocusCount = allWords.Select(word => word.Id).Distinct(StringComparer.Ordinal).Count();
+            if (resolvedFocusCount != requestedFocusCount)
             {
-                Logger.LogWarning("Activity {ActivityName} received FocusVocabularyIds but no matching vocabulary was found (planItemId={PlanItemId}); falling back to legacy selection", nameof(VocabQuiz), PlanItemId);
-                usingFocusVocabularyIds = false;
-                await LoadLegacyVocabularyAsync();
+                RefuseLaunch(requestedFocusCount - resolvedFocusCount);
+                return [];
             }
         }
         else
@@ -1000,15 +1074,28 @@ else
             var allWords = await LoadVocabularyWordsForCurrentLaunchAsync();
             if (!allWords.Any())
             {
-                showResumePrompt = false;
-                await LoadVocabulary();
+                RejectResume(1);
+                return;
+            }
+
+            var rejectedReferenceCount = VocabQuizLaunchValidator.CountRejectedSnapshotReferences(
+                snapshot,
+                PlanItemId,
+                focusVocabularyIds,
+                validatedResourceIds,
+                DueOnly,
+                validatedSkillId,
+                allWords.Select(word => word.Id));
+            if (rejectedReferenceCount > 0)
+            {
+                RejectResume(rejectedReferenceCount);
                 return;
             }
 
             distractorScope = allWords;
-            var activeUserId = GetActiveUserId();
+            var currentUserId = GetActiveUserId();
             var allWordIds = allWords.Select(w => w.Id).ToList();
-            var progressDict = await ProgressService.GetProgressForWordsAsync(allWordIds, activeUserId);
+            var progressDict = await ProgressService.GetProgressForWordsAsync(allWordIds, currentUserId);
 
             var itemsById = allWords.ToDictionary(
                 word => word.Id,
@@ -1054,11 +1141,12 @@ else
 
             if (!batchPool.Any())
             {
-                Logger.LogWarning("Vocabulary quiz session {SessionId} had no resumable words after refresh", resumableSession.Id);
-                showResumePrompt = false;
-                await LoadVocabulary();
+                RejectResume(1);
                 return;
             }
+
+            if (!await EnsureActivityTimerStartedAsync(batchPool.Select(item => item.Word.Id).ToArray()))
+                return;
 
             roundWordOrder = snapshot.RoundWordOrder
                 .Select(wordId => itemsById.TryGetValue(wordId, out var item) ? item : null)
@@ -1087,6 +1175,7 @@ else
             activeSessionId = resumableSession.Id;
             sessionMarkedComplete = false;
             showResumePrompt = false;
+            resumeRejected = false;
 
             if (roundWordOrder.Count == 0 || currentTurnInRound >= roundWordOrder.Count || currentTurnInRound >= TurnsPerRound)
             {
@@ -1099,14 +1188,13 @@ else
             }
 
             currentTurnInRound = Math.Clamp(currentTurnInRound, 0, Math.Max(roundWordOrder.Count - 1, 0));
-            await LoadSentenceHintsForBatchAsync(activeUserId, targetCefrLevel, batchPool);
+            await LoadSentenceHintsForBatchAsync(currentUserId, targetCefrLevel, batchPool);
             await LoadCurrentItem(preservePromptState: true);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to resume vocabulary quiz session {SessionId}", resumableSession.Id);
-            showResumePrompt = false;
-            await LoadVocabulary();
+            Logger.LogError(ex, "Failed to validate vocabulary quiz resume state.");
+            RejectResume(1);
         }
     }
 
@@ -1125,7 +1213,7 @@ else
             }
             catch (Exception ex)
             {
-                Logger.LogError(ex, "Failed to abandon vocabulary quiz session {SessionId}", resumableSession.Id);
+                Logger.LogError(ex, "Failed to abandon the current vocabulary quiz session.");
             }
         }
 
@@ -1133,13 +1221,20 @@ else
         activeSessionId = null;
         sessionMarkedComplete = false;
         showResumePrompt = false;
+        resumeRejected = false;
         await LoadVocabulary();
     }
 
     private async Task PersistSnapshotAsync()
     {
         var activeUserId = GetActiveUserId();
-        if (sessionMarkedComplete || showResumePrompt || string.IsNullOrWhiteSpace(activeUserId) || string.IsNullOrWhiteSpace(launchContextKey))
+        if (sessionMarkedComplete
+            || showResumePrompt
+            || resumeRejected
+            || !activityTimerStarted
+            || !string.IsNullOrEmpty(launchError)
+            || string.IsNullOrWhiteSpace(activeUserId)
+            || string.IsNullOrWhiteSpace(launchContextKey))
             return;
 
         try
@@ -1148,9 +1243,9 @@ else
             {
                 PlanItemId = PlanItemId,
                 FocusVocabularyIds = focusVocabularyIds,
-                ResourceIds = ParseResourceIds(),
+                ResourceIds = validatedResourceIds,
                 DueOnly = DueOnly,
-                SkillId = SkillIdParam,
+                SkillId = validatedSkillId,
                 BatchPool = batchPool.Select(CreateBatchItemSnapshot).ToList(),
                 RoundWordOrder = roundWordOrder.Select(item => item.Word.Id).ToList(),
                 RoundCursor = roundCursor,
@@ -1211,7 +1306,7 @@ else
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to complete vocabulary quiz session for context {LaunchContextKey}", launchContextKey);
+            Logger.LogError(ex, "Failed to complete the current vocabulary quiz session.");
         }
     }
 
@@ -1222,15 +1317,78 @@ else
             snapshot = VocabQuizSessionSnapshot.Deserialize(stateJson);
             return true;
         }
-        catch (Exception ex)
+        catch (System.Text.Json.JsonException)
         {
-            Logger.LogWarning(ex, "Ignoring invalid vocabulary quiz session snapshot");
             snapshot = null;
             return false;
         }
     }
 
-    private string GetActiveUserId() => Preferences.Get("active_profile_id", "");
+    private string GetActiveUserId()
+    {
+        if (string.IsNullOrWhiteSpace(activeUserId))
+            return string.Empty;
+
+        var currentUserId = Preferences.Get(UserProfileRepository.ActiveProfileIdKey, string.Empty);
+        return string.Equals(currentUserId, activeUserId, StringComparison.Ordinal)
+            ? activeUserId
+            : string.Empty;
+    }
+
+    private async Task<bool> EnsureActivityTimerStartedAsync(IReadOnlyCollection<string> vocabularyWordIds)
+    {
+        if (activityTimerStarted)
+            return true;
+
+        var resourceId = validatedResourceIds.Length == 1 ? validatedResourceIds[0] : null;
+        var started = await ActivityTimer.StartValidatedSessionAsync(
+            "VocabularyReview",
+            PlanItemId,
+            resourceId,
+            validatedSkillId,
+            vocabularyWordIds);
+
+        if (!started)
+        {
+            RefuseLaunch(1);
+            return false;
+        }
+
+        activityTimerStarted = true;
+        return true;
+    }
+
+    private void RefuseLaunch(int rejectedCount)
+    {
+        var count = Math.Max(rejectedCount, 1);
+        Logger.LogWarning(
+            "Vocabulary quiz launch refused because {RejectedCount} references were unavailable.",
+            count);
+
+        launchError = $"{Localize["VocabQuiz_LaunchUnavailable"]}";
+        showResumePrompt = false;
+        resumeRejected = false;
+        currentItem = null;
+        batchPool.Clear();
+        vocabItems.Clear();
+        sessionItems.Clear();
+        roundWordOrder.Clear();
+        if (ActivityTimer.IsActive)
+            ActivityTimer.CancelSession();
+        activityTimerStarted = false;
+        Toast.ShowWarning(launchError);
+    }
+
+    private void RejectResume(int rejectedCount)
+    {
+        Logger.LogWarning(
+            "Vocabulary quiz resume refused because {RejectedCount} saved references were unavailable.",
+            Math.Max(rejectedCount, 1));
+        resumeRejected = true;
+        showResumePrompt = true;
+        currentItem = null;
+        Toast.ShowWarning($"{Localize["VocabQuiz_ResumeUnavailable"]}");
+    }
 
     private async Task LoadSentenceHintsForBatchAsync(
         string activeUserId,
@@ -1532,7 +1690,13 @@ else
 
         try
         {
-            var activeUserId = Preferences.Get("active_profile_id", "");
+            var activeUserId = GetActiveUserId();
+            if (string.IsNullOrWhiteSpace(activeUserId))
+            {
+                RefuseLaunch(1);
+                return;
+            }
+
             var updatedProgress = currentItem.Progress;
             var responseTimeMs = responseTimer.IsRunning ? (int)responseTimer.ElapsedMilliseconds : 0;
             var gradedResults = new List<SentenceShortcutResult>(sentenceEntries.Count);
@@ -1857,10 +2021,17 @@ else
         }
 
         // Defer recording — allows user to override before persisting
+        var attemptUserId = GetActiveUserId();
+        if (string.IsNullOrWhiteSpace(attemptUserId))
+        {
+            RefuseLaunch(1);
+            return;
+        }
+
         pendingAttempt = new VocabularyAttempt
         {
             VocabularyWordId = currentItem.Word.Id,
-            UserId = Preferences.Get("active_profile_id", ""),
+            UserId = attemptUserId,
             Activity = "VocabularyQuiz",
             InputMode = userMode,
             WasCorrect = isCorrect,
@@ -1957,6 +2128,14 @@ else
         var attempt = pendingAttempt;
         pendingAttempt = null;
 
+        var currentUserId = GetActiveUserId();
+        if (string.IsNullOrWhiteSpace(currentUserId)
+            || !string.Equals(attempt.UserId, currentUserId, StringComparison.Ordinal))
+        {
+            RefuseLaunch(1);
+            return;
+        }
+
         try
         {
             // Snapshot IsKnown state before recording to detect loss (spec §4.3.1)
@@ -2051,8 +2230,11 @@ else
     private string[] ParseResourceIds()
     {
         if (string.IsNullOrEmpty(ResourceIdsParam)) return Array.Empty<string>();
-        return ResourceIdsParam.Split(',', StringSplitOptions.RemoveEmptyEntries)
-            .Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
+        return ResourceIdsParam
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
     }
 
     private async Task GoBack()
@@ -2224,7 +2406,7 @@ else
             var saved = await UserProfileRepo.SaveVocabQuizShowTextWithPhotoAsync(activeUserId, showTextWithPhoto);
             if (!saved)
             {
-                Logger.LogWarning("ToggleShowTextWithPhoto: save failed for user {UserId} — reverting", activeUserId);
+                Logger.LogWarning("ToggleShowTextWithPhoto: save failed — reverting");
                 showTextWithPhoto = previousValue;
                 Toast.ShowError($"{Localize["VocabQuiz_TextToggleSaveFailed"]}");
             }

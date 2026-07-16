@@ -585,12 +585,11 @@ else
 
 @code {
     private const string PREF_DASHBOARD_MODE = "DashboardMode";
-    private const string PREF_SELECTED_RESOURCE_IDS = "SelectedResourceIds";
-    private const string PREF_SELECTED_SKILL_PROFILE_ID = "SelectedSkillProfileId";
 
     [Inject] private IAppState AppState { get; set; } = default!;
     [Inject] private IProgressService ProgressService { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
+    [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private ILogger<Index> Logger { get; set; } = default!;
     [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
     [Inject] private SkillProfileRepository SkillRepo { get; set; } = default!;
@@ -620,8 +619,9 @@ else
 
     private List<LearningResource>? allResources;
     private List<SkillProfile>? allSkills;
-    private List<string> selectedResourceIds = new();
-    private string? selectedSkillId;
+    private readonly ChooseOwnSelectionState chooseOwnSelection = new();
+    private List<string> selectedResourceIds => chooseOwnSelection.ResourceIds;
+    private string? selectedSkillId => chooseOwnSelection.SkillId;
 
     private string WelcomeMessage =>
         AppState?.CurrentUserProfile?.Name is { Length: > 0 } name
@@ -670,6 +670,7 @@ else
 
     private async Task LoadDashboardAsync()
     {
+        ResetChooseOwnStateIfProfileChanged(ResolveActiveProfileId());
         await CheckNewUserAsync();
 
         // If authenticated but no local data, sync from server first.
@@ -1103,16 +1104,35 @@ else
 
         try
         {
-            // Load data if needed
-            allResources ??= await ResourceRepo.GetAllResourcesLightweightAsync();
-            allSkills ??= await SkillRepo.ListAsync();
+            var activeProfileId = ResolveActiveProfileId();
+            ResetChooseOwnStateIfProfileChanged(activeProfileId);
 
-            // Load saved selections
-            var savedResIds = Preferences.Get(PREF_SELECTED_RESOURCE_IDS, "");
-            selectedResourceIds = string.IsNullOrEmpty(savedResIds)
-                ? new List<string>()
-                : savedResIds.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
-            selectedSkillId = Preferences.Get(PREF_SELECTED_SKILL_PROFILE_ID, "");
+            if (string.IsNullOrWhiteSpace(activeProfileId))
+            {
+                allResources = [];
+                allSkills = [];
+            }
+            else
+            {
+                allResources ??= await ResourceRepo.GetAllResourcesLightweightAsync(userProfileId: activeProfileId);
+                allSkills ??= await SkillRepo.ListAsync(activeProfileId);
+
+                var savedSelection = ChooseOwnSelectionPreferences.Load(Preferences, activeProfileId);
+                var reconciliation = ChooseOwnSelectionPreferences.Reconcile(
+                    savedSelection,
+                    allResources.Select(resource => resource.Id),
+                    allSkills.Select(skill => skill.Id));
+
+                chooseOwnSelection.Replace(reconciliation.Selection);
+                ChooseOwnSelectionPreferences.Save(Preferences, activeProfileId, reconciliation.Selection);
+
+                if (reconciliation.RejectedCount > 0)
+                {
+                    Logger.LogWarning(
+                        "Choose My Own rejected {RejectedCount} unavailable saved selections.",
+                        reconciliation.RejectedCount);
+                }
+            }
 
             // Init resource multi-select
             var resOptions = allResources.Select(r => new { value = r.Id.ToString(), text = r.Title ?? $"Resource {r.Id}" }).ToArray();
@@ -1139,24 +1159,44 @@ else
     }
 
     [JSInvokable]
-    public void OnResourceSelectionChanged(string[] values)
-    {
-        selectedResourceIds = values.ToList();
-        var csv = string.Join(",", values);
-        if (!string.IsNullOrEmpty(csv))
-            Preferences.Set(PREF_SELECTED_RESOURCE_IDS, csv);
-        else
-            Preferences.Remove(PREF_SELECTED_RESOURCE_IDS);
-    }
+    public Task OnResourceSelectionChanged(string[] values) =>
+        ApplyChooseOwnSelectionFromUiAsync(
+            new ChooseOwnSelection(values, selectedSkillId));
 
     [JSInvokable]
-    public void OnSkillSelectionChanged(string[] values)
+    public Task OnSkillSelectionChanged(string[] values) =>
+        ApplyChooseOwnSelectionFromUiAsync(
+            new ChooseOwnSelection(selectedResourceIds, values.FirstOrDefault()));
+
+    private async Task ApplyChooseOwnSelectionFromUiAsync(ChooseOwnSelection candidate)
     {
-        selectedSkillId = values.FirstOrDefault();
-        if (!string.IsNullOrEmpty(selectedSkillId))
-            Preferences.Set(PREF_SELECTED_SKILL_PROFILE_ID, selectedSkillId);
-        else
-            Preferences.Remove(PREF_SELECTED_SKILL_PROFILE_ID);
+        var activeProfileId = ResolveActiveProfileId();
+        if (ResetChooseOwnStateIfProfileChanged(activeProfileId))
+            return;
+
+        if (string.IsNullOrWhiteSpace(activeProfileId)
+            || allResources is null
+            || allSkills is null)
+        {
+            return;
+        }
+
+        var reconciliation = ChooseOwnSelectionPreferences.Reconcile(
+            candidate,
+            allResources.Select(resource => resource.Id),
+            allSkills.Select(skill => skill.Id));
+
+        if (reconciliation.RejectedCount > 0)
+        {
+            chooseOwnSelection.Replace(new ChooseOwnSelection([], null));
+            SaveChooseOwnSelection(activeProfileId);
+            await ReconcileChooseOwnSelectorsAsync();
+            RefuseChooseOwnNavigation(reconciliation.RejectedCount);
+            return;
+        }
+
+        chooseOwnSelection.Replace(reconciliation.Selection);
+        SaveChooseOwnSelection(activeProfileId);
     }
 
     // ---- Shared ----
@@ -1227,9 +1267,37 @@ else
         int MasteryPercentage
     );
 
-    private void NavigateToActivity(string route)
+    private async Task NavigateToActivity(string route)
     {
-        var query = new List<string>();
+        var activeProfileId = ResolveActiveProfileId();
+        ResetChooseOwnStateIfProfileChanged(activeProfileId);
+        if (string.IsNullOrWhiteSpace(activeProfileId))
+        {
+            RefuseChooseOwnNavigation(1);
+            return;
+        }
+
+        var ownedResources = await ResourceRepo.GetAllResourcesLightweightAsync(userProfileId: activeProfileId);
+        var ownedSkills = await SkillRepo.ListAsync(activeProfileId);
+        allResources = ownedResources;
+        allSkills = ownedSkills;
+
+        var reconciliation = ChooseOwnSelectionPreferences.Reconcile(
+            new ChooseOwnSelection(selectedResourceIds, selectedSkillId),
+            ownedResources.Select(resource => resource.Id),
+            ownedSkills.Select(skill => skill.Id));
+
+        chooseOwnSelection.Replace(reconciliation.Selection);
+        ChooseOwnSelectionPreferences.Save(Preferences, activeProfileId, reconciliation.Selection);
+
+        if (reconciliation.RejectedCount > 0)
+        {
+            await ReconcileChooseOwnSelectorsAsync();
+            RefuseChooseOwnNavigation(reconciliation.RejectedCount);
+            return;
+        }
+
+        var query = new Dictionary<string, string?>();
 
         // Activities that support multiple resources
         var multiResourceRoutes = new HashSet<string> { "vocab-quiz", "vocab-matching", "word-association" };
@@ -1237,15 +1305,64 @@ else
         if (selectedResourceIds.Count > 0)
         {
             if (multiResourceRoutes.Contains(route))
-                query.Add($"resourceIds={string.Join(",", selectedResourceIds)}");
+                query["resourceIds"] = string.Join(",", selectedResourceIds);
             else
-                query.Add($"resourceId={selectedResourceIds.First()}");
+                query["resourceId"] = selectedResourceIds.First();
         }
         if (!string.IsNullOrEmpty(selectedSkillId))
-            query.Add($"skillId={selectedSkillId}");
+            query["skillId"] = selectedSkillId;
 
-        var url = $"/{route}" + (query.Count > 0 ? "?" + string.Join("&", query) : "");
+        var url = QueryHelpers.AddQueryString($"/{route}", query);
         NavManager.NavigateTo(url);
+    }
+
+    private string ResolveActiveProfileId()
+    {
+        var appStateProfileId = AppState?.CurrentUserProfile?.Id;
+        return !string.IsNullOrWhiteSpace(appStateProfileId)
+            ? appStateProfileId
+            : Preferences.Get(UserProfileRepository.ActiveProfileIdKey, string.Empty);
+    }
+
+    private bool ResetChooseOwnStateIfProfileChanged(string? activeProfileId)
+    {
+        if (!chooseOwnSelection.ActivateProfile(activeProfileId))
+            return false;
+
+        allResources = null;
+        allSkills = null;
+        return true;
+    }
+
+    private void SaveChooseOwnSelection(string? activeProfileId)
+    {
+        ChooseOwnSelectionPreferences.Save(
+            Preferences,
+            activeProfileId,
+            new ChooseOwnSelection(selectedResourceIds, selectedSkillId));
+    }
+
+    private async Task ReconcileChooseOwnSelectorsAsync()
+    {
+        if (jsModule is null)
+            return;
+
+        await jsModule.InvokeVoidAsync(
+            "setTomSelectValues",
+            "resourceSelect",
+            selectedResourceIds.ToArray());
+        await jsModule.InvokeVoidAsync(
+            "setTomSelectValues",
+            "skillSelect",
+            string.IsNullOrEmpty(selectedSkillId) ? Array.Empty<string>() : [selectedSkillId]);
+    }
+
+    private void RefuseChooseOwnNavigation(int rejectedCount)
+    {
+        Logger.LogWarning(
+            "Choose My Own navigation refused because {RejectedCount} selections were unavailable.",
+            rejectedCount);
+        Toast.ShowWarning($"{Localize["Dashboard_ChooseOwnSelectionUnavailable"]}");
     }
 
     private void ToggleActivitiesExpanded()
