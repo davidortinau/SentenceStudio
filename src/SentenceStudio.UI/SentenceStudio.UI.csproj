@@ -10,6 +10,16 @@
   </PropertyGroup>
 
 
+  <!-- Opt-in device validation build: defines PHOTO_VIEWER_DEVICE_VALIDATION in Release
+       when the iOS head (or any head) passes -p:PhotoViewerDeviceValidation=true.
+       MSBuild global properties propagate to referenced projects, so the same property
+       that activates the symbol in the head project also activates it here.
+       This enables WebView diagnostic attributes in VocabQuiz.razor without
+       defining DEBUG or any other test/native code. -->
+  <PropertyGroup Condition="'$(PhotoViewerDeviceValidation)' == 'true'">
+    <DefineConstants>$(DefineConstants);PHOTO_VIEWER_DEVICE_VALIDATION</DefineConstants>
+  </PropertyGroup>
+
   <ItemGroup>
     <SupportedPlatform Include="browser" />
   </ItemGroup>
