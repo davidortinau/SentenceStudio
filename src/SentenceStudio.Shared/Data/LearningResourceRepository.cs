@@ -51,12 +51,44 @@ public class LearningResourceRepository
             .FirstOrDefaultAsync();
     }
 
-    public async Task<VocabularyWord> GetWordByTargetTermAsync(string targetTerm)
+    public async Task<VocabularyWord?> GetWordByTargetTermAsync(
+        string targetTerm,
+        string? userProfileId = null)
     {
+        var userId = ResolveUserId(userProfileId);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            _logger.LogWarning("GetWordByTargetTermAsync called without an active user — returning null to prevent cross-tenant data leak.");
+            return null;
+        }
+
+        var normalizedTargetTerm = targetTerm?.Trim();
+        if (string.IsNullOrWhiteSpace(normalizedTargetTerm))
+            return null;
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        return await db.VocabularyWords
-            .Where(w => w.TargetLanguageTerm == targetTerm)
+        var matchingWords = db.VocabularyWords
+            .Where(word => word.TargetLanguageTerm == normalizedTargetTerm);
+
+        var reachable = await matchingWords
+            .Where(word => db.ResourceVocabularyMappings
+                .Where(mapping => mapping.VocabularyWordId == word.Id)
+                .Join(
+                    db.LearningResources.Where(resource => resource.UserProfileId == userId),
+                    mapping => mapping.ResourceId,
+                    resource => resource.Id,
+                    (mapping, resource) => mapping.Id)
+                .Any())
+            .OrderBy(word => word.Id)
+            .FirstOrDefaultAsync();
+        if (reachable is not null)
+            return reachable;
+
+        return await matchingWords
+            .Where(word => !db.ResourceVocabularyMappings
+                .Any(mapping => mapping.VocabularyWordId == word.Id))
+            .OrderBy(word => word.Id)
             .FirstOrDefaultAsync();
     }
 
@@ -749,9 +781,10 @@ public class LearningResourceRepository
     /// <summary>
     /// Get all vocabulary words with their associated learning resources
     /// </summary>
-    public async Task<List<VocabularyWord>> GetAllVocabularyWordsWithResourcesAsync()
+    public async Task<List<VocabularyWord>> GetAllVocabularyWordsWithResourcesAsync(
+        string? userProfileId = null)
     {
-        var userId = ActiveUserId;
+        var userId = ResolveUserId(userProfileId);
         if (string.IsNullOrEmpty(userId))
         {
             _logger.LogWarning("GetAllVocabularyWordsWithResourcesAsync called without an active user — returning empty result to prevent cross-tenant data leak.");
@@ -766,7 +799,7 @@ public class LearningResourceRepository
                 m => m.ResourceId, r => r.Id, (m, r) => m.VocabularyWordId);
         return await db.VocabularyWords
             .AsNoTracking()
-            .Include(vw => vw.LearningResources)
+            .Include(vw => vw.LearningResources.Where(resource => resource.UserProfileId == userId))
             .AsSplitQuery()
             .Where(w => userWordIds.Contains(w.Id))
             .ToListAsync();
@@ -796,7 +829,7 @@ public class LearningResourceRepository
             .Join(db.LearningResources.Where(r => r.UserProfileId == userId),
                 m => m.ResourceId, r => r.Id, (m, r) => m.VocabularyWordId);
         return await db.VocabularyWords
-            .Include(vw => vw.LearningResources)
+            .Include(vw => vw.LearningResources.Where(resource => resource.UserProfileId == userId))
             .AsSplitQuery()
             .Where(vw => userWordIds.Contains(vw.Id))
             .Where(vw =>

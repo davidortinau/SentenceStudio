@@ -1,4 +1,21 @@
+using SentenceStudio.Services.Progress;
+
 namespace SentenceStudio.Services.Timer;
+
+public sealed record ActivityTimerStartRequest(
+    string UserId,
+    PlanActivityType ActivityType,
+    string? PlanItemId,
+    string? ResourceId,
+    string? SkillId,
+    IReadOnlyCollection<string>? VocabularyWordIds);
+
+public sealed record ActivityTimerLease(
+    Guid SessionId,
+    long Generation,
+    string UserId,
+    string ActivityType,
+    string? ActivityId);
 
 /// <summary>
 /// Service for tracking time spent on learning activities launched from Today's Plan.
@@ -50,38 +67,39 @@ public interface IActivityTimerService
     /// <param name="activityId">Optional plan item ID. Omit for ad-hoc ("choose my own") sessions.</param>
     /// <param name="resourceId">Optional learning resource id — stored on the ad-hoc completion record.</param>
     /// <param name="skillId">Optional skill id — stored on the ad-hoc completion record.</param>
-    void StartSession(string activityType, string? activityId = null, string? resourceId = null, string? skillId = null);
+    ActivityTimerLease StartSession(string activityType, string? activityId = null, string? resourceId = null, string? skillId = null);
 
     /// <summary>
-    /// Starts a session only after the validated ad-hoc context is persisted. The vocabulary IDs
-    /// are checked by <see cref="IProgressService.StartAdHocSessionAsync(PlanActivityType, string?, string?, IReadOnlyCollection{string}?, int, CancellationToken)"/>.
-    /// Returns <c>false</c> without starting the timer when persistence is refused.
+    /// Starts a session only after the explicit-user launch context is validated.
+    /// Returns an immutable lease that must be presented by the owning component
+    /// for pause, resume, stop, and cancel operations.
     /// </summary>
-    Task<bool> StartValidatedSessionAsync(
-        string activityType,
-        string? activityId,
-        string? resourceId,
-        string? skillId,
-        IReadOnlyCollection<string>? vocabularyWordIds);
+    Task<ActivityTimerLease?> StartValidatedSessionAsync(
+        ActivityTimerStartRequest request,
+        CancellationToken ct = default);
 
     /// <summary>
     /// Pause the current timer session
     /// </summary>
     void Pause();
+    bool Pause(ActivityTimerLease lease);
 
     /// <summary>
     /// Resume the paused timer session
     /// </summary>
     void Resume();
+    bool Resume(ActivityTimerLease lease);
 
     /// <summary>
     /// Stop and save the current timer session
     /// </summary>
     /// <returns>Total elapsed time for the session</returns>
     TimeSpan StopSession();
+    TimeSpan StopSession(ActivityTimerLease lease);
 
     /// <summary>
     /// Cancel the current timer session without saving
     /// </summary>
     void CancelSession();
+    bool CancelSession(ActivityTimerLease lease);
 }

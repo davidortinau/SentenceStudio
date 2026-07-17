@@ -19,6 +19,7 @@ public sealed class VocabQuizLaunchValidatorTests : IDisposable
 
     private readonly SqliteConnection _connection;
     private readonly ServiceProvider _provider;
+    private readonly Mock<IPreferencesService> _preferences;
     private readonly LearningResource _resourceA;
     private readonly LearningResource _resourceB;
     private readonly SkillProfile _skillA;
@@ -36,14 +37,14 @@ public sealed class VocabQuizLaunchValidatorTests : IDisposable
                     warnings.Ignore(RelationalEventId.PendingModelChangesWarning)));
         services.AddLogging(builder => builder.SetMinimumLevel(LogLevel.Debug));
 
-        var preferences = new Mock<IPreferencesService>();
-        preferences.Setup(service => service.Get("active_profile_id", It.IsAny<string>()))
+        _preferences = new Mock<IPreferencesService>();
+        _preferences.Setup(service => service.Get("active_profile_id", It.IsAny<string>()))
             .Returns(UserA);
         var fileSystem = new Mock<IFileSystemService>();
         fileSystem.Setup(service => service.AppDataDirectory)
             .Returns(Directory.GetCurrentDirectory());
 
-        services.AddSingleton(preferences.Object);
+        services.AddSingleton(_preferences.Object);
         services.AddSingleton(fileSystem.Object);
         services.AddSingleton<LearningResourceRepository>();
         services.AddSingleton<SkillProfileRepository>();
@@ -122,6 +123,25 @@ public sealed class VocabQuizLaunchValidatorTests : IDisposable
     {
         var result = await Validator.ValidateRouteAsync(
             string.Empty,
+            [_resourceA.Id],
+            _skillA.Id);
+
+        result.IsValid.Should().BeFalse();
+        result.UserId.Should().BeEmpty();
+        result.Resources.Should().BeEmpty();
+        result.Skill.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task ProfileSwitchDuringValidation_IsRefusedAfterAwait()
+    {
+        var preferenceReads = 0;
+        _preferences
+            .Setup(service => service.Get("active_profile_id", It.IsAny<string>()))
+            .Returns(() => Interlocked.Increment(ref preferenceReads) == 1 ? UserA : UserB);
+
+        var result = await Validator.ValidateRouteAsync(
+            UserA,
             [_resourceA.Id],
             _skillA.Id);
 

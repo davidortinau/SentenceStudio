@@ -480,6 +480,8 @@
 </div> @* end activity-page-wrapper *@
 
 @code {
+    private ActivityTimerLease? activityTimerLease;
+
     [Parameter]
     [SupplyParameterFromQuery]
     public bool DueOnly { get; set; } = true;
@@ -546,7 +548,7 @@
     {
         Localize.CultureChanged += OnCultureChanged;
         Logger.LogInformation("🎯 NumberDrill initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
-        ActivityTimer.StartSession("NumberDrill", PlanItemId, ResourceId, null);
+        activityTimerLease = ActivityTimer.StartSession("NumberDrill", PlanItemId, ResourceId, null);
         
         // Layer 4: Defense-in-depth — NumberDrill ignores ResourceId
         if (!string.IsNullOrEmpty(ResourceId))
@@ -932,7 +934,7 @@
     
     private async void GoBack()
     {
-        if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
+        ActivityTimer.PauseAndStopOwnedSession(activityTimerLease);
         NavManager.NavigateTo("/");
     }
     
@@ -1219,7 +1221,7 @@
     public async ValueTask DisposeAsync()
     {
         Localize.CultureChanged -= OnCultureChanged;
-        if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
+        ActivityTimer.PauseAndStopOwnedSession(activityTimerLease);
         
         audioPlayer?.Stop();
         audioPlayer?.Dispose();

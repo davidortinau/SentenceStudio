@@ -35,6 +35,11 @@ public record VocabProgressSummary
 
 public record PracticeHeatPoint(DateTime Date, int Count);
 
+public sealed record ValidatedPlanItemProgress(
+    string PlanItemId,
+    int MinutesSpent,
+    int EstimatedMinutes);
+
 public enum PlanActivityType
 {
     VocabularyReview,
@@ -226,6 +231,29 @@ public interface IProgressService
     Task UpdatePlanItemProgressAsync(string planItemId, int minutesSpent, CancellationToken ct = default);
 
     /// <summary>
+    /// Validates that a current-plan item belongs to the explicit user and matches
+    /// the complete launch context before any timer state or progress is mutated.
+    /// </summary>
+    Task<ValidatedPlanItemProgress?> ValidatePlanItemAsync(
+        string userId,
+        string planItemId,
+        PlanActivityType expectedActivityType,
+        string? resourceId,
+        string? skillId,
+        IReadOnlyCollection<string>? vocabularyWordIds,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Updates a current-plan item only for the explicit user. Returns false when
+    /// the item is missing, stale, or belongs to another profile.
+    /// </summary>
+    Task<bool> UpdatePlanItemProgressAsync(
+        string userId,
+        string planItemId,
+        int minutesSpent,
+        CancellationToken ct = default);
+
+    /// <summary>
     /// Creates a new ad-hoc ("choose my own") activity completion record and returns its synthetic PlanItemId.
     /// Use the returned id with <see cref="UpdatePlanItemProgressAsync"/> / <see cref="IActivityTimerService"/>
     /// so unplanned practice sessions show up in the Activity Log alongside plan items.
@@ -244,6 +272,28 @@ public interface IProgressService
         string? skillId,
         IReadOnlyCollection<string>? vocabularyWordIds,
         int estimatedMinutes = 10,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Creates an ad-hoc activity for the explicit user without consulting mutable
+    /// active-profile preferences.
+    /// </summary>
+    Task<string> StartAdHocSessionAsync(
+        string userId,
+        PlanActivityType activityType,
+        string? resourceId,
+        string? skillId,
+        IReadOnlyCollection<string>? vocabularyWordIds,
+        int estimatedMinutes = 10,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Removes a zero-progress ad-hoc row created by a timer start that lost its
+    /// generation race before the caller accepted the session.
+    /// </summary>
+    Task<bool> DiscardAdHocSessionAsync(
+        string userId,
+        string planItemId,
         CancellationToken ct = default);
 
     Task<List<ActivityLogWeek>> GetActivityLogAsync(DateTime fromUtc, DateTime toUtc, ActivityCategory? filter = null, CancellationToken ct = default);

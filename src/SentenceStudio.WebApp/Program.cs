@@ -248,7 +248,7 @@ app.Run();
 static void RegisterSentenceStudioServices(IServiceCollection services)
 {
     services.AddSentenceStudioCoreServices();
-    services.AddBlazorUIServices();
+    services.AddBlazorUIServices(useCircuitScopedActivityTimer: true);
     
     // Release notes service (reads from embedded resources)
     services.AddSingleton<ReleaseNotesService>();

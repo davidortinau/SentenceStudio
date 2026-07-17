@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Abstractions;
 using SentenceStudio.Data;
 using SentenceStudio.Shared.Models;
 
@@ -15,15 +16,18 @@ public sealed class VocabQuizLaunchValidator
 {
     private readonly LearningResourceRepository _resourceRepository;
     private readonly SkillProfileRepository _skillRepository;
+    private readonly IPreferencesService _preferences;
     private readonly ILogger<VocabQuizLaunchValidator> _logger;
 
     public VocabQuizLaunchValidator(
         LearningResourceRepository resourceRepository,
         SkillProfileRepository skillRepository,
+        IPreferencesService preferences,
         ILogger<VocabQuizLaunchValidator> logger)
     {
         _resourceRepository = resourceRepository;
         _skillRepository = skillRepository;
+        _preferences = preferences;
         _logger = logger;
     }
 
@@ -46,12 +50,32 @@ public sealed class VocabQuizLaunchValidator
                 null,
                 normalizedResourceIds.Count + (normalizedSkillId is null ? 0 : 1) + 1);
         }
+        if (!IsCurrentUser(normalizedUserId))
+        {
+            _logger.LogWarning("Vocab Quiz launch refused because the active profile changed.");
+            return new VocabQuizRouteValidation(
+                false,
+                string.Empty,
+                [],
+                null,
+                normalizedResourceIds.Count + (normalizedSkillId is null ? 0 : 1) + 1);
+        }
 
         var resources = new List<LearningResource>(normalizedResourceIds.Count);
         var rejectedCount = 0;
         foreach (var resourceId in normalizedResourceIds)
         {
             var resource = await _resourceRepository.GetResourceAsync(resourceId, normalizedUserId);
+            if (!IsCurrentUser(normalizedUserId))
+            {
+                _logger.LogWarning("Vocab Quiz launch refused because the active profile changed during validation.");
+                return new VocabQuizRouteValidation(
+                    false,
+                    string.Empty,
+                    [],
+                    null,
+                    normalizedResourceIds.Count + (normalizedSkillId is null ? 0 : 1) + 1);
+            }
             if (resource is null)
                 rejectedCount++;
             else
@@ -62,6 +86,16 @@ public sealed class VocabQuizLaunchValidator
         if (normalizedSkillId is not null)
         {
             skill = await _skillRepository.GetSkillProfileAsync(normalizedSkillId, normalizedUserId);
+            if (!IsCurrentUser(normalizedUserId))
+            {
+                _logger.LogWarning("Vocab Quiz launch refused because the active profile changed during validation.");
+                return new VocabQuizRouteValidation(
+                    false,
+                    string.Empty,
+                    [],
+                    null,
+                    normalizedResourceIds.Count + 2);
+            }
             if (skill is null)
                 rejectedCount++;
         }
@@ -157,5 +191,11 @@ public sealed class VocabQuizLaunchValidator
     {
         var normalized = value?.Trim();
         return string.IsNullOrEmpty(normalized) ? null : normalized;
+    }
+
+    private bool IsCurrentUser(string userId)
+    {
+        var activeUserId = _preferences.Get(UserProfileRepository.ActiveProfileIdKey, string.Empty);
+        return string.Equals(activeUserId, userId, StringComparison.Ordinal);
     }
 }

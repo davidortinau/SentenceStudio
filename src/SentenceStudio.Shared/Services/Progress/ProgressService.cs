@@ -686,6 +686,157 @@ public class ProgressService : IProgressService
         _logger.LogDebug("✅ Cache updated - {Percentage:F0}% complete ({Spent}/{Estimated} min)", completionPercentage, totalMinutesSpent, totalEstimatedMinutes);
     }
 
+    public async Task<ValidatedPlanItemProgress?> ValidatePlanItemAsync(
+        string userId,
+        string planItemId,
+        PlanActivityType expectedActivityType,
+        string? resourceId,
+        string? skillId,
+        IReadOnlyCollection<string>? vocabularyWordIds,
+        CancellationToken ct = default)
+    {
+        var normalizedUserId = NormalizeRequiredId(userId);
+        var normalizedPlanItemId = NormalizeRequiredId(planItemId);
+        if (normalizedUserId is null || normalizedPlanItemId is null)
+        {
+            _logger.LogWarning("ValidatePlanItemAsync refused an empty user or plan item identifier.");
+            return null;
+        }
+
+        var normalizedResourceId = NormalizeOptionalId(resourceId);
+        var normalizedSkillId = NormalizeOptionalId(skillId);
+        var normalizedWordIds = (vocabularyWordIds ?? [])
+            .Select(NormalizeRequiredId)
+            .ToList();
+        if (normalizedWordIds.Any(id => id is null))
+        {
+            _logger.LogWarning("ValidatePlanItemAsync refused an invalid vocabulary identifier.");
+            return null;
+        }
+
+        var distinctWordIds = normalizedWordIds
+            .OfType<string>()
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+        if (expectedActivityType == PlanActivityType.VocabularyReview && distinctWordIds.Count == 0)
+        {
+            _logger.LogWarning("ValidatePlanItemAsync refused a vocabulary review without vocabulary context.");
+            return null;
+        }
+
+        var today = ResolveTodayKey();
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        var planFacts = await db.DailyPlans
+            .AsNoTracking()
+            .Where(plan => plan.UserProfileId == normalizedUserId && plan.Date == today)
+            .Select(plan => plan.FocusVocabularyFacts)
+            .SingleOrDefaultAsync(ct);
+        if (planFacts is null
+            && !await db.DailyPlans.AsNoTracking()
+                .AnyAsync(plan => plan.UserProfileId == normalizedUserId && plan.Date == today, ct))
+        {
+            _logger.LogWarning("ValidatePlanItemAsync refused an item because no current plan exists.");
+            return null;
+        }
+
+        var completion = await db.DailyPlanCompletions
+            .AsNoTracking()
+            .SingleOrDefaultAsync(row =>
+                row.UserProfileId == normalizedUserId
+                && row.Date == today
+                && row.PlanItemId == normalizedPlanItemId
+                && !row.PlanItemId.StartsWith("adhoc-"), ct);
+        if (completion is null
+            || !string.Equals(completion.ActivityType, expectedActivityType.ToString(), StringComparison.Ordinal)
+            || !string.Equals(NormalizeOptionalId(completion.ResourceId), normalizedResourceId, StringComparison.Ordinal)
+            || !string.Equals(NormalizeOptionalId(completion.SkillId), normalizedSkillId, StringComparison.Ordinal))
+        {
+            _logger.LogWarning("ValidatePlanItemAsync refused a stale or mismatched current-plan item.");
+            return null;
+        }
+
+        if (distinctWordIds.Count > 0)
+        {
+            var reachableWords = db.ResourceVocabularyMappings
+                .Join(
+                    db.LearningResources.Where(resource => resource.UserProfileId == normalizedUserId),
+                    mapping => mapping.ResourceId,
+                    resource => resource.Id,
+                    (mapping, resource) => new { mapping.ResourceId, mapping.VocabularyWordId })
+                .Where(row => distinctWordIds.Contains(row.VocabularyWordId));
+
+            if (normalizedResourceId is not null)
+                reachableWords = reachableWords.Where(row => row.ResourceId == normalizedResourceId);
+
+            var reachableCount = await reachableWords
+                .Select(row => row.VocabularyWordId)
+                .Distinct()
+                .CountAsync(ct);
+            if (reachableCount != distinctWordIds.Count)
+            {
+                _logger.LogWarning("ValidatePlanItemAsync refused vocabulary outside the explicit user's launch graph.");
+                return null;
+            }
+
+            var focusVocabularyIds = DeserializeFocusVocabularyFacts(planFacts);
+            if (focusVocabularyIds.Count > 0
+                && distinctWordIds.Any(id => !focusVocabularyIds.Contains(id, StringComparer.Ordinal)))
+            {
+                _logger.LogWarning("ValidatePlanItemAsync refused vocabulary outside the current plan focus.");
+                return null;
+            }
+        }
+
+        return new ValidatedPlanItemProgress(
+            completion.PlanItemId,
+            completion.MinutesSpent,
+            completion.EstimatedMinutes);
+    }
+
+    public async Task<bool> UpdatePlanItemProgressAsync(
+        string userId,
+        string planItemId,
+        int minutesSpent,
+        CancellationToken ct = default)
+    {
+        var normalizedUserId = NormalizeRequiredId(userId);
+        var normalizedPlanItemId = NormalizeRequiredId(planItemId);
+        if (normalizedUserId is null || normalizedPlanItemId is null)
+        {
+            _logger.LogWarning("Explicit-user plan progress update refused an empty identifier.");
+            return false;
+        }
+
+        var today = ResolveTodayKey();
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var existing = await db.DailyPlanCompletions
+            .SingleOrDefaultAsync(row =>
+                row.Date == today
+                && row.PlanItemId == normalizedPlanItemId
+                && row.UserProfileId == normalizedUserId, ct);
+        if (existing is null)
+        {
+            _logger.LogWarning("Explicit-user plan progress update refused a missing current-plan item.");
+            return false;
+        }
+
+        existing.MinutesSpent = minutesSpent;
+        existing.UpdatedAt = DateTime.UtcNow;
+        if (!existing.IsCompleted && minutesSpent >= existing.EstimatedMinutes)
+        {
+            existing.IsCompleted = true;
+            existing.CompletedAt = DateTime.UtcNow;
+        }
+
+        await db.SaveChangesAsync(ct);
+        if (_syncService != null)
+            await _syncService.TriggerSyncAsync();
+        return true;
+    }
+
     public async Task UpdatePlanItemProgressAsync(string planItemId, int minutesSpent, CancellationToken ct = default)
     {
         _logger.LogDebug("📊 UpdatePlanItemProgressAsync - planItemId={PlanItemId}, minutesSpent={MinutesSpent}", planItemId, minutesSpent);
@@ -858,6 +1009,32 @@ public class ProgressService : IProgressService
             return string.Empty;
         }
 
+        return await StartAdHocSessionAsync(
+            userProfile.Id,
+            activityType,
+            resourceId,
+            skillId,
+            vocabularyWordIds,
+            estimatedMinutes,
+            ct);
+    }
+
+    public async Task<string> StartAdHocSessionAsync(
+        string userId,
+        PlanActivityType activityType,
+        string? resourceId,
+        string? skillId,
+        IReadOnlyCollection<string>? vocabularyWordIds,
+        int estimatedMinutes = 10,
+        CancellationToken ct = default)
+    {
+        var normalizedUserId = NormalizeRequiredId(userId);
+        if (normalizedUserId is null)
+        {
+            _logger.LogWarning("Explicit-user ad-hoc session refused because no user was supplied.");
+            return string.Empty;
+        }
+
         var planItemId = $"adhoc-{Guid.NewGuid()}";
         var today = ResolveTodayKey();
         var normalizedResourceId = string.IsNullOrWhiteSpace(resourceId) ? null : resourceId.Trim();
@@ -866,9 +1043,15 @@ public class ProgressService : IProgressService
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
+        if (!await db.UserProfiles.AnyAsync(profile => profile.Id == normalizedUserId, ct))
+        {
+            _logger.LogWarning("Explicit-user ad-hoc session refused because the user does not exist.");
+            return string.Empty;
+        }
+
         if (!await IsOwnedAdHocContextAsync(
                 db,
-                userProfile.Id,
+                normalizedUserId,
                 normalizedResourceId,
                 normalizedSkillId,
                 vocabularyWordIds,
@@ -881,7 +1064,7 @@ public class ProgressService : IProgressService
         var completion = new DailyPlanCompletion
         {
             Id = Guid.NewGuid().ToString(),
-            UserProfileId = userProfile.Id,
+            UserProfileId = normalizedUserId,
             Date = today,
             PlanItemId = planItemId,
             ActivityType = activityType.ToString(),
@@ -908,6 +1091,49 @@ public class ProgressService : IProgressService
 
         return planItemId;
     }
+
+    public async Task<bool> DiscardAdHocSessionAsync(
+        string userId,
+        string planItemId,
+        CancellationToken ct = default)
+    {
+        var normalizedUserId = NormalizeRequiredId(userId);
+        var normalizedPlanItemId = NormalizeRequiredId(planItemId);
+        if (normalizedUserId is null
+            || normalizedPlanItemId is null
+            || !normalizedPlanItemId.StartsWith("adhoc-", StringComparison.Ordinal))
+        {
+            _logger.LogWarning("DiscardAdHocSessionAsync refused an invalid session identity.");
+            return false;
+        }
+
+        var today = ResolveTodayKey();
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var completion = await db.DailyPlanCompletions
+            .SingleOrDefaultAsync(row =>
+                row.UserProfileId == normalizedUserId
+                && row.Date == today
+                && row.PlanItemId == normalizedPlanItemId
+                && row.MinutesSpent == 0
+                && !row.IsCompleted, ct);
+        if (completion is null)
+            return false;
+
+        db.DailyPlanCompletions.Remove(completion);
+        await db.SaveChangesAsync(ct);
+        if (_syncService != null)
+            await _syncService.TriggerSyncAsync();
+        return true;
+    }
+
+    private static string? NormalizeRequiredId(string? value)
+    {
+        var normalized = value?.Trim();
+        return string.IsNullOrWhiteSpace(normalized) ? null : normalized;
+    }
+
+    private static string? NormalizeOptionalId(string? value) => NormalizeRequiredId(value);
 
     private static async Task<bool> IsOwnedAdHocContextAsync(
         ApplicationDbContext db,

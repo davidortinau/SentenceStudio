@@ -5,7 +5,12 @@
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
 @implements IAsyncDisposable
 
-<div class="activity-page-wrapper" @attributes="QuizContentAttributes">
+<div class="vocab-quiz-modal-host">
+<div id="vocab-quiz-activity-content"
+     class="activity-page-wrapper"
+     tabindex="-1"
+     @ref="activityContentRootRef"
+     @attributes="QuizContentAttributes">
 
 @if (!isSentenceShortcutMode && !showAnswer && !requireCorrectTyping)
 {
@@ -607,21 +612,23 @@ else
     <div class="offcanvas-backdrop fade show" style="z-index: 1049;" @onclick="() => showInfoPanel = false"></div>
 }
 
-@* Fullscreen image viewer overlay *@
+</div> @* end activity-page-wrapper *@
+
+@* Fullscreen image viewer overlay — sibling of the inert activity content. *@
 @if (isImageFullscreen && !string.IsNullOrWhiteSpace(currentItem?.Word?.MnemonicImageUri))
 {
     <div id="quiz-fullscreen-viewer"
          class="quiz-fullscreen-overlay"
          role="dialog"
          @attributes="FullscreenOverlayAttributes"
-         @onclick="CloseImageFullscreen"
+         @onclick="CloseImageFullscreenAsync"
          @onkeydown="HandleFullscreenKeydown">
         <button type="button"
                 id="quiz-fullscreen-close"
                 class="quiz-fullscreen-close-btn"
                 aria-label="@($"{Localize["Common_Close"]}")"
                 @ref="fullscreenCloseButtonRef"
-                @onclick="CloseImageFullscreen"
+                @onclick="CloseImageFullscreenAsync"
                 @onclick:stopPropagation="true">
             <i class="bi bi-x-lg" aria-hidden="true"></i>
         </button>
@@ -633,7 +640,7 @@ else
     </div>
 }
 
-</div> @* end activity-page-wrapper *@
+</div> @* end vocab-quiz-modal-host *@
 
 @code {
     [SupplyParameterFromQuery(Name = "resourceIds")]
@@ -702,6 +709,9 @@ else
     private bool showTextWithPhoto;
     private bool isSavingTextToggle;
     private bool sentenceHintExpanded;
+    private SentenceStudio.Services.Timer.ActivityTimerLease? activityTimerLease;
+    private CancellationTokenSource? activityTimerStartCts;
+    private bool activityTimerStartInFlight;
     private IAudioPlayer? audioPlayer;
     private CancellationTokenSource? autoAdvanceCts;
     private CancellationTokenSource? sentenceHintLoadCts;
@@ -820,11 +830,17 @@ else
         Logger.LogInformation("VocabQuiz initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
 
         var userProfile = await UserProfileRepo.GetAsync();
+        if (userProfile is null || !IsPreferenceUser(userProfile.Id))
+        {
+            RefuseLaunch(1);
+            return;
+        }
+
         var routeValidation = await LaunchValidator.ValidateRouteAsync(
-            userProfile?.Id,
+            userProfile.Id,
             ParseResourceIds(),
             SkillIdParam);
-        if (!routeValidation.IsValid || userProfile is null)
+        if (!routeValidation.IsValid || !IsPreferenceUser(userProfile.Id))
         {
             RefuseLaunch(routeValidation.RejectedCount);
             return;
@@ -843,6 +859,35 @@ else
         showTextWithPhoto = userProfile.VocabQuizShowTextWithPhoto;
 
         focusVocabularyIds = FocusVocabularySelection.ParseFocusVocabularyIds(FocusVocabularyIdsParam);
+        List<VocabularyWord>? prevalidatedPlanWords = null;
+        if (!string.IsNullOrWhiteSpace(PlanItemId))
+        {
+            prevalidatedPlanWords = await LoadVocabularyWordsForCurrentLaunchAsync(activeUserId);
+            if (!string.IsNullOrEmpty(launchError)
+                || prevalidatedPlanWords.Count == 0
+                || !IsPreferenceUser(activeUserId))
+            {
+                RefuseLaunch(1);
+                return;
+            }
+
+            var planResourceId = validatedResourceIds.Length == 1
+                ? validatedResourceIds[0]
+                : null;
+            var validatedPlanItem = await PlanProgressService.ValidatePlanItemAsync(
+                activeUserId,
+                PlanItemId,
+                SentenceStudio.Services.Progress.PlanActivityType.VocabularyReview,
+                planResourceId,
+                validatedSkillId,
+                prevalidatedPlanWords.Select(word => word.Id).ToArray());
+            if (validatedPlanItem is null || !IsPreferenceUser(activeUserId))
+            {
+                RefuseLaunch(1);
+                return;
+            }
+        }
+
         launchContextKey = VocabQuizSessionSnapshot.BuildLaunchContextKey(
             PlanItemId,
             focusVocabularyIds,
@@ -851,6 +896,11 @@ else
             validatedSkillId);
 
         var session = await SessionService.GetResumableAsync(activeUserId, "VocabularyReview", launchContextKey);
+        if (!IsPreferenceUser(activeUserId))
+        {
+            RefuseLaunch(1);
+            return;
+        }
         if (session != null)
         {
             resumableSession = session;
@@ -862,7 +912,8 @@ else
                 return;
             }
 
-            var reachableWords = await LoadVocabularyWordsForCurrentLaunchAsync();
+            var reachableWords = prevalidatedPlanWords
+                ?? await LoadVocabularyWordsForCurrentLaunchAsync(activeUserId);
             if (!string.IsNullOrEmpty(launchError))
                 return;
 
@@ -887,6 +938,7 @@ else
 
     private async Task LoadVocabulary()
     {
+        await CloseImageFullscreenAsync(restoreFocus: true);
         ResetSentenceHintFeature(
             VocabQuizSentenceHintTransition.Restart,
             cancelPendingLoad: true,
@@ -901,7 +953,14 @@ else
                 return;
             }
 
-            var allWords = await LoadVocabularyWordsForCurrentLaunchAsync();
+            var currentUserId = GetActiveUserId();
+            if (string.IsNullOrWhiteSpace(currentUserId))
+            {
+                RefuseLaunch(1);
+                return;
+            }
+
+            var allWords = await LoadVocabularyWordsForCurrentLaunchAsync(currentUserId);
 
             if (!allWords.Any())
             {
@@ -915,11 +974,19 @@ else
                 .Where(FocusVocabularySelection.IsUsableVocabularyWord)
                 .GroupBy(w => w.Id, StringComparer.Ordinal).Select(g => g.First()).ToList();
 
+            if (!IsPreferenceUser(currentUserId))
+            {
+                RefuseLaunch(1);
+                return;
+            }
             distractorScope = allWords;
-
-            var currentUserId = GetActiveUserId();
             var wordIds = allWords.Select(w => w.Id).ToList();
             var progressDict = await ProgressService.GetProgressForWordsAsync(wordIds, currentUserId);
+            if (!IsPreferenceUser(currentUserId))
+            {
+                RefuseLaunch(1);
+                return;
+            }
 
             var quizCandidates = allWords.Select(word =>
             {
@@ -989,6 +1056,11 @@ else
                 return;
 
             await LoadSentenceHintsForBatchAsync(currentUserId, targetCefrLevel, batchPool);
+            if (!IsPreferenceUser(currentUserId))
+            {
+                RefuseLaunch(1);
+                return;
+            }
             await SetupNewRound();
         }
         catch (Exception ex)
@@ -1002,8 +1074,15 @@ else
         }
     }
 
-    private async Task<List<VocabularyWord>> LoadVocabularyWordsForCurrentLaunchAsync()
+    private async Task<List<VocabularyWord>> LoadVocabularyWordsForCurrentLaunchAsync(
+        string expectedUserId)
     {
+        if (!IsPreferenceUser(expectedUserId))
+        {
+            RefuseLaunch(1);
+            return [];
+        }
+
         focusVocabularyIds = FocusVocabularySelection.ParseFocusVocabularyIds(FocusVocabularyIdsParam);
         usingFocusVocabularyIds = focusVocabularyIds.Count > 0;
         var allWords = new List<VocabularyWord>();
@@ -1024,14 +1103,24 @@ else
             }
             else
             {
-                var words = await ResourceRepo.GetAllVocabularyWordsWithResourcesAsync();
+                var words = await ResourceRepo.GetAllVocabularyWordsWithResourcesAsync(expectedUserId);
+                if (!IsPreferenceUser(expectedUserId))
+                {
+                    RefuseLaunch(1);
+                    return;
+                }
                 allWords.AddRange(words);
             }
         }
 
         if (usingFocusVocabularyIds)
         {
-            var userVocabulary = await ResourceRepo.GetAllVocabularyWordsWithResourcesAsync();
+            var userVocabulary = await ResourceRepo.GetAllVocabularyWordsWithResourcesAsync(expectedUserId);
+            if (!IsPreferenceUser(expectedUserId))
+            {
+                RefuseLaunch(1);
+                return [];
+            }
             allWords.AddRange(FocusVocabularySelection.SelectFocusWords(userVocabulary, focusVocabularyIds));
 
             var requestedFocusCount = focusVocabularyIds.Distinct(StringComparer.Ordinal).Count();
@@ -1047,6 +1136,12 @@ else
             await LoadLegacyVocabularyAsync();
         }
 
+        if (!IsPreferenceUser(expectedUserId))
+        {
+            RefuseLaunch(1);
+            return [];
+        }
+
         return allWords
             .Where(FocusVocabularySelection.IsUsableVocabularyWord)
             .GroupBy(w => w.Id, StringComparer.Ordinal)
@@ -1056,6 +1151,7 @@ else
 
     private async Task ResumePreviousSessionAsync()
     {
+        await CloseImageFullscreenAsync(restoreFocus: true);
         ResetSentenceHintFeature(
             VocabQuizSentenceHintTransition.Resume,
             cancelPendingLoad: true,
@@ -1071,7 +1167,14 @@ else
         try
         {
             var snapshot = VocabQuizSessionSnapshot.Deserialize(resumableSession.StateJson);
-            var allWords = await LoadVocabularyWordsForCurrentLaunchAsync();
+            var currentUserId = GetActiveUserId();
+            if (string.IsNullOrWhiteSpace(currentUserId))
+            {
+                RejectResume(1);
+                return;
+            }
+
+            var allWords = await LoadVocabularyWordsForCurrentLaunchAsync(currentUserId);
             if (!allWords.Any())
             {
                 RejectResume(1);
@@ -1092,10 +1195,19 @@ else
                 return;
             }
 
+            if (!IsPreferenceUser(currentUserId))
+            {
+                RejectResume(1);
+                return;
+            }
             distractorScope = allWords;
-            var currentUserId = GetActiveUserId();
             var allWordIds = allWords.Select(w => w.Id).ToList();
             var progressDict = await ProgressService.GetProgressForWordsAsync(allWordIds, currentUserId);
+            if (!IsPreferenceUser(currentUserId))
+            {
+                RejectResume(1);
+                return;
+            }
 
             var itemsById = allWords.ToDictionary(
                 word => word.Id,
@@ -1189,6 +1301,11 @@ else
 
             currentTurnInRound = Math.Clamp(currentTurnInRound, 0, Math.Max(roundWordOrder.Count - 1, 0));
             await LoadSentenceHintsForBatchAsync(currentUserId, targetCefrLevel, batchPool);
+            if (!IsPreferenceUser(currentUserId))
+            {
+                RejectResume(1);
+                return;
+            }
             await LoadCurrentItem(preservePromptState: true);
         }
         catch (Exception ex)
@@ -1200,6 +1317,7 @@ else
 
     private async Task StartFreshSessionAsync()
     {
+        await CloseImageFullscreenAsync(restoreFocus: true);
         ResetSentenceHintFeature(
             VocabQuizSentenceHintTransition.Restart,
             cancelPendingLoad: true,
@@ -1209,7 +1327,19 @@ else
         {
             try
             {
-                await SessionService.AbandonAsync(GetActiveUserId(), resumableSession.Id);
+                var currentUserId = GetActiveUserId();
+                if (string.IsNullOrWhiteSpace(currentUserId))
+                {
+                    RefuseLaunch(1);
+                    return;
+                }
+
+                await SessionService.AbandonAsync(currentUserId, resumableSession.Id);
+                if (!IsPreferenceUser(currentUserId))
+                {
+                    RefuseLaunch(1);
+                    return;
+                }
             }
             catch (Exception ex)
             {
@@ -1265,6 +1395,11 @@ else
                 launchContextKey,
                 snapshot.Serialize());
 
+            if (!IsPreferenceUser(activeUserId))
+            {
+                RefuseLaunch(1);
+                return;
+            }
             activeSessionId = session?.Id;
         }
         catch (Exception ex)
@@ -1291,7 +1426,14 @@ else
 
     private async Task CompleteActiveSessionAsync()
     {
-        if (string.IsNullOrWhiteSpace(GetActiveUserId()) || string.IsNullOrWhiteSpace(launchContextKey))
+        var currentUserId = GetActiveUserId();
+        if (string.IsNullOrWhiteSpace(currentUserId))
+        {
+            RefuseLaunch(1);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(launchContextKey))
         {
             sessionMarkedComplete = true;
             return;
@@ -1299,7 +1441,12 @@ else
 
         try
         {
-            await SessionService.CompleteAsync(GetActiveUserId(), "VocabularyReview", launchContextKey);
+            await SessionService.CompleteAsync(currentUserId, "VocabularyReview", launchContextKey);
+            if (!IsPreferenceUser(currentUserId))
+            {
+                RefuseLaunch(1);
+                return;
+            }
             activeSessionId = null;
             resumableSession = null;
             sessionMarkedComplete = true;
@@ -1329,10 +1476,18 @@ else
         if (string.IsNullOrWhiteSpace(activeUserId))
             return string.Empty;
 
-        var currentUserId = Preferences.Get(UserProfileRepository.ActiveProfileIdKey, string.Empty);
-        return string.Equals(currentUserId, activeUserId, StringComparison.Ordinal)
+        return IsPreferenceUser(activeUserId)
             ? activeUserId
             : string.Empty;
+    }
+
+    private bool IsPreferenceUser(string? expectedUserId)
+    {
+        if (string.IsNullOrWhiteSpace(expectedUserId))
+            return false;
+
+        var currentUserId = Preferences.Get(UserProfileRepository.ActiveProfileIdKey, string.Empty);
+        return string.Equals(currentUserId, expectedUserId, StringComparison.Ordinal);
     }
 
     private async Task<bool> EnsureActivityTimerStartedAsync(IReadOnlyCollection<string> vocabularyWordIds)
@@ -1340,22 +1495,98 @@ else
         if (activityTimerStarted)
             return true;
 
-        var resourceId = validatedResourceIds.Length == 1 ? validatedResourceIds[0] : null;
-        var started = await ActivityTimer.StartValidatedSessionAsync(
-            "VocabularyReview",
-            PlanItemId,
-            resourceId,
-            validatedSkillId,
-            vocabularyWordIds);
-
-        if (!started)
+        var currentUserId = GetActiveUserId();
+        if (string.IsNullOrWhiteSpace(currentUserId))
         {
             RefuseLaunch(1);
             return false;
         }
 
+        var resourceId = validatedResourceIds.Length == 1 ? validatedResourceIds[0] : null;
+        var startCts = ResetActivityTimerStartCancellation();
+        SentenceStudio.Services.Timer.ActivityTimerLease? lease;
+        var startCanceled = false;
+        try
+        {
+            lease = await ActivityTimer.StartValidatedSessionAsync(
+                new SentenceStudio.Services.Timer.ActivityTimerStartRequest(
+                    currentUserId,
+                    SentenceStudio.Services.Progress.PlanActivityType.VocabularyReview,
+                    PlanItemId,
+                    resourceId,
+                    validatedSkillId,
+                    vocabularyWordIds),
+                startCts.Token);
+            startCanceled = startCts.IsCancellationRequested;
+        }
+        catch (OperationCanceledException) when (startCts.IsCancellationRequested)
+        {
+            return false;
+        }
+        finally
+        {
+            CompleteActivityTimerStart(startCts);
+        }
+
+        if (startCanceled)
+        {
+            if (lease is not null)
+                ActivityTimer.CancelSession(lease);
+            return false;
+        }
+
+        if (lease is null || !IsPreferenceUser(currentUserId))
+        {
+            if (lease is not null)
+                ActivityTimer.CancelSession(lease);
+            RefuseLaunch(1);
+            return false;
+        }
+
+        activityTimerLease = lease;
         activityTimerStarted = true;
         return true;
+    }
+
+    private CancellationTokenSource ResetActivityTimerStartCancellation()
+    {
+        var previousCts = activityTimerStartCts;
+        if (previousCts is not null)
+        {
+            previousCts.Cancel();
+            if (!activityTimerStartInFlight)
+                previousCts.Dispose();
+        }
+
+        var cts = new CancellationTokenSource();
+        activityTimerStartCts = cts;
+        activityTimerStartInFlight = true;
+        return cts;
+    }
+
+    private void CompleteActivityTimerStart(CancellationTokenSource completedCts)
+    {
+        if (ReferenceEquals(activityTimerStartCts, completedCts))
+        {
+            activityTimerStartInFlight = false;
+            activityTimerStartCts = null;
+        }
+
+        completedCts.Dispose();
+    }
+
+    private void CancelActivityTimerStart()
+    {
+        var cts = activityTimerStartCts;
+        if (cts is null)
+            return;
+
+        cts.Cancel();
+        if (!activityTimerStartInFlight)
+        {
+            cts.Dispose();
+            activityTimerStartCts = null;
+        }
     }
 
     private void RefuseLaunch(int rejectedCount)
@@ -1373,8 +1604,9 @@ else
         vocabItems.Clear();
         sessionItems.Clear();
         roundWordOrder.Clear();
-        if (ActivityTimer.IsActive)
-            ActivityTimer.CancelSession();
+        if (activityTimerLease is not null)
+            ActivityTimer.CancelSession(activityTimerLease);
+        activityTimerLease = null;
         activityTimerStarted = false;
         Toast.ShowWarning(launchError);
     }
@@ -1568,6 +1800,7 @@ else
 
     private async Task LoadCurrentItem(bool preservePromptState = false)
     {
+        await CloseImageFullscreenAsync(restoreFocus: true);
         ResetSentenceHintFeature(VocabQuizSentenceHintTransition.LoadCurrentItem);
 
         if (currentTurnInRound >= roundWordOrder.Count || currentTurnInRound >= TurnsPerRound)
@@ -2077,6 +2310,7 @@ else
     {
         ResetSentenceHintFeature(VocabQuizSentenceHintTransition.LoadCurrentItem);
         autoAdvanceCts?.Cancel();
+        await CloseImageFullscreenAsync(restoreFocus: true);
         await RecordPendingAttemptAsync();
 
         // Immediate rotation check (spec §1.3): remove word mid-round if mastered
@@ -2095,9 +2329,6 @@ else
                 requireCorrectTyping = false;
                 showMnemonicImage = false;
                 showInfoPanel = false;
-                isImageFullscreen = false;
-                pendingFocusIntoFullscreen = false;
-                pendingFocusRestoreToThumbnail = false;
                 await PersistSnapshotAsync();
                 return;
             }
@@ -2111,9 +2342,6 @@ else
         requireCorrectTyping = false;
         showMnemonicImage = false;
         showInfoPanel = false;
-        isImageFullscreen = false;
-        pendingFocusIntoFullscreen = false;
-        pendingFocusRestoreToThumbnail = false;
         await LoadCurrentItem();
         await PersistSnapshotAsync();
     }
@@ -2142,6 +2370,11 @@ else
             var wasKnownBefore = currentItem?.Progress?.IsKnown ?? false;
 
             var updatedProgress = await ProgressService.RecordAttemptAsync(attempt);
+            if (!IsPreferenceUser(attempt.UserId))
+            {
+                RefuseLaunch(1);
+                return;
+            }
             if (currentItem != null)
             {
                 currentItem.Progress = updatedProgress;
@@ -2239,10 +2472,13 @@ else
 
     private async Task GoBack()
     {
+        await CloseImageFullscreenAsync(restoreFocus: false);
         if (showSessionSummary)
             await CompleteActiveSessionAsync();
 
-        if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
+        CancelActivityTimerStart();
+        ActivityTimer.PauseAndStopOwnedSession(activityTimerLease);
+        activityTimerLease = null;
         audioPlayer?.Stop();
         audioPlayer?.Dispose();
         NavManager.NavigateTo("/");
@@ -2250,20 +2486,18 @@ else
 
     private void ToggleMnemonicImage() => showMnemonicImage = !showMnemonicImage;
 
+    private ElementReference activityContentRootRef;
     private ElementReference thumbnailButtonRef;
     private ElementReference fullscreenCloseButtonRef;
     private bool pendingFocusIntoFullscreen;
     private bool pendingFocusRestoreToThumbnail;
+    private readonly FullscreenDialogLifecycle fullscreenLifecycle = new();
 
     // Pointer Events gesture module for fullscreen photo zoom/pan.
     // Loaded lazily on first fullscreen open; detached on close/dispose/image-change.
     private IJSObjectReference? gestureModule;
+    private IJSObjectReference? modalModule;
     private bool gestureAttachPending;
-
-    // Platform detection for modal accessibility strategy.
-    // iOS/Mac Catalyst WKWebView has incomplete aria-modal support; use inert instead.
-    private static bool IsWKWebViewPlatform =>
-        OperatingSystem.IsIOSVersionAtLeast(1) || OperatingSystem.IsMacCatalystVersionAtLeast(1);
 
     private async Task OpenImageFullscreen()
     {
@@ -2282,26 +2516,30 @@ else
                 return;
         }
 
-        isImageFullscreen = true;
+        if (!fullscreenLifecycle.Open())
+            return;
+
         pendingFocusIntoFullscreen = true;
         pendingFocusRestoreToThumbnail = false;
         gestureAttachPending = true;
     }
 
-    private void CloseImageFullscreen()
+    private Task CloseImageFullscreenAsync() =>
+        CloseImageFullscreenAsync(restoreFocus: true);
+
+    private async Task CloseImageFullscreenAsync(bool restoreFocus)
     {
         if (!isImageFullscreen) return;
-        isImageFullscreen = false;
+        await fullscreenLifecycle.CloseAsync(DetachFullscreenModulesAsync);
         pendingFocusIntoFullscreen = false;
-        pendingFocusRestoreToThumbnail = true;
+        pendingFocusRestoreToThumbnail = restoreFocus;
         gestureAttachPending = false;
-        _ = DetachGestureModuleAsync();
     }
 
-    private void HandleFullscreenKeydown(KeyboardEventArgs e)
+    private async Task HandleFullscreenKeydown(KeyboardEventArgs e)
     {
         if (string.Equals(e.Key, "Escape", StringComparison.OrdinalIgnoreCase))
-            CloseImageFullscreen();
+            await CloseImageFullscreenAsync();
     }
 
     // Render-safe one-shot focus lifecycle for the fullscreen photo overlay.
@@ -2330,12 +2568,26 @@ else
         else if (pendingFocusRestoreToThumbnail && !isImageFullscreen)
         {
             pendingFocusRestoreToThumbnail = false;
-            if (showMnemonicImage
-                && !string.IsNullOrWhiteSpace(currentItem?.Word?.MnemonicImageUri))
+            var focusTarget = FullscreenFocusTargetPolicy.Resolve(
+                restoreRequested: true,
+                thumbnailAvailable: showMnemonicImage
+                    && !string.IsNullOrWhiteSpace(currentItem?.Word?.MnemonicImageUri));
+            if (focusTarget == FullscreenFocusTarget.Thumbnail)
             {
                 try
                 {
                     await thumbnailButtonRef.FocusAsync();
+                }
+                catch (Microsoft.JSInterop.JSDisconnectedException) { }
+                catch (ObjectDisposedException) { }
+                catch (Microsoft.JSInterop.JSException) { }
+                catch (TaskCanceledException) { }
+            }
+            else if (focusTarget == FullscreenFocusTarget.ActivityContent)
+            {
+                try
+                {
+                    await activityContentRootRef.FocusAsync();
                 }
                 catch (Microsoft.JSInterop.JSDisconnectedException) { }
                 catch (ObjectDisposedException) { }
@@ -2350,6 +2602,14 @@ else
             gestureAttachPending = false;
             try
             {
+                modalModule ??= await JS.InvokeAsync<IJSObjectReference>(
+                    "import", "./_content/SentenceStudio.UI/js/photo-viewer-modal.js");
+                await modalModule.InvokeVoidAsync(
+                    "activate",
+                    "quiz-fullscreen-viewer",
+                    "vocab-quiz-activity-content",
+                    "quiz-fullscreen-close");
+
                 gestureModule ??= await JS.InvokeAsync<IJSObjectReference>(
                     "import", "./_content/SentenceStudio.UI/js/photo-viewer-gestures.js");
 
@@ -2371,17 +2631,31 @@ else
         }
     }
 
-    private async Task DetachGestureModuleAsync()
+    private async Task DetachFullscreenModulesAsync()
     {
-        if (gestureModule is null) return;
-        try
+        if (gestureModule is not null)
         {
-            await gestureModule.InvokeVoidAsync("detach");
+            try
+            {
+                await gestureModule.InvokeVoidAsync("detach");
+            }
+            catch (Microsoft.JSInterop.JSDisconnectedException) { }
+            catch (ObjectDisposedException) { }
+            catch (Microsoft.JSInterop.JSException) { }
+            catch (TaskCanceledException) { }
         }
-        catch (Microsoft.JSInterop.JSDisconnectedException) { }
-        catch (ObjectDisposedException) { }
-        catch (Microsoft.JSInterop.JSException) { }
-        catch (TaskCanceledException) { }
+
+        if (modalModule is not null)
+        {
+            try
+            {
+                await modalModule.InvokeVoidAsync("deactivate");
+            }
+            catch (Microsoft.JSInterop.JSDisconnectedException) { }
+            catch (ObjectDisposedException) { }
+            catch (Microsoft.JSInterop.JSException) { }
+            catch (TaskCanceledException) { }
+        }
     }
 
     private async Task ToggleShowTextWithPhotoAsync()
@@ -2404,7 +2678,7 @@ else
             }
 
             var saved = await UserProfileRepo.SaveVocabQuizShowTextWithPhotoAsync(activeUserId, showTextWithPhoto);
-            if (!saved)
+            if (!saved || !IsPreferenceUser(activeUserId))
             {
                 Logger.LogWarning("ToggleShowTextWithPhoto: save failed — reverting");
                 showTextWithPhoto = previousValue;
@@ -2498,9 +2772,12 @@ else
     {
         Localize.CultureChanged -= OnCultureChanged;
         CancelSentenceHintLoad();
+        await CloseImageFullscreenAsync(restoreFocus: false);
         await RecordPendingAttemptAsync();
         await PersistSnapshotAsync();
-        if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
+        CancelActivityTimerStart();
+        ActivityTimer.PauseAndStopOwnedSession(activityTimerLease);
+        activityTimerLease = null;
         autoAdvanceCts?.Cancel();
         autoAdvanceCts?.Dispose();
         audioPlayer?.Stop();
@@ -2508,9 +2785,13 @@ else
         audioPlayer = null;
         if (gestureModule is not null)
         {
-            try { await gestureModule.InvokeVoidAsync("detach"); } catch { }
             try { await gestureModule.DisposeAsync(); } catch { }
             gestureModule = null;
+        }
+        if (modalModule is not null)
+        {
+            try { await modalModule.DisposeAsync(); } catch { }
+            modalModule = null;
         }
     }
 
@@ -2544,19 +2825,18 @@ else
     /// </summary>
     private bool IsTextToggleEligible => HasPromptImage && showPhotoPromptControl && promptUsesNativeLanguage;
 
-    private bool isImageFullscreen;
+    private bool isImageFullscreen => fullscreenLifecycle.IsOpen;
 
     /// <summary>
-    /// Declarative attributes for the quiz content wrapper. On WKWebView platforms
-    /// (iOS/Mac Catalyst), applies inert while the fullscreen overlay is open so
-    /// VoiceOver cannot reach quiz content behind the overlay.
+    /// Declarative attributes for the quiz content wrapper. The dialog is a sibling,
+    /// so making this subtree inert cannot disable the modal itself.
     /// </summary>
     private Dictionary<string, object> QuizContentAttributes
     {
         get
         {
             var attrs = new Dictionary<string, object>();
-            if (isImageFullscreen && IsWKWebViewPlatform)
+            if (isImageFullscreen)
                 attrs["inert"] = true;
             return attrs;
         }
@@ -2564,9 +2844,7 @@ else
 
     /// <summary>
     /// Declarative attributes for the fullscreen overlay dialog.
-    /// WebApp/non-iOS: aria-modal="true" for standard screen reader containment.
-    /// iOS/Mac Catalyst WKWebView: omit aria-modal (incomplete VoiceOver support),
-    /// rely on inert on the underlying content instead.
+    /// The modal remains outside the inert subtree and is announced consistently.
     /// </summary>
     private Dictionary<string, object> FullscreenOverlayAttributes
     {
@@ -2574,10 +2852,9 @@ else
         {
             var attrs = new Dictionary<string, object>
             {
-                ["aria-label"] = $"{Localize["VocabQuiz_FullscreenPhoto"]}"
+                ["aria-label"] = $"{Localize["VocabQuiz_FullscreenPhoto"]}",
+                ["aria-modal"] = "true"
             };
-            if (!IsWKWebViewPlatform)
-                attrs["aria-modal"] = "true";
             return attrs;
         }
     }

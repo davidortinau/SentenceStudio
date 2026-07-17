@@ -1,175 +1,102 @@
-using System.Reflection;
 using FluentAssertions;
+using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
+using SentenceStudio.Services;
+using SentenceStudio.Services.Progress;
+using SentenceStudio.Services.Timer;
+using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.UnitTests.Services;
 
 public sealed class VocabQuizUiBoundaryContractTests
 {
     [Fact]
-    public void DirectRouteValidation_PrecedesSessionLookupAndVocabularyLoad()
+    public async Task DirectRouteValidation_RefusesMismatchedPlanBeforeTimerStarts()
     {
-        var source = File.ReadAllText(Path.Combine(
-            FindRepoRoot(),
-            "src",
-            "SentenceStudio.UI",
-            "Pages",
-            "VocabQuiz.razor"));
+        var progress = new Mock<IProgressService>(MockBehavior.Strict);
+        progress.Setup(service => service.ValidatePlanItemAsync(
+                "user-a",
+                "reading-item",
+                PlanActivityType.VocabularyReview,
+                "resource-a",
+                "skill-a",
+                It.IsAny<IReadOnlyCollection<string>>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync((ValidatedPlanItemProgress?)null);
+        var timer = new ActivityTimerService(
+            progress.Object,
+            NullLogger<ActivityTimerService>.Instance);
 
-        var onInitializedStart = source.IndexOf(
-            "protected override async Task OnInitializedAsync()",
-            StringComparison.Ordinal);
-        var loadVocabularyStart = source.IndexOf(
-            "private async Task LoadVocabulary()",
-            onInitializedStart,
-            StringComparison.Ordinal);
-        var onInitialized = source[onInitializedStart..loadVocabularyStart];
+        var lease = await timer.StartValidatedSessionAsync(
+            new ActivityTimerStartRequest(
+                "user-a",
+                PlanActivityType.VocabularyReview,
+                "reading-item",
+                "resource-a",
+                "skill-a",
+                ["word-a"]));
 
-        var validationIndex = onInitialized.IndexOf(
-            "LaunchValidator.ValidateRouteAsync",
-            StringComparison.Ordinal);
-        var sessionIndex = onInitialized.IndexOf(
-            "SessionService.GetResumableAsync",
-            StringComparison.Ordinal);
-        var vocabularyIndex = onInitialized.IndexOf(
-            "await LoadVocabulary()",
-            StringComparison.Ordinal);
-
-        validationIndex.Should().BeGreaterThanOrEqualTo(0);
-        sessionIndex.Should().BeGreaterThan(validationIndex);
-        vocabularyIndex.Should().BeGreaterThan(validationIndex);
-        onInitialized.Should().NotContain(
-            "ActivityTimer.StartSession",
-            "the timer must not start before route ownership validation");
+        lease.Should().BeNull();
+        timer.IsActive.Should().BeFalse();
+        progress.VerifyAll();
     }
 
     [Fact]
-    public void ChooseOwnNavigation_ValidatesBeforeBuildingUrl()
+    public void ChooseOwnNavigation_ForeignReferencesAreRejectedBeforeUse()
     {
-        var source = File.ReadAllText(Path.Combine(
-            FindRepoRoot(),
-            "src",
-            "SentenceStudio.UI",
-            "Pages",
-            "Index.razor"));
+        var reconciliation = ChooseOwnSelectionPreferences.Reconcile(
+            new ChooseOwnSelection(["owned-resource", "foreign-resource"], "foreign-skill"),
+            ["owned-resource"],
+            ["owned-skill"]);
 
-        var methodStart = source.IndexOf(
-            "private async Task NavigateToActivity(string route)",
-            StringComparison.Ordinal);
-        var methodEnd = source.IndexOf(
-            "private string ResolveActiveProfileId()",
-            methodStart,
-            StringComparison.Ordinal);
-        var method = source[methodStart..methodEnd];
-
-        var reconciliationIndex = method.IndexOf(
-            "ChooseOwnSelectionPreferences.Reconcile",
-            StringComparison.Ordinal);
-        var refusalIndex = method.IndexOf(
-            "if (reconciliation.RejectedCount > 0)",
-            StringComparison.Ordinal);
-        var urlIndex = method.IndexOf(
-            "QueryHelpers.AddQueryString",
-            StringComparison.Ordinal);
-
-        reconciliationIndex.Should().BeGreaterThanOrEqualTo(0);
-        refusalIndex.Should().BeGreaterThan(reconciliationIndex);
-        urlIndex.Should().BeGreaterThan(refusalIndex);
+        reconciliation.IsFullyOwned.Should().BeFalse();
+        reconciliation.RejectedCount.Should().Be(2);
+        reconciliation.Selection.ResourceIds.Should().Equal("owned-resource");
+        reconciliation.Selection.SkillId.Should().BeNull();
     }
 
     [Fact]
-    public void ChooseOwnUiCallbacks_RefuseUnownedValuesBeforeSaving()
+    public void ChooseOwnUiCallbacks_ClearRejectedValuesBeforeSavingState()
     {
-        var source = File.ReadAllText(Path.Combine(
-            FindRepoRoot(),
-            "src",
-            "SentenceStudio.UI",
-            "Pages",
-            "Index.razor"));
+        var state = new ChooseOwnSelectionState();
+        state.ActivateProfile("user-a");
+        state.Replace(new ChooseOwnSelection(["foreign-resource"], "foreign-skill"));
+        var reconciliation = ChooseOwnSelectionPreferences.Reconcile(
+            new ChooseOwnSelection(state.ResourceIds, state.SkillId),
+            ownedResourceIds: [],
+            ownedSkillIds: []);
 
-        var methodStart = source.IndexOf(
-            "private async Task ApplyChooseOwnSelectionFromUiAsync",
-            StringComparison.Ordinal);
-        var methodEnd = source.IndexOf(
-            "// ---- Shared ----",
-            methodStart,
-            StringComparison.Ordinal);
-        var method = source[methodStart..methodEnd];
+        state.Replace(reconciliation.Selection);
 
-        var reconciliationIndex = method.IndexOf(
-            "ChooseOwnSelectionPreferences.Reconcile",
-            StringComparison.Ordinal);
-        var refusalIndex = method.IndexOf(
-            "if (reconciliation.RejectedCount > 0)",
-            StringComparison.Ordinal);
-        var clearIndex = method.IndexOf(
-            "chooseOwnSelection.Replace(new ChooseOwnSelection([], null))",
-            StringComparison.Ordinal);
-        var saveIndex = method.IndexOf(
-            "SaveChooseOwnSelection(activeProfileId)",
-            StringComparison.Ordinal);
-
-        reconciliationIndex.Should().BeGreaterThanOrEqualTo(0);
-        refusalIndex.Should().BeGreaterThan(reconciliationIndex);
-        clearIndex.Should().BeGreaterThan(refusalIndex);
-        saveIndex.Should().BeGreaterThan(clearIndex);
+        state.ResourceIds.Should().BeEmpty();
+        state.SkillId.Should().BeNull();
     }
 
     [Fact]
-    public void ResumeSnapshot_IsValidatedBeforeOfferingResume()
+    public void ResumeSnapshot_MismatchedReferencesAreRejectedBehaviorally()
     {
-        var source = File.ReadAllText(Path.Combine(
-            FindRepoRoot(),
-            "src",
-            "SentenceStudio.UI",
-            "Pages",
-            "VocabQuiz.razor"));
-
-        var onInitializedStart = source.IndexOf(
-            "protected override async Task OnInitializedAsync()",
-            StringComparison.Ordinal);
-        var loadVocabularyStart = source.IndexOf(
-            "private async Task LoadVocabulary()",
-            onInitializedStart,
-            StringComparison.Ordinal);
-        var onInitialized = source[onInitializedStart..loadVocabularyStart];
-
-        var sessionIndex = onInitialized.IndexOf(
-            "SessionService.GetResumableAsync",
-            StringComparison.Ordinal);
-        var reachableWordsIndex = onInitialized.IndexOf(
-            "LoadVocabularyWordsForCurrentLaunchAsync",
-            sessionIndex,
-            StringComparison.Ordinal);
-        var validationIndex = onInitialized.IndexOf(
-            "CountRejectedSnapshotReferences",
-            sessionIndex,
-            StringComparison.Ordinal);
-        var promptIndex = onInitialized.IndexOf(
-            "showResumePrompt = true",
-            validationIndex,
-            StringComparison.Ordinal);
-
-        reachableWordsIndex.Should().BeGreaterThan(sessionIndex);
-        validationIndex.Should().BeGreaterThan(reachableWordsIndex);
-        promptIndex.Should().BeGreaterThan(validationIndex);
-    }
-
-    private static string FindRepoRoot()
-    {
-        var directory = new DirectoryInfo(
-            Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)
-                ?? throw new InvalidOperationException("Test assembly location has no directory."));
-        while (directory is not null)
+        var snapshot = new VocabQuizSessionSnapshot
         {
-            if (Directory.Exists(Path.Combine(directory.FullName, "src"))
-                && Directory.Exists(Path.Combine(directory.FullName, "tests")))
-            {
-                return directory.FullName;
-            }
+            PlanItemId = "stale-plan",
+            ResourceIds = ["foreign-resource"],
+            SkillId = "foreign-skill",
+            BatchPool =
+            [
+                new VocabQuizBatchItemSnapshot { WordId = "foreign-word" }
+            ],
+            RoundWordOrder = ["foreign-word"],
+            SessionItemsWordIds = ["foreign-word"]
+        };
 
-            directory = directory.Parent;
-        }
+        var rejected = VocabQuizLaunchValidator.CountRejectedSnapshotReferences(
+            snapshot,
+            expectedPlanItemId: "current-plan",
+            expectedFocusVocabularyIds: ["owned-word"],
+            expectedResourceIds: ["owned-resource"],
+            expectedDueOnly: false,
+            expectedSkillId: "owned-skill",
+            reachableWordIds: ["owned-word"]);
 
-        throw new InvalidOperationException("Could not locate the repository root.");
+        rejected.Should().BeGreaterThan(0);
     }
 }

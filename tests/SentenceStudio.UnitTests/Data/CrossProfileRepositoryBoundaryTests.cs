@@ -228,6 +228,76 @@ public sealed class CrossProfileRepositoryBoundaryTests : IDisposable
             .Should().Be(1);
     }
 
+    [Fact]
+    public async Task TargetTermLookup_ReusesOnlyReachableOrUnownedWords()
+    {
+        const string commonTerm = "공통";
+        var resourceA = SeedResource(UserA);
+        var resourceB = SeedResource(UserB);
+        var wordA = SeedWord(commonTerm);
+        Map(resourceA.Id, wordA.Id);
+
+        (await ResourceRepository.GetWordByTargetTermAsync(commonTerm, UserA))
+            ?.Id.Should().Be(wordA.Id);
+        (await ResourceRepository.GetWordByTargetTermAsync(commonTerm, UserB))
+            .Should().BeNull("a foreign-only mapping is not reusable");
+
+        var unowned = SeedWord(commonTerm);
+        (await ResourceRepository.GetWordByTargetTermAsync(commonTerm, UserB))
+            ?.Id.Should().Be(unowned.Id);
+
+        (await ResourceRepository.AddVocabularyToResourceAsync(resourceB.Id, unowned.Id, UserB))
+            .Should().BeTrue();
+        (await ResourceRepository.GetWordByTargetTermAsync(commonTerm, UserB))
+            ?.Id.Should().Be(unowned.Id);
+    }
+
+    [Fact]
+    public async Task CommonTermCreation_ForSecondProfileCreatesDistinctReachableWord()
+    {
+        const string commonTerm = "사람";
+        var resourceA = SeedResource(UserA);
+        var resourceB = SeedResource(UserB);
+        var foreignWord = SeedWord(commonTerm);
+        Map(resourceA.Id, foreignWord.Id);
+
+        var lookup = await ResourceRepository.GetWordByTargetTermAsync(commonTerm, UserB);
+        lookup.Should().BeNull();
+
+        var newWord = new VocabularyWord
+        {
+            TargetLanguageTerm = commonTerm,
+            NativeLanguageTerm = "person",
+            Language = "Korean",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+        (await ResourceRepository.SaveWordAsync(newWord)).Should().BeGreaterThan(0);
+        (await ResourceRepository.AddVocabularyToResourceAsync(resourceB.Id, newWord.Id, UserB))
+            .Should().BeTrue();
+
+        newWord.Id.Should().NotBe(foreignWord.Id);
+        (await ResourceRepository.GetWordByTargetTermAsync(commonTerm, UserB))
+            ?.Id.Should().Be(newWord.Id);
+    }
+
+    [Fact]
+    public async Task VocabularyGraph_ContainsOnlyExplicitUsersResources()
+    {
+        var resourceA = SeedResource(UserA);
+        var resourceB = SeedResource(UserB);
+        var sharedWord = SeedWord();
+        Map(resourceA.Id, sharedWord.Id);
+        Map(resourceB.Id, sharedWord.Id);
+
+        var words = await ResourceRepository.GetAllVocabularyWordsWithResourcesAsync(UserA);
+
+        words.Should().ContainSingle(word => word.Id == sharedWord.Id);
+        var returned = words.Single(word => word.Id == sharedWord.Id);
+        returned.LearningResources.Should().ContainSingle()
+            .Which.Id.Should().Be(resourceA.Id);
+    }
+
     private LearningResourceRepository ResourceRepository =>
         _provider.GetRequiredService<LearningResourceRepository>();
 
@@ -278,13 +348,13 @@ public sealed class CrossProfileRepositoryBoundaryTests : IDisposable
         return skill;
     }
 
-    private VocabularyWord SeedWord()
+    private VocabularyWord SeedWord(string? targetTerm = null)
     {
         using var scope = _provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var word = new VocabularyWord
         {
-            TargetLanguageTerm = $"target-{Guid.NewGuid()}",
+            TargetLanguageTerm = targetTerm ?? $"target-{Guid.NewGuid()}",
             NativeLanguageTerm = $"native-{Guid.NewGuid()}",
             Language = "Korean",
             CreatedAt = DateTime.UtcNow,

@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using SentenceStudio.Data;
 using SentenceStudio.Shared.Models;
@@ -12,6 +13,7 @@ public sealed class ExampleSentenceRepositoryTests : IDisposable
 {
     private readonly SqliteConnection _connection;
     private readonly ApplicationDbContext _db;
+    private readonly ServiceProvider _provider;
     private readonly ExampleSentenceRepository _repo;
 
     public ExampleSentenceRepositoryTests()
@@ -34,7 +36,13 @@ public sealed class ExampleSentenceRepositoryTests : IDisposable
         _db.VocabularyWords.Add(new VocabularyWord { Id = "w3", TargetLanguageTerm = "먹어요", Lemma = "먹다" });
         _db.SaveChanges();
 
-        _repo = new ExampleSentenceRepository(_db, NullLogger<ExampleSentenceRepository>.Instance);
+        var services = new ServiceCollection();
+        services.AddSingleton(_db);
+        _provider = services.BuildServiceProvider();
+        _repo = new ExampleSentenceRepository(
+            _db,
+            _provider,
+            NullLogger<ExampleSentenceRepository>.Instance);
     }
 
     private ExampleSentence New(string word, string target, bool core = false,
@@ -300,6 +308,7 @@ public sealed class ExampleSentenceRepositoryTests : IDisposable
 
     public void Dispose()
     {
+        _provider.Dispose();
         _db.Dispose();
         _connection.Dispose();
     }

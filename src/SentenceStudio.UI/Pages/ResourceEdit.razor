@@ -422,7 +422,13 @@ else
         try
         {
             resource.UpdatedAt = DateTime.UtcNow;
-            await ResourceRepo.SaveResourceAsync(resource);
+            var outcome = RepositoryMutationOutcome.From(
+                await ResourceRepo.SaveResourceAsync(resource));
+            if (!outcome.Succeeded)
+            {
+                Toast.ShowError($"{string.Format(Localize["ResourceEdit_SaveFailed"], Localize["ResourceEdit_NotFound"])}");
+                return;
+            }
             Toast.ShowSuccess($"{Localize["ResourceEdit_SavedSuccess"]}");
         }
         catch (Exception ex)
@@ -470,7 +476,13 @@ else
         isDeleting = true;
         try
         {
-            await ResourceRepo.DeleteResourceAsync(resource);
+            var outcome = RepositoryMutationOutcome.From(
+                await ResourceRepo.DeleteResourceAsync(resource));
+            if (!outcome.Succeeded)
+            {
+                Toast.ShowError($"{string.Format(Localize["ResourceEdit_DeleteFailed"], Localize["ResourceEdit_NotFound"])}");
+                return;
+            }
             Toast.ShowSuccess($"{Localize["ResourceEdit_DeletedSuccess"]}");
             NavManager.NavigateTo("/resources");
         }
@@ -607,6 +619,10 @@ else
                 await InvokeAsync(StateHasChanged);
                 await FocusQuickAddInputAsync();
             }
+            else
+            {
+                Toast.ShowError($"{string.Format(Localize["FailedToAssociateVocabulary"], Localize["ResourceEdit_NotFound"])}");
+            }
         }
         catch (Exception ex)
         {
@@ -642,6 +658,10 @@ else
                 await InvokeAsync(StateHasChanged);
                 await FocusQuickAddInputAsync();
             }
+            else
+            {
+                Toast.ShowError($"{string.Format(Localize["FailedToAssociateVocabulary"], Localize["ResourceEdit_NotFound"])}");
+            }
         }
         catch (Exception ex)
         {
@@ -669,6 +689,10 @@ else
             {
                 resource.Vocabulary.RemoveAll(w => w.Id == word.Id);
                 Toast.ShowSuccess($"{Localize["ResourceEdit_RemoveWord"]}");
+            }
+            else if (!removed)
+            {
+                Toast.ShowError($"{string.Format(Localize["FailedToDeleteVocabulary"], Localize["ResourceEdit_NotFound"])}");
             }
         }
         catch (Exception ex)
@@ -721,6 +745,7 @@ else
 
         try
         {
+            using var mutation = ResourceVocabularyMutation.Begin(resource);
             var newWords = VocabularyWord.ParseVocabularyWords(vocabList, delimiter);
             resource.Vocabulary ??= new List<VocabularyWord>();
 
@@ -741,7 +766,12 @@ else
             }
 
             // Persist the resource-vocabulary mappings
-            await ResourceRepo.SaveResourceAsync(resource);
+            var outcome = mutation.Accept(await ResourceRepo.SaveResourceAsync(resource));
+            if (!outcome.Succeeded)
+            {
+                Toast.ShowError($"{string.Format(Localize["ResourceEdit_ImportFailed"], Localize["ResourceEdit_NotFound"])}");
+                return;
+            }
 
             vocabList = "";
             Toast.ShowSuccess($"{string.Format(Localize["ResourceEdit_ImportedCount"], added)}");
@@ -784,6 +814,7 @@ else
             }
 
             var newWords = VocabularyWord.ParseVocabularyWords(content, delimiter);
+            using var mutation = ResourceVocabularyMutation.Begin(resource);
             resource.Vocabulary ??= new List<VocabularyWord>();
 
             int added = 0;
@@ -804,7 +835,12 @@ else
 
             if (added > 0)
             {
-                await ResourceRepo.SaveResourceAsync(resource);
+                var outcome = mutation.Accept(await ResourceRepo.SaveResourceAsync(resource));
+                if (!outcome.Succeeded)
+                {
+                    Toast.ShowError($"{string.Format(Localize["ResourceEdit_FileImportFailed"], Localize["ResourceEdit_NotFound"])}");
+                    return;
+                }
                 fileImportStatus = $"{string.Format(Localize["ResourceEdit_FileImportStatus"], added, file.Name)}";
                 Toast.ShowSuccess($"{string.Format(Localize["ResourceEdit_ImportedFromFile"], added)}");
             }
@@ -878,6 +914,7 @@ Transcript:
             Logger.LogDebug("AI returned {Count} vocabulary words", vocabulary.Count);
 
             resource.Vocabulary ??= new List<VocabularyWord>();
+            using var mutation = ResourceVocabularyMutation.Begin(resource);
             int newWordsCreated = 0;
             int existingWordsLinked = 0;
             int duplicatesSkipped = 0;
@@ -929,7 +966,12 @@ Transcript:
             }
 
             // Save resource with new vocabulary associations
-            await ResourceRepo.SaveResourceAsync(resource);
+            var outcome = mutation.Accept(await ResourceRepo.SaveResourceAsync(resource));
+            if (!outcome.Succeeded)
+            {
+                Toast.ShowError($"{Localize["ResourceEdit_GenerateFailed"]}");
+                return;
+            }
 
             var msg = $"{string.Format(Localize["ResourceEdit_GenerateSuccess"], vocabulary.Count, newWordsCreated, existingWordsLinked)}";
             if (duplicatesSkipped > 0)

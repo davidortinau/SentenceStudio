@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Data;
 using SentenceStudio.Shared.Models;
@@ -18,11 +19,16 @@ public class ExampleSentenceRepository
     private const int MaxQuizHintsPerWord = 3;
 
     private readonly ApplicationDbContext _context;
+    private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<ExampleSentenceRepository> _logger;
 
-    public ExampleSentenceRepository(ApplicationDbContext context, ILogger<ExampleSentenceRepository> logger)
+    public ExampleSentenceRepository(
+        ApplicationDbContext context,
+        IServiceProvider serviceProvider,
+        ILogger<ExampleSentenceRepository> logger)
     {
         _context = context;
+        _serviceProvider = serviceProvider;
         _logger = logger;
     }
 
@@ -143,9 +149,11 @@ public class ExampleSentenceRepository
         }
 
         var normalizedUserId = userId.Trim();
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var ownedCandidates =
-            from sentence in _context.ExampleSentences.AsNoTracking()
-            join mapping in _context.ResourceVocabularyMappings.AsNoTracking()
+            from sentence in db.ExampleSentences.AsNoTracking()
+            join mapping in db.ResourceVocabularyMappings.AsNoTracking()
                 on new
                 {
                     sentence.VocabularyWordId,
@@ -156,7 +164,7 @@ public class ExampleSentenceRepository
                     mapping.VocabularyWordId,
                     ResourceId = (string?)mapping.ResourceId
                 }
-            join resource in _context.LearningResources.AsNoTracking()
+            join resource in db.LearningResources.AsNoTracking()
                 on mapping.ResourceId equals resource.Id
             where requestedWordIds.Contains(sentence.VocabularyWordId)
                 && sentence.TargetSentence.Trim() != string.Empty
@@ -176,7 +184,7 @@ public class ExampleSentenceRepository
             };
 
         var rows = await (
-            from user in _context.UserProfiles.AsNoTracking()
+            from user in db.UserProfiles.AsNoTracking()
             where user.Id == normalizedUserId
             join candidate in ownedCandidates
                 on user.Id equals candidate.UserProfileId into candidateGroup

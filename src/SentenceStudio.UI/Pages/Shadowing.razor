@@ -133,6 +133,7 @@ else
     [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private SentenceStudio.Services.Progress.IProgressService PlanProgressService { get; set; } = default!;
     [Inject] private SentenceStudio.Services.Timer.IActivityTimerService ActivityTimer { get; set; } = default!;
+    private SentenceStudio.Services.Timer.ActivityTimerLease? activityTimerLease;
 
     private bool isBusy;
     private bool isBuffering;
@@ -157,7 +158,7 @@ else
     {
         Localize.CultureChanged += OnCultureChanged;
         Logger.LogInformation("🎯 Shadowing initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
-        ActivityTimer.StartSession("Shadowing", PlanItemId, ResourceIdParam, SkillIdParam);
+        activityTimerLease = ActivityTimer.StartSession("Shadowing", PlanItemId, ResourceIdParam, SkillIdParam);
         _useJsAudio = JS.GetType().Name.Contains("Remote", StringComparison.OrdinalIgnoreCase);
         fromPlan = FromPlanParam;
         targetMinutes = TargetMinutesParam ?? 15;
@@ -444,14 +445,14 @@ else
 
     private void GoBack()
     {
-        if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
+        ActivityTimer.PauseAndStopOwnedSession(activityTimerLease);
         NavManager.NavigateTo("/");
     }
 
     public ValueTask DisposeAsync()
     {
         Localize.CultureChanged -= OnCultureChanged;
-        if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
+        ActivityTimer.PauseAndStopOwnedSession(activityTimerLease);
         StopPlaybackTimer();
         StopAudio();
         return ValueTask.CompletedTask;

@@ -208,6 +208,116 @@ public sealed class CrossProfileAdHocProgressTests : IDisposable
         _logs.HasWarningContaining("No user profile", "cannot start").Should().BeTrue();
     }
 
+    [Fact]
+    public async Task ExplicitUserAdHocStart_DoesNotFollowMutableActiveProfile()
+    {
+        _activeUserId = UserB;
+
+        var planItemId = await Service.StartAdHocSessionAsync(
+            UserA,
+            PlanActivityType.VocabularyReview,
+            _resourceA.Id,
+            _skillA.Id,
+            new[] { _wordA.Id });
+
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var row = await db.DailyPlanCompletions.AsNoTracking()
+            .SingleAsync(completion => completion.PlanItemId == planItemId);
+        row.UserProfileId.Should().Be(UserA);
+    }
+
+    [Fact]
+    public async Task CurrentPlanValidation_RequiresUserTypeResourceSkillAndFocusContext()
+    {
+        const string planItemId = "plan-vocab-a";
+        SeedCurrentPlan(planItemId);
+
+        var accepted = await Service.ValidatePlanItemAsync(
+            UserA,
+            planItemId,
+            PlanActivityType.VocabularyReview,
+            _resourceA.Id,
+            _skillA.Id,
+            [_wordA.Id]);
+
+        accepted.Should().NotBeNull();
+        accepted!.PlanItemId.Should().Be(planItemId);
+
+        (await Service.ValidatePlanItemAsync(
+            UserB, planItemId, PlanActivityType.VocabularyReview,
+            _resourceA.Id, _skillA.Id, [_wordA.Id])).Should().BeNull();
+        (await Service.ValidatePlanItemAsync(
+            UserA, planItemId, PlanActivityType.Reading,
+            _resourceA.Id, _skillA.Id, [_wordA.Id])).Should().BeNull();
+        (await Service.ValidatePlanItemAsync(
+            UserA, planItemId, PlanActivityType.VocabularyReview,
+            _resourceA2.Id, _skillA.Id, [_wordA.Id])).Should().BeNull();
+        (await Service.ValidatePlanItemAsync(
+            UserA, planItemId, PlanActivityType.VocabularyReview,
+            _resourceA.Id, _skillB.Id, [_wordA.Id])).Should().BeNull();
+        (await Service.ValidatePlanItemAsync(
+            UserA, planItemId, PlanActivityType.VocabularyReview,
+            _resourceA.Id, _skillA.Id, [_wordA2.Id])).Should().BeNull();
+        (await Service.ValidatePlanItemAsync(
+            UserA, "unknown-plan-item", PlanActivityType.VocabularyReview,
+            _resourceA.Id, _skillA.Id, [_wordA.Id])).Should().BeNull();
+
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        (await db.DailyPlanCompletions.AsNoTracking()
+            .SingleAsync(row => row.PlanItemId == planItemId))
+            .MinutesSpent.Should().Be(3, "validation must be side-effect free");
+    }
+
+    [Fact]
+    public async Task StalePlanItem_IsRefusedBeforeProgressMutation()
+    {
+        const string stalePlanItemId = "stale-vocab-a";
+        SeedCurrentPlan(stalePlanItemId, DateTime.UtcNow.Date.AddDays(-1));
+
+        var validated = await Service.ValidatePlanItemAsync(
+            UserA,
+            stalePlanItemId,
+            PlanActivityType.VocabularyReview,
+            _resourceA.Id,
+            _skillA.Id,
+            [_wordA.Id]);
+        var updated = await Service.UpdatePlanItemProgressAsync(
+            UserA,
+            stalePlanItemId,
+            10);
+
+        validated.Should().BeNull();
+        updated.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task StaleAdHocCleanup_RemovesOnlyZeroProgressRowForExplicitOwner()
+    {
+        var disposableId = await Service.StartAdHocSessionAsync(
+            UserA,
+            PlanActivityType.VocabularyReview,
+            _resourceA.Id,
+            _skillA.Id,
+            [_wordA.Id]);
+        var retainedId = await Service.StartAdHocSessionAsync(
+            UserA,
+            PlanActivityType.VocabularyReview,
+            _resourceA.Id,
+            _skillA.Id,
+            [_wordA.Id]);
+        (await Service.UpdatePlanItemProgressAsync(UserA, retainedId, 1))
+            .Should().BeTrue();
+
+        (await Service.DiscardAdHocSessionAsync(UserB, disposableId)).Should().BeFalse();
+        (await Service.DiscardAdHocSessionAsync(UserA, retainedId)).Should().BeFalse();
+        (await Service.DiscardAdHocSessionAsync(UserA, disposableId)).Should().BeTrue();
+
+        (await CountCompletionRowsAsync(disposableId)).Should().Be(0);
+        (await CountCompletionRowsAsync(retainedId)).Should().Be(1);
+    }
+
     private ProgressService Service => _provider.GetRequiredService<ProgressService>();
 
     private async Task<int> CountCompletionRowsAsync(string planItemId)
@@ -216,6 +326,46 @@ public sealed class CrossProfileAdHocProgressTests : IDisposable
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         return await db.DailyPlanCompletions.AsNoTracking()
             .CountAsync(c => c.PlanItemId == planItemId);
+    }
+
+    private void SeedCurrentPlan(
+        string planItemId,
+        DateTime? date = null)
+    {
+        var planDate = DateTime.SpecifyKind(
+            (date ?? DateTime.UtcNow.Date).Date,
+            DateTimeKind.Utc);
+        using var scope = _provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        db.DailyPlans.Add(new DailyPlan
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            UserProfileId = UserA,
+            Date = planDate,
+            GeneratedAtUtc = DateTime.UtcNow,
+            Strategy = "test",
+            FocusVocabularyFacts =
+                $"{{\"vocabularyIds\":[\"{_wordA.Id}\"],\"source\":\"test\"}}",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        db.DailyPlanCompletions.Add(new DailyPlanCompletion
+        {
+            Id = Guid.NewGuid().ToString("N"),
+            UserProfileId = UserA,
+            Date = planDate,
+            PlanItemId = planItemId,
+            ActivityType = PlanActivityType.VocabularyReview.ToString(),
+            ResourceId = _resourceA.Id,
+            SkillId = _skillA.Id,
+            MinutesSpent = 3,
+            EstimatedMinutes = 10,
+            TitleKey = "Activity_VocabularyReview",
+            DescriptionKey = string.Empty,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        });
+        db.SaveChanges();
     }
 
     private static UserProfile CreateUser(string id) => new()

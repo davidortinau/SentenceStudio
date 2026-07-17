@@ -3,6 +3,7 @@ using FluentAssertions;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Data;
 using SentenceStudio.Shared.Models;
@@ -18,6 +19,7 @@ public sealed class ExampleSentenceRepositoryQuizHintTests : IDisposable
 
     private readonly SqliteConnection _connection;
     private readonly ApplicationDbContext _db;
+    private readonly ServiceProvider _provider;
     private readonly SelectCommandCounter _queryCounter;
     private readonly CollectingLoggerProvider _logs;
     private readonly ILoggerFactory _loggerFactory;
@@ -45,8 +47,12 @@ public sealed class ExampleSentenceRepositoryQuizHintTests : IDisposable
             builder.AddProvider(_logs);
             builder.SetMinimumLevel(LogLevel.Debug);
         });
+        var services = new ServiceCollection();
+        services.AddSingleton(_db);
+        _provider = services.BuildServiceProvider();
         _repo = new ExampleSentenceRepository(
             _db,
+            _provider,
             _loggerFactory.CreateLogger<ExampleSentenceRepository>());
 
         _db.UserProfiles.AddRange(
@@ -468,6 +474,7 @@ public sealed class ExampleSentenceRepositoryQuizHintTests : IDisposable
 
     public void Dispose()
     {
+        _provider.Dispose();
         _loggerFactory.Dispose();
         _db.Dispose();
         _connection.Dispose();

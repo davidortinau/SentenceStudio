@@ -40,13 +40,19 @@ class MockElement {
 
 // Mock ResizeObserver
 class MockResizeObserver {
+    constructor() {
+        this.disconnectCount = 0;
+        MockResizeObserver.instances.push(this);
+    }
     observe() {}
-    disconnect() {}
+    disconnect() { this.disconnectCount++; }
 }
+MockResizeObserver.instances = [];
 
 let elements = {};
 
 function setupGlobalDom() {
+    MockResizeObserver.instances = [];
     globalThis.document = {
         getElementById(id) { return elements[id] || null; }
     };
@@ -152,6 +158,19 @@ describe('attach with diagnostics: false (default)', () => {
         mod.attach('test-image', 'test-overlay');
         mod.detach();
         assert.equal(elements['test-image'].style.touchAction, '');
+    });
+
+    it('should remove every handler and disconnect the resize observer on detach', async () => {
+        const mod = await importFreshModule();
+        mod.attach('test-image', 'test-overlay');
+        const observer = MockResizeObserver.instances.at(-1);
+
+        mod.detach();
+
+        for (const listeners of Object.values(elements['test-image']._listeners)) {
+            assert.equal(listeners.length, 0);
+        }
+        assert.equal(observer.disconnectCount, 1);
     });
 
     it('should NOT try to remove data-testid on detach when diagnostics off', async () => {

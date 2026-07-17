@@ -7,7 +7,9 @@ public static class BlazorUIServiceExtensions
     /// <summary>
     /// Registers the shared Blazor UI services used by both MAUI Hybrid and server-side Blazor hosts.
     /// </summary>
-    public static IServiceCollection AddBlazorUIServices(this IServiceCollection services)
+    public static IServiceCollection AddBlazorUIServices(
+        this IServiceCollection services,
+        bool useCircuitScopedActivityTimer = false)
     {
         services.AddSingleton<ToastService>();
         services.AddSingleton<ModalService>();
@@ -15,7 +17,14 @@ public static class BlazorUIServiceExtensions
         services.AddSingleton<BlazorNavigationService>();
         services.AddScoped<NavigationMemoryService>();
         services.AddScoped<JsInteropService>();
-        services.AddSingleton<SentenceStudio.Services.Timer.IActivityTimerService, SentenceStudio.Services.Timer.ActivityTimerService>();
+        if (useCircuitScopedActivityTimer)
+        {
+            services.AddScoped<SentenceStudio.Services.Timer.IActivityTimerService, SentenceStudio.Services.Timer.ActivityTimerService>();
+        }
+        else
+        {
+            services.AddSingleton<SentenceStudio.Services.Timer.IActivityTimerService, SentenceStudio.Services.Timer.ActivityTimerService>();
+        }
         services.AddSingleton<IImportResultStore, ImportResultStore>();
         return services;
     }

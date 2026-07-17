@@ -226,6 +226,7 @@
     [Inject] private ILogger<TimestampedAudioManager> AudioManagerLogger { get; set; } = default!;
     [Inject] private ILogger<SentenceTimingCalculator> TimingCalcLogger { get; set; } = default!;
     [Inject] private IActivityTimerService ActivityTimer { get; set; } = default!;
+    private ActivityTimerLease? activityTimerLease;
     [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
     [Inject] private SentenceStudio.Services.Progress.IProgressService PlanProgressService { get; set; } = default!;
@@ -271,7 +272,7 @@
     {
         Logger.LogInformation("Reading initialized — planItemId={PlanItemId}, resourceId={ResourceId}, skillId={SkillId}",
             PlanItemId ?? "(none)", ResourceIdParam ?? "(none)", SkillIdParam ?? "(none)");
-        ActivityTimer.StartSession("Reading", PlanItemId, ResourceIdParam, SkillIdParam);
+        activityTimerLease = ActivityTimer.StartSession("Reading", PlanItemId, ResourceIdParam, SkillIdParam);
         fromPlan = FromPlanParam;
         targetMinutes = TargetMinutesParam ?? 15;
 
@@ -789,11 +790,12 @@
         // Pause timer
         if (fromPlan && ActivityTimer.IsActive)
         {
-            ActivityTimer.Pause();
+            if (activityTimerLease is not null)
+                ActivityTimer.Pause(activityTimerLease);
         }
 
         // Report plan progress
-        if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
+        ActivityTimer.PauseAndStopOwnedSession(activityTimerLease);
 
         // Record reading session
         if (resource is not null)
@@ -824,7 +826,7 @@
     public ValueTask DisposeAsync()
     {
         Localize.CultureChanged -= OnCultureChanged;
-        if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
+        ActivityTimer.PauseAndStopOwnedSession(activityTimerLease);
         if (_audioManager is not null)
         {
             _audioManager.SentenceChanged -= OnSentenceChanged;

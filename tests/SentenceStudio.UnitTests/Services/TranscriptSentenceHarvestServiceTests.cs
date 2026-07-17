@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using SentenceStudio.Data;
 using SentenceStudio.Shared.Models;
@@ -13,6 +14,7 @@ public sealed class TranscriptSentenceHarvestServiceTests : IDisposable
 {
     private readonly SqliteConnection _connection;
     private readonly ApplicationDbContext _db;
+    private readonly ServiceProvider _provider;
     private readonly TranscriptSentenceHarvestService _service;
 
     public TranscriptSentenceHarvestServiceTests()
@@ -28,8 +30,12 @@ public sealed class TranscriptSentenceHarvestServiceTests : IDisposable
         _db = new ApplicationDbContext(options);
         _db.Database.EnsureCreated();
 
+        var services = new ServiceCollection();
+        services.AddSingleton(_db);
+        _provider = services.BuildServiceProvider();
         var exampleRepository = new ExampleSentenceRepository(
             _db,
+            _provider,
             NullLogger<ExampleSentenceRepository>.Instance);
         _service = new TranscriptSentenceHarvestService(
             _db,
@@ -208,6 +214,7 @@ public sealed class TranscriptSentenceHarvestServiceTests : IDisposable
 
     public void Dispose()
     {
+        _provider.Dispose();
         _db.Dispose();
         _connection.Dispose();
     }

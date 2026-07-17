@@ -193,6 +193,7 @@ else
     [Inject] private SentenceStudio.Services.Progress.ProgressCacheService CacheService { get; set; } = default!;
     [Inject] private SentenceStudio.Services.Progress.IProgressService PlanProgressService { get; set; } = default!;
     [Inject] private SentenceStudio.Services.Timer.IActivityTimerService ActivityTimer { get; set; } = default!;
+    private SentenceStudio.Services.Timer.ActivityTimerLease? activityTimerLease;
 
     private bool isBusy;
     private bool isGrading;
@@ -212,7 +213,7 @@ else
         Localize.CultureChanged += OnCultureChanged;
         Logger.LogInformation("Writing initialized — planItemId={PlanItemId}, resourceId={ResourceId}, skillId={SkillId}",
             PlanItemId ?? "(none)", ResourceIdParam ?? "(none)", SkillIdParam ?? "(none)");
-        ActivityTimer.StartSession("Writing", PlanItemId, ResourceIdParam, SkillIdParam);
+        activityTimerLease = ActivityTimer.StartSession("Writing", PlanItemId, ResourceIdParam, SkillIdParam);
 
         await LoadVocabulary();
     }
@@ -430,14 +431,14 @@ else
 
     private void GoBack()
     {
-        if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
+        ActivityTimer.PauseAndStopOwnedSession(activityTimerLease);
         NavManager.NavigateTo("/");
     }
 
     public ValueTask DisposeAsync()
     {
         Localize.CultureChanged -= OnCultureChanged;
-        if (ActivityTimer.IsActive) { ActivityTimer.Pause(); ActivityTimer.StopSession(); }
+        ActivityTimer.PauseAndStopOwnedSession(activityTimerLease);
         return ValueTask.CompletedTask;
     }
 }

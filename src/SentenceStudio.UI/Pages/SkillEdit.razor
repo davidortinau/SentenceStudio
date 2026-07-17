@@ -156,10 +156,13 @@ else
             profile.Description = description;
 
             var result = await SkillRepo.SaveAsync(profile);
-            if (!string.IsNullOrEmpty(result))
+            var outcome = RepositoryMutationOutcome.From(result);
+            if (!outcome.Succeeded)
             {
-                Toast.ShowSuccess($"{Localize["SkillEdit_SavedSuccess"]}");
+                Toast.ShowError($"{string.Format(Localize["SkillEdit_SaveFailed"], Localize["SkillEdit_NotFound"])}");
+                return;
             }
+            Toast.ShowSuccess($"{Localize["SkillEdit_SavedSuccess"]}");
             NavManager.NavigateTo("/skills");
         }
         catch (Exception ex)
@@ -194,7 +197,13 @@ else
         isDeleting = true;
         try
         {
-            await SkillRepo.DeleteAsync(profile);
+            var outcome = RepositoryMutationOutcome.From(
+                await SkillRepo.DeleteAsync(profile));
+            if (!outcome.Succeeded)
+            {
+                Toast.ShowError($"{string.Format(Localize["SkillEdit_DeleteFailed"], Localize["SkillEdit_NotFound"])}");
+                return;
+            }
             Toast.ShowSuccess($"{Localize["SkillEdit_DeletedSuccess"]}");
             NavManager.NavigateTo("/skills");
         }
