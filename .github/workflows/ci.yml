@@ -71,13 +71,8 @@ jobs:
             ${{ runner.os }}-nuget-${{ matrix.project }}-
             ${{ runner.os }}-nuget-
 
-      - name: Remove local NuGet source
-        run: |
-          # Strip dev-only local NuGet source if NuGet.config is committed
-          if [ -f src/NuGet.config ]; then
-            sed -i '/<add key="localnugets"/d' src/NuGet.config
-            sed -i '/<packageSource key="localnugets">/,/<\/packageSource>/d' src/NuGet.config
-          fi
+      - name: Disable dev-only local NuGet source
+        run: dotnet nuget disable source localnugets --configfile src/NuGet.config || true
 
       - name: Restore
         run: dotnet restore ${{ matrix.path }} -p:IncludeMobileTargets=false
@@ -107,12 +102,8 @@ jobs:
             ${{ runner.os }}-nuget-test-
             ${{ runner.os }}-nuget-
 
-      - name: Remove local NuGet source
-        run: |
-          if [ -f src/NuGet.config ]; then
-            sed -i '/<add key="localnugets"/d' src/NuGet.config
-            sed -i '/<packageSource key="localnugets">/,/<\/packageSource>/d' src/NuGet.config
-          fi
+      - name: Disable dev-only local NuGet source
+        run: dotnet nuget disable source localnugets --configfile src/NuGet.config || true
 
       - name: Restore & build unit tests
         run: |

@@ -20,6 +20,9 @@ jobs:
       with:
         dotnet-version: '10.0.x'
 
+    - name: Disable dev-only local NuGet source
+      run: dotnet nuget disable source localnugets --configfile src/NuGet.config || true
+
     - name: Restore dependencies
       run: dotnet restore tests/SentenceStudio.UnitTests/SentenceStudio.UnitTests.csproj -p:IncludeMobileTargets=false
 
