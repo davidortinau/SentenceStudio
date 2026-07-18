@@ -2,8 +2,8 @@
 	<PropertyGroup>
 		<TargetFramework>net11.0</TargetFramework>
 		<RootNamespace>SentenceStudio</RootNamespace>
-		<UseMaui>true</UseMaui>
-		<SingleProject>true</SingleProject>
+		<UseMaui Condition="'$(IncludeMobileTargets)' != 'false'">true</UseMaui>
+		<SingleProject Condition="'$(IncludeMobileTargets)' != 'false'">true</SingleProject>
 		<ImplicitUsings>disable</ImplicitUsings>
 		<Nullable>disable</Nullable>
 	</PropertyGroup>
@@ -32,6 +32,10 @@
 		<!-- Host page for Blazor WebView -->
 		<MauiAsset Include="wwwroot\index.html" LogicalName="wwwroot/index.html" />
 
+	</ItemGroup>
+
+	<ItemGroup Condition="'$(IncludeMobileTargets)' == 'false'">
+		<Compile Remove="Platforms\**\*.cs" />
 	</ItemGroup>
 
 	<ItemGroup>

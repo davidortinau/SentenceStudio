@@ -38,23 +38,29 @@ jobs:
         include:
           - project: Api
             path: src/SentenceStudio.Api/SentenceStudio.Api.csproj
+            sdk: net10
           - project: WebApp
             path: src/SentenceStudio.WebApp/SentenceStudio.WebApp.csproj
+            sdk: net11-preview
           - project: AppLib
             path: src/SentenceStudio.AppLib/SentenceStudio.AppLib.csproj
-            maui: true
+            sdk: net11-preview
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup .NET SDK
+      - name: Setup .NET 10 SDK
+        if: matrix.sdk == 'net10'
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '10.0.x'
 
-      - name: Install MAUI workload
-        if: matrix.maui == true
-        run: dotnet workload install maui
+      - name: Setup .NET 11 preview SDK
+        if: matrix.sdk == 'net11-preview'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.0.x'
+          dotnet-quality: 'preview'
 
       - name: Cache NuGet packages
         uses: actions/cache@v4
@@ -74,10 +80,10 @@ jobs:
           fi
 
       - name: Restore
-        run: dotnet restore ${{ matrix.path }}
+        run: dotnet restore ${{ matrix.path }} -p:IncludeMobileTargets=false
 
       - name: Build
-        run: dotnet build ${{ matrix.path }} --no-restore -c Release
+        run: dotnet build ${{ matrix.path }} --no-restore -c Release -p:IncludeMobileTargets=false
 
   test:
     name: Test
@@ -110,8 +116,8 @@ jobs:
 
       - name: Restore & build unit tests
         run: |
-          dotnet restore tests/SentenceStudio.UnitTests/SentenceStudio.UnitTests.csproj
-          dotnet build tests/SentenceStudio.UnitTests/SentenceStudio.UnitTests.csproj --no-restore -c Release
+          dotnet restore tests/SentenceStudio.UnitTests/SentenceStudio.UnitTests.csproj -p:IncludeMobileTargets=false
+          dotnet build tests/SentenceStudio.UnitTests/SentenceStudio.UnitTests.csproj --no-restore -c Release -p:IncludeMobileTargets=false
 
       # IntegrationTests excluded: references non-existent src/SentenceStudio/SentenceStudio.csproj
       # Re-enable once the broken ProjectReference is fixed (see PR #69 review)
@@ -120,6 +126,7 @@ jobs:
         run: >
           dotnet test tests/SentenceStudio.UnitTests/SentenceStudio.UnitTests.csproj
           --no-build -c Release
+          -p:IncludeMobileTargets=false
           --logger "trx;LogFileName=unit-tests.trx"
           --results-directory ./test-results
 
