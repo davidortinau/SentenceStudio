@@ -1,90 +1,52 @@
 # Jayne — History Summary
 
-**Summarized by Scribe:** 2026-06-10T03:35:00Z
-**Project:** SentenceStudio — .NET MAUI Blazor Hybrid language learning app
-**Role focus:** Test design, E2E validation, regression reproduction, ship/no-ship verdicts.
+**Summarized by Scribe:** 2026-07-17T23:38:26Z
+**Role focus:** Code review, E2E validation, regression design, ship/no-ship verdicts, test methodology.
 
-## Import validation history
+## Durable validation principles
 
-- v1.1 Import Test Matrix covered vocabulary CSV regression, phrases import, transcript import, auto-detect confidence tiers, checkbox validation/override, cancel pollution checks, and LexicalUnitType backfill migration. Authored scenarios A-J plus edge cases and fixtures.
-- v1.2 Phrases+Pipe import bug was reproduced: Phrases branch bypassed delimiter-aware parsing and fell into free-text AI extraction, yielding Word rows and zero Phrase rows. `ParseDelimitedContent()` also hardcoded Word. Evidence was captured with DB counts and enum mapping.
-- v1.2 import fix at commit `3c7a4cc` was verified: pipe-delimited phrases imported as Phrase plus harvested words; sentences imported as Sentence; 24 unit tests passed; verdict ship.
-- Import Complete redesign was E2E validated in prior work: summary cards, row table, filter pills, back-nav state, vocabulary links, failed-row resilience, and clean logs.
+- Recurring bugs need regression tests before closure. Prefer discriminating tests that would fail against the known bug, not vacuous coverage.
+- Running-app evidence matters for UI behavior. Screenshots, Playwright sequences, DevFlow CDP state, browser console output, native logs, and database rows are stronger than static review alone.
+- Accessibility snapshots can lag or omit exact Blazor DOM state; use DevFlow CDP for exact WebView/DOM reads when visual or data-debug state is required.
+- Empty worker reports are infrastructure failures, not evidence. Recover manually with exact state channels and database checks before approving.
+- Distinguish required proof gates from optional confidence gates. Optional physical-device validation must not continue after Captain closes the gate.
 
-## NumberDrill validation history
+## Import and NumberDrill history
 
-- Combo audit covered all 30 context/sub-mode combinations. Findings: TapTheCounter only implemented for Counting; ListenAndPlace hardcoded to Time; ListenAndType and ReadAndProduce work across all contexts; Disambiguate works universally. Result: 12 ship-visible combos, 14 hide, 3 not applicable, 1 UI placeholder fix.
-- Phase 2 test scope includes irregular month forms, ordinal pattern disambiguation, Korean place-value grouping, paired Disambiguate grading, explanation panel rendering, and audio replays.
-- Phase 2 E2E initially produced NO-SHIP due to infrastructure blockers: Aspire instability, missing NumberMasteryProgress schema in PostgreSQL, and misleading zero-byte SQLite files. Build fix used `NullLogger<T>.Instance` for static utility construction.
-- Wave 4 E2E later shipped via Aspire + Playwright: Listen-and-place rendered and gave feedback, picker showed six contexts with Bootstrap icons and no emoji, Disambiguate kept both prompt selections visually active, console had zero errors.
-- iOS sim Gate 3 was partially blocked by UI automation/CDP readiness, though registration and app launch paths were exercised.
-- NumberDrill Phase 1 final verification covered webapp and iOS build/launch gates; ship-with-caveats used when login blocked deeper iOS validation but startup crash class was resolved.
+- Import validation covered vocabulary CSV, phrases, transcript import, confidence tiers, checkbox override, cancel pollution, and LexicalUnitType backfill. Jayne reproduced the Phrases+Pipe bug where delimiter-aware parsing was bypassed and later verified the fix at commit `3c7a4cc`.
+- Import Complete redesign E2E validated summary cards, row tables, filters, back navigation, vocabulary links, failed-row resilience, and clean logs.
+- NumberDrill combo audit mapped 30 context/sub-mode combinations, hid non-working modes, and later validated Wave 4 via Aspire + Playwright with zero console errors. iOS deeper validation was sometimes blocked by automation/CDP readiness, but startup crash classes were covered.
 
-## Regression-test patterns
+## Regression-test ownership highlights
 
-- Recurring bugs need tests before closure. Examples include IdentityAuthService concurrency, grader normalization, override flow, Focus Vocabulary contract propagation, and timezone cache key regressions.
-- Non-vacuous tests are preferred: prove the test fails on a simulated bug before trusting it as a guard.
-- For UI correctness, screenshots are ground truth when accessibility snapshots disagree with visual active state timing.
-- Keep E2E references current when activity flows change so future agents can validate without re-deriving steps.
+- Focus Vocabulary scaffolding covered plan-level focus IDs, preview projection, deterministic ordering, propagation, min/max gates, route params, stable IDs, storage round-trips, legacy reconstruction, and multi-tenant scoping.
+- Timezone/cache regressions: Jayne added tests for per-user timezone math, cache freshness, multi-tenant freshness isolation, and recurrence guards. Carry-forward remains for banned-symbol/source-scan guards and a WebAppPlanDateContext integration test.
+- Vocab Quiz session/resume: 11 tests guard snapshot keys, JSON round-trip, save/update/supersede semantics, resumable lookup scoping, completed/abandoned exclusion, empty-user guard, and multi-tenant isolation.
+- Persistent Vocab Quiz demonstrations: tests guard recognition/production counters, known-word shortcut behavior, snapshot round-trip, attempt increments, wrong-answer non-reset behavior, and non-quiz isolation.
+- Transcript harvest: tests covered FromReading insert/dedup/cap/validation, segmenter modes, user-scoped idempotent harvesting with translations, multi-tenant isolation, and content import capture.
+- FuzzyMatcher: E2E verified length-gate fix in WebApp via Aspire + Playwright.
 
-## Recent Focus Vocabulary and timezone context
+## Recent photo, text, hint, and cross-profile validation
 
-- Phase 1 Focus Vocabulary test scaffolding covered plan-level focus IDs, preview-word projection, deterministic ordering, activity propagation, min/max gates, route params, stable item IDs, storage round-trips, legacy reconstruction, and multi-tenant scoping.
-- Timezone fix added seven ProgressCacheService timezone regression tests; three are discriminating and fail if the cache key ignores the explicit date argument.
+- Vocab Quiz photo/text preference: validated macOS AppKit via DevFlow, migration discovery/reversibility, preference persistence, photo toggle state, grading isolation, and zero console errors.
+- Vocab Quiz photo/text + iOS: validated WebApp and iOS simulator paths including fullscreen interactions, preference persistence, photo decode/rendering, safe-area close, focus restoration, and clean logs. Temporary local test image URI DB edits were restored and documented; no production/personal data or physical device was touched.
+- Native text feedback reveal: first code review rejected a default-state leak where hidden text could appear before grading. Zoe's independent revision was re-reviewed and approved; WebApp and macOS AppKit E2E confirmed hidden-before-answer, reveal-on-feedback, reset-on-next-item, override, non-photo behavior, and target-language invariance.
+- Sentence hints: approved Wash's explicit-user one-query tenant-proof hint projection; E2E covered ranked IDs, no native/foreign content, toggle cycling, feedback transitions, reset, fullscreen, resume, no-pool, level fallback, scoped progress/logs, and migration validation.
+- Cross-profile disclosure: reviewed and approved layered data/UI fixes. Reconstructed attack chain (stale selection -> direct route -> activity initiation -> progress/completion persistence), verified all vectors blocked, and accepted WebApp/AppKit matrix evidence at 201/201 with cross-owner rows at zero.
+- Photo Viewer architecture: Captain accepted WebApp + iOS simulator 7/7 gesture matrix as sufficient; optional physical XCTest confidence gate was stopped. Future test plans must classify gates as required vs optional before execution.
 
----
+## 2026-07-17 release review and merge update
 
-- 2026-06-11: **Vocab bootstrap E2E (Mac Catalyst clean-build)** — Initial E2E failed: running old pre-bootstrap code from stale MonoBundle DLL. Root cause: partial clean left AppLib/bin with old code. After nuking MacCatalyst/bin, MacCatalyst/obj, Shared/bin, Shared/obj, **AppLib/bin, AppLib/obj**, rebuilt and verified correct Jun 11 13:49 binary (UTF-16 scan: "need 5+" absent, "Bootstrapping vocab" present). E2E PASSED 6/6 criteria: vocab activity on dashboard, FocusVocabularyFacts populated (15 words), preview matches activity, resource footer wording updated ("Last used 8 days ago"), Study Insight VocabInsight section present. Key learning: build cache — partial cleans leave stale shared DLLs in MonoBundle. Add AGENTS.md checklist for "nuke ALL bin/obj before release rebuild". Decisions inbox: vocab-bootstrap-e2e.md, vocab-bootstrap-cleanbuild-e2e.md.
+Jayne performed focused pre-push reviews for the photo-viewer WebView + 9-DR hardening release.
 
----
+- jayne-30 verdict: MINOR, safe to push, but found a VocabQuiz async timer disposal race where `activityTimerLease` was assigned only after awaited validated start. Consequence was single-tenant timer leakage/inflated minutes, not cross-tenant data leakage. Recommended component-lifetime cancellation and/or disposable `ActivityTimerService` with regression tests.
+- Simon fixed the race with component-lifetime CTS threading, cancellation checks after awaited work, owned-state discard, and idempotent timer disposal.
+- jayne-31 verdict: MINOR after re-review. Broad race, Dispose idempotency, CTS lifecycle, and post-await cleanup were cleared; one residual accept-then-cancel branch could still drop a non-null accepted lease.
+- Simon fixed the residual by canceling a non-null lease before returning from `startCanceled`, adding `ValidatedStart_AcceptThenCallerCancelsLeaseCleanup_StopsTimerWithoutProgressUpdate`.
+- Coordinator independently verified full UnitTests 990/990 and timer filter 9/9, committed the 39-file release layer as `c2c40812`, fast-forward merged to `main`, and pushed. Production deploy is held per Captain.
 
-Team update (2026-06-17T15:10:57-05:00): Mastery calibration + plan staleness dual RCA — decided by Zoe.
+## Current carry-forward
 
-Jayne's work this session: added 19 characterization tests to tests/SentenceStudio.UnitTests/Services/MasteryScoring/MasteryCalibrationCharacterizationTests.cs (untracked — Captain needs to commit). Verified 636/636 passing. Key test: Sm2_And_Mastery_Are_Decoupled_FiveCorrects proves the Concern #1 RCA.
-
-When the fix lands: retire IsKnown_False_AtMastery625_BelowBothGates and IsKnown_False_AtMastery583_BelowBothGates in the same PR that ships the SRS-aware IsKnown fix. Add the 6 target-behavior tests from lla's recommendations (see MasteryAlgorithmTargetTests.cs).
-
-Baseline is now 636/636. Formerly-intentional fail ResourceUsed15DaysAgo_ShouldNotBeTreatedAsNeverUsed now passes. The "THIS WILL LIKELY FAIL" comments at five locations in PlanGeneration tests need a sweep PR — verify each underlying bug is actually fixed before removing.
-
-Concern #2 tests needed (post-fix): (1) IPlanDateContext resolves user-local date in WebApp; (2) GetCachedPlanAsync invalidates reconstructed plan when > 50% focus vocabulary is no longer due; (3) plan generated in UTC-ahead window does not carry non-due words; (4) CoreSync DailyPlan round-trip across timezone boundaries.
-
----
-
-Team update (2026-06-17T16:08:31-05:00): Concern #2 per-user timezone fix — LANDED AND APPROVED.
-
-Jayne's work: 16 regression tests in Concern2TimezoneRegressionTests.cs. First pass (commit 4bacc447): 14 cases — timezone math near midnight CDT, UTC fallback paths, freshness algorithm, source-scan recurrence guards (Services/Progress, VocabQuiz.razor). After Simon + Kaylee blocker fixes, second pass (commit 2b5eb73e): added multi-tenant freshness isolation test (real in-memory SQLite, 2 users, shared word id) + WebAppPlanDateContext skip marker + extended recurrence guard to Services/Plans. Final: 633/633.
-
-Carry-forward for Jayne:
-- Banned-symbol guard for `GetByWordIdsAsync` callers in `src/SentenceStudio.Shared/Services/Progress/` (with `// allow:multi-tenant-safe` inline opt-out for VocabularyProgressService.cs:280). Same source-scan pattern as DateTime.Now guards.
-- WebAppPlanDateContext integration test: requires dedicated integration test project (Blazor WebApp test host) or extract TZ-lookup DB read into a testable helper in SentenceStudio.Shared. Marker test Concern2TimezoneRegressionTests.cs:617 keeps the gap visible.
-
----
-
-Team update (2026-06-26T21:30:56-05:00): Quick-add existing vocabulary feature — Jayne verified the WebApp flow end-to-end through Aspire + Playwright + Postgres: quick-add match, attached-word exclusion, inline create persistence, Bulk import collapse/expand, remove persistence, zero console errors, and zero Aspire exceptions. Key finding: existing bulk-import words with `Language=NULL` are excluded by design under the strict language filter.
-
----
-
-Team update (2026-07-02T15:05-05:00): Vocab Quiz Session & Resume unit coverage — Jayne added 11 regression tests across `VocabQuizSessionSnapshotTests` and `ActivitySessionServiceTests`. Coverage locks launch-context key determinism, snapshot JSON round-trip with ordered lists, resume insert/update/abandon semantics, completed/abandoned exclusion, and empty-user/multi-tenant guards. Validation: targeted new tests 11/11 passed; full unit test project rerun 746/746 passed after one unrelated transient `SharedIngestProcessorTests` failure on an earlier run.
-
-
----
-
-Team update (2026-07-02T15:30-05:00): Vocab Quiz Session & Resume shipped — Jayne's 11 regression tests now guard snapshot key determinism, JSON round-trip, session save/update/supersede behavior, resumable lookup scoping, completed/abandoned exclusion, empty-user guard, and multi-tenant isolation. Full unit suite passed 746/746 on rerun, and Squad verified exact WebApp resume via Aspire + Playwright. Carry-forward for Jayne: DevFlow stale-agent collision exposed a false-pass risk in `scripts/validate-mobile-migrations.sh`; future tests or script changes should assert attached agent identity and treat missing native logs as a failure.
-
-
----
-
-Team update (2026-07-03T18:53:17-05:00): Vocab Quiz persistent demonstration regression coverage — Jayne added 9 tests across `VocabQuizPersistentDemonstrationTests` and `VocabQuizPersistentDemonstrationServiceTests`, updated the `RepairTaintedVocabularyProgressTests` fixture, and reran the full suite at 764/764. Coverage locks persistent recognition/production counters, known-word shortcut behavior, snapshot round-trip, correct-attempt increments, wrong-answer non-reset behavior, and non-quiz isolation.
-
-
----
-
-Team update (2026-07-03T19:41:30-05:00): Vocab Quiz persistent-counter hardening shipped after deep review. Three regression areas should stay in Jayne's future test radar: banked but regressed focus words must be re-drilled before rotation; duplicate merge/replay must preserve `QuizRecognitionDemonstrations` and `QuizProductionDemonstrations`; quiz counter increments must stay on the live service path, not obsolete legacy update code. Coordinator reported full-suite verification at 767/767 before merge `4da42e87`.
-
----
-
-Team update (2026-07-05T21:56:29-05:00): Transcript harvest regression coverage — Jayne added tests for FromReading repository insert/dedup/cap/validation behavior, segmenter default vs newline modes, user-scoped idempotent transcript harvesting with translations, multi-tenant isolation, and content import capture. Jayne found the punctuation-less newline transcript bug; after Wash's fix, full unit suite passed 781/781.
-
-## 2026-07-12 — E2E verified FuzzyMatcher grading fix
-
-E2E tested River's FuzzyMatcher length-gate fix on Blazor WebApp via Aspire+Playwright. PASS: "lark" for link (4ch) rejected; "to wirte code" typo (13ch) accepted; exact "code" accepted. 2/3 quiz score confirmed. DB restored, no side effects.
+- Treat `c2c40812` as the merged release-hardening baseline for future test expectations.
+- Future VocabQuiz timer/session review should include accept-then-cancel, cancel-before-persistence, dispose-while-awaiting, and no-progress-write assertions.
+- Future E2E matrices should keep required proof gates separate from optional confidence gates and avoid physical-device work unless explicitly reopened.

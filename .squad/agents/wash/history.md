@@ -1,99 +1,33 @@
-# Project Context
+# Wash — History Summary
 
-- **Owner:** David Ortinau
-- **Project:** SentenceStudio — a .NET MAUI Blazor Hybrid language learning app
-- **Stack:** .NET 10, MAUI, Blazor Hybrid, MauiReactor (MVU), .NET Aspire, EF Core, SQLite, OpenAI
-- **Created:** 2026-03-07
+**Summarized by Scribe:** 2026-07-17T20-10-00-0500
+**Project:** SentenceStudio — .NET MAUI Blazor Hybrid language learning app
+**Role focus:** backend services, repositories, EF migrations, data safety, API/data-layer foundations.
 
-## Learnings
+## Durable backend patterns
 
-### Archive Summary (2026-01-29 to 2026-04-30)
+- Treat mobile-vs-API asymmetry as a recurring failure mode. When both paths persist the same entity, audit both before shipping; DailyPlan focus vocabulary/narrative/rationale work proved CoreSync can propagate mobile omissions back to Postgres.
+- Multi-tenant repository reads and writes fail closed on empty or foreign `userId`; return empty/null/false and log rather than falling through to unscoped queries.
+- Dual-provider migrations require PostgreSQL and SQLite copies with matching IDs; SQLite hand-written migrations must include discovery attributes and be verified through EF discovery/application, not only DDL validity.
+- For activity resume/progress, prefer explicit user/context keys, database-enforced uniqueness where possible, race-safe update paths, and monotonic merge semantics for lifetime counters.
 
-Earlier work included:
-- **NumberDrill Phase 1 Complete:** Data model with 5 new entities, grading system v2 (system-aware), Sino-compound normalization, Korean myriad chunking (십만/백만/천만), TTS audio cache with concurrent prewarm (3-job semaphore), ElevenLabs integration.
-- **Content Import Atomicity:** Fixed orphaned resource issue in `CommitImportAsync` by consolidating to single atomic SaveChangesAsync (safe for `ValueGeneratedNever()` FK entities).
-- **DevFlow Blazor Hybrid Automation:** Diagnosed two DevFlow CLI bugs affecting WebView: (1) `Runtime.evaluate` race condition (mitigated by `--verbose`), (2) `snapshot` unhandled exception in ref enrichment. Documented upstream issue.
-- **Mobile-vs-API Asymmetry Pattern:** Identified recurring gap where ProgressService (mobile) and PlanService (API) diverge on entity persistence, causing CoreSync data loss. Key insight: always audit both paths when adding new columns.
-- **P2 Orphaned Resource + AIClient Polly Refactoring:** Fixed atomic save in ImportService; refactored AIClient to use Polly-backed HttpClient for consistency.
-- **15+ Deployments:** Wave 1–4 of NumberDrill phases, multiple publish cycles with Azure `azd deploy` (2m per cycle) + iOS to DX24 validation, package version management (Npgsql/EF Core alignment critical).
+## Key delivered foundations
 
----
+- NumberDrill Phase 1 data model, grading v2 support, Korean number normalization, TTS audio cache with concurrent prewarm, and ElevenLabs integration.
+- Atomic content import fix in `CommitImportAsync`, eliminating orphaned resources by consolidating persistence into one save.
+- Focus vocabulary persistence across deterministic plan generation, DailyPlan JSON facts, CoreSync, and route plumbing.
+- Per-user timezone plan-staleness fix: `UserProfile.IanaTimeZoneId`, dual-provider migration, WebAppPlanDateContext, TimeZoneCapture, UTC normalization, and freshness checks.
+- Quick-add existing vocabulary lookup: user-scoped strict-language search excluding already-mapped words.
+- ElevenLabs latency improvement: Flash v2.5 for short-form synthesis, Reading remains long-form model, and cached known voice construction.
+- ActivitySession entity/service foundation with user/context-scoped save, complete, abandon, duplicate handling, and exact Vocab Quiz resume support.
+- Quiz demonstration counters persisted on `VocabularyProgress`, dual migrations, monotonic duplicate merge/replay, and focus-word rotation updates.
+- Transcript example sentence persistence and retroactive harvesting via `ExampleSentenceRepository.CreateFromReadingIfNewAsync` and `TranscriptSentenceHarvestService`.
+- Vocab Quiz sentence hint data foundation: `GetQuizHintsForWordsAsync` explicit-user batch projection through exact `ResourceVocabularyMapping` ownership, target-only hints, 20-ID limit, and deterministic CEFR ranking.
+- Cross-profile disclosure data-layer fix: explicit-user resource/skill reads, exact-ID ownership rejection, caller propagation, and two-profile SQLite regression coverage.
 
-### Recent Sessions (2026-05-04 to 2026-06-09)
+## Carry-forward
 
-- 2026-05-04: **NumberDrill Phase 1 Data Model** — Created entity framework with dual migrations (PostgreSQL + SQLite), enum-backed storage for NumberSystem, unique indexes for multi-user filtering. 
-- 2026-05-04: **TTS Audio Cache Service** — Implemented SHA-256 caching, concurrent dedup via `_pendingGenerations`, 3-job semaphore for ElevenLabs throttle, retry-once pattern for transient failures.
-- 2026-05-05: **DevFlow CDP Runtime.evaluate Bug** — Root cause: race condition in DevFlow CLI response parsing; workaround: `--verbose` flag. Investigation products: upstream issue draft, skill documentation with Blazor patterns.
-- 2026-05-05: **DevFlow Snapshot Bug (Second Investigation)** — Two distinct bugs: (1) Runtime.evaluate race + (2) snapshot ref enrichment exception. Workaround: use `webview source` instead of `snapshot`. Dogfooding signal: DevFlow WebView automation not production-ready for Blazor Hybrid.
-- 2026-05-10: **DevFlow Snapshot Bug (Second Investigation)** — Verified both bugs with full repro; updated upstream issue and skills documentation; recommended manual validation on DX24 (code review passed, automation blocked by CLI bugs not app bugs).
-- 2026-06-08: **Phase 1 Focus Vocabulary Implementation** — Added `FocusVocabularyIds` contract across deterministic plan generation, DTOs, persistence on `DailyPlan`, CoreSync registration, route plumbing. Canonical storage: `DailyPlan.FocusVocabularyFacts` (JSON). Dual migrations with matching timestamp. 556/557 tests passing.
-- 2026-06-09: **Phase 2 Focus Vocabulary — NarrativeFacts/RationaleFacts Persistence Asymmetry Fix** — Mobile path (ProgressService) was not persisting narrative/rationale to DailyPlan row while API path (PlanService) already did. After mobile regen, CoreSync propagated NULLs to Postgres, destroying Preview button. Solution: Added 6 DTOs + 2 helpers, updated insert/update branches. **End-to-end verified:** Mac Catalyst → SQLite → CoreSync → Postgres (byte-identical), 100% focus vocabulary overlap, Preview button renders. 564/565 tests (+1 new). **Key learning:** Mobile-vs-API asymmetry surfaces when two paths persist same entity — always audit both.
-- 2026-06-09: **Code-Review Follow-Up — Fallback Plan Rationale Symmetry** — Code review (Opus xhigh) caught asymmetric RationaleFacts protection in `GenerateFallbackPlanAsync`. Fallback path passed hardcoded sentinel Rationale string, bypassing `?? planRow.X` coalesce and silently overwriting LLM-generated rationale. Fix: pass `Rationale: null`, making all 3 facts columns symmetric in update branch. Test rewritten to prove non-vacuity: delete DailyPlanCompletion rows between generations (force LLM path), assert fallback entered (not bypassed via cache). Outcome: 566/567 tests pass. Issue 3 regression proven non-vacuous. Captain pre-push review gate ready.
-
----
-
-
-- 2026-06-10T03:35:00Z: Timezone fix via `IPlanDateContext` completed in continuous-loop mode while Captain slept; staged work is ready for Captain's `/review`, PR split decision, and signed-in E2E.
-
----
-
-- 2026-06-11: **Unseen vocabulary bootstrap + wording cascade fix** — Deterministic planner now detects zero SRS-due words and queries ResourceVocabularyMapping (multi-tenant safe) for 15-word capped bootstrap cohort. DaysSinceLastUse changed from int (999 sentinel) to int? (null = never used). Wording: 4-branch cascade with boundary guards at 0/1/30 days. Unit-test-vs-runtime gap risk: passing tests can hide data-distribution mismatches. Live diagnosis is expensive — clarify target surface upfront (Mac Catalyst? iOS? WebApp?) before digging. 583/583 tests passing (999-sentinel bug fixed as side effect). Commit 386b4550.
-
----
-
-Team update (2026-06-17T15:10:57-05:00): Mastery calibration + plan staleness dual RCA — decided by Zoe.
-
-Concern #1 (mastery calibration): CALIBRATION BUG confirmed. The /12 divisor at VocabularyProgressService.cs:27 governs both in-session rotation pacing (correct use) and the lifetime IsKnown gate (incorrect double-use). Fix: SRS-interval-aware IsKnown pathway (ReviewInterval >= 60, Accuracy >= 0.80, ProductionInStreak >= 1) plus srsBonus to displayed mastery using prior-interval. boda/mun -> 92%, seonsaengnim -> 88%. Must use prior interval to prevent fresh-word gaming.
-
-Concern #2 (plan staleness): TIMEZONE/DATE-KEY BUG + STALE-PIN. Root cause: DevicePlanDateContextProvider uses TimeZoneInfo.Local (= UTC on Azure Linux). Between 7pm-midnight CDT the server pre-generates "tomorrow's" plan with today's still-due vocabulary. Plan pinned in Postgres; morning short-circuit returns stale plan. Fix: override IPlanDateContext in WebApp registration (interim America/Chicago) + freshness check in GetCachedPlanAsync reconstruction. Long-term: IanaTimeZoneId in UserProfile. SHIPS after Captain confirms Query 4 = STALE from production Postgres.
-
-Baseline: 636/636 (not 534/535). copilot-instructions.md baseline note + "THIS WILL LIKELY FAIL" comment sweep = required follow-up PR.
-
----
-
-Team update (2026-06-17T16:08:31-05:00): Concern #2 per-user timezone fix — LANDED AND APPROVED.
-
-Wash's implementation (commits c7f192e5, 0cdda7ba, 7e7d67ef): UserProfile.IanaTimeZoneId, dual-provider EF migration 20260617211855_AddUserProfileIanaTimeZoneId (hand-written — MSB4057 tooling friction documented), WebAppPlanDateContext, TimeZoneCaptureService, TimeZoneCapture.razor, UTC normalization in VocabQuiz.razor, ApplyFocusVocabularyFreshnessAsync wired into all 3 GetCachedPlanAsync return paths. Zoe initial review rejected (two blockers owned by Kaylee and Simon — NOT Wash). Re-review APPROVED after both fixes landed. Final suite: 633/633.
-
-Carry-forward for Wash:
-- File dotnet/efcore upstream issue: `--framework` flag fails to isolate TFM evaluation in multi-targeted projects with conditional Compile Remove. Repro: SentenceStudio.Shared.csproj.
-- AGENTS.md + copilot-instructions.md TFM doc fix (Shared is multi-targeted, not plain net10.0) — separate docs-only PR.
-
----
-
-Team update (2026-06-26T21:30:56-05:00): Quick-add existing vocabulary feature — Wash added user-scoped strict-language lookup in LearningResourceRepository, excluding words already mapped to the resource and ranking best matches first. Repository lookup tests passed 5/5. Carry-forward: strict language filtering intentionally excludes bulk-imported `Language=NULL` rows; do not relax without a product/data-quality decision.
-
-
----
-
-Team update (2026-06-29T21:55:00-05:00): ElevenLabs interactive TTS latency win — Wash switched short-form app/API speech synthesis to configurable Flash v2.5 with a code default, kept Reading long-form on MultiLingualV2, and removed per-utterance `GetVoiceAsync` by constructing/caching `Voice` from the known id. Measured time-to-audio improved from about 1090 ms to 274 ms. Review follow-up converted cached voices to `ConcurrentDictionary`.
-
-## 2026-07-02 — ActivitySession data-layer foundation
-
-- Added reusable `ActivitySession` entity/service foundation for exact resume across activities.
-- Created matched dual-provider migrations (`20260702145959_AddActivitySession`) for PostgreSQL and SQLite plus model snapshot updates.
-- `IActivitySessionService` fails closed on empty `userId` and abandons duplicate older in-progress rows for the same launch context.
-- `VocabQuizSessionSnapshot` stores only IDs and session-local counters, leaving Kaylee to re-fetch vocabulary/progress on resume.
-
-
----
-
-Team update (2026-07-02T15:30-05:00): Vocab Quiz Session & Resume shipped — Wash's reusable `ActivitySession` entity/service, matched PostgreSQL + SQLite migration `20260702145959_AddActivitySession`, DI registration, and `VocabQuizSessionSnapshot` became the foundation for exact activity resume. Kaylee wired Vocab Quiz resume UI/persistence, Jayne locked behavior with 11 unit tests, and Squad verified WebApp E2E plus live Postgres and deterministic SQLite migration paths. Carry-forward for Wash: DevFlow stale-agent collision made mobile migration validation false-pass by attaching to FoundryStudio instead of SentenceStudio; future migration-gate work should make wrong-agent/log-unavailable conditions fail closed.
-
-## 2026-07-02 — ActivitySession review fixes
-
-Fixed the Vocab Quiz session resume data-layer review issues. Added a database-enforced unique filtered ActivitySession index for one in-progress row per `(UserId, ActivityType, LaunchContextKey)`, amended both PostgreSQL and SQLite migration pairs/snapshots, made `SaveSnapshotAsync` race-safe on unique-index conflicts, changed completion to user/context-scoped `CompleteAsync(string userId, string activityType, string launchContextKey)`, and changed abandonment to user-scoped `AbandonAsync(string userId, int sessionId)`. Updated Vocab Quiz callers and expanded ActivitySessionService unit coverage. Validation: Shared/API/WebApp builds completed with 0 errors; targeted ActivitySessionServiceTests 11/11 passed; full unit test rerun 751/751 passed.
-
-
----
-
-Team update (2026-07-03T18:53:17-05:00): Vocab Quiz persistent demonstration counters — Wash added lifetime quiz-specific counters (`QuizRecognitionDemonstrations`, `QuizProductionDemonstrations`) to `VocabularyProgress`, created dual-provider migration `20260703190310_AddQuizDemonstrationCounters` with inline discovery attributes, updated service increment behavior, and rewired focus-word rotation to use persistent counters. Known focus words now capture a session-start shortcut baseline and skip recognition, requiring one production confirmation instead of repeating 3 recognition + 3 production every session. Coordinator verified native SQLite + PostgreSQL migration discovery/application and WebApp Playwright counter increments through the real recording path.
-
-
----
-
-Team update (2026-07-03T19:41:30-05:00): Vocab Quiz persistent-counter deep-review hardening — Wash fixed all three adversarial findings. Rotation now captures session-start recognition/production baselines and requires non-known focus words to earn an in-session production floor before rotating out, so regressed banked-3/3 words are re-drilled instead of evicted unseen. Duplicate merge/replay preserves quiz demonstration counters as monotonic lifetime history, and counter increments moved from obsolete `UpdateLegacyFields` into `VocabularyProgressService.UpdateQuizDemonstrationCounters`. Validation reported by Coordinator: 767/767 full suite, Shared + WebApp builds clean, merged to main at `4da42e87`.
-
----
-
-Team update (2026-07-05T21:56:29-05:00): Transcript example sentence capture — Wash centralized FromReading example persistence in `ExampleSentenceRepository.CreateFromReadingIfNewAsync`, preserving validation, normalized deduplication, non-core Curated status, and the two examples per word/resource cap. YouTube and content imports now persist AI-returned example sentences/translations; `TranscriptSentenceHarvestService` adds deterministic user-scoped retroactive harvesting with term/lemma/Korean-stem matching and batch translation. Segmenter default behavior remains Reading-safe; harvest opts into newline splitting.
+- File the dotnet/efcore issue for `--framework` not isolating TFM evaluation in multi-targeted projects with conditional Compile Remove.
+- Do not relax strict language filtering for quick-add `Language=NULL` rows without a product/data-quality decision.
+- Future migration gates must fail closed when DevFlow attaches to the wrong agent or logs are unavailable.
+- Preserve quiz demonstration counters as monotonic lifetime history during duplicate merge/replay.

@@ -117,4 +117,4 @@ This directive was established during NumberDrill Phase 1 work when DevFlow CLI 
 **Impact on your work:** Prioritize tooling investigations over feature delays. Document findings as skills for team reuse.
 
 ---
-
+- 2026-07-17 — Production deploy completed (Azure validator 17/0/2/2, DX24 PID 15781); future net11.0-ios builds should scope DEVELOPER_DIR to Xcode_26.5 and avoid `cmd | tail` for required exit codes.
