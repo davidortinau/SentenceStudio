@@ -1419,6 +1419,26 @@ h3:focus,
     padding: 1rem; /* re-apply padding inside */
 }
 
+/*
+ * VocabQuiz-only host (src/SentenceStudio.UI/Pages/VocabQuiz.razor). The fullscreen
+ * photo viewer (#quiz-fullscreen-viewer) is a SIBLING of .activity-page-wrapper so
+ * that applying `inert` to the quiz content (QuizContentAttributes) does not also
+ * disable the modal. This host groups those two siblings — but it MUST remain a
+ * transparent full-height passthrough: .activity-page-wrapper above uses
+ * height: calc(100% + 2rem), a PERCENTAGE that requires a parent with a resolved
+ * height. An undefined (height:auto) host collapses that chain and un-pins
+ * .activity-footer to mid-screen (bug reported 2026-07-17). No padding/margin here
+ * so the wrapper's -1rem compensation still nets out against main's 1rem padding,
+ * and no transform/filter so the position:fixed photo modal stays viewport-anchored.
+ * See .squad/skills/blazor-activity-layout-shell/SKILL.md
+ */
+.vocab-quiz-modal-host {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
 .activity-content {
     flex: 1;
     overflow-y: auto;
