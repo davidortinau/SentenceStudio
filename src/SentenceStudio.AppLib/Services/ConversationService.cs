@@ -9,7 +9,6 @@ namespace SentenceStudio.Services
     {
         private readonly IServiceProvider _serviceProvider;
         private readonly AiService _aiService;
-        private readonly ISyncService _syncService;
         private readonly IFileSystemService _fileSystem;
         private readonly ILogger<ConversationService> _logger;
 
@@ -20,10 +19,19 @@ namespace SentenceStudio.Services
         {
             _serviceProvider = serviceProvider;
             _aiService = serviceProvider.GetRequiredService<AiService>();
-            _syncService = serviceProvider.GetService<ISyncService>();
             _fileSystem = serviceProvider.GetRequiredService<IFileSystemService>();
             _logger = logger;
         }
+
+        /// <summary>
+        /// All conversation persistence goes through the owner-scoped repository:
+        /// this service never queries <c>Conversation</c> or
+        /// <c>ConversationChunk</c> directly, so there is no path here that can
+        /// read or write another learner's conversation.
+        /// </summary>
+        private ConversationRepository Repository =>
+            _serviceProvider.GetRequiredService<ConversationRepository>();
+
 
         /// <summary>
         /// Loads and renders the system prompt template with persona configuration.
@@ -67,48 +75,15 @@ namespace SentenceStudio.Services
             });
         }
 
-        public async Task<Conversation> ResumeConversation()
-        {
-            using var scope = _serviceProvider.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
-            var mostRecentConversation = await db.Conversations
-                .Include(c => c.Chunks)
-                .OrderByDescending(c => c.Id)
-                .FirstOrDefaultAsync();
-
-            return mostRecentConversation;
-        }
+        /// <summary>
+        /// The active learner's most recent conversation. Returns null when they
+        /// have none, or when no user is active — never somebody else's thread.
+        /// </summary>
+        public async Task<Conversation?> ResumeConversation()
+            => await Repository.GetMostRecentConversationAsync();
 
         public async Task SaveConversationChunk(ConversationChunk chunk)
-        {
-            using var scope = _serviceProvider.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
-            // Set timestamps
-            if (chunk.CreatedAt == default)
-                chunk.CreatedAt = DateTime.UtcNow;
-
-            try
-            {
-                if (!string.IsNullOrEmpty(chunk.Id))
-                {
-                    db.ConversationChunks.Update(chunk);
-                }
-                else
-                {
-                    db.ConversationChunks.Add(chunk);
-                }
-
-                await db.SaveChangesAsync();
-
-                _syncService?.TriggerSyncAsync().ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error occurred in SaveConversationChunk");
-            }
-        }
+            => await Repository.SaveConversationChunkAsync(chunk);
 
         public async Task<string> StartConversation(ConversationScenario? scenario = null, string? targetLanguage = null)
         {
@@ -228,88 +203,31 @@ namespace SentenceStudio.Services
             }
         }
 
+        /// <summary>
+        /// Persists a conversation for the active learner. Returns the id, or an
+        /// empty string when there is no active learner or the row belongs to
+        /// someone else (including ownerless legacy rows, which are never claimed).
+        /// </summary>
         public async Task<string> SaveConversation(Conversation conversation)
-        {
-            using var scope = _serviceProvider.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
-            // Set timestamps
-            if (conversation.CreatedAt == default)
-                conversation.CreatedAt = DateTime.UtcNow;
-
-            try
-            {
-                if (!string.IsNullOrEmpty(conversation.Id))
-                {
-                    db.Conversations.Update(conversation);
-                }
-                else
-                {
-                    db.Conversations.Add(conversation);
-                }
-
-                await db.SaveChangesAsync();
-
-                _syncService?.TriggerSyncAsync().ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error occurred in SaveConversation");
-            }
-
-            return conversation.Id;
-        }
+            => await Repository.SaveConversationAsync(conversation) ?? string.Empty;
 
         public async Task DeleteConversation(Conversation conversation)
         {
-            using var scope = _serviceProvider.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
-            try
+            if (conversation is null)
             {
-                // EF Core will handle cascade delete of chunks automatically if configured
-                db.Conversations.Remove(conversation);
-                await db.SaveChangesAsync();
+                return;
+            }
 
-                _syncService?.TriggerSyncAsync().ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error occurred in DeleteConversation");
-            }
+            await Repository.DeleteConversationAsync(conversation.Id);
         }
 
         public async Task<List<Conversation>> GetAllConversationsAsync()
-        {
-            using var scope = _serviceProvider.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            => await Repository.GetAllConversationsAsync();
 
-            return await db.Conversations
-                .Include(c => c.Chunks)
-                .OrderByDescending(c => c.CreatedAt)
-                .ToListAsync();
-        }
-
-        public async Task<Conversation> GetConversationAsync(string id)
-        {
-            using var scope = _serviceProvider.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
-            return await db.Conversations
-                .Include(c => c.Chunks)
-                .Where(c => c.Id == id)
-                .FirstOrDefaultAsync();
-        }
+        public async Task<Conversation?> GetConversationAsync(string id)
+            => await Repository.GetConversationAsync(id);
 
         public async Task<List<ConversationChunk>> GetConversationChunksAsync(string conversationId)
-        {
-            using var scope = _serviceProvider.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
-            return await db.ConversationChunks
-                .Where(cc => cc.ConversationId == conversationId)
-                .OrderBy(cc => cc.CreatedAt)
-                .ToListAsync();
-        }
+            => await Repository.GetConversationChunksAsync(conversationId);
     }
 }

@@ -1,0 +1,438 @@
+@implements IDisposable
+@using SentenceStudio.Contracts.Coach
+@inject BlazorLocalizationService Localize
+@inject CoachWorkspaceState Coach
+@inject IJSRuntime Js
+
+@*
+    One proposed change, rendered inside the exchange that produced it.
+
+    The card is a single element that moves through its states in place: waiting, confirming,
+    applied, undone. It is not four cards that replace each other, and it is not a dialog that
+    covers the conversation — a decision about the learner's own study material belongs beside
+    the sentence that asked for it.
+
+    Everything shown here comes from the server's own state. The card never infers that a change
+    happened from a request succeeding, never renders an Undo the receipt did not offer, and never
+    holds, shows, or writes the one-use confirmation a protected change needs.
+*@
+
+@if (Operation is { } operation && IsSurfaceEnabled)
+{
+    var isUnavailable = Coach.IsWriteUnavailable(operation.OperationId);
+    var stage = SamWritePresentation.Stage(
+        operation, IsActionable, IsConfirming, DateTime.UtcNow, isUnavailable);
+    var cardId = SamElementIds.WriteCard(operation.OperationId);
+    var titleId = SamElementIds.WriteCardTitle(operation.OperationId);
+    var summaryId = SamElementIds.WriteCardSummary(operation.OperationId);
+    var errorId = SamElementIds.WriteError(operation.OperationId);
+    var busy = Coach.IsWriteBusy && Coach.WriteBusyOperationId == operation.OperationId;
+    var describedBy = HasError ? $"{summaryId} {errorId}" : summaryId;
+
+    <div id="@cardId"
+         class="coach-card sam-write sam-write--@SamWritePresentation.StageCss(stage)"
+         role="group"
+         aria-labelledby="@titleId"
+         aria-busy="@(busy ? "true" : "false")">
+
+        <div class="sam-write__head">
+            <i class="bi @IconFor(stage)" aria-hidden="true"></i>
+            <h3 id="@titleId" class="sam-write__title ss-body1-strong">
+                @Localize[SamWritePresentation.HeadingKey(operation.ChangeKind)]
+            </h3>
+            @* The stage is a status, not decoration: a screen reader reaching the card hears what
+               state the change is in before it reaches any control. *@
+            <span class="sam-write__state" role="status">
+                @Localize[SamWritePresentation.StateKey(stage)]
+            </span>
+        </div>
+
+        <div id="@summaryId" class="sam-write__summary ss-body2">
+            @if (Summary is { Length: > 0 } summary)
+            {
+                <span>@summary</span>
+            }
+            else
+            {
+                <span>@Localize["Coach_WriteUnreadableHint"]</span>
+            }
+        </div>
+
+        @if (Lines.Count > 0)
+        {
+            <ul class="sam-write__lines ss-caption1">
+                @foreach (var line in Lines)
+                {
+                    <li>@line</li>
+                }
+            </ul>
+        }
+
+        @switch (stage)
+        {
+            case SamWriteStage.Proposed:
+                <p class="sam-write__note ss-caption1">@Localize["Coach_WriteNothingChangedYet"]</p>
+
+                @if (SamWritePresentation.ShowsIrreversibleWarning(operation, stage))
+                {
+                    <p class="sam-write__note sam-write__note--warning ss-caption1">
+                        <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                        @Localize["Coach_WriteIrreversibleNotice"]
+                    </p>
+                }
+                else if (SamWritePresentation.ShowsReversibleNote(operation, stage))
+                {
+                    <p class="sam-write__note ss-caption1">@Localize["Coach_WriteReversibleNotice"]</p>
+                }
+
+                @if (operation.RequiresConfirmation)
+                {
+                    <p class="sam-write__note ss-caption1">@Localize["Coach_WriteProtectedNotice"]</p>
+                }
+                break;
+
+            case SamWriteStage.ConfirmationRequired:
+                @* An alert dialog that does not trap focus, because the panel it lives in is
+                   deliberately not modal: the learner can still read the page behind Sam while
+                   they decide. Claiming aria-modal here would tell a screen reader the rest of
+                   the document is unreachable when it plainly is not. *@
+                <div id="@SamElementIds.WriteConfirmStep(operation.OperationId)"
+                     class="sam-write__confirm"
+                     role="alertdialog"
+                     aria-modal="false"
+                     aria-labelledby="@($"{cardId}-confirm-title")"
+                     aria-describedby="@summaryId"
+                     tabindex="-1"
+                     @onkeydown="OnConfirmKeyDown"
+                     @onkeydown:stopPropagation="true">
+                    <h4 id="@($"{cardId}-confirm-title")" class="ss-body2-strong">
+                        @Localize["Coach_WriteConfirmTitle"]
+                    </h4>
+                    <p class="ss-caption1">@Localize["Coach_WriteConfirmIntro"]</p>
+
+                    @if (SamWritePresentation.ShowsIrreversibleWarning(operation, stage))
+                    {
+                        <p class="sam-write__note sam-write__note--warning ss-caption1">
+                            <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                            @Localize["Coach_WriteIrreversibleNotice"]
+                        </p>
+                    }
+
+                    @if (Coach.ConfirmationExpiresAtUtc is { } closesAt)
+                    {
+                        <p class="ss-caption1 text-secondary-ss">
+                            @Localize.Get("Coach_WriteConfirmExpiresAt", Local(closesAt))
+                        </p>
+                    }
+                </div>
+                break;
+
+            case SamWriteStage.Applied:
+                @if (operation.Receipt is { UndoExpiresAtUtc: { } undoCloses }
+                     && SamWritePresentation.ShowsUndo(operation, stage, DateTime.UtcNow, isUnavailable))
+                {
+                    <p class="sam-write__note ss-caption1">
+                        @Localize.Get("Coach_WriteUndoWindow", Local(undoCloses))
+                    </p>
+                }
+                break;
+
+            case SamWriteStage.InDoubt:
+                <p class="sam-write__note ss-caption1">@Localize["Coach_WriteInDoubtHint"]</p>
+                break;
+
+            case SamWriteStage.Expired:
+                <p class="sam-write__note ss-caption1">@Localize["Coach_WriteExpiredHint"]</p>
+                break;
+
+            case SamWriteStage.Superseded:
+                <p class="sam-write__note ss-caption1">@Localize["Coach_WriteSupersededHint"]</p>
+                break;
+
+            case SamWriteStage.Unreadable:
+                <p class="sam-write__note ss-caption1">@Localize["Coach_WriteUnreadableHint"]</p>
+                break;
+        }
+
+        @* A refusal is stated on the card it belongs to, and is referenced by the controls that
+           can retry, so a screen reader hears why the last attempt did not work before it reaches
+           the button that would repeat it. *@
+        @if (HasError)
+        {
+            <p id="@errorId" class="sam-write__error ss-caption1" role="alert">
+                <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
+                @Localize[Coach.WriteErrorKey!]
+            </p>
+        }
+
+        @if (HasActions(operation, stage, isUnavailable))
+        {
+            <div class="sam-write__actions">
+                @if (SamWritePresentation.ShowsAccept(operation, stage))
+                {
+                    <button type="button"
+                            id="@SamElementIds.WriteAccept(operation.OperationId)"
+                            class="btn btn-ss-primary coach-action sam-write__action"
+                            disabled="@busy"
+                            aria-describedby="@describedBy"
+                            @onclick="AcceptAsync">
+                        @if (busy)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                        }
+                        @Localize["Coach_WriteAccept"]
+                    </button>
+                }
+
+                @if (SamWritePresentation.ShowsReview(operation, stage))
+                {
+                    <button type="button"
+                            id="@SamElementIds.WriteReview(operation.OperationId)"
+                            class="btn btn-ss-primary coach-action sam-write__action"
+                            disabled="@busy"
+                            aria-describedby="@describedBy"
+                            @onclick="BeginConfirmAsync">
+                        @if (busy)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                        }
+                        @Localize["Coach_WriteReview"]
+                    </button>
+                }
+
+                @if (stage == SamWriteStage.ConfirmationRequired)
+                {
+                    <button type="button"
+                            id="@SamElementIds.WriteConfirm(operation.OperationId)"
+                            class="btn btn-ss-danger coach-action sam-write__action"
+                            disabled="@busy"
+                            aria-describedby="@describedBy"
+                            @onclick="ConfirmAsync">
+                        @if (busy)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                        }
+                        @Localize["Coach_WriteConfirm"]
+                    </button>
+                    <button type="button"
+                            id="@SamElementIds.WriteConfirmCancel(operation.OperationId)"
+                            class="btn btn-ss-secondary coach-action sam-write__action"
+                            disabled="@busy"
+                            @onclick="CancelConfirm">
+                        @Localize["Coach_WriteCancelConfirm"]
+                    </button>
+                }
+
+                @if (SamWritePresentation.ShowsDecline(stage) && stage != SamWriteStage.ConfirmationRequired)
+                {
+                    <button type="button"
+                            id="@SamElementIds.WriteDecline(operation.OperationId)"
+                            class="btn btn-ss-secondary coach-action sam-write__action"
+                            disabled="@busy"
+                            aria-describedby="@describedBy"
+                            @onclick="DeclineAsync">
+                        @Localize["Coach_WriteDecline"]
+                    </button>
+                }
+
+                @if (SamWritePresentation.ShowsUndo(operation, stage, DateTime.UtcNow, isUnavailable))
+                {
+                    <button type="button"
+                            id="@SamElementIds.WriteUndo(operation.OperationId)"
+                            class="btn btn-ss-secondary coach-action sam-write__action"
+                            disabled="@busy"
+                            aria-describedby="@describedBy"
+                            @onclick="UndoAsync">
+                        @if (busy)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                        }
+                        @Localize["Coach_WriteUndo"]
+                    </button>
+                }
+
+                @if (SamWritePresentation.ShowsRefresh(stage))
+                {
+                    <button type="button"
+                            id="@SamElementIds.WriteRefresh(operation.OperationId)"
+                            class="btn btn-ss-secondary coach-action sam-write__action"
+                            disabled="@busy"
+                            aria-describedby="@describedBy"
+                            @onclick="RefreshAsync">
+                        @Localize["Coach_WriteRefreshAction"]
+                    </button>
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    /// <summary>The change this card renders, as the server last reported it.</summary>
+    [Parameter, EditorRequired] public CoachWriteOperationDto? Operation { get; set; }
+
+    private IJSObjectReference? module;
+    private string? focusedConfirmFor;
+
+    /// <summary>
+    /// True when the write surface may render at all.
+    /// </summary>
+    /// <remarks>
+    /// Gated in the component as well as in the state service. The state service refuses to act
+    /// without the gate; this stops a control from being drawn in the first place, so a
+    /// deployment with the write tools off shows a conversation with no approval affordances
+    /// rather than buttons that quietly do nothing.
+    /// </remarks>
+    private bool IsSurfaceEnabled => Coach.IsWriteSurfaceEnabled;
+
+    private bool IsActionable => Coach.IsActionable(Operation);
+
+    private bool IsConfirming =>
+        Operation is not null
+        && string.Equals(Coach.ConfirmingWriteOperationId, Operation.OperationId, StringComparison.Ordinal);
+
+    private bool HasError =>
+        Operation is not null
+        && Coach.WriteErrorKey is not null
+        && string.Equals(Coach.WriteErrorOperationId, Operation.OperationId, StringComparison.Ordinal);
+
+    /// <summary>
+    /// The sentence at the top of the card.
+    /// </summary>
+    /// <remarks>
+    /// A completed change describes itself in the past tense, from its receipt; a proposal
+    /// describes what would happen, from its preview. Leaving the preview above an applied
+    /// receipt would have the card still asking for a decision the learner has already made.
+    /// </remarks>
+    private string? Summary =>
+        Operation?.Receipt is { Summary.Length: > 0 } receipt ? receipt.Summary
+        : Operation?.Summary;
+
+    /// <summary>
+    /// The detail lines to show. A completed change describes itself with its receipt's lines;
+    /// a proposal with the preview's.
+    /// </summary>
+    private IReadOnlyList<string> Lines =>
+        Operation?.Receipt is { Lines.Count: > 0 } lines ? lines.Lines
+        : Operation?.Lines ?? Array.Empty<string>();
+
+    private static bool HasActions(
+        CoachWriteOperationDto operation, SamWriteStage stage, bool isUnavailable) =>
+        SamWritePresentation.ShowsAccept(operation, stage)
+        || SamWritePresentation.ShowsReview(operation, stage)
+        || SamWritePresentation.ShowsDecline(stage)
+        || SamWritePresentation.ShowsUndo(operation, stage, DateTime.UtcNow, isUnavailable)
+        || SamWritePresentation.ShowsRefresh(stage);
+
+    private static string IconFor(SamWriteStage stage) => stage switch
+    {
+        SamWriteStage.Applied => "bi-check-circle",
+        SamWriteStage.Undone => "bi-arrow-counterclockwise",
+        SamWriteStage.Declined => "bi-dash-circle",
+        SamWriteStage.Expired or SamWriteStage.Superseded => "bi-clock-history",
+        SamWriteStage.Failed => "bi-x-circle",
+        SamWriteStage.InDoubt => "bi-hourglass-split",
+        SamWriteStage.ConfirmationRequired => "bi-shield-exclamation",
+        SamWriteStage.Unreadable => "bi-question-circle",
+        SamWriteStage.Unavailable => "bi-question-circle",
+        _ => "bi-pencil-square"
+    };
+
+    /// <summary>Renders a server instant in the learner's own wall-clock time.</summary>
+    private static string Local(DateTime utc) =>
+        new DateTimeOffset(DateTime.SpecifyKind(utc, DateTimeKind.Utc)).ToLocalTime().ToString("t");
+
+    private Task AcceptAsync() =>
+        Operation is null ? Task.CompletedTask : Coach.AcceptWriteAsync(Operation.OperationId);
+
+    private Task DeclineAsync() =>
+        Operation is null ? Task.CompletedTask : Coach.RejectWriteAsync(Operation.OperationId);
+
+    private Task BeginConfirmAsync() =>
+        Operation is null ? Task.CompletedTask : Coach.BeginWriteConfirmationAsync(Operation.OperationId);
+
+    private Task ConfirmAsync() => Coach.ConfirmWriteAsync();
+
+    private void CancelConfirm() => Coach.CancelWriteConfirmation();
+
+    private Task UndoAsync() =>
+        Operation is null ? Task.CompletedTask : Coach.UndoWriteAsync(Operation.OperationId);
+
+    private Task RefreshAsync() =>
+        Operation is null ? Task.CompletedTask : Coach.RefreshWriteAsync(Operation.OperationId);
+
+    /// <summary>Escape leaves the confirmation step, matching every other dismissable surface.</summary>
+    /// <remarks>
+    /// <para>
+    /// The keydown is stopped from propagating in the markup above, and that attribute is the
+    /// actual fix rather than a tidy-up. Two handlers claim Escape while this step is open: this
+    /// one, bound to the alert dialog, and the overlay's own <c>document</c>-level listener, which
+    /// collapses the panel. Both would otherwise run for a single keypress — the learner backs out
+    /// of the confirmation AND loses the panel that contained it, which takes away the only
+    /// visible route back to the change they were deciding on.
+    /// </para>
+    /// <para>
+    /// Stopping propagation at the innermost dismissable is what makes the outcome independent of
+    /// which handler was registered first. The overlay's <c>SamOverlayEscape</c> rule still stands
+    /// down on its own when it can see a confirmation is open, but that check depends on the two
+    /// components agreeing about state at the instant of a keypress; this one depends only on the
+    /// DOM, and the event never reaches <c>document</c> at all.
+    /// </para>
+    /// </remarks>
+    private void OnConfirmKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            Coach.CancelWriteConfirmation();
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        Localize.CultureChanged += OnChanged;
+        Coach.Changed += OnChanged;
+    }
+
+    /// <summary>
+    /// Moves focus into the confirmation step the first time it opens.
+    /// </summary>
+    /// <remarks>
+    /// Once per opening, keyed on the operation, so a re-render triggered by anything else does
+    /// not yank focus back out of whatever the learner moved to.
+    /// </remarks>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Operation is null || !IsConfirming)
+        {
+            focusedConfirmFor = null;
+            return;
+        }
+
+        if (string.Equals(focusedConfirmFor, Operation.OperationId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        focusedConfirmFor = Operation.OperationId;
+
+        try
+        {
+            module ??= await Js.InvokeAsync<IJSObjectReference>(
+                "import", "./_content/SentenceStudio.UI/js/app.js");
+            await module.InvokeVoidAsync(
+                "focusElement", SamElementIds.WriteConfirmStep(Operation.OperationId));
+        }
+        catch (JSDisconnectedException) { }
+        catch (ObjectDisposedException) { }
+        catch (InvalidOperationException) { }
+    }
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnChanged;
+        Coach.Changed -= OnChanged;
+        _ = module?.DisposeAsync();
+    }
+}

@@ -1,0 +1,295 @@
+@*
+    Sam persistent overlay panel. Non-modal (role="complementary"), no focus trap,
+    passthrough background interaction. Reuses CoachChatPane + CoachComposer so the
+    existing conversation rendering, timestamps, and Copy actions are preserved.
+
+    Full screen is a size of this same panel, not a different surface: the header, the
+    conversation and the composer are the same elements at every size, which is what keeps the
+    transcript, the composer draft, the scroll position and focus across the change. See
+    SamOverlayVisualState for why it stopped being a navigation.
+*@
+
+@implements IAsyncDisposable
+@inject CoachWorkspaceState Coach
+@inject CoachPersona Persona
+@inject CoachConversationDirectory Conversations
+@inject BlazorLocalizationService Localize
+@inject IJSRuntime JS
+
+<aside id="@SamElementIds.Panel"
+       class="sam-panel sam-panel--@VisualStateCss"
+       data-visual-state="@VisualStateCss"
+       role="complementary"
+       aria-labelledby="@SamElementIds.PanelTitle">
+    <div class="sam-panel__header">
+        <h2 id="@SamElementIds.PanelTitle" class="sam-panel__title">@Persona.DisplayName</h2>
+        <div class="sam-panel__controls">
+            @* Conversation shelf toggle. Shares stable IDs with CoachWorkspaceOverlay because the
+               two surfaces are mutually exclusive (legacy overlay vs Sam panel) and tests key on
+               these IDs. Only shown when the server actually persists conversations. *@
+            @if (Conversations.IsDurableHistoryAvailable)
+            {
+                <button type="button"
+                        id="coach-conversations-toggle"
+                        class="sam-panel__btn"
+                        aria-expanded="@(_showConversations ? "true" : "false")"
+                        aria-controls="coach-conversations-drawer"
+                        aria-label="@(_showConversations ? Localize["Coach_ConversationsClose"] : Localize["Coach_ConversationsToggle"])"
+                        @onclick="ToggleConversations">
+                    <i class="bi bi-list-ul" aria-hidden="true"></i>
+                </button>
+            }
+
+            @if (IsFullScreen)
+            {
+                @* One control does the whole undo: full screen is the state that was entered, so
+                   leaving it returns the panel to the size it had, not to some recomputed default
+                   and not to closed. Expand/contract is withheld here because it would be a second
+                   way to change a size that is currently "all of it". *@
+                <button type="button"
+                        id="@SamElementIds.PanelRestore"
+                        class="sam-panel__btn"
+                        aria-label="@Localize["Coach_PanelRestore"]"
+                        title="@Localize["Coach_PanelRestore"]"
+                        @onclick="OnRestore">
+                    <i class="bi bi-fullscreen-exit" aria-hidden="true"></i>
+                </button>
+            }
+            else
+            {
+                @if (VisualState == SamOverlayVisualState.Compact)
+                {
+                    <button type="button"
+                            id="@SamElementIds.PanelExpand"
+                            class="sam-panel__btn"
+                            aria-label="@Localize["Coach_PanelExpand"]"
+                            title="@Localize["Coach_PanelExpand"]"
+                            @onclick="OnExpand">
+                        <i class="bi bi-arrows-angle-expand" aria-hidden="true"></i>
+                    </button>
+                }
+                else
+                {
+                    @* Shrinks the panel; it does not close it. This used to be wired to the same
+                       callback as the X, so a control announced as "Compact panel" dismissed the
+                       conversation instead — the label and the behaviour disagreed, which for a
+                       screen-reader user is the whole of the control. *@
+                    <button type="button"
+                            id="@SamElementIds.PanelCompact"
+                            class="sam-panel__btn"
+                            aria-label="@Localize["Coach_PanelCompact"]"
+                            title="@Localize["Coach_PanelCompact"]"
+                            @onclick="OnCompact">
+                        <i class="bi bi-arrows-angle-contract" aria-hidden="true"></i>
+                    </button>
+                }
+
+                <button type="button"
+                        id="@SamElementIds.PanelFullScreen"
+                        class="sam-panel__btn"
+                        aria-label="@Localize["Coach_PanelFullScreen"]"
+                        title="@Localize["Coach_PanelFullScreen"]"
+                        @onclick="OnFullScreen">
+                    <i class="bi bi-arrows-fullscreen" aria-hidden="true"></i>
+                </button>
+            }
+
+            <button type="button"
+                    id="@SamElementIds.PanelClose"
+                    class="sam-panel__btn"
+                    aria-label="@Localize["Coach_PanelClose"]"
+                    title="@Localize["Coach_PanelClose"]"
+                    @onclick="OnCollapse">
+                <i class="bi bi-x-lg" aria-hidden="true"></i>
+            </button>
+        </div>
+    </div>
+
+    <div class="sam-panel__body">
+        @if (_showConversations)
+        {
+            <div class="coach-conversations-drawer" id="coach-conversations-drawer">
+                <CoachConversationList OnConversationOpened="CloseConversations" />
+            </div>
+        }
+
+        <CoachChatPane />
+
+        <div class="sam-panel__composer">
+            <CoachComposer EnterSends="@(IsWide)" />
+        </div>
+    </div>
+</aside>
+
+@code {
+    [Parameter] public SamOverlayVisualState VisualState { get; set; }
+    [Parameter] public int ViewportWidth { get; set; }
+    [Parameter] public EventCallback OnCollapse { get; set; }
+    [Parameter] public EventCallback OnExpand { get; set; }
+    [Parameter] public EventCallback OnCompact { get; set; }
+    [Parameter] public EventCallback OnFullScreen { get; set; }
+    [Parameter] public EventCallback OnRestore { get; set; }
+
+    private bool _showConversations;
+
+    private string VisualStateCss => VisualState switch
+    {
+        SamOverlayVisualState.Compact => "compact",
+        SamOverlayVisualState.Expanded => "expanded",
+        SamOverlayVisualState.FullScreen => "fullscreen",
+        _ => "compact"
+    };
+
+    private bool IsFullScreen => VisualState == SamOverlayVisualState.FullScreen;
+
+    private IJSObjectReference? _autoScroll;
+    private IJSObjectReference? _jsModule;
+    private SamOverlayVisualState? _appliedVisualState;
+    private bool _pendingResize;
+
+    /// <summary>
+    /// True where a bare Enter sends. Full screen is wide by construction whatever the window is,
+    /// so it takes the wide behaviour rather than asking the viewport a second time.
+    /// </summary>
+    private bool IsWide => IsFullScreen || ViewportWidth >= 992;
+
+    /// <summary>
+    /// Opens or closes the conversation shelf, returning focus to the toggle when closing.
+    /// </summary>
+    /// <remarks>
+    /// Mirrors <c>CoachWorkspaceOverlay.ToggleConversations</c>: without the explicit focus return
+    /// a keyboard user who closes the drawer loses focus to the document body because the element
+    /// they were on unmounts.
+    /// </remarks>
+    private async Task ToggleConversations()
+    {
+        _showConversations = !_showConversations;
+
+        if (!_showConversations && RendererInfo.IsInteractive)
+        {
+            await FocusToggleAsync();
+        }
+    }
+
+    private async Task CloseConversations()
+    {
+        _showConversations = false;
+
+        if (RendererInfo.IsInteractive)
+        {
+            await FocusToggleAsync();
+        }
+    }
+
+    private async Task FocusToggleAsync()
+    {
+        try
+        {
+            _jsModule ??= await JS.InvokeAsync<IJSObjectReference>(
+                "import", "./_content/SentenceStudio.UI/js/app.js");
+            await _jsModule.InvokeVoidAsync("focusElement", "coach-conversations-toggle");
+        }
+        catch (JSDisconnectedException) { }
+        catch (ObjectDisposedException) { }
+    }
+
+    protected override void OnInitialized()
+    {
+        Localize.CultureChanged += OnChanged;
+        Persona.Changed += OnChanged;
+        Conversations.Changed += OnChanged;
+    }
+
+    /// <summary>
+    /// Tells the conversation a size change is coming, before the new class is applied.
+    /// </summary>
+    /// <remarks>
+    /// The reader's position has to be read while it is still true. Once the panel has been
+    /// re-laid-out the browser has clamped <c>scrollTop</c> to the new bounds and there is no way
+    /// to tell a follower from somebody who was reading halfway up — and the conversation's own
+    /// height moves with the measure, so a smaller panel makes the same messages taller and looks
+    /// exactly like new ones arriving.
+    /// </remarks>
+    protected override async Task OnParametersSetAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        if (_appliedVisualState is null)
+        {
+            // First pass. Opening the panel is not a resize: there is no previous size to carry a
+            // position across from, and the conversation opens at its newest message anyway.
+            _appliedVisualState = VisualState;
+            return;
+        }
+
+        if (_appliedVisualState == VisualState)
+        {
+            return;
+        }
+
+        _pendingResize = true;
+        await InvokeAutoScrollAsync("beginCoachViewportChange");
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!RendererInfo.IsInteractive || !_pendingResize)
+        {
+            return;
+        }
+
+        // Closed only after the render that applied the new size, so the correction is measured
+        // against the panel the learner is now looking at.
+        _pendingResize = false;
+        _appliedVisualState = VisualState;
+        await InvokeAutoScrollAsync("endCoachViewportChange");
+    }
+
+    private async Task InvokeAutoScrollAsync(string function)
+    {
+        try
+        {
+            _autoScroll ??= await JS.InvokeAsync<IJSObjectReference>(
+                "import", "./_content/SentenceStudio.UI/js/coach-autoscroll.js");
+            await _autoScroll.InvokeVoidAsync(function, CoachElementIds.Messages);
+        }
+        catch (JSDisconnectedException) { }
+        catch (ObjectDisposedException) { }
+    }
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public async ValueTask DisposeAsync()
+    {
+        Localize.CultureChanged -= OnChanged;
+        Persona.Changed -= OnChanged;
+        Conversations.Changed -= OnChanged;
+
+        try
+        {
+            if (_pendingResize)
+            {
+                // A bracket left open would stop the conversation following for the rest of the
+                // session, and the panel can be torn down mid-transition by a sign-out.
+                await InvokeAutoScrollAsync("endCoachViewportChange");
+            }
+
+            if (_autoScroll is not null)
+            {
+                await _autoScroll.DisposeAsync();
+            }
+
+            if (_jsModule is not null)
+            {
+                await _jsModule.DisposeAsync();
+            }
+        }
+        catch
+        {
+            // Circuit already torn down.
+        }
+    }
+}

@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The production reviewer path for the Sam opportunity ledger.
+
+    Deliberately a console tool rather than an HTTP route. The operator review surface can decrypt
+    learner messages, so it is Development-only until this codebase has an admin authorization
+    primitive; adding an admin-shaped endpoint to ship the digest would have meant inventing that
+    primitive under time pressure. This runs out-of-band for an operator who already holds database
+    credentials — an authorization boundary that already exists and is already audited by Azure.
+
+    It references SentenceStudio.Api for one reason: CoachDbContext and the digest projection live
+    there, and a second copy of the model is a second copy to drift.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>SentenceStudio.Tools.SamOpportunityDigest</RootNamespace>
+    <AssemblyName>sam-opportunity-digest</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <PublishSelfContained>false</PublishSelfContained>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SentenceStudio.Api\SentenceStudio.Api.csproj" />
+  </ItemGroup>
+
+</Project>

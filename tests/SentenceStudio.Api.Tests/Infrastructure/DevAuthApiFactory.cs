@@ -25,9 +25,10 @@ public class DevAuthApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("AI:OpenAI:ApiKey", "test-openai-key");
         builder.UseSetting("ElevenLabsKey", "test-elevenlabs-key");
 
-        builder.ConfigureServices(services =>
+        builder.ConfigureServices((context, services) =>
         {
             TestApiHostConfigurator.ConfigureSqliteDatabaseAndSync(services, _dbPath);
+            TestApiHostConfigurator.AddStubChatClientWhenAiUnconfigured(services, context.Configuration);
         });
     }
 

@@ -28,7 +28,12 @@ public sealed class LlmPlanGenerator : ILlmPlanGenerator
     }
 
     public async Task<PlanSkeleton?> GenerateAsync(string? userProfileId = null, CancellationToken ct = default)
+        => await GenerateAsync(new PlanBuildRequest { UserProfileId = userProfileId }, ct).ConfigureAwait(false);
+
+    public async Task<PlanSkeleton?> GenerateAsync(PlanBuildRequest request, CancellationToken ct = default)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
         _logger.LogInformation(
             "LlmPlanGenerator: v1 implementation defers to deterministic generator. Real LLM-augmented narrative is a v2 deliverable.");
 
@@ -36,6 +41,8 @@ public sealed class LlmPlanGenerator : ILlmPlanGenerator
         // surfaces a compile error rather than a silent regression.
         _ = _chatClient;
 
-        return await _deterministic.GenerateAsync(userProfileId, ct).ConfigureAwait(false);
+        // Forward the full request so constraints and the pure-preview write
+        // policy are not silently dropped when the LLM strategy is selected.
+        return await _deterministic.GenerateAsync(request, ct).ConfigureAwait(false);
     }
 }

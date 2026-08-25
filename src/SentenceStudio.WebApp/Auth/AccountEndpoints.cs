@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using SentenceStudio.Abstractions;
 using SentenceStudio.Data;
 using SentenceStudio.Services;
+using SentenceStudio.Shared.Diagnostics;
 using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.WebApp.Auth;
@@ -120,8 +121,15 @@ public static class AccountEndpoints
 
                 if (existing is not null)
                 {
-                    logger.LogInformation("Linked existing UserProfile {ProfileId} (Name={Name}, Email={PEmail}) to user {Email}",
-                        existing.Id, existing.Name, existing.Email, userEmail);
+                    // The profile id and the Identity id are the join keys an operator needs to
+                    // follow this link through the rest of the log. The display name and the two
+                    // addresses only say who the learner is.
+                    logger.LogInformation(
+                        "Linked existing UserProfile {ProfileId} (DisplayName={DisplayNamePresence}) to user {UserId} {Email}",
+                        existing.Id,
+                        AuthLogRedaction.DescribeDisplayName(existing.Name),
+                        user.Id,
+                        AuthLogRedaction.MaskEmail(userEmail));
                     user.UserProfileId = existing.Id;
                 }
                 else
@@ -138,8 +146,9 @@ public static class AccountEndpoints
                     db.UserProfiles.Add(profile);
                     await db.SaveChangesAsync();
                     user.UserProfileId = profile.Id;
-                    logger.LogInformation("Created new UserProfile {ProfileId} for user {Email} (no match found among {Count} profiles)",
-                        profile.Id, userEmail, await db.UserProfiles.CountAsync());
+                    logger.LogInformation(
+                        "Created new UserProfile {ProfileId} for user {UserId} {Email} (no match found among {Count} profiles)",
+                        profile.Id, user.Id, AuthLogRedaction.MaskEmail(userEmail), await db.UserProfiles.CountAsync());
                 }
                 await userManager.UpdateAsync(user);
             }
@@ -220,9 +229,15 @@ public static class AccountEndpoints
 
                 if (env.IsDevelopment())
                 {
+                    // Development-only convenience: this is the local stand-in for opening the
+                    // mail client, so the link has to be usable verbatim and the reset URL carries
+                    // the address in its query string. Gated on IsDevelopment so it can never run
+                    // in the deployed environment; the recipient attribute is still masked so the
+                    // address is not independently searchable.
+                    // allow:auth-log — dev-only reset link, see comment above
                     logger.LogInformation(
                         "--- PASSWORD RESET LINK ---\nFor: {Email}\nReset URL: {ResetUrl}\n--- Copy and paste this URL into your browser ---",
-                        email, resetUrl);
+                        AuthLogRedaction.MaskEmail(email), resetUrl);
                 }
             }
 

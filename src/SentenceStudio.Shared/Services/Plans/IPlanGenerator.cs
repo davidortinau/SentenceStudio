@@ -26,6 +26,19 @@ public interface IPlanGenerator
     /// API break.
     /// </remarks>
     Task<PlanSkeleton?> GenerateAsync(string? userProfileId = null, CancellationToken ct = default);
+
+    /// <summary>
+    /// Build a plan skeleton for a typed <see cref="PlanBuildRequest"/>,
+    /// honoring optional <see cref="PlanConstraints"/> and the request's write
+    /// policy (a pure preview performs zero database writes).
+    /// </summary>
+    /// <remarks>
+    /// The default implementation exists only so existing test doubles and
+    /// third-party implementers keep compiling; it drops constraints and the
+    /// write policy on the floor. Every real generator MUST override it.
+    /// </remarks>
+    Task<PlanSkeleton?> GenerateAsync(PlanBuildRequest request, CancellationToken ct = default)
+        => GenerateAsync(request.UserProfileId, ct);
 }
 
 /// <summary>

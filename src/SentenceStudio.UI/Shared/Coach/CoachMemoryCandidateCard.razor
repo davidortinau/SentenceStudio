@@ -1,0 +1,168 @@
+@using SentenceStudio.Contracts.LearnerMemory
+@inject BlazorLocalizationService Localize
+@inject CoachWorkspaceState Coach
+@inject CoachMemoryDirectory Memory
+@implements IDisposable
+
+@*
+    The memory candidate for one turn. This is deliberately its own card, rendered after the
+    answer and after any plan suggestion: agreeing to be remembered is a separate consent from
+    accepting a change to Today's Plan, and a learner must be able to take one without the other.
+*@
+
+@if (Candidate is { } fact)
+{
+    <section class="coach-memory-card" role="group" aria-labelledby="coach-memory-candidate-title">
+        <h3 id="coach-memory-candidate-title" class="ss-headline">@Localize["Coach_MemoryCandidateTitle"]</h3>
+
+        <p class="ss-body2 coach-memory-value">@fact.DisplayText</p>
+
+        <dl class="coach-memory-meta ss-caption1 text-secondary-ss">
+            <dt>@Localize["Coach_MemoryScopeLabel"]</dt>
+            <dd>@ScopeText(fact)</dd>
+        </dl>
+
+        @if (_editing)
+        {
+            <div class="coach-memory-edit">
+                <label for="coach-memory-edit-input" class="ss-caption1">
+                    @Localize["Coach_MemoryEditLabel"]
+                </label>
+                <input id="coach-memory-edit-input"
+                       class="form-control"
+                       type="text"
+                       maxlength="200"
+                       @bind="_editValue"
+                       @bind:event="oninput" />
+
+                <div class="coach-memory-actions">
+                    <button type="button" class="btn btn-ss-primary coach-action"
+                            disabled="@(Memory.IsBusy || string.IsNullOrWhiteSpace(_editValue))"
+                            @onclick="SaveEditAsync">
+                        @Localize["Coach_MemorySaveEdited"]
+                    </button>
+                    <button type="button" class="btn btn-ss-secondary coach-action"
+                            disabled="@Memory.IsBusy"
+                            @onclick="CancelEdit">
+                        @Localize["Coach_Cancel"]
+                    </button>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="coach-memory-actions">
+                <button type="button" class="btn btn-ss-primary coach-action"
+                        disabled="@Memory.IsBusy" @onclick="SaveAsync">
+                    @Localize["Coach_MemorySave"]
+                </button>
+                <button type="button" class="btn btn-ss-secondary coach-action"
+                        disabled="@Memory.IsBusy" @onclick="StartEdit">
+                    @Localize["Coach_MemoryEdit"]
+                </button>
+                <button type="button" class="btn btn-ss-secondary coach-action"
+                        disabled="@Memory.IsBusy" @onclick="OnlyThisChatAsync">
+                    @Localize["Coach_MemoryOnlyThisChat"]
+                </button>
+                <button type="button" class="btn btn-ss-secondary coach-action"
+                        disabled="@Memory.IsBusy" @onclick="NotNowAsync">
+                    @Localize["Coach_MemoryNotNow"]
+                </button>
+            </div>
+        }
+
+        <p class="ss-caption1 text-secondary-ss">@Localize["Coach_MemoryCandidateExplainer"]</p>
+    </section>
+}
+
+@code {
+    private bool _editing;
+    private string _editValue = string.Empty;
+
+    private CoachMemoryFactDto? Candidate => Coach.PendingMemoryCandidate;
+
+    protected override void OnInitialized() => Memory.Changed += OnChanged;
+
+    public void Dispose() => Memory.Changed -= OnChanged;
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    private string ScopeText(CoachMemoryFactDto fact) => fact.Scope switch
+    {
+        CoachMemoryScope.Global => Localize["Coach_MemoryScopeGlobal"],
+        _ => string.IsNullOrWhiteSpace(fact.TargetLanguageCode)
+            ? Localize["Coach_MemoryScopeLanguage"]
+            : Localize.Get("Coach_MemoryScopeLanguageNamed", fact.TargetLanguageCode!)
+    };
+
+    private void StartEdit()
+    {
+        if (Candidate is not { } fact)
+        {
+            return;
+        }
+
+        _editing = true;
+
+        // Seeded with what Sam proposed, so editing is a correction rather than a retype. Only the
+        // study-goal kind carries free text; the others are chosen values and are not editable here.
+        _editValue = fact.Value.StudyGoalText ?? fact.DisplayText;
+    }
+
+    private void CancelEdit()
+    {
+        _editing = false;
+        _editValue = string.Empty;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (Candidate is { } fact)
+        {
+            await Memory.ApproveAsync(fact);
+            Coach.ClearMemoryCandidate();
+        }
+    }
+
+    private async Task SaveEditAsync()
+    {
+        if (Candidate is not { } fact || string.IsNullOrWhiteSpace(_editValue))
+        {
+            return;
+        }
+
+        // Approving with an edited value is one action. Approving first and correcting after would
+        // leave the unedited value briefly eligible for a prompt.
+        var edited = new CoachMemoryValueDto
+        {
+            Kind = fact.Kind,
+            StudyGoalText = fact.Kind == CoachMemoryKind.PersistentStudyGoal ? _editValue.Trim() : null,
+            ExplanationDepth = fact.Value.ExplanationDepth,
+            CorrectionTiming = fact.Value.CorrectionTiming,
+            ExampleRegister = fact.Value.ExampleRegister
+        };
+
+        var outcome = await Memory.ApproveAsync(fact, edited);
+
+        if (outcome == CoachMemoryOutcome.Saved)
+        {
+            CancelEdit();
+            Coach.ClearMemoryCandidate();
+        }
+    }
+
+    // "Only this chat" and "Not now" are both a refusal to persist. They read differently to a
+    // learner, and both must leave nothing behind.
+    private Task OnlyThisChatAsync() => DeclineAsync();
+
+    private Task NotNowAsync() => DeclineAsync();
+
+    private async Task DeclineAsync()
+    {
+        if (Candidate is { } fact)
+        {
+            await Memory.RejectAsync(fact);
+            Coach.ClearMemoryCandidate();
+        }
+    }
+}

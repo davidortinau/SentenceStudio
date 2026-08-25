@@ -1,8 +1,12 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Api.Coach.Persistence.Deletion;
+using SentenceStudio.Api.Coach.Persistence.History;
+using SentenceStudio.Api.Feedback.Persistence;
 using SentenceStudio.Data;
 using SentenceStudio.Services;
+using SentenceStudio.Shared.Diagnostics;
 using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Api.Auth;
@@ -57,7 +61,8 @@ public static class AuthEndpoints
 
             if (nonDuplicateErrors.Count == 0)
             {
-                logger.LogInformation("Register suppressed duplicate-user error for {Email}", request.Email);
+                logger.LogInformation("Register suppressed duplicate-user error for {Email}",
+                    AuthLogRedaction.MaskEmail(request.Email));
                 return Results.Ok(new { message = "Check your email to confirm your account." });
             }
 
@@ -91,7 +96,7 @@ public static class AuthEndpoints
 
             logger.LogInformation(
                 "--- EMAIL CONFIRMATION LINK (dev auto-confirmed) ---\nFor: {Email}\nConfirm URL: {ConfirmUrl}\n--- END ---",
-                request.Email, devConfirmUrl);
+                AuthLogRedaction.MaskEmail(request.Email), devConfirmUrl);
 
             await userManager.ConfirmEmailAsync(user, confirmToken);
 
@@ -152,7 +157,8 @@ public static class AuthEndpoints
 
         if (!await userManager.IsEmailConfirmedAsync(user))
         {
-            logger.LogInformation("Login blocked for {Email}: email not confirmed", request.Email);
+            logger.LogInformation("Login blocked for user {UserId} {Email}: email not confirmed",
+                user.Id, AuthLogRedaction.MaskEmail(request.Email));
             return Results.Unauthorized();
         }
 
@@ -166,8 +172,8 @@ public static class AuthEndpoints
             var exists = await db.UserProfiles.AnyAsync(p => p.Id == user.UserProfileId);
             if (!exists)
             {
-                logger.LogWarning("Login: UserProfileId {ProfileId} on user {Email} is stale (profile row missing); will re-link or create",
-                    user.UserProfileId, request.Email);
+                logger.LogWarning("Login: UserProfileId {ProfileId} on user {UserId} is stale (profile row missing); will re-link or create",
+                    user.UserProfileId, user.Id);
                 profileMissing = true;
             }
         }
@@ -179,8 +185,8 @@ public static class AuthEndpoints
             if (existing is not null)
             {
                 user.UserProfileId = existing.Id;
-                logger.LogInformation("Linked existing UserProfile {ProfileId} to user {Email}",
-                    existing.Id, request.Email);
+                logger.LogInformation("Linked existing UserProfile {ProfileId} to user {UserId}",
+                    existing.Id, user.Id);
             }
             else
             {
@@ -197,8 +203,8 @@ public static class AuthEndpoints
                 await db.SaveChangesAsync();
                 user.UserProfileId = profile.Id;
 
-                logger.LogInformation("Created missing UserProfile {ProfileId} for user {Email}",
-                    profile.Id, request.Email);
+                logger.LogInformation("Created missing UserProfile {ProfileId} for user {UserId}",
+                    profile.Id, user.Id);
             }
             await userManager.UpdateAsync(user);
         }
@@ -368,9 +374,14 @@ public static class AuthEndpoints
 
             if (env.IsDevelopment())
             {
+                // Development-only convenience: the local stand-in for opening the mail client, so
+                // the link has to be usable verbatim and a reset URL carries the address in its
+                // query string. Gated on IsDevelopment so it can never run in the deployed
+                // environment; the recipient attribute is still masked.
+                // allow:auth-log — dev-only reset link, see comment above
                 logger.LogInformation(
                     "--- PASSWORD RESET LINK ---\nFor: {Email}\nReset URL: {ResetUrl}\n--- Copy and paste this URL into your browser ---",
-                    request.Email, resetUrl);
+                    AuthLogRedaction.MaskEmail(request.Email), resetUrl);
             }
         }
 
@@ -412,7 +423,10 @@ public static class AuthEndpoints
     private static async Task<IResult> DeleteAccount(
         HttpContext context,
         UserManager<ApplicationUser> userManager,
-        ApplicationDbContext db)
+        ApplicationDbContext db,
+        ICoachDataDeletionService coachDeletion,
+        IFeedbackDataDeletionService feedbackDeletion,
+        ILoggerFactory loggerFactory)
     {
         var userId = context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
         if (string.IsNullOrEmpty(userId))
@@ -421,6 +435,82 @@ public static class AuthEndpoints
         var user = await userManager.FindByIdAsync(userId);
         if (user is null)
             return Results.NotFound(new { error = "Account not found." });
+
+        var logger = loggerFactory.CreateLogger("SentenceStudio.Api.Auth.DeleteAccount");
+
+        // Coach data goes first, while UserProfileId still resolves to someone.
+        //
+        // Coach rows are keyed on UserProfileId and live in their own context. Deleting the
+        // profile first orphans them: the learner's protected conversation payloads stay in the
+        // database, unreachable through every application path but still present in the table and
+        // in every backup taken afterwards. The account then reports a successful deletion that
+        // did not happen. So the order is coach data, then profile, then identity — and a coach
+        // failure stops the whole thing.
+        if (!string.IsNullOrEmpty(user.UserProfileId)
+            && CoachOwner.TryCreate(user.UserProfileId, tenantId: null, out var coachOwner))
+        {
+            var report = await coachDeletion.DeleteAllForOwnerAsync(coachOwner, context.RequestAborted);
+
+            if (!report.Succeeded)
+            {
+                // Fail closed. Keeping the account is recoverable — the learner can retry, and
+                // support can act. Reporting success while the coach rows survive is not.
+                logger.LogError(
+                    "Account deletion stopped: coach data could not be erased. Reason={FailureCode} " +
+                    "DataWasRemoved={DataWasRemoved}",
+                    report.FailureCode, report.DataWasRemoved);
+
+                // "Nothing was removed" has to be true when it is said. It is true only when the
+                // erasure rolled back cleanly; a partial pass that already committed some rows must
+                // say so, or the learner is told their conversations are intact when they are gone.
+                var detail = report.DataWasRemoved
+                    ? "The account could not be deleted because some data could not be erased. "
+                      + "Part of your data has already been removed and cannot be restored. "
+                      + "Please try again to finish removing the rest."
+                    : "The account could not be deleted because some data could not be erased. "
+                      + "Nothing was removed. Please try again.";
+
+                return Results.Problem(
+                    detail: detail,
+                    statusCode: StatusCodes.Status500InternalServerError);
+            }
+
+            logger.LogInformation(
+                "Coach data erased ahead of account deletion. RowCount={RowCount}",
+                report.RowsDeleted);
+        }
+
+        // Feedback rows go next, and for the same reason coach data went first: they are keyed on
+        // UserProfileId, and once the profile row is gone that key resolves to nobody, so the rows
+        // survive every application path while remaining in the table and in every later backup.
+        //
+        // Fail closed, like the coach pass. The submission ledger is what links this learner to the
+        // public issues they filed; leaving it behind while reporting a successful deletion would
+        // be telling them that association is gone when it is not.
+        if (!string.IsNullOrEmpty(user.UserProfileId))
+        {
+            var feedbackReport = await feedbackDeletion
+                .DeleteAllForOwnerAsync(user.UserProfileId, context.RequestAborted);
+
+            if (!feedbackReport.Succeeded)
+            {
+                logger.LogError(
+                    "Account deletion stopped: feedback data could not be erased. Reason={FailureCode}",
+                    feedbackReport.FailureCode);
+
+                // Coach data is already gone at this point, so "nothing was removed" would be
+                // false. Say what is true.
+                return Results.Problem(
+                    detail: "The account could not be deleted because some data could not be "
+                          + "erased. Part of your data has already been removed and cannot be "
+                          + "restored. Please try again to finish removing the rest.",
+                    statusCode: StatusCodes.Status500InternalServerError);
+            }
+
+            logger.LogInformation(
+                "Feedback data erased ahead of account deletion. RowCount={RowCount}",
+                feedbackReport.RowsDeleted);
+        }
 
         // Delete UserProfile if linked
         if (!string.IsNullOrEmpty(user.UserProfileId))

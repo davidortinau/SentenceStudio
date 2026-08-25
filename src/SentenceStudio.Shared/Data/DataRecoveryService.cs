@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Abstractions;
+using SentenceStudio.Shared.Diagnostics;
 
 namespace SentenceStudio.Data;
 
@@ -395,15 +396,12 @@ public class DataRecoveryService
     /// <summary>
     /// Returns a partially-redacted email for safe use in warning logs.
     /// "dave@ortinau.com" → "dav***@ortinau.com"
-    /// Keeps first 3 chars of local-part and full domain for incident tracing without
-    /// storing a complete PII record in telemetry.
     /// </summary>
-    private static string MaskEmail(string email)
-    {
-        if (string.IsNullOrEmpty(email)) return "(empty)";
-        var atIndex = email.IndexOf('@');
-        if (atIndex <= 0) return "***";
-        var prefix = email[..Math.Min(3, atIndex)];
-        return $"{prefix}***{email[atIndex..]}";
-    }
+    /// <remarks>
+    /// Delegates to <see cref="AuthLogRedaction.MaskEmail"/>. This used to be a private copy of the
+    /// same four lines, and the copy had drifted: it revealed the whole local part for addresses
+    /// with three or fewer characters before the "@", which is exactly the short address most
+    /// likely to be a real person's initials.
+    /// </remarks>
+    private static string MaskEmail(string email) => AuthLogRedaction.MaskEmail(email);
 }

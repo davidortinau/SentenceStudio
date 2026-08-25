@@ -74,6 +74,10 @@ public class ExtractedVocabularyItemWithConfidence
             Lemma = TargetLanguageTerm, // Free-text extraction doesn't decompose lemmas
             Language = language,
             Tags = tagsList.Any() ? string.Join("; ", tagsList) : null,
+            // Persist the part of speech the extractor already produced. Before
+            // this it was computed and discarded, so nothing downstream could
+            // ground a request like "focus on active verbs".
+            PartOfSpeech = VocabularyPartOfSpeechTokens.FromToken(PartOfSpeech),
             LexicalUnitType = LexicalUnitType
         };
     }

@@ -1,0 +1,106 @@
+@inject BlazorLocalizationService Localize
+
+@*
+    One vocabulary focus, projected for display.
+
+    The learner's own words, in the server's rank order. The order is meaningful, so this is an
+    ordered list and the order is never re-sorted here.
+
+    What this deliberately does NOT show: vocabulary identifiers, due dates, mastery or progress,
+    metadata stamps, or the query behind the selection. The contract carries none of them, and the
+    copy avoids review language too — a learner reading "due" would take it as a schedule they
+    have to keep, which is not what a focus is.
+*@
+
+@if (Renderable is { } focus)
+{
+    <section class="coach-focus" aria-labelledby="@($"{IdPrefix}-heading")">
+        <CoachHeading Level="@HeadingLevel" Class="ss-body2 fw-semibold mb-1" Id="@($"{IdPrefix}-heading")">
+            <i class="bi bi-bookmark-star me-1" aria-hidden="true"></i>@Heading(focus)
+        </CoachHeading>
+
+        @* The count is read out as a sentence rather than left as a bare numeral beside a list,
+           so a screen reader announces how many words there are before reading them. *@
+        <p class="ss-caption1 text-secondary-ss mb-1">@CountText(focus)</p>
+
+        @if (focus.Words.Count > 0)
+        {
+            <ol class="coach-focus-words list-unstyled mb-0">
+                @foreach (var word in focus.Words)
+                {
+                    <li class="coach-focus-word">
+                        <span class="coach-focus-term" lang="@TargetTag(word)">@word.TargetText</span>
+                        @if (Gloss(word) is { } gloss)
+                        {
+                            <span class="coach-focus-gloss" lang="@gloss.Tag">@gloss.Text</span>
+                        }
+                    </li>
+                }
+            </ol>
+        }
+    </section>
+}
+
+@code {
+    /// <summary>The projected focus. Null renders nothing at all.</summary>
+    [Parameter] public CoachVocabularyFocusDto? Focus { get; set; }
+
+    /// <summary>Heading level appropriate to the host composition.</summary>
+    [Parameter] public int HeadingLevel { get; set; } = 3;
+
+    /// <summary>Unique id stem, so several focus sections can coexist without colliding.</summary>
+    [Parameter] public string IdPrefix { get; set; } = "coach-focus";
+
+    /// <summary>
+    /// Overrides the section heading. Used where the focus is being reported rather than simply
+    /// listed — a receipt says what was applied, an undo says what came back.
+    /// </summary>
+    [Parameter] public string? HeadingTextKey { get; set; }
+
+    /// <summary>
+    /// Nothing to show is a normal state, not an empty one: a plan with no focus, or a resolver
+    /// outcome that found no matches, must render no card at all rather than an empty shell.
+    /// </summary>
+    private CoachVocabularyFocusDto? Renderable =>
+        Focus is { } focus && (focus.Words.Count > 0 || focus.SelectedCount > 0) ? focus : null;
+
+    private string Heading(CoachVocabularyFocusDto focus) =>
+        HeadingTextKey is { } key
+            ? Localize[key]
+            : Localize.Get("Coach_FocusHeading", DisplayLabel(focus));
+
+    /// <summary>
+    /// The server's localized label, with a neutral fallback. An empty label must not leave the
+    /// heading reading as a dangling preposition.
+    /// </summary>
+    private string DisplayLabel(CoachVocabularyFocusDto focus) =>
+        string.IsNullOrWhiteSpace(focus.DisplayLabel)
+            ? Localize["Coach_FocusGenericLabel"]
+            : focus.DisplayLabel;
+
+    /// <summary>
+    /// How many words are in play. The eligible total is only worth saying when it is larger than
+    /// the selection — "5 of 5" tells the learner nothing and reads like a score.
+    /// </summary>
+    private string CountText(CoachVocabularyFocusDto focus) =>
+        focus.EligibleCount > focus.SelectedCount
+            ? Localize.Get("Coach_FocusCountOfEligible", focus.SelectedCount, focus.EligibleCount)
+            : Localize.Get("Coach_FocusCount", focus.SelectedCount);
+
+    /// <summary>
+    /// The target tag, resolved by the server. A blank tag must not emit <c>lang=""</c>: telling
+    /// assistive tech the language is unknown is worse than saying nothing.
+    /// </summary>
+    private static string? TargetTag(CoachVocabularyFocusWordDto word) =>
+        string.IsNullOrWhiteSpace(word.TargetLanguageTag) ? null : word.TargetLanguageTag;
+
+    /// <summary>
+    /// The learner's own translation, when they have one and it is usable. A gloss without a
+    /// language tag is still shown — it is the learner's own text — but it inherits the page
+    /// language rather than claiming one.
+    /// </summary>
+    private static (string Text, string? Tag)? Gloss(CoachVocabularyFocusWordDto word) =>
+        string.IsNullOrWhiteSpace(word.DisplayText)
+            ? null
+            : (word.DisplayText!, string.IsNullOrWhiteSpace(word.DisplayLanguageTag) ? null : word.DisplayLanguageTag);
+}

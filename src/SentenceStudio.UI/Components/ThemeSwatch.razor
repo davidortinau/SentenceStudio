@@ -1,0 +1,62 @@
+@using SentenceStudio.Contracts.Theme
+@inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+
+@*
+    One theme swatch, in one place.
+
+    The picker used to be inline markup in Settings.razor with the theme's colours as its only real
+    content and the name relegated to a title attribute. That fails learners twice over: a title
+    attribute is invisible to touch and unreliable to screen readers, and identifying a choice by
+    two colour rectangles is colour-as-sole-means-of-conveying-information (WCAG 1.4.1) — a learner
+    with a colour vision deficiency reading the monochrome and slate swatches has nothing to tell
+    them apart.
+
+    So: the name is always rendered as visible text, the colour strip is decorative and hidden from
+    assistive technology, and the selected state is announced through aria-checked and shown with a
+    check glyph rather than by border colour alone.
+*@
+
+<button type="button"
+        role="radio"
+        aria-checked="@IsSelected.ToString().ToLowerInvariant()"
+        class="theme-swatch @(IsSelected ? "selected" : "")"
+        @onclick="HandleClick">
+    <span class="theme-swatch-colors" aria-hidden="true">
+        <span class="color-primary" style="background-color: @Palette.Primary.Hex"></span>
+        <span class="color-accent" style="background-color: @Palette.Accent.Hex"></span>
+    </span>
+    <span class="theme-swatch-label">
+        @if (IsSelected)
+        {
+            <i class="bi bi-check-circle-fill me-1" aria-hidden="true"></i>
+        }
+        @DisplayName
+    </span>
+</button>
+
+@code {
+    /// <summary>The theme this swatch offers. Always a catalogue member — never a loose id.</summary>
+    [Parameter, EditorRequired]
+    public ThemeDescriptor Theme { get; set; } = default!;
+
+    /// <summary>
+    /// The mode currently in force, so the preview shows the colours the learner would actually get
+    /// rather than the light-mode palette of a theme they are viewing in dark.
+    /// </summary>
+    [Parameter, EditorRequired]
+    public ThemeMode Mode { get; set; }
+
+    /// <summary>Whether this is the theme currently applied.</summary>
+    [Parameter]
+    public bool IsSelected { get; set; }
+
+    /// <summary>Raised with this swatch's theme id when the learner picks it.</summary>
+    [Parameter]
+    public EventCallback<string> OnSelected { get; set; }
+
+    private ThemePalette Palette => Theme.PaletteFor(Mode);
+
+    private string DisplayName => $"{Localize[Theme.LocalizationKey]}";
+
+    private Task HandleClick() => OnSelected.InvokeAsync(Theme.Id);
+}

@@ -304,7 +304,7 @@
         AppState.CurrentUserProfile = null;
 
         var baseUri = NavManager.BaseUri;
-        var isWeb = !baseUri.StartsWith("app://") && !baseUri.Contains("0.0.0.0");
+        var isWeb = BlazorHostKind.IsWebHost(baseUri);
         NavManager.NavigateTo(isWeb ? "/account-action/SignOut" : "/auth/login", forceLoad: isWeb);
     }
 
@@ -410,7 +410,9 @@
 
         Preferences.Set("is_onboarded", true);
         Preferences.Set("app_is_authenticated", true);
-        NavManager.NavigateTo("/", forceLoad: true);
+        // In-app route. On a BlazorWebView a forced load would destroy the renderer and the DI
+        // scope (WebViewManager.AttachToPageAsync) for nothing; the web host keeps its full load.
+        NavManager.NavigateTo("/", forceLoad: BlazorHostKind.ShouldForceLoadForCompletionRoute(NavManager.BaseUri));
     }
 
     public void Dispose()

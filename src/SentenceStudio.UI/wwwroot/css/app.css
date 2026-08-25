@@ -2272,3 +2272,1553 @@ main.main-content:has(.matching-page-wrapper) {
 .quiz-photo-thumbnail:hover {
     transform: scale(1.03);
 }
+
+/* ============================================
+   LEARNING COACH — adaptive collaboration workspace
+   ============================================
+   One shared feature, two compositions:
+     >= 768px  modal overlay hosted in MainLayout (CoachWorkspaceOverlay)
+     <  768px  full-screen /coach route on the canonical activity shell (Coach.razor)
+   768px is the repo's existing structural breakpoint (sidebar is d-none d-md-flex;
+   mobile chrome lives in @media (max-width: 767.98px)). Do NOT invent another one.
+
+   Rules honoured here:
+   - Theme tokens only. No hex, no rgb literals.
+   - Every coach font size scales with --ss-font-scale; no fixed panel heights.
+   - Touch targets >= 44px at EVERY breakpoint (.btn min-height:44px is mobile-only
+     in this stylesheet, so coach actions carry their own floor).
+   - dvh, not vh: MainLayout uses vh-100 which mis-measures under iOS dynamic toolbars.
+     Scoped to the coach only; MainLayout is not refactored here.
+   ============================================ */
+
+/* Tokens are defined on the MODAL, not on .coach-workspace, because .modal-dialog is an
+   ANCESTOR of the workspace and has to size itself from them. When they lived on the
+   workspace the dialog could not read them, fell back to 100vw/100dvh, and covered the
+   whole viewport — so there was no backdrop left to click and click-outside dismiss was
+   impossible. The mobile route reuses the same tokens via .coach-page. */
+.modal.coach-modal,
+.coach-page {
+    /* Full-bleed degradation is the <992px default; wider tiers override below. */
+    --coach-width: 100vw;
+    --coach-height: 100dvh;
+    --coach-min-height: 0;
+    --coach-canvas-w: 0px;
+    --coach-chat-min: 320px;
+    --coach-header-h: 56px;
+    --coach-composer-min-h: 76px;
+}
+
+.coach-workspace {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: var(--coach-height);
+    min-height: var(--coach-min-height);
+    max-height: var(--coach-height);
+    background: var(--ss-surface-elevated, var(--bs-body-bg));
+    color: var(--bs-body-color);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0;
+    overflow: hidden;
+}
+
+/* --- z-index budget ------------------------------------------------------
+   page-header 1030 | bootstrap modal ~1055 | scene gallery 1060/1070
+   coach backdrop 1062 | coach panel 1064 | toasts 1080/1090 | quiz fullscreen 1100
+   The coach sits below toasts on purpose — coach outcomes must never be toasts. */
+.modal.coach-modal { z-index: 1064; }
+body.coach-open .modal-backdrop { z-index: 1062; }
+
+.modal.coach-modal .modal-dialog.coach-dialog {
+    width: var(--coach-width);
+    max-width: var(--coach-width);
+    margin-inline: auto;
+}
+
+.modal.coach-modal .modal-content {
+    background: transparent;
+    border: 0;
+    /* Bootstrap leaves .modal-dialog at pointer-events:none and re-enables it here, which is
+       exactly what makes a click beside the panel land on the backdrop and dismiss. Do not
+       widen this beyond the panel. */
+    width: 100%;
+}
+
+/* Toast fallback: if any shared code toasts while the coach is open, lift the
+   toast stack clear of the coach composer instead of covering it. */
+body.coach-open .toast-container-ss {
+    bottom: calc(1rem + var(--coach-composer-min-h, 76px));
+}
+
+@media (min-width: 992px) {
+    .modal.coach-modal,
+    .coach-page {
+        --coach-width: min(94vw, 1120px);
+        --coach-height: min(88dvh, 880px);
+        --coach-min-height: 560px;
+        --coach-canvas-w: 360px;
+        --coach-chat-min: 420px;
+    }
+    .coach-workspace {
+        border-radius: 1rem;
+    }
+}
+
+@media (min-width: 1200px) {
+    .modal.coach-modal,
+    .coach-page {
+        --coach-width: min(92vw, 1240px);
+        --coach-height: min(88dvh, 920px);
+        --coach-canvas-w: 400px;
+        --coach-chat-min: 480px;
+    }
+}
+
+@media (min-width: 1440px) {
+    .modal.coach-modal,
+    .coach-page {
+        --coach-width: min(88vw, 1360px);
+        --coach-height: min(86dvh, 960px);
+        --coach-canvas-w: 440px;
+        --coach-chat-min: 520px;
+    }
+}
+
+/* Tablet band (768–991px) keeps a rounded card but uses tabs, not a split. */
+@media (min-width: 768px) and (max-width: 991.98px) {
+    .modal.coach-modal,
+    .coach-page {
+        --coach-width: 94vw;
+        --coach-height: 92dvh;
+    }
+    .coach-workspace {
+        border-radius: 1rem;
+    }
+}
+
+/* Full-bleed degradation when the window is narrowed mid-session. The overlay
+   degrades in place — resizing never navigates, which would destroy the composer
+   draft and scroll position. */
+@media (max-width: 767.98px) {
+    .modal.coach-modal,
+    .coach-page {
+        --coach-width: 100vw;
+        --coach-height: 100dvh;
+    }
+    .coach-workspace {
+        border-radius: 0;
+        border: 0;
+    }
+    .coach-header {
+        padding-top: calc(0.5rem + env(safe-area-inset-top, 0px));
+    }
+}
+
+/* --- header -------------------------------------------------------------- */
+.coach-header {
+    flex-shrink: 0;
+    min-height: var(--coach-header-h);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--bs-border-color);
+    background: var(--bs-body-bg);
+}
+
+.coach-header h2 {
+    font-size: calc(17px * var(--ss-font-scale, 1));
+    font-weight: 600;
+    margin: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.coach-status-chip {
+    font-size: calc(12px * var(--ss-font-scale, 1));
+    border: 1px solid var(--bs-border-color);
+    border-radius: 999px;
+    padding: 0.15rem 0.6rem;
+    color: var(--bs-secondary-color);
+    background: var(--bs-tertiary-bg);
+    white-space: nowrap;
+}
+
+/* --- body grid ----------------------------------------------------------- */
+.coach-body {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: 1fr;
+}
+
+@media (min-width: 992px) {
+    .coach-body.coach-body-split {
+        grid-template-columns: minmax(var(--coach-chat-min), 1fr) var(--coach-canvas-w);
+    }
+}
+
+.coach-chat-column {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+}
+
+/* Canvas closed: cap the measure of the READING column. Full-bleed chat at 1360px produces
+   ~150-character lines; comfortable measure is 45-75 characters. */
+.coach-body:not(.coach-body-split) .coach-chat-column .coach-messages {
+    max-width: 760px;
+    margin-inline: auto;
+    width: 100%;
+}
+
+/* The composer is not reading material, it is the bottom edge of the dialog. Capping it left
+   the input floating in the middle with a truncated border and dead space either side; the bar
+   now spans the modal content while its CONTENTS stay on the same measure as the messages
+   above, so the caret still lines up with the text it will join. */
+.coach-body:not(.coach-body-split) .coach-chat-column .coach-composer-wrap {
+    width: 100%;
+    max-width: none;
+    margin-inline: 0;
+}
+
+.coach-body:not(.coach-body-split) .coach-chat-column .coach-composer-wrap > * {
+    max-width: 760px;
+    margin-inline: auto;
+}
+
+.coach-messages {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0.75rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.coach-message {
+    max-width: 68ch;
+    font-size: calc(15px * var(--ss-font-scale, 1));
+    line-height: 1.5;
+}
+
+/* --- jump to the latest message ------------------------------------------
+   Offered when the conversation deliberately did not follow: the reader had scrolled up, or a
+   block arrived that is tall enough that scrolling to the end would have hidden its beginning.
+
+   The anchor is a zero-height sticky row, so it pins to the bottom of whichever ancestor scrolls
+   — the conversation itself in the overlay, the activity shell on the route — without either
+   composition declaring which one it is, and without adding a reserved strip above the composer.
+   It is always in the DOM: mounting it on demand would change the content height, which is the
+   exact signal the observer reads as "a new message arrived". */
+.coach-jump-anchor {
+    position: sticky;
+    bottom: 0;
+    z-index: 3;
+    height: 0;
+    display: flex;
+    justify-content: center;
+    /* The row spans the full measure; only the button may take a pointer. */
+    pointer-events: none;
+}
+
+.coach-jump-latest {
+    pointer-events: auto;
+    /* 44px is the minimum comfortable touch target, and this control is reached mid-scroll. */
+    min-width: 44px;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 999px;
+    background: var(--bs-body-bg);
+    color: var(--bs-body-color);
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18);
+    cursor: pointer;
+    /* Lifted clear of the composer edge without occupying flow height. */
+    transform: translateY(-0.75rem);
+    transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.coach-jump-latest[hidden] {
+    display: none;
+}
+
+.coach-jump-latest:hover,
+.coach-jump-latest:focus-visible {
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.24);
+    transform: translateY(-0.9rem);
+}
+
+.coach-jump-latest:focus-visible {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 2px;
+}
+
+.coach-jump-latest i {
+    font-size: 1.1rem;
+    line-height: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .coach-jump-latest {
+        transition: none;
+    }
+
+    .coach-jump-latest:hover,
+    .coach-jump-latest:focus-visible {
+        transform: translateY(-0.75rem);
+    }
+}
+
+.coach-message-role {
+    font-size: calc(12px * var(--ss-font-scale, 1));
+    font-weight: 600;
+    color: var(--bs-secondary-color);
+    margin-bottom: 0.15rem;
+}
+
+/* The learner's own turns. Distinguished three ways so none of them has to carry the meaning
+   alone: the "You" role label above the text, the alignment, and a tinted surface with a
+   leading edge. Theme tokens only. */
+.coach-message-learner {
+    align-self: flex-end;
+    text-align: end;
+    background-color: var(--bs-secondary-bg);
+    border-inline-end: 3px solid var(--bs-primary);
+    border-radius: var(--bs-border-radius);
+    padding: 0.5rem 0.75rem;
+}
+
+/* --- message meta: timestamp and copy ------------------------------------ */
+.coach-message-role {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+}
+
+.coach-message-learner .coach-message-role {
+    justify-content: flex-end;
+}
+
+/* Secondary to the message itself, but never below the minimum readable size, and it scales
+   with the font-size preference like everything else. */
+.coach-timestamp {
+    font-size: calc(11px * var(--ss-font-scale, 1));
+    font-weight: 400;
+    color: var(--bs-secondary-color);
+    white-space: nowrap;
+}
+
+/* The row that closes each of Sam's messages: the actions on one line, and anything a disclosure
+   opens below them.
+
+   Deliberately a plain block and NOT a flex container. The actions row inside it is the flex line;
+   a panel opened by one of those actions is a sibling of that line, not another item on it. Made a
+   flex child instead, the report form was squeezed into a share of the row beside Copy — and read
+   to assistive tech as one composite control rather than a group of actions and a form. */
+.coach-message-footer {
+    display: block;
+}
+
+.coach-message-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 0.25rem;
+}
+
+/* The full 44px target is kept even though the glyph is small: this sits next to running text
+   and is easy to miss by a few pixels. */
+.coach-copy {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    min-height: 44px;
+    min-width: 44px;
+    padding: 0 0.25rem;
+    color: var(--bs-secondary-color);
+    text-decoration: none;
+    font-size: calc(13px * var(--ss-font-scale, 1));
+}
+
+.coach-copy:hover,
+.coach-copy:focus-visible {
+    color: var(--bs-body-color);
+}
+
+.coach-copy-feedback {
+    color: var(--bs-body-color);
+}
+
+.coach-copy-label {
+    font-size: calc(12px * var(--ss-font-scale, 1));
+}
+
+/* --- report a response ---------------------------------------------------
+   The flag sits beside Copy and is the same shape of control: a quiet glyph over a full 44px
+   target. The glyph is small because this is a secondary action next to running text; the target
+   is not, because a control that is easy to miss by a few pixels is a control that gets pressed
+   by accident on the way past. */
+.coach-report-flag {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    min-width: 44px;
+    padding: 0 0.25rem;
+    color: var(--bs-secondary-color);
+    text-decoration: none;
+    font-size: calc(13px * var(--ss-font-scale, 1));
+}
+
+.coach-report-flag:hover,
+.coach-report-flag:focus-visible {
+    color: var(--bs-body-color);
+}
+
+/* Always visible, never only on hover: a keyboard user reaching this control by Tab has no
+   pointer to reveal it with, and the browser default outline is suppressed by the button reset
+   this class sits on. */
+.coach-report-flag:focus-visible,
+.coach-evidence-toggle:focus-visible {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 2px;
+    border-radius: var(--bs-border-radius);
+}
+
+/* The settled state. Deliberately not a button — there is nothing left to press — and
+   deliberately not colour-only: the filled glyph and the words both carry the meaning, so it
+   still reads for a learner who cannot distinguish the tint. */
+.coach-report-done {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    min-height: 44px;
+    padding: 0 0.25rem;
+    color: var(--bs-secondary-color);
+    font-size: calc(12px * var(--ss-font-scale, 1));
+}
+
+/* This is where focus lands after a report is filed, so it has to be able to show that it has it.
+   It carries tabindex="-1" and nothing else would draw a ring on a non-interactive span. */
+.coach-report-done:focus-visible {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 2px;
+    border-radius: var(--bs-border-radius);
+}
+
+/* Below the actions row, across the message's own column — a form, not a fourth icon on the row.
+   The measure is capped for the same reason the message text is: a line of radio labels running
+   the full width of a wide canvas is harder to scan than one that stops. */
+.coach-report-panel {
+    display: block;
+    margin-top: 0.35rem;
+    padding: 0.6rem 0.75rem;
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius);
+    background-color: var(--bs-secondary-bg);
+    max-width: 68ch;
+}
+
+.coach-report-prompt {
+    margin-bottom: 0.4rem;
+}
+
+.coach-report-reasons {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+}
+
+/* Each choice keeps a comfortable touch row on a coarse pointer without stretching the list on a
+   mouse-driven desktop, where the same height would make five options fill the message column. */
+.coach-report-reason {
+    display: flex;
+    align-items: center;
+    min-height: 32px;
+}
+
+.coach-report-reason .form-check-label {
+    font-size: calc(14px * var(--ss-font-scale, 1));
+}
+
+.coach-report-error {
+    margin-top: 0.4rem;
+    color: var(--bs-danger-text-emphasis, var(--bs-body-color));
+}
+
+.coach-report-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.6rem;
+}
+
+/* --- evidence, revealed under the claim it supports -----------------------
+   A disclosure, not a link: it expands in place rather than navigating, so the learner keeps the
+   sentence they were reading on screen while they read what it was based on. */
+.coach-evidence-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    min-height: 44px;
+    padding: 0 0.25rem;
+    color: var(--bs-secondary-color);
+    text-decoration: none;
+    font-size: calc(13px * var(--ss-font-scale, 1));
+}
+
+.coach-evidence-toggle:hover,
+.coach-evidence-toggle:focus-visible {
+    color: var(--bs-body-color);
+}
+
+.coach-evidence-inline {
+    margin-top: 0.25rem;
+    padding: 0.6rem 0.75rem;
+    border-inline-start: 3px solid var(--bs-border-color);
+    background-color: var(--bs-secondary-bg);
+    border-radius: var(--bs-border-radius);
+    max-width: 68ch;
+}
+
+.coach-evidence-item + .coach-evidence-item {
+    margin-top: 0.75rem;
+}
+
+.coach-starter-prompts {
+    margin-top: 0.5rem;
+}
+
+/* --- vocabulary focus ---------------------------------------------------- */
+/* An ordered list whose order is meaningful, so the numbers are kept and shown. They also
+   give the set a non-colour structure: the learner can see it is a ranked set without
+   relying on the accent at all. */
+.coach-focus-words {
+    counter-reset: coach-focus;
+    margin-block-start: 0.25rem;
+}
+
+.coach-focus-word {
+    counter-increment: coach-focus;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.35rem;
+    padding-inline-start: 1.6rem;
+    position: relative;
+    line-height: 1.6;
+}
+
+.coach-focus-word::before {
+    content: counter(coach-focus) ".";
+    position: absolute;
+    inset-inline-start: 0;
+    color: var(--bs-secondary-color);
+    font-size: calc(12px * var(--ss-font-scale, 1));
+}
+
+/* The term carries the target language and must stay legible when the gloss wraps away
+   from it at 200% zoom, so the pair wraps as a unit rather than being held on one line. */
+.coach-focus-term {
+    font-weight: 600;
+    font-size: calc(15px * var(--ss-font-scale, 1));
+    overflow-wrap: anywhere;
+}
+
+.coach-focus-gloss {
+    color: var(--bs-secondary-color);
+    font-size: calc(13px * var(--ss-font-scale, 1));
+    overflow-wrap: anywhere;
+}
+
+/* --- composer ------------------------------------------------------------ */
+.coach-composer-wrap {
+    flex-shrink: 0;
+    min-height: var(--coach-composer-min-h);
+    border-top: 1px solid var(--bs-border-color);
+    background: var(--bs-body-bg);
+    padding: 0.75rem 1rem;
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+}
+
+.coach-composer-wrap textarea {
+    resize: none;
+    /* 16px floor prevents iOS zoom-on-focus. Matches .activity-input-bar textarea. */
+    font-size: calc(16px * var(--ss-font-scale, 1));
+    min-height: 2.5rem;
+}
+
+.coach-input-counter {
+    font-size: calc(12px * var(--ss-font-scale, 1));
+    color: var(--bs-secondary-color);
+}
+
+.coach-input-counter.coach-over-limit {
+    color: var(--bs-danger);
+    font-weight: 600;
+}
+
+/* --- plan canvas --------------------------------------------------------- */
+.coach-canvas {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    border-left: 1px solid var(--bs-border-color);
+    background: var(--bs-tertiary-bg);
+}
+
+@media (max-width: 991.98px) {
+    .coach-canvas { border-left: 0; }
+}
+
+.coach-canvas-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0.75rem 1rem;
+}
+
+.coach-canvas-badge {
+    font-size: calc(12px * var(--ss-font-scale, 1));
+    border: 1px solid var(--bs-border-color);
+    border-radius: 999px;
+    padding: 0.1rem 0.55rem;
+    background: var(--bs-body-bg);
+    color: var(--bs-body-color);
+}
+
+.coach-plan-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.4rem 0;
+    border-bottom: 1px solid var(--bs-border-color);
+}
+
+.coach-plan-item:last-child { border-bottom: 0; }
+
+/* Change markers carry an icon and a text label, never colour alone. */
+.coach-change-marker {
+    font-size: calc(11px * var(--ss-font-scale, 1));
+    border: 1px solid var(--bs-border-color);
+    border-radius: 0.25rem;
+    padding: 0 0.35rem;
+    color: var(--bs-secondary-color);
+    white-space: nowrap;
+}
+
+/* --- practice balance ---------------------------------------------------- */
+/* WCAG 1.4.11: a bare fill is a non-text indicator, and --bs-warning against the
+   light Seoul-Pop body background is under 3:1. Every row therefore carries an
+   icon, a text label, a numeric value, and a 1px border on the track and fill. */
+.practice-balance-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.4rem;
+    font-size: calc(13px * var(--ss-font-scale, 1));
+}
+
+.practice-balance-label {
+    min-width: 5.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.practice-balance-track {
+    flex: 1;
+    height: calc(10px * var(--ss-font-scale, 1));
+    min-width: 3rem;
+    background: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.practice-balance-fill {
+    height: 100%;
+    border-right: 1px solid var(--bs-border-color);
+    border-radius: 999px 0 0 999px;
+}
+
+.practice-balance-fill-input { background: var(--bs-info); }
+.practice-balance-fill-output { background: var(--bs-warning); }
+
+.practice-balance-value {
+    min-width: 4rem;
+    text-align: end;
+    font-variant-numeric: tabular-nums;
+}
+
+/* --- cards, notices, receipts -------------------------------------------- */
+.coach-card {
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius);
+    background: var(--bs-body-bg);
+    padding: 0.75rem;
+}
+
+.coach-card-suggestion { border-left: 3px solid var(--bs-primary); }
+.coach-card-receipt { border-left: 3px solid var(--bs-success); }
+.coach-card-alert { border-left: 3px solid var(--bs-danger); }
+.coach-card-notice { border-left: 3px solid var(--bs-warning); }
+
+.coach-stage-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: calc(13px * var(--ss-font-scale, 1));
+    color: var(--bs-secondary-color);
+}
+
+/* --- touch targets ------------------------------------------------------- */
+/* .btn { min-height:44px } exists ONLY inside @media (max-width: 767.98px), so on an
+   iPad at 768–991px a plain .btn falls back to ~38px and fails WCAG 2.5.8. Every
+   coach action carries its own floor at every breakpoint. */
+.coach-action,
+.coach-workspace .btn,
+.coach-page .btn {
+    min-height: 44px;
+    min-width: 44px;
+}
+
+.coach-chip {
+    min-height: 44px;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 999px;
+    background: var(--bs-body-bg);
+    color: var(--bs-body-color);
+    padding: 0.35rem 0.85rem;
+    font-size: calc(13px * var(--ss-font-scale, 1));
+    /* Korean display language produces longer chip labels: wrap, never truncate. */
+    white-space: normal;
+}
+
+.coach-chip[aria-pressed="true"] {
+    background: var(--bs-primary);
+    border-color: var(--bs-primary);
+    color: var(--ss-on-primary, #fff);
+}
+
+.coach-chip-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+/* --- focus visibility ---------------------------------------------------- */
+/* app.css sets `outline: none !important` on main/h1/h2/h3/[tabindex] focus, which
+   would make every coach focus move invisible (WCAG 2.4.7). Re-assert a visible
+   ring inside the coach only — do not widen the global rule. */
+.coach-workspace :is(h1, h2, h3, [tabindex], button, a, textarea, input):focus-visible,
+.coach-page :is(h1, h2, h3, [tabindex], button, a, textarea, input):focus-visible {
+    outline: 2px solid var(--bs-primary) !important;
+    outline-offset: 2px;
+    box-shadow: none !important;
+}
+
+/* --- mobile full-screen composition -------------------------------------- */
+/* Coach.razor uses the canonical activity shell verbatim; this is a modifier only.
+   No new wrapper class, no card wrapper around the shell. */
+.coach-page .coach-pane {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.coach-page .coach-messages {
+    padding: 0;
+    overflow: visible;
+}
+
+/* --- motion -------------------------------------------------------------- */
+.coach-canvas,
+.coach-card {
+    transition: opacity 160ms ease, width 160ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .coach-canvas,
+    .coach-card,
+    .coach-workspace .spinner-border,
+    .modal.coach-modal.fade,
+    .modal.coach-modal .modal-dialog {
+        transition: none !important;
+        animation: none !important;
+    }
+}
+
+/* --- coach destructive-action confirmation ------------------------------- */
+/* Real modal semantics INSIDE the workspace. The wide composition already sits in a
+   Bootstrap modal and the design contract forbids nesting a second one, so the scrim +
+   `inert` on .coach-workspace-inner supply the containment that a nested modal would. */
+.coach-workspace-inner {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+.coach-confirm-scrim {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background: rgba(var(--bs-emphasis-color-rgb), 0.4);
+    z-index: 2;
+}
+
+.coach-workspace,
+.coach-page {
+    position: relative;
+}
+
+.coach-confirm {
+    background: var(--ss-surface-elevated, var(--bs-body-bg));
+    color: var(--bs-body-color);
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius);
+    padding: 1rem;
+    max-width: 32rem;
+    width: 100%;
+    max-height: 100%;
+    overflow-y: auto;
+}
+
+/* --- coach pedagogical answers ------------------------------------------- */
+/* Structured answers are read top to bottom, so blocks are ordered flow content with no
+   repositioning. Block type is carried by an icon AND a text label, never by colour. */
+.coach-answer {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.coach-answer-block {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+.coach-answer-block-label {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: calc(12px * var(--ss-font-scale, 1));
+    font-weight: 600;
+    color: var(--bs-secondary-color);
+}
+
+.coach-answer-block-body {
+    font-size: calc(15px * var(--ss-font-scale, 1));
+    line-height: 1.6;
+    /* Long target-language strings must wrap rather than force a horizontal scroll at 200% zoom. */
+    overflow-wrap: anywhere;
+}
+
+/* The direct answer leads and carries slightly more weight than the supporting blocks. */
+.coach-answer-block-answer > .coach-answer-block-body {
+    font-weight: 600;
+}
+
+/* Examples, contrasts and corrections are grouped by an indent and a border edge — a
+   non-colour boundary that survives every theme and high-contrast mode. */
+.coach-answer-block-example,
+.coach-answer-block-contrast,
+.coach-answer-block-correction,
+.coach-answer-block-retrievalprompt {
+    border-left: 2px solid var(--bs-border-color);
+    padding-left: 0.6rem;
+}
+
+/* Target-language text sits at a comfortable reading size; `lang` on the span is what lets a
+   screen reader switch voice, and is set in the component. */
+.coach-answer-span-target {
+    font-weight: 600;
+}
+
+.coach-answer-span + .coach-answer-span {
+    margin-inline-start: 0.35rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .coach-answer,
+    .coach-answer-block {
+        transition: none !important;
+        animation: none !important;
+    }
+}
+
+/* ============================================================ coach conversations
+
+   The saved conversation shelf. Every size below is a rem or a percentage so a 200% zoom
+   reflows instead of clipping, and nothing here animates: a list that slides is a list a
+   reduced-motion reader has to wait for. */
+
+.coach-conversations {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    min-width: 0;
+}
+
+.coach-conversations-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.coach-conversations-empty {
+    padding: 1rem 0.25rem;
+}
+
+.coach-conversation-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    overflow-y: auto;
+}
+
+.coach-conversation-item {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.5rem;
+    border-radius: var(--ss-radius-md, 0.5rem);
+}
+
+/* Selection is carried by the accessible name as well, so this is reinforcement rather than the
+   only signal. A border, not just a fill, so it survives forced-colors. */
+.coach-conversation-item.is-selected {
+    background-color: var(--ss-surface-variant, rgba(127, 127, 127, 0.12));
+    outline: 1px solid var(--ss-outline, rgba(127, 127, 127, 0.4));
+}
+
+.coach-conversation-open {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.125rem;
+    width: 100%;
+    padding: 0.25rem;
+    border: 0;
+    background: none;
+    text-align: start;
+    color: inherit;
+}
+
+.coach-conversation-title {
+    font-weight: 600;
+    overflow-wrap: anywhere;
+}
+
+.coach-conversation-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+}
+
+.coach-conversation-badge {
+    align-self: flex-start;
+}
+
+.coach-conversation-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding-inline-start: 0.25rem;
+}
+
+.coach-conversations-drawer {
+    flex: 0 0 18rem;
+    max-width: 100%;
+    border-inline-end: 1px solid var(--ss-outline, rgba(127, 127, 127, 0.25));
+    overflow-y: auto;
+}
+
+/* Narrow: the shelf takes the whole content area rather than overlaying the conversation, so
+   there is never a half-covered transcript behind a partially transparent panel. */
+.coach-conversations-drawer-narrow {
+    flex: 1 1 auto;
+    border-inline-end: 0;
+}
+
+.coach-history-controls {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 0.5rem 0;
+}
+
+.coach-history-boundary {
+    padding: 0.5rem 0;
+    text-align: center;
+}
+
+.coach-message-unreadable {
+    opacity: 0.75;
+}
+
+/* A message this build cannot classify. Styled the same as an unreadable one — dimmed, no
+   emphasis — because both are placeholders standing in for content the learner cannot act on.
+   Deliberately not styled as an error: nothing failed, this version is simply older than the
+   message. */
+.coach-message-unsupported {
+    opacity: 0.75;
+}
+
+.coach-dialog-backdrop {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1060;
+}
+
+.coach-dialog {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    width: min(28rem, 100%);
+    /* Capped against the viewport so the actions stay reachable at 200% zoom. */
+    max-height: 90vh;
+    overflow-y: auto;
+    padding: 1rem;
+    border-radius: var(--ss-radius-lg, 0.75rem);
+    background-color: var(--ss-surface, #fff);
+    color: inherit;
+}
+
+.coach-dialog-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.5rem;
+}
+
+/* ==== what Sam remembers =================================================
+   The memory card and panel. Sizing is in rem and the layouts wrap, so the
+   whole surface survives 200% zoom without a horizontal scrollbar. */
+
+.coach-memory-card {
+    border: 1px solid var(--ss-border, rgba(0, 0, 0, 0.12));
+    border-radius: 0.75rem;
+    padding: 1rem;
+    margin: 0.75rem 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.coach-memory-panel {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.coach-memory-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+.coach-memory-tab {
+    border: 1px solid var(--ss-border, rgba(0, 0, 0, 0.12));
+    border-radius: 999px;
+    padding: 0.35rem 0.9rem;
+}
+
+/* Selection is carried by aria-selected for assistive technology; this is the
+   matching visual, and it uses a border weight as well as a fill so it does not
+   depend on colour alone. */
+.coach-memory-tab.is-selected {
+    border-width: 2px;
+    background-color: var(--ss-surface-variant, rgba(0, 0, 0, 0.06));
+    font-weight: 600;
+}
+
+.coach-memory-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.coach-memory-item {
+    border: 1px solid var(--ss-border, rgba(0, 0, 0, 0.12));
+    border-radius: 0.75rem;
+    padding: 0.85rem;
+}
+
+.coach-memory-fact {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.coach-memory-value {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+/* A definition list reads as label/value pairs to a screen reader. The grid is
+   only the visual arrangement, and it collapses to stacked rows when narrow. */
+.coach-memory-meta {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.15rem 0.75rem;
+    margin: 0;
+}
+
+.coach-memory-meta dt {
+    font-weight: 600;
+}
+
+.coach-memory-meta dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 30rem) {
+    .coach-memory-meta {
+        grid-template-columns: 1fr;
+    }
+}
+
+.coach-memory-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.25rem;
+}
+
+.coach-memory-edit {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+.coach-memory-notice {
+    margin: 0;
+}
+
+/* ==========================================================================
+   Sam Overlay — persistent FAB + non-modal panel
+   ========================================================================== */
+
+/* --- FAB (Floating Action Button) --- */
+.sam-fab {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    z-index: 1050;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: none;
+    background: var(--bs-primary);
+    /* Not a literal white: the brite theme's primary is #a2e436, on which white text and a white
+       glyph fall below the contrast floor. --ss-on-primary is the token every other primary
+       surface in this stylesheet already pairs with --bs-primary; the fallback keeps the control
+       legible if the token is ever missing. */
+    color: var(--ss-on-primary, #fff);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    /* Safe area for notched devices */
+    bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
+    right: calc(1.5rem + env(safe-area-inset-right, 0px));
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sam-fab {
+        transition: none;
+    }
+}
+
+.sam-fab:hover,
+.sam-fab:focus-visible {
+    transform: scale(1.08);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 2px;
+}
+
+.sam-fab i {
+    font-size: 1.25rem;
+    /* Inherits from .sam-fab, but Bootstrap Icons inside a button are a common place for a
+       theme-level colour to be reintroduced by accident. Stated once, here. */
+    color: inherit;
+}
+
+.sam-fab__badge {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--bs-danger);
+    /* The ring separates the badge from the button beneath it, so it belongs to the button's
+       colour, not to a literal white that disappears on a light primary. */
+    border: 2px solid var(--ss-on-primary, #fff);
+}
+
+/* --- Panel (non-modal aside) --- */
+.sam-panel {
+    position: fixed;
+    bottom: 0;
+    right: 0;
+    z-index: 1050;
+    display: flex;
+    flex-direction: column;
+    background: var(--bs-body-bg);
+    border-left: 1px solid var(--bs-border-color);
+    border-top: 1px solid var(--bs-border-color);
+    box-shadow: -2px 0 12px rgba(0, 0, 0, 0.1);
+    overflow: hidden;
+    /* Safe area */
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Compact and expanded are FIXED heights, which is what makes them predictable — and what put
+   the compact panel off-screen in phone landscape. An iPhone in landscape is ~390px tall and
+   ~844px wide, so it never matches the <576px block below and takes the 420px height here;
+   anchored to the bottom, the missing 30px come off the TOP, taking the header and its controls
+   with them.
+
+   The cap is dvh so a mobile browser's collapsing chrome is accounted for, with a vh line first
+   for engines without dynamic viewport units (they get the largest viewport height, which is the
+   pre-existing behaviour rather than a new failure). 1rem of breathing room keeps the panel from
+   sitting flush against the top edge. */
+.sam-panel--compact {
+    width: 360px;
+    height: 420px;
+    max-height: calc(100vh - 1rem);
+    max-height: calc(100dvh - 1rem);
+    border-radius: 0.75rem 0 0 0;
+}
+
+.sam-panel--expanded {
+    width: 520px;
+    height: 80vh;
+    height: 80dvh;
+    max-height: calc(100vh - 60px);
+    max-height: calc(100dvh - 60px);
+    border-radius: 0.75rem 0 0 0;
+}
+
+/* --- Full screen: the same panel at the size of the viewport --------------
+   Anchored on all four sides rather than sized, so it cannot be left partly off-screen by a
+   rotation, a soft keyboard, or a browser chrome change. `inset: 0` overrides the base rule's
+   bottom/right anchoring; the base `position: fixed` is what it is measured against.
+
+   100dvh, with 100vh underneath it for browsers that do not have dynamic viewport units: on
+   mobile Safari 100vh is the *largest* viewport height, so a panel sized that way puts its
+   composer underneath the address bar.
+
+   The stacking level is deliberately unchanged at 1050. That is above the app shell and the
+   sticky page header, and below Bootstrap's .modal at 1055 — which is what keeps a confirmation
+   dialog reachable above a full-screen panel instead of buried by it. */
+.sam-panel--fullscreen {
+    inset: 0;
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    max-height: none;
+    border-radius: 0;
+    border-left: none;
+    border-top: none;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* The reading measure still applies at full width: a 2560px monitor would otherwise produce
+   ~250-character lines. Same cap the wide workspace uses. */
+.sam-panel--fullscreen .sam-panel__header,
+.sam-panel--fullscreen .coach-messages,
+.sam-panel--fullscreen .sam-panel__composer > * {
+    max-width: 900px;
+    margin-inline: auto;
+    width: 100%;
+}
+
+/* --- Panel header --- */
+.sam-panel__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.5rem 0.75rem;
+    border-bottom: 1px solid var(--bs-border-color);
+    flex-shrink: 0;
+}
+
+.sam-panel__title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin: 0;
+    color: var(--bs-body-color);
+    /* The controls are the fixed part of the header and the title is the elastic part, so a long
+       persona name shortens itself rather than pushing Close off the edge. */
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.sam-panel__controls {
+    display: flex;
+    gap: 0.25rem;
+    flex: 0 0 auto;
+}
+
+.sam-panel__btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 0.25rem;
+    background: transparent;
+    color: var(--bs-secondary-color);
+    cursor: pointer;
+}
+
+/* --- touch targets -------------------------------------------------------
+   The repo already refuses the "44px only below 768px" shortcut for coach controls, because an
+   iPad at 768-991px is a touch device that falls outside it (see the .coach-action rule and its
+   comment). Keying on the POINTER rather than on the width is the same argument taken one step
+   further: a touch laptop at 1400px is still a finger, and a narrow desktop window is still a
+   mouse. Fine pointers keep the 28px density, which is what makes the header read as chrome
+   rather than as a toolbar.
+
+   The header has room for this. At the compact width of 360px, three 44px controls plus their
+   gaps come to 140px, leaving ~196px for the title. */
+@media (pointer: coarse) {
+    .sam-panel__btn {
+        width: 44px;
+        height: 44px;
+        min-width: 44px;
+        min-height: 44px;
+    }
+
+    /* The taller controls set the header height, so the padding comes down to keep the header
+       from eating the conversation on a short landscape viewport. */
+    .sam-panel__header {
+        padding: 0.25rem 0.5rem;
+    }
+
+    /* The report reasons are a list of five, so they get a comfortable touch row on a finger
+       without stretching to that height on a mouse-driven desktop, where five 44px rows would
+       fill the message column on their own.
+
+       Kept in this block rather than in its own @media (pointer: coarse) next to the report
+       rules: the overlay's style contract reads the FIRST coarse-pointer block in this
+       stylesheet, so a second one added earlier in the file silently becomes the one it asserts
+       against. One block, one meaning. */
+    .coach-report-reason {
+        min-height: 44px;
+    }
+
+    .coach-report-reason .form-check-input {
+        width: 1.25rem;
+        height: 1.25rem;
+        margin-top: 0.1rem;
+    }
+}
+
+.sam-panel__btn:hover,
+.sam-panel__btn:focus-visible {
+    background: var(--bs-secondary-bg);
+    color: var(--bs-body-color);
+}
+
+.sam-panel__btn:focus-visible {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: -2px;
+}
+
+/* --- Panel body (chat + composer) --- */
+.sam-panel__body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    overflow: hidden;
+    min-height: 0;
+}
+
+.sam-panel__composer {
+    flex-shrink: 0;
+    border-top: 1px solid var(--bs-border-color);
+    padding: 0.5rem;
+}
+
+/* --- Responsive: small viewports get full-width panel --- */
+@media (max-width: 575.98px) {
+    .sam-fab {
+        bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+        right: calc(1rem + env(safe-area-inset-right, 0px));
+    }
+
+    .sam-panel--compact,
+    .sam-panel--expanded {
+        width: 100%;
+        height: 70vh;
+        height: 70dvh;
+        /* Already a proportion of the viewport, so the cap only has to stop the two rules above
+           from reintroducing a fixed height on a short screen. */
+        max-height: calc(100dvh - 1rem);
+        border-radius: 0.75rem 0.75rem 0 0;
+        border-left: none;
+    }
+}
+
+/* --- Sam: proposed changes ----------------------------------------------- */
+/*
+   One card per proposed change, rendered inline in the conversation. It keeps the existing
+   .coach-card shell and adds a left rule whose colour carries the stage, so a learner scanning
+   the thread can tell a waiting decision from a completed one without reading either. The stage
+   is also announced as text, because colour is never the only carrier of meaning here.
+*/
+.sam-write {
+    border-left: 3px solid var(--bs-secondary-color);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+.sam-write--proposed { border-left-color: var(--bs-primary); }
+.sam-write--confirming { border-left-color: var(--bs-danger); }
+.sam-write--applied { border-left-color: var(--bs-success); }
+.sam-write--undone,
+.sam-write--declined,
+.sam-write--expired { border-left-color: var(--bs-secondary-color); }
+.sam-write--in-doubt { border-left-color: var(--bs-warning); }
+.sam-write--failed { border-left-color: var(--bs-danger); }
+.sam-write--unreadable { border-left-color: var(--bs-secondary-color); }
+/* The server did not answer for this change. Neutral like the other "no action here" states —
+   it must not borrow the warning colour, because nothing has gone wrong with the change. */
+.sam-write--unavailable { border-left-color: var(--bs-secondary-color); }
+
+.sam-write__head {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+.sam-write__title {
+    margin: 0;
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.sam-write__state {
+    flex: 0 0 auto;
+    border: 1px solid var(--bs-border-color);
+    border-radius: 999px;
+    padding: 0.1rem 0.55rem;
+    font-size: calc(12px * var(--ss-font-scale, 1));
+    color: var(--bs-secondary-color);
+    white-space: nowrap;
+}
+
+.sam-write__summary { margin: 0; }
+
+.sam-write__lines {
+    margin: 0;
+    padding-inline-start: 1.1rem;
+    color: var(--bs-secondary-color);
+}
+
+.sam-write__note {
+    margin: 0;
+    color: var(--bs-secondary-color);
+}
+
+.sam-write__note--warning { color: var(--bs-danger); }
+
+.sam-write__error {
+    margin: 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.35rem;
+    color: var(--bs-danger);
+}
+
+/* The confirmation step opens in place rather than over the conversation: the panel is
+   deliberately non-modal and the learner keeps their context while they decide. */
+.sam-write__confirm {
+    border: 1px solid var(--bs-danger);
+    border-radius: var(--bs-border-radius);
+    padding: 0.6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.sam-write__confirm:focus-visible {
+    outline: 2px solid var(--bs-primary);
+    outline-offset: 2px;
+}
+
+.sam-write__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+}
+
+/* Every action carries the 44px floor at every breakpoint, like the rest of the coach surface.
+   flex-grow lets the primary action fill a narrow panel without stretching on a wide one. */
+.sam-write__action {
+    flex: 1 1 auto;
+    min-height: 44px;
+    min-width: 44px;
+}
+
+@media (min-width: 576px) {
+    .sam-write__action { flex: 0 1 auto; }
+}
+
+/* Motion is used only to make the state change legible: the card fades its new content in so a
+   learner who looked away can see that something moved, and nothing slides or bounces. */
+.sam-write,
+.sam-write__confirm {
+    transition: border-color 160ms ease, opacity 160ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .sam-write,
+    .sam-write__confirm {
+        transition: none !important;
+        animation: none !important;
+    }
+}

@@ -1,0 +1,186 @@
+@implements IDisposable
+@inject BlazorLocalizationService Localize
+
+@*
+    The terms one piece of evidence was produced under.
+
+    An aggregate with no stated coverage is the shape a reader over-claims from. "You have 20
+    resources" and "here are 20 of your 84 resources" are built from the same twenty rows, and
+    until the server started stating coverage there was nothing on screen that could tell them
+    apart — so the learner supplied the difference themselves, and supplied it wrong.
+
+    Three rules govern what appears here:
+
+    1. NEUTRAL ON UNKNOWN. Every field is optional, and three of them have an Unknown member a
+       tolerant client produces when a newer server names a value this build cannot. In both cases
+       the line is omitted entirely. A guess rendered confidently is worse than a gap: the gap is
+       visibly a gap.
+
+    2. NO CLAIM WITHOUT CONTENT. Unordered, NotApplicable and Unknown orders render nothing,
+       because "these are in no particular order" reads to most people as a ranking anyway. Only a
+       real ranking is named.
+
+    3. AGGREGATE ONLY. Counts and a reason code. WithheldReason says that something was held back
+       and why — never what. A due word withheld from a list is disclosed as a number and a reason;
+       its term stays on the server, which is the entire point of withholding it.
+
+    DefinitionCode is carried as a data attribute rather than prose. It names WHICH question was
+    answered, and the server already answers that in the learner's own language through Label.
+    Rendering "UndueVocabularySearch" underneath "Vocabulary due" would be fourteen new localized
+    strings restating a heading the learner has already read. As an attribute it stays diagnosable
+    and testable without spending screen on it.
+*@
+
+@if (HasCoverage || HasOrder || HasBasis || HasWithheld || HasAsOf)
+{
+    <ul class="list-unstyled coach-evidence-scope ss-caption1 text-secondary-ss mb-0"
+        data-coach-definition="@DefinitionAttribute">
+        @if (HasCoverage)
+        {
+            <li data-coach-scope="coverage">@CoverageText</li>
+        }
+        @if (HasOrder)
+        {
+            <li data-coach-scope="order">@OrderText</li>
+        }
+        @if (HasBasis)
+        {
+            <li data-coach-scope="basis">@BasisText</li>
+        }
+        @if (HasWithheld)
+        {
+            <li data-coach-scope="withheld">@WithheldText</li>
+        }
+        @if (HasAsOf)
+        {
+            <li data-coach-scope="asof">@AsOfText</li>
+        }
+    </ul>
+}
+
+@code {
+    /// <summary>The evidence item whose terms are being stated.</summary>
+    [Parameter, EditorRequired] public CoachEvidenceDto Item { get; set; } = default!;
+
+    // ── Coverage ─────────────────────────────────────────────────────────────
+
+    private bool HasCoverage => CoverageKey is not null;
+
+    private string? CoverageKey => Item.Coverage switch
+    {
+        CoachEvidenceCoverage.CompleteOwnedSet => "Coach_EvidenceCoverage_Complete",
+        CoachEvidenceCoverage.PageOfOwnedSet => "Coach_EvidenceCoverage_Page",
+        CoachEvidenceCoverage.WindowBounded => "Coach_EvidenceCoverage_Window",
+        CoachEvidenceCoverage.SingleItem => "Coach_EvidenceCoverage_SingleItem",
+        CoachEvidenceCoverage.SingleDay => "Coach_EvidenceCoverage_SingleDay",
+        CoachEvidenceCoverage.SettingsSnapshot => "Coach_EvidenceCoverage_Settings",
+        CoachEvidenceCoverage.DerivedProjection => "Coach_EvidenceCoverage_Derived",
+        CoachEvidenceCoverage.CompleteAggregateWithBreakdown => "Coach_EvidenceCoverage_Aggregate",
+        // Unknown and null both mean "no coverage was stated". Neither gets a line.
+        _ => null
+    };
+
+    private string CoverageText => Localize[CoverageKey!];
+
+    // ── Order ────────────────────────────────────────────────────────────────
+
+    private bool HasOrder => OrderKey is not null;
+
+    private string? OrderKey => Item.Order switch
+    {
+        CoachEvidenceOrder.LastUsedAscending => "Coach_EvidenceOrder_LastUsed",
+        CoachEvidenceOrder.UpdatedDescending => "Coach_EvidenceOrder_Updated",
+        CoachEvidenceOrder.MasteryDescending => "Coach_EvidenceOrder_Mastery",
+        CoachEvidenceOrder.MinutesDescending => "Coach_EvidenceOrder_Minutes",
+        CoachEvidenceOrder.PriorityAscending => "Coach_EvidenceOrder_Priority",
+        CoachEvidenceOrder.FrequencyDescending => "Coach_EvidenceOrder_Frequency",
+        CoachEvidenceOrder.BandLabelAscending => "Coach_EvidenceOrder_Band",
+        // Unordered, NotApplicable, Unknown and null all state no ranking, so none is shown.
+        _ => null
+    };
+
+    private string OrderText => Localize[OrderKey!];
+
+    // ── What it was computed from ────────────────────────────────────────────
+
+    private bool HasBasis => Item.ReturnedCount is not null;
+
+    /// <summary>
+    /// "Based on 10 of 14" when the two differ, "Based on 10" when they agree or when the server
+    /// stated only one. The pair is what tells a total from a sample.
+    /// </summary>
+    private string BasisText
+    {
+        get
+        {
+            var returned = Item.ReturnedCount!.Value;
+
+            return Item.MatchedCount is { } matched && matched != returned
+                ? Localize.Get("Coach_EvidenceBasisOf", returned, matched)
+                : Localize.Get("Coach_EvidenceBasis", returned);
+        }
+    }
+
+    // ── What was held back ───────────────────────────────────────────────────
+
+    private bool HasWithheld => Item.WithheldCount is > 0;
+
+    /// <summary>
+    /// A count, and a reason when the server named one this build can read. An unreadable reason
+    /// still shows the count — the number is the disclosure; the explanation is the courtesy.
+    /// </summary>
+    private string WithheldText
+    {
+        get
+        {
+            var count = Item.WithheldCount!.Value;
+
+            var reasonKey = Item.WithheldReason switch
+            {
+                CoachWithheldReason.DueReviewEmbargo => "Coach_EvidenceWithheld_DueReview",
+                CoachWithheldReason.ResultLimit => "Coach_EvidenceWithheld_Limit",
+                CoachWithheldReason.ArchivedExcluded => "Coach_EvidenceWithheld_Archived",
+                CoachWithheldReason.BelowMinimumEvidence => "Coach_EvidenceWithheld_Evidence",
+                _ => null
+            };
+
+            return reasonKey is null
+                ? Localize.Get("Coach_EvidenceWithheld", count)
+                : Localize.Get(reasonKey, count);
+        }
+    }
+
+    // ── When it was true ─────────────────────────────────────────────────────
+
+    private bool HasAsOf => Item.AsOfUtc is not null;
+
+    /// <summary>
+    /// Rendered in the learner's own local time and with the culture's own pattern, both explicit.
+    /// The value on the wire is UTC and whole-second; showing it as UTC would put a coach claim on
+    /// a clock the learner does not read.
+    /// </summary>
+    private string AsOfText => Localize.Get(
+        "Coach_EvidenceAsOf",
+        Item.AsOfUtc!.Value.ToLocalTime().ToString(
+            Localize["Coach_EvidenceAsOfFormat"],
+            Localize.Culture));
+
+    // ── Diagnosis ────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The stable, unlocalized name of the population definition. "unknown" when the server did not
+    /// state one or this build cannot name the one it stated.
+    /// </summary>
+    private string DefinitionAttribute => Item.DefinitionCode switch
+    {
+        null => "unknown",
+        CoachDefinitionCode.Unknown => "unknown",
+        var code => code.ToString()
+    };
+
+    protected override void OnInitialized() => Localize.CultureChanged += OnChanged;
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Localize.CultureChanged -= OnChanged;
+}

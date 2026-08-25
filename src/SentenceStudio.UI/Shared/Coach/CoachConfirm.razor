@@ -1,0 +1,108 @@
+@implements IDisposable
+@inject BlazorLocalizationService Localize
+@inject IJSRuntime JS
+
+@*
+    In-workspace destructive-action confirmation.
+
+    Why this is NOT a CoachDialog: the wide composition is already inside an open Bootstrap
+    modal, and the design contract for this feature forbids nesting a modal (or an offcanvas)
+    inside the workspace. Two stacked Bootstrap modals also fight over the backdrop and the
+    focus trap. So this renders real modal SEMANTICS inside the workspace instead —
+    role="alertdialog", aria-modal, an accessible name and description, focus moved in on open
+    and restored on close, Escape to cancel — while the host marks the rest of the workspace
+    `inert` so nothing behind it is reachable.
+
+    Settings is not inside a modal, so it uses CoachDialog directly.
+*@
+
+<div class="coach-confirm-scrim">
+    <div id="@DialogId"
+         class="coach-confirm card-ss"
+         role="alertdialog"
+         aria-modal="true"
+         aria-labelledby="@($"{DialogId}-title")"
+         aria-describedby="@($"{DialogId}-body")"
+         tabindex="-1"
+         @onkeydown="OnKeyDown">
+        <h3 id="@($"{DialogId}-title")" class="ss-title3 mb-2">@Title</h3>
+        <p id="@($"{DialogId}-body")" class="ss-body2 mb-3">@Body</p>
+        <div class="d-flex flex-wrap gap-2 justify-content-end">
+            @* Cancel is listed first in the DOM so the safe choice takes focus order priority. *@
+            <button type="button" class="btn btn-ss-secondary coach-action" @onclick="OnCancel">
+                @Localize["Coach_Cancel"]
+            </button>
+            <button type="button" class="btn btn-ss-danger coach-action" disabled="@IsBusy" @onclick="OnConfirm">
+                @if (IsBusy)
+                {
+                    <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                }
+                @ConfirmLabel
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    /// <summary>DOM id for the dialog, so the host can point focus at it.</summary>
+    [Parameter] public string DialogId { get; set; } = "coach-confirm";
+
+    /// <summary>Accessible name. A question is correct here; the static helper text is not.</summary>
+    [Parameter, EditorRequired] public string Title { get; set; } = default!;
+
+    /// <summary>Accessible description. States what is removed and what is left unchanged.</summary>
+    [Parameter, EditorRequired] public string Body { get; set; } = default!;
+
+    /// <summary>Label for the destructive action.</summary>
+    [Parameter, EditorRequired] public string ConfirmLabel { get; set; } = default!;
+
+    /// <summary>Disables the confirm button while the action runs.</summary>
+    [Parameter] public bool IsBusy { get; set; }
+
+    [Parameter] public EventCallback OnConfirm { get; set; }
+
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private IJSObjectReference? module;
+    private bool focused;
+
+    protected override void OnInitialized() => Localize.CultureChanged += OnCultureChanged;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (focused)
+        {
+            return;
+        }
+
+        module ??= await JS.InvokeAsync<IJSObjectReference>(
+            "import", "./_content/SentenceStudio.UI/js/app.js");
+
+        try
+        {
+            await module.InvokeVoidAsync("focusElement", DialogId);
+            focused = true;
+        }
+        catch (JSDisconnectedException)
+        {
+            // Circuit gone.
+        }
+    }
+
+    /// <summary>Escape cancels, matching the modal it stands in for.</summary>
+    private async Task OnKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Escape")
+        {
+            await OnCancel.InvokeAsync();
+        }
+    }
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnCultureChanged;
+        _ = module?.DisposeAsync();
+    }
+}

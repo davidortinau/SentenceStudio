@@ -1,6 +1,7 @@
 @page "/settings"
 @attribute [Authorize]
 @using System.Reflection
+@using SentenceStudio.Contracts.Theme
 @inject ThemeService ThemeService
 @inject IJSRuntime JS
 @inject SentenceStudio.Services.ReleaseNotesService ReleaseNotesService
@@ -14,23 +15,16 @@
     <h5 class="ss-title3 mb-3">@Localize["Settings_AppearanceSection"]</h5>
 
     <div class="mb-3">
-        <label class="form-label ss-body2 text-secondary-ss">@Localize["Settings_ThemeLabel"]</label>
-        <div class="d-flex flex-wrap gap-2">
-            @foreach (var theme in ThemeService.AvailableThemes)
+        <label id="theme-picker-label" class="form-label ss-body2 text-secondary-ss">@Localize["Settings_ThemeLabel"]</label>
+        @* radiogroup, not a bare div: the swatches are one mutually-exclusive choice, and a screen
+           reader should announce "3 of 10" rather than reading ten unrelated buttons. *@
+        <div class="d-flex flex-wrap gap-2" role="radiogroup" aria-labelledby="theme-picker-label">
+            @foreach (var descriptor in ThemeCatalog.All)
             {
-                var (primary, accent) = ThemeService.GetThemeColors(theme, ThemeService.CurrentMode);
-                var isSelected = ThemeService.CurrentTheme == theme;
-
-                <button type="button" 
-                        class="theme-swatch @(isSelected ? "selected" : "")"
-                        @onclick="() => OnThemeSelected(theme)"
-                        title="@ThemeService.GetThemeDisplayName(theme)">
-                    <div class="theme-swatch-colors">
-                        <div class="color-primary" style="background-color: @primary"></div>
-                        <div class="color-accent" style="background-color: @accent"></div>
-                    </div>
-                    <div class="theme-swatch-label">@ThemeService.GetThemeDisplayName(theme)</div>
-                </button>
+                <ThemeSwatch Theme="descriptor"
+                             Mode="ThemeService.Mode"
+                             IsSelected="@(ThemeService.CurrentTheme == descriptor.Id)"
+                             OnSelected="OnThemeSelected" />
             }
         </div>
     </div>
@@ -179,6 +173,68 @@
     }
 </div>
 
+@* Learning Coach *@
+<div class="card card-ss p-4 mb-3">
+    <h5 class="ss-title3 mb-2">@Localize["Coach_SettingsSection"]</h5>
+    <p class="ss-caption1 text-secondary-ss">@Localize["Coach_SettingsDescription"]</p>
+
+    @if (coachAvailability?.IsAvailable != true)
+    {
+        <p class="ss-caption1 text-muted-ss mb-0">@Localize["Coach_SettingsUnavailable"]</p>
+    }
+    else
+    {
+        <button class="btn btn-ss-secondary w-100 coach-action" @onclick="AskDeleteCoachHistory" disabled="@isDeletingCoachHistory">
+            @if (isDeletingCoachHistory)
+            {
+                <span class="spinner-border spinner-border-sm me-2"></span>
+            }
+            else
+            {
+                <i class="bi bi-trash me-1"></i>
+            }
+            @Localize["Coach_SettingsDelete"]
+        </button>
+        @* Static helper text is a STATEMENT. The question belongs in the confirmation dialog,
+           where it has Confirm and Cancel actions attached to it. *@
+        <div class="ss-caption1 text-secondary-ss mt-2">@Localize["Coach_DeleteConfirm"]</div>
+    }
+</div>
+
+@* What Sam remembers lives next to the other Sam settings, but it is its own card: these are
+   preferences Sam agreed to keep, not settings this screen owns. The component hides itself
+   entirely when the feature is off or the data is not this learner's. *@
+<div class="card card-ss p-4 mb-3">
+    <CoachMemoryPanel />
+</div>
+
+@* Settings is not inside a modal, so the destructive confirmation uses the real accessible
+   dialog primitive: role=dialog, aria-modal, aria-labelledby, focus containment, Escape,
+   background inert, focus restored on close. *@
+<CoachDialog Id="coachDeleteHistoryDialog"
+             LabelledBy="coach-delete-history-title"
+             IsVisible="@showCoachDeleteConfirm"
+             DialogCssClass="modal-dialog-centered"
+             OnClosed="OnCoachDeleteDialogClosed">
+    <div class="modal-body p-4">
+        <h2 id="coach-delete-history-title" class="ss-title3 mb-2">@Localize["Coach_DeleteDialogTitle"]</h2>
+        <p class="ss-body2 mb-0">@Localize["Coach_DeleteDialogBody"]</p>
+    </div>
+    <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-ss-secondary coach-action" @onclick="CancelDeleteCoachHistory">
+            @Localize["Coach_Cancel"]
+        </button>
+        <button type="button" class="btn btn-ss-danger coach-action" disabled="@isDeletingCoachHistory"
+                @onclick="ConfirmDeleteCoachHistory">
+            @if (isDeletingCoachHistory)
+            {
+                <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+            }
+            @Localize["Coach_DeleteDialogConfirm"]
+        </button>
+    </div>
+</CoachDialog>
+
 @* About *@
 <div class="card card-ss p-4 mb-3">
     <h5 class="ss-title3 mb-2">@Localize["Settings_AboutSection"]</h5>
@@ -203,6 +259,7 @@
     [Inject] private SpeechVoicePreferences VoicePrefs { get; set; }
     [Inject] private VocabularyQuizPreferences QuizPrefs { get; set; }
     [Inject] private ToastService Toast { get; set; }
+    [Inject] private CoachWorkspaceState CoachWorkspace { get; set; } = default!;
 
     private IJSObjectReference? jsModule;
 
@@ -226,6 +283,11 @@
     private string whatsNewTitle = "What's New";
     private string whatsNewVersion = "";
     private string whatsNewContent = "";
+
+    private SentenceStudio.Contracts.Coach.CoachAvailabilityResponse? coachAvailability;
+    private bool isDeletingCoachHistory;
+    private bool showCoachDeleteConfirm;
+
     private record VoiceInfo(string Id, string Name);
 
     protected override async Task OnInitializedAsync()
@@ -236,6 +298,7 @@
         var infoVersion = asm.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
         currentVersion = infoVersion ?? asm.GetName().Version?.ToString() ?? "1.0";
         LoadPreferences();
+        coachAvailability = await CoachWorkspace.RefreshAvailabilityAsync();
         await LoadVoicesAsync();
     }
 
@@ -245,34 +308,48 @@
             return;
 
         jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/SentenceStudio.UI/js/app.js");
+
+        // Inside a Blazor circuit the appearance cookie is only reachable through the browser, so
+        // the state may still be the default at this point. Seed it before painting.
+        await ThemeService.EnsureLoadedAsync();
+        fontScale = ThemeService.FontScale;
+
         await jsModule.InvokeVoidAsync("setFontScale", fontScale);
         await jsModule.InvokeVoidAsync("applyTheme", ThemeService.CurrentTheme, ThemeService.CurrentMode);
+        StateHasChanged();
     }
 
-    private async Task OnThemeSelected(string theme)
+    private async Task OnThemeSelected(string themeId)
     {
-        ThemeService.SetTheme(theme);
+        // Commits theme only. Mode and text size ride along because SetThemeAsync derives the new
+        // tuple from the current one instead of rebuilding it from loose fields.
+        await ThemeService.SetThemeAsync(themeId);
         await ApplyThemeToDOM();
         StateHasChanged();
     }
 
     private async Task OnModeChanged(string mode)
     {
-        ThemeService.SetMode(mode);
+        // Commits mode only; the selected theme is preserved.
+        await ThemeService.SetModeAsync(mode);
         await ApplyThemeToDOM();
         StateHasChanged();
     }
 
     private async Task OnFontScaleInput(ChangeEventArgs e)
     {
-        if (double.TryParse(e.Value?.ToString(), System.Globalization.NumberStyles.Any, 
-            System.Globalization.CultureInfo.InvariantCulture, out var scale))
+        // Refuses NaN and the infinities, which parse successfully from strings the browser can
+        // legitimately send and which Math.Clamp does not clamp. Reaching the setter with one of
+        // those throws inside an event handler, which on the web ends the circuit over a slider.
+        if (!AppearanceInput.TryParseFontScale(e.Value?.ToString(), out var scale))
         {
-            fontScale = scale;
-            ThemeService.SetFontScale(fontScale);
-            if (jsModule != null)
-                await jsModule.InvokeVoidAsync("setFontScale", fontScale);
+            return;
         }
+
+        fontScale = scale;
+        await ThemeService.SetFontScaleAsync(scale);
+        if (jsModule != null)
+            await jsModule.InvokeVoidAsync("setFontScale", fontScale);
     }
 
     private async Task ApplyThemeToDOM()
@@ -396,6 +473,39 @@
     }
 
     private string GetActiveUserId() => Preferences.Get("active_profile_id", "");
+
+    /// <summary>Opens the confirmation. The DELETE never fires straight from the button.</summary>
+    private void AskDeleteCoachHistory() => showCoachDeleteConfirm = true;
+
+    private void CancelDeleteCoachHistory() => showCoachDeleteConfirm = false;
+
+    /// <summary>Escape or the backdrop dismiss the dialog without deleting anything.</summary>
+    private void OnCoachDeleteDialogClosed() => showCoachDeleteConfirm = false;
+
+    /// <summary>
+    /// Deletes coach conversation state and pending suggestions, only after explicit
+    /// confirmation. Today's Plan and all logged progress are deliberately untouched: deleting
+    /// coach history is not an undo.
+    /// </summary>
+    private async Task ConfirmDeleteCoachHistory()
+    {
+        showCoachDeleteConfirm = false;
+        isDeletingCoachHistory = true;
+        try
+        {
+            await CoachWorkspace.DeleteSessionAsync();
+            coachAvailability = await CoachWorkspace.RefreshAvailabilityAsync();
+            Toast.ShowSuccess($"{Localize["Coach_SettingsDeleted"]}");
+        }
+        catch (Exception ex)
+        {
+            Toast.ShowError(ex.Message);
+        }
+        finally
+        {
+            isDeletingCoachHistory = false;
+        }
+    }
 
     private async Task ShowReleaseNotes()
     {

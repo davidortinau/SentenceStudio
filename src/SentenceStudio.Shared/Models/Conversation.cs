@@ -11,6 +11,14 @@ public partial class Conversation : ObservableObject
     // Id property for CoreSync (Entity Framework/Database)
     public string Id { get; set; } = Guid.NewGuid().ToString();
 
+    /// <summary>
+    /// Owning learner profile id. Nullable ONLY because rows written before
+    /// owner scoping existed have no trustworthy owner — they stay null and
+    /// remain invisible to every user rather than being guessed into an
+    /// account. Every conversation created from now on carries an owner.
+    /// </summary>
+    public string? UserProfileId { get; set; }
+
     // Original properties
     public DateTime CreatedAt { get; set; } = DateTime.Now;
 

@@ -160,11 +160,14 @@
             if (isComplete)
             {
                 Preferences.Set("is_onboarded", true);
-                NavManager.NavigateTo("/", forceLoad: true);
+                // In-app route. A forced load on a BlazorWebView destroys the renderer and the DI
+                // scope (WebViewManager.AttachToPageAsync); the web host keeps its full load so the
+                // server can re-run authentication for the new document.
+                NavManager.NavigateTo("/", forceLoad: BlazorHostKind.ShouldForceLoadForCompletionRoute(NavManager.BaseUri));
             }
             else
             {
-                NavManager.NavigateTo("/onboarding", forceLoad: true);
+                NavManager.NavigateTo("/onboarding", forceLoad: BlazorHostKind.ShouldForceLoadForCompletionRoute(NavManager.BaseUri));
             }
         }
         else
@@ -196,10 +199,33 @@
         try
         {
             // Try to delete the associated Identity user (WebApp only).
-            // Uses reflection to avoid compile-time dependency on ASP.NET Identity
-            // which is unavailable on mobile platforms.
+            //
+            // SCOPE. This runs from the development-only local profile picker above, so that
+            // deleting a profile there does not strand a sign-in pointing at a profile that no
+            // longer exists. It is deliberately NOT "delete my account". That path is
+            // DELETE /account (SentenceStudio.Api.Auth.AuthEndpoints.DeleteAccount): it is
+            // authenticated, it acts on the caller, and it erases coach data → profile → identity
+            // user, failing closed if the coach rows survive. It cannot stand in for this block,
+            // because the subject here is whichever profile was picked on an [AllowAnonymous]
+            // page — not the caller — so routing this through the API would delete the wrong user.
+            //
+            // WHY EVERY MEMBER ACCESS BELOW GOES THROUGH REFLECTION. SentenceStudio.UI is a plain
+            // net11.0 assembly that is ALSO bundled into the native heads. It compiles against
+            // SentenceStudio.Shared's net10.0 slice, where ApplicationUser derives from
+            // IdentityUser; the native heads load Shared's platform slice, where ApplicationUser
+            // is a plain DTO and no ASP.NET Identity assembly exists at all. So one compile-time
+            // member access that binds to the IdentityUser base is enough to put
+            // [Microsoft.Extensions.Identity.Stores]IdentityUser`1 into SentenceStudio.UI.dll's
+            // metadata, and the native app then dies at startup with "Could not find
+            // Microsoft.Extensions.Identity.Stores ... referenced by SentenceStudio.UI".
+            // `user.Email` did exactly that — Email is declared on the base, not on
+            // ApplicationUser — and resolving the UserManager reflectively did not save us,
+            // because the leak was the property read, not the service lookup. Identity is
+            // server-only by design, so the fix is to stop naming it here, never to bundle it
+            // into the app. Pinned by UiIdentityAssemblyContractTests.
             try
             {
+                var profileId = profileToDelete.Id;
                 var appUserType = typeof(SentenceStudio.Shared.Models.ApplicationUser);
                 var userManagerOpenType = Type.GetType("Microsoft.AspNetCore.Identity.UserManager`1, Microsoft.Extensions.Identity.Core");
                 if (userManagerOpenType is not null)
@@ -210,15 +236,37 @@
                     {
                         // Get Users property → filter by UserProfileId → delete each
                         var usersProp = userManagerType.GetProperty("Users");
-                        if (usersProp?.GetValue(userManager) is IQueryable<SentenceStudio.Shared.Models.ApplicationUser> users)
+                        var profileIdProp = appUserType.GetProperty("UserProfileId");
+                        var emailProp = appUserType.GetProperty("Email");
+
+                        if (profileIdProp is not null
+                            && usersProp?.GetValue(userManager) is System.Collections.IEnumerable users)
                         {
-                            var matches = users.Where(u => u.UserProfileId == profileToDelete.Id).ToList();
+                            // Materialised before the first delete: UserManager.Users is a live
+                            // query and mutating it mid-enumeration is not safe. The owner check
+                            // is the same ordinal string equality the removed
+                            // `u => u.UserProfileId == profileToDelete.Id` lambda compiled to, so
+                            // the set of users deleted is unchanged and no broader. It is now
+                            // applied in memory rather than pushed into SQL, which this dev-gated
+                            // picker can afford and which is the price of not naming
+                            // ApplicationUser as a generic argument in this assembly.
+                            var owned = new List<object>();
+                            foreach (var candidate in users)
+                            {
+                                if (candidate is not null
+                                    && string.Equals(profileIdProp.GetValue(candidate) as string, profileId, StringComparison.Ordinal))
+                                {
+                                    owned.Add(candidate);
+                                }
+                            }
+
                             var deleteMethod = userManagerType.GetMethod("DeleteAsync", [appUserType]);
-                            foreach (var user in matches)
+                            foreach (var user in owned)
                             {
                                 if (deleteMethod is not null)
                                     await (Task)deleteMethod.Invoke(userManager, [user])!;
-                                Logger.LogInformation("Deleted Identity user {Email} for profile {Id}", user.Email, profileToDelete.Id);
+                                Logger.LogInformation("Deleted Identity user {Email} for profile {Id}",
+                                    SentenceStudio.Shared.Diagnostics.AuthLogRedaction.MaskEmail(emailProp?.GetValue(user) as string), profileId);
                             }
                         }
                     }
@@ -240,7 +288,8 @@
             }
 
             _profiles.Remove(profileToDelete);
-            Logger.LogInformation("Deleted profile {Name} ({Id})", profileToDelete.Name, profileToDelete.Id);
+            Logger.LogInformation("Deleted profile {DisplayName} ({Id})",
+                SentenceStudio.Shared.Diagnostics.AuthLogRedaction.DescribeDisplayName(profileToDelete.Name), profileToDelete.Id);
             StateHasChanged();
         }
         catch (Exception ex)

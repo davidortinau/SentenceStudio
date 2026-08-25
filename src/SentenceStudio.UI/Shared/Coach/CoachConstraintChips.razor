@@ -1,0 +1,110 @@
+@implements IDisposable
+@inject BlazorLocalizationService Localize
+@inject CoachWorkspaceState Coach
+
+@* Direct constraint requests. A chip tap is intent, not a suggestion: the server applies
+   it immediately after deterministic validation and answers with a receipt. The UI never
+   renders an optimistic plan — the deterministic planner is the authority.
+
+   Only one run is allowed in flight, and the UI enforces that by disabling every
+   affordance rather than queuing taps. *@
+
+<div class="coach-chip-row" role="group" aria-label="@Localize["Coach_ConstraintsLabel"]">
+    @foreach (var minutes in MinutePresets)
+    {
+        var isActive = Coach.ActiveConstraints?.AvailableMinutes == minutes;
+        <button type="button"
+                class="coach-chip"
+                aria-pressed="@(isActive ? "true" : "false")"
+                disabled="@Disabled"
+                @onclick="() => SetMinutesAsync(minutes)">
+            <i class="bi bi-clock me-1" aria-hidden="true"></i>@Localize.Get("Coach_ChipMinutes", minutes)
+        </button>
+    }
+
+    <button type="button"
+            class="coach-chip"
+            aria-pressed="@Pressed(Coach.ActiveConstraints?.AudioAllowed == false)"
+            disabled="@Disabled"
+            @onclick="ToggleAudioAsync">
+        <i class="bi bi-volume-mute me-1" aria-hidden="true"></i>@Localize["Coach_ChipNoAudio"]
+    </button>
+
+    <button type="button"
+            class="coach-chip"
+            aria-pressed="@Pressed(Coach.ActiveConstraints?.SpeechAllowed == false)"
+            disabled="@Disabled"
+            @onclick="ToggleSpeechAsync">
+        <i class="bi bi-mic-mute me-1" aria-hidden="true"></i>@Localize["Coach_ChipNoSpeech"]
+    </button>
+
+    <button type="button"
+            class="coach-chip"
+            aria-pressed="@Pressed(Coach.ActiveConstraints?.TypingAllowed == false)"
+            disabled="@Disabled"
+            @onclick="ToggleTypingAsync">
+        <i class="bi bi-keyboard me-1" aria-hidden="true"></i>@Localize["Coach_ChipNoTyping"]
+    </button>
+
+    <button type="button"
+            class="coach-chip"
+            aria-pressed="@Pressed(Coach.ActiveConstraints?.EnergyLevel == CoachEnergyLevel.Low)"
+            disabled="@Disabled"
+            @onclick="ToggleEnergyAsync">
+        <i class="bi bi-battery-half me-1" aria-hidden="true"></i>@Localize["Coach_ChipLowEnergy"]
+    </button>
+</div>
+
+@code {
+    private static readonly int[] MinutePresets = [5, 10, 20];
+
+    private bool Disabled => Coach.IsBusy || !CoachStateMachine.CanSubmit(Coach.State);
+
+    protected override void OnInitialized()
+    {
+        Localize.CultureChanged += OnChanged;
+        Coach.Changed += OnChanged;
+    }
+
+    private static string Pressed(bool value) => value ? "true" : "false";
+
+    private Task SetMinutesAsync(int minutes) => Coach.ApplyConstraintAsync(new CoachConstraintDeltaDto
+    {
+        AvailableMinutes = minutes,
+        ChangedFields = [CoachConstraintField.AvailableMinutes]
+    });
+
+    private Task ToggleAudioAsync() => Coach.ApplyConstraintAsync(new CoachConstraintDeltaDto
+    {
+        AudioAllowed = !(Coach.ActiveConstraints?.AudioAllowed ?? true),
+        ChangedFields = [CoachConstraintField.AudioAllowed]
+    });
+
+    private Task ToggleSpeechAsync() => Coach.ApplyConstraintAsync(new CoachConstraintDeltaDto
+    {
+        SpeechAllowed = !(Coach.ActiveConstraints?.SpeechAllowed ?? true),
+        ChangedFields = [CoachConstraintField.SpeechAllowed]
+    });
+
+    private Task ToggleTypingAsync() => Coach.ApplyConstraintAsync(new CoachConstraintDeltaDto
+    {
+        TypingAllowed = !(Coach.ActiveConstraints?.TypingAllowed ?? true),
+        ChangedFields = [CoachConstraintField.TypingAllowed]
+    });
+
+    private Task ToggleEnergyAsync() => Coach.ApplyConstraintAsync(new CoachConstraintDeltaDto
+    {
+        EnergyLevel = Coach.ActiveConstraints?.EnergyLevel == CoachEnergyLevel.Low
+            ? CoachEnergyLevel.Normal
+            : CoachEnergyLevel.Low,
+        ChangedFields = [CoachConstraintField.EnergyLevel]
+    });
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnChanged;
+        Coach.Changed -= OnChanged;
+    }
+}

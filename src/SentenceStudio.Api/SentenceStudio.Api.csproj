@@ -9,14 +9,30 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- The coach keeps several security helpers internal on purpose (endpoint failure
+         logging, contract scanning). Their tests belong next to the behaviour they guard,
+         so the unit test assembly is given access rather than widening the API surface. -->
+    <InternalsVisibleTo Include="SentenceStudio.Api.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="CoreSync.Http.Server" />
     <PackageReference Include="CoreSync.PostgreSQL" />
     <PackageReference Include="ElevenLabs-DotNet" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="Microsoft.Extensions.AI.OpenAI" />
+    <!-- Learning Coach harness arm. Microsoft.Agents.AI.Harness supplies
+         HarnessAgentOptions + IChatClient.AsHarnessAgent(); Microsoft.Agents.AI supplies
+         AIAgent/AgentSession, which the coach service and session store name directly.
+         Microsoft.Agents.AI.Hosting is intentionally NOT referenced (still preview-only) —
+         the agent is registered through a manual DI factory instead of AddAIAgent. -->
+    <PackageReference Include="Microsoft.Agents.AI" />
+    <PackageReference Include="Microsoft.Agents.AI.Harness" />
     <PackageReference Include="Azure.AI.OpenAI" />
     <PackageReference Include="Azure.Identity" />
+    <PackageReference Include="Azure.Extensions.AspNetCore.DataProtection.Blobs" />
+    <PackageReference Include="Azure.Extensions.AspNetCore.DataProtection.Keys" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
       <PrivateAssets>all</PrivateAssets>

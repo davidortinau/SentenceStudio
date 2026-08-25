@@ -11,6 +11,9 @@
 @inject SentenceStudio.Services.IPostLoginRouter PostLoginRouter
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
 @inject Microsoft.AspNetCore.Components.Authorization.AuthenticationStateProvider AuthStateProvider
+@inject CoachFeatureFlags CoachFlags
+@inject CoachAccountBoundary CoachBoundary
+@inject CoachPersona CoachPersona
 @implements IDisposable
 
 <div class="d-flex flex-column vh-100">
@@ -63,6 +66,29 @@
     }
 
     <ToastContainer />
+
+    @* One coach surface for the whole app, and only for a learner who is entitled to one.
+
+       The gate is the same three conditions the navigation uses — signed in, past onboarding,
+       not mid-sync — and it is deliberately NOT "the overlay decides for itself". Mounting the
+       host outside the authenticated branch, and having the host then assume it must be
+       authenticated because it had been mounted, is what let a coach surface render for a signed
+       out shell. CoachSurfaceGate is the single decision both this layout and SamOverlayHost read.
+
+       Before availability is known the legacy host renders (it handles its own pre-load state and
+       draws nothing until asked). Once flags arrive via EnsureLoadedAsync the Loaded event
+       triggers a re-render that switches to SamOverlayHost when appropriate. Both compose over
+       the same scoped CoachWorkspaceState so an active conversation survives the switch. *@
+    @switch (CoachSurfaceGate.Decide(isAuthenticated, isOnboarding, isSyncing, CoachFlags.HasLoaded, CoachFlags.IsSamOverlayAvailable))
+    {
+        case CoachSurface.SamOverlay:
+            <SamOverlayHost />
+            break;
+
+        case CoachSurface.LegacyWorkspaceHost:
+            <CoachWorkspaceHost />
+            break;
+    }
     
     <WhatsNewModal 
         IsVisible="@showWhatsNew" 
@@ -102,13 +128,25 @@
     private string latestVersion = "";
     private bool isSyncing;
 
+    /// <summary>Set the instant disposal starts, before any unsubscribe runs.</summary>
+    private volatile bool _disposed;
+
     protected override async Task OnInitializedAsync()
     {
         Localize.CultureChanged += OnCultureChanged;
         NavigationManager.LocationChanged += OnLocationChanged;
         AuthStateProvider.AuthenticationStateChanged += OnAuthStateChanged;
+        CoachFlags.Loaded += OnCoachFlagsLoaded;
+        CoachBoundary.Crossed += OnCoachAccountCrossed;
 
         SyncService.InitialSyncCompleted += OnInitialSyncCompleted;
+
+        // Start (or re-join) the account watch before anything coach-shaped is resolved. It owns
+        // its own subscription for the life of the DI scope rather than the life of this layout,
+        // because on MAUI the scope survives sign-out and this component does not — so a
+        // subscription anchored here would be torn down at exactly the transition it exists to
+        // observe. AttachAsync is idempotent; calling it from every rebuild is intended.
+        await CoachBoundary.AttachAsync();
 
         // Resolve authentication state from CascadingAuthenticationState
         string? activeProfileIdClaim = null;
@@ -122,6 +160,10 @@
             // unlike IHttpContextAccessor.HttpContext which is null during interactive
             // rendering in Blazor Web App. (Fixes deploy-onboarding regression.)
             activeProfileIdClaim = authState.User?.FindFirst(SentenceStudio.Contracts.AuthClaimTypes.UserProfileId)?.Value;
+
+            // The cascaded principal is the one this render will gate on, so the boundary is told
+            // about it too. Applying the same account twice is a no-op.
+            CoachBoundary.Apply(authState.User);
         }
 
         var uri = NavigationManager.ToAbsoluteUri(NavigationManager.Uri);
@@ -139,11 +181,23 @@
 
     private void OnAuthStateChanged(Task<Microsoft.AspNetCore.Components.Authorization.AuthenticationState> task)
     {
+        if (_disposed) return;
+
         // Logout (or login from another tab/window) raised AuthenticationStateChanged.
         // Re-evaluate isAuthenticated so the sidebar / offcanvas nav hides immediately.
         _ = InvokeAsync(async () =>
         {
             var state = await task;
+            if (_disposed) return;
+
+            // Clear the coach surfaces BEFORE this component re-renders. The boundary has its own
+            // subscription and would get here anyway, but handler order between the two is not
+            // defined, and the one ordering that must never happen is a render of the coach host
+            // under the new principal while the previous learner's transcript is still loaded.
+            // Apply is idempotent, so arriving twice for the same account costs nothing.
+            CoachBoundary.Apply(state.User);
+
+            var wasAuthenticated = isAuthenticated;
             isAuthenticated = state.User?.Identity?.IsAuthenticated ?? false;
             if (!isAuthenticated)
             {
@@ -153,6 +207,29 @@
                 isSyncing = false;
             }
             StateHasChanged();
+
+            // Signing in is a state change, not a new component.
+            //
+            // This layout is the DefaultLayout for BOTH /auth/login and /, so a client-side
+            // navigation after sign-in keeps the same instance alive: OnInitializedAsync does not
+            // run again, and the post-login routing decision it owns would simply never happen.
+            // That used to be hidden by the login page forcing a full document load, which rebuilt
+            // the whole page context — but a document load is not an acceptable way to re-run
+            // component initialisation (see BlazorHostKind), so the transition is handled here.
+            //
+            // Everything ApplyPostLoginRouteAsync decides depends on it: the issue-#187 sync
+            // overlay, the fresh-install /onboarding redirect, and staying on the dashboard
+            // otherwise.
+            if (!wasAuthenticated && isAuthenticated && !isOnboarding)
+            {
+                var activeProfileIdClaim = state.User?
+                    .FindFirst(SentenceStudio.Contracts.AuthClaimTypes.UserProfileId)?.Value;
+
+                await ApplyPostLoginRouteAsync(activeProfileIdClaim);
+
+                if (_disposed) return;
+                StateHasChanged();
+            }
         });
     }
 
@@ -179,14 +256,13 @@
         }
 
         var currentPath = NavigationManager.ToAbsoluteUri(NavigationManager.Uri).AbsolutePath;
-        if (!string.IsNullOrEmpty(route.Path)
-            && !string.Equals(currentPath, route.Path, StringComparison.OrdinalIgnoreCase))
+        if (PostLoginRouteApplication.ShouldNavigate(route.Path, currentPath))
         {
-            if (string.Equals(route.Path, "/onboarding", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(route.Path, PostLoginRouteApplication.OnboardingPath, StringComparison.OrdinalIgnoreCase))
             {
                 isOnboarding = true;
             }
-            NavigationManager.NavigateTo(route.Path);
+            NavigationManager.NavigateTo(route.Path!);
         }
     }
 
@@ -195,8 +271,18 @@
         if (firstRender)
         {
             jsModule = await JS.InvokeAsync<IJSObjectReference>("import", "./_content/SentenceStudio.UI/js/app.js");
+
+            // On the web the appearance cookie is read synchronously during SSR, but this render
+            // runs inside the circuit, where HttpContext is gone and the state may still be the
+            // default. Seed it from the browser before painting. No-op on MAUI, where the device
+            // preference was already read in the service constructor.
+            await ThemeService.EnsureLoadedAsync();
+
             await jsModule.InvokeVoidAsync("applyTheme", ThemeService.CurrentTheme, ThemeService.CurrentMode);
             await jsModule.InvokeVoidAsync("setFontScale", ThemeService.FontScale);
+
+            // Subscribed to this circuit's own ThemeService instance. On the web that instance is
+            // scoped, so this handler can only ever be reached by a change made in this browser.
             ThemeService.ThemeChanged += OnThemeChanged;
 
             // Check for version updates and show What's New if needed
@@ -204,6 +290,16 @@
             {
                 await CheckVersionAndShowWhatsNew();
                 await CheckForAppUpdate();
+
+                // Load coach feature flags so the Sam overlay vs legacy host decision
+                // re-evaluates after the availability response arrives. EnsureLoadedAsync
+                // is idempotent and the Loaded event triggers StateHasChanged.
+                await CoachFlags.EnsureLoadedAsync();
+
+                // And who the coach is for this learner. Resolved here rather than inside each
+                // surface so the dashboard entry card, the overlay and the route all name the
+                // same person on the first paint instead of each correcting itself.
+                await CoachPersona.RefreshAsync();
             }
         }
     }
@@ -336,38 +432,129 @@
         await InvokeAsync(StateHasChanged);
     }
 
+    /// <summary>
+    /// Re-applies the appearance to the DOM after a theme, mode or text-size change.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This is an <c>async void</c> because it is an <c>EventHandler</c>, so nothing awaits it and
+    /// anything it throws goes straight to the unhandled-exception path — which on the web ends the
+    /// learner's circuit. The two things that realistically throw here are both benign races:
+    /// the circuit disconnecting (<see cref="JSDisconnectedException"/>) and the module being
+    /// disposed by <see cref="Dispose"/> while a call is in flight
+    /// (<see cref="ObjectDisposedException"/>). Both mean "the page this was for is gone", which is
+    /// nothing to report.
+    /// </para>
+    /// <para>
+    /// The <c>_disposed</c> checks match every other handler in this layout: one before starting,
+    /// because the event is raised by a service that outlives the component, and one after the
+    /// first await, because disposal can land in between.
+    /// </para>
+    /// </remarks>
     private async void OnThemeChanged(object? sender, ThemeChangedEventArgs e)
     {
-        if (jsModule != null)
+        if (_disposed) return;
+
+        var module = jsModule;
+        if (module is null) return;
+
+        try
         {
-            await jsModule.InvokeVoidAsync("applyTheme", e.Theme, e.Mode);
-            await jsModule.InvokeVoidAsync("setFontScale", e.FontScale);
+            await module.InvokeVoidAsync("applyTheme", e.Theme, e.Mode);
+            if (_disposed) return;
+            await module.InvokeVoidAsync("setFontScale", e.FontScale);
         }
+        catch (JSDisconnectedException) { }
+        catch (ObjectDisposedException) { }
+        catch (TaskCanceledException) { }
     }
 
     public void Dispose()
     {
+        // Set before unsubscribing: a handler already executing on another thread observes this
+        // and drops out instead of rendering into a layout that is going away. Unsubscribing alone
+        // only closes the window for *future* notifications.
+        _disposed = true;
+
         Localize.CultureChanged -= OnCultureChanged;
         ThemeService.ThemeChanged -= OnThemeChanged;
         NavigationManager.LocationChanged -= OnLocationChanged;
         AuthStateProvider.AuthenticationStateChanged -= OnAuthStateChanged;
+        CoachFlags.Loaded -= OnCoachFlagsLoaded;
+        CoachBoundary.Crossed -= OnCoachAccountCrossed;
         SyncService.InitialSyncCompleted -= OnInitialSyncCompleted;
         jsModule?.DisposeAsync();
     }
 
-    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
+    private void OnCultureChanged() => RequestRender();
+
+    private void OnCoachFlagsLoaded() => RequestRender();
+
+    /// <summary>
+    /// Schedules a re-render, and does nothing once this layout has been disposed.
+    /// </summary>
+    /// <remarks>
+    /// Every caller is a synchronous event raised by a service that outlives this component. On
+    /// the MAUI BlazorWebView the layout is disposed and rebuilt around exactly the transitions
+    /// these events describe, so "disposed" is the common case rather than the edge case, and
+    /// StateHasChanged on a disposed component throws into a task nobody awaits.
+    /// </remarks>
+    private void RequestRender()
+    {
+        if (_disposed) return;
+
+        _ = InvokeAsync(() =>
+        {
+            if (_disposed) return;
+            StateHasChanged();
+        });
+    }
+
+    /// <summary>
+    /// Re-reads coach availability for whoever just signed in, and re-renders the gate.
+    /// </summary>
+    /// <remarks>
+    /// The boundary clears the cached flags along with everything else, which is correct — the
+    /// answer was about a learner who has gone — but it leaves nothing to gate on. Without this,
+    /// the next learner would be stuck on the pre-availability surface until a full reload, so
+    /// the reload is part of crossing the boundary rather than something the next page happens to
+    /// trigger. Nothing is asked for while signed out.
+    /// </remarks>
+    private void OnCoachAccountCrossed(CoachAccountIdentity identity)
+    {
+        if (_disposed) return;
+
+        _ = InvokeAsync(async () =>
+        {
+            if (_disposed) return;
+
+            if (identity.IsAuthenticated)
+            {
+                await CoachFlags.EnsureLoadedAsync();
+            }
+
+            if (_disposed) return;
+            StateHasChanged();
+        });
+    }
 
     private void OnInitialSyncCompleted()
     {
+        if (_disposed) return;
+
         // Sync finished (success OR failure — SyncService raises this in both branches).
         // Re-run the router to decide whether to land on dashboard or onboarding.
         _ = InvokeAsync(async () =>
         {
+            if (_disposed) return;
+
             isSyncing = false;
             if (isAuthenticated)
             {
                 await ApplyPostLoginRouteAsync();
             }
+
+            if (_disposed) return;
             StateHasChanged();
         });
     }

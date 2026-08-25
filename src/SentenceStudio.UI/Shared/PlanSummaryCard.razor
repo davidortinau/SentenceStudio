@@ -104,28 +104,11 @@
     private int GetTotalCount() =>
         Day.Plans.Sum(p => p.TotalCount);
 
-    private string GetDotClass(ActivityCategory category) => category switch
-    {
-        ActivityCategory.Input => "activity-dot-input",
-        ActivityCategory.Output => "activity-dot-output",
-        _ => ""
-    };
+    private string GetDotClass(ActivityCategory category) => PlanActivityPresentation.DotClass(category);
 
-    private string GetActivityDisplayName(PlanActivityType type) => type switch
-    {
-        PlanActivityType.VocabularyReview => "Vocabulary Review",
-        PlanActivityType.Reading => "Reading",
-        PlanActivityType.Listening => "Listening",
-        PlanActivityType.VideoWatching => "Video Watching",
-        PlanActivityType.Shadowing => "Shadowing",
-        PlanActivityType.Cloze => "Cloze",
-        PlanActivityType.Translation => "Translation",
-        PlanActivityType.Writing => "Writing",
-        PlanActivityType.SceneDescription => "Scene Description",
-        PlanActivityType.Conversation => "Conversation",
-        PlanActivityType.VocabularyGame => "Vocabulary Game",
-        _ => type.ToString()
-    };
+    // Previously a hardcoded English map, which meant a Korean-display learner saw
+    // "Vocabulary Review" while the rest of this card was translated. Now shared and localized.
+    private string GetActivityDisplayName(PlanActivityType type) => PlanActivityPresentation.Label(Localize, type);
 
     public void Dispose()
     {

@@ -1,0 +1,50 @@
+@*
+    Floating action button for Sam. Always visible (when authenticated + flag on)
+    in the bottom-right corner. Tapping opens the overlay panel.
+    48px diameter, safe-area-aware.
+*@
+
+@inject BlazorLocalizationService Localize
+@inject CoachPersona Persona
+@implements IDisposable
+
+<button type="button"
+        id="@Id"
+        class="sam-fab @(_hasUnread ? "sam-fab--unread" : "")"
+        aria-label="@Localize.Get("Coach_OpenNamed", Persona.DisplayName)"
+        aria-expanded="false"
+        aria-controls="@SamElementIds.Panel"
+        @onclick="OnOpen">
+    <i class="bi bi-chat-dots-fill" aria-hidden="true"></i>
+    @if (_hasUnread)
+    {
+        <span class="sam-fab__badge" aria-label="@Localize["Coach_Unread"]"></span>
+    }
+</button>
+
+@code {
+    [Parameter] public EventCallback OnOpen { get; set; }
+    [Parameter] public bool HasUnread { get; set; }
+    [Parameter] public string Id { get; set; } = SamElementIds.Fab;
+
+    private bool _hasUnread;
+
+    protected override void OnInitialized()
+    {
+        Localize.CultureChanged += OnChanged;
+        Persona.Changed += OnChanged;
+    }
+
+    protected override void OnParametersSet()
+    {
+        _hasUnread = HasUnread;
+    }
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnChanged;
+        Persona.Changed -= OnChanged;
+    }
+}

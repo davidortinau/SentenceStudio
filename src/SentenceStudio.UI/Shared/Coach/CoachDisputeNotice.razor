@@ -1,0 +1,116 @@
+@inject BlazorLocalizationService Localize
+
+@*
+    The receipt for a correction.
+
+    The defect this closes is not that the coach was wrong. It is that a learner who corrected it
+    had no way to tell whether the correction landed. Case D in the plan's own evidence repeated a
+    disputed list with MORE confidence, and from the learner's side that is indistinguishable from
+    not having spoken at all. A visible notice is the difference between "the system heard me and
+    is working on it" and "I am talking to a wall".
+
+    Three rules govern what appears here.
+
+    1. NO LEARNER TEXT. The notice renders a closed signal code, never the correction the learner
+       typed. Their words are already on screen one message up, in the conversation, in the
+       encrypted ledger. Repeating them here would put learner prose into a second surface with a
+       second retention story for no gain.
+
+    2. NEUTRAL ON UNKNOWN, IN BOTH DIRECTIONS. An unrecognised status renders nothing — showing an
+       unresolved dispute the server never reported is its own lie. An unrecognised signal renders
+       the generic line, which is true whichever correction was made; naming a specific one would
+       claim the coach understood the correction more precisely than it did.
+
+    3. STATUS, NOT ALERT. role="status" with aria-live="polite". A dispute is a state change the
+       learner initiated deliberately, so it is announced when the screen reader finishes what it is
+       saying rather than interrupting. role="alert" would cut across the answer they are reading.
+
+    HOST-AGNOSTIC. No base URI, no navigation manager, no platform flag, so the workspace host and
+    the overlay host render byte-identical markup. Parity is a property of the file.
+*@
+
+@if (Dispute is not null && Status is not CoachDisputeStatus.Unknown)
+{
+    <div class="coach-dispute @StatusClass"
+         role="status"
+         aria-live="polite"
+         aria-label="@Localize["Coach_Dispute_StatusLabel"]"
+         data-coach-dispute="@Status"
+         data-coach-dispute-signal="@Dispute.Signal">
+
+        <p class="coach-dispute-heading ss-caption1 text-secondary-ss mb-1">
+            @Localize["Coach_Dispute_Heading"]
+        </p>
+
+        @if (SignalKey is { } signalKey)
+        {
+            <p class="coach-dispute-signal ss-body2 mb-1">@Localize[signalKey]</p>
+        }
+
+        <p class="coach-dispute-state ss-body2 mb-0">@Localize[StatusKey]</p>
+
+        @if (Status is CoachDisputeStatus.Open && OnDismiss.HasDelegate)
+        {
+            <button type="button"
+                    class="btn btn-link btn-sm coach-dispute-dismiss p-0"
+                    @onclick="OnDismiss">
+                @Localize["Coach_Dispute_DismissLabel"]
+            </button>
+        }
+    </div>
+}
+
+@code {
+    /// <summary>The dispute to render. Null renders nothing.</summary>
+    [Parameter, EditorRequired] public CoachDisputeDto? Dispute { get; set; }
+
+    /// <summary>Raised when the learner dismisses an open dispute.</summary>
+    /// <remarks>
+    /// Optional. When no handler is attached the dismiss control does not render, so a host that
+    /// has not wired dismissal never shows a button that does nothing.
+    /// </remarks>
+    [Parameter] public EventCallback OnDismiss { get; set; }
+
+    private CoachDisputeStatus Status => Dispute?.Status ?? CoachDisputeStatus.Unknown;
+
+    /// <summary>
+    /// The state line. Every member except Unknown has one, and Unknown never reaches here.
+    /// </summary>
+    private string StatusKey => Status switch
+    {
+        CoachDisputeStatus.Open => "Coach_Dispute_Open",
+        CoachDisputeStatus.ResolvedByReRead => "Coach_Dispute_Resolved_ReRead",
+        CoachDisputeStatus.ResolvedByCorrection => "Coach_Dispute_Resolved_Correction",
+        CoachDisputeStatus.ResolvedByLimitation => "Coach_Dispute_Resolved_Limitation",
+        CoachDisputeStatus.DismissedByLearner => "Coach_Dispute_Dismissed",
+        _ => "Coach_Dispute_Open"
+    };
+
+    /// <summary>
+    /// What the learner corrected, or null when this build cannot name it.
+    /// </summary>
+    /// <remarks>
+    /// Null rather than a nearest-neighbour guess. The generic state line below it is true whichever
+    /// correction was made, so dropping this line loses precision and asserts nothing false.
+    /// </remarks>
+    private string? SignalKey => Dispute!.Signal switch
+    {
+        CoachDisputeSignal.MeantSomethingElse => "Coach_Dispute_Signal_MeantSomethingElse",
+        CoachDisputeSignal.NotWhatIAsked => "Coach_Dispute_Signal_NotWhatIAsked",
+        CoachDisputeSignal.WrongClaim => "Coach_Dispute_Signal_WrongClaim",
+        CoachDisputeSignal.DifferentCohort => "Coach_Dispute_Signal_DifferentCohort",
+        _ => null
+    };
+
+    /// <summary>
+    /// A state class, never the raw enum name.
+    /// </summary>
+    /// <remarks>
+    /// The enum name is carried in a <c>data-</c> attribute for tests and diagnostics, where a
+    /// developer reads it. A CSS class named for an internal code would end up in a stylesheet and
+    /// then in a screenshot, and the learner is not the audience for <c>ResolvedByReRead</c>.
+    /// </remarks>
+    private string StatusClass => Status is CoachDisputeStatus.Open
+        ? "coach-dispute-open"
+        : "coach-dispute-closed";
+}

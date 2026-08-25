@@ -52,6 +52,21 @@ public partial class VocabularyWord : ObservableObject
     [ObservableProperty]
     private LexicalUnitType lexicalUnitType = LexicalUnitType.Unknown;
 
+    /// <summary>
+    /// Canonical part of speech, persisted from the extraction pipeline.
+    /// </summary>
+    /// <remarks>
+    /// Nullable on purpose: every row written before this column existed stays
+    /// <c>null</c> ("never classified"), which is a valid, permanent state. The
+    /// column stores the canonical lowercase token (see
+    /// <see cref="VocabularyPartOfSpeechTokens"/>), not the numeric value, so an
+    /// unmodelled future value stays readable and re-mappable without a data
+    /// migration.
+    /// </remarks>
+    [Description("Canonical part of speech: noun, verb, adjective, adverb, expression, counter, or particle.")]
+    [ObservableProperty]
+    private VocabularyPartOfSpeech? partOfSpeech;
+
     [JsonIgnore]
     [NotMapped]
     public List<VocabularyList>? VocabularyLists { get; set; }

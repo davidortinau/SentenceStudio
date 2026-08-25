@@ -15,7 +15,8 @@ aspire stop
 Keep these points in mind:
 
 - Use `aspire start` for normal background AppHost execution.
-- In git worktrees or when another local instance may already be running, use `aspire start --isolated`.
+- In git worktrees (MUST be a different project path, not just `--isolated` from the same path) or when another local instance may already be running, use `aspire start --isolated`.
+- `--isolated` from the SAME project path is UNSAFE -- it can stop an existing AppHost and reuse container identity. Always use a separately materialized AppHost path.
 - If the CLI shape may have changed or the skill instructions look older than the local CLI, confirm the exact command form with `aspire --help` or the relevant subcommand help before executing.
 - To restart after AppHost changes, rerun the same start command. In a worktree, rerun `aspire start --isolated`.
 - Treat this as the AppHost-wide restart path. Do not use it as the default response to every resource implementation change while the AppHost is already running.

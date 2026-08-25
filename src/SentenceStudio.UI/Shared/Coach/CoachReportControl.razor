@@ -1,0 +1,603 @@
+@implements IDisposable
+@inject BlazorLocalizationService Localize
+@inject CoachWorkspaceState Coach
+@inject CoachPersona Persona
+
+@*
+    Reports one of Sam's responses.
+
+    Only conversational responses get this. A learner's own message is not Sam's work, a receipt is
+    a record of a change, and a system notice is the server describing itself — none of them are a
+    response a learner could be dissatisfied with.
+
+    The panel is inline rather than modal on purpose. A dialog would take focus out of the
+    conversation, cover the response being reported, and make the learner answer a question about
+    something they can no longer see.
+
+    THIS CONTROL OWNS THE MESSAGE'S ACTION ROW, and that is the point of the shape. The row is a
+    flex line of icon controls; the panel is a form. Rendered as a child of that row the panel
+    became a third flex item squeezed beside Copy — and worse than the look, a group of actions that
+    contains a radio form reads to assistive tech as one composite control. Owning the row lets the
+    flag stay in it while the panel mounts after it, at the message column's full width, as a
+    sibling rather than a sixth of a flex line. Callers hand in whatever else belongs on the row
+    through <c>ChildContent</c>.
+*@
+
+@* The row is one Escape-owning surface: while the panel is open a press anywhere inside it — the
+   panel, the flag, Copy — belongs to the panel and must not also reach the overlay. The data
+   attribute is read by sam-overlay.js at dispatch time and stops the press being reported at all;
+   stopPropagation makes the same claim to any ancestor handler. Both are armed at render time from
+   the same expression, so they cannot disagree about whether the panel is open. *@
+<div class="coach-message-footer"
+     id="@FooterId"
+     data-sam-escape-owner="@(IsPanelOpen ? "report" : null)"
+     @onkeydown="OnFooterKeyDown"
+     @onkeydown:stopPropagation="IsPanelOpen">
+
+    <div class="coach-message-actions">
+        @ChildContent
+
+        @if (CanReport)
+        {
+            @if (IsReported)
+            {
+                @* Settled state. Not a button: there is nothing left to press, and a disabled
+                   control that looks pressable is a control people press.
+
+                   tabindex="-1" because this is the focus target after a successful report. The
+                   control that had focus is gone, and without a programmatically focusable
+                   replacement the browser drops focus to the document — which on a long transcript
+                   means losing the message the learner was reading. Negative rather than zero, so
+                   script can reach it and Tab still skips it.
+
+                   This element is the *only* place the completion wording appears. It used to be
+                   echoed into the polite region below as well, which put "Reported for review" into
+                   the accessibility tree twice — once here and once in a visually hidden node
+                   saying the same words — so anything reading the page whole read the outcome
+                   twice. Focus moving here is the announcement, and focus is something this control
+                   already does deliberately, so the echo was pure duplication. Deliberately not
+                   role="status": a live region and a focus move on the same node is how a single
+                   outcome gets announced twice again. *@
+                <span class="coach-report-done"
+                      id="@DoneId"
+                      tabindex="-1">
+                    <i class="bi bi-flag-fill" aria-hidden="true"></i>
+                    <span>@Localize["Coach_ReportDone"]</span>
+                </span>
+            }
+            else
+            {
+                <button type="button"
+                        class="btn btn-link coach-report-flag"
+                        id="@ButtonId"
+                        aria-label="@Localize["Coach_ReportResponse"]"
+                        aria-describedby="@DescribedById"
+                        title="@Localize["Coach_ReportResponse"]"
+                        aria-expanded="@(_open ? "true" : "false")"
+                        aria-controls="@PanelId"
+                        disabled="@_busy"
+                        @onclick="TogglePanelAsync">
+                    <i class="bi bi-flag" aria-hidden="true"></i>
+                </button>
+            }
+        }
+    </div>
+
+    @if (IsPanelOpen)
+    {
+        @* A group rather than a dialog: it is part of the conversation, it does not trap focus, and
+           Escape returns the learner to the control that opened it rather than closing something
+           that was never covering anything.
+
+           The panel is removed from the DOM when collapsed rather than hidden — the learner's
+           chosen reason is not something to leave lying in the accessibility tree — so the flag's
+           aria-controls names an element that only exists while open. That is deliberate:
+           aria-expanded is what carries the state, and keeping the association constant means the
+           id a client resolved before opening is still the right one after. *@
+        <div class="coach-report-panel"
+             id="@PanelId"
+             role="group"
+             aria-label="@Localize["Coach_ReportResponse"]"
+             aria-busy="@(_busy ? "true" : "false")">
+            <div class="ss-caption1 text-secondary-ss coach-report-prompt" id="@PromptId">
+                @Localize.Get("Coach_ReportPrompt", Persona.DisplayName)
+            </div>
+
+            @* A radio group, so the closed set reads as a closed set and arrow keys move through it.
+               Free text is deliberately absent: it is the one field where a learner would paste the
+               sentence this whole surface is built to keep out of product telemetry.
+
+               Described by the prompt, so the question the choices answer is read with them rather
+               than only once, before the group was entered. *@
+            <div class="coach-report-reasons"
+                 id="@ReasonsId"
+                 role="radiogroup"
+                 aria-label="@Localize["Coach_ReportReasonLegend"]"
+                 aria-describedby="@PromptId">
+                @foreach (var reason in Reasons)
+                {
+                    var id = $"{PanelId}-{reason}";
+                    <div class="form-check coach-report-reason">
+                        <input class="form-check-input"
+                               type="radio"
+                               name="@PanelId"
+                               id="@id"
+                               value="@reason"
+                               checked="@(_reason == reason)"
+                               disabled="@_busy"
+                               @onchange="() => _reason = reason" />
+                        <label class="form-check-label" for="@id">@ReasonLabel(reason)</label>
+                    </div>
+                }
+            </div>
+
+            @if (_failed)
+            {
+                @* Truthful and scoped to the panel. The report did not happen, so the control stays
+                   where it was rather than settling into a reported state it did not reach. *@
+                <div class="coach-report-error ss-caption1" role="alert">
+                    <i class="bi bi-exclamation-triangle me-1" aria-hidden="true"></i>
+                    @Localize["Coach_ReportFailed"]
+                </div>
+            }
+
+            <div class="coach-report-actions">
+                <button type="button" class="btn btn-ss-secondary coach-action"
+                        id="@CancelId"
+                        disabled="@_busy"
+                        @onclick="CancelAsync">
+                    @Localize["Coach_ReportCancel"]
+                </button>
+                <button type="button" class="btn btn-ss-primary coach-action"
+                        id="@SubmitId"
+                        disabled="@_busy"
+                        @onclick="SubmitAsync">
+                    @Localize["Coach_ReportSubmit"]
+                </button>
+            </div>
+        </div>
+    }
+
+    @* Polite, never an alert. Nothing here has interrupted the learner, and they are still reading
+       the response the panel belongs to.
+
+       It carries the in-flight state only, and goes empty the moment the work finishes. A visible
+       spinner was the alternative and it would have been worse: the panel sits inline in a scrolling
+       transcript, so anything taking up space would move the message under the reader's eyes at the
+       exact moment they were told to wait. The controls are already disabled and the panel already
+       carries aria-busy; the only thing missing was saying so.
+
+       It does *not* carry the outcome. The settled state above says "Reported for review" visibly
+       and takes focus, and repeating those words here put them in the accessibility tree twice.
+       The failure path works the same way — the visible message carries role="alert" and is not
+       echoed here either.
+
+       Rendered even while empty, and always, because a live region a screen reader has not been
+       watching is a live region it will not announce into.
+
+       Inside the footer, so the component has one root and the Escape-owning subtree is the whole
+       of what this control renders. *@
+    <span class="visually-hidden" id="@StatusId" role="status" aria-live="polite">@StatusText</span>
+</div>
+
+@code {
+    /// <summary>The coach response this control reports.</summary>
+    /// <remarks>
+    /// Null for a message that cannot be reported. The row still renders — it is the message's
+    /// action row and Copy lives on it — and the flag is simply not offered.
+    /// </remarks>
+    [Parameter] public string? MessageId { get; set; }
+
+    /// <summary>The other controls on this message's action row, rendered before the flag.</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Requests focus back on the flag control after the panel closes.</summary>
+    [Parameter] public EventCallback<string> OnReturnFocus { get; set; }
+
+    /// <summary>
+    /// Raised immediately before a disclosure changes the message's height, and again once the new
+    /// height has been rendered.
+    /// </summary>
+    /// <remarks>
+    /// Opening the panel is a deliberate resize of the conversation's content, not a new message
+    /// arriving. Unbracketed, the observer watching the transcript reads the extra height exactly
+    /// as it reads an incoming turn: a reader who had scrolled up gets a "jump to latest" chip for
+    /// content they opened themselves, and a reader who was following gets the same chip instead of
+    /// being carried down to the panel. The pair suspends the content rules across the change and
+    /// re-baselines afterwards.
+    /// </remarks>
+    [Parameter] public EventCallback OnDisclosureChanging { get; set; }
+
+    /// <inheritdoc cref="OnDisclosureChanging" />
+    [Parameter] public EventCallback OnDisclosureChanged { get; set; }
+
+    /// <summary>
+    /// The message header — Sam's name and the time — that tells this row's controls apart from the
+    /// identical row on every other response.
+    /// </summary>
+    /// <remarks>
+    /// A description rather than a longer accessible name, on purpose. Folding the speaker and
+    /// timestamp into aria-label would make every flag's name unique, which is exactly what a voice
+    /// control user cannot use: "click report this response" would stop matching anything. The name
+    /// stays the short, repeatable command and the disambiguation is read after it.
+    /// </remarks>
+    [Parameter] public string? DescribedById { get; set; }
+
+    private static readonly CoachResponseReportReason[] Reasons =
+    [
+        CoachResponseReportReason.DidNotAnswer,
+        CoachResponseReportReason.IncorrectOrMisleading,
+        CoachResponseReportReason.ExpectedAppAction,
+        CoachResponseReportReason.Confusing,
+        CoachResponseReportReason.Other
+    ];
+
+    private readonly string _fallbackKey = Guid.NewGuid().ToString("n");
+
+    private bool _open;
+    private bool _busy;
+    private bool _failed;
+    private string? _boundMessageId;
+    private string? _pendingFocusId;
+    private bool _pendingDisclosureResize;
+    private bool _registeredOpen;
+    private CoachResponseReportReason _reason = CoachResponseReportReason.DidNotAnswer;
+
+    private bool IsReported => Coach.IsResponseReported(MessageId);
+
+    /// <summary>True when this message can be reported and the deployment accepts reports.</summary>
+    private bool CanReport => Coach.IsReportingAvailable && MessageId is { Length: > 0 };
+
+    /// <summary>
+    /// True while the reason panel is on screen.
+    /// </summary>
+    /// <remarks>
+    /// The single expression the panel, the Escape-owner marker and the propagation claim are all
+    /// rendered from, so no press can find the panel open by one measure and closed by another.
+    /// </remarks>
+    private bool IsPanelOpen => _open && CanReport && !IsReported;
+
+    /// <summary>
+    /// Stable ids derived from the server's own message id.
+    /// </summary>
+    /// <remarks>
+    /// Derived rather than generated per render, so <c>aria-controls</c> keeps pointing at the
+    /// same element across re-renders and a test can address one message's control without
+    /// depending on render order.
+    /// </remarks>
+    private string ButtonId => $"coach-report-{MessageId}";
+
+    private string PanelId => $"coach-report-panel-{MessageId}";
+
+    private string PromptId => $"coach-report-prompt-{MessageId}";
+
+    private string ReasonsId => $"coach-report-reasons-{MessageId}";
+
+    private string StatusId => $"coach-report-status-{MessageId}";
+
+    private string DoneId => $"coach-report-done-{MessageId}";
+
+    private string CancelId => $"coach-report-cancel-{MessageId}";
+
+    private string SubmitId => $"coach-report-submit-{MessageId}";
+
+    /// <summary>
+    /// The row's own id, stable even for a message with no durable identity.
+    /// </summary>
+    /// <remarks>
+    /// A row is rendered for every one of Sam's messages, including the ones that cannot be
+    /// reported, so this cannot depend on a message id being present.
+    /// </remarks>
+    private string FooterId =>
+        $"coach-message-footer-{(MessageId is { Length: > 0 } id ? id : _fallbackKey)}";
+
+    /// <summary>What the polite region is currently saying.</summary>
+    /// <remarks>
+    /// In-flight only. The outcome — settled or failed — is carried by the visible element that
+    /// reports it, so it is never repeated here; two nodes saying the same words is two
+    /// announcements and two entries in the accessibility tree.
+    /// </remarks>
+    private string? StatusText => _busy ? $"{Localize["Coach_ReportSubmitting"]}" : null;
+
+    private string ReasonLabel(CoachResponseReportReason reason) => reason switch
+    {
+        CoachResponseReportReason.DidNotAnswer => $"{Localize["Coach_ReportReasonDidNotAnswer"]}",
+        CoachResponseReportReason.IncorrectOrMisleading => $"{Localize["Coach_ReportReasonIncorrect"]}",
+        CoachResponseReportReason.ExpectedAppAction => $"{Localize["Coach_ReportReasonExpectedAction"]}",
+        CoachResponseReportReason.Confusing => $"{Localize["Coach_ReportReasonConfusing"]}",
+        _ => $"{Localize["Coach_ReportReasonOther"]}"
+    };
+
+    private async Task TogglePanelAsync()
+    {
+        await BeginDisclosureResizeAsync();
+
+        _open = !_open;
+        _failed = false;
+
+        if (!_open)
+        {
+            _reason = CoachResponseReportReason.DidNotAnswer;
+        }
+
+        SyncOpenRegistration();
+    }
+
+    private Task CancelAsync() => CloseAsync();
+
+    /// <summary>
+    /// Closes the panel, restores the resting reason, and puts focus back on the flag.
+    /// </summary>
+    private async Task CloseAsync()
+    {
+        if (!_open)
+        {
+            return;
+        }
+
+        await BeginDisclosureResizeAsync();
+
+        _open = false;
+        _failed = false;
+        _reason = CoachResponseReportReason.DidNotAnswer;
+
+        SyncOpenRegistration();
+        RequestFocus(IsReported ? DoneId : ButtonId);
+    }
+
+    /// <summary>
+    /// Escape closes the panel and puts focus back where it came from.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The same contract as Cancel, because pressing Escape and pressing Cancel are the same
+    /// decision. Nothing else is intercepted: this is a group inside a conversation, and swallowing
+    /// Tab would trap a keyboard user in a control they were only passing through.
+    /// </para>
+    /// <para>
+    /// Handled on the row rather than on the panel because the flag keeps focus when the panel
+    /// opens — the panel is not a dialog and does not steal it. A handler on the panel alone would
+    /// miss the most likely press of all: the one made straight after opening it.
+    /// </para>
+    /// </remarks>
+    private async Task OnFooterKeyDown(KeyboardEventArgs e)
+    {
+        if (!IsPanelOpen || !string.Equals(e.Key, "Escape", StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        await CloseAsync();
+    }
+
+    /// <summary>
+    /// Files the report and settles the control.
+    /// </summary>
+    /// <remarks>
+    /// No explicit <c>StateHasChanged</c> anywhere in here. This runs as an event callback, and the
+    /// framework already renders twice around one of those: once when the handler yields at its
+    /// first await, and once when it completes. The first covers the busy state, the second covers
+    /// the settled state — and the second is what lets <see cref="OnAfterRenderAsync"/> apply the
+    /// focus this method requests.
+    /// </remarks>
+    private async Task SubmitAsync()
+    {
+        if (_busy || MessageId is not { Length: > 0 } messageId)
+        {
+            return;
+        }
+
+        _busy = true;
+        _failed = false;
+
+        var outcome = await Coach.ReportResponseAsync(messageId, _reason);
+
+        _busy = false;
+
+        if (outcome == CoachReportOutcome.Failed)
+        {
+            // Stay open, keep the chosen reason, and say what happened. Closing here would look
+            // like the report was filed.
+            _failed = true;
+            return;
+        }
+
+        // Recorded and AlreadyReported settle identically. The learner asked for this response to
+        // be reported and it is; which request achieved that is server bookkeeping.
+        await BeginDisclosureResizeAsync();
+
+        _open = false;
+
+        SyncOpenRegistration();
+
+        // The settled state replaces the control that had focus, so focus moves to it rather than
+        // being dropped. Requested rather than called: the element does not exist until the render
+        // this method is about to queue has run.
+        //
+        // This focus move is also how the outcome is announced. The settled state says "Reported for
+        // review" and focus lands on it, so a screen reader reads it once. Writing the same words
+        // into the polite region as well — which is what this used to do — announced the outcome
+        // twice and left it in the accessibility tree twice.
+        RequestFocus(DoneId);
+    }
+
+    /// <summary>
+    /// Queues a focus call for after the next render.
+    /// </summary>
+    /// <remarks>
+    /// Focus cannot be moved to an element that has not been rendered yet, and every case here
+    /// changes which element should hold it: the settled state does not exist until the report
+    /// lands, and the flag does not exist while the panel is open. Calling
+    /// <see cref="OnReturnFocus"/> inline would target the outgoing element or nothing at all.
+    /// </remarks>
+    private void RequestFocus(string elementId) => _pendingFocusId = elementId;
+
+    /// <summary>
+    /// Tells the conversation a deliberate resize is starting, and remembers to close the bracket.
+    /// </summary>
+    private async Task BeginDisclosureResizeAsync()
+    {
+        if (_pendingDisclosureResize || !OnDisclosureChanging.HasDelegate)
+        {
+            // Already inside a bracket, or nobody is listening. Opening a second one would leave
+            // the first unmatched, which suspends following for the rest of the session.
+            return;
+        }
+
+        _pendingDisclosureResize = true;
+        await OnDisclosureChanging.InvokeAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Focus first, then release the bracket. Focusing can scroll the element into view, and the
+        // bracket's correction is what puts the reader back where they asked to be — so it has to
+        // have the last word, not the first.
+        if (_pendingFocusId is { Length: > 0 } focusId)
+        {
+            _pendingFocusId = null;
+
+            if (OnReturnFocus.HasDelegate)
+            {
+                await OnReturnFocus.InvokeAsync(focusId);
+            }
+        }
+
+        if (_pendingDisclosureResize)
+        {
+            _pendingDisclosureResize = false;
+            await OnDisclosureChanged.InvokeAsync();
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        Localize.CultureChanged += OnChanged;
+        Coach.Changed += OnChanged;
+        Coach.ReportPanelCloseRequested += OnCloseRequested;
+        Persona.Changed += OnChanged;
+    }
+
+    /// <summary>
+    /// Closes a panel whose control has gone away, or that has been rebound to another response.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// An account switch withdraws availability and clears the reported set; a panel left open
+    /// across that boundary would be a half-finished action about somebody else's conversation.
+    /// </para>
+    /// <para>
+    /// <b>The message-identity check is the load-bearing one, and it is deliberately not a
+    /// duplicate of the caller's <c>@key</c>.</b> A keyed loop is what should stop this instance
+    /// being handed a different response, but "should" is a property of a template somebody can
+    /// edit. Resetting here means that even if the instance is rebound, the learner's chosen
+    /// reason cannot be submitted against a response they never read — which is the one failure
+    /// this control must never produce, because the resulting report is indistinguishable from a
+    /// genuine one at every layer below.
+    /// </para>
+    /// </remarks>
+    protected override void OnParametersSet()
+    {
+        if (!string.Equals(_boundMessageId, MessageId, StringComparison.Ordinal))
+        {
+            _boundMessageId = MessageId;
+            _open = false;
+            _busy = false;
+            _failed = false;
+            _pendingFocusId = null;
+            _reason = CoachResponseReportReason.DidNotAnswer;
+            SyncOpenRegistration();
+            return;
+        }
+
+        if (_open && (!Coach.IsReportingAvailable || IsReported))
+        {
+            _open = false;
+            _failed = false;
+        }
+
+        SyncOpenRegistration();
+    }
+
+    private void OnChanged()
+    {
+        if (_open && (!Coach.IsReportingAvailable || IsReported))
+        {
+            _open = false;
+            _failed = false;
+        }
+
+        SyncOpenRegistration();
+        InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>
+    /// Closes this panel because an outer Escape handler stood aside for it.
+    /// </summary>
+    /// <remarks>
+    /// Reached only for a press made outside this row — a press inside it is answered by
+    /// <see cref="OnFooterKeyDown"/> and never reaches the overlay at all. Both paths do the same
+    /// thing, so it does not matter to the learner which one ran.
+    /// </remarks>
+    private void OnCloseRequested()
+    {
+        if (!_open)
+        {
+            return;
+        }
+
+        InvokeAsync(async () =>
+        {
+            await CloseAsync();
+            StateHasChanged();
+        });
+    }
+
+    /// <summary>
+    /// Keeps the workspace's open-panel registry in step with this control's own state.
+    /// </summary>
+    /// <remarks>
+    /// Called after every transition rather than beside each one, so a path added later cannot
+    /// forget it. The registry is what tells the overlay an inner surface owns Escape; a stale
+    /// entry would make the overlay refuse to collapse for the rest of the session.
+    /// </remarks>
+    private void SyncOpenRegistration()
+    {
+        var open = IsPanelOpen;
+
+        if (open == _registeredOpen)
+        {
+            return;
+        }
+
+        _registeredOpen = open;
+        Coach.SetReportPanelOpen(this, open);
+    }
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnChanged;
+        Coach.Changed -= OnChanged;
+        Coach.ReportPanelCloseRequested -= OnCloseRequested;
+        Persona.Changed -= OnChanged;
+
+        if (_registeredOpen)
+        {
+            _registeredOpen = false;
+            Coach.SetReportPanelOpen(this, false);
+        }
+
+        if (_pendingDisclosureResize)
+        {
+            // A bracket opened by a toggle whose render never completed — the row was removed
+            // first. Left open it would suspend the conversation's auto-scroll for the rest of the
+            // session, so it is closed here even though nothing can await it.
+            _pendingDisclosureResize = false;
+
+            if (OnDisclosureChanged.HasDelegate)
+            {
+                _ = OnDisclosureChanged.InvokeAsync();
+            }
+        }
+    }
+}

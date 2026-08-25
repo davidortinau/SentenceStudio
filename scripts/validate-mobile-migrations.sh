@@ -46,21 +46,21 @@ if [[ ! -x "$APP_BINARY" ]]; then
 fi
 echo "📱 App bundle: $APP_BUNDLE"
 
-# Launch the binary directly to capture ILogger.AddConsole() output.
-# macOS AppKit does NOT use 'dotnet build -t:Run' (that's Catalyst/iOS).
-echo "🚀 Launching app binary (capturing console output)..."
-"$APP_BINARY" > "$LOG_PREFIX.console" 2>&1 &
-APP_PID=$!
-trap 'kill $APP_PID 2>/dev/null || true; echo "🧹 Cleaned up app process (PID $APP_PID)"' EXIT
+# AppKit apps must launch through LaunchServices. Starting the bundle executable directly can
+# trigger a SIGKILL even when the ad-hoc signature produced by the build is valid.
+echo "🚀 Launching app bundle through LaunchServices (capturing console output)..."
+open -n "$APP_BUNDLE" \
+    --stdout "$LOG_PREFIX.console" \
+    --stderr "$LOG_PREFIX.console"
 
-# Give the process a moment to start
-sleep 3
-if ! kill -0 "$APP_PID" 2>/dev/null; then
-    echo "❌ App exited immediately. Console output:"
-    cat "$LOG_PREFIX.console"
-    exit 1
-fi
-echo "✅ App process alive (PID $APP_PID)"
+APP_PID=""
+cleanup() {
+    if [[ "$APP_PID" =~ ^[0-9]+$ ]]; then
+        kill "$APP_PID" 2>/dev/null || true
+        echo "🧹 Cleaned up app process (PID $APP_PID)"
+    fi
+}
+trap cleanup EXIT
 
 # Wait for DevFlow agent on the CORRECT port (9225).
 # Broker auto-discovery is unreliable; use explicit --agent-port.
@@ -68,15 +68,11 @@ echo "⏳ Waiting for DevFlow agent on port $DEVFLOW_PORT (timeout: ${WAIT_TIMEO
 AGENT_CONNECTED=false
 ELAPSED=0
 while [[ $ELAPSED -lt $WAIT_TIMEOUT ]]; do
-    if maui devflow agent status --agent-port "$DEVFLOW_PORT" 2>/dev/null | grep -q '"running"'; then
+    if maui devflow agent status --agent-port "$DEVFLOW_PORT" 2>/dev/null |
+        grep -q '"running": true'; then
         AGENT_CONNECTED=true
+        APP_PID=$(lsof -tiTCP:"$DEVFLOW_PORT" -sTCP:LISTEN | head -1)
         break
-    fi
-    # Check app hasn't crashed while waiting
-    if ! kill -0 "$APP_PID" 2>/dev/null; then
-        echo "❌ App exited during startup. Console output:"
-        cat "$LOG_PREFIX.console"
-        exit 1
     fi
     sleep 5
     ELAPSED=$((ELAPSED + 5))
@@ -89,6 +85,12 @@ if [[ "$AGENT_CONNECTED" != "true" ]]; then
     exit 1
 fi
 echo "✅ Agent connected on port $DEVFLOW_PORT"
+
+if [[ ! "$APP_PID" =~ ^[0-9]+$ ]]; then
+    echo "❌ DevFlow connected, but the listener PID could not be resolved safely."
+    exit 1
+fi
+echo "✅ App process alive (PID $APP_PID)"
 
 # Verify app identity — prevent the stale-agent false-pass (2026-07-02).
 echo "🔍 Verifying attached app identity..."

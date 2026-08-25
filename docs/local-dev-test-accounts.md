@@ -27,3 +27,9 @@ Keep fixture emails clearly local, such as `name@test.local`. Do not add real-lo
 ## Rotation policy
 
 These passwords are not secrets; they are development-only fixtures. Never reuse them for production, demos backed by production data, or any external service. If a fixture password needs to change, update the seeder, this doc, and Copilot instructions in the same commit.
+
+## Testing against an established database instead
+
+Seeded fixtures start empty of real learning history. When you need a worktree to have vocabulary,
+plans, and progress — for Today's Plan, progress, or Learning Coach work — clone an established
+local database volume instead of seeding by hand. See `docs/local-dev-database-volumes.md`.

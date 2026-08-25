@@ -28,47 +28,167 @@ The rule is simple: **if you changed it, you test it**.
 
 | Platform | Tool | When to use |
 |----------|------|-------------|
-| **Webapp** (Blazor Server) | Aspire + Playwright | Default — fastest feedback loop |
+| **Webapp** (Blazor Server) | Aspire + **Canvas browser** (Playwright fallback) | Default — fastest feedback loop |
 | **macOS (AppKit)** / **Mac Catalyst** | maui-devflow-debug skill | macOS is the preferred native surface; Mac Catalyst only for iOS-shaped behavior |
 | **iOS / Android** | maui-devflow-debug skill | When testing mobile-specific behavior |
 
 Always test on webapp first. Only test native when the feature is platform-specific.
 
+## Browser: Canvas First
+
+**Use the built-in GitHub Copilot App Canvas browser when it is available. Never launch an
+external Chrome as the default.**
+
+Canvas drives the page the human is already looking at, in the window they already have open. An
+external Chrome launch opens a second browser with its own profile and cookie jar, which produces
+two specific, recurring lies:
+
+- You authenticate in the automated Chrome, the human is still signed out in theirs (or signed in
+  as somebody else), and "it works" is true only inside a window nobody will ever look at again.
+- Screenshots you attach as evidence come from a browser whose state you created, so they cannot
+  disprove the bug the human is reporting.
+
+Order of preference:
+
+1. **Canvas** — default for navigation, clicks, form fill, snapshots, and screenshots.
+2. **Playwright** — fallback **only** when the test cannot be expressed as Canvas actions:
+   network interception or request assertions, multi-tab/multi-context flows, file
+   upload/download, scripted timing loops, or deterministic viewport/device emulation.
+
+When you fall back to Playwright, say so in the report and say which of those it needed. Reusing
+Playwright out of habit is how the evidence stops matching reality.
+
+### Canvas navigation and the cookie jar
+
+**`navigate_page(url)` creates or resets the browsing context in this host, which drops the session
+cookie.** Any `[Authorize]` route then answers `302 -> /auth/login` on a completely healthy app,
+and it looks exactly like a sign-in defect. It is not one — this is a tooling gotcha, not product
+behavior, and it has already produced two wrong diagnoses.
+
+For anything authenticated — a deep link, a reload, a full-document navigation — navigate **inside
+the existing context** instead:
+
+- `evaluate_javascript` with `location.href = '<url>'`, or
+- click a real link or nav item in the page.
+
+Then **prove the jar survived**: set `document.cookie = 'e2e_probe=1; path=/'` before navigating and
+read it back afterwards. The Identity cookie is `HttpOnly` and will never appear in
+`document.cookie`, so the probe is the only signal available for "did this context keep cookies".
+If the probe is gone, the redirect you are looking at is yours.
+
+Before reporting an authentication defect from the browser, corroborate it somewhere the browser
+cannot lie: the server logs, or `tests/SentenceStudio.WebApp.Tests`, which drives the real password
+sign-in and `/account-action/AutoSignIn` chain with no browser involved. See
+`references/webapp-gotchas.md` for the full write-up.
+
 ## Webapp Testing Workflow
 
-### 1. Start the Stack
+### 1. Confirm you will not clobber the human's stack
+
+Captain's visible stack lives at `https://localhost:7071` on his real database. A second
+`aspire run` from this worktree **seizes that port** and, if `LocalDb:DataVolume` is wrong, serves
+a different database behind the same URL.
+
+Before starting anything, check whether a stack is already running:
+
+```bash
+lsof -nP -iTCP:7071 -sTCP:LISTEN
+```
+
+- **Something is listening and you are an agent:** do not restart it and do not test against it.
+  You need a **separately materialized project path** (a different worktree or full clone
+  supplied by the session/workspace system -- NOT this worktree). From that separate path:
+  ```bash
+  # 1. Clone the volume (run from anywhere)
+  scripts/clone-local-db-volume.sh --source <established> \
+    --destination sentencestudio-agent-<task>-db-data \
+    --database sentencestudio --username <db-user> --verify --verify-table '"UserProfile"'
+
+  # 2. Configure the SEPARATE project path's user secrets
+  dotnet user-secrets set "LocalDb:DataVolume" "sentencestudio-agent-<task>-db-data" \
+    --project <SEPARATE_PATH>/src/SentenceStudio.AppHost
+
+  # 3. Start from the SEPARATE path (never from this worktree's AppHost path)
+  cd <SEPARATE_PATH>/src/SentenceStudio.AppHost
+  ASPNETCORE_URLS='https://localhost:7171' aspire run
+
+  # 4. Mandatory post-recovery gate
+  scripts/post-aspire-restore.sh --expected-volume sentencestudio-agent-<task>-db-data
+  ```
+  ```
+  UNSAFE - DO NOT RUN from the same path as a live AppHost:
+  aspire run --isolated   # does NOT provide path isolation
+  ```
+- **Nothing is listening:** start normally.
 
 ```bash
 cd src/SentenceStudio.AppHost && aspire run
 ```
 
-Wait for the dashboard URL, then verify webapp is up:
+**UNSAFE — do not use `aspire run --isolated` or `aspire start --isolated` from the
+same AppHost project path.** `--isolated` does NOT provide project-path isolation;
+AppHost ownership is keyed by project path and an isolated launch can stop the existing
+AppHost and reuse DCP-managed resource/container identity. Use a separately materialized
+AppHost path (worktree or clone) for agent stacks.
+
+After any Aspire startup or recovery, run the post-restore gate:
+
+```bash
+scripts/post-aspire-restore.sh --expected-volume <the-volume-you-intended>
+```
+
+HTTP 302 from WebApp alone is not recovery proof; this script also checks API /health
+and DB volume mount.
+
+`LocalDb:DataVolume` is required; the AppHost refuses to boot without it rather than silently
+attaching an empty auto-named volume. That refusal is deliberate — read the error, don't work
+around it.
+
+### 2. Prove which database you are on — before you test anything
+
+```bash
+scripts/validate-local-db-volume.sh --runtime --expect-volume <the-volume-you-intended>
+```
+
+A pass against the wrong database is not a pass. Run this **before** the test, not after, so you
+never burn a session verifying behavior on somebody else's data.
+
+Then confirm the webapp answers:
 
 ```bash
 curl -sk -o /dev/null -w "%{http_code}" https://localhost:7071/
 ```
 
-### 2. Navigate and Interact with Playwright
+### 3. Navigate and Interact
 
-Use Playwright browser tools to navigate, click, fill forms, and verify outcomes.
-The webapp runs at `https://localhost:7071/`.
+Drive the app with **Canvas** (see *Browser: Canvas First*). The webapp runs at
+`https://localhost:7071/`. Fall back to Playwright only for the cases listed there.
 
-### 3. Verify Outcomes
+### 4. Verify Outcomes
 
 Three levels of verification, use all that apply:
 
-1. **UI state** — Playwright snapshot shows expected text, buttons, counts
-2. **Database** — SQLite query confirms records created/updated correctly
+1. **UI state** — Canvas (or Playwright) snapshot shows expected text, buttons, counts
+2. **Database** — PostgreSQL query confirms records created/updated correctly
 3. **Logs** — Aspire structured logs show no errors
 
-Database location:
-```
-/Users/davidortinau/Library/Application Support/sentencestudio/server/sentencestudio.db
+**The webapp/API use Aspire PostgreSQL, not SQLite.** Any guidance pointing at
+`~/Library/Application Support/sentencestudio/server/sentencestudio.db` is stale — that file
+predates the Postgres setup and reading it will show you data that no longer drives the app.
+
+```bash
+CID=$(docker ps --filter 'name=^db-' --format '{{.Names}}' | head -1)
+PW=$(docker exec "$CID" printenv POSTGRES_PASSWORD)
+docker exec -e PGPASSWORD="$PW" "$CID" psql -U dbadmin -d sentencestudio \
+  -c 'SELECT "Id","Status" FROM "ActivitySession" ORDER BY "Id" DESC LIMIT 5;'
 ```
 
-### 4. Stop Aspire When Done
+See [webapp-gotchas.md](references/webapp-gotchas.md) for the full DB verification recipe.
 
-Stop the async shell running `aspire run`.
+### 5. Stop Aspire When Done
+
+Stop **only the stack you started**. If you started an isolated agent stack, stop that one and
+leave the human's `https://localhost:7071` running.
 
 ## Native App Testing Workflow
 
@@ -105,11 +225,15 @@ Load **only** the reference file relevant to your change. Don't load all of them
 | Reference file | Covers |
 |----------------|--------|
 | [smoke-test.md](references/smoke-test.md) | 5-min smoke test + cross-cutting checks — **run after every change** |
+| [learning-coach.md](references/learning-coach.md) | Learning Coach — `/api/v1/coach`, Coach dialog/workspace UI, plan-revision acceptance, deterministic-ownership guardrails |
 | [quiz-activities.md](references/quiz-activities.md) | Vocab Quiz, Vocab Matching, Cloze, Writing, Translation |
+| [numberdrill.md](references/numberdrill.md) | NumberDrill — context picker, Listen&Type and Read&Produce submodes, mastery/attempt persistence |
 | [import-and-resources.md](references/import-and-resources.md) | YouTube Import, Resource Edit + vocab generation, Vocabulary Detail |
+| [import-content.md](references/import-content.md) | Content Import (Wave 2) — new vs. existing resource paths |
 | [listening-activities.md](references/listening-activities.md) | Shadowing, Minimal Pairs, How Do You Say |
 | [other-activities.md](references/other-activities.md) | Conversation, Reading, Scene, Video Watching |
 | [management-pages.md](references/management-pages.md) | Resources, Vocabulary, Skills, Profile, Settings CRUD |
+| [helpkit-flows.md](references/helpkit-flows.md) | `Plugin.Maui.HelpKit` integration flows (separate solution under `lib/`) |
 | [webapp-gotchas.md](references/webapp-gotchas.md) | Blazor Server deep-link redirects, Playwright automation limits, Aspire Postgres DB verification — **read before driving the webapp** |
 
 ## Common Verification Patterns

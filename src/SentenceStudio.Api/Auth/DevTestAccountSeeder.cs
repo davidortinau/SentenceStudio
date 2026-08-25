@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using SentenceStudio.Data;
+using SentenceStudio.Shared.Diagnostics;
 using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Api.Auth;
@@ -124,6 +125,14 @@ public sealed class DevTestAccountSeeder : IHostedService
 
     public sealed record DevTestAccount(string Email, string Password, string DisplayName)
     {
-        public string ShortEmail => Email[..(Email.IndexOf('@', StringComparison.Ordinal) + 1)];
+        /// <summary>
+        /// The account address reduced for logging.
+        /// </summary>
+        /// <remarks>
+        /// This previously kept the whole local part and threw the domain away — exactly inverted,
+        /// since the local part is the identifying half. It now uses the same rule as every other
+        /// auth log line so a seeded account reads the same way here as it does at sign-in.
+        /// </remarks>
+        public string ShortEmail => AuthLogRedaction.MaskEmail(Email);
     }
 }

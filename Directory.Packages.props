@@ -33,14 +33,53 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Tasks" Version="10.0.2" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
 
-    <!-- AI / Agents -->
+    <!-- AI / Agents
+
+         Agent Framework 1.17.0 + Microsoft.Extensions.AI 10.9.0 is the first ALL-STABLE
+         combination of this stack (verified by the Learning Coach Phase 0 compatibility
+         spike). Keep these four MEAI packages on the same 10.9.0 band and both
+         Microsoft.Agents.AI* packages on the same 1.17.0 band — mixing bands is what
+         produced the previous preview/9.5.0/10.2.0 mismatch.
+
+         Version coupling that constrains future bumps:
+           - Microsoft.Extensions.AI.OpenAI 10.9.0 requires OpenAI [2.12.0, 2.13.0)
+             and Microsoft.Extensions.AI.Abstractions 10.9.0 (both resolve transitively;
+             no explicit OpenAI pin needed).
+           - Microsoft.Agents.AI.Harness 1.17.0 pulls Microsoft.Agents.AI(.Abstractions)
+             1.17.0 and, at floor versions, Microsoft.Extensions.AI(.Abstractions) 10.7.0,
+             Microsoft.Extensions.AI.Evaluation 10.7.0 and
+             Microsoft.Extensions.VectorData.Abstractions 10.7.0. The 10.9.0 pins above
+             are a valid upward unification of those floors.
+           - Azure.AI.OpenAI 2.9.0-beta.1 requires OpenAI >= 2.9.1, which unifies cleanly
+             to the 2.12.0 that Microsoft.Extensions.AI.OpenAI 10.9.0 requires.
+
+         Microsoft.Agents.AI.OpenAI was dropped: the only consumer was the deleted
+         preview-era ConversationAgentService path. The harness is built from an
+         IChatClient (AsHarnessAgent), so the OpenAI-specific agent adapter is not needed.
+         Microsoft.Agents.AI.Hosting is deliberately NOT pinned — it is still preview-only,
+         and the agent is constructed through a manual DI factory instead. -->
     <PackageVersion Include="Azure.AI.OpenAI" Version="2.9.0-beta.1" />
     <PackageVersion Include="Azure.Identity" Version="1.21.0" />
-    <PackageVersion Include="Microsoft.Agents.AI" Version="1.0.0-preview.260121.1" />
-    <PackageVersion Include="Microsoft.Agents.AI.OpenAI" Version="1.0.0-preview.260121.1" />
-    <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="9.5.0" />
-    <PackageVersion Include="Microsoft.Extensions.AI.OpenAI" Version="10.2.0-preview.1.26063.2" />
-    <PackageVersion Include="Microsoft.Extensions.VectorData.Abstractions" Version="9.5.0" />
+    <!-- Data Protection key ring durability. Without these the API runs on the host default
+         key ring, which is per-machine and ephemeral in a container: every restart or scale-out
+         makes previously protected coach content permanently unreadable.
+         Blobs persists the key ring; Keys wraps it with a Key Vault key so the blob alone is
+         not sufficient to decrypt. Versions are the lowest that avoid the vulnerable
+         System.Security.Cryptography.Xml 8.0.2 that earlier 1.5.x/1.6.x builds drag in. -->
+    <PackageVersion Include="Azure.Extensions.AspNetCore.DataProtection.Blobs" Version="1.5.3" />
+    <PackageVersion Include="Azure.Extensions.AspNetCore.DataProtection.Keys" Version="1.6.3" />
+    <PackageVersion Include="Microsoft.Agents.AI" Version="1.17.0" />
+    <PackageVersion Include="Microsoft.Agents.AI.Harness" Version="1.17.0" />
+    <PackageVersion Include="Microsoft.Extensions.AI" Version="10.9.0" />
+    <PackageVersion Include="Microsoft.Extensions.AI.Abstractions" Version="10.9.0" />
+    <PackageVersion Include="Microsoft.Extensions.AI.OpenAI" Version="10.9.0" />
+    <!-- Kept on the same 10.9.0 band as Microsoft.Extensions.AI.Abstractions, which it
+         depends on. The only project with an explicit PackageReference is
+         lib/Plugin.Maui.HelpKit (separate solution, inherits this file); the API graph
+         also picks it up transitively via Microsoft.Agents.AI.Harness. Transitive
+         pinning is off, so that transitive edge stays at the Harness floor (10.7.0) —
+         only the explicit HelpKit reference is governed by this pin. -->
+    <PackageVersion Include="Microsoft.Extensions.VectorData.Abstractions" Version="10.9.0" />
 
     <!-- Microsoft Extensions -->
     <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="11.0.0-preview.4.26230.115" />
@@ -135,6 +174,10 @@
     <PackageVersion Include="AutoFixture.Xunit2" Version="4.18.1" />
     <PackageVersion Include="FluentAssertions" Version="6.12.0" />
     <PackageVersion Include="Moq" Version="4.20.70" />
+    <!-- Parses .github/workflows/*.yml in tests. A workflow security contract that scanned the
+         file with regexes would be asserting against text that only looks like the structure the
+         runner sees; this reads the same tree Actions does. -->
+    <PackageVersion Include="YamlDotNet" Version="16.3.0" />
 
     <!-- Code Analysis -->
     <PackageVersion Include="AsyncFixer" Version="1.6.0" />

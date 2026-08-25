@@ -1,0 +1,300 @@
+@using SentenceStudio.Contracts.LearnerMemory
+@inject BlazorLocalizationService Localize
+@inject CoachMemoryDirectory Memory
+@implements IDisposable
+
+@*
+    What Sam remembers. Two lists: facts that are eligible for a prompt right now, and candidates
+    waiting for a decision. The whole surface disappears when the route group answers 404, because
+    the feature being off and the data not being the learner's are the same answer by design.
+*@
+
+@if (Memory.Availability == CoachMemoryAvailability.Available)
+{
+    <section class="coach-memory-panel" aria-labelledby="coach-memory-heading">
+        <h2 id="coach-memory-heading" class="ss-title3">@Localize["Coach_MemoryTitle"]</h2>
+
+        <p class="ss-body2 text-secondary-ss">@Localize["Coach_MemoryExplainer"]</p>
+
+        @* Saved preferences are not the same thing as the app's settings or Today's Plan, and a
+           learner who confuses them will be surprised by both. Say so once, here. *@
+        <p class="ss-caption1 text-secondary-ss">@Localize["Coach_MemoryVsSettings"]</p>
+
+        <div class="coach-memory-tabs" role="tablist" aria-label="@Localize["Coach_MemoryTabsLabel"]">
+            <button type="button"
+                    id="coach-memory-tab-active"
+                    role="tab"
+                    class="btn coach-memory-tab @(_tab == Tab.Active ? "is-selected" : null)"
+                    aria-selected="@(_tab == Tab.Active ? "true" : "false")"
+                    aria-controls="coach-memory-panel-active"
+                    @onclick="() => _tab = Tab.Active">
+                @Localize.Get("Coach_MemoryTabActive", Memory.Active.Count)
+            </button>
+            <button type="button"
+                    id="coach-memory-tab-candidates"
+                    role="tab"
+                    class="btn coach-memory-tab @(_tab == Tab.Candidates ? "is-selected" : null)"
+                    aria-selected="@(_tab == Tab.Candidates ? "true" : "false")"
+                    aria-controls="coach-memory-panel-candidates"
+                    @onclick="() => _tab = Tab.Candidates">
+                @Localize.Get("Coach_MemoryTabCandidates", Memory.Candidates.Count)
+            </button>
+        </div>
+
+        @if (Memory.NoticeKey is { } notice)
+        {
+            <p class="coach-memory-notice ss-caption1" role="status">@Localize[notice]</p>
+        }
+
+        @if (_tab == Tab.Active)
+        {
+            <div id="coach-memory-panel-active" role="tabpanel" aria-labelledby="coach-memory-tab-active">
+                @if (Memory.IsPaused)
+                {
+                    @* An empty list is a meaningful state, not a failure: Sam is running without
+                       any remembered context. Explaining that is the difference between a feature
+                       that looks broken and one that looks off. *@
+                    <p class="ss-body2 text-secondary-ss" id="coach-memory-paused">
+                        @Localize["Coach_MemoryPaused"]
+                    </p>
+                }
+                else
+                {
+                    <ul class="coach-memory-list" role="list">
+                        @foreach (var fact in Memory.Active)
+                        {
+                            <li class="coach-memory-item">
+                                @RenderFact(fact, isCandidate: false)
+                            </li>
+                        }
+                    </ul>
+
+                    <button type="button" class="btn btn-ss-danger coach-action"
+                            id="coach-memory-forget-all"
+                            disabled="@Memory.IsBusy"
+                            @onclick="() => _confirmingForgetAll = true">
+                        @Localize["Coach_MemoryForgetAll"]
+                    </button>
+
+                    @* The promise is a statement and belongs next to the control, where a learner
+                       reads it before deciding. The question belongs in the dialog, where it has
+                       Confirm and Cancel attached to it. *@
+                    <p class="ss-caption1 text-secondary-ss">@Localize["Coach_MemoryForgetAllImpact"]</p>
+                }
+            </div>
+        }
+        else
+        {
+            <div id="coach-memory-panel-candidates" role="tabpanel" aria-labelledby="coach-memory-tab-candidates">
+                @if (Memory.Candidates.Count == 0)
+                {
+                    <p class="ss-body2 text-secondary-ss">@Localize["Coach_MemoryNoCandidates"]</p>
+                }
+                else
+                {
+                    <ul class="coach-memory-list" role="list">
+                        @foreach (var fact in Memory.Candidates)
+                        {
+                            <li class="coach-memory-item">
+                                @RenderFact(fact, isCandidate: true)
+                            </li>
+                        }
+                    </ul>
+                }
+            </div>
+        }
+    </section>
+
+    @if (_confirmingForgetAll)
+    {
+        <div class="coach-dialog-backdrop" role="presentation">
+            <div class="coach-dialog" role="alertdialog" aria-modal="true"
+                 aria-labelledby="coach-memory-forget-all-title"
+                 aria-describedby="coach-memory-forget-all-body">
+                <h3 id="coach-memory-forget-all-title" class="ss-headline">
+                    @Localize["Coach_MemoryForgetAllTitle"]
+                </h3>
+                <p id="coach-memory-forget-all-body" class="ss-body2">
+                    @Localize["Coach_MemoryForgetAllBody"]
+                </p>
+                @* The same promise the conversation delete dialog makes, for the same reason: a
+                   learner clearing what Sam remembers must not fear they are clearing their work. *@
+                <p class="ss-caption1 text-secondary-ss">@Localize["Coach_MemoryForgetAllImpact"]</p>
+
+                <div class="coach-dialog-actions">
+                    <button type="button" class="btn btn-ss-danger coach-action"
+                            disabled="@Memory.IsBusy" @onclick="ForgetAllAsync">
+                        @Localize["Coach_MemoryForgetAllConfirm"]
+                    </button>
+                    <button type="button" class="btn btn-ss-secondary coach-action"
+                            disabled="@Memory.IsBusy" @onclick="() => _confirmingForgetAll = false">
+                        @Localize["Coach_Cancel"]
+                    </button>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    private enum Tab
+    {
+        Active,
+        Candidates
+    }
+
+    private Tab _tab = Tab.Active;
+    private bool _confirmingForgetAll;
+    private string? _editingId;
+    private string _editValue = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Memory.Changed += OnChanged;
+        await Memory.EnsureLoadedAsync();
+    }
+
+    public void Dispose() => Memory.Changed -= OnChanged;
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    private RenderFragment RenderFact(CoachMemoryFactDto fact, bool isCandidate) => __builder =>
+    {
+        <div class="coach-memory-fact">
+            <p class="coach-memory-value ss-body2">@fact.DisplayText</p>
+
+            @* Scope, language, provenance, and dates are what let a learner judge whether a
+               remembered fact is still true. The identifier and the version are not shown: they
+               are bookkeeping, and putting them on screen invites a support conversation about
+               numbers that mean nothing to the person reading them. *@
+            <dl class="coach-memory-meta ss-caption1 text-secondary-ss">
+                <dt>@Localize["Coach_MemoryScopeLabel"]</dt>
+                <dd>@ScopeText(fact)</dd>
+
+                <dt>@Localize["Coach_MemoryProvenanceLabel"]</dt>
+                <dd>@ProvenanceText(fact)</dd>
+
+                <dt>@Localize["Coach_MemorySavedAtLabel"]</dt>
+                <dd>@Format(fact.ConfirmedAtUtc ?? fact.CreatedAtUtc)</dd>
+
+                @if (fact.LastUsedAtUtc is { } used)
+                {
+                    <dt>@Localize["Coach_MemoryLastUsedLabel"]</dt>
+                    <dd>@Format(used)</dd>
+                }
+            </dl>
+
+            @if (_editingId == fact.Id)
+            {
+                <label for="coach-memory-item-edit" class="ss-caption1">
+                    @Localize["Coach_MemoryEditLabel"]
+                </label>
+                <input id="coach-memory-item-edit" class="form-control" type="text"
+                       maxlength="200" @bind="_editValue" @bind:event="oninput" />
+
+                <div class="coach-memory-actions">
+                    <button type="button" class="btn btn-ss-primary coach-action"
+                            disabled="@(Memory.IsBusy || string.IsNullOrWhiteSpace(_editValue))"
+                            @onclick="() => SaveEditAsync(fact)">
+                        @Localize["Coach_MemorySaveEdited"]
+                    </button>
+                    <button type="button" class="btn btn-ss-secondary coach-action"
+                            disabled="@Memory.IsBusy" @onclick="CancelEdit">
+                        @Localize["Coach_Cancel"]
+                    </button>
+                </div>
+            }
+            else
+            {
+                <div class="coach-memory-actions">
+                    @if (isCandidate)
+                    {
+                        <button type="button" class="btn btn-ss-primary coach-action"
+                                disabled="@Memory.IsBusy" @onclick="() => ApproveAsync(fact)">
+                            @Localize["Coach_MemorySave"]
+                        </button>
+                    }
+
+                    @if (fact.Kind == CoachMemoryKind.PersistentStudyGoal)
+                    {
+                        <button type="button" class="btn btn-ss-secondary coach-action"
+                                disabled="@Memory.IsBusy" @onclick="() => StartEdit(fact)">
+                            @Localize["Coach_MemoryEdit"]
+                        </button>
+                    }
+
+                    <button type="button" class="btn btn-ss-secondary coach-action"
+                            disabled="@Memory.IsBusy" @onclick="() => ForgetAsync(fact, isCandidate)">
+                        @(isCandidate ? Localize["Coach_MemoryNotNow"] : Localize["Coach_MemoryForget"])
+                    </button>
+                </div>
+            }
+        </div>
+    };
+
+    private string ScopeText(CoachMemoryFactDto fact) => fact.Scope switch
+    {
+        CoachMemoryScope.Global => Localize["Coach_MemoryScopeGlobal"],
+        _ => string.IsNullOrWhiteSpace(fact.TargetLanguageCode)
+            ? Localize["Coach_MemoryScopeLanguage"]
+            : Localize.Get("Coach_MemoryScopeLanguageNamed", fact.TargetLanguageCode!)
+    };
+
+    private string ProvenanceText(CoachMemoryFactDto fact) => fact.Provenance switch
+    {
+        CoachMemoryProvenance.UserConfirmed => Localize["Coach_MemoryProvenanceConfirmed"],
+        _ => Localize["Coach_MemoryProvenanceStated"]
+    };
+
+    private static string Format(DateTime utc) => utc.ToLocalTime().ToString("d");
+
+    private void StartEdit(CoachMemoryFactDto fact)
+    {
+        _editingId = fact.Id;
+        _editValue = fact.Value.StudyGoalText ?? fact.DisplayText;
+    }
+
+    private void CancelEdit()
+    {
+        _editingId = null;
+        _editValue = string.Empty;
+    }
+
+    private async Task SaveEditAsync(CoachMemoryFactDto fact)
+    {
+        if (string.IsNullOrWhiteSpace(_editValue))
+        {
+            return;
+        }
+
+        var value = new CoachMemoryValueDto
+        {
+            Kind = fact.Kind,
+            StudyGoalText = fact.Kind == CoachMemoryKind.PersistentStudyGoal ? _editValue.Trim() : null,
+            ExplanationDepth = fact.Value.ExplanationDepth,
+            CorrectionTiming = fact.Value.CorrectionTiming,
+            ExampleRegister = fact.Value.ExampleRegister
+        };
+
+        var outcome = fact.Status == CoachMemoryStatus.Candidate
+            ? await Memory.ApproveAsync(fact, value)
+            : await Memory.EditAsync(fact, value);
+
+        if (outcome == CoachMemoryOutcome.Saved)
+        {
+            CancelEdit();
+        }
+    }
+
+    private Task ApproveAsync(CoachMemoryFactDto fact) => Memory.ApproveAsync(fact);
+
+    private Task ForgetAsync(CoachMemoryFactDto fact, bool isCandidate) => isCandidate
+        ? Memory.RejectAsync(fact)
+        : Memory.ForgetAsync(fact);
+
+    private async Task ForgetAllAsync()
+    {
+        await Memory.ForgetAllAsync();
+        _confirmingForgetAll = false;
+    }
+}

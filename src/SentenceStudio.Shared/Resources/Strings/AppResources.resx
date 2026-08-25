@@ -6137,6 +6137,30 @@ For example: {0} ...</value>
     <value>Feedback submitted successfully!</value>
     <comment>Submit success toast</comment>
   </data>
+  <data name="Feedback_RateLimited" xml:space="preserve">
+    <value>You have reached the feedback limit. Please try again in {0} second(s).</value>
+    <comment>Rate limited toast. {0} is the server-supplied Retry-After in seconds.</comment>
+  </data>
+  <data name="Feedback_RateLimitedNoWait" xml:space="preserve">
+    <value>You have reached the feedback limit. Please try again later.</value>
+    <comment>Rate limited toast when the server sent no Retry-After.</comment>
+  </data>
+  <data name="Feedback_TokenRejected" xml:space="preserve">
+    <value>This preview is no longer valid. Please write your report again.</value>
+    <comment>Shown when the preview token was refused or had expired.</comment>
+  </data>
+  <data name="Feedback_SubmitInDoubt" xml:space="preserve">
+    <value>We could not confirm whether your report was filed, so we have not sent it again. Please check GitHub before writing a new one.</value>
+    <comment>Shown when a submission outcome is unknown. Never offer a retry here.</comment>
+  </data>
+  <data name="Feedback_SubmitClosed" xml:space="preserve">
+    <value>Your report was not filed — nothing was sent to GitHub. This preview has been used, so please write the report again.</value>
+    <comment>Shown when the server proved the submission created no issue. Must NOT tell the learner to check GitHub.</comment>
+  </data>
+  <data name="Feedback_AlreadyFiled" xml:space="preserve">
+    <value>This report was already filed. Here is the issue it created.</value>
+    <comment>Shown when the server replayed an existing receipt instead of creating a second issue.</comment>
+  </data>
   <data name="DebugHealth_Title" xml:space="preserve">
     <value>Debug Health</value>
     <comment>Debug Health page title</comment>
@@ -7044,5 +7068,1675 @@ For example: {0} ...</value>
   <data name="VocabQuiz_SampleSentencesLabel" xml:space="preserve">
     <value>Sample sentences</value>
     <comment>Section heading for the sample-sentence hint panel on the vocab quiz</comment>
+  </data>
+  <data name="Coach_Title" xml:space="preserve">
+    <value>Sam</value>
+    <comment>Coach: overlay workspace heading. The coach is a person named Sam. Localize the name itself (ko uses the affectionate short form of 'teacher'), do not translate it as the role noun 'coach'.</comment>
+  </data>
+  <data name="Coach_TitleShort" xml:space="preserve">
+    <value>Sam</value>
+    <comment>Coach: short title for the mobile page header and entry card. The coach is a person named Sam. Localize the name itself (ko uses the affectionate short form of 'teacher'), do not translate it as the role noun 'coach'.</comment>
+  </data>
+  <data name="Coach_Open" xml:space="preserve">
+    <value>Ask Sam</value>
+    <comment>Coach: dashboard entry button label. The coach is a person named Sam. Localize the name itself (ko uses the affectionate short form of 'teacher'), do not translate it as the role noun 'coach'.</comment>
+  </data>
+  <data name="Coach_StatusNoChange" xml:space="preserve">
+    <value>Nothing changed yet</value>
+    <comment>Coach: header status chip before any plan change</comment>
+  </data>
+  <data name="Coach_StatusSuggested" xml:space="preserve">
+    <value>Suggested change ready</value>
+    <comment>Coach: header status chip and plan canvas badge for a pending suggestion</comment>
+  </data>
+  <data name="Coach_StatusUpdated" xml:space="preserve">
+    <value>Today's Plan updated</value>
+    <comment>Coach: header status chip and plan canvas badge after an applied change</comment>
+  </data>
+  <data name="Coach_StatusOutOfDate" xml:space="preserve">
+    <value>Plan changed on another device</value>
+    <comment>Coach: status shown when the server rejects a stale plan version</comment>
+  </data>
+  <data name="Coach_StatusUnchanged" xml:space="preserve">
+    <value>Unchanged</value>
+    <comment>Coach: plan canvas badge after a failed update</comment>
+  </data>
+  <data name="Coach_StatusRestored" xml:space="preserve">
+    <value>Restored</value>
+    <comment>Coach: plan canvas badge after an undo</comment>
+  </data>
+  <data name="Coach_StageReading" xml:space="preserve">
+    <value>Reading your recent practice…</value>
+    <comment>Coach: named work stage while loading evidence</comment>
+  </data>
+  <data name="Coach_StageBuilding" xml:space="preserve">
+    <value>Building a preview…</value>
+    <comment>Coach: named work stage while a turn is running</comment>
+  </data>
+  <data name="Coach_StageApplying" xml:space="preserve">
+    <value>Updating Today's Plan…</value>
+    <comment>Coach: named work stage while applying a validated change</comment>
+  </data>
+  <data name="Coach_StageUndoing" xml:space="preserve">
+    <value>Undoing the last change…</value>
+    <comment>Coach: named work stage while undoing</comment>
+  </data>
+  <data name="Coach_StageStillWorking" xml:space="preserve">
+    <value>Still working…</value>
+    <comment>Coach: secondary line after a run has taken more than eight seconds</comment>
+  </data>
+  <data name="Coach_Stop" xml:space="preserve">
+    <value>Stop</value>
+    <comment>Coach: button that abandons a long-running turn</comment>
+  </data>
+  <data name="Coach_Stopped" xml:space="preserve">
+    <value>Stopped. Today's Plan is unchanged.</value>
+    <comment>Coach: note shown after the learner stops a run</comment>
+  </data>
+  <data name="Coach_PlanToggle" xml:space="preserve">
+    <value>Plan</value>
+    <comment>Coach: plan canvas toggle label and mobile plan pane label</comment>
+  </data>
+  <data name="Coach_PlanToggleUpdated" xml:space="preserve">
+    <value>Plan, changes: {0}</value>
+    <comment>Coach: accessible name for the plan toggle when changes happened while it was closed. 0 = change count</comment>
+  </data>
+  <data name="Coach_PlanTabSuggested" xml:space="preserve">
+    <value>Plan, suggested change</value>
+    <comment>Coach: accessible name for the plan tab when a suggestion is pending</comment>
+  </data>
+  <data name="Coach_PlanTabUpdated" xml:space="preserve">
+    <value>Plan, updated</value>
+    <comment>Coach: accessible name for the plan tab after an applied change</comment>
+  </data>
+  <data name="Coach_CoachTab" xml:space="preserve">
+    <value>Sam</value>
+    <comment>Coach: conversation tab label at tablet width. The coach is a person named Sam. Localize the name itself (ko uses the affectionate short form of 'teacher'), do not translate it as the role noun 'coach'.</comment>
+  </data>
+  <data name="Coach_Accept" xml:space="preserve">
+    <value>Include it</value>
+    <comment>Coach: primary action on a suggestion card</comment>
+  </data>
+  <data name="Coach_Reject" xml:space="preserve">
+    <value>Not now</value>
+    <comment>Coach: secondary action on a suggestion card and on a clarification</comment>
+  </data>
+  <data name="Coach_Rejected" xml:space="preserve">
+    <value>Not added.</value>
+    <comment>Coach: resolved note left in place of a rejected suggestion card</comment>
+  </data>
+  <data name="Coach_SuggestionLabel" xml:space="preserve">
+    <value>Suggested change</value>
+    <comment>Coach: accessible group name for the suggestion card</comment>
+  </data>
+  <data name="Coach_ReceiptUpdated" xml:space="preserve">
+    <value>Today's Plan updated — {0} remaining items changed. {1} completed items and {2} logged minutes kept.</value>
+    <comment>Coach: applied-change receipt. 0 = replaced items, 1 = preserved completed items, 2 = preserved minutes</comment>
+  </data>
+  <data name="Coach_ReceiptLabel" xml:space="preserve">
+    <value>Change receipt</value>
+    <comment>Coach: accessible name for the applied-change receipt card</comment>
+  </data>
+  <data name="Coach_ViewChanges" xml:space="preserve">
+    <value>View changes</value>
+    <comment>Coach: receipt action that opens the plan canvas at the diff</comment>
+  </data>
+  <data name="Coach_Undo" xml:space="preserve">
+    <value>Undo</value>
+    <comment>Coach: receipt and revision history action</comment>
+  </data>
+  <data name="Coach_Superseded" xml:space="preserve">
+    <value>Superseded</value>
+    <comment>Coach: label on older receipts and revisions that can no longer be undone</comment>
+  </data>
+  <data name="Coach_ReceiptUndone" xml:space="preserve">
+    <value>Restored the previous remaining items. Completed work and logged minutes are unchanged.</value>
+    <comment>Coach: receipt shown after an undo</comment>
+  </data>
+  <data name="Coach_Changes" xml:space="preserve">
+    <value>Changes</value>
+    <comment>Coach: header menu that lists revisions newest first</comment>
+  </data>
+  <data name="Coach_RevisionHistory" xml:space="preserve">
+    <value>Revision history</value>
+    <comment>Coach: plan canvas section heading for the revision list</comment>
+  </data>
+  <data name="Coach_NoRevisions" xml:space="preserve">
+    <value>No changes yet.</value>
+    <comment>Coach: empty state for the revision history list</comment>
+  </data>
+  <data name="Coach_ClarifyYes" xml:space="preserve">
+    <value>Yes, update it</value>
+    <comment>Coach: explicit affirmative chip on a clarification</comment>
+  </data>
+  <data name="Coach_ClarificationLimit" xml:space="preserve">
+    <value>Choose one option.</value>
+    <comment>Coach: shown when the per-session clarification budget is spent and the learner must choose</comment>
+  </data>
+  <data name="Coach_Failed" xml:space="preserve">
+    <value>I could not update Today's Plan. Nothing changed.</value>
+    <comment>Coach: failure card copy</comment>
+  </data>
+  <data name="Coach_TryAgain" xml:space="preserve">
+    <value>Try again</value>
+    <comment>Coach: action on the failure and incomplete cards</comment>
+  </data>
+  <data name="Coach_KeepPlan" xml:space="preserve">
+    <value>Keep Today's Plan</value>
+    <comment>Coach: action that dismisses a failure without retrying</comment>
+  </data>
+  <data name="Coach_Incomplete" xml:space="preserve">
+    <value>Sam stopped before finishing. Nothing changed.</value>
+    <comment>Coach: notice when a run stopped early. Names the coach because the learner did nothing wrong.</comment>
+  </data>
+  <data name="Coach_Offline" xml:space="preserve">
+    <value>You are offline. Today's Plan is unchanged.</value>
+    <comment>Coach: offline notice</comment>
+  </data>
+  <data name="Coach_Limited" xml:space="preserve">
+    <value>You reached today's message limit. Try again {0}.</value>
+    <comment>Coach: rate-limit notice. 0 = when the limit resets. Deliberately impersonal: the quota is a system limit, not something the coach chose.</comment>
+  </data>
+  <data name="Coach_LimitedShort" xml:space="preserve">
+    <value>Message limit reached</value>
+    <comment>Coach: short status chip for the rate limit. Deliberately impersonal, see Coach_Limited.</comment>
+  </data>
+  <data name="Coach_LimitResetTomorrow" xml:space="preserve">
+    <value>tomorrow</value>
+    <comment>Coach: default reset time used in the rate-limit notice</comment>
+  </data>
+  <data name="Coach_Expired" xml:space="preserve">
+    <value>This coach session expired. Today's Plan is unchanged.</value>
+    <comment>Coach: expired-session notice</comment>
+  </data>
+  <data name="Coach_StartNew" xml:space="preserve">
+    <value>Start a new session</value>
+    <comment>Coach: action on the expired-session notice</comment>
+  </data>
+  <data name="Coach_InputCounter" xml:space="preserve">
+    <value>{0} / {1}</value>
+    <comment>Coach: composer character counter. 0 = current length, 1 = maximum</comment>
+  </data>
+  <data name="Coach_InputTooLong" xml:space="preserve">
+    <value>Keep it under {0} characters.</value>
+    <comment>Coach: composer error when the draft is too long. 0 = maximum characters</comment>
+  </data>
+  <data name="Coach_ComposerPlaceholder" xml:space="preserve">
+    <value>Ask a question or change Today's Plan</value>
+    <comment>Coach: composer placeholder. Must stay short — it sits in a one-row textarea and is truncated by the input width, so the fuller dual-purpose wording lives on the entry card instead</comment>
+  </data>
+  <data name="Coach_ComposerLabel" xml:space="preserve">
+    <value>Message Sam</value>
+    <comment>Coach: accessible label for the message box. The coach is a person named Sam. Localize the name itself (ko uses the affectionate short form of 'teacher'), do not translate it as the role noun 'coach'.</comment>
+  </data>
+  <data name="Coach_Send" xml:space="preserve">
+    <value>Send</value>
+    <comment>Coach: composer send button</comment>
+  </data>
+  <data name="Coach_Close" xml:space="preserve">
+    <value>Close</value>
+    <comment>Coach: overlay close button accessible label</comment>
+  </data>
+  <data name="Coach_EndSession" xml:space="preserve">
+    <value>End coach session</value>
+    <comment>Coach: overflow action that deletes the current coach session</comment>
+  </data>
+  <data name="Coach_DeleteConfirm" xml:space="preserve">
+    <value>Deleting coach history does not change Today's Plan or your progress.</value>
+    <comment>Coach: static helper text under the Settings delete button. A statement, never a question</comment>
+  </data>
+  <data name="Coach_ReloadPlan" xml:space="preserve">
+    <value>Reload plan</value>
+    <comment>Coach: action that reloads the plan after it changed on another device</comment>
+  </data>
+  <data name="Coach_KeepChatting" xml:space="preserve">
+    <value>Keep chatting</value>
+    <comment>Coach: action that dismisses the plan-changed-elsewhere notice</comment>
+  </data>
+  <data name="Coach_HideEvidence" xml:space="preserve">
+    <value>Hide evidence</value>
+    <comment>Coach: collapses the inline evidence disclosure under one of the coach's messages</comment>
+  </data>
+  <data name="Coach_ReportResponse" xml:space="preserve">
+    <value>Report this response</value>
+    <comment>Coach: accessible name of the flag control beside Copy on one of the coach's responses</comment>
+  </data>
+  <data name="Coach_ReportSubmitting" xml:space="preserve">
+    <value>Sending report</value>
+    <comment>Coach: politely announced while a report is in flight. Not shown visually — the panel is inline in a scrolling transcript, so a visible spinner would move the message under the reader.</comment>
+  </data>
+  <data name="Coach_ReportPrompt" xml:space="preserve">
+    <value>What went wrong with {0}'s reply?</value>
+    <comment>Coach: {0} is the coach's display name. Introduces the fixed list of report reasons.</comment>
+  </data>
+  <data name="Coach_ReportReasonLegend" xml:space="preserve">
+    <value>Reason</value>
+    <comment>Coach: accessible name of the report reason radio group</comment>
+  </data>
+  <data name="Coach_ReportReasonDidNotAnswer" xml:space="preserve">
+    <value>Did not answer my request</value>
+    <comment>Coach: report reason</comment>
+  </data>
+  <data name="Coach_ReportReasonIncorrect" xml:space="preserve">
+    <value>Incorrect or misleading</value>
+    <comment>Coach: report reason</comment>
+  </data>
+  <data name="Coach_ReportReasonExpectedAction" xml:space="preserve">
+    <value>Expected an app action</value>
+    <comment>Coach: report reason - the learner expected the app to do something, not just talk about it</comment>
+  </data>
+  <data name="Coach_ReportReasonConfusing" xml:space="preserve">
+    <value>Confusing</value>
+    <comment>Coach: report reason</comment>
+  </data>
+  <data name="Coach_ReportReasonOther" xml:space="preserve">
+    <value>Other</value>
+    <comment>Coach: report reason</comment>
+  </data>
+  <data name="Coach_ReportCancel" xml:space="preserve">
+    <value>Cancel</value>
+    <comment>Coach: dismisses the report reason panel without reporting anything</comment>
+  </data>
+  <data name="Coach_ReportSubmit" xml:space="preserve">
+    <value>Report response</value>
+    <comment>Coach: submits the report</comment>
+  </data>
+  <data name="Coach_ReportDone" xml:space="preserve">
+    <value>Reported for review</value>
+    <comment>Coach: settled state shown in place of the flag control once a response has been reported</comment>
+  </data>
+  <data name="Coach_ReportFailed" xml:space="preserve">
+    <value>That report could not be sent. Nothing was reported.</value>
+    <comment>Coach: shown inside the report panel when the report failed. Truthful: the panel stays open.</comment>
+  </data>
+  <data name="Coach_ViewEvidence" xml:space="preserve">
+    <value>View evidence</value>
+    <comment>Coach: expands the inline evidence disclosure under one of the coach's messages, directly beneath that response; pairs with Coach_HideEvidence and also names the revealed region for screen readers</comment>
+  </data>
+  <data name="Coach_Evidence" xml:space="preserve">
+    <value>Why this</value>
+    <comment>Coach: plan canvas section heading for the evidence list</comment>
+  </data>
+  <data name="Coach_EvidenceWindow" xml:space="preserve">
+    <value>{0} – {1}</value>
+    <comment>Coach: evidence date range. 0 = window start date, 1 = window end date</comment>
+  </data>
+  <data name="Coach_EvidenceCoverage_Complete" xml:space="preserve">
+    <value>Everything you have</value>
+    <comment>Coach: evidence coverage. The fact was computed from every row the learner owns, after the stated filters</comment>
+  </data>
+  <data name="Coach_EvidenceCoverage_Page" xml:space="preserve">
+    <value>A selection, not everything</value>
+    <comment>Coach: evidence coverage. The fact was computed from a bounded page, so it must not be read as a total</comment>
+  </data>
+  <data name="Coach_EvidenceCoverage_Window" xml:space="preserve">
+    <value>Only the dates shown</value>
+    <comment>Coach: evidence coverage. Only rows inside the stated date window were counted</comment>
+  </data>
+  <data name="Coach_EvidenceCoverage_SingleItem" xml:space="preserve">
+    <value>One item</value>
+    <comment>Coach: evidence coverage. The fact describes a single named item</comment>
+  </data>
+  <data name="Coach_EvidenceCoverage_SingleDay" xml:space="preserve">
+    <value>One day</value>
+    <comment>Coach: evidence coverage. The fact describes a single calendar day</comment>
+  </data>
+  <data name="Coach_EvidenceCoverage_Settings" xml:space="preserve">
+    <value>Your current settings</value>
+    <comment>Coach: evidence coverage. The fact is a snapshot of the learner's preferences rather than a set of rows</comment>
+  </data>
+  <data name="Coach_EvidenceCoverage_Derived" xml:space="preserve">
+    <value>Worked out from your data</value>
+    <comment>Coach: evidence coverage. The fact was computed rather than read from stored rows</comment>
+  </data>
+  <data name="Coach_EvidenceCoverage_Aggregate" xml:space="preserve">
+    <value>A total across everything you have, with a partial breakdown</value>
+    <comment>Coach: evidence coverage. Totals cover the whole owned set while the itemised breakdown beside them is bounded</comment>
+  </data>
+  <data name="Coach_EvidenceOrder_LastUsed" xml:space="preserve">
+    <value>Most recently used first</value>
+    <comment>Coach: evidence ordering claim</comment>
+  </data>
+  <data name="Coach_EvidenceOrder_Updated" xml:space="preserve">
+    <value>Most recently changed first</value>
+    <comment>Coach: evidence ordering claim</comment>
+  </data>
+  <data name="Coach_EvidenceOrder_Mastery" xml:space="preserve">
+    <value>Strongest first</value>
+    <comment>Coach: evidence ordering claim, by mastery score</comment>
+  </data>
+  <data name="Coach_EvidenceOrder_Minutes" xml:space="preserve">
+    <value>Most minutes first</value>
+    <comment>Coach: evidence ordering claim</comment>
+  </data>
+  <data name="Coach_EvidenceOrder_Priority" xml:space="preserve">
+    <value>In plan order</value>
+    <comment>Coach: evidence ordering claim, by plan priority</comment>
+  </data>
+  <data name="Coach_EvidenceOrder_Frequency" xml:space="preserve">
+    <value>Most common first</value>
+    <comment>Coach: evidence ordering claim, by frequency</comment>
+  </data>
+  <data name="Coach_EvidenceOrder_Band" xml:space="preserve">
+    <value>By level</value>
+    <comment>Coach: evidence ordering claim, by mastery band label</comment>
+  </data>
+  <data name="Coach_EvidenceBasis" xml:space="preserve">
+    <value>Based on {0}</value>
+    <comment>Coach: how many rows the evidence was computed from. 0 = row count</comment>
+  </data>
+  <data name="Coach_EvidenceBasisOf" xml:space="preserve">
+    <value>Based on {0} of {1}</value>
+    <comment>Coach: how many rows the evidence was computed from out of how many matched. 0 = rows used, 1 = rows matched</comment>
+  </data>
+  <data name="Coach_EvidenceWithheld" xml:space="preserve">
+    <value>{0} not shown</value>
+    <comment>Coach: matching rows the server deliberately left out and gave no readable reason for. 0 = count</comment>
+  </data>
+  <data name="Coach_EvidenceWithheld_DueReview" xml:space="preserve">
+    <value>{0} not shown, because they are due for review</value>
+    <comment>Coach: due words are withheld so the coach cannot give away the answers to a review the learner has not taken. 0 = count</comment>
+  </data>
+  <data name="Coach_EvidenceWithheld_Limit" xml:space="preserve">
+    <value>{0} more not shown, because only the first results are listed</value>
+    <comment>Coach: matching rows left out because the result limit was reached. Must state the reason, not only the count: "4 more not shown" leaves the learner unable to tell a capped list from words withheld for review. 0 = count</comment>
+  </data>
+  <data name="Coach_EvidenceWithheld_Archived" xml:space="preserve">
+    <value>{0} not shown, because you archived them</value>
+    <comment>Coach: archived rows left out. 0 = count</comment>
+  </data>
+  <data name="Coach_EvidenceWithheld_Evidence" xml:space="preserve">
+    <value>{0} not shown, because there is not enough practice recorded yet</value>
+    <comment>Coach: rows left out for failing the minimum-evidence threshold. 0 = count</comment>
+  </data>
+  <data name="Coach_EvidenceAsOf" xml:space="preserve">
+    <value>As of {0}</value>
+    <comment>Coach: the moment the evidence was true. 0 = formatted local time</comment>
+  </data>
+  <data name="Coach_EvidenceAsOfFormat" xml:space="preserve">
+    <value>MMM d, h:mm tt</value>
+    <comment>Coach: .NET date and time pattern for the evidence as-of stamp. Translate to the pattern the culture reads, not the English words</comment>
+  </data>
+  <data name="Coach_TodaysPlan" xml:space="preserve">
+    <value>Today's Plan</value>
+    <comment>Coach: plan canvas heading</comment>
+  </data>
+  <data name="Coach_PlanEmpty" xml:space="preserve">
+    <value>No plan items yet.</value>
+    <comment>Coach: empty state for the plan canvas item list</comment>
+  </data>
+  <data name="Coach_PlanMinutes" xml:space="preserve">
+    <value>{0} min</value>
+    <comment>Coach: estimated minutes for a plan item. 0 = minutes</comment>
+  </data>
+  <data name="Coach_PlanTotalMinutes" xml:space="preserve">
+    <value>{0} min total</value>
+    <comment>Coach: total estimated minutes for the plan</comment>
+  </data>
+  <data name="Coach_ChangeAdded" xml:space="preserve">
+    <value>Added</value>
+    <comment>Coach: plan diff marker for a newly added item</comment>
+  </data>
+  <data name="Coach_ChangeRemoved" xml:space="preserve">
+    <value>Removed</value>
+    <comment>Coach: plan diff marker for a removed item</comment>
+  </data>
+  <data name="Coach_ChangeAdjusted" xml:space="preserve">
+    <value>Adjusted</value>
+    <comment>Coach: plan diff marker for an adjusted item</comment>
+  </data>
+  <data name="Coach_ChangeKept" xml:space="preserve">
+    <value>Kept</value>
+    <comment>Coach: plan diff marker for a preserved completed or in-progress item</comment>
+  </data>
+  <data name="Coach_PracticeBalance" xml:space="preserve">
+    <value>Practice Balance</value>
+    <comment>Coach: heading for the input/output practice balance bar</comment>
+  </data>
+  <data name="Coach_PracticeInput" xml:space="preserve">
+    <value>Input</value>
+    <comment>Coach: practice balance label for reading, listening and review minutes</comment>
+  </data>
+  <data name="Coach_PracticeOutput" xml:space="preserve">
+    <value>Output</value>
+    <comment>Coach: practice balance label for speaking and writing minutes</comment>
+  </data>
+  <data name="Coach_PracticeMinutes" xml:space="preserve">
+    <value>{0} min</value>
+    <comment>Coach: practice balance value. 0 = minutes</comment>
+  </data>
+  <data name="Coach_ConstraintsLabel" xml:space="preserve">
+    <value>Quick constraints</value>
+    <comment>Coach: accessible group name for the constraint chip row</comment>
+  </data>
+  <data name="Coach_AnnounceResumed" xml:space="preserve">
+    <value>Resumed</value>
+    <comment>Coach: polite announcement when an existing session is resumed</comment>
+  </data>
+  <data name="Coach_AnnounceWorking" xml:space="preserve">
+    <value>Working</value>
+    <comment>Coach: polite announcement while a turn is running</comment>
+  </data>
+  <data name="Coach_AnnounceUndoing" xml:space="preserve">
+    <value>Undoing</value>
+    <comment>Coach: polite announcement while an undo is running</comment>
+  </data>
+  <data name="Coach_AnnounceClarification" xml:space="preserve">
+    <value>Sam asked a question</value>
+    <comment>Coach: screen-reader announcement when a clarifying question arrives.</comment>
+  </data>
+  <data name="Coach_AnnounceDeleted" xml:space="preserve">
+    <value>Coach history deleted</value>
+    <comment>Coach: polite announcement after coach history is deleted</comment>
+  </data>
+  <data name="Coach_Resuming" xml:space="preserve">
+    <value>Picking up where you left off</value>
+    <comment>Coach: message shown while a session is being resumed</comment>
+  </data>
+  <data name="Coach_SettingsSection" xml:space="preserve">
+    <value>Sam, your learning coach</value>
+    <comment>Coach: Settings section heading. Introduces the persona name alongside the role.</comment>
+  </data>
+  <data name="Coach_SettingsDescription" xml:space="preserve">
+    <value>Sam changes Today's Plan only when you ask. Deleting history does not change your plan or your progress.</value>
+    <comment>Coach: Settings section description</comment>
+  </data>
+  <data name="Coach_SettingsDelete" xml:space="preserve">
+    <value>Delete coach history</value>
+    <comment>Coach: Settings button that deletes the coach session</comment>
+  </data>
+  <data name="Coach_SettingsDeleted" xml:space="preserve">
+    <value>Coach history deleted.</value>
+    <comment>Coach: Settings confirmation after deleting coach history</comment>
+  </data>
+  <data name="Coach_SettingsUnavailable" xml:space="preserve">
+    <value>Sam is not available on this account right now.</value>
+    <comment>Coach: shown in Settings when the account cannot use the coach.</comment>
+  </data>
+  <data name="Coach_ChipMinutes" xml:space="preserve">
+    <value>{0} min</value>
+    <comment>Coach: constraint chip for an available-minutes preset. 0 = minutes</comment>
+  </data>
+  <data name="Coach_ChipNoAudio" xml:space="preserve">
+    <value>No audio</value>
+    <comment>Coach: constraint chip that disallows audio activities</comment>
+  </data>
+  <data name="Coach_ChipNoSpeech" xml:space="preserve">
+    <value>No speaking</value>
+    <comment>Coach: constraint chip that disallows speaking activities</comment>
+  </data>
+  <data name="Coach_ChipNoTyping" xml:space="preserve">
+    <value>No typing</value>
+    <comment>Coach: constraint chip that disallows typed response modes</comment>
+  </data>
+  <data name="Coach_ChipLowEnergy" xml:space="preserve">
+    <value>Low energy</value>
+    <comment>Coach: constraint chip that lowers the session intensity</comment>
+  </data>
+  <data name="Coach_RoleCoach" xml:space="preserve">
+    <value>Sam</value>
+    <comment>Coach: speaker label above a coach turn in the chat. The coach is a person named Sam. Localize the name itself (ko uses the affectionate short form of 'teacher'), do not translate it as the role noun 'coach'.</comment>
+  </data>
+  <data name="Coach_RoleYou" xml:space="preserve">
+    <value>You</value>
+    <comment>Coach: role label above a learner turn in the chat</comment>
+  </data>
+  <data name="Coach_NoEvidence" xml:space="preserve">
+    <value>No evidence yet.</value>
+    <comment>Coach: empty state for the plan canvas evidence list</comment>
+  </data>
+  <data name="Coach_ResumedNoHistory" xml:space="preserve">
+    <value>Earlier messages are not shown after a reload. Your plan and its change history below are current.</value>
+    <comment>Coach: explains an empty conversation on a resumed session; the server keeps no transcript</comment>
+  </data>
+  <data name="Coach_ResumedPlanSummary" xml:space="preserve">
+    <value>Today's Plan: {0} of {1} done, {2} min planned.</value>
+    <comment>Coach: resumed-session plan summary. 0 = completed items, 1 = total items, 2 = planned minutes</comment>
+  </data>
+  <data name="Coach_ResumedRevisionSummary" xml:space="preserve">
+    <value>Changes from Sam so far: {0}.</value>
+    <comment>Coach: resumed-session summary of plan changes. 0 = number of changes.</comment>
+  </data>
+  <data name="Coach_PracticeBalanceUnavailable" xml:space="preserve">
+    <value>No practice balance for this session yet.</value>
+    <comment>Coach: shown instead of the practice balance bar when the coach returned no practice-balance evidence</comment>
+  </data>
+  <data name="Coach_EvidenceDateFormat" xml:space="preserve">
+    <value>MMM d</value>
+    <comment>Coach: .NET date format string for evidence window dates. Translate the PATTERN, not a literal date</comment>
+  </data>
+  <data name="Coach_RevisionTimeFormat" xml:space="preserve">
+    <value>h:mm tt</value>
+    <comment>Coach: .NET time format string for revision timestamps. Translate the PATTERN, not a literal time</comment>
+  </data>
+  <data name="Coach_DeleteDialogTitle" xml:space="preserve">
+    <value>Delete coach history?</value>
+    <comment>Coach: title of the confirmation dialog shown before coach history is deleted</comment>
+  </data>
+  <data name="Coach_EndSessionDialogTitle" xml:space="preserve">
+    <value>End coach session?</value>
+    <comment>Coach: title of the confirmation dialog shown before the in-session coach history is deleted</comment>
+  </data>
+  <data name="Coach_DeleteDialogBody" xml:space="preserve">
+    <value>This removes your conversation with Sam and any pending suggestion. Today's Plan and your logged progress are not changed.</value>
+    <comment>Coach: body of the confirmation dialog for deleting coach history; states what is and is not affected</comment>
+  </data>
+  <data name="Coach_DeleteDialogConfirm" xml:space="preserve">
+    <value>Delete history</value>
+    <comment>Coach: destructive confirm button in the coach history deletion dialog</comment>
+  </data>
+  <data name="Coach_Cancel" xml:space="preserve">
+    <value>Cancel</value>
+    <comment>Coach: non-destructive dismiss button in coach confirmation dialogs</comment>
+  </data>
+  <data name="Coach_InputRejected" xml:space="preserve">
+    <value>That message could not be sent. Shorten it and try again.</value>
+    <comment>Coach: announced and shown when the server rejects the submitted turn. Carries no format arguments because the live region renders it directly</comment>
+  </data>
+  <data name="Coach_AnswerLabel" xml:space="preserve">
+    <value>Answer</value>
+    <comment>Coach: accessible group name for a structured pedagogical answer</comment>
+  </data>
+  <data name="Coach_AnswerBlock_Form" xml:space="preserve">
+    <value>Form</value>
+    <comment>Coach: answer block label for the shape of a word or grammar pattern</comment>
+  </data>
+  <data name="Coach_AnswerBlock_Meaning" xml:space="preserve">
+    <value>Meaning</value>
+    <comment>Coach: answer block label for what something means</comment>
+  </data>
+  <data name="Coach_AnswerBlock_Use" xml:space="preserve">
+    <value>Usage</value>
+    <comment>Coach: answer block label for when and how something is used</comment>
+  </data>
+  <data name="Coach_AnswerBlock_Example" xml:space="preserve">
+    <value>Example</value>
+    <comment>Coach: answer block label for example sentences</comment>
+  </data>
+  <data name="Coach_AnswerBlock_Contrast" xml:space="preserve">
+    <value>Comparison</value>
+    <comment>Coach: answer block label contrasting two forms the learner may confuse</comment>
+  </data>
+  <data name="Coach_AnswerBlock_Correction" xml:space="preserve">
+    <value>Correction</value>
+    <comment>Coach: answer block label for a correction of the learner's own text</comment>
+  </data>
+  <data name="Coach_AnswerBlock_Note" xml:space="preserve">
+    <value>Note</value>
+    <comment>Coach: answer block label for a caveat or aside</comment>
+  </data>
+  <data name="Coach_AnswerBlock_RetrievalPrompt" xml:space="preserve">
+    <value>Try it</value>
+    <comment>Coach: answer block label for a question that asks the learner to recall or produce something</comment>
+  </data>
+  <data name="Coach_NoPlanTitle" xml:space="preserve">
+    <value>No plan for today</value>
+    <comment>Coach: heading shown in the plan area when the learner has no plan the coach can edit</comment>
+  </data>
+  <data name="Coach_NoPlanExplanation" xml:space="preserve">
+    <value>You can still ask language questions.</value>
+    <comment>Coach: shown when there is no plan to edit. Used both standalone in the conversation and as the body of the plan-canvas card, so it must read as a complete sentence on its own</comment>
+  </data>
+  <data name="Coach_ConversationLabel" xml:space="preserve">
+    <value>Conversation with Sam</value>
+    <comment>Coach: accessible label for the conversation log. The coach is a person named Sam. Localize the name itself (ko uses the affectionate short form of 'teacher'), do not translate it as the role noun 'coach'.</comment>
+  </data>
+  <data name="Coach_FocusHeading" xml:space="preserve">
+    <value>Focus: {0}</value>
+    <comment>Coach: vocabulary focus section heading. 0 = the server's localized focus label, for example "action verbs".</comment>
+  </data>
+  <data name="Coach_FocusGenericLabel" xml:space="preserve">
+    <value>vocabulary</value>
+    <comment>Coach: neutral stand-in used when the server sends a focus with no label, so the heading never trails off.</comment>
+  </data>
+  <data name="Coach_FocusCount" xml:space="preserve">
+    <value>{0} words</value>
+    <comment>Coach: how many words are in the focus. 0 = the selected count.</comment>
+  </data>
+  <data name="Coach_FocusCountOfEligible" xml:space="preserve">
+    <value>{0} of {1} matching words</value>
+    <comment>Coach: focus count when more words matched than were selected. 0 = selected, 1 = eligible. Says nothing about review schedules or mastery.</comment>
+  </data>
+  <data name="Coach_FocusApplied" xml:space="preserve">
+    <value>Focus applied</value>
+    <comment>Coach: heading over the focus set that a plan change put in force.</comment>
+  </data>
+  <data name="Coach_FocusRestored" xml:space="preserve">
+    <value>Focus restored</value>
+    <comment>Coach: heading over the focus set that an undo brought back.</comment>
+  </data>
+  <data name="Coach_FocusCurrent" xml:space="preserve">
+    <value>Today's focus</value>
+    <comment>Coach: heading over the focus currently in force in the plan canvas.</comment>
+  </data>
+  <data name="Coach_FocusRemoved" xml:space="preserve">
+    <value>Focus removed</value>
+    <comment>Coach: shown when a change cleared the vocabulary focus and left none in its place.</comment>
+  </data>
+  <data name="Coach_FocusSuggestionSummary" xml:space="preserve">
+    <value>Sam suggests focusing on {0}.</value>
+    <comment>Coach: lead-in above a suggested vocabulary focus. 0 = the server's localized focus label, for example "action verbs". Replaces the API's English rationale whenever a focus projection is present.</comment>
+  </data>
+  <data name="Coach_FocusProposed" xml:space="preserve">
+    <value>Words in this focus</value>
+    <comment>Coach: heading over the word list inside a pending suggestion. Reads as a list heading, so it does not repeat the lead-in sentence above it.</comment>
+  </data>
+  <data name="Coach_MessageTimeFormat" xml:space="preserve">
+    <value>h:mm tt</value>
+    <comment>Coach: compact clock time shown beside a message. .NET custom format string, not learner-facing prose. Keep it short: it sits inline with the speaker label.</comment>
+  </data>
+  <data name="Coach_MessageDateTimeFormat" xml:space="preserve">
+    <value>MMMM d, yyyy 'at' h:mm tt</value>
+    <comment>Coach: full date and time for the accessible title behind the compact one. .NET custom format string, not learner-facing prose.</comment>
+  </data>
+  <data name="Coach_MessageTimeLabel" xml:space="preserve">
+    <value>Sent {0}</value>
+    <comment>Coach: accessible name for a message timestamp. 0 = the full localized date and time.</comment>
+  </data>
+  <data name="Coach_Copy" xml:space="preserve">
+    <value>Copy message</value>
+    <comment>Coach: accessible label for the button that copies one of Sam's replies.</comment>
+  </data>
+  <data name="Coach_Copied" xml:space="preserve">
+    <value>Copied</value>
+    <comment>Coach: transient confirmation after a successful copy. Must stay short: it replaces the button label in place.</comment>
+  </data>
+  <data name="Coach_CopyFailed" xml:space="preserve">
+    <value>Could not copy</value>
+    <comment>Coach: neutral feedback when the clipboard is unavailable. Deliberately not an error alert: nothing is broken and nothing was lost.</comment>
+  </data>
+  <data name="Coach_StarterPrompts" xml:space="preserve">
+    <value>Start with a quick change</value>
+    <comment>Coach: heading over the quick constraint chips when they act as starter prompts in an empty conversation.</comment>
+  </data>
+  <data name="Coach_Conversations" xml:space="preserve">
+    <value>Conversations</value>
+    <comment>Coach: name of the list of saved conversations with Sam. Also the accessible name of the drawer that holds it.</comment>
+  </data>
+  <data name="Coach_ConversationsToggle" xml:space="preserve">
+    <value>Show conversations</value>
+    <comment>Coach: button that opens the saved conversation list.</comment>
+  </data>
+  <data name="Coach_ConversationsClose" xml:space="preserve">
+    <value>Hide conversations</value>
+    <comment>Coach: button that closes the saved conversation list.</comment>
+  </data>
+  <data name="Coach_NewConversation" xml:space="preserve">
+    <value>New conversation</value>
+    <comment>Coach: starts a fresh conversation with Sam. Always creates a new one; it never reopens an existing thread.</comment>
+  </data>
+  <data name="Coach_ConversationsEmpty" xml:space="preserve">
+    <value>No saved conversations yet.</value>
+    <comment>Coach: shown when the learner has never started a conversation.</comment>
+  </data>
+  <data name="Coach_ConversationsEmptyHint" xml:space="preserve">
+    <value>Start one and it will be saved here.</value>
+    <comment>Coach: follows the empty conversation list to explain how the list fills up.</comment>
+  </data>
+  <data name="Coach_ConversationsLoading" xml:space="preserve">
+    <value>Loading conversations</value>
+    <comment>Coach: status while the saved conversation list is being read.</comment>
+  </data>
+  <data name="Coach_ConversationsLoadMore" xml:space="preserve">
+    <value>Load older conversations</value>
+    <comment>Coach: button that reads the next page of the saved conversation list.</comment>
+  </data>
+  <data name="Coach_ConversationsOffline" xml:space="preserve">
+    <value>You are offline. Saved conversations will load when the connection returns.</value>
+    <comment>Coach: shown in place of the conversation list when the device has no connection.</comment>
+  </data>
+  <data name="Coach_ConversationsLoadFailed" xml:space="preserve">
+    <value>Conversations could not be loaded. Try again.</value>
+    <comment>Coach: shown when reading the saved conversation list failed for a reason the learner can retry.</comment>
+  </data>
+  <data name="Coach_ConversationCreateFailed" xml:space="preserve">
+    <value>The conversation could not be started. Try again.</value>
+    <comment>Coach: shown when starting a new conversation failed.</comment>
+  </data>
+  <data name="Coach_ConversationConflict" xml:space="preserve">
+    <value>This conversation changed somewhere else. It has been reloaded with the latest version.</value>
+    <comment>Coach: shown when an edit was rejected because another device changed the same conversation first. The list has already been refreshed.</comment>
+  </data>
+  <data name="Coach_ConversationGone" xml:space="preserve">
+    <value>This conversation is no longer available.</value>
+    <comment>Coach: shown when a conversation cannot be opened. Deliberately says nothing about whether it was deleted or never belonged to this learner.</comment>
+  </data>
+  <data name="Coach_ConversationUpdateFailed" xml:space="preserve">
+    <value>The change could not be saved. Try again.</value>
+    <comment>Coach: shown when renaming, closing, or reopening a conversation failed.</comment>
+  </data>
+  <data name="Coach_ConversationDeleteFailed" xml:space="preserve">
+    <value>The conversation could not be deleted. Try again.</value>
+    <comment>Coach: shown when deleting a conversation failed.</comment>
+  </data>
+  <data name="Coach_ConversationExportFailed" xml:space="preserve">
+    <value>The conversation could not be downloaded. Try again.</value>
+    <comment>Coach: shown when an export download failed.</comment>
+  </data>
+  <data name="Coach_ConversationSelected" xml:space="preserve">
+    <value>Currently open</value>
+    <comment>Coach: accessible marker on the conversation that is open right now. Not a button label.</comment>
+  </data>
+  <data name="Coach_ConversationClosedBadge" xml:space="preserve">
+    <value>Closed</value>
+    <comment>Coach: marks a conversation that has been closed and takes no new messages. It is still readable.</comment>
+  </data>
+  <data name="Coach_ConversationMessageCount" xml:space="preserve">
+    <value>{0} messages</value>
+    <comment>Coach: message count on a conversation row. 0 = the number of messages.</comment>
+  </data>
+  <data name="Coach_ConversationUpdated" xml:space="preserve">
+    <value>Last used {0}</value>
+    <comment>Coach: relative or absolute time a conversation was last used. 0 = the localized date and time.</comment>
+  </data>
+  <data name="Coach_ConversationDateFormat" xml:space="preserve">
+    <value>MMMM d, yyyy</value>
+    <comment>Coach: date used as the automatic title of a conversation. .NET custom format string, not learner-facing prose. Sam never asks a model to name a conversation, so the generic date is the title.</comment>
+  </data>
+  <data name="Coach_ConversationUntitled" xml:space="preserve">
+    <value>Conversation</value>
+    <comment>Coach: fallback title when a conversation has no readable name.</comment>
+  </data>
+  <data name="Coach_ConversationActions" xml:space="preserve">
+    <value>Conversation actions</value>
+    <comment>Coach: accessible name of the menu holding rename, download, close and delete for one conversation.</comment>
+  </data>
+  <data name="Coach_ConversationOpen" xml:space="preserve">
+    <value>Open</value>
+    <comment>Coach: opens the selected conversation and shows its messages.</comment>
+  </data>
+  <data name="Coach_ConversationRename" xml:space="preserve">
+    <value>Rename</value>
+    <comment>Coach: opens the dialog that renames a conversation.</comment>
+  </data>
+  <data name="Coach_ConversationRenameTitle" xml:space="preserve">
+    <value>Rename conversation</value>
+    <comment>Coach: title of the rename dialog.</comment>
+  </data>
+  <data name="Coach_ConversationRenameLabel" xml:space="preserve">
+    <value>Conversation name</value>
+    <comment>Coach: label of the text field in the rename dialog.</comment>
+  </data>
+  <data name="Coach_ConversationRenameSave" xml:space="preserve">
+    <value>Save name</value>
+    <comment>Coach: confirm button in the rename dialog.</comment>
+  </data>
+  <data name="Coach_ConversationRenamed" xml:space="preserve">
+    <value>Conversation renamed</value>
+    <comment>Coach: polite confirmation after a successful rename.</comment>
+  </data>
+  <data name="Coach_ConversationClose" xml:space="preserve">
+    <value>Close conversation</value>
+    <comment>Coach: closes a conversation so it takes no new messages. It stays readable and can be reopened.</comment>
+  </data>
+  <data name="Coach_ConversationCloseTitle" xml:space="preserve">
+    <value>Close this conversation?</value>
+    <comment>Coach: title of the close confirmation.</comment>
+  </data>
+  <data name="Coach_ConversationCloseBody" xml:space="preserve">
+    <value>It stays saved and readable, and you can reopen it later. Nothing in Today's Plan, your progress, or what Sam remembers changes.</value>
+    <comment>Coach: body of the close confirmation. States plainly that closing is not deleting and touches nothing else.</comment>
+  </data>
+  <data name="Coach_ConversationReopen" xml:space="preserve">
+    <value>Reopen conversation</value>
+    <comment>Coach: reopens a closed conversation so it takes messages again.</comment>
+  </data>
+  <data name="Coach_ConversationReopened" xml:space="preserve">
+    <value>Conversation reopened</value>
+    <comment>Coach: polite confirmation after reopening a closed conversation.</comment>
+  </data>
+  <data name="Coach_ConversationDelete" xml:space="preserve">
+    <value>Delete conversation</value>
+    <comment>Coach: deletes one saved conversation.</comment>
+  </data>
+  <data name="Coach_ConversationDeleteTitle" xml:space="preserve">
+    <value>Delete this conversation?</value>
+    <comment>Coach: title of the delete confirmation.</comment>
+  </data>
+  <data name="Coach_ConversationDeleteBody" xml:space="preserve">
+    <value>The messages in this conversation will be removed and cannot be brought back.</value>
+    <comment>Coach: body of the delete confirmation. Says exactly what is lost, and nothing more.</comment>
+  </data>
+  <data name="Coach_ConversationDeleteImpact" xml:space="preserve">
+    <value>Deleting a conversation does not undo Today's Plan, your progress, or what Sam remembers. Your account and its data are separate and are not affected.</value>
+    <comment>Coach: the deletion-impact statement. Deliberately generic about the nouns so it stays true as features change, and explicit that plan, progress, memories, and account data survive.</comment>
+  </data>
+  <data name="Coach_ConversationDeleteConfirm" xml:space="preserve">
+    <value>Delete</value>
+    <comment>Coach: confirm button in the delete confirmation.</comment>
+  </data>
+  <data name="Coach_ConversationDeleted" xml:space="preserve">
+    <value>Conversation deleted</value>
+    <comment>Coach: polite confirmation after a successful delete.</comment>
+  </data>
+  <data name="Coach_ConversationExport" xml:space="preserve">
+    <value>Download conversation</value>
+    <comment>Coach: opens the choice of download formats for one conversation.</comment>
+  </data>
+  <data name="Coach_ConversationExportJson" xml:space="preserve">
+    <value>Download as JSON</value>
+    <comment>Coach: downloads the conversation as a JSON file.</comment>
+  </data>
+  <data name="Coach_ConversationExportMarkdown" xml:space="preserve">
+    <value>Download as Markdown</value>
+    <comment>Coach: downloads the conversation as a Markdown file.</comment>
+  </data>
+  <data name="Coach_ConversationExportStarted" xml:space="preserve">
+    <value>Preparing download</value>
+    <comment>Coach: status while an export is being prepared.</comment>
+  </data>
+  <data name="Coach_LoadEarlier" xml:space="preserve">
+    <value>Load earlier messages</value>
+    <comment>Coach: reads the previous page of a conversation and adds it above what is already shown.</comment>
+  </data>
+  <data name="Coach_LoadingEarlier" xml:space="preserve">
+    <value>Loading earlier messages</value>
+    <comment>Coach: status while an older page of messages is being read.</comment>
+  </data>
+  <data name="Coach_EarlierLoaded" xml:space="preserve">
+    <value>Earlier messages added above</value>
+    <comment>Coach: polite announcement after older messages are added. Says where they went, because the reader's position does not move.</comment>
+  </data>
+  <data name="Coach_HistoryBoundary" xml:space="preserve">
+    <value>This is the start of the saved history for this conversation.</value>
+    <comment>Coach: marks the oldest message still kept. Says the history starts here, not that the conversation did.</comment>
+  </data>
+  <data name="Coach_UnreadableMessage" xml:space="preserve">
+    <value>This message could not be read back.</value>
+    <comment>Coach: stands in for a stored message that failed to decode. Never guesses at what it said.</comment>
+  </data>
+  <data name="Coach_UnsupportedMessage" xml:space="preserve">
+    <value>This message needs a newer version of the app.</value>
+    <comment>Coach: stands in for a message whose kind this build does not recognise. Distinct from Coach_UnreadableMessage: nothing was lost, this version simply cannot present it. No controls are shown with it.</comment>
+  </data>
+  <data name="Coach_UnreadableCount" xml:space="preserve">
+    <value>{0} messages could not be read back.</value>
+    <comment>Coach: summary count of unreadable messages in a conversation. 0 = the number of messages.</comment>
+  </data>
+  <data name="Coach_UnreadableCountOne" xml:space="preserve">
+    <value>One message could not be read back.</value>
+    <comment>Coach durable history: exactly one message in the page could not be rendered.</comment>
+  </data>
+  <data name="Coach_TranscriptLoading" xml:space="preserve">
+    <value>Loading conversation</value>
+    <comment>Coach: status while a conversation's messages are being read.</comment>
+  </data>
+  <data name="Coach_MessagePending" xml:space="preserve">
+    <value>Sending</value>
+    <comment>Coach: status on a message that has been shown but not yet confirmed by the server.</comment>
+  </data>
+  <data name="Coach_MessageFailed" xml:space="preserve">
+    <value>Not sent</value>
+    <comment>Coach: status on a message whose turn failed. The message itself stays on screen.</comment>
+  </data>
+  <data name="Coach_NoChangeApplied" xml:space="preserve">
+    <value>No change applied</value>
+    <comment>Coach: badge on a notice message where the server refused/did not execute a plan mutation. Authoritative indicator — never trust assistant prose about what changed.</comment>
+  </data>
+  <data name="Coach_TurnRetry" xml:space="preserve">
+    <value>Try again</value>
+    <comment>Coach: retries a failed turn without retyping. The same turn is retried, so it never sends twice.</comment>
+  </data>
+  <data name="Coach_TurnRecover" xml:space="preserve">
+    <value>Check for a reply</value>
+    <comment>Coach: asks the server what happened to a turn whose reply never arrived.</comment>
+  </data>
+  <data name="Coach_TurnRecovering" xml:space="preserve">
+    <value>Checking for a reply</value>
+    <comment>Coach: status while a turn whose reply never arrived is being looked up.</comment>
+  </data>
+  <data name="Coach_TurnStillRunning" xml:space="preserve">
+    <value>Sam is still working on this. You can keep waiting or check again.</value>
+    <comment>Coach: shown when a turn is confirmed to be still running after a lost reply.</comment>
+  </data>
+  <data name="Coach_ConversationClosedNotice" xml:space="preserve">
+    <value>This conversation is closed. Reopen it to keep going.</value>
+    <comment>Coach: shown in place of the composer when the open conversation takes no new messages.</comment>
+  </data>
+  <data name="Coach_MemoryTitle" xml:space="preserve">
+    <value>What Sam remembers</value>
+  </data>
+  <data name="Coach_MemoryExplainer" xml:space="preserve">
+    <value>Sam only remembers preferences you agreed to save. You can change or remove any of them at any time.</value>
+  </data>
+  <data name="Coach_MemoryVsSettings" xml:space="preserve">
+    <value>These are separate from your app settings and from Today's Plan. Changing what Sam remembers does not change either one.</value>
+  </data>
+  <data name="Coach_MemoryTabsLabel" xml:space="preserve">
+    <value>Saved preferences</value>
+  </data>
+  <data name="Coach_MemoryTabActive" xml:space="preserve">
+    <value>Saved ({0})</value>
+  </data>
+  <data name="Coach_MemoryTabCandidates" xml:space="preserve">
+    <value>Waiting for you ({0})</value>
+  </data>
+  <data name="Coach_MemoryPaused" xml:space="preserve">
+    <value>Sam is not using any saved preferences right now. Nothing is remembered, so every conversation starts fresh.</value>
+  </data>
+  <data name="Coach_MemoryNoCandidates" xml:space="preserve">
+    <value>Nothing is waiting for a decision.</value>
+  </data>
+  <data name="Coach_MemoryCandidateTitle" xml:space="preserve">
+    <value>Remember this?</value>
+  </data>
+  <data name="Coach_MemoryCandidateExplainer" xml:space="preserve">
+    <value>Sam will not use this until you save it.</value>
+  </data>
+  <data name="Coach_MemorySave" xml:space="preserve">
+    <value>Save</value>
+  </data>
+  <data name="Coach_MemorySaveEdited" xml:space="preserve">
+    <value>Save changes</value>
+  </data>
+  <data name="Coach_MemoryEdit" xml:space="preserve">
+    <value>Edit</value>
+  </data>
+  <data name="Coach_MemoryEditLabel" xml:space="preserve">
+    <value>Preference</value>
+  </data>
+  <data name="Coach_MemoryOnlyThisChat" xml:space="preserve">
+    <value>Only this chat</value>
+  </data>
+  <data name="Coach_MemoryNotNow" xml:space="preserve">
+    <value>Not now</value>
+  </data>
+  <data name="Coach_MemoryForget" xml:space="preserve">
+    <value>Forget</value>
+  </data>
+  <data name="Coach_MemoryForgetAll" xml:space="preserve">
+    <value>Forget everything</value>
+  </data>
+  <data name="Coach_MemoryForgetAllTitle" xml:space="preserve">
+    <value>Forget everything Sam remembers?</value>
+  </data>
+  <data name="Coach_MemoryForgetAllBody" xml:space="preserve">
+    <value>Every saved preference will be removed. Sam will start from nothing the next time you talk.</value>
+  </data>
+  <data name="Coach_MemoryForgetAllImpact" xml:space="preserve">
+    <value>This does not undo Today's Plan or your progress, and it does not change your account or its data.</value>
+  </data>
+  <data name="Coach_MemoryForgetAllConfirm" xml:space="preserve">
+    <value>Forget everything</value>
+  </data>
+  <data name="Coach_MemoryScopeLabel" xml:space="preserve">
+    <value>Applies to</value>
+  </data>
+  <data name="Coach_MemoryScopeGlobal" xml:space="preserve">
+    <value>Every language</value>
+  </data>
+  <data name="Coach_MemoryScopeLanguage" xml:space="preserve">
+    <value>The language you are studying</value>
+  </data>
+  <data name="Coach_MemoryScopeLanguageNamed" xml:space="preserve">
+    <value>{0} only</value>
+  </data>
+  <data name="Coach_MemoryProvenanceLabel" xml:space="preserve">
+    <value>Source</value>
+  </data>
+  <data name="Coach_MemoryProvenanceStated" xml:space="preserve">
+    <value>You said this in a conversation</value>
+  </data>
+  <data name="Coach_MemoryProvenanceConfirmed" xml:space="preserve">
+    <value>You confirmed this here</value>
+  </data>
+  <data name="Coach_MemorySavedAtLabel" xml:space="preserve">
+    <value>Saved</value>
+  </data>
+  <data name="Coach_MemoryLastUsedLabel" xml:space="preserve">
+    <value>Last used</value>
+  </data>
+  <data name="Coach_MemorySaved" xml:space="preserve">
+    <value>Saved.</value>
+  </data>
+  <data name="Coach_MemoryConflict" xml:space="preserve">
+    <value>This changed somewhere else. The list has been refreshed.</value>
+  </data>
+  <data name="Coach_MemoryValueRejected" xml:space="preserve">
+    <value>That value cannot be saved as a preference. Try wording it differently.</value>
+  </data>
+  <data name="Coach_MemoryUnavailable" xml:space="preserve">
+    <value>Saved preferences are unavailable right now.</value>
+  </data>
+  <data name="Coach_MemoryOffline" xml:space="preserve">
+    <value>Saved preferences could not be reached. Check your connection.</value>
+  </data>
+  <data name="Coach_MemoryGone" xml:space="preserve">
+    <value>That preference is no longer there.</value>
+  </data>
+  <data name="Coach_PanelExpand" xml:space="preserve">
+    <value>Expand panel</value>
+    <comment>Coach: Sam overlay panel control that grows the compact panel to its expanded size</comment>
+  </data>
+  <data name="Coach_PanelCompact" xml:space="preserve">
+    <value>Compact panel</value>
+    <comment>Coach: Sam overlay panel control that shrinks the expanded panel back to compact</comment>
+  </data>
+  <data name="Coach_PanelFullScreen" xml:space="preserve">
+    <value>Open full screen</value>
+    <comment>Coach: Sam overlay panel control that grows the panel to cover the viewport, in place. It does NOT navigate anywhere and does not open a separate page - the conversation, the draft and the scroll position are the same ones at the larger size. Paired with Coach_PanelRestore, which returns the panel to its previous size.</comment>
+  </data>
+  <data name="Coach_PanelClose" xml:space="preserve">
+    <value>Close panel</value>
+    <comment>Coach: Sam overlay panel control that collapses the panel back to the floating button</comment>
+  </data>
+  <data name="Coach_Unread" xml:space="preserve">
+    <value>New messages</value>
+    <comment>Coach: accessible label for the unread dot on the floating button</comment>
+  </data>
+  <data name="Coach_WriteProposalLabel" xml:space="preserve">
+    <value>Proposed change</value>
+    <comment>Sam write: accessible group name for a proposal card in the conversation</comment>
+  </data>
+  <data name="Coach_WriteReceiptLabel" xml:space="preserve">
+    <value>Completed change</value>
+    <comment>Sam write: accessible group name for a card whose change has already run</comment>
+  </data>
+  <data name="Coach_WriteKindVocabularyAdd" xml:space="preserve">
+    <value>Add a word</value>
+    <comment>Sam write: heading for a proposal that adds a vocabulary word</comment>
+  </data>
+  <data name="Coach_WriteKindVocabularyEdit" xml:space="preserve">
+    <value>Edit a word</value>
+    <comment>Sam write: heading for a proposal that changes a vocabulary word</comment>
+  </data>
+  <data name="Coach_WriteKindVocabularyLink" xml:space="preserve">
+    <value>Link a word to a resource</value>
+    <comment>Sam write: heading for a proposal that attaches a word to a learning resource</comment>
+  </data>
+  <data name="Coach_WriteKindVocabularyRemove" xml:space="preserve">
+    <value>Remove a word</value>
+    <comment>Sam write: heading for a proposal that removes a vocabulary word</comment>
+  </data>
+  <data name="Coach_WriteKindSkillAdd" xml:space="preserve">
+    <value>Add a skill</value>
+    <comment>Sam write: heading for a proposal that adds a skill</comment>
+  </data>
+  <data name="Coach_WriteKindSkillEdit" xml:space="preserve">
+    <value>Edit a skill</value>
+    <comment>Sam write: heading for a proposal that changes a skill</comment>
+  </data>
+  <data name="Coach_WriteKindSkillArchive" xml:space="preserve">
+    <value>Archive a skill</value>
+    <comment>Sam write: heading for a proposal that archives a skill. Archive, not delete</comment>
+  </data>
+  <data name="Coach_WriteKindResourceAdd" xml:space="preserve">
+    <value>Add a resource</value>
+    <comment>Sam write: heading for a proposal that adds a learning resource</comment>
+  </data>
+  <data name="Coach_WriteKindResourceEdit" xml:space="preserve">
+    <value>Edit a resource</value>
+    <comment>Sam write: heading for a proposal that changes a learning resource</comment>
+  </data>
+  <data name="Coach_WriteKindResourceRemove" xml:space="preserve">
+    <value>Remove a resource</value>
+    <comment>Sam write: heading for a proposal that removes a learning resource</comment>
+  </data>
+  <data name="Coach_WriteKindSettingChange" xml:space="preserve">
+    <value>Change a setting</value>
+    <comment>Sam write: heading for a proposal that changes one of the learner's own settings</comment>
+  </data>
+  <data name="Coach_WriteKindVideoImport" xml:space="preserve">
+    <value>Import a video transcript</value>
+    <comment>Sam write: heading for a proposal that imports a video transcript as a resource</comment>
+  </data>
+  <data name="Coach_WriteKindUnknown" xml:space="preserve">
+    <value>Change to your study material</value>
+    <comment>Sam write: neutral heading used when the client does not recognise the kind of change</comment>
+  </data>
+  <data name="Coach_WriteStateProposed" xml:space="preserve">
+    <value>Waiting for you</value>
+    <comment>Sam write: state label on a proposal nothing has happened to yet</comment>
+  </data>
+  <data name="Coach_WriteStateProtected" xml:space="preserve">
+    <value>Confirmation required</value>
+    <comment>Sam write: state label on a protected proposal that needs an explicit confirmation</comment>
+  </data>
+  <data name="Coach_WriteStateApplied" xml:space="preserve">
+    <value>Applied</value>
+    <comment>Sam write: state label on a change that has been carried out</comment>
+  </data>
+  <data name="Coach_WriteStateUndone" xml:space="preserve">
+    <value>Undone</value>
+    <comment>Sam write: state label on a change that was reversed</comment>
+  </data>
+  <data name="Coach_WriteStateDeclined" xml:space="preserve">
+    <value>Declined</value>
+    <comment>Sam write: state label on a proposal the learner turned down</comment>
+  </data>
+  <data name="Coach_WriteStateExpired" xml:space="preserve">
+    <value>Expired</value>
+    <comment>Sam write: state label on a proposal whose window closed before it was answered</comment>
+  </data>
+  <data name="Coach_WriteStateInDoubt" xml:space="preserve">
+    <value>Finishing</value>
+    <comment>Sam write: state label while the server holds the execution claim and the outcome is unknown</comment>
+  </data>
+  <data name="Coach_WriteStateFailed" xml:space="preserve">
+    <value>Not applied</value>
+    <comment>Sam write: state label on a change that was closed after a failure</comment>
+  </data>
+  <data name="Coach_WriteStateUnreadable" xml:space="preserve">
+    <value>Unavailable</value>
+    <comment>Sam write: state label when the client cannot read the change's state</comment>
+  </data>
+  <data name="Coach_WriteStateUnavailable" xml:space="preserve">
+    <value>Can't check right now</value>
+    <comment>Sam write: state label when the server did not answer for this change, so its outcome is unknown. Deliberately not "Expired": nothing decided, we simply could not read it.</comment>
+  </data>
+  <data name="Coach_WriteAccept" xml:space="preserve">
+    <value>Apply this change</value>
+    <comment>Sam write: button that approves a reversible change</comment>
+  </data>
+  <data name="Coach_WriteDecline" xml:space="preserve">
+    <value>Not now</value>
+    <comment>Sam write: button that declines a proposal</comment>
+  </data>
+  <data name="Coach_WriteReview" xml:space="preserve">
+    <value>Review and confirm</value>
+    <comment>Sam write: button that opens the confirmation step for a protected change</comment>
+  </data>
+  <data name="Coach_WriteConfirm" xml:space="preserve">
+    <value>Confirm</value>
+    <comment>Sam write: button that carries out a protected change</comment>
+  </data>
+  <data name="Coach_WriteCancelConfirm" xml:space="preserve">
+    <value>Back</value>
+    <comment>Sam write: button that leaves the confirmation step without approving anything</comment>
+  </data>
+  <data name="Coach_WriteUndo" xml:space="preserve">
+    <value>Undo</value>
+    <comment>Sam write: button that reverses a completed change inside its window</comment>
+  </data>
+  <data name="Coach_WriteRefreshAction" xml:space="preserve">
+    <value>Check again</value>
+    <comment>Sam write: button that re-reads a change's state from the server</comment>
+  </data>
+  <data name="Coach_WriteNothingChangedYet" xml:space="preserve">
+    <value>Nothing has changed yet.</value>
+    <comment>Sam write: reassurance shown on every proposal before it is approved</comment>
+  </data>
+  <data name="Coach_WriteProtectedNotice" xml:space="preserve">
+    <value>This one is protected, so it needs your confirmation.</value>
+    <comment>Sam write: explains why a protected change has a confirmation step instead of a single button</comment>
+  </data>
+  <data name="Coach_WriteIrreversibleNotice" xml:space="preserve">
+    <value>This cannot be undone.</value>
+    <comment>Sam write: warning shown before a change the server cannot reverse</comment>
+  </data>
+  <data name="Coach_WriteReversibleNotice" xml:space="preserve">
+    <value>You can undo this afterwards.</value>
+    <comment>Sam write: shown before a change the server can reverse</comment>
+  </data>
+  <data name="Coach_WriteUndoWindow" xml:space="preserve">
+    <value>You can undo this until {0}.</value>
+    <comment>Sam write: {0} is the local time the undo window closes</comment>
+  </data>
+  <data name="Coach_WriteConfirmExpiresAt" xml:space="preserve">
+    <value>Confirm by {0}.</value>
+    <comment>Sam write: {0} is the local time the confirmation stops working</comment>
+  </data>
+  <data name="Coach_WriteExpiredHint" xml:space="preserve">
+    <value>Ask again for a fresh proposal.</value>
+    <comment>Sam write: recovery hint on a proposal that can no longer be approved</comment>
+  </data>
+  <data name="Coach_WriteInDoubtHint" xml:space="preserve">
+    <value>This is still finishing. Check again in a moment.</value>
+    <comment>Sam write: hint while the server holds the execution claim</comment>
+  </data>
+  <data name="Coach_WriteUnreadableHint" xml:space="preserve">
+    <value>This change cannot be read, so there is nothing to approve.</value>
+    <comment>Sam write: hint on a card whose state the client cannot interpret</comment>
+  </data>
+  <data name="Coach_WriteSupersededHint" xml:space="preserve">
+    <value>A newer proposal is waiting, so this one is no longer available.</value>
+    <comment>Sam write: hint on an older proposal once a newer one exists</comment>
+  </data>
+  <data name="Coach_WriteBusy" xml:space="preserve">
+    <value>Working</value>
+    <comment>Sam write: busy label while an approval request is in flight</comment>
+  </data>
+  <data name="Coach_WriteConfirmTitle" xml:space="preserve">
+    <value>Confirm this change</value>
+    <comment>Sam write: accessible name of the confirmation step</comment>
+  </data>
+  <data name="Coach_WriteConfirmIntro" xml:space="preserve">
+    <value>Read this once more, then confirm.</value>
+    <comment>Sam write: accessible description of the confirmation step</comment>
+  </data>
+  <data name="Coach_WriteUnavailable" xml:space="preserve">
+    <value>That change is no longer available.</value>
+    <comment>Sam write: shown when the server answers not-found for a change</comment>
+  </data>
+  <data name="Coach_WriteRefused" xml:space="preserve">
+    <value>That change could not be applied.</value>
+    <comment>Sam write: shown when the server refuses an approval</comment>
+  </data>
+  <data name="Coach_WriteLimited" xml:space="preserve">
+    <value>Too many changes at once. Try again shortly.</value>
+    <comment>Sam write: shown when the approval request is rate limited</comment>
+  </data>
+  <data name="Coach_WriteNetworkFailed" xml:space="preserve">
+    <value>That request did not reach the server.</value>
+    <comment>Sam write: shown when an approval request fails before the server answers</comment>
+  </data>
+  <data name="Coach_WriteConfirmExpired" xml:space="preserve">
+    <value>The confirmation window closed.</value>
+    <comment>Sam write: shown when the one-use confirmation expired before it was used</comment>
+  </data>
+  <data name="Coach_WriteApplied" xml:space="preserve">
+    <value>The change was applied.</value>
+    <comment>Sam write: screen-reader announcement after a change is carried out</comment>
+  </data>
+  <data name="Coach_WriteDeclined" xml:space="preserve">
+    <value>The change was declined.</value>
+    <comment>Sam write: screen-reader announcement after a proposal is declined</comment>
+  </data>
+  <data name="Coach_WriteUndone" xml:space="preserve">
+    <value>The change was undone.</value>
+    <comment>Sam write: screen-reader announcement after a change is reversed</comment>
+  </data>
+  <data name="Coach_WriteExpired" xml:space="preserve">
+    <value>The proposal expired.</value>
+    <comment>Sam write: screen-reader announcement when a proposal can no longer be approved</comment>
+  </data>
+  <data name="Coach_WriteFailed" xml:space="preserve">
+    <value>The change was not applied.</value>
+    <comment>Sam write: screen-reader announcement after a change is closed without effect</comment>
+  </data>
+  <data name="Coach_WriteInDoubt" xml:space="preserve">
+    <value>The change is still finishing.</value>
+    <comment>Sam write: screen-reader announcement while the outcome is unknown</comment>
+  </data>
+  <data name="Coach_WriteConfirmAnnounce" xml:space="preserve">
+    <value>Confirm the change to go ahead.</value>
+    <comment>Sam write: screen-reader announcement when the confirmation step opens</comment>
+  </data>
+  <data name="Coach_OpenNamed" xml:space="preserve">
+    <value>Ask {0}</value>
+    <comment>Coach: dashboard entry and overlay entry button label. {0} is the coach's name, resolved from the language the learner is studying (Sam by default, 쌤 for Korean). Keep the placeholder; localize the sentence around it.</comment>
+  </data>
+  <data name="Coach_ConversationLabelNamed" xml:space="preserve">
+    <value>Conversation with {0}</value>
+    <comment>Coach: accessible label for the conversation log. {0} is the coach's name, resolved from the language the learner is studying (Sam by default, 쌤 for Korean). Keep the placeholder; localize the sentence around it.</comment>
+  </data>
+  <data name="Coach_ComposerLabelNamed" xml:space="preserve">
+    <value>Message {0}</value>
+    <comment>Coach: accessible label for the message box. {0} is the coach's name, resolved from the language the learner is studying (Sam by default, 쌤 for Korean). Keep the placeholder; localize the sentence around it.</comment>
+  </data>
+  <data name="Coach_PanelRestore" xml:space="preserve">
+    <value>Restore panel size</value>
+    <comment>Coach: overlay control that leaves full screen and returns the panel to the size it had before.</comment>
+  </data>
+  <data name="Coach_JumpToLatest" xml:space="preserve">
+    <value>Jump to latest message</value>
+    <comment>Coach: control shown when new messages arrived below the part of the conversation being read.</comment>
+  </data>
+  <data name="Theme_SeoulPop" xml:space="preserve">
+    <value>Seoul Pop</value>
+    <comment>Theme name. A proper noun evoking Seoul's street-pop palette — keep the English name in all locales unless a locale has an established rendering.</comment>
+  </data>
+  <data name="Theme_Ocean" xml:space="preserve">
+    <value>Ocean</value>
+    <comment>Theme name. Cool blues and teals.</comment>
+  </data>
+  <data name="Theme_Forest" xml:space="preserve">
+    <value>Forest</value>
+    <comment>Theme name. Greens with a warm accent.</comment>
+  </data>
+  <data name="Theme_Sunset" xml:space="preserve">
+    <value>Sunset</value>
+    <comment>Theme name. Warm oranges with a pink accent.</comment>
+  </data>
+  <data name="Theme_Monochrome" xml:space="preserve">
+    <value>Monochrome</value>
+    <comment>Theme name. Greys only, no hue.</comment>
+  </data>
+  <data name="Theme_Flatly" xml:space="preserve">
+    <value>Flatly</value>
+    <comment>Theme name. A Bootswatch theme — proper noun, not translated.</comment>
+  </data>
+  <data name="Theme_Sketchy" xml:space="preserve">
+    <value>Sketchy</value>
+    <comment>Theme name. A Bootswatch theme — proper noun, not translated.</comment>
+  </data>
+  <data name="Theme_Slate" xml:space="preserve">
+    <value>Slate</value>
+    <comment>Theme name. A Bootswatch theme — proper noun, not translated.</comment>
+  </data>
+  <data name="Theme_Vapor" xml:space="preserve">
+    <value>Vapor</value>
+    <comment>Theme name. A Bootswatch theme — proper noun, not translated.</comment>
+  </data>
+  <data name="Theme_Brite" xml:space="preserve">
+    <value>Brite</value>
+    <comment>Theme name. A Bootswatch theme — proper noun, not translated.</comment>
+  </data>
+  <data name="Coach_EvidenceKind_PracticeBalance" xml:space="preserve">
+    <value>Practice balance</value>
+    <comment>Coach evidence: heading for the practice-balance card.</comment>
+  </data>
+  <data name="Coach_EvidenceKind_VocabularyDue" xml:space="preserve">
+    <value>Vocabulary</value>
+    <comment>Coach evidence: heading for the vocabulary card.</comment>
+  </data>
+  <data name="Coach_EvidenceKind_ResourceCatalog" xml:space="preserve">
+    <value>Resources</value>
+    <comment>Coach evidence: heading for the resources card.</comment>
+  </data>
+  <data name="Coach_EvidenceKind_LearnerProfile" xml:space="preserve">
+    <value>Settings</value>
+    <comment>Coach evidence: heading for the settings card.</comment>
+  </data>
+  <data name="Coach_EvidenceKind_PlanPreview" xml:space="preserve">
+    <value>Plan</value>
+    <comment>Coach evidence: heading for the plan card.</comment>
+  </data>
+  <data name="Coach_EvidenceDefinition_OwnedResourceCatalog" xml:space="preserve">
+    <value>Your resources, ranked by how recently you used them.</value>
+    <comment>Coach evidence: what was consulted.</comment>
+  </data>
+  <data name="Coach_EvidenceDefinition_OwnedResourceList" xml:space="preserve">
+    <value>Your resources, ranked by when you last changed them.</value>
+    <comment>Coach evidence: what was consulted.</comment>
+  </data>
+  <data name="Coach_EvidenceDefinition_OwnedResourceDetail" xml:space="preserve">
+    <value>One of your resources.</value>
+    <comment>Coach evidence: what was consulted.</comment>
+  </data>
+  <data name="Coach_EvidenceDefinition_ActiveSkillList" xml:space="preserve">
+    <value>Your active skills.</value>
+    <comment>Coach evidence: what was consulted.</comment>
+  </data>
+  <data name="Coach_EvidenceDefinition_ActiveSkillDetail" xml:space="preserve">
+    <value>One of your skills.</value>
+    <comment>Coach evidence: what was consulted.</comment>
+  </data>
+  <data name="Coach_EvidenceDefinition_TrackedVocabularyDueSummary" xml:space="preserve">
+    <value>Every word you are tracking, counted by review schedule.</value>
+    <comment>Coach evidence: what was consulted.</comment>
+  </data>
+  <data name="Coach_EvidenceDefinition_UndueVocabularySearch" xml:space="preserve">
+    <value>Your words that are not currently due for review.</value>
+    <comment>Coach evidence: what was consulted.</comment>
+  </data>
+  <data name="Coach_EvidenceDefinition_TrackedVocabularyDetail" xml:space="preserve">
+    <value>One word you are tracking.</value>
+    <comment>Coach evidence: what was consulted.</comment>
+  </data>
+  <data name="Coach_EvidenceDefinition_LearnerSettingsSnapshot" xml:space="preserve">
+    <value>Your study settings.</value>
+    <comment>Coach evidence: what was consulted.</comment>
+  </data>
+  <data name="Coach_EvidenceDefinition_LearnerOverviewSummary" xml:space="preserve">
+    <value>Your study settings, and how much you have saved.</value>
+    <comment>Coach evidence: what was consulted.</comment>
+  </data>
+  <data name="Coach_EvidenceDefinition_PlanDaySummary" xml:space="preserve">
+    <value>Today's plan and what you have logged against it.</value>
+    <comment>Coach evidence: what was consulted.</comment>
+  </data>
+  <data name="Coach_EvidenceDefinition_PracticeWindowBalance" xml:space="preserve">
+    <value>Practice you logged over the window.</value>
+    <comment>Coach evidence: what was consulted.</comment>
+  </data>
+  <data name="Coach_EvidenceDefinition_DeterministicPlanPreview" xml:space="preserve">
+    <value>A plan worked out from your data. Nothing was saved.</value>
+    <comment>Coach evidence: what was consulted.</comment>
+  </data>
+  <data name="Coach_EvidenceValue_RowsRead" xml:space="preserve">
+    <value>Rows read</value>
+    <comment>Coach evidence: label for the count of rows the fact was computed from.</comment>
+  </data>
+  <data name="Coach_EvidenceValue_RowsMatched" xml:space="preserve">
+    <value>Rows matched</value>
+    <comment>Coach evidence: label for the count of rows that matched before paging or withholding.</comment>
+  </data>
+  <data name="Coach_EvidenceValue_RowsWithheld" xml:space="preserve">
+    <value>Rows withheld</value>
+    <comment>Coach evidence: label for the count of matching rows deliberately left out.</comment>
+  </data>
+  <data name="Coach_Limitation_Unknown_Heading" xml:space="preserve">
+    <value>Something Sam can’t do here</value>
+    <comment>Coach limitation: neutral heading when the build does not recognise the limitation code. Must not guess a reason.</comment>
+  </data>
+  <data name="Coach_Limitation_NotBuilt" xml:space="preserve">
+    <value>This isn’t built yet.</value>
+    <comment>Coach limitation: the capability does not exist anywhere in the app. Do not imply a screen exists.</comment>
+  </data>
+  <data name="Coach_Limitation_AvailableOnAnotherSurface" xml:space="preserve">
+    <value>You can do this yourself on another screen.</value>
+    <comment>Coach limitation: the capability exists, but on a screen rather than through the coach.</comment>
+  </data>
+  <data name="Coach_Limitation_RefusedByDesign" xml:space="preserve">
+    <value>Sam won’t do this one.</value>
+    <comment>Coach limitation: a deliberate refusal, not a missing feature. Keep it matter-of-fact, never scolding.</comment>
+  </data>
+  <data name="Coach_Limitation_WouldRemoveLearningValue" xml:space="preserve">
+    <value>This would take away the practice it’s meant to give.</value>
+    <comment>Coach limitation: doing it would remove a retrieval opportunity. Neutral, never a lecture.</comment>
+  </data>
+  <data name="Coach_Limitation_ExceedsSafeChangeScope" xml:space="preserve">
+    <value>This is more than Sam will change in one step.</value>
+    <comment>Coach limitation: the request covers more data than one safe, reversible change.</comment>
+  </data>
+  <data name="Coach_Limitation_AffectedItems" xml:space="preserve">
+    <value>Words this would affect</value>
+    <comment>Coach limitation: label above the count of the learner's rows a refused request would have touched.</comment>
+  </data>
+  <data name="Coach_Limitation_AsOf" xml:space="preserve">
+    <value>Counted at</value>
+    <comment>Coach limitation: label before the timestamp the counts were true at.</comment>
+  </data>
+  <data name="Coach_Limitation_AlternativesHeading" xml:space="preserve">
+    <value>Instead, you could</value>
+    <comment>Coach limitation: heading above the list of reversible alternatives.</comment>
+  </data>
+  <data name="Coach_Limitation_HintLadderHeading" xml:space="preserve">
+    <value>Nudges you can ask for</value>
+    <comment>Coach limitation: heading above the hint ladder. Must not suggest the answer is available.</comment>
+  </data>
+  <data name="Coach_Limitation_ExportSurfaceHeading" xml:space="preserve">
+    <value>Take a copy first</value>
+    <comment>Coach limitation: heading above the export screen, offered before anything is removed.</comment>
+  </data>
+  <data name="Coach_Limitation_FullScopeSurfaceHeading" xml:space="preserve">
+    <value>If you really want to start over</value>
+    <comment>Coach limitation: heading above the whole-data surface, shown alongside the safer recommended screen.</comment>
+  </data>
+  <data name="Coach_Limitation_SideEffectHeading" xml:space="preserve">
+    <value>What can change there</value>
+    <comment>Coach limitation: heading above the destination's side-effect disclosure. Shown before the learner navigates.</comment>
+  </data>
+  <data name="Coach_Limitation_ShorterSession" xml:space="preserve">
+    <value>Shorter set today</value>
+    <comment>Coach limitation: label for the shorter-session offer. Fewer items, same kind of practice.</comment>
+  </data>
+  <data name="Coach_Limitation_ShorterSessionRetrieval" xml:space="preserve">
+    <value>Still full practice, just fewer words.</value>
+    <comment>Coach limitation: states that a shorter session preserves target-language retrieval, so it is not an easier session.</comment>
+  </data>
+  <data name="Coach_Route_ActivityLog" xml:space="preserve">
+    <value>Activity log</value>
+    <comment>Coach route: the learner's practice history screen.</comment>
+  </data>
+  <data name="Coach_Route_Vocabulary" xml:space="preserve">
+    <value>Vocabulary</value>
+    <comment>Coach route: the learner's vocabulary screen.</comment>
+  </data>
+  <data name="Coach_Route_Settings" xml:space="preserve">
+    <value>Settings</value>
+    <comment>Coach route: app and learning settings.</comment>
+  </data>
+  <data name="Coach_Route_Skills" xml:space="preserve">
+    <value>Skills</value>
+    <comment>Coach route: the learner's skill profiles.</comment>
+  </data>
+  <data name="Coach_Route_Writing" xml:space="preserve">
+    <value>Writing</value>
+    <comment>Coach route: the writing activity.</comment>
+  </data>
+  <data name="Coach_Route_Feedback" xml:space="preserve">
+    <value>Send feedback</value>
+    <comment>Coach route: the feedback form, which files a public issue.</comment>
+  </data>
+  <data name="Coach_RouteEffect_Unknown" xml:space="preserve">
+    <value>Consequences not stated.</value>
+    <comment>Coach route side effect: unrecognised value. Must stay neutral and must never read as safe.</comment>
+  </data>
+  <data name="Coach_RouteEffect_None" xml:space="preserve">
+    <value>Nothing changes — this screen only shows information.</value>
+    <comment>Coach route side effect: read-only destination.</comment>
+  </data>
+  <data name="Coach_RouteEffect_EditsLearnerData" xml:space="preserve">
+    <value>You can change or delete your own data there.</value>
+    <comment>Coach route side effect: destination permits edits or deletion of learner data.</comment>
+  </data>
+  <data name="Coach_RouteEffect_ChangesSettings" xml:space="preserve">
+    <value>You can change settings that affect future sessions.</value>
+    <comment>Coach route side effect: destination changes settings.</comment>
+  </data>
+  <data name="Coach_RouteEffect_StartsActivity" xml:space="preserve">
+    <value>You can start a practice activity there.</value>
+    <comment>Coach route side effect: destination starts an activity.</comment>
+  </data>
+  <data name="Coach_RouteEffect_PublishesPublicly" xml:space="preserve">
+    <value>What you send becomes public and can’t be taken back.</value>
+    <comment>Coach route side effect: destination publishes outside the app. Strongest disclosure; keep the irreversibility explicit.</comment>
+  </data>
+  <data name="Coach_Alternative_RemoveOneListAtATime" xml:space="preserve">
+    <value>Clear one list at a time</value>
+    <comment>Coach alternative: bounded substitute for a bulk change.</comment>
+  </data>
+  <data name="Coach_Alternative_StartAFreshList" xml:space="preserve">
+    <value>Start a fresh list and leave these alone</value>
+    <comment>Coach alternative: additive substitute for deletion.</comment>
+  </data>
+  <data name="Coach_Alternative_ExportBeforeRemoving" xml:space="preserve">
+    <value>Export them first, so you can get them back</value>
+    <comment>Coach alternative: makes the original request recoverable rather than smaller.</comment>
+  </data>
+  <data name="Coach_Alternative_TakeAShorterSession" xml:space="preserve">
+    <value>Take a shorter set today</value>
+    <comment>Coach alternative: substitute for skipping a session.</comment>
+  </data>
+  <data name="Coach_Alternative_UseHintLadder" xml:space="preserve">
+    <value>Ask for a nudge on the hard ones</value>
+    <comment>Coach alternative: substitute for disclosing answers.</comment>
+  </data>
+  <data name="Coach_Hint_Unknown" xml:space="preserve">
+    <value>Not available</value>
+    <comment>Coach hint rung: unrecognised rung. Render as unavailable; never substitute another rung.</comment>
+  </data>
+  <data name="Coach_Hint_Category" xml:space="preserve">
+    <value>What kind of word it is</value>
+    <comment>Coach hint rung 1: category cue. No letters of the term.</comment>
+  </data>
+  <data name="Coach_Hint_FormCue" xml:space="preserve">
+    <value>How it starts and how long it is</value>
+    <comment>Coach hint rung 3: form cue. Initial character and length only.</comment>
+  </data>
+  <data name="Coach_Hint_Cloze" xml:space="preserve">
+    <value>The sentence with it missing</value>
+    <comment>Coach hint rung 2: cloze. Supplies surrounding context and none of the form; the learner still produces the whole term. The top of the ladder is rung 3, the form cue.</comment>
+  </data>
+  <data name="Coach_Dispute_Heading" xml:space="preserve">
+    <value>Your correction</value>
+    <comment>Coach dispute: heading of the notice shown beside a coach message the learner corrected.</comment>
+  </data>
+  <data name="Coach_Dispute_Open" xml:space="preserve">
+    <value>Noted — the coach will check again before answering.</value>
+    <comment>Coach dispute: shown while a correction is open and the coach has not yet re-read, corrected itself, or stated a limitation.</comment>
+  </data>
+  <data name="Coach_Dispute_Signal_MeantSomethingElse" xml:space="preserve">
+    <value>You said you meant something else.</value>
+    <comment>Coach dispute: the learner restated what they meant.</comment>
+  </data>
+  <data name="Coach_Dispute_Signal_NotWhatIAsked" xml:space="preserve">
+    <value>You said this wasn’t what you asked.</value>
+    <comment>Coach dispute: the learner rejected the reading of their question.</comment>
+  </data>
+  <data name="Coach_Dispute_Signal_WrongClaim" xml:space="preserve">
+    <value>You said this was wrong.</value>
+    <comment>Coach dispute: the learner rejected the content of the answer.</comment>
+  </data>
+  <data name="Coach_Dispute_Signal_DifferentCohort" xml:space="preserve">
+    <value>You named a different set of words.</value>
+    <comment>Coach dispute: the learner named a different cohort or parameter than the answer used.</comment>
+  </data>
+  <data name="Coach_Dispute_Resolved_ReRead" xml:space="preserve">
+    <value>The coach looked again.</value>
+    <comment>Coach dispute: resolved because the coach re-read with different parameters.</comment>
+  </data>
+  <data name="Coach_Dispute_Resolved_Correction" xml:space="preserve">
+    <value>The coach corrected itself.</value>
+    <comment>Coach dispute: resolved because the coach named and corrected its prior claim.</comment>
+  </data>
+  <data name="Coach_Dispute_Resolved_Limitation" xml:space="preserve">
+    <value>The coach said what it couldn’t tell you.</value>
+    <comment>Coach dispute: resolved because the coach stated an honest limitation instead of answering again.</comment>
+  </data>
+  <data name="Coach_Dispute_Dismissed" xml:space="preserve">
+    <value>You dismissed this.</value>
+    <comment>Coach dispute: the learner dismissed the notice.</comment>
+  </data>
+  <data name="Coach_Dispute_DismissLabel" xml:space="preserve">
+    <value>Dismiss</value>
+    <comment>Coach dispute: accessible label for the button that dismisses the notice.</comment>
+  </data>
+  <data name="Coach_Dispute_StatusLabel" xml:space="preserve">
+    <value>Correction status</value>
+    <comment>Coach dispute: accessible name for the live status region announcing the dispute state.</comment>
+  </data>
+  <data name="Coach_Limitation_UnverifiedClaimWithheld" xml:space="preserve">
+    <value>Sam couldn’t check this one, so it’s holding the answer back. The evidence below shows what it looked at.</value>
+  </data>
+  <data name="Coach_Announce_ClaimWithheld" xml:space="preserve">
+    <value>Sam held back an answer it couldn’t check. The evidence is on screen.</value>
+  </data>
+  <data name="Coach_Limitation_RefusalRegionLabel" xml:space="preserve">
+    <value>Withheld answer</value>
+  </data>
+  <data name="Coach_Limitation_UnverifiedClaimWithheldNoEvidence" xml:space="preserve">
+    <value>Sam couldn’t get a reading it could stand behind, so it’s holding the answer back.</value>
+  </data>
+  <data name="Coach_Limitation_AnswerShapeInvalid" xml:space="preserve">
+    <value>Sam could not finish that answer. Please try asking again.</value>
+  </data>
+  <data name="Coach_Announce_ClaimWithheldNoEvidence" xml:space="preserve">
+    <value>Sam held back an answer. It couldn’t get a reading it could stand behind.</value>
+  </data>
+  <data name="Coach_Repair_AnswerAltered" xml:space="preserve">
+    <value>Sam adjusted part of this answer to match what it checked in your app data.</value>
+  </data>
+  <data name="Coach_Repair_SuppressedForLanguage" xml:space="preserve">
+    <value>Sam found something here worth checking, and left the wording as it is. Have a look at the evidence.</value>
+  </data>
+  <data name="Coach_Repair_RegionLabel" xml:space="preserve">
+    <value>About this answer</value>
+  </data>
+  <data name="Coach_Announce_AnswerAltered" xml:space="preserve">
+    <value>Sam adjusted part of this answer to match your app data.</value>
+  </data>
+  <data name="Coach_Announce_RepairSuppressed" xml:space="preserve">
+    <value>Sam found something here worth checking and left the wording unchanged. The evidence is with that answer.</value>
+  </data>
+  <data name="Coach_Repair_Unknown" xml:space="preserve">
+    <value>This version of the app can’t describe how Sam handled a verification issue with this answer. Have a look at the evidence.</value>
+  </data>
+  <data name="Coach_Announce_RepairUnknown" xml:space="preserve">
+    <value>This version of the app can’t describe how Sam handled a verification issue with this answer. The evidence is with that answer.</value>
+  </data>
+  <data name="Coach_Repair_SuppressedForLanguage_NoEvidence" xml:space="preserve">
+    <value>Sam found something here worth checking, and left the wording as it is.</value>
+  </data>
+  <data name="Coach_Repair_Unknown_NoEvidence" xml:space="preserve">
+    <value>This version of the app can’t describe how Sam handled a verification issue with this answer.</value>
+  </data>
+  <data name="Coach_Announce_RepairSuppressedNoEvidence" xml:space="preserve">
+    <value>Sam found something here worth checking and left the wording unchanged.</value>
+  </data>
+  <data name="Coach_Announce_RepairUnknownNoEvidence" xml:space="preserve">
+    <value>This version of the app can’t describe how Sam handled a verification issue with this answer.</value>
   </data>
 </root>

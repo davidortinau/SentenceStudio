@@ -1,0 +1,251 @@
+@implements IDisposable
+@inject BlazorLocalizationService Localize
+
+@*
+    The read-only facts behind one of Sam's claims, revealed in place.
+
+    This is pedagogical evidence — practice balance, coverage, recency — and it is the learner's
+    own aggregate data. It is deliberately not the same thing as the operator surface's "evidence",
+    which is a reviewer decrypting two stored messages; nothing here decrypts anything, and nothing
+    here leaves the conversation.
+
+    Disclosure rather than navigation. The previous control opened the plan canvas, which on a wide
+    viewport is already open — so the click did nothing at all — and on a narrow one replaced the
+    conversation with a plan pane the learner then had to scroll for the evidence section. Expanding
+    in place answers the question where it was asked.
+*@
+
+@if (Items.Count > 0)
+{
+    <button type="button"
+            class="btn btn-link coach-evidence-toggle"
+            id="@ButtonId"
+            aria-expanded="@(_open ? "true" : "false")"
+            aria-controls="@PanelId"
+            @onclick="ToggleAsync">
+        <i class="bi @(_open ? "bi-chevron-down" : "bi-chevron-right")" aria-hidden="true"></i>
+        <span>@(_open ? Localize["Coach_HideEvidence"] : Localize["Coach_ViewEvidence"])</span>
+    </button>
+
+    @if (_open)
+    {
+        @* A named group, so the revealed facts are one region a screen reader can enter and leave
+           rather than a loose list that appeared in the middle of a message. It borrows the
+           toggle's own text for its name — "View evidence" / "Hide evidence" is exactly what the
+           region contains, and a second string would only be a second thing to translate.
+
+           The panel is removed rather than hidden when collapsed, so the toggle's aria-controls
+           names an element that only exists while open. aria-expanded is what carries the state;
+           keeping the association constant means the id a client resolved while collapsed is still
+           the right one the moment it opens. *@
+        <div class="coach-evidence-inline"
+             id="@PanelId"
+             role="group"
+             aria-labelledby="@ButtonId">
+            <ul class="list-unstyled mb-0">
+                @foreach (var item in Items)
+                {
+                    <li class="coach-evidence-item">
+                        <div class="ss-body2 fw-semibold">@EvidenceText.Heading(item)</div>
+                        <div class="ss-caption1 text-secondary-ss">
+                            @Localize.Get("Coach_EvidenceWindow",
+                                FormatDate(item.WindowStartDate),
+                                FormatDate(item.WindowEndDate))
+                        </div>
+                        @if (EvidenceText.HasSummary(item))
+                        {
+                            <div class="ss-body2">@EvidenceText.Summary(item)</div>
+                        }
+                        <CoachEvidenceScope Item="@item" />
+                        @if (item.Values.Count > 0)
+                        {
+                            <ul class="list-unstyled ms-3 mt-1 mb-0">
+                                @foreach (var value in item.Values)
+                                {
+                                    <li class="ss-caption1 d-flex justify-content-between">
+                                        <span>@EvidenceText.ValueLabel(value)</span>
+                                        <span class="text-secondary-ss">@FormatValue(value)</span>
+                                    </li>
+                                }
+                            </ul>
+                        }
+                    </li>
+                }
+            </ul>
+        </div>
+    }
+}
+
+@code {
+    /// <summary>
+    /// Localizes the card's heading, summary and value labels from the codes on the wire.
+    /// </summary>
+    /// <remarks>
+    /// Built here rather than injected. It is a stateless wrapper over the localization service
+    /// already injected above, and making it a DI dependency would oblige every host and every
+    /// hand-built test service collection that renders this component to register it.
+    /// </remarks>
+    private CoachEvidenceLocalizer? _evidenceText;
+
+    private CoachEvidenceLocalizer EvidenceText => _evidenceText ??= new CoachEvidenceLocalizer(Localize);
+
+    /// <summary>The evidence this message's turn drew on. No items, no control.</summary>
+    /// <remarks>
+    /// A control that expands to nothing is worse than no control: the learner presses it, sees
+    /// nothing happen, and learns that the app's affordances cannot be trusted. That is exactly
+    /// the defect this component replaced.
+    /// </remarks>
+    [Parameter] public IReadOnlyList<CoachEvidenceDto> Items { get; set; } = Array.Empty<CoachEvidenceDto>();
+
+    /// <summary>
+    /// The message this evidence belongs to. Used only to build stable element ids.
+    /// </summary>
+    [Parameter] public string? MessageId { get; set; }
+
+    /// <summary>
+    /// Raised immediately before the disclosure changes the message's height, and again once the
+    /// new height has been rendered.
+    /// </summary>
+    /// <remarks>
+    /// Expanding evidence adds a block of content to the middle of the transcript. To the observer
+    /// watching for new turns that is indistinguishable from Sam saying something — so without the
+    /// bracket a reader who scrolled up to read an older message and opened its evidence is told
+    /// there is new content below, and a reader following the conversation is left behind the panel
+    /// they just opened. The pair says "this height change was asked for", and re-baselines
+    /// afterwards so the next real message is still measured correctly.
+    /// </remarks>
+    [Parameter] public EventCallback OnDisclosureChanging { get; set; }
+
+    /// <inheritdoc cref="OnDisclosureChanging" />
+    [Parameter] public EventCallback OnDisclosureChanged { get; set; }
+
+    private bool _open;
+
+    private bool _pendingDisclosureResize;
+
+    private string? _boundMessageId;
+
+    /// <summary>
+    /// Ids derived from the server's own message id, so <c>aria-controls</c> keeps pointing at the
+    /// same element across re-renders and two messages on screen never collide.
+    /// </summary>
+    private string ButtonId => $"coach-evidence-toggle-{Key}";
+
+    private string PanelId => $"coach-evidence-panel-{Key}";
+
+    /// <summary>
+    /// A stable key even for a message the server has not confirmed yet.
+    /// </summary>
+    /// <remarks>
+    /// An optimistic message has no durable id, and generating one per render would break
+    /// <c>aria-controls</c> on every re-render — the association would point at an element that no
+    /// longer exists. The instance's own identity is stable for as long as the component is
+    /// mounted, which is exactly the lifetime the association has to survive.
+    /// </remarks>
+    private string Key => MessageId is { Length: > 0 } id ? id : _fallbackKey;
+
+    private readonly string _fallbackKey = Guid.NewGuid().ToString("n");
+
+    private async Task ToggleAsync()
+    {
+        await BeginDisclosureResizeAsync();
+        _open = !_open;
+    }
+
+    /// <summary>
+    /// Tells the conversation a deliberate resize is starting, and remembers to close the bracket.
+    /// </summary>
+    private async Task BeginDisclosureResizeAsync()
+    {
+        if (_pendingDisclosureResize || !OnDisclosureChanging.HasDelegate)
+        {
+            // Already inside a bracket, or nobody is listening. A second begin would leave the
+            // first unmatched, and an unmatched begin suspends following for the rest of the
+            // session.
+            return;
+        }
+
+        _pendingDisclosureResize = true;
+        await OnDisclosureChanging.InvokeAsync();
+    }
+
+    /// <summary>
+    /// Closes the bracket once the new height is on screen.
+    /// </summary>
+    /// <remarks>
+    /// After render rather than straight after the toggle: the whole point is to let the
+    /// conversation re-measure, and before the render there is nothing new to measure.
+    /// </remarks>
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (_pendingDisclosureResize)
+        {
+            _pendingDisclosureResize = false;
+            await OnDisclosureChanged.InvokeAsync();
+        }
+    }
+
+    /// <summary>
+    /// Collapses when the evidence this control was showing is gone, or belongs to another
+    /// message.
+    /// </summary>
+    /// <remarks>
+    /// Otherwise an expanded panel would survive into a state where the button that describes it
+    /// is no longer rendered, leaving a labelled region with nothing pointing at it — or, after a
+    /// positional rebind, would show one message's evidence under a heading that names another.
+    /// </remarks>
+    protected override void OnParametersSet()
+    {
+        if (!string.Equals(_boundMessageId, MessageId, StringComparison.Ordinal))
+        {
+            _boundMessageId = MessageId;
+            _open = false;
+            return;
+        }
+
+        if (_open && Items.Count == 0)
+        {
+            _open = false;
+        }
+    }
+
+    /// <summary>
+    /// Formats a window date with the culture's own pattern and calendar data.
+    /// </summary>
+    /// <remarks>
+    /// Both the pattern (Coach_EvidenceDateFormat) and the culture are explicit, matching
+    /// <c>CoachEvidenceList</c>: a hardcoded "MMM d" rendered under the ambient culture produced
+    /// English month abbreviations for a Korean-display learner.
+    /// </remarks>
+    private string FormatDate(DateOnly date) =>
+        date.ToString(Localize["Coach_EvidenceDateFormat"], Localize.Culture);
+
+    private string FormatValue(CoachEvidenceValueDto value) => value.Unit switch
+    {
+        CoachEvidenceUnit.Minutes => Localize.Get("Coach_PracticeMinutes", (int)Math.Round(value.Value)),
+        CoachEvidenceUnit.Percent => $"{Math.Round(value.Value)}%",
+        _ => Math.Round(value.Value).ToString("0")
+    };
+
+    protected override void OnInitialized() => Localize.CultureChanged += OnChanged;
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnChanged;
+
+        if (_pendingDisclosureResize)
+        {
+            // A bracket opened by a toggle whose render never completed — the message was removed
+            // first. Left open it would suspend the conversation's auto-scroll for the rest of the
+            // session, so it is closed here even though nothing can await it.
+            _pendingDisclosureResize = false;
+
+            if (OnDisclosureChanged.HasDelegate)
+            {
+                _ = OnDisclosureChanged.InvokeAsync();
+            }
+        }
+    }
+}

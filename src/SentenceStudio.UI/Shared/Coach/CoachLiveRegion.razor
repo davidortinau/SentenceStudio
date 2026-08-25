@@ -1,0 +1,76 @@
+@implements IDisposable
+@inject BlazorLocalizationService Localize
+@inject CoachWorkspaceState Coach
+
+@* THE single polite live region for the mounted presentation.
+
+   There is deliberately no hidden alert region here. The one role="alert" container is the
+   VISIBLE failure card rendered by CoachStateNotice, which also carries CoachElementIds.Alert
+   so the focus policy can target it. Mounting a second, hidden alert region would announce
+   every failure twice.
+
+   CoachWorkspaceState sets either PoliteAnnouncementKey or AlertKey, never both, and a tapped
+   acceptance or undo suppresses the polite announcement because focusing the receipt reads it. *@
+
+<div class="visually-hidden" aria-live="polite" aria-atomic="true">
+    @if (Coach.PoliteAnnouncementKey is { } politeKey)
+    {
+        @Localize[politeKey]
+    }
+</div>
+
+@code {
+    private string? rendered;
+
+    protected override void OnInitialized()
+    {
+        Localize.CultureChanged += OnChanged;
+        Coach.Changed += OnChanged;
+    }
+
+    /// <summary>
+    /// Empties the region on the render after the one that showed a message.
+    /// </summary>
+    /// <remarks>
+    /// Two problems this solves. First, a live region that keeps its last message re-announces
+    /// it if the region is ever remounted — which happens on every presentation swap. Second,
+    /// and worse, screen readers announce on DOM MUTATION: leaving the text in place means a
+    /// second identical announcement ("Today's Plan updated" twice in a row) changes nothing in
+    /// the DOM and is silently never announced. Clearing between messages guarantees the next
+    /// one is a real mutation.
+    ///
+    /// The clear is queued after the render that carried the text, so assistive tech has
+    /// already captured the mutation.
+    /// </remarks>
+    protected override void OnAfterRender(bool firstRender)
+    {
+        var current = Coach.PoliteAnnouncementKey;
+
+        if (current is null)
+        {
+            rendered = null;
+            return;
+        }
+
+        if (!string.Equals(rendered, current, StringComparison.Ordinal))
+        {
+            rendered = current;
+            _ = InvokeAsync(() =>
+            {
+                // Only clear what we actually rendered; a newer message must survive.
+                if (string.Equals(Coach.PoliteAnnouncementKey, rendered, StringComparison.Ordinal))
+                {
+                    Coach.ClearAnnouncement();
+                }
+            });
+        }
+    }
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnChanged;
+        Coach.Changed -= OnChanged;
+    }
+}

@@ -311,9 +311,16 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                     b.Property<int?>("ScenarioId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("UserProfileId")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ScenarioId");
+
+                    b.HasIndex("UserProfileId");
+
+                    b.HasIndex("UserProfileId", "CreatedAt");
 
                     b.ToTable("Conversation", (string)null);
                 });
@@ -348,9 +355,16 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                     b.Property<string>("Text")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("UserProfileId")
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("ConversationId");
+
+                    b.HasIndex("UserProfileId");
+
+                    b.HasIndex("UserProfileId", "ConversationId");
 
                     b.ToTable("ConversationChunk", (string)null);
                 });
@@ -991,6 +1005,9 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                     b.Property<string>("Description")
                         .HasColumnType("TEXT");
 
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Language")
                         .IsRequired()
                         .HasColumnType("TEXT");
@@ -1439,6 +1456,9 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                         .HasColumnType("TEXT");
 
                     b.Property<string>("NativeLanguageTerm")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PartOfSpeech")
                         .HasColumnType("TEXT");
 
                     b.Property<string>("Tags")

@@ -215,6 +215,41 @@ Q: Is port 22070 in use?
 SUCCESS: Create .squad/aspire-ready.txt handoff
 ```
 
+## Agent Isolation: NEVER Use Same AppHost Path As Captain
+
+**UNSAFE (observed to stop Captain's live stack):**
+```bash
+# UNSAFE — same project path, --isolated or not
+cd src/SentenceStudio.AppHost && aspire run --isolated
+cd src/SentenceStudio.AppHost && aspire start --isolated
+```
+
+**Observed behavior (2026-08-22 incident):** AppHost ownership is keyed by project
+path. An `--isolated` launch from the SAME AppHost project path can stop the existing
+AppHost and reuse DCP-managed resource/container identity. A cloned DB volume alone is
+insufficient — the container identity collision is the hazard, not just the data.
+
+**Safe sequence for agent E2E stacks:**
+
+1. Detect Captain's stack: `lsof -nP -iTCP:7071 -sTCP:LISTEN`
+2. If anything is listening, do NOT start from the same AppHost project path.
+3. Materialize a separate AppHost path (git worktree or full clone).
+4. Clone the named DB volume into a new volume for the agent run.
+5. Configure `LocalDb:DataVolume` in the separate path's user-secrets.
+6. Start the AppHost from the separate path.
+7. Prove the volume: `scripts/validate-local-db-volume.sh --runtime --expect-volume <agent-volume>`
+8. Run tests.
+9. Never remove the agent volume without Captain's approval.
+
+**Post-recovery gate (mandatory):**
+```bash
+scripts/post-aspire-restore.sh --expected-volume <agent-volume>
+```
+HTTP 302 from WebApp alone is NOT recovery proof. The script validates API /health AND
+DB volume mount. A WebApp responding 302 with a crashed API is the exact failure mode
+from the Sam-missing incident (DCP holds the port open, returns timeouts, not
+connection-refused).
+
 ## Cross-References
 - **Memories**: Check repo memories for "Cannot access a disposed object" and "address already in use"
 - **Captain's Guide**: AGENTS.md - Wash charter section

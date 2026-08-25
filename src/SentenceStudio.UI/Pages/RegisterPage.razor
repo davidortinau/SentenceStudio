@@ -168,20 +168,25 @@
 
             if (result is not null)
             {
-                Logger.LogInformation("Registered as {User}", result.UserName);
+                Logger.LogInformation("Registered as {User}",
+                    SentenceStudio.Shared.Diagnostics.AuthLogRedaction.MaskUserName(result.UserName));
                 Preferences.Set("app_is_authenticated", true);
 
-                // If the token contains a userId|token pair, redirect to HTTP sign-in endpoint
-                // (Blazor Server can't set cookies over WebSocket)
-                if (result.AccessToken?.Contains('|') == true)
+                // If the sign-in returned a userId|token pair, the server still has to write the
+                // auth cookie and the browser has to leave this page for it to happen. Shared with
+                // LoginPage so the two cannot drift — this copy previously left returnUrl
+                // unescaped, which the helper does for both.
+                var autoSignInUrl = PostSignInNavigation.AutoSignInUrl(result.AccessToken, "/onboarding");
+
+                if (autoSignInUrl is not null)
                 {
-                    var parts = result.AccessToken.Split('|', 2);
-                    var signInUrl = $"/account-action/AutoSignIn?userId={Uri.EscapeDataString(parts[0])}&token={Uri.EscapeDataString(parts[1])}&returnUrl=/onboarding";
-                    NavManager.NavigateTo(signInUrl, forceLoad: true);
+                    NavManager.NavigateTo(autoSignInUrl, forceLoad: true);
                 }
                 else
                 {
-                    NavManager.NavigateTo("/onboarding", forceLoad: true);
+                    // No cookie hand-off on this host, so this is an ordinary in-app route.
+                    // A forced load here would tear down the renderer and the DI scope.
+                    NavManager.NavigateTo("/onboarding", forceLoad: BlazorHostKind.ShouldForceLoadForCompletionRoute(NavManager.BaseUri));
                 }
             }
             else

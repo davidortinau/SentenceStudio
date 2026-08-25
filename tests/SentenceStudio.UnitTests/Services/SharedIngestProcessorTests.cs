@@ -18,6 +18,12 @@ public sealed class SharedIngestProcessorTests
     // ---------------------------------------------------------------------------
 
     private const string TestUserId = "user-test-123";
+    /// <summary>
+    /// Failure deadline for the detached-import hand-off, not a delay. Nothing waits for it on a
+    /// healthy run — the signals below complete in microseconds — so it is sized to survive a
+    /// saturated CI runner rather than to be "long enough" for a race.
+    /// </summary>
+    private static readonly TimeSpan DetachedImportTimeout = TimeSpan.FromSeconds(30);
     private const string TargetLanguage = "Korean";
     private const string NativeLanguage = "English";
     private const string SharedInboxId = "resource-shared-inbox-abc";
@@ -647,14 +653,31 @@ public sealed class SharedIngestProcessorTests
         var urlItem = UrlItem(youtubeUrl);
         queue.Enqueue(urlItem);
 
-        var importStarted = new TaskCompletionSource<bool>();
+        // Deterministic hand-off with the detached Task.Run in SharedIngestProcessor.
+        //
+        // The production path is deliberately fire-and-forget (`_ = Task.Run(...)`), so the
+        // invocation reaches this mock on a thread pool thread some time AFTER DrainAsync has
+        // already returned. The previous version of this test raced that continuation with
+        // `Task.WhenAny(importStarted.Task, Task.Delay(500))` — a wait that GIVES UP and lets the
+        // test proceed, so under load Verify ran against a mock with no invocations and reported
+        // the confusing "was 0 times". That is the flake; the production code was never wrong.
+        //
+        // Two signals replace the timing guess, and neither one sleeps:
+        //   importStarted — set from Callback, i.e. the instant production actually calls in.
+        //   releaseImport — keeps the returned Task pending until this test allows it to finish,
+        //                   which proves DrainAsync did not await the import far more strongly
+        //                   than the old `await Task.Delay(50)` did (a drain that awaited an
+        //                   import taking only 50ms would still have passed).
+        var importStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var releaseImport = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
         var videoImport = new Mock<IVideoImportPipeline>();
         videoImport
             .Setup(v => v.ImportFromUrlAsync(youtubeUrl, TestUserId, TargetLanguage))
+            .Callback(() => importStarted.TrySetResult())
             .Returns(async () =>
             {
-                importStarted.TrySetResult(true);
-                await Task.Delay(50); // simulate async work
+                await releaseImport.Task;
                 return new SentenceStudio.Shared.Models.VideoImport { Id = "vi-1" };
             });
 
@@ -667,31 +690,43 @@ public sealed class SharedIngestProcessorTests
         var processor = BuildProcessor(queue, importService, inboxFinder, BuildProfileProvider(),
             videoImportMock: videoImport);
 
-        // Act
-        var result = await processor.DrainAsync();
+        try
+        {
+            // Act. Bounded so that a regression which made the import inline surfaces as a clear
+            // timeout here instead of hanging the run — the mock cannot complete on its own.
+            var result = await processor.DrainAsync().WaitAsync(DetachedImportTimeout);
 
-        // Wait briefly so the detached Task.Run has a chance to call ImportFromUrlAsync
-        await Task.WhenAny(importStarted.Task, Task.Delay(500));
+            // Deadline, not a sleep: this returns the moment production calls the pipeline
+            // (microseconds in practice) and only spends the full budget on a genuine hang, where
+            // it fails with a TimeoutException that names the real problem.
+            await importStarted.Task.WaitAsync(DetachedImportTimeout);
 
-        // Assert: drain returns immediately (processedCount=1, no AI parse/commit)
-        result.ProcessedCount.Should().Be(1);
-        result.FailedCount.Should().Be(0);
-        result.CreatedVocabCount.Should().Be(0);
+            // Assert: drain returns immediately (processedCount=1, no AI parse/commit)
+            result.ProcessedCount.Should().Be(1);
+            result.FailedCount.Should().Be(0);
+            result.CreatedVocabCount.Should().Be(0);
 
-        // Item removed from queue immediately (not waiting for import to finish)
-        queue.List().Should().BeEmpty();
+            // Item removed from queue immediately (not waiting for import to finish)
+            queue.List().Should().BeEmpty();
 
-        // Video import was invoked (detached)
-        videoImport.Verify(
-            v => v.ImportFromUrlAsync(youtubeUrl, TestUserId, TargetLanguage),
-            Times.Once);
+            // Video import was invoked (detached)
+            videoImport.Verify(
+                v => v.ImportFromUrlAsync(youtubeUrl, TestUserId, TargetLanguage),
+                Times.Once);
 
-        // ParseContentAsync and CommitImportAsync were NOT called (video path bypasses them)
-        importService.Verify(
-            s => s.ParseContentAsync(It.IsAny<ContentImportRequest>(), It.IsAny<CancellationToken>()),
-            Times.Never);
-        importService.Verify(
-            s => s.CommitImportAsync(It.IsAny<ContentImportCommit>(), It.IsAny<CancellationToken>()),
-            Times.Never);
+            // ParseContentAsync and CommitImportAsync were NOT called (video path bypasses them)
+            importService.Verify(
+                s => s.ParseContentAsync(It.IsAny<ContentImportRequest>(), It.IsAny<CancellationToken>()),
+                Times.Never);
+            importService.Verify(
+                s => s.CommitImportAsync(It.IsAny<ContentImportCommit>(), It.IsAny<CancellationToken>()),
+                Times.Never);
+        }
+        finally
+        {
+            // Let the detached import finish however this test ended, so a failing assertion does
+            // not strand a pending task on the thread pool for the rest of the run.
+            releaseImport.TrySetResult();
+        }
     }
 }

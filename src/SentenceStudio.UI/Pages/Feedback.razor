@@ -96,13 +96,21 @@ else if (currentState == PageState.Preview)
             @((MarkupString)previewBodyHtml)
         </div>
 
+        @if (!string.IsNullOrEmpty(blockingMessage))
+        {
+            <div class="alert alert-warning ss-body2 mb-3" role="alert">
+                <i class="bi bi-exclamation-triangle me-1"></i>
+                @blockingMessage
+            </div>
+        }
+
         <div class="d-flex gap-2">
             <button class="btn btn-ss-secondary" type="button" @onclick="BackToForm"
                     disabled="@isSubmitting">
                 <i class="bi bi-pencil me-1"></i> @Localize["Feedback_Edit"]
             </button>
             <button class="btn btn-ss-primary" type="button" @onclick="SubmitFeedback"
-                    disabled="@isSubmitting">
+                    disabled="@(isSubmitting || submissionSpent)">
                 @if (isSubmitting)
                 {
                     <span class="spinner-border spinner-border-sm me-2" role="status"></span>
@@ -124,6 +132,10 @@ else if (currentState == PageState.Success)
             <i class="bi bi-check-circle fs-1 text-success"></i>
         </div>
         <h5 class="ss-title3 mb-2">@Localize["Feedback_SubmitSuccess"]</h5>
+        @if (submittedWasReplay)
+        {
+            <p class="ss-body2 text-secondary-ss mb-1">@Localize["Feedback_AlreadyFiled"]</p>
+        }
         <p class="ss-body2 text-secondary-ss mb-1">@submittedTitle</p>
         @if (!string.IsNullOrEmpty(submittedIssueUrl))
         {
@@ -167,6 +179,13 @@ else if (currentState == PageState.Success)
     // Success state
     private string submittedTitle = "";
     private string submittedIssueUrl = "";
+    private bool submittedWasReplay;
+
+    // Terminal-submission state. Once a preview token has been spent — successfully, in doubt, or
+    // rejected — the Submit button must never offer to send it again. Re-sending is the one action
+    // this page can take that cannot be undone.
+    private bool submissionSpent;
+    private string blockingMessage = "";
 
     private bool CanPreview => !isPreviewing && !string.IsNullOrWhiteSpace(description);
 
@@ -186,7 +205,15 @@ else if (currentState == PageState.Success)
                 ClientMetadata = BuildClientMetadata()
             };
 
-            var preview = await FeedbackApi.PreviewAsync(request);
+            var result = await FeedbackApi.PreviewAsync(request);
+
+            if (!result.Succeeded)
+            {
+                ReportFailure(result.Failure, result.RetryAfter);
+                return;
+            }
+
+            var preview = result.Value!;
 
             previewTitle = !string.IsNullOrWhiteSpace(preview.Title) ? preview.Title : "Feedback";
             previewLabels = preview.Labels ?? [];
@@ -197,6 +224,11 @@ else if (currentState == PageState.Success)
                 ? preview.FormattedBody
                 : description;
             previewBodyHtml = ConvertMarkdownToHtml(body);
+
+            // A fresh preview is a fresh token, so the previous one's terminal state does not
+            // carry over.
+            submissionSpent = false;
+            blockingMessage = "";
 
             currentState = PageState.Preview;
         }
@@ -211,11 +243,19 @@ else if (currentState == PageState.Success)
         }
     }
 
+    /// <remarks>
+    /// There is no retry here, on any path. Submitting creates a public GitHub issue that the app
+    /// cannot delete, so a failure whose meaning is "we do not know what happened" must end the
+    /// attempt rather than offer to repeat it. The server enforces the same rule durably; this is
+    /// the client half, so a learner is never presented with a button whose effect might be a
+    /// duplicate.
+    /// </remarks>
     private async Task SubmitFeedback()
     {
-        if (isSubmitting || string.IsNullOrEmpty(previewToken)) return;
+        if (isSubmitting || submissionSpent || string.IsNullOrEmpty(previewToken)) return;
 
         isSubmitting = true;
+        blockingMessage = "";
         StateHasChanged();
 
         try
@@ -223,19 +263,81 @@ else if (currentState == PageState.Success)
             var request = new FeedbackSubmitRequest { PreviewToken = previewToken };
             var result = await FeedbackApi.SubmitAsync(request);
 
-            submittedTitle = result.Title;
-            submittedIssueUrl = result.IssueUrl;
+            if (!result.Succeeded)
+            {
+                ReportFailure(result.Failure, result.RetryAfter);
+                return;
+            }
+
+            var submitted = result.Value!;
+
+            submittedTitle = submitted.Title;
+            submittedIssueUrl = submitted.IssueUrl;
+            submittedWasReplay = submitted.Outcome == FeedbackSubmitOutcome.Replayed;
+            submissionSpent = true;
             currentState = PageState.Success;
             Toast.ShowSuccess(Localize["Feedback_SubmitSuccessToast"]);
         }
         catch (Exception ex)
         {
+            // Reaching here means the client could not even classify the failure, which is the
+            // same "unknown" the in-doubt branch describes. Treat it the same way: stop.
             Logger.LogError(ex, "Failed to submit feedback");
-            Toast.ShowError(Localize["Feedback_SubmitFailed"]);
+            submissionSpent = true;
+            blockingMessage = $"{Localize["Feedback_SubmitInDoubt"]}";
         }
         finally
         {
             isSubmitting = false;
+        }
+    }
+
+    /// <summary>
+    /// Turns a closed failure code into something the learner can act on — and, for the terminal
+    /// ones, takes the action away.
+    /// </summary>
+    private void ReportFailure(FeedbackApiFailure failure, TimeSpan? retryAfter)
+    {
+        switch (failure)
+        {
+            case FeedbackApiFailure.RateLimited:
+                // The wait is the server's, never the client's guess. When the server sent none,
+                // say so rather than inventing one.
+                Toast.ShowError(retryAfter is { } wait
+                    ? string.Format(
+                        System.Globalization.CultureInfo.CurrentCulture,
+                        $"{Localize["Feedback_RateLimited"]}",
+                        Math.Max(1, (int)Math.Ceiling(wait.TotalSeconds)))
+                    : $"{Localize["Feedback_RateLimitedNoWait"]}");
+                break;
+
+            case FeedbackApiFailure.TokenRejected:
+                submissionSpent = true;
+                blockingMessage = $"{Localize["Feedback_TokenRejected"]}";
+                Toast.ShowError(Localize["Feedback_TokenRejected"]);
+                break;
+
+            case FeedbackApiFailure.InDoubt:
+                submissionSpent = true;
+                blockingMessage = $"{Localize["Feedback_SubmitInDoubt"]}";
+                Toast.ShowError(Localize["Feedback_SubmitInDoubt"]);
+                break;
+
+            // Distinct from InDoubt on purpose. The server proved this submission created no
+            // issue, so the check-GitHub message would send the learner looking for something that
+            // is not there and leave them unsure whether they had reported the bug at all. The
+            // preview is still spent — pressing Edit and previewing again mints a new token.
+            case FeedbackApiFailure.Closed:
+                submissionSpent = true;
+                blockingMessage = $"{Localize["Feedback_SubmitClosed"]}";
+                Toast.ShowError(Localize["Feedback_SubmitClosed"]);
+                break;
+
+            default:
+                Toast.ShowError(currentState == PageState.Preview
+                    ? Localize["Feedback_SubmitFailed"]
+                    : Localize["Feedback_PreviewFailed"]);
+                break;
         }
     }
 
@@ -255,6 +357,9 @@ else if (currentState == PageState.Success)
         aiEnrichmentFailed = false;
         submittedTitle = "";
         submittedIssueUrl = "";
+        submittedWasReplay = false;
+        submissionSpent = false;
+        blockingMessage = "";
         currentState = PageState.Form;
     }
 
@@ -265,17 +370,20 @@ else if (currentState == PageState.Success)
             ?? asm.GetName().Version?.ToString() ?? "unknown";
 
         var baseUri = Nav.BaseUri;
-        var platform = baseUri.StartsWith("app://") || baseUri.Contains("0.0.0.0")
-            ? "native"
-            : "web";
+        var platform = BlazorHostKind.IsWebViewHost(baseUri)
+            ? FeedbackPlatform.Native
+            : FeedbackPlatform.Web;
 
-        var currentRoute = "/" + Nav.ToBaseRelativePath(Nav.Uri);
+        // The route is reduced to a closed category here and never sent as text. Everything after
+        // the first path segment — entity ids, query strings, search terms — is dropped rather
+        // than escaped, because this metadata is published verbatim in a public GitHub issue.
+        var routeCategory = FeedbackRouteCategoryMap.Categorize(Nav.ToBaseRelativePath(Nav.Uri));
 
         return new ClientMetadata
         {
             AppVersion = version,
             Platform = platform,
-            CurrentRoute = currentRoute,
+            RouteCategory = routeCategory,
             Timestamp = DateTime.UtcNow
         };
     }
