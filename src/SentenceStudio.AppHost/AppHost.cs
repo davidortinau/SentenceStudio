@@ -135,90 +135,29 @@ var storage = builder.AddAzureStorage("storage")
 var coachKeyRing = storage.AddBlobContainer("coach-keyring", "coach-dataprotection");
 
 // --- Learning Coach flow-through configuration ---------------------------------------------
-// The coach is read from the AppHost's own configuration (environment, user-secrets, or
-// appsettings) and forwarded to the api resource, so a Coach E2E run under `aspire run` needs no
-// source edit. Defaults stay fail-closed: off, baseline arm, and no cohort. The API additionally
-// denies everyone when the cohort is empty, so setting Coach__Enabled alone still exposes nobody.
+// Local run mode reads the AppHost's complete builder configuration, so appsettings.Development
+// and user secrets retain the existing E2E workflow. Publish mode must not use either source:
+// manifest values come only from explicit process environment variables supplied for deployment.
+// Defaults stay fail-closed: off, baseline arm, and no cohort. The API additionally denies
+// everyone when the cohort is empty, so setting Coach__Enabled alone still exposes nobody.
 //
 // appsettings.Development.json names the __dev_all__ cohort sentinel, which admits every
 // authenticated user. That value is Development-only and enforced as such by the API:
 // CoachOptionsValidator fails startup when it reaches a host that is not Development, and
 // CoachAvailabilityPolicy ignores it there even if validation were bypassed. Forwarding it from a
 // non-Development AppHost therefore stops the API from booting rather than exposing everyone.
-var coachEnabled = ReadCoachEnabled(builder.Configuration);
-var coachImplementation = ReadCoachImplementation(builder.Configuration);
-var coachAllowlistResult = CoachConfigurationReader.ReadAllowedUserProfileIdsWithDiagnostics(builder.Configuration);
-var coachAllowedUserProfileIds = coachAllowlistResult.Ids;
+var coachConfiguration = CoachConfigurationReader.ForExecutionMode(
+    builder.Configuration,
+    builder.ExecutionContext.IsPublishMode);
+var coachEnvironmentResult = CoachConfigurationReader.ReadApiEnvironment(coachConfiguration);
 
 // Defense-in-depth: warn about duplicate source indices so the operator can fix their config.
 // The profile ID value is intentionally not logged — index is sufficient to locate the entry.
-foreach (var dupIndex in coachAllowlistResult.DuplicateSourceIndices)
+foreach (var dupIndex in coachEnvironmentResult.DuplicateAllowlistSourceIndices)
 {
     Console.WriteLine(
         $"warn: Coach:AllowedUserProfileIds[{dupIndex}] is a duplicate of an earlier entry and was dropped.");
 }
-
-// Optional coach settings, forwarded verbatim when the AppHost was given one and omitted
-// otherwise, so the API keeps its own defaults. Format and range belong to the API's
-// CoachOptionsValidator, which fails startup with a readable message; repeating those rules here
-// would create a second copy to drift.
-//
-// Coach__AgentConfigVersion is the one an E2E run usually sets: the API treats a session written
-// under a different agent config version as unresumable, so bumping it starts a fresh coach
-// session without deleting any existing session or plan-revision history.
-var coachOptionalSettings = new[]
-{
-    ("Coach:AgentConfigVersion", "Coach__AgentConfigVersion"),
-    ("Coach:MaxOutputTokens", "Coach__MaxOutputTokens"),
-    ("Coach:ReasoningEffort", "Coach__ReasoningEffort"),
-
-    // Run budgets. One run is one learner turn, and the compiled defaults (10/day, 40/week) are
-    // sized for a pilot learner, not for a verification pass that has to drive twelve write tools
-    // and a failure matrix through the same account in one sitting. Forwarded for the same reason
-    // as everything else here: the number belongs to the deployment, not to whichever default
-    // happens to be compiled in. CoachOptionsValidator still bounds both (per-day ceiling, and
-    // per-week never below per-day), so raising them here cannot produce an unbounded budget.
-    ("Coach:MaxRunsPerDay", "Coach__MaxRunsPerDay"),
-    ("Coach:MaxRunsPerWeek", "Coach__MaxRunsPerWeek"),
-
-    // Data Protection key ring. Both are resource identifiers, not credentials: the key
-    // identifier names the wrapping key and the client id names a managed identity, and neither
-    // grants access on its own. They are forwarded as plain environment values for that reason,
-    // while anything that is actually a secret continues to go through AddParameter(secret: true).
-    // The API requires the key identifier in Production once durable coach content is on.
-    ("Coach:DataProtection:KeyVaultKeyIdentifier", "Coach__DataProtection__KeyVaultKeyIdentifier"),
-    ("Coach:DataProtection:ManagedIdentityClientId", "Coach__DataProtection__ManagedIdentityClientId"),
-
-    // Durable content flags. These are the two switches that decide whether learner text is
-    // written to disk at all, and therefore whether the API demands a durable, Key-Vault-wrapped
-    // key ring before it will start in Production. Forwarded here so the decision is made by
-    // deployment configuration rather than by whichever default happens to be compiled in.
-    ("Coach:DurableHistory:Enabled", "Coach__DurableHistory__Enabled"),
-    ("Coach:Memory:Enabled", "Coach__Memory__Enabled"),
-
-    // Sam overlay UX and tool surface. The dependency chain is validated by
-    // CoachOptionsValidator at API startup: SamOverlay requires DurableHistory,
-    // SamReadTools requires SamOverlay, SamWriteTools requires SamReadTools.
-    ("Coach:SamOverlay:Enabled", "Coach__SamOverlay__Enabled"),
-    ("Coach:SamReadTools:Enabled", "Coach__SamReadTools__Enabled"),
-    ("Coach:SamWriteTools:Enabled", "Coach__SamWriteTools__Enabled"),
-
-    // The opportunity ledger and the learner-report control. Two switches, deliberately, and both
-    // forwarded so either can be flipped by deployment configuration rather than by a redeploy:
-    // automatic capture observes the server refusing itself, while a report is a learner spending
-    // an action to disagree with a turn the server thought went fine, and turning the first off
-    // must never discard the second.
-    //
-    // The operator review surface is NOT forwarded and must not be. It can decrypt learner
-    // messages, CoachOpportunityOptionsValidator fails startup if it is enabled outside
-    // Development, and an environment variable that could set it is an environment variable
-    // somebody can set on the wrong host. The production reviewer path is the out-of-band digest —
-    // see docs/sam-opportunity-digest.md.
-    ("Coach:Opportunities:Enabled", "Coach__Opportunities__Enabled"),
-    ("Coach:Opportunities:RetentionDays", "Coach__Opportunities__RetentionDays"),
-    ("Coach:Reports:Enabled", "Coach__Reports__Enabled"),
-    ("Coach:Reports:RetentionDays", "Coach__Reports__RetentionDays")
-};
 
 var api = builder.AddProject<SentenceStudio_Api>("api")
     .WithEnvironment("AI__OpenAI__Endpoint", aiEndpoint)
@@ -227,8 +166,6 @@ var api = builder.AddProject<SentenceStudio_Api>("api")
     .WithEnvironment("ElevenLabsKey", elevenlabskey)
     .WithEnvironment("Jwt__SigningKey", jwtkey)
     .WithEnvironment("GitHub__Pat", githubpat)
-    .WithEnvironment("Coach__Enabled", coachEnabled ? "true" : "false")
-    .WithEnvironment("Coach__Implementation", coachImplementation)
     .WithReference(postgres)
     .WaitFor(postgres)
     // Injects ConnectionStrings__coach-keyring. The API reads it to persist the Data Protection
@@ -239,20 +176,12 @@ var api = builder.AddProject<SentenceStudio_Api>("api")
     .WaitFor(coachKeyRing)
     .WithExternalHttpEndpoints();
 
-// Forwarded only when the AppHost was actually given pilot learners. An empty or absent value
-// leaves the cohort unset, which the API treats as "nobody is in the pilot".
-for (var i = 0; i < coachAllowedUserProfileIds.Count; i++)
+// The reader always emits the fail-closed Enabled and Implementation values, then adds only
+// explicitly configured pilot IDs and optional settings. Optional formats, ranges, and feature
+// dependencies remain the API validators' responsibility so there is one validation authority.
+foreach (var (environmentName, value) in coachEnvironmentResult.EnvironmentVariables)
 {
-    api = api.WithEnvironment($"Coach__AllowedUserProfileIds__{i}", coachAllowedUserProfileIds[i]);
-}
-
-foreach (var (configurationKey, environmentName) in coachOptionalSettings)
-{
-    var value = builder.Configuration[configurationKey]?.Trim();
-    if (!string.IsNullOrWhiteSpace(value))
-    {
-        api = api.WithEnvironment(environmentName, value);
-    }
+    api = api.WithEnvironment(environmentName, value);
 }
 
 // Email (production only -- dev mode uses ConsoleEmailSender automatically), applied to api:
@@ -375,49 +304,6 @@ if (builder.ExecutionContext.IsRunMode)
 }
 
 builder.Build().Run();
-
-// --- Learning Coach configuration readers ---------------------------------------------------
-// Both readers default to the safe value when the setting is absent, and fail loudly when it is
-// present but unusable. A typo in a kill switch must never quietly read as "off" during an E2E
-// run, and it must never quietly read as "on" either.
-
-static bool ReadCoachEnabled(IConfiguration configuration)
-{
-    var raw = configuration["Coach:Enabled"];
-
-    if (string.IsNullOrWhiteSpace(raw))
-    {
-        return false;
-    }
-
-    if (!bool.TryParse(raw.Trim(), out var enabled))
-    {
-        throw new InvalidOperationException(
-            "Coach:Enabled must be 'true' or 'false'. Set Coach__Enabled on the AppHost, or leave it unset to keep the coach off.");
-    }
-
-    return enabled;
-}
-
-static string ReadCoachImplementation(IConfiguration configuration)
-{
-    var raw = configuration["Coach:Implementation"];
-
-    if (string.IsNullOrWhiteSpace(raw))
-    {
-        return "baseline";
-    }
-
-    var implementation = raw.Trim().ToLowerInvariant();
-
-    if (implementation is not ("baseline" or "harness"))
-    {
-        throw new InvalidOperationException(
-            "Coach:Implementation must be 'baseline' or 'harness'. Leave Coach__Implementation unset to keep the plain baseline agent arm.");
-    }
-
-    return implementation;
-}
 
 // var existingFoundryName = builder.AddParameter("existingFoundryName")
 //     .WithDescription("The name of the existing Azure Foundry resource.");

@@ -3,6 +3,8 @@ using FluentAssertions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Options;
 using SentenceStudio.Api.Coach.Runtime;
+using SentenceStudio.Api.Security.DataProtection;
+using SentenceStudio.AppHost;
 using Xunit;
 
 namespace SentenceStudio.Api.Tests.Coach;
@@ -40,6 +42,200 @@ public class CoachShippedConfigurationTests
         var options = new CoachOptions();
         configuration.GetSection("Coach").Bind(options);
         return options;
+    }
+
+    private static IConfiguration Values(params (string Key, string? Value)[] values) =>
+        new ConfigurationBuilder()
+            .AddInMemoryCollection(values.ToDictionary(entry => entry.Key, entry => entry.Value))
+            .Build();
+
+    private static IConfiguration AsApiConfiguration(CoachApiEnvironmentResult result) =>
+        new ConfigurationBuilder()
+            .AddInMemoryCollection(result.EnvironmentVariables.ToDictionary(
+                entry => entry.Key.Replace("__", ":", StringComparison.Ordinal),
+                entry => (string?)entry.Value))
+            .Build();
+
+    [Fact]
+    public void Publish_manifest_without_explicit_coach_environment_stays_off()
+    {
+        var developmentAndUserSecrets = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Coach:Enabled"] = "true",
+                ["Coach:AllowedUserProfileIds:0"] = CoachOptions.DevAllSentinel,
+                ["Coach:DurableHistory:Enabled"] = "true",
+                ["Coach:SamOverlay:Enabled"] = "true",
+                ["Coach:SamReadTools:Enabled"] = "true"
+            })
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Coach:AllowedUserProfileIds:1"] = "user-secret-pilot",
+                ["Coach:AgentConfigVersion"] = "user-secret-version"
+            })
+            .Build();
+
+        var selected = CoachConfigurationReader.ForExecutionMode(
+            developmentAndUserSecrets,
+            isPublishMode: true,
+            environmentConfiguration: Values());
+        var result = CoachConfigurationReader.ReadApiEnvironment(selected);
+
+        result.EnvironmentVariables.Should().BeEquivalentTo(new Dictionary<string, string>
+        {
+            ["Coach__Enabled"] = "false",
+            ["Coach__Implementation"] = "baseline"
+        });
+        result.EnvironmentVariables.Values.Should().NotContain(CoachOptions.DevAllSentinel);
+        result.EnvironmentVariables.Values.Should().NotContain("user-secret-pilot");
+        result.EnvironmentVariables.Values.Should().NotContain("user-secret-version");
+        result.DuplicateAllowlistSourceIndices.Should().BeEmpty();
+    }
+
+    [Fact]
+    public void Publish_manifest_emits_only_explicit_approved_coach_environment()
+    {
+        var builderConfiguration = Values(
+            ("Coach:Enabled", "true"),
+            ("Coach:AllowedUserProfileIds:0", CoachOptions.DevAllSentinel));
+        var deploymentEnvironment = Values(
+            ("Coach:Enabled", " true "),
+            ("Coach:Implementation", " BASELINE "),
+            ("Coach:AllowedUserProfileIds:0", " pilot-captain "),
+            ("Coach:AllowedUserProfileIds:2", "pilot-jayne"),
+            ("Coach:AgentConfigVersion", "prod-3"),
+            ("Coach:MaxOutputTokens", "12000"),
+            ("Coach:ReasoningEffort", "low"),
+            ("Coach:MaxRunsPerDay", "20"),
+            ("Coach:MaxRunsPerWeek", "100"),
+            ("Coach:DataProtection:KeyVaultKeyIdentifier", "https://vault.example/keys/coach"),
+            ("Coach:DataProtection:ManagedIdentityClientId", "11111111-2222-3333-4444-555555555555"),
+            ("Coach:DurableHistory:Enabled", "true"),
+            ("Coach:Memory:Enabled", "true"),
+            ("Coach:SamOverlay:Enabled", "true"),
+            ("Coach:SamReadTools:Enabled", "true"),
+            ("Coach:SamWriteTools:Enabled", "true"),
+            ("Coach:Opportunities:Enabled", "true"),
+            ("Coach:Opportunities:RetentionDays", "30"),
+            ("Coach:Reports:Enabled", "true"),
+            ("Coach:Reports:RetentionDays", "60"));
+
+        var selected = CoachConfigurationReader.ForExecutionMode(
+            builderConfiguration,
+            isPublishMode: true,
+            deploymentEnvironment);
+        var result = CoachConfigurationReader.ReadApiEnvironment(selected);
+
+        result.EnvironmentVariables.Should().BeEquivalentTo(new Dictionary<string, string>
+        {
+            ["Coach__Enabled"] = "true",
+            ["Coach__Implementation"] = "baseline",
+            ["Coach__AllowedUserProfileIds__0"] = "pilot-captain",
+            ["Coach__AllowedUserProfileIds__1"] = "pilot-jayne",
+            ["Coach__AgentConfigVersion"] = "prod-3",
+            ["Coach__MaxOutputTokens"] = "12000",
+            ["Coach__ReasoningEffort"] = "low",
+            ["Coach__MaxRunsPerDay"] = "20",
+            ["Coach__MaxRunsPerWeek"] = "100",
+            ["Coach__DataProtection__KeyVaultKeyIdentifier"] = "https://vault.example/keys/coach",
+            ["Coach__DataProtection__ManagedIdentityClientId"] = "11111111-2222-3333-4444-555555555555",
+            ["Coach__DurableHistory__Enabled"] = "true",
+            ["Coach__Memory__Enabled"] = "true",
+            ["Coach__SamOverlay__Enabled"] = "true",
+            ["Coach__SamReadTools__Enabled"] = "true",
+            ["Coach__SamWriteTools__Enabled"] = "true",
+            ["Coach__Opportunities__Enabled"] = "true",
+            ["Coach__Opportunities__RetentionDays"] = "30",
+            ["Coach__Reports__Enabled"] = "true",
+            ["Coach__Reports__RetentionDays"] = "60"
+        });
+        result.EnvironmentVariables.Values.Should().NotContain(CoachOptions.DevAllSentinel);
+        result.DuplicateAllowlistSourceIndices.Should().BeEmpty();
+
+        var apiConfiguration = AsApiConfiguration(result);
+        var options = new CoachOptions();
+        apiConfiguration.GetSection(CoachOptions.SectionName).Bind(options);
+        new CoachOptionsValidator().Validate(Options.DefaultName, options).Failed.Should().BeFalse();
+        options.AllowedUserProfileIds.Should().Equal("pilot-captain", "pilot-jayne");
+
+        var dataProtection = new CoachDataProtectionOptions();
+        apiConfiguration.GetSection(CoachDataProtectionOptions.SectionName).Bind(dataProtection);
+        dataProtection.KeyVaultKeyIdentifier.Should().Be("https://vault.example/keys/coach");
+        dataProtection.ManagedIdentityClientId.Should().Be("11111111-2222-3333-4444-555555555555");
+
+        var keyRingPlan = CoachKeyRingPlanner.Resolve(
+            dataProtection,
+            "Endpoint=https://storage.example/;ContainerName=coach-dataprotection",
+            durableContentEnabled: true,
+            isProduction: true);
+        keyRingPlan.IsKeyVaultProtected.Should().BeTrue();
+        keyRingPlan.ManagedIdentityClientId.Should().Be("11111111-2222-3333-4444-555555555555");
+    }
+
+    [Theory]
+    [InlineData("Coach:Enabled", "yes")]
+    [InlineData("Coach:Implementation", "experimental")]
+    public void Publish_manifest_rejects_invalid_required_values(string key, string value)
+    {
+        var selected = CoachConfigurationReader.ForExecutionMode(
+            Values(),
+            isPublishMode: true,
+            environmentConfiguration: Values((key, value)));
+
+        var act = () => CoachConfigurationReader.ReadApiEnvironment(selected);
+
+        act.Should().Throw<InvalidOperationException>();
+    }
+
+    [Fact]
+    public void Publish_manifest_leaves_optional_value_validation_to_the_api()
+    {
+        var selected = CoachConfigurationReader.ForExecutionMode(
+            Values(),
+            isPublishMode: true,
+            environmentConfiguration: Values(
+                ("Coach:MaxRunsPerDay", "201"),
+                ("Coach:MaxRunsPerWeek", "201")));
+        var result = CoachConfigurationReader.ReadApiEnvironment(selected);
+
+        result.EnvironmentVariables["Coach__MaxRunsPerDay"].Should().Be("201",
+            "the AppHost must not sanitize an operator value and bypass the API's validation");
+
+        var options = new CoachOptions();
+        AsApiConfiguration(result).GetSection(CoachOptions.SectionName).Bind(options);
+        var validation = new CoachOptionsValidator().Validate(Options.DefaultName, options);
+
+        validation.Failed.Should().BeTrue();
+        validation.FailureMessage.Should().Contain("MaxRunsPerDay");
+    }
+
+    [Fact]
+    public void Local_run_mode_retains_the_complete_builder_configuration()
+    {
+        var developmentConfiguration = Values(
+            ("Coach:Enabled", "true"),
+            ("Coach:AllowedUserProfileIds:0", CoachOptions.DevAllSentinel),
+            ("Coach:DurableHistory:Enabled", "true"),
+            ("Coach:SamOverlay:Enabled", "true"),
+            ("Coach:SamReadTools:Enabled", "true"));
+        var deploymentEnvironment = Values(
+            ("Coach:Enabled", "false"),
+            ("Coach:AllowedUserProfileIds:0", "deployment-pilot"));
+
+        var selected = CoachConfigurationReader.ForExecutionMode(
+            developmentConfiguration,
+            isPublishMode: false,
+            deploymentEnvironment);
+        var result = CoachConfigurationReader.ReadApiEnvironment(selected);
+
+        selected.Should().BeSameAs(developmentConfiguration);
+        result.EnvironmentVariables["Coach__Enabled"].Should().Be("true");
+        result.EnvironmentVariables["Coach__AllowedUserProfileIds__0"]
+            .Should().Be(CoachOptions.DevAllSentinel);
+        result.EnvironmentVariables["Coach__DurableHistory__Enabled"].Should().Be("true");
+        result.EnvironmentVariables["Coach__SamOverlay__Enabled"].Should().Be("true");
+        result.EnvironmentVariables["Coach__SamReadTools__Enabled"].Should().Be("true");
+        result.EnvironmentVariables.Values.Should().NotContain("deployment-pilot");
     }
 
     [Fact]
