@@ -47,6 +47,9 @@ public class CoachApiFactory : WebApplicationFactory<Program>
     /// <summary>Set to turn learner memory on for this host. Independent of history.</summary>
     public bool Memory { get; init; }
 
+    /// <summary>Set to prove the configured ElevenLabs registration path without making a provider call.</summary>
+    public bool ElevenLabsConfigured { get; init; }
+
     /// <summary>
     /// Set to register a <see cref="CoachKeyRingPlan"/> that reports itself durable.
     /// </summary>
@@ -83,6 +86,7 @@ public class CoachApiFactory : WebApplicationFactory<Program>
         builder.UseSetting("Jwt:SigningKey", TestJwtGenerator.TestSigningKeyValue);
         builder.UseSetting("Jwt:Issuer", TestJwtGenerator.TestIssuer);
         builder.UseSetting("Jwt:Audience", TestJwtGenerator.TestAudience);
+        builder.UseSetting("ElevenLabsKey", ElevenLabsConfigured ? "test-elevenlabs-key" : string.Empty);
 
         // Deliberately no AI:OpenAI:Endpoint and no AI:OpenAI:ApiKey.
         builder.UseSetting("Coach:Enabled", CoachEnabled ? "true" : "false");

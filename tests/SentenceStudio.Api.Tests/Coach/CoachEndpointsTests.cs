@@ -11,6 +11,7 @@ using SentenceStudio.Api.Coach.Runtime;
 using SentenceStudio.Api.Coach.Tools;
 using SentenceStudio.Api.Tests.Infrastructure;
 using SentenceStudio.Contracts.Coach;
+using SentenceStudio.Services.Speech;
 
 namespace SentenceStudio.Api.Tests.Coach;
 
@@ -47,17 +48,40 @@ public class CoachEndpointsTests
     }
 
     [Fact]
-    public async Task Host_BootsWithTheCoachOffAndNoAiConfiguration()
+    public async Task Host_ValidatesAndBootsWithoutElevenLabsConfiguration()
     {
         await using var factory = new CoachApiFactory { CoachEnabled = false };
+        factory.Services.GetService<IVoiceDiscoveryService>().Should().BeNull(
+            "voice discovery is only available when its ElevenLabs client is configured");
         using var client = factory.CreateClient();
 
-        // A route that has nothing to do with the coach still answers, which is the point:
-        // wiring the coach must not make the host un-startable.
+        // Building factory.Services runs the Development service-provider validation. A route
+        // unrelated to speech then proves the validated host also starts accepting requests.
         using var response = await client.GetAsync("/api/v1/version");
 
         response.StatusCode.Should().NotBe(HttpStatusCode.InternalServerError);
         factory.ChatClient.CallCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task VoiceDiscovery_WithNoElevenLabsConfiguration_Returns503()
+    {
+        await using var factory = new CoachApiFactory();
+        using var client = factory.CreateClient();
+        Authenticate(client, CohortUser);
+
+        using var response = await client.GetAsync("/api/v1/speech/voices?language=ko");
+
+        response.StatusCode.Should().Be(HttpStatusCode.ServiceUnavailable);
+    }
+
+    [Fact]
+    public void Host_WithElevenLabsConfiguration_RegistersVoiceDiscovery()
+    {
+        using var factory = new CoachApiFactory { ElevenLabsConfigured = true };
+
+        factory.Services.GetRequiredService<IVoiceDiscoveryService>()
+            .Should().BeOfType<VoiceDiscoveryService>();
     }
 
     [Fact]

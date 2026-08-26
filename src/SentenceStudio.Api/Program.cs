@@ -387,10 +387,6 @@ builder.Services.AddScoped<SentenceStudio.Services.Plans.IDeterministicPlanGener
 builder.Services.AddScoped<SentenceStudio.Services.Plans.IPlanService,
     SentenceStudio.Services.Plans.PlanService>();
 
-
-// Voice discovery (ElevenLabs) — registered here for the same reason as above.
-builder.Services.AddSingleton<SentenceStudio.Services.Speech.IVoiceDiscoveryService, SentenceStudio.Services.Speech.VoiceDiscoveryService>();
-
 // Vocabulary progress services
 builder.Services.AddSingleton<VocabularyProgressRepository>();
 builder.Services.AddSingleton<VocabularyLearningContextRepository>();
@@ -480,6 +476,9 @@ if (!string.IsNullOrWhiteSpace(elevenLabsKey))
     // timeout (100s) trips on /synthesize-timestamped with long input. Bump to 5 min.
     var elevenLabsHttp = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
     builder.Services.AddSingleton(new ElevenLabsClient(elevenLabsKey, httpClient: elevenLabsHttp));
+    builder.Services.AddSingleton<
+        SentenceStudio.Services.Speech.IVoiceDiscoveryService,
+        SentenceStudio.Services.Speech.VoiceDiscoveryService>();
 }
 
 var app = builder.Build();

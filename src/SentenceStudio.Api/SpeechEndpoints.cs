@@ -51,7 +51,7 @@ public static class SpeechEndpoints
     private static async Task<IResult> GetVoices(
         [FromQuery] string? language,
         ClaimsPrincipal user,
-        [FromServices] IVoiceDiscoveryService voiceService,
+        [FromServices] IVoiceDiscoveryService? voiceService,
         [FromServices] UserProfileRepository profileRepository,
         [FromServices] ILoggerFactory loggerFactory,
         CancellationToken cancellationToken)
@@ -61,6 +61,13 @@ public static class SpeechEndpoints
         var userProfileId = user.FindFirstValue(AuthClaimTypes.UserProfileId);
         if (string.IsNullOrEmpty(userProfileId))
             return Results.Unauthorized();
+
+        if (voiceService is null)
+        {
+            return Results.Problem(
+                "Voice discovery is not configured.",
+                statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
 
         var label = await ResolveLanguageLabelAsync(
             language, userProfileId, profileRepository, cancellationToken);
