@@ -13,6 +13,9 @@ var builder = DistributedApplication.CreateBuilder(args);
 var elevenlabskey = builder.AddParameter("elevenlabskey", secret: true);
 var jwtkey = builder.AddParameter("jwtkey", secret: true);
 var githubpat = builder.AddParameter("githubpat", secret: true);
+// Kept lowercase and separator-free to follow the existing azd parameter convention:
+// feedbackhmackey maps predictably to the AZURE_FEEDBACKHMACKEY deployment input.
+var feedbackhmackey = builder.AddParameter("feedbackhmackey", secret: true);
 
 // Azure AI Foundry (daortin-sstudio-eus2) — non-secret config for the server hosts, which
 // authenticate to Foundry keyless via Entra (DefaultAzureCredential / managed identity).
@@ -166,6 +169,7 @@ var api = builder.AddProject<SentenceStudio_Api>("api")
     .WithEnvironment("ElevenLabsKey", elevenlabskey)
     .WithEnvironment("Jwt__SigningKey", jwtkey)
     .WithEnvironment("GitHub__Pat", githubpat)
+    .WithEnvironment("Feedback__HmacKey", feedbackhmackey)
     .WithReference(postgres)
     .WaitFor(postgres)
     // Injects ConnectionStrings__coach-keyring. The API reads it to persist the Data Protection

@@ -154,9 +154,10 @@ cd src/SentenceStudio.AppHost
 dotnet user-secrets set "Parameters:openaikey" "sk-proj-your-key-here"
 dotnet user-secrets set "Parameters:elevenlabskey" "sk_your-key-here"
 dotnet user-secrets set "Parameters:syncfusionkey" "your-license-key-here"
+dotnet user-secrets set "Parameters:feedbackhmackey" "a-dedicated-random-value-of-at-least-32-characters"
 ```
 
-The AppHost passes these to Api, WebApp, Workers, and MAUI projects via `WithEnvironment()` at runtime. You do not need to configure secrets in each individual project when using Aspire.
+The AppHost passes shared service keys to the appropriate projects via `WithEnvironment()` at runtime. The dedicated feedback HMAC key is forwarded only to the API. You do not need to configure secrets in each individual project when using Aspire.
 
 #### Option B: Running individual projects without Aspire
 
