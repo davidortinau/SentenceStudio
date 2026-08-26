@@ -246,7 +246,7 @@ After wiring any new member, gate, or workflow, verify:
 
 3. **Writing docs/scripts directly on main.** If your project requires branches for all changes, the worktree gate must apply to ALL file-producing work — including docs. Make this explicit in routing.md Rules.
 
-4. **Assuming the coordinator remembers verbal instructions.** Each session starts fresh. If you told the coordinator "always use opus" in session 1, session 2 won't know unless it's in decisions.md or routing.md.
+4. **Assuming the coordinator remembers verbal instructions.** Each session starts fresh. If you told the coordinator "always use gpt-5.6-sol" in session 1, session 2 won't know unless it's in decisions.md or routing.md.
 
 5. **Not creating `issue-lifecycle.md`.** The framework references it but doesn't create it. If your project uses GitHub Issues Mode, create this template.
 

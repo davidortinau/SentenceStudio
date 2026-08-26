@@ -24,9 +24,11 @@ After each batch of agent work:
 
 4. **Spawn Scribe** (background, never wait). Only if agents ran or inbox has files:
 
+Resolve this Scribe spawn through the model-selection reference (normally task-aware `gpt-5.4-mini` unless a higher allowed layer applies):
+
 ```
 agent_type: "general-purpose"
-model: "claude-haiku-4.5"
+model: "{resolved_model}"
 mode: "background"
 name: "scribe"
 description: "📋 Scribe: Log session & merge decisions"

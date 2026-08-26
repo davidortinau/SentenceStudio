@@ -1,66 +1,68 @@
 # Model Selection Reference
 
-### Per-Agent Model Selection
+## Per-Agent Model Selection
 
 Before spawning an agent, determine which model to use. Check these layers in order — first match wins:
 
-**Layer 0 — Persistent Config (`.squad/config.json`):** On session start, read `.squad/config.json`. If `agentModelOverrides.{agentName}` exists, use that model for this specific agent. Otherwise, if `defaultModel` exists, use it for ALL agents. This layer survives across sessions — the user set it once and it sticks.
+**OpenAI-only policy:** Every resolved model must be one of the OpenAI GPT model IDs in the catalog below. This applies to persistent configuration, session directives, charter preferences, task-aware selection, retries, and fallbacks. Reject non-OpenAI model requests rather than crossing providers.
 
-- **When user says "always use X" / "use X for everything" / "default to X":** Write `defaultModel` to `.squad/config.json`. Acknowledge: `✅ Model preference saved: {model} — all future sessions will use this until changed.`
-- **When user says "use X for {agent}":** Write to `agentModelOverrides.{agent}` in `.squad/config.json`. Acknowledge: `✅ {Agent} will always use {model} — saved to config.`
-- **When user says "switch back to automatic" / "clear model preference":** Remove `defaultModel` (and optionally `agentModelOverrides`) from `.squad/config.json`. Acknowledge: `✅ Model preference cleared — returning to automatic selection.`
+**Layer 0 — Per-Agent Override (`.squad/config.json`):** On session start, read `.squad/config.json`. If `agentModelOverrides.{agentName}` contains an allowed GPT model, use it for that agent. Discard invalid overrides; never select them.
 
-**Layer 1 — Session Directive:** Did the user specify a model for this session? ("use opus for this session", "save costs"). If yes, use that model. Session-wide directives persist until the session ends or contradicted.
+- **When the user sets a global or per-agent model:** Validate it against the OpenAI catalog before writing `defaultModel` or `agentModelOverrides.{agent}`.
+- **When the user clears a preference:** Restore `defaultModel` to `gpt-5.6-sol`; never remove the last explicit GPT model.
 
-**Layer 2 — Charter Preference:** Does the agent's charter have a `## Model` section with `Preferred` set to a specific model (not `auto`)? If yes, use that model.
+**Layer 1 — Session Directive:** Use a session model only when it is in the allowed OpenAI catalog. Otherwise explain the policy and do not spawn.
+
+**Layer 2 — Charter Preference:** Use a specific charter preference only when it is in the allowed OpenAI catalog. `auto` continues to Layer 3.
 
 **Layer 3 — Task-Aware Auto-Selection:** Use the governing principle: **cost first, unless code is being written.** Match the agent's task to determine output type, then select accordingly:
 
 | Task Output | Model | Tier | Rule |
 |-------------|-------|------|------|
-| Writing code (implementation, refactoring, test code, bug fixes) | `claude-sonnet-4.6` | Standard | Quality and accuracy matter for code. Use standard tier. |
-| Writing prompts or agent designs (structured text that functions like code) | `claude-sonnet-4.6` | Standard | Prompts are executable — treat like code. |
-| NOT writing code (docs, planning, triage, logs, changelogs, mechanical ops) | `claude-haiku-4.5` | Fast | Cost first. Haiku handles non-code tasks. |
-| Visual/design work requiring image analysis | `claude-opus-4.5` | Premium | Vision capability required. Overrides cost rule. |
+| Writing code (implementation, refactoring, test code, bug fixes) | `gpt-5.6-terra` | Standard | Quality and accuracy matter for code. |
+| Large or specialized code generation | `gpt-5.3-codex` | Code specialist | Use for complex implementation and multi-file refactoring. |
+| Writing prompts or agent designs | `gpt-5.6-terra` | Standard | Prompts are executable; treat them like code. |
+| Non-code work (docs, planning, triage, logs, changelogs, mechanical ops) | `gpt-5.4-mini` | Fast | Cost first for bounded work. |
+| Architecture, reviewer gates, security audits, or vision-capable work | `gpt-5.6-sol` | Premium | Preserve premium reasoning and vision capability within OpenAI. |
 
 **Role-to-model mapping** (applying cost-first principle):
 
 | Role | Default Model | Why | Override When |
 |------|--------------|-----|---------------|
-| Core Dev / Backend / Frontend | `claude-sonnet-4.6` | Writes code — quality first | Heavy code gen → `gpt-5.3-codex` |
-| Tester / QA | `claude-sonnet-4.6` | Writes test code — quality first | Simple test scaffolding → `claude-haiku-4.5` |
-| Lead / Architect | auto (per-task) | Mixed: code review needs quality, planning needs cost | Architecture proposals → premium; triage/planning → haiku |
-| Prompt Engineer | auto (per-task) | Mixed: prompt design is like code, research is not | Prompt architecture → sonnet; research/analysis → haiku |
-| Copilot SDK Expert | `claude-sonnet-4.6` | Technical analysis that often touches code | Pure research → `claude-haiku-4.5` |
-| Designer / Visual | `claude-opus-4.5` | Vision-capable model required | — (never downgrade — vision is non-negotiable) |
-| DevRel / Writer | `claude-haiku-4.5` | Docs and writing — not code | — |
-| Scribe / Logger | `claude-haiku-4.5` | Mechanical file ops — cheapest possible | — (never bump Scribe) |
-| Git / Release | `claude-haiku-4.5` | Mechanical ops — changelogs, tags, version bumps | — (never bump mechanical ops) |
+| Core Dev / Backend / Frontend | `gpt-5.6-terra` | Writes code; quality first | Heavy code generation → `gpt-5.3-codex` |
+| Tester / QA | `gpt-5.6-terra` | Writes and evaluates test code | Simple scaffolding → `gpt-5.4-mini` |
+| Lead / Architect | `gpt-5.6-sol` | Architecture and reviewer gates require premium reasoning | Bounded triage → `gpt-5.4-mini` |
+| Prompt Engineer | `gpt-5.6-terra` | Prompt design functions like code | High-impact prompt architecture → `gpt-5.6-sol` |
+| Copilot SDK Expert | `gpt-5.6-terra` | Technical analysis often touches code | Pure bounded research → `gpt-5.4-mini` |
+| Designer / Visual | `gpt-5.6-sol` | Premium vision-capable work | Never downgrade outside the premium GPT chain |
+| DevRel / Writer | `gpt-5.4-mini` | Bounded documentation and writing | Complex strategy → `gpt-5.6-terra` |
+| Scribe / Logger | `gpt-5.4-mini` | Mechanical file operations | Keep in the fast GPT tier |
+| Git / Release | `gpt-5.4-mini` | Mechanical release operations | Keep in the fast GPT tier |
 
 **Task complexity adjustments** (apply at most ONE — no cascading):
 - **Bump UP to premium:** architecture proposals, reviewer gates, security audits, multi-agent coordination (output feeds 3+ agents)
 - **Bump DOWN to fast/cheap:** typo fixes, renames, boilerplate, scaffolding, changelogs, version bumps
 - **Switch to code specialist (`gpt-5.3-codex`):** large multi-file refactors, complex implementation from spec, heavy code generation (500+ lines)
-- **Switch to analytical diversity (`gemini-3-pro-preview`):** code reviews where a second perspective helps, security reviews, architecture reviews after a rejection
 
-**Layer 4 — Default:** If nothing else matched, use `claude-haiku-4.5`. Cost wins when in doubt, unless code is being produced.
+**Layer 4 — Explicit Global Default (`.squad/config.json`):** Use `defaultModel` only after Layers 0–3 have no allowed match. It is the required fail-closed GPT fallback, not an all-agent override. On session start, restore a missing or invalid `defaultModel` to `gpt-5.6-sol` before any spawn.
 
 **Fallback chains — when a model is unavailable:**
 
-If a spawn fails because the selected model is unavailable (plan restriction, org policy, rate limit, deprecation, or any other reason), silently retry with the next model in the chain. Do NOT tell the user about fallback attempts. Maximum 3 retries before jumping to the nuclear fallback.
+If a spawn fails because the selected model is unavailable, retry only with explicit OpenAI GPT model IDs:
 
 ```
-Premium:  claude-opus-4.6 → claude-opus-4.5 → claude-sonnet-4.6 → claude-sonnet-4.5 → (omit model param)
-Standard: claude-sonnet-4.6 → claude-sonnet-4.5 → gpt-5.4 → gpt-5.3-codex → claude-sonnet-4 → (omit model param)
-Fast:     claude-haiku-4.5 → gpt-5.4-mini → gpt-5.1-codex-mini → gpt-4.1 → (omit model param)
+Premium:        gpt-5.6-sol → gpt-5.6-terra → gpt-5.6-luna → gpt-5.5
+Standard:       gpt-5.6-terra → gpt-5.6-luna → gpt-5.5 → gpt-5.4
+Code specialist: gpt-5.3-codex → gpt-5.6-terra → gpt-5.6-luna → gpt-5.4
+Fast:           gpt-5.4-mini → gpt-5-mini
 ```
-
-`(omit model param)` = call the `task` tool WITHOUT the `model` parameter. The platform uses its built-in default. This is the nuclear fallback — it always works.
 
 **Fallback rules:**
-- If the user specified a provider ("use Claude"), fall back within that provider only before hitting nuclear
-- Never fall back UP in tier — a fast/cheap task should not land on a premium model
-- Log fallbacks to the orchestration log for debugging, but never surface to the user unless asked
+- Always pass the selected GPT model explicitly; never omit the `model` parameter.
+- Never cross providers and never use the platform default as a fallback.
+- If every candidate fails, stop and surface the model availability failure.
+- Do not promote fast work into a premium tier during fallback.
+- Log retry attempts to the orchestration log.
 
 **Passing the model to spawns:**
 
@@ -76,26 +78,25 @@ prompt: |
   ...
 ```
 
-Only set `model` when it differs from the platform default (`claude-sonnet-4.6`). If the resolved model IS `claude-sonnet-4.6`, you MAY omit the `model` parameter — the platform uses it as default.
-
-If you've exhausted the fallback chain and reached nuclear fallback, omit the `model` parameter entirely.
+The `model` parameter is mandatory on every spawn, including retries.
 
 **Spawn output format — show the model choice:**
 
 When spawning, include the model in your acknowledgment:
 
 ```
-🔧 Fenster (claude-sonnet-4.6) — refactoring auth module
-🎨 Redfoot (claude-opus-4.5 · vision) — designing color system
-📋 Scribe (claude-haiku-4.5 · fast) — logging session
-⚡ Keaton (claude-opus-4.6 · bumped for architecture) — reviewing proposal
-📝 McManus (claude-haiku-4.5 · fast) — updating docs
+Fenster (`gpt-5.6-terra`) — refactoring auth module
+Redfoot (`gpt-5.6-sol`, vision) — designing color system
+Scribe (`gpt-5.4-mini`, fast) — logging session
+Keaton (`gpt-5.6-sol`, premium) — reviewing proposal
+McManus (`gpt-5.4-mini`, fast) — updating docs
 ```
 
 Include tier annotation only when the model was bumped or a specialist was chosen. Default-tier spawns just show the model name.
 
-**Valid models (current platform catalog):**
+**Allowed OpenAI models (current platform catalog):**
 
-Premium: `claude-opus-4.6`, `claude-opus-4.6-1m` (Internal only), `claude-opus-4.5`
-Standard: `claude-sonnet-4.6`, `claude-sonnet-4.5`, `claude-sonnet-4`, `gpt-5.4`, `gpt-5.3-codex`, `gpt-5.2-codex`, `gpt-5.2`, `gpt-5.1-codex-max`, `gpt-5.1-codex`, `gpt-5.1`, `gemini-3-pro-preview`
-Fast/Cheap: `claude-haiku-4.5`, `gpt-5.4-mini`, `gpt-5.1-codex-mini`, `gpt-5-mini`, `gpt-4.1`
+Premium: `gpt-5.6-sol`
+Standard: `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.5`, `gpt-5.4`
+Code specialist: `gpt-5.3-codex`
+Fast: `gpt-5.4-mini`, `gpt-5-mini`

@@ -230,12 +230,12 @@ Proceed? (yes / no)
 
 ### Set Default Model
 
-- **intent:** set default model, change model, use gpt-4, use claude, switch model
-- **summary:** Set the default model for all agents in config.json
+- **intent:** set default model, change model, use gpt-5.6-sol, use gpt-5.6-terra, switch model
+- **summary:** Set the final fail-closed GPT fallback in config.json
 - **action:** file-edit
 - **command:** .squad/config.json → defaultModel
 - **args:**
-  - `model`: Model name (e.g., gpt-4o, claude-sonnet-4.5, o3)
+  - `model`: Allowed GPT model ID: `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.3-codex`, or `gpt-5-mini`
 - **confirm:** false
 
 ### Override Per-Agent Model
@@ -246,15 +246,15 @@ Proceed? (yes / no)
 - **command:** .squad/config.json → agentModelOverrides.{agentName}
 - **args:**
   - `agent`: Agent name (must match name in team.md)
-  - `model`: Model name (e.g., gpt-4o, claude-sonnet-4.5)
+  - `model`: Allowed GPT model ID: `gpt-5.6-sol`, `gpt-5.6-terra`, `gpt-5.6-luna`, `gpt-5.5`, `gpt-5.4`, `gpt-5.4-mini`, `gpt-5.3-codex`, or `gpt-5-mini`
 - **confirm:** false
 
 ### Clear Model Preference
 
 - **intent:** clear model, reset model, remove model preference, use default model
-- **summary:** Remove a model override from config.json (reverts to system default)
+- **summary:** Remove a per-agent override or restore `defaultModel` to `gpt-5.6-sol`
 - **action:** file-edit
-- **command:** .squad/config.json → remove defaultModel or agentModelOverrides.{agentName}
+- **command:** .squad/config.json → set defaultModel to `gpt-5.6-sol` or remove agentModelOverrides.{agentName}
 - **args:**
   - `scope`: Clear default or a specific agent? | choices: {default model, specific agent} | default: default model
   - `agent`: Agent name (only if scope = specific agent)

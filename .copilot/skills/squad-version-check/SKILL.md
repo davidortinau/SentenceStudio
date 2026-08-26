@@ -85,7 +85,7 @@ Returns -1/0/1. Handles pre-release: strips pre-release for base comparison, the
 ```
 
 Other optional fields added by the coordinator at runtime:
-- `defaultModel` — global model override for all agent spawns
+- `defaultModel` — required final GPT fallback after per-agent, session, charter, and task-aware resolution
 - `agentModelOverrides.{agentName}` — per-agent model override
 
 The file is read-only from the upgrade path's perspective. Only the coordinator writes to it (for model preferences).
