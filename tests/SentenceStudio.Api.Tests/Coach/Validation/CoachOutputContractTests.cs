@@ -31,7 +31,8 @@ public class CoachOutputContractTests
             typeof(PracticeBalanceSummary),
             typeof(VocabularyDueSummary),
             typeof(ResourceCatalogSummary),
-            typeof(PlanPreviewSummary)
+            typeof(PlanPreviewSummary),
+            typeof(PracticeHistorySummary)
         });
     }
 

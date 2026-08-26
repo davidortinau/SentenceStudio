@@ -32,6 +32,7 @@ public class CoachToolSchemaTests : IDisposable
             _fixture.VocabularyTool,
             _fixture.ResourceTool,
             new PreviewPracticePlanTool(_fixture.Scope, planner, new DefaultCoachPlanPreviewFailureAdapter(), _fixture.Dates),
+            _fixture.HistorySummaryTool,
             CoachToolTestFixture.CoreOnlyRegistry(),
             CoachToolTestFixture.NullServiceProvider());
 
@@ -43,8 +44,8 @@ public class CoachToolSchemaTests : IDisposable
     {
         var tools = CreateTools();
 
-        tools.Select(t => t.Name).Should().Equal(CoachToolNames.CoreFive,
-            "with Sam features disabled, only the core five tools should be built");
+        tools.Select(t => t.Name).Should().Equal(CoachToolNames.All,
+            "with Sam features disabled, only the core tools should be built");
         _allowList.Validate(tools).IsValid.Should().BeTrue();
     }
 

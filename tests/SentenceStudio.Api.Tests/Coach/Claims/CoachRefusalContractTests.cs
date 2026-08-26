@@ -229,8 +229,8 @@ public sealed class CoachRefusalContractTests
             .Select(definition => CoachRefusalLimitationProjection.DestinationFor(definition))
             .ToList();
 
-        decided.Should().HaveCount(14);
-        decided.Count(destination => destination is not null).Should().Be(10);
+        decided.Should().HaveCount(15);
+        decided.Count(destination => destination is not null).Should().Be(11);
         decided.Count(destination => destination is null).Should().Be(4);
     }
 

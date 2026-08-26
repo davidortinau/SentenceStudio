@@ -8484,6 +8484,10 @@ For example: {0} ...</value>
     <value>A plan worked out from your data. Nothing was saved.</value>
     <comment>Coach evidence: what was consulted.</comment>
   </data>
+  <data name="Coach_EvidenceDefinition_LatestPracticeSummary" xml:space="preserve">
+    <value>Your most recent practice sessions and when you last studied.</value>
+    <comment>Coach evidence: what was consulted.</comment>
+  </data>
   <data name="Coach_EvidenceValue_RowsRead" xml:space="preserve">
     <value>Rows read</value>
     <comment>Coach evidence: label for the count of rows the fact was computed from.</comment>

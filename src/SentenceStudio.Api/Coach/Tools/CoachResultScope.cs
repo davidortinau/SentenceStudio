@@ -248,7 +248,10 @@ public enum CoachScopeDefinition
     PracticeWindowBalance = 12,
 
     /// <summary>A plan the planner produced without writing anything.</summary>
-    DeterministicPlanPreview = 13
+    DeterministicPlanPreview = 13,
+
+    /// <summary>The learner's most recent recorded practice, as a single aggregate value.</summary>
+    LatestPracticeSummary = 14
 }
 
 /// <summary>What a row had to show before it was counted.</summary>

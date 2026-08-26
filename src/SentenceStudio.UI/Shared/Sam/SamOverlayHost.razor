@@ -29,8 +29,14 @@
     }
     else
     {
+        @if (IsMobileModal)
+        {
+            <div class="sam-backdrop" @onclick="CollapseAsync" aria-hidden="true"></div>
+        }
+
         <SamPanel VisualState="_visualState"
                   ViewportWidth="_viewportWidth"
+                  IsMobileModal="IsMobileModal"
                   OnCollapse="CollapseAsync"
                   OnExpand="ExpandAsync"
                   OnCompact="CompactAsync"
@@ -50,6 +56,13 @@
     /// screen chose that size, and recomputing would silently overrule them on the way back.
     /// </remarks>
     private SamOverlayVisualState _restoreState = SamOverlayVisualState.Expanded;
+
+    /// <summary>
+    /// True when the panel is open on a mobile-width viewport and should behave as a modal:
+    /// backdrop visible, underlying content inert, dialog semantics active.
+    /// </summary>
+    private bool IsMobileModal =>
+        _visualState != SamOverlayVisualState.Collapsed && _viewportWidth < 992;
 
     private bool _hasUnread;
     private bool _isAuthenticated;
@@ -115,10 +128,18 @@
     }
 
     [JSInvokable]
-    public Task OnViewportChanged(int width)
+    public async Task OnViewportChanged(int width)
     {
+        var wasModal = IsMobileModal;
         _viewportWidth = width;
-        return InvokeAsync(StateHasChanged);
+        var isModal = IsMobileModal;
+
+        if (wasModal != isModal)
+        {
+            await SetInertAsync(isModal);
+        }
+
+        await InvokeAsync(StateHasChanged);
     }
 
     [JSInvokable]
@@ -204,6 +225,9 @@
 
         await InvokeAsync(StateHasChanged);
 
+        // Set background inert for mobile modal
+        await SetInertAsync(IsMobileModal);
+
         // Move focus to the composer
         await FocusAsync(CoachElementIds.Composer);
     }
@@ -224,7 +248,20 @@
 
     private async Task CollapseAsync()
     {
+        // A learner who closes from fullscreen still expects the dashboard to be at the reading
+        // position they left. Release the lock BEFORE the class change so the panel shrinks and
+        // the page returns to its captured scroll in the same paint — the underlying position is
+        // never seen at zero except as an intermediate state that never renders.
+        var wasFullScreen = _visualState == SamOverlayVisualState.FullScreen;
+
         _visualState = SamOverlayVisualState.Collapsed;
+
+        if (wasFullScreen)
+        {
+            await InvokeScrollLockAsync("exitFullscreenScrollLock");
+        }
+
+        await SetInertAsync(false);
         await InvokeAsync(StateHasChanged);
 
         // Restore focus to the control that opened the panel.
@@ -264,12 +301,23 @@
             _restoreState = _visualState;
         }
 
+        // Capture the underlying page's scroll and pin the document to the origin BEFORE the
+        // fullscreen class is applied. iOS WKWebView measures a fixed-position panel against
+        // document.scrollingElement's scroll: any pre-existing offset, and any offset the focus
+        // call about to run would otherwise introduce, translates one-to-one into the header
+        // sitting behind the Dynamic Island. The lock is what makes the panel rect land at 0
+        // instead of at -scrollTop, and the capture is what lets Restore/Collapse return the
+        // dashboard to exactly the same reading position.
+        await InvokeScrollLockAsync("enterFullscreenScrollLock");
+
         _visualState = SamOverlayVisualState.FullScreen;
         await InvokeAsync(StateHasChanged);
 
         // Focus follows the surface the learner just asked for, and the composer is where they are
         // going to type. Without this, focus stays on a control that is still on screen but is now
-        // labelled something else.
+        // labelled something else. `focusElement` in sam-overlay.js uses
+        // `focus({ preventScroll: true })` so bringing focus here cannot re-introduce the scroll
+        // the lock above just captured.
         await FocusAsync(CoachElementIds.Composer);
     }
 
@@ -279,6 +327,11 @@
         _visualState = _restoreState == SamOverlayVisualState.Collapsed
             ? SamOverlayVisualState.Expanded
             : _restoreState;
+
+        // Release the lock BEFORE the class change: the panel is about to stop being inset:0, and
+        // the dashboard behind it should be scrolled back to where the learner left it in the
+        // same paint that the panel shrinks.
+        await InvokeScrollLockAsync("exitFullscreenScrollLock");
 
         await InvokeAsync(StateHasChanged);
         await FocusAsync(CoachElementIds.Composer);
@@ -299,6 +352,46 @@
         catch (ObjectDisposedException) { }
     }
 
+    private async Task SetInertAsync(bool modal)
+    {
+        if (_module is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _module.InvokeVoidAsync("setAppShellInert", modal);
+        }
+        catch (JSDisconnectedException) { }
+        catch (ObjectDisposedException) { }
+    }
+
+    /// <summary>
+    /// Invokes one of the scroll-lock functions in sam-overlay.js. The two are symmetric — enter
+    /// captures and pins, exit restores — and both are idempotent, so calling either in a
+    /// mid-teardown circuit is safe.
+    /// </summary>
+    /// <remarks>
+    /// Kept as a single helper rather than two so the caller reads as intent
+    /// (<c>enterFullscreenScrollLock</c>/<c>exitFullscreenScrollLock</c>) and the disposed-circuit
+    /// swallow is stated once instead of at each site.
+    /// </remarks>
+    private async Task InvokeScrollLockAsync(string identifier)
+    {
+        if (_module is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _module.InvokeVoidAsync(identifier);
+        }
+        catch (JSDisconnectedException) { }
+        catch (ObjectDisposedException) { }
+    }
+
     private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
     {
         if (_disposed) return;
@@ -308,8 +401,17 @@
         var uri = Nav.ToAbsoluteUri(e.Location);
         if (uri.AbsolutePath.StartsWith("/coach", StringComparison.OrdinalIgnoreCase))
         {
+            var wasFullScreen = _visualState == SamOverlayVisualState.FullScreen;
             _visualState = SamOverlayVisualState.Collapsed;
             _restoreState = SamOverlayVisualState.Expanded;
+
+            // If the panel was fullscreen when the learner navigated away, release the scroll
+            // lock so the next route inherits a scrollable page instead of a frozen one.
+            if (wasFullScreen)
+            {
+                _ = InvokeScrollLockAsync("exitFullscreenScrollLock");
+            }
+
             RequestRender();
         }
     }
@@ -374,10 +476,19 @@
     {
         if (_disposed) return;
 
+        var wasFullScreen = _visualState == SamOverlayVisualState.FullScreen;
         _visualState = SamOverlayVisualState.Collapsed;
         _restoreState = SamOverlayVisualState.Expanded;
         _hasUnread = false;
         _isAuthenticated = identity.IsAuthenticated;
+
+        // If the panel was fullscreen when the account boundary crossed, release the scroll lock
+        // so the new learner does not inherit a frozen dashboard from the previous session.
+        if (wasFullScreen)
+        {
+            _ = InvokeScrollLockAsync("exitFullscreenScrollLock");
+        }
+
         RequestRender();
     }
 

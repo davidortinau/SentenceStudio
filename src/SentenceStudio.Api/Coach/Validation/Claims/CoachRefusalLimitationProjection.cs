@@ -142,6 +142,7 @@ public static class CoachRefusalLimitationProjection
             CoachDefinitionCode.PracticeWindowBalance
                 or CoachDefinitionCode.PlanDaySummary
                 or CoachDefinitionCode.DeterministicPlanPreview
+                or CoachDefinitionCode.LatestPracticeSummary
                 => CoachRouteCatalog.Build(CoachRouteName.ActivityLog),
 
             CoachDefinitionCode.ActiveSkillList or CoachDefinitionCode.ActiveSkillDetail

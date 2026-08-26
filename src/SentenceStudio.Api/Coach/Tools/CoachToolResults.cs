@@ -125,3 +125,15 @@ public sealed record PlanPreviewSummary(
     [property: Description("The title of the main resource. Null if the preview uses no resource.")] string? PrimaryResourceTitle,
     [property: Description("The identifier of the main resource. Null if the preview uses no resource.")] string? PrimaryResourceId,
     [property: Description("What this answer covers, how it is ordered, and what it withheld.")] CoachResultScope Scope) : ICoachScopedResult;
+
+/// <summary>
+/// The learner's most recent recorded practice. This shape holds no vocabulary terms,
+/// answers, transcript text, or other learner content.
+/// </summary>
+public sealed record PracticeHistorySummary(
+    [property: Description("The learner-local date of the most recent recorded practice, or null when the learner has never practised.")]
+    DateOnly? LastPracticeDate,
+    [property: Description("Whole days between the last practice date and today in the learner's timezone, or null when no practice is recorded.")]
+    int? DaysSincePractice,
+    [property: Description("What this answer covers, how it is ordered, and what it withheld.")]
+    CoachResultScope Scope) : ICoachScopedResult;

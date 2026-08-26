@@ -177,7 +177,8 @@ public class CoachCapabilityBoundaryTests
             CoachToolNames.GetPracticeBalance,
             CoachToolNames.GetVocabularyDueSummary,
             CoachToolNames.GetResourceCatalog,
-            CoachToolNames.PreviewPracticePlan
+            CoachToolNames.PreviewPracticePlan,
+            CoachToolNames.GetPracticeHistorySummary
         ]);
 
         CoachToolNames.All.Should().OnlyContain(

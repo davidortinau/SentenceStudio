@@ -80,7 +80,7 @@ public class CoachSamplingOptionsRegressionTests
         // Dropping the sampling knob must not drop the bounds that keep a run affordable.
         client.LastOptions!.MaxOutputTokens.Should().Be(777);
         client.LastOptions.ResponseFormat.Should().BeOfType<ChatResponseFormatJson>();
-        client.LastOptions.Tools.Should().HaveCount(5);
+        client.LastOptions.Tools.Should().HaveCount(6);
     }
 
     [Fact]

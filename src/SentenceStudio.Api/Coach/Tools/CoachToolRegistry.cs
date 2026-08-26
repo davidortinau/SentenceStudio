@@ -205,6 +205,17 @@ public sealed class CoachToolRegistry : ICoachToolRegistry
                 + "are the only filter, and anything they exclude is simply not in the projection rather "
                 + "than reported as withheld. Counts are planned items."
         });
+        Register(new CoachToolRegistration
+        {
+            Name = CoachToolNames.GetPracticeHistorySummary,
+            ResultType = typeof(PracticeHistorySummary),
+            RiskClass = CoachToolRiskClass.Read,
+            EffectClass = CoachCapabilityEffectClass.Read,
+            Description = "Reads the date of the learner's most recent recorded practice and how many whole days "
+                + "have passed since then. The read covers the learner's full history, not a window. Returns null "
+                + "fields when the learner has never practised. It returns a date and a count only (no order applies), "
+                + "never the content of what was practised."
+        });
     }
 
     private void RegisterSamReadTools()

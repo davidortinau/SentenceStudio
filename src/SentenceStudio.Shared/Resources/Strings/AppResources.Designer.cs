@@ -2470,6 +2470,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Your most recent practice sessions and when you last studied..
+        /// </summary>
+        internal static string Coach_EvidenceDefinition_LatestPracticeSummary {
+            get {
+                return ResourceManager.GetString("Coach_EvidenceDefinition_LatestPracticeSummary", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Your study settings, and how much you have saved..
         /// </summary>
         internal static string Coach_EvidenceDefinition_LearnerOverviewSummary {

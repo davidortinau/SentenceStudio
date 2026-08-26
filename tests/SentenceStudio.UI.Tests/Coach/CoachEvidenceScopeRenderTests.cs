@@ -432,7 +432,7 @@ public class CoachEvidenceScopeRenderTests
             named++;
         }
 
-        named.Should().Be(14, "every definition code must be representable; the sweep must see all of them");
+        named.Should().Be(15, "every definition code must be representable; the sweep must see all of them");
     }
 
     // ── Localization ─────────────────────────────────────────────────────────

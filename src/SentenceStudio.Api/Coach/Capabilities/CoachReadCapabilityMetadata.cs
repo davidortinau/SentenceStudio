@@ -220,7 +220,16 @@ public static class CoachReadCapabilityMetadataTable
             CoachReadDateSupport.CalendarDay,
             CoachReadRangeSupport.None,
             MaxPageSize: null,
-            Source: "SamTools/CurrentPlanSummaryTool.cs scope block")
+            Source: "SamTools/CurrentPlanSummaryTool.cs scope block"),
+
+        [CoachToolNames.GetPracticeHistorySummary] = new(
+            CoachScopeCoverage.DerivedProjection,
+            [CoachScopeOrder.NotApplicable],
+            Owner,
+            CoachReadDateSupport.None,
+            CoachReadRangeSupport.None,
+            MaxPageSize: null,
+            Source: "PracticeHistorySummaryTool.cs scope block")
     };
 
     /// <summary>Every declared row, for census assertions.</summary>

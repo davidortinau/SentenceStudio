@@ -97,9 +97,9 @@ public sealed class CoachMemoryContractSeparationTests
     [Fact]
     public void NoChatToolExposesAMemoryContract()
     {
-        // The model's whole tool surface is a closed list of five read-only tools. None of them
+        // The model's whole tool surface is a closed list of six read-only tools. None of them
         // may name memory, and the allow-list is what ChatOptions.Tools is built from.
-        CoachToolNames.All.Should().HaveCount(5);
+        CoachToolNames.All.Should().HaveCount(6);
 
         CoachToolNames.All.Should().NotContain(
             n => n.Contains("memor", StringComparison.OrdinalIgnoreCase)

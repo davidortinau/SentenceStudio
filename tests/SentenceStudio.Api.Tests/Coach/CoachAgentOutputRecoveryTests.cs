@@ -236,8 +236,9 @@ public class CoachAgentOutputRecoveryTests
         harness.Coach.NextResult = CoachAgentTurnResult.Failure(CoachAgentOutcome.Timeout, "timed out");
         var timedOut = await SubmitAsync(harness, sessionId, "suggest something");
 
-        refused.Value!.Messages.Single().Text.Should().Contain("could not read that answer");
-        timedOut.Value!.Messages.Single().Text.Should().Contain("took too long");
+        // R5: neutral copy replaces Plan-biased wording per Zoe-approved design.
+        refused.Value!.Messages.Single().Text.Should().Be(CoachDeterministicCopy.ValidationFailedNeutral);
+        timedOut.Value!.Messages.Single().Text.Should().Be(CoachDeterministicCopy.IncompleteNeutral);
     }
 
     // ---------------------------------------------------------------- helpers

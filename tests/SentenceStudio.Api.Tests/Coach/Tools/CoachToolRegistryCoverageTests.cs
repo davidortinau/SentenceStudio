@@ -289,7 +289,7 @@ public class CoachToolRegistryCoverageTests
             SamReadTools = new CoachFeatureSwitch { Enabled = false },
             SamWriteTools = new CoachFeatureSwitch { Enabled = false }
         });
-        flagsOff.Enabled.Select(r => r.Name).Should().BeEquivalentTo(CoachToolNames.CoreFive);
+        flagsOff.Enabled.Select(r => r.Name).Should().BeEquivalentTo(CoachToolNames.All);
     }
 
     /// <summary>

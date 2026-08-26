@@ -85,7 +85,8 @@ public static class CoachEvidenceScopeProjection
         CoachScopeDefinition.LearnerOverviewSummary => CoachDefinitionCode.LearnerOverviewSummary,
         CoachScopeDefinition.PlanDaySummary => CoachDefinitionCode.PlanDaySummary,
         CoachScopeDefinition.PracticeWindowBalance => CoachDefinitionCode.PracticeWindowBalance,
-        CoachScopeDefinition.DeterministicPlanPreview => CoachDefinitionCode.DeterministicPlanPreview
+        CoachScopeDefinition.DeterministicPlanPreview => CoachDefinitionCode.DeterministicPlanPreview,
+        CoachScopeDefinition.LatestPracticeSummary => CoachDefinitionCode.LatestPracticeSummary
     };
 
     /// <summary>Projects a scope's withheld reason onto the wire vocabulary.</summary>

@@ -67,6 +67,7 @@ public sealed class CoachToolFactory : ICoachToolFactory
     private readonly VocabularyDueSummaryTool _vocabulary;
     private readonly ResourceCatalogTool _resources;
     private readonly PreviewPracticePlanTool _preview;
+    private readonly PracticeHistorySummaryTool _historySummary;
     private readonly ICoachToolRegistry _registry;
     private readonly IServiceProvider _serviceProvider;
 
@@ -76,6 +77,7 @@ public sealed class CoachToolFactory : ICoachToolFactory
         VocabularyDueSummaryTool vocabulary,
         ResourceCatalogTool resources,
         PreviewPracticePlanTool preview,
+        PracticeHistorySummaryTool historySummary,
         ICoachToolRegistry registry,
         IServiceProvider serviceProvider)
     {
@@ -84,6 +86,7 @@ public sealed class CoachToolFactory : ICoachToolFactory
         _vocabulary = vocabulary;
         _resources = resources;
         _preview = preview;
+        _historySummary = historySummary;
         _registry = registry;
         _serviceProvider = serviceProvider;
     }
@@ -251,7 +254,12 @@ public sealed class CoachToolFactory : ICoachToolFactory
             (CoachPlanPreviewArguments? constraints = null, CancellationToken ct = default) =>
                 _preview.PreviewAsync(constraints ?? new CoachPlanPreviewArguments(), ct),
             CoachToolNames.PreviewPracticePlan,
-            "Builds a read-only plan preview for the supplied constraints. The preview changes nothing.")
+            "Builds a read-only plan preview for the supplied constraints. The preview changes nothing."),
+
+        Create(
+            (CancellationToken ct) => _historySummary.GetAsync(ct),
+            CoachToolNames.GetPracticeHistorySummary,
+            "Reads the date the learner last practised and how many days ago that was.")
     ];
 
     private AIFunction? BuildSamReadTool(CoachToolRegistration reg)

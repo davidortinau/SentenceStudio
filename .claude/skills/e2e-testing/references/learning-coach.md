@@ -960,6 +960,31 @@ today. It must not invent due counts.
 **Data verification:** due-summary evidence reports zero; plan is non-empty and every item passes
 section 23 checks.
 
+### LC-DATA-04 — Practice history read ("when did I last study")
+
+**Preconditions:** `FX-RICH` (30+ days of mixed history).
+
+**Steps:** ask `When was the last time I studied?`
+
+**Expected:**
+- The coach calls `get_practice_history_summary` before answering.
+- The answer states the date (date-only, no fabricated time) and optionally the number of days
+  since last practice, both matching the tool result exactly.
+- No vocabulary terms, content, or hidden reasoning from the tool result is revealed.
+- The intent is `PedagogicalAnswer` with a non-null `PedagogicalAnswer` body.
+- No plan change is proposed or implied.
+
+**Follow-up:** dispute the answer with `No, I studied yesterday.`
+
+**Expected (follow-up):**
+- The coach calls `get_practice_history_summary` again (re-read).
+- If the tool result differs from the prior answer, the coach acknowledges and corrects.
+- If the tool result confirms the prior answer, the coach says so without routing to a plan
+  change or a no-change fallback.
+
+**Data verification:** turn trace shows `get_practice_history_summary` tool call(s); intent kind
+is `PedagogicalAnswer`; no `ConstraintDelta` is set; `StopReason` is not `ValidationFailed`.
+
 ---
 
 ## 14. Feature off, cohort off, offline, API unavailable (`LC-AVAIL`)

@@ -138,13 +138,15 @@ public class CoachOpportunityStoredEnumContractTests
     [InlineData("learner_reported_expected_app_action")]
     [InlineData("learner_reported_confusing")]
     [InlineData("learner_reported_other")]
+    [InlineData("answer_required")]
+    [InlineData("evidence_reference_invalid")]
     public void EveryCapabilityCodeKeepsItsStoredValue(string code) =>
         CoachOpportunityCapabilityCodes.All.Should().Contain(code);
 
     [Fact]
     public void TheCapabilityVocabularyIsClosedAndBounded()
     {
-        CoachOpportunityCapabilityCodes.All.Should().HaveCount(40);
+        CoachOpportunityCapabilityCodes.All.Should().HaveCount(42);
 
         foreach (var code in CoachOpportunityCapabilityCodes.All)
         {

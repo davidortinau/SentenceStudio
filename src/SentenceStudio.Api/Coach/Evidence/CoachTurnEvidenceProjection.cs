@@ -202,7 +202,9 @@ public static class CoachTurnEvidenceProjection
         CoachScopeDefinition.PlanDaySummary => CoachEvidenceKind.PlanPreview,
         CoachScopeDefinition.DeterministicPlanPreview => CoachEvidenceKind.PlanPreview,
 
-        CoachScopeDefinition.PracticeWindowBalance => CoachEvidenceKind.PracticeBalance
+        CoachScopeDefinition.PracticeWindowBalance => CoachEvidenceKind.PracticeBalance,
+
+        CoachScopeDefinition.LatestPracticeSummary => CoachEvidenceKind.PracticeBalance
     };
 
     /// <summary>
@@ -257,6 +259,8 @@ public static class CoachTurnEvidenceProjection
         CoachScopeDefinition.PlanDaySummary => "Today's plan and what you have logged against it.",
         CoachScopeDefinition.DeterministicPlanPreview => "A plan worked out from your data. Nothing was saved.",
 
-        CoachScopeDefinition.PracticeWindowBalance => "Practice you logged over the window."
+        CoachScopeDefinition.PracticeWindowBalance => "Practice you logged over the window.",
+
+        CoachScopeDefinition.LatestPracticeSummary => "Your most recent practice sessions, ordered by completion time."
     };
 }

@@ -13,6 +13,7 @@ public static class CoachToolNames
     public const string GetVocabularyDueSummary = "get_vocabulary_due_summary";
     public const string GetResourceCatalog = "get_resource_catalog";
     public const string PreviewPracticePlan = "preview_practice_plan";
+    public const string GetPracticeHistorySummary = "get_practice_history_summary";
 
     // --- Sam read tools (require SamOverlay + SamReadTools) ---
     public const string ListUserVocabularies = "list_user_vocabularies";
@@ -98,7 +99,8 @@ public static class CoachToolNames
         GetPracticeBalance,
         GetVocabularyDueSummary,
         GetResourceCatalog,
-        PreviewPracticePlan
+        PreviewPracticePlan,
+        GetPracticeHistorySummary
     ];
 
     /// <summary>Every known tool name including Sam read tools, in registration order.</summary>
@@ -109,6 +111,7 @@ public static class CoachToolNames
         GetVocabularyDueSummary,
         GetResourceCatalog,
         PreviewPracticePlan,
+        GetPracticeHistorySummary,
         ListUserVocabularies,
         GetVocabularyWordDetail,
         GetSkillList,

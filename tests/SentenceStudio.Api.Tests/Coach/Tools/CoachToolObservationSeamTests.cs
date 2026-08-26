@@ -180,6 +180,7 @@ public sealed class CoachToolObservationSeamTests : IDisposable
                 _fixture.VocabularyTool,
                 _fixture.ResourceTool,
                 _fixture.PreviewTool(),
+                _fixture.HistorySummaryTool,
                 registry,
                 provider)
             .CreateTools();

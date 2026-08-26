@@ -17,9 +17,10 @@
 @inject IJSRuntime JS
 
 <aside id="@SamElementIds.Panel"
-       class="sam-panel sam-panel--@VisualStateCss"
+       class="sam-panel sam-panel--@VisualStateCss @(IsMobileModal ? "sam-panel--modal" : "")"
        data-visual-state="@VisualStateCss"
-       role="complementary"
+       role="@(IsMobileModal ? "dialog" : "complementary")"
+       aria-modal="@(IsMobileModal ? "true" : null)"
        aria-labelledby="@SamElementIds.PanelTitle">
     <div class="sam-panel__header">
         <h2 id="@SamElementIds.PanelTitle" class="sam-panel__title">@Persona.DisplayName</h2>
@@ -112,18 +113,21 @@
                 <CoachConversationList OnConversationOpened="CloseConversations" />
             </div>
         }
+        else
+        {
+            <CoachChatPane />
+        }
+    </div>
 
-        <CoachChatPane />
-
-        <div class="sam-panel__composer">
-            <CoachComposer EnterSends="@(IsWide)" />
-        </div>
+    <div class="sam-panel__composer">
+        <CoachComposer EnterSends="@(IsWide)" />
     </div>
 </aside>
 
 @code {
     [Parameter] public SamOverlayVisualState VisualState { get; set; }
     [Parameter] public int ViewportWidth { get; set; }
+    [Parameter] public bool IsMobileModal { get; set; }
     [Parameter] public EventCallback OnCollapse { get; set; }
     [Parameter] public EventCallback OnExpand { get; set; }
     [Parameter] public EventCallback OnCompact { get; set; }

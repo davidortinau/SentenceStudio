@@ -33,7 +33,7 @@ public sealed class CoachMemorySecurityTests
                  || n.Contains("remember", StringComparison.OrdinalIgnoreCase)
                  || n.Contains("preference", StringComparison.OrdinalIgnoreCase));
 
-        CoachToolNames.All.Should().HaveCount(5, "the tool set is closed; memory does not extend it");
+        CoachToolNames.All.Should().HaveCount(6, "the tool set is closed; memory does not extend it");
     }
 
     [Fact]

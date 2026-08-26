@@ -197,8 +197,8 @@ public class CoachTurnEvidenceProjectionTests
             bucketed++;
         }
 
-        classified.Should().Be(14, "every definition must be classified; the sweep must see all of them");
-        bucketed.Should().Be(11, "eleven definitions map to a learner-visible bucket");
+        classified.Should().Be(15, "every definition must be classified; the sweep must see all of them");
+        bucketed.Should().Be(12, "twelve definitions map to a learner-visible bucket");
 
         var labelled = 0;
         foreach (var kind in Enum.GetValues<CoachEvidenceKind>())

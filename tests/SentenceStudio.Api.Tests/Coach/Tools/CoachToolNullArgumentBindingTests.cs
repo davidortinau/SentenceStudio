@@ -41,6 +41,7 @@ public class CoachToolNullArgumentBindingTests : IDisposable
             _fixture.VocabularyTool,
             _fixture.ResourceTool,
             new PreviewPracticePlanTool(_fixture.Scope, _planner, new DefaultCoachPlanPreviewFailureAdapter(), _fixture.Dates),
+            _fixture.HistorySummaryTool,
             CoachToolTestFixture.CoreOnlyRegistry(),
             CoachToolTestFixture.NullServiceProvider())
             .CreateTools();

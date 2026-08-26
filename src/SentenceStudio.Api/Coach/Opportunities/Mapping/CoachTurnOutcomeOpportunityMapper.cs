@@ -264,6 +264,16 @@ public static class CoachTurnOutcomeOpportunityMapper
             // IntentShape, LengthLimit, EvidenceWindow: the model's answer did not hold together.
             // When the shape-projection path is the source, emit a distinct code so operators can
             // slice production telemetry between intent validation and post-projection failures.
+            // Within IntentShape, further distinguish "answer_required" and "evidence_reference_invalid"
+            // from generic shape failures, using the first violation's Code field.
+            CoachViolationKind.IntentShape when !answerShapeRefused =>
+                (CoachOpportunityKind.ValidationFailure,
+                 CoachOpportunityCapabilityCodes.IntentShapeInvalid),
+
+            CoachViolationKind.EvidenceWindow =>
+                (CoachOpportunityKind.ValidationFailure,
+                 CoachOpportunityCapabilityCodes.EvidenceReferenceInvalid),
+
             _ => answerShapeRefused
                 ? (CoachOpportunityKind.ValidationFailure,
                    CoachOpportunityCapabilityCodes.AnswerShapeInvalid)

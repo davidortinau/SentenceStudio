@@ -35,7 +35,8 @@ public static class CoachOutputContract
         typeof(PracticeBalanceSummary),
         typeof(VocabularyDueSummary),
         typeof(ResourceCatalogSummary),
-        typeof(PlanPreviewSummary)
+        typeof(PlanPreviewSummary),
+        typeof(PracticeHistorySummary)
     ];
 
     /// <summary>
@@ -66,6 +67,7 @@ public static class CoachOutputContract
             [typeof(VocabularyDueSummary)] = CoachEmbargoScope.ModelVisible,
             [typeof(ResourceCatalogSummary)] = CoachEmbargoScope.ModelVisible,
             [typeof(PlanPreviewSummary)] = CoachEmbargoScope.ModelVisible,
+            [typeof(PracticeHistorySummary)] = CoachEmbargoScope.ModelVisible,
 
             // Sam read tools. The ToolResult scope permits explicit learner-requested content
             // (terms, examples, sentences) while still refusing identity, bulk content,

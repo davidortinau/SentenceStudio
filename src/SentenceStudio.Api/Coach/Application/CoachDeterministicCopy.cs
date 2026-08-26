@@ -1,5 +1,7 @@
 using System.Globalization;
 using SentenceStudio.Contracts.Coach;
+using SentenceStudio.Contracts.Coach.Intent;
+using SentenceStudio.Api.Coach.Opportunities.Detection;
 
 namespace SentenceStudio.Api.Coach.Application;
 
@@ -300,4 +302,108 @@ public static class CoachDeterministicCopy
     /// <summary>Replaces a claim of inability for something the app can do.</summary>
     public const string CapableAfterAll =
         "That is something you can do \u2014 let me point you at it.";
+
+    // ─── Neutral refusal / validation-failure copy ───────────────────────────
+
+    /// <summary>Neutral fallback when a learner turn cannot be validated. Does not mention any specific feature.</summary>
+    internal const string ValidationFailedNeutral =
+        "I wasn\u2019t able to action that. Could you rephrase or ask something else?";
+
+    /// <summary>Neutral fallback when the agent turn could not be completed (no intent produced).</summary>
+    internal const string IncompleteNeutral =
+        "I ran into a problem completing that. Could you try again?";
+
+    /// <summary>
+    /// Selects refusal copy appropriate to the intent kind. Plan-specific wording is returned
+    /// only when the learner actually requested a plan or settings mutation; all other intents
+    /// (pedagogical questions, learner-state reads, etc.) get neutral copy.
+    /// </summary>
+    internal static string ValidationFailedNotice(CoachIntentKind? kind)
+        => kind.HasValue && CoachActionIntent.IsSettingsChange(kind.Value)
+            ? NoChange
+            : ValidationFailedNeutral;
+
+    // ─── Deterministic latest-study answer copy ─────────────────────────────
+
+    /// <summary>
+    /// Answer code for the deterministic latest-study route. Clients that localise from
+    /// codes will use this value; the English/Korean text strings below are server-side
+    /// fallback for pre-code clients.
+    /// </summary>
+    internal const string LatestStudyAnswerCode = "latest_study_result";
+    internal const string LatestStudyNoDataCode = "latest_study_no_data";
+    internal const string LatestStudyCorrectionCode = "latest_study_correction";
+
+    /// <summary>English answer when data exists. {0} = date string, {1} = days-since clause.</summary>
+    internal static readonly string LatestStudyResultEn =
+        "Your most recent practice was on {0}.{1}";
+
+    /// <summary>Korean answer when data exists. {0} = date string, {1} = days-since clause.</summary>
+    internal static readonly string LatestStudyResultKo =
+        "가장 최근 학습은 {0}에 했습니다.{1}";
+
+    /// <summary>English days-since clause (singular). {0} = number of days.</summary>
+    internal static readonly string LatestStudyDaysSinceEnSingular = " That was 1 day ago.";
+
+    /// <summary>English days-since clause (plural). {0} = number of days.</summary>
+    internal static readonly string LatestStudyDaysSinceEnPlural = " That was {0} days ago.";
+
+    /// <summary>Korean days-since clause. {0} = number of days.</summary>
+    internal static readonly string LatestStudyDaysSinceKo = " {0}일 전입니다.";
+
+    /// <summary>English today clause.</summary>
+    internal const string LatestStudyTodayEn = " That was today.";
+
+    /// <summary>Korean today clause.</summary>
+    internal const string LatestStudyTodayKo = " 오늘입니다.";
+
+    /// <summary>English no-data answer.</summary>
+    internal const string LatestStudyNoDataEn =
+        "I don\u2019t have any practice records on file yet.";
+
+    /// <summary>Korean no-data answer.</summary>
+    internal const string LatestStudyNoDataKo =
+        "아직 학습 기록이 없습니다.";
+
+    /// <summary>English correction preamble.</summary>
+    internal const string LatestStudyCorrectionPreambleEn =
+        "Let me check again. ";
+
+    /// <summary>Korean correction preamble.</summary>
+    internal const string LatestStudyCorrectionPreambleKo =
+        "다시 확인하겠습니다. ";
+
+    /// <summary>
+    /// Compose the deterministic latest-study answer text.
+    /// </summary>
+    /// <param name="lastDate">The user-local date of the last practice, or null.</param>
+    /// <param name="daysSince">Days between last practice and today, or null.</param>
+    /// <param name="isCorrection">True if this is a correction/dispute follow-up.</param>
+    /// <param name="displayLanguageTag">BCP-47 tag of the display (UI/native) language — NOT the target language.</param>
+    internal static string ComposeLatestStudyAnswer(
+        DateOnly? lastDate, int? daysSince, bool isCorrection, string displayLanguageTag)
+    {
+        var isKo = displayLanguageTag.StartsWith("ko", StringComparison.OrdinalIgnoreCase);
+        var preamble = isCorrection
+            ? (isKo ? LatestStudyCorrectionPreambleKo : LatestStudyCorrectionPreambleEn)
+            : string.Empty;
+
+        if (!lastDate.HasValue)
+        {
+            return preamble + (isKo ? LatestStudyNoDataKo : LatestStudyNoDataEn);
+        }
+
+        var dateStr = lastDate.Value.ToString("yyyy-MM-dd");
+        var daysSinceClause = daysSince switch
+        {
+            0 => isKo ? LatestStudyTodayKo : LatestStudyTodayEn,
+            1 => isKo ? string.Format(LatestStudyDaysSinceKo, 1) : LatestStudyDaysSinceEnSingular,
+            > 1 => string.Format(
+                isKo ? LatestStudyDaysSinceKo : LatestStudyDaysSinceEnPlural, daysSince),
+            _ => string.Empty
+        };
+
+        return preamble + string.Format(
+            isKo ? LatestStudyResultKo : LatestStudyResultEn, dateStr, daysSinceClause);
+    }
 }

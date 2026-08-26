@@ -207,7 +207,8 @@ public class CoachResultScopeContractTests
             ["TrackedVocabularyDueSummary"] = 6, ["UndueVocabularySearch"] = 7,
             ["TrackedVocabularyDetail"] = 8, ["LearnerSettingsSnapshot"] = 9,
             ["LearnerOverviewSummary"] = 10, ["PlanDaySummary"] = 11,
-            ["PracticeWindowBalance"] = 12, ["DeterministicPlanPreview"] = 13
+            ["PracticeWindowBalance"] = 12, ["DeterministicPlanPreview"] = 13,
+            ["LatestPracticeSummary"] = 14
         });
 
         Pinned<CoachScopeMinimumEvidence>(new()
@@ -1350,7 +1351,8 @@ public class CoachResultScopeContractTests
             (CoachToolNames.GetLearningResourceDetail, (await fixture.LearningResourceDetailTool.GetAsync(resource)).Scope),
             (CoachToolNames.GetCurrentProfileSummary, (await fixture.CurrentProfileSummaryTool.GetAsync()).Scope),
             (CoachToolNames.GetLearnerSettingsSummary, (await fixture.LearnerSettingsSummaryTool.GetAsync()).Scope),
-            (CoachToolNames.GetCurrentPlanSummary, (await fixture.CurrentPlanSummaryTool.GetAsync()).Scope)
+            (CoachToolNames.GetCurrentPlanSummary, (await fixture.CurrentPlanSummaryTool.GetAsync()).Scope),
+            (CoachToolNames.GetPracticeHistorySummary, (await fixture.HistorySummaryTool.GetAsync()).Scope)
         ];
     }
 

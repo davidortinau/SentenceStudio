@@ -183,12 +183,13 @@ internal sealed class CoachToolTestFixture : IDisposable
     private ISkillProfileQueries Skills => _services.GetRequiredService<ISkillProfileQueries>();
     private ILearningResourceQueries Resources => _services.GetRequiredService<ILearningResourceQueries>();
     private IVocabularyQueries Vocabulary => _services.GetRequiredService<IVocabularyQueries>();
-    private IPracticeHistoryQueries History => _services.GetRequiredService<IPracticeHistoryQueries>();
+    public IPracticeHistoryQueries History => _services.GetRequiredService<IPracticeHistoryQueries>();
 
     public LearnerProfileSummaryTool ProfileTool => new(Scope, Profiles, Dates);
     public PracticeBalanceTool BalanceTool => new(Scope, History, Dates);
     public VocabularyDueSummaryTool VocabularyTool => new(Scope, Vocabulary, Dates);
     public ResourceCatalogTool ResourceTool => new(Scope, Resources, History, Dates);
+    public PracticeHistorySummaryTool HistorySummaryTool => new(Scope, History, Dates);
 
     // --- Sam read tools ---
     // Fresh instance per access, matching the scoped DI lifetime the API gives them, so a test

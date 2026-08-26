@@ -996,7 +996,9 @@ h3:focus,
         --bs-offcanvas-width: 90%;
     }
 
-    /* Mobile page header — breaks out of main padding for edge-to-edge background */
+    /* Mobile page header — breaks out of main padding for edge-to-edge background.
+       env-bar above already absorbs env(safe-area-inset-top), so page-header must NOT
+       re-apply it — that causes the double-inset gap (defect 4). */
     .page-header {
         position: sticky;
         top: 0;
@@ -1005,9 +1007,8 @@ h3:focus,
         border-bottom: 1px solid var(--bs-border-color);
         margin: 0 -0.75rem;
         padding: 0 0.75rem;
-        padding-top: env(safe-area-inset-top, 0px);
         margin-bottom: 0.75rem;
-        min-height: calc(44px + env(safe-area-inset-top, 0px));
+        min-height: 44px;
     }
     .page-header .page-header-inner {
         min-height: 44px;
@@ -3497,8 +3498,8 @@ body.coach-open .toast-container-ss {
     bottom: 0;
     right: 0;
     z-index: 1050;
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr) auto;
     background: var(--bs-body-bg);
     border-left: 1px solid var(--bs-border-color);
     border-top: 1px solid var(--bs-border-color);
@@ -3506,6 +3507,21 @@ body.coach-open .toast-container-ss {
     overflow: hidden;
     /* Safe area */
     padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* --- Sam backdrop (mobile modal only) --- */
+.sam-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1045;
+    background: rgba(0, 0, 0, 0.55);
+    pointer-events: auto;
+}
+
+/* Modal appearance: distinct surface from the page behind the scrim */
+.sam-panel--modal {
+    border: 1px solid var(--bs-border-color);
+    box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.25);
 }
 
 /* Compact and expanded are FIXED heights, which is what makes them predictable — and what put
@@ -3556,7 +3572,10 @@ body.coach-open .toast-container-ss {
     border-radius: 0;
     border-left: none;
     border-top: none;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
     padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
 }
 
 /* The reading measure still applies at full width: a 2560px monitor would otherwise produce
@@ -3571,12 +3590,13 @@ body.coach-open .toast-container-ss {
 
 /* --- Panel header --- */
 .sam-panel__header {
+    grid-row: 1;
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 0.5rem 0.75rem;
     border-bottom: 1px solid var(--bs-border-color);
-    flex-shrink: 0;
+    overflow: hidden;
 }
 
 .sam-panel__title {
@@ -3666,19 +3686,20 @@ body.coach-open .toast-container-ss {
     outline-offset: -2px;
 }
 
-/* --- Panel body (chat + composer) --- */
+/* --- Panel body (chat) --- */
 .sam-panel__body {
+    grid-row: 2;
     display: flex;
     flex-direction: column;
-    flex: 1;
     overflow: hidden;
     min-height: 0;
 }
 
 .sam-panel__composer {
-    flex-shrink: 0;
+    grid-row: 3;
     border-top: 1px solid var(--bs-border-color);
     padding: 0.5rem;
+    overflow: hidden;
 }
 
 /* --- Responsive: small viewports get full-width panel --- */

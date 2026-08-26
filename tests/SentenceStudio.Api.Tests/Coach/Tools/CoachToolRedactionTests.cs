@@ -103,6 +103,7 @@ public class CoachToolRedactionTests
                 new RecordingPlanGenerator(_ => null),
                 new DefaultCoachPlanPreviewFailureAdapter(),
                 fixture.Dates),
+            fixture.HistorySummaryTool,
             CoachToolTestFixture.CoreOnlyRegistry(),
             CoachToolTestFixture.NullServiceProvider())
             .CreateTools();

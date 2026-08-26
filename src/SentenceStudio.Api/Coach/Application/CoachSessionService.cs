@@ -12,6 +12,7 @@ using SentenceStudio.Api.Coach.Validation;
 using SentenceStudio.Contracts.Coach;
 using SentenceStudio.Contracts.Coach.Intent;
 using SentenceStudio.Services.Plans;
+using SentenceStudio.Application.Practice;
 
 namespace SentenceStudio.Api.Coach.Application;
 
@@ -110,6 +111,12 @@ public sealed class CoachSessionService : ICoachSessionService
     /// The referent-loss predicate, when this host has one.
     /// </summary>
     private readonly Opportunities.Detection.CoachUnboundAnswerDetector? _unboundAnswers;
+
+    /// <summary>
+    /// The practice history query. Used by the deterministic latest-study route to call
+    /// the same application query as the tool path, without going through the model.
+    /// </summary>
+    private readonly IPracticeHistoryQueries? _practiceHistory;
 
     /// <summary>
     /// Every scoped read this turn made. Optional so a host or a test that wires no seam still
@@ -237,6 +244,7 @@ public sealed class CoachSessionService : ICoachSessionService
         Operations.CoachWriteOperationService? writeLedger = null,
         Opportunities.ICoachOpportunityRecorder? opportunities = null,
         Opportunities.Detection.CoachUnboundAnswerDetector? unboundAnswers = null,
+        IPracticeHistoryQueries? practiceHistory = null,
         Tools.Observation.ICoachTurnObservationBuffer? observations = null,
         Validation.Claims.CoachTurnGroundingEvaluator? grounding = null,
         CoachDisputeCoordinator? disputes = null,
@@ -250,6 +258,7 @@ public sealed class CoachSessionService : ICoachSessionService
         _writeLedger = writeLedger;
         _opportunities = opportunities ?? Opportunities.NullCoachOpportunityRecorder.Instance;
         _unboundAnswers = unboundAnswers;
+        _practiceHistory = practiceHistory;
         _userScope = userScope;
         _dateContext = dateContext;
         _planService = planService;
@@ -775,6 +784,15 @@ public sealed class CoachSessionService : ICoachSessionService
             return shortcut;
         }
 
+        // Deterministic latest-study route: the learner is asking when they last practiced.
+        // Runs before the model, budget, and run-lease — no tokens, no run charged.
+        var latestStudy = CoachLatestStudyClassifier.Classify(request.Text);
+        if (latestStudy is not null && _practiceHistory is not null)
+        {
+            return await HandleLatestStudyAsync(
+                userProfileId, session, request, latestStudy, cancellationToken).ConfigureAwait(false);
+        }
+
         if (_runs.IsRunning(userProfileId, sessionId))
         {
             return CoachOperationResult<CoachTurnResponse>.Problem(
@@ -1099,6 +1117,160 @@ public sealed class CoachSessionService : ICoachSessionService
             request.ExpectedPlanVersion,
             request.ClientTurnId,
             cancellationToken).ConfigureAwait(false);
+    }
+
+    // ─── Deterministic latest-study route ───────────────────────────────────
+
+    /// <summary>
+    /// Handles a latest-study question or correction without calling the model.
+    /// Calls the same <see cref="IPracticeHistoryQueries.GetLastPracticeUtcAsync"/> application
+    /// query as the tool path, composes a deterministic answer with proper evidence scope,
+    /// and completes the durable turn pipeline.
+    /// </summary>
+    private async Task<CoachOperationResult<CoachTurnResponse>> HandleLatestStudyAsync(
+        string userProfileId,
+        CoachSession session,
+        CoachTurnRequest request,
+        CoachLatestStudyClassifier.LatestStudyMatch match,
+        CancellationToken cancellationToken)
+    {
+        var isCorrection = match.Kind == CoachLatestStudyClassifier.LatestStudyMatchKind.Correction;
+
+        // Call the same application query the tool uses
+        DateTime? lastUtc;
+        try
+        {
+            lastUtc = await _practiceHistory!.GetLastPracticeUtcAsync(userProfileId, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "[Coach] Session {SessionId}: latest-study data read failed.", session.Id);
+            return CoachOperationResult<CoachTurnResponse>.Problem(
+                CoachOperationStatus.Failed, CoachProblemTypes.ToolFailure,
+                "Unable to read practice history.");
+        }
+
+        // Convert to user-local date, same as PracticeHistorySummaryTool
+        DateOnly? lastLocal = lastUtc.HasValue ? _dateContext.ToUserLocal(lastUtc.Value) : null;
+        int? daysSince = lastLocal.HasValue
+            ? _dateContext.UserLocalDate.DayNumber - lastLocal.Value.DayNumber
+            : null;
+
+        // Resolve language profile for the answer
+        var langProfile = await _languages.ResolveAsync(cancellationToken).ConfigureAwait(false);
+
+        // Compose the deterministic answer text
+        var answerText = CoachDeterministicCopy.ComposeLatestStudyAnswer(
+            lastLocal, daysSince, isCorrection, langProfile.DisplayLanguageTag);
+
+        // Build a valid CoachAnswerDto
+        var answer = new CoachAnswerDto
+        {
+            Topic = CoachAnswerTopic.StudyStrategy,
+            Blocks =
+            [
+                new CoachAnswerBlockDto
+                {
+                    Kind = CoachAnswerBlockKind.Answer,
+                    Label = null,
+                    Spans =
+                    [
+                        new CoachAnswerSpanDto
+                        {
+                            Text = answerText,
+                            Language = CoachLanguageRole.Display,
+                            LanguageTag = langProfile.DisplayLanguageTag
+                        }
+                    ]
+                }
+            ],
+            PlainText = answerText,
+            TargetLanguageTag = langProfile.TargetLanguageTag,
+            DisplayLanguageTag = langProfile.DisplayLanguageTag,
+            EndsWithRecallQuestion = false
+        };
+
+        // Build evidence scope matching the tool path
+        var scope = new Tools.CoachResultScope
+        {
+            Coverage = Tools.CoachScopeCoverage.DerivedProjection,
+            Order = Tools.CoachScopeOrder.NotApplicable,
+            OrderHonored = true,
+            TieBreak = Tools.CoachScopeTieBreak.NotApplicable,
+            Filters = Tools.CoachScopeFilters.OwnerScoped,
+            MinimumEvidence = Tools.CoachScopeMinimumEvidence.None,
+            AsOfUtc = _dateContext.UtcNow,
+            ReturnedCount = lastLocal.HasValue ? 1 : 0,
+            MatchedCount = lastLocal.HasValue ? 1 : 0,
+            EligiblePopulationCount = lastLocal.HasValue ? 1 : 0,
+            WithheldCount = 0,
+            WithheldReason = Tools.CoachScopeWithheldReason.None,
+            Truncated = false,
+            DefinitionCode = Tools.CoachScopeDefinition.LatestPracticeSummary,
+            ClockBasis = Tools.CoachScopeClockBasis.LearnerLocalDay,
+            ReferenceMode = Tools.CoachScopeReferenceMode.AsOfInstant
+        };
+
+        // Build evidence DTO from the scope
+        var evidence = new List<CoachEvidenceDto>
+        {
+            new()
+            {
+                Kind = CoachEvidenceKind.PracticeBalance,
+                Label = "Practice balance",
+                Summary = lastLocal.HasValue
+                    ? $"Last practice: {lastLocal.Value:yyyy-MM-dd}"
+                    : "No practice records found",
+                WindowStartDate = lastLocal ?? _dateContext.UserLocalDate,
+                WindowEndDate = _dateContext.UserLocalDate,
+                Coverage = CoachEvidenceCoverage.DerivedProjection,
+                Order = CoachEvidenceOrder.NotApplicable,
+                DefinitionCode = CoachDefinitionCode.LatestPracticeSummary,
+                AsOfUtc = _dateContext.UtcNow,
+                Values = lastLocal.HasValue && daysSince.HasValue
+                    ? [new CoachEvidenceValueDto
+                    {
+                        Code = CoachEvidenceValueCode.RowsRead,
+                        Label = "Rows read",
+                        Value = 1,
+                        Unit = CoachEvidenceUnit.Items
+                    }]
+                    : []
+            }
+        };
+
+        // Complete the durable turn pipeline
+        var plan = await _planService.GetTodaySnapshotAsync(cancellationToken).ConfigureAwait(false);
+
+        await RecordTurnOutcomeAsync(
+            userProfileId, session, CoachSessionStatus.Active,
+            stopReason: null, cancellationToken).ConfigureAwait(false);
+
+        _logger.LogInformation(
+            "[Coach] Session {SessionId}: deterministic latest-study route; " +
+            "kind={MatchKind}, hasData={HasData}.",
+            session.Id, match.Kind, lastLocal.HasValue);
+
+        var response = await BuildTurnResponseAsync(
+            userProfileId, session, plan,
+            CoachTurnStatus.Completed, CoachStopReason.Completed,
+            CoachSessionStatus.Active,
+            messages: [CoachMessage(CoachMessageKind.PedagogicalAnswer, answer.PlainText)],
+            pendingSuggestion: await LoadPendingAsync(userProfileId, session, cancellationToken).ConfigureAwait(false),
+            receipt: null,
+            evidence: evidence,
+            clarifyingQuestion: null,
+            cancellationToken,
+            answer: answer).ConfigureAwait(false);
+
+        _idempotency.Store(userProfileId, session.Id, request.ClientTurnId, response);
+
+        return CoachOperationResult<CoachTurnResponse>.Ok(response);
     }
 
     /// <summary>
@@ -1640,8 +1812,11 @@ public sealed class CoachSessionService : ICoachSessionService
                 : CoachViolationKind.IntentShape;
 
             _logger.LogWarning(
-                "[Coach] Session {SessionId}: the intent failed {ViolationCount} validation rule(s); nothing was written.",
-                session.Id, intentValidation.Violations.Count);
+                "[Coach] Session {SessionId}: the intent failed {ViolationCount} validation rule(s); " +
+                "codes: [{ViolationCodes}]. Nothing was written.",
+                session.Id,
+                intentValidation.Violations.Count,
+                string.Join(", ", intentValidation.Violations.Select(v => $"{v.Kind}:{v.Code}")));
 
             // A malformed model answer is the model's problem, not the learner's. An open
             // suggestion survives it: dropping the offer here is how a plain "yes" that the
@@ -1657,7 +1832,7 @@ public sealed class CoachSessionService : ICoachSessionService
                 userProfileId, session, plan,
                 CoachTurnStatus.Rejected, CoachStopReason.ValidationFailed,
                 StatusWithPending(session),
-                messages: [CoachMessage(CoachMessageKind.Notice, "I could not use that answer. Today's Plan is unchanged.")],
+                messages: [CoachMessage(CoachMessageKind.Notice, CoachDeterministicCopy.ValidationFailedNotice(intent.Kind))],
                 pendingSuggestion: stillPending, receipt: null, evidence: [], clarifyingQuestion: null,
                 cancellationToken).ConfigureAwait(false));
         }
@@ -1873,7 +2048,7 @@ public sealed class CoachSessionService : ICoachSessionService
             userProfileId, session, plan,
             CoachTurnStatus.Rejected, CoachStopReason.ValidationFailed,
             stillPending is null ? CoachSessionStatus.Active : CoachSessionStatus.SuggestionPending,
-            messages: [CoachMessage(CoachMessageKind.Notice, "I could not verify that change. Today's Plan is unchanged.")],
+            messages: [CoachMessage(CoachMessageKind.Notice, CoachDeterministicCopy.ValidationFailedNeutral)],
             pendingSuggestion: null, receipt: null, evidence: [], clarifyingQuestion: null,
             cancellationToken).ConfigureAwait(false));
     }
@@ -1945,7 +2120,7 @@ public sealed class CoachSessionService : ICoachSessionService
             userProfileId, session, plan,
             CoachTurnStatus.Rejected, CoachStopReason.ValidationFailed,
             stillPending is null ? CoachSessionStatus.Active : CoachSessionStatus.SuggestionPending,
-            messages: [CoachMessage(CoachMessageKind.Notice, "I could not use that answer. Today\u2019s Plan is unchanged.")],
+            messages: [CoachMessage(CoachMessageKind.Notice, CoachDeterministicCopy.ValidationFailedNeutral)],
             pendingSuggestion: null, receipt: null, evidence: [], clarifyingQuestion: null,
             cancellationToken).ConfigureAwait(false));
     }
@@ -2857,7 +3032,7 @@ public sealed class CoachSessionService : ICoachSessionService
                 CoachTurnStatus.Incomplete, CoachStopReason.ClarificationRequested,
                 StatusWithPending(session),
                 messages: [CoachMessage(CoachMessageKind.Notice,
-                    "I still could not tell what to change, so Today's Plan is unchanged.")],
+                    CoachDeterministicCopy.ValidationFailedNotice(intent.Kind))],
                 pendingSuggestion: await LoadPendingAsync(userProfileId, session, cancellationToken).ConfigureAwait(false),
                 receipt: null, evidence: [], clarifyingQuestion: null,
                 cancellationToken).ConfigureAwait(false));
@@ -3515,15 +3690,11 @@ public sealed class CoachSessionService : ICoachSessionService
 
         var message = stopReason switch
         {
-            CoachStopReason.Timeout => "That took too long, so Today's Plan is unchanged.",
-            CoachStopReason.Cancelled => "I stopped. Today's Plan is unchanged.",
-            // Distinct from a failure so an operator reading a session, and a learner reading
-            // the chat, can tell a refused answer apart from a run that never produced one.
-            CoachStopReason.ValidationFailed =>
-                "I could not read that answer, so Today's Plan is unchanged. Please try again.",
-            CoachStopReason.OutputTokenLimit =>
-                "That answer ran out of room, so Today's Plan is unchanged. Please try again.",
-            _ => "I could not finish that. Today's Plan is unchanged."
+            CoachStopReason.Timeout => CoachDeterministicCopy.IncompleteNeutral,
+            CoachStopReason.Cancelled => CoachDeterministicCopy.IncompleteNeutral,
+            CoachStopReason.ValidationFailed => CoachDeterministicCopy.ValidationFailedNeutral,
+            CoachStopReason.OutputTokenLimit => CoachDeterministicCopy.IncompleteNeutral,
+            _ => CoachDeterministicCopy.IncompleteNeutral
         };
 
         // Record why the turn ended. Without this the session row keeps a null StopReason, so

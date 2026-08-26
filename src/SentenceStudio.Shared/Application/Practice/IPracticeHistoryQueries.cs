@@ -98,4 +98,13 @@ public interface IPracticeHistoryQueries
         string userProfileId,
         DateTime planDateUtc,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Returns the UTC timestamp of the learner's most recent recorded practice — the latest
+    /// across plan-item completions and free-form activity attempts. Returns <c>null</c> when the
+    /// learner has never practised.
+    /// </summary>
+    Task<DateTime?> GetLastPracticeUtcAsync(
+        string userProfileId,
+        CancellationToken cancellationToken = default);
 }

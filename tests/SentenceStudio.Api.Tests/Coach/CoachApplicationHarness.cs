@@ -10,6 +10,7 @@ using SentenceStudio.Api.Coach.Persistence;
 using SentenceStudio.Api.Coach.Runtime;
 using SentenceStudio.Api.Coach.Telemetry;
 using SentenceStudio.Api.Coach.Validation;
+using SentenceStudio.Application.Practice;
 using SentenceStudio.Contracts.Coach;
 using SentenceStudio.Contracts.Coach.Intent;
 using SentenceStudio.Contracts.Plans;
@@ -39,7 +40,8 @@ internal sealed class CoachApplicationHarness : IDisposable
         bool withMemory = false,
         ILoggerProvider? loggerProvider = null,
         SentenceStudio.Api.Coach.Opportunities.ICoachOpportunityRecorder? opportunities = null,
-        bool withUnboundAnswerDetector = false)
+        bool withUnboundAnswerDetector = false,
+        IPracticeHistoryQueries? practiceHistory = null)
     {
         // Real loggers only when a test asks for them, so the default harness stays quiet and a
         // leak test can prove what was never written.
@@ -188,6 +190,7 @@ internal sealed class CoachApplicationHarness : IDisposable
             writeLedger: null,
             opportunities: Opportunities,
             unboundAnswers: UnboundAnswers,
+            practiceHistory: practiceHistory,
             observations: Observations,
             grounding: Grounding,
             disputes: Disputes);

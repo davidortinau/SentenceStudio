@@ -76,6 +76,12 @@ public static class CoachOpportunityCapabilityCodes
     /// <summary>The model's answer did not deserialize into a turn intent at all.</summary>
     public const string ModelOutputUnreadable = "model_output_unreadable";
 
+    /// <summary>The model produced no pedagogical answer when one was required.</summary>
+    public const string AnswerRequired = "answer_required";
+
+    /// <summary>The model cited an evidence reference that does not match any completed read.</summary>
+    public const string EvidenceReferenceInvalid = "evidence_reference_invalid";
+
     /// <summary>A write proposal's arguments failed validation for the tool's declared shape.</summary>
     public const string WriteArgumentsInvalid = "write_arguments_invalid";
 
@@ -210,6 +216,8 @@ public static class CoachOpportunityCapabilityCodes
         IntentShapeInvalid,
         AnswerShapeInvalid,
         ModelOutputUnreadable,
+        AnswerRequired,
+        EvidenceReferenceInvalid,
         WriteArgumentsInvalid,
         AnswerLeakRefusal,
         NoFeasiblePlan,

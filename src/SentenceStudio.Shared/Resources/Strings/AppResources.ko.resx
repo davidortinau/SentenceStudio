@@ -7883,6 +7883,10 @@
     <value>내 데이터를 바탕으로 계산한 계획입니다. 저장된 것은 없습니다.</value>
     <comment>Coach evidence: what was consulted.</comment>
   </data>
+  <data name="Coach_EvidenceDefinition_LatestPracticeSummary" xml:space="preserve">
+    <value>가장 최근 연습 세션과 마지막으로 공부한 시점입니다.</value>
+    <comment>Coach evidence: what was consulted.</comment>
+  </data>
   <data name="Coach_EvidenceValue_RowsRead" xml:space="preserve">
     <value>읽은 행 수</value>
     <comment>Coach evidence: label for the count of rows the fact was computed from.</comment>

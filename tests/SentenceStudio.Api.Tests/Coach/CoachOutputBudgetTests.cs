@@ -207,7 +207,8 @@ public class CoachOutputBudgetTests
 
         result.Value!.Status.Should().Be(CoachTurnStatus.Incomplete);
         result.Value.StopReason.Should().Be(CoachStopReason.OutputTokenLimit);
-        result.Value.Messages.Single().Text.Should().Contain("ran out of room");
+        // R5: neutral copy replaces Plan-biased "ran out of room" per Zoe-approved design.
+        result.Value.Messages.Single().Text.Should().Be(CoachDeterministicCopy.IncompleteNeutral);
 
         // The learner's plan is untouched and the session records why the turn ended.
         harness.PlanService.ApplyCallCount.Should().Be(0);

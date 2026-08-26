@@ -111,7 +111,8 @@ public class CoachEvidenceWireContractTests
             ["TrackedVocabularyDueSummary"] = 6, ["UndueVocabularySearch"] = 7,
             ["TrackedVocabularyDetail"] = 8, ["LearnerSettingsSnapshot"] = 9,
             ["LearnerOverviewSummary"] = 10, ["PlanDaySummary"] = 11,
-            ["PracticeWindowBalance"] = 12, ["DeterministicPlanPreview"] = 13
+            ["PracticeWindowBalance"] = 12, ["DeterministicPlanPreview"] = 13,
+            ["LatestPracticeSummary"] = 14
         });
 
         // The one enum whose ordinals deliberately differ from the server's. None must not sit at

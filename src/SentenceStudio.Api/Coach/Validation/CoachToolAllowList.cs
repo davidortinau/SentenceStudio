@@ -43,7 +43,7 @@ public sealed class CoachToolAllowList
 
     /// <summary>The allowed tool names, from the registry if available, otherwise the core five.</summary>
     private IReadOnlyList<string> AllowedNames =>
-        _registry?.EnabledNames ?? (IReadOnlyList<string>)CoachToolNames.CoreFive;
+        _registry?.EnabledNames ?? (IReadOnlyList<string>)CoachToolNames.All;
 
     /// <summary>Checks the tool set the application is about to give the model.</summary>
     public CoachValidationResult Validate(IEnumerable<AIFunction> tools)

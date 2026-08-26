@@ -168,7 +168,10 @@ public enum CoachDefinitionCode
     PracticeWindowBalance = 12,
 
     /// <summary>A plan the planner produced without writing anything.</summary>
-    DeterministicPlanPreview = 13
+    DeterministicPlanPreview = 13,
+
+    /// <summary>The learner's most recent practice date and days-since count.</summary>
+    LatestPracticeSummary = 14
 }
 
 /// <summary>

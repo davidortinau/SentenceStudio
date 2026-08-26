@@ -19,12 +19,12 @@ import assert from 'node:assert/strict';
 // ---------------------------------------------------------------- DOM double
 
 /**
- * Just enough of an element to answer `closest`, which is the only thing the module asks of a
- * press target.
+ * Just enough of an element to answer `closest` and `setAttribute`/`removeAttribute`/`getAttribute`,
+ * which is what the module asks of a press target and of the app shell element.
  */
 class MockNode {
     constructor(attributes = {}) {
-        this.attributes = attributes;
+        this.attributes = { ...attributes };
         this.parentElement = null;
     }
 
@@ -33,10 +33,22 @@ class MockNode {
         return child;
     }
 
+    setAttribute(name, value) { this.attributes[name] = value; }
+    removeAttribute(name) { delete this.attributes[name]; }
+    getAttribute(name) { return this.attributes[name] ?? null; }
+    hasAttribute(name) { return Object.prototype.hasOwnProperty.call(this.attributes, name); }
+
     matches(selector) {
-        // The only selector the module uses is a bare attribute presence test.
-        const name = selector.replace(/^\[|\]$/g, '');
-        return Object.prototype.hasOwnProperty.call(this.attributes, name);
+        // Supports bare attribute presence [attr] and class selectors .class
+        if (selector.startsWith('[') && selector.endsWith(']')) {
+            const name = selector.slice(1, -1);
+            return this.hasAttribute(name);
+        }
+        if (selector.startsWith('.')) {
+            const cls = selector.slice(1);
+            return (this.attributes['class'] || '').split(/\s+/).includes(cls);
+        }
+        return false;
     }
 
     closest(selector) {
@@ -63,15 +75,22 @@ class DotNetDouble {
 }
 
 let keyListeners;
+let _mainContentElement;
 
 function installDom() {
     keyListeners = [];
+    _mainContentElement = new MockNode({ class: 'main-content' });
 
     globalThis.document = {
         addEventListener: (type, fn) => { if (type === 'keydown') keyListeners.push(fn); },
         removeEventListener: (type, fn) => {
             if (type === 'keydown') keyListeners = keyListeners.filter(f => f !== fn);
-        }
+        },
+        querySelector: (selector) => {
+            if (selector === '.main-content') return _mainContentElement;
+            return null;
+        },
+        getElementById: () => null
     };
 
     globalThis.window = {
@@ -80,6 +99,9 @@ function installDom() {
         innerWidth: 1280
     };
 }
+
+/** Returns the mock `.main-content` element for assertions. */
+function getMainContent() { return _mainContentElement; }
 
 /** Dispatches a keydown the way the browser would, to every registered listener. */
 function press(key, target) {
@@ -90,7 +112,7 @@ function press(key, target) {
 
 installDom();
 
-const { escapeIsOwnedByInnerSurface, initSamOverlay, disposeSamOverlay } =
+const { escapeIsOwnedByInnerSurface, initSamOverlay, disposeSamOverlay, setAppShellInert } =
     await import('../../src/SentenceStudio.UI/wwwroot/js/sam-overlay.js');
 
 // ================================================================ the ownership test itself
@@ -190,5 +212,54 @@ describe('sam-overlay escape listener', () => {
         press('Escape', new MockNode());
 
         assert.equal(dotNet.escapes, 2, 'two presses, two layers — never two layers on one press');
+    });
+});
+
+// ================================================================ setAppShellInert
+
+describe('setAppShellInert', () => {
+    beforeEach(() => installDom());
+    afterEach(() => disposeSamOverlay());
+
+    it('sets inert attribute on .main-content when true', () => {
+        setAppShellInert(true);
+        const el = getMainContent();
+        assert.equal(el.hasAttribute('inert'), true);
+    });
+
+    it('removes inert attribute on .main-content when false', () => {
+        const el = getMainContent();
+        el.setAttribute('inert', '');
+        setAppShellInert(false);
+        assert.equal(el.hasAttribute('inert'), false);
+    });
+
+    it('tolerates missing .main-content without throwing', () => {
+        // Replace querySelector to return null
+        globalThis.document.querySelector = () => null;
+        assert.doesNotThrow(() => setAppShellInert(true));
+        assert.doesNotThrow(() => setAppShellInert(false));
+    });
+
+    it('dispose always clears inert even if it was set', () => {
+        const dotNet = new DotNetDouble();
+        initSamOverlay(dotNet);
+        setAppShellInert(true);
+        disposeSamOverlay();
+        assert.equal(getMainContent().hasAttribute('inert'), false);
+    });
+
+    it('does not leak inert state between init/dispose cycles', () => {
+        const dotNet = new DotNetDouble();
+        initSamOverlay(dotNet);
+        setAppShellInert(true);
+        disposeSamOverlay();
+
+        // Fresh cycle
+        installDom();
+        initSamOverlay(new DotNetDouble());
+        assert.equal(getMainContent().hasAttribute('inert'), false,
+            'new cycle starts with clean inert state');
+        disposeSamOverlay();
     });
 });

@@ -35,7 +35,8 @@ internal sealed class CoachConversationHarness : IDisposable
         bool durableHistory = true,
         SentenceStudio.Api.Coach.Opportunities.ICoachOpportunityRecorder? opportunities = null,
         bool withUnboundAnswerDetector = false,
-        int maxRunsPerDay = 50)
+        int maxRunsPerDay = 50,
+        SentenceStudio.Application.Practice.IPracticeHistoryQueries? practiceHistory = null)
     {
         App = new CoachApplicationHarness(
             new CoachOptions
@@ -48,7 +49,8 @@ internal sealed class CoachConversationHarness : IDisposable
             },
             withHistory: true,
             opportunities: opportunities,
-            withUnboundAnswerDetector: withUnboundAnswerDetector);
+            withUnboundAnswerDetector: withUnboundAnswerDetector,
+            practiceHistory: practiceHistory);
 
         Conversations = App.Persistence.NewConversationStore(App.Db);
         Messages = App.Persistence.NewMessageStore(App.Db);

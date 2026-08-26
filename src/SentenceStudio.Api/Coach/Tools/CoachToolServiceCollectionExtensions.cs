@@ -47,6 +47,7 @@ public static class CoachToolServiceCollectionExtensions
         services.TryAddScoped<VocabularyDueSummaryTool>();
         services.TryAddScoped<ResourceCatalogTool>();
         services.TryAddScoped<PreviewPracticePlanTool>();
+        services.TryAddScoped<PracticeHistorySummaryTool>();
 
         // Sam read tools (scoped: each request resolves its own user scope)
         services.TryAddScoped<SamTools.VocabularySearchTool>();

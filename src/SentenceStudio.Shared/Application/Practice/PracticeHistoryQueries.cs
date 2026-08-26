@@ -139,6 +139,38 @@ public sealed class PracticeHistoryQueries : IPracticeHistoryQueries
             .ToListAsync(cancellationToken);
     }
 
+    public async Task<DateTime?> GetLastPracticeUtcAsync(
+        string userProfileId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!HasOwner(userProfileId, nameof(GetLastPracticeUtcAsync)))
+        {
+            return null;
+        }
+
+        using var lease = DbLease.Open(_serviceProvider);
+
+        // Max date across plan-item completions and free-form activity attempts —
+        // the same source of truth PracticeBalanceTool aggregates over a window.
+        var lastCompletion = await lease.Db.DailyPlanCompletions
+            .AsNoTracking()
+            .Where(c => c.UserProfileId == userProfileId)
+            .MaxAsync(c => (DateTime?)c.Date, cancellationToken);
+
+        var lastAttempt = await lease.Db.UserActivities
+            .AsNoTracking()
+            .Where(a => a.UserProfileId == userProfileId)
+            .MaxAsync(a => (DateTime?)a.CreatedAt, cancellationToken);
+
+        return (lastCompletion, lastAttempt) switch
+        {
+            (null, null) => null,
+            (null, { } b) => b,
+            ({ } a, null) => a,
+            ({ } a, { } b) => a > b ? a : b
+        };
+    }
+
     private bool HasOwner(string userProfileId, string method)
     {
         if (!string.IsNullOrWhiteSpace(userProfileId))

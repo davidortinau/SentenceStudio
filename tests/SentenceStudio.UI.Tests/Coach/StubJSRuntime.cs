@@ -17,6 +17,20 @@ internal sealed class StubJSRuntime : IJSRuntime
     /// <summary>Every identifier invoked, in order, including on imported modules.</summary>
     public List<string> Invocations { get; } = [];
 
+    /// <summary>
+    /// Every module invocation with its arguments, in order. Additive companion to
+    /// <see cref="Invocations"/> so tests that need to inspect args (e.g. proving
+    /// <c>focusElement</c> was called with <c>{ preventScroll: true }</c>) can do so without any
+    /// existing caller having to change.
+    /// </summary>
+    public List<(string Identifier, object?[]? Args)> ModuleCalls { get; } = new();
+
+    /// <summary>The first argument of the first call to <paramref name="identifier"/>, if any.</summary>
+    public object? FirstArgOf(string identifier) => ModuleCalls
+        .Where(c => c.Identifier == identifier)
+        .Select(c => c.Args?.FirstOrDefault())
+        .FirstOrDefault();
+
     /// <summary>The text passed to the most recent clipboard call.</summary>
     public string? LastCopiedText { get; private set; }
 
@@ -47,6 +61,7 @@ internal sealed class StubJSRuntime : IJSRuntime
     internal ValueTask<TValue> InvokeModuleAsync<TValue>(string identifier, object?[]? args)
     {
         Invocations.Add(identifier);
+        ModuleCalls.Add((identifier, args));
 
         if (identifier == "copyTextToClipboard")
         {

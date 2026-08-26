@@ -104,7 +104,7 @@ public sealed class CoachReadCapabilityMetadataValidatorTests
 
         var declarations = Regex.Matches(source, @"MaxPageSize:\s*(?<value>[^,\r\n]+)");
         declarations.Count.Should().Be(
-            14, "every row in the table states a page size, present or absent");
+            15, "every row in the table states a page size, present or absent");
 
         var cited = 0;
         var absent = 0;
@@ -125,7 +125,7 @@ public sealed class CoachReadCapabilityMetadataValidatorTests
         }
 
         cited.Should().Be(5);
-        absent.Should().Be(9);
+        absent.Should().Be(10);
     }
 
     [Fact]

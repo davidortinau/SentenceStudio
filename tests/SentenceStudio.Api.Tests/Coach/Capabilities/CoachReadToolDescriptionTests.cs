@@ -36,10 +36,10 @@ public class CoachReadToolDescriptionTests
         // Recorded here rather than reconciled silently — flagged for Simon.
         var reads = ReadTools();
 
-        reads.Should().HaveCount(14);
+        reads.Should().HaveCount(15);
         reads.Count(r => r.Name == CoachToolNames.PreviewPracticePlan).Should().Be(1);
         reads.Count(r => r.Name != CoachToolNames.PreviewPracticePlan)
-            .Should().Be(13, "the other thirteen read stored rows");
+            .Should().Be(14, "the other fourteen read stored rows");
     }
 
     [Fact]
