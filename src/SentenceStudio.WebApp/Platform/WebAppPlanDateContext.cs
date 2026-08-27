@@ -11,6 +11,13 @@ namespace SentenceStudio.WebApp.Platform;
 ///   (a) no authenticated user in the current circuit/request, or
 ///   (b) the user has not yet captured their timezone (IanaTimeZoneId is null).
 ///
+/// Logging carries only the SHAPE of the resolution — whether a profile was found and which
+/// IANA id it yielded. The learner's profile id is deliberately absent from both the rendered
+/// message and the structured state: these lines fire on every plan-date-sensitive request,
+/// including every /api/v1/coach/* call, and the coach telemetry contract forbids user or
+/// tenant identifiers in telemetry. That contract is about what reaches the log sink, not about
+/// which namespace emitted it.
+///
 /// Registered as Transient (see WebApp/Program.cs) so it is compatible with the
 /// singleton plan services that capture or root-resolve IPlanDateContext. The
 /// current user is resolved via CircuitUserStateAccessor (AsyncLocal), so a
@@ -64,26 +71,28 @@ public sealed class WebAppPlanDateContext : IPlanDateContext
                 {
                     zone = resolved;
                     logger.LogDebug(
-                        "WebAppPlanDateContext: resolved timezone '{IanaId}' for user '{UserId}'",
-                        ianaId, userProfileId);
+                        "WebAppPlanDateContext: timezone resolved. ProfileResolved={ProfileResolved}, IanaId={IanaId}",
+                        true, ianaId);
                 }
                 else
                 {
                     logger.LogDebug(
-                        "WebAppPlanDateContext: user '{UserId}' has no IanaTimeZoneId — falling back to UTC",
-                        userProfileId);
+                        "WebAppPlanDateContext: no timezone on the learner profile; using UTC. ProfileResolved={ProfileResolved}",
+                        true);
                 }
             }
             catch (Exception ex)
             {
                 logger.LogWarning(ex,
-                    "WebAppPlanDateContext: failed to read timezone for user '{UserId}' — falling back to UTC",
-                    userProfileId);
+                    "WebAppPlanDateContext: timezone lookup failed; using UTC. ProfileResolved={ProfileResolved}",
+                    true);
             }
         }
         else
         {
-            logger.LogDebug("WebAppPlanDateContext: no authenticated user — using UTC");
+            logger.LogDebug(
+                "WebAppPlanDateContext: no authenticated learner; using UTC. ProfileResolved={ProfileResolved}",
+                false);
         }
 
         _inner = new PlanDateContext(zone);

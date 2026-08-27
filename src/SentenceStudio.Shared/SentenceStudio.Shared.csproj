@@ -57,13 +57,20 @@
 		<PackageReference Include="CoreSync.Http.Client" />
 		<PackageReference Include="CoreSync.Sqlite" />
 		<PackageReference Include="ElevenLabs-DotNet" />
-		<PackageReference Include="Microsoft.Agents.AI" />
-		<PackageReference Include="Microsoft.Agents.AI.OpenAI" />
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Design">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+		<!-- Microsoft.Extensions.AI (IChatClient + GetResponseAsync<T>) and the OpenAI client
+		     types used by AiService/AiClient/AiClientRegistration used to arrive transitively
+		     through Microsoft.Agents.AI(.OpenAI). Those preview-era agent packages were removed
+		     with the unused ConversationAgentService path, so the dependency is now explicit.
+		     Versions are centrally managed (Directory.Packages.props, "AI / Agents"); this
+		     project must NOT reference Microsoft.Agents.AI* — ConversationAgentRemovalTests
+		     asserts the Shared assembly has no Microsoft.Agents.AI reference. -->
+		<PackageReference Include="Microsoft.Extensions.AI" />
+		<PackageReference Include="Microsoft.Extensions.AI.OpenAI" />
 		<PackageReference Include="Microsoft.Extensions.DependencyInjection" />
 		<PackageReference Include="Microsoft.Extensions.Logging" />
 		<PackageReference Include="NAudio" />
@@ -92,5 +99,45 @@
 			<LogicalName>SentenceStudio.Resources.Strings.AppResources.ko.resources</LogicalName>
 		</EmbeddedResource>
 	</ItemGroup>
+
+	<!--
+		ResXFileCodeGenerator emits an indentation-only line between every generated property, so
+		AppResources.Designer.cs lands in the tree with one trailing-whitespace line per resource.
+		The file is generated INTO the source tree (see StronglyTypedFileName above) and is tracked,
+		so every resx edit regenerates it and reintroduces the whitespace, which fails the
+		whitespace gate. Formatting the file by hand is not durable: the next localization change
+		undoes it.
+
+		This trims the generated file immediately after generation. It is deterministic and
+		idempotent, and rewrites only when the content actually changes, so it does not churn
+		timestamps or force needless rebuilds. It touches only whitespace at end of line: no code,
+		no encoding, no line endings.
+	-->
+	<UsingTask TaskName="TrimTrailingWhitespace"
+	           TaskFactory="RoslynCodeTaskFactory"
+	           AssemblyFile="$(MSBuildToolsPath)\Microsoft.Build.Tasks.Core.dll">
+		<ParameterGroup>
+			<SourceFile ParameterType="System.String" Required="true" />
+		</ParameterGroup>
+		<Task>
+			<Code Type="Fragment" Language="cs"><![CDATA[
+if (System.IO.File.Exists(SourceFile))
+{
+    var original = System.IO.File.ReadAllText(SourceFile);
+    var trimmed = System.Text.RegularExpressions.Regex.Replace(original, @"[ \t]+(\r?\n|$)", "$1");
+
+    if (!string.Equals(original, trimmed, System.StringComparison.Ordinal))
+    {
+        System.IO.File.WriteAllText(SourceFile, trimmed, new System.Text.UTF8Encoding(false));
+    }
+}
+]]></Code>
+		</Task>
+	</UsingTask>
+
+	<Target Name="TrimGeneratedResourceWhitespace" AfterTargets="CoreResGen">
+		<TrimTrailingWhitespace SourceFile="$(MSBuildProjectDirectory)/Resources/Strings/AppResources.Designer.cs"
+		                        Condition="Exists('$(MSBuildProjectDirectory)/Resources/Strings/AppResources.Designer.cs')" />
+	</Target>
 
 </Project>

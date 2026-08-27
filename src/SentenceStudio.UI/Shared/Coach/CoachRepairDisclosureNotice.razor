@@ -1,0 +1,110 @@
+@using SentenceStudio.Contracts.Coach
+@inject BlazorLocalizationService Localize
+
+@*
+    What the grounding layer did to the answer this message carries.
+
+    The defect this closes is the silent repair. An answer can reach the learner with part of it
+    replaced, because what the coach originally wrote was not supported by their own data. Handing
+    that over unmarked is the same failure as the refusal path had before W9: the learner reads a
+    sentence and has no way to know it is not the one the coach produced.
+
+    Five rules.
+
+    1. COUNT-FREE, RULE-FREE. One closed state in, one localized sentence out. No count of findings,
+       no rule code, no span, no server prose. A learner cannot act on "three rules fired", and
+       putting it here would turn a disclosure into an audit log aimed at the wrong reader.
+
+    2. THE TWO SILENT STATES ARE SILENT. None means checked and clean; null means not checked at
+       all. They are different on the wire and a future surface may care, but neither is news to a
+       learner, and a notice that renders on every ordinary turn is a notice nobody reads.
+
+    3. UNKNOWN IS DISCLOSED, NEUTRALLY. A state this build cannot name renders a note that says
+       only that — never a guess at which real state was meant. Silence is the dangerous option
+       here: one of the two real states means part of the answer was rewritten, so saying nothing
+       would hide a rewrite behind a version gap.
+
+    4. NEVER BESIDE A REFUSAL. A refused turn produced no answer, so there is nothing to disclose
+       about. The server sends null there, and the workspace never attaches a disclosure to a
+       refused turn; this component would render nothing even if both failed, because it is given
+       the suppressed value.
+
+    5. NEVER PROMISE EVIDENCE THAT IS NOT THERE. Two of the states point the learner at the
+       evidence for this answer. That pointer is conditional on THIS turn having read something,
+       not on the workspace holding rows from some earlier turn — the workspace list is sticky on
+       purpose, and reading it here sent a learner looking for a panel that belonged to a question
+       they had already been answered.
+
+    STATUS, NOT ALERT. role="status" with aria-live="polite". The answer is still an answer; this is
+    a note about it, not a failure, and interrupting the learner mid-read would misrepresent it.
+
+    HOST-AGNOSTIC. No base URI, no navigation manager, no platform flag.
+*@
+
+@if (Key is { } key)
+{
+    <div class="coach-repair-disclosure ss-caption1 text-secondary-ss mb-2"
+         role="status"
+         aria-live="polite"
+         aria-label="@Localize["Coach_Repair_RegionLabel"]"
+         data-coach-repair="@Disclosure"
+         data-coach-repair-evidence="@(EvidenceOnScreen ? "true" : "false")">
+        @Localize[key]
+    </div>
+}
+
+@code {
+    /// <summary>The disclosure to state. Null and None both render nothing.</summary>
+    [Parameter, EditorRequired] public CoachRepairDisclosure? Disclosure { get; set; }
+
+    /// <summary>
+    /// True when the turn this disclosure describes put its evidence on screen beside this answer.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Turn-scoped, and the caller's job to establish. The two states that mention the evidence
+    /// read differently depending on it, because "have a look at the evidence" beside an answer
+    /// with no evidence is an instruction the learner cannot follow, and following it as far as
+    /// they can lands them on an older turn's rows — which is worse than not being told, because
+    /// they would be reading the wrong answer's working.
+    /// </para>
+    /// <para>
+    /// Deliberately not defaulted to true. A caller that forgets to pass it under-promises, which
+    /// is the safe direction to fail in.
+    /// </para>
+    /// </remarks>
+    [Parameter] public bool EvidenceOnScreen { get; set; }
+
+    /// <summary>
+    /// The sentence for this state, or null for the two that are not news.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <c>None</c> and null render nothing: checked-and-clean and not-checked are the ordinary
+    /// cases, and a notice that fires on every turn is a notice nobody reads.
+    /// </para>
+    /// <para>
+    /// <c>AnswerAltered</c> has one sentence in both columns. It reports what happened to the
+    /// answer and points at nothing, so there is nothing for the evidence flag to change.
+    /// </para>
+    /// <para>
+    /// Everything else — <c>Unknown</c>, and any state a newer server adds that the tolerant
+    /// converter has not collapsed — renders the neutral note. It is the one branch where saying
+    /// nothing is the dangerous option: one of the two real states means part of the answer was
+    /// rewritten, so silence would hide a rewrite behind a version gap. The note says only that
+    /// this build cannot describe what happened, and never that anything changed.
+    /// </para>
+    /// </remarks>
+    private string? Key => Disclosure switch
+    {
+        null => null,
+        CoachRepairDisclosure.None => null,
+        CoachRepairDisclosure.AnswerAltered => "Coach_Repair_AnswerAltered",
+        CoachRepairDisclosure.RepairSuppressedForLanguage => EvidenceOnScreen
+            ? "Coach_Repair_SuppressedForLanguage"
+            : "Coach_Repair_SuppressedForLanguage_NoEvidence",
+        _ => EvidenceOnScreen
+            ? "Coach_Repair_Unknown"
+            : "Coach_Repair_Unknown_NoEvidence"
+    };
+}

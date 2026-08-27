@@ -424,6 +424,7 @@ else
                 <i class="bi bi-magic me-1"></i>@Localize["Dashboard_GeneratePlan"]
             </button>
         </div>
+
     }
 }
 else
@@ -802,8 +803,10 @@ else
 
             if (string.IsNullOrEmpty(targetLang))
             {
-                // User has no language set — send them to onboarding
-                NavManager.NavigateTo("/onboarding", forceLoad: true);
+                // User has no language set — send them to onboarding.
+                // In-app route: no forced document load on a BlazorWebView (renderer + DI scope
+                // teardown for nothing); the web host keeps its full load.
+                NavManager.NavigateTo("/onboarding", forceLoad: BlazorHostKind.ShouldForceLoadForCompletionRoute(NavManager.BaseUri));
                 return;
             }
 
@@ -1372,53 +1375,14 @@ else
 
     private void OnCultureChanged() => InvokeAsync(StateHasChanged);
 
-    private static string MapActivityRoute(PlanActivityType type) => type switch
-    {
-        PlanActivityType.VocabularyReview => "vocab-quiz",
-        PlanActivityType.Reading => "reading",
-        PlanActivityType.Listening => "shadowing", // No dedicated listening page; shares shadowing UI
-        PlanActivityType.Shadowing => "shadowing",
-        PlanActivityType.Cloze => "cloze",
-        PlanActivityType.Translation => "translation",
-        PlanActivityType.Writing => "writing",
-        PlanActivityType.SceneDescription => "scene",
-        PlanActivityType.Conversation => "conversation",
-        PlanActivityType.VocabularyGame => "vocab-matching",
-        PlanActivityType.VideoWatching => "video-watching",
-        _ => "vocab-quiz"
-    };
+    private static string MapActivityRoute(PlanActivityType type) => PlanActivityPresentation.Route(type);
 
-    private static string GetActivityIcon(PlanActivityType type) => type switch
-    {
-        PlanActivityType.VocabularyReview => "bi-card-checklist",
-        PlanActivityType.Reading => "bi-book",
-        PlanActivityType.Listening => "bi-headphones",
-        PlanActivityType.Shadowing => "bi-soundwave",
-        PlanActivityType.Cloze => "bi-puzzle",
-        PlanActivityType.Translation => "bi-translate",
-        PlanActivityType.Writing => "bi-pencil-square",
-        PlanActivityType.SceneDescription => "bi-image",
-        PlanActivityType.Conversation => "bi-chat-dots",
-        PlanActivityType.VocabularyGame => "bi-grid-3x3-gap",
-        PlanActivityType.VideoWatching => "bi-play-circle",
-        _ => "bi-check-circle"
-    };
+    // Icon and label maps live in PlanActivityPresentation so the dashboard, the activity log
+    // and the coach plan canvas cannot drift apart (and so none of them can regress to a
+    // hardcoded English label).
+    private static string GetActivityIcon(PlanActivityType type) => PlanActivityPresentation.Icon(type);
 
-    private string GetActivityLabel(PlanActivityType type) => type switch
-    {
-        PlanActivityType.VocabularyReview => Localize["Activity_VocabularyReview"],
-        PlanActivityType.Reading => Localize["Activity_Reading"],
-        PlanActivityType.Listening => Localize["Activity_Listening"],
-        PlanActivityType.Shadowing => Localize["Activity_Shadowing"],
-        PlanActivityType.Cloze => Localize["Activity_ClozeExercise"],
-        PlanActivityType.Translation => Localize["Activity_Translate"],
-        PlanActivityType.Writing => Localize["Activity_Writing"],
-        PlanActivityType.SceneDescription => Localize["Activity_DescribeScene"],
-        PlanActivityType.Conversation => Localize["Activity_Conversation"],
-        PlanActivityType.VocabularyGame => Localize["Activity_VocabMatching"],
-        PlanActivityType.VideoWatching => Localize["Activity_VideoWatching"],
-        _ => Localize["Activity_Generic"]
-    };
+    private string GetActivityLabel(PlanActivityType type) => PlanActivityPresentation.Label(Localize, type);
 
     private static string GetMediaTypeIcon(string mediaType) => mediaType switch
     {

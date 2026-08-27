@@ -5,6 +5,7 @@ using System.Security.Claims;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Abstractions;
 using SentenceStudio.Data;
+using SentenceStudio.Shared.Diagnostics;
 
 namespace SentenceStudio.Services;
 
@@ -14,9 +15,9 @@ namespace SentenceStudio.Services;
 /// </summary>
 public sealed class IdentityAuthService : IAuthService
 {
-    private const string JwtKey = "auth_jwt";
-    private const string RefreshKey = "auth_refresh";
-    private const string ExpiresKey = "auth_expires";
+    private const string JwtKey = AuthTokenStore.JwtKey;
+    private const string RefreshKey = AuthTokenStore.RefreshKey;
+    private const string ExpiresKey = AuthTokenStore.ExpiresKey;
 
     private readonly HttpClient _http;
     private readonly ISecureStorageService _secureStorage;
@@ -25,6 +26,19 @@ public sealed class IdentityAuthService : IAuthService
     private readonly ISyncService? _syncService;
     private readonly DataRecoveryService? _dataRecovery;
     private readonly UserProfileRepository? _userProfileRepo;
+
+    /// <summary>
+    /// Present only on heads whose keychain service name is shared with other applications
+    /// (currently the macOS AppKit head). Sign-out uses it to close pre-namespacing adoption for
+    /// good — see the call in <see cref="SignOutAsync"/>.
+    /// </summary>
+    private readonly SentenceStudio.Abstractions.Keychain.LegacyCredentialAdoption? _legacyAdoption;
+
+    /// <summary>
+    /// Owns the persisted credential triple. All three keys are written and cleared through it so
+    /// a failure can never leave one account's refresh token beside another's access token.
+    /// </summary>
+    private readonly AuthTokenStore _tokenStore;
 
     private string? _cachedToken;
     private DateTimeOffset _cachedExpires;
@@ -35,6 +49,12 @@ public sealed class IdentityAuthService : IAuthService
     private Task<AuthResult?>? _inflightRefresh;
     private int _consecutiveAuthFailures;
 
+    /// <summary>
+    /// One retry of a failed credential cleanup per process. Bounded so a keystore that will never
+    /// let go does not make every auth query re-attempt removal.
+    /// </summary>
+    private int _pendingCleanupRetried;
+
     public IdentityAuthService(
         IHttpClientFactory httpClientFactory,
         ISecureStorageService secureStorage,
@@ -42,7 +62,8 @@ public sealed class IdentityAuthService : IAuthService
         ILogger<IdentityAuthService> logger,
         ISyncService? syncService = null,
         DataRecoveryService? dataRecovery = null,
-        UserProfileRepository? userProfileRepo = null)
+        UserProfileRepository? userProfileRepo = null,
+        SentenceStudio.Abstractions.Keychain.LegacyCredentialAdoption? legacyAdoption = null)
     {
         _http = httpClientFactory.CreateClient("AuthClient");
         _secureStorage = secureStorage;
@@ -51,6 +72,8 @@ public sealed class IdentityAuthService : IAuthService
         _syncService = syncService;
         _dataRecovery = dataRecovery;
         _userProfileRepo = userProfileRepo;
+        _legacyAdoption = legacyAdoption;
+        _tokenStore = new AuthTokenStore(secureStorage, preferences, logger);
     }
 
     public bool IsSignedIn => _cachedToken is not null && _cachedExpires > DateTimeOffset.UtcNow;
@@ -60,19 +83,37 @@ public sealed class IdentityAuthService : IAuthService
     /// <inheritdoc/>
     public async Task<bool> HasStoredSessionAsync()
     {
-        Console.WriteLine($"[AUTH-DIAG] HasStoredSessionAsync: IsSignedIn={IsSignedIn}");
         if (IsSignedIn)
             return true;
+
+        if (await IsSilentRestoreBlockedAsync().ConfigureAwait(false))
+            return false;
+
         try
         {
-            var refreshToken = await _secureStorage.GetAsync(RefreshKey);
-            Console.WriteLine($"[AUTH-DIAG] HasStoredSessionAsync: refreshToken={(refreshToken is null ? "NULL" : refreshToken.Length > 0 ? $"exists({refreshToken.Length} chars)" : "EMPTY")}");
-            return !string.IsNullOrEmpty(refreshToken);
+            // NoInteraction: this runs automatically on startup and on every auth-state query.
+            // On the macOS AppKit head an interactive read can block forever behind a modal
+            // keychain prompt, which wedges the app on "Checking authentication...".
+            var result = await _secureStorage
+                .TryGetAsync(RefreshKey, SecureStorageAccess.NoInteraction)
+                .ConfigureAwait(false);
+
+            if (result.RequiresInteraction)
+            {
+                // The refresh token is still there — we just may not read it without asking the
+                // user. Report "no session" so the UI shows sign-in; nothing is cleared.
+                _logger.LogInformation(
+                    "Stored session exists but the platform keystore requires user authorisation; " +
+                    "treating as signed out without prompting.");
+                return false;
+            }
+
+            return result.IsFound;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[AUTH-DIAG] HasStoredSessionAsync EXCEPTION: {ex.GetType().Name}: {ex.Message}");
-            throw;
+            _logger.LogWarning(ex, "Failed to probe for a stored session");
+            return false;
         }
     }
 
@@ -83,11 +124,27 @@ public sealed class IdentityAuthService : IAuthService
     /// </summary>
     public async Task<AuthResult?> SignInAsync()
     {
+        if (await IsSilentRestoreBlockedAsync().ConfigureAwait(false))
+            return null;
+
         try
         {
-            // First, try to restore from stored JWT without a network call
-            var storedJwt = await _secureStorage.GetAsync(JwtKey);
-            var storedExpiresStr = await _secureStorage.GetAsync(ExpiresKey);
+            // Automatic (silent) restore path — never allowed to block on a keychain prompt.
+            var storedJwtResult = await _secureStorage
+                .TryGetAsync(JwtKey, SecureStorageAccess.NoInteraction).ConfigureAwait(false);
+
+            if (storedJwtResult.RequiresInteraction)
+            {
+                _logger.LogInformation(
+                    "Silent sign-in skipped: the platform keystore requires user authorisation. " +
+                    "Stored tokens were left untouched.");
+                return null;
+            }
+
+            var storedJwt = storedJwtResult.IsFound ? storedJwtResult.Value : null;
+            var storedExpiresResult = await _secureStorage
+                .TryGetAsync(ExpiresKey, SecureStorageAccess.NoInteraction).ConfigureAwait(false);
+            var storedExpiresStr = storedExpiresResult.IsFound ? storedExpiresResult.Value : null;
 
             if (!string.IsNullOrEmpty(storedJwt) && !string.IsNullOrEmpty(storedExpiresStr)
                 && DateTimeOffset.TryParse(storedExpiresStr, out var storedExpires)
@@ -106,7 +163,16 @@ public sealed class IdentityAuthService : IAuthService
             }
 
             // JWT missing or expiring soon — try refresh token with single-flight protection
-            var refreshToken = await _secureStorage.GetAsync(RefreshKey);
+            var refreshResult = await _secureStorage
+                .TryGetAsync(RefreshKey, SecureStorageAccess.NoInteraction).ConfigureAwait(false);
+            if (refreshResult.RequiresInteraction)
+            {
+                _logger.LogInformation(
+                    "Silent refresh skipped: the platform keystore requires user authorisation.");
+                return null;
+            }
+
+            var refreshToken = refreshResult.IsFound ? refreshResult.Value : null;
             if (string.IsNullOrEmpty(refreshToken))
                 return null;
 
@@ -133,6 +199,17 @@ public sealed class IdentityAuthService : IAuthService
                     _refreshLock.Release();
             }
         }
+        catch (AuthTokenPersistenceException ex)
+        {
+            // The refresh succeeded on the wire but the new triple could not be stored, and the
+            // store has already rolled back. Reporting "no session" is the truthful answer; keeping
+            // the in-memory token would hand out an access token no cold start could ever renew.
+            _logger.LogError(
+                ex,
+                "Silent sign-in obtained tokens but could not persist them; stored credentials were rolled back.");
+            ClearInMemoryAuth();
+            return null;
+        }
         catch (Exception ex)
         {
             _logger.LogWarning(ex, "Silent sign-in failed");
@@ -150,7 +227,7 @@ public sealed class IdentityAuthService : IAuthService
         try
         {
             _logger.LogInformation("Attempting login to {BaseAddress}/api/auth/login for {Email}",
-                _http.BaseAddress, email);
+                _http.BaseAddress, AuthLogRedaction.MaskEmail(email));
 
             var response = await _http.PostAsJsonAsync("/api/auth/login", new { Email = email, Password = password });
 
@@ -203,21 +280,37 @@ public sealed class IdentityAuthService : IAuthService
             }
 
             // Some APIs return tokens on register; try to read them
+            AuthResponseDto? authResponse;
             try
             {
-                var authResponse = await response.Content.ReadFromJsonAsync<AuthResponseDto>();
-                if (authResponse?.Token is not null)
-                {
-                    await StoreTokens(authResponse);
-                    return ToAuthResult(authResponse);
-                }
+                authResponse = await response.Content.ReadFromJsonAsync<AuthResponseDto>();
             }
-            catch
+            catch (Exception ex) when (ex is System.Text.Json.JsonException or NotSupportedException)
             {
-                // Registration succeeded but no token returned (email confirmation required)
+                // Registration succeeded but the body is not an auth response (email confirmation
+                // required). Deliberately narrow: a catch-all here used to swallow the token-storage
+                // failure below and report "check your email" for an account that was in fact
+                // signed in but had no persisted credentials.
+                _logger.LogInformation(
+                    "Registration succeeded without an auth payload — email confirmation is likely required.");
+                return null;
+            }
+
+            if (authResponse?.Token is not null)
+            {
+                await StoreTokens(authResponse);
+                return ToAuthResult(authResponse);
             }
 
             return null;
+        }
+        catch (AuthTokenPersistenceException)
+        {
+            // Registration succeeded server-side but the credentials could not be stored (already
+            // rolled back). Surfacing it beats returning null, which this method uses to mean
+            // "check your email" — a message that would send the learner looking for a mail that
+            // is never coming.
+            throw;
         }
         catch (Exception ex)
         {
@@ -226,18 +319,64 @@ public sealed class IdentityAuthService : IAuthService
         }
     }
 
+    /// <summary>
+    /// Signs out: drops the in-memory session first, then removes every stored credential this app
+    /// owns and proves each one is gone.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Order is deliberate. The in-memory session is cleared before anything is attempted, so this
+    /// process stops being authenticated even if every subsequent step fails; and
+    /// <see cref="AuthTokenStore"/> latches its pending-cleanup flag before its first removal, so a
+    /// crash part-way through still blocks silent restore on the next launch.
+    /// </para>
+    /// <para>
+    /// This used to call <see cref="ISecureStorageService.Remove"/> three times and log
+    /// "Signed out, tokens and profile cleared" unconditionally, discarding all three return values.
+    /// On the macOS AppKit head a removal can genuinely fail — an item owned by a previous ad-hoc
+    /// signature refuses <c>SecItemDelete</c> with <c>errSecInvalidOwnerEdit</c> — so a learner
+    /// could be told they had signed out while a usable refresh token stayed on the machine, ready
+    /// for whoever launched the app next.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="AuthTokenCleanupException">
+    /// A stored credential could not be proven removed. Thrown only after the in-memory session has
+    /// been cleared and every bounded attempt has been made.
+    /// </exception>
     public async Task SignOutAsync()
     {
-        _cachedToken = null;
-        _cachedExpires = DateTimeOffset.MinValue;
-        _cachedUserName = null;
+        // 1. In-memory first. Whatever storage does next, this process is no longer signed in.
+        ClearInMemoryAuth();
 
-        _secureStorage.Remove(JwtKey);
-        _secureStorage.Remove(RefreshKey);
-        _secureStorage.Remove(ExpiresKey);
-        _preferences.Remove("active_profile_id");
+        // 2. The profile pointer. Left behind, it aims every repository at the previous account.
+        try
+        {
+            _preferences.Remove("active_profile_id");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not clear active_profile_id during sign-out");
+        }
 
-        _logger.LogInformation("Signed out, tokens and profile cleared");
+        // 3. Close pre-namespacing adoption permanently, BEFORE the credential removal that can
+        //    throw. Otherwise a sign-out that fails to verify removal would leave adoption open,
+        //    and the next launch could re-adopt a still-present bare triple and sign the learner
+        //    back in — the precise thing they just asked not to happen. Recording a decision is
+        //    the durable half of sign-out; deleting the bare items is not an option, because this
+        //    app cannot prove it owns account names in a machine-global service.
+        try
+        {
+            _legacyAdoption?.Retire();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Could not retire legacy keychain adoption during sign-out");
+        }
+
+        // 4. Persistent credentials. Throws when it cannot demonstrate they are gone.
+        await _tokenStore.ClearAsync().ConfigureAwait(false);
+
+        _logger.LogInformation("Signed out; stored credentials removed and verified, profile cleared");
     }
 
     public async Task<bool> DeleteAccountAsync()
@@ -247,7 +386,21 @@ public sealed class IdentityAuthService : IAuthService
             var response = await _http.DeleteAsync("/api/auth/account");
             if (response.IsSuccessStatusCode)
             {
-                await SignOutAsync();
+                try
+                {
+                    await SignOutAsync();
+                }
+                catch (AuthTokenCleanupException ex)
+                {
+                    // The remote account really is gone, so reporting failure here would be its own
+                    // lie. What matters is that the residue is not silently usable: the store has
+                    // latched its pending-cleanup flag, so no cold start will restore from it.
+                    _logger.LogError(
+                        ex,
+                        "Account deleted server-side, but local credential removal could not be confirmed " +
+                        "for {Count} key(s). Silent restore is blocked.",
+                        ex.AffectedKeys.Count);
+                }
                 return true;
             }
             _logger.LogWarning("Account deletion failed: {Status}", response.StatusCode);
@@ -293,10 +446,24 @@ public sealed class IdentityAuthService : IAuthService
         if (_cachedToken is not null && _cachedExpires > DateTimeOffset.UtcNow.AddSeconds(60))
             return _cachedToken;
 
+        if (await IsSilentRestoreBlockedAsync().ConfigureAwait(false))
+            return null;
+
         // Try refresh with single-flight protection
         try
         {
-            var refreshToken = await _secureStorage.GetAsync(RefreshKey);
+            // NoInteraction: GetAccessTokenAsync is called from background/API paths where a
+            // modal keychain prompt would deadlock the caller.
+            var storedRefresh = await _secureStorage
+                .TryGetAsync(RefreshKey, SecureStorageAccess.NoInteraction).ConfigureAwait(false);
+            if (storedRefresh.RequiresInteraction)
+            {
+                _logger.LogInformation(
+                    "Access-token refresh skipped: the platform keystore requires user authorisation.");
+                return null;
+            }
+
+            var refreshToken = storedRefresh.IsFound ? storedRefresh.Value : null;
             if (string.IsNullOrEmpty(refreshToken))
                 return null;
 
@@ -368,11 +535,20 @@ public sealed class IdentityAuthService : IAuthService
                 // This defends against transient server errors and race conditions
                 if (_consecutiveAuthFailures >= 2)
                 {
-                    _logger.LogWarning("Clearing refresh token after {Count} consecutive auth failures", _consecutiveAuthFailures);
-                    _secureStorage.Remove(RefreshKey);
-                    _cachedToken = null;
-                    _cachedExpires = DateTimeOffset.MinValue;
-                    _cachedUserName = null;
+                    _logger.LogWarning("Clearing stored credentials after {Count} consecutive auth failures", _consecutiveAuthFailures);
+
+                    // All three keys, not just the refresh token. Removing one of a triple leaves
+                    // an access token and an expiry belonging to a session the server has already
+                    // repudiated, which the next launch would treat as a restorable session.
+                    var outcome = await _tokenStore.TryClearAsync().ConfigureAwait(false);
+                    if (!outcome.CredentialsCleared)
+                    {
+                        _logger.LogError(
+                            "Could not confirm removal of rejected credentials: {Keys}. Silent restore is blocked.",
+                            string.Join(", ", outcome.UnclearedKeys));
+                    }
+
+                    ClearInMemoryAuth();
                     _consecutiveAuthFailures = 0; // Reset after clearing
                 }
             }
@@ -398,13 +574,44 @@ public sealed class IdentityAuthService : IAuthService
 
     private async Task StoreTokens(AuthResponseDto response)
     {
+        // Persist first, cache second. The cache used to be populated before the writes, so a
+        // failed write left the process holding an access token for an account whose refresh token
+        // was never stored — a session that works until the app is closed and then vanishes.
+        //
+        // PersistAsync is all-or-nothing: on any failure it rolls back all three owned keys and
+        // throws, so there is no path from here to a triple that mixes two accounts.
+        try
+        {
+            await _tokenStore.PersistAsync(
+                response.Token,
+                response.RefreshToken,
+                new DateTimeOffset(response.ExpiresAt, TimeSpan.Zero));
+        }
+        catch (AuthTokenPersistenceException)
+        {
+            // Roll the profile pointer back too. A pointer at an account whose credentials were
+            // just discarded aims every repository at data this process can no longer authenticate
+            // for, which is the same mixed-account hazard one layer up.
+            ClearInMemoryAuth();
+            try
+            {
+                _preferences.Remove("active_profile_id");
+            }
+            catch (Exception prefEx)
+            {
+                _logger.LogWarning(prefEx, "Could not clear active_profile_id after a failed credential write");
+            }
+
+            throw;
+        }
+
         _cachedToken = response.Token;
         _cachedExpires = new DateTimeOffset(response.ExpiresAt, TimeSpan.Zero);
         _cachedUserName = response.UserName ?? ExtractUserNameFromJwt(response.Token);
 
-        await _secureStorage.SetAsync(JwtKey, response.Token);
-        await _secureStorage.SetAsync(RefreshKey, response.RefreshToken);
-        await _secureStorage.SetAsync(ExpiresKey, response.ExpiresAt.ToString("O"));
+        // A successful triple write puts storage back into a known state for a known account, so
+        // any earlier cleanup failure no longer has to block restore.
+        _pendingCleanupRetried = 0;
 
         // Set the active profile so all repositories filter by the correct user
         if (!string.IsNullOrEmpty(response.UserProfileId))
@@ -483,6 +690,93 @@ public sealed class IdentityAuthService : IAuthService
             response.Token,
             response.UserName ?? ExtractUserNameFromJwt(response.Token),
             new DateTimeOffset(response.ExpiresAt, TimeSpan.Zero));
+    }
+
+    /// <summary>Drops every trace of the session this process is holding in memory.</summary>
+    private void ClearInMemoryAuth()
+    {
+        _cachedToken = null;
+        _cachedExpires = DateTimeOffset.MinValue;
+        _cachedUserName = null;
+    }
+
+    /// <summary>
+    /// Guards every path that would restore a session <i>without</i> the learner presenting
+    /// credentials.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A sign-out (or a crash during one) that could not prove the stored credentials were removed
+    /// leaves a refresh token on the device that still works. Without this guard the very next cold
+    /// start would read it, refresh, and silently sign back in as the account the learner just
+    /// signed out of — on a shared or handed-on machine, as somebody else.
+    /// </para>
+    /// <para>
+    /// One more bounded cleanup attempt is made per process before giving up, because the condition
+    /// that blocked removal (a locked keychain, a keystore not yet ready at launch) is often gone by
+    /// the time anything asks about auth state. If that attempt succeeds the latch clears and the
+    /// session restores normally.
+    /// </para>
+    /// <para>
+    /// Explicit credential sign-in and registration deliberately do <b>not</b> consult this: a
+    /// successful triple write puts storage back into a known state for a known account, and that
+    /// is exactly how a learner recovers from a device stuck in this state.
+    /// </para>
+    /// </remarks>
+    private async Task<bool> IsSilentRestoreBlockedAsync()
+    {
+        if (!_tokenStore.IsCleanupPending)
+            return false;
+
+        // Serialised against token persistence. The retry below CLEARS all three credential keys;
+        // PersistAsync WRITES all three. Interleaved, the clear can land between the persist's
+        // writes and delete a token the learner just signed in with — or clear the latch that the
+        // persist was about to satisfy legitimately. Both are silent. The refresh lock is the
+        // existing single-flight gate around credential mutation, so reuse it rather than adding a
+        // second lock with its own ordering rules.
+        await _refreshLock.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            // Re-check under the lock: a persist that completed while we were waiting has already
+            // put storage into a known state for a known account, which is exactly what clears the
+            // latch. Retrying a cleanup on top of that would delete a valid new session.
+            if (!_tokenStore.IsCleanupPending)
+                return false;
+
+            return await IsSilentRestoreBlockedCoreAsync().ConfigureAwait(false);
+        }
+        finally
+        {
+            _refreshLock.Release();
+        }
+    }
+
+    private async Task<bool> IsSilentRestoreBlockedCoreAsync()
+    {
+        if (Interlocked.Exchange(ref _pendingCleanupRetried, 1) == 0)
+        {
+            _logger.LogWarning(
+                "A previous sign-out left credentials that could not be confirmed removed. " +
+                "Retrying removal once before refusing to restore a session.");
+
+            var outcome = await _tokenStore.TryClearAsync().ConfigureAwait(false);
+            if (outcome.CredentialsCleared)
+            {
+                _logger.LogInformation("Retry succeeded: stored credentials are now verified absent.");
+
+                // The device is clean, but the credentials that would have been restored are gone
+                // for good — there is nothing left to restore, so still report "no session".
+                ClearInMemoryAuth();
+                return true;
+            }
+
+            _logger.LogError(
+                "Retry failed; credential key(s) {Keys} may still hold data. Refusing to restore a session.",
+                string.Join(", ", outcome.UnclearedKeys));
+        }
+
+        ClearInMemoryAuth();
+        return true;
     }
 
     /// <summary>

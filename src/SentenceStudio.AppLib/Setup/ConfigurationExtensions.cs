@@ -12,7 +12,12 @@ public static class ConfigurationExtensions
         // Load base configuration (localhost fallback)
         using var baseStream = assembly.GetManifestResourceStream("SentenceStudio.appsettings.json");
         if (baseStream == null)
-            throw new InvalidOperationException("Embedded appsettings.json not found in SentenceStudio.AppLib.");
+            throw new InvalidOperationException(
+                "Embedded appsettings.json not found in SentenceStudio.AppLib. "
+                + "src/SentenceStudio.AppLib/appsettings.json is gitignored (developer-local keys) and is "
+                + "included as an EmbeddedResource only when it exists, so a fresh clone/worktree builds "
+                + "clean and then fails here at startup. Copy appsettings.template.json to "
+                + "appsettings.json in that folder and rebuild.");
         configuration.AddJsonStream(baseStream);
 
         // Load environment-specific overrides: Production (Azure) for Release, Development for Debug

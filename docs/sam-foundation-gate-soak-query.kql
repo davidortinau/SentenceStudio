@@ -1,0 +1,234 @@
+// =====================================================================================
+// Sam foundation gate — production soak query
+//
+// Companion to docs/sam-foundation-gate-soak-runbook.md
+//
+// PURPOSE
+//   Produce the condition (b) evidence pack for `sam-enforce-foundation-gate`: the seven
+//   soak-measured rule classes, grouped into six invariants, each printed WITH ITS
+//   DENOMINATOR, plus the denominator and canary checks that make those zeros mean
+//   anything at all.
+//
+// DO NOT RUN THIS FROM AN ENGINEERING SESSION OR FROM CI.
+//   This file is for the operator who holds the soak, has the deployed revision in hand,
+//   and is authorised to query the production telemetry store. It carries no hostname,
+//   no resource id, no subscription, no workspace, no key, and no connection string.
+//   None must be added to it in the repository.
+//
+// BEFORE READING ANY NUMERATOR, sections 1 and 2 must both pass:
+//   1. turns_evaluated strictly positive, at stage Enforce.
+//   2. the canary delivered exactly once.
+//   A zero numerator over a zero denominator means "nothing happened", not "nothing went
+//   wrong", and the two are indistinguishable in the numerator alone.
+//
+// SHAPE ASSUMPTION
+//   Written against an OpenTelemetry metric export landing in a table with one row per
+//   exported metric point. Rename `CoachMetrics` and the column names to match the
+//   workspace in use — the grouping logic is the part that matters, not the table name.
+// =====================================================================================
+
+// -------------------------------------------------------------------------------------
+// FILL THESE IN. All five are required by the evidence pack (runbook §2.1, B1–B5).
+// -------------------------------------------------------------------------------------
+let WindowStart   = datetime(0000-00-00 00:00:00);  // UTC. Q15 window opens.
+let WindowEnd     = datetime(0000-00-00 00:00:00);  // UTC. Q15 window closes.
+let DeployedSha   = "";                             // Commit SHA serving the whole window.
+let Revision      = "";                             // Container revision serving the whole window.
+let CoachMeter    = "SentenceStudio.Coach";         // CoachTelemetry.MeterName. Do not change.
+//
+// The five settings above are recorded, not queried. They exist so the result table can be
+// pasted into the evidence pack without losing the answer to "which build was this?".
+// -------------------------------------------------------------------------------------
+
+let Points =
+    CoachMetrics
+    | where TimeGenerated between (WindowStart .. WindowEnd)
+    | where MeterName == CoachMeter;   // `MeterName` here is the TABLE COLUMN, not the let above.
+
+// The denominator. Everything below is a rate over this number.
+let TurnsEvaluated =
+    Points
+    | where Name == "coach.grounding.turns_evaluated"
+    | where tostring(Tags["grounding_stage"]) == "Enforce"
+    | summarize Denominator = sum(Value);
+
+// =====================================================================================
+// SECTION 1 — DENOMINATOR GATE
+// The window is only readable if this returns a strictly positive Denominator.
+// A zero here invalidates every zero below it.
+// =====================================================================================
+TurnsEvaluated
+| extend Check = "1. Denominator"
+| extend Verdict = iff(Denominator > 0,
+                       "READABLE — proceed to section 2",
+                       "NOT READABLE — no evaluated turns at Enforce. STOP. Do not read numerators.")
+| project Check, Denominator, Verdict;
+
+// Stage breakdown. Turns at Off emit nothing at all, so an all-Off window is
+// indistinguishable from an outage without the canary in section 2.
+Points
+| where Name == "coach.grounding.turns_evaluated"
+| summarize Turns = sum(Value) by Stage = tostring(Tags["grounding_stage"])
+| extend Check = "1b. Stage distribution"
+| extend Note = iff(Stage == "Enforce",
+                    "Counts toward the gate",
+                    strcat("Does NOT count — invariants 4 and 5 are defined after Enforce"))
+| project Check, Stage, Turns, Note
+| order by Turns desc;
+
+// =====================================================================================
+// SECTION 2 — CANARY GATE
+// Proves the path from meter to store is live for THIS revision. Exactly one delivery.
+// A silent exporter and a clean system are identical without this.
+// =====================================================================================
+Points
+| where Name == "coach.grounding.canary"
+| summarize Deliveries = sum(Value)
+| extend Check = "2. Canary"
+| extend Verdict = case(
+    Deliveries == 1, "PIPELINE LIVE — proceed to section 3",
+    Deliveries == 0, "NO DELIVERY — exporter may be silent. Every zero below is unproven. STOP.",
+    strcat("UNEXPECTED (", Deliveries, ") — expected exactly one. Investigate before reading zeros."))
+| project Check, Deliveries, Verdict;
+
+// =====================================================================================
+// SECTION 3 — THE SIX MEASURED INVARIANTS
+//
+// Seven rule codes, six invariants. §16.1 row 5 reads "Count-mismatch rate after Enforce,
+// INCLUDING WITHHELD NOT DISCLOSED" — one metric, two rule codes. CountClaimMismatch and
+// WithheldNotDisclosed are grouped here accordingly. The local suite asserts this grouping
+// (CoachStructuralZeroInvariantTests) so a future split cannot happen silently.
+//
+// Every row prints its denominator. A zero without a denominator beside it is not evidence.
+// =====================================================================================
+let InvariantMap = datatable(RuleCode: string, Invariant: int, InvariantName: string) [
+    "NegativeClaimWithoutCoverage", 1, "Unbounded negative claims about learner state",
+    "FabricatedCheck",              2, "Fabricated-check proxy events",
+    "FalseLimitation",              3, "False limitation against a capability resolving Present",
+    "OrderClaimMismatch",           4, "Order mismatch after Enforce",
+    "CountClaimMismatch",           5, "Count mismatch after Enforce, incl. withheld not disclosed",
+    "WithheldNotDisclosed",         5, "Count mismatch after Enforce, incl. withheld not disclosed",
+    "RepeatedDisputedClaim",        6, "Repeated disputed claims"
+];
+
+let Findings =
+    Points
+    | where Name == "coach.grounding.findings"
+    | where tostring(Tags["grounding_stage"]) == "Enforce"
+    | extend RuleCode = tostring(Tags["grounding_rule_code"])
+    | summarize Occurrences = sum(Value) by RuleCode;
+
+InvariantMap
+| join kind=leftouter (Findings) on RuleCode
+| extend Occurrences = coalesce(Occurrences, 0.0)
+// Collapse the seven rule codes onto six invariants. Rule codes are retained in the row so
+// a non-zero result can be traced back to which of the two grouped codes fired.
+| summarize Occurrences   = sum(Occurrences),
+            ContributingRuleCodes = make_set(RuleCode)
+          by Invariant, InvariantName
+| extend Denominator = toscalar(TurnsEvaluated)
+| extend Rate = iff(Denominator > 0, Occurrences / Denominator, real(null))
+| extend Verdict = case(
+    Denominator <= 0,   "UNREADABLE — denominator is zero",
+    Occurrences == 0,   "ZERO over a positive denominator",
+    "NON-ZERO — gate fails. Stop the soak and step down (runbook §6).")
+// Invariant 4 is measured by OrderClaimMismatch, and the denominator is printed like every
+// other row. No caveat: the rule now resolves the claimed ranking against the recorded order
+// instead of early-returning whenever any order was stated, so a zero here means the rule
+// looked and found nothing. Held by the Case C three-rule bar — see runbook §3.1.
+| extend Caveat = ""
+| project Invariant, InvariantName, Occurrences, Denominator, Rate, Verdict, Caveat,
+          ContributingRuleCodes
+| order by Invariant asc;
+
+// =====================================================================================
+// SECTION 4 — CONTEXT, NOT A GATE
+//
+// turns_suppressed counts POLICY IN FORCE, not repairs withheld. SuppressRepairForLanguage
+// returns true for any non-English language tag at stage >= Repair, and it is evaluated
+// BEFORE the rules run. A clean Korean turn with zero findings still increments it.
+//
+// For a Korean-majority window, suppressed/evaluated trends toward 1.0. Read alone that
+// looks like "the layer suppressed everything". It is not a defect. Read it beside
+// findings and altered, never on its own. Runbook §2.3.
+// =====================================================================================
+let Counter = (name: string) {
+    Points
+    | where Name == name
+    | where tostring(Tags["grounding_stage"]) == "Enforce"
+    | summarize Total = sum(Value)
+    | extend Metric = name
+};
+
+union
+    (Counter("coach.grounding.turns_evaluated")),
+    (Counter("coach.grounding.findings")),
+    (Counter("coach.grounding.turns_refused")),
+    (Counter("coach.grounding.turns_altered")),
+    (Counter("coach.grounding.turns_suppressed"))
+| extend Denominator = toscalar(TurnsEvaluated)
+| extend Ratio = iff(Denominator > 0, Total / Denominator, real(null))
+| extend Reading = case(
+    Metric == "coach.grounding.turns_suppressed",
+        "Policy in force, NOT repairs withheld. High + zero findings = clean non-English window.",
+    Metric == "coach.grounding.turns_refused",
+        "Structurally-unrepairable findings at Enforce.",
+    Metric == "coach.grounding.turns_altered",
+        "Turns where a substitution shipped.",
+    Metric == "coach.grounding.findings",
+        "Total findings across all rule codes.",
+    "The denominator itself.")
+| project Metric, Total, Denominator, Ratio, Reading;
+
+// =====================================================================================
+// SECTION 5 — WHAT THIS QUERY DELIBERATELY DOES NOT RETURN
+//
+// Invariant 9 — SideEffectNotDisclosed. INACTIVE in this build. ProposedCapabilities is
+//   hardcoded empty in CoachSessionService, so the rule has no input and never runs.
+//   Report as inactive-until-C1. Querying it would return a zero that asserts the soak
+//   observed a rule that never executed. Omitted on purpose.
+//
+// Invariants 11 and 12 — legal registration matrix, and Coach/Tools/** not referring to
+//   ApplicationDbContext. These are BUILD-TIME properties of the artefact, not traffic.
+//   Evidence is the dated result of the build that produced DeployedSha above — not a
+//   re-run on a later commit, which is evidence about a different artefact.
+//
+// Invariants 7, 8, 10 — embargoed term in a launch payload (re-arms at C3), unauthorized
+//   navigation (C1), cross-circuit presentation writes (C1). STRUCTURALLY ABSENT: the code
+//   paths do not exist. Evidence is an absence proof over the deployed registry and
+//   configuration, asserted locally by CoachStructuralZeroInvariantTests. A metric zero
+//   here would claim the soak exercised something it structurally could not.
+//
+// PLAN 16.3 substitution take-up ("at least 30 percent, monitored, no baseline").
+//   INACTIVE / NOT MEASURABLE. Not a zero, and specifically not "0 percent take-up".
+//   The substitute IS wired. As of the W9 typed-refusal change a refusal preserves the
+//   evidence it read and carries a typed destination naming one of the six bound routes
+//   whenever a real one follows, rendered in the learner's language on both hosts. The
+//   Learning Value Gate on the refusal surface is signed. Do not read this omission as a
+//   missing feature and do not go rebuild it.
+//   What is missing is the EVENT. There is no take-up event emitted, so no numerator, and
+//   no refusal-with-destination event is emitted, so there is no denominator either —
+//   CoachGroundingMetrics exposes six instruments and none of them counts an offer or a
+//   follow-through. Reporting zero would assert that learners were offered a substitute and
+//   declined it, which is a claim about learner behaviour that nothing in this build measured.
+//   Runbook 3.6 and 8.
+//   NOT THE SAME GAP AS P5/P6. Runbook 9 records the repair disclosure as CLOSED: an answer the
+//   layer rewrote now announces itself on both hosts. That was a product gap on the REPAIR
+//   surface, and closing it changed nothing here. This 16.3 row is a measurement gap on the
+//   REFUSAL surface, which has been wired since 3.6 — what is missing is the event, not the
+//   feature. The two are named together only because they are the pair most often conflated:
+//   both surfaces are now built, and this one still emits no numerator and no denominator, so
+//   it still may not be reported as a zero.
+//
+// ARITHMETIC: 6 measured (this query) + 2 build-time + 3 structurally absent = 11 of 12.
+// The twelfth is invariant 9, inactive. Any report claiming twelve soak readings is wrong.
+//
+// RE-ARM: when C1 lands, invariants 8, 9 and 10 become live and this query must grow.
+//         when C3 lands, invariant 7 becomes live and this query must grow.
+//         when an instrument pair exists — one event when a refusal ships carrying a non-null
+//           destination, and one when a learner follows it — plan 16.3 substitution take-up
+//           becomes live and this query must grow that denominator and that numerator. This
+//           is a measurement gap, not a product gap: the substitute is already wired. Until
+//           both instruments exist, omit the row rather than emitting a zero.
+//         The absence proofs expire on those dates.
+// =====================================================================================

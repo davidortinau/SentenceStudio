@@ -45,7 +45,7 @@ See `templates/ghost-protocol.md` for the full rules. Key points:
 Optional `config.json` in the personal squad directory:
 ```json
 {
-  "defaultModel": "auto",
+  "defaultModel": "gpt-5.6-sol",
   "ghostProtocol": true,
   "agents": {}
 }

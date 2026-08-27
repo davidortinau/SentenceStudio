@@ -79,7 +79,7 @@ public static class AiClientRegistration
             clientFactory(sp).GetChatClient(model).AsIChatClient();
 
         // Default (unkeyed) client stays the fast model for back-compat with callers that
-        // resolve IChatClient directly (e.g. the API chat endpoint, ConversationAgentService).
+        // resolve IChatClient directly (e.g. the API chat endpoint).
         services.AddSingleton<IChatClient>(sp => Build(sp, fast));
         services.AddKeyedSingleton<IChatClient>(AiTier.Fast.ToKey(), (sp, _) => Build(sp, fast));
         services.AddKeyedSingleton<IChatClient>(AiTier.Reasoning.ToKey(), (sp, _) => Build(sp, reasoning));

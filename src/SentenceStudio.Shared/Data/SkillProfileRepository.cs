@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Data;
 
-public class SkillProfileRepository
+public partial class SkillProfileRepository : SentenceStudio.Application.Skills.ISkillProfileQueries
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ISyncService? _syncService;
@@ -28,7 +28,13 @@ public class SkillProfileRepository
     /// it scopes the results to that profile (required on multi-user hosts
     /// like the API where <c>IPreferencesService</c> isn't registered).
     /// </summary>
-    public async Task<List<SkillProfile>> ListAsync(string? userProfileId = null)
+    /// <param name="userProfileId">The owner to scope to, or null to use the active profile.</param>
+    /// <param name="includeArchived">
+    /// Whether skills the learner has archived are included. False by default: every existing
+    /// caller is building a list of skills to practise against, and an archived skill is one the
+    /// learner has put away. Callers that genuinely manage the archive ask for it explicitly.
+    /// </param>
+    public async Task<List<SkillProfile>> ListAsync(string? userProfileId = null, bool includeArchived = false)
     {
         var userId = !string.IsNullOrEmpty(userProfileId) ? userProfileId : ActiveUserId;
         if (string.IsNullOrWhiteSpace(userId))
@@ -39,7 +45,13 @@ public class SkillProfileRepository
 
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        return await db.SkillProfiles.Where(s => s.UserProfileId == userId).ToListAsync();
+        var query = db.SkillProfiles.Where(s => s.UserProfileId == userId);
+        if (!includeArchived)
+        {
+            query = query.Where(s => !s.IsArchived);
+        }
+
+        return await query.ToListAsync();
     }
 
     public async Task<List<SkillProfile>> GetSkillsByLanguageAsync(string language)
@@ -56,7 +68,59 @@ public class SkillProfileRepository
         return await db.SkillProfiles
             .Where(s => s.Language == language)
             .Where(s => s.UserProfileId == userId)
+            .Where(s => !s.IsArchived)
             .ToListAsync();
+    }
+
+    /// <summary>
+    /// Archives or restores a skill the learner owns, without removing the row.
+    /// </summary>
+    /// <remarks>
+    /// Returns the number of rows changed, so a caller can tell a refusal from a success: zero
+    /// means the skill was missing, was not this learner's, or was already in the requested
+    /// state, and -1 means the write itself failed. A caller that reports "archived" on anything
+    /// other than a positive result is reporting something that did not happen.
+    /// </remarks>
+    public async Task<int> SetArchivedAsync(string skillId, bool isArchived, string? userProfileId = null)
+    {
+        var userId = ResolveUserId(userProfileId);
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            _logger.LogWarning("SkillProfileRepository.SetArchivedAsync called without an active user — refusing write to prevent cross-tenant data changes.");
+            return 0;
+        }
+
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+        try
+        {
+            var owned = await db.SkillProfiles
+                .FirstOrDefaultAsync(s => s.Id == skillId && s.UserProfileId == userId);
+            if (owned is null)
+            {
+                _logger.LogWarning("SkillProfileRepository.SetArchivedAsync refused a missing or unowned skill profile.");
+                return 0;
+            }
+
+            if (owned.IsArchived == isArchived)
+            {
+                return 0;
+            }
+
+            owned.IsArchived = isArchived;
+            owned.UpdatedAt = DateTime.UtcNow;
+            int result = await db.SaveChangesAsync();
+
+            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+
+            return result;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error occurred in SetArchivedAsync");
+            return -1;
+        }
     }
 
     public async Task<string> SaveAsync(SkillProfile item, string? userProfileId = null)
@@ -148,7 +212,19 @@ public class SkillProfileRepository
         }
     }
 
-    public async Task<SkillProfile?> GetSkillProfileAsync(string skillID, string? userProfileId = null)
+    /// <summary>
+    /// Reads one skill the learner owns, for the practice activities that generate from it.
+    /// </summary>
+    /// <param name="skillID">The skill to read.</param>
+    /// <param name="userProfileId">The owner to scope to, or null to use the active profile.</param>
+    /// <param name="includeArchived">
+    /// Whether a skill the learner has archived is returned. False by default, matching
+    /// <see cref="ListAsync"/>: an archived skill is one the learner put away, and an activity
+    /// that could still generate from it by holding onto its identifier would be practising from
+    /// a skill that is not in any list. Only the archive's own undo asks for it explicitly.
+    /// </param>
+    public async Task<SkillProfile?> GetSkillProfileAsync(
+        string skillID, string? userProfileId = null, bool includeArchived = false)
     {
         var userId = ResolveUserId(userProfileId);
         if (string.IsNullOrWhiteSpace(userId))
@@ -160,16 +236,21 @@ public class SkillProfileRepository
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var skill = await db.SkillProfiles
-            .FirstOrDefaultAsync(s => s.Id == skillID && s.UserProfileId == userId);
+            .FirstOrDefaultAsync(s =>
+                s.Id == skillID
+                && s.UserProfileId == userId
+                && (includeArchived || !s.IsArchived));
         if (skill is null)
         {
-            _logger.LogWarning("SkillProfileRepository.GetSkillProfileAsync refused a missing or unowned skill profile.");
+            _logger.LogWarning("SkillProfileRepository.GetSkillProfileAsync refused a missing, unowned, or archived skill profile.");
         }
 
         return skill;
     }
 
-    public async Task<SkillProfile?> GetAsync(string skillId, string? userProfileId = null)
+    /// <inheritdoc cref="GetSkillProfileAsync" />
+    public async Task<SkillProfile?> GetAsync(
+        string skillId, string? userProfileId = null, bool includeArchived = false)
     {
         var userId = ResolveUserId(userProfileId);
         if (string.IsNullOrWhiteSpace(userId))
@@ -181,10 +262,13 @@ public class SkillProfileRepository
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var skill = await db.SkillProfiles
-            .FirstOrDefaultAsync(s => s.Id == skillId && s.UserProfileId == userId);
+            .FirstOrDefaultAsync(s =>
+                s.Id == skillId
+                && s.UserProfileId == userId
+                && (includeArchived || !s.IsArchived));
         if (skill is null)
         {
-            _logger.LogWarning("SkillProfileRepository.GetAsync refused a missing or unowned skill profile.");
+            _logger.LogWarning("SkillProfileRepository.GetAsync refused a missing, unowned, or archived skill profile.");
         }
 
         return skill;

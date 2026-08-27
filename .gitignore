@@ -445,5 +445,23 @@ src/.claude/settings.local.json
 
 # e2e testing scratch/rehearsal artifacts
 e2e-testing-workspace/rehearsal/
+
+# E2E run artifacts. These directories collect screenshots, database dumps, raw
+# server logs, and captured bearer/refresh tokens from real signed-in accounts.
+# None of it is reviewable and all of it is credential-adjacent, so it must never
+# be reachable by `git add -A`. Ignoring the directory does not delete anything
+# already on disk; the evidence stays for local review.
+e2e-evidence/
+.e2e-scratch/
 .squad/.cache/
 .copilot-scratch/
+
+# Coach DOM harness: copies of shipped assets, regenerated on demand
+tests/js/coach-dom-harness/app.css
+tests/js/coach-dom-harness/app.js
+
+# Sam opportunity digest output. The digest itself is content-free by construction, but a dated
+# operational read of the production ledger is an operational record, not source. The *decision*
+# belongs in docs/sam-future-opportunities.md, by fingerprint. See docs/sam-opportunity-digest.md.
+.digest/
+/sam-opportunity-digest.md

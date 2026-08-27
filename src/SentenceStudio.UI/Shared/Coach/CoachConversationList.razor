@@ -1,0 +1,424 @@
+@implements IDisposable
+@inject BlazorLocalizationService Localize
+@inject CoachWorkspaceState Coach
+@inject CoachConversationDirectory Directory
+@inject IJSRuntime Js
+
+@* The saved conversation shelf. Same component at every width: on a narrow screen it is a
+   drawer over the conversation, on a wide one a column beside it. What it says and what it can
+   do are identical, because a small screen is not a reason to withhold a control. *@
+
+<div class="coach-conversations" role="region" aria-label="@Localize["Coach_Conversations"]">
+    <div class="coach-conversations-header">
+        <h2 class="ss-body2 fw-semibold mb-0">@Localize["Coach_Conversations"]</h2>
+
+        @* New always means new. It never resumes the most recent thread, because a learner who
+           asks for a blank page and gets yesterday's has been lied to. *@
+        <button type="button" class="btn btn-ss-secondary coach-action"
+                id="coach-new-conversation"
+                disabled="@Directory.IsBusy"
+                @onclick="StartNew">
+            @Localize["Coach_NewConversation"]
+        </button>
+    </div>
+
+    @if (Directory.ErrorKey is { } errorKey)
+    {
+        @* One message, in the learner's words. The problem type behind it is a diagnostic and
+           stays out of the UI. *@
+        <div class="coach-stage-row" role="status">
+            <span>@Localize[errorKey]</span>
+        </div>
+    }
+
+    @if (Directory.IsLoading)
+    {
+        <div class="coach-stage-row" aria-live="polite">
+            <span>@Localize["Coach_ConversationsLoading"]</span>
+        </div>
+    }
+    else if (Directory.Conversations.Count == 0)
+    {
+        <div class="coach-conversations-empty">
+            <div class="ss-body2">@Localize["Coach_ConversationsEmpty"]</div>
+            <div class="ss-caption1 text-secondary-ss">@Localize["Coach_ConversationsEmptyHint"]</div>
+        </div>
+    }
+    else
+    {
+        @* A list, not a set of buttons: the reader is told how many threads there are and where
+           they are in them, and arrow keys move between them. *@
+        <ul class="coach-conversation-list" role="list">
+            @foreach (var conversation in Directory.Conversations)
+            {
+                var isSelected = string.Equals(
+                    Directory.SelectedConversationId, conversation.ConversationId, StringComparison.Ordinal);
+
+                <li class="coach-conversation-item @(isSelected ? "is-selected" : "")">
+                    <button type="button"
+                            class="coach-conversation-open"
+                            aria-current="@(isSelected ? "true" : null)"
+                            @onclick="() => Open(conversation)">
+                        <span class="coach-conversation-title">@Title(conversation)</span>
+                        <span class="coach-conversation-meta ss-caption1 text-secondary-ss">
+                            @Localize.Get("Coach_ConversationMessageCount", conversation.MessageCount)
+                            <span aria-hidden="true"> · </span>
+                            @Localize.Get("Coach_ConversationUpdated", FormatUpdated(conversation))
+                        </span>
+                        @if (conversation.IsClosed)
+                        {
+                            <span class="coach-conversation-badge ss-caption1">@Localize["Coach_ConversationClosedBadge"]</span>
+                        }
+                        @if (isSelected)
+                        {
+                            @* Announced, not merely coloured: selection that only exists as a
+                               background colour does not exist for everyone. *@
+                            <span class="visually-hidden">@Localize["Coach_ConversationSelected"]</span>
+                        }
+                    </button>
+
+                    <div class="coach-conversation-actions"
+                         role="group"
+                         aria-label="@Localize["Coach_ConversationActions"]">
+                        <button type="button" class="btn btn-link p-0 ss-caption1"
+                                @onclick="() => BeginRename(conversation)">
+                            @Localize["Coach_ConversationRename"]
+                        </button>
+                        <button type="button" class="btn btn-link p-0 ss-caption1"
+                                @onclick="() => Export(conversation, CoachExportFormat.Json)">
+                            @Localize["Coach_ConversationExportJson"]
+                        </button>
+                        <button type="button" class="btn btn-link p-0 ss-caption1"
+                                @onclick="() => Export(conversation, CoachExportFormat.Markdown)">
+                            @Localize["Coach_ConversationExportMarkdown"]
+                        </button>
+                        @if (conversation.IsClosed)
+                        {
+                            <button type="button" class="btn btn-link p-0 ss-caption1"
+                                    @onclick="() => Reopen(conversation)">
+                                @Localize["Coach_ConversationReopen"]
+                            </button>
+                        }
+                        else
+                        {
+                            <button type="button" class="btn btn-link p-0 ss-caption1"
+                                    @onclick="() => BeginClose(conversation)">
+                                @Localize["Coach_ConversationClose"]
+                            </button>
+                        }
+                        <button type="button" class="btn btn-link p-0 ss-caption1"
+                                @onclick="() => BeginDelete(conversation)">
+                            @Localize["Coach_ConversationDelete"]
+                        </button>
+                    </div>
+                </li>
+            }
+        </ul>
+
+        @if (Directory.HasMore)
+        {
+            <button type="button" class="btn btn-ss-secondary coach-action"
+                    disabled="@Directory.IsLoadingMore"
+                    @onclick="LoadMore">
+                @Localize["Coach_ConversationsLoadMore"]
+            </button>
+        }
+    }
+</div>
+
+@* Rename is a dialog rather than an inline field so focus has somewhere definite to go and
+   somewhere definite to come back to. *@
+@if (_renaming is { } renaming)
+{
+    <div class="coach-dialog-backdrop">
+        <div class="coach-dialog" role="dialog" aria-modal="true"
+             aria-labelledby="coach-rename-title">
+            <h2 id="coach-rename-title" class="ss-body1 fw-semibold">@Localize["Coach_ConversationRenameTitle"]</h2>
+
+            <label class="form-label ss-caption1" for="coach-rename-input">
+                @Localize["Coach_ConversationRenameLabel"]
+            </label>
+            <input id="coach-rename-input" class="form-control" type="text"
+                   maxlength="120"
+                   @bind="_renameText" @bind:event="oninput" />
+
+            <div class="coach-dialog-actions">
+                <button type="button" class="btn btn-ss-secondary coach-action" @onclick="CancelDialog">
+                    @Localize["Coach_Cancel"]
+                </button>
+                <button type="button" class="btn btn-ss-primary coach-action"
+                        disabled="@Directory.IsBusy"
+                        @onclick="() => ConfirmRename(renaming)">
+                    @Localize["Coach_ConversationRenameSave"]
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (_closing is { } closing)
+{
+    <div class="coach-dialog-backdrop">
+        <div class="coach-dialog" role="dialog" aria-modal="true"
+             aria-labelledby="coach-close-title" aria-describedby="coach-close-body">
+            <h2 id="coach-close-title" class="ss-body1 fw-semibold">@Localize["Coach_ConversationCloseTitle"]</h2>
+            <p id="coach-close-body" class="ss-body2">@Localize["Coach_ConversationCloseBody"]</p>
+
+            <div class="coach-dialog-actions">
+                <button type="button" class="btn btn-ss-secondary coach-action" @onclick="CancelDialog">
+                    @Localize["Coach_Cancel"]
+                </button>
+                <button type="button" class="btn btn-ss-primary coach-action"
+                        disabled="@Directory.IsBusy"
+                        @onclick="() => ConfirmClose(closing)">
+                    @Localize["Coach_ConversationClose"]
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (_deleting is { } deleting)
+{
+    <div class="coach-dialog-backdrop">
+        <div class="coach-dialog" role="dialog" aria-modal="true"
+             aria-labelledby="coach-delete-title" aria-describedby="coach-delete-body">
+            <h2 id="coach-delete-title" class="ss-body1 fw-semibold">@Localize["Coach_ConversationDeleteTitle"]</h2>
+
+            <div id="coach-delete-body">
+                <p class="ss-body2">@Localize["Coach_ConversationDeleteBody"]</p>
+                @* What deletion does NOT do, stated before the button that does it. A learner who
+                   is afraid of losing their progress will otherwise never press it. *@
+                <p class="ss-caption1 text-secondary-ss">@Localize["Coach_ConversationDeleteImpact"]</p>
+            </div>
+
+            <div class="coach-dialog-actions">
+                <button type="button" class="btn btn-ss-secondary coach-action" @onclick="CancelDialog">
+                    @Localize["Coach_Cancel"]
+                </button>
+                <button type="button" class="btn btn-ss-danger coach-action"
+                        disabled="@Directory.IsBusy"
+                        @onclick="() => ConfirmDelete(deleting)">
+                    @Localize["Coach_ConversationDeleteConfirm"]
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>Raised after the learner picks or creates a conversation, so a drawer can close.</summary>
+    [Parameter] public EventCallback OnConversationOpened { get; set; }
+
+    private CoachConversationDto? _renaming;
+    private CoachConversationDto? _closing;
+    private CoachConversationDto? _deleting;
+    private string _renameText = string.Empty;
+    private string? _returnFocusElementId;
+    private IJSObjectReference? module;
+
+    protected override void OnInitialized()
+    {
+        Localize.CultureChanged += OnChanged;
+        Directory.Changed += OnChanged;
+        Coach.Changed += OnChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && RendererInfo.IsInteractive)
+        {
+            await Directory.EnsureLoadedAsync();
+        }
+    }
+
+    /// <summary>
+    /// The visible name of a conversation.
+    /// </summary>
+    /// <remarks>
+    /// A generated title is a localized date, because Sam never asks a model to name a
+    /// conversation: doing so would send the learner's words somewhere they did not ask for, to
+    /// produce a label. An unreadable title falls back to a generic noun rather than to raw
+    /// stored bytes.
+    /// </remarks>
+    private string Title(CoachConversationDto conversation) => conversation.TitleOrigin switch
+    {
+        CoachConversationTitleOrigin.Learner when !string.IsNullOrWhiteSpace(conversation.Title)
+            => conversation.Title!,
+        CoachConversationTitleOrigin.Unreadable => Localize["Coach_ConversationUntitled"],
+        _ => conversation.CreatedAtUtc.ToLocalTime()
+            .ToString(Localize["Coach_ConversationDateFormat"], Localize.Culture)
+    };
+
+    private string FormatUpdated(CoachConversationDto conversation) =>
+        conversation.UpdatedAtUtc.ToLocalTime()
+            .ToString(Localize["Coach_MessageDateTimeFormat"], Localize.Culture);
+
+    private async Task StartNew()
+    {
+        await Coach.OpenConversationAsync(Coach.Presentation, conversationId: null);
+        await OnConversationOpened.InvokeAsync();
+    }
+
+    private async Task Open(CoachConversationDto conversation)
+    {
+        // The id the learner picked, and only that id. Resolving to "the latest" here is the bug
+        // where tapping a conversation lands somewhere else.
+        await Coach.OpenConversationAsync(Coach.Presentation, conversation.ConversationId);
+        await OnConversationOpened.InvokeAsync();
+    }
+
+    private Task LoadMore() => Directory.LoadMoreAsync();
+
+    private void BeginRename(CoachConversationDto conversation)
+    {
+        _returnFocusElementId = "coach-new-conversation";
+        _renameText = conversation.Title ?? string.Empty;
+        _renaming = conversation;
+    }
+
+    private void BeginClose(CoachConversationDto conversation)
+    {
+        _returnFocusElementId = "coach-new-conversation";
+        _closing = conversation;
+    }
+
+    private void BeginDelete(CoachConversationDto conversation)
+    {
+        _returnFocusElementId = "coach-new-conversation";
+        _deleting = conversation;
+    }
+
+    private async Task ConfirmRename(CoachConversationDto conversation)
+    {
+        var renamed = await Directory.RenameAsync(conversation.ConversationId, _renameText);
+        _renaming = null;
+
+        if (renamed)
+        {
+            Coach.Announce("Coach_ConversationRenamed");
+        }
+
+        await RestoreFocus();
+    }
+
+    private async Task ConfirmClose(CoachConversationDto conversation)
+    {
+        await Directory.CloseAsync(conversation.ConversationId);
+        _closing = null;
+        await RestoreFocus();
+    }
+
+    private async Task Reopen(CoachConversationDto conversation)
+    {
+        if (await Directory.ReopenAsync(conversation.ConversationId))
+        {
+            Coach.Announce("Coach_ConversationReopened");
+        }
+    }
+
+    private async Task ConfirmDelete(CoachConversationDto conversation)
+    {
+        var deleted = await Directory.DeleteAsync(conversation.ConversationId);
+        _deleting = null;
+
+        if (deleted)
+        {
+            Coach.Announce("Coach_ConversationDeleted");
+        }
+        await RestoreFocus();
+    }
+
+    private async Task CancelDialog()
+    {
+        _renaming = null;
+        _closing = null;
+        _deleting = null;
+        await RestoreFocus();
+    }
+
+    /// <summary>
+    /// Puts focus back where the learner left it before the dialog opened.
+    /// </summary>
+    /// <remarks>
+    /// Without this, dismissing a dialog drops a keyboard user at the top of the document, which
+    /// is nowhere near what they were doing.
+    /// </remarks>
+    private async Task RestoreFocus()
+    {
+        if (_returnFocusElementId is { } id && RendererInfo.IsInteractive)
+        {
+            await FocusAsync(id);
+        }
+
+        _returnFocusElementId = null;
+    }
+
+    /// <summary>
+    /// Focuses an element through the imported app.js module.
+    /// </summary>
+    /// <remarks>
+    /// <c>focusElement</c> is an export of app.js, not a global. It is reachable only through the
+    /// module reference that <c>import()</c> returns; invoking it on the default
+    /// <see cref="IJSRuntime"/> throws a <see cref="JSException"/> ("The value 'focusElement' is
+    /// not a function"), which is neither a <see cref="JSDisconnectedException"/> nor an
+    /// <see cref="ObjectDisposedException"/> and so tears the whole circuit down.
+    /// </remarks>
+    private async Task FocusAsync(string elementId)
+    {
+        try
+        {
+            module ??= await Js.InvokeAsync<IJSObjectReference>(
+                "import", "./_content/SentenceStudio.UI/js/app.js");
+            await module.InvokeVoidAsync("focusElement", elementId);
+        }
+        catch (JSDisconnectedException) { }
+        catch (ObjectDisposedException) { }
+    }
+
+    /// <summary>
+    /// Streams an export straight to the browser's download machinery.
+    /// </summary>
+    /// <remarks>
+    /// The bytes go from the response to a blob URL that is revoked as soon as the download
+    /// starts. Nothing is buffered into a string, written to local storage, or left in a cache:
+    /// a transcript is the learner's words, and a convenience copy of it is a copy that outlives
+    /// the delete button.
+    /// </remarks>
+    private async Task Export(CoachConversationDto conversation, CoachExportFormat format)
+    {
+        Coach.Announce("Coach_ConversationExportStarted");
+
+        await using var stream = await Directory.ExportAsync(conversation.ConversationId, format);
+        if (stream is null)
+        {
+            return;
+        }
+
+        try
+        {
+            // downloadFileFromStream is an export of app.js, reachable only through the imported
+            // module. Invoking it on the default IJSRuntime throws a JSException that is neither a
+            // JSDisconnectedException nor an ObjectDisposedException, so it would kill the circuit
+            // even though the export itself streamed successfully.
+            module ??= await Js.InvokeAsync<IJSObjectReference>(
+                "import", "./_content/SentenceStudio.UI/js/app.js");
+            using var streamRef = new DotNetStreamReference(stream, leaveOpen: false);
+            await module.InvokeVoidAsync(
+                "downloadFileFromStream",
+                CoachConversationDirectory.ExportFileName(conversation.ConversationId, format),
+                streamRef);
+        }
+        catch (JSDisconnectedException) { }
+        catch (ObjectDisposedException) { }
+    }
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnChanged;
+        Directory.Changed -= OnChanged;
+        Coach.Changed -= OnChanged;
+    }
+}

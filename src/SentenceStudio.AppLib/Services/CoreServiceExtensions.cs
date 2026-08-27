@@ -18,8 +18,11 @@ public static class CoreServiceExtensions
 {
     public static IServiceCollection AddSentenceStudioCoreServices(this IServiceCollection services)
     {
-        // Theme
-        services.AddSingleton<ThemeService>();
+        // Theme presentation state is NOT registered here. Its correct lifetime differs by host —
+        // singleton on MAUI (the process is the device), scoped on the web (the circuit is the
+        // browser) — and a shared extension cannot pick one without breaking the other. Hosts call
+        // AddDeviceThemePresentation() or AddBrowserThemePresentation() explicitly.
+        // See ThemePresentationServiceCollectionExtensions.
 
         // Activity services
         services.AddSingleton<TeacherService>();
@@ -75,6 +78,12 @@ public static class CoreServiceExtensions
         services.AddSingleton<UserProfileRepository>();
         services.AddSingleton<UserActivityRepository>();
         services.AddSingleton<DiaryEntryRepository>();
+        services.AddSingleton<ConversationRepository>();
+        // Account export/deletion contributor for the legacy conversation activity.
+        // Registered against the interface so the auth/account layer never has to
+        // reference the repository (or know how ownership is enforced).
+        services.AddSingleton<IConversationOwnerDataService>(sp =>
+            sp.GetRequiredService<ConversationRepository>());
         services.AddSingleton<SkillProfileRepository>();
         services.AddSingleton<LearningResourceRepository>();
         services.AddSingleton<StreamHistoryRepository>();

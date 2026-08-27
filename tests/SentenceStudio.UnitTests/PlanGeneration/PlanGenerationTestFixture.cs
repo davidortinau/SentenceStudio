@@ -8,6 +8,7 @@ using SentenceStudio.Data;
 using SentenceStudio.Services;
 using SentenceStudio.Services.PlanGeneration;
 using SentenceStudio.Shared.Models;
+using SentenceStudio.UnitTests.Logging;
 
 namespace SentenceStudio.UnitTests.PlanGeneration;
 
@@ -24,7 +25,23 @@ public class PlanGenerationTestFixture : IDisposable
     public const string TestUserId = "test-user-1";
     public const string TestUserName = "Test Captain";
 
+    /// <summary>Captured log records (message + structured state) for this fixture.</summary>
+    public CapturingLoggerProvider Logs { get; } = new();
+
     public PlanGenerationTestFixture()
+        : this(registerSmartResourceService: false)
+    {
+    }
+
+    /// <param name="registerSmartResourceService">
+    /// When true, <c>SmartResourceService</c> is registered so
+    /// <c>UserProfileRepository.EnsureSmartResourcesAsync</c> actually writes
+    /// smart-resource rows. Only the pure-preview no-write tests need this;
+    /// leaving it off keeps every other plan test on the historical no-seed
+    /// behavior. Private because xUnit class fixtures may declare exactly one
+    /// public constructor — use <see cref="CreateWithSmartResourceSeeding"/>.
+    /// </param>
+    private PlanGenerationTestFixture(bool registerSmartResourceService)
     {
         _connection = new SqliteConnection("Data Source=:memory:");
         _connection.Open();
@@ -60,14 +77,24 @@ public class PlanGenerationTestFixture : IDisposable
         services.AddScoped<DeterministicPlanBuilder>();
         services.AddScoped<GeneratedPlanValidator>();
 
+        if (registerSmartResourceService)
+        {
+            services.AddScoped<SentenceStudio.Services.SmartResourceService>();
+        }
+
         // Live-clock date context — preserves the prior "today == real now" semantics
         // that existing tests depend on. Tests that need a frozen clock can
         // replace this registration with PlanDateContext(TimeZoneInfo.Utc, fixedNow).
         services.AddScoped<SentenceStudio.Services.Plans.IPlanDateContext>(_ =>
             new SentenceStudio.Services.Plans.PlanDateContext(TimeZoneInfo.Utc));
 
-        // Logging
-        services.AddLogging(b => b.SetMinimumLevel(LogLevel.Debug));
+        // Logging — every record is captured so privacy tests can assert an
+        // identifier never reaches a message or a structured field.
+        services.AddLogging(b =>
+        {
+            b.SetMinimumLevel(LogLevel.Trace);
+            b.AddProvider(Logs);
+        });
 
         ServiceProvider = services.BuildServiceProvider();
 
@@ -77,15 +104,21 @@ public class PlanGenerationTestFixture : IDisposable
         db.Database.EnsureCreated();
     }
 
+    /// <summary>
+    /// Creates a fixture whose <c>UserProfileRepository.EnsureSmartResourcesAsync</c>
+    /// really writes, so pure-preview no-write behavior is observable.
+    /// </summary>
+    public static PlanGenerationTestFixture CreateWithSmartResourceSeeding() => new(registerSmartResourceService: true);
+
     /// <summary>Seeds a user profile. Must be called before BuildPlanAsync.</summary>
-    public void SeedUserProfile(int sessionMinutes = 20)
+    public void SeedUserProfile(int sessionMinutes = 20, string? userId = null)
     {
         using var scope = ServiceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         db.UserProfiles.Add(new UserProfile
         {
-            Id = TestUserId,
+            Id = userId ?? TestUserId,
             Name = TestUserName,
             NativeLanguage = "English",
             TargetLanguage = "Korean",
@@ -103,7 +136,8 @@ public class PlanGenerationTestFixture : IDisposable
         string? transcript = "Some transcript text",
         string? mediaUrl = null,
         string language = "Korean",
-        int vocabWordCount = 0)
+        int vocabWordCount = 0,
+        string? userProfileId = null)
     {
         id ??= Guid.NewGuid().ToString();
 
@@ -118,7 +152,7 @@ public class PlanGenerationTestFixture : IDisposable
             Transcript = transcript,
             MediaUrl = mediaUrl,
             Language = language,
-            UserProfileId = TestUserId,
+            UserProfileId = userProfileId ?? TestUserId,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
@@ -351,6 +385,26 @@ public class PlanGenerationTestFixture : IDisposable
             .Where(rvm => rvm.ResourceId == resourceId)
             .Select(rvm => rvm.VocabularyWordId)
             .ToList();
+    }
+
+    /// <summary>Counts smart-resource rows, the only database write on the plan-generation path.</summary>
+    public int CountSmartResources()
+    {
+        using var scope = ServiceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return db.LearningResources.Count(r => r.IsSmartResource);
+    }
+
+    /// <summary>Counts every row the plan-generation path could plausibly write.</summary>
+    public (int Resources, int Words, int Progress, int Completions) CountAllRows()
+    {
+        using var scope = ServiceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return (
+            db.LearningResources.Count(),
+            db.VocabularyWords.Count(),
+            db.VocabularyProgresses.Count(),
+            db.DailyPlanCompletions.Count());
     }
 
     public void Dispose()

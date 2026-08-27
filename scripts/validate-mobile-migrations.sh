@@ -20,6 +20,80 @@ PROJECT="src/SentenceStudio.MacOS/SentenceStudio.MacOS.csproj"
 DEVFLOW_PORT=9225
 WAIT_TIMEOUT=90
 STARTUP_SETTLE=20
+
+MIGRATION_ERROR_PATTERN="FATAL: Database migration failed|FATAL: SyncService initialization failed completely|FATAL ERROR in database initialization|Mobile schema sanity check FAILED|no such column|no such table"
+SQLITE_ERROR_PATTERN="SQLite Error"
+SANITY_SIGNAL="Mobile schema sanity check PASSED"
+
+validate_migration_logs() {
+    local console_log="$1"
+    local devflow_log="${2:-}"
+    local sanity_line=""
+    local migration_error=false
+    local logfile
+
+    if [[ ! -s "$console_log" ]]; then
+        echo "❌ Console output is empty — nothing to validate."
+        echo "   App may have crashed silently or ILogger.AddConsole() is not configured."
+        return 1
+    fi
+
+    sanity_line=$(grep -n -m1 "$SANITY_SIGNAL" "$console_log" 2>/dev/null |
+        cut -d: -f1 || true)
+
+    # Explicit migration/schema failures are always fatal, even if they appear
+    # after the sanity signal or only in the supplementary DevFlow log.
+    for logfile in "$console_log" "$devflow_log"; do
+        if [[ -n "$logfile" && -s "$logfile" ]] && \
+           grep -iE "$MIGRATION_ERROR_PATTERN" "$logfile" 2>/dev/null; then
+            migration_error=true
+            echo "  ↳ Migration/schema error found in: $logfile"
+        fi
+    done
+
+    if [[ -n "$sanity_line" ]]; then
+        # Console output is chronological and authoritative. Once schema sanity
+        # passes, later generic SQLite errors belong to runtime work (for example
+        # CoreSync), not migration validation. DevFlow logs are supplementary and
+        # newest-first, so they cannot safely establish this boundary.
+        if sed -n "1,${sanity_line}p" "$console_log" |
+            grep -iE "$SQLITE_ERROR_PATTERN"; then
+            migration_error=true
+            echo "  ↳ SQLite error found before schema sanity passed: $console_log"
+        fi
+    else
+        # Without the positive boundary, fail closed and scan every available
+        # line for generic SQLite errors before reporting the missing signal.
+        for logfile in "$console_log" "$devflow_log"; do
+            if [[ -n "$logfile" && -s "$logfile" ]] && \
+               grep -iE "$SQLITE_ERROR_PATTERN" "$logfile" 2>/dev/null; then
+                migration_error=true
+                echo "  ↳ SQLite error found in unbounded log: $logfile"
+            fi
+        done
+    fi
+
+    if [[ "$migration_error" == "true" ]]; then
+        return 1
+    fi
+
+    if [[ -z "$sanity_line" ]]; then
+        echo "❌ Positive sanity signal '$SANITY_SIGNAL' NOT found."
+        return 1
+    fi
+
+    return 0
+}
+
+if [[ "${1:-}" == "--validate-logs-only" ]]; then
+    if [[ $# -lt 2 || $# -gt 3 ]]; then
+        echo "Usage: $0 --validate-logs-only <console-log> [devflow-log]" >&2
+        exit 2
+    fi
+    validate_migration_logs "$2" "${3:-}"
+    exit $?
+fi
+
 LOG_DIR=$(mktemp -d -t ss-migration-XXXX)
 LOG_PREFIX="$LOG_DIR/migration-validation"
 
@@ -46,21 +120,21 @@ if [[ ! -x "$APP_BINARY" ]]; then
 fi
 echo "📱 App bundle: $APP_BUNDLE"
 
-# Launch the binary directly to capture ILogger.AddConsole() output.
-# macOS AppKit does NOT use 'dotnet build -t:Run' (that's Catalyst/iOS).
-echo "🚀 Launching app binary (capturing console output)..."
-"$APP_BINARY" > "$LOG_PREFIX.console" 2>&1 &
-APP_PID=$!
-trap 'kill $APP_PID 2>/dev/null || true; echo "🧹 Cleaned up app process (PID $APP_PID)"' EXIT
+# AppKit apps must launch through LaunchServices. Starting the bundle executable directly can
+# trigger a SIGKILL even when the ad-hoc signature produced by the build is valid.
+echo "🚀 Launching app bundle through LaunchServices (capturing console output)..."
+open -n "$APP_BUNDLE" \
+    --stdout "$LOG_PREFIX.console" \
+    --stderr "$LOG_PREFIX.console"
 
-# Give the process a moment to start
-sleep 3
-if ! kill -0 "$APP_PID" 2>/dev/null; then
-    echo "❌ App exited immediately. Console output:"
-    cat "$LOG_PREFIX.console"
-    exit 1
-fi
-echo "✅ App process alive (PID $APP_PID)"
+APP_PID=""
+cleanup() {
+    if [[ "$APP_PID" =~ ^[0-9]+$ ]]; then
+        kill "$APP_PID" 2>/dev/null || true
+        echo "🧹 Cleaned up app process (PID $APP_PID)"
+    fi
+}
+trap cleanup EXIT
 
 # Wait for DevFlow agent on the CORRECT port (9225).
 # Broker auto-discovery is unreliable; use explicit --agent-port.
@@ -68,15 +142,11 @@ echo "⏳ Waiting for DevFlow agent on port $DEVFLOW_PORT (timeout: ${WAIT_TIMEO
 AGENT_CONNECTED=false
 ELAPSED=0
 while [[ $ELAPSED -lt $WAIT_TIMEOUT ]]; do
-    if maui devflow agent status --agent-port "$DEVFLOW_PORT" 2>/dev/null | grep -q '"running"'; then
+    if maui devflow agent status --agent-port "$DEVFLOW_PORT" 2>/dev/null |
+        grep -q '"running": true'; then
         AGENT_CONNECTED=true
+        APP_PID=$(lsof -tiTCP:"$DEVFLOW_PORT" -sTCP:LISTEN | head -1)
         break
-    fi
-    # Check app hasn't crashed while waiting
-    if ! kill -0 "$APP_PID" 2>/dev/null; then
-        echo "❌ App exited during startup. Console output:"
-        cat "$LOG_PREFIX.console"
-        exit 1
     fi
     sleep 5
     ELAPSED=$((ELAPSED + 5))
@@ -89,6 +159,12 @@ if [[ "$AGENT_CONNECTED" != "true" ]]; then
     exit 1
 fi
 echo "✅ Agent connected on port $DEVFLOW_PORT"
+
+if [[ ! "$APP_PID" =~ ^[0-9]+$ ]]; then
+    echo "❌ DevFlow connected, but the listener PID could not be resolved safely."
+    exit 1
+fi
+echo "✅ App process alive (PID $APP_PID)"
 
 # Verify app identity — prevent the stale-agent false-pass (2026-07-02).
 echo "🔍 Verifying attached app identity..."
@@ -123,29 +199,15 @@ if maui devflow logs --source native --limit 500 --agent-port "$DEVFLOW_PORT" \
     fi
 fi
 
-# Validate console output has content (primary log source)
-if [[ ! -s "$LOG_PREFIX.console" ]]; then
-    echo "❌ Console output is empty — nothing to validate."
-    echo "   App may have crashed silently or ILogger.AddConsole() is not configured."
-    echo "   Logs saved to: $LOG_DIR"
-    exit 1
-fi
-
-# Scan BOTH sources for migration errors
+# Validate the primary console log and supplementary DevFlow log. Generic
+# SQLite errors are migration-fatal only through the first positive sanity
+# signal; explicit migration/schema failures remain fatal everywhere.
 echo "🔍 Scanning for migration/schema errors..."
-MIGRATION_ERROR=false
-for logfile in "$LOG_PREFIX.console" "$LOG_PREFIX.devflow"; do
-    if [[ -s "$logfile" ]] && \
-       grep -iE "SQLite Error|MigrateAsync failed|Failed to initialize CoreSync|sanity check failed|no such column|no such table" "$logfile" 2>/dev/null; then
-        MIGRATION_ERROR=true
-        echo "  ↳ Error found in: $logfile"
-    fi
-done
-if [[ "$MIGRATION_ERROR" == "true" ]]; then
+if ! validate_migration_logs "$LOG_PREFIX.console" "$LOG_PREFIX.devflow"; then
     echo ""
-    echo "❌ Migration errors detected! Relevant console output:"
+    echo "❌ Migration validation failed! Relevant console output:"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    grep -iE "SQLite Error|MigrateAsync|sanity check|no such column|no such table|Migration" \
+    grep -iE "$MIGRATION_ERROR_PATTERN|$SQLITE_ERROR_PATTERN|$SANITY_SIGNAL" \
         "$LOG_PREFIX.console" | head -50
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     echo ""
@@ -153,24 +215,7 @@ if [[ "$MIGRATION_ERROR" == "true" ]]; then
     exit 1
 fi
 
-# Require the POSITIVE sanity signal from console output.
-# Console output is the ground truth — ILogger.AddConsole() captures the
-# MigrationSanityCheckService log entry directly, unlike DevFlow logs which
-# may truncate early startup entries (--limit 500 misses them when 500+ EF
-# command entries follow). Absence is a FAILURE, not a warning.
-if grep -q "Mobile schema sanity check PASSED" "$LOG_PREFIX.console" 2>/dev/null; then
-    echo "✅ Schema sanity check passed"
-else
-    echo ""
-    echo "❌ Positive sanity signal 'Mobile schema sanity check PASSED' NOT found."
-    echo "   The app did not start + migrate, ILogger output was missing, or the"
-    echo "   sanity check threw an exception. This is a FAILURE."
-    echo "   Logs saved to: $LOG_DIR"
-    echo ""
-    echo "Last 30 lines of console output:"
-    tail -30 "$LOG_PREFIX.console"
-    exit 1
-fi
+echo "✅ Schema sanity check passed"
 
 echo ""
 echo "✅ Mobile migrations validated on $TFM — errors scan clean AND sanity signal present"

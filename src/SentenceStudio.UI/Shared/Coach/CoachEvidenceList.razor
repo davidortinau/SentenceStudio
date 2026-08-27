@@ -1,0 +1,110 @@
+@implements IDisposable
+@inject BlazorLocalizationService Localize
+
+@* Evidence lives in the plan canvas only. Chat messages cite it inline with a
+   "View evidence" link, so there is exactly one source of truth for a claim.
+   Evidence is aggregate-first and always carries the date range it was drawn from. *@
+
+<CoachHeading Level="@HeadingLevel" Class="ss-title3 mb-2">
+    <i class="bi bi-clipboard-data me-1" aria-hidden="true"></i>@Localize["Coach_Evidence"]
+</CoachHeading>
+
+@if (Items.Count == 0)
+{
+    <p class="ss-caption1 text-secondary-ss mb-0">@Localize["Coach_NoEvidence"]</p>
+}
+else
+{
+    <ul class="list-unstyled mb-0">
+        @foreach (var item in Items)
+        {
+            <li class="mb-3">
+                <div class="ss-body2 fw-semibold">@EvidenceText.Heading(item)</div>
+                <div class="ss-caption1 text-secondary-ss">
+                    @Localize.Get("Coach_EvidenceWindow",
+                        FormatDate(item.WindowStartDate),
+                        FormatDate(item.WindowEndDate))
+                </div>
+                @if (EvidenceText.HasSummary(item))
+                {
+                    <div class="ss-body2">@EvidenceText.Summary(item)</div>
+                }
+                <CoachEvidenceScope Item="@item" />
+                @if (item.Values.Count > 0)
+                {
+                    <ul class="list-unstyled ms-3 mt-1 mb-0">
+                        @foreach (var value in item.Values)
+                        {
+                            <li class="ss-caption1 d-flex justify-content-between">
+                                <span>@EvidenceText.ValueLabel(value)</span>
+                                <span class="text-secondary-ss">@FormatValue(value)</span>
+                            </li>
+                        }
+                    </ul>
+                }
+            </li>
+        }
+    </ul>
+}
+
+@code {
+    /// <summary>
+    /// Localizes the card's heading, summary and value labels from the codes on the wire.
+    /// </summary>
+    /// <remarks>
+    /// Built here rather than injected. It is a stateless wrapper over the localization service
+    /// already injected above, and making it a DI dependency would oblige every host and every
+    /// hand-built test service collection that renders this component to register it.
+    /// </remarks>
+    private CoachEvidenceLocalizer? _evidenceText;
+
+    private CoachEvidenceLocalizer EvidenceText => _evidenceText ??= new CoachEvidenceLocalizer(Localize);
+
+    /// <summary>Heading level, so the section fits the host presentation's document outline.</summary>
+    [Parameter] public int HeadingLevel { get; set; } = 4;
+
+    /// <summary>The evidence rows to state. Empty renders the "nothing yet" line.</summary>
+    /// <remarks>
+    /// Explicit, never read from the workspace. Reading the workspace evidence here made this a
+    /// window onto whatever the workspace last held, which on a refusal turn could be rows from an
+    /// earlier question — the caller could not scope it even when it knew better. The caller now
+    /// says which rows it means, and
+    /// <c>CoachLimitationWiringContractTests.The_evidence_list_takes_its_rows_from_the_caller_and_never_from_the_workspace</c>
+    /// keeps the implicit read from coming back.
+    /// </remarks>
+    [Parameter, EditorRequired] public IReadOnlyList<CoachEvidenceDto> Items { get; set; } =
+        Array.Empty<CoachEvidenceDto>();
+
+    /// <remarks>
+    /// Culture only. The workspace subscription went with the implicit workspace read:
+    /// the rows now arrive as a parameter, so the owner re-renders this list when they change and
+    /// a second subscription would only re-render it for changes that are not its own.
+    /// </remarks>
+    protected override void OnInitialized()
+    {
+        Localize.CultureChanged += OnChanged;
+    }
+
+    /// <summary>
+    /// Formats a window date with the culture's own pattern and the culture's own calendar data.
+    /// Both the pattern (Coach_EvidenceDateFormat) and the culture are explicit: a hardcoded
+    /// "MMM d" rendered under the ambient culture produced English month abbreviations for a
+    /// Korean-display learner.
+    /// </summary>
+    private string FormatDate(DateOnly date) =>
+        date.ToString(Localize["Coach_EvidenceDateFormat"], Localize.Culture);
+
+    private string FormatValue(CoachEvidenceValueDto value) => value.Unit switch
+    {
+        CoachEvidenceUnit.Minutes => Localize.Get("Coach_PracticeMinutes", (int)Math.Round(value.Value)),
+        CoachEvidenceUnit.Percent => $"{Math.Round(value.Value)}%",
+        _ => Math.Round(value.Value).ToString("0")
+    };
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnChanged;
+    }
+}

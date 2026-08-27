@@ -4,6 +4,7 @@ using System.Net.Mail;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Shared.Diagnostics;
 using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Services;
@@ -72,11 +73,13 @@ public class SmtpEmailSender : IAppEmailSender
         try
         {
             await client.SendMailAsync(message);
-            _logger.LogInformation("Email sent to {Email}: {Subject}", toEmail, subject);
+            _logger.LogInformation("Email sent to {Email}: {Subject}",
+                AuthLogRedaction.MaskEmail(toEmail), subject);
         }
         catch (SmtpException ex)
         {
-            _logger.LogError(ex, "Failed to send email to {Email}: {Subject}", toEmail, subject);
+            _logger.LogError(ex, "Failed to send email to {Email}: {Subject}",
+                AuthLogRedaction.MaskEmail(toEmail), subject);
             throw;
         }
     }

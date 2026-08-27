@@ -74,6 +74,18 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         // LexicalUnitType enum: explicit int conversion + default value (0 = Unknown)
         // Required for reliable 0-storage on backfill across both PostgreSQL (server) and SQLite (MAUI)
         modelBuilder.Entity<VocabularyWord>().Property(e => e.LexicalUnitType).HasConversion<int>().HasDefaultValue(LexicalUnitType.Unknown);
+
+        // PartOfSpeech is stored as its canonical lowercase token rather than an
+        // int so an unmodelled future value stays readable in the column and
+        // round-trips through VocabularyPartOfSpeech.Other instead of becoming
+        // an undefined enum member. Null means "never classified" and is valid
+        // for every legacy row.
+        modelBuilder.Entity<VocabularyWord>()
+            .Property(e => e.PartOfSpeech)
+            .HasConversion(
+                v => v == null ? null : VocabularyPartOfSpeechTokens.ToToken(v.Value),
+                v => VocabularyPartOfSpeechTokens.FromToken(v))
+            .IsRequired(false);
         
         modelBuilder.Entity<VocabularyList>().ToTable("VocabularyList").HasKey(e => e.Id);
         modelBuilder.Entity<VocabularyList>().Property(e => e.Id).ValueGeneratedNever();
@@ -89,9 +101,19 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         
         modelBuilder.Entity<Conversation>().ToTable("Conversation").HasKey(e => e.Id);
         modelBuilder.Entity<Conversation>().Property(e => e.Id).ValueGeneratedNever();
-        
+        // Owner scoping for the legacy conversation activity. Nullable: rows that
+        // predate scoping have no trustworthy owner and are never claimed by a
+        // backfill — they stay null and stay hidden. Index is owner-first so the
+        // owner-scoped list query is a single index range scan.
+        modelBuilder.Entity<Conversation>().Property(e => e.UserProfileId).IsRequired(false);
+        modelBuilder.Entity<Conversation>().HasIndex(e => e.UserProfileId);
+        modelBuilder.Entity<Conversation>().HasIndex(e => new { e.UserProfileId, e.CreatedAt });
+
         modelBuilder.Entity<ConversationChunk>().ToTable("ConversationChunk").HasKey(e => e.Id);
         modelBuilder.Entity<ConversationChunk>().Property(e => e.Id).ValueGeneratedNever();
+        modelBuilder.Entity<ConversationChunk>().Property(e => e.UserProfileId).IsRequired(false);
+        modelBuilder.Entity<ConversationChunk>().HasIndex(e => e.UserProfileId);
+        modelBuilder.Entity<ConversationChunk>().HasIndex(e => new { e.UserProfileId, e.ConversationId });
         
         modelBuilder.Entity<ResourceVocabularyMapping>().ToTable("ResourceVocabularyMapping").HasKey(e => e.Id);
         modelBuilder.Entity<ResourceVocabularyMapping>().Property(e => e.Id).ValueGeneratedNever();

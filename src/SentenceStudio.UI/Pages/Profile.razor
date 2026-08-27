@@ -2,6 +2,7 @@
 @attribute [Authorize]
 @implements IDisposable
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
+@inject SentenceStudio.WebUI.Services.CoachPersona Persona
 
 <PageHeader Title="@Localize["Profile_PageTitle"]" />
 
@@ -284,6 +285,12 @@ else
             await ProfileRepo.SaveAsync(profile);
             AppState.CurrentUserProfile = profile;
 
+            // The coach's name follows the language being studied, so changing the target
+            // language renames them. Applied from the profile in hand rather than re-read:
+            // on the webapp the branch below leaves the page before a read would return.
+            Persona.ApplyStudyLanguage(profile.TargetLanguagesList.FirstOrDefault()
+                ?? profile.TargetLanguage);
+
             // Apply the new display culture end-to-end.
             var culture = profile.DisplayCulture;
             var cultureInfo = new System.Globalization.CultureInfo(culture);
@@ -293,7 +300,7 @@ else
 
             // 2) Persist the choice.
             var baseUri = NavManager.BaseUri;
-            var isWeb = !baseUri.StartsWith("app://") && !baseUri.Contains("0.0.0.0");
+            var isWeb = BlazorHostKind.IsWebHost(baseUri);
             if (isWeb)
             {
                 // WebApp: Blazor Server circuits can't write cookies over WebSocket.

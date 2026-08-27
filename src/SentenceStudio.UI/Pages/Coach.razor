@@ -1,0 +1,326 @@
+@page "/coach"
+@attribute [Authorize]
+@implements IAsyncDisposable
+@inject BlazorLocalizationService Localize
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject CoachWorkspaceState Workspace
+@inject CoachPersona Persona
+@inject CoachConversationDirectory Conversations
+
+@*
+    Narrow, touch-first composition.
+
+    This is a real route (not a shrunken desktop modal) specifically so it inherits the
+    canonical activity shell — .activity-page-wrapper / .activity-content / .activity-input-bar
+    — and gets the pinned composer, safe-area padding and single scroll region for free.
+    Copy the shell verbatim; only the inner content differs.
+
+    Anti-pattern guards honoured here:
+      #1 the Plan pane omits .activity-input-bar entirely rather than leaving it empty,
+         which would paint a ~50px chrome strip above the home indicator.
+      #2 no card wrapper around the shell.
+      #4 no new wrapper class beyond the .coach-page modifier.
+
+    Routes.razor already runs FocusOnNavigate Selector="h1", so the plan's "focus the
+    workspace heading on open" is free here and is deliberately not duplicated.
+*@
+
+<div class="activity-page-wrapper coach-page" inert="@(IsConfirming ? "" : null)">
+
+    <PageHeader Title="@Persona.DisplayName" ShowBack="true" OnBack="GoBack">
+        <ToolbarActions>
+            @* Same shelf as the wide composition, reached the same way. A narrow screen is a
+               reason to change the layout, not to withhold the control. *@
+            @if (Conversations.IsDurableHistoryAvailable)
+            {
+                <button type="button" class="btn btn-sm btn-icon coach-action"
+                        id="coach-conversations-toggle"
+                        aria-expanded="@(_showConversations ? "true" : "false")"
+                        aria-controls="coach-conversations-drawer"
+                        aria-label="@(_showConversations ? Localize["Coach_ConversationsClose"] : Localize["Coach_ConversationsToggle"])"
+                        @onclick="ToggleConversations">
+                    <i class="bi bi-list-ul" style="font-size: 1.25rem;" aria-hidden="true"></i>
+                </button>
+            }
+
+            <button type="button" class="btn btn-sm btn-icon coach-action"
+                    aria-label="@PlanButtonAccessibleName"
+                    @onclick="ShowPlanPane">
+                <i class="bi bi-calendar-check" style="font-size: 1.25rem;" aria-hidden="true"></i>
+                @if (Workspace.PlanBadgeCount > 0)
+                {
+                    <span class="badge bg-secondary ms-1">@Workspace.PlanBadgeCount</span>
+                }
+            </button>
+        </ToolbarActions>
+        <SecondaryActions>
+            <button class="dropdown-item" @onclick="ShowPlanPane">
+                <i class="bi bi-clock-history me-2" aria-hidden="true"></i>@Localize["Coach_Changes"]
+            </button>
+            <button class="dropdown-item" @onclick="Workspace.RequestEndSessionConfirmation">
+                <i class="bi bi-trash me-2" aria-hidden="true"></i>@Localize["Coach_EndSession"]
+            </button>
+        </SecondaryActions>
+    </PageHeader>
+
+    <div class="activity-content">
+        @if (_showConversations)
+        {
+            <div class="coach-conversations-drawer coach-conversations-drawer-narrow"
+                 id="coach-conversations-drawer">
+                <CoachConversationList OnConversationOpened="CloseConversations" />
+            </div>
+        }
+        else if (Workspace.Pane == CoachPane.Coach)
+        {
+            <div class="coach-pane">
+                <CoachChatPane OnStartNewSession="StartNewSessionAsync"
+                               OnReloadPlan="ReloadPlanAsync"
+                               OnViewEvidence="ShowPlanPane" />
+            </div>
+        }
+        else
+        {
+            <div class="coach-pane">
+                @* Panes here are query-backed routes, not tabs, so the canvas takes no tab
+                   semantics. PageHeader owns the h1, so the canvas title is an h2. *@
+                <CoachPlanCanvas ShowClose="false" HeadingLevel="2" />
+            </div>
+        }
+    </div>
+
+    @* Exactly one pinned bottom region per state: the composer exists on the Coach pane only. *@
+    @if (Workspace.Pane == CoachPane.Coach)
+    {
+        <div class="activity-input-bar">
+            <CoachComposer EnterSends="false" />
+        </div>
+    }
+
+</div>
+
+@if (Workspace.PendingConfirmation == CoachConfirmation.EndSession)
+{
+    <CoachConfirm DialogId="coach-end-session-confirm"
+                  Title="@Localize["Coach_EndSessionDialogTitle"]"
+                  Body="@Localize["Coach_DeleteDialogBody"]"
+                  ConfirmLabel="@Localize["Coach_DeleteDialogConfirm"]"
+                  IsBusy="@Workspace.IsBusy"
+                  OnConfirm="ConfirmEndSessionAsync"
+                  OnCancel="Workspace.DismissConfirmation" />
+}
+
+<CoachLiveRegion />
+<CoachFocusManager />
+
+@code {
+    private bool _showConversations;
+
+    /// <summary>
+    /// Opens or closes the conversation shelf, putting focus back on the control that moved it.
+    /// </summary>
+    private async Task ToggleConversations()
+    {
+        _showConversations = !_showConversations;
+
+        if (!_showConversations && RendererInfo.IsInteractive)
+        {
+            await FocusAsync("coach-conversations-toggle");
+        }
+    }
+
+    private async Task CloseConversations()
+    {
+        _showConversations = false;
+
+        if (RendererInfo.IsInteractive)
+        {
+            await FocusAsync("coach-conversations-toggle");
+        }
+    }
+
+    /// <summary>
+    /// Focuses an element through the imported app.js module.
+    /// </summary>
+    /// <remarks>
+    /// <c>focusElement</c> is an export of app.js, reachable only through the module reference
+    /// from <c>import()</c>; invoking it on the default <see cref="IJSRuntime"/> throws a
+    /// <see cref="JSException"/> that terminates the circuit. The module is normally imported on
+    /// first render, but this guards the case where a focus is requested before that has run.
+    /// </remarks>
+    private async Task FocusAsync(string elementId)
+    {
+        try
+        {
+            module ??= await JS.InvokeAsync<IJSObjectReference>(
+                "import", "./_content/SentenceStudio.UI/js/app.js");
+            await module.InvokeVoidAsync("focusElement", elementId);
+        }
+        catch (JSDisconnectedException) { }
+        catch (ObjectDisposedException) { }
+    }
+
+    [SupplyParameterFromQuery(Name = CoachWorkspaceHost.SessionQueryKey)]
+    private string? SessionIdParam { get; set; }
+
+    [SupplyParameterFromQuery(Name = CoachWorkspaceHost.PaneQueryKey)]
+    private string? PaneParam { get; set; }
+
+    private IJSObjectReference? module;
+    private bool redirected;
+
+    protected override void OnInitialized()
+    {
+        Localize.CultureChanged += OnChanged;
+        Workspace.Changed += OnChanged;
+        Persona.Changed += OnChanged;
+    }
+
+    protected override async Task OnParametersSetAsync()
+    {
+        Workspace.SetPane(string.Equals(PaneParam, "plan", StringComparison.OrdinalIgnoreCase)
+            ? CoachPane.Plan
+            : CoachPane.Coach);
+
+        // Starting a session during prerendering would run against the prerender scope's
+        // CoachWorkspaceState and be thrown away, leaving the live circuit to start a second
+        // one. Only open once interactive.
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        if (!Workspace.IsOpen || Workspace.Presentation != CoachPresentation.FullScreen)
+        {
+            var resumeId = string.Equals(SessionIdParam, "new", StringComparison.Ordinal) ? null : SessionIdParam;
+            await Workspace.OpenAsync(CoachPresentation.FullScreen, resumeId);
+            PublishEntryId();
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || redirected)
+        {
+            return;
+        }
+
+        module = await JS.InvokeAsync<IJSObjectReference>(
+            "import", "./_content/SentenceStudio.UI/js/app.js");
+
+        // A deep link to /coach opened on a wide viewport redirects once to the overlay.
+        // Once inside a session, resizing never navigates — only this first-render check does.
+        var width = await module.InvokeAsync<int>("getViewportWidth");
+        if (CoachStateMachine.ChoosePresentation(width) == CoachPresentation.Overlay)
+        {
+            redirected = true;
+            var entryId = Workspace.EntryId ?? SessionIdParam ?? "new";
+            Nav.NavigateTo($"/?{CoachWorkspaceHost.SessionQueryKey}={Uri.EscapeDataString(entryId)}", replace: true);
+            return;
+        }
+    }
+
+    private string PlanButtonAccessibleName => Workspace.State switch
+    {
+        CoachUiState.SuggestionPending => Localize["Coach_PlanTabSuggested"],
+        CoachUiState.PlanUpdated => Localize["Coach_PlanTabUpdated"],
+        _ => Workspace.PlanBadgeCount > 0
+            ? Localize.Get("Coach_PlanToggleUpdated", Workspace.PlanBadgeCount)
+            : Localize["Coach_PlanToggle"]
+    };
+
+    private void ShowPlanPane() => NavigateToPane(CoachPane.Plan);
+
+    /// <summary>
+    /// Back from the Plan pane returns to the Coach pane; a second Back exits to the Dashboard.
+    /// Never exit from a sub-pane in one gesture.
+    /// </summary>
+    private void GoBack()
+    {
+        if (Workspace.Pane == CoachPane.Plan)
+        {
+            NavigateToPane(CoachPane.Coach);
+            return;
+        }
+
+        Workspace.Close();
+        Nav.NavigateTo("/");
+    }
+
+    private void NavigateToPane(CoachPane pane)
+    {
+        Workspace.SetPane(pane);
+
+        // Panes are query-backed on the same route so browser and system Back both work.
+        var entryId = Workspace.EntryId ?? SessionIdParam ?? "new";
+        var paneValue = pane == CoachPane.Plan ? "plan" : "coach";
+        Nav.NavigateTo($"/coach?{CoachWorkspaceHost.SessionQueryKey}={Uri.EscapeDataString(entryId)}&{CoachWorkspaceHost.PaneQueryKey}={paneValue}");
+    }
+
+    private async Task StartNewSessionAsync()
+    {
+        Workspace.Reset();
+        await Workspace.OpenAsync(CoachPresentation.FullScreen, null);
+    }
+
+    private async Task ReloadPlanAsync()
+    {
+        var entryId = Workspace.EntryId;
+        Workspace.Reset();
+        await Workspace.OpenAsync(CoachPresentation.FullScreen, entryId);
+        PublishEntryId();
+    }
+
+    /// <summary>
+    /// Replaces the "new" sentinel in the address bar with the id that was actually opened, so a
+    /// reload returns to this conversation instead of starting another one.
+    /// </summary>
+    private void PublishEntryId()
+    {
+        if (Workspace.EntryId is not { Length: > 0 } entryId
+            || string.Equals(SessionIdParam, entryId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var paneValue = Workspace.Pane == CoachPane.Plan ? "plan" : "coach";
+        Nav.NavigateTo(
+            $"/coach?{CoachWorkspaceHost.SessionQueryKey}={Uri.EscapeDataString(entryId)}&{CoachWorkspaceHost.PaneQueryKey}={paneValue}",
+            forceLoad: false,
+            replace: true);
+    }
+
+    private bool IsConfirming => Workspace.PendingConfirmation != CoachConfirmation.None;
+
+    /// <summary>
+    /// Ending the session deletes coach history, so it only runs after explicit confirmation.
+    /// The workspace closes afterwards because there is nothing left to show.
+    /// </summary>
+    private async Task ConfirmEndSessionAsync()
+    {
+        await Workspace.ConfirmPendingAsync();
+        Nav.NavigateTo("/");
+    }
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public async ValueTask DisposeAsync()
+    {
+        Localize.CultureChanged -= OnChanged;
+        Workspace.Changed -= OnChanged;
+        Persona.Changed -= OnChanged;
+
+        try
+        {
+            if (module is not null)
+            {
+                await module.DisposeAsync();
+            }
+        }
+        catch
+        {
+            // Circuit already torn down.
+        }
+    }
+}

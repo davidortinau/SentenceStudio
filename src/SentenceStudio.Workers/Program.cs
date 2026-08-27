@@ -7,6 +7,7 @@ using SentenceStudio.Abstractions;
 using SentenceStudio.Data;
 using SentenceStudio.Services;
 using SentenceStudio.Services.LanguageSegmentation;
+using SentenceStudio.Services.Vocabulary;
 using SentenceStudio.Workers;
 using SentenceStudio.Workers.Platform;
 
@@ -87,6 +88,15 @@ if (!string.IsNullOrWhiteSpace(aiEndpoint))
 }
 
 builder.Services.AddHostedService<Worker>();
+
+// Opt-in part-of-speech backfill. Registered unconditionally because it is inert by default:
+// VocabularyPartOfSpeechBackfillOptions arrives disabled with an empty allowlist, and both the
+// worker and the service refuse to query in that state. Enabling it also requires naming the
+// profiles to process — there is no all-tenant mode.
+builder.Services.Configure<VocabularyPartOfSpeechBackfillOptions>(
+    builder.Configuration.GetSection(VocabularyPartOfSpeechBackfillOptions.SectionName));
+builder.Services.AddScoped<VocabularyPartOfSpeechBackfillService>();
+builder.Services.AddHostedService<PartOfSpeechBackfillWorker>();
 
 var host = builder.Build();
 host.Run();

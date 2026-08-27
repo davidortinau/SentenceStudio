@@ -1,0 +1,67 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject CoachWorkspaceState Coach
+
+@*
+    The single post-render focus path, shared by BOTH presentations.
+
+    Mounted once per composition next to CoachLiveRegion. It runs on EVERY render, not just
+    the first, because the focus targets it moves to — a change receipt, an error card — are
+    created by the render that answers the action. Consuming the pending target before that
+    render would focus an element that does not exist yet.
+
+    The decision of WHETHER to move focus is not made here: CoachWorkspaceState already applied
+    the outcome policy (typed action keeps the composer and announces politely; a tapped Accept
+    or Undo focuses the receipt and suppresses the announcement; a failure focuses the alert only
+    when the control that triggered it was destroyed). This component only carries it out.
+*@
+
+@code {
+    private IJSObjectReference? module;
+
+    protected override void OnInitialized() => Coach.Changed += OnChanged;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // Read the target AFTER the DOM for this render exists.
+        var elementId = Coach.ConsumePendingFocus();
+        if (elementId is null)
+        {
+            return;
+        }
+
+        try
+        {
+            module ??= await JS.InvokeAsync<IJSObjectReference>(
+                "import", "./_content/SentenceStudio.UI/js/app.js");
+            await module.InvokeVoidAsync("focusElement", elementId);
+        }
+        catch (JSDisconnectedException)
+        {
+            // Circuit gone; nothing to focus.
+        }
+        catch (ObjectDisposedException)
+        {
+            // Component torn down mid-flight.
+        }
+    }
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public async ValueTask DisposeAsync()
+    {
+        Coach.Changed -= OnChanged;
+
+        try
+        {
+            if (module is not null)
+            {
+                await module.DisposeAsync();
+            }
+        }
+        catch
+        {
+            // Circuit already torn down.
+        }
+    }
+}

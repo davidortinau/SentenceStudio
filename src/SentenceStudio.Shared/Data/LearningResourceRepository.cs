@@ -5,7 +5,7 @@ using SentenceStudio.Abstractions;
 
 namespace SentenceStudio.Data;
 
-public class LearningResourceRepository
+public partial class LearningResourceRepository : SentenceStudio.Application.Resources.ILearningResourceQueries
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<LearningResourceRepository> _logger;
@@ -401,6 +401,43 @@ public class LearningResourceRepository
         }
     }
 
+    /// <summary>
+    /// Deletes a resource the caller owns, together with the progress its words no longer reach.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The transaction runs through <c>CreateExecutionStrategy()</c> because the Aspire Npgsql
+    /// registration installs <c>NpgsqlRetryingExecutionStrategy</c>, which refuses a user-initiated
+    /// transaction it does not own. Without it every server-side delete threw
+    /// <c>InvalidOperationException</c> at <c>BeginTransactionAsync</c> and was swallowed into the
+    /// <c>-1</c> below, so the resource silently survived on PostgreSQL while the same code passed
+    /// on SQLite, which has no retrying strategy. Found by browser E2E on 2026-08-19: Sam's
+    /// protected resource removal reported <c>execution_failed</c> and the row was still there.
+    /// </para>
+    /// <para>
+    /// It runs through <c>ExecuteInTransactionAsync</c> rather than <c>ExecuteAsync</c> because a
+    /// connection that drops while the commit is in flight leaves the outcome genuinely unknown:
+    /// the server may have committed and lost only the acknowledgement. A bare retry answers that
+    /// by running the delete again, which finds the row already gone, fails its concurrency check,
+    /// and reports <c>-1</c> — a failure for something that succeeded. <c>verifySucceeded</c> is
+    /// the pattern EF provides for exactly this: after a transient commit error it is asked
+    /// whether the work landed, and a true answer ends the retry with the result the ambiguous
+    /// attempt produced.
+    /// </para>
+    /// <para>
+    /// The verification is a fresh read on a cleared change tracker, because the tracker still
+    /// holds the entity this attempt marked deleted and a tracked read would answer from that
+    /// rather than from the database. It asks whether the row exists at all: it is gone only if a
+    /// delete landed, and ownership was already proved before the transaction opened, so absence
+    /// is this operation's success and not somebody else's row.
+    /// </para>
+    /// <para>
+    /// The body is re-entrant by construction. It re-reads the resource itself, so a rolled-back
+    /// attempt re-runs against the state it actually finds rather than against an entity captured
+    /// before the first try, and a row that is already gone ends the attempt without pretending to
+    /// have removed one.
+    /// </para>
+    /// </remarks>
     public async Task<int> DeleteResourceAsync(LearningResource resource, string? userProfileId = null)
     {
         var userId = ResolveUserId(userProfileId);
@@ -413,72 +450,103 @@ public class LearningResourceRepository
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        var ownedResource = await db.LearningResources
-            .FirstOrDefaultAsync(r => r.Id == resource.Id && r.UserProfileId == userId);
-        if (ownedResource is null)
+        var resourceId = resource.Id;
+
+        // Ownership is proved before any transaction opens, so a foreign or missing resource costs
+        // one read and can never reach the verification below — which treats an absent row as this
+        // operation's success and would otherwise be reasoning about a row that was never ours.
+        var ownershipProved = await db.LearningResources
+            .AsNoTracking()
+            .AnyAsync(r => r.Id == resourceId && r.UserProfileId == userId);
+        if (!ownershipProved)
         {
             _logger.LogWarning("DeleteResourceAsync refused a missing or unowned resource.");
             return 0;
         }
 
-        using var tx = await db.Database.BeginTransactionAsync();
         try
         {
-            // Capture the vocab IDs reachable via this resource BEFORE removing the resource;
-            // ResourceVocabularyMapping cascades to gone, so we can't read them after the fact.
-            var resourceWordIds = await db.ResourceVocabularyMappings
-                .Where(m => m.ResourceId == ownedResource.Id)
-                .Select(m => m.VocabularyWordId)
-                .Distinct()
-                .ToListAsync();
-
-            db.LearningResources.Remove(ownedResource);
-            int affected = await db.SaveChangesAsync();
-
-            // Cascade orphan sweep: for each vocab word this resource owned a mapping for,
-            // check whether the SAME user can still reach the word via another of their
-            // resources. If not, delete the user's VocabularyProgress row so it doesn't become
-            // an "eternally due" orphan that pollutes plan generation. Matches the user's
-            // mental model — "if I removed the resource, my progress on its words is gone too".
-            // See Brot incident, 2026-06-12.
-            var ownerUserId = userId;
-            if (resourceWordIds.Count > 0 && !string.IsNullOrEmpty(ownerUserId))
-            {
-                var stillReachableWordIds = await db.ResourceVocabularyMappings
-                    .Where(m => resourceWordIds.Contains(m.VocabularyWordId))
-                    .Join(db.LearningResources.Where(r => r.UserProfileId == ownerUserId),
-                          m => m.ResourceId,
-                          r => r.Id,
-                          (m, r) => m.VocabularyWordId)
-                    .Distinct()
-                    .ToListAsync();
-                var orphanedWordIds = resourceWordIds.Except(stillReachableWordIds).ToList();
-                if (orphanedWordIds.Count > 0)
+            var strategy = db.Database.CreateExecutionStrategy();
+            var affected = await strategy.ExecuteInTransactionAsync(
+                operation: async ct =>
                 {
-                    var orphanProgress = await db.VocabularyProgresses
-                        .Where(vp => vp.UserId == ownerUserId
-                            && orphanedWordIds.Contains(vp.VocabularyWordId))
-                        .ToListAsync();
-                    if (orphanProgress.Count > 0)
-                    {
-                        db.VocabularyProgresses.RemoveRange(orphanProgress);
-                        await db.SaveChangesAsync();
-                        _logger.LogInformation(
-                            "DeleteResourceAsync orphan sweep: removed {Count} VocabularyProgress rows for user {UserId} that lost their last reachable mapping after deleting resource {ResourceId}",
-                            orphanProgress.Count, ownerUserId, resource.Id);
-                    }
-                }
-            }
+                    // Each attempt starts from the database, not from what a previous attempt
+                    // staged. A retry after a rollback must see the rolled-back state.
+                    db.ChangeTracker.Clear();
 
-            await tx.CommitAsync();
+                    var ownedResource = await db.LearningResources
+                        .FirstOrDefaultAsync(r => r.Id == resourceId && r.UserProfileId == userId, ct);
+                    if (ownedResource is null)
+                    {
+                        // Somebody else's request removed it between the ownership check and here.
+                        // Nothing to do and nothing to claim.
+                        return 0;
+                    }
+
+                    // Capture the vocab IDs reachable via this resource BEFORE removing the resource;
+                    // ResourceVocabularyMapping cascades to gone, so we can't read them after the fact.
+                    var resourceWordIds = await db.ResourceVocabularyMappings
+                        .Where(m => m.ResourceId == ownedResource.Id)
+                        .Select(m => m.VocabularyWordId)
+                        .Distinct()
+                        .ToListAsync(ct);
+
+                    db.LearningResources.Remove(ownedResource);
+                    int removed = await db.SaveChangesAsync(ct);
+
+                    // Cascade orphan sweep: for each vocab word this resource owned a mapping for,
+                    // check whether the SAME user can still reach the word via another of their
+                    // resources. If not, delete the user's VocabularyProgress row so it doesn't become
+                    // an "eternally due" orphan that pollutes plan generation. Matches the user's
+                    // mental model — "if I removed the resource, my progress on its words is gone too".
+                    // See Brot incident, 2026-06-12. Inside the same transaction as the removal, so
+                    // the two either both land or neither does.
+                    var ownerUserId = userId;
+                    if (resourceWordIds.Count > 0 && !string.IsNullOrEmpty(ownerUserId))
+                    {
+                        var stillReachableWordIds = await db.ResourceVocabularyMappings
+                            .Where(m => resourceWordIds.Contains(m.VocabularyWordId))
+                            .Join(db.LearningResources.Where(r => r.UserProfileId == ownerUserId),
+                                  m => m.ResourceId,
+                                  r => r.Id,
+                                  (m, r) => m.VocabularyWordId)
+                            .Distinct()
+                            .ToListAsync(ct);
+                        var orphanedWordIds = resourceWordIds.Except(stillReachableWordIds).ToList();
+                        if (orphanedWordIds.Count > 0)
+                        {
+                            var orphanProgress = await db.VocabularyProgresses
+                                .Where(vp => vp.UserId == ownerUserId
+                                    && orphanedWordIds.Contains(vp.VocabularyWordId))
+                                .ToListAsync(ct);
+                            if (orphanProgress.Count > 0)
+                            {
+                                db.VocabularyProgresses.RemoveRange(orphanProgress);
+                                await db.SaveChangesAsync(ct);
+                                _logger.LogInformation(
+                                    "DeleteResourceAsync orphan sweep: removed {Count} VocabularyProgress rows for user {UserId} that lost their last reachable mapping after deleting resource {ResourceId}",
+                                    orphanProgress.Count, ownerUserId, resourceId);
+                            }
+                        }
+                    }
+
+                    return removed;
+                },
+                verifySucceeded: async ct =>
+                {
+                    db.ChangeTracker.Clear();
+                    return !await db.LearningResources
+                        .AsNoTracking()
+                        .AnyAsync(r => r.Id == resourceId, ct);
+                });
+
             _syncService?.TriggerSyncAsync().ConfigureAwait(false);
 
             return affected;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "❌ DeleteResourceAsync error for resource {ResourceId}", resource.Id);
-            try { await tx.RollbackAsync(); } catch { }
+            _logger.LogError(ex, "❌ DeleteResourceAsync error for resource {ResourceId}", resourceId);
             return -1;
         }
     }

@@ -32,11 +32,11 @@ Resources are typically defined in an AppHost such as, `AppHost.cs`, `apphost.ts
 ## Default workflow
 
 1. Confirm that the workspace is an Aspire app and identify the AppHost.
-2. Start the app with `aspire start`. Use `--isolated` in git worktrees or whenever shared local state would be risky.
+2. Start the app with `aspire start`. Use `--isolated` only when running from a separately materialized project path that is NOT the path of an existing running AppHost (a different worktree or full clone).
 3. Use `aspire wait <resource>` before interacting with a resource that needs to be healthy.
 4. Inspect state with `aspire describe`, then use `aspire otel logs`, `aspire logs`, `aspire otel traces`, and `aspire export` before making code changes. Display returned data using the formatting rules in [references/monitoring.md](references/monitoring.md).
 5. Before adding an integration, use `aspire integration search <query>` when the package is unknown, then use `aspire docs search <topic>` and `aspire docs get <slug>` for workflow guidance. Before introducing a custom dashboard/resource command or using an unfamiliar AppHost API, use docs search/get and then `aspire docs api search <query> --language csharp|typescript` and `aspire docs api get <id>` when you need the API reference entry itself.
-6. When code changes, decide whether the AppHost model changed or only one resource changed. Re-run `aspire start` after AppHost changes; in git worktrees, re-run `aspire start --isolated` instead of switching to `aspire run`. Keep the AppHost running for resource-specific changes and use resource commands, runtime hot reload/watch, dashboard actions, or IDE-managed debugging as appropriate.
+6. When code changes, decide whether the AppHost model changed or only one resource changed. Re-run `aspire start` after AppHost changes; in a separately materialized project path (different worktree or clone, not the live AppHost's path), re-run `aspire start --isolated` instead of switching to `aspire run`. Keep the AppHost running for resource-specific changes and use resource commands, runtime hot reload/watch, dashboard actions, or IDE-managed debugging as appropriate.
 
 ## C# AppHosts
 
@@ -59,7 +59,7 @@ When the AppHost is `apphost.ts`, the `.modules/` folder at the project root con
 ## Key rules
 
 - Prefer `aspire start` over `dotnet run` for AppHosts. `aspire run` blocks the terminal and is a poor fit for agent workflows.
-- Re-running `aspire start` is the restart path. In git worktrees, `aspire start --isolated` is both the start and restart command. Do not combine `aspire stop` and `aspire run`.
+- Re-running `aspire start` is the restart path. In a separately materialized project path (different worktree or clone -- never the same path as a running AppHost), `aspire start --isolated` is both the start and restart command. Do not combine `aspire stop` and `aspire run`.
 - Do not stop or restart the whole AppHost just because one resource changed. Keep the AppHost running and operate on the resource directly unless the AppHost model or AppHost code changed.
 - Use the command shape `aspire resource <resource-name> <command>` for resource operations, such as `aspire resource api stop`, `aspire resource api start`, or `aspire resource api rebuild` when a C# project resource exposes rebuild.
 - Use `features.defaultWatchEnabled` only for Aspire default watch. It runs supported C# and TypeScript AppHosts in CLI watch mode for the AppHost-managed application; do not treat it as per-resource rebuild, restart, or hot reload for resource source changes.

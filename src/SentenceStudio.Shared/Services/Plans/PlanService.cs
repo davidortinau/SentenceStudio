@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Contracts.Plans;
 using SentenceStudio.Data;
@@ -148,17 +149,27 @@ public sealed class PlanService : IPlanService
             // If LLM returned nothing, transparently fall back to deterministic.
             if (skeleton is null && generator is ILlmPlanGenerator)
             {
+                // Identifier-free by policy: Coach call paths can reach the
+                // generators, and a raw user id must never enter telemetry.
                 _logger.LogWarning(
-                    "LLM generator returned null for user '{UserId}'. Falling back to deterministic.",
-                    userId);
+                    "LLM generator returned null. Falling back to deterministic.");
                 skeleton = await _deterministic.GenerateAsync(userId, ct);
                 strategy = "deterministic";
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            _logger.LogWarning(ex,
-                "Plan generator threw for user '{UserId}'. Falling back to empty plan.", userId);
+            // Exception type name only — never the exception object. The LLM generator reaches a
+            // model provider, and a provider failure routinely quotes the prompt or the model's
+            // own output in Exception.Message, in an inner exception, or in Exception.Data;
+            // LogWarning(ex, ...) writes all of it through Exception.ToString(). Coach call paths
+            // reach this generator, so that text is learner content. A type name is a
+            // compile-time constant and cannot carry any of it. This mirrors the sanitized
+            // logging the coach surface uses (CoachExceptionSanitizer / CoachMemoryEndpoints),
+            // which lives in the API project and is not referenceable from Shared.
+            _logger.LogWarning(
+                "Plan generator threw. Falling back to empty plan. Error={Error}",
+                ex.GetType().Name);
         }
 
         if (skeleton is null)
@@ -193,8 +204,8 @@ public sealed class PlanService : IPlanService
             if (!Enum.TryParse<PlanActivityType>(activity.ActivityType, ignoreCase: false, out var activityType))
             {
                 _logger.LogWarning(
-                    "Skipping unknown activity type '{ActivityType}' returned by generator for user '{UserId}'.",
-                    activity.ActivityType, userId);
+                    "Skipping unknown activity type '{ActivityType}' returned by generator.",
+                    activity.ActivityType);
                 continue;
             }
 
@@ -408,6 +419,781 @@ public sealed class PlanService : IPlanService
             await _db.SaveChangesAsync(ct);
         }
     }
+
+    // ---------- coach plan revision ----------
+
+    public async Task<PlanSnapshot> GetTodaySnapshotAsync(CancellationToken ct = default)
+    {
+        var userId = _scope.UserProfileId;
+        var todayLocal = _dateContext.UserLocalDate;
+
+        var completions = await LoadCompletionsAsync(userId, ToDateKey(todayLocal), tracked: false, ct);
+        return PlanSnapshot.FromCompletions(todayLocal, completions);
+    }
+
+    public Task<PlanPreviewResult> PreviewPlanAsync(PlanConstraints? constraints, CancellationToken ct = default)
+        => PreviewPlanAsync(constraints, focusVocabularyWordIds: null, ct);
+
+    public async Task<PlanPreviewResult> PreviewPlanAsync(
+        PlanConstraints? constraints,
+        IReadOnlyList<string>? focusVocabularyWordIds,
+        CancellationToken ct = default)
+    {
+        var userId = _scope.UserProfileId;
+        var todayLocal = _dateContext.UserLocalDate;
+
+        if (constraints is not null && !constraints.TryValidate(out var errors))
+        {
+            // Coach telemetry rule: never emit a user or profile id on this path.
+            _logger.LogInformation(
+                "Plan preview rejected: {ErrorCount} invalid constraint field(s).", errors.Count);
+            return PlanPreviewResult.InvalidConstraints(errors);
+        }
+
+        // Preview never writes: PlanBuildRequest.Preview suppresses the only
+        // write on the generation path (smart-resource seeding).
+        var skeleton = await _deterministic
+            .GenerateAsync(PlanBuildRequest.Preview(userId, constraints, focusVocabularyWordIds), ct)
+            .ConfigureAwait(false);
+
+        if (skeleton is null)
+        {
+            return PlanPreviewResult.NoFeasiblePlan();
+        }
+
+        var items = ProjectSkeleton(skeleton, ToDateKey(todayLocal), priorityOffset: 0);
+        if (items.Count == 0)
+        {
+            return PlanPreviewResult.NoFeasiblePlan();
+        }
+
+        var snapshot = PlanSnapshot.FromItems(
+            todayLocal,
+            items.Select(i => new PlanSnapshotItem
+            {
+                PlanItemId = i.PlanItemId,
+                ActivityType = i.ActivityType,
+                ResourceId = i.ResourceId,
+                SkillId = i.SkillId,
+                Priority = i.Priority,
+                EstimatedMinutes = i.EstimatedMinutes,
+                MinutesSpent = 0,
+                IsCompleted = false
+            }));
+
+        return PlanPreviewResult.Success(skeleton, snapshot);
+    }
+
+    public Task<PlanRevisionResult> ApplyCoachConstraintsAsync(
+        CoachPlanRevisionRequest request,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return ExecuteRevisionUnitAsync(token => ApplyCoachConstraintsCoreAsync(request, token), ct);
+    }
+
+    /// <summary>
+    /// The retriable unit behind <see cref="ApplyCoachConstraintsAsync"/>.
+    /// </summary>
+    /// <remarks>
+    /// Every read this needs happens inside the unit, so an execution-strategy
+    /// retry re-derives state from the database instead of replaying stale
+    /// in-memory entities. The unit never begins, commits, or rolls back a
+    /// transaction itself — it reports whether its work should be committed and
+    /// <see cref="ExecuteRevisionUnitAsync"/> owns the transaction lifetime.
+    /// </remarks>
+    private async Task<(PlanRevisionResult Result, bool ShouldCommit)> ApplyCoachConstraintsCoreAsync(
+        CoachPlanRevisionRequest request,
+        CancellationToken ct)
+    {
+        var userId = _scope.UserProfileId;
+        var todayLocal = _dateContext.UserLocalDate;
+        var todayKey = ToDateKey(todayLocal);
+        var nowUtc = _dateContext.UtcNow;
+
+        var planRow = await _db.DailyPlans
+            .FirstOrDefaultAsync(p => p.UserProfileId == userId && p.Date == todayKey, ct);
+        var existing = await LoadCompletionsAsync(userId, todayKey, tracked: true, ct);
+        var before = PlanSnapshot.FromCompletions(todayLocal, existing);
+
+        if (planRow is null)
+        {
+            _logger.LogInformation(
+                "Coach revision skipped: no plan exists for {PlanDate}.", todayLocal);
+            return (PlanRevisionResult.NoWrite(PlanRevisionOutcome.PlanNotFound, before, request.OperationKey), false);
+        }
+
+        if (!before.MatchesVersion(request.ExpectedPlanVersion))
+        {
+            _logger.LogInformation(
+                "Coach revision rejected (session '{SessionId}'): stale plan version.",
+                request.SessionId);
+            return (PlanRevisionResult.NoWrite(PlanRevisionOutcome.StalePlanVersion, before, request.OperationKey), false);
+        }
+
+        var preview = await PreviewPlanAsync(request.Constraints, request.FocusVocabularyWordIds, ct)
+            .ConfigureAwait(false);
+        if (!preview.IsSuccess)
+        {
+            var outcome = preview.Outcome == PlanPreviewOutcome.InvalidConstraints
+                ? PlanRevisionOutcome.InvalidConstraints
+                : PlanRevisionOutcome.NoFeasiblePlan;
+            return (PlanRevisionResult.NoWrite(outcome, before, request.OperationKey, preview.ValidationErrors), false);
+        }
+
+        var preserved = existing.Where(c => c.IsCompleted || c.MinutesSpent > 0).ToList();
+        var preservedIds = new HashSet<string>(preserved.Select(c => c.PlanItemId), StringComparer.Ordinal);
+        var maxPreservedPriority = preserved.Count == 0 ? 0 : preserved.Max(c => c.Priority);
+
+        // New items slot in after everything the learner has touched, so
+        // preserved rows keep their exact stored priority and completed rows
+        // stay byte-identical.
+        var projected = ProjectSkeleton(preview.Skeleton!, todayKey, maxPreservedPriority)
+            .Where(i => !preservedIds.Contains(i.PlanItemId))
+            .ToList();
+
+        var projectedById = projected.ToDictionary(i => i.PlanItemId, StringComparer.Ordinal);
+        var replaceable = existing.Where(c => !preservedIds.Contains(c.PlanItemId)).ToList();
+
+        var projectedItems = preserved
+            .Select(ToSnapshotItem)
+            .Concat(projected.Select(i => new PlanSnapshotItem
+            {
+                PlanItemId = i.PlanItemId,
+                ActivityType = i.ActivityType,
+                ResourceId = i.ResourceId,
+                SkillId = i.SkillId,
+                Priority = i.Priority,
+                EstimatedMinutes = i.EstimatedMinutes,
+                MinutesSpent = 0,
+                IsCompleted = false
+            }))
+            .ToList();
+
+        var after = PlanSnapshot.FromItems(todayLocal, projectedItems);
+
+        if (string.Equals(after.Hash, before.Hash, StringComparison.Ordinal))
+        {
+            // Repeating an already-applied revision lands here. Nothing is
+            // written, so apply is safely repeatable without a stored key.
+            _logger.LogInformation(
+                "Coach revision (session '{SessionId}') produced no change.",
+                request.SessionId);
+            return (PlanRevisionResult.NoWrite(PlanRevisionOutcome.NoChange, before, request.OperationKey), false);
+        }
+
+        var adjusted = 0;
+        var added = 0;
+
+        foreach (var row in replaceable)
+        {
+            if (projectedById.TryGetValue(row.PlanItemId, out var match))
+            {
+                // Matching untouched item: keep the row (and its stable id)
+                // and re-point it at the revised plan's shape.
+                row.ActivityType = match.ActivityType;
+                row.ResourceId = match.ResourceId;
+                row.SkillId = match.SkillId;
+                row.EstimatedMinutes = match.EstimatedMinutes;
+                row.Priority = match.Priority;
+                row.UpdatedAt = nowUtc;
+                adjusted++;
+            }
+            else
+            {
+                _db.DailyPlanCompletions.Remove(row);
+            }
+        }
+
+        var existingIds = new HashSet<string>(existing.Select(c => c.PlanItemId), StringComparer.Ordinal);
+        foreach (var item in projected.Where(i => !existingIds.Contains(i.PlanItemId)))
+        {
+            _db.DailyPlanCompletions.Add(NewCompletionRow(item, userId, todayKey, nowUtc));
+            added++;
+        }
+
+        var (rationaleFactsJson, narrativeFactsJson, focusVocabularyFactsJson) = SerializeFacts(preview.Skeleton!);
+        planRow.GeneratedAtUtc = nowUtc;
+        planRow.RationaleFacts = rationaleFactsJson;
+        planRow.NarrativeFacts = narrativeFactsJson;
+        planRow.FocusVocabularyFacts = focusVocabularyFactsJson;
+        planRow.UpdatedAt = nowUtc;
+
+        await _db.SaveChangesAsync(ct);
+
+        var persisted = await LoadCompletionsAsync(userId, todayKey, tracked: false, ct);
+        var persistedSnapshot = PlanSnapshot.FromCompletions(todayLocal, persisted);
+
+        var invariantErrors = ValidateRevisedPlan(before, persistedSnapshot);
+        if (invariantErrors.Count > 0)
+        {
+            _logger.LogError(
+                "Coach revision violated {ViolationCount} plan invariant(s); rolling back.",
+                invariantErrors.Count);
+            return (
+                PlanRevisionResult.NoWrite(
+                    PlanRevisionOutcome.ValidationFailed, before, request.OperationKey, invariantErrors),
+                false);
+        }
+
+        return (
+            BuildRevisionResult(
+                PlanRevisionOutcome.Applied,
+                request.OperationKey,
+                before,
+                persistedSnapshot,
+                replacedItemCount: replaceable.Count,
+                addedItemCount: added,
+                removedItemCount: replaceable.Count - adjusted,
+                adjustedItemCount: adjusted),
+            true);
+    }
+
+    public Task<PlanRevisionResult> UndoCoachRevisionAsync(
+        CoachPlanUndoRequest request,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(request.TargetSnapshot);
+        return ExecuteRevisionUnitAsync(token => UndoCoachRevisionCoreAsync(request, token), ct);
+    }
+
+    /// <summary>The retriable unit behind <see cref="UndoCoachRevisionAsync"/>.</summary>
+    private async Task<(PlanRevisionResult Result, bool ShouldCommit)> UndoCoachRevisionCoreAsync(
+        CoachPlanUndoRequest request,
+        CancellationToken ct)
+    {
+        var userId = _scope.UserProfileId;
+        var todayLocal = _dateContext.UserLocalDate;
+        var todayKey = ToDateKey(todayLocal);
+        var nowUtc = _dateContext.UtcNow;
+
+        var planRow = await _db.DailyPlans
+            .FirstOrDefaultAsync(p => p.UserProfileId == userId && p.Date == todayKey, ct);
+        var existing = await LoadCompletionsAsync(userId, todayKey, tracked: true, ct);
+        var before = PlanSnapshot.FromCompletions(todayLocal, existing);
+
+        if (planRow is null)
+        {
+            return (PlanRevisionResult.NoWrite(PlanRevisionOutcome.PlanNotFound, before, request.OperationKey), false);
+        }
+
+        if (!before.MatchesVersion(request.ExpectedPlanVersion))
+        {
+            _logger.LogInformation(
+                "Coach undo rejected (revision '{RevisionId}'): stale plan version.",
+                request.RevisionId);
+            return (PlanRevisionResult.NoWrite(PlanRevisionOutcome.StalePlanVersion, before, request.OperationKey), false);
+        }
+
+        if (request.TargetSnapshot.PlanDate != todayLocal)
+        {
+            return (
+                PlanRevisionResult.NoWrite(
+                    PlanRevisionOutcome.ValidationFailed, before, request.OperationKey,
+                    new[] { "Undo snapshot belongs to a different plan date." }),
+                false);
+        }
+
+        var existingById = existing.ToDictionary(c => c.PlanItemId, StringComparer.Ordinal);
+        var targetById = request.TargetSnapshot.Items.ToDictionary(i => i.PlanItemId, StringComparer.Ordinal);
+
+        var adjusted = 0;
+        var added = 0;
+        var removed = 0;
+
+        foreach (var row in existing)
+        {
+            // Completed and started work is never touched by an undo, even
+            // when the target snapshot predates it.
+            if (row.IsCompleted || row.MinutesSpent > 0)
+            {
+                continue;
+            }
+
+            if (targetById.TryGetValue(row.PlanItemId, out var target))
+            {
+                if (row.EstimatedMinutes != target.EstimatedMinutes || row.Priority != target.Priority)
+                {
+                    row.EstimatedMinutes = target.EstimatedMinutes;
+                    row.Priority = target.Priority;
+                    row.UpdatedAt = nowUtc;
+                    adjusted++;
+                }
+            }
+            else
+            {
+                _db.DailyPlanCompletions.Remove(row);
+                removed++;
+            }
+        }
+
+        foreach (var target in request.TargetSnapshot.Items)
+        {
+            if (existingById.ContainsKey(target.PlanItemId))
+            {
+                continue;
+            }
+
+            _db.DailyPlanCompletions.Add(new DailyPlanCompletion
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                UserProfileId = userId,
+                Date = todayKey,
+                PlanItemId = target.PlanItemId,
+                ActivityType = target.ActivityType,
+                ResourceId = target.ResourceId,
+                SkillId = target.SkillId,
+                IsCompleted = false,
+                CompletedAt = null,
+                // Restoring a snapshot never re-applies its logged minutes;
+                // a restored item starts clean and the live rows above keep
+                // whatever the learner has actually logged.
+                MinutesSpent = 0,
+                EstimatedMinutes = target.EstimatedMinutes,
+                Priority = target.Priority,
+                TitleKey = string.Empty,
+                DescriptionKey = string.Empty,
+#pragma warning disable CS0618 // legacy obsolete columns retained until drop-legacy migration
+                Rationale = string.Empty,
+                NarrativeJson = null,
+#pragma warning restore CS0618
+                CreatedAt = nowUtc,
+                UpdatedAt = nowUtc,
+            });
+            added++;
+        }
+
+        if (added == 0 && removed == 0 && adjusted == 0)
+        {
+            return (PlanRevisionResult.NoWrite(PlanRevisionOutcome.NoChange, before, request.OperationKey), false);
+        }
+
+        planRow.UpdatedAt = nowUtc;
+        await _db.SaveChangesAsync(ct);
+
+        var persisted = await LoadCompletionsAsync(userId, todayKey, tracked: false, ct);
+        var persistedSnapshot = PlanSnapshot.FromCompletions(todayLocal, persisted);
+
+        var invariantErrors = ValidateRevisedPlan(before, persistedSnapshot);
+        if (invariantErrors.Count > 0)
+        {
+            _logger.LogError(
+                "Coach undo violated {ViolationCount} plan invariant(s); rolling back.",
+                invariantErrors.Count);
+            return (
+                PlanRevisionResult.NoWrite(
+                    PlanRevisionOutcome.ValidationFailed, before, request.OperationKey, invariantErrors),
+                false);
+        }
+
+        return (
+            BuildRevisionResult(
+                PlanRevisionOutcome.Applied,
+                request.OperationKey,
+                before,
+                persistedSnapshot,
+                replacedItemCount: removed + adjusted,
+                addedItemCount: added,
+                removedItemCount: removed,
+                adjustedItemCount: adjusted),
+            true);
+    }
+
+    // ---------- coach revision helpers ----------
+
+    /// <summary>
+    /// Post-write invariants that must hold for any coach revision. A violation
+    /// rolls the transaction back rather than shipping a corrupted plan.
+    /// </summary>
+    internal static List<string> ValidateRevisedPlan(PlanSnapshot before, PlanSnapshot after)
+    {
+        var errors = new List<string>();
+
+        foreach (var priorItem in before.Items.Where(i => i.IsCompleted))
+        {
+            var match = after.Items.FirstOrDefault(i =>
+                string.Equals(i.PlanItemId, priorItem.PlanItemId, StringComparison.Ordinal));
+
+            if (match is null)
+            {
+                errors.Add($"Completed item '{priorItem.PlanItemId}' was removed by the revision.");
+                continue;
+            }
+
+            if (!match.IsCompleted)
+            {
+                errors.Add($"Completed item '{priorItem.PlanItemId}' lost its completed state.");
+            }
+
+            if (match.MinutesSpent < priorItem.MinutesSpent)
+            {
+                errors.Add($"Completed item '{priorItem.PlanItemId}' lost logged minutes.");
+            }
+        }
+
+        foreach (var priorItem in before.Items.Where(i => !i.IsCompleted && i.MinutesSpent > 0))
+        {
+            var match = after.Items.FirstOrDefault(i =>
+                string.Equals(i.PlanItemId, priorItem.PlanItemId, StringComparison.Ordinal));
+
+            if (match is null)
+            {
+                errors.Add($"Started item '{priorItem.PlanItemId}' was removed by the revision.");
+            }
+            else if (match.MinutesSpent < priorItem.MinutesSpent)
+            {
+                errors.Add($"Started item '{priorItem.PlanItemId}' lost logged minutes.");
+            }
+        }
+
+        if (after.TotalMinutesSpent < before.TotalMinutesSpent)
+        {
+            errors.Add("Total logged minutes decreased.");
+        }
+
+        var duplicateIds = after.Items
+            .GroupBy(i => i.PlanItemId, StringComparer.Ordinal)
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToList();
+        foreach (var duplicate in duplicateIds)
+        {
+            errors.Add($"Duplicate plan item id '{duplicate}' in revised plan.");
+        }
+
+        return errors;
+    }
+
+    private static PlanRevisionResult BuildRevisionResult(
+        PlanRevisionOutcome outcome,
+        string? operationKey,
+        PlanSnapshot before,
+        PlanSnapshot after,
+        int replacedItemCount,
+        int addedItemCount,
+        int removedItemCount,
+        int adjustedItemCount) =>
+        new()
+        {
+            Outcome = outcome,
+            OperationKey = operationKey,
+            Before = before,
+            After = after,
+            PreservedCompletedCount = before.CompletedItemCount,
+            PreservedInProgressCount = before.InProgressItemCount,
+            PreservedMinutesSpent = after.TotalMinutesSpent,
+            ReplacedItemCount = replacedItemCount,
+            AddedItemCount = addedItemCount,
+            RemovedItemCount = removedItemCount,
+            AdjustedItemCount = adjustedItemCount
+        };
+
+    private static PlanSnapshotItem ToSnapshotItem(DailyPlanCompletion row) => new()
+    {
+        PlanItemId = row.PlanItemId,
+        ActivityType = row.ActivityType,
+        ResourceId = row.ResourceId,
+        SkillId = row.SkillId,
+        Priority = row.Priority,
+        EstimatedMinutes = row.EstimatedMinutes,
+        MinutesSpent = row.MinutesSpent,
+        IsCompleted = row.IsCompleted
+    };
+
+    private Task<List<DailyPlanCompletion>> LoadCompletionsAsync(
+        string userId, DateTime dateKey, bool tracked, CancellationToken ct)
+    {
+        var query = _db.DailyPlanCompletions.Where(c => c.UserProfileId == userId && c.Date == dateKey);
+        if (!tracked)
+        {
+            query = query.AsNoTracking();
+        }
+        return query.OrderBy(c => c.Priority).ThenBy(c => c.PlanItemId).ToListAsync(ct);
+    }
+
+    /// <summary>
+    /// Maps a skeleton's activities onto stable plan item ids, skipping activity
+    /// types the enum doesn't recognize (the same guard
+    /// <see cref="GenerateTodayAsync"/> applies).
+    /// </summary>
+    private List<ProjectedPlanItem> ProjectSkeleton(
+        PlanSkeleton skeleton, DateTime dateForIds, int priorityOffset)
+    {
+        var items = new List<ProjectedPlanItem>(skeleton.Activities.Count);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+
+        foreach (var activity in skeleton.Activities)
+        {
+            if (!Enum.TryParse<PlanActivityType>(activity.ActivityType, ignoreCase: false, out var activityType))
+            {
+                _logger.LogWarning(
+                    "Skipping unknown activity type '{ActivityType}' returned by generator.",
+                    activity.ActivityType);
+                continue;
+            }
+
+            var planItemId = PlanConverter.GeneratePlanItemId(
+                dateForIds, activityType, activity.ResourceId, activity.SkillId);
+
+            if (!seen.Add(planItemId))
+            {
+                // The stable id scheme can collide when a generator emits the
+                // same activity/resource/skill twice; the unique index would
+                // reject the second row, so drop it here instead.
+                continue;
+            }
+
+            items.Add(new ProjectedPlanItem(
+                planItemId,
+                activity.ActivityType,
+                activity.ResourceId,
+                activity.SkillId,
+                activity.EstimatedMinutes,
+                priorityOffset + activity.Priority));
+        }
+
+        return items;
+    }
+
+    private DailyPlanCompletion NewCompletionRow(
+        ProjectedPlanItem item, string userId, DateTime dateKey, DateTime nowUtc) => new()
+    {
+        Id = Guid.NewGuid().ToString("N"),
+        UserProfileId = userId,
+        Date = dateKey,
+        PlanItemId = item.PlanItemId,
+        ActivityType = item.ActivityType,
+        ResourceId = item.ResourceId,
+        SkillId = item.SkillId,
+        IsCompleted = false,
+        CompletedAt = null,
+        MinutesSpent = 0,
+        EstimatedMinutes = item.EstimatedMinutes,
+        Priority = item.Priority,
+        TitleKey = string.Empty,
+        DescriptionKey = string.Empty,
+#pragma warning disable CS0618 // legacy obsolete columns retained until drop-legacy migration
+        Rationale = string.Empty,
+        NarrativeJson = null,
+#pragma warning restore CS0618
+        CreatedAt = nowUtc,
+        UpdatedAt = nowUtc,
+    };
+
+    /// <summary>
+    /// Runs one plan-revision unit under the provider's execution strategy.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <b>Why this exists:</b> the API runs on Npgsql with
+    /// <c>EnableRetryOnFailure</c>, so EF refuses a hand-rolled
+    /// <c>BeginTransaction</c> with "NpgsqlRetryingExecutionStrategy does not
+    /// support user-initiated transactions". Any user-initiated transaction has
+    /// to be created and committed *inside*
+    /// <c>Database.CreateExecutionStrategy().ExecuteAsync(...)</c> so the
+    /// strategy can replay the whole unit — transaction included — after a
+    /// transient failure.
+    /// </para>
+    /// <para>
+    /// The unit re-reads everything it needs on each attempt, and the change
+    /// tracker is cleared before each attempt, so a retry never replays stale
+    /// entities from the failed one.
+    /// </para>
+    /// <para>
+    /// <b>Ambient transactions:</b> when the caller already owns a transaction
+    /// we join it — no retry (retrying inside somebody else's transaction would
+    /// duplicate their work), and no commit or rollback of their transaction.
+    /// A rejected unit is undone with a savepoint when the provider supports
+    /// one, so the caller's other work survives.
+    /// </para>
+    /// </remarks>
+    private async Task<PlanRevisionResult> ExecuteRevisionUnitAsync(
+        Func<CancellationToken, Task<(PlanRevisionResult Result, bool ShouldCommit)>> unit,
+        CancellationToken ct)
+    {
+        if (_db.Database.CurrentTransaction is { } ambient)
+        {
+            return await ExecuteInAmbientTransactionAsync(unit, ambient, ct).ConfigureAwait(false);
+        }
+
+        var strategy = _db.Database.CreateExecutionStrategy();
+
+        return await strategy.ExecuteAsync(async () =>
+        {
+            // Each attempt starts from a clean slate: anything a previous
+            // attempt staged is discarded before we re-read.
+            _db.ChangeTracker.Clear();
+
+            IDbContextTransaction? tx;
+            try
+            {
+                tx = await _db.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
+            }
+            catch (InvalidOperationException ex)
+            {
+                // Providers without transaction support (e.g. the in-memory
+                // provider used by some component tests). The merge still runs;
+                // it just isn't atomic there.
+                _logger.LogDebug(
+                    "Provider does not support transactions; coach revision will not be atomic. Error={Error}",
+                    ex.GetType().Name);
+                tx = null;
+            }
+
+            if (tx is null)
+            {
+                var (nonAtomicResult, shouldCommit) = await unit(ct).ConfigureAwait(false);
+                if (!shouldCommit)
+                {
+                    _db.ChangeTracker.Clear();
+                }
+                return nonAtomicResult;
+            }
+
+            await using (tx.ConfigureAwait(false))
+            {
+                try
+                {
+                    var (result, shouldCommit) = await unit(ct).ConfigureAwait(false);
+
+                    if (shouldCommit)
+                    {
+                        await tx.CommitAsync(ct).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await tx.RollbackAsync(ct).ConfigureAwait(false);
+                        // Drop staged changes too, otherwise the next
+                        // SaveChangesAsync on this context replays them.
+                        _db.ChangeTracker.Clear();
+                    }
+
+                    return result;
+                }
+                catch
+                {
+                    await SafeRollbackAsync(tx, ct).ConfigureAwait(false);
+                    _db.ChangeTracker.Clear();
+                    throw;
+                }
+            }
+        }).ConfigureAwait(false);
+    }
+
+    private async Task<PlanRevisionResult> ExecuteInAmbientTransactionAsync(
+        Func<CancellationToken, Task<(PlanRevisionResult Result, bool ShouldCommit)>> unit,
+        IDbContextTransaction ambient,
+        CancellationToken ct)
+    {
+        var savepoint = await TryCreateSavepointAsync(ambient, ct).ConfigureAwait(false);
+
+        try
+        {
+            var (result, shouldCommit) = await unit(ct).ConfigureAwait(false);
+
+            if (shouldCommit)
+            {
+                await TryReleaseSavepointAsync(ambient, savepoint, ct).ConfigureAwait(false);
+            }
+            else
+            {
+                await TryRollbackToSavepointAsync(ambient, savepoint, ct).ConfigureAwait(false);
+                _db.ChangeTracker.Clear();
+            }
+
+            return result;
+        }
+        catch
+        {
+            await TryRollbackToSavepointAsync(ambient, savepoint, ct).ConfigureAwait(false);
+            _db.ChangeTracker.Clear();
+            throw;
+        }
+    }
+
+    private async Task<string?> TryCreateSavepointAsync(IDbContextTransaction ambient, CancellationToken ct)
+    {
+        if (!ambient.SupportsSavepoints)
+        {
+            _logger.LogDebug("Ambient transaction does not support savepoints; a rejected revision cannot be undone here.");
+            return null;
+        }
+
+        var name = "coach_revision_" + Guid.NewGuid().ToString("N");
+        try
+        {
+            await ambient.CreateSavepointAsync(name, ct).ConfigureAwait(false);
+            return name;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(
+                "Could not create a savepoint for the coach revision. Error={Error}", ex.GetType().Name);
+            return null;
+        }
+    }
+
+    private async Task TryRollbackToSavepointAsync(IDbContextTransaction ambient, string? savepoint, CancellationToken ct)
+    {
+        if (savepoint is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await ambient.RollbackToSavepointAsync(savepoint, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(
+                "Could not roll back to the coach revision savepoint. Error={Error}", ex.GetType().Name);
+        }
+    }
+
+    private async Task TryReleaseSavepointAsync(IDbContextTransaction ambient, string? savepoint, CancellationToken ct)
+    {
+        if (savepoint is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await ambient.ReleaseSavepointAsync(savepoint, ct).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            // Releasing is an optimization; the savepoint dies with the
+            // transaction either way.
+            _logger.LogDebug(
+                "Could not release the coach revision savepoint. Error={Error}", ex.GetType().Name);
+        }
+    }
+
+    private async Task SafeRollbackAsync(IDbContextTransaction tx, CancellationToken ct)
+    {
+        try
+        {
+            await tx.RollbackAsync(ct).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            // The transaction may already be aborted or the connection gone.
+            // Swallow so the original failure is the one that propagates.
+            _logger.LogDebug(
+                "Rolling back the coach revision transaction failed. Error={Error}", ex.GetType().Name);
+        }
+    }
+
+    private readonly record struct ProjectedPlanItem(
+        string PlanItemId,
+        string ActivityType,
+        string? ResourceId,
+        string? SkillId,
+        int EstimatedMinutes,
+        int Priority);
 
     // ---------- helpers ----------
 

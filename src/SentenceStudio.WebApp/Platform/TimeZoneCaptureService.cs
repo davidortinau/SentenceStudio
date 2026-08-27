@@ -50,8 +50,8 @@ public sealed class TimeZoneCaptureService
         if (!SentenceStudio.Services.Plans.TimeZoneResolver.TryResolve(ianaTimeZoneId, out _))
         {
             _logger.LogWarning(
-                "TimeZoneCaptureService.CaptureAsync: unrecognized timezone '{TzId}' for user '{UserId}' — not persisting",
-                ianaTimeZoneId, userProfileId);
+                "TimeZoneCaptureService.CaptureAsync: unrecognized timezone '{TzId}'; not persisting",
+                ianaTimeZoneId);
             return false;
         }
 
@@ -62,16 +62,16 @@ public sealed class TimeZoneCaptureService
         if (profile is null)
         {
             _logger.LogWarning(
-                "TimeZoneCaptureService.CaptureAsync: UserProfile '{UserId}' not found — cannot persist timezone",
-                userProfileId);
+                "TimeZoneCaptureService.CaptureAsync: learner profile not found; cannot persist timezone. ProfileResolved={ProfileResolved}",
+                false);
             return false;
         }
 
         if (string.Equals(profile.IanaTimeZoneId, ianaTimeZoneId, StringComparison.Ordinal))
         {
             _logger.LogDebug(
-                "TimeZoneCaptureService.CaptureAsync: timezone unchanged for user '{UserId}' — no-op",
-                userProfileId);
+                "TimeZoneCaptureService.CaptureAsync: timezone unchanged; no-op. TzId={TzId}",
+                ianaTimeZoneId);
             return false;
         }
 
@@ -80,8 +80,8 @@ public sealed class TimeZoneCaptureService
         await db.SaveChangesAsync();
 
         _logger.LogInformation(
-            "TimeZoneCaptureService: persisted timezone '{NewTz}' for user '{UserId}' (was '{OldTz}')",
-            ianaTimeZoneId, userProfileId, previous ?? "(null)");
+            "TimeZoneCaptureService: persisted timezone. NewTz={NewTz}, OldTz={OldTz}",
+            ianaTimeZoneId, previous ?? "(null)");
         return true;
     }
 }

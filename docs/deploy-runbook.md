@@ -257,6 +257,29 @@ PGPASSWORD="$pass" psql "host=$host dbname=$db user=$user sslmode=require" -t \
 > failed migration crash-loops the revision and it never becomes active. The query above is
 > the definitive confirmation.
 
+**Verify the Sam learner-report surface (only when the coach config changed):**
+
+`Coach:Reports:Enabled` ships `true` in `src/SentenceStudio.Api/appsettings.Production.json`, so a
+learner can flag a Sam response in Production. Two things to confirm after a deploy that touched
+the coach configuration:
+
+```bash
+# 1. The API started. A retention sweep switched off beside an enabled switch FAILS startup by
+#    design, so an active revision already proves the pair is coherent.
+az containerapp revision list -g rg-sstudio-prod-biz -n api \
+  --query "[?properties.active].{name:name, healthy:properties.healthState}" -o table
+
+# 2. The reviewer path can read what the flip produces. Content-free — no learner text, no owner,
+#    conversation, message, turn, or write id, no decrypted evidence.
+./scripts/sam-opportunity-digest.sh --days 7
+```
+
+The operator review surface (`/operator/sam-opportunities`) is **Development-only** and stays that
+way — `CoachOpportunityOptionsValidator` fails startup if it is enabled outside Development, and
+`AppHost.cs` deliberately does not forward an environment variable that could turn it on. The
+digest above is the production reviewer path. Owner, cadence, and credentials:
+`docs/sam-opportunity-digest.md`.
+
 ### Legacy individual checks (still valid for manual spot-checking)
 
 **DB connectivity:**

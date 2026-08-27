@@ -1,0 +1,634 @@
+@page "/operator/sam-opportunities"
+@using SentenceStudio.WebApp.Operator
+@inject IWebHostEnvironment Environment
+@inject IServiceProvider Services
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@rendermode InteractiveServer
+
+@*
+    The Sam opportunity ledger, for a reviewer.
+
+    Development-only, three independent ways: the API routes are not mapped outside Development,
+    the typed client is not registered outside Development, and this component re-checks the
+    environment in OnInitialized and renders the standard not-found otherwise. The third check
+    exists because a stale route registration is a line of code somebody can move, and this page
+    can put learner text on a screen.
+
+    Nothing on this page reveals learner content by rendering. The evidence panel appears only
+    after an explicit click that sends the acknowledgement literal, and the server counts every
+    reveal on the row it read.
+*@
+
+<PageTitle>Sam opportunities</PageTitle>
+
+@if (!_available)
+{
+    <div class="container mt-4">
+        <h1>Page not found</h1>
+        <p class="text-secondary">Sorry, the page you requested could not be found.</p>
+    </div>
+}
+else
+{
+    <div class="container-fluid mt-4">
+        <h1 class="h3 mb-1">Sam opportunities</h1>
+        <p class="text-secondary">
+            Runtime telemetry for capability gaps. Rows are content-free by construction; the
+            decision record stays in <code>docs/sam-future-opportunities.md</code>.
+        </p>
+
+        @if (_notice is { Length: > 0 })
+        {
+            <div class="alert alert-warning d-flex align-items-center" role="alert">
+                <i class="bi bi-exclamation-triangle me-2" aria-hidden="true"></i>
+                <span>@_notice</span>
+            </div>
+        }
+
+        <div class="btn-group mb-3" role="group" aria-label="View">
+            <button type="button"
+                    class="btn @(_view == View.Rollup ? "btn-primary" : "btn-outline-primary")"
+                    @onclick="() => SwitchAsync(View.Rollup)">
+                <i class="bi bi-bar-chart me-1" aria-hidden="true"></i>Rollup
+            </button>
+            <button type="button"
+                    class="btn @(_view == View.Rows ? "btn-primary" : "btn-outline-primary")"
+                    @onclick="() => SwitchAsync(View.Rows)">
+                <i class="bi bi-list-ul me-1" aria-hidden="true"></i>Reviewable rows
+            </button>
+        </div>
+
+        @if (_loading)
+        {
+            <div class="d-flex align-items-center text-secondary" role="status">
+                <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                <span>Loading&hellip;</span>
+            </div>
+        }
+        else if (_view == View.Rollup)
+        {
+            @if (_rollup.Count == 0)
+            {
+                <p class="text-secondary">
+                    <i class="bi bi-inbox me-1" aria-hidden="true"></i>
+                    No opportunities recorded yet.
+                </p>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle">
+                        <caption class="visually-hidden">
+                            Sam capability gaps aggregated across learners
+                        </caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">Capability</th>
+                                <th scope="col">Kind</th>
+                                <th scope="col">Disposition</th>
+                                <th scope="col">Tool</th>
+                                <th scope="col">Failure</th>
+                                <th scope="col" class="text-end">Occurrences</th>
+                                <th scope="col" class="text-end">Learners</th>
+                                <th scope="col">Last seen</th>
+                                <th scope="col">Status</th>
+                                <th scope="col">Fingerprint</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var line in _rollup)
+                            {
+                                <tr>
+                                    <td><code>@line.CapabilityCode</code></td>
+                                    <td>@line.Kind</td>
+                                    <td>@line.Disposition</td>
+                                    <td>@(line.ToolName ?? "\u2014")</td>
+                                    <td>@(line.FailureCode ?? "\u2014")</td>
+                                    <td class="text-end">@line.TotalOccurrences</td>
+                                    <td class="text-end">@line.DistinctLearners</td>
+                                    <td>@line.LastObservedAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                                    <td>@string.Join(", ", line.Statuses)</td>
+                                    <td><code class="small">@Shorten(line.Fingerprint)</code></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        }
+        else
+        {
+            @if (_rows.Count == 0)
+            {
+                <p class="text-secondary">
+                    <i class="bi bi-inbox me-1" aria-hidden="true"></i>
+                    No individually reviewable rows. Aggregate-only signals appear in the rollup.
+                </p>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-sm table-hover align-middle">
+                        <caption class="visually-hidden">Individually reviewable Sam opportunities</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">Capability</th>
+                                <th scope="col">Kind</th>
+                                <th scope="col">Offer link</th>
+                                <th scope="col">Stop reason</th>
+                                <th scope="col" class="text-end">Count</th>
+                                <th scope="col">Last seen</th>
+                                <th scope="col">Status</th>
+                                <th scope="col">Evidence</th>
+                                <th scope="col"></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in _rows)
+                            {
+                                <tr>
+                                    <td><code>@row.CapabilityCode</code></td>
+                                    <td>@row.Kind</td>
+                                    <td>@row.OfferLink</td>
+                                    <td>@(row.StopReason ?? "\u2014")</td>
+                                    <td class="text-end">@row.OccurrenceCount</td>
+                                    <td>@row.LastObservedAtUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                                    <td>@row.Status</td>
+                                    <td>
+                                        @if (row.HasEvidence)
+                                        {
+                                            <span class="badge text-bg-secondary">
+                                                revealed @row.EvidenceRevealCount&times;
+                                            </span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-secondary">&mdash;</span>
+                                        }
+                                    </td>
+                                    <td class="text-end">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary"
+                                                @onclick="() => SelectAsync(row)">
+                                            <i class="bi bi-eye me-1" aria-hidden="true"></i>Detail
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        }
+
+        @if (_selected is { } selected)
+        {
+            <div class="card mt-3">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span><code>@selected.CapabilityCode</code> &middot; @selected.Kind</span>
+                    <button type="button" id="operator-detail-close" class="btn-close"
+                            aria-label="Close" @onclick="CloseDetail"></button>
+                </div>
+                <div class="card-body">
+                    <dl class="row mb-3">
+                        <dt class="col-sm-3">Fingerprint</dt>
+                        <dd class="col-sm-9"><code class="small">@selected.Fingerprint</code></dd>
+
+                        <dt class="col-sm-3">Surface</dt>
+                        <dd class="col-sm-9">@selected.Surface</dd>
+
+                        <dt class="col-sm-3">Disposition</dt>
+                        <dd class="col-sm-9">@selected.Disposition</dd>
+
+                        <dt class="col-sm-3">Failure code</dt>
+                        <dd class="col-sm-9">@(selected.FailureCode ?? "\u2014")</dd>
+
+                        <dt class="col-sm-3">Observed</dt>
+                        <dd class="col-sm-9">
+                            @selected.FirstObservedAtUtc.ToString("yyyy-MM-dd HH:mm") &rarr;
+                            @selected.LastObservedAtUtc.ToString("yyyy-MM-dd HH:mm")
+                            (@selected.OccurrenceCount&times;)
+                        </dd>
+                    </dl>
+
+                    @* A learner report is the one row on this table a person deliberately filed,
+                       so it gets the turn it complained about stated in full — and stated in
+                       closed codes only, exactly like every other field here. There is no free
+                       text on this block because there is none on the row. *@
+                    @if (selected.Report is { } report)
+                    {
+                        <div class="card mb-3">
+                            <div class="card-header py-2">
+                                <i class="bi bi-flag-fill me-1" aria-hidden="true"></i>
+                                Learner report
+                            </div>
+                            <div class="card-body py-2">
+                                <dl class="row mb-0">
+                                    <dt class="col-sm-3">Reason</dt>
+                                    <dd class="col-sm-9"><code>@report.Reason</code></dd>
+
+                                    <dt class="col-sm-3">Reported</dt>
+                                    <dd class="col-sm-9">
+                                        @report.ReportedAtUtc.ToString("yyyy-MM-dd HH:mm")
+                                    </dd>
+
+                                    <dt class="col-sm-3">Response kind</dt>
+                                    <dd class="col-sm-9">@report.ResponseKind</dd>
+
+                                    @* Grounding evidence: closed code names and counts, exactly like
+                                       every other field on this block. Deliberately not the trace
+                                       and not the grounding summary — this is the report's own
+                                       evidence, and rendering the turn's would be a second channel
+                                       onto content this surface has never been allowed to see.
+
+                                       An em dash for null, because null here means "no measurement
+                                       was made" and a zero would read as a measurement of none. *@
+                                    <dt class="col-sm-3">Grounding</dt>
+                                    <dd class="col-sm-9">
+                                        @if (report.GroundingStage is { Length: > 0 } groundingStage)
+                                        {
+                                            <code>@groundingStage</code>
+                                            @if (report.GroundingRefused == true)
+                                            {
+                                                <span> &middot; refused</span>
+                                            }
+                                            @if (report.GroundingAltered == true)
+                                            {
+                                                <span> &middot; repaired</span>
+                                            }
+                                            @if (report.GroundingRepairSuppressed == true)
+                                            {
+                                                <span> &middot; repair suppressed (language)</span>
+                                            }
+                                            @if (report.GroundingFindingCount is { } findings)
+                                            {
+                                                <span> &middot; @findings finding(s)</span>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <span class="text-body-secondary">
+                                                &mdash; <span class="small">not measured</span>
+                                            </span>
+                                        }
+                                    </dd>
+
+                                    @if (report.GroundingRuleCodes is { Length: > 0 } ruleCodes)
+                                    {
+                                        <dt class="col-sm-3">Rules fired</dt>
+                                        <dd class="col-sm-9"><code class="small">@ruleCodes</code></dd>
+                                    }
+
+                                    @if (report.GroundingLimitationCode is { Length: > 0 } limitation)
+                                    {
+                                        <dt class="col-sm-3">Limitation</dt>
+                                        <dd class="col-sm-9"><code>@limitation</code></dd>
+                                    }
+
+                                    <dt class="col-sm-3">Turn outcome</dt>
+                                    <dd class="col-sm-9">
+                                        @(report.TurnStatus ?? "\u2014")
+                                        @if (selected.StopReason is { Length: > 0 } stopReason)
+                                        {
+                                            <span> &middot; stop=@stopReason</span>
+                                        }
+                                        @if (report.TurnErrorCode is { Length: > 0 } turnError)
+                                        {
+                                            <span> &middot; <code>@turnError</code></span>
+                                        }
+                                    </dd>
+
+                                    <dt class="col-sm-3">Attempts</dt>
+                                    <dd class="col-sm-9">
+                                        @(report.TurnAttemptCount?.ToString() ?? "\u2014")
+                                    </dd>
+
+                                    <dt class="col-sm-3">Tools invoked</dt>
+                                    <dd class="col-sm-9">
+                                        @if (report.InvokedToolNames is { Length: > 0 } tools)
+                                        {
+                                            <code>@tools</code>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-secondary">&mdash;</span>
+                                        }
+                                    </dd>
+
+                                    <dt class="col-sm-3">Proposed write</dt>
+                                    <dd class="col-sm-9">
+                                        @(report.WriteStatus ?? "\u2014")
+                                        @if (report.WriteFailureCode is { Length: > 0 } writeFailure)
+                                        {
+                                            <span> &middot; <code>@writeFailure</code></span>
+                                        }
+                                    </dd>
+
+                                    <dt class="col-sm-3">Evidence</dt>
+                                    <dd class="col-sm-9">
+                                        @if (selected.HasEvidence)
+                                        {
+                                            <span class="badge text-bg-secondary">available</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="text-secondary">unavailable</span>
+                                        }
+                                    </dd>
+                                </dl>
+                            </div>
+                        </div>
+                    }
+
+                    <div class="row g-2 align-items-end mb-3">
+                        <div class="col-sm-3">
+                            <label class="form-label" for="review-status">Status</label>
+                            <select id="review-status" class="form-select" @bind="_reviewStatus">
+                                @foreach (var status in Statuses)
+                                {
+                                    <option value="@status">@status</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-sm-4">
+                            <label class="form-label" for="review-note">Reviewer note</label>
+                            <select id="review-note" class="form-select" @bind="_reviewNote">
+                                <option value="">(none)</option>
+                                @foreach (var note in ReviewerNotes)
+                                {
+                                    <option value="@note">@note</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-sm-3">
+                            <label class="form-label" for="review-spec">Linked spec path</label>
+                            <input id="review-spec" class="form-control" @bind="_reviewSpecPath"
+                                   placeholder="docs/specs/example.md" />
+                        </div>
+                        <div class="col-sm-2 d-grid">
+                            <button type="button" class="btn btn-primary" @onclick="ReviewAsync">
+                                <i class="bi bi-check2-square me-1" aria-hidden="true"></i>Record
+                            </button>
+                        </div>
+                    </div>
+
+                    @if (_markdown is { Length: > 0 })
+                    {
+                        <label class="form-label" for="review-markdown">
+                            Paste-ready decision record (a human commits this, not a bot)
+                        </label>
+                        <textarea id="review-markdown" class="form-control font-monospace" rows="9"
+                                  readonly>@_markdown</textarea>
+                    }
+
+                    @if (selected.HasEvidence)
+                    {
+                        <hr />
+                        <p class="text-secondary small mb-2">
+                            <i class="bi bi-shield-lock me-1" aria-hidden="true"></i>
+                            Revealing evidence decrypts two of this learner's stored messages,
+                            increments a counter on this row, and writes an audit line. Owner-scoped
+                            by default.
+                        </p>
+
+                        @* Scoped to this card on purpose. A row whose evidence cannot be read says
+                           nothing about whether the rollup, the list, or this row's own fields are
+                           readable — and all three demonstrably are, because they are on screen
+                           behind this message. *@
+                        @if (_evidenceNotice is { Length: > 0 })
+                        {
+                            <div class="alert alert-warning d-flex align-items-center py-2"
+                                 role="alert">
+                                <i class="bi bi-exclamation-triangle me-2" aria-hidden="true"></i>
+                                <span>@_evidenceNotice</span>
+                            </div>
+                        }
+
+                        @if (_evidence is null)
+                        {
+                            <button type="button" class="btn btn-outline-danger"
+                                    @onclick="RevealAsync">
+                                <i class="bi bi-unlock me-1" aria-hidden="true"></i>
+                                Reveal learner content
+                            </button>
+                        }
+                        else
+                        {
+                            <div class="alert alert-secondary">
+                                <div class="mb-2">
+                                    <strong>Evidence state:</strong> @_evidence.EvidenceState
+                                    @if (_evidence.CrossOwner)
+                                    {
+                                        <span class="badge text-bg-danger ms-2">cross-owner</span>
+                                    }
+                                </div>
+                                <div class="mb-2">
+                                    <strong>Prior coach message</strong>
+                                    <div class="border rounded p-2 bg-body">
+                                        @(_evidence.PriorCoachMessageText ?? "(unavailable)")
+                                    </div>
+                                </div>
+                                <div>
+                                    <strong>Learner message</strong>
+                                    <div class="border rounded p-2 bg-body">
+                                        @(_evidence.LearnerMessageText ?? "(unavailable)")
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    }
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private enum View { Rollup, Rows }
+
+    private static readonly string[] Statuses =
+        ["New", "Reviewed", "Accepted", "Deferred", "Dismissed"];
+
+    private static readonly string[] ReviewerNotes =
+    [
+        "NeedsCaptainDecision", "DuplicateOfKnownBug", "PromptTuningOnly",
+        "NeedsNewTool", "NeedsPolicyChange", "NotAProblem", "SpecWritten"
+    ];
+
+    private SamOpportunityOperatorClient? _client;
+    private bool _available;
+    private bool _loading;
+    private View _view = View.Rollup;
+    private string? _notice;
+
+    private IReadOnlyList<SamOpportunityRollup> _rollup = [];
+    private IReadOnlyList<SamOpportunityRow> _rows = [];
+    private SamOpportunityRow? _selected;
+    private SamOpportunityEvidenceResponse? _evidence;
+
+    /// <summary>
+    /// Why the last reveal on the open row failed. Scoped to the detail card, never the banner.
+    /// </summary>
+    /// <remarks>
+    /// Cleared everywhere the open row changes or is re-read — selecting another row, closing the
+    /// card, switching view, and every load — so a refusal from one row can never be read as a
+    /// statement about the row that replaced it.
+    /// </remarks>
+    private string? _evidenceNotice;
+
+    private string? _markdown;
+
+    private string _reviewStatus = "Reviewed";
+    private string _reviewNote = string.Empty;
+    private string _reviewSpecPath = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Gate 3, client side. The API already refuses outside Development and the client is
+        // registered only there; this is the belt that makes a stale route registration
+        // non-load-bearing.
+        _client = Environment.IsDevelopment()
+            ? Services.GetService<SamOpportunityOperatorClient>()
+            : null;
+
+        _available = _client is not null;
+
+        if (_available)
+        {
+            await LoadAsync();
+        }
+    }
+
+    private async Task SwitchAsync(View view)
+    {
+        _view = view;
+        _selected = null;
+        _evidence = null;
+        _evidenceNotice = null;
+        _markdown = null;
+        await LoadAsync();
+    }
+
+    /// <summary>Closes the detail card and drops everything scoped to the row it held.</summary>
+    private void CloseDetail()
+    {
+        _selected = null;
+        _evidence = null;
+        _evidenceNotice = null;
+        _markdown = null;
+    }
+
+    private async Task LoadAsync()
+    {
+        if (_client is null)
+        {
+            return;
+        }
+
+        _loading = true;
+        _notice = null;
+
+        // A reload re-reads the rows, so any refusal recorded against the previous read of the
+        // open row is stale by definition.
+        _evidenceNotice = null;
+
+        try
+        {
+            if (_view == View.Rollup)
+            {
+                var result = await _client.GetRollupAsync();
+                _rollup = result.IsOk ? result.Value! : [];
+                _notice = SamOpportunityNotices.Surface(result.Status);
+            }
+            else
+            {
+                var result = await _client.ListAsync();
+                _rows = result.IsOk ? result.Value!.Items : [];
+                _notice = SamOpportunityNotices.Surface(result.Status);
+            }
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task SelectAsync(SamOpportunityRow row)
+    {
+        _selected = row;
+
+        // Cleared on every selection. Evidence for one row must never render under another, and
+        // neither must the reason another row refused.
+        _evidence = null;
+        _evidenceNotice = null;
+        _markdown = null;
+        _reviewStatus = row.Status;
+        _reviewNote = row.ReviewerNoteCode ?? string.Empty;
+        _reviewSpecPath = row.LinkedSpecPath ?? string.Empty;
+
+        // The list row carries no report facts — the listing is a triage surface and a per-row
+        // join would make it proportional to the reports rather than to the page. The detail read
+        // is where they arrive, and its failure costs only the extra block.
+        if (_client is not null && string.Equals(row.Kind, "UserReportedResponse", StringComparison.Ordinal))
+        {
+            var detail = await _client.GetAsync(row.Id);
+            if (detail.IsOk && detail.Value is { } full)
+            {
+                _selected = full;
+            }
+        }
+    }
+
+    private async Task ReviewAsync()
+    {
+        if (_client is null || _selected is null)
+        {
+            return;
+        }
+
+        var result = await _client.ReviewAsync(
+            _selected.Id,
+            new SamOpportunityReviewRequest(
+                _reviewStatus,
+                string.IsNullOrWhiteSpace(_reviewNote) ? null : _reviewNote,
+                string.IsNullOrWhiteSpace(_reviewSpecPath) ? null : _reviewSpecPath.Trim()));
+
+        if (result.IsOk)
+        {
+            _selected = result.Value!.Row;
+            _markdown = result.Value.MarkdownBlock;
+            await LoadAsync();
+        }
+        else
+        {
+            _notice = SamOpportunityNotices.Surface(result.Status);
+        }
+    }
+
+    private async Task RevealAsync()
+    {
+        if (_client is null || _selected is null)
+        {
+            return;
+        }
+
+        var result = await _client.RevealEvidenceAsync(_selected.Id);
+
+        if (result.IsOk)
+        {
+            _evidence = result.Value;
+            _evidenceNotice = null;
+        }
+        else
+        {
+            // Row-scoped, and the banner is deliberately left alone. The rollup, the list and this
+            // row's own content are on screen and working; saying the surface is unavailable
+            // because one reveal was refused is both untrue and the thing that sent a reviewer
+            // looking for an access problem that did not exist.
+            _evidence = null;
+            _evidenceNotice = SamOpportunityNotices.Evidence(result.Status);
+        }
+    }
+
+    private static string Shorten(string fingerprint) =>
+        fingerprint.Length <= 12 ? fingerprint : fingerprint[..12] + "\u2026";
+}

@@ -1,0 +1,77 @@
+@implements IDisposable
+@inject BlazorLocalizationService Localize
+@inject CoachWorkspaceState Coach
+
+@* Revisions newest first. Only row 1 exposes an active Undo — there is no redo in v1
+   and superseded revisions are not undoable. *@
+
+<CoachHeading Level="@HeadingLevel" Class="ss-title3 mb-2">
+    <i class="bi bi-clock-history me-1" aria-hidden="true"></i>@Localize["Coach_RevisionHistory"]
+</CoachHeading>
+
+@if (Ordered.Count == 0)
+{
+    <p class="ss-caption1 text-secondary-ss mb-0">@Localize["Coach_NoRevisions"]</p>
+}
+else
+{
+    <ol class="list-unstyled mb-0">
+        @for (var i = 0; i < Ordered.Count; i++)
+        {
+            var revision = Ordered[i];
+            var isLatest = i == 0;
+
+            <li class="d-flex align-items-start gap-2 py-2 border-bottom" style="border-color: var(--bs-border-color) !important;">
+                <div class="flex-grow-1 min-width-0">
+                    <div class="ss-body2">@revision.Summary</div>
+                    <div class="ss-caption1 text-secondary-ss">
+                        @FormatTime(revision.CreatedAtUtc)
+                    </div>
+                </div>
+                @if (isLatest && revision.CanUndo && !revision.IsUndone)
+                {
+                    <button type="button" class="btn btn-ss-secondary coach-action"
+                            disabled="@Coach.IsBusy"
+                            @onclick="() => UndoAsync(revision.RevisionId)">
+                        <i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>@Localize["Coach_Undo"]
+                    </button>
+                }
+                else
+                {
+                    <span class="coach-change-marker">@Localize["Coach_Superseded"]</span>
+                }
+            </li>
+        }
+    </ol>
+}
+
+@code {
+    /// <summary>Heading level, so the section fits the host presentation's document outline.</summary>
+    [Parameter] public int HeadingLevel { get; set; } = 4;
+
+    private List<CoachRevisionDto> Ordered =>
+        Coach.Revisions.OrderByDescending(r => r.RevisionNumber).ToList();
+
+    protected override void OnInitialized()
+    {
+        Localize.CultureChanged += OnChanged;
+        Coach.Changed += OnChanged;
+    }
+
+    /// <summary>
+    /// Formats a revision timestamp with the culture's own pattern and culture data. A hardcoded
+    /// "h:mm tt" under the ambient culture rendered AM/PM in English for a Korean-display learner.
+    /// </summary>
+    private string FormatTime(DateTime createdAtUtc) =>
+        createdAtUtc.ToLocalTime().ToString(Localize["Coach_RevisionTimeFormat"], Localize.Culture);
+
+    private Task UndoAsync(string revisionId) => Coach.UndoAsync(revisionId);
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnChanged;
+        Coach.Changed -= OnChanged;
+    }
+}

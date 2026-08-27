@@ -1,0 +1,297 @@
+@implements IDisposable
+@inject BlazorLocalizationService Localize
+@inject CoachWorkspaceState Coach
+@inject SentenceStudio.Services.Progress.IProgressService Progress
+
+@* Single source of truth for plan state: current plan + diff, Practice Balance, evidence,
+   revision history. The chat column never repeats these — it cites them inline instead. *@
+
+@* In the tablet composition this IS the plan tab's panel, so it carries tabpanel semantics
+   and points back at its tab. In the wide split it is a plain region reached by a toggle
+   button, and must NOT claim tab semantics — there is no tablist for it to belong to. *@
+<div id="@CoachElementIds.Canvas"
+     class="coach-canvas"
+     role="@Role"
+     tabindex="-1"
+     aria-labelledby="@LabelledBy"
+     aria-busy="@(Coach.IsBusy ? "true" : "false")">
+    <div class="coach-header">
+        <CoachHeading Level="@HeadingLevel" Class="ss-title3 mb-0 flex-grow-1">@Localize["Coach_TodaysPlan"]</CoachHeading>
+        <span class="coach-canvas-badge">@BadgeText</span>
+        @if (ShowClose)
+        {
+            <button type="button" class="btn btn-sm btn-icon coach-action"
+                    aria-label="@Localize["Coach_Close"]"
+                    @onclick="Coach.CloseCanvas">
+                <i class="bi bi-x-lg" aria-hidden="true"></i>
+            </button>
+        }
+    </div>
+
+    <div class="coach-canvas-body">
+        @* No plan to edit is a normal state, not a failure. Say what is true and point back at
+           the thing that still works, instead of showing an empty plan the learner cannot act on. *@
+        @if (!Coach.CanEditPlan)
+        {
+            <div class="coach-card coach-card-notice">
+                <div class="d-flex align-items-start gap-2">
+                    <i class="bi bi-calendar-x" aria-hidden="true"></i>
+                    <div>
+                        <div class="ss-body2 fw-semibold">@Localize["Coach_NoPlanTitle"]</div>
+                        <div class="ss-caption1 text-secondary-ss">@Localize["Coach_NoPlanExplanation"]</div>
+                    </div>
+                </div>
+            </div>
+        }
+        else if (Items.Count == 0)
+        {
+            <p class="ss-body2 text-secondary-ss">@Localize["Coach_PlanEmpty"]</p>
+        }
+        else
+        {
+            <ul class="list-unstyled mb-3">
+                @foreach (var item in Items)
+                {
+                    var activity = PlanActivityPresentation.ToPlanActivityType(item.ActivityType);
+                    var category = PlanActivityPresentation.Category(item.ActivityType);
+
+                    <li class="coach-plan-item">
+                        <i class="bi @PlanActivityPresentation.Icon(item.ActivityType)" aria-hidden="true"></i>
+                        <span class="activity-dot activity-dot-sm @PlanActivityPresentation.DotClass(category)"></span>
+                        <div class="flex-grow-1 min-width-0">
+                            <div class="ss-body2">@PlanActivityPresentation.Label(Localize, activity)</div>
+                            @* The server always sends ResourceTitle = null (joining resources
+                               server-side could surface embargoed content), so the title is
+                               filled in from the learner's own plan when that data exists and
+                               is simply omitted when it does not. Never invented. *@
+                            @if (ResourceTitleFor(item) is { } resourceTitle)
+                            {
+                                <div class="ss-caption1 text-secondary-ss text-truncate">
+                                    <i class="bi bi-book me-1" aria-hidden="true"></i>@resourceTitle
+                                </div>
+                            }
+                        </div>
+                        @if (ChangeMarker(item.ChangeKind) is { } marker)
+                        {
+                            <span class="coach-change-marker">@marker</span>
+                        }
+                        <span class="ss-caption1 text-secondary-ss">
+                            @Localize.Get("Coach_PlanMinutes", item.EstimatedMinutes)
+                        </span>
+                    </li>
+                }
+            </ul>
+
+            <div class="ss-caption1 text-secondary-ss mb-3">
+                @Localize.Get("Coach_PlanTotalMinutes", TotalMinutes)
+            </div>
+        }
+
+        @if (Coach.CanEditPlan)
+        {
+        @* Quick constraints live here once the conversation has started. In an empty
+           conversation they act as starter prompts and the chat shows them instead; after the
+           first learner turn they are plan controls, and this is where plan editing lives. They
+           stay fully functional either way. *@
+        @if (Coach.HasLearnerTurn && Coach.State is not (CoachUiState.Expired or CoachUiState.SessionDeleted))
+        {
+            <div class="mb-3">
+                <CoachHeading Level="@SectionHeadingLevel" Class="ss-title3 mb-2">
+                    <i class="bi bi-sliders me-1" aria-hidden="true"></i>@Localize["Coach_ConstraintsLabel"]
+                </CoachHeading>
+                <CoachConstraintChips />
+            </div>
+        }
+
+        @* The focus in force, shown once for the whole workspace. The chat never repeats it:
+           a focus restated per message reads as a new decision each time. *@
+        <div class="mb-3">
+            <CoachVocabularyFocus Focus="@Coach.ActiveConstraints?.VocabularyFocus"
+                                  HeadingLevel="@SectionHeadingLevel"
+                                  HeadingTextKey="Coach_FocusCurrent"
+                                  IdPrefix="coach-canvas-focus" />
+        </div>
+
+        @* Practice Balance is drawn ONLY from real evidence. Deriving it from plan estimates
+           would invent a measurement the learner never made. *@
+        <div class="mb-3">
+            <CoachHeading Level="@SectionHeadingLevel" Class="ss-title3 mb-2">
+                <i class="bi bi-bar-chart-steps me-1" aria-hidden="true"></i>@Localize["Coach_PracticeBalance"]
+            </CoachHeading>
+            @if (PracticeBalance is { } balance)
+            {
+                <PracticeBalanceBar InputMinutes="@balance.InputMinutes"
+                                    OutputMinutes="@balance.OutputMinutes"
+                                    WindowLabel="@balance.WindowLabel"
+                                    ShowHeading="false" />
+            }
+            else
+            {
+                <p class="ss-caption1 text-secondary-ss mb-0">@Localize["Coach_PracticeBalanceUnavailable"]</p>
+            }
+        </div>
+
+        <div class="mb-3">
+            <CoachEvidenceList HeadingLevel="@SectionHeadingLevel" Items="@Coach.Evidence" />
+        </div>
+
+        <CoachRevisionHistory HeadingLevel="@SectionHeadingLevel" />
+        }
+    </div>
+</div>
+
+@code {
+    /// <summary>Show the canvas close control. Off in the tab and full-screen compositions,
+    /// where the tab bar or the pane header already owns dismissal.</summary>
+    [Parameter] public bool ShowClose { get; set; } = true;
+
+    /// <summary>ARIA role. "tabpanel" in the tablet tab composition, null elsewhere.</summary>
+    [Parameter] public string? Role { get; set; }
+
+    /// <summary>Id of the tab that names this panel. Only meaningful with Role="tabpanel".</summary>
+    [Parameter] public string? LabelledBy { get; set; }
+
+    /// <summary>
+    /// Level for the canvas title. The overlay's dialog title is an h2, so the canvas is h3;
+    /// the /coach route's PageHeader owns the h1, so the canvas is h2 there.
+    /// </summary>
+    [Parameter] public int HeadingLevel { get; set; } = 3;
+
+    /// <summary>Sections inside the canvas sit one level below its title.</summary>
+    private int SectionHeadingLevel => Math.Clamp(HeadingLevel + 1, 1, 6);
+
+    protected override void OnInitialized()
+    {
+        Localize.CultureChanged += OnChanged;
+        Coach.Changed += OnChanged;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Ask the learner's OWN cached plan for resource titles, at most once per session.
+        // Ownership is already enforced by the progress service, and a null/absent plan simply
+        // means no titles — the canvas then shows none rather than substituting a placeholder.
+        if (Coach.PlanResourceTitlesLoaded)
+        {
+            return;
+        }
+
+        try
+        {
+            var plan = await Progress.GetCachedPlanAsync();
+            var titles = plan?.Items
+                .Where(i => !string.IsNullOrWhiteSpace(i.ResourceTitle))
+                .GroupBy(i => i.Id, StringComparer.Ordinal)
+                .ToDictionary(g => g.Key, g => g.First().ResourceTitle!, StringComparer.Ordinal);
+
+            Coach.SetPlanResourceTitles(titles);
+        }
+        catch
+        {
+            // No plan data available: record the attempt so the canvas does not retry on every
+            // toggle, and render without titles.
+            Coach.SetPlanResourceTitles(null);
+        }
+    }
+
+    // A pending suggestion shows its read-only preview; otherwise the current plan.
+    private IReadOnlyList<CoachPlanItemDto> Items =>
+        Coach.PendingSuggestion?.Preview.Items
+        ?? Coach.PlanState?.Items
+        ?? Array.Empty<CoachPlanItemDto>();
+
+    private int TotalMinutes =>
+        Coach.PendingSuggestion?.Preview.EstimatedMinutesAfter
+        ?? Coach.PlanState?.EstimatedTotalMinutes
+        ?? 0;
+
+    private string BadgeText => Coach.State switch
+    {
+        CoachUiState.SuggestionPending => Localize["Coach_StatusSuggested"],
+        CoachUiState.PlanUpdated => Localize["Coach_StatusUpdated"],
+        CoachUiState.Undone => Localize["Coach_StatusRestored"],
+        CoachUiState.PlanChangedElsewhere => Localize["Coach_StatusOutOfDate"],
+        CoachUiState.Failed => Localize["Coach_StatusUnchanged"],
+        _ => Localize["Coach_StatusNoChange"]
+    };
+
+    /// <summary>Practice Balance built from evidence only, or null when there is none to show.</summary>
+    private sealed record PracticeBalanceView(int InputMinutes, int OutputMinutes, string WindowLabel);
+
+    /// <summary>
+    /// Reads a Practice Balance row from the coach's evidence. Returns null when the server sent
+    /// no such row, or sent one with no values — the bar is then hidden rather than drawn from
+    /// plan estimates, which would present a projection as a measurement.
+    /// </summary>
+    private PracticeBalanceView? PracticeBalance
+    {
+        get
+        {
+            var row = Coach.Evidence.FirstOrDefault(e => e.Kind == CoachEvidenceKind.PracticeBalance);
+            if (row is null || row.Values.Count == 0)
+            {
+                return null;
+            }
+
+            var minutes = row.Values.Where(v => v.Unit == CoachEvidenceUnit.Minutes).ToList();
+            if (minutes.Count == 0)
+            {
+                return null;
+            }
+
+            var input = MinutesFor(minutes, "input");
+            var output = MinutesFor(minutes, "output");
+            if (input is null && output is null)
+            {
+                return null;
+            }
+
+            return new PracticeBalanceView(
+                input ?? 0,
+                output ?? 0,
+                Localize.Get("Coach_EvidenceWindow",
+                    FormatDate(row.WindowStartDate),
+                    FormatDate(row.WindowEndDate)));
+        }
+    }
+
+    /// <summary>Culture-explicit window date, using the culture's own pattern.</summary>
+    private string FormatDate(DateOnly date) =>
+        date.ToString(Localize["Coach_EvidenceDateFormat"], Localize.Culture);
+
+    private static int? MinutesFor(List<CoachEvidenceValueDto> values, string keyword)
+    {
+        var matches = values
+            .Where(v => v.Label.Contains(keyword, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        return matches.Count == 0 ? null : (int)Math.Round(matches.Sum(v => v.Value));
+    }
+
+    /// <summary>
+    /// Resource title for a plan item: whatever the server sent (currently always null), else the
+    /// learner's own current-plan data when it has been loaded. Null means render nothing.
+    /// </summary>
+    private string? ResourceTitleFor(CoachPlanItemDto item) =>
+        string.IsNullOrWhiteSpace(item.ResourceTitle)
+            ? Coach.ResourceTitleFor(item.Id)
+            : item.ResourceTitle;
+
+    private string? ChangeMarker(CoachPlanItemChangeKind kind) => kind switch
+    {
+        CoachPlanItemChangeKind.Added => Localize["Coach_ChangeAdded"],
+        CoachPlanItemChangeKind.Removed => Localize["Coach_ChangeRemoved"],
+        CoachPlanItemChangeKind.Adjusted => Localize["Coach_ChangeAdjusted"],
+        CoachPlanItemChangeKind.PreservedCompleted => Localize["Coach_ChangeKept"],
+        CoachPlanItemChangeKind.PreservedInProgress => Localize["Coach_ChangeKept"],
+        _ => null
+    };
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnChanged;
+        Coach.Changed -= OnChanged;
+    }
+}

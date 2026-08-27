@@ -1,0 +1,518 @@
+@implements IAsyncDisposable
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject CoachWorkspaceState Coach
+@inject CoachFeatureFlags Flags
+@inject CoachAccountBoundary Boundary
+@inject CoachPersona Persona
+@inject ILogger<SamOverlayHost> Log
+
+@*
+    Shell-level host for the Sam persistent overlay. Mounted in MainLayout.razor
+    alongside (and mutually exclusive with) CoachWorkspaceHost when the Sam Overlay
+    feature flag is on.
+
+    Manages: FAB visibility, Compact/Expanded panel state, Escape/Back collapse,
+    session resume on FAB tap, and navigation survival.
+
+    NOT a modal. No focus trap. The learner can interact with page content while Sam
+    is visible.
+*@
+
+@if (RendererInfo.IsInteractive && _isAuthenticated)
+{
+    @if (_visualState == SamOverlayVisualState.Collapsed)
+    {
+        <SamFab OnOpen="OpenPanelAsync"
+                HasUnread="_hasUnread"
+                Id="@SamElementIds.Fab" />
+    }
+    else
+    {
+        @if (IsMobileModal)
+        {
+            <div class="sam-backdrop" @onclick="CollapseAsync" aria-hidden="true"></div>
+        }
+
+        <SamPanel VisualState="_visualState"
+                  ViewportWidth="_viewportWidth"
+                  IsMobileModal="IsMobileModal"
+                  OnCollapse="CollapseAsync"
+                  OnExpand="ExpandAsync"
+                  OnCompact="CompactAsync"
+                  OnFullScreen="GoFullScreenAsync"
+                  OnRestore="RestoreAsync" />
+    }
+}
+
+@code {
+    private SamOverlayVisualState _visualState = SamOverlayVisualState.Collapsed;
+
+    /// <summary>
+    /// The size the panel had before it went full screen, so leaving full screen returns it there.
+    /// </summary>
+    /// <remarks>
+    /// Held rather than recomputed from the viewport: a learner who compacted a panel on a wide
+    /// screen chose that size, and recomputing would silently overrule them on the way back.
+    /// </remarks>
+    private SamOverlayVisualState _restoreState = SamOverlayVisualState.Expanded;
+
+    /// <summary>
+    /// True when the panel is open on a mobile-width viewport and should behave as a modal:
+    /// backdrop visible, underlying content inert, dialog semantics active.
+    /// </summary>
+    private bool IsMobileModal =>
+        _visualState != SamOverlayVisualState.Collapsed && _viewportWidth < 992;
+
+    private bool _hasUnread;
+    private bool _isAuthenticated;
+    private int _viewportWidth = 1200;
+    private IJSObjectReference? _module;
+    private DotNetObjectReference<SamOverlayHost>? _selfRef;
+
+    /// <summary>
+    /// Set the instant disposal starts, before any unsubscribe runs.
+    /// </summary>
+    /// <remarks>
+    /// The boundary, the workspace and the navigation manager all outlive this component, and all
+    /// three raise synchronous events. Unsubscribing in DisposeAsync closes the window for future
+    /// notifications but not for one already executing on another thread, and
+    /// <c>InvokeAsync(StateHasChanged)</c> on a disposed component throws into a task nobody
+    /// awaits — which is how these failures reach the finalizer thread instead of a log line.
+    /// </remarks>
+    private volatile bool _disposed;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!RendererInfo.IsInteractive)
+        {
+            Log.LogDebug("Sam overlay host skipped: renderer is not interactive.");
+            return;
+        }
+
+        Nav.LocationChanged += OnLocationChanged;
+        Coach.Changed += OnCoachChanged;
+        Boundary.Changed += OnBoundaryChanged;
+        Boundary.Crossed += OnAccountCrossed;
+
+        // Authentication is READ, never assumed. The previous version set this to true on the
+        // grounds that the layout only mounted the host inside its authenticated branch — which
+        // was not true, and even where it is true, a component that hardcodes the answer cannot
+        // react when the answer changes underneath it. The boundary is the single source both
+        // this host and the layout gate on, and it is watching for exactly that change.
+        await Boundary.AttachAsync();
+        _isAuthenticated = Boundary.IsAuthenticated;
+
+        // Read who the learner is talking to before anything names them. The persona follows the
+        // language being studied, so it cannot be answered from the interface culture and cannot
+        // be answered at all until a profile has been read.
+        if (_isAuthenticated)
+        {
+            await Persona.RefreshAsync();
+        }
+
+        Log.LogDebug(
+            "Sam overlay host initialised: authenticated={IsAuthenticated} resolved={Resolved} " +
+            "boundary={BoundaryId}",
+            _isAuthenticated, Boundary.HasResolved, Boundary.InstanceId);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || !RendererInfo.IsInteractive) return;
+
+        _module = await JS.InvokeAsync<IJSObjectReference>(
+            "import", "./_content/SentenceStudio.UI/js/sam-overlay.js");
+        _selfRef = DotNetObjectReference.Create(this);
+        _viewportWidth = await _module.InvokeAsync<int>("initSamOverlay", _selfRef);
+    }
+
+    [JSInvokable]
+    public async Task OnViewportChanged(int width)
+    {
+        var wasModal = IsMobileModal;
+        _viewportWidth = width;
+        var isModal = IsMobileModal;
+
+        if (wasModal != isModal)
+        {
+            await SetInertAsync(isModal);
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public Task OnEscapePressed()
+    {
+        // A protected change's confirmation step is an alert dialog that has taken focus, and it
+        // owns Escape while it is open: the learner reading "confirm by 2:06 PM" who presses
+        // Escape means "back out of this", not "close Sam". Collapsing the panel from underneath
+        // it also loses the only visible way back to the step. The card's own key handler cancels
+        // the confirmation, so this one stands down and the next Escape collapses as usual.
+        //
+        // An inline report panel is the same claim with one difference: it never takes focus, so a
+        // press made anywhere else in the conversation arrives here rather than at the panel. This
+        // handler stands down AND asks the panel to close, so the press still undoes exactly one
+        // layer instead of being spent on nothing. A press made inside the panel's own subtree
+        // never reaches this method at all — sam-overlay.js sees the marked ancestor and declines
+        // to call in — so the two paths are mutually exclusive rather than racing.
+        return SamOverlayEscape.Resolve(
+                _visualState,
+                Coach.ConfirmingWriteOperationId is not null,
+                Coach.IsReportPanelOpen)
+            switch
+            {
+                SamOverlayEscapeAction.Restore => RestoreAsync(),
+                SamOverlayEscapeAction.Collapse => CollapseAsync(),
+                SamOverlayEscapeAction.DeferToPanelContent => DeferEscapeToPanelContent(),
+                _ => Task.CompletedTask
+            };
+    }
+
+    /// <summary>
+    /// Hands an Escape the overlay declined to the inner surface that claimed it.
+    /// </summary>
+    /// <remarks>
+    /// Only the report panel needs telling. The confirmation step is focused when it opens, so a
+    /// press aimed at it is handled by its own key handler before this method could matter, and
+    /// closing it from here would cancel a confirmation the learner was reading somewhere else.
+    /// </remarks>
+    private Task DeferEscapeToPanelContent()
+    {
+        Coach.RequestCloseReportPanels();
+        return Task.CompletedTask;
+    }
+
+    private async Task OpenPanelAsync()
+    {
+        // Defence in depth against a stale render: the gate above already refuses to draw the FAB
+        // for a signed-out shell, but a click queued a frame before the account changed would
+        // otherwise open a panel — and start a conversation — for whoever is signed in now.
+        if (!Boundary.IsAuthenticated)
+        {
+            _isAuthenticated = false;
+            _visualState = SamOverlayVisualState.Collapsed;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        await Flags.EnsureLoadedAsync();
+
+        // Cheap once resolved, and the one moment we know a learner is about to read the name.
+        // A profile edited on another surface since the panel last opened lands here.
+        if (!Persona.HasResolved)
+        {
+            await Persona.RefreshAsync();
+        }
+
+        // Resume the thread the learner was last in. The overlay carries no id in the URL, so
+        // after a reload the circuit's own ConversationId is null and only the durable directory
+        // knows which conversation to return to; ResumeMostRecentAsync consults both, in that
+        // order, and starts a new one only when there is genuinely nothing to resume. After an
+        // account change both are empty, so the id can only come from the server's answer for
+        // the learner who is signed in now.
+        if (!Coach.IsOpen)
+        {
+            await Coach.ResumeMostRecentAsync(CoachPresentation.Overlay, SamElementIds.Fab);
+        }
+
+        _visualState = _viewportWidth >= 992
+            ? SamOverlayVisualState.Expanded
+            : SamOverlayVisualState.Compact;
+        _restoreState = _visualState;
+        _hasUnread = false;
+
+        await InvokeAsync(StateHasChanged);
+
+        // Set background inert for mobile modal
+        await SetInertAsync(IsMobileModal);
+
+        // Move focus to the composer
+        await FocusAsync(CoachElementIds.Composer);
+    }
+
+    private void ExpandAsync()
+    {
+        _visualState = SamOverlayVisualState.Expanded;
+        _restoreState = SamOverlayVisualState.Expanded;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void CompactAsync()
+    {
+        _visualState = SamOverlayVisualState.Compact;
+        _restoreState = SamOverlayVisualState.Compact;
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task CollapseAsync()
+    {
+        // A learner who closes from fullscreen still expects the dashboard to be at the reading
+        // position they left. Release the lock BEFORE the class change so the panel shrinks and
+        // the page returns to its captured scroll in the same paint — the underlying position is
+        // never seen at zero except as an intermediate state that never renders.
+        var wasFullScreen = _visualState == SamOverlayVisualState.FullScreen;
+
+        _visualState = SamOverlayVisualState.Collapsed;
+
+        if (wasFullScreen)
+        {
+            await InvokeScrollLockAsync("exitFullscreenScrollLock");
+        }
+
+        await SetInertAsync(false);
+        await InvokeAsync(StateHasChanged);
+
+        // Restore focus to the control that opened the panel.
+        await FocusAsync(SamElementIds.Fab);
+    }
+
+    /// <summary>
+    /// Grows the panel to cover the viewport, in place.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This used to navigate to <c>/coach</c> and collapse the overlay. On any viewport at or above
+    /// 768px that route measures itself on first render, decides the overlay is the right
+    /// composition at that width, and redirects to <c>/</c> with <c>replace: true</c>
+    /// (<c>Coach.razor</c> <c>OnAfterRenderAsync</c> → <c>CoachStateMachine.ChoosePresentation</c>).
+    /// The learner got a frame of the coach page and then the dashboard with nothing open — the
+    /// panel had already been collapsed on the way out. That is the reported "expand flashes then
+    /// disappears", and it was guaranteed on exactly the desktop widths where the control is most
+    /// useful.
+    /// </para>
+    /// <para>
+    /// Growing in place cannot flash, because nothing unmounts: the conversation, the composer and
+    /// its draft, the scroll position and focus are all the same DOM at the larger size. It also
+    /// keeps working after new messages arrive, because the size is host state rather than a
+    /// property of the route the learner happens to be on.
+    /// </para>
+    /// </remarks>
+    private async Task GoFullScreenAsync()
+    {
+        if (_visualState == SamOverlayVisualState.FullScreen)
+        {
+            return;
+        }
+
+        if (_visualState != SamOverlayVisualState.Collapsed)
+        {
+            _restoreState = _visualState;
+        }
+
+        // Capture the underlying page's scroll and pin the document to the origin BEFORE the
+        // fullscreen class is applied. iOS WKWebView measures a fixed-position panel against
+        // document.scrollingElement's scroll: any pre-existing offset, and any offset the focus
+        // call about to run would otherwise introduce, translates one-to-one into the header
+        // sitting behind the Dynamic Island. The lock is what makes the panel rect land at 0
+        // instead of at -scrollTop, and the capture is what lets Restore/Collapse return the
+        // dashboard to exactly the same reading position.
+        await InvokeScrollLockAsync("enterFullscreenScrollLock");
+
+        _visualState = SamOverlayVisualState.FullScreen;
+        await InvokeAsync(StateHasChanged);
+
+        // Focus follows the surface the learner just asked for, and the composer is where they are
+        // going to type. Without this, focus stays on a control that is still on screen but is now
+        // labelled something else. `focusElement` in sam-overlay.js uses
+        // `focus({ preventScroll: true })` so bringing focus here cannot re-introduce the scroll
+        // the lock above just captured.
+        await FocusAsync(CoachElementIds.Composer);
+    }
+
+    /// <summary>Leaves full screen for the size the panel had before it.</summary>
+    private async Task RestoreAsync()
+    {
+        _visualState = _restoreState == SamOverlayVisualState.Collapsed
+            ? SamOverlayVisualState.Expanded
+            : _restoreState;
+
+        // Release the lock BEFORE the class change: the panel is about to stop being inset:0, and
+        // the dashboard behind it should be scrolled back to where the learner left it in the
+        // same paint that the panel shrinks.
+        await InvokeScrollLockAsync("exitFullscreenScrollLock");
+
+        await InvokeAsync(StateHasChanged);
+        await FocusAsync(CoachElementIds.Composer);
+    }
+
+    private async Task FocusAsync(string elementId)
+    {
+        if (_module is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _module.InvokeVoidAsync("focusElement", elementId);
+        }
+        catch (JSDisconnectedException) { }
+        catch (ObjectDisposedException) { }
+    }
+
+    private async Task SetInertAsync(bool modal)
+    {
+        if (_module is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _module.InvokeVoidAsync("setAppShellInert", modal);
+        }
+        catch (JSDisconnectedException) { }
+        catch (ObjectDisposedException) { }
+    }
+
+    /// <summary>
+    /// Invokes one of the scroll-lock functions in sam-overlay.js. The two are symmetric — enter
+    /// captures and pins, exit restores — and both are idempotent, so calling either in a
+    /// mid-teardown circuit is safe.
+    /// </summary>
+    /// <remarks>
+    /// Kept as a single helper rather than two so the caller reads as intent
+    /// (<c>enterFullscreenScrollLock</c>/<c>exitFullscreenScrollLock</c>) and the disposed-circuit
+    /// swallow is stated once instead of at each site.
+    /// </remarks>
+    private async Task InvokeScrollLockAsync(string identifier)
+    {
+        if (_module is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await _module.InvokeVoidAsync(identifier);
+        }
+        catch (JSDisconnectedException) { }
+        catch (ObjectDisposedException) { }
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e)
+    {
+        if (_disposed) return;
+
+        // Sam overlay survives navigation — no action needed.
+        // The existing /coach route takes over when navigating there.
+        var uri = Nav.ToAbsoluteUri(e.Location);
+        if (uri.AbsolutePath.StartsWith("/coach", StringComparison.OrdinalIgnoreCase))
+        {
+            var wasFullScreen = _visualState == SamOverlayVisualState.FullScreen;
+            _visualState = SamOverlayVisualState.Collapsed;
+            _restoreState = SamOverlayVisualState.Expanded;
+
+            // If the panel was fullscreen when the learner navigated away, release the scroll
+            // lock so the next route inherits a scrollable page instead of a frozen one.
+            if (wasFullScreen)
+            {
+                _ = InvokeScrollLockAsync("exitFullscreenScrollLock");
+            }
+
+            RequestRender();
+        }
+    }
+
+    private void OnCoachChanged()
+    {
+        if (_disposed) return;
+
+        if (_visualState == SamOverlayVisualState.Collapsed && Coach.IsOpen)
+        {
+            _hasUnread = true;
+        }
+        RequestRender();
+    }
+
+    /// <summary>
+    /// Schedules a re-render, and does nothing once this component has been disposed.
+    /// </summary>
+    /// <remarks>
+    /// Every caller is a synchronous event raised by a service that outlives this component, so
+    /// the disposal check has to be here rather than at each call site — and it has to be checked
+    /// again inside the dispatched callback, because disposal can land between the two. Without
+    /// this, a notification arriving mid-teardown calls StateHasChanged on a disposed component,
+    /// the resulting exception has no awaiter, and it resurfaces later from the finalizer thread
+    /// as an unobserved-task crit with no useful stack.
+    /// </remarks>
+    private void RequestRender()
+    {
+        if (_disposed) return;
+
+        _ = InvokeAsync(() =>
+        {
+            if (_disposed) return;
+            StateHasChanged();
+        });
+    }
+
+    /// <summary>The signed-in account changed. Re-read the gate and re-render.</summary>
+    private void OnBoundaryChanged()
+    {
+        if (_disposed) return;
+
+        var was = _isAuthenticated;
+        _isAuthenticated = Boundary.IsAuthenticated;
+        Log.LogDebug(
+            "Sam overlay host boundary changed: {Was} -> {Now} boundary={BoundaryId}",
+            was, _isAuthenticated, Boundary.InstanceId);
+        RequestRender();
+    }
+
+    /// <summary>
+    /// The account boundary was crossed: put the overlay back to its opening position.
+    /// </summary>
+    /// <remarks>
+    /// The workspace behind it has already been cleared by the time this runs, so an open panel
+    /// would be an empty panel — but an empty panel belonging to nobody is still a surface the
+    /// next learner did not open, and on the way out it is a panel whose DOM was drawn from the
+    /// previous learner's conversation. Collapsing is what makes the transition leave nothing
+    /// behind, and the unread badge goes with it because it counted somebody else's messages.
+    /// </remarks>
+    private void OnAccountCrossed(CoachAccountIdentity identity)
+    {
+        if (_disposed) return;
+
+        var wasFullScreen = _visualState == SamOverlayVisualState.FullScreen;
+        _visualState = SamOverlayVisualState.Collapsed;
+        _restoreState = SamOverlayVisualState.Expanded;
+        _hasUnread = false;
+        _isAuthenticated = identity.IsAuthenticated;
+
+        // If the panel was fullscreen when the account boundary crossed, release the scroll lock
+        // so the new learner does not inherit a frozen dashboard from the previous session.
+        if (wasFullScreen)
+        {
+            _ = InvokeScrollLockAsync("exitFullscreenScrollLock");
+        }
+
+        RequestRender();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        // Set before unsubscribing, not after: a handler already running on another thread will
+        // observe this and drop out instead of rendering into a component that is going away.
+        _disposed = true;
+
+        Nav.LocationChanged -= OnLocationChanged;
+        Coach.Changed -= OnCoachChanged;
+        Boundary.Changed -= OnBoundaryChanged;
+        Boundary.Crossed -= OnAccountCrossed;
+
+        try
+        {
+            if (_module is not null)
+            {
+                await _module.InvokeVoidAsync("disposeSamOverlay");
+                await _module.DisposeAsync();
+            }
+        }
+        catch { }
+
+        _selfRef?.Dispose();
+    }
+}

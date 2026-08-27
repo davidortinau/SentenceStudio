@@ -29,6 +29,27 @@ jobs:
         # Static + deterministic + device-free — a raw-DDL test cannot catch it.
         run: bash scripts/validate-migration-attributes.sh
 
+  local-db-volume-guard:
+    name: Local dev DB volume guard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate AppHost fail-fast local-db-volume guard
+        # Catches the recurring data-visibility bug where an AppHost started
+        # without LocalDb:DataVolume silently attaches Aspire's auto-named,
+        # path-derived volume: the stack boots clean, localhost:7071 answers 200,
+        # and the database behind it is empty or an unrelated lineage
+        # (dave@ortinau.com vanished this way on 2026-08-20, and the wrong
+        # persistent container then survived 42 hours of restarts).
+        # Static + deterministic + device-free.
+        run: bash scripts/validate-local-db-volume.sh
+      - name: Guard tests (docker/dotnet stubbed, no containers started)
+        run: bash scripts/validate-local-db-volume.test.sh
+      - name: Validate Azurite persistence (Data Protection key ring)
+        # Sibling guard: an anonymous Azurite volume permanently orphans every
+        # encrypted Coach payload written before an AppHost restart.
+        run: bash scripts/validate-azurite-persistence.sh
+
   build:
     name: Build ${{ matrix.project }}
     runs-on: ubuntu-latest
@@ -38,6 +59,12 @@ jobs:
         include:
           - project: Api
             path: src/SentenceStudio.Api/SentenceStudio.Api.csproj
+            sdk: net10
+          # The production reviewer path for the Sam opportunity ledger. Built here so it cannot
+          # bit-rot against the CoachDbContext model it projects — a digest tool that stops
+          # compiling is a reviewer path that quietly stops existing.
+          - project: SamOpportunityDigest
+            path: tools/SamOpportunityDigest/SamOpportunityDigest.csproj
             sdk: net10
           - project: WebApp
             path: src/SentenceStudio.WebApp/SentenceStudio.WebApp.csproj
@@ -81,7 +108,7 @@ jobs:
         run: dotnet build ${{ matrix.path }} --no-restore -c Release -p:IncludeMobileTargets=false
 
   test:
-    name: Test
+    name: Test (UnitTests)
     runs-on: ubuntu-latest
     needs: build
 
@@ -133,5 +160,314 @@ jobs:
         if: always() && github.event_name == 'pull_request'
         with:
           name: Test Results
+          path: test-results/**/*.trx
+          reporter: dotnet-trx
+
+  # Separate job, not extra shell steps on `test`. Two dotnet test runs in one job would
+  # share a working directory and a NuGet cache and could contend on obj/ for the projects
+  # they have in common (Shared, Contracts). Separate jobs get separate runners.
+  test-api:
+    name: Test (Api.Tests)
+    runs-on: ubuntu-latest
+    needs: build
+
+    # The coach PostgreSQL tests (tests/SentenceStudio.Api.Tests/Coach/Postgres) skip themselves
+    # when no server is configured, so until this service existed they had never once run in CI —
+    # green, and proving nothing. They are the only tests that can prove the parts of the coach
+    # schema that exist only on the real provider: jsonb columns, the filtered unique index,
+    # timestamptz pinning under the legacy timestamp switch, advisory locks, a failed statement
+    # aborting its transaction, and account erasure spanning two contexts on one transaction.
+    #
+    # This job is where they belong. Service containers need a Linux runner — test.yml's Api job
+    # is macos-latest and cannot host one at all — and this is the workflow that gates main.
+    #
+    # Throwaway by construction: the container is created for this job and destroyed with it, and
+    # CoachPostgresServer only ever creates databases named coach_it_* and refuses to drop
+    # anything without that prefix. The credentials below are the container's own and are
+    # deliberately not secrets: a secret would be unavailable to fork pull requests, which is
+    # exactly where this coverage matters most.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        # Host port is deliberately not 5432: runner images ship their own PostgreSQL, and a
+        # collision would bind silently to the wrong server.
+        ports:
+          - 55432:5432
+        # The job does not start until this reports healthy, so a server that never came up fails
+        # the run rather than letting every Postgres test skip its way to a green tick.
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Api.Tests targets net10.0 and its whole graph (Api, Shared, ServiceDefaults) is
+      # net10.0. Validated locally: full suite green under SDK 10.0.101 in Release.
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-apitests-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-apitests-
+            ${{ runner.os }}-nuget-
+
+      - name: Disable dev-only local NuGet source
+        run: dotnet nuget disable source localnugets --configfile src/NuGet.config || true
+
+      - name: Restore & build api tests
+        run: |
+          dotnet restore tests/SentenceStudio.Api.Tests/SentenceStudio.Api.Tests.csproj -p:IncludeMobileTargets=false
+          dotnet build tests/SentenceStudio.Api.Tests/SentenceStudio.Api.Tests.csproj --no-restore -c Release -p:IncludeMobileTargets=false
+
+      - name: Run api tests
+        env:
+          # Points at the maintenance database only. Every test class creates its own coach_it_*
+          # database on this server and drops it again.
+          COACH_PG_TEST_CONNECTION: Host=localhost;Port=55432;Username=postgres;Password=postgres;Database=postgres
+        run: >
+          dotnet test tests/SentenceStudio.Api.Tests/SentenceStudio.Api.Tests.csproj
+          --no-build -c Release
+          -p:IncludeMobileTargets=false
+          --logger "trx;LogFileName=api-tests.trx"
+          --results-directory ./test-results
+
+      # A skipped test is reported as a pass, so a service that stopped resolving — a renamed
+      # variable, a port already taken, an image that changed its default user — would take this
+      # coverage away without turning anything red. The point of adding the server was that these
+      # tests run; this is what checks that they did.
+      - name: Fail if the coach PostgreSQL tests skipped
+        if: always()
+        run: |
+          if grep -qE "No PostgreSQL server configured|PostgreSQL server unreachable" test-results/*.trx; then
+            echo "::error::The coach PostgreSQL tests skipped. COACH_PG_TEST_CONNECTION did not reach the service container, so provider-specific coverage did not run."
+            exit 1
+          fi
+          echo "Coach PostgreSQL tests ran against the service container."
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-api
+          path: test-results/
+
+      - name: Publish test report
+        uses: dorny/test-reporter@v1
+        if: always() && github.event_name == 'pull_request'
+        with:
+          name: Api Test Results
+          path: test-results/**/*.trx
+          reporter: dotnet-trx
+
+  test-ui:
+    name: Test (UI.Tests)
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # UI.Tests targets net11.0 because SentenceStudio.UI is a net11.0 Razor class library.
+      # A 10.0.x SDK fails this project with NETSDK1045 ("does not support targeting .NET 11.0"),
+      # verified locally — so this job needs the same preview SDK the WebApp/AppLib builds use.
+      # Validated locally: full suite green under SDK 11.0.100-preview.7 in Release.
+      - name: Setup .NET 11 preview SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.0.x'
+          dotnet-quality: 'preview'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-uitests-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-uitests-
+            ${{ runner.os }}-nuget-
+
+      - name: Disable dev-only local NuGet source
+        run: dotnet nuget disable source localnugets --configfile src/NuGet.config || true
+
+      - name: Restore & build ui tests
+        run: |
+          dotnet restore tests/SentenceStudio.UI.Tests/SentenceStudio.UI.Tests.csproj -p:IncludeMobileTargets=false
+          dotnet build tests/SentenceStudio.UI.Tests/SentenceStudio.UI.Tests.csproj --no-restore -c Release -p:IncludeMobileTargets=false
+
+      - name: Run ui tests
+        run: >
+          dotnet test tests/SentenceStudio.UI.Tests/SentenceStudio.UI.Tests.csproj
+          --no-build -c Release
+          -p:IncludeMobileTargets=false
+          --logger "trx;LogFileName=ui-tests.trx"
+          --results-directory ./test-results
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-ui
+          path: test-results/
+
+      - name: Publish test report
+        uses: dorny/test-reporter@v1
+        if: always() && github.event_name == 'pull_request'
+        with:
+          name: UI Test Results
+          path: test-results/**/*.trx
+          reporter: dotnet-trx
+
+  test-webapp:
+    name: Test (WebApp.Tests)
+    runs-on: ubuntu-latest
+    needs: build
+
+    # These tests boot the real SentenceStudio.WebApp pipeline — real Identity cookie sign-in,
+    # real authorization middleware, real endpoint routing — so they need the real user store.
+    # That is the whole point: the regression they cover (a server-side API call losing the
+    # caller's identity once the Blazor circuit takes over) is invisible to anything that stubs
+    # authentication.
+    #
+    # Throwaway by construction, on the same terms as the Api.Tests job: the container is created
+    # for this job and destroyed with it, WebAppPostgresServer only ever creates databases named
+    # webapp_it_* and refuses to drop anything without that prefix, and the credentials below are
+    # the container's own and deliberately not secrets so fork pull requests get this coverage too.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        # Host port differs from both 5432 (the runner image ships its own server) and the
+        # Api.Tests job's 55432, so the two jobs can never contend for a port.
+        ports:
+          - 55433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # WebApp.Tests targets net11.0 to match SentenceStudio.WebApp, so it needs the same preview
+      # SDK the UI.Tests job uses.
+      - name: Setup .NET 11 preview SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.0.x'
+          dotnet-quality: 'preview'
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-webapptests-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-webapptests-
+            ${{ runner.os }}-nuget-
+
+      - name: Disable dev-only local NuGet source
+        run: dotnet nuget disable source localnugets --configfile src/NuGet.config || true
+
+      - name: Restore & build webapp tests
+        run: |
+          dotnet restore tests/SentenceStudio.WebApp.Tests/SentenceStudio.WebApp.Tests.csproj -p:IncludeMobileTargets=false
+          dotnet build tests/SentenceStudio.WebApp.Tests/SentenceStudio.WebApp.Tests.csproj --no-restore -c Release -p:IncludeMobileTargets=false
+
+      - name: Run webapp tests
+        env:
+          # Points at the maintenance database only. Every test class creates its own webapp_it_*
+          # database on this server and drops it again.
+          WEBAPP_PG_TEST_CONNECTION: Host=localhost;Port=55433;Username=postgres;Password=postgres;Database=postgres
+        run: >
+          dotnet test tests/SentenceStudio.WebApp.Tests/SentenceStudio.WebApp.Tests.csproj
+          --no-build -c Release
+          -p:IncludeMobileTargets=false
+          --logger "trx;LogFileName=webapp-tests.trx"
+          --results-directory ./test-results
+
+      # Without this the job is green in the one case it must not be: the PostgreSQL service never
+      # came up, WebAppPostgresServer skipped every test that needs it, and `dotnet test` reported
+      # success for a run that proved nothing. These tests are the only place the real Identity
+      # cookie hand-off is exercised end to end, so a silent self-skip is worse than a red build.
+      #
+      # Two independent checks, because either alone can pass while the suite is hollow:
+      #   1. No test carries a WebAppPostgresServer skip reason.
+      #   2. Enough tests actually executed — a filter typo or a build that produced no tests
+      #      also has to fail here.
+      # The live-host verification is expected to skip in CI and is the only permitted skip.
+      - name: Fail if the PostgreSQL-gated tests self-skipped
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import glob, sys, xml.etree.ElementTree as ET
+
+          # Executed-test floor. Well below the current count, so it catches "nothing ran"
+          # without failing every time a test is added or reorganised.
+          MINIMUM_EXECUTED = 25
+
+          files = glob.glob("test-results/**/*.trx", recursive=True)
+          if not files:
+              sys.exit("::error::No .trx produced — the webapp test run did not complete.")
+
+          ns = {"t": "http://microsoft.com/schemas/VisualStudio/TeamTest/2010"}
+          tree = ET.parse(files[0])
+
+          counters = tree.find(".//t:Counters", ns)
+          executed = int(counters.get("executed", 0))
+          total = int(counters.get("total", 0))
+
+          skipped = [
+              r.get("testName", "?")
+              for r in tree.findall(".//t:UnitTestResult", ns)
+              if r.get("outcome") == "NotExecuted"
+              and "PostgreSQL" in "".join(r.itertext())
+          ]
+
+          if skipped:
+              for name in skipped:
+                  print(f"::error::PostgreSQL-gated test self-skipped: {name}")
+              sys.exit(
+                  "::error::The WebApp PostgreSQL-gated tests skipped themselves. The service "
+                  "container did not come up, or WEBAPP_PG_TEST_CONNECTION is wrong."
+              )
+
+          if executed < MINIMUM_EXECUTED:
+              sys.exit(
+                  f"::error::Only {executed} of {total} webapp tests executed "
+                  f"(expected at least {MINIMUM_EXECUTED})."
+              )
+
+          print(f"{executed} of {total} webapp tests executed against real PostgreSQL.")
+          PY
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results-webapp
+          path: test-results/
+
+      - name: Publish test report
+        uses: dorny/test-reporter@v1
+        if: always() && github.event_name == 'pull_request'
+        with:
+          name: WebApp Test Results
           path: test-results/**/*.trx
           reporter: dotnet-trx

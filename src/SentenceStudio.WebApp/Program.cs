@@ -12,10 +12,12 @@ using SentenceStudio.Abstractions;
 using SentenceStudio.Data;
 using SentenceStudio.Infrastructure;
 using SentenceStudio.Services;
+using SentenceStudio.Services.Theme;
 using SentenceStudio.Shared.Models;
 using SentenceStudio.WebApp.Auth;
 using SentenceStudio.WebApp.Components;
 using SentenceStudio.WebApp.Platform;
+using SentenceStudio.WebApp.Platform.Theme;
 using SentenceStudio.WebUI.Services;
 using System.Globalization;
 
@@ -88,6 +90,27 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.AccessDeniedPath = "/Account/AccessDenied";
     options.Cookie.HttpOnly = true;
     options.Cookie.SameSite = SameSiteMode.Lax;
+
+    // Explicit, and different per environment, because the default (SameAsRequest) is wrong on
+    // this host in both directions.
+    //
+    // In Development the app serves the SAME site on two origins — Aspire publishes
+    // http://localhost:<p> and https://localhost:<q>, and UseHttpsRedirection is deliberately off
+    // below — so SameAsRequest makes the session cookie scheme-locked to whichever origin the
+    // learner happened to sign in on. Signing in over https writes a Secure cookie that the
+    // browser will never send to the http origin, so a full-document navigation there arrives
+    // anonymous and AuthorizeRouteView sends it to /auth/login. Interactive navigation stays on
+    // the current origin and keeps working, which is exactly why this looked like "the dashboard
+    // is fine but deep links sign me out". Cookies are not scheme-scoped otherwise, so dropping
+    // Secure on loopback restores one session across both dev origins.
+    //
+    // Everywhere else it is Always, which is strictly stronger than SameAsRequest: the cookie can
+    // never be issued without Secure, including on a request that reached the app over http
+    // because a proxy terminated TLS and did not forward the scheme.
+    options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
+        ? CookieSecurePolicy.None
+        : CookieSecurePolicy.Always;
+
     options.ExpireTimeSpan = TimeSpan.FromDays(90);
     options.SlidingExpiration = true;
 });
@@ -139,11 +162,20 @@ var apiBaseUrl = builder.Configuration.GetValue<string>("ApiBaseUrl") ?? "https+
 builder.Services.AddScoped<IAuthService, ServerAuthService>();
 builder.Services.AddTransient<AuthenticatedHttpMessageHandler>();
 builder.Services.AddApiClients(new Uri(apiBaseUrl));
-builder.Services.AddConversationAgentServices();
 
-// OpenAI key — needed by ConversationAgentService which uses IChatClient directly for
-// multi-turn conversation with ConversationMemory middleware. Removing this requires
-// refactoring ConversationAgentService to use the gateway client instead.
+// The Sam opportunity operator client. Development-only, matching the API routes it calls, which
+// are not mapped outside Development at all. Registering it conditionally means the operator page
+// cannot resolve it in any other environment even if its route registration survived — two
+// independent mechanisms rather than one, because this client can put learner text on a screen.
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services
+        .AddHttpClient<SentenceStudio.WebApp.Operator.SamOpportunityOperatorClient>(client =>
+            client.BaseAddress = new Uri(apiBaseUrl))
+        .AddHttpMessageHandler<AuthenticatedHttpMessageHandler>();
+}
+
+// OpenAI key — retained for the OpenAI audio (TTS) fallback path below.
 var openAiApiKey = builder.Configuration["Settings:OpenAIKey"];
 if (string.IsNullOrWhiteSpace(openAiApiKey))
 {
@@ -249,6 +281,14 @@ static void RegisterSentenceStudioServices(IServiceCollection services)
 {
     services.AddSentenceStudioCoreServices();
     services.AddBlazorUIServices(useCircuitScopedActivityTimer: true);
+
+    // Appearance state, browser-scoped. Scoped, not singleton: a Blazor circuit is a DI scope, so
+    // each browser gets its own theme/mode/text-size tuple and its own ThemeChanged invocation
+    // list. Registered as a singleton this was one process-wide object shared by every signed-in
+    // learner — one person switching theme moved and repainted everybody else's browser.
+    // Persistence is the per-browser ss_appearance cookie, which the SSR pass can read
+    // synchronously off the request and the circuit reads back through JS interop.
+    services.AddBrowserAppearance();
     
     // Release notes service (reads from embedded resources)
     services.AddSingleton<ReleaseNotesService>();
@@ -273,3 +313,14 @@ static void RegisterSentenceStudioServices(IServiceCollection services)
     // Called from a Blazor component on first interactive circuit connect via JS interop.
     services.AddScoped<SentenceStudio.WebApp.Platform.TimeZoneCaptureService>();
 }
+
+/// <summary>
+/// Entry-point handle for <c>WebApplicationFactory&lt;Program&gt;</c>.
+/// </summary>
+/// <remarks>
+/// Top-level statements generate an internal <c>Program</c>, which the test host cannot bind to.
+/// Declaring the partial publicly is the documented way to make the real pipeline — real
+/// authentication, real authorization, real endpoint routing — testable end to end, rather than
+/// re-declaring a lookalike pipeline in the test project that can drift from this one.
+/// </remarks>
+public partial class Program;

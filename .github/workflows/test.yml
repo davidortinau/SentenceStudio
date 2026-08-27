@@ -9,6 +9,7 @@ on:
 
 jobs:
   test:
+    name: Unit Tests
     runs-on: macos-latest
 
     steps:
@@ -45,4 +46,97 @@ jobs:
       with:
         name: Unit Test Results
         path: tests/SentenceStudio.UnitTests/TestResults/*.trx
+        reporter: dotnet-trx
+
+  # Separate jobs rather than extra `dotnet test` steps on the job above: two runs in one
+  # job would share a working directory and NuGet cache and could contend on obj/ for the
+  # projects they have in common. They also need different SDKs (see test-ui).
+  api-tests:
+    name: Api Tests
+    runs-on: macos-latest
+
+    # The coach PostgreSQL tests skip themselves here and that is deliberate: service containers
+    # require a Linux runner, so a macOS job cannot host one. Their server lives on ci.yml's
+    # test-api job, which runs the same suite on ubuntu-latest. Standing a second server up here
+    # would only run the same assertions twice on a runner that cannot support it.
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    # Api.Tests is net10.0 end-to-end (Api, Shared, ServiceDefaults are all net10.0).
+    # Validated locally: full suite green under SDK 10.0.101 in Release.
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: Disable dev-only local NuGet source
+      run: dotnet nuget disable source localnugets --configfile src/NuGet.config || true
+
+    - name: Restore dependencies
+      run: dotnet restore tests/SentenceStudio.Api.Tests/SentenceStudio.Api.Tests.csproj -p:IncludeMobileTargets=false
+
+    - name: Build api tests
+      run: dotnet build tests/SentenceStudio.Api.Tests/SentenceStudio.Api.Tests.csproj --no-restore --configuration Release -p:IncludeMobileTargets=false
+
+    - name: Run api tests
+      run: dotnet test tests/SentenceStudio.Api.Tests/SentenceStudio.Api.Tests.csproj --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=api-test-results.trx" -p:IncludeMobileTargets=false
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: api-test-results
+        path: tests/SentenceStudio.Api.Tests/TestResults/*.trx
+
+    - name: Test Report
+      uses: dorny/test-reporter@v1
+      if: always()
+      with:
+        name: Api Test Results
+        path: tests/SentenceStudio.Api.Tests/TestResults/*.trx
+        reporter: dotnet-trx
+
+  ui-tests:
+    name: UI Tests
+    runs-on: macos-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    # UI.Tests is net11.0 (SentenceStudio.UI is a net11.0 Razor class library). A 10.0.x SDK
+    # fails it with NETSDK1045, verified locally — this job must install the preview SDK.
+    # Validated locally: full suite green under SDK 11.0.100-preview.7 in Release.
+    - name: Setup .NET 11 preview SDK
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '11.0.x'
+        dotnet-quality: 'preview'
+
+    - name: Disable dev-only local NuGet source
+      run: dotnet nuget disable source localnugets --configfile src/NuGet.config || true
+
+    - name: Restore dependencies
+      run: dotnet restore tests/SentenceStudio.UI.Tests/SentenceStudio.UI.Tests.csproj -p:IncludeMobileTargets=false
+
+    - name: Build ui tests
+      run: dotnet build tests/SentenceStudio.UI.Tests/SentenceStudio.UI.Tests.csproj --no-restore --configuration Release -p:IncludeMobileTargets=false
+
+    - name: Run ui tests
+      run: dotnet test tests/SentenceStudio.UI.Tests/SentenceStudio.UI.Tests.csproj --no-build --configuration Release --verbosity normal --logger "trx;LogFileName=ui-test-results.trx" -p:IncludeMobileTargets=false
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: ui-test-results
+        path: tests/SentenceStudio.UI.Tests/TestResults/*.trx
+
+    - name: Test Report
+      uses: dorny/test-reporter@v1
+      if: always()
+      with:
+        name: UI Test Results
+        path: tests/SentenceStudio.UI.Tests/TestResults/*.trx
         reporter: dotnet-trx

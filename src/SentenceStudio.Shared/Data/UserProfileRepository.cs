@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 
 namespace SentenceStudio.Data;
 
-public class UserProfileRepository
+public partial class UserProfileRepository : SentenceStudio.Application.Learners.ILearnerProfileQueries
 {
     private readonly IServiceProvider _serviceProvider;
     private ISyncService _syncService;

@@ -1,0 +1,131 @@
+@implements IAsyncDisposable
+@inject BlazorLocalizationService Localize
+@inject IJSRuntime JS
+@inject CoachWorkspaceState Coach
+@inject CoachPersona Persona
+
+@* The shared composer. On the mobile route this lives inside .activity-input-bar; in
+   the overlay it is the pinned bottom region of the chat column. Exactly one pinned
+   bottom region exists per state — the Plan pane omits it entirely rather than
+   rendering an empty bar. *@
+
+<div class="d-flex align-items-end gap-2">
+    <div class="flex-grow-1">
+        <label class="visually-hidden" for="@CoachElementIds.Composer">@Localize.Get("Coach_ComposerLabelNamed", Persona.DisplayName)</label>
+        @* Enter handling lives in JS (see bindComposerEnter): conditional preventDefault and
+           IME composition state are both unavailable to a Blazor keydown handler. data-enter-sends
+           is read live by that listener, so the overlay degrading below 768px changes the
+           behavior with no re-binding. *@
+        <textarea id="@CoachElementIds.Composer"
+                  class="form-control"
+                  rows="1"
+                  data-enter-sends="@(EnterSends ? "true" : "false")"
+                  maxlength="@(Coach.MaxDraftLength + 1)"
+                  placeholder="@Localize["Coach_ComposerPlaceholder"]"
+                  disabled="@Coach.IsBusy"
+                  aria-invalid="@(Coach.IsDraftTooLong ? "true" : "false")"
+                  aria-describedby="coach-composer-counter"
+                  value="@Coach.Draft"
+                  @oninput="OnInput"></textarea>
+    </div>
+    <button type="button"
+            class="btn btn-ss-primary coach-action"
+            disabled="@(!CanSend)"
+            aria-label="@Localize["Coach_Send"]"
+            @onclick="SendAsync">
+        <i class="bi bi-send" aria-hidden="true"></i>
+    </button>
+</div>
+
+<div id="coach-composer-counter" class="d-flex justify-content-between mt-1">
+    <span class="coach-input-counter @(Coach.IsDraftTooLong ? "coach-over-limit" : "")">
+        @Localize.Get("Coach_InputCounter", Coach.DraftLength, Coach.MaxDraftLength)
+    </span>
+    @if (Coach.IsDraftTooLong)
+    {
+        <span class="coach-input-counter coach-over-limit">@Localize.Get("Coach_InputTooLong", Coach.MaxDraftLength)</span>
+    }
+</div>
+
+@code {
+    /// <summary>
+    /// True when a bare Enter sends. Wide presentations send on Enter (Shift+Enter is a
+    /// newline); narrow presentations use the explicit send button and let Return insert a
+    /// newline, because a soft keyboard's Return is the only way to add one.
+    /// </summary>
+    [Parameter] public bool EnterSends { get; set; } = true;
+
+    private IJSObjectReference? module;
+    private DotNetObjectReference<CoachComposer>? selfRef;
+
+    private bool CanSend => Coach.CanSubmit && !string.IsNullOrWhiteSpace(Coach.Draft);
+
+    protected override void OnInitialized()
+    {
+        Localize.CultureChanged += OnChanged;
+        Coach.Changed += OnChanged;
+        Persona.Changed += OnChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        module = await JS.InvokeAsync<IJSObjectReference>(
+            "import", "./_content/SentenceStudio.UI/js/app.js");
+        selfRef = DotNetObjectReference.Create(this);
+        await module.InvokeVoidAsync("bindComposerEnter", CoachElementIds.Composer, selfRef);
+    }
+
+    /// <summary>
+    /// A late input event must never resurrect text that was already sent. The textarea is
+    /// disabled while a run is in flight, but an event queued in the same tick as the send can
+    /// still arrive afterwards and would write the old draft back.
+    /// </summary>
+    private void OnInput(ChangeEventArgs e)
+    {
+        if (Coach.IsBusy)
+        {
+            return;
+        }
+
+        Coach.Draft = e.Value?.ToString() ?? string.Empty;
+    }
+
+    /// <summary>Invoked from the JS Enter guard, which has already suppressed the newline.</summary>
+    [JSInvokable]
+    public async Task SendFromComposer()
+    {
+        await SendAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private Task SendAsync() => CanSend ? Coach.SendDraftAsync() : Task.CompletedTask;
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public async ValueTask DisposeAsync()
+    {
+        Localize.CultureChanged -= OnChanged;
+        Coach.Changed -= OnChanged;
+        Persona.Changed -= OnChanged;
+
+        try
+        {
+            if (module is not null)
+            {
+                await module.InvokeVoidAsync("unbindComposerEnter", CoachElementIds.Composer);
+                await module.DisposeAsync();
+            }
+        }
+        catch
+        {
+            // Circuit already torn down.
+        }
+
+        selfRef?.Dispose();
+    }
+}

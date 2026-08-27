@@ -1,0 +1,241 @@
+@implements IDisposable
+@inject BlazorLocalizationService Localize
+@inject CoachWorkspaceState Coach
+
+@* One component renders every non-message status row and notice, so the stage copy,
+   the announcement key, and the offered actions cannot diverge across states.
+   Coach outcomes are always inline — never a toast. ToastContainer auto-removes after
+   a timeout and sits fixed above the composer, so it would both cover the input and
+   vanish before it could be read. *@
+
+@switch (Coach.State)
+{
+    case CoachUiState.Opening:
+    case CoachUiState.LoadingEvidence:
+        <div class="coach-stage-row" aria-busy="true">
+            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+            <span>@Localize["Coach_StageReading"]</span>
+        </div>
+        break;
+
+    case CoachUiState.Resuming:
+        <div class="coach-stage-row" aria-busy="true">
+            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+            <span>@Localize["Coach_Resuming"]</span>
+        </div>
+        break;
+
+    case CoachUiState.Running:
+    case CoachUiState.Applying:
+    case CoachUiState.Undoing:
+        <div class="coach-stage-row" aria-busy="true">
+            <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+            <span>@RunStageText()</span>
+        </div>
+        @if (elapsedSeconds >= CoachStateMachine.StillWorkingThresholdSeconds)
+        {
+            @* No re-announcement: this line is visible only. *@
+            <div class="coach-stage-row">@Localize["Coach_StageStillWorking"]</div>
+        }
+        @if (elapsedSeconds >= CoachStateMachine.StopAffordanceThresholdSeconds)
+        {
+            <button type="button" class="btn btn-ss-secondary coach-action mt-2" @onclick="StopRun">
+                <i class="bi bi-stop-circle me-1" aria-hidden="true"></i>@Localize["Coach_Stop"]
+            </button>
+        }
+        break;
+
+    case CoachUiState.Ready when Coach.LastRunAbandoned:
+        @* A stopped run is resolved in place, never left ambiguous. *@
+        <div class="coach-stage-row">
+            <i class="bi bi-stop-circle" aria-hidden="true"></i>
+            <span>@Localize["Coach_Stopped"]</span>
+        </div>
+        break;
+
+    case CoachUiState.PlanChangedElsewhere:
+        <div id="@CoachElementIds.Alert" class="coach-card coach-card-notice" tabindex="-1">
+            <div class="d-flex align-items-start gap-2">
+                <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+                <span>@Localize["Coach_StatusOutOfDate"]</span>
+            </div>
+            <div class="d-flex flex-wrap gap-2 mt-2">
+                <button type="button" class="btn btn-ss-primary coach-action" @onclick="ReloadPlan">
+                    @Localize["Coach_ReloadPlan"]
+                </button>
+                <button type="button" class="btn btn-ss-secondary coach-action" @onclick="Coach.KeepCurrentPlan">
+                    @Localize["Coach_KeepChatting"]
+                </button>
+            </div>
+        </div>
+        break;
+
+    case CoachUiState.Incomplete:
+        <div id="@CoachElementIds.Alert" class="coach-card coach-card-notice" tabindex="-1">
+            <div class="d-flex align-items-start gap-2">
+                <i class="bi bi-hourglass-split" aria-hidden="true"></i>
+                <span>@Localize["Coach_Incomplete"]</span>
+            </div>
+            <div class="d-flex flex-wrap gap-2 mt-2">
+                <button type="button" class="btn btn-ss-primary coach-action" @onclick="RetryLast">
+                    @Localize["Coach_TryAgain"]
+                </button>
+                <button type="button" class="btn btn-ss-secondary coach-action" @onclick="Coach.KeepCurrentPlan">
+                    @Localize["Coach_KeepPlan"]
+                </button>
+            </div>
+        </div>
+        break;
+
+    case CoachUiState.Failed:
+        @* role="alert" only. The single polite region is deliberately left silent for
+           failures so the outcome is never announced twice. *@
+        <div id="@CoachElementIds.Alert" class="coach-card coach-card-alert" role="alert" tabindex="-1">
+            <div class="d-flex align-items-start gap-2">
+                <i class="bi bi-exclamation-octagon" aria-hidden="true"></i>
+                <span>@Localize["Coach_Failed"]</span>
+            </div>
+            <div class="d-flex flex-wrap gap-2 mt-2">
+                <button type="button" class="btn btn-ss-primary coach-action" @onclick="RetryLast">
+                    @Localize["Coach_TryAgain"]
+                </button>
+                <button type="button" class="btn btn-ss-secondary coach-action" @onclick="Coach.KeepCurrentPlan">
+                    @Localize["Coach_KeepPlan"]
+                </button>
+            </div>
+        </div>
+        break;
+
+    case CoachUiState.Offline:
+        <div id="@CoachElementIds.Alert" class="coach-card coach-card-notice" tabindex="-1">
+            <div class="d-flex align-items-start gap-2">
+                <i class="bi bi-wifi-off" aria-hidden="true"></i>
+                <span>@Localize["Coach_Offline"]</span>
+            </div>
+            <button type="button" class="btn btn-ss-secondary coach-action mt-2" @onclick="RetryLast">
+                @Localize["Coach_TryAgain"]
+            </button>
+        </div>
+        break;
+
+    case CoachUiState.Limited:
+        <div id="@CoachElementIds.Alert" class="coach-card coach-card-notice" tabindex="-1">
+            <div class="d-flex align-items-start gap-2">
+                <i class="bi bi-hourglass" aria-hidden="true"></i>
+                <span>@Localize.Get("Coach_Limited", Localize["Coach_LimitResetTomorrow"])</span>
+            </div>
+        </div>
+        break;
+
+    case CoachUiState.InputTooLong:
+        @* Reached when the SERVER rejects a turn. The composer's own inline error only covers
+           the local over-limit case, and by now the draft has been cleared, so without this the
+           rejection would be announced but invisible. *@
+        <div id="@CoachElementIds.Alert" class="coach-card coach-card-alert" role="alert" tabindex="-1">
+            <div class="d-flex align-items-start gap-2">
+                <i class="bi bi-exclamation-circle" aria-hidden="true"></i>
+                <span>@Localize["Coach_InputRejected"]</span>
+            </div>
+        </div>
+        break;
+
+    case CoachUiState.ClarificationLimitReached:
+        <div class="coach-card coach-card-notice">
+            <div class="d-flex align-items-start gap-2">
+                <i class="bi bi-signpost-split" aria-hidden="true"></i>
+                <span>@Localize["Coach_ClarificationLimit"]</span>
+            </div>
+        </div>
+        break;
+
+    case CoachUiState.Expired:
+        <div id="@CoachElementIds.Alert" class="coach-card coach-card-notice" tabindex="-1">
+            <div class="d-flex align-items-start gap-2">
+                <i class="bi bi-clock-history" aria-hidden="true"></i>
+                <span>@Localize["Coach_Expired"]</span>
+            </div>
+            <button type="button" class="btn btn-ss-primary coach-action mt-2" @onclick="StartNew">
+                @Localize["Coach_StartNew"]
+            </button>
+        </div>
+        break;
+}
+
+@code {
+    /// <summary>Raised when the learner asks for a fresh session after expiry.</summary>
+    [Parameter] public EventCallback OnStartNewSession { get; set; }
+
+    /// <summary>Raised when the learner asks to reload a plan changed on another device.</summary>
+    [Parameter] public EventCallback OnReloadPlan { get; set; }
+
+    private System.Threading.Timer? runTimer;
+    private int elapsedSeconds;
+
+    protected override void OnInitialized()
+    {
+        Localize.CultureChanged += OnChanged;
+        Coach.Changed += OnCoachChanged;
+    }
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    private void OnCoachChanged()
+    {
+        if (Coach.RunStartedAt is not null)
+        {
+            EnsureRunTimer();
+        }
+        else
+        {
+            StopRunTimer();
+            elapsedSeconds = 0;
+        }
+
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void EnsureRunTimer()
+    {
+        runTimer ??= new System.Threading.Timer(_ =>
+        {
+            var started = Coach.RunStartedAt;
+            if (started is null)
+            {
+                return;
+            }
+
+            elapsedSeconds = (int)(DateTimeOffset.UtcNow - started.Value).TotalSeconds;
+            InvokeAsync(StateHasChanged);
+        }, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+    }
+
+    private void StopRunTimer()
+    {
+        runTimer?.Dispose();
+        runTimer = null;
+    }
+
+    private string RunStageText() => Coach.State switch
+    {
+        CoachUiState.Applying => Localize["Coach_StageApplying"],
+        CoachUiState.Undoing => Localize["Coach_StageUndoing"],
+        _ => Localize["Coach_StageBuilding"]
+    };
+
+    // Stop tells the server first so the run stops holding the learner's single concurrency
+    // slot, then abandons any late local result.
+    private Task StopRun() => Coach.CancelRunAsync();
+
+    private Task RetryLast() => Coach.RetryLastAsync();
+
+    private Task StartNew() => OnStartNewSession.InvokeAsync();
+
+    private Task ReloadPlan() => OnReloadPlan.InvokeAsync();
+
+    public void Dispose()
+    {
+        StopRunTimer();
+        Localize.CultureChanged -= OnChanged;
+        Coach.Changed -= OnCoachChanged;
+    }
+}

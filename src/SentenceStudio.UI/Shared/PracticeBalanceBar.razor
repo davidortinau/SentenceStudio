@@ -1,0 +1,85 @@
+@implements IDisposable
+@inject BlazorLocalizationService Localize
+
+@*
+    Practice Balance — the signature language-learning element, reusable outside the coach
+    (Dashboard and Activity Log are the intended next consumers), which is why it lives in
+    Shared/ rather than Shared/Coach/.
+
+    Accessibility contract (WCAG 1.4.11): the fill alone is a non-text indicator, and the
+    input/output token pair (--bs-info / --bs-warning) does not reach 3:1 against the light
+    Seoul-Pop body background. Every row therefore carries FOUR channels — icon, text label,
+    numeric value, and a 1px border on both the track and the fill — so the bar is legible in
+    all ten theme x mode combinations and to a learner who cannot distinguish the hues.
+*@
+
+<div class="practice-balance">
+    @if (ShowHeading)
+    {
+        <SentenceStudio.WebUI.Shared.Coach.CoachHeading Level="@HeadingLevel" Class="ss-title3 mb-2">
+            <i class="bi bi-bar-chart-steps me-1" aria-hidden="true"></i>@Localize["Coach_PracticeBalance"]
+        </SentenceStudio.WebUI.Shared.Coach.CoachHeading>
+    }
+
+    @if (!string.IsNullOrWhiteSpace(WindowLabel))
+    {
+        <div class="ss-caption1 text-secondary-ss mb-2">@WindowLabel</div>
+    }
+
+    <div class="practice-balance-row">
+        <span class="practice-balance-label">
+            <i class="bi bi-download" aria-hidden="true"></i>
+            <span>@Localize["Coach_PracticeInput"]</span>
+        </span>
+        <span class="practice-balance-track" role="img" aria-label="@InputAccessibleLabel">
+            <span class="practice-balance-fill practice-balance-fill-input" style="width: @(InputPercent)%"></span>
+        </span>
+        <span class="practice-balance-value">@Localize.Get("Coach_PracticeMinutes", InputMinutes)</span>
+    </div>
+
+    <div class="practice-balance-row">
+        <span class="practice-balance-label">
+            <i class="bi bi-upload" aria-hidden="true"></i>
+            <span>@Localize["Coach_PracticeOutput"]</span>
+        </span>
+        <span class="practice-balance-track" role="img" aria-label="@OutputAccessibleLabel">
+            <span class="practice-balance-fill practice-balance-fill-output" style="width: @(OutputPercent)%"></span>
+        </span>
+        <span class="practice-balance-value">@Localize.Get("Coach_PracticeMinutes", OutputMinutes)</span>
+    </div>
+</div>
+
+@code {
+    /// <summary>Minutes of input practice (reading, listening, review) in the stated window.</summary>
+    [Parameter] public int InputMinutes { get; set; }
+
+    /// <summary>Minutes of output practice (speaking, writing) in the stated window.</summary>
+    [Parameter] public int OutputMinutes { get; set; }
+
+    /// <summary>Human-readable window, for example "Last 14 days". Always state the range.</summary>
+    [Parameter] public string? WindowLabel { get; set; }
+
+    /// <summary>Render the section heading. Off when the host already provides one.</summary>
+    [Parameter] public bool ShowHeading { get; set; } = true;
+
+    /// <summary>Heading level used when <see cref="ShowHeading"/> is true.</summary>
+    [Parameter] public int HeadingLevel { get; set; } = 3;
+
+    private int Total => Math.Max(InputMinutes + OutputMinutes, 0);
+
+    private int InputPercent => Total == 0 ? 0 : (int)Math.Round(InputMinutes * 100.0 / Total);
+
+    private int OutputPercent => Total == 0 ? 0 : (int)Math.Round(OutputMinutes * 100.0 / Total);
+
+    private string InputAccessibleLabel =>
+        $"{Localize["Coach_PracticeInput"]}: {Localize.Get("Coach_PracticeMinutes", InputMinutes)}";
+
+    private string OutputAccessibleLabel =>
+        $"{Localize["Coach_PracticeOutput"]}: {Localize.Get("Coach_PracticeMinutes", OutputMinutes)}";
+
+    protected override void OnInitialized() => Localize.CultureChanged += OnCultureChanged;
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Localize.CultureChanged -= OnCultureChanged;
+}

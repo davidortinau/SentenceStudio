@@ -1,7 +1,7 @@
 namespace SentenceStudio.Contracts.Ai;
 
 /// <summary>
-/// Request for multi-message chat completion (used by ConversationMemory for summarization/extraction).
+/// Request for multi-message chat completion (role + content pairs with optional typed response).
 /// </summary>
 public sealed class ChatMessagesRequest
 {

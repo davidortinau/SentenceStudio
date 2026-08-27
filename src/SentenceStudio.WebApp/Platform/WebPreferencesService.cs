@@ -228,8 +228,7 @@ public sealed class WebPreferencesService : IPreferencesService
             if (string.IsNullOrEmpty(profileId))
             {
                 _logger.LogWarning(
-                    "ResolveActiveUserProfileId: ApplicationUser '{UserId}' has no UserProfileId.",
-                    userId);
+                    "ResolveActiveUserProfileId: the ApplicationUser has no UserProfileId.");
                 return null;
             }
             return profileId;
@@ -237,8 +236,7 @@ public sealed class WebPreferencesService : IPreferencesService
         catch (Exception ex)
         {
             _logger.LogWarning(ex,
-                "ResolveActiveUserProfileId: failed to resolve UserProfileId for '{UserId}' via UserManager.",
-                userId);
+                "ResolveActiveUserProfileId: failed to resolve UserProfileId via UserManager.");
             http.Items[ResolvedUserProfileIdItem] = string.Empty;
             return null;
         }

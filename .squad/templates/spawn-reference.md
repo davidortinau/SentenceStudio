@@ -15,7 +15,7 @@
 
 **Sync spawn (when required):** Use the template below and omit the `mode` parameter (sync is default).
 
-> **VS Code equivalent:** Use `runSubagent` with the prompt content below. Drop `agent_type`, `mode`, `model`, and `description` parameters. Multiple subagents in one turn run concurrently. Sync is the default on VS Code.
+> **VS Code equivalent:** First verify the exact session model ID from trusted runtime metadata is an allowed GPT model. A picker label is not verification; if the ID is unavailable, unknown, or non-OpenAI, do not spawn. Otherwise use `runSubagent` with the prompt content below and drop `agent_type`, `mode`, `model`, and `description` parameters. Multiple subagents in one turn run concurrently. Sync is the default on VS Code.
 
 **Template for any agent** (substitute `{Name}`, `{Role}`, `{name}`, and inline the charter):
 

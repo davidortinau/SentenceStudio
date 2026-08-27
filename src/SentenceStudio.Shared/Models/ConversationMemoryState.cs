@@ -4,8 +4,13 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace SentenceStudio.Shared.Models;
 
 /// <summary>
-/// Persists the conversation memory state for Agent Framework's AIContextProvider.
-/// Stores serialized memory data that survives across app sessions.
+/// Persisted conversation memory state.
+///
+/// RETAINED, NOT LIVE: the only writer was the preview-era conversation agent path
+/// (deleted in Learning Coach Phase 0). The entity, table, and migrations are intentionally
+/// kept — dropping them is destructive and needs its own data-removal decision plus a
+/// dual-provider (PostgreSQL + SQLite) migration.
+/// See tests/SentenceStudio.UnitTests/Services/Agents/ConversationAgentRemovalTests.cs.
 /// </summary>
 [Table("ConversationMemoryStates")]
 public class ConversationMemoryState

@@ -20,7 +20,7 @@ source: "manual"
 
 ## Context
 
-Economy mode shifts Layer 3 (Task-Aware Auto-Selection) to lower-cost alternatives. It does NOT override persistent config (`defaultModel`, `agentModelOverrides`) or per-agent charter preferences — those represent explicit user intent and always take priority.
+Economy mode shifts Layer 3 (Task-Aware Auto-Selection) to lower-cost alternatives. It does not override valid per-agent overrides, session directives, or charter preferences; `defaultModel` remains the final Layer 4 fallback after task-aware selection.
 
 Use this skill when the user wants to reduce costs across an entire session or permanently, without manually specifying models for each agent.
 
@@ -40,13 +40,13 @@ When economy mode is **active**, Layer 3 auto-selection uses this table instead 
 
 | Task Output | Normal Mode | Economy Mode |
 |-------------|-------------|--------------|
-| Writing code (implementation, refactoring, bug fixes) | `claude-sonnet-4.5` | `gpt-4.1` or `gpt-5-mini` |
-| Writing prompts or agent designs | `claude-sonnet-4.5` | `gpt-4.1` or `gpt-5-mini` |
-| Docs, planning, triage, changelogs, mechanical ops | `claude-haiku-4.5` | `gpt-4.1` or `gpt-5-mini` |
-| Architecture, code review, security audits | `claude-opus-4.5` | `claude-sonnet-4.5` |
-| Scribe / logger / mechanical file ops | `claude-haiku-4.5` | `gpt-4.1` |
+| Writing code (implementation, refactoring, bug fixes) | `gpt-5.6-terra` | `gpt-5.4` |
+| Writing prompts or agent designs | `gpt-5.6-terra` | `gpt-5.4` |
+| Docs, planning, triage, changelogs, mechanical ops | `gpt-5.4-mini` | `gpt-5-mini` |
+| Architecture, code review, security audits | `gpt-5.6-sol` | `gpt-5.6-terra` |
+| Scribe / logger / mechanical file ops | `gpt-5.4-mini` | `gpt-5-mini` |
 
-**Prefer `gpt-4.1` over `gpt-5-mini`** when the task involves structured output or agentic tool use. Prefer `gpt-5-mini` for pure text generation tasks where latency matters.
+Every economy value must remain in the allowed GPT catalog. Prefer `gpt-5.4` for structured code or agentic tool use; use `gpt-5-mini` for bounded pure-text work where latency matters.
 
 ## AGENT WORKFLOW
 
@@ -70,11 +70,12 @@ When economy mode is **active**, Layer 3 auto-selection uses this table instead 
 
 ### On Every Agent Spawn (Economy Mode Active)
 
-1. CHECK Layer 0a/0b first (agentModelOverrides, defaultModel) — if set, use that. Economy mode does NOT override Layer 0.
-2. CHECK Layer 1 (session directive for a specific model) — if set, use that. Economy mode does NOT override explicit session directives.
-3. CHECK Layer 2 (charter preference) — if set, use that. Economy mode does NOT override charter preferences.
-4. APPLY economy table at Layer 3 instead of normal table.
-5. INCLUDE `💰` in spawn acknowledgment: `🔧 {Name} ({model} · 💰 economy) — {task}`
+1. CHECK Layer 0 (allowed `agentModelOverrides.{agentName}`) first — if set, use it.
+2. CHECK Layer 1 (allowed session directive) — if set, use it.
+3. CHECK Layer 2 (allowed charter preference) — if set, use it.
+4. APPLY the economy table at Layer 3 instead of the normal task-aware table.
+5. If Layer 3 cannot resolve, use validated `defaultModel` as the final Layer 4 fallback.
+6. INCLUDE `💰` in spawn acknowledgment: `🔧 {Name} ({model} · 💰 economy) — {task}`
 
 ### On Deactivation
 
@@ -104,11 +105,11 @@ After updating economy mode state and including the `💰` indicator in spawn ac
 ```
 
 - `economyMode` — when `true`, Layer 3 uses the economy table. Optional; absent = economy mode off.
-- Combines with `defaultModel` and `agentModelOverrides` — Layer 0 always wins.
+- Combines with model selection: a valid per-agent override, session directive, or charter preference wins; `defaultModel` remains the final Layer 4 fallback.
 
 ## Anti-Patterns
 
-- **Don't override Layer 0 in economy mode.** If the user set `defaultModel: "claude-opus-4.6"`, they want quality. Economy mode only affects Layer 3 auto-selection.
+- **Don't override higher model layers in economy mode.** Valid per-agent overrides, session directives, and charter preferences win; economy mode only affects Layer 3 task-aware selection.
 - **Don't silently apply economy mode.** Always acknowledge when activated or deactivated.
 - **Don't treat economy mode as permanent by default.** Session phrases activate session-only; only "always" or `config.json` persist it.
 - **Don't bump premium tasks down too far.** Architecture and security reviews shift from opus to sonnet in economy mode — they do NOT go to fast/cheap models.

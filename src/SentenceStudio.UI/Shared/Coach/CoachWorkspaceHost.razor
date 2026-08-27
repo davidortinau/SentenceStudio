@@ -1,0 +1,250 @@
+@implements IAsyncDisposable
+@inject NavigationManager Nav
+@inject IJSRuntime JS
+@inject CoachWorkspaceState Coach
+
+@*
+    Mounted exactly once, in MainLayout, as a sibling of ToastContainer.
+
+    The overlay is query-backed (`?coach=<sessionId>`) so browser Back, deep links, refresh
+    and resume all work. The narrow composition is a real route (/coach) instead, so it
+    inherits the canonical activity shell rather than hand-rolling chrome.
+
+    Presentation is decided ONCE, by viewport width at entry. It is never platform-sniffed:
+    the same UI runs in a desktop browser, Mac Catalyst, iPad and iPhone, so a narrowed
+    desktop window must behave like a narrow device and an iPad must not get the phone UI.
+*@
+
+@* Rendered ONLY once this component is interactive.
+
+   During prerendering there is no circuit and no JS, so OnAfterRenderAsync never runs and
+   CoachDialog can never call openCoachModal. Emitting the dialog markup in that pass produces
+   a modal element that Bootstrap was never attached to and that no .NET reference is bound
+   to — visible chrome with nothing wired behind it. Gating on IsInteractive guarantees the
+   element the interop attaches to is the one the learner is looking at. *@
+@if (RendererInfo.IsInteractive && Coach.IsOpen && Coach.Presentation == CoachPresentation.Overlay)
+{
+    <CoachDialog Id="@CoachElementIds.Dialog"
+                 LabelledBy="@CoachElementIds.Title"
+                 IsVisible="true"
+                 CssClass="coach-modal"
+                 DialogCssClass="coach-dialog modal-dialog-centered"
+                 OnClosed="CloseAsync">
+        <CoachWorkspaceOverlay ViewportWidth="@viewportWidth"
+                               OnClose="CloseAsync"
+                               OnStartNewSession="StartNewSessionAsync"
+                               OnReloadPlan="ReloadPlanAsync" />
+    </CoachDialog>
+}
+
+@code {
+    /// <summary>Query parameter that carries the coach session id on the overlay route.</summary>
+    public const string SessionQueryKey = "coach";
+
+    /// <summary>Query parameter that carries the selected pane on the /coach route.</summary>
+    public const string PaneQueryKey = "pane";
+
+    private IJSObjectReference? module;
+    private DotNetObjectReference<CoachWorkspaceHost>? selfRef;
+    private int viewportWidth = CoachStateMachine.SplitCanvasMinimumViewportWidth;
+    private string? currentSessionQuery;
+
+    protected override void OnInitialized()
+    {
+        // Deliberately does NOT read the URL or start a session here.
+        //
+        // OnInitialized runs during prerendering too, so a fire-and-forget SyncFromUriAsync
+        // would create a coach session against the API from the prerender scope, and then the
+        // interactive circuit — a DIFFERENT scope with a DIFFERENT CoachWorkspaceState — would
+        // create a second one. The learner would be looking at markup driven by a session the
+        // live circuit knows nothing about.
+        if (!RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        Nav.LocationChanged += OnLocationChanged;
+        Coach.Changed += OnCoachChanged;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        // OnAfterRenderAsync only ever runs interactively, so everything with a side effect —
+        // JS interop and session creation — is anchored here.
+        if (!firstRender || !RendererInfo.IsInteractive)
+        {
+            return;
+        }
+
+        module = await JS.InvokeAsync<IJSObjectReference>(
+            "import", "./_content/SentenceStudio.UI/js/app.js");
+        selfRef = DotNetObjectReference.Create(this);
+        viewportWidth = await module.InvokeAsync<int>("observeViewport", selfRef);
+
+        // Now that a circuit exists, adopt whatever the URL asks for.
+        await SyncFromUriAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>Live viewport width so the overlay can degrade between split and tabs in place.</summary>
+    [JSInvokable]
+    public Task OnViewportChanged(int width)
+    {
+        viewportWidth = width;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e) =>
+        _ = InvokeAsync(SyncFromUriAsync);
+
+    private async Task SyncFromUriAsync()
+    {
+        var uri = Nav.ToAbsoluteUri(Nav.Uri);
+        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(uri.Query);
+        var hasSession = query.TryGetValue(SessionQueryKey, out var sessionValues);
+        var sessionId = hasSession ? sessionValues.ToString() : null;
+
+        // The /coach route owns its own lifecycle; the overlay host must stay out of its way.
+        if (uri.AbsolutePath.StartsWith("/coach", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (string.IsNullOrEmpty(sessionId))
+        {
+            if (Coach.IsOpen && Coach.Presentation == CoachPresentation.Overlay)
+            {
+                Coach.Close();
+            }
+
+            currentSessionQuery = null;
+            return;
+        }
+
+        if (string.Equals(currentSessionQuery, sessionId, StringComparison.Ordinal) && Coach.IsOpen)
+        {
+            return;
+        }
+
+        currentSessionQuery = sessionId;
+
+        // "new" is the sentinel the entry point uses before an id exists.
+        var resumeId = string.Equals(sessionId, "new", StringComparison.Ordinal) ? null : sessionId;
+        await Coach.OpenAsync(CoachPresentation.Overlay, resumeId, SamElementIds.Fab);
+        PublishEntryId();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    /// <summary>
+    /// Closing never undoes an applied change and never ends the session — it only drops the
+    /// query parameter, so a later resume picks the conversation back up.
+    /// </summary>
+    private async Task CloseAsync()
+    {
+        Coach.Close();
+        currentSessionQuery = null;
+        RemoveCoachQuery();
+
+        if (module is null)
+        {
+            return;
+        }
+
+        try
+        {
+            // Tear the modal down FIRST. Closing removes CoachDialog, whose DisposeAsync
+            // releases the background inert — but that runs asynchronously, so focusing before
+            // it completes would target a still-inert button and silently do nothing.
+            // disposeCoachModal is idempotent, so the dialog's own teardown remains harmless.
+            await module.InvokeVoidAsync("disposeCoachModal", CoachElementIds.Dialog);
+
+            // Close() published the invoking control as the pending focus target; consume it
+            // through the same single channel every other focus move uses.
+            if (Coach.ConsumePendingFocus() is { } invoker)
+            {
+                await module.InvokeVoidAsync("focusElement", invoker);
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+            // Circuit gone; nothing to focus.
+        }
+    }
+
+    private async Task StartNewSessionAsync()
+    {
+        Coach.Reset();
+        await Coach.OpenAsync(CoachPresentation.Overlay, null, SamElementIds.Fab);
+    }
+
+    private async Task ReloadPlanAsync()
+    {
+        var entryId = Coach.EntryId;
+        Coach.Reset();
+        await Coach.OpenAsync(CoachPresentation.Overlay, entryId, SamElementIds.Fab);
+        PublishEntryId();
+    }
+
+    /// <summary>
+    /// Replaces the "new" sentinel in the address bar with the id that was actually opened.
+    /// </summary>
+    /// <remarks>
+    /// Leaving the sentinel there means a reload, a shared link or a restored tab all start a
+    /// second conversation instead of returning to this one. The entry is replaced rather than
+    /// pushed so Back still leaves the workspace rather than stepping through its own opening.
+    /// </remarks>
+    private void PublishEntryId()
+    {
+        if (Coach.EntryId is not { Length: > 0 } entryId
+            || string.Equals(currentSessionQuery, entryId, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        currentSessionQuery = entryId;
+
+        var uri = Nav.ToAbsoluteUri(Nav.Uri);
+        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers
+            .ParseQuery(uri.Query)
+            .ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString());
+        query[SessionQueryKey] = entryId;
+
+        var target = Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString(uri.AbsolutePath, query!);
+        Nav.NavigateTo(target, forceLoad: false, replace: true);
+    }
+
+    private void RemoveCoachQuery()
+    {
+        var uri = Nav.ToAbsoluteUri(Nav.Uri);
+        var without = Microsoft.AspNetCore.WebUtilities.QueryHelpers
+            .ParseQuery(uri.Query)
+            .Where(kvp => kvp.Key != SessionQueryKey && kvp.Key != PaneQueryKey)
+            .ToDictionary(kvp => kvp.Key, kvp => kvp.Value.ToString());
+
+        var target = Microsoft.AspNetCore.WebUtilities.QueryHelpers.AddQueryString(uri.AbsolutePath, without!);
+        Nav.NavigateTo(target, forceLoad: false, replace: true);
+    }
+
+    private void OnCoachChanged() => InvokeAsync(StateHasChanged);
+
+    public async ValueTask DisposeAsync()
+    {
+        Nav.LocationChanged -= OnLocationChanged;
+        Coach.Changed -= OnCoachChanged;
+
+        try
+        {
+            if (module is not null)
+            {
+                await module.InvokeVoidAsync("unobserveViewport");
+                await module.DisposeAsync();
+            }
+        }
+        catch
+        {
+            // Circuit already torn down.
+        }
+
+        selfRef?.Dispose();
+    }
+}

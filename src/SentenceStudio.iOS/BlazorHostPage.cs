@@ -8,6 +8,8 @@ public class BlazorHostPage : ContentPage
 {
     public BlazorHostPage()
     {
+        SafeAreaEdges = Microsoft.Maui.SafeAreaEdges.None;
+
         var blazorWebView = new BlazorWebView
         {
             HostPage = "wwwroot/index.html"

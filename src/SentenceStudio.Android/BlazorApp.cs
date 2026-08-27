@@ -5,7 +5,7 @@ using SentenceStudio.Services;
 
 namespace SentenceStudio;
 
-public class BlazorApp : Application
+public class BlazorApp : Microsoft.Maui.Controls.Application
 {
     public BlazorApp()
     {

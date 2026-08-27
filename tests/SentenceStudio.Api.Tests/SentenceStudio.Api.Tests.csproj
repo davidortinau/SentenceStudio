@@ -11,8 +11,18 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
+    <!-- Relational test provider for the coach store tests. CoachDbContext applies its
+         Npgsql-only column types conditionally, so the same model runs here. -->
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <!-- The real provider the coach schema ships on. The SQLite tests above cover the
+         provider-independent behaviour; the tests under Coach/Postgres run the same stores
+         against a live PostgreSQL server so the Npgsql-only column types, filtered unique
+         index, advisory lock, and transaction semantics are proven rather than assumed.
+         They skip themselves when no server is configured. -->
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="FluentAssertions" />
+    <PackageReference Include="YamlDotNet" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -27,6 +37,13 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\SentenceStudio.Api\SentenceStudio.Api.csproj" />
     <ProjectReference Include="..\..\src\SentenceStudio.Shared\SentenceStudio.Shared.csproj" />
+  </ItemGroup>
+
+  <!-- Source-link the AppHost coach configuration reader so contract tests call the real
+       implementation without taking a binary dependency on the Aspire AppHost exe. -->
+  <ItemGroup>
+    <Compile Include="..\..\src\SentenceStudio.AppHost\CoachConfigurationReader.cs"
+             Link="Coach\CoachConfigurationReader.cs" />
   </ItemGroup>
 
   <ItemGroup>

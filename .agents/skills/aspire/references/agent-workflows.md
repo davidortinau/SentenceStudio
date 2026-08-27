@@ -4,7 +4,14 @@ Use these patterns when a task needs investigation or orchestration rather than 
 
 ## Scenario: I Am In A Worktree And Need A Safe Background Run
 
-Start the AppHost with `aspire start` so the CLI manages background execution. In git worktrees, use `--isolated` to avoid port conflicts and shared local state:
+**CRITICAL (SentenceStudio-specific):** `--isolated` does NOT provide AppHost project-path
+isolation. AppHost ownership is keyed by project path; an `--isolated` launch from the SAME
+path can stop an existing AppHost and reuse DCP-managed resource/container identity. For
+SentenceStudio agent E2E runs, you MUST use a separately materialized AppHost project path
+(git worktree or full clone) with its own `LocalDb:DataVolume`. A cloned DB volume from the
+same project path is insufficient.
+
+Start the AppHost with `aspire start` so the CLI manages background execution. In git worktrees (separate project path), use `--isolated` to avoid port conflicts and shared local state:
 
 ```bash
 aspire start --isolated

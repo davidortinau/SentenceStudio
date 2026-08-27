@@ -107,7 +107,7 @@
 
         // Navigate to auth page
         var baseUri = Nav.BaseUri;
-        var isWeb = !baseUri.StartsWith("app://") && !baseUri.Contains("0.0.0.0");
+        var isWeb = BlazorHostKind.IsWebHost(baseUri);
         Nav.NavigateTo(isWeb ? "/account-action/SignOut" : "/auth/login", forceLoad: isWeb);
     }
 

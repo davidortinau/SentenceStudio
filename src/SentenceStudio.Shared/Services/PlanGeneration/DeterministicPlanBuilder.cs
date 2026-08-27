@@ -20,6 +20,11 @@ public class DeterministicPlanBuilder
     private const int BootstrapVocabularyTarget = 15;
     private const int ResourceFreshnessLookbackDays = 30;
 
+    // Per-block minute caps. Low energy shortens the block; it never swaps in
+    // an easier activity, so the deterministic difficulty floor is unchanged.
+    private const int StandardBlockMinutes = 10;
+    private const int LowEnergyBlockMinutes = 8;
+
     private readonly UserProfileRepository _userProfileRepo;
     private readonly LearningResourceRepository _resourceRepo;
     private readonly SkillProfileRepository _skillRepo;
@@ -56,16 +61,47 @@ public class DeterministicPlanBuilder
     /// the active profile id from <c>IPreferencesService</c>.
     /// </param>
     public async Task<PlanSkeleton?> BuildPlanAsync(string? userProfileId = null, CancellationToken ct = default)
+        => await BuildPlanAsync(new PlanBuildRequest { UserProfileId = userProfileId }, ct).ConfigureAwait(false);
+
+    /// <summary>
+    /// Builds a study plan for a typed <see cref="PlanBuildRequest"/>, honoring
+    /// optional <see cref="PlanConstraints"/> and the request's write policy.
+    /// </summary>
+    /// <remarks>
+    /// Returns <c>null</c> for "no feasible plan" — the same signal the legacy
+    /// overload already uses for "no resources / no profile". The builder never
+    /// returns a partially-built or constraint-violating skeleton.
+    /// </remarks>
+    public async Task<PlanSkeleton?> BuildPlanAsync(PlanBuildRequest request, CancellationToken ct = default)
     {
-        _logger.LogInformation("🎯 Starting deterministic plan generation (userProfileId='{UserProfileId}')",
-            userProfileId);
+        ArgumentNullException.ThrowIfNull(request);
+
+        var userProfileId = request.UserProfileId;
+        var constraints = request.Constraints;
+
+        if (constraints is not null && !constraints.TryValidate(out var constraintErrors))
+        {
+            _logger.LogWarning(
+                "Plan constraints rejected: {ConstraintErrors}",
+                string.Join(" ", constraintErrors));
+            return null;
+        }
+
+        // Deliberately identifier-free: the Learning Coach drives this path and
+        // coach telemetry must never emit a user or profile id. Keep the
+        // non-sensitive shape fields that make the log useful.
+        _logger.LogInformation(
+            "Starting deterministic plan generation (scoped={Scoped}, constrained={Constrained}, allowWrites={AllowWrites})",
+            !string.IsNullOrEmpty(userProfileId),
+            constraints is not null,
+            request.AllowWrites);
 
         UserProfile? userProfile = !string.IsNullOrEmpty(userProfileId)
             ? await _userProfileRepo.GetByIdAsync(userProfileId!, ct)
             : await _userProfileRepo.GetAsync();
         if (userProfile == null)
         {
-            _logger.LogWarning("❌ No user profile found (userProfileId='{UserProfileId}')", userProfileId);
+            _logger.LogWarning("No user profile found for the requested scope.");
             return null;
         }
 
@@ -75,7 +111,11 @@ public class DeterministicPlanBuilder
         // Phrases smart resources available as a freshly-onboarded mobile
         // user. EnsureSmartResourcesAsync is per-profile idempotent and
         // already swallows failures with a warning.
-        if (!string.IsNullOrEmpty(userProfileId))
+        //
+        // This is the ONLY database write on the generation path, so a
+        // pure-preview request (AllowWrites=false) skips it and the whole
+        // build becomes read-only.
+        if (!string.IsNullOrEmpty(userProfileId) && request.AllowWrites)
         {
             await _userProfileRepo.EnsureSmartResourcesAsync(userProfile);
         }
@@ -86,7 +126,9 @@ public class DeterministicPlanBuilder
         // contract: every db/repo call below is filtered to this user.
         var scopedUserId = userProfile.Id;
 
-        var sessionMinutes = userProfile.PreferredSessionMinutes;
+        // AvailableMinutes clamps the planner budget. When absent, the profile
+        // preference is authoritative exactly as before.
+        var sessionMinutes = constraints?.AvailableMinutes ?? userProfile.PreferredSessionMinutes;
         // Resolve the per-request/per-call IPlanDateContext through the service
         // provider so this Singleton builder doesn't capture a stale date
         // context across DST shifts or device-local timezone changes. The user
@@ -105,10 +147,30 @@ public class DeterministicPlanBuilder
         // Step 1: Determine vocabulary review needs (SRS algorithm)
         var vocabReview = await DetermineVocabularyReviewAsync(today, scopedUserId, ct);
 
+        // Step 1b: A trusted, pre-resolved vocabulary focus replaces the focus
+        // set the SRS pass derived, so every vocabulary-driven activity carries
+        // exactly the words the learner asked for. The review block itself is
+        // untouched — its size and existence stay governed by the due-review
+        // minimums, so focusing never removes required review work.
+        if (request.FocusVocabularyWordIds is { Count: > 0 } focusIds && vocabReview is not null)
+        {
+            var selected = focusIds.Distinct(StringComparer.Ordinal).ToList();
+            _logger.LogInformation(
+                "Applying trusted vocabulary focus: {SelectedCount} word(s) replace the derived focus set of {DerivedCount}.",
+                selected.Count, vocabReview.FocusVocabularyIds.Count);
+            vocabReview.FocusVocabularyIds = selected;
+        }
+        else if (request.FocusVocabularyWordIds is { Count: > 0 } && vocabReview is null)
+        {
+            _logger.LogInformation(
+                "Vocabulary focus supplied but no review block was generated; the focus set is not applied.");
+        }
+
         if (vocabReview != null)
         {
-            _logger.LogInformation("📚 Vocab review needed: {WordCount} words from resource {ResourceId} (~{Minutes}min)",
-                vocabReview.WordCount, vocabReview.ResourceId, vocabReview.EstimatedMinutes);
+            _logger.LogInformation(
+                "Vocab review needed: {WordCount} words, contextual={IsContextual} (~{Minutes}min)",
+                vocabReview.WordCount, vocabReview.IsContextual, vocabReview.EstimatedMinutes);
         }
 
         // Step 2: Select primary resource (avoid recent, prefer vocab-rich)
@@ -150,11 +212,16 @@ public class DeterministicPlanBuilder
             return null;
         }
 
-        var lastUseDescription = primaryResource.DaysSinceLastUse.HasValue
-            ? $"not used for {primaryResource.DaysSinceLastUse.Value} days"
-            : "never used before";
-        _logger.LogInformation("📖 Selected resource: {ResourceTitle} (ID: {ResourceId}, {LastUseDescription})",
-            primaryResource.Title, primaryResource.Id, lastUseDescription);
+        // Shape and status only. The title and id are learner-owned content and
+        // the Learning Coach drives this path, so neither may reach telemetry.
+        // DaysSinceLastUse is derived from timestamps, not from learner text, so
+        // it stays as a bounded numeric field (null = never used).
+        _logger.LogInformation(
+            "Selected primary resource (selected={ResourceSelected}, daysSinceLastUse={DaysSinceLastUse}, hasAudio={HasAudio}, hasTranscript={HasTranscript})",
+            true,
+            primaryResource.DaysSinceLastUse,
+            primaryResource.HasAudio,
+            primaryResource.HasTranscript);
 
         // Step 3: Determine skill level (use primary skill or default)
         var skill = await DetermineSkillAsync(primaryResource, scopedUserId, ct);
@@ -167,9 +234,20 @@ public class DeterministicPlanBuilder
             sessionMinutes,
             today,
             scopedUserId,
+            constraints,
             ct);
 
         var totalMinutes = activities.Sum(a => a.EstimatedMinutes);
+
+        if (activities.Count == 0 && constraints is not null)
+        {
+            // Constrained builds get an explicit no-feasible-plan signal (null,
+            // the existing "no plan" return) instead of an empty skeleton.
+            // Unconstrained builds keep today's behavior exactly.
+            _logger.LogWarning(
+                "No feasible plan: every candidate activity was excluded by the supplied constraints or budget.");
+            return null;
+        }
 
         _logger.LogInformation("✅ Generated plan: {ActivityCount} activities, {TotalMinutes}min total",
             activities.Count, totalMinutes);
@@ -274,8 +352,8 @@ public class DeterministicPlanBuilder
 
             skillId = recentSkill;
 
-            _logger.LogInformation("🎯 Contextual vocab review: {Count}/{Total} words from resource {ResourceId}",
-                wordsByResource.Count(), selectedWords.Count, resourceId);
+            _logger.LogInformation("Contextual vocab review: {Count}/{Total} words from one resource",
+                wordsByResource.Count(), selectedWords.Count);
         }
         else
         {
@@ -564,12 +642,19 @@ public class DeterministicPlanBuilder
         int sessionMinutes,
         DateTime today,
         string userProfileId,
+        PlanConstraints? constraints,
         CancellationToken ct)
     {
         var activities = new List<PlannedActivity>();
         var remainingMinutes = sessionMinutes;
         var priority = 1;
         var focusVocabularyIds = vocabReview?.FocusVocabularyIds ?? new List<string>();
+
+        // Low energy shortens each block. It does NOT substitute an easier
+        // activity, drop the production block, or relax the due-review
+        // minimum — the deterministic difficulty floor is untouched.
+        var lowEnergy = constraints?.EnergyLevel == PlanEnergyLevel.Low;
+        var blockMinutes = lowEnergy ? LowEnergyBlockMinutes : StandardBlockMinutes;
 
         // Get recent activity types to ensure variety
         using var scope = _serviceProvider.CreateScope();
@@ -609,12 +694,13 @@ public class DeterministicPlanBuilder
         // STEP 2: Input activity (lower cognitive load, comprehensible input)
         if (remainingMinutes >= 8)
         {
-            var inputActivity = SelectInputActivity(resource, yesterdayActivities, recentActivityTypes, today);
-            
+            var inputActivity = SelectInputActivity(resource, yesterdayActivities, recentActivityTypes, today, constraints);
+
             // Only add input activity if resource supports at least one (has transcript, audio, or video)
+            // that also survives the learner's modality constraints.
             if (!string.IsNullOrEmpty(inputActivity))
             {
-                var inputMinutes = Math.Min(10, remainingMinutes);
+                var inputMinutes = Math.Min(blockMinutes, remainingMinutes);
 
                 activities.Add(new PlannedActivity
                 {
@@ -630,35 +716,45 @@ public class DeterministicPlanBuilder
             }
             else
             {
-                _logger.LogWarning("⚠️ Resource {ResourceId} has no compatible input activities (no transcript/audio/video)", resource.Id);
+                _logger.LogWarning("Primary resource has no compatible input activities (no transcript/audio/video, or all excluded by constraints).");
             }
         }
 
         // STEP 3: Output activity (higher cognitive load, production practice)
         if (remainingMinutes >= 8)
         {
-            var outputActivity = SelectOutputActivity(resource, yesterdayActivities, recentActivityTypes, today);
-            var outputMinutes = Math.Min(10, remainingMinutes);
+            var outputActivity = SelectOutputActivity(resource, yesterdayActivities, recentActivityTypes, today, constraints);
 
-            activities.Add(new PlannedActivity
+            if (!string.IsNullOrEmpty(outputActivity))
             {
-                ActivityType = outputActivity,
-                ResourceId = outputActivity == "Cloze" ? null : resource.Id,  // Cloze is vocabulary-driven when from plan
-                SkillId = skill?.Id,
-                EstimatedMinutes = outputMinutes,
-                Priority = priority++,
-                Rationale = GetActivityRationale(outputActivity, "output"),
-                FocusVocabularyIds = GetFocusVocabularyIdsForActivity(outputActivity, focusVocabularyIds)
-            });
-            remainingMinutes -= outputMinutes;
+                var outputMinutes = Math.Min(blockMinutes, remainingMinutes);
+
+                activities.Add(new PlannedActivity
+                {
+                    ActivityType = outputActivity,
+                    ResourceId = outputActivity == "Cloze" ? null : resource.Id,  // Cloze is vocabulary-driven when from plan
+                    SkillId = skill?.Id,
+                    EstimatedMinutes = outputMinutes,
+                    Priority = priority++,
+                    Rationale = GetActivityRationale(outputActivity, "output"),
+                    FocusVocabularyIds = GetFocusVocabularyIdsForActivity(outputActivity, focusVocabularyIds)
+                });
+                remainingMinutes -= outputMinutes;
+            }
+            else
+            {
+                _logger.LogWarning("No compatible output activities remain for the primary resource under the supplied constraints.");
+            }
         }
 
-        // STEP 4: Light closer (if time remains)
-        if (remainingMinutes >= 5)
+        // STEP 4: Light closer (if time remains). Skipped entirely on low
+        // energy — shortening the session by dropping the optional light
+        // activity, never by softening the graded work above.
+        if (remainingMinutes >= 5 && !lowEnergy)
         {
             var closerActivity = await SelectCloserActivityAsync(skill, userProfileId, today, ct);
-            
-            if (closerActivity != null)
+
+            if (closerActivity != null && PlanActivityModality.IsAllowed(closerActivity, constraints))
             {
                 activities.Add(new PlannedActivity
                 {
@@ -719,21 +815,18 @@ public class DeterministicPlanBuilder
         
         if (numbersDue)
         {
-            _logger.LogInformation("Numbers are due — selecting NumberDrill for STEP 4 closer: userProfileId={UserProfileId}",
-                userProfileId);
+            _logger.LogInformation("Numbers are due — selecting NumberDrill for STEP 4 closer.");
             return "NumberDrill";
         }
         
         // Fallback: VocabularyGame if skill exists
         if (skill != null)
         {
-            _logger.LogInformation("No numbers due — selecting VocabularyGame for STEP 4 closer: userProfileId={UserProfileId}",
-                userProfileId);
+            _logger.LogInformation("No numbers due — selecting VocabularyGame for STEP 4 closer.");
             return "VocabularyGame";
         }
         
-        _logger.LogInformation("No skill and no numbers due — skipping STEP 4 closer: userProfileId={UserProfileId}",
-            userProfileId);
+        _logger.LogInformation("No skill and no numbers due — skipping STEP 4 closer.");
         return null;
     }
 
@@ -942,11 +1035,12 @@ public class DeterministicPlanBuilder
         return new PlanNarrative(resources, vocabInsight, story, focusAreas);
     }
 
-    private string SelectInputActivity(
+    private string? SelectInputActivity(
         SelectedResource resource,
         HashSet<string> yesterdayActivities,
         List<string> recentActivities,
-        DateTime today)
+        DateTime today,
+        PlanConstraints? constraints = null)
     {
         var inputActivities = new List<string>();
 
@@ -969,6 +1063,9 @@ public class DeterministicPlanBuilder
             inputActivities.Add("Reading");
         }
 
+        // Drop anything the learner's modality constraints exclude.
+        inputActivities = ApplyModalityConstraints(inputActivities, constraints);
+
         // If no input activities are compatible with this resource, return null
         if (!inputActivities.Any())
         {
@@ -980,20 +1077,15 @@ public class DeterministicPlanBuilder
         if (fresh.Any())
             inputActivities = fresh;
 
-        // Prefer least recently used, with deterministic tiebreaker so the same day always produces the same order
-        var selected = inputActivities
-            .OrderBy(a => recentActivities.Count(r => r == a))
-            .ThenBy(a => DeterministicHash.Combine(a, today))
-            .First();
-
-        return selected;
+        return SelectByPreference(inputActivities, recentActivities, today, constraints);
     }
 
-    private string SelectOutputActivity(
+    private string? SelectOutputActivity(
         SelectedResource resource,
         HashSet<string> yesterdayActivities,
         List<string> recentActivities,
-        DateTime today)
+        DateTime today,
+        PlanConstraints? constraints = null)
     {
         var outputActivities = new List<string> { "Translation", "Cloze", "Writing" };
 
@@ -1001,18 +1093,47 @@ public class DeterministicPlanBuilder
         if (resource.HasAudio)
             outputActivities.Add("Shadowing");
 
+        // Drop anything the learner's modality constraints exclude.
+        outputActivities = ApplyModalityConstraints(outputActivities, constraints);
+
+        if (!outputActivities.Any())
+        {
+            return null;
+        }
+
         // Filter out yesterday's activities
         var fresh = outputActivities.Where(a => !yesterdayActivities.Contains(a)).ToList();
         if (fresh.Any())
             outputActivities = fresh;
 
-        // Prefer least recently used, with deterministic tiebreaker so the same day always produces the same order
-        var selected = outputActivities
-            .OrderBy(a => recentActivities.Count(r => r == a))
+        return SelectByPreference(outputActivities, recentActivities, today, constraints);
+    }
+
+    private static List<string> ApplyModalityConstraints(List<string> candidates, PlanConstraints? constraints)
+        => constraints is null
+            ? candidates
+            : candidates.Where(a => PlanActivityModality.IsAllowed(a, constraints)).ToList();
+
+    /// <summary>
+    /// Deterministic candidate ordering. Skill emphasis is applied as the
+    /// primary sort key so it reweights the candidate set without ever
+    /// removing a candidate; the existing least-recently-used ordering and the
+    /// stable per-day hash tiebreaker are preserved beneath it, so an
+    /// unconstrained call returns exactly what it returned before.
+    /// </summary>
+    private static string SelectByPreference(
+        List<string> candidates,
+        List<string> recentActivities,
+        DateTime today,
+        PlanConstraints? constraints)
+    {
+        var emphasis = constraints?.SkillEmphasis;
+
+        return candidates
+            .OrderBy(a => emphasis is { } e && PlanActivityModality.MatchesEmphasis(a, e) ? 0 : 1)
+            .ThenBy(a => recentActivities.Count(r => r == a))
             .ThenBy(a => DeterministicHash.Combine(a, today))
             .First();
-
-        return selected;
     }
 
     private string GetActivityRationale(string activityType, string category)

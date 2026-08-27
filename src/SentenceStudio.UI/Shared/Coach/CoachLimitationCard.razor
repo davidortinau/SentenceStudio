@@ -1,0 +1,395 @@
+@using System.Globalization
+@inject BlazorLocalizationService Localize
+
+@*
+    An honest statement of something Sam will not do, and where the learner can.
+
+    Three failure modes shaped this, and each maps to a rule below.
+
+    1. THE FALSE LIMITATION. "I can't do that" about something the app plainly does is the worst
+       output on this surface: the learner believes it, stops looking, and the feature might as
+       well not exist. So a limitation carries a typed destination, and when one is present this
+       card names the screen. There is no code path here that renders a refusal while suppressing
+       a destination the server sent.
+
+    2. THE UNDISCLOSED CONSEQUENCE. Sending somebody to the screen where they can delete their
+       vocabulary is fine. Sending them without saying so is not. The side effect renders next to
+       the link, above the fold, before the tap — never after, and never in a tooltip.
+
+    3. THE INVENTED NUMBER. Every count on this card comes from the DTO. There is no arithmetic in
+       this file: no summing, no percentages, no "most of your words". The copy carries no digits
+       at all, which is why the localized strings can be translated without a reviewer checking
+       whether the Korean total still matches the English one.
+
+    NEUTRAL ON UNKNOWN, in every direction. An unrecognised limitation code renders a plain
+    heading with no reason attached. An unrecognised route renders no link — not a guessed one.
+    An unrecognised side effect renders "consequences not stated", which is the one place where
+    the neutral rendering has to be a sentence rather than silence: a destination whose
+    consequence is unknown must not read as a destination that is safe.
+
+    NO CONTENT, EVER. There is no term, gloss, example or query on CoachLimitationDto, so there is
+    nothing on this card that could carry one. The hint ladder renders what each rung WOULD give,
+    never the rung itself — that content does not exist in this shape and cannot be added to it
+    without a contract change and a review.
+
+    HOST-AGNOSTIC. Nothing here reads the base URI, the navigation manager, or a platform flag, so
+    the workspace host and the overlay host render byte-identical markup. Parity is a property of
+    the file, not of a test that happens to pass.
+*@
+
+@if (Limitation is not null)
+{
+    <section class="coach-limitation" data-coach-limitation="@Limitation.Code"
+             aria-labelledby="@ReasonId">
+
+        <p id="@ReasonId" class="coach-limitation-reason ss-body2 mb-2" data-coach-limitation-reason>@ReasonText</p>
+
+        @if (HasAffectedCount)
+        {
+            <p class="coach-limitation-count ss-caption1 text-secondary-ss mb-2"
+               data-coach-limitation-count="@Limitation.AffectedCount">
+                @Localize["Coach_Limitation_AffectedItems"]: @Limitation.AffectedCount
+            </p>
+        }
+
+        @if (WithheldOnLimitation is { } withheld)
+        {
+            <p class="coach-limitation-withheld ss-caption1 text-secondary-ss mb-2"
+               data-coach-limitation-withheld="@Limitation.WithheldCount">@withheld</p>
+        }
+
+        @if (CoverageKey is { } coverageLabel)
+        {
+            <p class="coach-limitation-coverage ss-caption1 text-secondary-ss mb-2"
+               data-coach-limitation-coverage="@Limitation.Coverage">@Localize[coverageLabel]</p>
+        }
+
+        @if (Limitation.WindowStartDate is { } windowStart && Limitation.WindowEndDate is { } windowEnd)
+        {
+            <p class="coach-limitation-window ss-caption1 text-secondary-ss mb-2" data-coach-limitation-window>
+                @Localize.Get("Coach_EvidenceWindow", FormatDate(windowStart), FormatDate(windowEnd))
+            </p>
+        }
+
+        @if (Limitation.AsOfUtc is { } asOf)
+        {
+            <p class="coach-limitation-asof ss-caption1 text-secondary-ss mb-2"
+               data-coach-limitation-asof="@asOf.ToString("O", CultureInfo.InvariantCulture)">
+                @Localize["Coach_Limitation_AsOf"]: @FormatAsOf(asOf)
+            </p>
+        }
+
+        @if (Destination is not null && RouteKey(Destination.Route) is { } destinationLabel)
+        {
+            <div class="coach-limitation-destination mb-2" data-coach-limitation-destination="@Destination.Route">
+                <span class="ss-body2">@Localize[destinationLabel]</span>
+                <p class="coach-limitation-effect ss-caption1 text-secondary-ss mb-0"
+                   data-coach-limitation-effect="@Destination.SideEffect">
+                    @Localize["Coach_Limitation_SideEffectHeading"]: @Localize[EffectKey(Destination.SideEffect)]
+                </p>
+            </div>
+        }
+
+        @if (ExportSurface is not null && RouteKey(ExportSurface.Route) is { } exportLabel)
+        {
+            <div class="coach-limitation-export mb-2" data-coach-limitation-export="@ExportSurface.Route">
+                <span class="ss-caption1 text-secondary-ss">
+                    @Localize["Coach_Limitation_ExportSurfaceHeading"]
+                </span>
+                <span class="ss-body2">@Localize[exportLabel]</span>
+                <p class="coach-limitation-effect ss-caption1 text-secondary-ss mb-0"
+                   data-coach-limitation-effect="@ExportSurface.SideEffect">
+                    @Localize["Coach_Limitation_SideEffectHeading"]: @Localize[EffectKey(ExportSurface.SideEffect)]
+                </p>
+            </div>
+        }
+
+        @if (FullScopeSurface is not null && RouteKey(FullScopeSurface.Route) is { } fullScopeLabel)
+        {
+            <div class="coach-limitation-fullscope mb-2" data-coach-limitation-fullscope="@FullScopeSurface.Route">
+                <span class="ss-caption1 text-secondary-ss">
+                    @Localize["Coach_Limitation_FullScopeSurfaceHeading"]
+                </span>
+                <span class="ss-body2">@Localize[fullScopeLabel]</span>
+                <p class="coach-limitation-effect ss-caption1 text-secondary-ss mb-0"
+                   data-coach-limitation-effect="@FullScopeSurface.SideEffect">
+                    @Localize["Coach_Limitation_SideEffectHeading"]: @Localize[EffectKey(FullScopeSurface.SideEffect)]
+                </p>
+            </div>
+        }
+
+        @if (Alternatives.Count > 0)
+        {
+            <p id="@AlternativesHeadingId" class="ss-caption1 text-secondary-ss mb-1">@Localize["Coach_Limitation_AlternativesHeading"]</p>
+            <ul class="coach-limitation-alternatives list-unstyled mb-2" aria-labelledby="@AlternativesHeadingId">
+                @foreach (var alternative in Alternatives)
+                {
+                    @if (AlternativeKey(alternative) is { } alternativeLabel)
+                    {
+                        <li class="ss-body2" data-coach-limitation-alternative="@alternative">
+                            @Localize[alternativeLabel]
+                        </li>
+                    }
+                }
+            </ul>
+        }
+
+        @if (Limitation.HintLadder.Count > 0)
+        {
+            <p id="@HintLadderHeadingId" class="ss-caption1 text-secondary-ss mb-1">@Localize["Coach_Limitation_HintLadderHeading"]</p>
+            <ol class="coach-limitation-hints mb-2" aria-labelledby="@HintLadderHeadingId">
+                @foreach (var rung in Limitation.HintLadder)
+                {
+                    <li class="ss-body2" data-coach-limitation-hint="@rung.Kind" data-coach-limitation-rung="@rung.Rung">
+                        @Localize[HintKey(rung.Kind)]
+                    </li>
+                }
+            </ol>
+        }
+
+        @if (Limitation.ShorterSession is { } offer)
+        {
+            <div class="coach-limitation-shorter mb-0"
+                 data-coach-limitation-shorter="@offer.SuggestedItemCount"
+                 data-coach-limitation-shorter-full="@offer.FullItemCount">
+                <span class="ss-body2">@Localize["Coach_Limitation_ShorterSession"]: @offer.SuggestedItemCount</span>
+                @if (offer.PreservesRetrieval)
+                {
+                    <p class="ss-caption1 text-secondary-ss mb-0">
+                        @Localize["Coach_Limitation_ShorterSessionRetrieval"]
+                    </p>
+                }
+            </div>
+        }
+    </section>
+}
+
+@code {
+    /// <summary>The limitation to render. Null renders nothing at all.</summary>
+    [Parameter, EditorRequired] public CoachLimitationDto? Limitation { get; set; }
+
+    /// <summary>
+    /// Prefix for the ids that associate this card's headings with the region and lists they name.
+    /// </summary>
+    /// <remarks>
+    /// A parameter with a fixed default rather than a generated id, because the ids are part of the
+    /// markup and the markup is asserted to be identical across the two hosts. A per-render GUID
+    /// would make workspace and overlay differ on every byte that carries an id, and host parity
+    /// would stop being checkable. Callers that render two cards on one screen pass distinct
+    /// prefixes; nothing in the app renders two today.
+    /// </remarks>
+    [Parameter] public string IdPrefix { get; set; } = "coach-limitation";
+
+    /// <summary>
+    /// Whether the evidence this limitation was judged against is on screen beside the card.
+    /// </summary>
+    /// <remarks>
+    /// Two things hang off this, and both are about not promising something that is not there.
+    /// The reason line says "the evidence below shows what it looked at" only when there is
+    /// evidence below; with none — a read that returned nothing, or a refusal restored after a
+    /// reload, where the rows are gone and only the counts survive — it says the coach could not
+    /// get a reading it could stand behind, and promises nothing. And the withheld line below is
+    /// rendered from the limitation's own counts only in that same case, because when the rows are
+    /// present the evidence panel already states them and two totals for one fact is worse than
+    /// one.
+    /// </remarks>
+    [Parameter] public bool EvidenceOnScreen { get; set; }
+
+    private string ReasonId => $"{IdPrefix}-reason";
+    private string AlternativesHeadingId => $"{IdPrefix}-alternatives-heading";
+    private string HintLadderHeadingId => $"{IdPrefix}-hints-heading";
+
+    /// <summary>
+    /// The reason sentence, or a neutral heading when this build cannot name the code.
+    /// </summary>
+    /// <remarks>
+    /// The neutral branch is the important one. A client that mapped an unrecognised code onto its
+    /// nearest neighbour would tell the learner why Sam refused, in the server's voice, using a
+    /// reason the server never gave — and the two codes most likely to be confused, "not built" and
+    /// "won't do it", point the learner in opposite directions.
+    /// </remarks>
+    private string ReasonText => Localize[Limitation!.Code switch
+    {
+        CoachLimitationCode.NotBuilt => "Coach_Limitation_NotBuilt",
+        CoachLimitationCode.AvailableOnAnotherSurface => "Coach_Limitation_AvailableOnAnotherSurface",
+        CoachLimitationCode.RefusedByDesign => "Coach_Limitation_RefusedByDesign",
+        CoachLimitationCode.WouldRemoveLearningValue => "Coach_Limitation_WouldRemoveLearningValue",
+        CoachLimitationCode.ExceedsSafeChangeScope => "Coach_Limitation_ExceedsSafeChangeScope",
+        CoachLimitationCode.UnverifiedClaimWithheld => EvidenceOnScreen
+            ? "Coach_Limitation_UnverifiedClaimWithheld"
+            : "Coach_Limitation_UnverifiedClaimWithheldNoEvidence",
+        CoachLimitationCode.AnswerShapeInvalid => "Coach_Limitation_AnswerShapeInvalid",
+        _ => "Coach_Limitation_Unknown_Heading"
+    }];
+
+    /// <summary>
+    /// Whether to state how many items the refusal covers.
+    /// </summary>
+    /// <remarks>
+    /// Zero is suppressed, and that is a deliberate reading rather than a tidy-up. "Words this
+    /// would affect: 0" beside a refusal reads as a refusal about nothing, which invites the
+    /// learner to retry the thing that was just declined. A refusal that genuinely covers nothing
+    /// states that in its reason and its coverage, not in a count. Null is likewise absent, not
+    /// zero: the server declining to count is not the server counting none.
+    /// </remarks>
+    private bool HasAffectedCount => Limitation!.AffectedCount is > 0;
+
+    /// <summary>
+    /// What the read held back, stated from the limitation's own counts when the evidence rows
+    /// are not on screen to state it themselves. Null when there is nothing coherent to say.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This exists for the resumed refusal. The server restores the limitation across a reload but
+    /// not the evidence rows, so without this the learner comes back to "an answer was withheld"
+    /// and no account of what was left out — which is the disclosure, not a detail.
+    /// </para>
+    /// <para>
+    /// Suppressed when the rows are present: the evidence panel already renders this exact
+    /// sentence from <c>CoachEvidenceScope</c>, and two totals for one fact invites the reader to
+    /// look for the difference between them.
+    /// </para>
+    /// <para>
+    /// The same reason keys and the same coherence rule as the evidence panel: a count above zero
+    /// is the disclosure, a reason this build can read is the courtesy, and a reason arriving
+    /// without a count is incoherent and renders nothing rather than a sentence with a hole in it.
+    /// </para>
+    /// </remarks>
+    private string? WithheldOnLimitation
+    {
+        get
+        {
+            if (EvidenceOnScreen || Limitation!.WithheldCount is not > 0)
+            {
+                return null;
+            }
+
+            var count = Limitation.WithheldCount!.Value;
+
+            var reasonKey = Limitation.WithheldReason switch
+            {
+                CoachWithheldReason.DueReviewEmbargo => "Coach_EvidenceWithheld_DueReview",
+                CoachWithheldReason.ResultLimit => "Coach_EvidenceWithheld_Limit",
+                CoachWithheldReason.ArchivedExcluded => "Coach_EvidenceWithheld_Archived",
+                CoachWithheldReason.BelowMinimumEvidence => "Coach_EvidenceWithheld_Evidence",
+                _ => null
+            };
+
+            return reasonKey is null
+                ? Localize.Get("Coach_EvidenceWithheld", count)
+                : Localize.Get(reasonKey, count);
+        }
+    }
+
+    /// <summary>
+    /// How much of the learner's data the refusal was measured against, or null when unstated.
+    /// </summary>
+    /// <remarks>
+    /// Same arms and the same silence-on-Unknown as <c>CoachEvidenceScope</c>, deliberately: a
+    /// count on a refusal means exactly what a count on a read means, and two spellings of the
+    /// same coverage would be two chances to drift.
+    /// </remarks>
+    private string? CoverageKey => Limitation!.Coverage switch
+    {
+        CoachEvidenceCoverage.CompleteOwnedSet => "Coach_EvidenceCoverage_Complete",
+        CoachEvidenceCoverage.PageOfOwnedSet => "Coach_EvidenceCoverage_Page",
+        CoachEvidenceCoverage.WindowBounded => "Coach_EvidenceCoverage_Window",
+        CoachEvidenceCoverage.SingleItem => "Coach_EvidenceCoverage_SingleItem",
+        CoachEvidenceCoverage.SingleDay => "Coach_EvidenceCoverage_SingleDay",
+        CoachEvidenceCoverage.SettingsSnapshot => "Coach_EvidenceCoverage_Settings",
+        CoachEvidenceCoverage.DerivedProjection => "Coach_EvidenceCoverage_Derived",
+        CoachEvidenceCoverage.CompleteAggregateWithBreakdown => "Coach_EvidenceCoverage_Aggregate",
+        // Unknown means "no coverage was stated". It does not get a guessed line.
+        _ => null
+    };
+
+    private string FormatDate(DateOnly date) =>
+        date.ToString(Localize["Coach_EvidenceDateFormat"], Localize.Culture);
+
+    private string FormatAsOf(DateTime asOfUtc) =>
+        asOfUtc.ToString(Localize["Coach_EvidenceAsOfFormat"], Localize.Culture);
+
+    /// <summary>
+    /// The destination, or null when the route is one this build cannot resolve.
+    /// </summary>
+    /// <remarks>
+    /// Dropping an unknown route is the only safe reading. Rendering the label for a route this
+    /// build does not have would offer the learner a screen that does not exist here, and guessing
+    /// a nearby one would send them somewhere the server never named.
+    /// </remarks>
+    private CoachDestinationDto? Destination =>
+        Limitation!.Destination is { Route: not CoachRouteName.Unknown } destination ? destination : null;
+
+    private CoachDestinationDto? FullScopeSurface =>
+        Limitation!.FullScopeSurface is { Route: not CoachRouteName.Unknown } surface ? surface : null;
+
+    /// <summary>Where a copy can be taken before anything is removed, when the server named one.</summary>
+    /// <remarks>
+    /// Separate from <see cref="FullScopeSurface"/> and rendered separately. S15 no longer names a
+    /// whole-data screen — none exists — but it does name the export, which is real. Reusing the
+    /// full-scope slot would have put the export under a heading that promises a start-over.
+    /// </remarks>
+    private CoachDestinationDto? ExportSurface =>
+        Limitation!.ExportSurface is { Route: not CoachRouteName.Unknown } surface ? surface : null;
+
+    /// <summary>Alternatives this build can name. An unknown code is dropped, never rendered blank.</summary>
+    private IReadOnlyList<CoachAlternativeCode> Alternatives =>
+        Limitation!.Alternatives.Where(code => code != CoachAlternativeCode.Unknown).ToArray();
+
+    /// <summary>
+    /// The screen's name, or null for a route this build cannot resolve.
+    /// </summary>
+    /// <remarks>
+    /// Null rather than an "unknown screen" placeholder, and there is deliberately no resource key
+    /// to fall back to. A placeholder would occupy the space where a destination goes and read as
+    /// one — the learner would look for a link that this build has no way to produce.
+    /// </remarks>
+    private static string? RouteKey(CoachRouteName route) => route switch
+    {
+        CoachRouteName.ActivityLog => "Coach_Route_ActivityLog",
+        CoachRouteName.Vocabulary => "Coach_Route_Vocabulary",
+        CoachRouteName.Settings => "Coach_Route_Settings",
+        CoachRouteName.Skills => "Coach_Route_Skills",
+        CoachRouteName.Writing => "Coach_Route_Writing",
+        CoachRouteName.Feedback => "Coach_Route_Feedback",
+        _ => null
+    };
+
+    /// <summary>
+    /// The consequence line. Unknown resolves to a stated non-answer rather than to "None".
+    /// </summary>
+    private static string EffectKey(CoachRouteSideEffect effect) => effect switch
+    {
+        CoachRouteSideEffect.None => "Coach_RouteEffect_None",
+        CoachRouteSideEffect.EditsLearnerData => "Coach_RouteEffect_EditsLearnerData",
+        CoachRouteSideEffect.ChangesSettings => "Coach_RouteEffect_ChangesSettings",
+        CoachRouteSideEffect.StartsActivity => "Coach_RouteEffect_StartsActivity",
+        CoachRouteSideEffect.PublishesPublicly => "Coach_RouteEffect_PublishesPublicly",
+        _ => "Coach_RouteEffect_Unknown"
+    };
+
+    private static string? AlternativeKey(CoachAlternativeCode code) => code switch
+    {
+        CoachAlternativeCode.RemoveOneListAtATime => "Coach_Alternative_RemoveOneListAtATime",
+        CoachAlternativeCode.StartAFreshList => "Coach_Alternative_StartAFreshList",
+        CoachAlternativeCode.ExportBeforeRemoving => "Coach_Alternative_ExportBeforeRemoving",
+        CoachAlternativeCode.TakeAShorterSession => "Coach_Alternative_TakeAShorterSession",
+        CoachAlternativeCode.UseHintLadder => "Coach_Alternative_UseHintLadder",
+        // Unreachable: Alternatives filters Unknown out before rendering. Null keeps it that way
+        // if the filter is ever removed, rather than borrowing another member's label.
+        _ => null
+    };
+
+    /// <summary>
+    /// What a rung would give, never the rung itself. An unknown rung renders as unavailable rather
+    /// than falling back to a neighbour — and on this ladder the neighbour above the top is the
+    /// answer.
+    /// </summary>
+    private static string HintKey(CoachHintKind kind) => kind switch
+    {
+        CoachHintKind.Category => "Coach_Hint_Category",
+        CoachHintKind.FormCue => "Coach_Hint_FormCue",
+        CoachHintKind.Cloze => "Coach_Hint_Cloze",
+        _ => "Coach_Hint_Unknown"
+    };
+}

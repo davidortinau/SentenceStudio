@@ -12,6 +12,7 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using SentenceStudio.Abstractions;
 using SentenceStudio.Services;
+using SentenceStudio.Services.Theme;
 
 namespace SentenceStudio;
 
@@ -82,9 +83,6 @@ public static class SentenceStudioAppBuilder
 
         builder.Services.AddApiClients(apiBaseUri);
         builder.Services.AddSingleton<SentenceStudio.Services.ISyncService, SentenceStudio.Services.SyncService>();
-
-        // Register Multi-Agent Conversation Services
-        builder.Services.AddConversationAgentServices();
 
         // Register Minimal Pair repositories
         builder.Services.AddScoped<SentenceStudio.Repositories.MinimalPairRepository>();
@@ -251,6 +249,10 @@ public static class SentenceStudioAppBuilder
 
         // Shared core services
         services.AddSentenceStudioCoreServices();
+
+        // Appearance state, device-scoped: one theme/mode/text-size tuple per installation, kept in
+        // platform preferences. Singleton is correct on MAUI because the process is the device.
+        services.AddDeviceThemePresentation();
 
         // MAUI-only services
         services.AddSingleton<ISpeechToText>(SpeechToText.Default);

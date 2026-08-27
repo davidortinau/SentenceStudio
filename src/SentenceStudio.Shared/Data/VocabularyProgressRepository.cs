@@ -4,7 +4,7 @@ using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Data;
 
-public class VocabularyProgressRepository
+public partial class VocabularyProgressRepository : SentenceStudio.Application.Vocabulary.IVocabularyQueries
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ISyncService? _syncService;

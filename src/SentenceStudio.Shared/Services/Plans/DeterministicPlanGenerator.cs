@@ -29,7 +29,14 @@ public sealed class DeterministicPlanGenerator : IDeterministicPlanGenerator
     }
 
     public Task<PlanSkeleton?> GenerateAsync(string? userProfileId = null, CancellationToken ct = default)
+        => GenerateAsync(new PlanBuildRequest { UserProfileId = userProfileId }, ct);
+
+    public Task<PlanSkeleton?> GenerateAsync(PlanBuildRequest request, CancellationToken ct = default)
     {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var userProfileId = request.UserProfileId;
+
         // Phase B: userProfileId is threaded all the way down through
         // DeterministicPlanBuilder so the HTTP API (multi-user) and the in-
         // process MAUI path (single-user with IPreferences fallback) share
@@ -45,17 +52,21 @@ public sealed class DeterministicPlanGenerator : IDeterministicPlanGenerator
         // scope provider always resolves (PlanService is the only caller
         // and only routes authenticated requests), so the "fall through"
         // branch is unreachable in practice from HTTP.
+        //
+        // User scope NEVER comes from model input — the coach supplies
+        // constraints only, and this resolution stays with the trusted caller.
         if (string.IsNullOrEmpty(userProfileId) && _scope is not null)
         {
             if (_scope.TryGetUserProfileId(out var resolved))
             {
                 userProfileId = resolved;
+                // No identifier in the message: the coach preview path runs
+                // through here and coach telemetry must never emit a user id.
                 _logger.LogDebug(
-                    "DeterministicPlanGenerator: resolved userProfileId='{UserProfileId}' from IUserScopeProvider.",
-                    resolved);
+                    "DeterministicPlanGenerator: resolved the user scope from IUserScopeProvider.");
             }
         }
 
-        return _builder.BuildPlanAsync(userProfileId, ct)!;
+        return _builder.BuildPlanAsync(request with { UserProfileId = userProfileId }, ct);
     }
 }

@@ -22,13 +22,28 @@ using Azure.Identity;
 using OpenAI;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using SentenceStudio.Application;
 using SentenceStudio;
 using SentenceStudio.Abstractions;
 using SentenceStudio.Api;
 using SentenceStudio.Api.Auth;
+using SentenceStudio.Api.Coach.Application;
+using SentenceStudio.Api.Coach.Endpoints;
+using SentenceStudio.Api.Coach.Persistence;
+using SentenceStudio.Api.Coach.Persistence.Cleanup;
+using SentenceStudio.Api.Coach.Opportunities;
+using SentenceStudio.Api.Coach.Opportunities.Endpoints;
+using SentenceStudio.Api.Coach.Persistence.Deletion;
+using SentenceStudio.Api.Coach.Reports;
+using SentenceStudio.Api.Coach.Reports.Endpoints;
+using SentenceStudio.Api.Coach.Runtime;
+using SentenceStudio.Api.Coach.Telemetry;
+using SentenceStudio.Api.Coach.Tools;
 using SentenceStudio.Api.Diagnostics;
+using SentenceStudio.Api.Feedback;
 using SentenceStudio.Api.Platform;
 using SentenceStudio.Api.Plans;
+using SentenceStudio.Api.Security.DataProtection;
 using SentenceStudio.Contracts;
 using SentenceStudio.Contracts.Ai;
 using SentenceStudio.Contracts.Auth;
@@ -242,6 +257,69 @@ builder.AddNpgsqlDbContext<ApplicationDbContext>("sentencestudio", configureDbCo
         w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
 });
 
+// Learning Coach server-only state. Shares the Aspire-managed PostgreSQL database with
+// ApplicationDbContext but keeps its own migrations history table, so the two migration
+// sets never see each other's rows and either can be applied independently. Coach state
+// never syncs to a device, which is why it is a separate context rather than new tables
+// on ApplicationDbContext (CoreSync provisions everything it owns).
+const string CoachMigrationsHistoryTable = "__CoachMigrationsHistory";
+
+builder.Services.AddDbContext<SentenceStudio.Api.Coach.Persistence.CoachDbContext>(options =>
+{
+    var coachConnectionString =
+        builder.Configuration.GetConnectionString("coach")
+        ?? builder.Configuration.GetConnectionString("sentencestudio");
+
+    options.UseNpgsql(coachConnectionString, npgsql =>
+        npgsql.MigrationsHistoryTable(CoachMigrationsHistoryTable));
+
+    // No PendingModelChangesWarning suppression here, deliberately. The coach schema is
+    // single-provider and its migrations are hand-checked, so a model that has drifted from the
+    // migrations is a defect rather than a known state to live with — and suppressing the warning
+    // is how it would reach production silently. CoachModelMigrationParityTests asserts the same
+    // thing at build time so the drift is caught before a host ever starts.
+});
+
+// Coach feature services. Registration order matters only for readability — every
+// extension uses TryAdd, so a test host can substitute any piece before these run.
+// None of these resolve an IChatClient at registration time: a host with no AI
+// configuration still boots, and /availability still answers.
+//
+// Data Protection comes first because every other coach persistence piece protects content
+// with it. This throws in Production when durable coach content is enabled without a durable,
+// Key Vault-wrapped key ring — a host that cannot protect content must not accept traffic.
+builder.Services.AddCoachDataProtection(builder.Configuration, builder.Environment);
+
+builder.Services.AddCoachRuntime(builder.Configuration, builder.Environment);
+builder.Services.AddCoachPersistence(builder.Configuration);
+
+// The Sam opportunity ledger. Registered before deletion so its contributor is already in the
+// collection when the coordinator enumerates them, which is the whole point of discovery-based
+// erasure: a table added in one lane cannot be forgotten in the deletion lane.
+builder.Services.AddCoachOpportunities(builder.Configuration, builder.Environment);
+
+// Learner-initiated response reports. Registered next to the ledger and before deletion for the
+// same discovery reason, and on its own configuration section: a learner pressing Report is not
+// automatic capture, and turning heuristics off must never throw away a report the learner was
+// told had been received.
+builder.Services.AddCoachResponseReports(builder.Configuration);
+
+// Owner-scoped erasure. Registered after persistence so the coordinator sees every contributor
+// each lane has registered; account deletion calls it before it removes the profile.
+//
+// The legacy conversation service is registered first because AddCoachDataDeletion decides
+// whether to add its contributor by looking for that descriptor. Without it, an account deletion
+// would erase every coach row and silently leave the learner's older conversation history behind.
+builder.Services.AddLegacyConversationOwnerData();
+builder.Services.AddCoachDataDeletion();
+
+// Retention. The pass itself already existed but nothing ever called it, so expired checkpoints
+// accumulated forever; this schedules it behind a lease so replicas do not race.
+builder.Services.AddCoachCleanupScheduling(builder.Configuration, builder.Environment);
+
+builder.Services.AddCoachReadOnlyTools();
+builder.Services.AddCoachBaseline();
+
 // NumberDrill content seeder — populates NumberContext / NumberSubMode / NumberCounter
 // from lib/content/numbers/{language}.json (idempotent upsert by natural key).
 builder.Services.AddScoped<SentenceStudio.Services.Numbers.NumberContentSeeder>();
@@ -309,10 +387,6 @@ builder.Services.AddScoped<SentenceStudio.Services.Plans.IDeterministicPlanGener
 builder.Services.AddScoped<SentenceStudio.Services.Plans.IPlanService,
     SentenceStudio.Services.Plans.PlanService>();
 
-
-// Voice discovery (ElevenLabs) — registered here for the same reason as above.
-builder.Services.AddSingleton<SentenceStudio.Services.Speech.IVoiceDiscoveryService, SentenceStudio.Services.Speech.VoiceDiscoveryService>();
-
 // Vocabulary progress services
 builder.Services.AddSingleton<VocabularyProgressRepository>();
 builder.Services.AddSingleton<VocabularyLearningContextRepository>();
@@ -323,6 +397,12 @@ builder.Services.AddSingleton<IVocabularyProgressService>(provider =>
 builder.Services.AddSingleton<ActivitySessionService>();
 builder.Services.AddSingleton<IActivitySessionService>(provider =>
     provider.GetRequiredService<ActivitySessionService>());
+
+// Typed read contracts over the tables these repositories own. Coach tools — and anything else
+// that needs facts rather than entities — resolve these instead of an ApplicationDbContext, so
+// the tenant predicate, the ordering, and the projection have exactly one definition each.
+// Registered after the repositories above because four of the five alias straight onto them.
+builder.Services.AddApplicationQueries();
 
 // Server → Foundry uses keyless Entra auth (DefaultAzureCredential): `az login` locally,
 // managed identity in Azure. No OpenAI API key required for chat.
@@ -347,14 +427,47 @@ if (!string.IsNullOrWhiteSpace(aiEndpoint))
     });
 }
 
-// GitHub API client for feedback issue creation
+// GitHub API client for feedback issue creation.
+//
+// RemoveAllResilienceHandlers is load-bearing, not tidying. AddServiceDefaults installs the
+// standard resilience pipeline through ConfigureHttpClientDefaults, which applies to *every*
+// named client — including this one — and its retry strategy re-sends on 5xx, 408, 429, and
+// HttpRequestException up to three times. Creating a GitHub issue is not idempotent and cannot
+// be undone with the credentials this app holds, so one learner pressing Submit once could file
+// four public issues, and the exactly-once ledger would never see it: the retries happen inside
+// the HttpClient pipeline, below the layer that holds the claim.
+//
+// Retrying is only ever safe for an idempotent request. This one is not, so it retries never;
+// a failure is surfaced to the caller and the ledger decides what it proves.
+// EXTEXP0001: RemoveAllResilienceHandlers is marked experimental for API-shape churn, not for
+// behaviour. It is suppressed knowingly and narrowly here because the alternative — reaching into
+// the standard handler's options through its undocumented "<client>-standard" options name —
+// couples this call site to a convention that can change without a compiler error, and failing
+// silently there means duplicate public issues. FeedbackSubmissionOutcomePostgresTests asserts the
+// resulting behaviour (exactly one call on a retryable failure), so if this API ever changes the
+// suite fails rather than the repository filling with duplicates.
+#pragma warning disable EXTEXP0001
 builder.Services.AddHttpClient("GitHub", client =>
 {
     client.BaseAddress = new Uri("https://api.github.com");
     client.DefaultRequestHeaders.Add("Accept", "application/vnd.github+json");
     client.DefaultRequestHeaders.Add("User-Agent", "SentenceStudio");
     client.DefaultRequestHeaders.Add("X-GitHub-Api-Version", "2022-11-28");
-});
+
+    // Explicit, because removing the pipeline also removed its attempt timeout.
+    client.Timeout = TimeSpan.FromSeconds(30);
+})
+.RemoveAllResilienceHandlers();
+#pragma warning restore EXTEXP0001
+
+// Feedback lane: its dedicated HMAC key, the server-only submission ledger and rate windows,
+// the retention sweep, and the erasure service.
+//
+// AddFeedback resolves the signing key eagerly, so a non-Development host with no
+// Feedback:HmacKey — or one sharing Jwt:SigningKey — throws here rather than serving a feature
+// whose tokens are forgeable across a restart. That is deliberate: it fails the rollout instead
+// of the first learner request.
+builder.Services.AddFeedback(builder.Configuration, builder.Environment);
 
 var elevenLabsKey = builder.Configuration["ElevenLabsKey"];
 if (!string.IsNullOrWhiteSpace(elevenLabsKey))
@@ -363,6 +476,9 @@ if (!string.IsNullOrWhiteSpace(elevenLabsKey))
     // timeout (100s) trips on /synthesize-timestamped with long input. Bump to 5 min.
     var elevenLabsHttp = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
     builder.Services.AddSingleton(new ElevenLabsClient(elevenLabsKey, httpClient: elevenLabsHttp));
+    builder.Services.AddSingleton<
+        SentenceStudio.Services.Speech.IVoiceDiscoveryService,
+        SentenceStudio.Services.Speech.VoiceDiscoveryService>();
 }
 
 var app = builder.Build();
@@ -391,6 +507,72 @@ if (!skipDatabaseInitialization)
     // Apply CoreSync provisioning (creates change-tracking tables if missing)
     var syncProvider = app.Services.GetRequiredService<ISyncProvider>();
     await syncProvider.ApplyProvisionAsync();
+
+    // Coach schema. Applied after the application migrations and inside its own try/catch:
+    // the coach is an opt-in, feature-flagged surface, so a coach migration failure must
+    // degrade the coach (its endpoints will fail) rather than stop the whole API from
+    // serving Today's Plan. Its own __CoachMigrationsHistory table keeps it independent of
+    // the application migration set even though both live in one database.
+    using (var coachScope = app.Services.CreateScope())
+    {
+        var coachStartupLogger = coachScope.ServiceProvider
+            .GetRequiredService<ILoggerFactory>()
+            .CreateLogger("SentenceStudio.Api.Coach.Migrations");
+
+        // Where the Data Protection key ring landed. Logged through Describe(), which carries
+        // the mode, container, and blob names and nothing else — never the account URI, the
+        // connection string, or the Key Vault key identifier.
+        var keyRingPlan = coachScope.ServiceProvider
+            .GetService<SentenceStudio.Api.Security.DataProtection.CoachKeyRingPlan>();
+
+        if (keyRingPlan is null || !keyRingPlan.IsDurable)
+        {
+            coachStartupLogger.LogWarning(
+                "Coach Data Protection is using the host default key ring. Protected coach rows " +
+                "written now may not be readable after a restart. {KeyRing}",
+                keyRingPlan?.Describe() ?? "Mode=HostDefault");
+        }
+        else
+        {
+            coachStartupLogger.LogInformation("Coach Data Protection key ring: {KeyRing}", keyRingPlan.Describe());
+        }
+
+        try
+        {
+            var coachDb = coachScope.ServiceProvider.GetRequiredService<CoachDbContext>();
+            await coachDb.Database.MigrateAsync();
+            coachStartupLogger.LogInformation("Coach schema is up to date.");
+        }
+        catch (Exception ex)
+        {
+            coachStartupLogger.LogError(ex, "Coach migrations failed; the coach feature will be unavailable.");
+        }
+    }
+
+    // Feedback schema. Same shape as the coach block above and for the same reason: its own
+    // __FeedbackMigrationsHistory table keeps it independent of both other migration sets, and a
+    // failure here degrades the feedback endpoints rather than stopping the API from serving
+    // Today's Plan. The endpoints resolve the ledger per request, so an unmigrated schema surfaces
+    // as a failed submission — never as a submission that skipped the exactly-once check.
+    using (var feedbackScope = app.Services.CreateScope())
+    {
+        var feedbackStartupLogger = feedbackScope.ServiceProvider
+            .GetRequiredService<ILoggerFactory>()
+            .CreateLogger("SentenceStudio.Api.Feedback.Migrations");
+
+        try
+        {
+            var feedbackDb = feedbackScope.ServiceProvider
+                .GetRequiredService<SentenceStudio.Api.Feedback.Persistence.FeedbackDbContext>();
+            await feedbackDb.Database.MigrateAsync();
+            feedbackStartupLogger.LogInformation("Feedback schema is up to date.");
+        }
+        catch (Exception ex)
+        {
+            feedbackStartupLogger.LogError(
+                ex, "Feedback migrations failed; feedback submission will be unavailable.");
+        }
+    }
 }
 
 // Startup detection: warn loudly if AspNetUsers is empty. Catches the multi-worktree
@@ -523,6 +705,21 @@ app.MapAuthEndpoints();
 // for backward compat during the MAUI Blazor v2 flip).
 app.MapPlans();
 app.MapActivityLog();
+
+// Learning Coach. The whole group 404s when the feature is off or the learner is outside
+// the cohort — the routes are always mapped so the flag can be flipped without a redeploy.
+app.MapCoach();
+
+// The learner's response-report routes. Always mapped and gated per request on
+// Coach:Reports:Enabled, so the switch can be flipped without a redeploy and a disabled feature
+// is indistinguishable from an unknown route rather than advertising itself with a 403.
+app.MapCoachResponseReports();
+
+// The Sam opportunity operator surface. Unlike every other coach group, this one is NOT always
+// mapped: it can decrypt learner messages and this host has no admin authorization primitive, so
+// outside Development the routes simply do not exist. That is gate 1 of four; the options
+// validator refuses to start a non-Development host that enables it at all.
+app.MapCoachOpportunityOperator(app.Environment);
 
 // YouTube channel monitoring endpoints
 app.MapChannelEndpoints();
@@ -756,7 +953,16 @@ app.MapPost("/api/v1/speech/synthesize", async (
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "synthesize failed for voice {VoiceId}", voiceId);
+            // The exception object is deliberately not passed to the logger. The text being
+            // synthesized is learner content, and a provider failure routinely echoes the
+            // offending input back in its message, an inner exception, or Data.
+            // See CoachExceptionSanitizer.
+            var facts = CoachExceptionSanitizer.Describe(ex);
+            logger.LogError(
+                "synthesize failed for voice {VoiceId}. " +
+                "Category={FailureCategory} ProviderStatus={ProviderStatus} " +
+                "ProviderCode={ProviderErrorCode} InnerDepth={InnerDepth}",
+                voiceId, facts.Category, facts.ProviderStatus, facts.ProviderErrorCode, facts.InnerDepth);
             return Results.Problem(
                 detail: "Failed to synthesize audio.",
                 statusCode: StatusCodes.Status502BadGateway);
@@ -925,9 +1131,15 @@ app.MapPost("/api/v1/speech/synthesize-timestamped", async (
         }
         catch (Exception ex)
         {
-            // Log full exception server-side; return generic message to caller
-            // so we don't leak internal types / URLs / upstream auth details.
-            logger.LogError(ex, "synthesize-timestamped failed for resource {ResourceId}", request.ResourceId);
+            // Only content-free shape facts are logged. The synthesized text is learner
+            // content and a provider failure routinely echoes it back through
+            // Exception.ToString(). See CoachExceptionSanitizer.
+            var facts = CoachExceptionSanitizer.Describe(ex);
+            logger.LogError(
+                "synthesize-timestamped failed for resource {ResourceId}. " +
+                "Category={FailureCategory} ProviderStatus={ProviderStatus} " +
+                "ProviderCode={ProviderErrorCode} InnerDepth={InnerDepth}",
+                request.ResourceId, facts.Category, facts.ProviderStatus, facts.ProviderErrorCode, facts.InnerDepth);
             return Results.Problem(
                 detail: "Failed to synthesize timestamped audio.",
                 statusCode: StatusCodes.Status502BadGateway);

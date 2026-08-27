@@ -23,6 +23,15 @@ public partial class ConversationChunk : ObservableObject
     [NotMapped]
     private string? _comprehensionNotes;
 
+    /// <summary>
+    /// Owning learner profile id, denormalized from the parent conversation.
+    /// CoreSync ships each table independently, so a chunk can land on a device
+    /// before (or without) its parent row; a join-only owner check would then
+    /// have no owner to check against. Nullable for pre-scoping legacy rows,
+    /// which stay hidden rather than being attributed to a guessed account.
+    /// </summary>
+    public string? UserProfileId { get; set; }
+
     // Other properties
     public DateTime SentTime { get; set; }
     public string? Author { get; set; }

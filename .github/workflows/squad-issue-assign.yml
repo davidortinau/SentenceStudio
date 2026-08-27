@@ -120,9 +120,34 @@ jobs:
         with:
           github-token: ${{ secrets.COPILOT_ASSIGN_TOKEN }}
           script: |
+            const fs = require('fs');
             const owner = context.repo.owner;
             const repo = context.repo.repo;
             const issue_number = context.payload.issue.number;
+            const allowedGptModels = new Set([
+              'gpt-5.6-sol',
+              'gpt-5.6-terra',
+              'gpt-5.6-luna',
+              'gpt-5.5',
+              'gpt-5.4',
+              'gpt-5.4-mini',
+              'gpt-5.3-codex',
+              'gpt-5-mini'
+            ]);
+            let assignmentModel = 'gpt-5.6-sol';
+            const configFile = '.squad/config.json';
+            if (fs.existsSync(configFile)) {
+              try {
+                const configuredModel = JSON.parse(fs.readFileSync(configFile, 'utf8')).defaultModel;
+                if (typeof configuredModel === 'string' && allowedGptModels.has(configuredModel)) {
+                  assignmentModel = configuredModel;
+                } else {
+                  core.warning(`Ignoring invalid defaultModel in ${configFile}; using ${assignmentModel}.`);
+                }
+              } catch (err) {
+                core.warning(`Could not read ${configFile}; using ${assignmentModel}: ${err.message}`);
+              }
+            }
 
             // Get the default branch name (main, master, etc.)
             const { data: repoData } = await github.rest.repos.get({ owner, repo });
@@ -139,23 +164,14 @@ jobs:
                   base_branch: baseBranch,
                   custom_instructions: '',
                   custom_agent: '',
-                  model: ''
+                  model: assignmentModel
                 },
                 headers: {
                   'X-GitHub-Api-Version': '2022-11-28'
                 }
               });
-              core.info(`Assigned copilot-swe-agent to issue #${issue_number} (base: ${baseBranch})`);
+              core.info(`Assigned copilot-swe-agent to issue #${issue_number} (base: ${baseBranch}, model: ${assignmentModel})`);
             } catch (err) {
-              core.warning(`Assignment with agent_assignment failed: ${err.message}`);
-              // Fallback: try without agent_assignment
-              try {
-                await github.rest.issues.addAssignees({
-                  owner, repo, issue_number,
-                  assignees: ['copilot-swe-agent']
-                });
-                core.info(`Fallback assigned copilot-swe-agent to issue #${issue_number}`);
-              } catch (err2) {
-                core.warning(`Fallback also failed: ${err2.message}`);
-              }
+              core.setFailed(`Copilot assignment refused because explicit model ${assignmentModel} could not be carried: ${err.message}`);
+              throw err;
             }

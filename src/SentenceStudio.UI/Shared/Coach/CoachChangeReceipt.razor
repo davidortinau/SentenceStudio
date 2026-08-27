@@ -1,0 +1,115 @@
+@implements IDisposable
+@inject BlazorLocalizationService Localize
+@inject CoachWorkspaceState Coach
+
+@* Applied-change receipt. Every receipt states what was preserved, not just what changed.
+   Only the LATEST receipt exposes Undo — older receipts show a muted "Superseded" label,
+   because v1 has no redo and no undo of superseded revisions. *@
+
+@if (Resolved is { } receipt)
+{
+    var isLatest = ReferenceEquals(receipt, Coach.LatestReceipt);
+    var isUndo = receipt.Revision.Source == CoachRevisionSource.Undo;
+
+    <div id="@CoachElementIds.Receipt(receipt.ReceiptId)"
+         class="coach-card coach-card-receipt"
+         tabindex="-1"
+         aria-label="@Localize["Coach_ReceiptLabel"]">
+        <div class="d-flex align-items-start gap-2">
+            <i class="bi @(isUndo ? "bi-arrow-counterclockwise" : "bi-check-circle-fill")" aria-hidden="true"></i>
+            <div class="coach-message">
+                @if (isUndo)
+                {
+                    @Localize["Coach_ReceiptUndone"]
+                }
+                else
+                {
+                    @Localize.Get("Coach_ReceiptUpdated",
+                        receipt.ReplacedItemCount,
+                        receipt.PreservedCompletedItemCount,
+                        receipt.PreservedMinutesSpent)
+                }
+            </div>
+        </div>
+
+        @* Read straight from the receipt. It describes the operation this receipt is for, so a
+           superseded or undone revision is never relabelled by a later one — and "no focus" is
+           distinguishable from "the focus was just cleared", which diffing the active
+           constraints could never do. *@
+        @switch (receipt.VocabularyFocus.Status)
+        {
+            case CoachVocabularyFocusStatus.Applied:
+            case CoachVocabularyFocusStatus.Restored:
+                <div class="mt-2">
+                    <CoachVocabularyFocus Focus="@receipt.VocabularyFocus.Focus"
+                                          HeadingLevel="4"
+                                          HeadingTextKey="@(receipt.VocabularyFocus.Status == CoachVocabularyFocusStatus.Restored
+                                              ? "Coach_FocusRestored"
+                                              : "Coach_FocusApplied")"
+                                          IdPrefix="@($"coach-receipt-focus-{receipt.ReceiptId}")" />
+                </div>
+                break;
+
+            case CoachVocabularyFocusStatus.Cleared:
+                @* Removal is a real outcome and has to be stated, or the learner is left
+                   wondering whether the change silently failed. There is no list to show. *@
+                <div class="coach-stage-row mt-2">
+                    <i class="bi bi-bookmark-dash" aria-hidden="true"></i>
+                    <span>@Localize["Coach_FocusRemoved"]</span>
+                </div>
+                break;
+        }
+
+        <div class="d-flex flex-wrap gap-2 mt-2 align-items-center">
+            <button type="button" class="btn btn-ss-secondary coach-action" @onclick="ViewChanges">
+                <i class="bi bi-list-check me-1" aria-hidden="true"></i>@Localize["Coach_ViewChanges"]
+            </button>
+
+            @if (isLatest && receipt.CanUndo && !isUndo)
+            {
+                <button type="button" class="btn btn-ss-secondary coach-action"
+                        disabled="@Coach.IsBusy"
+                        @onclick="UndoAsync">
+                    <i class="bi bi-arrow-counterclockwise me-1" aria-hidden="true"></i>@Localize["Coach_Undo"]
+                </button>
+            }
+            else if (!isUndo)
+            {
+                <span class="coach-change-marker">@Localize["Coach_Superseded"]</span>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    /// <summary>The receipt to render. Defaults to the latest applied receipt.</summary>
+    [Parameter] public CoachChangeReceiptDto? Receipt { get; set; }
+
+    /// <summary>Raised when the learner asks to see the diff in the plan canvas.</summary>
+    [Parameter] public EventCallback OnViewChanges { get; set; }
+
+    protected override void OnInitialized()
+    {
+        Localize.CultureChanged += OnChanged;
+        Coach.Changed += OnChanged;
+    }
+
+    /// <summary>Never mutate the parameter itself; resolve a local view of it instead.</summary>
+    private CoachChangeReceiptDto? Resolved => Receipt ?? Coach.LatestReceipt;
+
+    private async Task ViewChanges()
+    {
+        Coach.OpenCanvas();
+        await OnViewChanges.InvokeAsync();
+    }
+
+    private Task UndoAsync() => Coach.UndoAsync(Resolved?.Revision.RevisionId);
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnChanged;
+        Coach.Changed -= OnChanged;
+    }
+}

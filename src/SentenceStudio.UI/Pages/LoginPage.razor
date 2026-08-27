@@ -76,6 +76,7 @@
 
 @code {
     [Inject] private IAuthService AuthService { get; set; } = default!;
+    [Inject] private AuthenticationStateProvider AuthStateProvider { get; set; } = default!;
     [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ILogger<LoginPage> Logger { get; set; } = default!;
@@ -112,7 +113,8 @@
 
             if (result is not null)
             {
-                Logger.LogInformation("Signed in as {User}", result.UserName);
+                Logger.LogInformation("Signed in as {User}",
+                    SentenceStudio.Shared.Diagnostics.AuthLogRedaction.MaskUserName(result.UserName));
 
                 Preferences.Set("app_is_authenticated", true);
                 
@@ -130,17 +132,65 @@
                 // (issue #187)
                 var returnUrl = "/";
 
-                // If the token contains a userId|token pair, redirect to HTTP sign-in endpoint
-                // (Blazor Server can't set cookies over WebSocket)
-                if (result.AccessToken?.Contains('|') == true)
+                // Publish the new principal to Blazor BEFORE navigating.
+                //
+                // This page signs in through IAuthService directly, which updates the auth service
+                // but tells Blazor nothing — CascadingAuthenticationState still holds the previous
+                // (anonymous) principal, so AuthorizeRouteView would send the learner straight back
+                // to NotAuthorized -> RedirectToLogin. That defect was invisible for as long as the
+                // navigation below forced a full document load, because WebViewManager rebuilt the
+                // whole page context and re-read the auth state from scratch. Forcing a document
+                // load is not an acceptable way to publish an auth state change, so the state
+                // change is published properly instead.
+                //
+                // NotifySignedIn re-publishes from the auth service's warm token cache — no
+                // secure-storage read, no network. Notably NOT LogInSilentlyAsync: that re-runs the
+                // silent sign-in, which ignores the cache, and on failure republishes the current
+                // principal — anonymous, here — which would bounce the learner back to this page
+                // with no error shown.
+                if (AuthStateProvider is SentenceStudio.Services.MauiAuthenticationStateProvider mauiAuth)
                 {
-                    var parts = result.AccessToken.Split('|', 2);
-                    var signInUrl = $"/account-action/AutoSignIn?userId={Uri.EscapeDataString(parts[0])}&token={Uri.EscapeDataString(parts[1])}&returnUrl={Uri.EscapeDataString(returnUrl)}";
-                    NavManager.NavigateTo(signInUrl, forceLoad: true);
+                    mauiAuth.NotifySignedIn();
+                }
+
+                // If the sign-in returned a userId|token pair, the server still has to write the
+                // auth cookie and the browser has to leave this page for it to happen. See
+                // PostSignInNavigation.AutoSignInUrl for why the two hosts differ here.
+                var autoSignInUrl = PostSignInNavigation.AutoSignInUrl(result.AccessToken, returnUrl);
+
+                if (autoSignInUrl is not null)
+                {
+                    // Always a full load: the whole point is to leave the page so the server can
+                    // set the auth cookie. This branch only ever happens on the web host.
+                    NavManager.NavigateTo(autoSignInUrl, forceLoad: true);
                 }
                 else
                 {
-                    NavManager.NavigateTo(returnUrl, forceLoad: true);
+                    // forceLoad ONLY on the web host. Inside a BlazorWebView a forced load makes
+                    // WebViewManager.AttachToPageAsync dispose the current PageContext (destroying
+                    // the WebViewRenderer) and build a brand-new DI scope for the new document.
+                    // That gains nothing here — there is no cookie and no server round-trip — and
+                    // it opens a window in which a render batch is still travelling to a renderer
+                    // the JS side has already discarded, which surfaces as
+                    // "There is no browser renderer with ID 3" and leaves the DOM showing the
+                    // pre-login shell (no Sam FAB) until the app is restarted.
+                    // See SentenceStudio.WebUI.Services.BlazorHostKind and dotnet/maui#28339.
+                    //
+                    // Routed through PostSignInNavigation because NotifySignedIn above is
+                    // synchronous: MainLayout re-runs the post-login routing decision on the
+                    // authentication transition and a fresh install is sent to /onboarding before
+                    // control returns here. Navigating unconditionally would bounce that learner
+                    // straight back to the dashboard and lose their onboarding.
+                    var routed = PostSignInNavigation.RouteAfterSignIn(
+                        NavManager,
+                        returnUrl,
+                        forceLoad: BlazorHostKind.ShouldForceLoadAfterSignIn(NavManager.BaseUri));
+
+                    if (!routed)
+                    {
+                        Logger.LogInformation(
+                            "Post-login routing already moved away from the sign-in page; leaving it in place.");
+                    }
                 }
             }
             else

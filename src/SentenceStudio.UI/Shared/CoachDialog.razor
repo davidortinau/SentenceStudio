@@ -1,0 +1,112 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+@*
+    Generic accessible modal dialog, Bootstrap-backed.
+
+    Deliberately NOT coach-specific: the only in-repo modal precedent (WhatsNewModal) is a
+    hand-rolled `<div class="modal fade show d-block">` with no aria-modal, no
+    aria-labelledby, no focus containment, no Escape handler, no background inert and no
+    focus restore — a WCAG 2.4.3 / 4.1.2 failure that this component is meant to replace
+    everywhere over time.
+
+    Driving Bootstrap's Modal from Blazor buys focus containment, Escape, scroll-lock and
+    the backdrop from the framework instead of re-implementing them in app.js, which today
+    exposes no focus API at all.
+*@
+
+<div class="modal fade @CssClass"
+     id="@Id"
+     tabindex="-1"
+     role="dialog"
+     aria-modal="true"
+     aria-labelledby="@LabelledBy">
+    <div class="modal-dialog @DialogCssClass">
+        <div class="modal-content">
+            @ChildContent
+        </div>
+    </div>
+</div>
+
+@code {
+    /// <summary>DOM id of the dialog element.</summary>
+    [Parameter, EditorRequired] public string Id { get; set; } = default!;
+
+    /// <summary>DOM id of the heading that names the dialog.</summary>
+    [Parameter, EditorRequired] public string LabelledBy { get; set; } = default!;
+
+    /// <summary>Whether the dialog is shown.</summary>
+    [Parameter] public bool IsVisible { get; set; }
+
+    /// <summary>Raised when the dialog closes for any reason, including Escape and backdrop.</summary>
+    [Parameter] public EventCallback OnClosed { get; set; }
+
+    /// <summary>Extra classes on the outer modal element.</summary>
+    [Parameter] public string? CssClass { get; set; }
+
+    /// <summary>Extra classes on the modal-dialog element.</summary>
+    [Parameter] public string? DialogCssClass { get; set; }
+
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private IJSObjectReference? module;
+    private DotNetObjectReference<CoachDialog>? selfRef;
+    private bool wasVisible;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            module = await JS.InvokeAsync<IJSObjectReference>(
+                "import", "./_content/SentenceStudio.UI/js/app.js");
+            selfRef = DotNetObjectReference.Create(this);
+        }
+
+        if (module is null || IsVisible == wasVisible)
+        {
+            return;
+        }
+
+        wasVisible = IsVisible;
+
+        if (IsVisible)
+        {
+            await module.InvokeVoidAsync("openCoachModal", Id, selfRef);
+        }
+        else
+        {
+            await module.InvokeVoidAsync("closeCoachModal", Id);
+        }
+    }
+
+    /// <summary>Invoked from JS on <c>hidden.bs.modal</c> so Escape and backdrop dismissal
+    /// take the same path as the Close button.</summary>
+    [JSInvokable]
+    public async Task OnCoachModalHidden()
+    {
+        wasVisible = false;
+        await OnClosed.InvokeAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            if (module is not null)
+            {
+                // disposeCoachModal, not closeCoachModal: by the time this runs Blazor may have
+                // already removed the element, so hidden.bs.modal will never fire and its
+                // cleanup — including releasing the inerted background — would never run.
+                await module.InvokeVoidAsync("disposeCoachModal", Id);
+                await module.DisposeAsync();
+            }
+        }
+        catch
+        {
+            // Circuit already torn down; nothing to clean up on the JS side.
+        }
+
+        selfRef?.Dispose();
+    }
+}

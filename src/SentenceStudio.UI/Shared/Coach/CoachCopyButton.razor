@@ -1,0 +1,153 @@
+@implements IAsyncDisposable
+@inject BlazorLocalizationService Localize
+@inject IJSRuntime JS
+
+@*
+    Copies one of Sam's replies.
+
+    Only conversational responses get this. A plan receipt is a record of a change, not something
+    the learner would paste somewhere, and a control is not text at all.
+
+    The copied text is the readable content in the order it is read — structured answers are
+    flattened block by block. No identifiers, no language tags, no markup: none of that is part
+    of what was said.
+*@
+
+<button type="button"
+        class="btn btn-link coach-copy @(state == CopyState.Idle ? "" : "coach-copy-feedback")"
+        id="@ButtonId"
+        aria-label="@Localize["Coach_Copy"]"
+        aria-describedby="@DescribedById"
+        title="@Localize["Coach_Copy"]"
+        @onclick="CopyAsync">
+    @switch (state)
+    {
+        case CopyState.Copied:
+            <i class="bi bi-check2" aria-hidden="true"></i>
+            <span class="coach-copy-label">@Localize["Coach_Copied"]</span>
+            break;
+
+        case CopyState.Failed:
+            <i class="bi bi-clipboard-x" aria-hidden="true"></i>
+            <span class="coach-copy-label">@Localize["Coach_CopyFailed"]</span>
+            break;
+
+        default:
+            <i class="bi bi-clipboard" aria-hidden="true"></i>
+            break;
+    }
+</button>
+
+@* Feedback is polite, not an alert. A copy that did not happen has lost nothing and broken
+   nothing, so it must not interrupt what the learner is reading. *@
+<span class="visually-hidden" role="status" aria-live="polite">@Announcement</span>
+
+@code {
+    private enum CopyState { Idle, Copied, Failed }
+
+    /// <summary>The exact text to place on the clipboard.</summary>
+    [Parameter] public string Text { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The message header — Sam's name and the time — that tells this control apart from the copy
+    /// control on every other response.
+    /// </summary>
+    /// <remarks>
+    /// A transcript renders one of these per response, and a list of controls that all read "Copy"
+    /// gives a screen-reader user no way to tell which message they are about to take.
+    ///
+    /// A description rather than a longer name, on purpose. Folding the speaker and timestamp into
+    /// aria-label would make every button's accessible name unique — which is exactly what a voice
+    /// control user cannot use, because "click copy message" would no longer match anything. The
+    /// name stays the short, repeatable command; the disambiguation is read after it.
+    /// </remarks>
+    [Parameter] public string? DescribedById { get; set; }
+
+    /// <summary>The coach response this button copies, used to give the button a stable identity.</summary>
+    /// <remarks>
+    /// Null on a message the server never stored. The button still works — copying is local — it
+    /// simply has no id, which is honest: there is nothing stable to name it after.
+    /// </remarks>
+    [Parameter] public string? MessageId { get; set; }
+
+    private string? ButtonId => MessageId is { Length: > 0 } id ? $"coach-copy-{id}" : null;
+
+    private CopyState state = CopyState.Idle;
+    private IJSObjectReference? module;
+    private CancellationTokenSource? resetCts;
+
+    private string? Announcement => state switch
+    {
+        CopyState.Copied => Localize["Coach_Copied"],
+        CopyState.Failed => Localize["Coach_CopyFailed"],
+        _ => null
+    };
+
+    private async Task CopyAsync()
+    {
+        var copied = false;
+
+        try
+        {
+            module ??= await JS.InvokeAsync<IJSObjectReference>("import", "./_content/SentenceStudio.UI/js/app.js");
+            copied = await module.InvokeAsync<bool>("copyTextToClipboard", Text);
+        }
+        catch (JSException)
+        {
+            // A blocked or unavailable clipboard is a normal browser outcome, not a fault.
+            copied = false;
+        }
+        catch (InvalidOperationException)
+        {
+            // Prerender: no JS yet. Nothing to report, and nothing broken.
+            return;
+        }
+
+        state = copied ? CopyState.Copied : CopyState.Failed;
+        StateHasChanged();
+
+        await ResetAfterFeedbackAsync();
+    }
+
+    /// <summary>
+    /// Returns the button to its resting label. Any previous countdown is cancelled, so rapid
+    /// repeat presses cannot leave the confirmation stuck on screen.
+    /// </summary>
+    private async Task ResetAfterFeedbackAsync()
+    {
+        resetCts?.Cancel();
+        resetCts?.Dispose();
+        resetCts = new CancellationTokenSource();
+        var token = resetCts.Token;
+
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(2), token);
+        }
+        catch (TaskCanceledException)
+        {
+            return;
+        }
+
+        state = CopyState.Idle;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        resetCts?.Cancel();
+        resetCts?.Dispose();
+
+        if (module is not null)
+        {
+            try
+            {
+                await module.DisposeAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // The circuit went away first. Nothing to release.
+            }
+        }
+    }
+}

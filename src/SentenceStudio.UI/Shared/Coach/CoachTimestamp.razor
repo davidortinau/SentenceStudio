@@ -1,0 +1,31 @@
+@using System.Globalization
+@inject BlazorLocalizationService Localize
+
+@*
+    A compact clock time with the full date and time behind it.
+
+    The visible form is deliberately short so it can sit inline with the speaker label without
+    competing with the message. The full form is what assistive tech and a hover both get, so
+    "9:41" is never the only thing available to someone who needs the date.
+
+    The value is a DateTimeOffset, so a server timestamp can replace a client-captured one with
+    no change here.
+*@
+
+<time class="coach-timestamp"
+      datetime="@Value.ToString("o", CultureInfo.InvariantCulture)"
+      title="@Full"
+      aria-label="@Localize.Get("Coach_MessageTimeLabel", Full)">@Compact</time>
+
+@code {
+    /// <summary>When the artifact appeared.</summary>
+    [Parameter] public DateTimeOffset Value { get; set; }
+
+    /// <summary>
+    /// Formats are localized resources rather than culture defaults, so Korean gets its own
+    /// ordering rather than an English pattern with translated month names.
+    /// </summary>
+    private string Compact => Value.ToString(Localize["Coach_MessageTimeFormat"], Localize.Culture);
+
+    private string Full => Value.ToString(Localize["Coach_MessageDateTimeFormat"], Localize.Culture);
+}

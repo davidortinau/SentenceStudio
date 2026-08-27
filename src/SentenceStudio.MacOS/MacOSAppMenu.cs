@@ -73,7 +73,14 @@ public static class MacOSAppMenu
         {
             _authSubscribed = true;
             provider.AuthenticationStateChanged += OnAuthStateChanged;
-            _ = RefreshAuthStateAsync(provider);
+
+            // Off the main thread on purpose. Reading the auth state goes through
+            // ISecureStorageService, which on this head is KeychainSecureStorageService: automatic
+            // reads run with the SecurityAgent prompt suppressed and fail fast, so this no longer
+            // risks an unbounded block. It is still kept off the AppKit main thread so a slow
+            // keychain call cannot stall the run loop before it first turns (which would also
+            // stall the MAUI DevFlow agent). SetAuthenticated marshals back via OnMainThread.
+            _ = Task.Run(() => RefreshAuthStateAsync(provider));
         }
     }
 
@@ -99,6 +106,31 @@ public static class MacOSAppMenu
         }, TaskScheduler.Default);
     }
 
+    /// <summary>Runs one sign-out step, never letting its failure stop the rest.</summary>
+    private static void Step(string what, Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MacOSAppMenu] Logout step '{what}' failed: {ex.GetType().Name}");
+        }
+    }
+
+    private static async Task StepAsync(string what, Func<Task> action)
+    {
+        try
+        {
+            await action();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[MacOSAppMenu] Logout step '{what}' failed: {ex.GetType().Name}");
+        }
+    }
+
     private static void SetAuthenticated(bool authenticated)
     {
         OnMainThread(() =>
@@ -115,38 +147,40 @@ public static class MacOSAppMenu
         // (e.g. onboarding) or behind a sync overlay.
         OnMainThread(async () =>
         {
-            try
+            // Each step is isolated. This is the native escape hatch: it exists for the case where
+            // the in-app UI is already misbehaving, so one failing step must not skip the ones
+            // after it — and above all must not skip the navigation, which is what actually gets
+            // the learner off a signed-in screen. A single try/catch around the whole block meant
+            // an exception anywhere left the app sitting on the previous account's dashboard.
+            var services = Services;
+
+            if (services is not null)
             {
-                var services = Services;
-                if (services is null)
-                    return;
+                Step("invalidate caches", () => services.GetService<ProgressCacheService>()?.InvalidateAll());
 
-                // Mirror the in-app NavMenu logout: clear progress caches, sign out
-                // (clears JWT/refresh tokens + active profile), then drop the auth flag.
-                services.GetService<ProgressCacheService>()?.InvalidateAll();
+                await StepAsync("sign out", async () =>
+                {
+                    if (services.GetService<AuthenticationStateProvider>() is MauiAuthenticationStateProvider auth)
+                        await auth.LogOutAsync();
+                });
 
-                if (services.GetService<AuthenticationStateProvider>() is MauiAuthenticationStateProvider auth)
-                    await auth.LogOutAsync();
+                Step("clear auth preferences", () =>
+                {
+                    var prefs = services.GetService<IPreferencesService>();
+                    prefs?.Set("app_is_authenticated", false);
+                    prefs?.Remove("active_profile_id");
+                });
 
-                var prefs = services.GetService<IPreferencesService>();
-                prefs?.Set("app_is_authenticated", false);
-                prefs?.Remove("active_profile_id");
-
-                // Mirror NavMenu.Logout / Onboarding.Logout: clear the singleton's cached
-                // profile so the previous user's profile does not linger across the reload.
-                var appState = services.GetService<IAppState>();
-                if (appState is not null)
-                    appState.CurrentUserProfile = null;
-
-                // Explicitly send the Blazor app to the login route (full reload via the WebView),
-                // matching NavMenu.Logout's forceLoad navigation to /auth/login.
-                MacOSBlazorHostPage.NavigateToLogin();
+                Step("clear cached profile", () =>
+                {
+                    var appState = services.GetService<IAppState>();
+                    if (appState is not null)
+                        appState.CurrentUserProfile = null;
+                });
             }
-            catch (Exception ex)
-            {
-                // Never let the native escape hatch crash the app (async-void context).
-                System.Diagnostics.Debug.WriteLine($"[MacOSAppMenu] Logout failed: {ex}");
-            }
+
+            // Always runs, whatever happened above.
+            Step("navigate to login", MacOSBlazorHostPage.NavigateToLogin);
         });
     }
 }

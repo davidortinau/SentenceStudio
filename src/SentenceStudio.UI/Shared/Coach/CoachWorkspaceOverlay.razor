@@ -1,0 +1,337 @@
+@implements IDisposable
+@inject BlazorLocalizationService Localize
+@inject CoachWorkspaceState Coach
+@inject CoachPersona Persona
+@inject CoachConversationDirectory Conversations
+@inject IJSRuntime JS
+
+@*
+    Wide and tablet composition.
+
+      >= 992px  split: chat column + plan canvas column
+      768-991   one overlay with Coach and Plan tabs (real tab semantics, not a bare btn-group)
+      <  768    the overlay degrades in place to full-bleed by CSS. Resizing never navigates,
+                because that would destroy the composer draft and scroll position mid-session.
+*@
+
+<div class="coach-workspace">
+    @* Everything behind the confirmation is inert so pointer and assistive tech cannot reach it.
+       This gives the inline alertdialog real modal behavior without nesting a second modal. *@
+    <div class="coach-workspace-inner" inert="@(IsConfirming ? "" : null)">
+    <div class="coach-header">
+        <CoachHeading Level="2" Id="@CoachElementIds.Title" TabIndex="-1" Class="flex-grow-1">@Persona.DisplayName</CoachHeading>
+
+        <span class="coach-status-chip">@StatusChipText</span>
+
+        @if (!IsSplit)
+        {
+            @* APG roving tabindex: exactly one tab is tabbable, and Arrow/Home/End move both
+               focus and selection between them. *@
+            <div class="btn-group" role="tablist" aria-label="@Persona.DisplayName"
+                 @onkeydown="OnTabListKeyDown" @onkeydown:preventDefault="preventTabListDefault">
+                <button type="button"
+                        class="btn @(Coach.Pane == CoachPane.Coach ? "btn-ss-primary" : "btn-ss-secondary") coach-action"
+                        role="tab"
+                        id="coach-tab-chat"
+                        aria-selected="@(Coach.Pane == CoachPane.Coach ? "true" : "false")"
+                        aria-controls="coach-panel-chat"
+                        tabindex="@(Coach.Pane == CoachPane.Coach ? "0" : "-1")"
+                        @onclick="() => Coach.SetPane(CoachPane.Coach)">
+                    @Persona.DisplayName
+                </button>
+                <button type="button"
+                        class="btn @(Coach.Pane == CoachPane.Plan ? "btn-ss-primary" : "btn-ss-secondary") coach-action"
+                        role="tab"
+                        id="coach-tab-plan"
+                        aria-selected="@(Coach.Pane == CoachPane.Plan ? "true" : "false")"
+                        aria-controls="@CoachElementIds.Canvas"
+                        aria-label="@PlanTabAccessibleName"
+                        tabindex="@(Coach.Pane == CoachPane.Plan ? "0" : "-1")"
+                        @onclick="() => Coach.SetPane(CoachPane.Plan)">
+                    @Localize["Coach_PlanToggle"]
+                    @if (Coach.PlanBadgeCount > 0)
+                    {
+                        <span class="badge bg-secondary ms-1">@Coach.PlanBadgeCount</span>
+                    }
+                </button>
+            </div>
+        }
+        else
+        {
+            <button type="button"
+                    class="btn btn-ss-secondary coach-action"
+                    aria-expanded="@(Coach.IsCanvasOpen ? "true" : "false")"
+                    aria-controls="@CoachElementIds.Canvas"
+                    aria-label="@PlanToggleAccessibleName"
+                    @onclick="Coach.ToggleCanvas">
+                <i class="bi bi-calendar-check me-1" aria-hidden="true"></i>@Localize["Coach_PlanToggle"]
+                @if (Coach.PlanBadgeCount > 0)
+                {
+                    <span class="badge bg-secondary ms-1">@Coach.PlanBadgeCount</span>
+                }
+            </button>
+        }
+
+        @* The conversation shelf. Only offered when the server actually keeps conversations: with
+           the flag off there is nothing to list, and a control that lists nothing is worse than
+           no control. *@
+        @if (Conversations.IsDurableHistoryAvailable)
+        {
+            <button type="button" class="btn btn-sm btn-icon coach-action"
+                    id="coach-conversations-toggle"
+                    aria-expanded="@(_showConversations ? "true" : "false")"
+                    aria-controls="coach-conversations-drawer"
+                    aria-label="@(_showConversations ? Localize["Coach_ConversationsClose"] : Localize["Coach_ConversationsToggle"])"
+                    @onclick="ToggleConversations">
+                <i class="bi bi-list-ul" aria-hidden="true"></i>
+            </button>
+        }
+
+        <div class="dropdown">
+            <button class="btn btn-sm btn-icon coach-action" type="button"
+                    data-bs-toggle="dropdown" aria-expanded="false"
+                    aria-label="@Localize["Coach_Changes"]">
+                <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+            </button>
+            <ul class="dropdown-menu dropdown-menu-end">
+                <li>
+                    <button class="dropdown-item" @onclick="ShowChanges">
+                        <i class="bi bi-clock-history me-2" aria-hidden="true"></i>@Localize["Coach_Changes"]
+                    </button>
+                </li>
+                <li>
+                    <button class="dropdown-item" @onclick="Coach.RequestEndSessionConfirmation">
+                        <i class="bi bi-trash me-2" aria-hidden="true"></i>@Localize["Coach_EndSession"]
+                    </button>
+                </li>
+            </ul>
+        </div>
+
+        <button type="button" class="btn btn-sm btn-icon coach-action"
+                aria-label="@Localize["Coach_Close"]"
+                @onclick="OnClose">
+            <i class="bi bi-x-lg" aria-hidden="true"></i>
+        </button>
+    </div>
+
+    <div class="coach-body @(IsSplit && Coach.IsCanvasOpen ? "coach-body-split" : "")">
+        @if (_showConversations)
+        {
+            <div class="coach-conversations-drawer" id="coach-conversations-drawer">
+                <CoachConversationList OnConversationOpened="CloseConversations" />
+            </div>
+        }
+
+        @if (IsSplit || Coach.Pane == CoachPane.Coach)
+        {
+            <div class="coach-chat-column"
+                 id="coach-panel-chat"
+                 role="@(IsSplit ? null : "tabpanel")"
+                 aria-labelledby="@(IsSplit ? null : "coach-tab-chat")">
+                <CoachChatPane OnStartNewSession="OnStartNewSession"
+                               OnReloadPlan="OnReloadPlan"
+                               OnViewEvidence="ShowChanges" />
+
+                @* Exactly one pinned bottom region: the composer belongs to the chat column only. *@
+                <div class="coach-composer-wrap">
+                    @* Below the structural breakpoint the overlay degrades to full-bleed and
+                       behaves like the narrow presentation: explicit send, Return newline. *@
+                    <CoachComposer EnterSends="@(ViewportWidth >= CoachStateMachine.OverlayMinimumViewportWidth)" />
+                </div>
+            </div>
+        }
+
+        @if ((IsSplit && Coach.IsCanvasOpen) || (!IsSplit && Coach.Pane == CoachPane.Plan))
+        {
+            <CoachPlanCanvas ShowClose="@IsSplit"
+                             Role="@(IsSplit ? null : "tabpanel")"
+                             LabelledBy="@(IsSplit ? null : "coach-tab-plan")"
+                             HeadingLevel="3" />
+        }
+    </div>
+
+    </div>
+
+    @if (Coach.PendingConfirmation == CoachConfirmation.EndSession)
+    {
+        <CoachConfirm DialogId="coach-end-session-confirm"
+                      Title="@Localize["Coach_EndSessionDialogTitle"]"
+                      Body="@Localize["Coach_DeleteDialogBody"]"
+                      ConfirmLabel="@Localize["Coach_DeleteDialogConfirm"]"
+                      IsBusy="@Coach.IsBusy"
+                      OnConfirm="ConfirmEndSessionAsync"
+                      OnCancel="Coach.DismissConfirmation" />
+    }
+
+    <CoachLiveRegion />
+    <CoachFocusManager />
+</div>
+
+@code {
+    private bool _showConversations;
+
+    /// <summary>Current viewport width, measured by the host at entry and on resize.</summary>
+    [Parameter] public int ViewportWidth { get; set; } = CoachStateMachine.SplitCanvasMinimumViewportWidth;
+
+    /// <summary>Raised when the learner closes the workspace. Applied changes are kept.</summary>
+    [Parameter] public EventCallback OnClose { get; set; }
+
+    /// <summary>Raised when the learner asks for a fresh session after expiry.</summary>
+    [Parameter] public EventCallback OnStartNewSession { get; set; }
+
+    /// <summary>Raised when the learner asks to reload a plan changed on another device.</summary>
+    [Parameter] public EventCallback OnReloadPlan { get; set; }
+
+    private bool IsSplit => CoachStateMachine.UsesSplitCanvas(ViewportWidth);
+
+    private bool IsConfirming => Coach.PendingConfirmation != CoachConfirmation.None;
+
+    /// <summary>Runs the confirmed deletion. Closing the overlay is the host's job.</summary>
+    private Task ConfirmEndSessionAsync() => Coach.ConfirmPendingAsync();
+
+    private static readonly string[] TabIds = ["coach-tab-chat", "coach-tab-plan"];
+
+    /// <summary>
+    /// Blazor evaluates <c>@onkeydown:preventDefault</c> at RENDER time, so this arms one render
+    /// behind the key that sets it. It starts false deliberately: the cost is that a very first
+    /// arrow press may also scroll, whereas starting true would swallow a Tab and momentarily
+    /// trap focus inside the tablist. The lesser harm wins.
+    /// </summary>
+    private bool preventTabListDefault;
+
+    /// <summary>
+    /// APG tabs pattern: Left/Right move to the adjacent tab, Home/End to the first/last, and
+    /// selection follows focus. Without this the roving tabindex leaves the unselected tab
+    /// unreachable by keyboard entirely.
+    /// </summary>
+    private async Task OnTabListKeyDown(KeyboardEventArgs e)
+    {
+        var current = Coach.Pane == CoachPane.Plan ? 1 : 0;
+        int next;
+
+        switch (e.Key)
+        {
+            case "ArrowRight":
+            case "ArrowDown":
+                next = (current + 1) % TabIds.Length;
+                break;
+            case "ArrowLeft":
+            case "ArrowUp":
+                next = (current - 1 + TabIds.Length) % TabIds.Length;
+                break;
+            case "Home":
+                next = 0;
+                break;
+            case "End":
+                next = TabIds.Length - 1;
+                break;
+            default:
+                // Let every other key through, including Tab out of the tablist.
+                preventTabListDefault = false;
+                return;
+        }
+
+        // Arrow keys would otherwise scroll the workspace behind the tabs.
+        preventTabListDefault = true;
+
+        Coach.SetPane(next == 1 ? CoachPane.Plan : CoachPane.Coach);
+        await FocusAsync(TabIds[next]);
+    }
+
+    /// <summary>
+    /// Focuses an element through the imported app.js module.
+    /// </summary>
+    /// <remarks>
+    /// <c>focusElement</c> is an export of app.js, so it is reachable only through the module
+    /// reference that <c>import()</c> returns. Calling it on the default <see cref="IJSRuntime"/>
+    /// throws a <see cref="JSException"/> ("The value 'focusElement' is not a function"), which is
+    /// neither a <see cref="JSDisconnectedException"/> nor an <see cref="ObjectDisposedException"/>
+    /// and so terminates the circuit.
+    /// </remarks>
+    private async Task FocusAsync(string elementId)
+    {
+        try
+        {
+            module ??= await JS.InvokeAsync<IJSObjectReference>(
+                "import", "./_content/SentenceStudio.UI/js/app.js");
+            await module.InvokeVoidAsync("focusElement", elementId);
+        }
+        catch (JSDisconnectedException) { }
+        catch (ObjectDisposedException) { }
+    }
+
+    private IJSObjectReference? module;
+
+    protected override void OnInitialized()
+    {
+        Localize.CultureChanged += OnChanged;
+        Coach.Changed += OnChanged;
+        Persona.Changed += OnChanged;
+    }
+
+    private string StatusChipText => Coach.State switch
+    {
+        CoachUiState.SuggestionPending => Localize["Coach_StatusSuggested"],
+        CoachUiState.PlanUpdated => Localize["Coach_StatusUpdated"],
+        CoachUiState.Undone => Localize["Coach_StatusRestored"],
+        CoachUiState.PlanChangedElsewhere => Localize["Coach_StatusOutOfDate"],
+        CoachUiState.Failed => Localize["Coach_StatusUnchanged"],
+        _ => Localize["Coach_StatusNoChange"]
+    };
+
+    private string PlanToggleAccessibleName => Coach.PlanBadgeCount > 0
+        ? Localize.Get("Coach_PlanToggleUpdated", Coach.PlanBadgeCount)
+        : Localize["Coach_PlanToggle"];
+
+    private string PlanTabAccessibleName => Coach.State switch
+    {
+        CoachUiState.SuggestionPending => Localize["Coach_PlanTabSuggested"],
+        CoachUiState.PlanUpdated => Localize["Coach_PlanTabUpdated"],
+        _ => PlanToggleAccessibleName
+    };
+
+    private void ShowChanges()
+    {
+        Coach.OpenCanvas();
+        if (!IsSplit)
+        {
+            Coach.SetPane(CoachPane.Plan);
+        }
+    }
+
+    /// <summary>
+    /// Opens or closes the conversation shelf, returning focus to the control that moved it.
+    /// </summary>
+    /// <remarks>
+    /// Focus goes back to the toggle rather than to the top of the document, which is where a
+    /// keyboard user is left by a drawer that simply disappears.
+    /// </remarks>
+    private async Task ToggleConversations()
+    {
+        _showConversations = !_showConversations;
+
+        if (!_showConversations && RendererInfo.IsInteractive)
+        {
+            await FocusAsync("coach-conversations-toggle");
+        }
+    }
+
+    private async Task CloseConversations()
+    {
+        _showConversations = false;
+
+        if (RendererInfo.IsInteractive)
+        {
+            await FocusAsync("coach-conversations-toggle");
+        }
+    }
+
+    private void OnChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Localize.CultureChanged -= OnChanged;
+        Coach.Changed -= OnChanged;
+        Persona.Changed -= OnChanged;
+    }
+}

@@ -32,6 +32,14 @@ public class NavigationMemoryService : IDisposable
         ("feedback", "/feedback", ["/feedback"]),
     ];
 
+    /// <summary>
+    /// Query parameters that must never be remembered as part of a section route.
+    /// The coach overlay is query-backed (<c>?coach=&lt;sessionId&gt;</c>) and the mobile route
+    /// carries <c>?pane=coach|plan</c>. Storing either verbatim would make a later sidebar tap on
+    /// Dashboard silently re-open the coach workspace, which the learner never asked for.
+    /// </summary>
+    private static readonly string[] ExcludedQueryKeys = ["coach", "pane"];
+
     public NavigationMemoryService(NavigationManager nav)
     {
         _nav = nav;
@@ -89,11 +97,51 @@ public class NavigationMemoryService : IDisposable
             ? uri[baseUri.Length..]
             : uri;
 
-        // Ensure leading slash, strip query string for section matching
+        // Ensure leading slash
         if (!path.StartsWith('/'))
             path = "/" + path;
 
-        return path;
+        return StripExcludedQuery(path);
+    }
+
+    /// <summary>
+    /// Removes workspace-transient query parameters from a remembered route while preserving every
+    /// other parameter and the fragment. Public so the rule can be unit tested without a
+    /// NavigationManager.
+    /// </summary>
+    public static string StripExcludedQuery(string path)
+    {
+        var queryStart = path.IndexOf('?');
+        if (queryStart < 0)
+        {
+            return path;
+        }
+
+        var pathOnly = path[..queryStart];
+        var rest = path[(queryStart + 1)..];
+
+        // Keep any fragment attached to the end, not to the last query value.
+        var fragment = string.Empty;
+        var hashIndex = rest.IndexOf('#');
+        if (hashIndex >= 0)
+        {
+            fragment = rest[hashIndex..];
+            rest = rest[..hashIndex];
+        }
+
+        var kept = rest
+            .Split('&', StringSplitOptions.RemoveEmptyEntries)
+            .Where(pair =>
+            {
+                var separator = pair.IndexOf('=');
+                var key = separator < 0 ? pair : pair[..separator];
+                return !ExcludedQueryKeys.Contains(key, StringComparer.OrdinalIgnoreCase);
+            })
+            .ToArray();
+
+        return kept.Length == 0
+            ? pathOnly + fragment
+            : $"{pathOnly}?{string.Join('&', kept)}{fragment}";
     }
 
     private static string? ResolveSection(string path)

@@ -1,0 +1,147 @@
+@implements IDisposable
+@inject BlazorLocalizationService Localize
+
+@*
+    Renders one structured pedagogical answer.
+
+    Contract notes that shape this component:
+      - Blocks are ORDERED and the first is the direct answer, so DOM order is the reading order
+        and nothing is re-sorted or promoted.
+      - Every span carries a server-resolved LanguageTag, so target-language text is marked with
+        `lang` and a screen reader switches voice instead of reading Korean as English.
+      - PlainText is a genuine fallback, used whenever the block list is missing or unusable.
+      - Nothing here is treated as markup. All text goes through normal Razor escaping; there is
+        no markdown or HTML rendering path for model-authored content.
+*@
+
+@if (Answer is { } answer)
+{
+    <div class="coach-answer" role="group" aria-label="@Localize["Coach_AnswerLabel"]">
+        @if (RenderableBlocks(answer) is { Count: > 0 } blocks)
+        {
+            @foreach (var block in blocks)
+            {
+                var spans = RenderableSpans(block);
+                if (spans.Count == 0)
+                {
+                    continue;
+                }
+
+                <div class="coach-answer-block coach-answer-block-@(block.Kind.ToString().ToLowerInvariant())">
+                    @if (BlockLabel(block.Kind) is { Length: > 0 } label)
+                    {
+                        @* Label carries an icon AND text, so the block type is never conveyed by
+                           colour or position alone. *@
+                        <div class="coach-answer-block-label">
+                            <i class="bi @BlockIcon(block.Kind)" aria-hidden="true"></i>
+                            <span>@label</span>
+                        </div>
+                    }
+                    <div class="coach-answer-block-body">
+                        @foreach (var span in spans)
+                        {
+                            <span class="coach-answer-span coach-answer-span-@(span.Language.ToString().ToLowerInvariant())"
+                                  lang="@LanguageTagFor(span, answer)">@span.Text</span>
+                        }
+                    </div>
+                </div>
+            }
+        }
+        else
+        {
+            @* No usable blocks: show the plain fallback rather than an empty answer. *@
+            <div class="coach-answer-block coach-answer-block-answer">
+                <div class="coach-answer-block-body">
+                    <span class="coach-answer-span coach-answer-span-display"
+                          lang="@FallbackLanguageTag(answer)">@answer.PlainText</span>
+                </div>
+            </div>
+        }
+    </div>
+}
+
+@code {
+    /// <summary>The structured answer to render. Null renders nothing.</summary>
+    [Parameter] public CoachAnswerDto? Answer { get; set; }
+
+    protected override void OnInitialized() => Localize.CultureChanged += OnCultureChanged;
+
+    /// <summary>
+    /// Blocks that can actually be rendered. A malformed answer — null list, null entries, or
+    /// blocks whose spans are all empty — must degrade to the plain fallback, never throw and
+    /// never render an empty shell.
+    /// </summary>
+    private static List<CoachAnswerBlockDto> RenderableBlocks(CoachAnswerDto answer) =>
+        (answer.Blocks ?? Array.Empty<CoachAnswerBlockDto>())
+            .Where(b => b is not null && RenderableSpans(b).Count > 0)
+            .ToList();
+
+    private static List<CoachAnswerSpanDto> RenderableSpans(CoachAnswerBlockDto block) =>
+        (block.Spans ?? Array.Empty<CoachAnswerSpanDto>())
+            .Where(s => s is not null && !string.IsNullOrWhiteSpace(s.Text))
+            .ToList();
+
+    /// <summary>
+    /// The BCP-47 tag for a span. The server resolves these, but a blank tag must not emit
+    /// <c>lang=""</c> — that would tell assistive tech the language is unknown, which is worse
+    /// than inheriting the answer's own display language.
+    /// </summary>
+    private static string LanguageTagFor(CoachAnswerSpanDto span, CoachAnswerDto answer)
+    {
+        if (!string.IsNullOrWhiteSpace(span.LanguageTag))
+        {
+            return span.LanguageTag;
+        }
+
+        return span.Language switch
+        {
+            CoachLanguageRole.Target when !string.IsNullOrWhiteSpace(answer.TargetLanguageTag)
+                => answer.TargetLanguageTag,
+            _ => FallbackLanguageTag(answer)
+        };
+    }
+
+    private static string FallbackLanguageTag(CoachAnswerDto answer) =>
+        string.IsNullOrWhiteSpace(answer.DisplayLanguageTag) ? "en" : answer.DisplayLanguageTag;
+
+    /// <summary>
+    /// Localized label per block kind.
+    /// </summary>
+    /// <remarks>
+    /// The contract also carries a model-authored <c>Label</c>. It is deliberately not rendered:
+    /// it arrives in whatever language the model chose and would sit in a heading-like position,
+    /// so a Korean-display learner could get an English section label. The kind is a closed enum,
+    /// so labelling from it stays localized and predictable.
+    /// </remarks>
+    private string? BlockLabel(CoachAnswerBlockKind kind) => kind switch
+    {
+        // The direct answer leads and needs no label; labelling it would only add noise.
+        CoachAnswerBlockKind.Answer => null,
+        CoachAnswerBlockKind.Form => Localize["Coach_AnswerBlock_Form"],
+        CoachAnswerBlockKind.Meaning => Localize["Coach_AnswerBlock_Meaning"],
+        CoachAnswerBlockKind.Use => Localize["Coach_AnswerBlock_Use"],
+        CoachAnswerBlockKind.Example => Localize["Coach_AnswerBlock_Example"],
+        CoachAnswerBlockKind.Contrast => Localize["Coach_AnswerBlock_Contrast"],
+        CoachAnswerBlockKind.Correction => Localize["Coach_AnswerBlock_Correction"],
+        CoachAnswerBlockKind.Note => Localize["Coach_AnswerBlock_Note"],
+        CoachAnswerBlockKind.RetrievalPrompt => Localize["Coach_AnswerBlock_RetrievalPrompt"],
+        _ => null
+    };
+
+    private static string BlockIcon(CoachAnswerBlockKind kind) => kind switch
+    {
+        CoachAnswerBlockKind.Form => "bi-type",
+        CoachAnswerBlockKind.Meaning => "bi-translate",
+        CoachAnswerBlockKind.Use => "bi-lightbulb",
+        CoachAnswerBlockKind.Example => "bi-chat-quote",
+        CoachAnswerBlockKind.Contrast => "bi-arrow-left-right",
+        CoachAnswerBlockKind.Correction => "bi-check2-square",
+        CoachAnswerBlockKind.Note => "bi-info-circle",
+        CoachAnswerBlockKind.RetrievalPrompt => "bi-question-circle",
+        _ => "bi-dot"
+    };
+
+    private void OnCultureChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose() => Localize.CultureChanged -= OnCultureChanged;
+}

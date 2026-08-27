@@ -77,7 +77,12 @@ public static class Extensions
                 //metrics.AddMeter("Microsoft.Maui");
 
                 metrics.AddHttpClientInstrumentation()
-                    .AddRuntimeInstrumentation();
+                    .AddRuntimeInstrumentation()
+                    // Learning Coach metrics. Name must match SentenceStudio.Api's
+                    // CoachTelemetry.MeterName; CoachTelemetryNameContractTests pins the literal.
+                    // Registered here rather than in the API so hosts get it from one place; the
+                    // meter simply never emits on hosts that do not run the coach.
+                    .AddMeter(CoachTelemetryNames.MeterName);
             })
             .WithTracing(tracing =>
             {
@@ -85,6 +90,9 @@ public static class Extensions
                 //tracing.AddSource("Microsoft.Maui");
 
                 tracing.AddSource(builder.Environment.ApplicationName)
+                    // Learning Coach spans. Name must match SentenceStudio.Api's
+                    // CoachTelemetry.ActivitySourceName; CoachTelemetryNameContractTests pins it.
+                    .AddSource(CoachTelemetryNames.ActivitySourceName)
                     // Uncomment the following line to enable gRPC instrumentation (requires the OpenTelemetry.Instrumentation.GrpcNetClient package)
                     //.AddGrpcClientInstrumentation()
                     .AddHttpClientInstrumentation();
@@ -137,4 +145,22 @@ public static class Extensions
 
         return builder;
     }
+}
+
+/// <summary>
+/// Well-known OpenTelemetry source and meter names for the Learning Coach.
+/// </summary>
+/// <remarks>
+/// These live in ServiceDefaults because ServiceDefaults is MAUI-safe and cannot reference
+/// <c>SentenceStudio.Api</c>, where the coach itself lives. The API's <c>CoachTelemetry</c> declares
+/// the same names, and a unit test asserts the two agree — if they ever drift, coach spans and
+/// metrics would be created but never exported.
+/// </remarks>
+public static class CoachTelemetryNames
+{
+    /// <summary>The coach <c>ActivitySource</c> name.</summary>
+    public const string ActivitySourceName = "SentenceStudio.Coach";
+
+    /// <summary>The coach <c>Meter</c> name.</summary>
+    public const string MeterName = "SentenceStudio.Coach";
 }

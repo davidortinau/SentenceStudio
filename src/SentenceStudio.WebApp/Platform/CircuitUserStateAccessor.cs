@@ -146,15 +146,13 @@ public sealed class CircuitUserStateHandler : CircuitHandler
                     if (string.IsNullOrEmpty(profileId))
                     {
                         _logger.LogWarning(
-                            "CircuitUserStateHandler: legacy-cookie fallback found ApplicationUser '{NameId}' but UserProfileId is null/empty",
-                            nameId);
+                            "CircuitUserStateHandler: legacy-cookie fallback found an ApplicationUser with no UserProfileId");
                     }
                 }
                 catch (Exception ex)
                 {
                     _logger.LogWarning(ex,
-                        "CircuitUserStateHandler: legacy-cookie UserManager fallback failed for NameIdentifier '{NameId}'",
-                        nameId);
+                        "CircuitUserStateHandler: legacy-cookie UserManager fallback failed");
                 }
             }
 

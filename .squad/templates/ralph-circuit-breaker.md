@@ -1,22 +1,14 @@
 # Ralph Circuit Breaker — Model Rate Limit Fallback
 
 > Classic circuit breaker pattern (Hystrix / Polly / Resilience4j) applied to Copilot model selection.
-> When the preferred model hits rate limits, Ralph automatically degrades to free-tier models, then self-heals.
+> When the preferred model hits rate limits, Ralph automatically switches to explicit OpenAI GPT fallbacks, then self-heals.
 
 ## Problem
 
 When running multiple Ralph instances across repos, Copilot model rate limits cause cascading failures.
-All Ralphs fail simultaneously when the preferred model (e.g., `claude-sonnet-4.6`) hits quota.
+All Ralphs fail simultaneously when the preferred model (for example, `gpt-5.6-sol`) hits quota.
 
-Premium models burn quota fast:
-| Model | Multiplier | Risk |
-|-------|-----------|------|
-| `claude-sonnet-4.6` | 1x | Moderate with many Ralphs |
-| `claude-opus-4.6` | 10x | High |
-| `gpt-5.4` | 50x | Very high |
-| `gpt-5.4-mini` | **0x** | **Free — unlimited** |
-| `gpt-5-mini` | **0x** | **Free — unlimited** |
-| `gpt-4.1` | **0x** | **Free — unlimited** |
+Concurrent workers can exhaust the preferred model's quota together, so every retry must select an explicit GPT model.
 
 ## Circuit Breaker States
 
@@ -40,10 +32,10 @@ Premium models burn quota fast:
 - On rate limit error → transition to OPEN
 
 ### OPEN (rate limited — fallback active)
-- Fall back through the free-tier model chain:
+- Fall back through the fast GPT model chain:
   1. `gpt-5.4-mini`
   2. `gpt-5-mini`
-  3. `gpt-4.1`
+- If every fallback is unavailable, stop and surface the model availability failure
 - Start cooldown timer (default: 10 minutes)
 - When cooldown expires → transition to HALF-OPEN
 
@@ -57,8 +49,8 @@ Premium models burn quota fast:
 ```json
 {
   "state": "closed",
-  "preferredModel": "claude-sonnet-4.6",
-  "fallbackChain": ["gpt-5.4-mini", "gpt-5-mini", "gpt-4.1"],
+  "preferredModel": "gpt-5.6-sol",
+  "fallbackChain": ["gpt-5.4-mini", "gpt-5-mini"],
   "currentFallbackIndex": 0,
   "cooldownMinutes": 10,
   "openedAt": null,
@@ -77,6 +69,99 @@ Premium models burn quota fast:
 
 Paste these into your `ralph-watch.ps1` or source them from a shared module.
 
+### Allowed GPT Catalog and State Migration
+
+Run this validation whenever persisted circuit-breaker state is loaded. It removes unsupported provider IDs before model selection and persists the repaired state.
+
+```powershell
+$script:AllowedGptModels = @(
+    "gpt-5.6-sol",
+    "gpt-5.6-terra",
+    "gpt-5.6-luna",
+    "gpt-5.5",
+    "gpt-5.4",
+    "gpt-5.4-mini",
+    "gpt-5.3-codex",
+    "gpt-5-mini"
+)
+
+function Test-AllowedGptModel {
+    param([AllowNull()][string]$Model)
+
+    return $null -ne $Model -and $script:AllowedGptModels -ccontains $Model
+}
+
+function New-DefaultCircuitBreakerState {
+    return [pscustomobject]@{
+        state                = "closed"
+        preferredModel       = "gpt-5.6-sol"
+        fallbackChain        = @("gpt-5.4-mini", "gpt-5-mini")
+        currentFallbackIndex = 0
+        cooldownMinutes      = 10
+        openedAt             = $null
+        halfOpenSuccesses    = 0
+        consecutiveFailures  = 0
+        metrics              = @{
+            totalFallbacks = 0
+            totalRecoveries = 0
+            lastFallbackAt = $null
+            lastRecoveryAt = $null
+        }
+    }
+}
+
+function ConvertTo-ValidatedCircuitBreakerState {
+    param([object]$State)
+
+    if ($null -eq $State) {
+        return [pscustomobject]@{ State = (New-DefaultCircuitBreakerState); Migrated = $true }
+    }
+
+    $migrated = $false
+    $defaults = New-DefaultCircuitBreakerState
+    foreach ($propertyName in @("preferredModel", "fallbackChain", "currentFallbackIndex")) {
+        if ($null -eq $State.PSObject.Properties[$propertyName]) {
+            $defaultValue = $defaults.PSObject.Properties[$propertyName].Value
+            if ($defaultValue -is [System.Array]) {
+                $defaultValue = @($defaultValue)
+            }
+            $State | Add-Member -NotePropertyName $propertyName -NotePropertyValue $defaultValue
+            $migrated = $true
+        }
+    }
+
+    if (-not (Test-AllowedGptModel $State.preferredModel)) {
+        $State.preferredModel = "gpt-5.6-sol"
+        $migrated = $true
+    }
+
+    $configuredFallbacks = @($State.fallbackChain)
+    $validatedFallbacks = @(
+        $configuredFallbacks | Where-Object {
+            $_ -is [string] -and (Test-AllowedGptModel $_)
+        } | Select-Object -Unique
+    )
+    if ($configuredFallbacks.Count -ne $validatedFallbacks.Count) {
+        $migrated = $true
+    }
+    if ($validatedFallbacks.Count -eq 0) {
+        $validatedFallbacks = @("gpt-5.4-mini", "gpt-5-mini")
+        $migrated = $true
+    }
+    $State.fallbackChain = $validatedFallbacks
+
+    $fallbackIndex = 0
+    try { $fallbackIndex = [int]$State.currentFallbackIndex } catch { $migrated = $true }
+    if ($fallbackIndex -lt 0 -or $fallbackIndex -ge $validatedFallbacks.Count) {
+        $fallbackIndex = 0
+        $migrated = $true
+    }
+    $State.currentFallbackIndex = $fallbackIndex
+
+    return [pscustomobject]@{ State = $State; Migrated = $migrated }
+}
+```
+
 ### `Get-CircuitBreakerState`
 
 ```powershell
@@ -84,27 +169,25 @@ function Get-CircuitBreakerState {
     param([string]$StateFile = ".squad/ralph-circuit-breaker.json")
 
     if (-not (Test-Path $StateFile)) {
-        $default = @{
-            state              = "closed"
-            preferredModel     = "claude-sonnet-4.6"
-            fallbackChain      = @("gpt-5.4-mini", "gpt-5-mini", "gpt-4.1")
-            currentFallbackIndex = 0
-            cooldownMinutes    = 10
-            openedAt           = $null
-            halfOpenSuccesses  = 0
-            consecutiveFailures = 0
-            metrics            = @{
-                totalFallbacks  = 0
-                totalRecoveries = 0
-                lastFallbackAt  = $null
-                lastRecoveryAt  = $null
-            }
-        }
-        $default | ConvertTo-Json -Depth 3 | Set-Content $StateFile
-        return $default
+        $cb = New-DefaultCircuitBreakerState
+        Save-CircuitBreakerState -State $cb -StateFile $StateFile
+        return $cb
     }
 
-    return (Get-Content $StateFile -Raw | ConvertFrom-Json)
+    try {
+        $persisted = Get-Content $StateFile -Raw | ConvertFrom-Json
+    } catch {
+        $persisted = New-DefaultCircuitBreakerState
+        Save-CircuitBreakerState -State $persisted -StateFile $StateFile
+        return $persisted
+    }
+
+    $validated = ConvertTo-ValidatedCircuitBreakerState -State $persisted
+    if ($validated.Migrated) {
+        Save-CircuitBreakerState -State $validated.State -StateFile $StateFile
+        Write-Host "  [circuit-breaker] Migrated persisted model state to the allowed GPT catalog." -ForegroundColor Yellow
+    }
+    return $validated.State
 }
 ```
 
@@ -131,9 +214,10 @@ function Get-CurrentModel {
 
     $cb = Get-CircuitBreakerState -StateFile $StateFile
 
-    switch ($cb.state) {
+    $model = switch ($cb.state) {
         "closed" {
-            return $cb.preferredModel
+            $cb.preferredModel
+            break
         }
         "open" {
             # Check if cooldown has expired
@@ -146,20 +230,28 @@ function Get-CurrentModel {
                     $cb.halfOpenSuccesses = 0
                     Save-CircuitBreakerState -State $cb -StateFile $StateFile
                     Write-Host "  [circuit-breaker] Cooldown expired. Testing preferred model..." -ForegroundColor Yellow
-                    return $cb.preferredModel
+                    $cb.preferredModel
+                    break
                 }
             }
             # Still in cooldown — use fallback
             $idx = [Math]::Min($cb.currentFallbackIndex, $cb.fallbackChain.Count - 1)
-            return $cb.fallbackChain[$idx]
+            $cb.fallbackChain[$idx]
+            break
         }
         "half-open" {
-            return $cb.preferredModel
+            $cb.preferredModel
+            break
         }
         default {
-            return $cb.preferredModel
+            throw "Circuit breaker state '$($cb.state)' is invalid; refusing to select a model."
         }
     }
+
+    if (-not (Test-AllowedGptModel $model)) {
+        throw "Circuit breaker refused to return a model outside the allowed GPT catalog."
+    }
+    return $model
 }
 ```
 
@@ -229,6 +321,9 @@ function Update-CircuitBreakerOnRateLimit {
             $cb.currentFallbackIndex++
             $nextModel = $cb.fallbackChain[$cb.currentFallbackIndex]
             Write-Host "  [circuit-breaker] Fallback also limited — trying $nextModel" -ForegroundColor Red
+        } else {
+            Save-CircuitBreakerState -State $cb -StateFile $StateFile
+            throw "All configured OpenAI GPT fallback models are unavailable."
         }
         # Reset cooldown timer
         $cb.openedAt = (Get-Date).ToString("o")
@@ -293,9 +388,11 @@ Override defaults by editing `.squad/ralph-circuit-breaker.json`:
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `preferredModel` | `claude-sonnet-4.6` | Model to use when circuit is closed |
-| `fallbackChain` | `["gpt-5.4-mini", "gpt-5-mini", "gpt-4.1"]` | Ordered fallback models (all free-tier) |
+| `preferredModel` | `gpt-5.6-sol` | Model to use when circuit is closed |
+| `fallbackChain` | `["gpt-5.4-mini", "gpt-5-mini"]` | Ordered OpenAI GPT fallback models |
 | `cooldownMinutes` | `10` | How long to wait before testing recovery |
+
+`Get-CircuitBreakerState` validates these persisted model fields on every load. Unsupported values are never selected: an invalid preferred model becomes `gpt-5.6-sol`, unsupported fallback entries are discarded, and an empty validated chain becomes the GPT-only default chain.
 
 ## Metrics
 

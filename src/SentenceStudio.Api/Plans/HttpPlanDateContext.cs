@@ -11,7 +11,11 @@ namespace SentenceStudio.Api.Plans;
 /// </summary>
 public sealed class HttpPlanDateContext : IPlanDateContext
 {
-    public const string TimeZoneHeader = "X-Timezone";
+    /// <summary>
+    /// The plan-date timezone header. Forwards to the shared constant so the API and the
+    /// clients in AppLib (which cannot reference this assembly) cannot drift apart.
+    /// </summary>
+    public const string TimeZoneHeader = PlanDateHeaders.TimeZone;
 
     private readonly IPlanDateContext _inner;
 

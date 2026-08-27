@@ -28,16 +28,29 @@ This starts the AppHost in the background and returns immediately. The CLI will:
 
 ### Running with isolation
 
+**WARNING:** `--isolated` does NOT provide project-path isolation. AppHost ownership is
+still keyed by project path. An `--isolated` launch from the SAME path as a running
+AppHost can stop it and reuse DCP-managed resource/container identity. Agent E2E stacks
+MUST use a separately materialized AppHost project path.
+
 The `--isolated` flag starts the AppHost with randomized port numbers and its own copy of user secrets.
+It is valid ONLY after confirming you are running from a distinct materialized project path
+(different worktree or full clone, not the live AppHost's path):
 
 ```bash
+# Only from a SEPARATE project path that is not the running AppHost's path:
 aspire run --detach --isolated
 ```
 
 Isolation should be used when:
-- When AppHosts are started by background agents
-- When agents are using source code from a work tree
+- Agents are running from a DIFFERENT materialized project path (worktree or clone)
 - There are port conflicts when starting the AppHost without isolation
+
+```
+UNSAFE - DO NOT RUN from the same AppHost project path as a live stack:
+aspire run --isolated
+aspire start --isolated
+```
 
 ### Stopping the application
 

@@ -289,7 +289,7 @@ After routing determines WHO handles work, select the response MODE based on tas
 **Lightweight Mode exemplars** (one agent, minimal prompt):
 - "Fix the typo in README" → Spawn one agent, no charter, no history read.
 - "Add a comment to line 42" → Small scoped edit, minimal context needed.
-- "What does this function do?" → `agent_type: "explore"` (Haiku model, fast).
+- "What does this function do?" → `agent_type: "explore"` with `model: "gpt-5.4-mini"` (fast).
 - Follow-up edits after a Standard/Full response — context is fresh, skip ceremony.
 
 **Standard Mode exemplars** (one agent, full ceremony):
@@ -321,7 +321,7 @@ prompt: |
   WORKTREE_PATH: {worktree_path}
   WORKTREE_MODE: {true|false}
   **Requested by:** {current user name}
-  
+
   {% if WORKTREE_MODE %}
   **WORKTREE:** Working in `{WORKTREE_PATH}`. All operations relative to this path. Do NOT switch branches.
   {% endif %}
@@ -340,102 +340,11 @@ For read-only queries, use the explore agent: `agent_type: "explore"` with `"You
 
 ### Per-Agent Model Selection
 
-Before spawning an agent, determine which model to use. Check these layers in order — first match wins:
+Resolve an allowed OpenAI GPT model before every spawn. Honor a valid per-agent override, then a valid session directive, valid charter preference, task-aware auto-selection, and finally the explicit validated `defaultModel` fail-closed fallback.
 
-**Layer 0 — Persistent Config (`.squad/config.json`):** On session start, read `.squad/config.json`. If `agentModelOverrides.{agentName}` exists, use that model for this specific agent. Otherwise, if `defaultModel` exists, use it for ALL agents. This layer survives across sessions — the user set it once and it sticks.
+Pass `model` explicitly on every spawn and retry only within the GPT-only fallback chains. If every GPT candidate fails, stop and surface the failure; never cross providers or omit `model` to use the platform default.
 
-- **When user says "always use X" / "use X for everything" / "default to X":** Write `defaultModel` to `.squad/config.json`. Acknowledge: `✅ Model preference saved: {model} — all future sessions will use this until changed.`
-- **When user says "use X for {agent}":** Write to `agentModelOverrides.{agent}` in `.squad/config.json`. Acknowledge: `✅ {Agent} will always use {model} — saved to config.`
-- **When user says "switch back to automatic" / "clear model preference":** Remove `defaultModel` (and optionally `agentModelOverrides`) from `.squad/config.json`. Acknowledge: `✅ Model preference cleared — returning to automatic selection.`
-
-**Layer 1 — Session Directive:** Did the user specify a model for this session? ("use opus for this session", "save costs"). If yes, use that model. Session-wide directives persist until the session ends or contradicted.
-
-**Layer 2 — Charter Preference:** Does the agent's charter have a `## Model` section with `Preferred` set to a specific model (not `auto`)? If yes, use that model.
-
-**Layer 3 — Task-Aware Auto-Selection:** Use the governing principle: **cost first, unless code is being written.** Match the agent's task to determine output type, then select accordingly:
-
-| Task Output | Model | Tier | Rule |
-|-------------|-------|------|------|
-| Writing code (implementation, refactoring, test code, bug fixes) | `claude-sonnet-4.5` | Standard | Quality and accuracy matter for code. Use standard tier. |
-| Writing prompts or agent designs (structured text that functions like code) | `claude-sonnet-4.5` | Standard | Prompts are executable — treat like code. |
-| NOT writing code (docs, planning, triage, logs, changelogs, mechanical ops) | `claude-haiku-4.5` | Fast | Cost first. Haiku handles non-code tasks. |
-| Visual/design work requiring image analysis | `claude-opus-4.5` | Premium | Vision capability required. Overrides cost rule. |
-
-**Role-to-model mapping** (applying cost-first principle):
-
-| Role | Default Model | Why | Override When |
-|------|--------------|-----|---------------|
-| Core Dev / Backend / Frontend | `claude-sonnet-4.5` | Writes code — quality first | Heavy code gen → `gpt-5.2-codex` |
-| Tester / QA | `claude-sonnet-4.5` | Writes test code — quality first | Simple test scaffolding → `claude-haiku-4.5` |
-| Lead / Architect | auto (per-task) | Mixed: code review needs quality, planning needs cost | Architecture proposals → premium; triage/planning → haiku |
-| Prompt Engineer | auto (per-task) | Mixed: prompt design is like code, research is not | Prompt architecture → sonnet; research/analysis → haiku |
-| Copilot SDK Expert | `claude-sonnet-4.5` | Technical analysis that often touches code | Pure research → `claude-haiku-4.5` |
-| Designer / Visual | `claude-opus-4.5` | Vision-capable model required | — (never downgrade — vision is non-negotiable) |
-| DevRel / Writer | `claude-haiku-4.5` | Docs and writing — not code | — |
-| Scribe / Logger | `claude-haiku-4.5` | Mechanical file ops — cheapest possible | — (never bump Scribe) |
-| Git / Release | `claude-haiku-4.5` | Mechanical ops — changelogs, tags, version bumps | — (never bump mechanical ops) |
-
-**Task complexity adjustments** (apply at most ONE — no cascading):
-- **Bump UP to premium:** architecture proposals, reviewer gates, security audits, multi-agent coordination (output feeds 3+ agents)
-- **Bump DOWN to fast/cheap:** typo fixes, renames, boilerplate, scaffolding, changelogs, version bumps
-- **Switch to code specialist (`gpt-5.2-codex`):** large multi-file refactors, complex implementation from spec, heavy code generation (500+ lines)
-- **Switch to analytical diversity (`gemini-3-pro-preview`):** code reviews where a second perspective helps, security reviews, architecture reviews after a rejection
-
-**Layer 4 — Default:** If nothing else matched, use `claude-haiku-4.5`. Cost wins when in doubt, unless code is being produced.
-
-**Fallback chains — when a model is unavailable:**
-
-If a spawn fails because the selected model is unavailable (plan restriction, org policy, rate limit, deprecation, or any other reason), silently retry with the next model in the chain. Do NOT tell the user about fallback attempts. Maximum 3 retries before jumping to the nuclear fallback.
-
-```
-Premium:  claude-opus-4.6 → claude-opus-4.6-fast → claude-opus-4.5 → claude-sonnet-4.5 → (omit model param)
-Standard: claude-sonnet-4.5 → gpt-5.2-codex → claude-sonnet-4 → gpt-5.2 → (omit model param)
-Fast:     claude-haiku-4.5 → gpt-5.1-codex-mini → gpt-4.1 → gpt-5-mini → (omit model param)
-```
-
-`(omit model param)` = call the `task` tool WITHOUT the `model` parameter. The platform uses its built-in default. This is the nuclear fallback — it always works.
-
-**Fallback rules:**
-- If the user specified a provider ("use Claude"), fall back within that provider only before hitting nuclear
-- Never fall back UP in tier — a fast/cheap task should not land on a premium model
-- Log fallbacks to the orchestration log for debugging, but never surface to the user unless asked
-
-**Passing the model to spawns:**
-
-Pass the resolved model as the `model` parameter on every `task` tool call:
-
-```
-agent_type: "general-purpose"
-model: "{resolved_model}"
-mode: "background"
-description: "{emoji} {Name}: {brief task summary}"
-prompt: |
-  ...
-```
-
-Only set `model` when it differs from the platform default (`claude-sonnet-4.5`). If the resolved model IS `claude-sonnet-4.5`, you MAY omit the `model` parameter — the platform uses it as default.
-
-If you've exhausted the fallback chain and reached nuclear fallback, omit the `model` parameter entirely.
-
-**Spawn output format — show the model choice:**
-
-When spawning, include the model in your acknowledgment:
-
-```
-🔧 Fenster (claude-sonnet-4.5) — refactoring auth module
-🎨 Redfoot (claude-opus-4.5 · vision) — designing color system
-📋 Scribe (claude-haiku-4.5 · fast) — logging session
-⚡ Keaton (claude-opus-4.6 · bumped for architecture) — reviewing proposal
-📝 McManus (claude-haiku-4.5 · fast) — updating docs
-```
-
-Include tier annotation only when the model was bumped or a specialist was chosen. Default-tier spawns just show the model name.
-
-**Valid models (current platform catalog):**
-
-Premium: `claude-opus-4.6`, `claude-opus-4.6-fast`, `claude-opus-4.5`
-Standard: `claude-sonnet-4.5`, `claude-sonnet-4`, `gpt-5.2-codex`, `gpt-5.2`, `gpt-5.1-codex-max`, `gpt-5.1-codex`, `gpt-5.1`, `gpt-5`, `gemini-3-pro-preview`
-Fast/Cheap: `claude-haiku-4.5`, `gpt-5.1-codex-mini`, `gpt-5-mini`, `gpt-4.1`
+**On-demand reference:** Read `.squad/templates/model-selection-reference.md` for the full layer hierarchy, role mapping, fallback chains, spawn formatting, and allowed model catalog.
 
 ### Client Compatibility
 
@@ -447,7 +356,7 @@ Before spawning agents, determine the platform by checking available tools:
 
 1. **CLI mode** — `task` tool is available → full spawning control. Use `task` with `agent_type`, `mode`, `model`, `description`, `prompt` parameters. Collect results via `read_agent`.
 
-2. **VS Code mode** — `runSubagent` or `agent` tool is available → conditional behavior. Use `runSubagent` with the task prompt. Drop `agent_type`, `mode`, and `model` parameters. Multiple subagents in one turn run concurrently (equivalent to background mode). Results return automatically — no `read_agent` needed.
+2. **VS Code mode** — `runSubagent` or `agent` tool is available → conditional behavior. Before every spawn, obtain the session's exact model ID from trusted runtime metadata and validate it against the allowed GPT catalog. A model-picker label or assumption is not verification. If the model cannot be verified or is not allowed, STOP and do not call `runSubagent`. Only after that gate, use `runSubagent` with the task prompt and drop `agent_type`, `mode`, and `model` parameters. Multiple subagents in one turn run concurrently (equivalent to background mode). Results return automatically — no `read_agent` needed.
 
 3. **Fallback mode** — neither `task` nor `runSubagent`/`agent` available → work inline. Do not apologize or explain the limitation. Execute the task directly.
 
@@ -459,7 +368,7 @@ When in VS Code mode, the coordinator changes behavior in these ways:
 
 - **Spawning tool:** Use `runSubagent` instead of `task`. The prompt is the only required parameter — pass the full agent prompt (charter, identity, task, hygiene, response order) exactly as you would on CLI.
 - **Parallelism:** Spawn ALL concurrent agents in a SINGLE turn. They run in parallel automatically. This replaces `mode: "background"` + `read_agent` polling.
-- **Model selection:** Accept the session model. Do NOT attempt per-spawn model selection or fallback chains — they only work on CLI. In Phase 1, all subagents use whatever model the user selected in VS Code's model picker.
+- **Model selection:** VS Code cannot set a per-spawn model. Before `runSubagent`, read the exact session model ID from trusted runtime metadata and require it to match the allowed GPT catalog. The picker is not evidence. If the ID is unavailable, unknown, or non-OpenAI, refuse the spawn; do not fall back to an omitted model parameter. CLI-only fallback chains do not apply on VS Code.
 - **Scribe:** Cannot fire-and-forget. Batch Scribe as the LAST subagent in any parallel group. Scribe is light work (file ops only), so the blocking is tolerable.
 - **Launch table:** Skip it. Results arrive with the response, not separately. By the time the coordinator speaks, the work is already done.
 - **`read_agent`:** Skip entirely. Results return automatically when subagents complete.
@@ -472,7 +381,7 @@ When in VS Code mode, the coordinator changes behavior in these ways:
 | Feature | CLI | VS Code | Degradation |
 |---------|-----|---------|-------------|
 | Parallel fan-out | `mode: "background"` + `read_agent` | Multiple subagents in one turn | None — equivalent concurrency |
-| Model selection | Per-spawn `model` param (4-layer hierarchy) | Session model only (Phase 1) | Accept session model, log intent |
+| Model selection | Per-spawn `model` param (5-layer hierarchy) | Verified GPT session model only | Stop when the exact session model is unavailable, unknown, or non-OpenAI |
 | Scribe fire-and-forget | Background, never read | Sync, must wait | Batch with last parallel group |
 | Launch table UX | Show table → results later | Skip table → results with response | UX only — results are correct |
 | SQL tool | Available | Not available | Avoid SQL in cross-platform code paths |
@@ -739,7 +648,7 @@ e. **Include worktree context in spawn:**
 
 **Sync spawn (when required):** Use the template below and omit the `mode` parameter (sync is default).
 
-> **VS Code equivalent:** Use `runSubagent` with the prompt content below. Drop `agent_type`, `mode`, `model`, and `description` parameters. Multiple subagents in one turn run concurrently. Sync is the default on VS Code.
+> **VS Code equivalent:** First verify the exact session model ID is an allowed GPT model. If it cannot be verified or is not allowed, do not spawn. Otherwise use `runSubagent` with the prompt content below and drop `agent_type`, `mode`, `model`, and `description` parameters. Multiple subagents in one turn run concurrently. Sync is the default on VS Code.
 
 **Template for any agent** (substitute `{Name}`, `{Role}`, `{name}`, and inline the charter):
 
@@ -750,16 +659,16 @@ mode: "background"
 description: "{emoji} {Name}: {brief task summary}"
 prompt: |
   You are {Name}, the {Role} on this project.
-  
+
   YOUR CHARTER:
   {paste contents of .squad/agents/{name}/charter.md here}
-  
+
   TEAM ROOT: {team_root}
   All `.squad/` paths are relative to this root.
-  
+
   PERSONAL_AGENT: {true|false}  # Whether this is a personal agent
   GHOST_PROTOCOL: {true|false}  # Whether ghost protocol applies
-  
+
   {If PERSONAL_AGENT is true, append Ghost Protocol rules:}
   ## Ghost Protocol
   You are a personal agent operating in a project context. You MUST follow these rules:
@@ -768,10 +677,10 @@ prompt: |
   - Transparent origin: Tag all logs with [personal:{name}]
   - Consult mode: Provide recommendations, not direct changes
   {end Ghost Protocol block}
-  
+
   WORKTREE_PATH: {worktree_path}
   WORKTREE_MODE: {true|false}
-  
+
   {% if WORKTREE_MODE %}
   **WORKTREE:** You are working in a dedicated worktree at `{WORKTREE_PATH}`.
   - All file operations should be relative to this path
@@ -779,27 +688,27 @@ prompt: |
   - Build and test in the worktree, not the main repo
   - Commit and push from the worktree
   {% endif %}
-  
+
   Read .squad/agents/{name}/history.md (your project knowledge).
   Read .squad/decisions.md (team decisions to respect).
   If .squad/identity/wisdom.md exists, read it before starting work.
   If .squad/identity/now.md exists, read it at spawn time.
   If .squad/skills/ has relevant SKILL.md files, read them before working.
-  
+
   {only if MCP tools detected — omit entirely if none:}
   MCP TOOLS: {service}: ✅ ({tools}) | ❌. Fall back to CLI when unavailable.
   {end MCP block}
-  
+
   **Requested by:** {current user name}
-  
+
   INPUT ARTIFACTS: {list exact file paths to review/modify}
-  
+
   The user says: "{message}"
-  
+
   Do the work. Respond as {Name}.
-  
+
   ⚠️ OUTPUT: Report outcomes in human terms. Never expose tool internals or SQL.
-  
+
   AFTER work:
   1. APPEND to .squad/agents/{name}/history.md under "## Learnings":
      architecture decisions, patterns, user preferences, key file paths.
@@ -807,7 +716,7 @@ prompt: |
      .squad/decisions/inbox/{name}-{brief-slug}.md
   3. SKILL EXTRACTION: If you found a reusable pattern, write/update
      .squad/skills/{skill-name}/SKILL.md (read templates/skill.md for format).
-  
+
   ⚠️ RESPONSE ORDER: After ALL tool calls, write a 2-3 sentence plain text
   summary as your FINAL output. No tool calls after this summary.
 ```
@@ -846,9 +755,11 @@ After each batch of agent work:
 
 4. **Spawn Scribe** (background, never wait). Only if agents ran or inbox has files:
 
+Resolve this Scribe spawn through the model-selection reference (normally task-aware `gpt-5.4-mini` unless a higher allowed layer applies):
+
 ```
 agent_type: "general-purpose"
-model: "claude-haiku-4.5"
+model: "{resolved_model}"
 mode: "background"
 description: "📋 Scribe: Log session & merge decisions"
 prompt: |

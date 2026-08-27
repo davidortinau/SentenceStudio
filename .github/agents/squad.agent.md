@@ -360,7 +360,7 @@ After routing determines WHO handles work, select the response MODE based on tas
 **Lightweight Mode exemplars** (one agent, minimal prompt):
 - "Fix the typo in README" → Spawn one agent, no charter, no history read.
 - "Add a comment to line 42" → Small scoped edit, minimal context needed.
-- "What does this function do?" → `agent_type: "explore"` (Haiku model, fast).
+- "What does this function do?" → `agent_type: "explore"` with `model: "gpt-5.4-mini"` (fast).
 - Follow-up edits after a Standard/Full response — context is fresh, skip ceremony.
 
 **Standard Mode exemplars** (one agent, full ceremony):
@@ -395,7 +395,7 @@ prompt: |
   WORKTREE_PATH: {worktree_path}
   WORKTREE_MODE: {true|false}
   **Requested by:** {current user name}
-  
+
   {% if WORKTREE_MODE %}
   **WORKTREE:** Working in `{WORKTREE_PATH}`. All operations relative to this path. Do NOT switch branches.
   {% endif %}
@@ -414,9 +414,11 @@ For read-only queries, use the explore agent: `agent_type: "explore"` with `"You
 
 ### Per-Agent Model Selection
 
-Resolve a model before every spawn. Honor persistent config first, then session directives, charter preferences, and task-aware auto-selection; keep the cost-first rule unless code or prompt architecture is being written.
+Resolve an allowed OpenAI GPT model before every spawn. Honor a valid per-agent override, then a valid session directive, valid charter preference, task-aware auto-selection, and finally the explicit validated `defaultModel` fail-closed fallback; keep the cost-first rule unless code, prompt architecture, premium review, security, or vision work is being performed.
 
-Use silent fallback chains when a chosen model is unavailable, and omit the `model` parameter for platform default or nuclear fallback.
+Pass `model` explicitly on every spawn and retry only within the GPT-only fallback chains. If every GPT candidate fails, stop and surface the failure; never cross providers or omit `model` to use the platform default.
+
+On VS Code, `runSubagent` may omit `model` only after trusted runtime metadata verifies that the exact session model ID is in the GPT catalog. A model-picker label is not verification. If the exact ID is unavailable, unknown, or non-OpenAI, refuse the spawn.
 
 **On-demand reference:** Read `.squad/templates/model-selection-reference.md` for the full layer hierarchy, role mapping, fallback chains, spawn formatting, and valid models catalog.
 
