@@ -17,8 +17,9 @@
 @implements IDisposable
 
 <div class="d-flex flex-column vh-100">
+    <div class="app-safe-area-top" aria-hidden="true"></div>
     <EnvironmentBadge />
-    <div class="d-flex flex-row flex-grow-1 overflow-hidden">
+    <div class="d-flex flex-row flex-grow-1 overflow-hidden app-safe-area-inline">
     @if (!isOnboarding && isAuthenticated && !isSyncing)
     {
         @* Sidebar navigation (desktop only) *@

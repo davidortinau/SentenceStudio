@@ -135,16 +135,16 @@ public class SamMobileModalLayoutContractTests
         block.Should().Contain("overflow: hidden");
     }
 
-    // ─── B14: Mobile page header no longer applies duplicate safe-area top padding ───
+    // ─── B14: Mobile page header does not duplicate the app shell's top inset ───
 
     [Fact]
     public void Mobile_page_header_does_not_apply_safe_area_top_padding()
     {
         // Inside the mobile breakpoint, .page-header must NOT have padding-top: env(safe-area-inset-top)
-        // The env-bar is the single notch owner.
+        // The unconditional app-safe-area-top element is the normal shell's single notch owner.
         var mobileBlock = MobilePageHeaderBlock();
         mobileBlock.Should().NotContain("env(safe-area-inset-top",
-            "env-bar is the single notch owner — page-header must not duplicate safe-area-top");
+            "app-safe-area-top is the normal shell owner — page-header must not duplicate it");
     }
 
     // ─── B17: No hardcoded color when theme token exists; backdrop uses theme ───
@@ -210,22 +210,47 @@ public class SamMobileModalLayoutContractTests
 
     private static string MobilePageHeaderBlock()
     {
-        // Find .page-header rule inside a max-width media query or the
-        // mobile/standalone breakpoint section
-        var pattern = @"@media[^{]*\(display-mode:\s*standalone\)[^{]*\{([^}]*\.page-header\s*\{([^}]*)\}[^}]*)";
-        var match = Regex.Match(Css, pattern, RegexOptions.Singleline);
-        if (match.Success) return match.Groups[2].Value;
+        const string mediaQuery = "@media (max-width: 767.98px)";
+        var searchFrom = 0;
 
-        // Fallback: look for .page-header after the standalone media query comment
-        var standaloneIdx = Css.IndexOf("display-mode: standalone", StringComparison.Ordinal);
-        if (standaloneIdx > 0)
+        while ((searchFrom = Css.IndexOf(mediaQuery, searchFrom, StringComparison.Ordinal)) >= 0)
         {
-            var subset = Css[standaloneIdx..];
-            var headerMatch = Regex.Match(subset, @"\.page-header\s*\{([^}]*)\}");
-            if (headerMatch.Success) return headerMatch.Groups[1].Value;
+            var openingBrace = Css.IndexOf('{', searchFrom + mediaQuery.Length);
+            openingBrace.Should().BeGreaterThan(searchFrom);
+
+            var mediaBody = BalancedBlockContents(Css, openingBrace);
+            var match = Regex.Match(
+                mediaBody,
+                @"(?m)^[ \t]*\.page-header\s*\{([^}]*)\}");
+            if (match.Success)
+                return match.Groups[1].Value;
+
+            searchFrom = openingBrace + mediaBody.Length + 2;
         }
 
-        // If no standalone found, the mobile page header is at the base .page-header rule
-        return Block(".page-header");
+        false.Should().BeTrue(
+            "the stylesheet must define .page-header inside @media (max-width: 767.98px)");
+        return string.Empty;
+    }
+
+    private static string BalancedBlockContents(string source, int openingBrace)
+    {
+        var depth = 0;
+        for (var index = openingBrace; index < source.Length; index++)
+        {
+            switch (source[index])
+            {
+                case '{':
+                    depth++;
+                    break;
+                case '}':
+                    depth--;
+                    if (depth == 0)
+                        return source[(openingBrace + 1)..index];
+                    break;
+            }
+        }
+
+        throw new InvalidOperationException("Unbalanced CSS block");
     }
 }

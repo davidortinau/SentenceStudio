@@ -804,16 +804,39 @@ h3:focus,
     .ss-subheadline { font-size: calc(20px * var(--ss-font-scale, 1)); }
 }
 
-/* Safe area for mobile status bars */
-.status-bar-safe-area {
-    display: none;
+/* The normal app shell owns the top inset here. This element is always present, unlike the
+   development-only environment bar, so a production page also tracks dynamic iOS status UI. */
+.app-safe-area-top {
+    width: 100%;
+    height: env(safe-area-inset-top, 0px);
+    flex: 0 0 env(safe-area-inset-top, 0px);
+    background-color: var(--bs-secondary-bg);
 }
 
-@supports (padding-top: env(safe-area-inset-top)) {
-    .status-bar-safe-area {
-        display: block;
-        height: env(safe-area-inset-top);
-    }
+/* The native host is edge-to-edge, so the shell owns both inline insets as well as the
+   top spacer. env() resolves to zero in browsers without a display cutout. */
+.app-safe-area-inline {
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* Fixed offcanvas surfaces are outside normal shell geometry and therefore need their
+   own inline inset ownership. */
+.offcanvas {
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* Bottom sheets retain Bootstrap's 1rem body padding and add the home-indicator inset.
+   This covers every bottom offcanvas, including panels rendered conditionally in Reading. */
+.offcanvas-bottom .offcanvas-body {
+    padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* The full-height mobile navigation also touches the physical bottom edge. Its p-0 utility
+   intentionally removes visual padding, so add only the system inset and retain that contract. */
+#mobileNav .offcanvas-body {
+    padding-bottom: env(safe-area-inset-bottom, 0px) !important;
 }
 
 
@@ -917,8 +940,8 @@ h3:focus,
    ============================================ */
 .toast-container-ss {
     position: fixed;
-    bottom: 1rem;
-    right: 1rem;
+    bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+    right: calc(1rem + env(safe-area-inset-right, 0px));
     z-index: 1090;
 }
 
@@ -932,6 +955,15 @@ h3:focus,
 /* ============================================
    MODAL OVERRIDES
    ============================================ */
+/* Bootstrap's fixed .modal remains edge-to-edge so both its own scrim and a separately rendered
+   backdrop cover the physical viewport. The non-interactive dialog wrapper pads modal-content
+   into the usable viewport one edge at a time, while Bootstrap retains ownership of dialog
+   margins and its centered/scrollable height formulas. Coach owns its insets on
+   .coach-workspace instead. */
+.modal:not(.coach-modal) > .modal-dialog {
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+}
+
 .modal-content-ss {
     background-color: var(--bs-secondary-bg);
     border: 1px solid var(--bs-border-color);
@@ -941,11 +973,6 @@ h3:focus,
 .offcanvas-ss {
     background-color: var(--bs-secondary-bg) !important;
     color: var(--bs-body-color) !important;
-}
-
-/* Vocabulary filter offcanvas — bottom sheet with safe area padding */
-#vocabFilterPanel .offcanvas-body {
-    padding-bottom: calc(1rem + var(--safe-area-bottom, 0px));
 }
 
 /* ============================================
@@ -997,7 +1024,7 @@ h3:focus,
     }
 
     /* Mobile page header — breaks out of main padding for edge-to-edge background.
-       env-bar above already absorbs env(safe-area-inset-top), so page-header must NOT
+       app-safe-area-top above already absorbs env(safe-area-inset-top), so page-header must NOT
        re-apply it — that causes the double-inset gap (defect 4). */
     .page-header {
         position: sticky;
@@ -1306,7 +1333,6 @@ h3:focus,
         position: static;
         margin: 0;
         padding: 0 0.75rem;
-        padding-top: env(safe-area-inset-top, 0px);
     }
     .reading-page__footer {
         padding-bottom: calc(0.5rem + env(safe-area-inset-bottom, 0px));
@@ -1633,6 +1659,9 @@ main.main-content:has(.matching-page-wrapper) {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    /* The overlay surface may become full-bleed in portrait or cross a landscape cutout.
+       Its backdrop remains edge-to-edge; only gallery controls and scrollable content move in. */
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
 }
 
 .scene-gallery-grid {
@@ -1833,13 +1862,6 @@ main.main-content:has(.matching-page-wrapper) {
     background-color: #e67e22;
 }
 
-/* Safe area: expand bar for iOS notch */
-@supports (padding-top: env(safe-area-inset-top)) {
-    .env-bar {
-        padding-top: calc(env(safe-area-inset-top, 0px) + 4px);
-    }
-}
-
 /* ============================================
    SPIN ANIMATION FOR REFRESH ICON
    ============================================ */
@@ -1883,6 +1905,14 @@ main.main-content:has(.matching-page-wrapper) {
 .list-page {
     overflow-x: hidden;
     padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* The starter-resource overlay is fixed through Bootstrap's position-fixed utility, so it does
+   not inherit the app shell's safe-area padding. Its scrim still paints to every viewport edge;
+   padding moves the centered status content into the usable rectangle. */
+.resources-starter-overlay {
+    box-sizing: border-box;
+    padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
 }
 
 /* ============================================
@@ -2176,12 +2206,13 @@ main.main-content:has(.matching-page-wrapper) {
    ============================================ */
 .shared-ingest-toast {
     position: fixed;
-    left: 50%;
-    transform: translateX(-50%);
+    left: calc(0.75rem + env(safe-area-inset-left, 0px));
+    right: calc(0.75rem + env(safe-area-inset-right, 0px));
     bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
     z-index: 1080;
-    width: calc(100% - 1.5rem);
+    width: auto;
     max-width: 440px;
+    margin-inline: auto;
     pointer-events: none;
 }
 
@@ -2219,6 +2250,13 @@ main.main-content:has(.matching-page-wrapper) {
     background: rgba(0, 0, 0, 0.92);
     cursor: pointer;
     overflow: hidden;
+    box-sizing: border-box;
+    /* Keep the scrim on the physical viewport, but make the flex content box the usable
+       rectangle. Per-edge padding is required because landscape top and bottom insets differ. */
+    padding: calc(1rem + env(safe-area-inset-top, 0px))
+             calc(1rem + env(safe-area-inset-right, 0px))
+             calc(1rem + env(safe-area-inset-bottom, 0px))
+             calc(1rem + env(safe-area-inset-left, 0px));
     animation: quiz-fullscreen-fade-in 0.2s ease;
 }
 
@@ -2254,10 +2292,10 @@ main.main-content:has(.matching-page-wrapper) {
 }
 
 .quiz-fullscreen-image {
-    width: calc(100vw - 2rem - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
-    height: calc(100vh - 2rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
-    max-width: calc(100vw - 2rem - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
-    max-height: calc(100vh - 2rem - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+    max-height: 100%;
     object-fit: contain;
     border-radius: 0.5rem;
     cursor: default;
@@ -2348,7 +2386,7 @@ body.coach-open .modal-backdrop { z-index: 1062; }
 /* Toast fallback: if any shared code toasts while the coach is open, lift the
    toast stack clear of the coach composer instead of covering it. */
 body.coach-open .toast-container-ss {
-    bottom: calc(1rem + var(--coach-composer-min-h, 76px));
+    bottom: calc(1rem + var(--coach-composer-min-h, 76px) + env(safe-area-inset-bottom, 0px));
 }
 
 @media (min-width: 992px) {
@@ -2389,9 +2427,31 @@ body.coach-open .toast-container-ss {
 @media (min-width: 768px) and (max-width: 991.98px) {
     .modal.coach-modal,
     .coach-page {
-        --coach-width: 94vw;
+        /* 94vw alone leaves only 3vw per side: 26px at the 874px DX24 landscape viewport,
+           which is inside its 62px physical side insets. Keep the legacy modal itself inside
+           the usable inline rectangle instead of adding a second layer of workspace padding. */
+        --coach-width: min(94vw, calc(100vw - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)));
         --coach-height: 92dvh;
     }
+
+    /* Bootstrap normally centers this tier inside two 1.75rem margins. Preserve that exact
+       zero-inset geometry, then let either dynamic vertical inset replace only the margin it
+       exceeds. Keeping these tokens on the legacy modal (not .coach-page) prevents /coach from
+       consuming the shell-owned top inset a second time. */
+    .modal.coach-modal {
+        --coach-safe-top: var(--safe-area-top);
+        --coach-safe-bottom: var(--safe-area-bottom);
+        --coach-outer-top: max(1.75rem, var(--coach-safe-top));
+        --coach-outer-bottom: max(1.75rem, var(--coach-safe-bottom));
+        --coach-height: min(92dvh, calc(100dvh - var(--coach-outer-top) - var(--coach-outer-bottom)));
+    }
+
+    .modal.coach-modal .modal-dialog.coach-dialog {
+        margin-top: var(--coach-outer-top);
+        margin-bottom: var(--coach-outer-bottom);
+        min-height: calc(100% - var(--coach-outer-top) - var(--coach-outer-bottom));
+    }
+
     .coach-workspace {
         border-radius: 1rem;
     }
@@ -2410,7 +2470,16 @@ body.coach-open .toast-container-ss {
         border-radius: 0;
         border: 0;
     }
-    .coach-header {
+
+    /* The legacy modal is viewport-fixed and does not inherit the shell's inline insets. */
+    .modal.coach-modal .coach-workspace {
+        padding-left: env(safe-area-inset-left, 0px);
+        padding-right: env(safe-area-inset-right, 0px);
+    }
+
+    /* Only the root header of the full-bleed legacy modal touches the viewport top.
+       /coach remains inside the shell, and CoachPlanCanvas headers are interior surfaces. */
+    .modal.coach-modal .coach-workspace > .coach-workspace-inner > .coach-header {
         padding-top: calc(0.5rem + env(safe-area-inset-top, 0px));
     }
 }
@@ -3293,18 +3362,23 @@ body.coach-open .toast-container-ss {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 1rem;
+    box-sizing: border-box;
+    /* The fixed scrim remains edge-to-edge. Its content box is the usable viewport plus the
+       existing visual gutter, so centering occurs after each asymmetric inset is applied. */
+    padding: calc(1rem + env(safe-area-inset-top, 0px))
+             calc(1rem + env(safe-area-inset-right, 0px))
+             calc(1rem + env(safe-area-inset-bottom, 0px))
+             calc(1rem + env(safe-area-inset-left, 0px));
     background-color: rgba(0, 0, 0, 0.5);
     z-index: 1060;
 }
 
-.coach-dialog {
+.coach-dialog-backdrop > .coach-dialog {
     display: flex;
     flex-direction: column;
     gap: 0.75rem;
     width: min(28rem, 100%);
-    /* Capped against the viewport so the actions stay reachable at 200% zoom. */
-    max-height: 90vh;
+    max-height: 100%;
     overflow-y: auto;
     padding: 1rem;
     border-radius: var(--ss-radius-lg, 0.75rem);
@@ -3506,6 +3580,8 @@ body.coach-open .toast-container-ss {
     box-shadow: -2px 0 12px rgba(0, 0, 0, 0.1);
     overflow: hidden;
     /* Safe area */
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
     padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
@@ -3532,13 +3608,16 @@ body.coach-open .toast-container-ss {
 
    The cap is dvh so a mobile browser's collapsing chrome is accounted for, with a vh line first
    for engines without dynamic viewport units (they get the largest viewport height, which is the
-   pre-existing behaviour rather than a new failure). 1rem of breathing room keeps the panel from
-   sitting flush against the top edge. */
+   pre-existing behaviour rather than a new failure). The compact cap preserves its 1rem breathing
+   room above the dynamic top inset. The expanded cap preserves its existing 60px reservation until
+   the top inset plus 1rem needs more room. In both states the base bottom padding still owns the
+   home-indicator inset inside the panel, so the usable grid subtracts both dynamic vertical insets
+   without adding a second padding layer. */
 .sam-panel--compact {
     width: 360px;
     height: 420px;
-    max-height: calc(100vh - 1rem);
-    max-height: calc(100dvh - 1rem);
+    max-height: calc(100vh - 1rem - var(--safe-area-top));
+    max-height: calc(100dvh - 1rem - var(--safe-area-top));
     border-radius: 0.75rem 0 0 0;
 }
 
@@ -3546,8 +3625,8 @@ body.coach-open .toast-container-ss {
     width: 520px;
     height: 80vh;
     height: 80dvh;
-    max-height: calc(100vh - 60px);
-    max-height: calc(100dvh - 60px);
+    max-height: calc(100vh - max(60px, calc(1rem + var(--safe-area-top))));
+    max-height: calc(100dvh - max(60px, calc(1rem + var(--safe-area-top))));
     border-radius: 0.75rem 0 0 0;
 }
 
