@@ -17,9 +17,9 @@
 
     <!-- ASP.NET Core / Identity -->
     <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.2" />
-    <PackageVersion Include="Microsoft.AspNetCore.Components.Authorization" Version="11.0.0-preview.4.26230.115" />
-    <PackageVersion Include="Microsoft.AspNetCore.Components.Web" Version="11.0.0-preview.4.26230.115" />
-    <PackageVersion Include="Microsoft.AspNetCore.WebUtilities" Version="11.0.0-preview.4.26230.115" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.Authorization" Version="11.0.0-rc.1.26425.128" />
+    <PackageVersion Include="Microsoft.AspNetCore.Components.Web" Version="11.0.0-rc.1.26425.128" />
+    <PackageVersion Include="Microsoft.AspNetCore.WebUtilities" Version="11.0.0-rc.1.26425.128" />
     <PackageVersion Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.5" />
     <PackageVersion Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.2" />
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.1" />
@@ -82,31 +82,28 @@
     <PackageVersion Include="Microsoft.Extensions.VectorData.Abstractions" Version="10.9.0" />
 
     <!-- Microsoft Extensions -->
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="11.0.0-preview.4.26230.115" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="11.0.0-preview.4.26230.115" />
-    <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="11.0.0-preview.4.26230.115" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="11.0.0-preview.4.26230.115" />
-    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="11.0.0-preview.4.26230.115" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="11.0.0-preview.4.26230.115" />
-    <PackageVersion Include="Microsoft.Extensions.Http" Version="11.0.0-preview.4.26230.115" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="11.0.0-rc.1.26425.128" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="11.0.0-rc.1.26425.128" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Json" Version="11.0.0-rc.1.26425.128" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="11.0.0-rc.1.26425.128" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="11.0.0-rc.1.26425.128" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="11.0.0-rc.1.26425.128" />
+    <PackageVersion Include="Microsoft.Extensions.Http" Version="11.0.0-rc.1.26425.128" />
     <PackageVersion Include="Microsoft.Extensions.Http.Resilience" Version="10.1.0" />
-    <PackageVersion Include="Microsoft.Extensions.Logging" Version="11.0.0-preview.4.26230.115" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="11.0.0-preview.4.26230.115" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="11.0.0-preview.4.26230.115" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="11.0.0-preview.4.26230.115" />
-    <PackageVersion Include="Microsoft.Extensions.Options" Version="11.0.0-preview.4.26230.115" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="11.0.0-rc.1.26425.128" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="11.0.0-rc.1.26425.128" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Console" Version="11.0.0-rc.1.26425.128" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Debug" Version="11.0.0-rc.1.26425.128" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="11.0.0-rc.1.26425.128" />
     <PackageVersion Include="Microsoft.Extensions.ServiceDiscovery" Version="10.2.0" />
 
-    <!-- MAUI — pinned to 10.0.31 (current workload NuGet package version).
-         Cannot use $(MauiVersion) because that property is only defined in
-         projects that import the MAUI SDK (<UseMaui>true</UseMaui>). Non-MAUI
-         projects like ServiceDefaults that reference Microsoft.Maui.Core need
-         a concrete version. Bump this when the MAUI workload is updated. -->
-    <PackageVersion Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="11.0.0-preview.4.26230.3" />
-    <PackageVersion Include="Microsoft.Maui.Controls" Version="11.0.0-preview.4.26230.3" />
-    <PackageVersion Include="Microsoft.Maui.Core" Version="11.0.0-preview.4.26230.3" />
-    <PackageVersion Include="Microsoft.Maui.Essentials" Version="11.0.0-preview.4.26230.3" />
-    <PackageVersion Include="Microsoft.Maui.Resizetizer" Version="11.0.0-preview.4.26230.3" />
+    <!-- Match the installed .NET 11 RC1 MAUI workload. Non-MAUI projects like
+         ServiceDefaults have no $(MauiVersion), so all pins must be concrete. -->
+    <PackageVersion Include="Microsoft.AspNetCore.Components.WebView.Maui" Version="11.0.0-rc.1.26451.6" />
+    <PackageVersion Include="Microsoft.Maui.Controls" Version="11.0.0-rc.1.26451.6" />
+    <PackageVersion Include="Microsoft.Maui.Core" Version="11.0.0-rc.1.26451.6" />
+    <PackageVersion Include="Microsoft.Maui.Essentials" Version="11.0.0-rc.1.26451.6" />
+    <PackageVersion Include="Microsoft.Maui.Resizetizer" Version="11.0.0-rc.1.26451.6" />
     <PackageVersion Include="Microsoft.Maui.DevFlow.Agent" Version="0.25.0-dev" />
     <PackageVersion Include="Microsoft.Maui.DevFlow.Blazor" Version="0.25.0-dev" />
 
@@ -156,7 +153,7 @@
     <PackageVersion Include="ElevenLabs-DotNet" Version="3.7.2" />
 
     <!-- YouTube -->
-    <PackageVersion Include="YoutubeExplode" Version="6.5.6" />
+    <PackageVersion Include="YoutubeExplode" Version="6.6.0" />
 
     <!-- Utilities -->
     <PackageVersion Include="Scriban" Version="7.1.0" />
