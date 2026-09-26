@@ -19,10 +19,20 @@ using SentenceStudio.WebApp.Components;
 using SentenceStudio.WebApp.Platform;
 using SentenceStudio.WebApp.Platform.Theme;
 using SentenceStudio.WebUI.Services;
+using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
 using System.Globalization;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults("SentenceStudio.WebApp");
+
+// ASP.NET Core request instrumentation — added here (not in ServiceDefaults) because the
+// `OpenTelemetry.Instrumentation.AspNetCore` package references `Microsoft.AspNetCore.App`,
+// which has no runtime pack for MAUI RIDs (maccatalyst/ios/android). ServiceDefaults stays
+// MAUI-safe; each web host opts in locally.
+builder.Services.AddOpenTelemetry()
+    .WithMetrics(m => m.AddAspNetCoreInstrumentation())
+    .WithTracing(t => t.AddAspNetCoreInstrumentation());
 
 // PostgreSQL requires UTC DateTimes — enable legacy mode for SQLite-era DateTime.Now values
 AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
