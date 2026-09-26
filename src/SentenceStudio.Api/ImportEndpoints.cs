@@ -45,13 +45,9 @@ public static class ImportEndpoints
         if (string.IsNullOrEmpty(userProfileId))
             return Results.Unauthorized();
 
-        var import = await pipelineService.GetImportByIdAsync(id);
+        var import = await pipelineService.GetImportByIdAsync(id, userProfileId);
         if (import == null)
             return Results.NotFound();
-
-        // Verify ownership
-        if (import.UserProfileId != userProfileId)
-            return Results.Forbid();
 
         return Results.Ok(import);
     }
@@ -114,13 +110,9 @@ public static class ImportEndpoints
         if (string.IsNullOrEmpty(userProfileId))
             return Results.Unauthorized();
 
-        var import = await pipelineService.GetImportByIdAsync(id);
+        var import = await pipelineService.GetImportByIdAsync(id, userProfileId);
         if (import == null)
             return Results.NotFound();
-
-        // Verify ownership
-        if (import.UserProfileId != userProfileId)
-            return Results.Forbid();
 
         // Only retry failed or stuck imports
         var isStuck = import.Status != VideoImportStatus.Failed

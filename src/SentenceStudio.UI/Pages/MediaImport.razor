@@ -272,7 +272,7 @@
 }
 
 @code {
-    [Inject] private YouTubeImportService ImportSvc { get; set; } = default!;
+    [Inject] private IYouTubeImportService ImportSvc { get; set; } = default!;
     [Inject] private TranscriptFormattingService FormattingSvc { get; set; } = default!;
     [Inject] private LearningResourceRepository ResourceRepo { get; set; } = default!;
     [Inject] private UserProfileRepository ProfileRepo { get; set; } = default!;
@@ -352,7 +352,8 @@
         {
             if (VideoImportPipelineSvc != null)
             {
-                var cleaned = await VideoImportPipelineSvc.CleanupStaleImportsAsync();
+                var userId = Preferences.Get("active_profile_id", "");
+                var cleaned = await VideoImportPipelineSvc.CleanupStaleImportsAsync(userId);
                 if (cleaned > 0)
                 {
                     Logger.LogInformation("Cleaned up {Count} stale imports on page load", cleaned);
@@ -496,6 +497,13 @@
     {
         if (VideoImportPipelineSvc == null) return;
 
+        var userId = Preferences.Get("active_profile_id", "");
+        if (string.IsNullOrWhiteSpace(userId))
+        {
+            Toast.ShowError("Please sign in before retrying an import.");
+            return;
+        }
+
         retryingImportId = import.Id;
         StateHasChanged();
 
@@ -506,7 +514,7 @@
                 try
                 {
                     // RetryImportAsync now handles both Failed and stuck imports
-                    await VideoImportPipelineSvc.RetryImportAsync(import.Id);
+                    await VideoImportPipelineSvc.RetryImportAsync(import.Id, userId);
                 }
                 catch (Exception ex)
                 {

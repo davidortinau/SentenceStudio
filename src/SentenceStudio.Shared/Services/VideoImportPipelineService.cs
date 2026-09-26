@@ -32,7 +32,7 @@ public class VideoImportPipelineService : IVideoImportPipeline
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<VideoImportPipelineService> _logger;
-    private readonly YouTubeImportService _youtubeImport;
+    private readonly IYouTubeImportService _youtubeImport;
     private readonly TranscriptFormattingService _formatting;
     private readonly AiService _aiService;
     private readonly IFileSystemService _fileSystem;
@@ -41,7 +41,7 @@ public class VideoImportPipelineService : IVideoImportPipeline
     public VideoImportPipelineService(
         IServiceProvider serviceProvider,
         ILogger<VideoImportPipelineService> logger,
-        YouTubeImportService youtubeImport,
+        IYouTubeImportService youtubeImport,
         TranscriptFormattingService formatting,
         AiService aiService,
         IFileSystemService fileSystem,
@@ -60,6 +60,12 @@ public class VideoImportPipelineService : IVideoImportPipeline
 
     public async Task<List<VideoImport>> GetImportHistoryAsync(string userProfileId, int limit = 50)
     {
+        if (string.IsNullOrWhiteSpace(userProfileId))
+        {
+            _logger.LogWarning("GetImportHistoryAsync called without a user profile id");
+            return new List<VideoImport>();
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         return await db.VideoImports
@@ -69,22 +75,34 @@ public class VideoImportPipelineService : IVideoImportPipeline
             .ToListAsync();
     }
 
-    public async Task<VideoImport?> GetImportByIdAsync(string id)
+    public async Task<VideoImport?> GetImportByIdAsync(string id, string userProfileId)
     {
+        if (string.IsNullOrWhiteSpace(userProfileId))
+        {
+            _logger.LogWarning("GetImportByIdAsync called without a user profile id");
+            return null;
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         return await db.VideoImports
             .Include(vi => vi.LearningResource)
-            .FirstOrDefaultAsync(vi => vi.Id == id);
+            .FirstOrDefaultAsync(vi => vi.Id == id && vi.UserProfileId == userProfileId);
     }
 
     /// <summary>
     /// Retry a failed or stuck import by resetting its status and re-running the pipeline.
     /// Accepts Failed imports and any in-progress import older than the stale threshold.
     /// </summary>
-    public async Task RetryImportAsync(string importId)
+    public async Task RetryImportAsync(string importId, string userProfileId)
     {
-        var import = await GetImportByIdAsync(importId);
+        if (string.IsNullOrWhiteSpace(userProfileId))
+        {
+            _logger.LogWarning("RetryImportAsync called without a user profile id");
+            return;
+        }
+
+        var import = await GetImportByIdAsync(importId, userProfileId);
         if (import == null)
             throw new InvalidOperationException($"Import {importId} not found");
 
@@ -111,8 +129,14 @@ public class VideoImportPipelineService : IVideoImportPipeline
     /// Marks in-progress imports older than the threshold as Failed.
     /// Call on page load or startup to recover from orphaned pipeline tasks.
     /// </summary>
-    public async Task<int> CleanupStaleImportsAsync(TimeSpan? staleThreshold = null)
+    public async Task<int> CleanupStaleImportsAsync(string userProfileId, TimeSpan? staleThreshold = null)
     {
+        if (string.IsNullOrWhiteSpace(userProfileId))
+        {
+            _logger.LogWarning("CleanupStaleImportsAsync called without a user profile id");
+            return 0;
+        }
+
         var threshold = staleThreshold ?? TimeSpan.FromMinutes(10);
         var cutoff = DateTime.UtcNow - threshold;
 
@@ -120,7 +144,8 @@ public class VideoImportPipelineService : IVideoImportPipeline
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         var staleImports = await db.VideoImports
-            .Where(vi => vi.Status != VideoImportStatus.Completed
+            .Where(vi => vi.UserProfileId == userProfileId
+                      && vi.Status != VideoImportStatus.Completed
                       && vi.Status != VideoImportStatus.Failed
                       && vi.CreatedAt < cutoff)
             .ToListAsync();
@@ -129,11 +154,12 @@ public class VideoImportPipelineService : IVideoImportPipeline
 
         foreach (var import in staleImports)
         {
+            var previousStatus = import.Status;
             import.Status = VideoImportStatus.Failed;
-            import.ErrorMessage = $"Import timed out — stuck in {import.Status} for over {threshold.TotalMinutes:0} minutes.";
+            import.ErrorMessage = $"Import timed out — stuck in {previousStatus} for over {threshold.TotalMinutes:0} minutes.";
             import.CompletedAt = DateTime.UtcNow;
             _logger.LogWarning("Marking stale import {Id} ({Title}) as failed — was {Status} since {CreatedAt}",
-                import.Id, import.VideoTitle, import.Status, import.CreatedAt);
+                import.Id, import.VideoTitle, previousStatus, import.CreatedAt);
         }
 
         await db.SaveChangesAsync();
@@ -145,6 +171,12 @@ public class VideoImportPipelineService : IVideoImportPipeline
     /// </summary>
     public async Task<VideoImport?> GetFailedImportForVideoAsync(string videoId, string userProfileId)
     {
+        if (string.IsNullOrWhiteSpace(userProfileId))
+        {
+            _logger.LogWarning("GetFailedImportForVideoAsync called without a user profile id");
+            return null;
+        }
+
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         return await db.VideoImports
@@ -163,6 +195,12 @@ public class VideoImportPipelineService : IVideoImportPipeline
     /// </summary>
     public async Task<VideoImport> ImportFromUrlAsync(string videoUrl, string userProfileId, string? language = null)
     {
+        if (string.IsNullOrWhiteSpace(userProfileId))
+        {
+            _logger.LogWarning("ImportFromUrlAsync called without a user profile id");
+            throw new ArgumentException("A user profile id is required to import a video.", nameof(userProfileId));
+        }
+
         var import = new VideoImport
         {
             UserProfileId = userProfileId,
@@ -190,6 +228,12 @@ public class VideoImportPipelineService : IVideoImportPipeline
     /// </summary>
     public async Task RunPipelineAsync(VideoImport import)
     {
+        if (string.IsNullOrWhiteSpace(import.UserProfileId))
+        {
+            _logger.LogWarning("RunPipelineAsync called without a user profile id for import {ImportId}", import.Id);
+            throw new ArgumentException("A user profile id is required to run an import.", nameof(import));
+        }
+
         try
         {
             // ── Stage 1: Fetch metadata + transcript ──
@@ -232,7 +276,7 @@ public class VideoImportPipelineService : IVideoImportPipeline
             // ── Stage 3: Generate vocabulary ──
             await UpdateStatusAsync(import, VideoImportStatus.GeneratingVocabulary);
 
-            var vocabItems = await ExtractVocabularyAsync(cleaned, import.Language!);
+            var vocabItems = await ExtractVocabularyAsync(cleaned, import.Language!, import.UserProfileId);
 
             // ── Stage 4: Save LearningResource + VocabWords ──
             await UpdateStatusAsync(import, VideoImportStatus.SavingResource);
@@ -249,10 +293,23 @@ public class VideoImportPipelineService : IVideoImportPipeline
                 "Import completed: {Title} → {WordCount} vocab words",
                 import.VideoTitle, vocabItems.Count);
         }
+        catch (OperationCanceledException)
+        {
+            _logger.LogInformation("Import {ImportId} was cancelled", import.Id);
+            await FailImportAsync(import, "Import was cancelled.");
+            throw;
+        }
+        catch (VideoImportException ex)
+        {
+            _logger.LogWarning(ex,
+                "Import {ImportId} failed [{ErrorCode}]: {UserMessage}",
+                import.Id, ex.ErrorCode, ex.Message);
+            await FailImportAsync(import, ex.Message);
+        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Pipeline failed for import {Id}", import.Id);
-            await FailImportAsync(import, ex.Message);
+            _logger.LogError(ex, "Pipeline failed for import {ImportId} with unclassified error", import.Id);
+            await FailImportAsync(import, "An unexpected error occurred during import.");
         }
     }
 
@@ -295,26 +352,23 @@ public class VideoImportPipelineService : IVideoImportPipeline
     /// <summary>
     /// Uses AI to extract vocabulary pairs from a transcript.
     /// </summary>
-    private async Task<List<ExtractedVocabularyForImport>> ExtractVocabularyAsync(string transcript, string language)
+    private async Task<List<ExtractedVocabularyForImport>> ExtractVocabularyAsync(
+        string transcript, string language, string userProfileId)
     {
-        // Try to get user profile for language context (may not be available in Worker)
         string nativeLanguage = "English";
-        string targetLanguage = language ?? "Korean";
-        
-        try
+        string targetLanguage = language;
+
+        using (var scope = _serviceProvider.CreateScope())
         {
-            using var scope = _serviceProvider.CreateScope();
-            var userProfileRepo = scope.ServiceProvider.GetRequiredService<UserProfileRepository>();
-            var userProfile = await userProfileRepo.GetAsync();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var userProfile = await db.UserProfiles
+                .FirstOrDefaultAsync(profile => profile.Id == userProfileId);
             if (userProfile != null)
             {
                 nativeLanguage = userProfile.NativeLanguage ?? nativeLanguage;
-                targetLanguage = language ?? userProfile.TargetLanguage ?? targetLanguage;
             }
-        }
-        catch (Exception ex)
-        {
-            _logger.LogDebug("UserProfileRepository not available, using defaults: {Msg}", ex.Message);
+            else
+                _logger.LogWarning("Profile {UserProfileId} not found during video vocabulary extraction; using default native language", userProfileId);
         }
 
         // Load and render the ExtractVocabularyFromTranscript Scriban template
@@ -477,7 +531,7 @@ public class VideoImportPipelineService : IVideoImportPipeline
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         
-        var exists = await db.VideoImports.AnyAsync(v => v.Id == import.Id);
+        var exists = await db.VideoImports.AnyAsync(v => v.Id == import.Id && v.UserProfileId == import.UserProfileId);
         if (exists)
             db.VideoImports.Update(import);
         else

@@ -1,11 +1,42 @@
 using System;
 using System.IO;
+using System.Net.Http;
 using System.Threading.Tasks;
 using YoutubeExplode;
 using YoutubeExplode.Videos.Streams;
 using YoutubeExplode.Videos.ClosedCaptions;
 
 namespace SentenceStudio.Services;
+
+/// <summary>
+/// Structured exception for YouTube import failures with a classifiable error code.
+/// User-facing <see cref="Exception.Message"/> is sanitized (no video IDs or URLs).
+/// The original provider exception is preserved as <see cref="Exception.InnerException"/>
+/// for server-side diagnostics.
+/// </summary>
+public class VideoImportException : Exception
+{
+    /// <summary>Classification code for the import failure (for example, VideoUnavailable or RateLimited).</summary>
+    public string ErrorCode { get; }
+
+    public VideoImportException(string message, string errorCode, Exception? innerException = null)
+        : base(message, innerException)
+    {
+        ErrorCode = errorCode;
+    }
+}
+
+/// <summary>
+/// Abstraction over <see cref="YouTubeImportService"/> for testability.
+/// The pipeline and its unit tests depend on this interface, not the concrete type.
+/// </summary>
+public interface IYouTubeImportService
+{
+    Task<YoutubeExplode.Videos.Video> GetVideoMetadataAsync(string videoUrl);
+    Task<List<TranscriptTrack>> GetAvailableTranscriptsAsync(string videoUrl);
+    Task<string> DownloadTranscriptTextAsync(TranscriptTrack track);
+    Task<StreamHistory> ExtractAudioClipAsync(string videoUrl, double startTime, double duration);
+}
 
 public class TranscriptTrack
 {
@@ -15,7 +46,7 @@ public class TranscriptTrack
     public ClosedCaptionTrackInfo TrackInfo { get; set; }
 }
 
-public class YouTubeImportService
+public class YouTubeImportService : IYouTubeImportService
 {
     private readonly YoutubeClient _youtubeClient;
     private readonly AudioAnalyzer _audioAnalyzer;
@@ -26,13 +57,7 @@ public class YouTubeImportService
         _audioAnalyzer = audioAnalyzer;
     }
 
-    /// <summary>
-    /// Extracts audio from a YouTube video URL
-    /// </summary>
-    /// <param name="videoUrl">YouTube video URL</param>
-    /// <param name="startTime">Start time in seconds</param>
-    /// <param name="duration">Duration to extract in seconds</param>
-    /// <returns>Audio stream and metadata</returns>
+    /// <inheritdoc />
     public async Task<StreamHistory> ExtractAudioClipAsync(
         string videoUrl,
         double startTime,
@@ -40,65 +65,30 @@ public class YouTubeImportService
     {
         try
         {
-            // Parse the video Id from the URL
             var videoId = YoutubeExplode.Videos.VideoId.Parse(videoUrl);
-
-            // Get video metadata
             var video = await _youtubeClient.Videos.GetAsync(videoId);
-
-            // Get available media streams
             var streamManifest = await _youtubeClient.Videos.Streams.GetManifestAsync(videoId);
 
-            // Get the audio-only stream with highest quality
             var audioStreamInfo = streamManifest
                 .GetAudioOnlyStreams()
                 .Where(s => s.AudioCodec.StartsWith("mp4", StringComparison.OrdinalIgnoreCase))
                 .GetWithHighestBitrate();
 
             if (audioStreamInfo == null)
-                throw new Exception("No suitable audio stream found");
+                throw new VideoImportException(
+                    "No suitable audio stream found for this video.",
+                    "NoAudioStream");
 
-            // Download the full audio stream
             var fullAudioStream = await _youtubeClient.Videos.Streams.GetAsync(audioStreamInfo);
-
-            // Create a memory stream to hold our clipped audio
             var clippedAudioStream = new MemoryStream();
 
-            // Use FFmpeg to extract the specific clip
-            // using (var process = new System.Diagnostics.Process())
-            // {
-            //     process.StartInfo.FileName = "ffmpeg";
-            //     process.StartInfo.Arguments = $"-i pipe:0 -ss {startTime} -t {duration} -c:a pcm_s16le -ar 44100 -ac 1 -f wav pipe:1";
-            //     process.StartInfo.UseShellExecute = false;
-            //     process.StartInfo.RedirectStandardInput = true;
-            //     process.StartInfo.RedirectStandardOutput = true;
-            //     process.StartInfo.CreateNoWindow = true;
-
-            //     process.Start();
-
-            //     // Copy the input stream to FFmpeg
-            //     await fullAudioStream.CopyToAsync(process.StandardInput.BaseStream);
-            //     process.StandardInput.Close();
-
-            //     // Read the output stream from FFmpeg
-            //     await process.StandardOutput.BaseStream.CopyToAsync(clippedAudioStream);
-
-            //     process.WaitForExit();
-            // }
-
-            // Reset stream position
             fullAudioStream.Position = 0;
-
-            // Analyze the waveform
             var waveformData = await _audioAnalyzer.GetWaveformAsync(fullAudioStream, 1200);
-
-            // Reset stream position again
             fullAudioStream.Position = 0;
 
-            // Create the stream history object
             return new StreamHistory
             {
-                FileName = $"youtube_{videoId}_{startTime}_{duration}.wav",
+                FileName = $"youtube_clip_{startTime}_{duration}.wav",
                 Title = video.Title,
                 Source = "YouTube",
                 SourceUrl = videoUrl,
@@ -107,17 +97,29 @@ public class YouTubeImportService
                 Stream = clippedAudioStream
             };
         }
+        catch (OperationCanceledException) { throw; }
+        catch (VideoImportException) { throw; }
+        catch (YoutubeExplode.Exceptions.VideoUnavailableException ex)
+        {
+            throw ClassifyVideoUnavailable(ex);
+        }
+        catch (YoutubeExplode.Exceptions.RequestLimitExceededException ex)
+        {
+            throw ClassifyRateLimited(ex);
+        }
+        catch (HttpRequestException ex)
+        {
+            throw ClassifyNetwork(ex);
+        }
         catch (Exception ex)
         {
-            throw new Exception($"Failed to extract audio from YouTube: {ex.Message}", ex);
+            throw new VideoImportException(
+                "An unexpected error occurred while extracting audio.",
+                "Unknown", ex);
         }
     }
 
-    /// <summary>
-    /// Gets available transcript/closed caption tracks for a YouTube video
-    /// </summary>
-    /// <param name="videoUrl">YouTube video URL</param>
-    /// <returns>List of available transcript tracks</returns>
+    /// <inheritdoc />
     public async Task<List<TranscriptTrack>> GetAvailableTranscriptsAsync(string videoUrl)
     {
         try
@@ -139,17 +141,29 @@ public class YouTubeImportService
 
             return tracks;
         }
+        catch (OperationCanceledException) { throw; }
+        catch (VideoImportException) { throw; }
+        catch (YoutubeExplode.Exceptions.VideoUnavailableException ex)
+        {
+            throw ClassifyVideoUnavailable(ex);
+        }
+        catch (YoutubeExplode.Exceptions.RequestLimitExceededException ex)
+        {
+            throw ClassifyRateLimited(ex);
+        }
+        catch (HttpRequestException ex)
+        {
+            throw ClassifyNetwork(ex);
+        }
         catch (Exception ex)
         {
-            throw new Exception($"Failed to fetch transcripts: {ex.Message}", ex);
+            throw new VideoImportException(
+                "An unexpected error occurred while fetching transcripts.",
+                "Unknown", ex);
         }
     }
 
-    /// <summary>
-    /// Downloads the full transcript text from a specific track
-    /// </summary>
-    /// <param name="track">The transcript track to download</param>
-    /// <returns>Full transcript text</returns>
+    /// <inheritdoc />
     public async Task<string> DownloadTranscriptTextAsync(TranscriptTrack track)
     {
         try
@@ -164,17 +178,29 @@ public class YouTubeImportService
 
             return transcriptBuilder.ToString();
         }
+        catch (OperationCanceledException) { throw; }
+        catch (VideoImportException) { throw; }
+        catch (YoutubeExplode.Exceptions.VideoUnavailableException ex)
+        {
+            throw ClassifyVideoUnavailable(ex);
+        }
+        catch (YoutubeExplode.Exceptions.RequestLimitExceededException ex)
+        {
+            throw ClassifyRateLimited(ex);
+        }
+        catch (HttpRequestException ex)
+        {
+            throw ClassifyNetwork(ex);
+        }
         catch (Exception ex)
         {
-            throw new Exception($"Failed to download transcript: {ex.Message}", ex);
+            throw new VideoImportException(
+                "An unexpected error occurred while downloading transcript.",
+                "Unknown", ex);
         }
     }
 
-    /// <summary>
-    /// Gets video metadata for a YouTube video
-    /// </summary>
-    /// <param name="videoUrl">YouTube video URL</param>
-    /// <returns>Video metadata</returns>
+    /// <inheritdoc />
     public async Task<YoutubeExplode.Videos.Video> GetVideoMetadataAsync(string videoUrl)
     {
         try
@@ -182,9 +208,43 @@ public class YouTubeImportService
             var videoId = YoutubeExplode.Videos.VideoId.Parse(videoUrl);
             return await _youtubeClient.Videos.GetAsync(videoId);
         }
+        catch (OperationCanceledException) { throw; }
+        catch (VideoImportException) { throw; }
+        catch (YoutubeExplode.Exceptions.VideoUnavailableException ex)
+        {
+            throw ClassifyVideoUnavailable(ex);
+        }
+        catch (YoutubeExplode.Exceptions.RequestLimitExceededException ex)
+        {
+            throw ClassifyRateLimited(ex);
+        }
+        catch (HttpRequestException ex)
+        {
+            throw ClassifyNetwork(ex);
+        }
         catch (Exception ex)
         {
-            throw new Exception($"Failed to get video metadata: {ex.Message}", ex);
+            throw new VideoImportException(
+                "An unexpected error occurred while fetching video metadata.",
+                "Unknown", ex);
         }
     }
+
+    // ────────── Shared classifiers (no video ID / URL in user-facing message) ──────────
+
+    private static VideoImportException ClassifyVideoUnavailable(
+        YoutubeExplode.Exceptions.VideoUnavailableException ex) =>
+        new("This video is not accessible. It may be private, age-restricted, region-locked, or removed.",
+            "VideoUnavailable", ex);
+
+    private static VideoImportException ClassifyRateLimited(
+        YoutubeExplode.Exceptions.RequestLimitExceededException ex) =>
+        new("YouTube is temporarily rate-limiting requests. Please wait a few minutes and try again.",
+            "RateLimited", ex);
+
+    private static VideoImportException ClassifyNetwork(HttpRequestException ex) =>
+        new(ex.StatusCode is { } statusCode
+                ? $"Could not reach YouTube (HTTP {(int)statusCode}). Please try again later."
+                : "Could not reach YouTube. Please try again later.",
+            "NetworkError", ex);
 }

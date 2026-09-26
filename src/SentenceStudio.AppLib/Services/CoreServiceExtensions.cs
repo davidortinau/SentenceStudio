@@ -38,7 +38,7 @@ public static class CoreServiceExtensions
         services.AddSingleton<ShadowingService>();
         services.AddSingleton<VideoWatchingService>();
         services.AddSingleton<AudioAnalyzer>();
-        services.AddSingleton<YouTubeImportService>();
+        services.AddSingleton<IYouTubeImportService, YouTubeImportService>();
         services.AddSingleton<ElevenLabsSpeechService>();
         services.AddSingleton<DataExportService>();
         
