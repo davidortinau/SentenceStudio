@@ -1,3 +1,12 @@
+---
+name: "squad-version-check"
+description: "Internals of how @bradygaster/squad-cli stamps its version, how `squad upgrade` works (what it preserves vs overwrites), and how to probe the npm registry for the latest version from a coordinator prompt."
+allowedTools: []
+confidence: medium
+domain: squad-internals
+source: "Discovered by Data; validated in bradygaster/squad#1173 recon (2026-05-26)."
+---
+
 # SKILL: Squad CLI Internals — Version Stamping & Upgrade Mechanics
 
 **Confidence:** medium
@@ -48,6 +57,12 @@ Reads the stamped version back from `squad.agent.md`:
 ---
 
 ## `squad upgrade` Behavior
+
+**Repository policy:** This command is disabled in SentenceStudio's coordinator and
+command catalog while published templates can restore model-free assignment.
+Never use the procedure below as an instruction to execute it. A future
+maintainer must first audit the source and pass the post-regeneration policy
+gate described in `.squad/templates/session-init-reference.md`.
 
 **Source file:** `dist/cli/core/upgrade.js`
 

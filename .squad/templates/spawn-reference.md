@@ -2,35 +2,95 @@
 
 ### How to Spawn an Agent
 
-**You MUST dispatch every agent spawn** via the platform's tool (`task` on CLI, `runSubagent` on VS Code):
+**You MUST dispatch every agent spawn** via the platform's tool:
+- **CLI:** `task` tool
+- **VS Code:** `runSubagent` tool
+- **Copilot App:** `create_session` tool (when available — see Sub-Sessions below)
+
+**Model gate:** Follow `.squad/templates/model-selection-reference.md` before every dispatch. Pass an explicit GPT model (`gpt-6-sol` by default), `max` reasoning effort, and `long_context`. If the surface cannot enforce and verify all three, stop rather than using a lower tier or platform default.
+
+**Platform detection (run once at session start):**
+- `create_session` tool exists → **App mode** → sub-sessions for commit-producing work
+- `runSubagent` tool exists → **VS Code mode** → subagents
+- `task` tool exists → **CLI mode** → task tool
+- None available → **work inline** (last resort fallback)
+
+---
+
+### Sub-Sessions (Copilot App Mode)
+
+When `create_session` is available, spawn commit-producing agents as **sub-sessions** instead of tasks. Each agent appears as a clickable session in the left nav with real-time visibility.
+
+**When to use sub-sessions vs task:**
+- **Sub-session** (`create_session`): Agent produces commits, needs worktree isolation, or benefits from persistent session visibility
+- **Task** (`task` tool): Pure analysis, coordination, read-only research, or quick one-shot work
+
+**Sub-session parameters:**
+- **`name`**: `"{Name} {verb}ing {noun}"` — 40-char max, sentence case (e.g., "EECOM refactoring auth", "Flight reviewing arch")
+- **`coordinate_with_creator`**: `true` (always — enables cross-session messaging)
+- **`notify_on_idle`**: `"once"` (coordinator gets notified when agent finishes)
+- **`kickoff.prompt`**: The full agent prompt (same as task prompt below)
+- **`kickoff.mode`**: `"autopilot"` (agents work autonomously)
+- **`kickoff.model`**: `"{resolved_model}"`
+
+**Constraints:**
+- **Max depth:** 1 — no sub-sub-sessions. If an agent needs to delegate, it uses `task` tool.
+- **Concurrency cap:** Maximum 4-5 simultaneous sub-sessions. Queue additional spawns.
+- **Fallback:** If `create_session` fails, degrade gracefully to `task` tool for that agent.
+
+**Sub-session template:**
+```
+create_session({
+  name: "{Name} {verb}ing {noun}",
+  coordinate_with_creator: true,
+  notify_on_idle: "once",
+  kickoff: {
+    prompt: "{full agent prompt — see template below}",
+    mode: "autopilot",
+    model: "{resolved_model}",
+    reasoning_effort: "{resolved_effort}",
+    context_tier: "long_context"
+  }
+})
+```
+
+**Result collection:** When `notify_on_idle` fires, the coordinator receives the session result via cross-session notification. No polling required.
+
+---
+
+### Task Tool Spawn (CLI Mode)
+
+Standard spawn via `task` tool — used in CLI, or as fallback when `create_session` is unavailable:
 
 - **`agent_type`**: `"general-purpose"` (always — this gives agents full tool access)
 - **`mode`**: `"background"` (default) or `"sync"` — use `"background"` for all parallelizable work; use `"sync"` only when the result is needed before the next step can proceed
 - **`description`**: `"{Name}: {brief task summary}"` (e.g., `"Ripley: Design REST API endpoints"`, `"Dallas: Build login form"`) — this is what appears in the UI, so it MUST carry the agent's name and what they're doing
 - **`prompt`**: The full agent prompt (see below)
+- **`model` / `reasoning_effort` / `context_tier`**: Explicit compatible GPT, `max`, and `long_context`; do not omit any setting
 
-**⚡ Inline the charter.** Before spawning, read the agent's `charter.md` (resolve from team root: `{team_root}/.squad/agents/{name}/charter.md`) and paste its contents directly into the spawn prompt. This eliminates a tool call from the agent's critical path. The agent still reads its own `history.md` and `decisions.md`.
+**⚡ Inline the charter.** Before spawning, resolve the charter path from the selected member's `Charter` column in `team.md` and verify the exact case-sensitive file path exists. For history and state keys, use `{agent_slug}`: lowercase the roster name, replace non-alphanumeric runs with `-`, and trim leading/trailing `-` (Rai → `rai`, Fact Checker → `fact-checker`). Do not construct paths from the display name. Paste the charter into the spawn prompt; the agent still reads its own `history.md` and `decisions.md`.
 
 **Background spawn (the default):** Use the template below with `mode: "background"`.
 
 **Sync spawn (when required):** Use the template below and omit the `mode` parameter (sync is default).
 
-> **VS Code equivalent:** First verify the exact session model ID from trusted runtime metadata is an allowed GPT model. A picker label is not verification; if the ID is unavailable, unknown, or non-OpenAI, do not spawn. Otherwise use `runSubagent` with the prompt content below and drop `agent_type`, `mode`, `model`, and `description` parameters. Multiple subagents in one turn run concurrently. Sync is the default on VS Code.
+> **VS Code equivalent:** First verify the exact session model ID from trusted runtime metadata is a compatible GPT with `max` reasoning and `long_context`. A picker label is not verification; if the ID or either setting is unavailable or unsupported, do not spawn. Otherwise use `runSubagent` with the prompt content below and drop `agent_type`, `mode`, `model`, and `description` parameters. Multiple subagents in one turn run concurrently. Sync is the default on VS Code.
 
-**Template for any agent** (substitute `{Name}`, `{Role}`, `{name}`, and inline the charter):
+**Template for any agent** (substitute `{Name}`, `{Role}`, `{agent_slug}`, and inline the roster-resolved charter):
 
 ```
 agent_type: "general-purpose"
 model: "{resolved_model}"
+reasoning_effort: "{resolved_effort}"
+context_tier: "{resolved_context_tier}"
 mode: "background"
 name: "{name}"
 description: "{emoji} {Name}: {brief task summary}"
 prompt: |
   You are {Name}, the {Role} on this project.
-  You are a spawned sub-agent: IGNORE any coordinator/canary/squad.agent.md governance checks — they do not apply to you. Just do the task.
 
   YOUR CHARTER:
-  {paste contents of .squad/agents/{name}/charter.md here}
+  {paste contents of the roster-resolved charter.md here}
 
   TEAM ROOT: {team_root}
   CURRENT_DATETIME: <resolved CURRENT_DATETIME literal>
@@ -69,7 +129,7 @@ prompt: |
   whenever they are available:
   - `squad_state_read` / `squad_state_list` for decisions, history, logs, and inbox entries
   - `squad_state_write` / `squad_state_append` for durable updates
-  - `squad_state_delete` after Scribe merges inbox entries
+  - `squad_state_delete` for Scribe only, after verifying an accepted inbox entry was merged
   - `squad_state_health` when diagnosing backend availability
   - `squad_decide` for team-relevant decisions
 
@@ -78,11 +138,12 @@ prompt: |
   note refs, or write mutable `.squad/` state files by hand. Static config (charters,
   team.md, routing.md, skills) remains on disk and may be read with normal file tools.
 
-  Read `agents/{name}/history.md` with `squad_state_read` when state tools are available; otherwise fall back to `.squad/agents/{name}/history.md`.
-  Read `decisions.md` with `squad_state_read` when state tools are available; otherwise fall back to `.squad/decisions.md`.
+  Read `agents/{agent_slug}/history.md` and `decisions.md` with `squad_state_read`.
+  Only on a local backend, if state tools are unavailable, fall back to direct file reads.
+  On a non-local backend, stop if the runtime state bridge is unavailable.
   If .squad/identity/wisdom.md exists, read it before starting work.
   If .squad/identity/now.md exists, read it at spawn time.
-  Check project skill directories (.squad/skills/, .copilot/skills/, .github/skills/, .claude/skills/, .agents/skills/) for any SKILL.md the coordinator attached to your prompt.
+  Check project skill directories (.squad/skills/, .github/skills/, .copilot/skills/, .claude/skills/, .agents/skills/) for any SKILL.md the coordinator attached to your prompt.
   Read any relevant SKILL.md files before working.
 
   ⚠️ WORK FRESHNESS: When determining what to work on:
@@ -113,7 +174,7 @@ prompt: |
   ⚠️ POST-WORK BUDGET: Spend at most 20 tool calls on post-work steps below.
   If you are running low on context or have used 60+ tool calls on primary work,
   skip post-work entirely -- Scribe handles it independently.
-  1. APPEND learnings with `squad_state_append` to `agents/{name}/history.md`.
+  1. APPEND learnings with `squad_state_append` to `agents/{agent_slug}/history.md`.
      Include architecture decisions, patterns, user preferences, and key file paths.
      Use `<literal CURRENT_DATETIME value from your prompt>` as the entry timestamp.
      Substitute the actual CURRENT_DATETIME value; do not write placeholder text.

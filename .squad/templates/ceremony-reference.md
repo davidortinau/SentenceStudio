@@ -32,7 +32,7 @@ Ceremonies are declared in `.squad/ceremonies.md`. Each ceremony is a section wi
 | Trigger | `auto` | Fires automatically when Condition matches |
 | Trigger | `manual` | Only when user says "run {ceremony}" |
 | When | `before` | Runs before work batch spawns |
-| When | `after` | Runs after work batch completes |
+| When | `after` | Runs after work batch completes, before finalizing its artifact |
 | Condition | free text | Evaluated against current task context |
 | Facilitator | agent name | Who runs the meeting |
 | Participants | selector | Who attends |
@@ -66,9 +66,9 @@ TASK CONTEXT:
 ## Execution Rules
 
 1. **Before ceremonies** fire AFTER routing decisions but BEFORE agent spawn. The ceremony summary is included in all subsequent work-batch spawn prompts.
-2. **After ceremonies** fire when ALL agents in the batch have completed (success or failure).
+2. **After ceremonies** fire when ALL agents in the batch have completed (success or failure), before the output is finalized.
 3. **Manual ceremonies** fire only on explicit user request ("run retro", "do a design review").
-4. **Cooldown:** After a ceremony completes, skip auto-trigger checks for the immediately following step. This prevents ceremony loops.
+4. **Cooldown:** After a ceremony completes, skip auto-trigger checks for the immediately following step. Pre-Ship runs once per artifact revision, not for its own verdict, status replies, or Scribe logs. A rejected artifact is eligible again only after an independent new revision.
 5. **Participant resolution:**
    - `all-relevant` → agents routed to the current task
    - `all-involved` → agents that participated in the completed batch
@@ -79,4 +79,4 @@ TASK CONTEXT:
    📋 {CeremonyName} completed — facilitated by {Facilitator}.
    Decisions: {count} | Action items: {count}.
    ```
-8. **Failure handling:** If the facilitator fails or times out, log a warning and proceed with work. Ceremonies must never block the pipeline indefinitely.
+8. **Failure handling:** For advisory ceremonies, log a failure and proceed. Pre-Ship is a finalization gate: a failed or timed-out Fact Checker or Rai review is not approval. Stop finalization and report the unavailable verdict; do not retry in a loop or treat silence as Green.

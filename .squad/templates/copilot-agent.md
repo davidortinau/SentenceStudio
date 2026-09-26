@@ -12,7 +12,7 @@ When the user says "add copilot", "add the coding agent", or "use @copilot for i
    ```
 2. **Add capability profile** (below the roster table):
    ```markdown
-   <!-- copilot-auto-assign: true -->
+   <!-- copilot-auto-assign: false -->
    ### @copilot — Capability Profile
 
    | Capability | Level | Notes |
@@ -25,7 +25,7 @@ When the user says "add copilot", "add the coding agent", or "use @copilot for i
    | Test writing | 🟢 | Strong at adding tests for existing code |
    | Documentation | 🟢 | Generates docs from code effectively |
    ```
-3. **Add routing entries** to routing.md for appropriate work types.
+3. **Add a blocking rule** to routing.md; do not route issues to @copilot.
 4. **Do not create** `charter.md` — @copilot uses `copilot-instructions.md` instead.
 
 ## Comparison: Spawned Agent vs. @copilot
@@ -34,7 +34,7 @@ When the user says "add copilot", "add the coding agent", or "use @copilot for i
 |---|--------------|----------|
 | Execution model | Sync sub-task within session | Async — picks up assigned issues |
 | Branch convention | `squad/{issue}-{slug}` | `copilot/{slug}` |
-| Trigger | Coordinator spawns directly | Issue assignment |
+| Trigger | Coordinator spawns directly | Issue assignment (blocked for Squad) |
 | Charter source | `.squad/agents/{name}/charter.md` | `.github/copilot-instructions.md` |
 | Context window | Inherits full session context | Fresh context per issue |
 | Reviewer gating | ✅ Enforced by coordinator | ✅ Via PR review process |
@@ -52,42 +52,38 @@ In `team.md`, @copilot always appears as:
 - **No charter file** — configuration lives in `.github/copilot-instructions.md`.
 - **No history file** — work is tracked via PRs and issue comments.
 
-## Auto-Assign Behavior
+## Issue Assignment Gate
 
-Controlled by the HTML comment in team.md:
+Keep the HTML comment in team.md disabled:
 
 ```markdown
-<!-- copilot-auto-assign: true -->
+<!-- copilot-auto-assign: false -->
 ```
 
 | Setting | Behavior |
 |---------|----------|
-| `true` | Lead assigns routed issues to @copilot automatically via `gh issue edit --add-assignee @copilot` |
-| `false` | Lead presents recommendation; user confirms before assignment |
+| `true` | Forbidden for Squad; triage fails closed. |
+| `false` | Required. Lead routes issues to a Squad member; labels and manual issue assignments to @copilot remain blocked. |
+
+GitHub issue assignment can specify `agent_assignment.model: gpt-6-sol`, but cannot enforce `max` reasoning effort and `long_context`. The model-only request is retained in a permanently disabled workflow step for structural policy regression testing, not as an available dispatch path. Do not use the GitHub UI, `gh issue edit`, the issues API, or a token to assign @copilot. Lift the gate only when a supported interface can set and verify **all three** settings together.
 
 ## Lead Triage Integration
 
-During triage, Lead evaluates each issue against @copilot's capability profile:
+During triage, Lead may read @copilot's capability profile, but must route to a Squad member:
 
-1. **🟢 Match** — Auto-assign (if enabled) or recommend assignment.
-2. **🟡 Match** — Assign with note: "⚠️ May need review — @copilot is 🟡 for this type of work."
-3. **🔴 Match** — Skip @copilot; route to appropriate spawned agent or human.
+1. **🟢 Match** — Route to a Squad member; @copilot issue assignment is still blocked.
+2. **🟡 Match** — Route to a Squad member with appropriate review.
+3. **🔴 Match** — Route to the appropriate specialist.
 
 ## Routing Details
 
 Add to `routing.md`:
 
 ```markdown
-| bug fixes (isolated, test-covered) | @copilot 🤖 | Single-file fixes, test additions |
-| documentation updates | @copilot 🤖 | README, API docs, inline comments |
-| test coverage gaps | @copilot 🤖 | Adding missing test cases |
+| `squad:copilot` | Blocked: issue assignment cannot enforce GPT model, max effort, and long_context | No assignment |
 ```
 
-Work that routes to @copilot:
-- Creates/assigns the GitHub issue (if not already)
-- Does NOT spawn a sub-agent — @copilot works asynchronously
-- Coordinator reports: "🤖 Assigned #{number} to @copilot — will open a PR when ready."
-- Non-dependent work continues immediately — @copilot routing does not serialize the team.
+The coordinator must not claim that a label, dispatch, or issue assignment succeeded. Route this work to a member instead. Do not start a cloud agent session from an issue unless its interface enforces and verifies all three settings.
 
 ## Monitoring @copilot Work
 

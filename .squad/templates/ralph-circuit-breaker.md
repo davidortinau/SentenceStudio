@@ -1,14 +1,13 @@
-# Ralph Circuit Breaker — Model Rate Limit Fallback
+# Ralph Circuit Breaker — GPT-Only Rate Limit Fallback
 
 > Classic circuit breaker pattern (Hystrix / Polly / Resilience4j) applied to Copilot model selection.
-> When the preferred model hits rate limits, Ralph automatically switches to explicit OpenAI GPT fallbacks, then self-heals.
+> When the preferred GPT model hits rate limits, Ralph tries other high-quality GPT models, then self-heals.
 
 ## Problem
 
-When running multiple Ralph instances across repos, Copilot model rate limits cause cascading failures.
-All Ralphs fail simultaneously when the preferred model (for example, `gpt-5.6-sol`) hits quota.
+When running multiple Ralph instances across repos, a preferred model's rate limit can affect every instance. SentenceStudio uses the same GPT-only, maximum-quality policy for Ralph as for all other agents. Prefer `gpt-6-sol`; check the current platform catalog before attempting any fallback.
 
-Concurrent workers can exhaust the preferred model's quota together, so every retry must select an explicit GPT model.
+Concurrent workers can exhaust the preferred model's quota together, so every retry must select an explicit GPT that supports `max` reasoning and `long_context`.
 
 ## Circuit Breaker States
 
@@ -32,10 +31,12 @@ Concurrent workers can exhaust the preferred model's quota together, so every re
 - On rate limit error → transition to OPEN
 
 ### OPEN (rate limited — fallback active)
-- Fall back through the fast GPT model chain:
-  1. `gpt-5.4-mini`
-  2. `gpt-5-mini`
-- If every fallback is unavailable, stop and surface the model availability failure
+- Fall back through the strongest compatible GPT chain:
+  1. `gpt-6-astra`
+  2. `gpt-6-luna`
+  3. `gpt-5.6-sol`
+  4. `gpt-5.6-terra`
+- If no compatible GPT is available, stop and report the rate limit; never omit the model parameter or switch providers.
 - Start cooldown timer (default: 10 minutes)
 - When cooldown expires → transition to HALF-OPEN
 
@@ -49,8 +50,8 @@ Concurrent workers can exhaust the preferred model's quota together, so every re
 ```json
 {
   "state": "closed",
-  "preferredModel": "gpt-5.6-sol",
-  "fallbackChain": ["gpt-5.4-mini", "gpt-5-mini"],
+  "preferredModel": "gpt-6-sol",
+  "fallbackChain": ["gpt-6-astra", "gpt-6-luna", "gpt-5.6-sol", "gpt-5.6-terra"],
   "currentFallbackIndex": 0,
   "cooldownMinutes": 10,
   "openedAt": null,
@@ -75,14 +76,11 @@ Run this validation whenever persisted circuit-breaker state is loaded. It remov
 
 ```powershell
 $script:AllowedGptModels = @(
+    "gpt-6-sol",
+    "gpt-6-astra",
+    "gpt-6-luna",
     "gpt-5.6-sol",
-    "gpt-5.6-terra",
-    "gpt-5.6-luna",
-    "gpt-5.5",
-    "gpt-5.4",
-    "gpt-5.4-mini",
-    "gpt-5.3-codex",
-    "gpt-5-mini"
+    "gpt-5.6-terra"
 )
 
 function Test-AllowedGptModel {
@@ -94,8 +92,8 @@ function Test-AllowedGptModel {
 function New-DefaultCircuitBreakerState {
     return [pscustomobject]@{
         state                = "closed"
-        preferredModel       = "gpt-5.6-sol"
-        fallbackChain        = @("gpt-5.4-mini", "gpt-5-mini")
+        preferredModel       = "gpt-6-sol"
+        fallbackChain        = @("gpt-6-astra", "gpt-6-luna", "gpt-5.6-sol", "gpt-5.6-terra")
         currentFallbackIndex = 0
         cooldownMinutes      = 10
         openedAt             = $null
@@ -131,7 +129,7 @@ function ConvertTo-ValidatedCircuitBreakerState {
     }
 
     if (-not (Test-AllowedGptModel $State.preferredModel)) {
-        $State.preferredModel = "gpt-5.6-sol"
+        $State.preferredModel = "gpt-6-sol"
         $migrated = $true
     }
 
@@ -145,7 +143,7 @@ function ConvertTo-ValidatedCircuitBreakerState {
         $migrated = $true
     }
     if ($validatedFallbacks.Count -eq 0) {
-        $validatedFallbacks = @("gpt-5.4-mini", "gpt-5-mini")
+        $validatedFallbacks = @("gpt-6-astra", "gpt-6-luna", "gpt-5.6-sol", "gpt-5.6-terra")
         $migrated = $true
     }
     $State.fallbackChain = $validatedFallbacks
@@ -213,6 +211,12 @@ function Get-CurrentModel {
     param([string]$StateFile = ".squad/ralph-circuit-breaker.json")
 
     $cb = Get-CircuitBreakerState -StateFile $StateFile
+    if (-not $cb.fallbackChain -or $cb.preferredModel -notmatch '^gpt-[a-z0-9.-]+$' -or @($cb.fallbackChain | Where-Object { $_ -notmatch '^gpt-[a-z0-9.-]+$' }).Count -gt 0) {
+        throw "Ralph requires GPT-only preferred and fallback models."
+    }
+    if ($cb.state -notin @("closed", "open", "half-open")) {
+        throw "Unknown Ralph circuit-breaker state: $($cb.state)"
+    }
 
     $model = switch ($cb.state) {
         "closed" {
@@ -235,7 +239,10 @@ function Get-CurrentModel {
                 }
             }
             # Still in cooldown — use fallback
-            $idx = [Math]::Min($cb.currentFallbackIndex, $cb.fallbackChain.Count - 1)
+            if ($cb.currentFallbackIndex -lt 0 -or $cb.currentFallbackIndex -ge $cb.fallbackChain.Count) {
+                throw "Ralph fallback index is out of range."
+            }
+            $idx = $cb.currentFallbackIndex
             $cb.fallbackChain[$idx]
             break
         }
@@ -323,7 +330,7 @@ function Update-CircuitBreakerOnRateLimit {
             Write-Host "  [circuit-breaker] Fallback also limited — trying $nextModel" -ForegroundColor Red
         } else {
             Save-CircuitBreakerState -State $cb -StateFile $StateFile
-            throw "All configured OpenAI GPT fallback models are unavailable."
+            throw "No compatible GPT fallback remains; stop Ralph rather than choosing a platform default."
         }
         # Reset cooldown timer
         $cb.openedAt = (Get-Date).ToString("o")
@@ -334,17 +341,18 @@ function Update-CircuitBreakerOnRateLimit {
 
 ## Integration with ralph-watch.ps1
 
-In your Ralph polling loop, wrap the model selection:
+The installed `squad watch --execute` reads `watch.copilotFlags` from `.squad/config.json`; this project's configuration passes `--agent squad --model gpt-6-sol --reasoning-effort max --context long_context --allow-all-tools`. A CLI `--copilot-flags` override replaces that setting and MUST supply all five flags. If Copilot rejects the selected GPT or either capability, stop instead of retrying without them. When using a custom `ralph-watch.ps1` polling loop, wrap the model selection:
 
 ```powershell
-# At the top of your polling loop
-$model = Get-CurrentModel
-
-# When invoking copilot CLI
-$result = copilot-cli --model $model ...
+# Verify this GPT supports max reasoning and long_context before dispatch.
+# Never start a session on an implicit model or capability tier.
+$result = & copilot -C $repo --agent squad --model gpt-6-sol --reasoning-effort max --context long_context -p $prompt --allow-all-tools 2>&1
+if ($LASTEXITCODE -ne 0 -and ($result -join "`n") -notmatch "rate.?limit|429|quota|Too Many Requests") {
+    throw "Ralph launch failed; do not retry with platform defaults."
+}
 
 # After the call
-if ($result -match "rate.?limit" -or $LASTEXITCODE -eq 429) {
+if (($result -join "`n") -match "rate.?limit|429|quota|Too Many Requests") {
     Update-CircuitBreakerOnRateLimit
 } else {
     Update-CircuitBreakerOnSuccess
@@ -354,24 +362,25 @@ if ($result -match "rate.?limit" -or $LASTEXITCODE -eq 429) {
 ### Full integration example
 
 ```powershell
-# Source the circuit breaker functions
-. .squad-templates/ralph-circuit-breaker-functions.ps1
+# Define or import the validated circuit-breaker functions above before this loop.
 
 while ($true) {
-    $model = Get-CurrentModel
-    Write-Host "Polling with model: $model"
+    Write-Host "Polling with model: gpt-6-sol"
 
     try {
-        # Your existing Ralph logic here, but pass $model
-        $response = Invoke-RalphCycle -Model $model
+        # The selected GPT must support max reasoning and long_context.
+        $response = & copilot -C $repo --agent squad --model gpt-6-sol --reasoning-effort max --context long_context -p $prompt --allow-all-tools 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "Ralph session failed: $($response -join "`n")"
+        }
 
-        # Success path
         Update-CircuitBreakerOnSuccess
     }
     catch {
         if ($_.Exception.Message -match "rate.?limit|429|quota|Too Many Requests") {
             Update-CircuitBreakerOnRateLimit
-            # Retry immediately with fallback model
+            # Wait before retrying the same explicit GPT; never downgrade quality.
+            Start-Sleep -Seconds $pollInterval
             continue
         }
         # Other errors — handle normally
@@ -388,11 +397,11 @@ Override defaults by editing `.squad/ralph-circuit-breaker.json`:
 
 | Field | Default | Description |
 |-------|---------|-------------|
-| `preferredModel` | `gpt-5.6-sol` | Model to use when circuit is closed |
-| `fallbackChain` | `["gpt-5.4-mini", "gpt-5-mini"]` | Ordered OpenAI GPT fallback models |
+| `preferredModel` | `gpt-6-sol` | Explicit GPT to use when circuit is closed |
+| `fallbackChain` | `["gpt-6-astra", "gpt-6-luna", "gpt-5.6-sol", "gpt-5.6-terra"]` | Ordered compatible GPT fallbacks; verify `max` and `long_context` before dispatch |
 | `cooldownMinutes` | `10` | How long to wait before testing recovery |
 
-`Get-CircuitBreakerState` validates these persisted model fields on every load. Unsupported values are never selected: an invalid preferred model becomes `gpt-5.6-sol`, unsupported fallback entries are discarded, and an empty validated chain becomes the GPT-only default chain.
+`Get-CircuitBreakerState` validates these persisted model fields on every load. Unsupported values are never selected: an invalid preferred model becomes `gpt-6-sol`, unsupported fallback entries are discarded, and an empty validated chain becomes the GPT-only default chain. Before launch, verify the selected GPT still supports `max` reasoning and `long_context` in the current session; otherwise stop.
 
 ## Metrics
 

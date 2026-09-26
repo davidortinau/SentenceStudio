@@ -1,67 +1,97 @@
 name: Squad Issue Assign
 
 on:
+  push:
+  pull_request:
   issues:
     types: [labeled]
+  workflow_dispatch:
+    inputs:
+      issue_number:
+        description: Issue to assign after automated triage
+        required: true
+        type: string
+
+concurrency:
+  group: squad-issue-assign-${{ github.event.issue.number || inputs.issue_number || github.ref }}
+  cancel-in-progress: false
 
 permissions:
-  issues: write
   contents: read
 
 jobs:
-  assign-work:
-    # Only trigger on squad:{member} labels (not the base "squad" label)
-    if: startsWith(github.event.label.name, 'squad:')
+  policy-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
+      - name: Check Squad policy and mutations
+        run: |
+          node .github/skills/squad/scripts/check-policy.js
+          node --test .github/skills/squad/scripts/*.test.js
+
+  assign-work:
+    needs: policy-check
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'issues' && startsWith(github.event.label.name, 'squad:'))
+    permissions:
+      issues: write
+      contents: read
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
 
       - name: Identify assigned member and trigger work
-        uses: actions/github-script@v7
+        id: route
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b #v7
         with:
           script: |
             const fs = require('fs');
-            const issue = context.payload.issue;
-            const label = context.payload.label.name;
-
-            // Extract member name from label (e.g., "squad:ripley" → "ripley")
-            const memberName = label.replace('squad:', '').toLowerCase();
-
-            // Read team roster — check .squad/ first, fall back to .ai-team/
-            let teamFile = '.squad/team.md';
-            if (!fs.existsSync(teamFile)) {
-              teamFile = '.ai-team/team.md';
+            const dispatched = context.eventName === 'workflow_dispatch';
+            if (dispatched || context.payload.label?.name?.toLowerCase() === 'squad:copilot') {
+              throw new Error('Squad @copilot issue assignment blocked: GitHub cannot enforce gpt-6-sol, max reasoning effort, and long_context together');
             }
+            const issueNumber = context.payload.issue.number;
+            if (!Number.isSafeInteger(issueNumber) || issueNumber < 1) {
+              throw new Error('Invalid issue_number for Squad assignment');
+            }
+            const issue = context.payload.issue;
+            if (issue.state !== 'open' || issue.pull_request) {
+              core.info('Issue is closed or is a pull request; no assignment');
+              return;
+            }
+            const label = context.payload.label.name;
+            if (!issue.labels.some(l => l.name === label)) {
+              core.info(`Issue #${issueNumber} no longer has ${label}; no assignment`);
+              return;
+            }
+
+            // Match the slug used by sync-squad-labels (e.g., Fact Checker → fact-checker).
+            const memberName = label.replace('squad:', '').toLowerCase();
+            const slugify = name => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+            const teamFile = '.squad/team.md';
             if (!fs.existsSync(teamFile)) {
-              core.warning('No .squad/team.md or .ai-team/team.md found — cannot assign work');
+              core.warning('No .squad/team.md found — cannot assign work');
               return;
             }
 
             const content = fs.readFileSync(teamFile, 'utf8');
             const lines = content.split('\n');
 
-            // Check if this is a coding agent assignment
-            const isCopilotAssignment = memberName === 'copilot';
-
             let assignedMember = null;
-            if (isCopilotAssignment) {
-              assignedMember = { name: '@copilot', role: 'Coding Agent' };
-            } else {
-              let inMembersTable = false;
-              for (const line of lines) {
-                if (line.match(/^##\s+(Members|Team Roster)/i)) {
-                  inMembersTable = true;
-                  continue;
-                }
-                if (inMembersTable && line.startsWith('## ')) {
+            let inMembersTable = false;
+            for (const line of lines) {
+              if (line.match(/^##\s+(Members|Team Roster)/i)) {
+                inMembersTable = true;
+                continue;
+              }
+              if (inMembersTable && line.startsWith('## ')) {
+                break;
+              }
+              if (inMembersTable && line.startsWith('|') && !line.includes('---') && !line.includes('Name')) {
+                const cells = line.split('|').map(c => c.trim()).filter(Boolean);
+                if (cells.length >= 2 && slugify(cells[0]) === memberName) {
+                  assignedMember = { name: cells[0], role: cells[1] };
                   break;
-                }
-                if (inMembersTable && line.startsWith('|') && !line.includes('---') && !line.includes('Name')) {
-                  const cells = line.split('|').map(c => c.trim()).filter(Boolean);
-                  if (cells.length >= 2 && cells[0].toLowerCase() === memberName) {
-                    assignedMember = { name: cells[0], role: cells[1] };
-                    break;
-                  }
                 }
               }
             }
@@ -72,37 +102,20 @@ jobs:
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 issue_number: issue.number,
-                body: `⚠️ No squad member found matching label \`${label}\`. Check \`.squad/team.md\` (or \`.ai-team/team.md\`) for valid member names.`
+                body: `⚠️ No squad member found matching label \`${label}\`. Check \`.squad/team.md\` for valid member names.`
               });
               return;
             }
 
-            // Post assignment acknowledgment
-            let comment;
-            if (isCopilotAssignment) {
-              comment = [
-                `### 🤖 Routed to @copilot (Coding Agent)`,
-                '',
-                `**Issue:** #${issue.number} — ${issue.title}`,
-                '',
-                `@copilot has been assigned and will pick this up automatically.`,
-                '',
-                `> The coding agent will create a \`copilot/*\` branch and open a draft PR.`,
-                `> Review the PR as you would any team member's work.`,
-              ].join('\n');
-            } else {
-              comment = [
-                `### 📋 Assigned to ${assignedMember.name} (${assignedMember.role})`,
-                '',
-                `**Issue:** #${issue.number} — ${issue.title}`,
-                '',
-                `${assignedMember.name} will pick this up in the next Copilot session.`,
-                '',
-                `> **For Copilot coding agent:** If enabled, this issue will be worked automatically.`,
-                `> Otherwise, start a Copilot session and say:`,
-                `> \`${assignedMember.name}, work on issue #${issue.number}\``,
-              ].join('\n');
-            }
+            const comment = [
+              `### 📋 Assigned to ${assignedMember.name} (${assignedMember.role})`,
+              '',
+              `**Issue:** #${issue.number} — ${issue.title}`,
+              '',
+              `${assignedMember.name} will pick this up in the next Squad session.`,
+              '',
+              `> To reassign, swap the \`squad:*\` label.`,
+            ].join('\n');
 
             await github.rest.issues.createComment({
               owner: context.repo.owner,
@@ -111,67 +124,59 @@ jobs:
               body: comment
             });
 
-            core.info(`Issue #${issue.number} assigned to ${assignedMember.name} (${assignedMember.role})`);
+            core.info(`Issue #${issue.number} routed to ${assignedMember.name} (${assignedMember.role})`);
 
-      # Separate step: assign @copilot using PAT (required for coding agent)
       - name: Assign @copilot coding agent
-        if: github.event.label.name == 'squad:copilot'
-        uses: actions/github-script@v7
+        # Kept as a policy-checked request shape; never run without a supported effort/context interface.
+        if: ${{ false }}
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b #v7
         with:
           github-token: ${{ secrets.COPILOT_ASSIGN_TOKEN }}
           script: |
-            const fs = require('fs');
+            throw new Error('Squad @copilot issue assignment blocked: max reasoning effort and long_context cannot be enforced');
             const owner = context.repo.owner;
             const repo = context.repo.repo;
-            const issue_number = context.payload.issue.number;
-            const allowedGptModels = new Set([
-              'gpt-5.6-sol',
-              'gpt-5.6-terra',
-              'gpt-5.6-luna',
-              'gpt-5.5',
-              'gpt-5.4',
-              'gpt-5.4-mini',
-              'gpt-5.3-codex',
-              'gpt-5-mini'
-            ]);
-            let assignmentModel = 'gpt-5.6-sol';
-            const configFile = '.squad/config.json';
-            if (fs.existsSync(configFile)) {
-              try {
-                const configuredModel = JSON.parse(fs.readFileSync(configFile, 'utf8')).defaultModel;
-                if (typeof configuredModel === 'string' && allowedGptModels.has(configuredModel)) {
-                  assignmentModel = configuredModel;
-                } else {
-                  core.warning(`Ignoring invalid defaultModel in ${configFile}; using ${assignmentModel}.`);
-                }
-              } catch (err) {
-                core.warning(`Could not read ${configFile}; using ${assignmentModel}: ${err.message}`);
-              }
+            const issue_number = context.eventName === 'workflow_dispatch'
+              ? Number(context.payload.inputs.issue_number)
+              : context.payload.issue.number;
+            const { data: issue } = await github.rest.issues.get({ owner, repo, issue_number });
+            if (issue.state !== 'open' || !issue.labels.some(l => l.name === 'squad:copilot')) {
+              core.info(`Issue #${issue_number} is closed or no longer routed to Copilot`);
+              return;
+            }
+            if (issue.assignees.some(a => a.login === 'copilot-swe-agent[bot]')) {
+              core.info(`Issue #${issue_number} already has Copilot assigned`);
+              return;
             }
 
             // Get the default branch name (main, master, etc.)
             const { data: repoData } = await github.rest.repos.get({ owner, repo });
             const baseBranch = repoData.default_branch;
 
-            try {
-              await github.request('POST /repos/{owner}/{repo}/issues/{issue_number}/assignees', {
-                owner,
-                repo,
-                issue_number,
-                assignees: ['copilot-swe-agent[bot]'],
-                agent_assignment: {
-                  target_repo: `${owner}/${repo}`,
-                  base_branch: baseBranch,
-                  custom_instructions: '',
-                  custom_agent: '',
-                  model: assignmentModel
-                },
-                headers: {
-                  'X-GitHub-Api-Version': '2022-11-28'
-                }
-              });
-              core.info(`Assigned copilot-swe-agent to issue #${issue_number} (base: ${baseBranch}, model: ${assignmentModel})`);
-            } catch (err) {
-              core.setFailed(`Copilot assignment refused because explicit model ${assignmentModel} could not be carried: ${err.message}`);
-              throw err;
+            await github.request('POST /repos/{owner}/{repo}/issues/{issue_number}/assignees', {
+              owner,
+              repo,
+              issue_number,
+              assignees: ['copilot-swe-agent[bot]'],
+              agent_assignment: {
+                target_repo: `${owner}/${repo}`,
+                base_branch: baseBranch,
+                custom_instructions: '',
+                custom_agent: '',
+                model: 'gpt-6-sol'
+              },
+              headers: {
+                'X-GitHub-Api-Version': '2022-11-28'
+              }
+            });
+            const { data: assigned } = await github.rest.issues.get({ owner, repo, issue_number });
+            if (!assigned.assignees.some(a => a.login === 'copilot-swe-agent[bot]')) {
+              throw new Error(`Copilot was not assigned to issue #${issue_number}; no model-free retry`);
             }
+            core.info(`Assigned copilot-swe-agent to issue #${issue_number} with gpt-6-sol (base: ${baseBranch})`);
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number,
+              body: `Routed to @copilot with explicit GPT model gpt-6-sol. Review the resulting draft PR.`
+            });

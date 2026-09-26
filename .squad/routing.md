@@ -14,13 +14,15 @@ How to decide who handles what.
 | AI prompts, LLM integration, grading | River | Design grading prompt, tune AI response, add new prompt template |
 | AI response models, structured output | River | Create response DTO, adjust JSON schema, fix parsing |
 | Code review, quality gates | Zoe | Review PRs, check quality, suggest improvements |
+| Responsible AI, privacy, safety, credential review | Rai | Review user-facing output and sensitive configuration before shipping |
+| Claim verification, external references, Devil's Advocate | Fact Checker | Validate package versions and API claims; challenge architecture assumptions |
 | Architecture, system design | Zoe | Project structure, dependency flow, API contracts |
 | Learning-activity UX changes (modes, directions, prompts, toggles) | Zoe (Learning Value Gate) | New activity, new mode, show/hide toggle, prompt direction, photo/audio prompt — see `.squad/skills/learning-value-gate/SKILL.md` |
 | Scope & priorities | Zoe | What to build next, trade-offs, decisions |
 | Issue triage | Zoe | Analyze issues, assign labels, evaluate @copilot fit |
 | Testing, E2E verification | Jayne | Run Playwright tests, verify database, check logs |
 | Bug verification, regression checks | Jayne | Confirm fix works, check for side effects |
-| Async issue work (bugs, tests, small features) | @copilot 🤖 | Well-defined tasks matching capability profile |
+| Async issue work (bugs, tests, small features) | Squad member | @copilot issue assignment is blocked until all three model settings are enforceable |
 | Session logging | Scribe | Automatic — never needs routing |
 
 ## Issue Routing
@@ -29,26 +31,24 @@ How to decide who handles what.
 |-------|--------|-----|
 | `squad` | Triage: analyze issue, evaluate @copilot fit, assign `squad:{member}` label | Lead |
 | `squad:{name}` | Pick up issue and complete the work | Named member |
-| `squad:copilot` | Assign to @copilot for autonomous work (if enabled) | @copilot 🤖 |
+| `squad:copilot` | Block: no GitHub issue assignment can enforce model, max effort, and long_context together | No assignment |
 
 ### How Issue Assignment Works
 
-1. When a GitHub issue gets the `squad` label, the **Lead** triages it — analyzing content, evaluating @copilot's capability profile, assigning the right `squad:{member}` label, and commenting with triage notes.
-2. **@copilot evaluation:** The Lead checks if the issue matches @copilot's capability profile (🟢 good fit / 🟡 needs review / 🔴 not suitable). If it's a good fit, the Lead may route to `squad:copilot` instead of a squad member.
+1. When a GitHub issue gets the `squad` label, the **Lead** triages it — analyzing content, assigning the right human/Squad `squad:{member}` label, and commenting with triage notes.
+2. **@copilot evaluation:** The capability profile is informational only; even a good fit must be routed to a Squad member rather than `squad:copilot`.
 3. When a `squad:{member}` label is applied, that member picks up the issue in their next session.
-4. When `squad:copilot` is applied and auto-assign is enabled, `@copilot` is assigned on the issue and picks it up autonomously.
+4. When `squad:copilot` is applied (manually or automatically), assignment fails closed. Do not manually assign via the GitHub UI, CLI, or API until an interface can set and verify GPT model, maximum reasoning effort, and long_context together.
 5. Members can reassign by removing their label and adding another member's label.
 6. The `squad` label is the "inbox" — untriaged issues waiting for Lead review.
 
-### Lead Triage Guidance for @copilot
+### @copilot Capability Profile (Informational Only)
 
-When triaging, the Lead should ask:
+When triaging, the Lead may use these questions to select a Squad member, not to assign @copilot:
 
-1. **Is this well-defined?** Clear title, reproduction steps or acceptance criteria, bounded scope → likely 🟢
-2. **Does it follow existing patterns?** Adding a test, fixing a known bug, updating a dependency → likely 🟢
-3. **Does it need design judgment?** Architecture, API design, UX decisions → likely 🔴
-4. **Is it security-sensitive?** Auth, encryption, access control → always 🔴
-5. **Is it medium complexity with specs?** Feature with clear requirements, refactoring with tests → likely 🟡
+1. Clear title and acceptance criteria help a member pick up work.
+2. Familiar patterns and tests help a member bound the scope.
+3. Design or security concerns require the appropriate specialist.
 
 ## Rules
 
@@ -59,4 +59,4 @@ When triaging, the Lead should ask:
 5. **"Team, ..." → fan-out.** Spawn all relevant agents in parallel as `mode: "background"`.
 6. **Anticipate downstream work.** If a feature is being built, spawn the tester to write test cases from requirements simultaneously.
 7. **Issue-labeled work** — when a `squad:{member}` label is applied to an issue, route to that member. The Lead handles all `squad` (base label) triage.
-8. **@copilot routing** — when evaluating issues, check @copilot's capability profile in `team.md`. Route 🟢 good-fit tasks to `squad:copilot`. Flag 🟡 needs-review tasks for PR review. Keep 🔴 not-suitable tasks with squad members.
+8. **@copilot issue assignment gate** — no automated or manual @copilot issue assignment while GitHub's issue interface cannot enforce the GPT model, maximum reasoning effort, and long_context together. Fail closed on `squad:copilot` labels and dispatches; route issues to Squad members instead. A model-only request does not meet the policy.

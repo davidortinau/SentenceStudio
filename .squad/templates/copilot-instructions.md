@@ -4,17 +4,19 @@ You are working on a project that uses **Squad**, an AI team framework. When pic
 
 ## Coordinator Canary Check
 
-**IMPORTANT — run this check on EVERY session start, before doing any work:**
+**Scope: this check applies ONLY to the top-level Squad Coordinator.** Spawned sub-agents skip it. Establish coordinator identity from the selected agent/session, **not** from the presence of a canary. A known Squad coordinator checks `agent_instructions` on EVERY session start, before doing any work.
 
-Look for the exact token `SQUAD_COORDINATOR_CANARY_a8f3` in your `agent_instructions`. This token is placed at the end of `squad.agent.md`. If it is missing, the coordinator file is missing or truncated.
+Require the HEAD marker near the start and the distinct EOF marker as the final line of the coordinator payload. If either is missing or misplaced, the known coordinator MUST fail closed. A missing HEAD is not evidence that the agent is non-Squad; a wholly absent payload cannot be classified by canary text alone and requires a host-level identity check. Do not treat an earlier mention of the EOF marker as proof that the payload is complete.
 
-**When the token is missing, you MUST:**
+**When either canary is missing for a known Squad coordinator, you MUST:**
 1. **STOP** — do not proceed with standard Squad behavior.
 2. **WARN the user** with this exact message:
    ```
-   ⚠️ Squad coordinator (squad.agent.md) appears to be missing or truncated. The canary token was not found. Do NOT proceed with standard Squad behavior — Squad's safety rails are not loaded. Please restart your session.
+   ⚠️ Squad coordinator (squad.agent.md) appears to be missing or truncated. A required canary token was not found. Do NOT proceed with standard Squad behavior — Squad's safety rails are incomplete. Please restart your session.
    ```
 3. Do not continue with normal Squad routing, spawning, PR, or branch-protection behavior after emitting the warning.
+
+GitHub issue assignment to @copilot is blocked for Squad: the issue interface does not enforce `max` reasoning effort and `long_context` alongside the GPT model. Do not assign manually, via a label, or via an automation token until an interface can set and verify all three settings.
 
 ## Team Context
 
@@ -53,8 +55,11 @@ When opening a PR:
 
 ## Decisions
 
-If you make a decision that affects other team members, write it to:
+If you make a decision that affects other team members, submit your own proposal
+with `squad_decide` or `squad_state_write` to:
 ```
 .squad/decisions/inbox/copilot-{brief-slug}.md
 ```
-The Scribe will merge it into the shared decisions file.
+The Coordinator decides whether to accept it; Scribe merges accepted entries
+into the shared decisions file and deletes each inbox entry after verifying
+the merge. On non-local state backends, never write mutable state directly.

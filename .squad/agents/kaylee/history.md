@@ -69,3 +69,18 @@ Carry-forward: any wrapper inserted between the page host and `.activity-page-wr
 - Rejection handoff to an independent revision owner works when blocker scope is unrelated to the original owner or requires fresh default-state analysis.
 - Zoe's exact default-state tests resolved a native-text-feedback reveal vulnerability after Kaylee lockout; carry this approach forward for layered feature work.
 - Simon's DEBUG-only native photo viewer prototype may affect Kaylee integration if fullscreen overlay z-order or safe-area handling conflicts with existing WebView layers.
+
+
+## 2026-08-06: YouTube import production failure fix (APPROVED)
+
+**Session:** 2026-08-06T12-24 — YouTube import production failure investigation and fix
+**Outcome:** Wash attempted initial fix (REJECTED by Zoe — WebServiceDefaults edits, invalid tests, incomplete classification). Simon attempted second fix (REJECTED by Zoe — DI mismatch in Blazor pages). Kaylee completed final fix (APPROVED by Zoe).
+
+**Kaylee's contributions:**
+- Fixed DI mismatch: MediaImport.razor and ChannelDetail.razor changed to inject `IYouTubeImportService` instead of concrete type
+- Added regression tests: `YouTubeImportDiRegistrationTests.cs` (interface resolves, concrete type not directly resolvable)
+- Fixed WebApp telemetry config: Added `appsettings.Production.json` with `AzureMonitor:ConnectionString`
+- Diagnosed and fixed NU1101 build failure: User-level `~/.nuget/NuGet/NuGet.Config` had nuget.org disabled; added `<disabledPackageSources><clear />` to `src/NuGet.config` per NuGet/Home#14530
+- Result: Full test suite 1001/1001 passing, WebApp builds, API builds, Zoe full diff approval
+
+**Status:** Ready for deployment; E2E blocked by Docker Desktop macOS admin dialog for com.docker.vmnetd

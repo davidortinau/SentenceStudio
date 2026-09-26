@@ -111,17 +111,17 @@ When an update is available, append to the normal greeting (on the same line,
 separated by ` · `):
 
 ```
- · 🆕 v{latestVersionForChannel} available — say "upgrade squad"
+ · 🆕 v{latestVersionForChannel} available — say "what's new"
 ```
 
 Example complete greeting line:
 ```
-Squad v0.9.4-insider.1 · 🆕 v0.9.7-insider.1 available — say "upgrade squad"
+Squad v0.9.4-insider.1 · 🆕 v0.9.7-insider.1 available — say "what's new"
 ```
 
 Do not mention the update check, the cache, or the mechanism. Just the notice.
 
-### 1.6 Upgrade Flow
+### 1.6 Upgrade Policy — Blocked Until Reconciled
 
 **Trigger phrases** (case-insensitive, match anywhere in user message):
 - "upgrade squad"
@@ -130,48 +130,22 @@ Do not mention the update check, the cache, or the mechanism. Just the notice.
 - "install the update"
 - "yes upgrade"
 
-**Flow:**
+The published upgrade may overwrite the active workflows and coordinator with
+model-free templates. Do **not** run `squad upgrade` from this repo's coordinator,
+command catalog, or cast-change flows. A user's request or confirmation does not
+waive this gate. Report the block and, if asked, the available version; do not
+launch an agent against an unverified regenerated coordinator.
 
-1. **Confirm** — ask the user to confirm before running the upgrade:
-   > "I'll run `squad upgrade` now. This overwrites `squad.agent.md` and
-   > casting files but preserves `config.json`, `team.md`, `decisions.md`,
-   > and all agent history. Ready?"
-   Wait for affirmative response before proceeding.
-
-2. **Run upgrade:**
-   ```
-   squad upgrade
-   ```
-   Capture output. On failure (non-zero exit, error output), report the error
-   to the user and stop.
-
-3. **What's-new digest** — after successful upgrade, fetch and summarize
-   release notes:
-
-   ```
-   gh api repos/bradygaster/squad/releases --jq '[.[] | select(.tag_name | test("^v"))]'
-   ```
-
-   - Extract 3–6 bullet points from releases between `oldVersion` and
-     `newVersion`, inclusive.
-   - Priority: `feat` entries first, then `fix`, then `docs`.
-   - Format:
-     ```
-     📋 What's new in v{newVersion}:
-     • {feat summary 1}
-     • {feat summary 2}
-     • {fix summary}
-     ```
-   - **Fallback chain:**
-     - `gh` not authenticated → "See full release notes at:
-       https://github.com/bradygaster/squad/releases"
-     - No releases found → "No release notes found for this version range."
-     - Network failure → link to releases page
-
-4. **Restart prompt** — after showing the digest, prompt the user:
-   > "`squad.agent.md` has been updated. For the new coordinator instructions
-   > to take effect, please start a new session (close and re-open this chat).
-   > Your team state and decisions are unchanged."
+A maintainer may introduce an upgrade path only after auditing the exact
+published template inputs, reconciling every active workflow with its checked-in
+`.squad/templates/workflows/` counterpart and both coordinator templates, and
+running `node .github/skills/squad/scripts/check-policy.js` **after** any
+upgrade/regeneration and **before** starting a new Squad session. If the check
+is missing or fails, stop: repair the active and template copies, rerun the
+gate, and require a new session to load the reconciled coordinator. Never retry
+assignment to @copilot through the GitHub issue interface; an explicit model alone
+cannot enforce max effort and long_context. This is a necessary post-upgrade gate,
+not permission for this blocked automatic flow to execute an unsafe upgrade.
 
 ### 1.7 Failure Modes
 
@@ -187,8 +161,8 @@ interrupts or delays the session.
 | npm probe network error | Normal greeting |
 | npm probe parse error | Normal greeting |
 | `.squad/.cache/` write error | Normal greeting (skip cache write) |
-| `gh` not available / unauthenticated | Upgrade flow: link to releases page |
-| `squad upgrade` exits non-zero | Report error, stop flow |
+| User asks to upgrade | Report the policy block; no upgrade subprocess |
+| Post-upgrade policy gate fails or is missing | Stop Squad dispatch until reconciled; no model-free fallback |
 | Any unexpected exception | Log to `.squad/orchestration-log/`, normal greeting |
 
 ---

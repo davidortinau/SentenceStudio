@@ -33,16 +33,18 @@
 
 ## Model
 
-- **Preferred:** auto
-- **Rationale:** Coordinator selects the best model based on task type — cost first unless writing code
-- **Fallback:** Standard chain — the coordinator handles fallback automatically
+- **Preferred:** gpt-6-sol
+- **Reasoning Effort:** max
+- **Context Tier:** long_context
+- **Rationale:** SentenceStudio requires maximum-quality GPT execution regardless of task type or cost.
+- **Fallback:** Explicit strongest-compatible-GPT chain from `.squad/templates/model-selection-reference.md`; never another provider or an omitted model.
 
 ## Collaboration
 
 Before starting work, run `git rev-parse --show-toplevel` to find the repo root, or use the `TEAM ROOT` provided in the spawn prompt. All `.squad/` paths must be resolved relative to this root — do not assume CWD is the repo root (you may be in a worktree or subdirectory).
 
 Before starting work, read `.squad/decisions.md` for team decisions that affect me.
-After making a decision others should know, write it to `.squad/decisions/inbox/{my-name}-{brief-slug}.md` — the Scribe will merge it.
+After making a decision others should know, submit your own proposal to `decisions/inbox/{my-name}-{brief-slug}.md` with `squad_decide` or `squad_state_write`. The Coordinator decides acceptance; Scribe merges accepted entries and verifies them before deleting processed inbox files. On non-local backends, never write mutable state directly.
 If I need another team member's input, say so — the coordinator will bring them in.
 
 ## Voice

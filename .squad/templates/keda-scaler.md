@@ -2,6 +2,13 @@
 
 > Scale agent pods to zero when idle, up when work arrives — driven by GitHub Issues.
 
+**SentenceStudio gate:** Do not deploy these `squad:copilot` examples as a Squad
+dispatch path. GitHub issue assignment cannot enforce the required GPT model,
+`max` reasoning effort, and `long_context` together. The label remains blocked
+until a supported interface can set and verify all three; use Squad member
+routing instead. The examples below describe the external scaler, not an
+approved assignment workflow for this repository.
+
 ## Overview
 
 When running Squad on Kubernetes, agent pods sit idle when no work exists. [KEDA](https://keda.sh) (Kubernetes Event-Driven Autoscaler) solves this for queue-based workloads, but GitHub Issues isn't a native KEDA trigger.

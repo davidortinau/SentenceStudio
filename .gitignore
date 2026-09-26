@@ -434,6 +434,15 @@ src/.claude/settings.local.json
 .squad/log/
 .squad/decisions/inbox/
 .squad/sessions/
+# Squad upgrade backups and local runtime evidence
+/.github/agents/squad*.local-backup
+/.github/workflows/squad-*.local-backup
+/.squad/**/*.local-backup
+/.squad/session-files/
+/.squad/state/
+/aspire-cookies.txt
+/remediation-rerun/
+/screenshots/
 # Squad: SubSquad activation file (local to this machine)
 .squad-workstream
 .azure

@@ -29,7 +29,9 @@
 
 ### Capabilities
 
-**🟢 Good fit — auto-route when enabled:**
+**Informational only — GitHub issue assignment to @copilot is blocked until model, max reasoning effort, and long_context can all be enforced and verified. Do not manually assign or label an issue for @copilot.**
+
+**🟢 Good fit when a supported assignment interface exists:**
 - Bug fixes with clear reproduction steps
 - Test coverage (adding missing tests, fixing flaky tests)
 - Lint/format fixes and code style cleanup
@@ -38,7 +40,7 @@
 - Boilerplate/scaffolding generation
 - Documentation fixes and README updates
 
-**🟡 Needs review — route to @copilot but flag for squad member PR review:**
+**🟡 Needs review when a supported assignment interface exists:**
 - Medium features with clear specs and acceptance criteria
 - Refactoring with existing test coverage
 - API endpoint additions following established patterns

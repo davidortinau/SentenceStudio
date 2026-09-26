@@ -20,10 +20,12 @@
 | Simon | Backend Specialist (Escalation) | `.squad/agents/simon/charter.md` | ✅ Active |
 | Scribe | Session Logger | `.squad/agents/scribe/charter.md` | 📋 Silent |
 | Ralph | Work Monitor | — | 🔄 Monitor |
+| Rai | RAI Reviewer | `.squad/agents/rai/charter.md` | 🛡️ RAI |
+| Fact Checker | Verification & Devil's Advocate | `.squad/agents/fact-checker/charter.md` | 🔍 Verifier |
 
 ## Coding Agent
 
-<!-- copilot-auto-assign: true -->
+<!-- copilot-auto-assign: false -->
 
 | Name | Role | Charter | Status |
 |------|------|---------|--------|
@@ -31,14 +33,16 @@
 
 ### Capabilities
 
-**🟢 Good fit — auto-route when enabled:**
+**Informational only — GitHub issue assignment to @copilot is blocked until model, max reasoning effort, and long_context can all be enforced and verified. Do not manually assign or label an issue for @copilot.**
+
+**🟢 Good fit when a supported assignment interface exists:**
 - Bug fixes with clear reproduction steps
 - Test coverage (adding missing tests, fixing flaky tests)
 - Dependency updates and version bumps
 - Small isolated features with clear specs
 - Documentation fixes and README updates
 
-**🟡 Needs review — route to @copilot but flag for squad member PR review:**
+**🟡 Needs review when a supported assignment interface exists:**
 - Medium features with clear specs and acceptance criteria
 - Refactoring with existing test coverage
 - API endpoint additions following established patterns

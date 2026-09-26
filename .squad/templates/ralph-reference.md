@@ -90,7 +90,7 @@ npx @bradygaster/squad-cli watch --interval 30      # polls every 30 minutes
 This runs as a standalone local process (not inside Copilot) that:
 - Checks GitHub every N minutes for untriaged squad work
 - Auto-triages issues based on team roles and keywords
-- Assigns @copilot to `squad:copilot` issues (if auto-assign is enabled)
+- Does not assign or dispatch @copilot issue work: `squad:copilot` is blocked because a model-only assignment cannot enforce max reasoning effort and long_context. Route issues to a Squad member; if an automated route proposes @copilot, fail closed.
 - Runs until Ctrl+C
 
 **Three layers of Ralph:**

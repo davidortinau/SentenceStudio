@@ -1,3 +1,8 @@
 {
-  "defaultModel": "gpt-5.6-sol"
+  "defaultModel": "gpt-6-sol",
+  "defaultReasoningEffort": "max",
+  "defaultContextTier": "long_context",
+  "watch": {
+    "copilotFlags": "--agent squad --model gpt-6-sol --reasoning-effort max --context long_context --allow-all-tools"
+  }
 }

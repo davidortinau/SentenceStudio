@@ -50,3 +50,19 @@ Jayne performed focused pre-push reviews for the photo-viewer WebView + 9-DR har
 - Treat `c2c40812` as the merged release-hardening baseline for future test expectations.
 - Future VocabQuiz timer/session review should include accept-then-cancel, cancel-before-persistence, dispose-while-awaiting, and no-progress-write assertions.
 - Future E2E matrices should keep required proof gates separate from optional confidence gates and avoid physical-device work unless explicitly reopened.
+
+
+## 2026-08-06: YouTube import production failure fix (troubleshooter support)
+
+**Session:** 2026-08-06T12-22 — Production webapp investigation + E2E regression scenarios + NuGet diagnostics
+**Outcome:** Partial success — confirmed poor error UX, defined E2E scenarios, diagnosed NU1101 root cause, identified E2E blocker
+
+**Jayne's contributions:**
+- Production test account investigation: Account blocked by email confirmation on `.test` domain; cannot fully reproduce signature with auth
+- Architecture analysis: MediaImport.razor calls YouTubeImportService directly (not via API endpoint); YoutubeExplode 6.6.0 works locally; hypothesis: Azure Container Apps IP range rate-limited or consent-gated by YouTube
+- UI error quality assessment: Raw exception messages shown, no retry button, no error differentiation, no correlation ID surfacing
+- Defined 7 E2E regression scenarios (R1-R7): valid video, no transcript, unavailable, rate-limit, timeout, channel import, failed import history
+- WebApp build diagnosis: Confirmed NU1101 as user-level nuget.org disabled + repo config not clearing `disabledPackageSources` (reference NuGet/Home#14530)
+- E2E blocker identified: Docker Desktop macOS admin dialog for `com.docker.vmnetd`; no destructive action taken
+
+**Status:** Troubleshooting complete; WebApp now builds after Kaylee's NuGet fix. E2E blocked pending Docker admin dialog approval and Captain's production deployment authorization.

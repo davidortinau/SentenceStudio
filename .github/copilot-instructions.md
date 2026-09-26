@@ -27,25 +27,31 @@ If anything below conflicts with AGENTS.md, **AGENTS.md wins** — EXCEPT for th
 
 If you find yourself about to run `-f net11.0-maccatalyst` "to verify the fix" without Captain having named that surface — stop and use `-f net11.0-macos` instead.
 
+## Squad Model Policy
+
+All Squad coordinator and agent dispatches must use GPT models exclusively.
+
+- Default to `gpt-6-sol` with `max` reasoning effort and `long_context`.
+- Never select or fall back to Anthropic/Claude, Gemini, or any other non-GPT model.
+- If `gpt-6-sol` is unavailable, use another GPT only if it supports and verifies `max` reasoning effort and `long_context`; otherwise stop. No lower tier is an acceptable fallback.
+- Do not omit the model parameter as a fallback because the platform default may select a non-GPT provider.
+- If no GPT model is available, stop and report the model availability failure rather than dispatching with another provider.
+
 ## Coordinator Canary Check
 
-**Scope: this check applies ONLY to the Squad Coordinator (the top-level Squad agent).**
-**If you are a spawned sub-agent (launched via the `task` tool or `runSubagent`), SKIP
-this entire section.** Sub-agents do not load `squad.agent.md`, so the canary token is
-*expected* to be absent for you — its absence is normal, NOT a failure. Ignore any
-coordinator/canary/governance checks and proceed with your assigned task.
+**Scope: this check applies ONLY to the top-level Squad Coordinator.** Spawned sub-agents skip it. Establish coordinator identity from the selected agent/session, **not** from the presence of a canary. A known Squad coordinator checks `agent_instructions` on EVERY session start, before doing any work.
 
-**Coordinator only — run this check on EVERY session start, before doing any work:**
+Require the HEAD marker near the start and the distinct EOF marker as the final line of the coordinator payload. If either is missing or misplaced, the known coordinator MUST fail closed. A missing HEAD is not evidence that the agent is non-Squad; a wholly absent payload cannot be classified by canary text alone and requires a host-level identity check. Do not treat an earlier mention of the EOF marker as proof that the payload is complete.
 
-Look for the exact token `SQUAD_COORDINATOR_CANARY_a8f3` in your `agent_instructions`. This token is placed at the end of `squad.agent.md`. If it is missing, the coordinator file is missing or truncated.
-
-**When the token is missing (coordinator only), you MUST:**
+**When either canary is missing for a known Squad coordinator, you MUST:**
 1. **STOP** — do not proceed with standard Squad behavior.
 2. **WARN the user** with this exact message:
    ```
-   ⚠️ Squad coordinator (squad.agent.md) appears to be missing or truncated. The canary token was not found. Do NOT proceed with standard Squad behavior — Squad's safety rails are not loaded. Please restart your session.
+   ⚠️ Squad coordinator (squad.agent.md) appears to be missing or truncated. A required canary token was not found. Do NOT proceed with standard Squad behavior — Squad's safety rails are incomplete. Please restart your session.
    ```
 3. Do not continue with normal Squad routing, spawning, PR, or branch-protection behavior after emitting the warning.
+
+GitHub issue assignment to @copilot is blocked for Squad: the issue interface does not enforce `max` reasoning effort and `long_context` alongside the GPT model. Do not assign manually, via a label, or via an automation token until an interface can set and verify all three settings.
 
 ## Team Context
 
@@ -57,10 +63,9 @@ Before starting work on any issue:
 
 ## Test accounts
 
-Canonical Squad test credentials live at **`.squad/test-accounts.md`**. **Read it before inventing accounts for E2E verification.**
+Canonical Squad test credentials live at **`.squad/test-accounts.md`**. **Read it before inventing accounts for E2E verification; do not duplicate credentials in instructions or logs.**
 
-- Primary account: `squad-jayne@sentencestudio.test` / `SquadTest!2026` (Korean target language).
-- If the account doesn't exist on the target environment (fresh sim, fresh local DB, fresh Azure deployment), register it via the app's standard Register flow — do NOT create a new test-only account out of band, and do NOT use Captain's real credentials for automated flows.
+- If the canonical account doesn't exist on the target environment (fresh sim, fresh local DB, fresh Azure deployment), register it via the app's standard Register flow — do NOT create a new test-only account out of band, and do NOT use Captain's real credentials for automated flows.
 - Applies to webapp E2E (Playwright), Mac Catalyst, macOS, iOS Sim, and any other surface that needs auth.
 
 ## Capability Self-Check
@@ -107,11 +112,14 @@ If you cannot verify a claim, **omit it** or mark it explicitly: `_(unverified �
 
 ## Decisions
 
-If you make a decision that affects other team members, write it to:
+If you make a decision that affects other team members, submit your own proposal
+with `squad_decide` or `squad_state_write` to:
 ```
 .squad/decisions/inbox/copilot-{brief-slug}.md
 ```
-The Scribe will merge it into the shared decisions file.
+The Coordinator decides whether to accept it; Scribe merges accepted entries
+into the shared decisions file and deletes each inbox entry after verifying
+the merge. On non-local state backends, never write mutable state directly.
 
 ## Clarify the surface before investigating
 

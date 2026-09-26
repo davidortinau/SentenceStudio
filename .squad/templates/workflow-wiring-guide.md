@@ -44,8 +44,9 @@ User request arrives
   → Coordinator reads agent charter.md (inline into spawn prompt)
   → If issue-linked: coordinator reads issue-lifecycle.md (add ISSUE CONTEXT to spawn prompt)
   → Agent works
-  → Coordinator follows After Agent Work flow
   → Coordinator checks ceremonies.md (any auto-triggered "after" ceremony?)
+  → If Pre-Ship applies, Fact Checker facilitates with Rai; both verdicts gate finalization
+  → Coordinator follows After Agent Work flow and presents the finalized artifact
   → Coordinator checks routing.md Rules section (any post-work rules to enforce?)
 ```
 

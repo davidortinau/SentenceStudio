@@ -3,3 +3,9 @@
 .squad/agents/*/history.md merge=union
 .squad/log/** merge=union
 .squad/orchestration-log/** merge=union
+.squad/rai/audit-trail.md merge=union
+.squad/fact-checker/audit-trail.md merge=union
+# Preserve the existing CRLF templates while treating CR as part of the line ending.
+.squad/routing.md whitespace=cr-at-eol
+.squad/templates/casting-reference.md whitespace=cr-at-eol
+.squad/templates/ralph-triage.js whitespace=cr-at-eol

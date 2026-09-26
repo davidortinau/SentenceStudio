@@ -5,9 +5,9 @@
  * ⚠️ SYNC NOTICE: This file ports triage logic from the SDK source:
  *   packages/squad-sdk/src/ralph/triage.ts
  *
- * Any changes to routing/triage logic MUST be applied to BOTH files.
- * The SDK module is the canonical implementation; this script exists
- * for zero-dependency use in GitHub Actions workflows.
+ * Generic routing/triage changes belong in BOTH files. The SDK module is
+ * canonical; this script adds a repo-local fail-closed @copilot assignment
+ * gate because GitHub issues cannot enforce all required model settings.
  *
  * To verify parity: npm test -- test/ralph-triage.test.ts
  */
@@ -58,7 +58,7 @@ function normalizeEol(content) {
 function slugify(text) { return text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''); }
 
 function parseRoutingRules(routingMd) {
-  const table = parseTableSection(routingMd, /^##\s*work\s*type\s*(?:→|->)\s*agent\b/i);
+  const table = parseTableSection(routingMd, /^##\s*(?:routing\s+table|work\s*type\s*(?:→|->)\s*agent)\b/i);
   if (!table) return [];
 
   const workTypeIndex = findColumnIndex(table.headers, ['work type', 'type']);
@@ -71,7 +71,7 @@ function parseRoutingRules(routingMd) {
   for (const row of table.rows) {
     const workType = cleanCell(row[workTypeIndex] || '');
     const agentName = cleanCell(row[agentIndex] || '');
-    const keywords = splitKeywords(examplesIndex >= 0 ? row[examplesIndex] : '');
+    const keywords = splitKeywords(`${workType},${examplesIndex >= 0 ? row[examplesIndex] || '' : ''}`);
     if (!workType || !agentName) continue;
     rules.push({ workType, agentName, keywords });
   }
@@ -196,6 +196,18 @@ function triageIssue(issue, rules, modules, roster) {
   };
 }
 
+function requireAssignable(decision) {
+  if (decision.agent.label.toLowerCase() === 'squad:copilot') {
+    throw new Error('Squad @copilot issue routing blocked: max reasoning effort and long_context cannot be enforced');
+  }
+}
+
+function requireNoCopilotLabel(issue) {
+  if (issueHasLabel(issue, 'squad:copilot')) {
+    throw new Error('Squad @copilot issue routing blocked: max reasoning effort and long_context cannot be enforced');
+  }
+}
+
 function parseTableSection(markdown, sectionHeader) {
   const lines = normalizeEol(markdown).split('\n');
   let inSection = false;
@@ -260,8 +272,8 @@ function cleanCell(value) {
 function splitKeywords(examplesCell) {
   if (!examplesCell) return [];
   return examplesCell
-    .split(',')
-    .map((keyword) => cleanCell(keyword))
+    .split(/[,;]|\band\b/i)
+    .map((keyword) => cleanCell(keyword).replace(/^(?:validate|review|challenge)\s+/i, ''))
     .filter((keyword) => keyword.length > 0);
 }
 
@@ -337,15 +349,21 @@ function findBestModuleMatch(issueText, modules) {
 function findBestRuleMatch(issueText, rules) {
   let best = null;
   let bestScore = 0;
+  const specialistSignals = new Set([
+    'privacy', 'safety', 'responsible ai', 'credential review',
+    'claim verification', 'external references', "devil's advocate",
+    'package versions', 'api claims',
+  ]);
 
   for (const rule of rules) {
     const matchedKeywords = rule.keywords
       .map((keyword) => keyword.toLowerCase())
-      .filter((keyword) => keyword.length > 0 && issueText.includes(keyword));
+      .filter((keyword) => keyword.length > 0 && matchesKeyword(issueText, keyword));
 
     if (matchedKeywords.length === 0) continue;
 
     const score =
+      (matchedKeywords.some((keyword) => specialistSignals.has(keyword)) ? 1000 : 0) +
       matchedKeywords.length * 100 + matchedKeywords.reduce((sum, keyword) => sum + keyword.length, 0);
     if (score > bestScore) {
       best = { rule, matchedKeywords };
@@ -354,6 +372,11 @@ function findBestRuleMatch(issueText, rules) {
   }
 
   return best;
+}
+
+function matchesKeyword(issueText, keyword) {
+  const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`(^|[^a-z0-9])${escaped}(?=$|[^a-z0-9])`).test(issueText);
 }
 
 function findRoleKeywordMatch(issueText, roster) {
@@ -414,13 +437,31 @@ function getOwnerRepoFromGit() {
   return parseOwnerRepoFromRemote(remoteUrl);
 }
 
+/**
+ * Resolve the GitHub REST API base URL from the environment, so triage
+ * works on GitHub Enterprise as well as github.com.
+ *
+ * Order: GITHUB_API_URL (set by Actions on both github.com and GHE runners)
+ * > GITHUB_SERVER_URL + /api/v3 (GHE without an explicit API URL)
+ * > https://api.github.com (fallback for local/non-Actions runs).
+ */
+function resolveGithubApiBase() {
+  const apiUrl = process.env.GITHUB_API_URL;
+  if (apiUrl) return apiUrl.replace(/\/+$/, '');
+
+  const serverUrl = process.env.GITHUB_SERVER_URL;
+  if (serverUrl) return `${serverUrl.replace(/\/+$/, '')}/api/v3`;
+
+  return 'https://api.github.com';
+}
+
 function githubRequestJson(pathname, token) {
   return new Promise((resolve, reject) => {
+    const requestUrl = new URL(`${resolveGithubApiBase()}${pathname}`);
     const req = https.request(
+      requestUrl,
       {
-        hostname: 'api.github.com',
         method: 'GET',
-        path: pathname,
         headers: {
           Accept: 'application/vnd.github+json',
           Authorization: `Bearer ${token}`,
@@ -506,6 +547,7 @@ async function main() {
 
   const { owner, repo } = getOwnerRepoFromGit();
   const openSquadIssues = await fetchSquadIssues(owner, repo, token);
+  openSquadIssues.forEach(requireNoCopilotLabel);
 
   const memberLabels = roster.map((member) => member.label);
   const untriaged = openSquadIssues.filter((issue) => isUntriagedIssue(issue, memberLabels));
@@ -525,6 +567,7 @@ async function main() {
     );
 
     if (!decision) continue;
+    requireAssignable(decision);
     results.push({
       issueNumber: issue.number,
       assignTo: decision.agent.name,
@@ -539,7 +582,14 @@ async function main() {
   fs.writeFileSync(outputPath, `${JSON.stringify(results, null, 2)}\n`, 'utf8');
 }
 
-main().catch((error) => {
-  console.error(error.message);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error.message);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  resolveGithubApiBase, requireAssignable, requireNoCopilotLabel, parseRoster, parseRoutingRules,
+  parseModuleOwnership, triageIssue,
+};

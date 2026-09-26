@@ -11,7 +11,7 @@
       "command": "npx",
       "args": [
         "-y",
-        "@bradygaster/squad-cli@0.10.0",
+        "@bradygaster/squad-cli@0.13.0",
         "state-mcp"
       ],
       "env": {},

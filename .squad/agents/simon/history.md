@@ -48,3 +48,23 @@ Timer-disposal fix details:
 - Future timer regressions around VocabQuiz, `ActivityTimerService`, session leases, generation ownership, or accept/cancel races should route to Simon first.
 - When Preview 6+ iOS packs are available, re-test `dotnet build -t:Run -f net11.0-ios` from a path containing spaces to confirm the macios fix.
 - Consider adding the iOS run workaround note to `docs/deploy-runbook.md` if it is still relevant before Preview 6 adoption.
+
+
+## 2026-08-06: YouTube import production failure fix (second attempt, REJECTED)
+
+**Session:** 2026-08-06T12-45 — YouTube import backend revision after Wash rejection
+**Outcome:** REJECTED by Zoe — Blazor pages still injected concrete service type. Locked out.
+
+**Simon's corrections:**
+- Root cause diagnosis: Reverted bogus WebServiceDefaults edits, identified ServiceDefaults already correct
+- Service interface pattern: Introduced `IYouTubeImportService` (4 methods: GetVideoMetadataAsync, GetAvailableTranscriptsAsync, DownloadTranscriptTextAsync, ExtractAudioClipAsync)
+- Error classification: Full logic for VideoUnavailableException → VideoUnavailable, RequestLimitExceededException → RateLimited, HttpRequestException → NetworkError, catch-all → Unknown
+- Telemetry gap fix: Added `AzureMonitor:ConnectionString` to Workers and WebApp appsettings.Production.json (root cause: only API was visible to App Insights)
+- DI registration: Updated CoreServiceExtensions, Api/Program.cs, Workers/Program.cs to use `AddSingleton<IYouTubeImportService, YouTubeImportService>()`
+- Tests: Proper SQLite in-memory setup, 9 regression tests covering exception handling, pipeline behavior, cancellation
+
+**Zoe's rejection findings:**
+- MediaImport.razor line 275 and ChannelDetail.razor line 219 still inject `[Inject] private YouTubeImportService ImportSvc`
+- `AddSingleton<TService, TImpl>()` does NOT self-register the concrete type; pages would throw InvalidOperationException at activation
+
+**Status:** Locked out; Kaylee selected for final revision (DI fix + follow-ups)

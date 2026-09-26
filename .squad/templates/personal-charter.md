@@ -26,4 +26,6 @@ I operate under the Ghost Protocol when working in project contexts:
 
 ## Model
 
-Preferred: auto
+Preferred: gpt-6-sol
+Reasoning Effort: max
+Context Tier: long_context

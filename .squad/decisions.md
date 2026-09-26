@@ -337,3 +337,323 @@ Alternative considered and rejected: removing the wrapper and relocating the ful
 - src/SentenceStudio.UI/wwwroot/css/app.css (+20 lines; the `.vocab-quiz-modal-host` rule + explanatory comment). No .razor change needed.
 
 Not committed — left for Captain to review + direct-merge.
+---
+
+### 2026-08-06T12-22-09: YouTube media-import regression plan: production failure investigation and post-fix E2E scenarios
+
+**By:** Jayne
+**What:** YouTube media-import regression plan: production failure investigation and post-fix E2E scenarios
+**References:** import-and-resources.md (E2E ref), src/SentenceStudio.UI/Pages/MediaImport.razor, src/SentenceStudio.Shared/Services/YouTubeImportService.cs, src/SentenceStudio.Api/ImportEndpoints.cs
+**Why:** ## Investigation Summary (2026-08-06 ~12:15 UTC)
+
+Captain reported consistent YouTube media-import failure on production webapp (`webapp.agreeablesky-76d2f81f.westus3.azurecontainerapps.io`).
+
+### Architecture Findings
+
+1. **The MediaImport.razor page (`/import`) calls YouTubeImportService DIRECTLY** — not via the API `/api/imports` endpoint. The page injects `YouTubeImportService` and calls `GetVideoMetadataAsync()` / `GetAvailableTranscriptsAsync()` synchronously in the Blazor Server circuit.
+2. **YoutubeExplode 6.6.0** is the library version (pinned in `Directory.Packages.props`).
+3. **Error surfacing**: The page catches exceptions and shows `errorMessage = $"Error fetching transcripts: {ex.Message}"` — raw exception text, no user-friendly wrapper.
+
+### Reproduction Results
+
+- YoutubeExplode 6.6.0 successfully fetched metadata + transcripts for a well-known English video from local machine (2026-08-06T12:20:59Z).
+- Could NOT authenticate to production with squad-jayne test account (requires email confirmation on `.test` domain).
+- **Root cause hypothesis**: Azure Container Apps IP range is likely rate-limited or consent-gated by YouTube. YoutubeExplode uses HTTP scraping of YouTube's internal APIs — Azure datacenter IPs are frequently blocked. This is a KNOWN recurring issue with YoutubeExplode in cloud environments.
+
+### UI Error Quality Assessment: POOR
+
+- Error shows raw exception message (e.g., `"Error fetching transcripts: Failed to fetch transcripts: ..."`)
+- No retry button on the single-video tab's fetch step
+- No differentiation between "video unavailable", "rate limited", "no transcripts in target language", and "network error"
+- No correlation/trace ID surfaced to user
+
+### Post-Fix E2E Verification Scenarios
+
+Per `import-and-resources.md` reference, the canonical flow is:
+1. Navigate to `/import` → paste YouTube URL → click Fetch
+2. Transcript text appears; language dropdown populated
+3. Select language → transcript updates
+4. Click "Polish with AI" → reformatted (30-60s)
+5. Click Save → redirects to `/resources/edit/{id}`
+
+**Regression scenarios that MUST pass after fix:**
+
+| # | Scenario | Expected |
+|---|----------|----------|
+| R1 | Valid Korean video URL → Fetch | Transcript appears, Korean track auto-selected |
+| R2 | Valid video with no Korean track | Clear error: "No Korean transcript available" |
+| R3 | Invalid/unavailable video URL | User-friendly error, not raw exception |
+| R4 | YouTube rate-limit/block (simulate) | Retry guidance, not cryptic error |
+| R5 | Network timeout | Timeout error with retry option |
+| R6 | Channel tab → TriggerCheck with new video | Background import completes, appears in history |
+| R7 | Import history shows failed import | Error message visible, retry button works |
+
+### Acceptance Criteria for Fix
+
+1. **Structured error messages**: Map YoutubeExplode exceptions to user-friendly categories (unavailable, rate-limited, no transcripts, network error).
+2. **Retry affordance**: Single-video fetch failure should show a "Try Again" button without clearing input.
+3. **If Azure IP blocking is root cause**: Consider server-side proxy, rotating user-agent, or fallback to YouTube Data API v3 with API key.
+4. **Correlation**: Log a correlation ID server-side that can be referenced in telemetry.
+
+---
+
+### 2026-08-06T12-24-19: YouTube import production failure: root cause is YoutubeExplode 6.5.6 using deprecated YouTube client; fix is upgrade to 6.6 + enable Azure Monitor telemetry
+
+**By:** Wash (REJECTED by Zoe)
+**What:** YouTube import production failure: root cause is YoutubeExplode 6.5.6 using deprecated YouTube client; fix is upgrade to 6.6 + enable Azure Monitor telemetry
+**References:** YoutubeExplode PR #936: Switch to ANDROID_VR client, YoutubeExplode 6.5.7 release notes
+**Why:** ## Production Evidence (2026-08-06 ~12:11 UTC)
+
+Container Apps logs from `webapp` in `rg-sstudio-prod-biz` show:
+- `YoutubeExplode.Exceptions.VideoUnavailableException: Video 'X' is not available.`
+- Multiple distinct video IDs ALL failing with same exception
+- Error path: `YouTubeImportService.GetVideoMetadataAsync` → `VideoClient.GetAsync` → `VideoController.GetVideoWatchPageAsync`
+
+## Root Cause
+
+YoutubeExplode **6.5.6** (Oct 2025) uses the default YouTube web client which YouTube has since locked behind PO token validation. The library cannot fetch video pages without the token, so ALL videos appear "unavailable".
+
+**Fix:** YoutubeExplode **6.5.7** (Feb 2026) switched to ANDROID_VR client to bypass PO token requirement. v6.6 (Apr 2026) is latest stable.
+
+## Why App Insights showed NOTHING
+
+The Azure Monitor exporter was **commented out** in `src/SentenceStudio.WebServiceDefaults/Extensions.cs` (lines 73-78). The OTLP exporter only fires when `OTEL_EXPORTER_OTLP_ENDPOINT` is set (local Aspire only). Production Container Apps had zero telemetry flowing.
+
+## Changes Made
+
+1. `Directory.Packages.props`: YoutubeExplode 6.5.6 → 6.6.0
+2. `src/SentenceStudio.WebServiceDefaults/Extensions.cs`: Enabled Azure Monitor Exporter for traces, metrics, and logs when `AzureMonitor:ConnectionString` or `APPLICATIONINSIGHTS_CONNECTION_STRING` is configured
+3. `src/SentenceStudio.WebServiceDefaults/SentenceStudio.WebServiceDefaults.csproj`: Added `Azure.Monitor.OpenTelemetry.Exporter` package reference
+4. `src/SentenceStudio.Shared/Services/YouTubeImportService.cs`: Added `VideoImportException` structured exception class, catch specific `VideoUnavailableException`/`RequestLimitExceededException`/`HttpRequestException` with user-safe messages and error codes
+5. `src/SentenceStudio.Shared/Services/VideoImportPipelineService.cs`: Catch `VideoImportException` specifically for structured logging with `{ErrorCode}`
+6. `tests/SentenceStudio.UnitTests/Services/VideoImportPipelineErrorHandlingTests.cs`: Regression tests
+
+## Limitation
+
+Build cannot complete locally due to pre-existing workload registration corruption (`macos` workload metadata requires elevated permissions). CI should build fine. Captain needs to run `sudo dotnet workload restore` to fix the local environment.
+
+**STATUS: REJECTED** — Zoe review findings: WebServiceDefaults is dead (no project references it), tests invalid (Moq on sealed AudioAnalyzer, non-virtual methods), error classification incomplete. Locked out; Simon selected for independent revision.
+
+---
+
+### 2026-08-06T12-45-40: YouTube import production failure: root cause, error classification, telemetry gap fix
+
+**By:** Simon (REJECTED by Zoe)
+**What:** YouTube import production failure: root cause, error classification, telemetry gap fix
+**References:** Zoe reviewer rejection, YoutubeExplode PR #936, aspnetcore-azure-monitor SKILL.md
+**Why:** ## Root Cause
+
+YoutubeExplode 6.5.6 uses a deprecated YouTube client (WEB) that was blocked by YouTube's PO-token requirement. All video imports fail with VideoUnavailableException at VideoController.GetVideoWatchPageAsync. Upstream fix: YoutubeExplode 6.5.7+ (PR #936) switches to ANDROID_VR client. CPM bump to 6.6.0 resolves the provider-side failure.
+
+## What Was Changed (Revision of Wash's Rejected Artifact)
+
+### Reverted
+- **WebServiceDefaults edits** — WebServiceDefaults is dead (no project references it). All deployed hosts use ServiceDefaults, which already has correct Azure Monitor exporters at Extensions.cs ~118-136 behind `#if !DEBUG`.
+
+### Error Classification (YouTubeImportService.cs)
+- Introduced `IYouTubeImportService` interface (testable seam) with 4 methods: GetVideoMetadataAsync, GetAvailableTranscriptsAsync, DownloadTranscriptTextAsync, ExtractAudioClipAsync.
+- **ALL four methods** now classify: VideoUnavailableException → VideoUnavailable, RequestLimitExceededException → RateLimited, HttpRequestException → NetworkError, catch-all → Unknown.
+- **OperationCanceledException is re-thrown** (not reclassified).
+- Shared classifier helpers (ClassifyVideoUnavailable, ClassifyRateLimited, ClassifyNetwork) — no video ID or URL in user-facing messages.
+- `VideoImportException` carries ErrorCode + sanitized Message + inner exception for server-side diagnostics.
+
+### Pipeline (VideoImportPipelineService.cs)
+- Uses `IYouTubeImportService` instead of concrete type.
+- OperationCanceledException catch block: logs, persists failure, **re-throws** (preserving cancellation semantics).
+- Unclassified Exception catch: persists generic sanitized message ("An unexpected error occurred during import.") — never leaks raw ex.Message to DB/UI.
+
+### DI Registrations
+- Updated in: CoreServiceExtensions.cs (AppLib), Program.cs (Workers), Program.cs (API) — all use `AddSingleton<IYouTubeImportService, YouTubeImportService>()`.
+
+### Telemetry Gap Fix
+- **Root cause of App Insights blindness**: Only API had `AzureMonitor:ConnectionString` in appsettings.Production.json. Workers (where VideoImportPipelineService runs) and WebApp had NO connection string — completely invisible to App Insights.
+- **Evidence**: `az monitor app-insights query` over 7 days shows only one cloud_RoleName: `[cae-rsn72awybem6s]/SentenceStudio.Api` (15 rows). Workers/WebApp/Marketing/Cache: 0 rows. The `exceptions` table is empty for the 12:00-12:30 UTC window because the pipeline runs in Workers, which doesn't export to App Insights.
+- **Fix**: Added `AzureMonitor:ConnectionString` to `src/SentenceStudio.Workers/appsettings.Production.json` (new file) and `src/SentenceStudio.WebApp/appsettings.Production.json`. The ServiceDefaults Release-mode Azure Monitor exporter wiring already exists — it just needed the config key to be present.
+- No env var mismatch: ServiceDefaults reads `AzureMonitor:ConnectionString` (not `APPLICATIONINSIGHTS_CONNECTION_STRING`). No container env vars were set for either key. File-embedded config is the delivery path, consistent with how API already works.
+
+### Tests (VideoImportErrorHandlingTests.cs)
+- Replaced Wash's broken test file (Moq on sealed AudioAnalyzer, non-virtual YouTubeImportService methods).
+- Uses `FakeYouTubeImportService` implementing `IYouTubeImportService` — no Moq needed for the YouTube seam.
+- Uses SQLite in-memory (matching project convention) instead of InMemoryDatabase (not referenced).
+- 9 tests: exception model (3), pipeline classified errors (3), sanitized unclassified message (1), cancellation passthrough (1), log verification (1).
+- Full suite: 999/999 pass, 0 regressions.
+
+## Remaining E2E Limitation
+- Production fix is NOT deployed (no deploy authorized).
+- Full prod verification requires `azd deploy` + post-deploy-validate.sh.
+- Workers telemetry fix will only take effect after next Release deployment (ServiceDefaults Azure Monitor is gated by `#if !DEBUG`).
+
+**STATUS: REJECTED** — Zoe review findings: MediaImport.razor:275 and ChannelDetail.razor:219 still inject concrete `YouTubeImportService` instead of interface. `AddSingleton<IYouTubeImportService, YouTubeImportService>()` does NOT self-register concrete type; pages will throw InvalidOperationException at activation. Locked out; Kaylee selected for final revision.
+
+---
+
+### 2026-08-06T12-59-13: Fix DI mismatch: Blazor pages must inject IYouTubeImportService, not concrete YouTubeImportService
+
+**By:** Kaylee (APPROVED by Zoe)
+**What:** Fix DI mismatch: Blazor pages must inject IYouTubeImportService, not concrete YouTubeImportService
+**References:** Zoe review finding: concrete injection mismatch, Simon's IYouTubeImportService interface introduction
+**Why:** ## Context
+
+Simon introduced `IYouTubeImportService` and changed all DI registrations (CoreServiceExtensions, Api/Program.cs, Workers/Program.cs) to `AddSingleton<IYouTubeImportService, YouTubeImportService>()`. However, two Blazor pages still injected the concrete type:
+
+- `MediaImport.razor` line 275: `[Inject] private YouTubeImportService ImportSvc`
+- `ChannelDetail.razor` line 219: `[Inject] private YouTubeImportService? ImportSvc`
+
+`AddSingleton<TService, TImpl>()` does NOT self-register TImpl in the container. Any `@inject` or `[Inject]` requesting the concrete type throws `InvalidOperationException` at runtime — the page fails to activate.
+
+## Decision
+
+Changed both pages to inject `IYouTubeImportService` instead of the concrete type. This is the correct consumer pattern when an interface seam exists. All three methods called by MediaImport (`GetVideoMetadataAsync`, `GetAvailableTranscriptsAsync`, `DownloadTranscriptTextAsync`) are defined on the interface.
+
+## Regression guard
+
+Added `YouTubeImportDiRegistrationTests.cs` with two tests:
+1. `InterfaceRegistration_ResolvesYouTubeImportService` — confirms the interface resolves.
+2. `ConcreteType_IsNotDirectlyResolvable_WhenOnlyInterfaceRegistered` — confirms requesting the concrete type returns null, catching any future reversion to concrete injection.
+
+## Verification
+
+- UI project builds with 0 errors.
+- Full test suite: 1001/1001 passing.
+- WebApp build blocked by pre-existing NuGet source mapping issue (`Microsoft.AspNetCore.App.Internal.Assets` not in mapped sources) — unrelated to this change.
+
+**STATUS: APPROVED** (Zoe full diff review).
+
+---
+
+### 2026-08-06T13-25-26: Fix NuGet restore: clear disabledPackageSources in repo config to prevent user-level nuget.org disable from breaking PSM resolution
+
+**By:** Kaylee (APPROVED by Zoe)
+**What:** Fix NuGet restore: clear disabledPackageSources in repo config to prevent user-level nuget.org disable from breaking PSM resolution
+**References:** NuGet/Home#14530, Jayne E2E evidence: clean config proves WebApp builds, src/NuGet.config
+**Why:** ## Problem
+
+`dotnet restore` for `SentenceStudio.WebApp` failed with:
+```
+error NU1101: Unable to find package Microsoft.AspNetCore.App.Internal.Assets.
+No packages exist with this id in source(s): coresync-local, localnugets.
+PackageSourceMapping is enabled, the following source(s) were not considered: …nuget.org…
+```
+
+## Root cause
+
+The user-level `~/.nuget/NuGet/NuGet.Config` contains:
+```xml
+<disabledPackageSources><add key="nuget.org" value="true"/></disabledPackageSources>
+```
+
+The repo's `src/NuGet.config` uses `<packageSources><clear />` to reset sources, but NuGet merges `disabledPackageSources` **independently** of `packageSources`. Per NuGet/Home#14530, when Package Source Mapping is enabled, disabled sources are excluded from resolution — even if they have a `*` pattern mapping. Since `nuget.org` has the `*` wildcard mapping but is disabled, packages like `Microsoft.AspNetCore.App.Internal.Assets` that only exist on nuget.org cannot resolve.
+
+## Fix
+
+Added `<disabledPackageSources><clear /></disabledPackageSources>` to `src/NuGet.config` immediately after the `</packageSources>` block. This resets any inherited disabled-source entries, ensuring all repo-declared sources are active regardless of user-level config.
+
+## Safety check
+
+- The repo config already uses `<packageSources><clear />` so only explicitly-listed sources are active.
+- `<disabledPackageSources><clear />` does not ADD any source — it only prevents inherited disable entries from suppressing the repo's explicit sources.
+- PSM still constrains which packages resolve from which source (no change to `<packageSourceMapping>`).
+- No new sources are enabled beyond: coresync-local, dotnet10, nuget.org, localnugets, dotnet9 feed.
+
+**STATUS: APPROVED** (Zoe full diff review, WebApp build now passes).
+
+
+---
+
+### 2026-09-26T17-10-27: Use GPT models exclusively at maximum quality
+
+**By:** Captain (David Ortinau)
+**What:** All Squad coordinator and agent dispatches use GPT models exclusively. Default to `gpt-6-sol` with `xhigh` reasoning effort and `long_context`. If unavailable, select only the strongest available GPT model with the highest supported reasoning and context tier; never select or fall back to Anthropic/Claude, and never omit explicit model selection if that could permit a non-GPT default. If no GPT model is available, stop and report the failure rather than dispatching to another provider.
+**References:** .squad/config.json, .github/copilot-instructions.md
+**Why:** Captain's 2026-09-26T12:10:16-05:00 directive requires maximum-quality, GPT-only Squad execution, regardless of cost.
+
+---
+
+### 2026-09-26: Correct GPT-only reasoning tier and block unsafe upgrades
+
+**By:** Scribe (correction to the 2026-09-26T17-10-27 entry)
+**What:** The prior entry's `xhigh` is incorrect: every Squad spawn, including Scribe, uses explicit `gpt-6-sol` / `max` reasoning effort / `long_context`, with no model-free or non-GPT fallback. Published `squad upgrade` is blocked in this repository until its source templates are audited, active/template GPT policy is reconciled, and the repo-local `node .github/skills/squad/scripts/check-policy.js` passes after upgrade/regeneration and before Squad dispatch. GitHub issue assignment to @copilot is blocked: neither triage nor issue-assign may label, dispatch, or assign @copilot while the interface cannot enforce and verify all three model settings. Pre-Ship remains a once-per-artifact-revision Fact Checker + Rai gate before user-facing finalization, not for Scribe bookkeeping.
+**References:** `.squad/config.json`; `.github/skills/squad/SKILL.md`; `.squad/templates/session-init-reference.md`; `.squad/ceremonies.md`; `.github/workflows/squad-triage.yml`; `.github/workflows/squad-issue-assign.yml`.
+
+---
+
+### 2026-09-26: Block GitHub issue assignment to @copilot until all model settings are enforceable
+**By:** Kaylee
+**What:** Keep `copilot-auto-assign: false` and fail closed on manual labels, workflow dispatch, triage, and Ralph handoffs to @copilot. Preserve human/Squad issue routing. Keep the model-only API request disabled and test its actual payload shape in CI. Require GPT model, `max` reasoning effort, and `long_context` for every Squad dispatch without a lower-tier fallback.
+**Why:** GitHub issue assignment can select a model but cannot set and verify the other two required settings. A model-only assignment would violate Captain's no-exceptions dispatch policy.
+
+
+---
+
+### 2026-08-06T15-24-40: Azure Production Deploy — Succeeded with Known Import Limitation
+**By:** Scribe
+**What:** 2026-08-06: Azure Production Deploy — Succeeded with Known Import Limitation
+**References:** Captain (authorization), Simon (deploy path), Jayne (E2E validation), docs/deploy-runbook.md
+**Why:** **Date:** 2026-08-06T10:24:13Z (deployment completed ~2026-08-06T09:36Z)
+
+**Status:** ✅ Deployment succeeded. Core functionality verified. Known blocker remains: YouTube caption retrieval from Azure egress fails (upstream datacenter IP blocking).
+
+**Outcome Summary:**
+- Azure deploy: `IncludeMobileTargets=false azd deploy --no-prompt -e sstudio-prod-biz` completed in 1m31s
+- All services deployed: api--0000022, webapp--0000022, workers--0000022, marketing--0000025
+- Traffic: 100% on healthy revisions, no infrastructure/database recreation
+- Post-deploy validation: 17 PASS, 0 FAIL, 2 SKIP (auth creds), 2 WARN (workers scale-to-zero, aged migration logs)
+- Sticky sessions re-applied post-deploy
+- Production Jayne E2E (native Python Playwright): auth PASS, Media Import page/tabs PASS, DI/startup PASS, App Insights traces/requests PASS, Workers traces PASS, safe invalid-video classification PASS
+- Telemetry: Azure Container Apps logs and App Insights traces live and queryable
+- Known-good Korean-caption test video: still returns VideoUnavailable from Azure (YouTube cloud/datacenter IP blocking confirmed via upstream issue research)
+
+**The Blocker:**
+Media Import's core success case (importing owned YouTube videos with captions) remains unavailable from Azure. Root cause: YouTube's cloud egress blocks datacenter IPs. Local Aspire/webapp work because localhost requests see residential/ISP egress. Azure container apps use shared datacenter egress, which YouTube rejects.
+
+**Recovery Options (Next Action Requires Captain Vendor/Budget Decision):**
+1. **Residential proxy** — full captions/audio/channel monitoring, but vendor TOS/privacy/cost decision needed
+2. **Managed transcript API** — captions only, lighter vendor dependency, lower cost
+3. **Manual transcript upload** — no automation, high friction
+
+**No Code Changes Required:** The deployed revision is healthy. Classification of failures (invalid video, unsupported codec, unavailable captions) is working correctly. Telemetry is reporting failures cleanly.
+
+**Next Steps:**
+- Captain decides on vendor/proxy/API path
+- Simon/Zoe hold for Captain decision (no further deploy/code until vendor chosen)
+
+**References:**
+- Deployment initiated: Captain authorization
+- Workaround discovered: Simon (web-only path, no workload install)
+- E2E validation: Jayne (production Jayne account, Playwright native)
+- Upstream research: Simon/Zoe (YouTube IP blocking confirmed)
+
+---
+
+### 2026-08-06T18-01-26: Corporate VPN blocks Azure ACA data plane access; WebApp unavailable behind VPN
+**By:** Scribe
+**What:** Corporate VPN blocks Azure ACA data plane access; WebApp unavailable behind VPN
+**References:** prod-incident, webapp-load-failure, vpn-networking, deployment-runbook
+**Why:** **Incident:** WebApp would not load from Captain's Mac at sentencestudio.com/account.
+
+**Investigation (Jayne + Wash):**
+- WebApp/API/Marketing Azure Container App FQDNs all resolve to 134.33.19.82
+- TCP 443 timed out from Captain's Mac
+- sentencestudio.com IIS host (separate) worked normally
+- Entra identity provider login succeeded
+- management.azure.com also timed out
+- Captain's Mac has 5 active utun interfaces (corporate VPN active)
+
+**Validation:**
+- External public probe returned HTTP 200 for ACA (environment healthy, no redeploy needed)
+- Deployment runbook explicitly requires: "VPN must be off"
+
+**Root Cause:**
+Corporate VPN firewall policy blocks Azure Container Apps data plane and Azure management plane traffic from Captain's Mac.
+
+**Resolution:**
+1. Disconnect corporate VPN, OR
+2. Split-tunnel Azure address ranges, then
+3. Reload WebApp and re-run post-deploy diagnostics
+
+**Impact:**
+- No server/resource/code/data changes required
+- Environment is healthy; access issue is client-side VPN policy
+- Applies to any Captain access from behind corporate VPN (not specific to this incident)
+
+**Status:** Diagnosed and mitigated. Safe to proceed post-VPN disconnect.

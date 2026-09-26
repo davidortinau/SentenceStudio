@@ -127,9 +127,11 @@ Cross-reference with `gh issue list --label "status:in-progress"` to find issues
 Once you have the session ID:
 
 ```bash
-# Resume directly
-copilot --resume SESSION_ID
+# Resume only a verified Squad session with explicit model and capability tiers
+copilot --resume SESSION_ID --model gpt-6-sol --reasoning-effort max --context long_context
 ```
+
+If the original session was not a Squad session, or its identity cannot be confirmed, do not resume it for Squad work; start a new session with `--agent squad` and the same explicit GPT/effort/context flags.
 
 ## Examples
 

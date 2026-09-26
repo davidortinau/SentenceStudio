@@ -22,6 +22,25 @@
 
 ---
 
+## Pre-Ship
+
+| Field | Value |
+|-------|-------|
+| **Trigger** | auto |
+| **When** | after |
+| **Condition** | A completed work batch has a new or revised user-facing artifact scheduled for final delivery, merge, or publication; once per artifact revision, before finalization. Not triggered by status replies, ceremony output, or Scribe bookkeeping. |
+| **Facilitator** | Fact Checker |
+| **Participants** | Rai |
+| **Time budget** | focused |
+| **Enabled** | yes |
+
+**Agenda:**
+1. Fact Checker verifies external and repository claims in the final artifact against primary evidence; mark unsupported claims Unverified, and block Contradicted claims until an independent revision is re-verified.
+2. Rai reviews safety, credentials, privacy, and user-facing content; a Red verdict blocks finalization until independently revised and re-reviewed.
+3. Record both verdicts and any accepted residual uncertainty before final delivery. A failed or missing review never counts as approval.
+
+---
+
 ## Retrospective
 
 | Field | Value |

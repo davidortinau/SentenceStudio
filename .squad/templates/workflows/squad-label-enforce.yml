@@ -12,10 +12,10 @@ jobs:
   enforce:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 #v4
 
       - name: Enforce mutual exclusivity
-        uses: actions/github-script@v7
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b #v7
         with:
           script: |
             const issue = context.payload.issue;
@@ -34,7 +34,7 @@ jobs:
 
             // Handle go: namespace (mutual exclusivity)
             if (appliedLabel.startsWith('go:')) {
-              const otherGoLabels = allLabels.filter(l => 
+              const otherGoLabels = allLabels.filter(l =>
                 l.startsWith('go:') && l !== appliedLabel
               );
 
@@ -100,7 +100,7 @@ jobs:
 
             // Handle release: namespace (mutual exclusivity)
             if (appliedLabel.startsWith('release:')) {
-              const otherReleaseLabels = allLabels.filter(l => 
+              const otherReleaseLabels = allLabels.filter(l =>
                 l.startsWith('release:') && l !== appliedLabel
               );
 
@@ -128,7 +128,7 @@ jobs:
 
             // Handle type: namespace (mutual exclusivity)
             if (appliedLabel.startsWith('type:')) {
-              const otherTypeLabels = allLabels.filter(l => 
+              const otherTypeLabels = allLabels.filter(l =>
                 l.startsWith('type:') && l !== appliedLabel
               );
 
@@ -154,7 +154,7 @@ jobs:
 
             // Handle priority: namespace (mutual exclusivity)
             if (appliedLabel.startsWith('priority:')) {
-              const otherPriorityLabels = allLabels.filter(l => 
+              const otherPriorityLabels = allLabels.filter(l =>
                 l.startsWith('priority:') && l !== appliedLabel
               );
 

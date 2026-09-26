@@ -31,3 +31,21 @@
 - Do not relax strict language filtering for quick-add `Language=NULL` rows without a product/data-quality decision.
 - Future migration gates must fail closed when DevFlow attaches to the wrong agent or logs are unavailable.
 - Preserve quiz demonstration counters as monotonic lifetime history during duplicate merge/replay.
+
+
+## 2026-08-06: YouTube import production failure fix (initial attempt, REJECTED)
+
+**Session:** 2026-08-06T12-24 — YouTube import production failure investigation
+**Outcome:** REJECTED by Zoe — WebServiceDefaults is dead, tests invalid, error classification incomplete. Locked out.
+
+**Wash's investigation:**
+- Correctly identified root cause: YoutubeExplode 6.5.6 uses deprecated YouTube web client (PO-token blocked)
+- Proposed fix: Upgrade to YoutubeExplode 6.6.0 + enable Azure Monitor telemetry
+- Changes: CPM bump, WebServiceDefaults edits, YouTubeImportService error handling, regression tests
+
+**Zoe's rejection findings:**
+- WebServiceDefaults is a dead project (no project references it); all deployed hosts use ServiceDefaults
+- Tests were invalid (Moq on sealed AudioAnalyzer, non-virtual methods)
+- Error classification was incomplete (VideoImportException model exists but callers still inject concrete type instead of interface)
+
+**Status:** Locked out; Simon selected for independent revision
