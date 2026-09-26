@@ -120,7 +120,7 @@ public sealed class CoachHistoryProjectionTests
         harness.Coach.OnRun = async _ =>
         {
             var operationId = await harness.LatestOperationIdAsync(conversationId);
-            await harness.Operations.RequestCancelAsync(harness.Owner, operationId!);
+            await harness.Operations.RequestCancelAsync(harness.Owner, conversationId, operationId!);
         };
 
         await harness.TurnAsync(conversationId, "Never mind");

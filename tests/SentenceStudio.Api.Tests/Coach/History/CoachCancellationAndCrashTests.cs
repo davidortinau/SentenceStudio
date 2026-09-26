@@ -29,7 +29,7 @@ public sealed class CoachCancellationAndCrashTests
         harness.Coach.OnRun = async _ =>
         {
             var operationId = await harness.LatestOperationIdAsync(conversationId);
-            await harness.Operations.RequestCancelAsync(harness.Owner, operationId!);
+            await harness.Operations.RequestCancelAsync(harness.Owner, conversationId, operationId!);
         };
 
         var result = await harness.TurnAsync(conversationId, "Actually, never mind");
@@ -48,7 +48,7 @@ public sealed class CoachCancellationAndCrashTests
         harness.Coach.OnRun = async _ =>
         {
             var operationId = await harness.LatestOperationIdAsync(conversationId);
-            await harness.Operations.RequestCancelAsync(harness.Owner, operationId!);
+            await harness.Operations.RequestCancelAsync(harness.Owner, conversationId, operationId!);
         };
 
         await harness.TurnAsync(conversationId, "Half a thought");
@@ -75,7 +75,7 @@ public sealed class CoachCancellationAndCrashTests
         harness.Coach.OnRun = async _ =>
         {
             var operationId = await harness.LatestOperationIdAsync(conversationId);
-            await harness.Operations.RequestCancelAsync(harness.Owner, operationId!);
+            await harness.Operations.RequestCancelAsync(harness.Owner, conversationId, operationId!);
         };
 
         await harness.TurnAsync(conversationId, "Change everything");
@@ -99,7 +99,7 @@ public sealed class CoachCancellationAndCrashTests
 
         await harness.SimulateProcessDeathAsync(conversationId);
         var operationId = await harness.LatestOperationIdAsync(conversationId);
-        await harness.Operations.RequestCancelAsync(harness.Owner, operationId!);
+        await harness.Operations.RequestCancelAsync(harness.Owner, conversationId, operationId!);
 
         // A second replica picks the work up after the lease lapses. It has no in-memory record
         // of the cancel; the only place it can learn about it is the database.
@@ -147,6 +147,40 @@ public sealed class CoachCancellationAndCrashTests
 
         cancel.IsOk.Should().BeFalse();
         cancel.Status.Should().Be(CoachOperationStatus.SessionNotFound);
+    }
+
+    [Fact]
+    public async Task Cancelling_an_operation_through_another_conversation_is_refused_without_mutation()
+    {
+        using var harness = new CoachConversationHarness();
+        harness.ActAs(CoachConversationHarness.OwnerUserId);
+        var conversationA = await harness.CreateConversationAsync();
+        var conversationB = await harness.CreateConversationAsync();
+        var claim = await harness.Operations.ClaimAsync(
+            harness.Owner,
+            CoachHistorySamples.Claim(conversationA, key: "idem-conversation-scoped-cancel"));
+
+        var wrongConversation = await harness.Service.CancelOperationAsync(
+            conversationB,
+            claim.Operation!.Id);
+
+        wrongConversation.IsOk.Should().BeFalse();
+        wrongConversation.Status.Should().Be(CoachOperationStatus.SessionNotFound);
+        (await harness.Operations.GetAsync(harness.Owner, claim.Operation.Id))!
+            .CancelRequested.Should().BeFalse();
+
+        var correctConversation = await harness.Service.CancelOperationAsync(
+            conversationA,
+            claim.Operation.Id);
+
+        correctConversation.IsOk.Should().BeTrue(correctConversation.Detail);
+        correctConversation.Value!.CancelRequested.Should().BeTrue();
+
+        harness.ActAs(CoachConversationHarness.OtherUserId);
+        var otherOwner = await harness.Service.CancelOperationAsync(conversationA, claim.Operation.Id);
+
+        otherOwner.IsOk.Should().BeFalse();
+        otherOwner.Status.Should().Be(CoachOperationStatus.SessionNotFound);
     }
 
     // ---------------------------------------------------------------- crash windows

@@ -257,7 +257,8 @@ public sealed class CoachTurnOperationStoreTests
         var store = harness.NewTurnOperationStore(db);
         var claim = await store.ClaimAsync(CoachHistorySamples.Owner, CoachHistorySamples.Claim(conversationId));
 
-        var cancelled = await store.RequestCancelAsync(CoachHistorySamples.Owner, claim.Operation!.Id);
+        var cancelled = await store.RequestCancelAsync(
+            CoachHistorySamples.Owner, conversationId, claim.Operation!.Id);
 
         Assert.Equal(CoachTurnFinalizeOutcome.Success, cancelled.Outcome);
         Assert.True(cancelled.Operation!.CancelRequested);
@@ -273,7 +274,8 @@ public sealed class CoachTurnOperationStoreTests
         var store = harness.NewTurnOperationStore(db);
         var claim = await store.ClaimAsync(CoachHistorySamples.Owner, CoachHistorySamples.Claim(conversationId));
 
-        var result = await store.RequestCancelAsync(CoachHistorySamples.Intruder, claim.Operation!.Id);
+        var result = await store.RequestCancelAsync(
+            CoachHistorySamples.Intruder, conversationId, claim.Operation!.Id);
 
         Assert.Equal(CoachTurnFinalizeOutcome.NotFound, result.Outcome);
         Assert.False((await store.GetAsync(CoachHistorySamples.Owner, claim.Operation.Id))!.CancelRequested);

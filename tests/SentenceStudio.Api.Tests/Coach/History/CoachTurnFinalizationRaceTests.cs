@@ -80,7 +80,7 @@ public sealed class CoachTurnFinalizationRaceTests
         harness.Coach.OnRun = async _ =>
         {
             var operationId = await harness.LatestOperationIdAsync(conversationId);
-            await harness.Operations.RequestCancelAsync(harness.Owner, operationId!);
+            await harness.Operations.RequestCancelAsync(harness.Owner, conversationId, operationId!);
         };
 
         var attemptsBefore = -1;
@@ -148,7 +148,7 @@ public sealed class CoachTurnFinalizationRaceTests
         harness.Coach.OnRun = async _ =>
         {
             var operationId = await harness.LatestOperationIdAsync(conversationId);
-            await harness.Operations.RequestCancelAsync(harness.Owner, operationId!);
+            await harness.Operations.RequestCancelAsync(harness.Owner, conversationId, operationId!);
         };
 
         using var renewal = RenewalDuring(harness, CoachTurnOperationStatus.Cancelled);

@@ -534,13 +534,10 @@ public sealed class CoachConversationService : ICoachConversationService
             return denied;
         }
 
-        var result = await _operations.RequestCancelAsync(owner, operationId, cancellationToken).ConfigureAwait(false);
+        var result = await _operations
+            .RequestCancelAsync(owner, conversationId, operationId, cancellationToken)
+            .ConfigureAwait(false);
         if (result.Outcome == CoachTurnFinalizeOutcome.NotFound || result.Operation is null)
-        {
-            return NotFound<CoachTurnOperationDto>();
-        }
-
-        if (!string.Equals(result.Operation.ConversationId, conversationId, StringComparison.Ordinal))
         {
             return NotFound<CoachTurnOperationDto>();
         }
@@ -576,7 +573,7 @@ public sealed class CoachConversationService : ICoachConversationService
             return CoachOperationResult<bool>.Ok(false);
         }
 
-        var result = await _operations.RequestCancelAsync(owner, active.Id, cancellationToken)
+        var result = await _operations.RequestCancelAsync(owner, conversationId, active.Id, cancellationToken)
             .ConfigureAwait(false);
 
         // AlreadyTerminal means the turn finished between the lookup and the write. The learner

@@ -109,8 +109,8 @@ internal sealed class FaultingCoachTurnOperationStore(ICoachTurnOperationStore i
         => inner.RenewLeaseAsync(owner, operationId, leaseOwner, fencingVersion, leaseDuration, cancellationToken);
 
     public Task<CoachTurnFinalizeResult> RequestCancelAsync(
-        CoachOwner owner, string operationId, CancellationToken cancellationToken = default)
-        => inner.RequestCancelAsync(owner, operationId, cancellationToken);
+        CoachOwner owner, string conversationId, string operationId, CancellationToken cancellationToken = default)
+        => inner.RequestCancelAsync(owner, conversationId, operationId, cancellationToken);
 
     public Task<CoachTurnFinalizeResult> CompleteAsync(
         CoachOwner owner, string operationId, string leaseOwner, long fencingVersion, string outcomePayload,

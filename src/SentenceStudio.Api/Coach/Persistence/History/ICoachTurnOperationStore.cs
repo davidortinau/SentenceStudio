@@ -41,11 +41,13 @@ public interface ICoachTurnOperationStore
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Durably records a cancellation request. A pending operation ends immediately; a running
-    /// one is flagged so its worker can stop at the next checkpoint.
+    /// Durably records a cancellation request for an operation belonging to the exact owner and
+    /// conversation. A pending operation ends immediately; a running one is flagged so its worker
+    /// can stop at the next checkpoint.
     /// </summary>
     Task<CoachTurnFinalizeResult> RequestCancelAsync(
         CoachOwner owner,
+        string conversationId,
         string operationId,
         CancellationToken cancellationToken = default);
 

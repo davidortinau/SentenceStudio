@@ -374,6 +374,7 @@ public sealed class CoachTurnOperationStore : ICoachTurnOperationStore
 
     public async Task<CoachTurnFinalizeResult> RequestCancelAsync(
         CoachOwner owner,
+        string conversationId,
         string operationId,
         CancellationToken cancellationToken = default)
     {
@@ -389,7 +390,9 @@ public sealed class CoachTurnOperationStore : ICoachTurnOperationStore
             // would be rejected by its own concurrency token.
             DetachStale(owner, operationId);
 
-            var operation = await Owned(owner).FirstOrDefaultAsync(o => o.Id == operationId, cancellationToken);
+            var operation = await Owned(owner).FirstOrDefaultAsync(
+                o => o.ConversationId == conversationId && o.Id == operationId,
+                cancellationToken);
             if (operation is null)
             {
                 return CoachTurnFinalizeResult.Failed(CoachTurnFinalizeOutcome.NotFound);

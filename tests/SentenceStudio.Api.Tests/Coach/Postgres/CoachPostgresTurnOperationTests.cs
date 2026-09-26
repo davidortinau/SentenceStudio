@@ -295,7 +295,8 @@ public sealed class CoachPostgresTurnOperationTests : IAsyncLifetime
             CoachHistorySamples.Owner,
             CoachHistorySamples.Claim(_conversationId, key: "idem-cancel"));
 
-        var cancel = await operations.RequestCancelAsync(CoachHistorySamples.Owner, claim.Operation!.Id);
+        var cancel = await operations.RequestCancelAsync(
+            CoachHistorySamples.Owner, _conversationId, claim.Operation!.Id);
         cancel.Outcome.Should().Be(CoachTurnFinalizeOutcome.Success);
 
         // Durable means readable from a connection that never saw the request.
@@ -336,7 +337,8 @@ public sealed class CoachPostgresTurnOperationTests : IAsyncLifetime
             CoachHistorySamples.Intruder, claim.Operation.Id, "worker-a", claim.FencingVersion, "{}", 1, null, null);
         steal.Outcome.Should().Be(CoachTurnFinalizeOutcome.NotFound);
 
-        var cancel = await operations.RequestCancelAsync(CoachHistorySamples.Intruder, claim.Operation.Id);
+        var cancel = await operations.RequestCancelAsync(
+            CoachHistorySamples.Intruder, _conversationId, claim.Operation.Id);
         cancel.Outcome.Should().Be(CoachTurnFinalizeOutcome.NotFound);
 
         // The owner's operation is untouched by any of it.
