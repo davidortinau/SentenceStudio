@@ -398,7 +398,7 @@ public class CoachGroundednessTests
             CoachMessage = narration
         });
 
-        return SubmitTextAsync(harness, sessionId, "15 minutes, no audio");
+        return SubmitTextAsync(harness, sessionId, "Make Today's Plan 15 minutes with no audio.");
     }
 
     private static Task<CoachOperationResult<CoachTurnResponse>> SuggestAsync(
@@ -411,6 +411,6 @@ public class CoachGroundednessTests
             CoachMessage = narration
         });
 
-        return SubmitTextAsync(harness, sessionId, "what should I do today?");
+        return SubmitTextAsync(harness, sessionId, "Suggest a change to Today's Plan.");
     }
 }

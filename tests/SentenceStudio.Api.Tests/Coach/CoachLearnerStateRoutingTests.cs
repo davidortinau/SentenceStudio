@@ -32,15 +32,15 @@ public class CoachLearnerStateRoutingTests
     [Fact]
     public void AgentDescription_MentionsLearnerState()
     {
-        CoachInstructions.AgentDescription.Should().Contain("learner-state",
+        CoachInstructions.AgentDescription.Should().Contain("learner state",
             "the agent's identity must include grounded learner-state reads");
     }
 
     [Fact]
-    public void AgentDescription_StillMentionsPlanConstraints()
+    public void Instructions_KeepTodaysPlanAsAnOptionalCapability()
     {
-        CoachInstructions.AgentDescription.Should().Contain("Plan constraints",
-            "plan adjustment is still a capability");
+        CoachInstructions.Instructions.Should().Contain("Today's Plan is one optional capability",
+            "plan adjustment remains available without defining the agent's identity");
     }
 
     [Fact]
@@ -126,7 +126,7 @@ public class CoachLearnerStateRoutingTests
     {
         var instructions = CoachInstructions.Instructions;
         var readingIdx = instructions.IndexOf("READING FACTS ABOUT THE LEARNER", StringComparison.Ordinal);
-        var adjustingIdx = instructions.IndexOf("ADJUSTING THE PLAN", StringComparison.Ordinal);
+        var adjustingIdx = instructions.IndexOf("TODAY'S PLAN", StringComparison.Ordinal);
 
         readingIdx.Should().BeGreaterThan(-1);
         adjustingIdx.Should().BeGreaterThan(-1);

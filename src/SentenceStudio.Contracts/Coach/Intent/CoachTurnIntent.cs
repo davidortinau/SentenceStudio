@@ -72,4 +72,12 @@ public sealed class CoachTurnIntent
     /// </remarks>
     [Description("A preference the learner explicitly asked you to remember. Set it only when their message says to remember something, such as 'remember that' or 'from now on'. Leave it empty otherwise.")]
     public CoachMemoryProposalIntent? MemoryProposal { get; set; }
+
+    /// <summary>
+    /// Marks an explicit topical vocabulary-review request. The model supplies only the topic;
+    /// the application generates and presents the complete set, then persists nothing until a
+    /// separate authenticated approval gesture.
+    /// </summary>
+    [Description("Routing marker for an explicit request to start or do a topical vocabulary review activity. Set Kind to NoChange and set only VocabularySet.Topic; the server prepares the terms and approval card. Do not ask whether to replace Today's Plan. Leave empty for broad 'study vocabulary' requests, plan requests, and ordinary questions.")]
+    public CoachVocabularySetIntent? VocabularySet { get; set; }
 }

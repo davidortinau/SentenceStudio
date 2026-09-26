@@ -26,6 +26,7 @@ public sealed class CoachIntentValidator
     private const int MaxClarifyingQuestionLength = 200;
     private const int MaxSuggestionIdLength = 64;
     private const int MaxEvidenceReferences = 6;
+    internal const int MaxVocabularyTopicLength = 80;
 
     private static readonly RegexOptions Options =
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture;
@@ -92,6 +93,7 @@ public sealed class CoachIntentValidator
 
         CheckIntentShape(intent, violations);
         CheckEvidenceReferences(intent, violations);
+        CheckVocabularySet(intent, violations);
 
         return CoachValidationResult.From(violations);
     }
@@ -329,6 +331,38 @@ public sealed class CoachIntentValidator
                     "window_required",
                     "A practice balance fact must state its window."));
             }
+        }
+    }
+
+    private static void CheckVocabularySet(CoachTurnIntent intent, List<CoachViolation> violations)
+    {
+        if (intent.VocabularySet is not { } set)
+        {
+            return;
+        }
+
+        if (intent.Kind != CoachIntentKind.NoChange)
+        {
+            violations.Add(new CoachViolation(
+                CoachViolationKind.IntentShape,
+                "vocabulary_set_requires_no_change",
+                "A vocabulary set is an inert proposal and must use NoChange."));
+        }
+
+        if (!string.IsNullOrWhiteSpace(intent.ClarifyingQuestion))
+        {
+            violations.Add(new CoachViolation(
+                CoachViolationKind.IntentShape,
+                "vocabulary_set_question_forbidden",
+                "A direct vocabulary review request must not also ask which destination the learner meant."));
+        }
+
+        if (string.IsNullOrWhiteSpace(set.Topic) || set.Topic.Trim().Length > MaxVocabularyTopicLength)
+        {
+            violations.Add(new CoachViolation(
+                CoachViolationKind.IntentShape,
+                "vocabulary_topic_invalid",
+                "A vocabulary set needs a short topic."));
         }
     }
 

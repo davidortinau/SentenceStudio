@@ -84,6 +84,74 @@ public class CoachDurableWorkspaceTests
     }
 
     [Fact]
+    public async Task OpenConversationAsync_RestoresPendingVocabularyProposalFromDurableOperation()
+    {
+        var (_, _, client) = Create();
+        client.AddConversation("c-1");
+        client.Seed(
+            "c-1",
+            CoachMessageRole.Coach,
+            "I prepared a vocabulary set.");
+        client.OnGetConversationVocabularyState = conversationId =>
+            conversationId == "c-1"
+                ? new CoachConversationVocabularyStateDto
+                {
+                    PendingProposal = VocabularyProposal()
+                }
+                : null;
+
+        var restarted = Restart(client);
+        await restarted.OpenConversationAsync(CoachPresentation.Overlay, "c-1");
+
+        restarted.PendingVocabularySet.Should().BeEquivalentTo(VocabularyProposal());
+
+        await restarted.ApproveVocabularySetAsync();
+        client.ApproveVocabularySetCalls.Should().Be(1);
+        restarted.PendingVocabularySet.Should().BeNull();
+        restarted.ApprovedVocabularySet.Should().NotBeNull();
+    }
+
+    [Fact]
+    public async Task OpenConversationAsync_DoesNotRestoreTerminalVocabularyProposal()
+    {
+        var (_, _, client) = Create();
+        client.AddConversation("c-1");
+        client.Seed(
+            "c-1",
+            CoachMessageRole.Coach,
+            "A terminal proposal.");
+        client.OnGetConversationVocabularyState = _ => new CoachConversationVocabularyStateDto();
+
+        var restarted = Restart(client);
+        await restarted.OpenConversationAsync(CoachPresentation.Overlay, "c-1");
+        restarted.PendingVocabularySet.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task OpenConversationAsync_DoesNotReadAnotherOwnersVocabularyProposal()
+    {
+        var (_, _, client) = Create();
+        client.AddConversation("c-1");
+        client.ConversationOwners["c-1"] = "owner-a";
+        client.Owner = "owner-b";
+        client.Seed(
+            "c-1",
+            CoachMessageRole.Coach,
+            "Private proposal.");
+        client.OnGetConversationVocabularyState = _ => new CoachConversationVocabularyStateDto
+        {
+            PendingProposal = VocabularyProposal()
+        };
+
+        var restarted = Restart(client);
+        await restarted.OpenConversationAsync(CoachPresentation.Overlay, "c-1");
+
+        restarted.ConversationId.Should().BeNull();
+        restarted.PendingVocabularySet.Should().BeNull();
+        client.GetConversationVocabularyStateCalls.Should().Be(0);
+    }
+
+    [Fact]
     public async Task OpenConversationAsync_ResumesTheNamedConversationRatherThanTheMostRecentOne()
     {
         var (state, _, client) = Create();
@@ -614,4 +682,16 @@ public class CoachDurableWorkspaceTests
         state.Draft = text;
         await state.SendDraftAsync();
     }
+
+    private static CoachVocabularySetProposal VocabularyProposal() => new()
+    {
+        ProposalId = "proposal-food",
+        Topic = "food",
+        Title = "Food vocabulary",
+        TargetLanguageTag = "ko",
+        Terms =
+        [
+            new CoachVocabularyTermDto { TargetTerm = "밥", NativeTerm = "rice or meal" }
+        ]
+    };
 }

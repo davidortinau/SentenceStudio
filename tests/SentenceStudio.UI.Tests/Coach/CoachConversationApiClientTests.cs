@@ -2,6 +2,7 @@ using System.Net;
 using System.Text;
 using System.Text.Json;
 using SentenceStudio.Contracts.Coach;
+using SentenceStudio.Contracts.Wire;
 using SentenceStudio.Services.Api;
 
 namespace SentenceStudio.UI.Tests.Coach;
@@ -121,6 +122,55 @@ public class CoachConversationApiClientTests
     }
 
     [Fact]
+    public async Task Completed_vocabulary_operation_deserializes_its_typed_proposal()
+    {
+        var payload = JsonSerializer.Serialize(
+            new CoachTurnOperationDto
+            {
+                OperationId = "op-vocabulary",
+                ConversationId = "c-1",
+                State = CoachTurnOperationState.Completed,
+                Result = CoachStateMachineTests.Turn().WithVocabularySetProposal(FoodVocabularyProposal()),
+                CreatedAtUtc = new DateTime(2026, 9, 3, 0, 0, 0, DateTimeKind.Utc),
+                UpdatedAtUtc = new DateTime(2026, 9, 3, 0, 0, 1, DateTimeKind.Utc)
+            },
+            WireJson.Client);
+        payload.Should().Contain("\"vocabularySetProposal\"");
+        var client = Create(_ => Json(HttpStatusCode.OK, payload));
+
+        var operation = await client.GetConversationOperationAsync("c-1", "op-vocabulary");
+
+        operation!.State.Should().Be(CoachTurnOperationState.Completed);
+        operation.Result!.VocabularySetProposal.Should().NotBeNull();
+        operation.Result.VocabularySetProposal!.ProposalId.Should().Be("proposal-food");
+        operation.Result.VocabularySetProposal.Terms.Should().HaveCount(10);
+        operation.Result.VocabularySetProposal.Terms[0].TargetTerm.Should().Be("밥");
+        operation.Result.VocabularySetProposal.Terms[9].NativeTerm.Should().Be("restaurant");
+    }
+
+    [Fact]
+    public async Task Conversation_vocabulary_state_uses_the_scoped_route_and_deserializes_the_proposal()
+    {
+        string? path = null;
+        var payload = JsonSerializer.Serialize(
+            new CoachConversationVocabularyStateDto
+            {
+                PendingProposal = FoodVocabularyProposal()
+            },
+            WireJson.Client);
+        var client = Create(request =>
+        {
+            path = request.RequestUri?.AbsolutePath;
+            return Json(HttpStatusCode.OK, payload);
+        });
+
+        var state = await client.GetConversationVocabularyStateAsync("c 1");
+
+        path.Should().Be("/api/v1/coach/conversations/c%201/vocabulary-set");
+        state!.PendingProposal.Should().BeEquivalentTo(FoodVocabularyProposal());
+    }
+
+    [Fact]
     public async Task An_unknown_operation_reads_as_null_rather_than_an_error()
     {
         // A poll that arrives before the claim is committed, and a poll for someone else's
@@ -152,6 +202,7 @@ public class CoachConversationApiClientTests
 
         (await client.GetConversationAsync("c-1")).Should().BeNull();
         (await client.GetConversationMessagesAsync("c-1")).Should().BeNull();
+        (await client.GetConversationVocabularyStateAsync("c-1")).Should().BeNull();
     }
 
     [Fact]
@@ -208,6 +259,33 @@ public class CoachConversationApiClientTests
     {
         Content = new StringContent($$"""{"type":"{{type}}","title":"t","detail":"d"}""",
             Encoding.UTF8, "application/problem+json")
+    };
+
+    private static CoachVocabularySetProposal FoodVocabularyProposal() => new()
+    {
+        ProposalId = "proposal-food",
+        Topic = "food",
+        Title = "Food vocabulary",
+        TargetLanguageTag = "ko",
+        Terms =
+        [
+            Pair("밥", "rice or meal"),
+            Pair("빵", "bread"),
+            Pair("물", "water"),
+            Pair("과일", "fruit"),
+            Pair("채소", "vegetable"),
+            Pair("고기", "meat"),
+            Pair("생선", "fish"),
+            Pair("국", "soup"),
+            Pair("김치", "kimchi"),
+            Pair("식당", "restaurant")
+        ]
+    };
+
+    private static CoachVocabularyTermDto Pair(string target, string native) => new()
+    {
+        TargetTerm = target,
+        NativeTerm = native
     };
 
     private sealed class StubHandler(Func<HttpRequestMessage, HttpResponseMessage> responder) : HttpMessageHandler

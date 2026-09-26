@@ -41,7 +41,9 @@ internal sealed class CoachApplicationHarness : IDisposable
         ILoggerProvider? loggerProvider = null,
         SentenceStudio.Api.Coach.Opportunities.ICoachOpportunityRecorder? opportunities = null,
         bool withUnboundAnswerDetector = false,
-        IPracticeHistoryQueries? practiceHistory = null)
+        IPracticeHistoryQueries? practiceHistory = null,
+        ICoachVocabularySetGenerator? vocabularySets = null,
+        CoachVocabularySetApplicationService? vocabularySetApplications = null)
     {
         // Real loggers only when a test asks for them, so the default harness stays quiet and a
         // leak test can prove what was never written.
@@ -193,7 +195,9 @@ internal sealed class CoachApplicationHarness : IDisposable
             practiceHistory: practiceHistory,
             observations: Observations,
             grounding: Grounding,
-            disputes: Disputes);
+            disputes: Disputes,
+            vocabularySets: vocabularySets,
+            vocabularySetApplications: vocabularySetApplications);
     }
 
     /// <summary>The shipped correction-state coordinator the service calls.</summary>
@@ -823,6 +827,7 @@ internal sealed class FakeCoachValidationDataSource : ICoachValidationDataSource
     public int OwnershipQueryCount { get; private set; }
 
     public Task<IReadOnlyList<CoachEmbargoedItem>> GetEmbargoedItemsAsync(
+        string userProfileId,
         IEnumerable<string>? additionalWordIds = null,
         CancellationToken cancellationToken = default)
     {
@@ -830,7 +835,9 @@ internal sealed class FakeCoachValidationDataSource : ICoachValidationDataSource
         return Task.FromResult<IReadOnlyList<CoachEmbargoedItem>>(EmbargoedItems.ToList());
     }
 
-    public Task<IReadOnlyCollection<string>> GetOwnedResourceIdsAsync(CancellationToken cancellationToken = default)
+    public Task<IReadOnlyCollection<string>> GetOwnedResourceIdsAsync(
+        string userProfileId,
+        CancellationToken cancellationToken = default)
     {
         OwnershipQueryCount++;
 

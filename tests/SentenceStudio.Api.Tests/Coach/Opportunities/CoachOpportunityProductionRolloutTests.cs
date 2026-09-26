@@ -5,6 +5,7 @@ using Microsoft.Extensions.Hosting;
 using SentenceStudio.Api.Coach.Opportunities;
 using SentenceStudio.Api.Coach.Reports;
 using SentenceStudio.Api.Coach.Runtime;
+using SentenceStudio.AppHost;
 
 namespace SentenceStudio.Api.Tests.Coach.Opportunities;
 
@@ -140,20 +141,36 @@ public class CoachOpportunityProductionRolloutTests
     // ---------------------------------------------------------------- what the AppHost forwards
 
     [Fact]
-    public void TheAppHostForwardsBothLedgerSwitchesButNotTheOperatorSurface()
+    public void TheCoachConfigurationReaderForwardsBothLedgerSwitchesButNotTheOperatorSurface()
     {
-        var appHost = File.ReadAllText(Path.Combine(
-            RepositoryRoot(), "src", "SentenceStudio.AppHost", "AppHost.cs"));
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Coach:Reports:Enabled"] = "true",
+                ["Coach:Opportunities:Enabled"] = "false",
 
-        appHost.Should().Contain("Coach__Reports__Enabled",
+                // Negative control: forbidden inputs are present and enabled, so their absence from
+                // the result proves the forwarding allowlist rejected them.
+                ["Coach:Opportunities:OperatorSurface:Enabled"] = "true",
+                ["Coach:Opportunities:OperatorSurface:AllowCrossOwnerEvidence"] = "true"
+            })
+            .Build();
+
+        var environment =
+            CoachConfigurationReader.ReadApiEnvironment(configuration).EnvironmentVariables;
+
+        environment.Should().ContainKey("Coach__Reports__Enabled");
+        environment["Coach__Reports__Enabled"].Should().Be("true",
             "the report switch has to be flippable without a redeploy");
-        appHost.Should().Contain("Coach__Opportunities__Enabled",
-            "so does automatic capture, when Captain approves it");
+        environment.Should().ContainKey("Coach__Opportunities__Enabled");
+        environment["Coach__Opportunities__Enabled"].Should().Be("false",
+            "automatic capture must preserve the deployment's explicit value");
 
-        appHost.Should().NotContain("Coach__Opportunities__OperatorSurface__Enabled",
+        environment.Should().NotContainKey("Coach__Opportunities__OperatorSurface__Enabled",
             "an environment variable that could enable the evidence-decrypting surface is an " +
             "environment variable somebody can set on the wrong host");
-        appHost.Should().NotContain("AllowCrossOwnerEvidence");
+        environment.Should().NotContainKey(
+            "Coach__Opportunities__OperatorSurface__AllowCrossOwnerEvidence");
     }
 
     // ---------------------------------------------------------------- the reviewer path exists

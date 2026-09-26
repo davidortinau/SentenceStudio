@@ -56,6 +56,7 @@ public static class CoachApplicationServiceCollectionExtensions
         // no model output — can address another learner's vocabulary.
         services.TryAddScoped<IVocabularyFocusResolver, VocabularyFocusResolver>();
         services.TryAddScoped<CoachVocabularyFocusService>();
+        services.TryAddScoped<ICoachVocabularySetGenerator, CoachVocabularySetGenerator>();
 
         services.TryAddSingleton<CoachConstraintMapper>();
         services.TryAddSingleton<CoachExplicitAcceptanceClassifier>();

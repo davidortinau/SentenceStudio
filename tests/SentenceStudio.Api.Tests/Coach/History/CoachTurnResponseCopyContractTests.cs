@@ -38,6 +38,28 @@ public sealed class CoachTurnResponseCopyContractTests
         AssertAllMembersCopied(source, copy, nameof(CoachTurnResponse.MemoryCandidate));
     }
 
+    [Fact]
+    public void WithWriteOperation_PreservesVocabularyProposal()
+    {
+        var source = Populated();
+
+        var copy = source.WithWriteOperation(null);
+
+        copy.VocabularySetProposal.Should().BeSameAs(source.VocabularySetProposal);
+        AssertAllMembersCopied(source, copy, nameof(CoachTurnResponse.WriteOperation));
+    }
+
+    [Fact]
+    public void WithVocabularySetProposal_PreservesEveryOtherMember()
+    {
+        var source = Populated();
+
+        var copy = source.WithVocabularySetProposal(null);
+
+        copy.VocabularySetProposal.Should().BeNull();
+        AssertAllMembersCopied(source, copy, nameof(CoachTurnResponse.VocabularySetProposal));
+    }
+
     /// <summary>
     /// Fails when a readable member differs between the original and the copy, unless it is the
     /// one member the copy was asked to replace.
@@ -90,7 +112,22 @@ public sealed class CoachTurnResponseCopyContractTests
         ClarifyingQuestion = "which one?",
         ClarificationsRemaining = 2,
         RunsRemainingToday = 4,
-        ExpiresAtUtc = new DateTime(2026, 8, 17, 12, 0, 0, DateTimeKind.Utc)
+        ExpiresAtUtc = new DateTime(2026, 8, 17, 12, 0, 0, DateTimeKind.Utc),
+        VocabularySetProposal = new CoachVocabularySetProposal
+        {
+            ProposalId = "proposal-1",
+            Topic = "food",
+            Title = "Food vocabulary",
+            TargetLanguageTag = "ko",
+            Terms =
+            [
+                new CoachVocabularyTermDto
+                {
+                    TargetTerm = "밥",
+                    NativeTerm = "rice or meal"
+                }
+            ]
+        }
     };
 
     private static readonly CoachConstraintSetDto Constraints = new()

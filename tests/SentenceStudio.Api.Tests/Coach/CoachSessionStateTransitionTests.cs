@@ -136,7 +136,7 @@ public class CoachSessionStateTransitionTests
         var sessionId = await harness.StartSessionAsync();
 
         harness.Coach.NextResult = await OutputLimitResultAsync();
-        await SubmitAsync(harness, sessionId, "suggest something");
+        await SubmitAsync(harness, sessionId, "Suggest a change to Today's Plan.");
         Row(harness).StopReason.Should().Be(CoachStopReason.OutputTokenLimit);
 
         harness.Coach.NextResult = Completed(new CoachTurnIntent
@@ -145,7 +145,7 @@ public class CoachSessionStateTransitionTests
             ConstraintDelta = new CoachConstraintDeltaIntent { AvailableMinutes = 10 },
             CoachMessage = "Done."
         });
-        await SubmitAsync(harness, sessionId, "make it 10 minutes");
+        await SubmitAsync(harness, sessionId, "make Today's Plan 10 minutes");
 
         var row = Row(harness);
         row.StopReason.Should().BeNull();
@@ -190,10 +190,10 @@ public class CoachSessionStateTransitionTests
             ConstraintDelta = new CoachConstraintDeltaIntent { AvailableMinutes = 10 },
             CoachMessage = "Done."
         });
-        await SubmitAsync(harness, sessionId, "make it 10 minutes");
+        await SubmitAsync(harness, sessionId, "make Today's Plan 10 minutes");
 
         harness.Coach.NextResult = await OutputLimitResultAsync();
-        await SubmitAsync(harness, sessionId, "suggest something");
+        await SubmitAsync(harness, sessionId, "Suggest a change to Today's Plan.");
         Row(harness).StopReason.Should().Be(CoachStopReason.OutputTokenLimit);
 
         await harness.Service.UndoAsync(sessionId, new CoachUndoRequest());
@@ -305,6 +305,6 @@ public class CoachSessionStateTransitionTests
             CoachMessage = "Would you like a short writing activity?"
         });
 
-        return SubmitAsync(harness, sessionId, "what should I do today?");
+        return SubmitAsync(harness, sessionId, "Suggest a change to Today's Plan.");
     }
 }

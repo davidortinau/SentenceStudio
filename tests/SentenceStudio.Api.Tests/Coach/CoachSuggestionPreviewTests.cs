@@ -284,7 +284,7 @@ public class CoachSuggestionPreviewTests
             }
         };
 
-        var result = await SubmitTextAsync(harness, sessionId, "suggest something");
+        var result = await SubmitTextAsync(harness, sessionId, "Suggest a change to Today's Plan.");
 
         result.Value!.Status.Should().Be(CoachTurnStatus.Rejected);
         result.Value.PendingSuggestion.Should().BeNull();
@@ -356,7 +356,9 @@ public class CoachSuggestionPreviewTests
         };
 
         return SubmitTextAsync(
-            harness, sessionId, "Suggest one useful change for better skill balance, but do not apply it yet.");
+            harness,
+            sessionId,
+            "Suggest one useful change to Today's Plan for better skill balance, but do not apply it yet.");
     }
 
     private static PlanSnapshotItem Item(

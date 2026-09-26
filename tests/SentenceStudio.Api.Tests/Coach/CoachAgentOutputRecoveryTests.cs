@@ -193,7 +193,7 @@ public class CoachAgentOutputRecoveryTests
             },
             AgentSessionJson = """{"turn":1}"""
         };
-        var offered = (await SubmitAsync(harness, sessionId, "suggest something")).Value!.PendingSuggestion!;
+        var offered = (await SubmitAsync(harness, sessionId, "Suggest a change to Today's Plan.")).Value!.PendingSuggestion!;
 
         harness.Coach.NextResult = await ModelAnswerAsync("I think you should do some writing today.");
 
@@ -215,7 +215,7 @@ public class CoachAgentOutputRecoveryTests
         harness.Db.CoachSessions.Single().StopReason.Should().BeNull();
 
         harness.Coach.NextResult = await ModelAnswerAsync("no json at all");
-        var result = await SubmitAsync(harness, sessionId, "suggest something");
+        var result = await SubmitAsync(harness, sessionId, "Suggest a change to Today's Plan.");
 
         result.Value!.StopReason.Should().Be(CoachStopReason.ValidationFailed);
 
@@ -231,10 +231,10 @@ public class CoachAgentOutputRecoveryTests
         var sessionId = await harness.StartSessionAsync();
 
         harness.Coach.NextResult = await ModelAnswerAsync("no json at all");
-        var refused = await SubmitAsync(harness, sessionId, "suggest something");
+        var refused = await SubmitAsync(harness, sessionId, "Suggest a change to Today's Plan.");
 
         harness.Coach.NextResult = CoachAgentTurnResult.Failure(CoachAgentOutcome.Timeout, "timed out");
-        var timedOut = await SubmitAsync(harness, sessionId, "suggest something");
+        var timedOut = await SubmitAsync(harness, sessionId, "Suggest a change to Today's Plan.");
 
         // R5: neutral copy replaces Plan-biased wording per Zoe-approved design.
         refused.Value!.Messages.Single().Text.Should().Be(CoachDeterministicCopy.ValidationFailedNeutral);

@@ -88,24 +88,20 @@ public class CoachOpportunityApplicationObservationTests
         coach.Sequence.Should().BeLessThan(learner.Sequence);
     }
 
-    // ------------------------------- the screenshot's other half: a turn that COMPLETED
+    // ------------------------------- the screenshot's other half: a model-declared change
 
     /// <summary>
-    /// The reproduced flow, in the state the learner was actually in: no plan for today.
+    /// The reproduced flow, in the state the learner was actually in: no tracked proposal.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// This is the variant that recorded nothing and made the ledger come back empty. The learner
-    /// says yes, the model declares the constraint change it was offering, and the application
-    /// runs <c>ApplyDeltaAsync</c> — which finds no Today's Plan to edit and returns through
-    /// <c>NoPlanToEditAsync</c>: <see cref="CoachStopReason.Completed"/>, a notice saying there is
-    /// no plan, and <b>no receipt</b>. Nothing asked a second question, so the stop reason is not
-    /// <see cref="CoachStopReason.ClarificationRequested"/> and the original guard declined.
+    /// The learner says yes after an untracked prose offer and the model declares a direct change.
+    /// Current learner text carries no plan authority, so the containment boundary refuses to enter
+    /// the plan reducer and asks a clarification. The turn still records referent loss because the
+    /// answer could not bind to a tracked proposal.
     /// </para>
     /// <para>
-    /// Every other conjunct held, which is what makes the declared intent the right discriminant:
-    /// the turn said it was going to change a setting, and then changed nothing at all. The
-    /// learner's "yes" was dropped exactly as visibly as in the clarification variant.
+    /// The declared intent remains useful observation metadata, but it cannot grant authority.
     /// </para>
     /// </remarks>
     [Fact]
@@ -124,8 +120,7 @@ public class CoachOpportunityApplicationObservationTests
         offer.IsOk.Should().BeTrue(offer.Detail);
         recorder.Signals.Should().BeEmpty("the offer turn itself completed and lost nothing");
 
-        // The condition the reproduced conversation ran under, and the reason Sam answered
-        // "there is no plan": nothing was generated for today.
+        // No plan is needed to prove the containment boundary; the untracked "yes" is not authority.
         harness.App.PlanService.SetItems([]);
 
         harness.Coach.NextResult = DirectChange(45);
@@ -133,10 +128,8 @@ public class CoachOpportunityApplicationObservationTests
         var answered = await harness.TurnAsync(conversationId, "yes");
         answered.IsOk.Should().BeTrue(answered.Detail);
 
-        // The shape that used to be invisible, asserted before the ledger is: this is a completed
-        // turn, not a refused one, and it applied and proposed nothing.
-        answered.Value!.Result!.StopReason.Should().Be(CoachStopReason.Completed);
-        answered.Value.Result.ChangeReceipt.Should().BeNull("there was no plan to change");
+        answered.Value!.Result!.StopReason.Should().Be(CoachStopReason.ClarificationRequested);
+        answered.Value.Result.ChangeReceipt.Should().BeNull("the learner authorized no plan change");
         answered.Value.Result.WriteOperation.Should().BeNull("nothing was proposed either");
 
         var signal = recorder.Signals.Should().ContainSingle(
@@ -147,8 +140,7 @@ public class CoachOpportunityApplicationObservationTests
         signal.Disposition.Should().Be(CoachOpportunityDisposition.Product);
         signal.Surface.Should().Be(CoachOpportunitySurface.TurnOutcome);
         signal.OfferLink.Should().Be(CoachOpportunityOfferLink.PriorCoachQuestion);
-        signal.StopReason.Should().Be(CoachStopReason.Completed,
-            "the row records what actually happened, and what happened is that the turn finished");
+        signal.StopReason.Should().Be(CoachStopReason.ClarificationRequested);
 
         // Both pointers, naming the two messages a reviewer would read.
         signal.Evidence.ConversationId.Should().Be(conversationId);

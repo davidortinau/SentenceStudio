@@ -595,6 +595,9 @@ public class CoachWorkspaceStateTests
         public Task<CoachTurnOperationDto?> GetConversationOperationAsync(string conversationId, string operationId, CancellationToken cancellationToken = default)
             => inner.GetConversationOperationAsync(conversationId, operationId, cancellationToken);
 
+        public Task<CoachConversationVocabularyStateDto?> GetConversationVocabularyStateAsync(string conversationId, CancellationToken cancellationToken = default)
+            => inner.GetConversationVocabularyStateAsync(conversationId, cancellationToken);
+
         public Task<CoachTurnOperationDto?> CancelConversationTurnAsync(string conversationId, string operationId, CancellationToken cancellationToken = default)
             => inner.CancelConversationTurnAsync(conversationId, operationId, cancellationToken);
 

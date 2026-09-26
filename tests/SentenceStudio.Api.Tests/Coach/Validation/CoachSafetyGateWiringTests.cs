@@ -60,7 +60,8 @@ public class CoachSafetyGateWiringTests
             AgentSessionJson = """{"state":"after-leak"}"""
         };
 
-        var result = await harness.Service.SubmitTurnAsync(sessionId, TextTurn("10 minutes"));
+        var result = await harness.Service.SubmitTurnAsync(
+            sessionId, TextTurn("Make Today's Plan 10 minutes."));
 
         result.IsOk.Should().BeTrue();
 
@@ -88,7 +89,8 @@ public class CoachSafetyGateWiringTests
             Intent = DirectChange($"Start with {DueTerm} today.")
         };
 
-        var result = await harness.Service.SubmitTurnAsync(sessionId, TextTurn("10 minutes"));
+        var result = await harness.Service.SubmitTurnAsync(
+            sessionId, TextTurn("Make Today's Plan 10 minutes."));
 
         var text = string.Join(" ", result.Value!.Messages.Select(m => m.Text));
         text.Should().NotContain(DueTerm);
@@ -134,7 +136,8 @@ public class CoachSafetyGateWiringTests
             Intent = DirectChange($"Start with {DueTerm}.")
         };
 
-        await harness.Service.SubmitTurnAsync(sessionId, TextTurn("10 minutes"));
+        await harness.Service.SubmitTurnAsync(
+            sessionId, TextTurn("Make Today's Plan 10 minutes."));
 
         harness.Coach.RunCount.Should().Be(1, "a refusal is terminal; the coach never asks the model again");
     }
@@ -152,7 +155,8 @@ public class CoachSafetyGateWiringTests
             Intent = DirectChange("Today's Plan now fits 10 minutes.")
         };
 
-        var result = await harness.Service.SubmitTurnAsync(sessionId, TextTurn("10 minutes"));
+        var result = await harness.Service.SubmitTurnAsync(
+            sessionId, TextTurn("Make Today's Plan 10 minutes."));
 
         result.Value!.Status.Should().Be(CoachTurnStatus.Completed);
         harness.ValidationData.EmbargoQueryCount.Should().Be(0,
@@ -171,7 +175,8 @@ public class CoachSafetyGateWiringTests
             Intent = DirectChange($"Start with {DueTerm}.")
         };
 
-        var result = await harness.Service.SubmitTurnAsync(sessionId, TextTurn("10 minutes"));
+        var result = await harness.Service.SubmitTurnAsync(
+            sessionId, TextTurn("Make Today's Plan 10 minutes."));
 
         result.Value!.Status.Should().Be(CoachTurnStatus.Completed,
             "nothing is due, so no word is embargoed");
@@ -191,7 +196,8 @@ public class CoachSafetyGateWiringTests
             Intent = DirectChange("Today's Plan now fits 10 minutes.")
         };
 
-        await harness.Service.SubmitTurnAsync(sessionId, TextTurn("10 minutes"));
+        await harness.Service.SubmitTurnAsync(
+            sessionId, TextTurn("Make Today's Plan 10 minutes."));
 
         harness.ValidationData.OwnershipQueryCount.Should().BeGreaterThan(0,
             "a model-derived change must be ownership-checked before it is applied");
@@ -213,7 +219,8 @@ public class CoachSafetyGateWiringTests
         };
 
         var before = harness.PlanService.Current.Version;
-        var result = await harness.Service.SubmitTurnAsync(sessionId, TextTurn("10 minutes"));
+        var result = await harness.Service.SubmitTurnAsync(
+            sessionId, TextTurn("Make Today's Plan 10 minutes."));
 
         result.Value!.Status.Should().Be(CoachTurnStatus.Rejected);
         result.Value.StopReason.Should().Be(CoachStopReason.ValidationFailed);
@@ -241,7 +248,8 @@ public class CoachSafetyGateWiringTests
             }
         };
 
-        var result = await harness.Service.SubmitTurnAsync(sessionId, TextTurn("what should I do?"));
+        var result = await harness.Service.SubmitTurnAsync(
+            sessionId, TextTurn("Suggest a change to Today's Plan."));
 
         result.Value!.Status.Should().Be(CoachTurnStatus.Rejected);
         result.Value.PendingSuggestion.Should().BeNull("an unverified preview never becomes a pending suggestion");

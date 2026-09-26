@@ -32,6 +32,11 @@ public class MauiMacOSApp : MacOSMauiApplication
 #endif
 
         // Native Account (Log In / Log Out) menu — installed and re-asserted on activation.
-        MacOSAppMenu.RegisterForActivation();
+#if DEBUG
+        if (Services?.GetService<MigrationValidationOptions>() is null)
+#endif
+        {
+            MacOSAppMenu.RegisterForActivation();
+        }
     }
 }

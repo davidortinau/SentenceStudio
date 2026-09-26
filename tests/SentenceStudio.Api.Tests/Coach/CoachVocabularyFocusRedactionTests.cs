@@ -42,7 +42,7 @@ public class CoachVocabularyFocusRedactionTests
         var sessionId = await harness.StartSessionAsync();
 
         harness.Coach.NextResult = FocusResult(Phrase);
-        await AskAsync(harness, sessionId, "I want to focus today on active verbs");
+        await AskAsync(harness, sessionId, "I want Today's Plan to focus on active verbs");
 
         var row = harness.Db.CoachSessions.Single();
         row.PendingSuggestionDeltaJson.Should().NotBeNull();
@@ -67,7 +67,7 @@ public class CoachVocabularyFocusRedactionTests
         // The registry must map it, so alias the sentinel through a phrase it knows while the
         // model still emits the sentinel-bearing description.
         harness.Coach.NextResult = FocusResult(Phrase);
-        var offered = await AskAsync(harness, sessionId, $"focus on {Sentinel} please");
+        var offered = await AskAsync(harness, sessionId, $"focus Today's Plan on {Sentinel} please");
 
         await harness.Service.AcceptSuggestionAsync(
             sessionId, offered.Value!.PendingSuggestion!.SuggestionId, new CoachSuggestionDecisionRequest());
@@ -108,7 +108,7 @@ public class CoachVocabularyFocusRedactionTests
         var sessionId = await harness.StartSessionAsync();
 
         harness.Coach.NextResult = FocusResult(Phrase);
-        var offered = await AskAsync(harness, sessionId, "focus today on active verbs");
+        var offered = await AskAsync(harness, sessionId, "focus Today's Plan on active verbs");
 
         offered.Value!.PendingSuggestion!.Delta.VocabularyFocusDescription.Should().BeNull();
 
@@ -127,7 +127,7 @@ public class CoachVocabularyFocusRedactionTests
         var sessionId = await harness.StartSessionAsync();
 
         harness.Coach.NextResult = FocusResult(Phrase);
-        var offered = await AskAsync(harness, sessionId, "focus today on active verbs");
+        var offered = await AskAsync(harness, sessionId, "focus Today's Plan on active verbs");
 
         // Reload: the redacted delta is enough to rebuild the whole offer.
         var reread = (await harness.Service.GetSessionAsync(sessionId)).Value!.PendingSuggestion!;
@@ -188,7 +188,7 @@ public class CoachVocabularyFocusRedactionTests
         var sessionId = await harness.StartSessionAsync();
 
         harness.Coach.NextResult = FocusResult(Phrase);
-        var offered = await AskAsync(harness, sessionId, "focus today on active verbs");
+        var offered = await AskAsync(harness, sessionId, "focus Today's Plan on active verbs");
 
         // Put the wording back, as a row written before this fix would have it.
         var row = harness.Db.CoachSessions.Single();
@@ -234,7 +234,7 @@ public class CoachVocabularyFocusRedactionTests
         };
 
         harness.Coach.NextResult = FocusResult(Phrase);
-        var offered = await AskAsync(harness, sessionId, "focus today on active verbs");
+        var offered = await AskAsync(harness, sessionId, "focus Today's Plan on active verbs");
 
         var words = offered.Value!.PendingSuggestion!.VocabularyFocus!.Words;
 

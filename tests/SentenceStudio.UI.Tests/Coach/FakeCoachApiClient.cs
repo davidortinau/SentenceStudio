@@ -37,6 +37,14 @@ internal sealed class FakeCoachApiClient : ICoachApiClient
 
     public Func<CoachTurnResponse>? OnUndo { get; set; }
 
+    public Func<ApproveCoachVocabularySetRequest, CoachVocabularySetApprovalResponse>?
+        OnApproveVocabularySet { get; set; }
+
+    public Func<ApproveCoachVocabularySetRequest, CancellationToken, Task<CoachVocabularySetApprovalResponse>>?
+        OnApproveVocabularySetAsync { get; set; }
+
+    public int ApproveVocabularySetCalls { get; private set; }
+
     public int StartSessionCalls { get; private set; }
 
     public int SubmitTurnCalls { get; private set; }
@@ -88,6 +96,29 @@ internal sealed class FakeCoachApiClient : ICoachApiClient
     public Task<CoachTurnResponse> UndoAsync(string sessionId, CoachUndoRequest request, CancellationToken cancellationToken = default)
         => Task.FromResult(OnUndo?.Invoke()
             ?? CoachStateMachineTests.Turn(receipt: CoachStateMachineTests.Receipt(CoachRevisionSource.Undo, "receipt-2", "rev-2", canUndo: false)));
+
+    public async Task<CoachVocabularySetApprovalResponse> ApproveVocabularySetAsync(
+        ApproveCoachVocabularySetRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ApproveVocabularySetCalls++;
+        if (OnApproveVocabularySetAsync is { } asyncHook)
+        {
+            return await asyncHook(request, cancellationToken);
+        }
+
+        return OnApproveVocabularySet?.Invoke(request) ?? new CoachVocabularySetApprovalResponse
+        {
+            ProposalId = request.ProposalReference,
+            Decision = request.Decision,
+            ResourceId = request.Decision == SentenceStudio.Contracts.AppOperation.ApplicationOperationDecision.Accept
+                ? "resource-vocabulary"
+                : null,
+            ActivityPath = request.Decision == SentenceStudio.Contracts.AppOperation.ApplicationOperationDecision.Accept
+                ? "/vocabulary/review"
+                : null
+        };
+    }
 
     public Task CancelSessionAsync(string sessionId, CancellationToken cancellationToken = default)
     {
@@ -156,6 +187,7 @@ internal sealed class FakeCoachApiClient : ICoachApiClient
     public int SubmitConversationTurnCalls { get; private set; }
 
     public int GetConversationOperationCalls { get; private set; }
+    public int GetConversationVocabularyStateCalls { get; private set; }
 
     public int CancelConversationTurnCalls { get; private set; }
 
@@ -172,8 +204,19 @@ internal sealed class FakeCoachApiClient : ICoachApiClient
     /// <summary>Replaces the turn submission, for failure, conflict and lost-response cases.</summary>
     public Func<string, CoachConversationTurnRequest, CoachTurnOperationDto>? OnSubmitConversationTurn { get; set; }
 
+    public Func<string, CoachConversationTurnRequest, CancellationToken, Task<CoachTurnOperationDto>>?
+        OnSubmitConversationTurnAsync { get; set; }
+
     /// <summary>Replaces the operation poll, for recovery cases.</summary>
     public Func<string, string, CoachTurnOperationDto?>? OnGetConversationOperation { get; set; }
+
+    public Func<string, string, CancellationToken, Task<CoachTurnOperationDto?>>?
+        OnGetConversationOperationAsync { get; set; }
+
+    public Func<string, CoachConversationVocabularyStateDto?>? OnGetConversationVocabularyState { get; set; }
+
+    public Func<string, CancellationToken, Task<CoachConversationVocabularyStateDto?>>?
+        OnGetConversationVocabularyStateAsync { get; set; }
 
     /// <summary>Replaces the update, for version-conflict cases.</summary>
     public Func<string, UpdateCoachConversationRequest, CoachConversationDto>? OnUpdateConversation { get; set; }
@@ -332,7 +375,7 @@ internal sealed class FakeCoachApiClient : ICoachApiClient
         return Task.FromResult(updated);
     }
 
-    public Task<CoachTurnOperationDto> SubmitConversationTurnAsync(
+    public async Task<CoachTurnOperationDto> SubmitConversationTurnAsync(
         string conversationId,
         CoachConversationTurnRequest request,
         CancellationToken cancellationToken = default)
@@ -347,7 +390,15 @@ internal sealed class FakeCoachApiClient : ICoachApiClient
         if (_operationsByIdempotencyKey.TryGetValue(request.IdempotencyKey, out var replay)
             && replay.State != CoachTurnOperationState.Failed)
         {
-            return Task.FromResult(replay);
+            return replay;
+        }
+
+        if (OnSubmitConversationTurnAsync is { } asyncHook)
+        {
+            var hooked = await asyncHook(conversationId, request, cancellationToken);
+            _operationsByIdempotencyKey[request.IdempotencyKey] = hooked;
+            _operationsById[hooked.OperationId] = hooked;
+            return hooked;
         }
 
         if (OnSubmitConversationTurn is { } hook)
@@ -355,7 +406,7 @@ internal sealed class FakeCoachApiClient : ICoachApiClient
             var hooked = hook(conversationId, request);
             _operationsByIdempotencyKey[request.IdempotencyKey] = hooked;
             _operationsById[hooked.OperationId] = hooked;
-            return Task.FromResult(hooked);
+            return hooked;
         }
 
         var learner = HistoryMessage(conversationId, CoachMessageRole.Learner, request.Turn.Text ?? string.Empty);
@@ -376,22 +427,51 @@ internal sealed class FakeCoachApiClient : ICoachApiClient
 
         _operationsByIdempotencyKey[request.IdempotencyKey] = operation;
         _operationsById[operation.OperationId] = operation;
-        return Task.FromResult(operation);
+        return operation;
     }
 
-    public Task<CoachTurnOperationDto?> GetConversationOperationAsync(
+    public async Task<CoachTurnOperationDto?> GetConversationOperationAsync(
         string conversationId,
         string operationId,
         CancellationToken cancellationToken = default)
     {
         GetConversationOperationCalls++;
 
-        if (OnGetConversationOperation is { } hook)
+        if (OnGetConversationOperationAsync is { } asyncHook)
         {
-            return Task.FromResult(hook(conversationId, operationId));
+            return await asyncHook(conversationId, operationId, cancellationToken);
         }
 
-        return Task.FromResult(_operationsById.TryGetValue(operationId, out var found) ? found : null);
+        if (OnGetConversationOperation is { } hook)
+        {
+            return hook(conversationId, operationId);
+        }
+
+        return
+            OwnedByCaller(conversationId)
+            && _operationsById.TryGetValue(operationId, out var found)
+            && string.Equals(found.ConversationId, conversationId, StringComparison.Ordinal)
+                ? found
+                : null;
+    }
+
+    public async Task<CoachConversationVocabularyStateDto?> GetConversationVocabularyStateAsync(
+        string conversationId,
+        CancellationToken cancellationToken = default)
+    {
+        GetConversationVocabularyStateCalls++;
+        if (!OwnedByCaller(conversationId))
+        {
+            return null;
+        }
+
+        if (OnGetConversationVocabularyStateAsync is { } asyncHook)
+        {
+            return await asyncHook(conversationId, cancellationToken);
+        }
+
+        return OnGetConversationVocabularyState?.Invoke(conversationId)
+            ?? new CoachConversationVocabularyStateDto();
     }
 
     public Task<CoachTurnOperationDto?> CancelConversationTurnAsync(

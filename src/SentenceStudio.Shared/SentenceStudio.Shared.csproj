@@ -19,6 +19,7 @@
 	     MAUI Blazor head (in-process via Features:DailyPlanV2) can resolve a
 	     single implementation. The DTOs it returns live in Contracts. -->
 	<ItemGroup>
+		<ProjectReference Include="..\SentenceStudio.Application\SentenceStudio.Application.csproj" />
 		<ProjectReference Include="..\SentenceStudio.Contracts\SentenceStudio.Contracts.csproj" />
 		<ProjectReference Include="..\SentenceStudio.Sharing\SentenceStudio.Sharing.csproj" />
 	</ItemGroup>

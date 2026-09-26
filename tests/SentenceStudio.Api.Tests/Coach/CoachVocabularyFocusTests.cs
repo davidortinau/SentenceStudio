@@ -25,7 +25,7 @@ namespace SentenceStudio.Api.Tests.Coach;
 /// </remarks>
 public class CoachVocabularyFocusTests
 {
-    private const string Utterance = "I want to focus today on active verbs";
+    private const string Utterance = "I want Today's Plan to focus on active verbs";
 
     // ---------------------------------------------------------------- the registry
 
@@ -272,7 +272,7 @@ public class CoachVocabularyFocusTests
         ];
 
         harness.Coach.NextResult = ClearFocusResult();
-        var cleared = await AskAsync(harness, sessionId, "clear vocabulary focus");
+        var cleared = await AskAsync(harness, sessionId, "clear Today's Plan vocabulary focus");
 
         cleared.Value!.ChangeReceipt.Should().NotBeNull("clearing needs no confirmation");
         cleared.Value.PendingSuggestion.Should().BeNull();
@@ -288,7 +288,7 @@ public class CoachVocabularyFocusTests
         var sessionId = await harness.StartSessionAsync();
 
         harness.Coach.NextResult = MinutesResult(30);
-        var result = await AskAsync(harness, sessionId, "make it 30 minutes");
+        var result = await AskAsync(harness, sessionId, "make Today's Plan 30 minutes");
 
         result.Value!.ChangeReceipt.Should().NotBeNull();
         result.Value.PendingSuggestion.Should().BeNull();
@@ -304,7 +304,7 @@ public class CoachVocabularyFocusTests
         var sessionId = await harness.StartSessionAsync();
 
         harness.Coach.NextResult = FocusResult("active voice");
-        var result = await AskAsync(harness, sessionId, "focus on active voice");
+        var result = await AskAsync(harness, sessionId, "focus Today's Plan on active voice");
 
         result.Value!.ClarifyingQuestion.Should().NotBeNullOrEmpty();
         result.Value.ChangeReceipt.Should().BeNull();
@@ -349,7 +349,7 @@ public class CoachVocabularyFocusTests
         // A later change that says nothing about vocabulary must not re-resolve: a fresh
         // resolution could return different words, which the receipt would not disclose.
         harness.Coach.NextResult = MinutesResult(20);
-        var result = await AskAsync(harness, sessionId, "make it 20 minutes");
+        var result = await AskAsync(harness, sessionId, "make Today's Plan 20 minutes");
 
         harness.FocusResolver.ResolveCount.Should().Be(1, "the focus was already frozen");
         harness.PlanService.LastApplyFocusIds.Should().Equal("v-1", "v-2", "v-3", "v-4", "v-5");
@@ -372,7 +372,7 @@ public class CoachVocabularyFocusTests
             sessionId, FocusResult("active verbs"), Utterance);
 
         harness.Coach.NextResult = ClearFocusResult();
-        var result = await AskAsync(harness, sessionId, "no vocabulary focus today");
+        var result = await AskAsync(harness, sessionId, "clear Today's Plan vocabulary focus");
 
         result.Value!.ActiveConstraints.VocabularyFocus.Should().BeNull();
         harness.PlanService.LastApplyFocusIds.Should().BeNull();
@@ -439,7 +439,7 @@ public class CoachVocabularyFocusTests
         // A second turn: whatever context the coach carries forward, it holds no selected word,
         // no identifier, and no count.
         harness.Coach.NextResult = MinutesResult(20);
-        await AskAsync(harness, sessionId, "make it 20 minutes");
+        await AskAsync(harness, sessionId, "make Today's Plan 20 minutes");
 
         var context = System.Text.Json.JsonSerializer.Serialize(harness.Coach.LastRequest);
         foreach (var leaked in new[] { "v-1", "\uAC00\uB2E4", "\uBA39\uB2E4", "to go" })

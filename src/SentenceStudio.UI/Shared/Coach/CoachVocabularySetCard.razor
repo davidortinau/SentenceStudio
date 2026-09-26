@@ -1,0 +1,102 @@
+@implements IDisposable
+@inject CoachWorkspaceState Coach
+@inject NavigationManager Navigation
+
+@if (Coach.PendingVocabularySet is { } proposal)
+{
+    <section class="coach-card" aria-labelledby="coach-vocabulary-set-title">
+        <div class="d-flex align-items-start gap-2 mb-2">
+            <i class="bi bi-collection" aria-hidden="true"></i>
+            <div>
+                <h3 id="coach-vocabulary-set-title" class="ss-body1 fw-semibold mb-1">@proposal.Title</h3>
+                <div class="ss-caption1 text-secondary-ss">
+                    Review all @proposal.Terms.Count terms. Approving saves the complete set; declining saves none.
+                </div>
+            </div>
+        </div>
+
+        <ol class="mb-3">
+            @foreach (var term in proposal.Terms)
+            {
+                <li>
+                    <span lang="@proposal.TargetLanguageTag" class="fw-semibold">@term.TargetTerm</span>
+                    <span aria-hidden="true"> — </span>
+                    <span>@term.NativeTerm</span>
+                </li>
+            }
+        </ol>
+
+        <div class="d-flex flex-wrap gap-2">
+            <button type="button"
+                    class="btn btn-ss-primary coach-action"
+                    disabled="@Coach.IsVocabularySetDecisionBusy"
+                    @onclick="ApproveAsync">
+                <i class="bi bi-check-circle me-1" aria-hidden="true"></i>
+                @(Coach.IsVocabularySetDecisionBusy ? "Saving…" : "Approve complete set")
+            </button>
+            <button type="button"
+                    class="btn btn-ss-secondary coach-action"
+                    disabled="@Coach.IsVocabularySetDecisionBusy"
+                    @onclick="RejectAsync">
+                Decline
+            </button>
+        </div>
+    </section>
+}
+
+@if (Coach.VocabularySetDecisionMessage is { Length: > 0 } message)
+{
+    <div class="coach-card coach-card-notice" role="status">
+        <div>@message</div>
+        @if (Coach.ApprovedVocabularySet?.ActivityPath is { } activityPath)
+        {
+            <button type="button"
+                    class="btn btn-ss-primary coach-action mt-2"
+                    @onclick="() => Navigation.NavigateTo(activityPath)">
+                <i class="bi bi-play-circle me-1" aria-hidden="true"></i>
+                Start Vocab Review
+            </button>
+        }
+    </div>
+}
+
+@code {
+    private int _disposed;
+
+    protected override void OnInitialized()
+    {
+        Coach.Changed += OnChanged;
+    }
+
+    private async void OnChanged()
+    {
+        if (Volatile.Read(ref _disposed) != 0)
+        {
+            return;
+        }
+
+        try
+        {
+            await InvokeAsync(() =>
+            {
+                if (Volatile.Read(ref _disposed) == 0)
+                {
+                    StateHasChanged();
+                }
+            });
+        }
+        catch (ObjectDisposedException) when (Volatile.Read(ref _disposed) != 0)
+        {
+            // Disposal can win after the callback is queued but before the dispatcher accepts it.
+        }
+    }
+
+    public void Dispose()
+    {
+        Interlocked.Exchange(ref _disposed, 1);
+        Coach.Changed -= OnChanged;
+    }
+
+    private Task ApproveAsync() => Coach.ApproveVocabularySetAsync();
+    private Task RejectAsync() => Coach.RejectVocabularySetAsync();
+}

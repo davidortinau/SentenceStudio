@@ -503,7 +503,9 @@ public sealed class CoachLegacySessionRoutingTests
             }
         };
 
-        var proposed = await harness.Compat.SubmitTurnAsync(sessionId, Text("what should I do today?"));
+        var proposed = await harness.Compat.SubmitTurnAsync(
+            sessionId,
+            Text("suggest making Today's Plan 12 minutes"));
         proposed.IsOk.Should().BeTrue(proposed.Detail);
         proposed.Value!.PendingSuggestion.Should().NotBeNull();
         return proposed.Value.PendingSuggestion!;

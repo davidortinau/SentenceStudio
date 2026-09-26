@@ -3,15 +3,16 @@ using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 #endif
 using System;
 using Microsoft.EntityFrameworkCore;
+using SentenceStudio.Data.AppOperations;
 using SentenceStudio.Shared.Models;
 using SentenceStudio.Shared.Models.Numbers;
 
 namespace SentenceStudio.Data;
 
 #if IOS || ANDROID || MACCATALYST || MACOS
-public class ApplicationDbContext : DbContext
+public partial class ApplicationDbContext : DbContext
 #else
-public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
+public partial class ApplicationDbContext : IdentityDbContext<ApplicationUser>
 #endif
 {
     public ApplicationDbContext() { }
@@ -436,6 +437,8 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.Ignore<ShadowingSentence>();
         modelBuilder.Ignore<Question>();
         modelBuilder.Ignore<Lesson>();
+
+        modelBuilder.ConfigureApplicationOperations();
 
         base.OnModelCreating(modelBuilder);
     }

@@ -241,7 +241,7 @@ public class CoachOutputBudgetTests
         harness.Service.SubmitTurnAsync(sessionId, new CoachTurnRequest
         {
             InputKind = CoachTurnInputKind.Text,
-            Text = "suggest something"
+            Text = "Suggest a change to Today's Plan."
         });
 
     private static ChatOptions Build(CoachOptions options) =>

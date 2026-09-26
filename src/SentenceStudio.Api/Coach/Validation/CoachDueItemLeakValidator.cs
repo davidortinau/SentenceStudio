@@ -12,10 +12,11 @@ public sealed record CoachEmbargoedItem(
     string? TargetTerm,
     string? NativeTerm = null,
     string? Lemma = null,
-    IReadOnlyList<string>? Examples = null);
+    IReadOnlyList<string>? Examples = null,
+    string? MnemonicText = null);
 
 /// <summary>
-/// Finds a due word, a translation, or an example in coach text.
+/// Finds a due word, translation, example, or mnemonic in coach text.
 /// The check is literal and near-literal:
 /// it ignores Korean spacing, it strips Korean particles, and it compares lemmas.
 /// The validator never returns the value it found. It returns masked evidence.
@@ -89,7 +90,24 @@ public sealed class CoachDueItemLeakValidator
         {
             CheckTargetForm(item.TargetTerm, "due_term", spacingFree, tokenStems, violations);
             CheckTargetForm(item.Lemma, "due_lemma", spacingFree, tokenStems, violations);
-            CheckNativeTerm(item.NativeTerm, latinText, spacingFree, tokenStems, allowed, violations);
+            CheckNativeText(
+                item.NativeTerm,
+                "due_gloss",
+                "The answer repeats the translation of a word that is due for review.",
+                latinText,
+                spacingFree,
+                tokenStems,
+                allowed,
+                violations);
+            CheckNativeText(
+                item.MnemonicText,
+                "due_mnemonic",
+                "The answer repeats a mnemonic for a word that is due for review.",
+                latinText,
+                spacingFree,
+                tokenStems,
+                allowed,
+                violations);
 
             if (item.Examples is null)
             {
@@ -154,20 +172,22 @@ public sealed class CoachDueItemLeakValidator
         }
     }
 
-    private void CheckNativeTerm(
-        string? nativeTerm,
+    private void CheckNativeText(
+        string? value,
+        string code,
+        string message,
         string latinText,
         string spacingFreeText,
         HashSet<string> tokenStems,
         HashSet<string> allowed,
         List<CoachViolation> violations)
     {
-        if (string.IsNullOrWhiteSpace(nativeTerm))
+        if (string.IsNullOrWhiteSpace(value))
         {
             return;
         }
 
-        var normalized = nativeTerm.Normalize(NormalizationForm.FormC).Trim();
+        var normalized = value.Normalize(NormalizationForm.FormC).Trim();
         var lowered = normalized.ToLowerInvariant();
 
         if (allowed.Contains(lowered))
@@ -177,7 +197,7 @@ public sealed class CoachDueItemLeakValidator
 
         if (ContainsLetterOutsideLatin(normalized))
         {
-            CheckTargetForm(normalized, "due_gloss", spacingFreeText, tokenStems, violations);
+            CheckTargetForm(normalized, code, spacingFreeText, tokenStems, violations);
             return;
         }
 
@@ -188,8 +208,8 @@ public sealed class CoachDueItemLeakValidator
 
         violations.Add(new CoachViolation(
             CoachViolationKind.AnswerLeak,
-            "due_gloss",
-            "The answer repeats the translation of a word that is due for review.",
+            code,
+            message,
             CoachValidationResult.Mask(normalized)));
     }
 

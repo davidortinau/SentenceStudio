@@ -23,6 +23,7 @@ using OpenAI;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using SentenceStudio.Application;
+using SentenceStudio.Application.AppOperations;
 using SentenceStudio;
 using SentenceStudio.Abstractions;
 using SentenceStudio.Api;
@@ -38,6 +39,7 @@ using SentenceStudio.Api.Coach.Reports;
 using SentenceStudio.Api.Coach.Reports.Endpoints;
 using SentenceStudio.Api.Coach.Runtime;
 using SentenceStudio.Api.Coach.Telemetry;
+using SentenceStudio.Data.AppOperations;
 using SentenceStudio.Api.Coach.Tools;
 using SentenceStudio.Api.Diagnostics;
 using SentenceStudio.Api.Feedback;
@@ -319,6 +321,11 @@ builder.Services.AddCoachCleanupScheduling(builder.Configuration, builder.Enviro
 
 builder.Services.AddCoachReadOnlyTools();
 builder.Services.AddCoachBaseline();
+builder.Services.AddScoped<IApplicationOperationContentProtector,
+    DataProtectionApplicationOperationContentProtector>();
+builder.Services.AddScoped<IApplicationOperationStore, EfApplicationOperationStore>();
+builder.Services.AddScoped<ApplicationOperationCoordinator>();
+builder.Services.AddScoped<CoachVocabularySetApplicationService>();
 
 // NumberDrill content seeder — populates NumberContext / NumberSubMode / NumberCounter
 // from lib/content/numbers/{language}.json (idempotent upsert by natural key).
@@ -709,6 +716,7 @@ app.MapActivityLog();
 // Learning Coach. The whole group 404s when the feature is off or the learner is outside
 // the cohort — the routes are always mapped so the flag can be flipped without a redeploy.
 app.MapCoach();
+app.MapCoachVocabularySets();
 
 // The learner's response-report routes. Always mapped and gated per request on
 // Coach:Reports:Enabled, so the switch can be flipped without a redeploy and a disabled feature

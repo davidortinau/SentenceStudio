@@ -205,7 +205,7 @@ public class CoachDueWordQuestionRegressionTests
         };
 
         var result = await AskAsync(
-            harness, sessionId, $"{Question} Also make today shorter.");
+            harness, sessionId, $"{Question} Also make Today's Plan shorter.");
 
         result.Value!.Status.Should().Be(CoachTurnStatus.Completed);
         result.Value.Answer.Should().NotBeNull("the answer is validated and surfaced on its own");

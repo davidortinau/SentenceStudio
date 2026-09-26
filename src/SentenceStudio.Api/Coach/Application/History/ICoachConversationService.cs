@@ -64,6 +64,11 @@ public interface ICoachConversationService
         string operationId,
         CancellationToken cancellationToken = default);
 
+    /// <summary>Reads the active vocabulary proposal bound to one owned conversation.</summary>
+    Task<CoachOperationResult<CoachConversationVocabularyStateDto>> GetVocabularyStateAsync(
+        string conversationId,
+        CancellationToken cancellationToken = default);
+
     /// <summary>Requests cancellation durably and signals the local run registry.</summary>
     Task<CoachOperationResult<CoachTurnOperationDto>> CancelOperationAsync(
         string conversationId,

@@ -32,13 +32,13 @@ public class CoachVocabularyFocusLifecycleTests
 
         // Focus, then an unrelated change on top of it.
         await harness.OfferAndAcceptFocusAsync(
-            sessionId, FocusResult("active verbs"), "focus today on active verbs");
+            sessionId, FocusResult("active verbs"), "focus Today's Plan on active verbs");
 
         // The fake planner returns the same remainder every time, so a second apply would be a
         // no-op and write no revision. Vary it so the minutes turn is a real second revision.
         NextTurnProducesADifferentPlan(harness);
         harness.Coach.NextResult = MinutesResult(30);
-        await AskAsync(harness, sessionId, "make it 30 minutes");
+        await AskAsync(harness, sessionId, "make Today's Plan 30 minutes");
 
         // Undoing the minutes must leave the focus exactly as it was, not drop it and not
         // re-resolve it.
@@ -75,7 +75,7 @@ public class CoachVocabularyFocusLifecycleTests
         var sessionId = await harness.StartSessionAsync();
 
         await harness.OfferAndAcceptFocusAsync(
-            sessionId, FocusResult("active verbs"), "focus today on active verbs");
+            sessionId, FocusResult("active verbs"), "focus Today's Plan on active verbs");
 
         var undone = await harness.Service.UndoAsync(sessionId, new CoachUndoRequest());
 
@@ -90,13 +90,13 @@ public class CoachVocabularyFocusLifecycleTests
         var sessionId = await harness.StartSessionAsync();
 
         await harness.OfferAndAcceptFocusAsync(
-            sessionId, FocusResult("active verbs"), "focus today on active verbs");
+            sessionId, FocusResult("active verbs"), "focus Today's Plan on active verbs");
 
         // The fake planner returns the same remainder every time, so a second apply would be a
         // no-op and write no revision. Vary it so the minutes turn is a real second revision.
         NextTurnProducesADifferentPlan(harness);
         harness.Coach.NextResult = MinutesResult(30);
-        await AskAsync(harness, sessionId, "make it 30 minutes");
+        await AskAsync(harness, sessionId, "make Today's Plan 30 minutes");
 
         await harness.Service.UndoAsync(sessionId, new CoachUndoRequest());
 
@@ -117,7 +117,7 @@ public class CoachVocabularyFocusLifecycleTests
         var sessionId = await harness.StartSessionAsync();
 
         await harness.OfferAndAcceptFocusAsync(
-            sessionId, FocusResult("active verbs"), "focus today on active verbs");
+            sessionId, FocusResult("active verbs"), "focus Today's Plan on active verbs");
         await harness.Service.UndoAsync(sessionId, new CoachUndoRequest());
 
         foreach (var revision in harness.Db.CoachPlanRevisions.ToList())
@@ -144,13 +144,13 @@ public class CoachVocabularyFocusLifecycleTests
         var sessionId = await harness.StartSessionAsync();
 
         await harness.OfferAndAcceptFocusAsync(
-            sessionId, FocusResult("active verbs"), "focus today on active verbs");
+            sessionId, FocusResult("active verbs"), "focus Today's Plan on active verbs");
 
         // The fake planner returns the same remainder every time, so a second apply would be a
         // no-op and write no revision. Vary it so the minutes turn is a real second revision.
         NextTurnProducesADifferentPlan(harness);
         harness.Coach.NextResult = MinutesResult(30);
-        await AskAsync(harness, sessionId, "make it 30 minutes");
+        await AskAsync(harness, sessionId, "make Today's Plan 30 minutes");
 
         // Simulate a row written before the focus artifact existed.
         var latest = harness.Db.CoachPlanRevisions.OrderBy(r => r.RevisionNumber).Last();
@@ -176,7 +176,7 @@ public class CoachVocabularyFocusLifecycleTests
         var sessionId = await harness.StartSessionAsync();
 
         await harness.OfferAndAcceptFocusAsync(
-            sessionId, FocusResult("active verbs"), "focus today on active verbs");
+            sessionId, FocusResult("active verbs"), "focus Today's Plan on active verbs");
 
         var revision = harness.Db.CoachPlanRevisions.Single();
         var before = CoachNormalizedJson
@@ -203,7 +203,7 @@ public class CoachVocabularyFocusLifecycleTests
         var sessionId = await harness.StartSessionAsync();
 
         await harness.OfferAndAcceptFocusAsync(
-            sessionId, FocusResult("active verbs"), "focus today on active verbs");
+            sessionId, FocusResult("active verbs"), "focus Today's Plan on active verbs");
 
         // A row written before the schema carried a version, with both sides equal — the only
         // shape that is genuinely unrecoverable.
@@ -229,7 +229,7 @@ public class CoachVocabularyFocusLifecycleTests
         var sessionId = await harness.StartSessionAsync();
 
         await harness.OfferAndAcceptFocusAsync(
-            sessionId, FocusResult("active verbs"), "focus today on active verbs");
+            sessionId, FocusResult("active verbs"), "focus Today's Plan on active verbs");
 
         var revision = harness.Db.CoachPlanRevisions.Single();
         var before = CoachNormalizedJson
@@ -253,11 +253,11 @@ public class CoachVocabularyFocusLifecycleTests
         var sessionId = await harness.StartSessionAsync();
 
         await harness.OfferAndAcceptFocusAsync(
-            sessionId, FocusResult("active verbs"), "focus today on active verbs");
+            sessionId, FocusResult("active verbs"), "focus Today's Plan on active verbs");
 
         NextTurnProducesADifferentPlan(harness);
         harness.Coach.NextResult = ClearFocusResult();
-        await AskAsync(harness, sessionId, "clear vocabulary focus");
+        await AskAsync(harness, sessionId, "clear Today's Plan vocabulary focus");
 
         (await harness.Service.GetSessionAsync(sessionId)).Value!
             .ActiveConstraints.VocabularyFocus.Should().BeNull();
@@ -278,7 +278,7 @@ public class CoachVocabularyFocusLifecycleTests
         var sessionId = await harness.StartSessionAsync();
 
         await harness.OfferAndAcceptFocusAsync(
-            sessionId, FocusResult("active verbs"), "focus today on active verbs");
+            sessionId, FocusResult("active verbs"), "focus Today's Plan on active verbs");
 
         // A second, different focus with a different set.
         harness.FocusResolver.NextResult = harness.FocusResolver.NextResult with
@@ -292,7 +292,7 @@ public class CoachVocabularyFocusLifecycleTests
 
         NextTurnProducesADifferentPlan(harness);
         await harness.OfferAndAcceptFocusAsync(
-            sessionId, FocusResult("adjectives"), "focus today on adjectives");
+            sessionId, FocusResult("adjectives"), "focus Today's Plan on adjectives");
 
         await harness.Service.UndoAsync(sessionId, new CoachUndoRequest());
 
@@ -315,7 +315,7 @@ public class CoachVocabularyFocusLifecycleTests
         var startedBefore = harness.PlanService.Current.Items.Count(i => !i.IsCompleted && i.MinutesSpent > 0);
 
         await harness.OfferAndAcceptFocusAsync(
-            sessionId, FocusResult("active verbs"), "focus today on active verbs");
+            sessionId, FocusResult("active verbs"), "focus Today's Plan on active verbs");
         await harness.Service.UndoAsync(sessionId, new CoachUndoRequest());
 
         harness.PlanService.Current.Items.Count(i => i.IsCompleted).Should().Be(completedBefore);
@@ -447,7 +447,7 @@ public class CoachVocabularyFocusLifecycleTests
         var sessionId = await harness.StartSessionAsync();
 
         var result = await harness.OfferAndAcceptFocusAsync(
-            sessionId, FocusResult("active verbs"), "focus today on active verbs");
+            sessionId, FocusResult("active verbs"), "focus Today's Plan on active verbs");
 
         result.Value!.Messages.Should().ContainSingle()
             .Which.Text.Should().Be(CoachDeterministicCopy.FocusApplied(5, "action verbs"));
@@ -460,10 +460,10 @@ public class CoachVocabularyFocusLifecycleTests
         var sessionId = await harness.StartSessionAsync();
 
         await harness.OfferAndAcceptFocusAsync(
-            sessionId, FocusResult("active verbs"), "focus today on active verbs");
+            sessionId, FocusResult("active verbs"), "focus Today's Plan on active verbs");
 
         harness.Coach.NextResult = ClearFocusResult();
-        var result = await AskAsync(harness, sessionId, "clear vocabulary focus");
+        var result = await AskAsync(harness, sessionId, "clear Today's Plan vocabulary focus");
 
         result.Value!.Messages.Should().ContainSingle()
             .Which.Text.Should().Be(CoachDeterministicCopy.FocusCleared);
@@ -479,7 +479,7 @@ public class CoachVocabularyFocusLifecycleTests
         var sessionId = await harness.StartSessionAsync();
 
         harness.Coach.NextResult = SuggestFocusResult("active verbs");
-        var offered = await AskAsync(harness, sessionId, "could you suggest a vocabulary focus");
+        var offered = await AskAsync(harness, sessionId, "Suggest focusing Today's Plan on active verbs.");
 
         offered.Value!.PendingSuggestion.Should().NotBeNull();
         harness.FocusResolver.ResolveCount.Should().Be(1);
@@ -512,7 +512,7 @@ public class CoachVocabularyFocusLifecycleTests
         var sessionId = await harness.StartSessionAsync();
 
         harness.Coach.NextResult = SuggestFocusResult("active verbs");
-        var offered = await AskAsync(harness, sessionId, "could you suggest a vocabulary focus");
+        var offered = await AskAsync(harness, sessionId, "Suggest focusing Today's Plan on active verbs.");
 
         var previewIds = harness.PlanService.LastPreviewFocusIds!.ToArray();
 
@@ -532,7 +532,7 @@ public class CoachVocabularyFocusLifecycleTests
         var sessionId = await harness.StartSessionAsync();
 
         harness.Coach.NextResult = SuggestFocusResult("active verbs");
-        var offered = await AskAsync(harness, sessionId, "could you suggest a vocabulary focus");
+        var offered = await AskAsync(harness, sessionId, "Suggest focusing Today's Plan on active verbs.");
 
         var reread = (await harness.Service.GetSessionAsync(sessionId)).Value!.PendingSuggestion;
 
@@ -544,10 +544,9 @@ public class CoachVocabularyFocusLifecycleTests
     // ---------------------------------------------------------------- write authority
 
     [Theory]
-    [InlineData("clear vocabulary focus")]
-    [InlineData("stop focusing on verbs")]
-    [InlineData("no vocabulary focus today")]
-    [InlineData("focus today on active verbs")]
+    [InlineData("clear Today's Plan vocabulary focus")]
+    [InlineData("stop focusing Today's Plan on verbs")]
+    [InlineData("focus Today's Plan on active verbs")]
     public void AFocusCommand_MayWriteOnItsOwn(string text)
     {
         new CoachWriteAuthority().Evaluate(text).Should().Be(CoachWriteAuthority.Denial.None);

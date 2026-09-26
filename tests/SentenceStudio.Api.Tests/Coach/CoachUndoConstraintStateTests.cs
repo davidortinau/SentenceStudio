@@ -281,7 +281,7 @@ public class CoachUndoConstraintStateTests
         return harness.Service.SubmitTurnAsync(sessionId, new CoachTurnRequest
         {
             InputKind = CoachTurnInputKind.Text,
-            Text = "change it"
+            Text = "change Today's Plan"
         });
     }
 
@@ -305,7 +305,7 @@ public class CoachUndoConstraintStateTests
         return harness.Service.SubmitTurnAsync(sessionId, new CoachTurnRequest
         {
             InputKind = CoachTurnInputKind.Text,
-            Text = "suggest something"
+            Text = "Suggest a change to Today's Plan."
         });
     }
 

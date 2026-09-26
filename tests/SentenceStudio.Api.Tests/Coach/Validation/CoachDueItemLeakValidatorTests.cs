@@ -98,6 +98,25 @@ public class CoachDueItemLeakValidatorTests
     }
 
     [Fact]
+    public void A_mnemonic_is_a_leak()
+    {
+        var items = new[]
+        {
+            new CoachEmbargoedItem(
+                "사과",
+                "apple",
+                MnemonicText: "picture a red apple")
+        };
+
+        var result = CreateValidator().Validate(
+            "Use the mnemonic: Picture a red apple.",
+            items);
+
+        result.IsValid.Should().BeFalse();
+        result.Violations.Should().Contain(v => v.Code == "due_mnemonic");
+    }
+
+    [Fact]
     public void An_aggregate_sentence_with_counts_is_not_a_leak()
     {
         var result = CreateValidator().Validate(

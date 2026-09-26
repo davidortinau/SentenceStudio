@@ -34,7 +34,7 @@ public sealed class CoachPlanWriteSagaTests
         var conversationId = await harness.CreateConversationAsync();
         harness.Coach.NextResult = DirectChange();
 
-        var result = await harness.TurnAsync(conversationId, "make it 10 minutes and no audio");
+        var result = await harness.TurnAsync(conversationId, "make Today's Plan 10 minutes and no audio");
 
         result.IsOk.Should().BeTrue(result.Detail);
         harness.App.PlanService.ApplyCallCount.Should().Be(1);
@@ -66,7 +66,7 @@ public sealed class CoachPlanWriteSagaTests
 
         var key = Guid.NewGuid().ToString("N");
         await Assert.ThrowsAnyAsync<Exception>(
-            () => harness.TurnAsync(conversationId, "make it 10 minutes and no audio", key));
+            () => harness.TurnAsync(conversationId, "make Today's Plan 10 minutes and no audio", key));
 
         harness.App.PlanService.ApplyCallCount.Should().Be(1, "the plan write got through before the crash");
 
@@ -76,7 +76,7 @@ public sealed class CoachPlanWriteSagaTests
         harness.FaultingMessages.FailOnAppendNumber = null;
         harness.Restart();
 
-        var retry = await harness.TurnAsync(conversationId, "make it 10 minutes and no audio", key);
+        var retry = await harness.TurnAsync(conversationId, "make Today's Plan 10 minutes and no audio", key);
 
         retry.IsOk.Should().BeTrue(retry.Detail);
         harness.App.PlanService.ApplyCallCount.Should().Be(1, "the retry must reconcile, not re-apply");
@@ -103,13 +103,13 @@ public sealed class CoachPlanWriteSagaTests
 
         var key = Guid.NewGuid().ToString("N");
         await Assert.ThrowsAnyAsync<Exception>(
-            () => harness.TurnAsync(conversationId, "make it 10 minutes and no audio", key));
+            () => harness.TurnAsync(conversationId, "make Today's Plan 10 minutes and no audio", key));
 
         await harness.SimulateProcessDeathAsync(conversationId);
         harness.FaultingMessages.FailOnAppendNumber = null;
         harness.Restart();
 
-        await harness.TurnAsync(conversationId, "make it 10 minutes and no audio", key);
+        await harness.TurnAsync(conversationId, "make Today's Plan 10 minutes and no audio", key);
 
         var ledger = await harness.LedgerAsync(conversationId);
         var receipt = ledger.Should().ContainSingle(
@@ -137,7 +137,7 @@ public sealed class CoachPlanWriteSagaTests
         harness.FaultingMessages.FailOnAppendNumber = 2;
 
         await Assert.ThrowsAnyAsync<Exception>(
-            () => harness.TurnAsync(conversationId, "make it 10 minutes and no audio"));
+            () => harness.TurnAsync(conversationId, "make Today's Plan 10 minutes and no audio"));
 
         var ledger = await harness.LedgerAsync(conversationId);
         ledger.Should().ContainSingle(m => m.Role == CoachMessageRole.Learner);
@@ -157,10 +157,10 @@ public sealed class CoachPlanWriteSagaTests
         harness.Coach.NextResult = DirectChange();
 
         var key = Guid.NewGuid().ToString("N");
-        await harness.TurnAsync(conversationId, "make it 10 minutes and no audio", key);
+        await harness.TurnAsync(conversationId, "make Today's Plan 10 minutes and no audio", key);
         harness.App.PlanService.ApplyCallCount.Should().Be(1);
 
-        var replay = await harness.TurnAsync(conversationId, "make it 10 minutes and no audio", key);
+        var replay = await harness.TurnAsync(conversationId, "make Today's Plan 10 minutes and no audio", key);
 
         replay.IsOk.Should().BeTrue(replay.Detail);
         harness.App.PlanService.ApplyCallCount.Should().Be(1);
@@ -183,7 +183,7 @@ public sealed class CoachPlanWriteSagaTests
         var conversationId = await harness.CreateConversationAsync();
         harness.Coach.NextResult = new CoachAgentTurnResult { Outcome = CoachAgentOutcome.Failed };
 
-        var result = await harness.TurnAsync(conversationId, "make it 10 minutes and no audio");
+        var result = await harness.TurnAsync(conversationId, "make Today's Plan 10 minutes and no audio");
 
         harness.App.PlanService.ApplyCallCount.Should().Be(0);
         harness.Db.CoachPlanRevisions.Should().BeEmpty();
@@ -216,7 +216,7 @@ public sealed class CoachPlanWriteSagaTests
             }
         };
 
-        var result = await harness.TurnAsync(conversationId, "I am short on time");
+        var result = await harness.TurnAsync(conversationId, "Suggest making Today's Plan shorter.");
 
         result.IsOk.Should().BeTrue(result.Detail);
         harness.App.PlanService.ApplyCallCount.Should().Be(0);
@@ -251,10 +251,10 @@ public sealed class CoachPlanWriteSagaTests
         var second = await harness.CreateConversationAsync();
 
         harness.Coach.NextResult = DirectChange();
-        await harness.TurnAsync(first, "make it 10 minutes and no audio");
+        await harness.TurnAsync(first, "make Today's Plan 10 minutes and no audio");
 
         harness.Coach.NextResult = DirectChange(minutes: 15);
-        await harness.TurnAsync(second, "make it 15 minutes and no audio");
+        await harness.TurnAsync(second, "make Today's Plan 15 minutes and no audio");
 
         harness.App.PlanService.ApplyCallCount.Should().Be(2, "two separate requests are two changes");
 
@@ -290,7 +290,7 @@ public sealed class CoachPlanWriteSagaTests
         var conversationId = await harness.CreateConversationAsync();
 
         harness.Coach.NextResult = DirectChange(minutes: 10);
-        await harness.TurnAsync(conversationId, "make it 10 minutes and no audio");
+        await harness.TurnAsync(conversationId, "make Today's Plan 10 minutes and no audio");
 
         var earlier = harness.Db.CoachPlanRevisions.Single();
         earlier.OperationId.Should().NotBeNullOrWhiteSpace(
@@ -302,14 +302,14 @@ public sealed class CoachPlanWriteSagaTests
         harness.Coach.NextResult = DirectChange(minutes: 20);
         harness.FaultingMessages.FailOnNextAppend(1);
         await Assert.ThrowsAnyAsync<Exception>(
-            () => harness.TurnAsync(conversationId, "make it 20 minutes and no audio", key));
+            () => harness.TurnAsync(conversationId, "make Today's Plan 20 minutes and no audio", key));
         await harness.SimulateProcessDeathAsync(conversationId);
 
         harness.FaultingMessages.FailOnAppendNumber = null;
         harness.Restart();
         harness.Coach.NextResult = DirectChange(minutes: 20);
 
-        var retry = await harness.TurnAsync(conversationId, "make it 20 minutes and no audio", key);
+        var retry = await harness.TurnAsync(conversationId, "make Today's Plan 20 minutes and no audio", key);
         retry.IsOk.Should().BeTrue(retry.Detail);
 
         var ledger = await harness.LedgerAsync(conversationId);
@@ -342,7 +342,7 @@ public sealed class CoachPlanWriteSagaTests
         harness.Coach.NextResult = DirectChange(minutes: 10);
         harness.FaultingMessages.FailOnNextAppend(2);
         await Assert.ThrowsAnyAsync<Exception>(
-            () => harness.TurnAsync(first, "make it 10 minutes and no audio", firstKey));
+            () => harness.TurnAsync(first, "make Today's Plan 10 minutes and no audio", firstKey));
         await harness.SimulateProcessDeathAsync(first);
 
         var firstRevision = harness.Db.CoachPlanRevisions.Single();
@@ -353,7 +353,7 @@ public sealed class CoachPlanWriteSagaTests
         harness.Coach.NextResult = DirectChange(minutes: 25);
         harness.FaultingMessages.FailOnNextAppend(2);
         await Assert.ThrowsAnyAsync<Exception>(
-            () => harness.TurnAsync(second, "make it 25 minutes and no audio", secondKey));
+            () => harness.TurnAsync(second, "make Today's Plan 25 minutes and no audio", secondKey));
         await harness.SimulateProcessDeathAsync(second);
 
         harness.FaultingMessages.FailOnAppendNumber = null;
@@ -362,9 +362,9 @@ public sealed class CoachPlanWriteSagaTests
         // Recovered newest-first, so resolving by recency would give the first conversation the
         // second conversation's revision.
         harness.Coach.NextResult = DirectChange(minutes: 25);
-        await harness.TurnAsync(second, "make it 25 minutes and no audio", secondKey);
+        await harness.TurnAsync(second, "make Today's Plan 25 minutes and no audio", secondKey);
         harness.Coach.NextResult = DirectChange(minutes: 10);
-        await harness.TurnAsync(first, "make it 10 minutes and no audio", firstKey);
+        await harness.TurnAsync(first, "make Today's Plan 10 minutes and no audio", firstKey);
 
         var firstReceipts = (await harness.LedgerAsync(first))
             .Where(m => m.Payload.Kind == CoachMessagePayloadKind.Receipt)

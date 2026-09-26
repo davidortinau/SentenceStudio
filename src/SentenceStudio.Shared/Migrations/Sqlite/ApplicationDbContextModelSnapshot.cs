@@ -16,7 +16,7 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "10.0.5");
+            modelBuilder.HasAnnotation("ProductVersion", "10.0.9");
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRole", b =>
                 {
@@ -146,6 +146,538 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                     b.HasKey("UserId", "LoginProvider", "Name");
 
                     b.ToTable("AspNetUserTokens", (string)null);
+                });
+
+            modelBuilder.Entity("SentenceStudio.Data.AppOperations.ApplicationOperationConfirmationRecord", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<byte[]>("ConfirmationDigest")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("BLOB");
+
+                    b.Property<long?>("ConsumedApplicationVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("ConsumedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("ConsumedFence")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<byte[]>("DecisionReferenceDigest")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("BLOB");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("RevokedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OperationId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserProfileId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OperationId", "ConfirmationDigest")
+                        .IsUnique();
+
+                    b.HasIndex("OperationId")
+                        .IsUnique()
+                        .HasFilter("\"ConsumedAtUtc\" IS NULL AND \"RevokedAtUtc\" IS NULL");
+
+                    b.HasIndex("UserProfileId", "ExpiresAtUtc");
+
+                    b.ToTable("ApplicationOperationConfirmation", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ApplicationOperationConfirmation_Consumption", "(\"ConsumedAtUtc\" IS NULL AND \"ConsumedApplicationVersion\" IS NULL AND \"ConsumedFence\" IS NULL) OR (\"ConsumedAtUtc\" IS NOT NULL AND \"ConsumedApplicationVersion\" > 0 AND \"ConsumedFence\" >= 0)");
+
+                            t.HasCheckConstraint("CK_ApplicationOperationConfirmation_Digests", "length(\"ConfirmationDigest\") = 32 AND length(\"DecisionReferenceDigest\") = 32");
+
+                            t.HasCheckConstraint("CK_ApplicationOperationConfirmation_Lifecycle", "\"ExpiresAtUtc\" > \"CreatedAtUtc\" AND (\"ConsumedAtUtc\" IS NULL OR (\"ConsumedAtUtc\" >= \"CreatedAtUtc\" AND \"ConsumedAtUtc\" <= \"ExpiresAtUtc\")) AND (\"RevokedAtUtc\" IS NULL OR \"RevokedAtUtc\" >= \"CreatedAtUtc\")");
+                        });
+                });
+
+            modelBuilder.Entity("SentenceStudio.Data.AppOperations.ApplicationOperationContinuationRecord", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("AllowsAutomaticResume")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ApplicationVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("AutomaticResumeCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<byte[]>("InteractionScopeDigest")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("OperationId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ParentContinuationId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("PurgeAfterUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ResumedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserProfileId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Workflow")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("WorkflowVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OperationId");
+
+                    b.HasIndex("ParentContinuationId");
+
+                    b.HasIndex("UserProfileId", "ExpiresAtUtc");
+
+                    b.HasIndex("UserProfileId", "InteractionScopeDigest")
+                        .IsUnique()
+                        .HasFilter("\"State\" IN ('AwaitingDecision','ReadyToResume')");
+
+                    b.ToTable("ApplicationOperationContinuation", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ApplicationOperationContinuation_Digest", "length(\"InteractionScopeDigest\") = 32");
+
+                            t.HasCheckConstraint("CK_ApplicationOperationContinuation_Lifecycle", "\"ExpiresAtUtc\" > \"CreatedAtUtc\" AND \"PurgeAfterUtc\" >= \"ExpiresAtUtc\" AND \"UpdatedAtUtc\" >= \"CreatedAtUtc\"");
+
+                            t.HasCheckConstraint("CK_ApplicationOperationContinuation_Resume", "\"WorkflowVersion\" > 0 AND \"AutomaticResumeCount\" >= 0 AND \"AutomaticResumeCount\" <= 1 AND \"ApplicationVersion\" > 0 AND (\"AllowsAutomaticResume\" = TRUE OR \"AutomaticResumeCount\" = 0) AND (\"ParentContinuationId\" IS NULL OR (\"AllowsAutomaticResume\" = FALSE AND \"AutomaticResumeCount\" = 0)) AND ((\"AutomaticResumeCount\" = 0 AND \"ResumedAtUtc\" IS NULL) OR (\"AutomaticResumeCount\" = 1 AND \"ResumedAtUtc\" IS NOT NULL))");
+
+                            t.HasCheckConstraint("CK_ApplicationOperationContinuation_State", "\"State\" IN ('AwaitingDecision','ReadyToResume','Completed','Expired','Cancelled')");
+
+                            t.HasCheckConstraint("CK_ApplicationOperationContinuation_Workflow", "\"Workflow\" IN ('Clarification','PostReceiptResume')");
+                        });
+                });
+
+            modelBuilder.Entity("SentenceStudio.Data.AppOperations.ApplicationOperationEventRecord", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("ApplicationVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("FailureCode")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("Fence")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("FromStatus")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OperationId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("Sequence")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ToStatus")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserProfileId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OperationId", "Sequence")
+                        .IsUnique();
+
+                    b.HasIndex("UserProfileId", "OccurredAtUtc");
+
+                    b.ToTable("ApplicationOperationEvent", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ApplicationOperationEvent_Failure", "(\"Kind\" = 'Failed' AND \"FailureCode\" IN ('InvalidProtectedContent','InvalidCanonicalRequest','CapabilityUnavailable','AuthorizationDenied','StaleDomainVersion','StaleSynchronizationVersion','PreEffectHandlerFailure')) OR (\"Kind\" <> 'Failed' AND \"FailureCode\" IS NULL)");
+
+                            t.HasCheckConstraint("CK_ApplicationOperationEvent_Kind", "\"Kind\" IN ('Proposed','AwaitingProtectedConfirmation','ExecutionClaimed','LeaseRecovered','Executed','Rejected','Cancelled','Expired','Failed','ReversalLinked','Reversed','ContinuationCreated','ContinuationResumed')");
+
+                            t.HasCheckConstraint("CK_ApplicationOperationEvent_Sequence", "\"Sequence\" > 0 AND \"ApplicationVersion\" > 0 AND \"Fence\" >= 0");
+
+                            t.HasCheckConstraint("CK_ApplicationOperationEvent_Status", "(\"FromStatus\" IS NULL OR \"FromStatus\" IN ('Proposed','AwaitingProtectedConfirmation','Executing','Executed','Rejected','Cancelled','Expired','Failed','Reversed')) AND \"ToStatus\" IN ('Proposed','AwaitingProtectedConfirmation','Executing','Executed','Rejected','Cancelled','Expired','Failed','Reversed')");
+                        });
+                });
+
+            modelBuilder.Entity("SentenceStudio.Data.AppOperations.ApplicationOperationReceiptRecord", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("AfterDomainVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("AfterSynchronizationVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("BeforeDomainVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("BeforeSynchronizationVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CommittedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OperationId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ReceiptVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Reversal")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("ReversalExpiresAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ReversalOperationId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserProfileId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OperationId")
+                        .IsUnique();
+
+                    b.HasIndex("ReversalOperationId")
+                        .IsUnique()
+                        .HasFilter("\"ReversalOperationId\" IS NOT NULL");
+
+                    b.HasIndex("UserProfileId", "CommittedAtUtc");
+
+                    b.ToTable("ApplicationOperationReceipt", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ApplicationOperationReceipt_Reversal", "\"Reversal\" IN ('Unavailable','Available','Expired','Completed')");
+
+                            t.HasCheckConstraint("CK_ApplicationOperationReceipt_ReversalState", "(\"Reversal\" = 'Available' AND \"ReversalExpiresAtUtc\" IS NOT NULL) OR (\"Reversal\" = 'Completed' AND \"ReversalOperationId\" IS NOT NULL) OR (\"Reversal\" IN ('Unavailable','Expired') AND \"ReversalOperationId\" IS NULL)");
+
+                            t.HasCheckConstraint("CK_ApplicationOperationReceipt_Versions", "\"ReceiptVersion\" > 0 AND \"BeforeDomainVersion\" >= 0 AND \"BeforeSynchronizationVersion\" >= 0 AND \"AfterDomainVersion\" >= \"BeforeDomainVersion\" AND \"AfterSynchronizationVersion\" >= \"BeforeSynchronizationVersion\"");
+                        });
+                });
+
+            modelBuilder.Entity("SentenceStudio.Data.AppOperations.ApplicationOperationRecord", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("ApplicationVersion")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Authority")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<byte[]>("CanonicalRequestDigest")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("CapabilityCode")
+                        .IsRequired()
+                        .HasMaxLength(96)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CapabilityFamily")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CapabilityFingerprint")
+                        .IsRequired()
+                        .HasMaxLength(71)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("CapabilityVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Confirmation")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Decision")
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<byte[]>("DecisionReferenceDigest")
+                        .HasMaxLength(32)
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("Effect")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("ExpectedDomainVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ExpectedSynchronizationVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("Fence")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<byte[]>("IdempotencyDigest")
+                        .HasMaxLength(32)
+                        .HasColumnType("BLOB");
+
+                    b.Property<DateTime?>("LeaseExpiresAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LeaseId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("ParentApplicationVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long?>("ParentFence")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ParentOperationId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("PayloadPurgedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("PurgeAfterUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("TerminalAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserProfileId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ParentOperationId")
+                        .IsUnique()
+                        .HasFilter("\"ParentOperationId\" IS NOT NULL");
+
+                    b.HasIndex("Status", "LeaseExpiresAtUtc");
+
+                    b.HasIndex("UserProfileId", "Authority", "DecisionReferenceDigest")
+                        .HasFilter("\"DecisionReferenceDigest\" IS NOT NULL");
+
+                    b.HasIndex("UserProfileId", "Authority", "IdempotencyDigest")
+                        .IsUnique()
+                        .HasFilter("\"IdempotencyDigest\" IS NOT NULL");
+
+                    b.HasIndex("UserProfileId", "PurgeAfterUtc");
+
+                    b.HasIndex("UserProfileId", "Status", "ExpiresAtUtc");
+
+                    b.HasIndex("UserProfileId", "Authority", "CapabilityCode", "CapabilityVersion", "IdempotencyDigest")
+                        .IsUnique()
+                        .HasFilter("\"IdempotencyDigest\" IS NOT NULL");
+
+                    b.ToTable("ApplicationOperation", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ApplicationOperation_Authority", "\"Authority\" IN ('NativeLocal','Server')");
+
+                            t.HasCheckConstraint("CK_ApplicationOperation_Capability", "\"CapabilityVersion\" > 0 AND length(\"CapabilityCode\") > 0 AND length(\"CapabilityFamily\") > 0 AND length(\"CapabilityFingerprint\") = 71");
+
+                            t.HasCheckConstraint("CK_ApplicationOperation_CanonicalRequestDigest", "length(\"CanonicalRequestDigest\") = 32");
+
+                            t.HasCheckConstraint("CK_ApplicationOperation_Confirmation", "\"Confirmation\" IN ('Gesture','Accept','ProtectedConfirmation')");
+
+                            t.HasCheckConstraint("CK_ApplicationOperation_Decision", "(\"DecisionReferenceDigest\" IS NULL AND \"Decision\" IS NULL) OR (length(\"DecisionReferenceDigest\") = 32 AND \"Decision\" IN ('Accept','Reject','Cancel','Confirm'))");
+
+                            t.HasCheckConstraint("CK_ApplicationOperation_Effect", "\"Effect\" IN ('Write','Launch','Composite')");
+
+                            t.HasCheckConstraint("CK_ApplicationOperation_IdempotencyDigest", "\"IdempotencyDigest\" IS NULL OR length(\"IdempotencyDigest\") = 32");
+
+                            t.HasCheckConstraint("CK_ApplicationOperation_Lease", "(\"Status\" = 'Executing' AND \"LeaseId\" IS NOT NULL AND \"LeaseExpiresAtUtc\" IS NOT NULL AND \"AttemptCount\" > 0) OR (\"Status\" <> 'Executing' AND \"LeaseId\" IS NULL AND \"LeaseExpiresAtUtc\" IS NULL)");
+
+                            t.HasCheckConstraint("CK_ApplicationOperation_Lifecycle", "\"ExpiresAtUtc\" > \"CreatedAtUtc\" AND \"PurgeAfterUtc\" >= \"CreatedAtUtc\" AND \"UpdatedAtUtc\" >= \"CreatedAtUtc\"");
+
+                            t.HasCheckConstraint("CK_ApplicationOperation_ParentFence", "(\"ParentOperationId\" IS NULL AND \"ParentApplicationVersion\" IS NULL AND \"ParentFence\" IS NULL) OR (\"ParentOperationId\" IS NOT NULL AND \"ParentOperationId\" <> \"Id\" AND \"ParentApplicationVersion\" > 0 AND \"ParentFence\" >= 0)");
+
+                            t.HasCheckConstraint("CK_ApplicationOperation_PayloadPurge", "\"PayloadPurgedAtUtc\" IS NULL OR (\"TerminalAtUtc\" IS NOT NULL AND \"PayloadPurgedAtUtc\" >= \"TerminalAtUtc\")");
+
+                            t.HasCheckConstraint("CK_ApplicationOperation_Status", "\"Status\" IN ('Proposed','AwaitingProtectedConfirmation','Executing','Executed','Rejected','Cancelled','Expired','Failed','Reversed')");
+
+                            t.HasCheckConstraint("CK_ApplicationOperation_Terminal", "(\"Status\" IN ('Executed','Rejected','Cancelled','Expired','Failed','Reversed') AND \"TerminalAtUtc\" >= \"CreatedAtUtc\") OR (\"Status\" IN ('Proposed','AwaitingProtectedConfirmation','Executing') AND \"TerminalAtUtc\" IS NULL)");
+
+                            t.HasCheckConstraint("CK_ApplicationOperation_Versions", "\"ExpectedDomainVersion\" >= 0 AND \"ExpectedSynchronizationVersion\" >= 0 AND \"ApplicationVersion\" > 0 AND \"Fence\" >= 0 AND \"AttemptCount\" >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("SentenceStudio.Data.AppOperations.ApplicationProtectedPayloadRecord", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<byte[]>("Ciphertext")
+                        .IsRequired()
+                        .HasMaxLength(1114112)
+                        .HasColumnType("BLOB");
+
+                    b.Property<string>("ContentKind")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OperationId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("PlaintextLength")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ProtectionVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("PurgeAfterUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("SchemaVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("SubjectId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SubjectKind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("UserProfileId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OperationId");
+
+                    b.HasIndex("UserProfileId", "PurgeAfterUtc");
+
+                    b.HasIndex("SubjectKind", "SubjectId", "ContentKind")
+                        .IsUnique();
+
+                    b.ToTable("ApplicationProtectedPayload", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_ApplicationProtectedPayload_Content", "\"ContentKind\" IN ('CanonicalRequest','ProposalPresentation','PriorState','Receipt','ContinuationState')");
+
+                            t.HasCheckConstraint("CK_ApplicationProtectedPayload_Length", "\"PlaintextLength\" > 0 AND \"PlaintextLength\" <= 1048576 AND length(\"Ciphertext\") > 0 AND length(\"Ciphertext\") <= 1114112");
+
+                            t.HasCheckConstraint("CK_ApplicationProtectedPayload_Lifecycle", "\"PurgeAfterUtc\" >= \"CreatedAtUtc\"");
+
+                            t.HasCheckConstraint("CK_ApplicationProtectedPayload_Subject", "(\"SubjectKind\" = 'Operation' AND \"SubjectId\" = \"OperationId\") OR \"SubjectKind\" = 'Continuation'");
+
+                            t.HasCheckConstraint("CK_ApplicationProtectedPayload_Versions", "\"ProtectionVersion\" = 1 AND \"SchemaVersion\" > 0");
+                        });
                 });
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.ActivitySession", b =>
@@ -1996,6 +2528,85 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("SentenceStudio.Data.AppOperations.ApplicationOperationConfirmationRecord", b =>
+                {
+                    b.HasOne("SentenceStudio.Data.AppOperations.ApplicationOperationRecord", "Operation")
+                        .WithMany("Confirmations")
+                        .HasForeignKey("OperationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Operation");
+                });
+
+            modelBuilder.Entity("SentenceStudio.Data.AppOperations.ApplicationOperationContinuationRecord", b =>
+                {
+                    b.HasOne("SentenceStudio.Data.AppOperations.ApplicationOperationRecord", "Operation")
+                        .WithMany("Continuations")
+                        .HasForeignKey("OperationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SentenceStudio.Data.AppOperations.ApplicationOperationContinuationRecord", "ParentContinuation")
+                        .WithMany("ChildContinuations")
+                        .HasForeignKey("ParentContinuationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Operation");
+
+                    b.Navigation("ParentContinuation");
+                });
+
+            modelBuilder.Entity("SentenceStudio.Data.AppOperations.ApplicationOperationEventRecord", b =>
+                {
+                    b.HasOne("SentenceStudio.Data.AppOperations.ApplicationOperationRecord", "Operation")
+                        .WithMany("Events")
+                        .HasForeignKey("OperationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Operation");
+                });
+
+            modelBuilder.Entity("SentenceStudio.Data.AppOperations.ApplicationOperationReceiptRecord", b =>
+                {
+                    b.HasOne("SentenceStudio.Data.AppOperations.ApplicationOperationRecord", "Operation")
+                        .WithOne("Receipt")
+                        .HasForeignKey("SentenceStudio.Data.AppOperations.ApplicationOperationReceiptRecord", "OperationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("SentenceStudio.Data.AppOperations.ApplicationOperationRecord", "ReversalOperation")
+                        .WithOne()
+                        .HasForeignKey("SentenceStudio.Data.AppOperations.ApplicationOperationReceiptRecord", "ReversalOperationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Operation");
+
+                    b.Navigation("ReversalOperation");
+                });
+
+            modelBuilder.Entity("SentenceStudio.Data.AppOperations.ApplicationOperationRecord", b =>
+                {
+                    b.HasOne("SentenceStudio.Data.AppOperations.ApplicationOperationRecord", "ParentOperation")
+                        .WithMany("ReversalOperations")
+                        .HasForeignKey("ParentOperationId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("ParentOperation");
+                });
+
+            modelBuilder.Entity("SentenceStudio.Data.AppOperations.ApplicationProtectedPayloadRecord", b =>
+                {
+                    b.HasOne("SentenceStudio.Data.AppOperations.ApplicationOperationRecord", "Operation")
+                        .WithMany("ProtectedPayloads")
+                        .HasForeignKey("OperationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Operation");
+                });
+
             modelBuilder.Entity("SentenceStudio.Shared.Models.Conversation", b =>
                 {
                     b.HasOne("SentenceStudio.Shared.Models.ConversationScenario", "Scenario")
@@ -2190,6 +2801,26 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                         .IsRequired();
 
                     b.Navigation("VocabularyWord");
+                });
+
+            modelBuilder.Entity("SentenceStudio.Data.AppOperations.ApplicationOperationContinuationRecord", b =>
+                {
+                    b.Navigation("ChildContinuations");
+                });
+
+            modelBuilder.Entity("SentenceStudio.Data.AppOperations.ApplicationOperationRecord", b =>
+                {
+                    b.Navigation("Confirmations");
+
+                    b.Navigation("Continuations");
+
+                    b.Navigation("Events");
+
+                    b.Navigation("ProtectedPayloads");
+
+                    b.Navigation("Receipt");
+
+                    b.Navigation("ReversalOperations");
                 });
 
             modelBuilder.Entity("SentenceStudio.Shared.Models.Conversation", b =>

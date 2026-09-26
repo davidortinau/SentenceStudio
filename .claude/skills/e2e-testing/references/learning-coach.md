@@ -4132,3 +4132,121 @@ difference means something host-aware crept in.
 **`SAM-RPD-02` and `SAM-RPD-03` are worth running by hand every time.** Both were invisible to a
 green suite: the first is a true sentence pointing at the wrong data, and the second is a correct
 element in a place nobody looks.
+
+---
+
+## 37. Product-policy containment (`COACH-POLICY`)
+
+These are technical acceptance IDs for the frozen legacy coach boundary. The learner's current
+message, not the model's plan-shaped intent, authorizes entry into a Today's Plan reducer.
+
+### COACH-POLICY-01 — General study request is not a plan request
+
+**Preconditions:** an active coach session with Today's Plan present and no pending suggestion.
+
+**Steps:** submit exactly `I wnto study vocabulary about house rooms and things I'd see in a house.`
+while the test model returns `DirectConstraintChange`, then repeat with `SuggestConstraintChange`.
+
+**Expected:** a safe clarification asks whether the learner wants direct study help or an explicit
+Today's Plan proposal. There is no success claim, failed-plan card, focus resolution, or proposal.
+
+**Data verification:** zero plan previews, applies, revisions, receipts, and pending suggestions.
+
+### COACH-POLICY-02 — Activity launch request is truthfully limited
+
+**Steps:** submit exactly `start a vocabulary review activity with words about food` while the test
+model returns each plan-shaped intent.
+
+**Expected:** the response says this version cannot start activities and offers direct study help.
+It never claims the activity started and never converts the request into a plan or part-of-speech
+focus.
+
+**Data verification:** zero plan previews, applies, revisions, receipts, pending suggestions, and
+vocabulary-focus resolutions.
+
+### COACH-POLICY-03 — Teaching, advice, and unrelated activities are inert
+
+**Steps:** submit an ordinary teaching request, a request for study advice, and a request to start an
+unrelated learning activity. Force a plan-shaped model result for each.
+
+**Expected:** each turn produces direct teaching where a validated answer exists, otherwise a known
+clarification or capability limitation. None produces plan-success or plan-failure presentation.
+
+**Data verification:** zero plan previews, applies, revisions, receipts, and pending suggestions.
+
+### COACH-POLICY-04 — Negation wins
+
+**Steps:** submit `Do not change Today's Plan; leave Today's Plan unchanged.` while the test model
+claims a direct change.
+
+**Expected:** one deterministic no-effect message. Model-authored success text is not surfaced.
+
+**Data verification:** Today's Plan and active constraints are unchanged; zero previews, applies,
+revisions, receipts, and pending suggestions.
+
+### COACH-POLICY-05 — Explicit English and Korean requests remain supported
+
+**Steps:** submit `Make Today's Plan 10 minutes and no audio`, then repeat in fresh sessions with
+`오늘 계획을 10분으로 줄여줘` and `오늘 계획을 10분으로 해줘`.
+
+**Expected:** each explicit request follows the validated direct-change path and returns a receipt.
+
+**Data verification:** exactly one apply and one `DirectRequest` revision per fresh session.
+
+### COACH-POLICY-06 — Explicit vocabulary focus remains an inert proposal
+
+**Steps:** submit `Suggest focusing Today's Plan on active verbs.`
+
+**Expected:** a pending vocabulary-focus suggestion is shown. The active focus stays unchanged until
+Accept.
+
+**Data verification:** exactly one focus resolution and one preview; zero applies and revisions.
+
+### COACH-POLICY-07 — Mixed teaching plus explicit plan request keeps both contracts
+
+**Steps:** submit `What does 좋아하다 mean? Also suggest making Today's Plan 10 minutes.`
+
+**Expected:** the teaching answer renders first and a separate pending suggestion renders second.
+There is no receipt before Accept.
+
+**Data verification:** one preview and one pending suggestion; zero applies and revisions.
+
+### COACH-POLICY-08 — Pending decisions remain deterministic
+
+**Preconditions:** create one pending suggestion through an explicit Today's Plan request.
+
+**Steps:** in separate fresh sessions, type a clear acceptance and a clear rejection.
+
+**Expected:** acceptance applies the exact stored delta once and clears the suggestion. Rejection
+clears it without a write. Neither decision reinterprets the earlier learner message.
+
+**Data verification:** acceptance writes one `AcceptedSuggestion` revision; rejection writes no
+revision. Both sessions end with no pending suggestion.
+
+### COACH-POLICY-09 — Plan reference and action must share scope
+
+**Steps:** submit each exact message while forcing `DirectConstraintChange`, then repeat while
+forcing `SuggestConstraintChange`:
+
+1. `Change my reminder; show Today's Plan.`
+2. `Does Today's Plan include listening?`
+3. `Do not change the plan; explain it.`
+
+**Expected:** an unrelated action does not govern the plan reference, a plan query remains
+informational, and scoped negation forbids the named effect. No model-authored success claim is
+shown.
+
+**Data verification:** zero plan previews, applies, revisions, receipts, and pending suggestions for
+all six hostile model results.
+
+### COACH-POLICY-10 — Activity purpose clause does not override explicit plan intent
+
+**Steps:** submit exactly
+`Make Today's Plan 10 minutes so I can do pronunciation practice.` while the model returns
+`DirectConstraintChange`.
+
+**Expected:** the bounded plan command remains the governing request. The purpose clause explains
+why; it is not reclassified as an activity-launch request.
+
+**Data verification:** exactly one preview, one apply, one `DirectRequest` revision, and one receipt;
+no pending suggestion.

@@ -51,6 +51,13 @@ public sealed partial class CoachWorkspaceState
     /// <summary>Gap between polls while a durable turn is still running.</summary>
     private static readonly TimeSpan OperationPollInterval = TimeSpan.FromSeconds(2);
 
+    /// <summary>
+    /// The completed turn response can become visible before its separately committed application
+    /// operation is readable. Retry only when that response proves this turn issued a proposal.
+    /// </summary>
+    private const int VocabularyCommitVisibilityReadAttempts = 5;
+    private static readonly TimeSpan VocabularyCommitVisibilityRetryDelay = TimeSpan.FromMilliseconds(200);
+
     private readonly Dictionary<string, int> _timelineIndexByMessageId = new(StringComparer.Ordinal);
     private string? _pendingClientTurnId;
     private string? _pendingLocalMessageId;
@@ -228,6 +235,12 @@ public sealed partial class CoachWorkspaceState
             return false;
         }
 
+        // Vocabulary proposals, decisions, and launch actions belong to one conversation. Preserve
+        // the current thread's local action state before crossing the boundary, then show nothing
+        // from it while the requested conversation is being created or loaded.
+        RememberConversationVocabularyState();
+        ClearConversationVocabularyState();
+
         IsOpen = true;
         IsDurableHistoryEnabled = true;
         State = conversationId is null ? CoachUiState.Opening : CoachUiState.Resuming;
@@ -277,6 +290,7 @@ public sealed partial class CoachWorkspaceState
         }
 
         AdoptConversation(conversation);
+        RestoreConversationVocabularyState(conversation.ConversationId);
         _directory.Select(conversation.ConversationId);
 
         // The checkpoint underneath. Its failure is not fatal to reading the thread, so a plan
@@ -387,6 +401,12 @@ public sealed partial class CoachWorkspaceState
 
             ClearTranscript();
             MergeDurableMessages(page.Items, prepend: false);
+            await RefreshDurableVocabularyStateAsync(
+                conversationId,
+                responseProposal: null,
+                awaitCommitVisibility: false,
+                surfaceFailure: false,
+                cancellationToken).ConfigureAwait(false);
             _earlierCursor = page.PreviousCursor;
             UnreadableMessageCount = page.UnreadableCount;
             UpdateHistoryBoundary();
@@ -444,6 +464,8 @@ public sealed partial class CoachWorkspaceState
     private void DropUnavailableConversation(string conversationId, string noticeKey)
     {
         ClearTranscript();
+        ClearConversationVocabularyState();
+        _vocabularyStateByConversationId.Remove(conversationId);
 
         _earlierCursor = null;
         UnreadableMessageCount = 0;
@@ -522,6 +544,122 @@ public sealed partial class CoachWorkspaceState
         {
             IsLoadingEarlier = false;
             Notify();
+        }
+    }
+
+    private async Task<bool> RefreshDurableVocabularyStateAsync(
+        string conversationId,
+        CoachVocabularySetProposal? responseProposal,
+        bool awaitCommitVisibility,
+        bool surfaceFailure,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            CoachConversationVocabularyStateDto? durableState = null;
+            var attempts = awaitCommitVisibility ? VocabularyCommitVisibilityReadAttempts : 1;
+            for (var attempt = 1; attempt <= attempts; attempt++)
+            {
+                if (!IsActiveConversation(conversationId))
+                {
+                    return false;
+                }
+
+                durableState = await _client
+                    .GetConversationVocabularyStateAsync(conversationId, cancellationToken)
+                    .ConfigureAwait(false);
+                if (durableState?.PendingProposal is not null || attempt == attempts)
+                {
+                    break;
+                }
+
+                await Task.Delay(VocabularyCommitVisibilityRetryDelay, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            if (!IsActiveConversation(conversationId))
+            {
+                return false;
+            }
+
+            var reconciled = ReconcileVocabularyState(
+                conversationId,
+                responseProposal,
+                durableState?.PendingProposal);
+            StoreConversationVocabularyState(conversationId, reconciled);
+            if (IsActiveConversation(conversationId))
+            {
+                ApplyConversationVocabularyState(reconciled);
+                Notify();
+            }
+
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (CoachApiException)
+        {
+            HandleVocabularyRefreshFailure(conversationId, responseProposal, surfaceFailure);
+        }
+        catch (HttpRequestException)
+        {
+            HandleVocabularyRefreshFailure(conversationId, responseProposal, surfaceFailure);
+        }
+
+        return false;
+    }
+
+    private ConversationVocabularyState ReconcileVocabularyState(
+        string conversationId,
+        CoachVocabularySetProposal? responseProposal,
+        CoachVocabularySetProposal? durableProposal)
+    {
+        var prior = GetConversationVocabularyState(conversationId);
+
+        // The durable projection wins once it is visible. The completed turn is the bounded
+        // fallback for the brief commit-visibility gap; dropping it here is what made the card
+        // disappear until a full reload even though the server had returned the proposal.
+        var pending = durableProposal is null
+            ? responseProposal
+            : responseProposal is not null
+              && string.Equals(
+                  responseProposal.ProposalId,
+                  durableProposal.ProposalId,
+                  StringComparison.Ordinal)
+                ? responseProposal
+                : durableProposal;
+
+        return pending is not null
+            ? new ConversationVocabularyState(pending, null, null)
+            : new ConversationVocabularyState(null, prior.ApprovedSet, prior.DecisionMessage);
+    }
+
+    private void HandleVocabularyRefreshFailure(
+        string conversationId,
+        CoachVocabularySetProposal? responseProposal,
+        bool surfaceFailure)
+    {
+        var prior = GetConversationVocabularyState(conversationId);
+
+        // A missing direct projection cannot justify retaining an older card. A typed proposal in
+        // the completed response is real server output and remains usable when only the read-back
+        // failed.
+        var failed = responseProposal is not null
+            ? new ConversationVocabularyState(responseProposal, null, null)
+            : new ConversationVocabularyState(null, prior.ApprovedSet, prior.DecisionMessage);
+        StoreConversationVocabularyState(conversationId, failed);
+
+        if (!IsActiveConversation(conversationId))
+        {
+            return;
+        }
+
+        ApplyConversationVocabularyState(failed);
+        if (surfaceFailure)
+        {
+            ConversationNoticeKey = "Coach_ConversationsLoadFailed";
         }
     }
 
@@ -659,10 +797,14 @@ public sealed partial class CoachWorkspaceState
 
         while (true)
         {
-            LastOperationState = current.State;
-            IsCancelRequested = current.CancelRequested;
+            var ownsVisibleConversation = IsActiveConversation(conversationId);
+            if (ownsVisibleConversation)
+            {
+                LastOperationState = current.State;
+                IsCancelRequested = current.CancelRequested;
+            }
 
-            if (current.Messages.Count > 0)
+            if (ownsVisibleConversation && current.Messages.Count > 0)
             {
                 MergeDurableMessages(current.Messages, prepend: false, turnSequence: _pendingTurnSequence);
                 mergedFromLedger = true;
@@ -684,28 +826,33 @@ public sealed partial class CoachWorkspaceState
                     // for a row that already existed, and sorted below Sam's answer because a local
                     // entry has no server sequence to sort by. A still-pending local id after the
                     // merge is exactly that condition.
-                    if (!mergedFromLedger || _pendingLocalMessageId is not null)
+                    if (ownsVisibleConversation
+                        && (!mergedFromLedger || _pendingLocalMessageId is not null))
                     {
                         await ReconcileFromLedgerAsync(conversationId, cancellationToken).ConfigureAwait(false);
                     }
 
-                    ClearPendingOperation();
+                    ClearPendingOperation(current.OperationId);
                     await RefreshConversationRowAsync(conversationId, cancellationToken).ConfigureAwait(false);
                     return result;
 
                 case CoachTurnOperationState.Completed:
                     // Completed with no result body: the ledger already carries the messages, so
                     // there is nothing left to apply beyond what was merged above.
-                    ClearPendingOperation();
+                    ClearPendingOperation(current.OperationId);
                     await RefreshConversationRowAsync(conversationId, cancellationToken).ConfigureAwait(false);
                     return null;
 
                 case CoachTurnOperationState.Cancelled:
-                    ClearPendingOperation();
+                    ClearPendingOperation(current.OperationId);
                     throw new OperationCanceledException(cancellationToken);
 
                 case CoachTurnOperationState.Failed:
-                    MarkPendingTurnFailed();
+                    if (IsActiveConversation(conversationId))
+                    {
+                        MarkPendingTurnFailed();
+                    }
+
                     throw new CoachDurableTurnFailedException();
             }
 
@@ -732,7 +879,11 @@ public sealed partial class CoachWorkspaceState
             {
                 // The operation is not there. Treat as unrecoverable rather than as success: the
                 // zero value of the state enum is Failed for the same reason.
-                MarkPendingTurnFailed();
+                if (IsActiveConversation(conversationId))
+                {
+                    MarkPendingTurnFailed();
+                }
+
                 throw new CoachApiException(
                     System.Net.HttpStatusCode.NotFound,
                     CoachProblemTypes.ConversationNotFound,
@@ -765,6 +916,11 @@ public sealed partial class CoachWorkspaceState
                 .GetConversationOperationAsync(conversationId, operationId, cancellationToken)
                 .ConfigureAwait(false);
 
+            if (!IsActiveConversation(conversationId))
+            {
+                return;
+            }
+
             if (operation is null)
             {
                 HasRecoverableTurn = true;
@@ -783,10 +939,27 @@ public sealed partial class CoachWorkspaceState
             switch (operation.State)
             {
                 case CoachTurnOperationState.Completed:
+                    var durableVocabularyStateApplied =
+                        await RefreshDurableVocabularyStateAsync(
+                            conversationId,
+                            operation.Result?.VocabularySetProposal,
+                            awaitCommitVisibility: true,
+                            surfaceFailure: true,
+                            cancellationToken).ConfigureAwait(false);
+                    if (!IsActiveConversation(conversationId))
+                    {
+                        return;
+                    }
+
                     ClearPendingOperation();
                     if (operation.Result is { } result)
                     {
-                        ApplyTurn(result, _lastInitiator, _pendingTurnSequence);
+                        ApplyTurn(
+                            result,
+                            _lastInitiator,
+                            _pendingTurnSequence,
+                            durableVocabularyStateApplied: durableVocabularyStateApplied,
+                            durableConversationId: conversationId);
                     }
                     else
                     {
@@ -852,7 +1025,8 @@ public sealed partial class CoachWorkspaceState
             _lastInitiator,
             token => SubmitDurableTurnAsync(conversationId, request, _pendingTurnSequence, token),
             cancellationToken,
-            _pendingTurnSequence).ConfigureAwait(false);
+            _pendingTurnSequence,
+            conversationId).ConfigureAwait(false);
     }
 
     // ================================================================ merge
@@ -1148,6 +1322,11 @@ public sealed partial class CoachWorkspaceState
                 return;
             }
 
+            if (!IsActiveConversation(conversationId))
+            {
+                return;
+            }
+
             MergeDurableMessages(page.Items, prepend: false, turnSequence: _pendingTurnSequence);
             DurableLedgerIsAuthoritative = true;
             UnreadableMessageCount = page.UnreadableCount;
@@ -1175,7 +1354,7 @@ public sealed partial class CoachWorkspaceState
         }
 
         var refreshed = await _directory.ReloadOneAsync(conversationId, cancellationToken).ConfigureAwait(false);
-        if (refreshed is not null)
+        if (refreshed is not null && IsActiveConversation(conversationId))
         {
             AdoptConversation(refreshed);
         }
@@ -1189,6 +1368,14 @@ public sealed partial class CoachWorkspaceState
         _pendingLocalMessageId = null;
         HasRecoverableTurn = false;
         IsCancelRequested = false;
+    }
+
+    private void ClearPendingOperation(string operationId)
+    {
+        if (string.Equals(PendingOperationId, operationId, StringComparison.Ordinal))
+        {
+            ClearPendingOperation();
+        }
     }
 
     private void MarkPendingTurnFailed()

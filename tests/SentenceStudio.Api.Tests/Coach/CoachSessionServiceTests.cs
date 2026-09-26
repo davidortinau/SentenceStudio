@@ -213,7 +213,7 @@ public class CoachSessionServiceTests
             CoachMessage = "Set to 900 minutes."
         });
 
-        var result = await SubmitTextAsync(harness, sessionId, "make it 900 minutes");
+        var result = await SubmitTextAsync(harness, sessionId, "make Today's Plan 900 minutes");
 
         result.Status.Should().Be(CoachOperationStatus.InvalidConstraint);
         harness.PlanService.ApplyCallCount.Should().Be(0);
@@ -247,7 +247,7 @@ public class CoachSessionServiceTests
         var result = await harness.Service.SubmitTurnAsync(sessionId, new CoachTurnRequest
         {
             InputKind = CoachTurnInputKind.Text,
-            Text = "make it 10 minutes",
+            Text = "make Today's Plan 10 minutes",
             ExpectedPlanVersion = "v1:not-the-current-plan"
         });
 
@@ -599,7 +599,7 @@ public class CoachSessionServiceTests
         var request = new CoachTurnRequest
         {
             InputKind = CoachTurnInputKind.Text,
-            Text = "make it 10 minutes",
+            Text = "make Today's Plan 10 minutes",
             ClientTurnId = "turn-1"
         };
 
@@ -758,7 +758,7 @@ public class CoachSessionServiceTests
             InputKind = CoachTurnInputKind.Text,
             // A real plan command, so the turn still applies: a bare sentinel names no
             // constraint and is now offered rather than applied.
-            Text = $"make it 10 minutes {sentinel}"
+            Text = $"make Today's Plan 10 minutes {sentinel}"
         });
 
         var revision = harness.Db.CoachPlanRevisions.Single();
@@ -799,7 +799,7 @@ public class CoachSessionServiceTests
         CoachApplicationHarness harness, string sessionId)
     {
         harness.Coach.NextResult = Completed(DirectChangeIntent());
-        return SubmitTextAsync(harness, sessionId, "make it 10 minutes and no audio");
+        return SubmitTextAsync(harness, sessionId, "make Today's Plan 10 minutes and no audio");
     }
 
     private static async Task<CoachOperationResult<CoachTurnResponse>> SuggestAsync(
@@ -819,6 +819,6 @@ public class CoachSessionServiceTests
             ]
         });
 
-        return await SubmitTextAsync(harness, sessionId, "what should I do today?");
+        return await SubmitTextAsync(harness, sessionId, "suggest making Today's Plan 12 minutes");
     }
 }

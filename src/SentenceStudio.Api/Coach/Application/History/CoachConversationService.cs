@@ -104,6 +104,11 @@ public sealed class CoachConversationService : ICoachConversationService
     private const int RebuildMessageCap = 50;
 
     /// <summary>
+    /// Bounded completed-turn lookback for restoring an active vocabulary proposal.
+    /// </summary>
+    private const int VocabularyProposalLookbackTurns = 50;
+
+    /// <summary>
     /// The character budget for rebuilt history. A character cap is the honest bound here: the
     /// token count belongs to a tokenizer this layer does not own, and four characters per token
     /// is the conservative ratio the rest of the coach already assumes.
@@ -161,6 +166,7 @@ public sealed class CoachConversationService : ICoachConversationService
     /// flag being off, which is the fail-safe reading.
     /// </remarks>
     private readonly CoachDisputeCoordinator? _disputes;
+    private readonly CoachVocabularySetApplicationService? _vocabularySets;
 
     public CoachConversationService(
         IUserScopeProvider userScope,
@@ -177,9 +183,11 @@ public sealed class CoachConversationService : ICoachConversationService
         CoachTelemetry telemetry,
         Operations.CoachWriteOperationService? writeLedger = null,
         Tools.Observation.ICoachTurnObservationBuffer? observations = null,
-        CoachDisputeCoordinator? disputes = null)
+        CoachDisputeCoordinator? disputes = null,
+        CoachVocabularySetApplicationService? vocabularySets = null)
     {
         _disputes = disputes;
+        _vocabularySets = vocabularySets;
         _writeLedger = writeLedger;
         _observations = observations;
         _userScope = userScope;
@@ -455,9 +463,65 @@ public sealed class CoachConversationService : ICoachConversationService
 
         var messages = await ReadTurnMessagesAsync(owner, operation, cancellationToken).ConfigureAwait(false);
         var outcome = await _operations.GetOutcomeAsync(owner, operationId, cancellationToken).ConfigureAwait(false);
+        var response = await SanitizeVocabularyProposalAsync(
+                DeserializeOutcome(outcome?.Payload, outcome?.SchemaVersion),
+                cancellationToken)
+            .ConfigureAwait(false);
 
         return CoachOperationResult<CoachTurnOperationDto>.Ok(
-            ToOperationDto(operation, DeserializeOutcome(outcome?.Payload, outcome?.SchemaVersion), messages));
+            ToOperationDto(operation, response, messages));
+    }
+
+    public async Task<CoachOperationResult<CoachConversationVocabularyStateDto>> GetVocabularyStateAsync(
+        string conversationId,
+        CancellationToken cancellationToken = default)
+    {
+        if (Gate<CoachConversationVocabularyStateDto>(out var owner) is { } denied)
+        {
+            return denied;
+        }
+
+        var conversation = await _conversations
+            .GetAsync(owner, conversationId, cancellationToken)
+            .ConfigureAwait(false);
+        if (conversation.Status != CoachHistoryStatus.Success)
+        {
+            return NotFound<CoachConversationVocabularyStateDto>();
+        }
+
+        if (_vocabularySets is null)
+        {
+            return CoachOperationResult<CoachConversationVocabularyStateDto>.Ok(new());
+        }
+
+        var outcomes = await _operations
+            .GetRecentOutcomesAsync(
+                owner,
+                conversationId,
+                VocabularyProposalLookbackTurns,
+                cancellationToken)
+            .ConfigureAwait(false);
+        foreach (var stored in outcomes)
+        {
+            var persisted = DeserializeOutcome(stored.Payload, stored.SchemaVersion);
+            if (persisted?.VocabularySetProposal is null)
+            {
+                continue;
+            }
+
+            var projection = await _vocabularySets
+                .ProjectForClientAsync(persisted.VocabularySetProposal, cancellationToken)
+                .ConfigureAwait(false);
+            if (projection.Proposal is not null)
+            {
+                return CoachOperationResult<CoachConversationVocabularyStateDto>.Ok(new()
+                {
+                    PendingProposal = projection.Proposal
+                });
+            }
+        }
+
+        return CoachOperationResult<CoachConversationVocabularyStateDto>.Ok(new());
     }
 
     public async Task<CoachOperationResult<CoachTurnOperationDto>> CancelOperationAsync(
@@ -664,10 +728,14 @@ public sealed class CoachConversationService : ICoachConversationService
                 // produced. No model call, no ledger append, no plan write.
                 var replayed = claim.Operation!;
                 var messages = await ReadTurnMessagesAsync(owner, replayed, cancellationToken).ConfigureAwait(false);
+                var response = await SanitizeVocabularyProposalAsync(
+                        DeserializeOutcome(claim.StoredOutcome, claim.StoredOutcomeSchemaVersion),
+                        cancellationToken)
+                    .ConfigureAwait(false);
                 return CoachOperationResult<CoachTurnOperationDto>.Ok(
                     ToOperationDto(
                         replayed,
-                        DeserializeOutcome(claim.StoredOutcome, claim.StoredOutcomeSchemaVersion),
+                        response,
                         messages));
             }
 
@@ -1150,6 +1218,8 @@ public sealed class CoachConversationService : ICoachConversationService
                 var stored = DeserializeOutcome(claim.StoredOutcome, claim.StoredOutcomeSchemaVersion);
                 if (stored is not null)
                 {
+                    stored = await SanitizeVocabularyProposalAsync(stored, cancellationToken)
+                        .ConfigureAwait(false);
                     return CoachOperationResult<CoachTurnResponse>.Ok(stored);
                 }
 
@@ -2285,6 +2355,36 @@ public sealed class CoachConversationService : ICoachConversationService
 
     private static CoachTurnResponse? DeserializeOutcome(string? payload, int? schemaVersion) =>
         ReadOutcome(payload, schemaVersion)?.Answer;
+
+    private async Task<CoachTurnResponse?> SanitizeVocabularyProposalAsync(
+        CoachTurnResponse? response,
+        CancellationToken cancellationToken)
+    {
+        if (response?.VocabularySetProposal is not { } proposal)
+        {
+            return response;
+        }
+
+        var projection = _vocabularySets is null
+            ? CoachVocabularySetClientProjection.Withheld
+            : await _vocabularySets.ProjectForClientAsync(proposal, cancellationToken)
+                .ConfigureAwait(false);
+        if (projection.Proposal is not null)
+        {
+            return response.WithVocabularySetProposal(projection.Proposal);
+        }
+
+        return projection.WasWithheld
+            ? response.WithoutVocabularySetProposal(
+                new CoachLimitationDto
+                {
+                    Code = CoachLimitationCode.Unknown,
+                    Coverage = CoachEvidenceCoverage.Unknown
+                },
+                CoachTurnStatus.Rejected,
+                CoachStopReason.ValidationFailed)
+            : response.WithoutVocabularySetProposal();
+    }
 
     /// <summary>
     /// Reads a stored outcome under whichever version it was written with.

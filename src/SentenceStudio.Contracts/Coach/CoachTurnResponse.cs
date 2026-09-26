@@ -165,6 +165,12 @@ public sealed class CoachTurnResponse
     public CoachWriteOperationDto? WriteOperation { get; init; }
 
     /// <summary>
+    /// The complete generated vocabulary set waiting for one whole-set decision. Null when this
+    /// turn prepared no direct vocabulary review.
+    /// </summary>
+    public CoachVocabularySetProposal? VocabularySetProposal { get; init; }
+
+    /// <summary>
     /// Returns a copy carrying the given write proposal.
     /// </summary>
     /// <remarks>
@@ -194,7 +200,8 @@ public sealed class CoachTurnResponse
         RunsRemainingToday = RunsRemainingToday,
         ExpiresAtUtc = ExpiresAtUtc,
         MemoryCandidate = MemoryCandidate,
-        WriteOperation = writeOperation
+        WriteOperation = writeOperation,
+        VocabularySetProposal = VocabularySetProposal
     };
 
     /// <summary>
@@ -227,7 +234,8 @@ public sealed class CoachTurnResponse
         RunsRemainingToday = RunsRemainingToday,
         ExpiresAtUtc = ExpiresAtUtc,
         MemoryCandidate = candidate,
-        WriteOperation = WriteOperation
+        WriteOperation = WriteOperation,
+        VocabularySetProposal = VocabularySetProposal
     };
 
     /// <summary>
@@ -261,6 +269,64 @@ public sealed class CoachTurnResponse
         RunsRemainingToday = RunsRemainingToday,
         ExpiresAtUtc = ExpiresAtUtc,
         MemoryCandidate = MemoryCandidate,
-        WriteOperation = WriteOperation
+        WriteOperation = WriteOperation,
+        VocabularySetProposal = VocabularySetProposal
+    };
+
+    /// <summary>Returns a copy carrying an inert whole-set vocabulary proposal.</summary>
+    public CoachTurnResponse WithVocabularySetProposal(CoachVocabularySetProposal? proposal) => new()
+    {
+        SessionId = SessionId,
+        TurnId = TurnId,
+        Status = Status,
+        StopReason = StopReason,
+        SessionStatus = SessionStatus,
+        Messages = Messages,
+        ActiveConstraints = ActiveConstraints,
+        PlanState = PlanState,
+        PendingSuggestion = PendingSuggestion,
+        ChangeReceipt = ChangeReceipt,
+        Answer = Answer,
+        Evidence = Evidence,
+        Dispute = Dispute,
+        Limitation = Limitation,
+        RepairDisclosure = RepairDisclosure,
+        ClarifyingQuestion = ClarifyingQuestion,
+        ClarificationsRemaining = ClarificationsRemaining,
+        RunsRemainingToday = RunsRemainingToday,
+        ExpiresAtUtc = ExpiresAtUtc,
+        MemoryCandidate = MemoryCandidate,
+        WriteOperation = WriteOperation,
+        VocabularySetProposal = proposal
+    };
+
+    /// <summary>Returns a copy with no vocabulary proposal in the client projection.</summary>
+    public CoachTurnResponse WithoutVocabularySetProposal(
+        CoachLimitationDto? limitation = null,
+        CoachTurnStatus? status = null,
+        CoachStopReason? stopReason = null) => new()
+    {
+        SessionId = SessionId,
+        TurnId = TurnId,
+        Status = status ?? Status,
+        StopReason = stopReason ?? StopReason,
+        SessionStatus = SessionStatus,
+        Messages = Messages,
+        ActiveConstraints = ActiveConstraints,
+        PlanState = PlanState,
+        PendingSuggestion = PendingSuggestion,
+        ChangeReceipt = ChangeReceipt,
+        Answer = Answer,
+        Evidence = Evidence,
+        Dispute = Dispute,
+        Limitation = limitation ?? Limitation,
+        RepairDisclosure = RepairDisclosure,
+        ClarifyingQuestion = ClarifyingQuestion,
+        ClarificationsRemaining = ClarificationsRemaining,
+        RunsRemainingToday = RunsRemainingToday,
+        ExpiresAtUtc = ExpiresAtUtc,
+        MemoryCandidate = MemoryCandidate,
+        WriteOperation = WriteOperation,
+        VocabularySetProposal = null
     };
 }

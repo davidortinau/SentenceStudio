@@ -528,9 +528,10 @@ public sealed class CoachTurnOperationStore : ICoachTurnOperationStore
     /// <remarks>
     /// A clamp rather than a validation error: a caller that asks for too much has a bug, and
     /// failing their turn over it would be a worse outcome than answering with the recent history
-    /// that actually matters. Ten turns is far more than a live dispute survives in practice.
+    /// that actually matters. Fifty covers vocabulary restoration while dispute callers request
+    /// their own smaller bounds.
     /// </remarks>
-    public const int MaxRecentOutcomes = 10;
+    public const int MaxRecentOutcomes = 50;
 
     public async Task<IReadOnlyList<CoachTurnOutcome>> GetRecentOutcomesAsync(
         CoachOwner owner,

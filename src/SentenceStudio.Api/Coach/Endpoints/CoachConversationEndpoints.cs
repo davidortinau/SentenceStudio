@@ -38,6 +38,8 @@ public static class CoachConversationEndpoints
         group.MapGet("/", ListAsync).WithName("ListCoachConversations");
         group.MapGet("/{conversationId}", GetAsync).WithName("GetCoachConversation");
         group.MapGet("/{conversationId}/messages", GetMessagesAsync).WithName("GetCoachConversationMessages");
+        group.MapGet("/{conversationId}/vocabulary-set", GetVocabularyStateAsync)
+            .WithName("GetCoachConversationVocabularyState");
         group.MapPatch("/{conversationId}", UpdateAsync).WithName("UpdateCoachConversation");
         group.MapPost("/{conversationId}/turns", SubmitTurnAsync).WithName("SubmitCoachConversationTurn");
 
@@ -277,6 +279,16 @@ public static class CoachConversationEndpoints
             () => conversations.GetOperationAsync(conversationId, operationId, cancellationToken),
             loggerFactory,
             "GET /api/v1/coach/conversations/{id}/operations/{operationId}");
+
+    private static Task<IResult> GetVocabularyStateAsync(
+        string conversationId,
+        [FromServices] ICoachConversationService conversations,
+        [FromServices] ILoggerFactory loggerFactory,
+        CancellationToken cancellationToken) =>
+        CoachEndpointExecution.ExecuteAsync(
+            () => conversations.GetVocabularyStateAsync(conversationId, cancellationToken),
+            loggerFactory,
+            "GET /api/v1/coach/conversations/{id}/vocabulary-set");
 
     private static Task<IResult> CancelOperationAsync(
         string conversationId,

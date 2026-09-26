@@ -136,6 +136,24 @@ public sealed class CoachApiClient : ICoachApiClient
         return PostForTurnAsync($"{BasePath}/sessions/{Uri.EscapeDataString(sessionId)}/undo", request, cancellationToken);
     }
 
+    public async Task<CoachVocabularySetApprovalResponse> ApproveVocabularySetAsync(
+        ApproveCoachVocabularySetRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        using var response = await _httpClient.PostAsJsonAsync(
+                "/api/v1/application/vocabulary-sets/approve",
+                request,
+                WireJson.Client,
+                cancellationToken)
+            .ConfigureAwait(false);
+        await EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+
+        return await ReadRequiredAsync<CoachVocabularySetApprovalResponse>(response, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
     public async Task CancelSessionAsync(string sessionId, CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
@@ -341,6 +359,24 @@ public sealed class CoachApiClient : ICoachApiClient
 
         await EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
         return await ReadAsync<CoachTurnOperationDto>(response, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<CoachConversationVocabularyStateDto?> GetConversationVocabularyStateAsync(
+        string conversationId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(conversationId);
+
+        var path = $"{ConversationsPath}/{Uri.EscapeDataString(conversationId)}/vocabulary-set";
+        using var response = await _httpClient.GetAsync(path, cancellationToken).ConfigureAwait(false);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+        {
+            return null;
+        }
+
+        await EnsureSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+        return await ReadAsync<CoachConversationVocabularyStateDto>(response, cancellationToken)
+            .ConfigureAwait(false);
     }
 
     public async Task<CoachTurnOperationDto?> CancelConversationTurnAsync(

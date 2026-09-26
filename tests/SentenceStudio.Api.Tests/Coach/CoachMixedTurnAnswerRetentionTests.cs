@@ -166,7 +166,7 @@ public class CoachMixedTurnAnswerRetentionTests
         // No answer on the turn, so the existing plan-safety behaviour is untouched.
         harness.Coach.NextResult = SuggestResult(d => d.AvailableMinutes = 2, answer: null);
 
-        var result = await AskAsync(harness, sessionId, "suggest something");
+        var result = await AskAsync(harness, sessionId, "Suggest a change to Today's Plan.");
 
         result.IsOk.Should().BeFalse();
         result.Status.Should().Be(CoachOperationStatus.InvalidConstraint);
@@ -203,7 +203,7 @@ public class CoachMixedTurnAnswerRetentionTests
         harness.Coach.NextResult = SuggestResult(configure, Answer());
         return AskAsync(
             harness, sessionId,
-            "What's the difference between \uC88B\uC544\uD558\uB2E4 and \uC88B\uB2E4? Also make today shorter.");
+            "What's the difference between \uC88B\uC544\uD558\uB2E4 and \uC88B\uB2E4? Also make Today's Plan shorter.");
     }
 
     private static CoachAgentTurnResult SuggestResult(
@@ -259,6 +259,6 @@ public class CoachMixedTurnAnswerRetentionTests
         harness.Coach.NextResult = SuggestResult(
             d => d.SkillEmphasis = CoachSkillEmphasis.Writing, answer: null);
 
-        return (await AskAsync(harness, sessionId, "what should I do today?")).Value!.PendingSuggestion!;
+        return (await AskAsync(harness, sessionId, "Suggest a change to Today's Plan.")).Value!.PendingSuggestion!;
     }
 }

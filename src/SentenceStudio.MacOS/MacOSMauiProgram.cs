@@ -25,11 +25,45 @@ public static class MacOSMauiProgram
     public static MauiApp CreateMauiApp()
     {
         var builder = MauiApp.CreateBuilder();
+
+#if DEBUG
+        var commandLineArguments = Environment.GetCommandLineArgs();
+        var migrationValidationRequested =
+            MigrationValidationOptions.IsRequested(commandLineArguments);
+        if (!migrationValidationRequested)
+        {
+            builder.UseMauiAppMacOS<MacOSBlazorApp>();
+        }
+        else
+        {
+            builder.UseMauiAppMacOS<MigrationValidationApp>();
+        }
+#else
+        builder.UseMauiAppMacOS<MacOSBlazorApp>();
+#endif
+
         builder
-            .UseMauiAppMacOS<MacOSBlazorApp>()
             .AddMacOSEssentials()
-            .UseMauiCommunityToolkit()
-            .UseSentenceStudioApp();
+            .UseMauiCommunityToolkit();
+
+#if DEBUG
+        var migrationValidation = MigrationValidationOptions.FromCommandLine(
+            commandLineArguments,
+            Common.Constants.DatabasePath);
+        if (migrationValidation is null)
+        {
+            builder.UseSentenceStudioApp();
+        }
+        else
+        {
+            // Factory registration makes the service provider own the validation session lifetime.
+            // The session, in turn, owns the exact open SQLite connection used by EF.
+            builder.Services.AddSingleton<MigrationValidationOptions>(_ => migrationValidation);
+            builder.UseSentenceStudioApp(migrationValidation.Connection);
+        }
+#else
+        builder.UseSentenceStudioApp();
+#endif
 
         builder.AddMauiServiceDefaults("MacOS");
 
@@ -74,12 +108,69 @@ public static class MacOSMauiProgram
             .AddDebug()
             .AddConsole()
             .SetMinimumLevel(LogLevel.Debug);
-        builder.AddMauiDevFlowAgent(options => { options.Port = 9225; });
+        builder.AddMauiDevFlowAgent(options =>
+        {
+            options.Port = migrationValidation?.DevFlowPort ?? 9225;
+        });
         builder.AddMauiBlazorDevFlowTools();
 #endif
 
-        var app = builder.Build();
+        MauiApp app;
+        try
+        {
+            app = builder.Build();
+        }
+        catch
+        {
+#if DEBUG
+            migrationValidation?.Dispose();
+#endif
+            throw;
+        }
 
+#if DEBUG
+        if (migrationValidation is null)
+        {
+            StartLegacyCredentialAdoption(app);
+        }
+        else
+        {
+            var logger = app.Services.GetRequiredService<ILogger<MacOSBlazorApp>>();
+            logger.LogInformation(
+                "Migration validation database: {DatabasePath}",
+                migrationValidation.DatabasePath);
+            logger.LogInformation(
+                "Migration validation opened database binding: main={DatabasePath} device={Device} inode={Inode} fd={FileDescriptor}",
+                migrationValidation.DatabasePath,
+                migrationValidation.OpenedDatabaseIdentity.Device,
+                migrationValidation.OpenedDatabaseIdentity.Inode,
+                migrationValidation.OpenedBinding.FileDescriptor);
+            logger.LogInformation(
+                "Migration validation mode accepted; automatic user-store and network startup will be suppressed.");
+        }
+#else
+        StartLegacyCredentialAdoption(app);
+#endif
+
+#if DEBUG
+        try
+        {
+            return SentenceStudioAppBuilder.InitializeApp(
+                app,
+                suppressAutomaticStartup: migrationValidation is not null);
+        }
+        catch
+        {
+            migrationValidation?.Dispose();
+            throw;
+        }
+#else
+        return SentenceStudioAppBuilder.InitializeApp(app);
+#endif
+    }
+
+    private static void StartLegacyCredentialAdoption(MauiApp app)
+    {
         // One probe, before any auth-state resolution, so a corroborated pre-namespacing session
         // is available to the first restore and an uncorroborated one is permanently refused.
         // Fire-and-forget with its own guard: adoption is opportunistic and must never delay or
@@ -97,8 +188,6 @@ public static class MacOSMauiProgram
                     .LogWarning(ex, "Legacy keychain adoption probe failed; continuing without it.");
             }
         });
-
-        return SentenceStudioAppBuilder.InitializeApp(app);
     }
 
 }

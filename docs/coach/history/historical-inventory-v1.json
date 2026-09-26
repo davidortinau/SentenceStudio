@@ -1,0 +1,483 @@
+{
+  "schemaVersion": "1.0",
+  "manifestVersion": "historical-inventory/v1",
+  "generatedAt": "2026-09-02T20:45:24.034-05:00",
+  "cutoff": "2026-09-02T20:20:09.969-05:00",
+  "approvedBy": null,
+  "approvedAt": null,
+  "manifestHash": null,
+  "manifestHashExplanation": "A JSON document cannot reliably contain its own digest. After Captain approval, hash the exact approved bytes with SHA-256 and record that digest in the approval record for this immutable version; do not rewrite this file to embed it.",
+  "sourceSummary": {
+    "rowCount": 13,
+    "sourceKinds": {
+      "IncidentReport": 1,
+      "DecisionRecord": 8,
+      "SessionPlan": 2,
+      "OwnerDirective": 2
+    },
+    "dispositions": {
+      "Include": 11,
+      "PendingCaptainReview": 2
+    },
+    "sources": [
+      {
+        "sourceReference": "git:e9d920455759647b8ad21ca3e73d19c994c4f3f1:docs/incidents/2026-08-22-sam-missing-and-recovery-rca.md",
+        "sourceDigest": "sha256:04b5ce33c8916e3735efb5370ed42dd57b0ee5dd9556baf072fb3c74302e8577",
+        "gitBlob": "11816422f7a3b82d9401b539ef496519a45a3064",
+        "pinningMethod": "CommittedGitBlob",
+        "scope": "Local Coach outage, startup failure, and allowlist fault chain"
+      },
+      {
+        "sourceReference": "git:5f60a38282beb12c76e9a65704f878df5ab01f94:.squad/decisions.md",
+        "sourceDigest": "sha256:49c5798bf7ba01f9b2912a49d7c84da9bc3bd45d24f31aee71f50cb7626cdaa4",
+        "gitBlob": "6a00e5e0d3f406e81684596f69013f9663f93045",
+        "committedAt": "2026-09-02T20:14:24-05:00",
+        "pinningMethod": "CommittedGitBlobWithCanonicalLineExcerptsV1",
+        "scope": "Conversation shelf, dashboard entry, mobile layout, and latest-study decisions"
+      },
+      {
+        "sourceReference": "git:e9d920455759647b8ad21ca3e73d19c994c4f3f1:.claude/skills/e2e-testing/references/learning-coach.md",
+        "sourceDigest": "sha256:d04b3df3471f346f9465106956052a723ccac34d46bc3f0f1be9fc9e32e6b895",
+        "gitBlob": "55c24a256066966297685c46c2899795dae82274",
+        "pinningMethod": "CommittedGitBlob",
+        "scope": "Repository acceptance artifacts used to constrain synthetic reproductions and expected behavior"
+      },
+      {
+        "sourceReference": "external-session-plan:historical-failure-regression-program",
+        "sourceDigest": "sha256:dffeaa00f098272f7af43fec44616b699fa0063935f9e3e54023a1305b570a4f",
+        "pinningMethod": "ExternalArtifactDigestOnly",
+        "reproducibility": "Not independently resolvable from this worktree; a row supported only by this source remains PendingCaptainReview.",
+        "scope": "Authorized clean-plan inventory, scenario IDs, trajectories, and screenshot disposition requirement"
+      },
+      {
+        "sourceReference": "spawn-request:coach-failure-manifest#known-initial-failures",
+        "sourceDigest": null,
+        "pinningMethod": "ExactPromptStoredAndHashedPerRow",
+        "scope": "Captain-authorized recovery request; only the two explicitly supplied prompts are retained verbatim"
+      }
+    ]
+  },
+  "decisionRecordPinning": {
+    "method": "canonical-line-excerpt/v1",
+    "cutoff": "2026-09-02T20:20:09.969-05:00",
+    "sourceReference": "git:5f60a38282beb12c76e9a65704f878df5ab01f94:.squad/decisions.md",
+    "sourceDigest": "sha256:49c5798bf7ba01f9b2912a49d7c84da9bc3bd45d24f31aee71f50cb7626cdaa4",
+    "gitBlob": "6a00e5e0d3f406e81684596f69013f9663f93045",
+    "committedAt": "2026-09-02T20:14:24-05:00",
+    "normalization": "Decode the committed blob as UTF-8; normalize CRLF and CR to LF; select the declared 1-based inclusive line range; remove trailing spaces and tabs from every selected line; remove trailing blank lines; append exactly one LF; SHA-256 the UTF-8 bytes.",
+    "privacy": "Only the exact heading, immutable line range, and digests are stored per row; excerpt bodies are not copied into this manifest."
+  },
+  "knownGaps": [
+    "No owner-authorized Coach conversation export was available for this pass.",
+    "No learner response report joined to authoritative conversation and turn references was available.",
+    "The original screenshots and attachment hashes were not available; only content-free descriptions in the clean plan and decision record were used.",
+    "Copilot project-session and chat history was not exported into this worktree.",
+    "GitHub issues, pull requests, and review comments were not exhaustively enumerated for v1.",
+    "No row proves clean-runtime coverage yet; existing legacy acceptance artifacts are recorded only as current evidence.",
+    "Completeness is not claimed until Captain approves this version and cutoff."
+  ],
+  "rows": [
+    {
+      "id": "coach-failure-001",
+      "sourceKind": "IncidentReport",
+      "sourceReference": "git:e9d920455759647b8ad21ca3e73d19c994c4f3f1:docs/incidents/2026-08-22-sam-missing-and-recovery-rca.md#L99-L129",
+      "sourceDigest": "sha256:04b5ce33c8916e3735efb5370ed42dd57b0ee5dd9556baf072fb3c74302e8577",
+      "observedAt": "2026-08-22T14:50:00-05:00",
+      "cutoff": "2026-09-02T20:20:09.969-05:00",
+      "surface": "Local WebApp after login",
+      "authorization": "CaptainAuthorizedRecovery",
+      "privacyClass": "RepositoryIncidentEvidence",
+      "category": "AvailabilityAndStartup",
+      "exactTextAvailability": "NotApplicable",
+      "exactPrompt": null,
+      "syntheticReproduction": "Start the API with a duplicate eligible-profile allowlist entry, sign in as an otherwise eligible learner, and observe Coach availability and entry surfaces.",
+      "unacceptableOutcome": "The API failed startup, the WebApp cached Coach as disabled after a timeout, and the persistent Coach entry disappeared without an actionable learner-visible state.",
+      "expectedBehavior": "Startup configuration rejects or safely deduplicates the duplicate before outage; API and availability health are proven; an eligible signed-in learner sees the persistent teacher entry or an explicit recoverable unavailable state.",
+      "scenarioId": "COACH-HIST-001",
+      "disposition": "Include",
+      "coveredTestLayers": [
+        "existing:AppHost configuration unit tests",
+        "existing:post-Aspire restore shell tests",
+        "acceptance:LC-AVAIL"
+      ],
+      "evidenceGaps": [
+        "No clean-runtime fault-injected availability fixture exists. Next evidence source: a content-free API-startup trace plus WebApp availability and entry-surface capture from the clean runtime."
+      ],
+      "status": "Proposed"
+    },
+    {
+      "id": "coach-failure-002",
+      "sourceKind": "DecisionRecord",
+      "sourceReference": "git:5f60a38282beb12c76e9a65704f878df5ab01f94:.squad/decisions.md#L97-L99",
+      "sourceDigest": "sha256:49c5798bf7ba01f9b2912a49d7c84da9bc3bd45d24f31aee71f50cb7626cdaa4",
+      "sourcePin": {
+        "method": "canonical-line-excerpt/v1",
+        "heading": "### CONVERSATION SHELF RESTORE (Kaylee, 2026-08-22)",
+        "lineRange": "L97-L99",
+        "excerptDigest": "sha256:a1275e8ba955502b024f2ba98ea501dbc7e954b26d4f926bcc22feabd39358f5"
+      },
+      "observedAt": "2026-08-22",
+      "cutoff": "2026-09-02T20:20:09.969-05:00",
+      "surface": "WebApp Sam panel",
+      "authorization": "CaptainAuthorizedRecovery",
+      "privacyClass": "RepositoryDecisionEvidence",
+      "category": "ConversationDiscoveryAndResume",
+      "exactTextAvailability": "NotApplicable",
+      "exactPrompt": null,
+      "syntheticReproduction": "Create two durable owner-scoped Coach conversations, open the persistent teacher panel in each supported visual state, list conversations, and resume the older thread.",
+      "unacceptableOutcome": "The saved-conversation list was absent, so the learner could not discover or resume prior threads.",
+      "expectedBehavior": "An owner-scoped newest-first conversation list is reachable in every supported panel state and selecting a thread resumes that exact conversation without ending or deleting another.",
+      "scenarioId": "COACH-HIST-002",
+      "disposition": "Include",
+      "coveredTestLayers": [
+        "existing:UI rendered regression tests",
+        "acceptance:SAM-CONV-01..08",
+        "acceptance:LC-SESS-02"
+      ],
+      "evidenceGaps": [
+        "The original missing-list capture is not hashed. Next evidence source: Captain-authorized screenshot attachment hash or the authoritative issue/turn reference that first reported the missing shelf."
+      ],
+      "status": "Proposed"
+    },
+    {
+      "id": "coach-failure-003",
+      "sourceKind": "DecisionRecord",
+      "sourceReference": "git:5f60a38282beb12c76e9a65704f878df5ab01f94:.squad/decisions.md#L114-L133",
+      "sourceDigest": "sha256:49c5798bf7ba01f9b2912a49d7c84da9bc3bd45d24f31aee71f50cb7626cdaa4",
+      "sourcePin": {
+        "method": "canonical-line-excerpt/v1",
+        "heading": "### ZOE REVIEW — DASHBOARD CoachEntryCard RETIREMENT (Zoe, 2026-08-22)",
+        "lineRange": "L114-L133",
+        "excerptDigest": "sha256:7b583ced420a5d619ba6fa4850cfbfced2cb23183f4281f4fd27bf0a3099b056"
+      },
+      "observedAt": "2026-08-22",
+      "cutoff": "2026-09-02T20:20:09.969-05:00",
+      "surface": "WebApp dashboard",
+      "authorization": "CaptainAuthorizedRecovery",
+      "privacyClass": "RepositoryDecisionEvidence",
+      "category": "UnrequestedDuplicateEntrySurface",
+      "exactTextAvailability": "NotApplicable",
+      "exactPrompt": null,
+      "syntheticReproduction": "Visit both dashboard states with a resumable Coach conversation while the persistent shell teacher control is available.",
+      "unacceptableOutcome": "A legacy dashboard resume card appeared in addition to the persistent teacher control, duplicating entry state and sometimes showing inconsistent Ask-versus-Resume copy.",
+      "expectedBehavior": "No unsolicited dashboard card renders; one persistent teacher control remains available and reflects resumability consistently.",
+      "scenarioId": "COACH-HIST-003",
+      "disposition": "Include",
+      "coveredTestLayers": [
+        "existing:UI regression tests",
+        "existing:WebApp dashboard Canvas verification"
+      ],
+      "evidenceGaps": [
+        "The original duplicate-card screenshot is not retained in this inventory. Next evidence source: Captain-authorized screenshot hash or the originating issue/review comment."
+      ],
+      "status": "Proposed"
+    },
+    {
+      "id": "coach-failure-004",
+      "sourceKind": "SessionPlan",
+      "sourceReference": "external-session-plan:initial-recovered-regression-inventory/COACH-HIST-004",
+      "sourceDigest": "sha256:dffeaa00f098272f7af43fec44616b699fa0063935f9e3e54023a1305b570a4f",
+      "observedAt": null,
+      "cutoff": "2026-09-02T20:20:09.969-05:00",
+      "surface": "Coach conversation; original surface not retained",
+      "authorization": "CaptainAuthorizedRecovery",
+      "privacyClass": "ContentFreePrivateReference",
+      "category": "PlanBiasedTeachingRouting",
+      "exactTextAvailability": "RecoverFromOwnerAuthorizedHistory",
+      "exactPrompt": null,
+      "syntheticReproduction": "Ask for a complete explanation of a target-language contrast, then request another example in the same conversation.",
+      "unacceptableOutcome": "Coach forced a teaching request toward plan-shaped intent, returned a plan-only fallback, or failed to provide a complete pedagogical answer.",
+      "expectedBehavior": "Coach gives a complete teaching response and coherent follow-up with no plan proposal, plan mutation, or plan-only fallback.",
+      "scenarioId": "COACH-HIST-004",
+      "disposition": "PendingCaptainReview",
+      "coveredTestLayers": [
+        "acceptance:LC-LL-01..03",
+        "acceptance:LC-HIST-01"
+      ],
+      "evidenceGaps": [
+        "The external session-plan digest is not independently resolvable from this worktree, and the historical exact prompt, prior turn, and failed response are not retained. Next evidence source: a Captain-approved immutable plan export or owner-authorized Coach conversation export joined to authoritative conversation and turn references."
+      ],
+      "status": "EvidencePending"
+    },
+    {
+      "id": "coach-failure-005",
+      "sourceKind": "DecisionRecord",
+      "sourceReference": "git:5f60a38282beb12c76e9a65704f878df5ab01f94:.squad/decisions.md#L260-L262",
+      "sourceDigest": "sha256:49c5798bf7ba01f9b2912a49d7c84da9bc3bd45d24f31aee71f50cb7626cdaa4",
+      "sourcePin": {
+        "method": "canonical-line-excerpt/v1",
+        "heading": "### RIVER RCA — LATEST-STUDY LIVE iOS FAILURE (2026-08-25)",
+        "lineRange": "L260-L262",
+        "excerptDigest": "sha256:e1758f0a0b0c8f17439b9d1dbf8f087862e0e800ab10f1564031fa6558a71d84"
+      },
+      "observedAt": "2026-08-25",
+      "cutoff": "2026-09-02T20:20:09.969-05:00",
+      "surface": "iOS simulator",
+      "authorization": "CaptainAuthorizedRecovery",
+      "privacyClass": "RepositoryAcceptanceEvidence",
+      "category": "AuthoritativePracticeHistoryRead",
+      "exactTextAvailability": "RepositoryAcceptanceArtifact",
+      "exactPrompt": "When was the last time I studied?",
+      "syntheticReproduction": "Seed owner-scoped practice history with a known latest local date, ask the repository-authorized exact question, and compare the answer with the authoritative aggregate.",
+      "unacceptableOutcome": "Coach selected a model teaching path instead of the history read, then fabricated, refused, or returned no answer.",
+      "expectedBehavior": "A deterministic pre-model owner-scoped practice-history read returns the correct local date and days-since value with evidence, zero model calls, and no plan capability or write.",
+      "scenarioId": "COACH-HIST-005",
+      "disposition": "Include",
+      "coveredTestLayers": [
+        "existing:API classifier and integration tests",
+        "acceptance:LC-DATA-04",
+        "existing:live iOS verification"
+      ],
+      "evidenceGaps": [
+        "The authoritative failed turn trace is not attached to this inventory. Next evidence source: the content-free 2026-08-25 iOS turn trace containing route, stop reason, capability calls, and persisted message count."
+      ],
+      "status": "Proposed"
+    },
+    {
+      "id": "coach-failure-006",
+      "sourceKind": "DecisionRecord",
+      "sourceReference": "git:5f60a38282beb12c76e9a65704f878df5ab01f94:.squad/decisions.md#L277-L285",
+      "sourceDigest": "sha256:49c5798bf7ba01f9b2912a49d7c84da9bc3bd45d24f31aee71f50cb7626cdaa4",
+      "sourcePin": {
+        "method": "canonical-line-excerpt/v1",
+        "heading": "### JAYNE VERDICTS (2026-08-25)",
+        "lineRange": "L277-L285",
+        "excerptDigest": "sha256:5db55aa0432913f20ae8e69fc417ceb4e33354f9a1c5a19163d989cabb86ceaa"
+      },
+      "observedAt": "2026-08-25",
+      "cutoff": "2026-09-02T20:20:09.969-05:00",
+      "surface": "iOS simulator",
+      "authorization": "CaptainAuthorizedRecovery",
+      "privacyClass": "RepositoryAcceptanceEvidence",
+      "category": "PracticeHistoryCorrectionAndDispute",
+      "exactTextAvailability": "RepositoryVariantsOnlyNotHistoricalExact",
+      "exactPrompt": null,
+      "syntheticReproduction": "After Coach answers the latest-study question, dispute the date by stating that practice occurred yesterday.",
+      "unacceptableOutcome": "Coach reused an unsupported cached answer, failed to acknowledge the correction, or diverted the dispute to a plan fallback.",
+      "expectedBehavior": "Coach re-reads authoritative owner-scoped history, compares it with the prior claim, acknowledges and corrects changed evidence, or states the records available without inventing a reconciliation.",
+      "scenarioId": "COACH-HIST-006",
+      "disposition": "Include",
+      "coveredTestLayers": [
+        "existing:API classifier and integration tests",
+        "acceptance:LC-DATA-04-follow-up",
+        "existing:live iOS verification"
+      ],
+      "evidenceGaps": [
+        "Repository artifacts contain two correction phrasings, but the historical exact learner text is not established. Next evidence source: owner-authorized authoritative turn export for the disputed answer."
+      ],
+      "status": "Proposed"
+    },
+    {
+      "id": "coach-failure-007",
+      "sourceKind": "DecisionRecord",
+      "sourceReference": "git:5f60a38282beb12c76e9a65704f878df5ab01f94:.squad/decisions.md#L190-L192",
+      "sourceDigest": "sha256:49c5798bf7ba01f9b2912a49d7c84da9bc3bd45d24f31aee71f50cb7626cdaa4",
+      "sourcePin": {
+        "method": "canonical-line-excerpt/v1",
+        "heading": "### CAPTAIN DIRECTIVE (2026-08-25T20:15 CDT)",
+        "lineRange": "L190-L192",
+        "excerptDigest": "sha256:926db0c9e0994237606511968d5fb5f2591cd0c3faeda5b1119cf98a9ec169ca"
+      },
+      "observedAt": "2026-08-25T20:15:00-05:00",
+      "cutoff": "2026-09-02T20:20:09.969-05:00",
+      "surface": "iOS simulator mobile panel",
+      "authorization": "CaptainAuthorizedRecovery",
+      "privacyClass": "RepositoryDecisionEvidence",
+      "category": "MobileModalSemantics",
+      "exactTextAvailability": "NotApplicable",
+      "exactPrompt": null,
+      "syntheticReproduction": "Open Coach in a narrow mobile viewport over interactive app content and inspect visual separation, dialog semantics, focus, and underlying-app interactivity.",
+      "unacceptableOutcome": "The panel blended into app content, lacked a scrim and modal semantics, and left underlying content interactive.",
+      "expectedBehavior": "A distinct scrim is visible; the panel exposes dialog and modal semantics; the underlying app is inert; focus and dismissal remain usable.",
+      "scenarioId": "COACH-MOB-001",
+      "disposition": "Include",
+      "coveredTestLayers": [
+        "existing:UI rendered tests",
+        "acceptance:LC-MOB",
+        "existing:live iOS verification"
+      ],
+      "evidenceGaps": [
+        "The original screenshot and accessibility-tree capture are absent. Next evidence source: Captain-authorized attachment hash plus the matching viewport-sized accessibility snapshot."
+      ],
+      "status": "Proposed"
+    },
+    {
+      "id": "coach-failure-008",
+      "sourceKind": "DecisionRecord",
+      "sourceReference": "git:5f60a38282beb12c76e9a65704f878df5ab01f94:.squad/decisions.md#L213-L217",
+      "sourceDigest": "sha256:49c5798bf7ba01f9b2912a49d7c84da9bc3bd45d24f31aee71f50cb7626cdaa4",
+      "sourcePin": {
+        "method": "canonical-line-excerpt/v1",
+        "heading": "### JAYNE LIVE iOS VERDICT — MOBILE MODAL (2026-08-25)",
+        "lineRange": "L213-L217",
+        "excerptDigest": "sha256:7c6c995930f344a15e173e9982f21c605344c8142404adc9d8baf2fa86fd7493"
+      },
+      "observedAt": "2026-08-25",
+      "cutoff": "2026-09-02T20:20:09.969-05:00",
+      "surface": "iOS simulator fullscreen panel",
+      "authorization": "CaptainAuthorizedRecovery",
+      "privacyClass": "RepositoryDecisionEvidence",
+      "category": "MobileSafeArea",
+      "exactTextAvailability": "NotApplicable",
+      "exactPrompt": null,
+      "syntheticReproduction": "Open fullscreen Coach on a notched mobile viewport and exercise Restore, History, and Close after focus moves into the panel.",
+      "unacceptableOutcome": "Fullscreen header controls moved behind the Dynamic Island or status bar and became clipped or untappable.",
+      "expectedBehavior": "Every fullscreen control stays inside the safe area, visible, reachable, and tappable across entry, focus changes, restore, and rotation.",
+      "scenarioId": "COACH-MOB-002",
+      "disposition": "Include",
+      "coveredTestLayers": [
+        "existing:JavaScript scroll-lock tests",
+        "existing:UI rendered tests",
+        "acceptance:LC-MOB-01",
+        "existing:live iOS verification"
+      ],
+      "evidenceGaps": [
+        "No original failing geometry capture is retained here. Next evidence source: the rejected fullscreen review screenshot hash and its control bounding-box measurements."
+      ],
+      "status": "Proposed"
+    },
+    {
+      "id": "coach-failure-009",
+      "sourceKind": "DecisionRecord",
+      "sourceReference": "git:5f60a38282beb12c76e9a65704f878df5ab01f94:.squad/decisions.md#L219-L231",
+      "sourceDigest": "sha256:49c5798bf7ba01f9b2912a49d7c84da9bc3bd45d24f31aee71f50cb7626cdaa4",
+      "sourcePin": {
+        "method": "canonical-line-excerpt/v1",
+        "heading": "### ZOE — FULLSCREEN SCROLL CONTAINMENT REVISION (2026-08-25)",
+        "lineRange": "L219-L231",
+        "excerptDigest": "sha256:6d537c47ebc66cc1c79619501048a67e7f5b43f51968628343a3a3fbd70517da"
+      },
+      "observedAt": "2026-08-25",
+      "cutoff": "2026-09-02T20:20:09.969-05:00",
+      "surface": "iOS simulator Coach transcript",
+      "authorization": "CaptainAuthorizedRecovery",
+      "privacyClass": "RepositoryDecisionEvidence",
+      "category": "MobileScrollContainment",
+      "exactTextAvailability": "NotApplicable",
+      "exactPrompt": null,
+      "syntheticReproduction": "Populate a long Coach thread, scroll the transcript, focus the composer, and verify the header and composer geometry before and after fullscreen transitions.",
+      "unacceptableOutcome": "Transcript or document scrolling displaced the panel header, and the composer/header did not remain fixed around the independently scrolling log.",
+      "expectedBehavior": "Coach uses a three-row layout: header and composer stay fixed, only the transcript scrolls, and focus does not move the fixed panel.",
+      "scenarioId": "COACH-MOB-003",
+      "disposition": "Include",
+      "coveredTestLayers": [
+        "existing:JavaScript scroll-lock tests",
+        "existing:UI rendered tests",
+        "acceptance:LC-MOB-01..03",
+        "existing:live iOS verification"
+      ],
+      "evidenceGaps": [
+        "The first failing long-thread recording is not retained. Next evidence source: Captain-authorized video or screenshot sequence hash with scroll offsets and panel-region bounds."
+      ],
+      "status": "Proposed"
+    },
+    {
+      "id": "coach-failure-010",
+      "sourceKind": "DecisionRecord",
+      "sourceReference": "git:5f60a38282beb12c76e9a65704f878df5ab01f94:.squad/decisions.md#L194-L204",
+      "sourceDigest": "sha256:49c5798bf7ba01f9b2912a49d7c84da9bc3bd45d24f31aee71f50cb7626cdaa4",
+      "sourcePin": {
+        "method": "canonical-line-excerpt/v1",
+        "heading": "### ZOE DESIGN REVIEW — SAM MOBILE & HISTORY (2026-08-25)",
+        "lineRange": "L194-L204",
+        "excerptDigest": "sha256:e233c2a7ae4d2e86eb57ad4a20f2695ce815367f6e520c499cdc0d10031b96db"
+      },
+      "observedAt": "2026-08-25",
+      "cutoff": "2026-09-02T20:20:09.969-05:00",
+      "surface": "iOS simulator app shell and Coach panel",
+      "authorization": "CaptainAuthorizedRecovery",
+      "privacyClass": "RepositoryDecisionEvidence",
+      "category": "MobileNavigationInsetSpacing",
+      "exactTextAvailability": "NotApplicable",
+      "exactPrompt": null,
+      "syntheticReproduction": "Open the affected iOS app shell and Coach panel, then inspect the page-header and navigation-bar spacing for duplicate top inset ownership.",
+      "unacceptableOutcome": "The page header applied duplicate navigation-bar spacing, producing extra space above the content.",
+      "expectedBehavior": "The navigation inset has exactly one owner; the page header adds no duplicate padding and no extra navigation-bar gap appears.",
+      "scenarioId": "COACH-MOB-004",
+      "disposition": "Include",
+      "coveredTestLayers": [
+        "existing:UI layout contract tests",
+        "acceptance:LC-MOB",
+        "existing:live iOS verification"
+      ],
+      "evidenceGaps": [
+        "The original screenshot and geometry log for the extra navigation-bar spacing are not attached. Next evidence source: Captain-authorized screenshot hashes and page-header/navigation bounds from the affected state."
+      ],
+      "status": "Proposed"
+    },
+    {
+      "id": "coach-failure-011",
+      "sourceKind": "OwnerDirective",
+      "sourceReference": "spawn-request:coach-failure-manifest#canonical-household-prompt",
+      "sourceDigest": "sha256:890e89da7bb6d49873cf3e89a3b43956f6878d3f7ed7128bebdd23bbc7b60350",
+      "observedAt": null,
+      "cutoff": "2026-09-02T20:20:09.969-05:00",
+      "surface": "Coach conversation; original surface not retained",
+      "authorization": "CaptainSuppliedExactTextThisSession",
+      "privacyClass": "OwnerSuppliedExactPrompt",
+      "category": "TopicalVocabularyIntentAndTypoTolerance",
+      "exactTextAvailability": "OwnerSuppliedThisSession",
+      "exactPrompt": "I wnto study vocabulary about house rooms and things I'd see in a house.",
+      "syntheticReproduction": "Use the exact owner-supplied prompt against an owned vocabulary fixture containing household matches and an untouched current plan.",
+      "unacceptableOutcome": "Coach failed to understand the typo and arbitrary household topic, forced part-of-speech clarification, or silently selected a plan-only path.",
+      "expectedBehavior": "Coach understands the topic despite the typo and offers a visible choice between untouched-plan replacement and direct Vocab Review, with no effect before the learner chooses.",
+      "scenarioId": "COACH-CANON-001",
+      "disposition": "Include",
+      "coveredTestLayers": [],
+      "evidenceGaps": [
+        "The original unacceptable response and authoritative turn reference are missing. Next evidence source: owner-authorized Coach turn export, or a faithful fault-injected red run using this exact prompt and the clean-plan household fixture."
+      ],
+      "status": "Proposed"
+    },
+    {
+      "id": "coach-failure-012",
+      "sourceKind": "OwnerDirective",
+      "sourceReference": "spawn-request:coach-failure-manifest#canonical-food-review-prompt",
+      "sourceDigest": "sha256:2febc5531cc824a0dbc7f87c33c2c6d409a63b4fb8a46519d97fbbc3ab8b4609",
+      "observedAt": null,
+      "cutoff": "2026-09-02T20:20:09.969-05:00",
+      "surface": "Coach conversation; original surface not retained",
+      "authorization": "CaptainSuppliedExactTextThisSession",
+      "privacyClass": "OwnerSuppliedExactPrompt",
+      "category": "DirectTopicalVocabularyReviewLaunch",
+      "exactTextAvailability": "OwnerSuppliedThisSession",
+      "exactPrompt": "start a vocabulary review activity with words about food",
+      "syntheticReproduction": "Use the exact owner-supplied prompt against an owned vocabulary fixture with at least ten food matches and saved Vocab Review settings.",
+      "unacceptableOutcome": "Coach diverted a direct activity request into plan replacement, asked an irrelevant part-of-speech question, or launched without a safe owned-set proposal.",
+      "expectedBehavior": "Coach discovers owned food vocabulary, shows a safe whole-set proposal, then after structured acceptance launches Vocab Review with saved settings and no plan mutation.",
+      "scenarioId": "COACH-CANON-002",
+      "disposition": "Include",
+      "coveredTestLayers": [],
+      "evidenceGaps": [
+        "The original unacceptable response and authoritative turn reference are missing. Next evidence source: owner-authorized Coach turn export, or a faithful fault-injected red run using this exact prompt and the clean-plan food fixture."
+      ],
+      "status": "Proposed"
+    },
+    {
+      "id": "coach-failure-013",
+      "sourceKind": "SessionPlan",
+      "sourceReference": "external-session-plan:initial-recovered-regression-inventory/second-screenshot",
+      "sourceDigest": "sha256:dffeaa00f098272f7af43fec44616b699fa0063935f9e3e54023a1305b570a4f",
+      "observedAt": null,
+      "cutoff": "2026-09-02T20:20:09.969-05:00",
+      "surface": "Coach conversation screenshot; surface not retained",
+      "authorization": "CaptainAuthorizedRecovery",
+      "privacyClass": "ContentFreePrivateReference",
+      "category": "PossibleConversationDuplicationOrOrdering",
+      "exactTextAvailability": "UnavailablePendingReview",
+      "exactPrompt": null,
+      "syntheticReproduction": "Send five numbered learner turns including one failed turn, reconcile optimistic echoes with persisted history, then close, reopen, and reload the conversation.",
+      "unacceptableOutcome": "A learner message may have appeared twice or out of chronological order, but the available description cannot distinguish a product defect from screenshot capture context.",
+      "expectedBehavior": "Exactly one learner node exists per turn, learner and Coach messages remain chronological across success and failure, and resume or reload never duplicates or reorders history.",
+      "scenarioId": "COACH-HIST-007",
+      "disposition": "PendingCaptainReview",
+      "coveredTestLayers": [
+        "acceptance:LC-HIST-01..09"
+      ],
+      "evidenceGaps": [
+        "The original second screenshot, attachment hash, adjacent turn IDs, and capture sequence are unavailable. Next evidence source: Captain's original screenshot attachment plus authoritative conversation turn metadata for the pictured interval."
+      ],
+      "status": "EvidencePending"
+    }
+  ]
+}

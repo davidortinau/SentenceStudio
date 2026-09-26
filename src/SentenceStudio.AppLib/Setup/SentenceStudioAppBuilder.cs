@@ -13,12 +13,55 @@ using OpenTelemetry.Trace;
 using SentenceStudio.Abstractions;
 using SentenceStudio.Services;
 using SentenceStudio.Services.Theme;
+#if DEBUG
+using System.Data;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
+using SentenceStudio.Data;
+#endif
 
 namespace SentenceStudio;
 
 public static class SentenceStudioAppBuilder
 {
     public static MauiAppBuilder UseSentenceStudioApp(this MauiAppBuilder builder)
+    {
+#if DEBUG
+        return UseSentenceStudioAppCore(builder, Constants.DatabasePath, validationConnection: null);
+#else
+        return UseSentenceStudioAppCore(builder, Constants.DatabasePath);
+#endif
+    }
+
+#if DEBUG
+    public static MauiAppBuilder UseSentenceStudioApp(
+        this MauiAppBuilder builder,
+        SqliteConnection validationConnection)
+    {
+        ArgumentNullException.ThrowIfNull(validationConnection);
+        if (validationConnection.State != ConnectionState.Open
+            || string.IsNullOrWhiteSpace(validationConnection.DataSource)
+            || !Path.IsPathFullyQualified(validationConnection.DataSource))
+        {
+            throw new ArgumentException(
+                "Migration validation requires an already-open connection to an absolute database path.",
+                nameof(validationConnection));
+        }
+
+        return UseSentenceStudioAppCore(
+            builder,
+            Path.GetFullPath(validationConnection.DataSource),
+            validationConnection);
+    }
+#endif
+
+    private static MauiAppBuilder UseSentenceStudioAppCore(
+        MauiAppBuilder builder,
+        string databasePath
+#if DEBUG
+        , SqliteConnection validationConnection
+#endif
+        )
     {
         builder
             .ConfigureFonts(fonts =>
@@ -64,8 +107,19 @@ public static class SentenceStudioAppBuilder
         builder.Services.AddSingleton(new ElevenLabsClient(elevenLabsKey));
 
         // --- CoreSync setup ---
-        var dbPath = Constants.DatabasePath;
+        var dbPath = Path.GetFullPath(databasePath);
+#if DEBUG
+        if (validationConnection is null)
+        {
+            builder.Services.AddDataServices(dbPath);
+        }
+        else
+        {
+            AddMigrationValidationDataServices(builder.Services, validationConnection);
+        }
+#else
         builder.Services.AddDataServices(dbPath);
+#endif
 
         // Use Aspire service discovery: "https+http://servicename" is resolved by
         // MauiServiceDefaults → AddServiceDiscovery(). When launched from Aspire,
@@ -74,7 +128,14 @@ public static class SentenceStudioAppBuilder
         // CoreSync server is hosted on the API (not the separate 'web' service) so
         // mobile clients can reach it through the existing dev tunnel / service discovery.
         var syncServerUri = new Uri("https+http://api");
+#if DEBUG
+        if (validationConnection is null)
+        {
+            builder.Services.AddSyncServices(dbPath, syncServerUri);
+        }
+#else
         builder.Services.AddSyncServices(dbPath, syncServerUri);
+#endif
 
         var apiBaseUri = new Uri("https+http://api");
 
@@ -82,7 +143,22 @@ public static class SentenceStudioAppBuilder
         builder.Services.AddAuthServices(builder.Configuration, apiBaseUri);
 
         builder.Services.AddApiClients(apiBaseUri);
+#if DEBUG
+        if (validationConnection is null)
+        {
+            builder.Services.AddSingleton<SentenceStudio.Services.ISyncService, SentenceStudio.Services.SyncService>();
+        }
+        else
+        {
+            builder.Services.AddSingleton<SentenceStudio.Services.ISyncService>(serviceProvider =>
+                new MigrationValidationSyncService(
+                    serviceProvider,
+                    validationConnection,
+                    serviceProvider.GetRequiredService<ILogger<MigrationValidationSyncService>>()));
+        }
+#else
         builder.Services.AddSingleton<SentenceStudio.Services.ISyncService, SentenceStudio.Services.SyncService>();
+#endif
 
         // Register Minimal Pair repositories
         builder.Services.AddScoped<SentenceStudio.Repositories.MinimalPairRepository>();
@@ -99,6 +175,30 @@ public static class SentenceStudioAppBuilder
     private static int _unhandledExceptionWired;
 
     public static MauiApp InitializeApp(MauiApp app)
+    {
+#if DEBUG
+        return InitializeAppCore(app, suppressAutomaticStartup: false);
+#else
+        return InitializeAppCore(app);
+#endif
+    }
+
+#if DEBUG
+    public static MauiApp InitializeApp(
+        MauiApp app,
+        bool suppressAutomaticStartup)
+    {
+        return InitializeAppCore(app, suppressAutomaticStartup);
+    }
+#endif
+
+#if DEBUG
+    private static MauiApp InitializeAppCore(
+        MauiApp app,
+        bool suppressAutomaticStartup)
+#else
+    private static MauiApp InitializeAppCore(MauiApp app)
+#endif
     {
         var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("MauiProgram");
         logger.LogDebug("✅ MauiApp built successfully");
@@ -158,6 +258,15 @@ public static class SentenceStudioAppBuilder
             logger.LogError(ex, "❌ FATAL ERROR in database initialization");
             throw;
         }
+
+#if DEBUG
+        if (suppressAutomaticStartup)
+        {
+            logger.LogInformation(
+                "Migration validation automatic startup suppressed after database initialization.");
+            return app;
+        }
+#endif
 
         // Pre-load auth token cache at startup (Fix G — stop spurious logouts)
         // This ensures IsSignedIn is correct and reduces the window where concurrent
@@ -236,6 +345,231 @@ public static class SentenceStudioAppBuilder
 
         return app;
     }
+
+#if DEBUG
+    private static void AddMigrationValidationDataServices(
+        IServiceCollection services,
+        SqliteConnection validationConnection)
+    {
+        services.AddDbContext<ApplicationDbContext>(options =>
+        {
+            // The validation session owns this already-open connection. EF must use this exact
+            // handle without opening, closing, pooling, or disposing a path-based replacement.
+            options.UseSqlite(validationConnection, contextOwnsConnection: false);
+            options.ConfigureWarnings(warnings =>
+                warnings.Ignore(
+                    Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+            options.LogTo(
+                message => System.Diagnostics.Debug.WriteLine(message),
+                LogLevel.Warning);
+        });
+    }
+
+    private sealed class MigrationValidationSyncService : SentenceStudio.Services.ISyncService
+    {
+        private static readonly (string Table, string Column)[] RequiredColumns =
+        [
+            ("VocabularyWord", "LexicalUnitType"),
+            ("VocabularyWord", "Language"),
+            ("VocabularyWord", "Lemma"),
+            ("VocabularyWord", "Tags"),
+            ("VocabularyWord", "MnemonicText"),
+            ("VocabularyWord", "AudioPronunciationUri"),
+            ("VocabularyProgress", "ExposureCount"),
+            ("VocabularyProgress", "LastExposedAt"),
+            ("VocabularyProgress", "CurrentStreak"),
+            ("DailyPlanCompletion", "NarrativeJson"),
+            ("DailyPlan", "FocusVocabularyFacts"),
+            ("DailyPlan", "NarrativeFacts"),
+            ("DailyPlan", "RationaleFacts"),
+        ];
+
+        private static readonly string[] RequiredTables =
+        [
+            "VocabularyWord",
+            "VocabularyProgress",
+            "PhraseConstituent",
+            "DailyPlan",
+            "DailyPlanCompletion",
+            "UserProfile",
+            "SkillProfile",
+            "LearningResource",
+        ];
+
+        private static readonly (string Table, string Column, string AlterSql)[]
+            ExistingMobileCompatibilityColumns =
+        [
+            (
+                "VocabularyProgress",
+                "ExposureCount",
+                """
+                ALTER TABLE "VocabularyProgress"
+                ADD COLUMN "ExposureCount" INTEGER NOT NULL DEFAULT 0;
+                """),
+            (
+                "VocabularyProgress",
+                "LastExposedAt",
+                """
+                ALTER TABLE "VocabularyProgress"
+                ADD COLUMN "LastExposedAt" TEXT;
+                """),
+            (
+                "DailyPlanCompletion",
+                "NarrativeJson",
+                """
+                ALTER TABLE "DailyPlanCompletion"
+                ADD COLUMN "NarrativeJson" TEXT;
+                """),
+        ];
+
+        private readonly IServiceProvider _serviceProvider;
+        private readonly SqliteConnection _validationConnection;
+        private readonly ILogger<MigrationValidationSyncService> _logger;
+        private bool _initialized;
+
+        internal MigrationValidationSyncService(
+            IServiceProvider serviceProvider,
+            SqliteConnection validationConnection,
+            ILogger<MigrationValidationSyncService> logger)
+        {
+            _serviceProvider = serviceProvider;
+            _validationConnection = validationConnection;
+            _logger = logger;
+        }
+
+        public bool IsInitialSyncInProgress => false;
+
+        public event Action InitialSyncCompleted
+        {
+            add { }
+            remove { }
+        }
+
+        public void BeginInitialSync()
+        {
+        }
+
+        public async Task InitializeDatabaseAsync()
+        {
+            if (_initialized)
+            {
+                return;
+            }
+
+            if (_validationConnection.State != ConnectionState.Open)
+            {
+                throw new InvalidOperationException(
+                    "Migration validation connection closed before EF migration.");
+            }
+
+            using var scope = _serviceProvider.CreateScope();
+            var dbContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            if (!ReferenceEquals(
+                    dbContext.Database.GetDbConnection(),
+                    _validationConnection))
+            {
+                throw new InvalidOperationException(
+                    "ApplicationDbContext is not bound to the opened migration validation connection.");
+            }
+
+            _logger.LogInformation(
+                "Running EF Core migrations through the opened validation database connection.");
+            await dbContext.Database.MigrateAsync().ConfigureAwait(false);
+            await ApplyExistingMobileCompatibilityPatchesAsync(
+                _validationConnection).ConfigureAwait(false);
+
+            if (_validationConnection.State != ConnectionState.Open)
+            {
+                throw new InvalidOperationException(
+                    "EF closed the caller-owned migration validation connection.");
+            }
+
+            await ValidateSchemaAsync(_validationConnection).ConfigureAwait(false);
+            _initialized = true;
+        }
+
+        public Task TriggerSyncAsync() => Task.CompletedTask;
+
+        private async Task ApplyExistingMobileCompatibilityPatchesAsync(
+            SqliteConnection connection)
+        {
+            foreach (var (table, column, alterSql) in ExistingMobileCompatibilityColumns)
+            {
+                using var existsCommand = connection.CreateCommand();
+                existsCommand.CommandText =
+                    "SELECT COUNT(*) FROM pragma_table_info($table) WHERE name = $column;";
+                existsCommand.Parameters.AddWithValue("$table", table);
+                existsCommand.Parameters.AddWithValue("$column", column);
+                if (Convert.ToInt64(
+                        await existsCommand.ExecuteScalarAsync().ConfigureAwait(false)) != 0)
+                {
+                    continue;
+                }
+
+                _logger.LogInformation(
+                    "Applying existing mobile compatibility patch to validation database: {Table}.{Column}",
+                    table,
+                    column);
+                using var alterCommand = connection.CreateCommand();
+                alterCommand.CommandText = alterSql;
+                await alterCommand.ExecuteNonQueryAsync().ConfigureAwait(false);
+            }
+        }
+
+        private async Task ValidateSchemaAsync(SqliteConnection connection)
+        {
+            var missingItems = new List<string>();
+
+            foreach (var table in RequiredTables)
+            {
+                if (!await SchemaObjectExistsAsync(
+                        connection,
+                        "SELECT COUNT(*) FROM sqlite_schema WHERE type = 'table' AND name = $name;",
+                        table).ConfigureAwait(false))
+                {
+                    missingItems.Add($"Table: {table}");
+                }
+            }
+
+            foreach (var (table, column) in RequiredColumns)
+            {
+                using var command = connection.CreateCommand();
+                command.CommandText =
+                    "SELECT COUNT(*) FROM pragma_table_info($table) WHERE name = $column;";
+                command.Parameters.AddWithValue("$table", table);
+                command.Parameters.AddWithValue("$column", column);
+                if (Convert.ToInt64(await command.ExecuteScalarAsync().ConfigureAwait(false)) == 0)
+                {
+                    missingItems.Add($"{table}.{column}");
+                }
+            }
+
+            if (missingItems.Count != 0)
+            {
+                throw new InvalidOperationException(
+                    $"Mobile schema sanity check FAILED — {missingItems.Count} missing items after migration: "
+                    + string.Join(", ", missingItems));
+            }
+
+            _logger.LogInformation(
+                "Mobile schema sanity check PASSED — {TableCount} tables, {ColumnCount} columns verified",
+                RequiredTables.Length,
+                RequiredColumns.Length);
+        }
+
+        private static async Task<bool> SchemaObjectExistsAsync(
+            SqliteConnection connection,
+            string sql,
+            string name)
+        {
+            using var command = connection.CreateCommand();
+            command.CommandText = sql;
+            command.Parameters.AddWithValue("$name", name);
+            return Convert.ToInt64(
+                await command.ExecuteScalarAsync().ConfigureAwait(false)) == 1;
+        }
+    }
+#endif
 
     private static void RegisterServices(IServiceCollection services)
     {

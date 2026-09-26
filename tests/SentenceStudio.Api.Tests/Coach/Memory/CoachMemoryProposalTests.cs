@@ -287,7 +287,7 @@ public sealed class CoachMemoryProposalTests
         var result = await harness.Service.SubmitTurnAsync(session, new CoachTurnRequest
         {
             InputKind = CoachTurnInputKind.Text,
-            Text = "Make it 10 minutes. Also remember that I am preparing for a work trip to Seoul."
+            Text = "Make Today's Plan 10 minutes. Also remember that I am preparing for a work trip to Seoul."
         });
 
         result.IsOk.Should().BeTrue();

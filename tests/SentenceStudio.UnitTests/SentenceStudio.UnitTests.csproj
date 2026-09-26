@@ -37,8 +37,20 @@
     <!-- Note: SentenceStudio project is excluded because it doesn't build for net10.0 -->
     <!-- Tests that depend on SentenceStudio classes are also excluded -->
     <!-- <ProjectReference Include="..\..\src\SentenceStudio\SentenceStudio.csproj" /> -->
+    <ProjectReference Include="..\..\src\SentenceStudio.Application\SentenceStudio.Application.csproj" />
     <ProjectReference Include="..\..\src\SentenceStudio.Shared\SentenceStudio.Shared.csproj" />
     <ProjectReference Include="..\..\src\SentenceStudio.Sharing\SentenceStudio.Sharing.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The net10 Shared target intentionally excludes SQLite migrations. Source-link the new
+         provider copy so its real discovery metadata and Up/Down operations are testable. -->
+    <Compile Include="..\..\src\SentenceStudio.Shared\Migrations\Sqlite\20260903175044_AddApplicationOperationLedger.cs"
+             Link="AppOperations\Migrations\20260903175044_AddApplicationOperationLedger.Sqlite.cs" />
+    <!-- The macOS head cannot be referenced by this net10.0 test project. This Debug-only,
+         platform-neutral parser is source-linked so its fail-closed path contract is executable. -->
+    <Compile Include="..\..\src\SentenceStudio.MacOS\MigrationValidationOptions.cs"
+             Link="Platform\MigrationValidationOptions.cs" />
   </ItemGroup>
 
   <!-- Exclude tests that depend on main SentenceStudio project -->

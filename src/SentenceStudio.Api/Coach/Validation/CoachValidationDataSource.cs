@@ -9,8 +9,8 @@ namespace SentenceStudio.Api.Coach.Validation;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The read-only tools deliberately return no target-language term, no translation, and no
-/// example, so the model never receives them. The leak validator still has to know what the
+/// The read-only tools deliberately return no target-language term, translation, example, or
+/// mnemonic, so the model never receives them. The leak validator still has to know what the
 /// embargoed values are, so it reads them here — inside validation, after the model has
 /// answered, and never on any path that builds agent context.
 /// </para>
@@ -26,11 +26,14 @@ public interface ICoachValidationDataSource
     /// preview selected for this session.
     /// </summary>
     Task<IReadOnlyList<CoachEmbargoedItem>> GetEmbargoedItemsAsync(
+        string userProfileId,
         IEnumerable<string>? additionalWordIds = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>Every resource identifier the learner owns, for the ownership check.</summary>
-    Task<IReadOnlyCollection<string>> GetOwnedResourceIdsAsync(CancellationToken cancellationToken = default);
+    Task<IReadOnlyCollection<string>> GetOwnedResourceIdsAsync(
+        string userProfileId,
+        CancellationToken cancellationToken = default);
 }
 
 /// <inheritdoc cref="ICoachValidationDataSource"/>
@@ -49,19 +52,30 @@ public sealed class CoachValidationDataSource : ICoachValidationDataSource
     private readonly ApplicationDbContext _db;
     private readonly IUserScopeProvider _userScope;
     private readonly IPlanDateContext _dates;
+    private readonly ILogger<CoachValidationDataSource> _logger;
 
-    public CoachValidationDataSource(ApplicationDbContext db, IUserScopeProvider userScope, IPlanDateContext dates)
+    public CoachValidationDataSource(
+        ApplicationDbContext db,
+        IUserScopeProvider userScope,
+        IPlanDateContext dates,
+        ILogger<CoachValidationDataSource> logger)
     {
         _db = db ?? throw new ArgumentNullException(nameof(db));
         _userScope = userScope ?? throw new ArgumentNullException(nameof(userScope));
         _dates = dates ?? throw new ArgumentNullException(nameof(dates));
+        _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
     public async Task<IReadOnlyList<CoachEmbargoedItem>> GetEmbargoedItemsAsync(
+        string userProfileId,
         IEnumerable<string>? additionalWordIds = null,
         CancellationToken cancellationToken = default)
     {
-        var userProfileId = _userScope.UserProfileId;
+        if (!HasExactOwner(userProfileId, nameof(GetEmbargoedItemsAsync)))
+        {
+            return [];
+        }
+
         var now = _dates.UtcNow;
 
         var extra = additionalWordIds?
@@ -88,7 +102,12 @@ public sealed class CoachValidationDataSource : ICoachValidationDataSource
         var words = await _db.VocabularyWords
             .AsNoTracking()
             .Where(w => wordIds.Contains(w.Id))
-            .Select(w => new WordRow(w.Id, w.TargetLanguageTerm, w.NativeLanguageTerm, w.Lemma))
+            .Select(w => new WordRow(
+                w.Id,
+                w.TargetLanguageTerm,
+                w.NativeLanguageTerm,
+                w.Lemma,
+                w.MnemonicText))
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
@@ -115,14 +134,19 @@ public sealed class CoachValidationDataSource : ICoachValidationDataSource
                 w.TargetLanguageTerm,
                 w.NativeLanguageTerm,
                 w.Lemma,
-                examplesByWord.TryGetValue(w.Id, out var list) ? list : null))
+                examplesByWord.TryGetValue(w.Id, out var list) ? list : null,
+                w.MnemonicText))
             .ToList();
     }
 
     public async Task<IReadOnlyCollection<string>> GetOwnedResourceIdsAsync(
+        string userProfileId,
         CancellationToken cancellationToken = default)
     {
-        var userProfileId = _userScope.UserProfileId;
+        if (!HasExactOwner(userProfileId, nameof(GetOwnedResourceIdsAsync)))
+        {
+            return [];
+        }
 
         var ids = await _db.LearningResources
             .AsNoTracking()
@@ -134,7 +158,27 @@ public sealed class CoachValidationDataSource : ICoachValidationDataSource
         return new HashSet<string>(ids, StringComparer.Ordinal);
     }
 
-    private sealed record WordRow(string Id, string? TargetLanguageTerm, string? NativeLanguageTerm, string? Lemma);
+    private bool HasExactOwner(string? userProfileId, string operation)
+    {
+        if (string.IsNullOrWhiteSpace(userProfileId)
+            || !_userScope.TryGetUserProfileId(out var activeUserProfileId)
+            || !string.Equals(userProfileId, activeUserProfileId, StringComparison.Ordinal))
+        {
+            _logger.LogWarning(
+                "{Operation} called with no matching active userId — returning empty",
+                operation);
+            return false;
+        }
+
+        return true;
+    }
+
+    private sealed record WordRow(
+        string Id,
+        string? TargetLanguageTerm,
+        string? NativeLanguageTerm,
+        string? Lemma,
+        string? MnemonicText);
 
     private sealed record ExampleRow(string VocabularyWordId, string TargetSentence, string? NativeSentence);
 }

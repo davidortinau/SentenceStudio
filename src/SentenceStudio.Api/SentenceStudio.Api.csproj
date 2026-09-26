@@ -42,6 +42,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\SentenceStudio.Application\SentenceStudio.Application.csproj" />
     <ProjectReference Include="..\SentenceStudio.Domain\SentenceStudio.Domain.csproj" />
     <ProjectReference Include="..\SentenceStudio.Contracts\SentenceStudio.Contracts.csproj" />
     <ProjectReference Include="..\SentenceStudio.Shared\SentenceStudio.Shared.csproj" />

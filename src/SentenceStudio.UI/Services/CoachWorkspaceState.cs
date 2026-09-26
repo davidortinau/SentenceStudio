@@ -1,4 +1,5 @@
 using SentenceStudio.Contracts.Coach;
+using SentenceStudio.Contracts.AppOperation;
 using SentenceStudio.Contracts.LearnerMemory;
 using SentenceStudio.Services.Api;
 
@@ -45,6 +46,8 @@ public sealed partial class CoachWorkspaceState : IDisposable
     private readonly List<CoachChangeReceiptDto> _receipts = new();
     private readonly List<CoachEvidenceDto> _evidence = new();
     private readonly List<CoachRevisionDto> _revisions = new();
+    private readonly Dictionary<string, ConversationVocabularyState> _vocabularyStateByConversationId =
+        new(StringComparer.Ordinal);
 
     private CancellationTokenSource? _runCts;
     private CoachTurnRequest? _lastTurnRequest;
@@ -278,6 +281,97 @@ public sealed partial class CoachWorkspaceState : IDisposable
     /// </remarks>
     public CoachMemoryFactDto? PendingMemoryCandidate { get; private set; }
 
+    /// <summary>The complete generated vocabulary set waiting for one learner decision.</summary>
+    public CoachVocabularySetProposal? PendingVocabularySet { get; private set; }
+
+    /// <summary>The activity launch made available after the set was persisted.</summary>
+    public CoachVocabularySetApprovalResponse? ApprovedVocabularySet { get; private set; }
+
+    public bool IsVocabularySetDecisionBusy { get; private set; }
+
+    public string? VocabularySetDecisionMessage { get; private set; }
+
+    private sealed record ConversationVocabularyState(
+        CoachVocabularySetProposal? PendingSet,
+        CoachVocabularySetApprovalResponse? ApprovedSet,
+        string? DecisionMessage);
+
+    private void RememberConversationVocabularyState()
+    {
+        if (ConversationId is not { } conversationId)
+        {
+            return;
+        }
+
+        StoreConversationVocabularyState(
+            conversationId,
+            new ConversationVocabularyState(
+                PendingVocabularySet,
+                ApprovedVocabularySet,
+                VocabularySetDecisionMessage));
+    }
+
+    private void StoreConversationVocabularyState(
+        string conversationId,
+        ConversationVocabularyState state)
+    {
+        if (state.PendingSet is null
+            && state.ApprovedSet is null
+            && state.DecisionMessage is null)
+        {
+            _vocabularyStateByConversationId.Remove(conversationId);
+            return;
+        }
+
+        _vocabularyStateByConversationId[conversationId] = state;
+    }
+
+    private ConversationVocabularyState GetConversationVocabularyState(string conversationId)
+    {
+        if (string.Equals(ConversationId, conversationId, StringComparison.Ordinal))
+        {
+            return new(
+                PendingVocabularySet,
+                ApprovedVocabularySet,
+                VocabularySetDecisionMessage);
+        }
+
+        return _vocabularyStateByConversationId.TryGetValue(conversationId, out var saved)
+            ? saved
+            : new(null, null, null);
+    }
+
+    private bool IsActiveConversation(string? conversationId) =>
+        string.Equals(ConversationId, conversationId, StringComparison.Ordinal);
+
+    private void ApplyConversationVocabularyState(ConversationVocabularyState state)
+    {
+        PendingVocabularySet = state.PendingSet;
+        ApprovedVocabularySet = state.ApprovedSet;
+        VocabularySetDecisionMessage = state.DecisionMessage;
+    }
+
+    private void RestoreConversationVocabularyState(string conversationId)
+    {
+        ClearConversationVocabularyState();
+
+        if (_vocabularyStateByConversationId.TryGetValue(conversationId, out var saved))
+        {
+            // Pending proposals are replayed only through the server projection, which revalidates
+            // the current embargo and terminal operation state. A circuit-local copy can be stale.
+            ApprovedVocabularySet = saved.ApprovedSet;
+            VocabularySetDecisionMessage = saved.DecisionMessage;
+        }
+    }
+
+    private void ClearConversationVocabularyState()
+    {
+        PendingVocabularySet = null;
+        ApprovedVocabularySet = null;
+        IsVocabularySetDecisionBusy = false;
+        VocabularySetDecisionMessage = null;
+    }
+
     /// <summary>The turn the memory candidate belongs to, so it renders inside that exchange.</summary>
     public long? PendingMemoryTurn { get; private set; }
 
@@ -292,6 +386,128 @@ public sealed partial class CoachWorkspaceState : IDisposable
         PendingMemoryCandidate = null;
         PendingMemoryTurn = null;
         Notify();
+    }
+
+    /// <summary>Persists the complete set in one authenticated operation.</summary>
+    public async Task ApproveVocabularySetAsync(CancellationToken cancellationToken = default)
+    {
+        if (PendingVocabularySet is not { } proposal || IsVocabularySetDecisionBusy)
+        {
+            return;
+        }
+
+        var owningConversationId = ConversationId;
+        IsVocabularySetDecisionBusy = true;
+        VocabularySetDecisionMessage = null;
+        Notify();
+
+        try
+        {
+            var approved = await _client.ApproveVocabularySetAsync(
+                new ApproveCoachVocabularySetRequest
+                {
+                    ProposalReference = proposal.ProposalId,
+                    Decision = ApplicationOperationDecision.Accept
+                },
+                cancellationToken).ConfigureAwait(false);
+            var completed = new ConversationVocabularyState(
+                PendingSet: null,
+                ApprovedSet: approved,
+                DecisionMessage: "Vocabulary set approved. Start Vocab Review when you are ready.");
+            if (owningConversationId is not null)
+            {
+                StoreConversationVocabularyState(owningConversationId, completed);
+            }
+
+            if (IsActiveConversation(owningConversationId))
+            {
+                ApplyConversationVocabularyState(completed);
+            }
+        }
+        catch
+        {
+            var failed = new ConversationVocabularyState(
+                PendingSet: proposal,
+                ApprovedSet: null,
+                DecisionMessage: "The vocabulary set could not be saved. Nothing was changed.");
+            if (owningConversationId is not null)
+            {
+                StoreConversationVocabularyState(owningConversationId, failed);
+            }
+
+            if (IsActiveConversation(owningConversationId))
+            {
+                ApplyConversationVocabularyState(failed);
+            }
+        }
+        finally
+        {
+            if (IsActiveConversation(owningConversationId))
+            {
+                IsVocabularySetDecisionBusy = false;
+                Notify();
+            }
+        }
+    }
+
+    /// <summary>Durably declines the complete generated set.</summary>
+    public async Task RejectVocabularySetAsync(CancellationToken cancellationToken = default)
+    {
+        if (PendingVocabularySet is not { } proposal || IsVocabularySetDecisionBusy)
+        {
+            return;
+        }
+
+        var owningConversationId = ConversationId;
+        IsVocabularySetDecisionBusy = true;
+        Notify();
+        try
+        {
+            await _client.ApproveVocabularySetAsync(
+                new ApproveCoachVocabularySetRequest
+                {
+                    ProposalReference = proposal.ProposalId,
+                    Decision = ApplicationOperationDecision.Reject
+                },
+                cancellationToken).ConfigureAwait(false);
+            var completed = new ConversationVocabularyState(
+                PendingSet: null,
+                ApprovedSet: null,
+                DecisionMessage: "Vocabulary set declined. Nothing was saved.");
+            if (owningConversationId is not null)
+            {
+                StoreConversationVocabularyState(owningConversationId, completed);
+            }
+
+            if (IsActiveConversation(owningConversationId))
+            {
+                ApplyConversationVocabularyState(completed);
+            }
+        }
+        catch
+        {
+            var failed = new ConversationVocabularyState(
+                PendingSet: proposal,
+                ApprovedSet: null,
+                DecisionMessage: "The vocabulary set decision could not be saved. Nothing was changed.");
+            if (owningConversationId is not null)
+            {
+                StoreConversationVocabularyState(owningConversationId, failed);
+            }
+
+            if (IsActiveConversation(owningConversationId))
+            {
+                ApplyConversationVocabularyState(failed);
+            }
+        }
+        finally
+        {
+            if (IsActiveConversation(owningConversationId))
+            {
+                IsVocabularySetDecisionBusy = false;
+                Notify();
+            }
+        }
     }
 
     public CoachStopReason LastStopReason { get; private set; } = CoachStopReason.Completed;
@@ -663,6 +879,7 @@ public sealed partial class CoachWorkspaceState : IDisposable
         PendingSuggestion = null;
         PendingMemoryCandidate = null;
         PendingMemoryTurn = null;
+        ClearConversationVocabularyState();
         ExpiresAtUtc = null;
         _draft = string.Empty;
         _lastAutoOpenKey = null;
@@ -710,6 +927,7 @@ public sealed partial class CoachWorkspaceState : IDisposable
     public void ResetForAccountBoundary()
     {
         Reset();
+        _vocabularyStateByConversationId.Clear();
 
         Availability = null;
         CanEditPlan = true;
@@ -1261,7 +1479,8 @@ public sealed partial class CoachWorkspaceState : IDisposable
                 initiator,
                 token => SubmitDurableTurnAsync(durableConversationId, request, turn, token),
                 cancellationToken,
-                turn).ConfigureAwait(false);
+                turn,
+                durableConversationId).ConfigureAwait(false);
             return;
         }
 
@@ -1291,7 +1510,8 @@ public sealed partial class CoachWorkspaceState : IDisposable
         CoachInitiator initiator,
         Func<CancellationToken, Task<CoachTurnResponse?>> operation,
         CancellationToken cancellationToken,
-        long turn = 0)
+        long turn = 0,
+        string? durableConversationId = null)
     {
         if (IsBusy)
         {
@@ -1310,9 +1530,19 @@ public sealed partial class CoachWorkspaceState : IDisposable
         Notify();
 
         CoachTurnResponse? response;
+        var durableVocabularyStateApplied = false;
         try
         {
             response = await operation(token).ConfigureAwait(false);
+            if (durableConversationId is not null)
+            {
+                durableVocabularyStateApplied = await RefreshDurableVocabularyStateAsync(
+                    durableConversationId,
+                    response?.VocabularySetProposal,
+                    awaitCommitVisibility: true,
+                    surfaceFailure: true,
+                    token).ConfigureAwait(false);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -1323,6 +1553,12 @@ public sealed partial class CoachWorkspaceState : IDisposable
         {
             if (!ReferenceEquals(runId, _runCts))
             {
+                return;
+            }
+
+            if (durableConversationId is not null && !IsActiveConversation(durableConversationId))
+            {
+                FinishRun();
                 return;
             }
 
@@ -1339,6 +1575,12 @@ public sealed partial class CoachWorkspaceState : IDisposable
         {
             if (!ReferenceEquals(runId, _runCts))
             {
+                return;
+            }
+
+            if (durableConversationId is not null && !IsActiveConversation(durableConversationId))
+            {
+                FinishRun();
                 return;
             }
 
@@ -1372,6 +1614,12 @@ public sealed partial class CoachWorkspaceState : IDisposable
                 return;
             }
 
+            if (durableConversationId is not null && !IsActiveConversation(durableConversationId))
+            {
+                FinishRun();
+                return;
+            }
+
             FinishRun();
             State = CoachUiState.Offline;
             ApplyOutcomePolicy(initiator, succeeded: false);
@@ -1382,6 +1630,12 @@ public sealed partial class CoachWorkspaceState : IDisposable
         // A stopped run's late result is discarded.
         if (!ReferenceEquals(runId, _runCts))
         {
+            return;
+        }
+
+        if (durableConversationId is not null && !IsActiveConversation(durableConversationId))
+        {
+            FinishRun();
             return;
         }
 
@@ -1414,7 +1668,13 @@ public sealed partial class CoachWorkspaceState : IDisposable
             return;
         }
 
-        ApplyTurn(response, initiator, turn, DurableLedgerIsAuthoritative);
+        ApplyTurn(
+            response,
+            initiator,
+            turn,
+            DurableLedgerIsAuthoritative,
+            durableVocabularyStateApplied,
+            durableConversationId);
     }
 
     /// <summary>
@@ -1978,8 +2238,15 @@ public sealed partial class CoachWorkspaceState : IDisposable
         CoachTurnResponse turn,
         CoachInitiator initiator,
         long turnSequence = 0,
-        bool ledgerIsAuthoritative = false)
+        bool ledgerIsAuthoritative = false,
+        bool durableVocabularyStateApplied = false,
+        string? durableConversationId = null)
     {
+        if (durableConversationId is not null && !IsActiveConversation(durableConversationId))
+        {
+            return;
+        }
+
         // Every artifact of this response belongs to the exchange that asked for it, so a slow
         // reply lands beside its own question rather than after a later one.
         var placement = turnSequence == 0 ? ++_turnSequence : turnSequence;
@@ -1989,6 +2256,13 @@ public sealed partial class CoachWorkspaceState : IDisposable
         PendingSuggestion = turn.PendingSuggestion;
         PendingMemoryCandidate = turn.MemoryCandidate;
         PendingMemoryTurn = turn.MemoryCandidate is null ? null : placement;
+        if (!durableVocabularyStateApplied
+            && turn.VocabularySetProposal is { } vocabularySet)
+        {
+            PendingVocabularySet = vocabularySet;
+            ApprovedVocabularySet = null;
+            VocabularySetDecisionMessage = null;
+        }
         ClarificationsRemaining = turn.ClarificationsRemaining;
         ExpiresAtUtc = turn.ExpiresAtUtc;
         LastStopReason = turn.StopReason;

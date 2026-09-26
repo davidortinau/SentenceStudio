@@ -56,6 +56,15 @@ public interface ICoachApiClient
     Task<CoachTurnResponse> UndoAsync(string sessionId, CoachUndoRequest request, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// POST /api/v1/application/vocabulary-sets/approve. Persists all ten proposed terms as one
+    /// owned resource and returns the existing vocabulary-review launch path.
+    /// </summary>
+    Task<CoachVocabularySetApprovalResponse> ApproveVocabularySetAsync(
+        ApproveCoachVocabularySetRequest request,
+        CancellationToken cancellationToken = default) =>
+        throw new NotSupportedException("This client does not support Coach vocabulary approval.");
+
+    /// <summary>
     /// POST /api/v1/coach/sessions/{id}/cancel. Stops the in-flight run server-side so it stops
     /// holding the learner's single concurrency slot. Returns 204 with no body.
     /// </summary>
@@ -143,6 +152,11 @@ public interface ICoachApiClient
     Task<CoachTurnOperationDto?> GetConversationOperationAsync(
         string conversationId,
         string operationId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>Gets the active vocabulary proposal for one owned conversation.</summary>
+    Task<CoachConversationVocabularyStateDto?> GetConversationVocabularyStateAsync(
+        string conversationId,
         CancellationToken cancellationToken = default);
 
     /// <summary>

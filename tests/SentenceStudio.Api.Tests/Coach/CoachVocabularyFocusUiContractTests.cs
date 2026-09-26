@@ -36,7 +36,7 @@ public class CoachVocabularyFocusUiContractTests
         var sessionId = await harness.StartSessionAsync();
 
         harness.Coach.NextResult = SuggestFocusResult("active verbs");
-        var offered = await AskAsync(harness, sessionId, "could you suggest a vocabulary focus");
+        var offered = await AskAsync(harness, sessionId, "Suggest focusing Today's Plan on active verbs.");
 
         var focus = offered.Value!.PendingSuggestion!.VocabularyFocus;
         focus.Should().NotBeNull();
@@ -55,7 +55,7 @@ public class CoachVocabularyFocusUiContractTests
         var sessionId = await harness.StartSessionAsync();
 
         harness.Coach.NextResult = SuggestFocusResult("active verbs");
-        var offered = await AskAsync(harness, sessionId, "could you suggest a vocabulary focus");
+        var offered = await AskAsync(harness, sessionId, "Suggest focusing Today's Plan on active verbs.");
 
         // If a reload re-resolved, this changed answer would surface.
         harness.FocusResolver.NextResult = harness.FocusResolver.NextResult with
@@ -77,7 +77,7 @@ public class CoachVocabularyFocusUiContractTests
         var sessionId = await harness.StartSessionAsync();
 
         await harness.OfferAndAcceptFocusAsync(
-            sessionId, FocusResult("active verbs"), "focus today on active verbs");
+            sessionId, FocusResult("active verbs"), "focus Today's Plan on active verbs");
 
         // A later offer about minutes must not echo the focus already in force, or it would read
         // as a vocabulary change the learner never asked for.
@@ -85,7 +85,7 @@ public class CoachVocabularyFocusUiContractTests
         harness.Coach.NextResult = Result(CoachIntentKind.SuggestConstraintChange,
             new CoachConstraintDeltaIntent { AvailableMinutes = 30 });
 
-        var offered = await AskAsync(harness, sessionId, "could you suggest something");
+        var offered = await AskAsync(harness, sessionId, "Suggest a change to Today's Plan.");
 
         offered.Value!.PendingSuggestion!.VocabularyFocus.Should().BeNull();
     }
@@ -99,7 +99,7 @@ public class CoachVocabularyFocusUiContractTests
         var sessionId = await harness.StartSessionAsync();
 
         var result = await harness.OfferAndAcceptFocusAsync(
-            sessionId, FocusResult("active verbs"), "focus today on active verbs");
+            sessionId, FocusResult("active verbs"), "focus Today's Plan on active verbs");
 
         var change = result.Value!.ChangeReceipt!.VocabularyFocus;
         change.Status.Should().Be(CoachVocabularyFocusStatus.Applied);
@@ -116,7 +116,7 @@ public class CoachVocabularyFocusUiContractTests
         var sessionId = await harness.StartSessionAsync();
 
         harness.Coach.NextResult = SuggestFocusResult("active verbs");
-        var offered = await AskAsync(harness, sessionId, "could you suggest a vocabulary focus");
+        var offered = await AskAsync(harness, sessionId, "Suggest focusing Today's Plan on active verbs.");
 
         var accepted = await harness.Service.AcceptSuggestionAsync(
             sessionId, offered.Value!.PendingSuggestion!.SuggestionId, new CoachSuggestionDecisionRequest());
@@ -133,11 +133,11 @@ public class CoachVocabularyFocusUiContractTests
         var sessionId = await harness.StartSessionAsync();
 
         await harness.OfferAndAcceptFocusAsync(
-            sessionId, FocusResult("active verbs"), "focus today on active verbs");
+            sessionId, FocusResult("active verbs"), "focus Today's Plan on active verbs");
 
         NextTurnProducesADifferentPlan(harness);
         harness.Coach.NextResult = ClearFocusResult();
-        var result = await AskAsync(harness, sessionId, "clear vocabulary focus");
+        var result = await AskAsync(harness, sessionId, "clear Today's Plan vocabulary focus");
 
         var change = result.Value!.ChangeReceipt!.VocabularyFocus;
         change.Status.Should().Be(CoachVocabularyFocusStatus.Cleared);
@@ -154,7 +154,7 @@ public class CoachVocabularyFocusUiContractTests
         harness.Coach.NextResult = Result(CoachIntentKind.DirectConstraintChange,
             new CoachConstraintDeltaIntent { AvailableMinutes = 30 });
 
-        var result = await AskAsync(harness, sessionId, "make it 30 minutes");
+        var result = await AskAsync(harness, sessionId, "make Today's Plan 30 minutes");
 
         result.Value!.ChangeReceipt!.VocabularyFocus.Status
             .Should().Be(CoachVocabularyFocusStatus.Unchanged);
@@ -169,11 +169,11 @@ public class CoachVocabularyFocusUiContractTests
         var sessionId = await harness.StartSessionAsync();
 
         await harness.OfferAndAcceptFocusAsync(
-            sessionId, FocusResult("active verbs"), "focus today on active verbs");
+            sessionId, FocusResult("active verbs"), "focus Today's Plan on active verbs");
 
         NextTurnProducesADifferentPlan(harness);
         harness.Coach.NextResult = ClearFocusResult();
-        await AskAsync(harness, sessionId, "clear vocabulary focus");
+        await AskAsync(harness, sessionId, "clear Today's Plan vocabulary focus");
 
         var undone = await harness.Service.UndoAsync(sessionId, new CoachUndoRequest());
 
@@ -192,7 +192,7 @@ public class CoachVocabularyFocusUiContractTests
         var sessionId = await harness.StartSessionAsync();
 
         await harness.OfferAndAcceptFocusAsync(
-            sessionId, FocusResult("active verbs"), "focus today on active verbs");
+            sessionId, FocusResult("active verbs"), "focus Today's Plan on active verbs");
 
         var undone = await harness.Service.UndoAsync(sessionId, new CoachUndoRequest());
 
@@ -209,7 +209,7 @@ public class CoachVocabularyFocusUiContractTests
         var sessionId = await harness.StartSessionAsync();
 
         await harness.OfferAndAcceptFocusAsync(
-            sessionId, FocusResult("active verbs"), "focus today on active verbs");
+            sessionId, FocusResult("active verbs"), "focus Today's Plan on active verbs");
 
         harness.FocusResolver.NextResult = harness.FocusResolver.NextResult with
         {
@@ -218,7 +218,7 @@ public class CoachVocabularyFocusUiContractTests
 
         NextTurnProducesADifferentPlan(harness);
         await harness.OfferAndAcceptFocusAsync(
-            sessionId, FocusResult("adjectives"), "focus today on adjectives");
+            sessionId, FocusResult("adjectives"), "focus Today's Plan on adjectives");
 
         var undone = await harness.Service.UndoAsync(sessionId, new CoachUndoRequest());
 
@@ -268,7 +268,7 @@ public class CoachVocabularyFocusUiContractTests
         var sessionId = await harness.StartSessionAsync();
 
         harness.Coach.NextResult = SuggestFocusResult("active verbs");
-        var offered = await AskAsync(harness, sessionId, "could you suggest a vocabulary focus");
+        var offered = await AskAsync(harness, sessionId, "Suggest focusing Today's Plan on active verbs.");
 
         var accepted = await harness.Service.AcceptSuggestionAsync(
             sessionId, offered.Value!.PendingSuggestion!.SuggestionId, new CoachSuggestionDecisionRequest());
@@ -297,7 +297,7 @@ public class CoachVocabularyFocusUiContractTests
             var sessionId = await harness.StartSessionAsync();
 
             harness.Coach.NextResult = SuggestFocusResult("active verbs");
-            var offered = await AskAsync(harness, sessionId, "could you suggest a vocabulary focus");
+            var offered = await AskAsync(harness, sessionId, "Suggest focusing Today's Plan on active verbs.");
 
             var accepted = await harness.Service.AcceptSuggestionAsync(
                 sessionId, offered.Value!.PendingSuggestion!.SuggestionId, new CoachSuggestionDecisionRequest());

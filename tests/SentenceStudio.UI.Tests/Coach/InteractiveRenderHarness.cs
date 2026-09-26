@@ -30,6 +30,7 @@ namespace SentenceStudio.UI.Tests.Coach;
 internal sealed class InteractiveTestRenderer : Renderer
 {
     private readonly List<Exception> _unhandled = new();
+    private int _displayUpdateCount;
 
     public InteractiveTestRenderer(IServiceProvider services, ILoggerFactory loggerFactory)
         : base(services, loggerFactory)
@@ -44,6 +45,9 @@ internal sealed class InteractiveTestRenderer : Renderer
 
     /// <summary>Exceptions Blazor routed to the renderer instead of to the caller.</summary>
     public IReadOnlyList<Exception> Unhandled => _unhandled;
+
+    /// <summary>Completed display updates, including re-renders with no visible markup change.</summary>
+    public int DisplayUpdateCount => Volatile.Read(ref _displayUpdateCount);
 
     protected override void HandleException(Exception exception) => _unhandled.Add(exception);
 
@@ -68,7 +72,11 @@ internal sealed class InteractiveTestRenderer : Renderer
                 $"{nameof(InteractiveTestRenderer)} models an interactive server circuit and "
                 + $"cannot host the render mode '{renderMode.GetType().Name}'.");
 
-    protected override Task UpdateDisplayAsync(in RenderBatch renderBatch) => Task.CompletedTask;
+    protected override Task UpdateDisplayAsync(in RenderBatch renderBatch)
+    {
+        Interlocked.Increment(ref _displayUpdateCount);
+        return Task.CompletedTask;
+    }
 
     /// <summary>Renders <typeparamref name="TComponent"/> as a root component and returns its id.</summary>
     public Task<int> RenderAsync<TComponent>() where TComponent : IComponent =>

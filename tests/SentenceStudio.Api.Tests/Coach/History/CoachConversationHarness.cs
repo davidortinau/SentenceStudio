@@ -36,8 +36,11 @@ internal sealed class CoachConversationHarness : IDisposable
         SentenceStudio.Api.Coach.Opportunities.ICoachOpportunityRecorder? opportunities = null,
         bool withUnboundAnswerDetector = false,
         int maxRunsPerDay = 50,
-        SentenceStudio.Application.Practice.IPracticeHistoryQueries? practiceHistory = null)
+        SentenceStudio.Application.Practice.IPracticeHistoryQueries? practiceHistory = null,
+        ICoachVocabularySetGenerator? vocabularySets = null,
+        CoachVocabularySetApplicationService? vocabularySetApplications = null)
     {
+        VocabularySetApplications = vocabularySetApplications;
         App = new CoachApplicationHarness(
             new CoachOptions
             {
@@ -50,7 +53,9 @@ internal sealed class CoachConversationHarness : IDisposable
             withHistory: true,
             opportunities: opportunities,
             withUnboundAnswerDetector: withUnboundAnswerDetector,
-            practiceHistory: practiceHistory);
+            practiceHistory: practiceHistory,
+            vocabularySets: vocabularySets,
+            vocabularySetApplications: vocabularySetApplications);
 
         Conversations = App.Persistence.NewConversationStore(App.Db);
         Messages = App.Persistence.NewMessageStore(App.Db);
@@ -70,6 +75,8 @@ internal sealed class CoachConversationHarness : IDisposable
     }
 
     public CoachApplicationHarness App { get; }
+
+    public CoachVocabularySetApplicationService? VocabularySetApplications { get; }
 
     public CoachConversationStore Conversations { get; }
 
@@ -240,5 +247,6 @@ internal sealed class CoachConversationHarness : IDisposable
         Time,
         App.Options,
         NullLogger<CoachConversationService>.Instance,
-        App.Telemetry);
+        App.Telemetry,
+        vocabularySets: VocabularySetApplications);
 }

@@ -69,6 +69,7 @@ public sealed class CoachSessionService : ICoachSessionService
     private readonly CoachDueItemLeakValidator _leakValidator;
     private readonly CoachVocabularyFocusService _focus;
     private readonly ICoachValidationDataSource _validationData;
+    private readonly CoachVocabularySetEmbargoValidator _vocabularyEmbargo;
     private readonly CoachRunRegistry _runs;
     private readonly CoachTurnIdempotencyStore _idempotency;
     private readonly CoachTelemetry _telemetry;
@@ -86,6 +87,8 @@ public sealed class CoachSessionService : ICoachSessionService
     /// </summary>
     private readonly ICoachConversationStore? _conversations;
     private readonly Memory.CoachMemoryTurnCoordinator? _memory;
+    private readonly ICoachVocabularySetGenerator? _vocabularySets;
+    private readonly CoachVocabularySetApplicationService? _vocabularySetApplications;
     private readonly ILogger<CoachSessionService> _logger;
 
     /// <summary>
@@ -248,7 +251,9 @@ public sealed class CoachSessionService : ICoachSessionService
         Tools.Observation.ICoachTurnObservationBuffer? observations = null,
         Validation.Claims.CoachTurnGroundingEvaluator? grounding = null,
         CoachDisputeCoordinator? disputes = null,
-        Persistence.History.ICoachTurnOperationStore? operations = null)
+        Persistence.History.ICoachTurnOperationStore? operations = null,
+        ICoachVocabularySetGenerator? vocabularySets = null,
+        CoachVocabularySetApplicationService? vocabularySetApplications = null)
     {
         _observations = observations;
         _grounding = grounding;
@@ -279,6 +284,7 @@ public sealed class CoachSessionService : ICoachSessionService
         _leakValidator = leakValidator;
         _focus = focus;
         _validationData = validationData;
+        _vocabularyEmbargo = new CoachVocabularySetEmbargoValidator(validationData, leakValidator);
         _runs = runs;
         _idempotency = idempotency;
         _telemetry = telemetry;
@@ -287,6 +293,8 @@ public sealed class CoachSessionService : ICoachSessionService
         _history = history;
         _conversations = conversations;
         _memory = memory;
+        _vocabularySets = vocabularySets;
+        _vocabularySetApplications = vocabularySetApplications;
     }
 
     // ---------------------------------------------------------------- availability
@@ -873,7 +881,27 @@ public sealed class CoachSessionService : ICoachSessionService
                 "That turn was cancelled.");
         }
 
-        var result = await ReduceAgentResultAsync(userProfileId, session, request, agentResult, cancellationToken)
+        var modelIntentWasReplaced = false;
+        if (agentResult.Outcome == CoachAgentOutcome.Completed && agentResult.Intent is { } modelIntent)
+        {
+            var effectiveIntent = NormalizeExplicitVocabularyReview(request, modelIntent);
+            modelIntentWasReplaced = !ReferenceEquals(effectiveIntent, modelIntent);
+            if (modelIntentWasReplaced)
+            {
+                // Keep the application-owned route on the turn result itself. The reducer is not
+                // the last observer: opportunity telemetry runs after it, and must not see the
+                // discarded model destination question as the intent that produced this response.
+                agentResult = agentResult with { Intent = effectiveIntent };
+            }
+        }
+
+        var result = await ReduceAgentResultAsync(
+                userProfileId,
+                session,
+                request,
+                agentResult,
+                modelIntentWasReplaced,
+                cancellationToken)
             .ConfigureAwait(false);
 
         _telemetry.RecordRunCompleted(
@@ -1750,8 +1778,11 @@ public sealed class CoachSessionService : ICoachSessionService
         CoachSession session,
         CoachTurnRequest request,
         CoachAgentTurnResult agentResult,
+        bool modelIntentWasReplaced,
         CancellationToken cancellationToken)
     {
+        var intent = agentResult.Intent;
+
         // The leak gate runs first, before the conversation state is persisted and before any
         // text can reach the learner. A leak is terminal: the coach does not re-prompt, does not
         // surface the message, and does not write the plan.
@@ -1760,9 +1791,13 @@ public sealed class CoachSessionService : ICoachSessionService
         // short list. Receipts and suggestion rationale are application-owned, and a pedagogical
         // answer surfaces its validated blocks, so on every other intent the model's CoachMessage
         // is discarded — scanning it could only refuse a turn over text no learner ever sees.
-        if (agentResult.Outcome == CoachAgentOutcome.Completed && agentResult.Intent is not null)
+        if (agentResult.Outcome == CoachAgentOutcome.Completed && intent is not null)
         {
-            var surfaced = SurfacedModelText(agentResult.Intent);
+            // The explicit-review normalizer replaces the complete model intent with
+            // application-owned copy and a topic parsed from the learner's own text. None of the
+            // original model prose can surface on that path, so scanning it could only produce a
+            // false refusal. Every non-replaced intent keeps the existing fail-closed scan.
+            var surfaced = modelIntentWasReplaced ? [] : SurfacedModelText(intent);
             if (surfaced.Count > 0)
             {
                 var leak = await ValidateNoAnswerLeakAsync(
@@ -1786,13 +1821,11 @@ public sealed class CoachSessionService : ICoachSessionService
 
         var plan = await _planService.GetTodaySnapshotAsync(cancellationToken).ConfigureAwait(false);
 
-        if (agentResult.Outcome != CoachAgentOutcome.Completed || agentResult.Intent is null)
+        if (agentResult.Outcome != CoachAgentOutcome.Completed || intent is null)
         {
             return await IncompleteAsync(userProfileId, session, plan, agentResult, cancellationToken)
                 .ConfigureAwait(false);
         }
-
-        var intent = agentResult.Intent;
 
         // Shape first, then grounding. Both end in the same refusal, but they are separate
         // questions and a reviewer reading the ledger should be able to tell "the model answered
@@ -1837,42 +1870,125 @@ public sealed class CoachSessionService : ICoachSessionService
                 cancellationToken).ConfigureAwait(false));
         }
 
-        var reduced = intent.Kind switch
+        CoachOperationResult<CoachTurnResponse> reduced;
+        var isTextPlanIntent = request.InputKind == CoachTurnInputKind.Text
+            && intent.Kind is CoachIntentKind.DirectConstraintChange or CoachIntentKind.SuggestConstraintChange;
+        var planRouting = isTextPlanIntent
+            ? _writeAuthority.ClassifyPlanRouting(request.Text)
+            : CoachWriteAuthority.PlanRoutingDecision.ExplicitPlanRequest;
+        var activityLaunchRequested = isTextPlanIntent
+            && planRouting != CoachWriteAuthority.PlanRoutingDecision.ExplicitPlanRequest
+            && _writeAuthority.IsActivityLaunchRequest(request.Text);
+
+        if (activityLaunchRequested
+            || planRouting != CoachWriteAuthority.PlanRoutingDecision.ExplicitPlanRequest)
         {
-            CoachIntentKind.DirectConstraintChange =>
-                await ReduceDirectAsync(userProfileId, session, request, intent, cancellationToken).ConfigureAwait(false),
-            CoachIntentKind.SuggestConstraintChange =>
-                await ReduceSuggestionAsync(userProfileId, session, request, intent, cancellationToken).ConfigureAwait(false),
+            reduced = await ReducePlanPolicyMismatchAsync(
+                userProfileId, session, request, intent, planRouting, activityLaunchRequested, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        else
+        {
+            reduced = intent.Kind switch
+            {
+                CoachIntentKind.DirectConstraintChange =>
+                    await ReduceDirectAsync(userProfileId, session, request, intent, cancellationToken).ConfigureAwait(false),
+                CoachIntentKind.SuggestConstraintChange =>
+                    await ReduceSuggestionAsync(userProfileId, session, request, intent, cancellationToken).ConfigureAwait(false),
 
-            CoachIntentKind.AcceptPendingSuggestion =>
-                await ReduceTypedAcceptanceAsync(userProfileId, session, request, intent, cancellationToken).ConfigureAwait(false),
+                CoachIntentKind.AcceptPendingSuggestion =>
+                    await ReduceTypedAcceptanceAsync(userProfileId, session, request, intent, cancellationToken).ConfigureAwait(false),
 
-            CoachIntentKind.RejectPendingSuggestion =>
-                await ReduceTypedRejectionAsync(userProfileId, session, request, intent, cancellationToken).ConfigureAwait(false),
+                CoachIntentKind.RejectPendingSuggestion =>
+                    await ReduceTypedRejectionAsync(userProfileId, session, request, intent, cancellationToken).ConfigureAwait(false),
 
-            CoachIntentKind.AskClarification =>
-                await ReduceClarificationAsync(userProfileId, session, intent, cancellationToken).ConfigureAwait(false),
+                CoachIntentKind.AskClarification =>
+                    await ReduceClarificationAsync(userProfileId, session, intent, cancellationToken).ConfigureAwait(false),
 
-            CoachIntentKind.PedagogicalAnswer =>
-                await ReduceAnswerAsync(userProfileId, session, request, intent, cancellationToken).ConfigureAwait(false),
+                CoachIntentKind.PedagogicalAnswer =>
+                    await ReduceAnswerAsync(userProfileId, session, request, intent, cancellationToken).ConfigureAwait(false),
 
-            // NoChange and OffTopic never write.
-            _ => CoachOperationResult<CoachTurnResponse>.Ok(await BuildTurnResponseAsync(
+                // NoChange and OffTopic never write.
+                _ => CoachOperationResult<CoachTurnResponse>.Ok(await BuildTurnResponseAsync(
+                    userProfileId, session, plan,
+                    CoachTurnStatus.Completed, CoachStopReason.Completed,
+                    await ClearedStatusAsync(userProfileId, session, cancellationToken).ConfigureAwait(false),
+                    messages: [CoachMessage(CoachMessageKind.Text, intent.CoachMessage)],
+                    pendingSuggestion: await LoadPendingAsync(userProfileId, session, cancellationToken).ConfigureAwait(false),
+                    receipt: null,
+                    evidence: BuildEvidence(),
+                    clarifyingQuestion: null,
+                    cancellationToken).ConfigureAwait(false))
+            };
+        }
+
+        var withVocabularySet = await AttachVocabularySetProposalAsync(
+            userProfileId, session, intent, reduced, cancellationToken).ConfigureAwait(false);
+
+        var withMemory = await AttachMemoryCandidateAsync(
+            userProfileId, session, request, intent, withVocabularySet, cancellationToken).ConfigureAwait(false);
+
+        return await AttachWriteOperationAsync(session, withMemory, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Fails a model-selected plan route closed when the learner did not explicitly authorize it.
+    /// </summary>
+    private async Task<CoachOperationResult<CoachTurnResponse>> ReducePlanPolicyMismatchAsync(
+        string userProfileId,
+        CoachSession session,
+        CoachTurnRequest request,
+        CoachTurnIntent intent,
+        CoachWriteAuthority.PlanRoutingDecision routing,
+        bool activityLaunchRequested,
+        CancellationToken cancellationToken)
+    {
+        if (activityLaunchRequested)
+        {
+            return await AskClarificationAsync(
+                userProfileId,
+                session,
+                "I can't start activities in this version. Would you like help studying that topic here instead?",
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        if (routing == CoachWriteAuthority.PlanRoutingDecision.NoPlanReference
+            && _writeAuthority.IsGeneralStudyRequest(request.Text))
+        {
+            return await AskClarificationAsync(
+                userProfileId,
+                session,
+                "Would you like help studying that directly, or do you want to propose a change to Today's Plan?",
+                cancellationToken).ConfigureAwait(false);
+        }
+
+        // A mixed-shaped model result may still contain a valid teaching answer. Teaching never
+        // authorizes the plan half, so return only the answer and leave the plan untouched.
+        if (intent.PedagogicalAnswer is not null)
+        {
+            return await ReduceAnswerAsync(userProfileId, session, request, intent, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        if (routing == CoachWriteAuthority.PlanRoutingDecision.NegatedPlanAction)
+        {
+            var plan = await _planService.GetTodaySnapshotAsync(cancellationToken).ConfigureAwait(false);
+            return CoachOperationResult<CoachTurnResponse>.Ok(await BuildTurnResponseAsync(
                 userProfileId, session, plan,
                 CoachTurnStatus.Completed, CoachStopReason.Completed,
                 await ClearedStatusAsync(userProfileId, session, cancellationToken).ConfigureAwait(false),
-                messages: [CoachMessage(CoachMessageKind.Text, intent.CoachMessage)],
+                messages: [CoachMessage(CoachMessageKind.Text, "I won't change Today's Plan.")],
                 pendingSuggestion: await LoadPendingAsync(userProfileId, session, cancellationToken).ConfigureAwait(false),
-                receipt: null,
-                evidence: BuildEvidence(),
-                clarifyingQuestion: null,
-                cancellationToken).ConfigureAwait(false))
-        };
+                receipt: null, evidence: BuildEvidence(), clarifyingQuestion: null,
+                cancellationToken).ConfigureAwait(false));
+        }
 
-        var withMemory = await AttachMemoryCandidateAsync(
-            userProfileId, session, request, intent, reduced, cancellationToken).ConfigureAwait(false);
+        var question = routing == CoachWriteAuthority.PlanRoutingDecision.PlanMentionOnly
+            ? "Do you want information about Today's Plan, or do you want to propose a change to it?"
+            : "Would you like help studying that directly, or do you want to propose a change to Today's Plan?";
 
-        return await AttachWriteOperationAsync(session, withMemory, cancellationToken)
+        return await AskClarificationAsync(userProfileId, session, question, cancellationToken)
             .ConfigureAwait(false);
     }
 
@@ -1991,8 +2107,119 @@ public sealed class CoachSessionService : ICoachSessionService
     }
 
     /// <summary>
-    /// Runs the answer-leak gate over the two model-authored strings a learner can see.
-    /// Returns null when the answer is clean, or the terminal rejection response on a hit.
+    /// Projects validated generated terms into an inert application-owned proposal. No vocabulary
+    /// or plan row is written on this path.
+    /// </summary>
+    private async Task<CoachOperationResult<CoachTurnResponse>> AttachVocabularySetProposalAsync(
+        string userProfileId,
+        CoachSession session,
+        CoachTurnIntent intent,
+        CoachOperationResult<CoachTurnResponse> reduced,
+        CancellationToken cancellationToken)
+    {
+        if (intent.VocabularySet is not { } set
+            || _vocabularySets is null
+            || !reduced.IsOk
+            || reduced.Value is null
+            || reduced.Value.Status != CoachTurnStatus.Completed)
+        {
+            return reduced;
+        }
+
+        var languages = await _languages.ResolveAsync(cancellationToken).ConfigureAwait(false);
+        var topic = set.Topic.Trim();
+        var proposal = await _vocabularySets.PrepareAsync(
+            topic,
+            languages.TargetLanguageTag,
+            languages.NativeLanguageTag,
+            cancellationToken).ConfigureAwait(false);
+
+        if (proposal is not null)
+        {
+            var leak = await _vocabularyEmbargo
+                .ValidateAsync(userProfileId, proposal, cancellationToken)
+                .ConfigureAwait(false);
+            if (!leak.IsValid)
+            {
+                return await BuildAnswerLeakResponseAsync(
+                    userProfileId, session, leak, cancellationToken).ConfigureAwait(false);
+            }
+        }
+
+        if (proposal is not null && _vocabularySetApplications is not null)
+        {
+            proposal = await _vocabularySetApplications
+                .IssueAsync(proposal, cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        return proposal is null
+            ? reduced
+            : CoachOperationResult<CoachTurnResponse>.Ok(
+                reduced.Value.WithVocabularySetProposal(proposal));
+    }
+
+    /// <summary>
+    /// Keeps a narrow, explicit topical vocabulary-review command out of the ambiguous
+    /// general-study branch when the model asks the destination question anyway.
+    /// </summary>
+    private CoachTurnIntent NormalizeExplicitVocabularyReview(
+        CoachTurnRequest request,
+        CoachTurnIntent intent)
+    {
+        if (request.InputKind != CoachTurnInputKind.Text
+            || !_writeAuthority.IsActivityLaunchRequest(request.Text)
+            || _writeAuthority.ClassifyPlanRouting(request.Text)
+                != CoachWriteAuthority.PlanRoutingDecision.NoPlanReference
+            || !TryExtractExplicitVocabularyReviewTopic(request.Text, out var topic))
+        {
+            return intent;
+        }
+
+        return new CoachTurnIntent
+        {
+            Kind = CoachIntentKind.NoChange,
+            CoachMessage =
+                $"I prepared a complete vocabulary set about {topic}. Review all ten terms, then approve or decline the whole set.",
+            AcceptanceState = CoachAcceptanceState.NotApplicable,
+            VocabularySet = new CoachVocabularySetIntent { Topic = topic }
+        };
+    }
+
+    private static bool TryExtractExplicitVocabularyReviewTopic(string? text, out string topic)
+    {
+        topic = string.Empty;
+        if (string.IsNullOrWhiteSpace(text)
+            || text.Contains("do not ", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("don't ", StringComparison.OrdinalIgnoreCase)
+            || text.Contains("dont ", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        const string reviewMarker = "vocabulary review";
+        const string topicMarker = " about ";
+        var reviewIndex = text.IndexOf(reviewMarker, StringComparison.OrdinalIgnoreCase);
+        var topicIndex = reviewIndex < 0
+            ? -1
+            : text.IndexOf(
+                topicMarker,
+                reviewIndex + reviewMarker.Length,
+                StringComparison.OrdinalIgnoreCase);
+        if (topicIndex < 0)
+        {
+            return false;
+        }
+
+        topic = text[(topicIndex + topicMarker.Length)..].Trim().TrimEnd('.', '!', '?');
+        return topic.Length is > 0 and <= CoachIntentValidator.MaxVocabularyTopicLength
+            && !topic.Contains('\r')
+            && !topic.Contains('\n');
+    }
+
+    /// <summary>
+    /// Runs the answer-leak gate over evidence-bearing text that is about to reach the learner.
+    /// Returns null when the text is clean, or the terminal rejection response on a hit.
     /// </summary>
     /// <remarks>
     /// The embargoed values are read here, inside validation. They are never placed in agent
@@ -2004,10 +2231,13 @@ public sealed class CoachSessionService : ICoachSessionService
     /// resource is owned, or the violations when one is not.
     /// </summary>
     private async Task<CoachValidationResult?> ValidateOwnedPreviewAsync(
+        string userProfileId,
         PlanPreviewResult preview,
         CancellationToken cancellationToken)
     {
-        var owned = await _validationData.GetOwnedResourceIdsAsync(cancellationToken).ConfigureAwait(false);
+        var owned = await _validationData
+            .GetOwnedResourceIdsAsync(userProfileId, cancellationToken)
+            .ConfigureAwait(false);
 
         // PreviewId is the snapshot version: a content hash the server derived itself, so it
         // identifies exactly the plan these resource ids came from.
@@ -2090,7 +2320,7 @@ public sealed class CoachSessionService : ICoachSessionService
         CancellationToken cancellationToken)
     {
         var embargoed = await _validationData
-            .GetEmbargoedItemsAsync(cancellationToken: cancellationToken)
+            .GetEmbargoedItemsAsync(userProfileId, cancellationToken: cancellationToken)
             .ConfigureAwait(false);
 
         if (embargoed.Count == 0)
@@ -2105,6 +2335,16 @@ public sealed class CoachSessionService : ICoachSessionService
             return null;
         }
 
+        return await BuildAnswerLeakResponseAsync(
+            userProfileId, session, leak, cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<CoachOperationResult<CoachTurnResponse>> BuildAnswerLeakResponseAsync(
+        string userProfileId,
+        CoachSession session,
+        CoachValidationResult leak,
+        CancellationToken cancellationToken)
+    {
         _turnViolation = leak.Violations.Count > 0
             ? leak.Violations[0].Kind
             : CoachViolationKind.AnswerLeak;
@@ -2835,7 +3075,10 @@ public sealed class CoachSessionService : ICoachSessionService
                     : CoachOperationStatus.NoFeasiblePlan).ConfigureAwait(false);
         }
 
-        var ownership = await ValidateOwnedPreviewAsync(preview, cancellationToken).ConfigureAwait(false);
+        var ownership = await ValidateOwnedPreviewAsync(
+            userProfileId,
+            preview,
+            cancellationToken).ConfigureAwait(false);
         if (ownership is not null)
         {
             return await RejectUnownedPreviewAsync(
@@ -3183,7 +3426,10 @@ public sealed class CoachSessionService : ICoachSessionService
                         : CoachOperationStatus.NoFeasiblePlan).ConfigureAwait(false);
             }
 
-            var ownership = await ValidateOwnedPreviewAsync(preview, cancellationToken).ConfigureAwait(false);
+            var ownership = await ValidateOwnedPreviewAsync(
+                userProfileId,
+                preview,
+                cancellationToken).ConfigureAwait(false);
             if (ownership is not null)
             {
                 var currentPlan = await _planService.GetTodaySnapshotAsync(cancellationToken).ConfigureAwait(false);

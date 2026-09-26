@@ -86,7 +86,7 @@ public class CoachVocabularyFocusParityTests
             var offered = await harness.Service.SubmitTurnAsync(sessionId, new CoachTurnRequest
             {
                 InputKind = CoachTurnInputKind.Text,
-                Text = "focus today on that"
+                Text = "focus Today's Plan on that"
             });
 
             var pending = offered.Value?.PendingSuggestion;
@@ -163,7 +163,7 @@ public class CoachVocabularyFocusParityTests
         var sessionId = await harness.StartSessionAsync();
 
         await harness.OfferAndAcceptFocusAsync(
-            sessionId, FocusResult("active verbs"), "focus today on active verbs");
+            sessionId, FocusResult("active verbs"), "focus Today's Plan on active verbs");
 
         harness.Coach.NextResult = new CoachAgentTurnResult
         {

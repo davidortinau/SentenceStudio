@@ -39,7 +39,7 @@ public class HarnessLearningCoachTests
         var coach = CoachAgentTestDoubles.CreateCoach(
             CoachImplementation.Harness, chatClient: null, agentFactoryProbe: probe);
 
-        var result = await coach.RunTurnAsync(CoachAgentTestDoubles.NewRequest("make it 10 minutes"));
+        var result = await coach.RunTurnAsync(CoachAgentTestDoubles.NewRequest("make Today's Plan 10 minutes"));
 
         result.Outcome.Should().Be(CoachAgentOutcome.ModelUnavailable);
         result.Intent.Should().BeNull();
@@ -51,7 +51,8 @@ public class HarnessLearningCoachTests
     {
         var client = new ScriptedChatClient(DirectChangeJson);
 
-        var result = await NewCoach(client).RunTurnAsync(CoachAgentTestDoubles.NewRequest("10 minutes, no audio"));
+        var result = await NewCoach(client).RunTurnAsync(
+            CoachAgentTestDoubles.NewRequest("Make Today's Plan 10 minutes with no audio."));
 
         result.Outcome.Should().Be(CoachAgentOutcome.Completed);
         result.Intent!.Kind.Should().Be(CoachIntentKind.DirectConstraintChange);

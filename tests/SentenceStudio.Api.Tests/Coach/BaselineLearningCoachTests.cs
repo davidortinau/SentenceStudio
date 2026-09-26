@@ -22,7 +22,7 @@ public class BaselineLearningCoachTests
     {
         var coach = NewCoach(chatClient: null, out _);
 
-        var result = await coach.RunTurnAsync(NewRequest("make it 10 minutes"));
+        var result = await coach.RunTurnAsync(NewRequest("make Today's Plan 10 minutes"));
 
         result.Outcome.Should().Be(CoachAgentOutcome.ModelUnavailable);
         result.Intent.Should().BeNull();
@@ -43,7 +43,7 @@ public class BaselineLearningCoachTests
 
         var coach = NewCoach(new ScriptedChatClient(json), out var client);
 
-        var result = await coach.RunTurnAsync(NewRequest("10 minutes, no audio"));
+        var result = await coach.RunTurnAsync(NewRequest("Make Today's Plan 10 minutes with no audio."));
 
         result.Outcome.Should().Be(CoachAgentOutcome.Completed);
         result.Intent!.Kind.Should().Be(CoachIntentKind.DirectConstraintChange);
@@ -109,9 +109,9 @@ public class BaselineLearningCoachTests
     {
         var instructions = CoachInstructions.Instructions;
 
-        // Both jobs are stated, and the boundaries that apply to both.
-        instructions.Should().Contain("study constraints");
-        instructions.Should().Contain("answer the learner\u2019s language questions".Replace('\u2019', '\''));
+        instructions.Should().Contain("language-learning teacher and partner");
+        instructions.Should().Contain("Today's Plan is one optional capability");
+        instructions.Should().Contain("default destination");
         instructions.Should().Contain("due review words");
         instructions.Should().Contain("window");
         instructions.Should().Contain("one open suggestion");

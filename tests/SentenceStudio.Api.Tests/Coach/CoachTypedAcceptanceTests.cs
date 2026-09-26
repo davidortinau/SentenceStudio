@@ -463,7 +463,7 @@ public class CoachTypedAcceptanceTests
         var offered = await harness.Service.SubmitTurnAsync(sessionId, new CoachTurnRequest
         {
             InputKind = CoachTurnInputKind.Text,
-            Text = "what should I do today?"
+            Text = "Suggest a change to Today's Plan."
         });
 
         return offered.Value!.PendingSuggestion!;

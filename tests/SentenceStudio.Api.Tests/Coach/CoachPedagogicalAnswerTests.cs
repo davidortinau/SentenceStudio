@@ -111,7 +111,7 @@ public class CoachPedagogicalAnswerTests
         var sessionId = await harness.StartSessionAsync();
         harness.Coach.NextResult = DirectResult(d => d.AvailableMinutes = 10);
 
-        var result = await AskAsync(harness, sessionId, "make today 10 minutes");
+        var result = await AskAsync(harness, sessionId, "make Today's Plan 10 minutes");
 
         result.IsOk.Should().BeTrue();
         result.Value!.Messages.Single().Text.Should().Contain("no plan for today yet");
@@ -162,7 +162,7 @@ public class CoachPedagogicalAnswerTests
 
         var result = await AskAsync(
             harness, sessionId,
-            "What's the difference between \uC88B\uC544\uD558\uB2E4 and \uC88B\uB2E4? Also make today 5 minutes.");
+            "What's the difference between \uC88B\uC544\uD558\uB2E4 and \uC88B\uB2E4? Also make Today's Plan 5 minutes.");
 
         result.Value!.Answer.Should().NotBeNull("the question is answered on the same turn");
         result.Value.PendingSuggestion.Should().NotBeNull("the plan change waits for acceptance");
@@ -194,7 +194,10 @@ public class CoachPedagogicalAnswerTests
             }
         };
 
-        var suggestion = (await AskAsync(harness, sessionId, "What does \uC88B\uB2E4 mean? Also 5 minutes."))
+        var suggestion = (await AskAsync(
+                harness,
+                sessionId,
+                "What does \uC88B\uB2E4 mean? Also suggest making Today's Plan 5 minutes."))
             .Value!.PendingSuggestion!;
 
         var accepted = await harness.Service.AcceptSuggestionAsync(
@@ -208,10 +211,10 @@ public class CoachPedagogicalAnswerTests
     // ---------------------------------------------------------------- write authority
 
     [Theory]
-    [InlineData("What's the difference between \uC88B\uC544\uD558\uB2E4 and \uC88B\uB2E4? Also make today 5 minutes.")]
-    [InlineData("make it 10 minutes and what does \uC88B\uB2E4 mean")]
-    [InlineData("set 10 minutes. also explain \uC88B\uB2E4")]
-    [InlineData("change to \"10 minutes\"")]
+    [InlineData("What's the difference between \uC88B\uC544\uD558\uB2E4 and \uC88B\uB2E4? Also make Today's Plan 5 minutes.")]
+    [InlineData("make Today's Plan 10 minutes and what does \uC88B\uB2E4 mean")]
+    [InlineData("set Today's Plan to 10 minutes. also explain \uC88B\uB2E4")]
+    [InlineData("change Today's Plan to \"10 minutes\"")]
     public async Task AMessageThatIsNotPurelyAPlanCommand_IsOfferedNotApplied(string text)
     {
         using var harness = new CoachApplicationHarness();
@@ -229,9 +232,9 @@ public class CoachPedagogicalAnswerTests
     }
 
     [Theory]
-    [InlineData("make it 10 minutes")]
+    [InlineData("make Today's Plan 10 minutes")]
     [InlineData("make today's plan 5 minutes and no audio")]
-    [InlineData("10\uBD84\uC73C\uB85C \uBC14\uAF242")]
+    [InlineData("\uC624\uB298 \uACC4\uD68D\uC744 10\uBD84\uC73C\uB85C \uBC14\uAFD4")]
     public async Task AnExclusivePlanCommand_StillAppliesImmediately(string text)
     {
         using var harness = new CoachApplicationHarness();
@@ -454,7 +457,7 @@ public class CoachPedagogicalAnswerTests
             }
         };
 
-        var result = await AskAsync(harness, sessionId, "make it 10 minutes");
+        var result = await AskAsync(harness, sessionId, "make Today's Plan 10 minutes");
 
         result.Value!.Status.Should().Be(CoachTurnStatus.Rejected);
         result.Value.StopReason.Should().Be(CoachStopReason.ValidationFailed);
@@ -615,6 +618,6 @@ public class CoachPedagogicalAnswerTests
             }
         };
 
-        return (await AskAsync(harness, sessionId, "what should I do today?")).Value!.PendingSuggestion!;
+        return (await AskAsync(harness, sessionId, "Suggest a change to Today's Plan.")).Value!.PendingSuggestion!;
     }
 }

@@ -237,7 +237,7 @@ public class CoachAnswerContractTests
     // ---------------------------------------------------------------- write authority
 
     [Theory]
-    [InlineData("make it 10 minutes", CoachWriteAuthority.Denial.None)]
+    [InlineData("make Today's Plan 10 minutes", CoachWriteAuthority.Denial.None)]
     [InlineData("make today's plan 5 minutes and no audio", CoachWriteAuthority.Denial.None)]
     [InlineData("what does \uC88B\uB2E4 mean", CoachWriteAuthority.Denial.AsksAQuestion)]
     [InlineData("make it 10 minutes?", CoachWriteAuthority.Denial.AsksAQuestion)]
@@ -251,7 +251,7 @@ public class CoachAnswerContractTests
     [Fact]
     public void AVeryLongMessageIsProseNotACommand() =>
         new CoachWriteAuthority()
-            .Evaluate("make it 10 minutes " + new string('x', CoachWriteAuthority.MaxCommandLength))
+            .Evaluate("make Today's Plan 10 minutes " + new string('x', CoachWriteAuthority.MaxCommandLength))
             .Should().Be(CoachWriteAuthority.Denial.TooLongToBeACommand);
 
     // ---------------------------------------------------------------- helpers

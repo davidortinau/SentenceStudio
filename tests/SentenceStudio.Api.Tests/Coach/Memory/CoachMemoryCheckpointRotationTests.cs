@@ -157,7 +157,7 @@ public sealed class CoachMemoryCheckpointRotationTests
         var offered = await harness.Service.SubmitTurnAsync(session, new CoachTurnRequest
         {
             InputKind = CoachTurnInputKind.Text,
-            Text = "Make it 10 minutes."
+            Text = "Make Today's Plan 10 minutes."
         });
 
         offered.Value!.PendingSuggestion.Should().NotBeNull();
