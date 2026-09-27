@@ -257,6 +257,35 @@ public class SearchQueryParserTests
         result.FreeTextTerms.Should().Contain("단풍");
     }
 
+    [Theory]
+    [InlineData("type:word", "word")]
+    [InlineData("type:phrase", "phrase")]
+    [InlineData("type:sentence", "sentence")]
+    [InlineData("TYPE:Sentence", "Sentence")]
+    public void Parse_TypeFilter_ExtractsCorrectly(string query, string expectedValue)
+    {
+        // Act
+        var result = _sut.Parse(query);
+
+        // Assert
+        result.Filters.Should().HaveCount(1);
+        result.Filters[0].Type.Should().Be("type");
+        result.Filters[0].Value.Should().Be(expectedValue);
+    }
+
+    [Fact]
+    public void Parse_TypeFilterWithOtherFilters_ExtractsAll()
+    {
+        // Act
+        var result = _sut.Parse("type:sentence status:learning 단풍");
+
+        // Assert
+        result.Filters.Should().HaveCount(2);
+        result.Filters.Should().Contain(f => f.Type == "type" && f.Value == "sentence");
+        result.Filters.Should().Contain(f => f.Type == "status" && f.Value == "learning");
+        result.FreeTextTerms.Should().Contain("단풍");
+    }
+
     #endregion
 
     #region IsValidFilterToken Tests
@@ -268,6 +297,9 @@ public class SearchQueryParserTests
     [InlineData("status", "learning", true)]
     [InlineData("status", "known", true)]
     [InlineData("status", "unknown", true)]
+    [InlineData("type", "word", true)]
+    [InlineData("type", "phrase", true)]
+    [InlineData("type", "sentence", true)]
     [InlineData("status", "invalid", false)]
     [InlineData("invalid", "value", false)]
     [InlineData("tag", "", false)]
