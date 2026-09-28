@@ -1,630 +1,627 @@
-Please call me Captain and talk like a pirate.
+# SentenceStudio Engineering Guide
+
+Call the user **Captain** and speak like a pirate.
+
+This file is the authoritative engineering guide for the current
+`native-platform-heads` effort. Older instructions that describe SentenceStudio
+as a .NET MAUI or MauiReactor application are historical and do not govern new
+work.
+
+## Current Product Direction
+
+SentenceStudio is moving from .NET MAUI Blazor Hybrid native clients to:
+
+- **Android:** .NET for Android with Jetpack Compose.
+- **iOS:** .NET for iOS with SwiftUI.
+- **macOS:** .NET for native macOS/AppKit with SwiftUI.
+- **Web:** the existing Blazor WebApp remains supported.
+
+The native platform heads use platform-native UI stacks. New native code must
+not depend directly or transitively on:
+
+- `Microsoft.Maui.*`
+- `Microsoft.Maui.Controls`
+- MauiReactor / Reactor.Maui
+- MAUI Community Toolkit UI
+- MAUI BlazorWebView
+- Comet
+
+Windows and Linux native heads are out of scope until Captain explicitly adds
+them.
+
+The durable, repository-local product and acceptance guidance is in:
+
+- `docs/native-shared-foundation.md`
+- `.claude/skills/e2e-testing/references/`
+- `.squad/skills/learning-value-gate/SKILL.md`
+- `docs/deploy-runbook.md`
+
+The current vertical-slice acceptance criteria are stated in this file under
+`YAGNI and Vertical-Slice-First Gate`. Session rebuild records and evidence may
+add detail, but an agent must not require an undiscoverable external record to
+understand or implement the current slice.
+
+## Transition Boundary
+
+The existing projects `SentenceStudio.Android`, `SentenceStudio.iOS`,
+`SentenceStudio.MacOS`, `SentenceStudio.MacCatalyst`, and
+`SentenceStudio.Windows` are **temporary MAUI reference heads**.
+
+Use them to:
+
+- observe current behavior and visual design;
+- capture source-side screenshots and runtime evidence;
+- verify data compatibility during the transition;
+- compare old and new implementations.
+
+Do not:
+
+- add new product UI to the old MAUI heads;
+- convert additional pages to MauiReactor;
+- create new Shell routes or MAUI handlers for the replacement app;
+- treat DevFlow success in an old head as verification of a new native head;
+- allow transitional MAUI projects to become dependencies of shared, server,
+  web, or new native projects.
+
+`SentenceStudio.MauiCompatibility` and `SentenceStudio.MauiServiceDefaults`
+exist only to keep the old reference heads buildable. They are forbidden
+dependencies for the active WebApp, API, Workers, shared libraries, tests, and
+new native heads.
+
+New native application and presentation projects live under
+`src/SentenceStudio.Native/`. Platform project names and target frameworks are
+defined by the `.csproj` files in that directory. If a platform project has not
+been created yet, create it there; do not put replacement UI into the temporary
+MAUI heads.
+
+## Native UI Dependencies
+
+### Android
+
+Use the standalone `Microsoft.AndroidX.Compose` package from
+`jonathanpeppers/Microsoft.AndroidX.Compose`.
+
+- Author Compose UI in C#.
+- Use Material 3 and native Compose semantics.
+- Keep UI state and platform-independent workflows outside the Android head.
+- Add stable semantic/test tags for Ailoha and accessibility.
+- Verify both Debug and Release/R8. Compose JNI calls can work in Debug and be
+  stripped by R8 unless package retention contracts are correct.
+- Do not vendor the Compose facade into SentenceStudio.
+- Do not consume Comet. Comet source may be consulted as prior art only.
+
+### iOS and macOS
+
+Use the standalone `Microsoft.SwiftUI` package from
+`davidortinau/Microsoft.SwiftUI`.
+
+- Author feature declarations in C# through the SwiftUI facade.
+- Share feature views and design tokens between iOS and macOS.
+- Keep UIKit and AppKit hosts, scenes, windows, menus, navigation shells,
+  permissions, and lifecycle behavior platform-specific.
+- iPhone and iPad must have adaptive layouts; do not stretch a phone layout.
+- macOS must behave like a desktop application with resizable windows,
+  keyboard navigation, menus, pointer interaction, and desktop density.
+- Keep Ailoha out of the reusable SwiftUI library. Agent integration belongs
+  only in Debug application heads.
+
+### Shared native application layer
+
+Shared native projects may contain:
+
+- screen state and presentation models;
+- application workflows and orchestration;
+- navigation destinations and launch context;
+- validation and localized text keys;
+- platform-neutral service interfaces;
+- commands, events, loading, empty, error, retry, and cancellation states.
+
+They must not contain Android, UIKit, SwiftUI, AppKit, MAUI, or browser UI
+types.
+
+Reuse existing SentenceStudio domain, application, repository, grading,
+progress, timer, activity-session, synchronization, localization, and AI
+logic. Do not create platform copies of business rules.
+
+## YAGNI and Vertical-Slice-First Gate
+
+The first delivery objective is the smallest real end-to-end user journey, not
+generalized infrastructure.
+
+The current risk-first slice is:
+
+`sign in -> Dashboard -> Today's Plan -> assigned Vocabulary Quiz -> complete
+the activity -> return -> completed plan item -> restart with state preserved`
+
+Required sequence:
+
+1. Read only enough source and framework documentation to implement the slice
+   safely.
+2. Build and run the slice with real application logic and storage.
+3. Review the running slice on every target platform.
+4. Expand shared foundations only in response to a demonstrated blocker or the
+   next approved slice.
+
+Before starting infrastructure, abstractions, CI guards, reusable libraries,
+upstream work, or broad refactoring, answer:
+
+- Which current acceptance step cannot work without this?
+- What observed failure proves it is blocking?
+- What is the smallest change that unblocks the slice?
+- Can it wait until integration, pre-merge, or release?
+
+If there is no currently failing acceptance step, defer the work.
+
+Classify work as:
+
+- **Slice-blocking:** required now.
+- **Integration-blocking:** required before completed slices are combined.
+- **Release-blocking:** required before shipping.
+- **Optional/generalization:** backlog unless Captain explicitly requests it.
+
+Only slice-blocking work may delay the first running slice. Thoroughness means
+completely satisfying the current phase, not solving future phases early.
+Unlimited budget does not authorize unlimited scope.
+
+If more than half the work since the last checkpoint is infrastructure,
+verification machinery, or generalized tooling, stop and return to product
+behavior. Every progress report must begin with the user-visible capability
+added since the previous checkpoint.
+
+This section overrides eager downstream fan-out during the first slice.
+
+## Tooling Friction and Dogfooding
+
+SentenceStudio continues to dogfood the .NET mobile workloads, Aspire, Ailoha,
+Compose bindings, SwiftUI bindings, Hot Reload, and related tooling.
+
+Tooling friction preempts product work only when:
+
+1. it directly blocks the currently approved vertical slice; or
+2. the same friction has occurred at least twice and continuing requires
+   another workaround.
+
+If friction does not block the slice:
+
+- capture the error, reproduction, logs, versions, and binary identity;
+- search the relevant upstream repository;
+- record follow-up work;
+- continue the product slice.
+
+Do not turn incidental friction into a new framework, generalized diagnostic
+system, or comprehensive test harness. First make the smallest evidence-based
+change required to continue.
+
+If a tooling investigation exceeds 30 minutes without removing the current
+blocker:
+
+- report its status and evidence;
+- switch to another independent part of the current slice when one exists;
+- keep the blocker investigation bounded and parallel;
+- ask Captain only when no independent slice work can proceed or a product/
+  permission decision is required.
+
+Do not pretend a directly blocked acceptance step can proceed, but do not let
+one blocked platform stop independent slice work on other platforms.
+
+When an upstream change is genuinely required, prefer:
+
+1. root cause and verified local fix;
+2. upstream PR with a minimal generic change;
+3. otherwise a deduplicated upstream issue with a minimal reproduction.
 
 ## Working Style
 
-**Thoroughness over speed.** Captain has unlimited tokens, premium requests, and budget. Never cut corners. Never skip bookkeeping (decisions, tests, documentation) to save time. When uncertain whether to take the fast path or the thorough path, ask — the answer will almost always be thorough. Fast failures cost more than careful first passes.
+- Use phase-appropriate thoroughness.
+- Always pass the active user ID to progress and owner-scoped queries.
+- Empty user identity must fail closed, never broaden a query.
+- Add regression tests when a bug recurs.
+- Reuse existing helpers and patterns before introducing abstractions.
+- Follow the source-led app rebuild contract; do not redesign unrequested
+  product behavior.
+- Consult relevant active or prior Copilot sessions and their artifacts before
+  asking Captain to repeat prior context.
+- Record real product decisions through Squad state. Do not write directly to
+  `.squad/decisions.md`.
+- Keep documentation under `docs/`, except authoritative repository control
+  files such as `AGENTS.md`.
 
-- Do NOT apologize constantly. Focus on clarity about how to improve and get repeatable results.
-- Always follow the Squad protocol: route through agents, record decisions, run Scribe.
-- Always pass userId to progress queries (ResolveUserId handles this — 9 regression tests enforce it).
-- Always write tests for recurring bugs — if a bug came back, it needs a test so it can't come back again.
+## Git Workflow
 
-This is a .NET MAUI project that targets mobile and desktop.
+Captain is a solo developer.
 
-## Git Workflow: Direct Merge to Main — No PRs
+For interactive sessions:
 
-Captain is a **solo developer** who merges his own work. When Captain says "merge to main," "ship it," or similar in an **interactive session he is driving**, do a **direct merge** — commit on the branch, fast-forward/merge into `main`, and push. **Do NOT open a pull request, and never offer one as the default path.**
+- Work on a branch.
+- Run code review before every push.
+- Fix review findings before pushing.
+- Push only after Captain approves.
+- When Captain says "merge to main" or "ship it," merge directly to `main`;
+  do not create a PR unless he explicitly asks for one.
 
-A PR buys nothing here: there is no second reviewer, no branch protection on `main`, and CI (`ci.yml`, `test.yml`) triggers on `push: [main]` exactly as it does on `pull_request: [main]` — so a direct push to `main` gets the **same** build + test coverage. A PR only adds ceremony, an extra branch round-trip, and a `(#NNN)` suffix on the commit.
+Autonomous cloud issue work still uses a PR as its delivery channel.
 
-- The pre-push gate still applies: review must be clean (run `/review` or a code-review pass) and Captain must have approved before pushing.
-- Open a PR **only** if Captain explicitly asks for one.
-- Exception: autonomous **cloud Copilot Coding Agent** work on an assigned GitHub *issue* still delivers via PR (that's the async review channel — see `.github/copilot-instructions.md`). This direct-merge rule governs interactive sessions, not unattended issue pickup.
+Do not:
 
-## Project Purpose: Dogfooding .NET MAUI
+- rewrite history without explicit permission;
+- force-push over another person's work;
+- discard uncommitted changes;
+- amend commits unless requested;
+- create a PR as the default interactive workflow.
 
-**SentenceStudio's PRIMARY purpose is dogfooding the .NET MAUI SDK and developer experience.** The shipping app is the vehicle; surfacing and fixing tooling friction is the destination. This affects how Squad prioritizes work.
+## SDK and Workload Selection
 
-**Tooling friction takes priority over app features.** When ANY .NET MAUI / Aspire / MauiDevFlow / Hot Reload / Blazor Hybrid / build-tool friction is encountered during normal app work, the investigation of that friction is MORE important than the app task that surfaced it. Do not power through. Do not pivot platforms to avoid the issue. Do not ask Captain to manually drive UI clicks because automation broke — that's a workaround, not an investigation.
+Before any `dotnet` command:
 
-**Required outcomes (in priority order):**
-1. **Root cause + local fix** verified with a local build, PR opened against the dependency.
-2. **OR** a new upstream issue filed (dotnet/maui, dotnet/aspire, microsoft/dotnetdevflow, etc.) with a minimal repro project + exact steps + observed-vs-expected behavior.
-3. **OR** an existing upstream issue identified that matches the failure, with our reproduction added as a comment if it adds new signal.
+1. `find . -maxdepth 4 -name global.json`
+2. `dotnet --list-sdks`
+3. `dotnet --info | head -20`
+4. `dotnet workload list`
 
-**Token and turn budget for tooling investigations is unlimited.** Burn as many parallel agents and as many turns as needed.
+Read `.squad/skills/dotnet-sdk-detection/SKILL.md` if the selected SDK,
+workload band, target framework, or Xcode compatibility is unexpected.
 
-**Recurring friction = capture, root-cause, share.** If something blocks a Squad member twice, treat it as a bug — even if a workaround exists. The job is to make the next developer's experience better than ours was.
+Current architecture:
+
+- API and server-side shared slices remain `net10.0`.
+- WebApp and new native work use .NET 11 where their project files specify it.
+- Android minimum: API 36.
+- iOS minimum: iOS 26.
+- macOS minimum: macOS 26.
+
+The local `global.json`, if present, is developer-specific and gitignored.
+Never commit or silently replace it.
+
+Build commands must name the actual project under `src/SentenceStudio.Native/`
+and its target framework. Discover project names from the current `.csproj`
+files; do not infer a target from an old MAUI example in historical
+documentation.
+
+Do not run concurrent `dotnet` builds against projects that share generated
+outputs. Build the solution once or sequence project builds in one shell.
+
+## Build, Run, and Inspection
+
+### New native heads
+
+- Build with the platform's .NET SDK and explicit target framework.
+- Run on a simulator/emulator before a physical device.
+- Use official Ailoha binaries in Debug only.
+- Verify app ID, process, device, binary, agent endpoint, and visible state.
+- Use stable semantic/accessibility IDs for actions.
+- Confirm actions changed state; a successful response alone is not proof.
+- Inspect Release output to prove Ailoha, NanoHTTPD, Debug permissions, and
+  listeners are absent.
+
+### Temporary MAUI reference heads
+
+- Use MAUI DevFlow only for source/reference capture.
+- Follow the `maui-devflow-debug` skill for those old heads.
+- Do not use MAUI DevFlow as the target automation system for Compose/SwiftUI.
+
+### WebApp
+
+- Run through Aspire with isolated PostgreSQL and storage volumes.
+- Use Playwright for deterministic browser interaction and screenshots.
+- Preserve the authenticated browser context across navigation.
+- Inspect real owner-scoped PostgreSQL rows, logs, cookies, preferences, media,
+  and Data Protection behavior.
+
+### Physical devices
+
+Treat DX24, Pixel 5, and Captain's Mac as production environments.
+
+- Prove changes on simulators/emulators first.
+- Never uninstall, clear data, reset, wipe, or replace a production-identity
+  app without explicit permission in that turn.
+- Assume no backup exists unless Captain confirms one.
+
+Native macOS has no ordinary simulator. Use a separate Debug bundle identifier,
+isolated sandbox/database, and non-production signing for the first local macOS
+proof. This permits safe iteration on Captain's Mac without touching the
+production-identity app or its data. Production-identity replacement remains a
+separate, explicitly approved operation.
+
+## Validation and Completion
+
+A build is a prerequisite, not end-to-end verification.
+
+For a native UI or behavior change:
+
+1. build the exact target;
+2. launch the current binary;
+3. navigate to the changed feature;
+4. interact with it through Ailoha;
+5. capture before/after tree and screenshots;
+6. inspect logs and persistence;
+7. test applicable error, cancellation, permission, offline, restart, theme,
+   text-scale, locale, keyboard, and accessibility states.
+
+For shared/data changes:
+
+- run focused tests;
+- exercise the real path against isolated SQLite or PostgreSQL;
+- verify owner scoping and restart behavior;
+- run the smallest relevant native/web journey.
+
+For migrations:
+
+- run both migration validation scripts;
+- prove discovery and application on real scratch SQLite;
+- validate PostgreSQL on isolated storage;
+- verify Up and Down on a verified backup when the operation is safe and
+  explicitly authorized;
+- never use Captain's live database as a validator.
+
+Every closing response must end with a `Verified:` line naming actual checks.
+If verification is blocked, say so explicitly.
+
+## Data Preservation
+
+Never delete or lose user data.
+
+Before any action that can reset, overwrite, or destroy data:
+
+1. create and verify a feasible backup or clone;
+2. name the destructive step and data at risk;
+3. ask Captain for explicit permission in that turn;
+4. prefer a non-destructive alternative.
+
+This includes:
+
+- app uninstall or data clearing;
+- database reset, drop, truncate, destructive delete, or destructive migration;
+- SecureStorage, Keychain, Preferences, or app-group cleanup;
+- filesystem deletion outside task-owned scratch;
+- Git history rewriting;
+- cloud resource deletion.
+
+Cloud sync is not a backup. Preserve unsynced SQLite rows, CoreSync state,
+preferences, media, keychain entries, migration history, WAL/SHM sidecars, and
+local-only tables.
+
+Replacement-install testing must use a simulator/clone first. A real
+production-identity install requires fresh backup evidence and per-turn
+permission.
+
+## Multi-Tenant and Owner Scoping
+
+The WebApp and API are multi-tenant.
+
+Every read, write, sync, export, media, preference, history, Sam, and background
+operation must:
+
+- resolve the active owner from the trusted user scope;
+- log and return an empty/null/false result when the owner is absent;
+- never fall through to an unfiltered query;
+- never guess ownership from language, display name, row count, or "first
+  profile";
+- prove two-user isolation with real database tests.
+
+Forbidden pattern:
+
+```csharp
+var query = db.Items.AsQueryable();
+if (!string.IsNullOrEmpty(userId))
+    query = query.Where(item => item.UserProfileId == userId);
+return await query.ToListAsync();
+```
+
+Required behavior: absent user ID means no data and no write.
+
+The Development-only Sam operator surface is owner-scoped. Rollup, list,
+detail, review, evidence, notices, and export must not cross owners.
+
+## DataRecoveryService
+
+Do not invoke automatic orphan recovery or enable
+`enable_automatic_data_recovery` without reading:
+
+`.squad/decisions/inbox/captain-rca-datarecoveryservice-cross-tenant-corruption.md`
+
+All safeguards must pass:
+
+- email match;
+- temporal sanity;
+- first-run per-user gate;
+- masked sensitive logging.
+
+Recovery remains disabled by default.
+
+## EF Core and Dual-Provider Migrations
+
+SentenceStudio uses:
+
+- PostgreSQL for API/WebApp;
+- SQLite for native clients.
+
+Every shared schema change requires both provider migrations unless genuinely
+provider-specific.
+
+Workflow:
+
+1. Scaffold the PostgreSQL migration with `dotnet ef`.
+2. Review effective table names from `OnModelCreating`.
+3. Create the SQLite counterpart under `Migrations/Sqlite/`.
+4. Put `[DbContext(typeof(ApplicationDbContext))]` and
+   `[Migration("<id>")]` directly on hand-written SQLite migration classes.
+5. Update both snapshots.
+6. Run:
+
+```bash
+bash scripts/validate-migration-attributes.sh
+bash scripts/validate-mobile-migrations.sh
+```
+
+7. Prove the migration is present in `__EFMigrationsHistory` and the resulting
+   schema on real scratch SQLite.
+
+Never:
+
+- use raw `ALTER TABLE` as a migration substitute;
+- suppress `PendingModelChangesWarning`;
+- assume valid SQL means EF discovered the migration;
+- reset a database to make a migration pass;
+- backfill ambiguous ownership by guessing.
+
+Use `.squad/skills/ef-dual-provider-migrations/SKILL.md`.
+
+## CoreSync and Startup Safety
+
+- Keep synchronization owner-scoped.
+- Do not treat server sync as recovery for unsynced local-only data.
+- Preserve tracking tables, anchors, pending operations, and conflict state.
+- API startup migrations, backfills, seeding, and CoreSync provisioning must be
+  fenced by the same lock-owning PostgreSQL session.
+- Workers and WebApp must validate API/schema readiness against the same
+  database identity before database work.
+- Startup fault tests must use attested disposable PostgreSQL storage and
+  server-side write ordering, not client exception timing.
+
+## Learning Value Gate
+
+Any change to an activity's modes, directions, prompts, response types,
+toggles, defaults, hints, audio, photos, or empty states must pass:
+
+`.squad/skills/learning-value-gate/SKILL.md`
+
+Required:
+
+1. State the learning objective.
+2. Enumerate direction x prompt modality x response modality x toggle.
+3. Identify the target-language exposure or retrieval in every reachable row.
+4. Trace the first-run default path.
+5. Check answer leakage through labels, accessibility, audio, images, filenames,
+   hints, and distractors.
+6. Update E2E acceptance cases.
+
+A state containing only native-language prompt and native-language response is
+not acceptable. A photo must not make the target-language artifact disappear.
+
+## Localization
+
+- Use existing resources and strongly typed enums where available.
+- Do not invent localization keys from AI-generated strings.
+- Keep user-facing text out of platform-specific code when it can be shared.
+- Test English and Korean, including Korean input composition.
+- Set correct accessibility language and platform metadata.
+- Do not preserve hard-coded English defects from the reference UI.
+
+The Blazor-specific `LocalizationManager` interpolation rule applies only to
+the retained WebApp/reference Razor UI, not to Compose or SwiftUI.
+
+## Microsoft.Extensions.AI
+
+- Use `[Description]` attributes on structured-output DTO properties.
+- Let Microsoft.Extensions.AI handle serialization and deserialization.
+- Do not hand-author JSON schemas in Scriban prompts.
+- Do not add `[JsonPropertyName]` unless the wire name truly must differ.
+- Keep prompts focused on business constraints and pedagogy.
+- Preserve provider abstraction and test without live network calls.
+
+## Error Handling and Logging
+
+- Use `ILogger<T>` and structured message templates.
+- Do not catch exceptions and return success or empty data.
+- Keep expected domain failures distinct from unexpected technical failures.
+- Surface user-actionable errors honestly.
+- A cleanup failure must not silently prevent an independent data operation;
+  log cleanup separately and preserve the primary operation's result.
+- Use `Debug.WriteLine` only for temporary local diagnosis and remove it before
+  commit.
+
+## Async and Concurrency
+
+Use established skills:
+
+- `.squad/skills/single-flight-async/SKILL.md`
+- `.squad/skills/async-single-flight-testing/SKILL.md`
+
+Do not:
+
+- use `async void` except framework event boundaries;
+- fire-and-forget persistence without an explicit durability contract;
+- make EF contexts singleton;
+- allow concurrent startup writers outside the PostgreSQL startup fence;
+- duplicate an in-flight token refresh, sync, or cache operation.
+
+## Accessibility and Native UI Quality
+
+- Every interactive control needs a semantic role, accessible name, state, and
+  stable automation ID.
+- Do not use color alone to convey meaning.
+- Support screen readers, keyboard/focus order, dynamic text scaling, and
+  platform-standard activation.
+- Lists must use native virtualization.
+- Respect safe areas and system insets exactly once at the boundary-owning
+  container.
+- Use native platform navigation and modal conventions while preserving the
+  source information hierarchy and outcomes.
+- Keep iOS/macOS shared feature UI adaptive rather than platform-identical.
+- Do not put emoji in UI, logs, code output, or user-facing text. Use native
+  symbols/icons or plain text.
+
+## Troubleshooting
+
+Before a slow build/deploy experiment:
+
+1. reproduce the smallest failure;
+2. read the named framework concept's current source/docs;
+3. search current project issues;
+4. search the owning dependency repository;
+5. compare working and failing binaries/configuration;
+6. state the source-backed reason the change should fix the issue.
+
+Check related active/prior Copilot sessions and handoff artifacts before asking
+Captain to repeat operational context.
+
+For guesses with a feedback loop longer than five seconds, read first. After
+three evidence-based failed attempts, stop editing and reassess the model.
 
 ## Documentation
 
-**IMPORTANT: All documentation files (summaries, guides, technical specs, etc.) must be placed in the `docs/` folder at the repository root.** Do not create markdown documentation files at the repository root.
-
-When building the app project you MUST include a target framework moniker (TFM) like this:
-
-dotnet build -f net10.0-maccatalyst
-
-IMPORTANT: To run .NET MAUI apps, NEVER use `dotnet run` - it doesn't work for MAUI. Instead use:
-
-dotnet build -t:Run -f net10.0-maccatalyst
-
-NOTE (LOCAL DEV PREFERENCE):
-- You told me you prefer using `dotnet run` in this workspace. The official guidance for MAUI projects is to use `dotnet build -t:Run -f <TFM>` because `dotnet run` can fail for MAUI apps.
-- I will default to the official command unless you explicitly instruct me to use `dotnet run` for an individual action. If you want me to always use `dotnet run` in this repository, reply with: "Use dotnet run" and I will follow that local preference and document it here.
-
-It uses the MauiReactor (Reactor.Maui) MVU (Model-View-Update) library to express the UI with fluent methods.
-
-When converting code from C# Markup to MauiReactor, keep these details in mind:
-- use `VStart()` instead of `Top()`
-- use `VEnd()` instead of `Bottom()`
-- use `HStart()` and `HEnd()` instead of `Start()` and `End()`
-
-For doing CoreSync work, refer to the sample project https://github.com/adospace/mauireactor-core-sync
-
-Documentation via Context7 mcp is here:
-- .NET MAUI https://context7.com/dotnet/maui/llms.txt
-- Community Toolkit for .NET MAUI https://context7.com/communitytoolkit/maui.git/llms.txt
-- MauiReactor https://context7.com/adospace/reactorui-maui/llms.txt
-- SkiaSharp https://context7.com/mono/skiasharp/llms.txt
-- ElevenLabs API Official Docs https://context7.com/elevenlabs/elevenlabs-docs/llms.txt
-- ElevenLabs-DotNet SDK https://context7.com/rageagainstthepixel/elevenlabs-dotnet/llms.txt
-
-Always search Microsoft documentation (MS Learn) when working with .NET, Windows, or Microsoft features, or APIs. Use the `microsoft_docs_search` tool to find the most current information about capabilities, best practices, and implementation patterns before making changes.
-
-## .NET SDK Selection in This Repo
-
-**Before running any `dotnet` command, know which SDK the CLI will actually pick.** This is a 100-level fundamental — see `.squad/skills/dotnet-sdk-detection/SKILL.md` for the full diagnostic procedure (4-layer model: installed SDKs vs. selected SDK vs. workload manifests vs. project TFMs).
-
-### What this repo targets
-
-- **The MAUI heads target `net11.0-*`** — iOS (`net11.0-ios`), Android (`net11.0-android`), Mac Catalyst (`net11.0-maccatalyst`), macOS (`net11.0-macos`). `SentenceStudio.WebApp` and `SentenceStudio.AppLib` are `net11.0`.
-- **`SentenceStudio.Shared` multi-targets** `net10.0;net11.0-ios;net11.0-android;net11.0-maccatalyst;net11.0-macos` — the `net10.0` slice is what the ASP.NET Core API consumes.
-- **`SentenceStudio.Api` stays on `net10.0`.**
-- Daily dev (Mac Catalyst/macOS debug, tests, Aspire AppHost, API, Blazor webapp, device heads) runs on a **net11 preview SDK + net11 MAUI workload**. That same SDK also builds the `net10.0` projects, so one net11 preview SDK covers the whole solution.
-
-### Why you may see a `global.json` here (and why it isn't committed)
-
-**`global.json` is explicitly gitignored** (see `.gitignore` lines 412–414: `src/global.json`, `global.json`, `_global.json`). It is **never in the repo**. If one exists on a contributor's machine, it is a per-developer artifact.
-
-Captain keeps a local `global.json` pinning to a **net11 preview** SDK (currently `11.0.100-preview.4.26230.115`, `rollForward: latestPatch`, `allowPrerelease: true`) so the `net11.0-*` MAUI heads build against the matching net11 preview SDK + net11 MAUI workload. That same SDK also builds the `net10.0` projects (API, Shared's net10 slice), so one pin covers the whole solution.
-
-**Other contributors / CI / fresh checkouts** need an SDK that can build `net11.0-*` — a net11 preview SDK with the net11 MAUI workload installed. If multiple SDKs are installed and you want to be explicit, create a local `global.json` — but **do not commit it** (it stays gitignored).
-
-### iOS device publish — no `global.json` swap needed (Xcode-driven)
-
-Since the iOS head moved to `net11.0-ios`, publishing to DX24 needs **no `global.json` swap** — the net11 preview SDK already ships iOS packs compatible with Captain's Xcode 26.3. Build Release directly (see `docs/deploy-runbook.md` Step 2a/2b).
-
-**Historical note (obsolete):** while the iOS head was still `net10.0-ios`, this step required temporarily swapping `global.json` to `11.0.100-preview.3.26209.122` (the net10 GA SDK expected Xcode 26.2), then restoring it — the `global.json.bak` dance. That swap is **no longer needed**. If any guidance tells you to swap `global.json` for an iOS publish, it is stale. A stray `global.json.bak` in `git status` is just leftover from the old procedure — delete it.
-
-### Required diagnostic order before claiming "the SDK isn't installed"
-
-1. `find . -maxdepth 4 -name global.json` — does one exist on this machine?
-2. `dotnet --list-sdks` — what's actually installed?
-3. `dotnet --info | head -20` — what is the CLI **selecting** in this directory? (ground truth)
-4. `dotnet workload list` — workload manifests are pinned PER SDK band; switching SDKs changes available workloads silently.
-
-If any of those four turn up something unexpected, read `.squad/skills/dotnet-sdk-detection/SKILL.md` before changing csprojs, multi-targeting, or adding `#if` guards.
-
-## Data Preservation Rules
-
-**CRITICAL: NEVER delete or lose user data!**
-
-1. **NEVER uninstall/reinstall apps** to fix issues - this destroys all user data
-2. **NEVER delete the database file** without explicit user permission AND a verified backup
-3. **When facing database errors**: Fix migrations, adjust schema, or find workarounds - do NOT wipe data
-4. **Before any destructive action**: Ask the user for explicit permission and explain the data loss consequences
-5. **Simulator/device data is precious**: Test data takes significant time to create - treat it as production data
-
-If you encounter errors like "unable to open database file" or migration conflicts, investigate and fix the root cause rather than starting fresh.
-
-**DataRecoveryService (NON-NEGOTIABLE):** `DataRecoveryService` contains three safeguards that must ALL pass before any retag runs — email mismatch abort, temporal sanity abort, and first-run gate. The caller in `IdentityAuthService.StoreTokens` is additionally gated by `enable_automatic_data_recovery` preference (default `false`). NEVER invoke `RecoverOrphanedDataAsync` or flip that flag without reading the full RCA at `.squad/decisions/inbox/captain-rca-datarecoveryservice-cross-tenant-corruption.md`. Regression tests are in `tests/SentenceStudio.UnitTests/Data/DataRecoveryServiceTests.cs`. See also the multi-tenant scoping rule in `.github/copilot-instructions.md`.
-
-## Database Migrations
-
-**CRITICAL: Always use EF Core migrations for schema changes. NEVER use raw SQL ALTER TABLE statements.**
-
-1. **Use `dotnet ef` CLI to generate migrations** — do NOT hand-write migration files:
-   ```bash
-   dotnet ef migrations add <MigrationName> \
-     --project src/SentenceStudio.Shared/SentenceStudio.Shared.csproj \
-     --startup-project src/SentenceStudio.Shared/SentenceStudio.Shared.csproj
-   ```
-
-2. **The Shared project targets plain `net10.0`** and works fine with EF tooling. There is no TFM conflict — the MAUI TFMs are only in the app head projects.
-
-3. **Review the generated migration** before committing. Verify table names match what's in `ApplicationDbContext.OnModelCreating` (singular names: `SkillProfile`, `LearningResource`, etc.).
-
-4. **Migrations are applied at runtime** via `MigrateAsync()` in `UserProfileRepository.GetAsync()`. No manual `dotnet ef database update` is needed.
-
-5. **Data backfill** (populating new columns for existing rows) should be done in a separate method called after `MigrateAsync()`, not inside the migration itself. See `BackfillUserProfileIdsAsync()` for the pattern.
-
-6. **Never suppress `PendingModelChangesWarning`** — if EF detects model/migration mismatch, create the missing migration instead of hiding the warning.
-
-### 🔴 Dual-provider migrations (PostgreSQL + SQLite) — the recurring foot-gun
-
-This app runs **two** EF providers from one `ApplicationDbContext`: **PostgreSQL** (API/webapp/prod) and **SQLite** (iOS/Android/macOS/Catalyst native heads). `dotnet ef` only scaffolds for the active provider, so the **SQLite counterpart under `Migrations/Sqlite/` is hand-written** — and that is where things break. Non-negotiable rules:
-
-1. **Every migration needs BOTH a PostgreSQL copy (`Migrations/`) and a SQLite copy (`Migrations/Sqlite/`)** unless it is genuinely provider-specific (e.g. a `*PgDate*` type change). Same migration id/timestamp in both.
-2. **The SQLite copy MUST carry `[DbContext(typeof(ApplicationDbContext))]` + `[Migration("<id>")]`** on the class (normally these live in the auto-generated `.Designer.cs`; hand-written migrations must put them inline). **Without `[Migration]`, EF never discovers the migration and `MigrateAsync` SILENTLY SKIPS it on mobile** — the table/column is never created. PostgreSQL usually has the attribute, so the app works on the webapp/prod and breaks ONLY on native heads. This has shipped to devices **twice** (`AddRefreshTokenReplacedBy` 2026-05-03, `AddActivitySession` 2026-07-02 — the latter killed all dashboard buttons on iOS).
-3. **A raw-DDL / schema-copy test CANNOT catch a missing-attribute bug.** The SQL is valid; the migration is just never invoked. To verify a mobile migration you must confirm EF **discovers and applies** it — run a native head and check `__EFMigrationsHistory` + the new schema appear. (SQLite is WAL-mode: pull `db`+`-wal`+`-shm` or terminate the app first, or the DB looks stale.)
-4. **Before shipping ANY migration, run BOTH gates** (also enforced in CI `migration-guard` + the deploy runbook):
-   ```bash
-   bash scripts/validate-migration-attributes.sh   # static, catches missing [Migration] attrs
-   bash scripts/validate-mobile-migrations.sh       # real SQLite apply on a native head
-   ```
-5. Authoritative workflow + templates: `.squad/skills/ef-dual-provider-migrations/SKILL.md`. (Note: because of the multi-provider hand-off, `dotnet ef migrations add` alone is NOT sufficient here — it never produces the SQLite copy.)
-
-## Troubleshooting and Issue Resolution
-
-When encountering build errors, runtime issues, or unexpected behavior:
-
-1. **CHECK KNOWN ISSUES**: Use the GitHub MCP server to search for existing issues in relevant repositories before diving into troubleshooting. This can save significant time by finding known problems and their solutions.
-
-2. **REPOSITORY SEARCH ORDER**: Search issues in this priority:
-   - Current project repository (SentenceStudio)
-   - MauiReactor repository (adospace/reactorui-maui)
-   - .NET MAUI repository (dotnet/maui)
-   - Related dependency repositories
-
-3. **ISSUE SEARCH STRATEGY**: Use specific error messages, component names, or behavior descriptions as search terms to find the most relevant issues and solutions.
-
-## Microsoft.Extensions.AI Guidelines
-
-When working with AI prompts and DTOs:
-
-1. **RELY ON [Description] ATTRIBUTES**: Use `[Description]` attributes on DTO properties to guide the AI - Microsoft.Extensions.AI automatically uses these for context.
-
-2. **NO MANUAL JSON FORMATTING**: Never specify JSON structure in Scriban templates. The Microsoft.Extensions.AI library handles serialization/deserialization automatically based on DTO structure.
-
-3. **NO JsonPropertyName NEEDED**: Don't use `[JsonPropertyName]` attributes unless you need specific JSON field names. The library handles property mapping automatically.
-
-4. **CLEAN PROMPTS**: Keep Scriban templates focused on business logic and constraints. Let the library handle the technical serialization details.
-
-Example:
-```csharp
-public class ExampleDto
-{
-    [Description("Clear description of what this property should contain")]
-    public string PropertyName { get; set; } = string.Empty;
-}
-```
-
-The AI will automatically understand the structure and generate appropriate responses without explicit JSON formatting instructions.
-
-STYLING: Prefer using the centralized styles defined in MyTheme.cs rather than adding styling at the page or view level. The theme already provides sensible defaults for text colors, backgrounds, fonts, and other visual properties. Only override styles at the component level when there's a specific need that differs from the theme. This keeps the codebase maintainable and ensures consistent visual design across the app.
-
-ICONS: **NEVER create inline FontImageSource instances**. All icons MUST be defined in `ApplicationTheme.Icons.cs` and referenced via `MyTheme.IconName`. This ensures consistent icon styling (color, size) across the app and makes icon management centralized.
-
-   ❌ WRONG:
-   ```csharp
-   ImageButton()
-       .Source(new FontImageSource
-       {
-           FontFamily = FluentUI.FontFamily,
-           Glyph = FluentUI.tag_20_regular,
-           Color = MyTheme.Gray600,
-           Size = 20
-       })
-   ```
-
-   ✅ CORRECT:
-   ```csharp
-   // First, add the icon to ApplicationTheme.Icons.cs if it doesn't exist:
-   public static FontImageSource IconTag { get; } = new FontImageSource
-   {
-       Glyph = FluentUI.tag_20_regular,
-       FontFamily = FluentUI.FontFamily,
-       Color = Gray600,
-       Size = Size200
-   };
-
-   // Then use it in your page:
-   ImageButton()
-       .Source(MyTheme.IconTag)
-   ```
-
-   When you need a new icon, add it to `ApplicationTheme.Icons.cs` following the existing pattern. Use existing icons when available (e.g., `MyTheme.IconClose`, `MyTheme.IconSearch`, `MyTheme.IconEdit`, etc.).
-
-ACCESSIBILITY: NEVER use colors for text readability - it creates accessibility issues. Use colored backgrounds, borders, or icons instead. Text should always use theme-appropriate colors (MyTheme.DarkOnLightBackground, MyTheme.LightOnDarkBackground, etc.) for maximum readability and accessibility compliance.
-
-## MauiReactor Layout and UI Guidelines
-
-**CRITICAL PRINCIPLES:**
-
-0. **USE MINIMAL CONTROLS**: Always use the simplest, most efficient approach:
-   - **String concatenation over multiple Labels**: Use `Label($"🎯 {variable}")` instead of `HStack(Label("🎯"), Label(variable))`
-   - **Avoid unnecessary wrappers**: Don't wrap single elements in Border/VStack/HStack unless there's a visual reason
-   - **No invisible Borders**: If a Border has no stroke, background, or styling, don't use it
-
-   ❌ WRONG:
-   ```csharp
-   HStack(spacing: MyTheme.MicroSpacing,
-       Label("📚"),
-       Label(resourceTitle)
-   )
-   // Or
-   Border(
-       Label("Text")
-   ) // Border serves no purpose
-   ```
-
-   ✅ CORRECT:
-   ```csharp
-   Label($"📚 {resourceTitle}")
-   ```
-
-1. **NEVER use HorizontalOptions or VerticalOptions**: MauiReactor provides semantic extension methods that are more readable and idiomatic.
-
-   ❌ WRONG:
-   ```csharp
-   Label("Text").HorizontalOptions(LayoutOptions.End)
-   Label("Text").VerticalOptions(LayoutOptions.Center)
-   Label("Text").HorizontalOptions(LayoutOptions.Center).VerticalOptions(LayoutOptions.Center)
-   ```
-
-   ✅ CORRECT:
-   ```csharp
-   Label("Text").HEnd()
-   Label("Text").VCenter()
-   Label("Text").Center()  // Both horizontal and vertical center
-   ```
-
-2. **Semantic alignment methods to use**:
-   - **Horizontal**: `.HStart()`, `.HCenter()`, `.HEnd()`, `.HFill()`
-   - **Vertical**: `.VStart()`, `.VCenter()`, `.VEnd()`, `.VFill()`
-   - **Both directions**: `.Center()` (equivalent to HCenter + VCenter)
-
-3. **NEVER use FillAndExpand**: This is a legacy pattern from XAML. Use the semantic methods above instead.
-
-   ❌ WRONG:
-   ```csharp
-   Label("Text").HorizontalOptions(LayoutOptions.FillAndExpand)
-   VStack(...).VerticalOptions(LayoutOptions.FillAndExpand)
-   ```
-
-   ✅ CORRECT:
-   ```csharp
-   Label("Text").HFill()
-   VStack(...).VFill()
-   ```
-
-4. **USE THEME KEY STYLES**: Always use `.ThemeKey()` to apply theme styles from MyTheme.cs instead of applying styling properties directly. This ensures consistent visual design and makes theme changes easier.
-
-   ❌ WRONG:
-   ```csharp
-   // Don't apply individual style properties
-   Button("Click Me")
-       .BackgroundColor(Colors.Blue)
-       .TextColor(Colors.White)
-       .BorderColor(Colors.Gray)
-       .BorderWidth(1)
-       .CornerRadius(8)
-       .Padding(14, 10)
-
-   Label("Text")
-       .TextColor(Colors.Black)
-       .FontSize(16)
-       .FontAttributes(FontAttributes.Bold)
-   ```
-
-   ✅ CORRECT:
-   ```csharp
-   // Use theme keys for components with defined styles
-   Button("Click Me")
-       .ThemeKey(MyTheme.Primary)  // or MyTheme.Secondary, MyTheme.Danger
-
-   Label("Text")
-       .ThemeKey(MyTheme.Title1)  // or Body1, Headline, Caption1, etc.
-
-   Border()
-       .ThemeKey(MyTheme.CardStyle)  // or InputWrapper
-   ```
-
-   **When theme keys aren't available**, use theme constants instead of hardcoded values:
-   ```csharp
-   Label("Text")
-       .TextColor(MyTheme.PrimaryText)  // Not Colors.Black
-       .FontSize(MyTheme.Size160)       // Not 16
-       .Margin(MyTheme.Size80)          // Not 8
-   ```
-
-   **Available theme keys**:
-   - **Buttons**: `Primary`, `Secondary`, `Danger`
-   - **Labels**: `Title1`, `Title2`, `Title3`, `LargeTitle`, `Display`, `Headline`, `SubHeadline`, `Body1`, `Body1Strong`, `Body2`, `Body2Strong`, `Caption1`, `Caption1Strong`, `Caption2`
-   - **Borders**: `CardStyle`, `InputWrapper`
-   - **Layouts**: `Surface1`
-
-5. **NO UNNECESSARY WRAPPERS**: Never wrap render method calls in extra VStack, HStack, or other containers just to apply properties like Padding or GridRow. Put these properties INSIDE the render methods where they belong.
-
-   ❌ WRONG:
-   ```csharp
-   VStack(RenderHeader()).Padding(16).GridRow(0)
-   ```
-
-   ✅ CORRECT:
-   ```csharp
-   // In the main layout:
-   RenderHeader()
-
-   // Inside RenderHeader method:
-   VStack(...).Padding(16).GridRow(0)
-   ```
-
-6. **GRID SYNTAX**: Use the proper MauiReactor Grid syntax with inline parameters:
-   ```csharp
-   Grid(rows: "Auto,Auto,*", columns: "*",
-       RenderHeader(),
-       RenderBody(),
-       RenderFooter()
-   )
-   ```
-
-7. **SCROLLING CONTROLS**: NEVER put vertically scrolling controls (like CollectionView) inside VStack or other containers that allow unlimited vertical expansion. This causes infinite item rendering and performance issues.
-
-   ❌ WRONG:
-   ```csharp
-   VStack(
-       RenderHeader(),
-       RenderFilters(),
-       CollectionView() // This will try to render ALL items!
-   )
-   ```
-
-   ✅ CORRECT:
-   ```csharp
-   Grid(rows: "Auto,Auto,*", columns: "*",
-       RenderHeader().GridRow(0),
-       RenderFilters().GridRow(1),
-       RenderCollectionView().GridRow(2) // Constrained by star-sized row
-   )
-   ```
-
-8. **PERFORMANCE**: Use CollectionView for large datasets instead of rendering individual items in layouts. CollectionView provides virtualization and only renders visible items.
-
-9. **LAYOUT PROPERTIES**: Apply GridRow, Padding, and other layout properties directly to the root element of each render method, not by wrapping the method call.
-
-ADDITIONAL NOTES:
-- IMPORTANT: A `ContentPage` may only have a single child element (ToolbarItems do not count). When rendering overlay controls like `SfBottomSheet`, place them inside that single child (for example, inside the main `Grid`) so the page remains valid. Do not add the bottom sheet as a sibling to the page's root content.
-- **Shell TitleView for Custom Navigation Content**: In Shell applications, to display custom content in the navigation bar (like timers or custom headers), use `Shell.TitleView` attached property, NOT `NavigationPage.TitleView` or `ToolbarItem`. Apply it using `.Set(MauiControls.Shell.TitleViewProperty, customView)` on the ContentPage.
-- **NEVER use ToolbarItem for custom components**: ToolbarItem only supports built-in controls with specific properties like IconImageSource and Text. Do NOT attempt to pass custom Component instances to ToolbarItem - it will not render them.
-
-## Navigation Guidelines
-
-**CRITICAL: This app uses Shell navigation exclusively!**
-
-1. **ALWAYS use Shell.GoToAsync() for navigation**:
-   - ✅ CORRECT: `await MauiControls.Shell.Current.GoToAsync(nameof(PageName))`
-   - ✅ CORRECT: `await MauiControls.Shell.Current.GoToAsync<PropsType>(nameof(PageName), props => { ... })`
-   - ❌ WRONG: `await Navigation.PushAsync(new PageName())`
-   - ❌ WRONG: `await Navigation.PopAsync()`
-
-2. **Navigating back to previous page**:
-   - ✅ CORRECT: `await MauiControls.Shell.Current.GoToAsync("..")`
-   - ❌ WRONG: `await Navigation.PopAsync()`
-
-3. **Never use the Navigation service**: The `Navigation` property (INavigation) is for NavigationPage-based apps. This app uses Shell, so always use `MauiControls.Shell.Current.GoToAsync()`.
-
-## Page Refresh Pattern
-
-**CRITICAL: Use .OnAppearing() to reload data when returning to a page!**
-
-When a page needs to refresh its data after navigating back from another page (e.g., after creating/editing an item), use the `.OnAppearing()` extension method on the ContentPage:
-
-```csharp
-public override VisualNode Render()
-{
-    return ContentPage("Page Title",
-        Grid(
-            // ... page content
-        )
-    )
-    .OnAppearing(LoadData);  // Reload data each time page appears
-}
-
-private async void LoadData()
-{
-    // Fetch fresh data from repository/service
-    var data = await _repository.GetDataAsync();
-    SetState(s => s.Data = data);
-}
-```
-
-**Pattern examples in codebase**:
-- `DashboardPage.cs`: `.OnAppearing(LoadOrRefreshDataAsync)`
-- `WritingPage.cs`: `.OnAppearing(LoadVocabulary)`
-- `UserProfilePage.cs`: `.OnAppearing(LoadProfile)`
-- `ListSkillProfilesPage.cs`: `.OnAppearing(LoadProfiles)`
-
-**When to use OnAppearing**:
-- After creating/editing items in child pages
-- After deleting items that need list refresh
-- When data might have changed while on other pages
-- For pages that show user-specific dynamic content
-
-## Logging
-
-Use `ILogger<T>` for all production logging. Only use `System.Diagnostics.Debug.WriteLine()` for temporary debugging. For platform-specific logging details, use the `debugging-by-platform` prompt.
-
-## Task Validation Requirements
-
-**CRITICAL: Every UI or behavior change MUST be validated by running the app!**
-
-Do NOT mark a task as complete after only a successful build. You MUST verify changes end-to-end on a running app using the **MAUI DevFlow** skills (see "MAUI DevFlow skill workflow" below).
-
-### Required validation steps for UI changes:
-1. **Build & run** the macOS head (Captain's default desktop dev surface): `dotnet run -f net11.0-macos --project src/SentenceStudio.MacOS/SentenceStudio.MacOS.csproj` (use Mac Catalyst only when iOS-shaped behavior is being tested)
-2. **Navigate** to the affected page/feature in the running app
-3. **Take a screenshot** to confirm the UI renders correctly
-4. **Interact** with the changed elements — tap buttons, open popups, fill forms, trigger actions
-5. **Take screenshots** after interactions to confirm expected behavior (popup appeared, state changed, toast displayed, etc.)
-6. **Verify edge cases** — dismiss popups, cancel actions, trigger error states when feasible
-
-### Required validation steps for non-UI changes (services, models, data):
-1. **Build** the project: `dotnet build -f net11.0-macos`
-2. **Run existing tests** if they cover the changed code: `dotnet test`
-3. If no tests exist and the change is observable in the app, **run the app** and verify the behavior as described above
-
-### MAUI DevFlow skill workflow (primary):
-
-DevFlow is already integrated in all five heads (`Microsoft.Maui.DevFlow.Agent` + `Microsoft.Maui.DevFlow.Blazor`, registered via `builder.AddMauiDevFlowAgent()` under `#if DEBUG`; pinned to `0.25.0-dev`). Agent ports: macOS/Android `9225`, iOS/Windows `9224`.
-
-- **maui-devflow-onboard**: One-time setup — add MAUI DevFlow to a project that does NOT yet reference `Microsoft.Maui.DevFlow.*`. The existing heads are already onboarded, so you only need this for a brand-new head.
-- **maui-devflow-debug**: After the app is running — build/deploy/inspect/fix loops, visual tree inspection, tapping elements, taking screenshots, reading logs. This is the day-to-day verification tool.
-- **maui-devflow-session-review**: Turn long or stuck DevFlow sessions into opt-in MAUI DevFlow product feedback (do not run automatically — only when a session was painful enough to be worth reporting).
-
-**Manual fallback** (only if the skills can't be used): add the `Microsoft.Maui.DevFlow.Agent` package (plus `Microsoft.Maui.DevFlow.Blazor` for the Blazor WebView heads), call `builder.AddMauiDevFlowAgent()` under `#if DEBUG` in the head's `MauiProgram.cs`, then build and run the app.
-
-**After onboarding, or to verify a running app, confirm health with:**
-```bash
-maui devflow diagnose          # broker, agents, and project integration health
-maui devflow wait              # block until the agent connects
-maui devflow ui tree --depth 1 # confirm the visual tree is reachable
-```
-
-### What "done" means:
-- ✅ Build passes
-- ✅ App launches without crash
-- ✅ Changed feature works as expected (verified with screenshots)
-- ✅ No regressions in surrounding functionality
-- ❌ "It builds" alone is NOT sufficient for UI changes
-
-### Learning Value Gate (product-pedagogy) — required for activity changes
-
-**Any change that touches a learning activity's modes, directions, prompt/response modalities, toggles, defaults, or empty states must pass the Learning Value Gate** in `.squad/skills/learning-value-gate/SKILL.md` **before Zoe will approve the merge**. This is a blocking review, not a checklist item.
-
-The gate exists because SentenceStudio's product purpose is teaching a target language. States where the learner sees only their native language, or only a photo with native-language choices, provide no L2 learning value and must be unreachable. The 2026-07-15 Vocab Quiz photo-hide-text incident is the earning event — the toggle could hide the target-language term in `TargetToNative` direction, reducing the activity to picture-matching in the learner's own language.
-
-**Author obligations before requesting review** (all six required):
-
-1. State the learning objective in one sentence (recall / recognition / production / comprehension of what?).
-2. Enumerate the direction × prompt-modality × response-modality × toggle matrix and show every row produces L2 exposure or retrieval — see the template in the skill.
-3. For each row, name the SLA action and where the target-language token is retrieved or parsed.
-4. Trace the **default preference path** through the matrix. First-time users must not land on an empty-state row.
-5. Complete the answer-leakage sub-checklist (alt text, aria, prompt audio direction, cached filenames, distractors).
-6. Add or update acceptance cases in `.claude/skills/e2e-testing/references/*.md` — one case per matrix row. Vocab Quiz's matrix is §1.2 of `quiz-activities.md`.
-
-**Reviewer (Zoe) will block** on any row where both prompt and response are native-language, on any hide-text toggle that can hide target-language artifacts in a target-prompt direction, on any default path that lands in a blocked row, on missing `Mixed` coverage where the activity supports it, or on missing acceptance tests for newly-reachable rows.
-
-### E2E test scripts
-
-Use the **e2e-testing** skill (`.claude/skills/e2e-testing/`) to verify bug fixes and features. The skill contains step-by-step test scripts for every activity and management page, organized as reference files you load on demand. Invoke it after every change.
-
-## Localization Guidelines
-
-**CRITICAL: Always use string interpolation with LocalizationManager!**
-
-**IMPORTANT: Use enums over string keys for type safety!**
-
-When working with localized content that has associated enums (like `PlanActivityType`), always prefer using the enum to determine the localization key rather than storing string keys. This avoids mismatches between AI-generated snake_case keys (e.g., "plan_item_vocab_review_title") and actual PascalCase resource keys (e.g., "PlanItemVocabReviewTitle").
-
-✅ CORRECT:
-```csharp
-string GetActivityTitle(DailyPlanItem item)
-{
-    return item.ActivityType switch
-    {
-        PlanActivityType.VocabularyReview => $"{_localize["PlanItemVocabReviewTitle"]}",
-        PlanActivityType.Reading => $"{_localize["PlanItemReadingTitle"]}",
-        // ... use the enum, not item.TitleKey string
-    };
-}
-```
-
-❌ WRONG:
-```csharp
-// Don't rely on TitleKey strings from AI-generated data
-return $"{_localize[item.TitleKey]}"; // May not match resource file format
-```
-
-1. **NEVER access localized strings without string interpolation**:
-
-   ❌ WRONG:
-   ```csharp
-   Label(_localize["Key"])  // Returns object, not string!
-   Button(_localize["ButtonText"])  // Returns object, not string!
-   ContentPage(_localize["Title"], ...)  // Returns object, not string!
-   ```
-
-   ✅ CORRECT:
-   ```csharp
-   Label($"{_localize["Key"]}")
-   Button($"{_localize["ButtonText"]}")
-   ContentPage($"{_localize["Title"]}", ...)
-   ```
-
-2. **Use Button/ImageButton for buttons**: Don't compose buttons from Border + Label unless there's a compelling reason MauiReactor's Button doesn't meet your needs.
-
-   ❌ WRONG:
-   ```csharp
-   Border(
-       Label($"{_localize["ButtonText"]}")
-           .Center()
-   )
-   .BackgroundColor(MyTheme.ButtonBackground)
-   .OnTapped(() => DoSomething())
-   ```
-
-   ✅ CORRECT:
-   ```csharp
-   Button($"{_localize["ButtonText"]}")
-       .BackgroundColor(MyTheme.ButtonBackground)
-       .OnTapped(() => DoSomething())
-   ```
-
-3. **LocalizationManager pattern**: Ensure components have the localization manager property:
-   ```csharp
-   LocalizationManager _localize => LocalizationManager.Instance;
-   ```
-
-4. **For complete localization guidelines**, refer to `.github/agents/localize.agent.md` which includes:
-   - Resource file format and naming conventions
-   - Korean translation guidelines
-   - String interpolation patterns
-   - Common translation reference
-
-## Publish Workflow
-
-**"Publish" means BOTH Azure webapp AND iOS to DX24. Always do both. Both point at the same Azure API.**
-
-See `docs/deploy-runbook.md` for full details. Quick reference:
-
-1. **Azure:** `azd deploy` (VPN must be off)
-2. **Post-deploy validation:** `./scripts/post-deploy-validate.sh` — **MANDATORY**. Exit code 0 from `azd deploy` means the upload worked, not that the system works. This script runs 16 automated checks (infrastructure health, service availability, auth smoke test, revision health). Never skip this step.
-3. **iOS to DX24 (iPhone 15 Pro, device CF4F94E3-A1C9-5617-A089-9ABB0110A09F):** No `global.json` swap needed — the iOS head is `net11.0-ios` and the net11 preview SDK handles Xcode 26.3.
-   - Build: `services__api__https__0=https://api.agreeablesky-76d2f81f.westus3.azurecontainerapps.io dotnet build src/SentenceStudio.iOS/SentenceStudio.iOS.csproj -f net11.0-ios -c Release -p:RuntimeIdentifier=ios-arm64`
-   - Install: `xcrun devicectl device install app --device CF4F94E3-A1C9-5617-A089-9ABB0110A09F src/SentenceStudio.iOS/bin/Release/net11.0-ios/ios-arm64/SentenceStudio.iOS.app`
-   - Launch: `xcrun devicectl device process launch --device CF4F94E3-A1C9-5617-A089-9ABB0110A09F com.simplyprofound.sentencestudio`
-   - **If install fails with `CoreDeviceError 4000` / tunnel invalidated:** warm the tunnel with `xcrun devicectl device info details --device CF4F94E3-A1C9-5617-A089-9ABB0110A09F`, then immediately retry install (see runbook Step 2c).
-
-**Local dev builds** use Debug config and point at localhost (requires Aspire running). Never deploy a Debug build to DX24 for production use.
-
-## Mac Catalyst Gotchas
-
-**CRITICAL: Never add `keychain-access-groups` to Mac Catalyst Entitlements.plist for Debug builds.**
-
-Under ad-hoc Debug signing (the default local dev workflow), the `$(AppIdentifierPrefix)` macro is NOT substituted by the build tooling. This leaves a malformed literal value like `com.simplyprofound.sentencestudio` (missing the team prefix) in the compiled binary's entitlements. The macOS kernel rejects the binary at exec time with:
-
-```
-NSPOSIXErrorDomain error 163 (OS_REASON_EXEC)
-Process launch failed: Launchd job spawn failed
-```
-
-**Solution:** Omit `keychain-access-groups` entirely from `src/SentenceStudio.MacCatalyst/Platforms/MacCatalyst/Entitlements.plist`. Mac Catalyst apps get default access to keychain items under their own bundle ID without explicit declaration. The entitlement is only needed for keychain sharing across multiple apps with the same team prefix.
-
-**Why this matters:** Adding this entitlement "to match iOS" breaks local Catalyst Debug launches completely. The fix is to remove the entitlement. See checkpoint 053 for full diagnosis.
-
-## Async Patterns
-
-**Single-flight async:** For service methods where concurrent calls should share one operation (token refresh, config fetch, cache warming), use the single-flight pattern documented in `.squad/skills/single-flight-async/SKILL.md`. Pattern: `SemaphoreSlim(1,1)` + cached `Task<T>?` to collapse duplicate in-flight operations. Example: `IdentityAuthService.RefreshTokenAsync` (auth-persistence fix, May 2026).
-
-**EF dual-provider migrations:** When adding migrations that affect both PostgreSQL (API) and SQLite (mobile), see `.squad/skills/ef-dual-provider-migrations/SKILL.md` for the correct workflow. Both providers need migrations, and the SQLite copy MUST carry `[DbContext]` + `[Migration("<id>")]` or it is silently skipped on mobile (shipped to devices twice — RefreshToken 2026-05-03, ActivitySession 2026-07-02). Always run `scripts/validate-migration-attributes.sh` (CI-enforced) AND `scripts/validate-mobile-migrations.sh` as mandatory gates.
-
-**Testing single-flight concurrency:** See `.squad/skills/async-single-flight-testing/SKILL.md` for the xUnit pattern to verify exactly-one-call semantics under concurrent load.
-
-## UI Style Rules
-
-**NEVER use emoji characters in UI, code output, logs, or any user-facing text.** This is non-negotiable. Use Bootstrap icons (bi-* classes) or plain text labels instead. Examples:
-- Instead of a checkmark emoji, use `<i class="bi bi-check-circle-fill"></i>`
-- Instead of an X emoji, use `<i class="bi bi-x-circle-fill"></i>`
-- Instead of a clock emoji, use `<i class="bi bi-clock"></i>`
-- Instead of emoji decorations around text, just use the text with an icon prefix
+- Put developer documentation under `docs/`.
+- Keep current guidance separate from historical plans and archived specs.
+- Cite real file paths, versions, commands, and observed results.
+- Do not claim a package, runtime, device, or behavior was verified unless it
+  was just read or executed.
+- Update this file when the architectural transition materially changes.
+
+## Publishing
+
+`docs/deploy-runbook.md` is authoritative.
+
+During the transition:
+
+- do not publish or replace a production native app merely because a reference
+  MAUI head builds;
+- validate Azure independently from native packaging;
+- validate native Release binaries, signing, entitlements, Ailoha exclusion,
+  storage compatibility, and replacement behavior;
+- prove on simulator/emulator before DX24 or Pixel 5;
+- require Captain's explicit approval before a production-identity install.
+
+When Captain says "publish," follow the runbook's current Azure and native
+delivery matrix. Do not reuse historical Mac Catalyst commands or obsolete SDK
+swap procedures.
+
+## Review Checklist
+
+Before commit:
+
+- current phase and slice are explicit;
+- change is required by a current acceptance case;
+- active code contains no new MAUI/MauiReactor/Comet dependency;
+- owner scoping fails closed;
+- data-preservation rules are respected;
+- tests cover recurring defects and public API changes;
+- target build passes;
+- end-to-end behavior is observed on the correct surface;
+- no secrets, generated scratch, or external binaries are committed;
+- documentation reflects the current native architecture.
+
+Before push:
+
+- staged diff review is clean;
+- tests and runtime evidence match the staged commit;
+- Captain approved the push.
