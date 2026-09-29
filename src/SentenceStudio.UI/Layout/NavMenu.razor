@@ -8,7 +8,6 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @inject IJSRuntime JS
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
-@inject IServiceProvider Services
 @implements IDisposable
 
 <nav class="nav flex-column p-2 gap-1">
@@ -36,14 +35,6 @@
        href="" @onclick="Logout" @onclick:preventDefault title="@Localize["Nav_Logout"]">
         <i class="bi bi-box-arrow-left"></i> <span class="nav-label">@Localize["Nav_Logout"]</span>
     </a>
-
-    @if (_isHelpKitAvailable)
-    {
-        <a class="nav-link nav-link-ss rounded px-3 py-2"
-           href="" @onclick="ShowHelpAsync" @onclick:preventDefault title="@Localize["Help"]">
-            <i class="bi bi-question-circle"></i> <span class="nav-label">@Localize["Help"]</span>
-        </a>
-    }
 </nav>
 
 @code {
@@ -68,16 +59,10 @@
         new NavItem("feedback", "bi-chat-dots", Localize["Nav_Feedback"]),
     };
 
-    private bool _isHelpKitAvailable;
-
     protected override void OnInitialized()
     {
         Nav.LocationChanged += OnLocationChanged;
         Localize.CultureChanged += OnCultureChanged;
-
-        // Check if HelpKit is registered (MAUI apps have it, WebApp doesn't)
-        var helpKitType = Type.GetType("Plugin.Maui.HelpKit.IHelpKit, Plugin.Maui.HelpKit");
-        _isHelpKitAvailable = helpKitType is not null && Services.GetService(helpKitType) is not null;
     }
 
     private void OnCultureChanged() => InvokeAsync(StateHasChanged);
@@ -95,9 +80,9 @@
         CacheService.InvalidateAll();
 
         // Clear auth state via the provider (clears JWT, refresh token, notifies Blazor)
-        if (AuthStateProvider is SentenceStudio.Services.MauiAuthenticationStateProvider mauiAuth)
+        if (AuthStateProvider is IClientAuthStateNotifier nativeAuth)
         {
-            await mauiAuth.LogOutAsync();
+            await nativeAuth.LogOutAsync();
         }
 
         // Clear preferences
@@ -129,29 +114,5 @@
     {
         Nav.LocationChanged -= OnLocationChanged;
         Localize.CultureChanged -= OnCultureChanged;
-    }
-
-    private async Task ShowHelpAsync()
-    {
-        if (!_isHelpKitAvailable) return;
-        
-        try
-        {
-            var helpKitType = Type.GetType("Plugin.Maui.HelpKit.IHelpKit, Plugin.Maui.HelpKit");
-            if (helpKitType is null) return;
-            
-            var helpKit = Services.GetService(helpKitType);
-            if (helpKit is null) return;
-            
-            var showMethod = helpKitType.GetMethod("ShowAsync");
-            if (showMethod is null) return;
-            
-            await (Task)showMethod.Invoke(helpKit, [default(CancellationToken)])!;
-            await CloseOffcanvas();
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[NavMenu] Failed to show HelpKit: {ex}");
-        }
     }
 }

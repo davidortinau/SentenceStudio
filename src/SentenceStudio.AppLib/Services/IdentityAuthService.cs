@@ -883,7 +883,7 @@ public sealed class IdentityAuthService : IAuthService
         try
         {
             var profile = await _userProfileRepo.GetAsync();
-            LocalizationInitializer.ApplyLocaleFromProfile(profile, _logger);
+            LocaleProfileApplication.ApplyLocaleFromProfile(profile, _logger);
         }
         catch (Exception ex)
         {

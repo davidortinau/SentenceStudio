@@ -49,10 +49,8 @@ public sealed class CoachLimitationCardRenderTests
         AsOfUtc = AsOf,
         AffectedCount = 412,
         Destination = CoachRouteCatalog.Build(CoachRouteName.Vocabulary),
-        ExportSurface = CoachRouteCatalog.Build(CoachRouteName.Settings),
         Alternatives =
         [
-            CoachAlternativeCode.ExportBeforeRemoving,
             CoachAlternativeCode.RemoveOneListAtATime,
             CoachAlternativeCode.StartAFreshList
         ]
@@ -79,7 +77,7 @@ public sealed class CoachLimitationCardRenderTests
     [Theory]
     [InlineData(WebBaseUri)]
     [InlineData(WebViewBaseUri)]
-    public async Task S15_renders_count_alternatives_and_both_surfaces(string baseUri)
+    public async Task S15_renders_count_bounded_alternatives_and_only_the_safe_destination(string baseUri)
     {
         var html = await RenderAsync(BulkDeletion(), baseUri: baseUri);
 
@@ -89,32 +87,30 @@ public sealed class CoachLimitationCardRenderTests
             "the consequence is a number the learner can weigh, not an adjective they can discount");
 
         html.Should().Contain("data-coach-limitation-destination=\"Vocabulary\"");
-        html.Should().Contain(
-            "data-coach-limitation-export=\"Settings\"",
-            "the export screen is the one further surface S15 can honestly name; the whole-data "
-            + "screen it used to claim does not exist");
+        html.Should().NotContain("data-coach-limitation-destination=\"Settings\"");
+        html.Should().NotContain("data-coach-limitation-export",
+            "Profile and Settings no longer offer a safe owner-scoped export");
+        html.Should().NotContain("data-coach-limitation-fullscope",
+            "no screen performs a whole-vocabulary start-clean");
+        html.Should().NotContain("href=", "the card does not link to the retired export screen");
 
-        html.Should().Contain("data-coach-limitation-alternative=\"ExportBeforeRemoving\"");
+        html.Should().NotContain("data-coach-limitation-alternative=\"ExportBeforeRemoving\"");
         html.Should().Contain("data-coach-limitation-alternative=\"RemoveOneListAtATime\"");
         html.Should().Contain("data-coach-limitation-alternative=\"StartAFreshList\"");
     }
 
-    /// <summary>AC-G2. Both named surfaces disclose before the learner can act on either.</summary>
+    /// <summary>AC-G2. The bounded destination discloses its side effect.</summary>
     [Theory]
     [InlineData(WebBaseUri)]
     [InlineData(WebViewBaseUri)]
-    public async Task S15_discloses_side_effects_for_both_surfaces(string baseUri)
+    public async Task S15_discloses_the_side_effect_of_its_sole_destination(string baseUri)
     {
         var html = await RenderAsync(BulkDeletion(), baseUri: baseUri);
 
-        // Both surfaces S15 actually names: the bounded vocabulary screen and the export screen.
-        // Neither is ChangesSettings any more — Settings deletes coach conversation history, so
-        // its ceiling is EditsLearnerData, and there is no whole-data screen to disclose at all.
         html.Should().Contain("data-coach-limitation-destination=\"Vocabulary\"");
-        html.Should().Contain("data-coach-limitation-export=\"Settings\"");
         html.Should().Contain("data-coach-limitation-effect=\"EditsLearnerData\"");
-        html.Should().NotContain("data-coach-limitation-fullscope",
-            "no screen performs a whole-vocabulary start-clean, so none is named");
+        html.Split("data-coach-limitation-effect=", StringSplitOptions.None)
+            .Should().HaveCount(2, "the bounded Vocabulary screen is the only named destination");
 
         html.Should().Contain(
             "You can change or delete your own data there.",

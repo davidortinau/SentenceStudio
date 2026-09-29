@@ -19,9 +19,8 @@ public interface IPlanService
     Task<TodaysPlanDto?> GetTodayAsync(CancellationToken ct = default);
 
     /// <summary>Generate (or regenerate) the user's plan for today. Upserts the
-    /// <c>DailyPlan</c> row and replaces the <c>DailyPlanCompletion</c> child
-    /// rows for the same date. Per-item progress already recorded for matching
-    /// deterministic ids is preserved by merge.</summary>
+    /// <c>DailyPlan</c> row, archives displaced child rows for history, and
+    /// starts replacements at zero. Matching active item ids retain progress.</summary>
     Task<TodaysPlanDto> GenerateTodayAsync(GenerateTodaysPlanRequest request, CancellationToken ct = default);
 
     /// <summary>Set-style update of <c>MinutesSpent</c> on a single plan item
@@ -32,8 +31,8 @@ public interface IPlanService
     /// repeats clamp <c>MinutesSpent</c> to the highest reported value.</summary>
     Task<PlanItemDto?> MarkCompleteAsync(DateOnly planDate, string planItemId, int minutesSpent, CancellationToken ct = default);
 
-    /// <summary>Delete today's plan (and its child completion rows) so the user
-    /// can regenerate from a clean slate. Idempotent.</summary>
+    /// <summary>Remove today's plan and archive its active completion rows so
+    /// the user can regenerate without losing activity history. Idempotent.</summary>
     Task ResetTodayAsync(CancellationToken ct = default);
 
     /// <summary>

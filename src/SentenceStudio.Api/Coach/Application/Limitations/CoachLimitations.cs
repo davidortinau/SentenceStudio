@@ -87,14 +87,9 @@ public static class CoachLimitations
     /// </para>
     /// <para>
     /// So: no destructive proposal is generated, the consequence is stated as a count rather than a
-    /// warning adjective, and reversible alternatives come first. No whole-data surface is named,
-    /// because this build has none — see <see cref="CoachLimitationDto.FullScopeSurface"/>. What is
-    /// named instead is the one screen that makes the learner's request recoverable: export.
-    /// </para>
-    /// <para>
-    /// <see cref="CoachAlternativeCode.ExportBeforeRemoving"/> leads because it is the only
-    /// alternative that makes the learner's original request safe rather than smaller. The rest
-    /// shrink the blast radius; that one restores the undo.
+    /// warning adjective, and bounded alternatives follow. No whole-data or export surface is
+    /// named: neither a whole-account reset nor a safe owner-scoped Profile/Settings export is
+    /// available in this build.
     /// </para>
     /// </remarks>
     /// <param name="affectedWordCount">
@@ -132,35 +127,16 @@ public static class CoachLimitations
             // it here, one list at a time, and see what they are removing while they do it.
             Destination = CoachRouteCatalog.Build(CoachRouteName.Vocabulary),
 
-            // Null, and this is the correction that matters most in S15. The first draft pointed
-            // the whole-data surface at Settings, and Settings does not offer it: Settings.razor
-            // exports data and deletes coach conversation history, and there is no account-level
-            // "delete everything and start clean" anywhere in this build. Naming a screen that
-            // cannot do the thing is worse than declining to name one — the learner goes there,
-            // hunts for a control that does not exist, and concludes the app is broken or that
-            // they missed it. An honest null renders no link at all.
+            // A whole-account reset is not available; never link Settings as if it were.
             FullScopeSurface = null,
 
-            // Audited against the shipped UI, and two of the original five were not real.
-            // ArchiveInsteadOfDelete: only SkillProfile carries IsArchived; vocabulary has no
-            // archive. PauseReviewsInstead: nothing in the app pauses a review schedule. Both are
-            // deleted from the enum rather than merely dropped here, so they cannot be re-offered.
-            //
-            // What remains is provably reachable:
-            //   ExportBeforeRemoving  → Settings.razor, DataExportService
-            //   RemoveOneListAtATime  → Vocabulary.razor resource filter + bulk delete
-            //   StartAFreshList       → /resources/add
             Alternatives =
             [
-                CoachAlternativeCode.ExportBeforeRemoving,
                 CoachAlternativeCode.RemoveOneListAtATime,
                 CoachAlternativeCode.StartAFreshList
             ],
 
-            // Export is real and it lives on Settings, so this is the one screen S15 can name
-            // beyond the bounded surface. Named through the export alternative rather than as a
-            // whole-data surface, because that is what it actually is.
-            ExportSurface = CoachRouteCatalog.Build(CoachRouteName.Settings)
+            ExportSurface = null
         };
     }
 

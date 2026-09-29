@@ -114,8 +114,15 @@ public class CoachTurnIntentContractTests
             // Also bounded, closed, and no-write. A proposal is not a write and not an
             // activation: the application re-derives every trusted field, revalidates the
             // evidence span, and stores a candidate the learner must approve separately.
-            nameof(CoachTurnIntent.MemoryProposal)
+            nameof(CoachTurnIntent.MemoryProposal),
+            // A topic marker is not an item selection. The application creates the set and
+            // requires separate approval; the model cannot supply terms or plan item IDs.
+            nameof(CoachTurnIntent.VocabularySet)
         ], "the deterministic planner owns item selection");
+
+        CoachContractTypes.PublicProperties(typeof(CoachVocabularySetIntent))
+            .Select(p => p.Name)
+            .Should().ContainSingle().Which.Should().Be(nameof(CoachVocabularySetIntent.Topic));
     }
 
     [Fact]

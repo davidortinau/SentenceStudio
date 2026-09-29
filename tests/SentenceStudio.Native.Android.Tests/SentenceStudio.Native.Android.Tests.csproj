@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <IsTestProject>true</IsTestProject>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>NativeAndroidHeadRoot</_Parameter1>
+      <_Parameter2>$(MSBuildProjectDirectory)/../../src/SentenceStudio.Native.Android</_Parameter2>
+    </AssemblyAttribute>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <ProjectReference Include="../../src/SentenceStudio.Native/SentenceStudio.Native.csproj" />
+    <Compile Include="../../src/SentenceStudio.Native.Android/AndroidRoutePolicy.cs"
+             Link="AndroidRoutePolicy.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.Android/AndroidReplacementGuard.cs"
+             Link="AndroidReplacementGuard.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.Android/AndroidQuizInputPolicy.cs"
+             Link="AndroidQuizInputPolicy.cs" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,612 @@
+using CoreFoundation;
+using Foundation;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.SwiftUI;
+using SentenceStudio.Data;
+using SentenceStudio.Native.iOS.Features;
+using SentenceStudio.Native.iOS.Platform;
+using UIKit;
+using Views = Microsoft.SwiftUI.SwiftUI;
+
+namespace SentenceStudio.Native.iOS;
+
+public sealed class NativeAppController : IDisposable
+{
+    private readonly SwiftView _slot;
+    private readonly UIViewController _hostingController;
+    private readonly Func<UIViewController?> _rootController;
+    private readonly Action<UIViewController> _replaceRoot;
+    private readonly CancellationTokenSource _lifetime = new();
+    private NativeServices? _services;
+    private NativeAuthPresenter? _auth;
+    private NativeDashboardPresenter? _dashboard;
+    private NativeQuizPresenter? _quiz;
+    private NativeQuizLaunch? _quizLaunch;
+    private ILogger<NativeAppController>? _logger;
+    private NativeDestination _destination = NativeDestination.SignIn;
+    private NativeAuthState _authState = new(NativePhase.Loading, NativeDestination.SignIn);
+    private NativeDashboardState _dashboardState = new(NativePhase.Idle);
+    private NativeQuizState _quizState = new(NativePhase.Idle, NativeDestination.VocabularyQuiz);
+    private string _answer = string.Empty;
+    private string _correction = string.Empty;
+    private string? _startupError;
+    private SwiftView? _detailsSheet;
+    private NativeSignInViewController? _signInModal;
+    private bool _preview;
+    private bool _authenticatedSample;
+    private bool _busy;
+    private bool _disposed;
+
+    public NativeAppController(
+        SwiftView slot,
+        UIViewController hostingController,
+        Func<UIViewController?> rootController,
+        Action<UIViewController> replaceRoot)
+    {
+        _slot = slot;
+        _hostingController = hostingController;
+        _rootController = rootController;
+        _replaceRoot = replaceRoot;
+    }
+
+    public async void Start()
+    {
+        try
+        {
+            _services = NativeServices.Create();
+            _logger = _services.Provider.GetRequiredService<ILogger<NativeAppController>>();
+            await _services.InitializeDatabaseAsync(_lifetime.Token);
+#if DEBUG
+            if (NativePreviewFixture.FromAssembly() is { } fixture)
+            {
+                await RunPreviewJourneyAsync(fixture);
+                OnMain(() => {
+                    Render();
+                    if (fixture.Surface == "mc-details")
+                        OpenDetails();
+                });
+                return;
+            }
+#endif
+            if (NativeApiEndpoint.FromAssembly() is null)
+            {
+                _authState = new(NativePhase.Blocked, NativeDestination.SignIn,
+                    ErrorKey: NativeText.SignInUnavailable);
+            }
+            else
+            {
+                _auth = _services.Provider.GetRequiredService<NativeAuthPresenter>();
+                _dashboard = _services.Provider.GetRequiredService<NativeDashboardPresenter>();
+                _authState = await _auth.RestoreAsync(_lifetime.Token);
+                await RouteAfterAuthAsync();
+            }
+        }
+        catch (OperationCanceledException) when (_disposed)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Native iOS startup failed.");
+            _startupError = ex.GetType().Name;
+            _destination = NativeDestination.SignIn;
+            _preview = false;
+            _authenticatedSample = false;
+            _quiz?.Dispose();
+            _quiz = null;
+            _quizLaunch = null;
+            _detailsSheet = null;
+            _authState = new(NativePhase.Error, NativeDestination.SignIn,
+                ErrorKey: NativeText.UnexpectedError);
+        }
+        OnMain(Render);
+    }
+
+#if DEBUG
+    private async Task RunPreviewJourneyAsync(
+        NativePreviewFixture fixture, bool authenticated = false)
+    {
+        var provider = _services!.Provider;
+        await fixture.SeedAsync(provider);
+        _preview = !authenticated;
+        _authenticatedSample = authenticated;
+        _destination = NativeDestination.Dashboard;
+        _dashboard = provider.GetRequiredService<NativeDashboardPresenter>();
+        _dashboardState = await _dashboard.LoadAsync(_lifetime.Token);
+        if (_dashboardState.Phase != NativePhase.Ready)
+            throw new InvalidOperationException("The preview plan did not load through the shared presenter.");
+        if (fixture.Surface == "dashboard")
+            return;
+
+        var card = _dashboardState.Cards.FirstOrDefault(item =>
+            item.Activity == SentenceStudio.Services.Progress.PlanActivityType.VocabularyReview
+            && !item.IsCompleted);
+        if (card is null && fixture.Surface == "complete"
+            && _dashboardState.Cards.Any(item =>
+                item.Activity == SentenceStudio.Services.Progress.PlanActivityType.VocabularyReview
+                && item.IsCompleted))
+            return;
+        if (card is null)
+            throw new InvalidOperationException("The preview plan has no assigned quiz card.");
+
+        await OpenAssignedQuizAsync(card.Id);
+        if (_quiz is null)
+            throw new InvalidOperationException("The preview quiz launch context is invalid.");
+        if (_quizState.Phase == NativePhase.ResumeChoice)
+        {
+            if (fixture.Surface is "resume" or "mc-resume")
+                return;
+            _quizState = await _quiz.ResumeAsync(_lifetime.Token);
+        }
+        else if (fixture.Surface is "resume" or "mc-resume")
+        {
+            throw new InvalidOperationException("A preview resume choice needs a saved quiz session.");
+        }
+
+        if (fixture.Surface is "back" or "mc-back")
+        {
+            _quizState = await _quiz.BackAsync(_lifetime.Token);
+            if (_quizState.Destination != NativeDestination.TodaysPlan)
+                throw new InvalidOperationException("The preview back action did not preserve the plan.");
+            await ReturnToDashboardAsync();
+            return;
+        }
+        if (fixture.Surface == "mc")
+        {
+            if (_quizState is not { Phase: NativePhase.Ready, Mode: "MultipleChoice" })
+                throw new InvalidOperationException("The preview MC question did not use shared quiz choices.");
+            return;
+        }
+        if (fixture.Surface is "question" or "quiz")
+        {
+            if (_quizState.Phase is not (NativePhase.Ready or NativePhase.Feedback))
+                throw new InvalidOperationException("The preview question could not be restored.");
+            return;
+        }
+        if ((fixture.Surface is "feedback" or "mc-details")
+            && _quizState.Phase == NativePhase.Ready)
+            await AnswerPreviewQuestionAsync(provider);
+        if (fixture.Surface is "feedback" or "mc-details")
+        {
+            if (_quizState.Phase != NativePhase.Feedback)
+                throw new InvalidOperationException("The real quiz did not persist feedback.");
+            return;
+        }
+
+        for (var step = 0; step < 20 && _quizState.Phase != NativePhase.Summary; step++)
+        {
+            if (_quizState.Phase == NativePhase.Ready)
+                await AnswerPreviewQuestionAsync(provider);
+            if (_quizState.Phase != NativePhase.Feedback || _quizState.RequiresCorrection)
+                throw new InvalidOperationException("The real quiz could not grade a preview turn.");
+            _quizState = await _quiz.NextAsync(_lifetime.Token);
+        }
+        if (_quizState.Phase != NativePhase.Summary)
+            throw new InvalidOperationException("The real quiz did not reach its persisted round summary.");
+        _destination = NativeDestination.QuizSummary;
+        if (fixture.Surface == "complete")
+        {
+            _quizState = await _quiz.DoneAsync(_lifetime.Token);
+            if (_quizState.Destination != NativeDestination.TodaysPlan)
+                throw new InvalidOperationException("The real quiz did not complete its assigned plan item.");
+            await ReturnToDashboardAsync();
+            if (!_dashboardState.Cards.Any(item =>
+                    item.Id == card.Id && item.IsCompleted))
+                throw new InvalidOperationException("The completed quiz card was not persisted.");
+        }
+    }
+
+    private async Task AnswerPreviewQuestionAsync(IServiceProvider provider)
+    {
+        var prompt = _quizState.Prompt
+            ?? throw new InvalidOperationException("A visible quiz question is required.");
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var word = await db.VocabularyWords.AsNoTracking()
+            .SingleAsync(item => item.Id == prompt.WordId, _lifetime.Token);
+        var answer = prompt.IsTargetLanguagePrompt
+            ? word.NativeLanguageTerm
+            : word.TargetLanguageTerm;
+        if (string.IsNullOrWhiteSpace(answer))
+            throw new InvalidOperationException("A preview answer needs a stored vocabulary term.");
+        _quizState = await _quiz!.AnswerAsync(answer, _lifetime.Token);
+    }
+#endif
+
+    private async Task RouteAfterAuthAsync()
+    {
+        if (_authState.Phase != NativePhase.Ready)
+            return;
+        if (_authState.Destination == NativeDestination.Dashboard)
+        {
+            _destination = NativeDestination.Dashboard;
+#if DEBUG
+            if (_services is not null)
+            {
+                var authenticatedSample = await NativePreviewFixture.ForAuthenticatedOwnerAsync(
+                    _services.Provider, _authState.UserId, _lifetime.Token);
+                if (authenticatedSample is not null)
+                {
+                    await RunPreviewJourneyAsync(authenticatedSample, authenticated: true);
+                    return;
+                }
+            }
+#endif
+            if (_dashboard is not null)
+                _dashboardState = await _dashboard.LoadAsync(_lifetime.Token);
+        }
+        else if (_authState.Destination == NativeDestination.Onboarding)
+        {
+            _authState = _authState with {
+                Phase = NativePhase.Blocked, ErrorKey = NativeText.SignInUnavailable };
+        }
+    }
+
+    private void Render()
+    {
+        if (_disposed)
+            return;
+        if (!NSThread.IsMain)
+        {
+            OnMain(Render);
+            return;
+        }
+
+        SwiftView page;
+        if (_destination == NativeDestination.Dashboard && _dashboard is not null)
+        {
+            page = NativeFeatureViews.Dashboard(
+                _dashboardState, _busy, CreateBanner(), Text,
+                refresh: () => Submit(async () => _dashboardState =
+                    await _dashboard.RefreshAsync(_lifetime.Token)),
+                generate: () => Submit(async () => _dashboardState =
+                    await _dashboard.GenerateAsync(_lifetime.Token)),
+                openQuiz: OpenQuiz);
+        }
+        else if (_destination is NativeDestination.VocabularyQuiz or NativeDestination.QuizSummary
+                 && _quiz is not null)
+        {
+            var canRetry = _quizState.Phase == NativePhase.Error
+                && ((_quizState.Destination == NativeDestination.QuizSummary
+                        && _quizState.ErrorKey == NativeText.SaveFailed)
+                    || (_quizState.CurrentTurn == 0
+                        && _quizState.ErrorKey == NativeText.ConnectionError
+                        && _quizLaunch is not null));
+            page = NativeFeatureViews.Quiz(
+                _quizState, _answer, _busy, canRetry, CreateBanner(), Text,
+                answerChanged: value => _answer = value,
+                selectChoice: value => Submit(async () => {
+                    _quizState = await _quiz.AnswerAsync(value, _lifetime.Token);
+                    ScheduleAutoAdvance();
+                }),
+                playPrompt: () => Submit(async () =>
+                    _quizState = await _quiz.PlayPromptAsync(_lifetime.Token)),
+                submitText: () => Submit(async () => {
+                    _quizState = await _quiz.AnswerAsync(_answer, _lifetime.Token);
+                    ScheduleAutoAdvance();
+                }),
+                correctionChanged: value => _correction = value,
+                correction: _correction,
+                submitCorrection: () => Submit(async () => {
+                    _quizState = await _quiz.SubmitCorrectionAsync(_correction, _lifetime.Token);
+                    ScheduleAutoAdvance();
+                }),
+                overrideAsCorrect: () => Submit(async () => {
+                    _quizState = await _quiz.OverrideAsCorrectAsync(_lifetime.Token);
+                    ScheduleAutoAdvance();
+                }),
+                next: () => Submit(async () => {
+                    _quizState = await _quiz.NextAsync(_lifetime.Token);
+                    _answer = string.Empty;
+                    _correction = string.Empty;
+                    if (_quizState.Phase == NativePhase.Summary)
+                        _destination = NativeDestination.QuizSummary;
+                }),
+                resume: () => Submit(async () =>
+                    _quizState = await _quiz.ResumeAsync(_lifetime.Token)),
+                startFresh: () => Submit(async () =>
+                    _quizState = await _quiz.StartFreshAsync(_lifetime.Token)),
+                continueRound: () => Submit(async () => {
+                    _quizState = await _quiz.ContinueRoundAsync(_lifetime.Token);
+                    _destination = NativeDestination.VocabularyQuiz;
+                }),
+                done: () => Submit(ReturnFromQuizAsync),
+                back: () => Submit(BackFromQuizAsync),
+                retry: () => Submit(RetryQuizAsync),
+                details: OpenDetails);
+
+            if (_quizState.Phase == NativePhase.Feedback)
+            {
+                var presentingQuiz = _quiz;
+                SwiftView? sheet = null;
+                sheet = Views.Sheet(page,
+                    Views.List(
+                        Views.Text(Text("VocabQuiz_LearningDetails")),
+                        Views.Text(_quizState.Prompt?.PromptText ?? string.Empty),
+                        Views.Text(_quizState.CorrectAnswerAfterGrading ?? string.Empty),
+                        Views.Button(Text(NativeText.Done), () => sheet!.IsPresented = false)
+                            .WithAccessibilityIdentifier("native.quiz.details.close")),
+                    onDismissed: () => {
+                        if (ReferenceEquals(_quiz, presentingQuiz)
+                            && presentingQuiz.State.Overlay == NativeQuizOverlay.LearningDetails)
+                            _quizState = presentingQuiz.DismissOverlay();
+                        if (ReferenceEquals(_detailsSheet, sheet))
+                            _detailsSheet = null;
+                    });
+                _detailsSheet = sheet;
+                page = sheet;
+            }
+            else
+            {
+                _detailsSheet = null;
+            }
+        }
+        else
+        {
+            page = Views.Text(Text(NativeText.SignIn));
+        }
+
+        if (_startupError is not null)
+            page = Views.VStack(
+                Views.Text($"{Text(NativeText.UnexpectedError)} ({_startupError})"),
+                page);
+
+        var previous = _slot.Children.ToArray();
+        _slot.Clear();
+        foreach (var removed in previous)
+            removed.Dispose();
+        _slot.Add(page);
+        if (_destination == NativeDestination.SignIn && !_preview)
+        {
+            if (_signInModal is null)
+            {
+                _signInModal = new NativeSignInViewController(
+                    (email, password) => Submit(async () => {
+                        if (_auth is null)
+                            return;
+                        _authState = await _auth.SignInAsync(email, password,
+                            cancellationToken: _lifetime.Token);
+                        await RouteAfterAuthAsync();
+                    }),
+                    () => Submit(async () => {
+                        if (_auth is null)
+                            return;
+                        _authState = _authState.Phase == NativePhase.PendingSync
+                            && _authState.UserId is not null
+                            ? await _auth.RetryReadinessAsync(_lifetime.Token)
+                            : await _auth.RestoreAsync(_lifetime.Token);
+                        await RouteAfterAuthAsync();
+                    }));
+            }
+            if (!ReferenceEquals(_rootController(), _signInModal))
+                _replaceRoot(_signInModal);
+            _signInModal?.ShowState(_authState, _busy, _auth is not null);
+        }
+        else if (_signInModal is { } presented)
+        {
+            _signInModal = null;
+            _replaceRoot(_hostingController);
+            presented.Dispose();
+        }
+#if AILOHA_DEBUG
+        if (_signInModal is null)
+            _ = TagInputsWhenRealizedAsync();
+#endif
+    }
+
+#if AILOHA_DEBUG
+    private async Task TagInputsWhenRealizedAsync()
+    {
+        try
+        {
+            await Task.Delay(250, _lifetime.Token);
+            OnMain(() => {
+                if (_disposed || _rootController()?.View is not { } root)
+                    return;
+                if (_quizState.Phase == NativePhase.Ready && _quizState.Mode == "Text")
+                    AilohaDebug.TagInput(root, Text(NativeText.AnswerRequired), NativeAccess.QuizAnswer);
+            });
+        }
+        catch (OperationCanceledException) when (_disposed)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "The native iOS Debug agent could not tag a realized input.");
+        }
+    }
+#endif
+
+    private void OpenQuiz(string cardId) => Submit(() => OpenAssignedQuizAsync(cardId));
+
+    private async Task OpenAssignedQuizAsync(string cardId)
+    {
+        if (_dashboard is null || _services is null)
+            throw new InvalidOperationException("The native dashboard is not available.");
+        var launch = await _dashboard.SelectAssignedQuizAsync(cardId, _lifetime.Token);
+        if (launch is null)
+        {
+            _dashboardState = _dashboardState with {
+                Phase = NativePhase.Error, ErrorKey = NativeText.QuizUnavailable };
+            return;
+        }
+        _quiz?.Dispose();
+        _quiz = _services.Provider.GetRequiredService<NativeQuizPresenter>();
+        _quizLaunch = launch;
+        _destination = NativeDestination.VocabularyQuiz;
+        _quizState = await _quiz.OpenAsync(launch, _lifetime.Token);
+        if (_quizState.Phase == NativePhase.Summary)
+            _destination = NativeDestination.QuizSummary;
+    }
+
+    private async Task ReturnFromQuizAsync()
+    {
+        if (_quiz is null)
+            return;
+        _quizState = await _quiz.DoneAsync(_lifetime.Token);
+        if (_quizState.Destination == NativeDestination.TodaysPlan)
+            await ReturnToDashboardAsync();
+    }
+
+    private async Task BackFromQuizAsync()
+    {
+        if (_quiz is null)
+            return;
+        if (_quizState.CurrentTurn == 0
+            && _quizState.Phase is (NativePhase.Empty or NativePhase.Error or NativePhase.Blocked)
+            && _quizState.Destination != NativeDestination.QuizSummary)
+        {
+            await ReturnToDashboardAsync();
+            return;
+        }
+
+        _quizState = await _quiz.BackAsync(_lifetime.Token);
+        if (_quizState is { Destination: NativeDestination.TodaysPlan, Phase: NativePhase.Ready })
+            await ReturnToDashboardAsync();
+    }
+
+    private async Task RetryQuizAsync()
+    {
+        if (_quiz is null || _quizState.Phase != NativePhase.Error)
+            return;
+        if (_quizState is { Destination: NativeDestination.QuizSummary, ErrorKey: NativeText.SaveFailed })
+        {
+            await ReturnFromQuizAsync();
+        }
+        else if (_quizState.CurrentTurn == 0
+                 && _quizState.ErrorKey == NativeText.ConnectionError
+                 && _quizLaunch is not null)
+        {
+            _quizState = await _quiz.OpenAsync(_quizLaunch, _lifetime.Token);
+        }
+    }
+
+    private async Task ReturnToDashboardAsync()
+    {
+        _destination = NativeDestination.Dashboard;
+        if (_dashboard is not null)
+            _dashboardState = await _dashboard.LoadAsync(_lifetime.Token);
+        _quiz?.Dispose();
+        _quiz = null;
+        _quizLaunch = null;
+    }
+
+    private void OpenDetails()
+    {
+        if (_quiz is null || _detailsSheet is null)
+            return;
+        _quizState = _quiz.OpenDetails();
+        if (_quizState.Overlay == NativeQuizOverlay.LearningDetails)
+            _detailsSheet.IsPresented = true;
+    }
+
+    private SwiftView? CreateBanner()
+    {
+        if (_preview)
+            return Views.Text("Local preview - not authenticated")
+                .WithAccessibilityIdentifier("native.preview.fixture");
+        if (_authenticatedSample)
+            return Views.Text("Local test content - authenticated")
+                .WithAccessibilityIdentifier("native.auth.sample");
+        return null;
+    }
+
+    private async void Submit(Func<Task> action)
+    {
+        if (_busy || _disposed)
+            return;
+        _busy = true;
+        Render();
+        try
+        {
+            await action();
+            _startupError = null;
+        }
+        catch (OperationCanceledException) when (_disposed)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Native iOS action failed.");
+            _startupError = ex.GetType().Name;
+            if (_destination == NativeDestination.Dashboard)
+                _dashboardState = _dashboardState with {
+                    Phase = NativePhase.Error, ErrorKey = NativeText.PlanError };
+            else if (_destination is NativeDestination.VocabularyQuiz or NativeDestination.QuizSummary)
+                _quizState = _quizState with {
+                    Phase = NativePhase.Error, ErrorKey = NativeText.QuizUnavailable };
+            else
+                _authState = _authState with {
+                    Phase = NativePhase.Error, ErrorKey = NativeText.UnexpectedError };
+        }
+        finally
+        {
+            OnMain(() => {
+                _busy = false;
+                Render();
+            });
+        }
+    }
+
+    private async void ScheduleAutoAdvance()
+    {
+        if (_quiz is not { } quiz || _quizState.Phase != NativePhase.Feedback
+            || _quizState.RequiresCorrection)
+            return;
+
+        try
+        {
+            var state = await quiz.AutoAdvanceAsync(_lifetime.Token);
+            if (_disposed || !ReferenceEquals(_quiz, quiz))
+                return;
+            _quizState = state;
+            if (state.Phase == NativePhase.Summary)
+                _destination = NativeDestination.QuizSummary;
+            OnMain(Render);
+        }
+        catch (OperationCanceledException) when (_disposed)
+        {
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Native iOS quiz auto-advance failed.");
+            _quizState = _quizState with {
+                Phase = NativePhase.Error, ErrorKey = NativeText.SaveFailed };
+            OnMain(Render);
+        }
+    }
+
+    private static string Text(string key)
+    {
+        var localized = LocalizationManager.Instance.GetString(
+            key, System.Globalization.CultureInfo.CurrentUICulture);
+        if (localized == key)
+            throw new InvalidOperationException($"Missing shared localization resource: {key}");
+        return localized;
+    }
+
+    private void OnMain(Action action)
+    {
+        if (NSThread.IsMain)
+            action();
+        else
+            DispatchQueue.MainQueue.DispatchAsync(action);
+    }
+
+    public void Dispose()
+    {
+        if (_disposed)
+            return;
+        _disposed = true;
+        _lifetime.Cancel();
+        _quiz?.Dispose();
+        _signInModal?.Dispose();
+        _signInModal = null;
+        _services?.Dispose();
+        _lifetime.Dispose();
+    }
+}

@@ -2,6 +2,7 @@ using SentenceStudio.Services;
 using SentenceStudio.Shared.Models;
 using Microsoft.EntityFrameworkCore;
 using SentenceStudio.Data;
+using SentenceStudio.Workers.Startup;
 
 namespace SentenceStudio.Workers;
 
@@ -9,19 +10,34 @@ public class Worker : BackgroundService
 {
     private readonly ILogger<Worker> _logger;
     private readonly IServiceProvider _serviceProvider;
+    private readonly IWorkerStartupReadiness _startupReadiness;
     private readonly TimeSpan _checkInterval = TimeSpan.FromMinutes(30);
 
-    public Worker(ILogger<Worker> logger, IServiceProvider serviceProvider)
+    public Worker(
+        ILogger<Worker> logger,
+        IServiceProvider serviceProvider,
+        IWorkerStartupReadiness startupReadiness)
     {
         _logger = logger;
         _serviceProvider = serviceProvider;
+        _startupReadiness = startupReadiness;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        try
+        {
+            await _startupReadiness.WaitAsync(stoppingToken);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            _logger.LogInformation("YouTube Channel Monitor Worker stopped before API/schema readiness.");
+            return;
+        }
+
         _logger.LogInformation("YouTube Channel Monitor Worker starting...");
 
-        // Wait a bit before first check to let services initialize
+        // Preserve the existing scheduling grace after, never instead of, schema readiness.
         await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
 
         // Reset failed imports and channel check times so they retry after a restart

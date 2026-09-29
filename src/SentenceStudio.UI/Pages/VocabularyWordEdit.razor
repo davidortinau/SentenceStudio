@@ -1,10 +1,10 @@
 @page "/vocabulary/edit/{Id}"
 @attribute [Authorize]
-@using Plugin.Maui.Audio
+@using SentenceStudio.Abstractions
 @using Microsoft.EntityFrameworkCore
 @using SentenceStudio.Data
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
-@implements IDisposable
+@implements IAsyncDisposable
 
 @if (isLoading)
 {
@@ -445,7 +445,7 @@ else
     [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private ILogger<VocabularyWordEdit> Logger { get; set; } = default!;
     [Inject] private ElevenLabsSpeechService SpeechService { get; set; } = default!;
-    [Inject] private IAudioManager AudioManager { get; set; } = default!;
+    [Inject] private IAudioPlayerFactory AudioPlayerFactory { get; set; } = default!;
     [Inject] private StreamHistoryRepository StreamHistoryRepo { get; set; } = default!;
     [Inject] private SentenceStudio.Services.SpeechVoicePreferences VoicePrefs { get; set; } = default!;
     [Inject] private SentenceStudio.Abstractions.IConnectivityService Connectivity { get; set; } = default!;
@@ -458,7 +458,10 @@ else
     private bool isLoading = true;
     private bool isSaving;
     private bool isPlayingAudio;
-    private IAudioPlayer? audioPlayer;
+    private bool _browserAudioAttempted;
+    private bool _disposed;
+    private readonly CancellationTokenSource _audioLifetime = new();
+    private readonly UiAudioPlayerSession _nativeAudio = new();
     private string errorMessage = "";
     private bool showDeleteConfirm;
     private string deleteConfirmMessage = "";
@@ -1109,7 +1112,7 @@ else
 
     private async Task PlayTermAudio()
     {
-        if (isPlayingAudio || string.IsNullOrWhiteSpace(targetLanguageTerm)) return;
+        if (_disposed || isPlayingAudio || string.IsNullOrWhiteSpace(targetLanguageTerm)) return;
         isPlayingAudio = true;
 
         try
@@ -1124,12 +1127,14 @@ else
             }
             else if (Connectivity.IsInternetAvailable)
             {
-                audioStream = await SpeechService.TextToSpeechAsync(targetLanguageTerm, voiceId, 0.5f, 0.75f, 0.85f);
-
                 var cacheDir = Path.Combine(FileSystemService.AppDataDirectory, "AudioCache");
                 Directory.CreateDirectory(cacheDir);
                 var filePath = Path.Combine(cacheDir, $"word_{Guid.NewGuid()}.mp3");
-                using (var fs = File.Create(filePath)) { await audioStream.CopyToAsync(fs); }
+                using (var generatedAudio = await SpeechService.TextToSpeechAsync(targetLanguageTerm, voiceId, 0.5f, 0.75f, 0.85f))
+                using (var fs = File.Create(filePath))
+                {
+                    await generatedAudio.CopyToAsync(fs);
+                }
 
                 await StreamHistoryRepo.SaveStreamHistoryAsync(new StreamHistory
                 {
@@ -1145,25 +1150,38 @@ else
                 return;
             }
 
-            audioPlayer?.Stop();
-            audioPlayer?.Dispose();
-            audioPlayer = AudioManager.CreatePlayer(audioStream);
-            if (audioPlayer != null)
+            if (_disposed)
             {
-                audioPlayer.Play();
+                audioStream.Dispose();
+                return;
+            }
+
+            if (AudioPlayerFactory.CanPlayLocally)
+            {
+                _nativeAudio.CreatePlayer(AudioPlayerFactory, audioStream).Play();
             }
             else
             {
-                audioStream.Position = 0;
-                using var ms = new MemoryStream();
-                await audioStream.CopyToAsync(ms);
-                var base64 = Convert.ToBase64String(ms.ToArray());
-                await JS.InvokeVoidAsync("audioInterop.playFromBase64", base64, "audio/mpeg");
+                using (audioStream)
+                {
+                    _nativeAudio.Stop();
+                    audioStream.Position = 0;
+                    using var ms = new MemoryStream();
+                    await audioStream.CopyToAsync(ms);
+                    _browserAudioAttempted = true;
+                    await BrowserAudioPlayback.PlayAsync(JS, ms.ToArray(), _audioLifetime.Token);
+                }
             }
+        }
+        catch (OperationCanceledException) when (_disposed)
+        {
         }
         catch (Exception ex)
         {
+            _nativeAudio.Stop();
             Logger.LogError(ex, "Failed to play term audio");
+            if (!_disposed)
+                Toast.ShowError("Audio playback failed.");
         }
         finally
         {
@@ -1171,11 +1189,49 @@ else
         }
     }
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
-        Localize.CultureChanged -= OnCultureChanged;
-        audioPlayer?.Stop();
-        audioPlayer?.Dispose();
-        audioPlayer = null;
+        if (_disposed) return;
+        _disposed = true;
+        try
+        {
+            _audioLifetime.Cancel();
+        }
+        finally
+        {
+            try
+            {
+                Localize.CultureChanged -= OnCultureChanged;
+            }
+            finally
+            {
+                try
+                {
+                    _nativeAudio.Dispose();
+                }
+                finally
+                {
+                    try
+                    {
+                        if (_browserAudioAttempted)
+                        {
+                            _browserAudioAttempted = false;
+                            try
+                            {
+                                await JS.InvokeVoidAsync("audioInterop.stop");
+                            }
+                            catch (Exception ex)
+                            {
+                                Logger.LogWarning(ex, "Failed to stop vocabulary browser audio during disposal");
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        _audioLifetime.Dispose();
+                    }
+                }
+            }
+        }
     }
 }

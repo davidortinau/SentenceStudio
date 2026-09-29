@@ -4,6 +4,7 @@ using SentenceStudio.Api.Coach.Opportunities.Endpoints;
 using SentenceStudio.Api.Coach.Persistence.History;
 using SentenceStudio.Api.Coach.Reports;
 using SentenceStudio.Api.Coach.Runtime;
+using SentenceStudio.Api.Security.DataProtection;
 using SentenceStudio.Api.Tests.Coach.Opportunities;
 using SentenceStudio.Contracts.Coach;
 
@@ -36,15 +37,22 @@ public class CoachResponseReportOperatorSurfaceTests
     private static CoachOpportunityOperatorService NewOperator(
         CoachResponseReportHarness harness,
         Api.Coach.Persistence.CoachDbContext db,
-        ICoachMessageStore? messages = null) =>
+        ICoachMessageStore? messages = null,
+        string ownerId = Owner) =>
         new(db,
-            new TestUserScope(Owner),
+            new TestUserScope(ownerId),
             new TestOptionsMonitor<CoachOpportunityOptions>(Surface()),
-            new TestOptionsMonitor<CoachOptions>(Cohort(Owner)),
+            new TestOptionsMonitor<CoachOptions>(Cohort(Owner, "learner-b")),
             harness.Time,
             NullLogger<CoachOpportunityOperatorService>.Instance,
             messages,
-            null);
+            new CoachKeyRingPlan
+            {
+                Mode = CoachKeyRingMode.AzureBlobConnectionString,
+                ApplicationName = "SentenceStudio.Coach",
+                ContainerName = "coach-keys",
+                BlobName = "keyring.xml"
+            });
 
     private static async Task<(CoachResponseReportHarness Harness, string OpportunityId)> ReportedAsync(
         CoachResponseReportReason reason = CoachResponseReportReason.IncorrectOrMisleading)
@@ -100,6 +108,63 @@ public class CoachResponseReportOperatorSurfaceTests
         var members = typeof(CoachOpportunityRowDto).GetProperties().Select(p => p.Name).ToList();
         members.Should().NotContain("EvidenceMessageId");
         members.Should().NotContain("EvidenceOfferMessageId");
+    }
+
+    [Theory]
+    [InlineData(Owner, "learner-b")]
+    [InlineData("learner-b", Owner)]
+    public async Task AReportedNoticeCannotBeListedOpenedReviewedOrRevealedByAnotherOwner(
+        string caller, string other)
+    {
+        using var harness = new CoachResponseReportHarness();
+        var first = await harness.SeedTurnAsync(
+            owner: Owner, conversationId: "report-a", operationId: "operation-a",
+            responseKind: CoachMessageKind.Notice);
+        var second = await harness.SeedTurnAsync(
+            owner: "learner-b", conversationId: "report-b", operationId: "operation-b",
+            responseKind: CoachMessageKind.Notice);
+
+        await using (var write = harness.NewContext())
+        {
+            (await harness.NewService(write, Owner).ReportAsync(
+                first.ConversationId, first.ResponseMessageId,
+                new CoachResponseReportRequest { Reason = CoachResponseReportReason.Confusing }))
+                .IsOk.Should().BeTrue();
+            (await harness.NewService(write, "learner-b").ReportAsync(
+                second.ConversationId, second.ResponseMessageId,
+                new CoachResponseReportRequest { Reason = CoachResponseReportReason.Confusing }))
+                .IsOk.Should().BeTrue();
+        }
+
+        var stored = await harness.OpportunitiesAsync();
+        stored.Should().HaveCount(2);
+        var mine = stored.Single(row => row.UserProfileId == caller);
+        var theirs = stored.Single(row => row.UserProfileId == other);
+
+        await using var db = harness.NewContext();
+        var service = NewOperator(harness, db, harness.NewMessageStore(db), caller);
+
+        var list = await service.ListAsync(null, null, null, null, 0, 50);
+        list.Value!.Items.Should().ContainSingle().Which.Id.Should().Be(mine.Id);
+        list.Value.Total.Should().Be(1);
+
+        var rollup = await service.RollupAsync(null);
+        var summary = rollup.Value!.Should().ContainSingle().Subject;
+        summary.DistinctLearners.Should().Be(1);
+        summary.RowCount.Should().Be(1);
+
+        (await service.GetAsync(mine.Id)).Value!.Report.Should().NotBeNull();
+        (await service.GetAsync(theirs.Id)).Status.Should().Be(CoachOpportunityOperatorStatus.NotAvailable);
+        (await service.ReviewAsync(theirs.Id,
+            new CoachOpportunityReviewRequest(CoachOpportunityStatus.Accepted))).Status
+            .Should().Be(CoachOpportunityOperatorStatus.NotAvailable);
+        (await service.RevealEvidenceAsync(theirs.Id, new CoachOpportunityEvidenceRequest(
+            CoachOpportunityLimits.EvidenceRevealAcknowledgement))).Status
+            .Should().Be(CoachOpportunityOperatorStatus.NotAvailable);
+
+        var after = (await harness.OpportunitiesAsync()).Single(row => row.Id == theirs.Id);
+        after.Status.Should().Be(theirs.Status);
+        after.EvidenceRevealCount.Should().Be(0);
     }
 
     [Fact]
@@ -184,6 +249,6 @@ public class CoachResponseReportOperatorSurfaceTests
 
         typeof(CoachOpportunityRollupDto).GetProperties().Select(p => p.Name)
             .Should().NotContain("Learners",
-                "the cross-learner view a reviewer needs is 'how many people', and any response that answered 'which people' would be a cross-tenant read");
+                "an owner-only aggregate still must not return any learner identifiers");
     }
 }

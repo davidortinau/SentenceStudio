@@ -5,7 +5,7 @@
 @using SentenceStudio.Services
 @using SentenceStudio.Services.Speech
 @using SentenceStudio.Services.Timer
-@using Plugin.Maui.Audio
+@using SentenceStudio.Abstractions
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
 @implements IAsyncDisposable
 
@@ -126,7 +126,7 @@ else
     [Inject] private SpeechVoicePreferences VoicePrefs { get; set; } = default!;
     [Inject] private UserProfileRepository ProfileRepo { get; set; } = default!;
     [Inject] private SentenceStudio.Abstractions.IFileSystemService FileSystemService { get; set; } = default!;
-    [Inject] private IAudioManager AudioMgr { get; set; } = default!;
+    [Inject] private IAudioPlayerFactory AudioPlayerFactory { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private ILogger<Shadowing> Logger { get; set; } = default!;
@@ -139,6 +139,9 @@ else
     private bool isBuffering;
     private bool isAudioPlaying;
     private bool _useJsAudio;
+    private bool _browserAudioAttempted;
+    private bool _disposed;
+    private readonly CancellationTokenSource _audioLifetime = new();
     private bool showTranslation;
     private bool fromPlan;
     private int targetMinutes;
@@ -151,7 +154,8 @@ else
 
     private List<ShadowingSentence> sentences = new();
     private ShadowingSentence currentSentence = new();
-    private IAudioPlayer? audioPlayer;
+    private readonly UiAudioPlayerSession _nativeAudio = new();
+    private IUiAudioPlayer? audioPlayer => _nativeAudio.Player;
     private System.Threading.Timer? _playbackTimer;
 
     protected override async Task OnInitializedAsync()
@@ -159,7 +163,7 @@ else
         Localize.CultureChanged += OnCultureChanged;
         Logger.LogInformation("🎯 Shadowing initialized — planItemId={PlanItemId}", PlanItemId ?? "(none)");
         activityTimerLease = ActivityTimer.StartSession("Shadowing", PlanItemId, ResourceIdParam, SkillIdParam);
-        _useJsAudio = JS.GetType().Name.Contains("Remote", StringComparison.OrdinalIgnoreCase);
+        _useJsAudio = !AudioPlayerFactory.CanPlayLocally;
         fromPlan = FromPlanParam;
         targetMinutes = TargetMinutesParam ?? 15;
 
@@ -207,59 +211,82 @@ else
 
     private async Task GenerateAudioForCurrent()
     {
-        if (string.IsNullOrEmpty(currentSentence.TargetLanguageText)) return;
+        if (_disposed || string.IsNullOrEmpty(currentSentence.TargetLanguageText)) return;
         isBuffering = true;
         StateHasChanged();
 
         try
         {
             var vid = !string.IsNullOrEmpty(voiceId) ? voiceId : "echo";
-            var stream = await SpeechService.TextToSpeechAsync(
-                currentSentence.TargetLanguageText, vid, speed: playbackSpeed);
-
             // Save to temp and prepare for playback
             var cacheDir = Path.Combine(FileSystemService.AppDataDirectory, "Cache");
             Directory.CreateDirectory(cacheDir);
             var tempPath = Path.Combine(cacheDir, $"shadow_{currentIndex}_{Guid.NewGuid():N}.mp3");
+            using var stream = await SpeechService.TextToSpeechAsync(
+                currentSentence.TargetLanguageText, vid, speed: playbackSpeed);
+            if (_disposed) return;
             using (var fs = File.Create(tempPath))
             {
-                await stream.CopyToAsync(fs);
+                await stream.CopyToAsync(fs, _audioLifetime.Token);
             }
 
-            StopAudio();
+            await StopAudioAsync();
+            if (_disposed) return;
 
             if (_useJsAudio)
             {
-                // Server-side Blazor: read file to base64 and use JS interop
-                var bytes = await File.ReadAllBytesAsync(tempPath);
-                var base64 = Convert.ToBase64String(bytes);
-                await JS.InvokeVoidAsync("audioInterop.playFromBase64", base64, "audio/mpeg");
+                var bytes = await File.ReadAllBytesAsync(tempPath, _audioLifetime.Token);
+                if (_disposed) return;
+                _browserAudioAttempted = true;
+                await BrowserAudioPlayback.PlayAsync(JS, bytes, _audioLifetime.Token);
+                if (_disposed) return;
+                var duration = await JS.InvokeAsync<double>("audioInterop.getDuration", _audioLifetime.Token);
+                if (!double.IsFinite(duration) || duration <= 0)
+                    throw new InvalidOperationException("The browser audio duration is unavailable.");
+                if (_disposed) return;
+                audioDuration = TimeSpan.FromSeconds(duration);
                 isAudioPlaying = true;
-
-                // Estimate duration from file size (~16kB/s for mp3)
-                var fileInfo = new FileInfo(tempPath);
-                audioDuration = TimeSpan.FromSeconds(Math.Max(1, fileInfo.Length / 16000.0));
             }
             else
             {
-                using var playStream = File.OpenRead(tempPath);
-                audioPlayer = AudioMgr.CreatePlayer(playStream);
-                audioPlayer.PlaybackEnded += (s, e) =>
+                var player = _nativeAudio.CreatePlayer(AudioPlayerFactory, File.OpenRead(tempPath));
+                player.PlaybackEnded += (s, e) =>
                 {
+                    if (!ReferenceEquals(player, audioPlayer)) return;
                     isAudioPlaying = false;
                     StopPlaybackTimer();
                     InvokeAsync(StateHasChanged);
                 };
-                audioDuration = TimeSpan.FromSeconds(audioPlayer.Duration);
+                audioDuration = TimeSpan.FromSeconds(player.Duration);
             }
 
             // Generate simple placeholder waveform
             waveformData = GeneratePlaceholderWaveform();
             playbackPosition = 0;
         }
+        catch (OperationCanceledException) when (_disposed)
+        {
+        }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to generate audio");
+            try
+            {
+                await StopAudioAsync();
+            }
+            catch (JSDisconnectedException)
+            {
+                // Playback failed while the browser disconnected.
+            }
+            catch (InvalidOperationException) when (_disposed)
+            {
+                // Browser JS is unavailable during prerender or disposal.
+            }
+            waveformData = null;
+            if (!_disposed)
+            {
+                Logger.LogError(ex, "Failed to generate audio");
+                Toast.ShowError("Audio playback failed.");
+            }
         }
         finally
         {
@@ -283,11 +310,13 @@ else
             if (!isAudioPlaying)
             {
                 await GenerateAudioForCurrent();
-                StartPlaybackTimer();
+                if (isAudioPlaying)
+                    StartPlaybackTimer();
             }
             else
             {
                 await JS.InvokeVoidAsync("audioInterop.stop");
+                _browserAudioAttempted = false;
                 isAudioPlaying = false;
                 StopPlaybackTimer();
             }
@@ -326,11 +355,12 @@ else
     private async Task SetPlaybackSpeed(float speed)
     {
         playbackSpeed = speed;
-        StopAudio();
+        await StopAudioAsync();
         await GenerateAudioForCurrent();
         if (_useJsAudio)
         {
-            StartPlaybackTimer();
+            if (isAudioPlaying)
+                StartPlaybackTimer();
         }
         else if (audioPlayer is not null)
         {
@@ -353,7 +383,7 @@ else
     private async Task NextSentence()
     {
         if (currentIndex >= sentences.Count - 1) return;
-        StopAudio();
+        await StopAudioAsync();
         currentIndex++;
         currentSentence = sentences[currentIndex];
         showTranslation = false;
@@ -365,7 +395,7 @@ else
     private async Task PreviousSentence()
     {
         if (currentIndex <= 0) return;
-        StopAudio();
+        await StopAudioAsync();
         currentIndex--;
         currentSentence = sentences[currentIndex];
         showTranslation = false;
@@ -428,17 +458,16 @@ else
 
     private void ToggleTranslation() => showTranslation = !showTranslation;
 
-    private void StopAudio()
+    private async Task StopAudioAsync()
     {
         StopPlaybackTimer();
-        if (_useJsAudio)
-        {
-            _ = JS.InvokeVoidAsync("audioInterop.stop");
-        }
-        audioPlayer?.Stop();
-        audioPlayer?.Dispose();
-        audioPlayer = null;
+        _nativeAudio.Stop();
         isAudioPlaying = false;
+        if (_browserAudioAttempted)
+        {
+            _browserAudioAttempted = false;
+            await JS.InvokeVoidAsync("audioInterop.stop");
+        }
     }
 
     private void OnCultureChanged() => InvokeAsync(StateHasChanged);
@@ -449,12 +478,64 @@ else
         NavManager.NavigateTo("/");
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
-        Localize.CultureChanged -= OnCultureChanged;
-        ActivityTimer.PauseAndStopOwnedSession(activityTimerLease);
-        StopPlaybackTimer();
-        StopAudio();
-        return ValueTask.CompletedTask;
+        if (_disposed) return;
+        _disposed = true;
+        try
+        {
+            _audioLifetime.Cancel();
+        }
+        finally
+        {
+            try
+            {
+                Localize.CultureChanged -= OnCultureChanged;
+            }
+            finally
+            {
+                try
+                {
+                    ActivityTimer.PauseAndStopOwnedSession(activityTimerLease);
+                }
+                finally
+                {
+                    try
+                    {
+                        StopPlaybackTimer();
+                    }
+                    finally
+                    {
+                        isAudioPlaying = false;
+                        try
+                        {
+                            _nativeAudio.Dispose();
+                        }
+                        finally
+                        {
+                            try
+                            {
+                                if (_browserAudioAttempted)
+                                {
+                                    _browserAudioAttempted = false;
+                                    try
+                                    {
+                                        await JS.InvokeVoidAsync("audioInterop.stop");
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        Logger.LogWarning(ex, "Failed to stop shadowing browser audio during disposal");
+                                    }
+                                }
+                            }
+                            finally
+                            {
+                                _audioLifetime.Dispose();
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }

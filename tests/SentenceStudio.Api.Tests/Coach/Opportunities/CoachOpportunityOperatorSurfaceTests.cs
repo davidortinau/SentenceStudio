@@ -12,7 +12,7 @@ using SentenceStudio.Contracts.Coach;
 namespace SentenceStudio.Api.Tests.Coach.Opportunities;
 
 /// <summary>
-/// The operator surface's four gates, its cross-owner refusal, its key-ring refusal, and its
+/// The operator surface's four gates, its owner boundary, its key-ring refusal, and its
 /// acknowledgement requirement.
 /// </summary>
 /// <remarks>
@@ -31,14 +31,12 @@ public class CoachOpportunityOperatorSurfaceTests
         AllowedUserProfileIds = [.. ids]
     };
 
-    private static CoachOpportunityOptions Surface(
-        bool enabled = true, bool crossOwner = false) => new()
+    private static CoachOpportunityOptions Surface(bool enabled = true) => new()
     {
         Enabled = true,
         OperatorSurface = new CoachOpportunityOperatorSurfaceOptions
         {
-            Enabled = enabled,
-            AllowCrossOwnerEvidence = crossOwner
+            Enabled = enabled
         }
     };
 
@@ -146,7 +144,7 @@ public class CoachOpportunityOperatorSurfaceTests
     }
 
     [Fact]
-    public async Task TheRollupCountsLearnersWithoutNamingThem()
+    public async Task TheRollupCountsOnlyTheCallerWithoutNamingThem()
     {
         using var harness = new CoachOpportunityHarness();
         await SeedRowAsync(harness);
@@ -161,9 +159,9 @@ public class CoachOpportunityOperatorSurfaceTests
         rollup.IsOk.Should().BeTrue();
         var line = rollup.Value!.Should().ContainSingle().Subject;
 
-        line.DistinctLearners.Should().Be(3);
-        line.RowCount.Should().Be(3);
-        line.TotalOccurrences.Should().Be(3);
+        line.DistinctLearners.Should().Be(1);
+        line.RowCount.Should().Be(1);
+        line.TotalOccurrences.Should().Be(1);
 
         // The shape itself is the guarantee: there is no member that could carry an owner.
         typeof(CoachOpportunityRollupDto).GetProperties()
@@ -229,7 +227,7 @@ public class CoachOpportunityOperatorSurfaceTests
         result.Value.Row.ReviewerNoteCode.Should()
             .Be(nameof(CoachOpportunityReviewerNoteCode.NeedsCaptainDecision));
         result.Value.MarkdownBlock.Should().Contain("coach-opportunity://");
-        result.Value.MarkdownBlock.Should().Contain("distinct learner(s)");
+        result.Value.MarkdownBlock.Should().Contain("1 distinct learner(s)");
     }
 
     [Theory]
@@ -538,7 +536,7 @@ public class CoachOpportunityOperatorSurfaceTests
     }
 
     [Fact]
-    public async Task ACrossOwnerRevealIsRefusedByDefault()
+    public async Task AForeignOwnersRevealIsNeverAvailable()
     {
         using var harness = new CoachOpportunityHarness();
         await SeedEvidenceRowAsync(harness);
@@ -546,7 +544,7 @@ public class CoachOpportunityOperatorSurfaceTests
         await using var db = harness.NewContext();
         var service = NewService(
             harness, db,
-            Cohort("operator-b"),
+            Cohort(Owner, "operator-b"),
             callerId: "operator-b",
             messages: harness.NewMessageStore(db),
             keyRing: DurableKeyRing());
@@ -558,37 +556,10 @@ public class CoachOpportunityOperatorSurfaceTests
             new CoachOpportunityEvidenceRequest(
                 CoachOpportunityLimits.EvidenceRevealAcknowledgement));
 
-        result.Status.Should().Be(CoachOpportunityOperatorStatus.CrossOwnerRefused);
+        result.Status.Should().Be(CoachOpportunityOperatorStatus.NotAvailable);
 
         (await harness.RowsAsync())[0].EvidenceRevealCount.Should().Be(0,
             "a refused reveal read nothing, so it must not be counted as one");
-    }
-
-    [Fact]
-    public async Task ACrossOwnerRevealIsPossibleOnlyWhenExplicitlyEnabled()
-    {
-        using var harness = new CoachOpportunityHarness();
-        await SeedEvidenceRowAsync(harness);
-
-        await using var db = harness.NewContext();
-        var service = NewService(
-            harness, db,
-            Cohort("operator-b"),
-            Surface(crossOwner: true),
-            callerId: "operator-b",
-            messages: harness.NewMessageStore(db),
-            keyRing: DurableKeyRing());
-
-        var id = (await harness.RowsAsync())[0].Id;
-
-        var result = await service.RevealEvidenceAsync(
-            id,
-            new CoachOpportunityEvidenceRequest(
-                CoachOpportunityLimits.EvidenceRevealAcknowledgement));
-
-        result.IsOk.Should().BeTrue();
-        result.Value!.CrossOwner.Should().BeTrue(
-            "a cross-owner read is reported as one, so it cannot happen quietly");
     }
 
     [Fact]

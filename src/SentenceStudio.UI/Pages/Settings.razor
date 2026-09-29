@@ -148,15 +148,7 @@
 <div class="card card-ss p-4 mb-3">
     <h5 class="ss-title3 mb-3">@Localize["Settings_DataManagementSection"]</h5>
 
-    <button class="btn btn-ss-secondary w-100" @onclick="ExportData" disabled="@isExporting">
-        @if (isExporting)
-        {
-            <span class="spinner-border spinner-border-sm me-2"></span>
-        }
-        @Localize["Settings_ExportData"]
-    </button>
-
-    <button class="btn btn-ss-secondary w-100 mt-2" @onclick="HarvestExampleSentences" disabled="@isHarvestingSentences">
+    <button class="btn btn-ss-secondary w-100" @onclick="HarvestExampleSentences" disabled="@isHarvestingSentences">
         @if (isHarvestingSentences)
         {
             <span class="spinner-border spinner-border-sm me-2"></span>
@@ -252,7 +244,6 @@
     OnDismissed="@DismissWhatsNew" />
 
 @code {
-    [Inject] private DataExportService ExportService { get; set; }
     [Inject] private SentenceStudio.Services.ITranscriptSentenceHarvestService TranscriptSentenceHarvestService { get; set; } = default!;
     [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
     [Inject] private SentenceStudio.Services.Speech.IVoiceDiscoveryService VoiceDiscovery { get; set; }
@@ -275,7 +266,6 @@
     private bool quizUsePhotoPrompt;
     private double quizAutoAdvanceDuration = 3.0;
     private double fontScale = 1.0;
-    private bool isExporting;
     private bool isHarvestingSentences;
     private string? harvestProgressText;
     private string currentVersion = "1.0";
@@ -417,24 +407,6 @@
     private void SetQuizDirection(string direction)
     {
         quizDirection = direction;
-    }
-
-    private async Task ExportData()
-    {
-        isExporting = true;
-        try
-        {
-            await ExportService.ExportAllDataAsZipAsync();
-            Toast.ShowSuccess($"{Localize["Settings_ExportSuccess"]}");
-        }
-        catch (Exception ex)
-        {
-            Toast.ShowError($"{string.Format(Localize["Settings_ExportFailed"], ex.Message)}");
-        }
-        finally
-        {
-            isExporting = false;
-        }
     }
 
     private async Task HarvestExampleSentences()

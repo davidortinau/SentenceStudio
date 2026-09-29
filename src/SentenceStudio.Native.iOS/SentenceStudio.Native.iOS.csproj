@@ -1,0 +1,85 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net11.0-ios</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <ApplicationTitle>SentenceStudio Native</ApplicationTitle>
+    <AppBundleManifest>Info.plist</AppBundleManifest>
+    <ApplicationId Condition="'$(Configuration)' == 'Debug'">com.simplyprofound.sentencestudio.native.debug</ApplicationId>
+    <ApplicationId Condition="'$(Configuration)' == 'Debug' and '$(NativePreviewSurface)' != ''">com.simplyprofound.sentencestudio.native.fixture</ApplicationId>
+    <ApplicationId Condition="'$(Configuration)' != 'Debug'">com.simplyprofound.sentencestudio.native.preview</ApplicationId>
+    <SupportedOSPlatformVersion>26.0</SupportedOSPlatformVersion>
+    <UseInterpreter>true</UseInterpreter>
+  </PropertyGroup>
+
+  <ItemGroup Condition="'$(NativeApiBaseUrl)' != ''">
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>SentenceStudio.Native.ApiBaseUrl</_Parameter1>
+      <_Parameter2>$(NativeApiBaseUrl)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+  <ItemGroup Condition="'$(Configuration)' == 'Debug' and '$(NativePreviewSchema)' == 'true'">
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>SentenceStudio.Native.PreviewSchema</_Parameter1>
+      <_Parameter2>true</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+  <ItemGroup Condition="'$(Configuration)' == 'Debug' and '$(NativePreviewSurface)' != ''">
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>SentenceStudio.Native.PreviewSurface</_Parameter1>
+      <_Parameter2>$(NativePreviewSurface)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>SentenceStudio.Native.PreviewOwnerId</_Parameter1>
+      <_Parameter2>$(NativePreviewOwnerId)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>SentenceStudio.Native.PreviewEmail</_Parameter1>
+      <_Parameter2>$(NativePreviewEmail)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+  <ItemGroup Condition="'$(Configuration)' == 'Debug' and '$(NativeAuthenticatedSampleOwnerId)' != ''">
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>SentenceStudio.Native.AuthenticatedSampleOwnerId</_Parameter1>
+      <_Parameter2>$(NativeAuthenticatedSampleOwnerId)</_Parameter2>
+    </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute"
+                       Condition="'$(NativeAuthenticatedSampleSurface)' != ''">
+      <_Parameter1>SentenceStudio.Native.AuthenticatedSampleSurface</_Parameter1>
+      <_Parameter2>$(NativeAuthenticatedSampleSurface)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.SwiftUI" Version="0.1.0-preview.3" />
+    <PackageReference Include="Microsoft.SwiftUI" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
+    <PackageReference Include="Microsoft.Extensions.Http" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Console" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <ProjectReference Include="../SentenceStudio.Native/SentenceStudio.Native.csproj" />
+    <ProjectReference Include="../SentenceStudio.Shared/SentenceStudio.Shared.csproj" />
+    <PartialAppManifest Include="DebugNetworking.plist" Condition="'$(Configuration)' == 'Debug'" />
+  </ItemGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug' and '$(AilohaAgentXCFramework)' != ''">
+    <DefineConstants>$(DefineConstants);AILOHA_DEBUG</DefineConstants>
+  </PropertyGroup>
+  <Target Name="ValidateAilohaDebugInputs" BeforeTargets="_CollectNativeReferences"
+          Condition="'$(Configuration)' == 'Debug' and '$(AilohaAgentXCFramework)' != ''">
+    <Error Condition="!Exists('$(AilohaAgentXCFramework)/Info.plist')"
+           Text="The official AilohaAgent XCFramework path is missing." />
+    <Error Condition="'$(AilohaDebugShimXCFramework)' == '' Or !Exists('$(AilohaDebugShimXCFramework)/Info.plist')"
+           Text="Build the head-local Debug Ailoha shim before enabling the agent." />
+  </Target>
+  <ItemGroup Condition="'$(Configuration)' == 'Debug' and '$(AilohaAgentXCFramework)' != ''">
+    <NativeReference Include="$(AilohaAgentXCFramework)">
+      <Kind>Framework</Kind>
+    </NativeReference>
+    <NativeReference Include="$(AilohaDebugShimXCFramework)">
+      <Kind>Framework</Kind>
+    </NativeReference>
+    <ReferenceNativeSymbol Include="SentenceStudioAilohaDebug" SymbolType="ObjectiveCClass" />
+  </ItemGroup>
+</Project>

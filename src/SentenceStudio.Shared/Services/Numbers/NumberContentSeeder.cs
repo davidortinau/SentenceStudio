@@ -18,8 +18,20 @@ public class NumberContentSeeder
         _logger = logger;
     }
 
-    public async Task SeedAsync(string languageCode, CancellationToken ct = default)
+    public Task SeedAsync(string languageCode, CancellationToken ct = default)
+        => SeedCoreAsync(languageCode, static () => { }, ct);
+
+    /// <summary>Seeds on the caller's locked startup context, checking its session between awaits.</summary>
+    public Task SeedAsync(string languageCode, Action assertSession, CancellationToken ct = default)
     {
+        ArgumentNullException.ThrowIfNull(assertSession);
+        return SeedCoreAsync(languageCode, assertSession, ct);
+    }
+
+    private async Task SeedCoreAsync(string languageCode, Action assertSession, CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        assertSession();
         // Prefer embedded resource (works regardless of CWD or deployment layout).
         // Fall back to filesystem path for tests/dev where the file is added directly.
         string? jsonContent = null;
@@ -40,6 +52,7 @@ public class NumberContentSeeder
             {
                 using var reader = new StreamReader(stream);
                 jsonContent = await reader.ReadToEndAsync(ct);
+                assertSession();
             }
         }
 
@@ -56,8 +69,10 @@ public class NumberContentSeeder
                 return;
             }
             jsonContent = await File.ReadAllTextAsync(contentFilePath, ct);
+            assertSession();
         }
 
+        assertSession();
         // FIXED: Use source-generated JsonSerializerContext for AOT safety (iOS Release trimming)
         var seedData = JsonSerializer.Deserialize(jsonContent, NumberContentSeedJsonContext.Default.NumberContentSeed);
 
@@ -74,8 +89,11 @@ public class NumberContentSeeder
         // Seed contexts
         foreach (var contextDto in seedData.Contexts)
         {
+            ct.ThrowIfCancellationRequested();
+            assertSession();
             var existing = await _db.NumberContexts
                 .FirstOrDefaultAsync(c => c.Code == contextDto.Code, ct);
+            assertSession();
 
             if (existing == null)
             {
@@ -106,8 +124,11 @@ public class NumberContentSeeder
         // Seed sub-modes
         foreach (var subModeDto in seedData.SubModes)
         {
+            ct.ThrowIfCancellationRequested();
+            assertSession();
             var existing = await _db.NumberSubModes
                 .FirstOrDefaultAsync(sm => sm.Code == subModeDto.Code, ct);
+            assertSession();
 
             if (existing == null)
             {
@@ -134,8 +155,11 @@ public class NumberContentSeeder
         // Seed counters
         foreach (var counterDto in seedData.Counters)
         {
+            ct.ThrowIfCancellationRequested();
+            assertSession();
             var existing = await _db.NumberCounters
                 .FirstOrDefaultAsync(c => c.LanguageCode == languageCode && c.Counter == counterDto.Counter, ct);
+            assertSession();
 
             if (existing == null)
             {
@@ -162,7 +186,9 @@ public class NumberContentSeeder
             }
         }
 
+        assertSession();
         await _db.SaveChangesAsync(ct);
+        assertSession();
 
         _logger.LogInformation(
             "Number content seeding complete for {LanguageCode}: " +

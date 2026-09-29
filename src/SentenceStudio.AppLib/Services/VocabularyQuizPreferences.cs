@@ -116,21 +116,22 @@ public class VocabularyQuizPreferences
     /// <summary>
     /// Gets or sets the auto-advance duration in milliseconds.
     /// Controls how long to show feedback before automatically advancing to the next question.
-    /// Range: 1000ms (1 second) to 5000ms (5 seconds).
+    /// Range: 1000ms (1 second) to 10000ms (10 seconds) in 500ms steps.
     /// </summary>
     public int AutoAdvanceDuration
     {
         get => _preferences.Get(KEY_AUTO_ADVANCE_DURATION, DEFAULT_AUTO_ADVANCE_DURATION);
         set
         {
-            // Clamp value between 1000ms and 5000ms
-            var clampedValue = Math.Max(1000, Math.Min(5000, value));
-            if (value != clampedValue)
+            var boundedValue = Math.Max(1000, Math.Min(10000, value));
+            // Snap halfway values up to the next approved half-second.
+            var normalizedValue = 1000 + ((boundedValue - 1000 + 250) / 500) * 500;
+            if (value != normalizedValue)
             {
-                _logger.LogWarning("⚠️ Auto-advance duration {Value}ms out of range. Clamping to {Clamped}ms.", value, clampedValue);
+                _logger.LogWarning("Auto-advance duration {Value}ms is not an approved setting. Normalizing to {Clamped}ms.", value, normalizedValue);
             }
-            _preferences.Set(KEY_AUTO_ADVANCE_DURATION, clampedValue);
-            _logger.LogInformation("📋 Vocab quiz auto-advance duration set to: {Duration}ms", clampedValue);
+            _preferences.Set(KEY_AUTO_ADVANCE_DURATION, normalizedValue);
+            _logger.LogInformation("Vocab quiz auto-advance duration set to: {Duration}ms", normalizedValue);
         }
     }
 

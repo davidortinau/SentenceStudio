@@ -1,5 +1,6 @@
 using ElevenLabs;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -18,10 +19,14 @@ using SentenceStudio.WebApp.Auth;
 using SentenceStudio.WebApp.Components;
 using SentenceStudio.WebApp.Platform;
 using SentenceStudio.WebApp.Platform.Theme;
+using SentenceStudio.WebApp.Startup;
 using SentenceStudio.WebUI.Services;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using SentenceStudio.Contracts.Startup;
+using System.Data.Common;
 using System.Globalization;
+using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults("SentenceStudio.WebApp");
@@ -48,9 +53,25 @@ builder.AddNpgsqlDbContext<ApplicationDbContext>("sentencestudio", configureDbCo
 var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
 if (string.IsNullOrEmpty(localAppData))
     localAppData = Path.GetTempPath();
-var appDataRoot = Path.Combine(localAppData, "sentencestudio", "webapp");
+var isolatedAppDataRoot = builder.Configuration["WebApp:AppDataRoot"];
+if (isolatedAppDataRoot is not null && (
+    string.IsNullOrWhiteSpace(isolatedAppDataRoot) || !Path.IsPathFullyQualified(isolatedAppDataRoot)))
+{
+    throw new InvalidOperationException("WebApp:AppDataRoot must be a non-empty absolute path.");
+}
+var appDataRoot = isolatedAppDataRoot is null
+    ? Path.Combine(localAppData, "sentencestudio", "webapp")
+    : Path.GetFullPath(isolatedAppDataRoot);
 Directory.CreateDirectory(appDataRoot);
 var preferencesPath = Path.Combine(appDataRoot, "preferences.json");
+if (isolatedAppDataRoot is not null)
+{
+    var keyRing = Path.Combine(appDataRoot, "data-protection-keys");
+    Directory.CreateDirectory(keyRing);
+    builder.Services.AddDataProtection()
+        .SetApplicationName("SentenceStudio.WebApp.Isolated")
+        .PersistKeysToFileSystem(new DirectoryInfo(keyRing));
+}
 
 var appLibRawAssets = Path.GetFullPath(
     Path.Combine(builder.Environment.ContentRootPath, "..", "SentenceStudio.AppLib", "Resources", "Raw"));
@@ -159,7 +180,7 @@ builder.Services.AddSingleton<IConnectivityService, WebConnectivityService>();
 builder.Services.AddScoped<IFilePickerService, WebFilePickerService>();
 builder.Services.AddSingleton<IAudioPlaybackService, WebAudioPlaybackService>();
 builder.Services.AddSingleton<IFileSystemService>(_ => new WebFileSystemService(appDataRoot, appLibRawAssets));
-builder.Services.AddSingleton(WebAudioManagerProxy.Create());
+builder.Services.AddSingleton<IAudioPlayerFactory, WebAudioPlayerFactory>();
 // No-op sync service — server doesn't sync to itself, but Blazor [Inject] requires registration
 builder.Services.AddSingleton<SentenceStudio.Services.ISyncService>(
     new SentenceStudio.Services.NoOpSyncService());
@@ -168,6 +189,8 @@ builder.Services.AddSingleton<SentenceStudio.Services.ISyncService>(
 builder.Services.AddSingleton<SentenceStudio.Services.IPostLoginRouter, SentenceStudio.Services.PostLoginRouter>();
 
 var apiBaseUrl = builder.Configuration.GetValue<string>("ApiBaseUrl") ?? "https+http://api";
+ApiMigrationReadinessGate.RegisterClient(builder.Services, new Uri(apiBaseUrl));
+
 // Server-side IAuthService using Identity directly (UserManager + SignInManager)
 builder.Services.AddScoped<IAuthService, ServerAuthService>();
 builder.Services.AddTransient<AuthenticatedHttpMessageHandler>();
@@ -242,18 +265,75 @@ builder.Services.AddHsts(options =>
 
 var app = builder.Build();
 
-// Apply EF Core migrations at startup (once, not per-request)
+// The API alone migrates the shared application schema. This gate runs in the WebApp process,
+// including on azd/Container Apps where AppHost.WaitFor(api) does not order container startup.
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-    await db.Database.MigrateAsync();
+    var startupLogger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
+    using var api = scope.ServiceProvider.GetRequiredService<IHttpClientFactory>()
+        .CreateClient(ApiMigrationReadinessGate.ClientName);
 
-    // Run vocabulary classification backfill (idempotent)
-    var backfillService = scope.ServiceProvider.GetRequiredService<VocabularyClassificationBackfillService>();
-    await backfillService.BackfillLexicalUnitTypesAsync();
-    
-    // Run phrase constituent backfill (idempotent, after classification)
-    await backfillService.BackfillPhraseConstituentsAsync();
+    startupLogger.LogInformation("Waiting for the API migration owner and application schema.");
+    try
+    {
+        var applicationMigrationId = db.Database.GetMigrations().LastOrDefault()
+            ?? throw new InvalidOperationException(
+                "WebApp cannot start: no application migrations were discovered.");
+
+        await ApiMigrationReadinessGate.WaitAsync(
+            api,
+            async cancellationToken =>
+            {
+                if (!db.Database.IsNpgsql())
+                {
+                    throw new PostgresDatabaseIdentityException(PostgresDatabaseIdentityFailure.WrongProvider);
+                }
+
+                try
+                {
+                    await db.Database.OpenConnectionAsync(cancellationToken);
+                    try
+                    {
+                        var connection = db.Database.GetDbConnection();
+                        return await PostgresDatabaseIdentity.ReadReadinessAsync(
+                            connection,
+                            () => db.Database.GetDbConnection(),
+                            () => connection is NpgsqlConnection npgsql ? npgsql.ProcessID : 0,
+                            async ct => (await db.Database.GetPendingMigrationsAsync(ct)).Count(),
+                            applicationMigrationId, cancellationToken);
+                    }
+                    finally
+                    {
+                        await db.Database.CloseConnectionAsync();
+                    }
+                }
+                catch (PostgresDatabaseIdentityException)
+                {
+                    throw;
+                }
+                catch (DbException)
+                {
+                    throw new PostgresDatabaseIdentityException(PostgresDatabaseIdentityFailure.QueryUnavailable);
+                }
+                catch (InvalidOperationException)
+                {
+                    throw new PostgresDatabaseIdentityException(PostgresDatabaseIdentityFailure.QueryUnavailable);
+                }
+                catch (TimeoutException)
+                {
+                    throw new PostgresDatabaseIdentityException(PostgresDatabaseIdentityFailure.QueryUnavailable);
+                }
+            },
+            applicationMigrationId);
+    }
+    catch (Exception ex)
+    {
+        startupLogger.LogCritical(ex, "WebApp startup refused: API/schema migration gate failed.");
+        throw;
+    }
+
+    startupLogger.LogInformation("Compatible API and application schema are ready.");
 }
 
 if (!app.Environment.IsDevelopment())

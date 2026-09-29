@@ -29,14 +29,12 @@ public partial class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             optionsBuilder.UseSqlite("Data Source=dummy.db");
 #else
             optionsBuilder.UseNpgsql("Host=localhost;Database=sentencestudio_design;Username=postgres;Password=postgres");
-#endif
-
             // Suppress PendingModelChangesWarning so MigrateAsync() can apply pending migrations
-            // without throwing when the compiled model is ahead of the last recorded migration.
-            // Only for non-DI contexts (design-time, mobile fallback). DI-configured contexts
-            // (Aspire pooled) must configure warnings in AddDbContext/AddNpgsqlDbContext instead.
+            // without throwing for the legacy server design-time fallback.
+            // Mobile fallback contexts must detect SQLite snapshot drift.
             optionsBuilder.ConfigureWarnings(w =>
                 w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning));
+#endif
         }
 
         base.OnConfiguring(optionsBuilder);
@@ -134,6 +132,8 @@ public partial class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         // Synced entities (string GUID PKs)
         modelBuilder.Entity<DailyPlanCompletion>().ToTable("DailyPlanCompletion").HasKey(e => e.Id);
         modelBuilder.Entity<DailyPlanCompletion>().Property(e => e.Id).ValueGeneratedNever();
+        modelBuilder.Entity<DailyPlanCompletion>().Property(e => e.IsArchived)
+            .HasDefaultValue(false).IsConcurrencyToken();
         // §14a: Date is a user-local calendar day, not an instant. On PG we
         // force the column to `date` (TZ-less) so Npgsql's legacy-timestamp
         // behavior cannot shift the value on read in non-UTC server zones.
@@ -147,11 +147,12 @@ public partial class ApplicationDbContext : IdentityDbContext<ApplicationUser>
                 .Property(e => e.Date)
                 .HasColumnType("date");
         }
-        // Strict uniqueness: one row per (user, local-day, plan-item). Prevents
-        // CoreSync ↔ HTTP duplicate inserts when both write the same logical item.
+        // Only one active row per (user, local-day, plan-item); archived rows
+        // retain their original ids and progress when a plan is regenerated.
         modelBuilder.Entity<DailyPlanCompletion>()
             .HasIndex(e => new { e.UserProfileId, e.Date, e.PlanItemId })
-            .IsUnique();
+            .IsUnique()
+            .HasFilter(isNpgsql ? "\"IsArchived\" = FALSE" : "\"IsArchived\" = 0");
 
         // Parent DailyPlan — owns generation metadata + language-neutral
         // narrative/rationale facts. One row per (user, local-day).
@@ -190,6 +191,8 @@ public partial class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         
         // Non-synced entities (keep int auto-increment PKs)
         modelBuilder.Entity<StreamHistory>().ToTable("StreamHistory").HasKey(e => e.Id);
+        modelBuilder.Entity<StreamHistory>().Property(e => e.UserProfileId).IsRequired(false);
+        modelBuilder.Entity<StreamHistory>().HasIndex(e => new { e.UserProfileId, e.CreatedAt });
         modelBuilder.Entity<Story>().ToTable("Story").HasKey(e => e.Id);
         modelBuilder.Entity<GradeResponse>().ToTable("GradeResponse").HasKey(e => e.Id);
         modelBuilder.Entity<SceneImage>().ToTable("SceneImage").HasKey(e => e.Id);
@@ -362,7 +365,11 @@ public partial class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.Entity<MinimalPairAttempt>()
             .HasIndex(mpa => new { mpa.SessionId, mpa.SequenceNumber });
 
-        // RefreshToken — server-side token storage for JWT refresh flow
+        // RefreshToken and ASP.NET Identity belong to the PostgreSQL server model.
+#if IOS || ANDROID || MACCATALYST || MACOS
+        modelBuilder.Ignore<RefreshToken>();
+        modelBuilder.Ignore<ApplicationUser>();
+#else
         modelBuilder.Entity<RefreshToken>().ToTable("RefreshTokens");
         modelBuilder.Entity<RefreshToken>()
             .HasOne(rt => rt.User)
@@ -372,6 +379,7 @@ public partial class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.Entity<RefreshToken>()
             .HasIndex(rt => rt.Token)
             .IsUnique();
+#endif
 
         // PhraseConstituent — join entity for phrase-to-constituent relationships
         modelBuilder.Entity<PhraseConstituent>().ToTable("PhraseConstituent").HasKey(e => e.Id);

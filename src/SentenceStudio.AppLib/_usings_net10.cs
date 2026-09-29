@@ -1,4 +1,4 @@
-// Global usings for net10.0 build (unit testing only - no UI)
+// Common imports for the MAUI-free application library.
 global using System;
 global using System.Collections.Generic;
 global using System.IO;

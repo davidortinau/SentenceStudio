@@ -477,7 +477,7 @@ public class CoachNoticeReportServiceTests
     }
 
     /// <summary>
-    /// A reported notice's evidence is refused to another owner while cross-owner reveal is off.
+    /// A reported notice's evidence is never available to another owner.
     /// </summary>
     [Fact]
     public async Task AnotherOwnerCannotRevealAReportedNoticesEvidence()
@@ -502,7 +502,7 @@ public class CoachNoticeReportServiceTests
                 new CoachOpportunityEvidenceRequest(
                     CoachOpportunityLimits.EvidenceRevealAcknowledgement));
 
-        result.Status.Should().Be(CoachOpportunityOperatorStatus.CrossOwnerRefused);
+        result.Status.Should().Be(CoachOpportunityOperatorStatus.NotAvailable);
         result.Value.Should().BeNull("no learner text may leave the store on a refusal");
     }
 

@@ -2,6 +2,8 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using SentenceStudio.Api.Coach.Opportunities;
 using SentenceStudio.Api.Coach.Opportunities.Endpoints;
@@ -184,15 +186,15 @@ public class CoachOpportunityOperatorHttpTests
     }
 
     /// <summary>
-    /// The export carries counts and closed-vocabulary codes, never an owner.
+    /// The export carries only the authenticated owner's counts and closed-vocabulary codes.
     /// </summary>
     /// <remarks>
     /// Asserted against the bytes a caller can save to a file, because that is the artifact that
-    /// gets pasted into a spec. The two learners below produce one line with
-    /// <c>distinctLearners: 2</c> and no identifier anywhere in it.
+    /// gets pasted into a spec. The two learners below produce one owner-only line with
+    /// <c>distinctLearners: 1</c> and no identifier anywhere in it.
     /// </remarks>
     [Fact]
-    public async Task TheExportCountsLearnersWithoutNamingThem()
+    public async Task TheExportCountsOnlyTheCurrentOwnerWithoutNamingThem()
     {
         await using var factory = NewFactory();
         using var client = Authenticated(factory);
@@ -203,15 +205,131 @@ public class CoachOpportunityOperatorHttpTests
         using var response = await client.GetAsync($"{BasePath}/export");
         var body = await response.Content.ReadAsStringAsync();
 
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
         var lines = body.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        lines.Should().ContainSingle("both learners hit the same problem, so it is one line");
+        lines.Should().ContainSingle("one fingerprint still produces one owner-only line");
 
         using var line = JsonDocument.Parse(lines[0]);
-        line.RootElement.GetProperty("distinctLearners").GetInt32().Should().Be(2);
-        line.RootElement.GetProperty("rowCount").GetInt32().Should().Be(2);
+        line.RootElement.GetProperty("distinctLearners").GetInt32().Should().Be(1);
+        line.RootElement.GetProperty("rowCount").GetInt32().Should().Be(1);
 
         body.Should().NotContain(OperatorUser);
         body.Should().NotContain(OtherLearner);
+    }
+
+    [Theory]
+    [InlineData(OperatorUser, OtherLearner, 1, "New")]
+    [InlineData(OtherLearner, OperatorUser, 7, "Dismissed")]
+    public async Task TwoAuthorizedOwnersCannotReadCountReviewRevealOrExportEachOthersRows(
+        string currentOwner, string otherOwner, int occurrences, string status)
+    {
+        await using var factory = NewFactory();
+        using var client = Authenticated(factory, currentOwner);
+
+        var firstId = await SeedRowAsync(factory, OperatorUser);
+        var secondId = await SeedRowAsync(
+            factory, OtherLearner, CoachOpportunityStatus.Dismissed, occurrenceCount: 7);
+        var ownId = currentOwner == OperatorUser ? firstId : secondId;
+        var otherId = currentOwner == OperatorUser ? secondId : firstId;
+
+        using var list = await client.GetAsync($"{BasePath}/");
+        list.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var listed = JsonDocument.Parse(await list.Content.ReadAsStringAsync());
+        listed.RootElement.GetProperty("total").GetInt32().Should().Be(1);
+        listed.RootElement.GetProperty("items").EnumerateArray().Single()
+            .GetProperty("id").GetString().Should().Be(ownId);
+
+        using var rollup = await client.GetAsync($"{BasePath}/rollup");
+        rollup.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var counted = JsonDocument.Parse(await rollup.Content.ReadAsStringAsync());
+        var ownCount = counted.RootElement.EnumerateArray().Single();
+        ownCount.GetProperty("totalOccurrences").GetInt32().Should().Be(occurrences);
+        ownCount.GetProperty("rowCount").GetInt32().Should().Be(1);
+        ownCount.GetProperty("distinctLearners").GetInt32().Should().Be(1);
+        ownCount.GetProperty("statuses").EnumerateArray().Single()
+            .GetString().Should().Be(status);
+
+        using var own = await client.GetAsync($"{BasePath}/{ownId}");
+        own.StatusCode.Should().Be(HttpStatusCode.OK);
+        using var foreign = await client.GetAsync($"{BasePath}/{otherId}");
+        foreign.StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        using var refusedReview = await client.PostAsJsonAsync(
+            $"{BasePath}/{otherId}/review", new { status = "Accepted" });
+        refusedReview.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        using var refusedEvidence = await RevealAsync(client, otherId);
+        refusedEvidence.StatusCode.Should().Be(HttpStatusCode.NotFound);
+
+        using var export = await client.GetAsync($"{BasePath}/export");
+        export.StatusCode.Should().Be(HttpStatusCode.OK);
+        export.Content.Headers.ContentType!.MediaType.Should().Be("application/x-ndjson");
+        var body = await export.Content.ReadAsStringAsync();
+        var lines = body.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        lines.Should().ContainSingle();
+        using var exported = JsonDocument.Parse(lines[0]);
+        exported.RootElement.GetProperty("totalOccurrences").GetInt32().Should().Be(occurrences);
+        exported.RootElement.GetProperty("rowCount").GetInt32().Should().Be(1);
+        exported.RootElement.GetProperty("distinctLearners").GetInt32().Should().Be(1);
+        exported.RootElement.GetProperty("statuses").EnumerateArray().Single()
+            .GetString().Should().Be(status);
+        body.Should().NotContain(otherOwner);
+        body.Should().NotContain(otherId);
+        body.Should().NotContain("msg-1", "export contains no decrypted evidence or pointers");
+
+        using var attemptedSwitch = await client.GetAsync(
+            $"{BasePath}/export?userProfileId={Uri.EscapeDataString(otherOwner)}");
+        attemptedSwitch.StatusCode.Should().Be(HttpStatusCode.OK);
+        (await attemptedSwitch.Content.ReadAsStringAsync()).Should().Be(body,
+            "a caller-supplied owner identifier must not change the export");
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<CoachDbContext>();
+        var storedOther = await db.CoachOpportunities.AsNoTracking()
+            .SingleAsync(row => row.Id == otherId);
+        storedOther.UserProfileId.Should().Be(otherOwner);
+        storedOther.Status.Should().Be(otherOwner == OperatorUser
+            ? CoachOpportunityStatus.New
+            : CoachOpportunityStatus.Dismissed);
+        storedOther.EvidenceRevealCount.Should().Be(0);
+    }
+
+    [Fact]
+    public async Task AnonymousAndAuthenticatedWithoutAProfileCannotAccessAnyOperatorRoute()
+    {
+        await using var factory = NewFactory();
+        var id = await SeedRowAsync(factory, OperatorUser);
+
+        using var anonymous = factory.CreateClient();
+        using var noProfile = factory.CreateClient();
+        noProfile.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
+            "Bearer", TestJwtGenerator.GenerateToken());
+
+        foreach (var (client, refusal) in new[]
+                 {
+                     (anonymous, HttpStatusCode.Unauthorized),
+                     (noProfile, HttpStatusCode.NotFound)
+                 })
+        {
+            using var list = await client.GetAsync($"{BasePath}/");
+            using var rollup = await client.GetAsync($"{BasePath}/rollup");
+            using var export = await client.GetAsync($"{BasePath}/export");
+            using var detail = await client.GetAsync($"{BasePath}/{id}");
+            using var review = await client.PostAsJsonAsync(
+                $"{BasePath}/{id}/review", new { status = "Accepted" });
+            using var evidence = await RevealAsync(client, id);
+
+            foreach (var response in new[] { list, rollup, export, detail, review, evidence })
+            {
+                response.StatusCode.Should().Be(refusal);
+                (await response.Content.ReadAsStringAsync()).Should().NotContain("msg-1");
+            }
+        }
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<CoachDbContext>();
+        var unchanged = await db.CoachOpportunities.AsNoTracking().SingleAsync(row => row.Id == id);
+        unchanged.Status.Should().Be(CoachOpportunityStatus.New);
+        unchanged.EvidenceRevealCount.Should().Be(0);
     }
 
     // ---------------------------------------------------------------- transition refusal
@@ -253,19 +371,28 @@ public class CoachOpportunityOperatorHttpTests
     /// before the row is loaded, on purpose — does not mask the cross-owner gate these tests
     /// exist to exercise.
     /// </remarks>
-    private static CoachApiFactory NewFactory() => new()
+    private static TwoOwnerCoachApiFactory NewFactory() => new()
     {
         CoachEnabled = true,
         CohortUserProfileId = OperatorUser,
         DurableKeyRing = true
     };
 
-    private static HttpClient Authenticated(CoachApiFactory factory)
+    private static HttpClient Authenticated(CoachApiFactory factory, string ownerId = OperatorUser)
     {
         var client = factory.CreateClient();
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue(
-            "Bearer", TestJwtGenerator.GenerateToken(userProfileId: OperatorUser));
+            "Bearer", TestJwtGenerator.GenerateToken(userProfileId: ownerId));
         return client;
+    }
+
+    private sealed class TwoOwnerCoachApiFactory : CoachApiFactory
+    {
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            base.ConfigureWebHost(builder);
+            builder.UseSetting("Coach:AllowedUserProfileIds:1", OtherLearner);
+        }
     }
 
     private static Task<HttpResponseMessage> RevealAsync(HttpClient client, string id) =>
@@ -281,7 +408,11 @@ public class CoachOpportunityOperatorHttpTests
     /// from the ambient request scope, and these tests need a row owned by somebody other than
     /// the caller — which is the whole point of the cross-owner case.
     /// </remarks>
-    private static async Task<string> SeedRowAsync(CoachApiFactory factory, string userProfileId)
+    private static async Task<string> SeedRowAsync(
+        CoachApiFactory factory,
+        string userProfileId,
+        CoachOpportunityStatus status = CoachOpportunityStatus.New,
+        int occurrenceCount = 1)
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<CoachDbContext>();
@@ -310,10 +441,10 @@ public class CoachOpportunityOperatorHttpTests
                 CoachStopReason.ClarificationRequested,
                 CoachOpportunityOfferLink.PriorCoachQuestion),
             DedupBucketDate = DateOnly.FromDateTime(now),
-            OccurrenceCount = 1,
+            OccurrenceCount = occurrenceCount,
             FirstObservedAtUtc = now,
             LastObservedAtUtc = now,
-            Status = CoachOpportunityStatus.New,
+            Status = status,
             SchemaVersion = CoachOpportunityLimits.SchemaVersion
         };
 

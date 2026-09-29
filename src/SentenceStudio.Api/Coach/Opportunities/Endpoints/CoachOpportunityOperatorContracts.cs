@@ -151,12 +151,11 @@ public sealed record CoachOpportunityPageDto(
     int Take);
 
 /// <summary>
-/// One problem, aggregated across every learner who hit it.
+/// One problem, aggregated across the current owner's rows.
 /// </summary>
 /// <remarks>
-/// <b><see cref="DistinctLearners"/> is a count and never a list.</b> That is the whole design of
-/// this shape: the cross-learner view a reviewer needs is "how many people", and any response
-/// that answered "which people" would have turned a product rollup into a cross-tenant read.
+/// <b><see cref="DistinctLearners"/> is retained for wire compatibility.</b> With owner filtering
+/// before aggregation, this value is at most one and never includes another learner.
 /// </remarks>
 public sealed record CoachOpportunityRollupDto(
     string Fingerprint,
@@ -246,7 +245,7 @@ public enum CoachOpportunityEvidenceState
     /// </summary>
     Unavailable = 1,
 
-    /// <summary>The row carries no pointers, because it is an aggregate-only row.</summary>
+    /// <summary>This Product row has no evidence pointers to reveal.</summary>
     NotApplicable = 2
 }
 
@@ -256,6 +255,7 @@ public enum CoachOpportunityEvidenceState
 /// gates, a Product row, non-null pointers, the literal acknowledgement, a matching owner, and a
 /// durable key ring — and it increments a counter on the row it read.
 /// </remarks>
+/// <param name="CrossOwner">Retained for wire compatibility; always false for owner-only reveals.</param>
 public sealed record CoachOpportunityEvidenceResponse(
     string OpportunityId,
     CoachOpportunityEvidenceState EvidenceState,

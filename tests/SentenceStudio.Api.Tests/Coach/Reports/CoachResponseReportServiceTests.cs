@@ -543,7 +543,7 @@ public class CoachResponseReportServiceTests
 
         ledger.Should().HaveCount(2, "one row per learner, which is what the dedup key says");
         ledger.Select(row => row.Fingerprint).Distinct().Should().ContainSingle(
-            "the fingerprint answers 'which problem is this', so the cross-learner rollup still groups them");
+            "the fingerprint names the same problem, while operator rollups filter by owner");
     }
 
     // ---------------------------------------------------------------- erasure and retention

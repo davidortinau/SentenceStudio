@@ -22,7 +22,8 @@
 **Pitfalls:**
 - UserId must be GUID from `active_profile_id`, never `"1"`
 - Must call `CacheService.InvalidateVocabSummary()` after `RecordAttemptAsync`
-- Audio uses JS interop fallback on webapp; `WebAudioManagerProxy.CreatePlayer()` returns null
+- Audio uses JS interop on webapp; `WebAudioPlayerFactory.CanPlayLocally` is false and
+  `CreatePlayer()` throws if browser code incorrectly attempts server-side playback
 
 ### 1.2 Prompt-direction × modality acceptance matrix (Learning Value Gate)
 

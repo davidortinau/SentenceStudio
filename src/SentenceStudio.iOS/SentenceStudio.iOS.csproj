@@ -53,6 +53,7 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\SentenceStudio.AppLib\SentenceStudio.AppLib.csproj" />
+		<ProjectReference Include="..\SentenceStudio.MauiCompatibility\SentenceStudio.MauiCompatibility.csproj" />
 		<ProjectReference Include="..\SentenceStudio.UI\SentenceStudio.UI.csproj" />
 		<ProjectReference Include="..\SentenceStudio.MauiServiceDefaults\SentenceStudio.MauiServiceDefaults.csproj" />
 		<ProjectReference Include="..\SentenceStudio.ShareExtension\SentenceStudio.ShareExtension.csproj">
@@ -61,13 +62,4 @@
 		</ProjectReference>
 	</ItemGroup>
 
-	<!--
-	  HelpKit integration (Plugin.Maui.HelpKit). Library now multi-targets
-	  net10.0-* during incubation, so this reference is no longer
-	  TFM-gated. See .squad/decisions/inbox/zoe-helpkit-multitarget.md.
-	-->
-	<ItemGroup>
-		<ProjectReference Include="..\..\lib\Plugin.Maui.HelpKit\src\Plugin.Maui.HelpKit\Plugin.Maui.HelpKit.csproj" />
-		<Compile Include="..\Shared\HelpKitIntegration.cs" Link="Setup\HelpKitIntegration.cs" />
-	</ItemGroup>
 </Project>

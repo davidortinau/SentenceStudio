@@ -22,6 +22,16 @@ public interface ISyncService
     void BeginInitialSync();
 }
 
+/// <summary>
+/// Unlike the best-effort <see cref="ISyncService.TriggerSyncAsync"/>, this operation
+/// waits for its own CoreSync run and propagates failures. It is only the sync half
+/// of readiness: callers must separately verify the authenticated remote owner.
+/// </summary>
+public interface IRemoteSyncCompletion
+{
+    Task SynchronizeForReadinessAsync(CancellationToken cancellationToken);
+}
+
 public class NoOpSyncService : ISyncService
 {
     public Task InitializeDatabaseAsync() => Task.CompletedTask;
@@ -31,7 +41,7 @@ public class NoOpSyncService : ISyncService
     public void BeginInitialSync() { /* intentionally empty — no sync occurs in webapp */ }
 }
 
-public class SyncService : ISyncService
+public class SyncService : ISyncService, IRemoteSyncCompletion
 {
     private readonly ISyncProvider _localSyncProvider;
     private readonly ISyncProviderHttpClient _remoteSyncProvider;
@@ -301,33 +311,7 @@ public class SyncService : ISyncService
 
         try
         {
-            await _localSyncProvider.ApplyProvisionAsync();
-            
-            var syncAgent = new SyncAgent(_localSyncProvider, _remoteSyncProvider);
-            
-            // With GUID PKs, INSERT conflicts only occur for truly duplicate records.
-            // Skip INSERT conflicts (same record already exists), ForceWrite for UPDATE/DELETE.
-            await syncAgent.SynchronizeAsync(
-                remoteConflictResolutionFunc: item =>
-                {
-                    if (item.ChangeType == ChangeType.Insert)
-                    {
-                        _logger.LogDebug("Sync: INSERT conflict on remote for {Table} PK={PK}, skipping (already exists)",
-                            item.TableName, GetPkFromItem(item));
-                        return ConflictResolution.Skip;
-                    }
-                    return ConflictResolution.ForceWrite;
-                },
-                localConflictResolutionFunc: item =>
-                {
-                    if (item.ChangeType == ChangeType.Insert)
-                    {
-                        _logger.LogDebug("Sync: INSERT conflict on local for {Table} PK={PK}, skipping (already exists)",
-                            item.TableName, GetPkFromItem(item));
-                        return ConflictResolution.Skip;
-                    }
-                    return ConflictResolution.ForceWrite;
-                });
+            await SynchronizeCoreAsync(CancellationToken.None);
             
             _logger.LogInformation("Sync completed successfully");
             
@@ -353,6 +337,56 @@ public class SyncService : ISyncService
         {
             _syncSemaphore.Release();
         }
+    }
+
+    public async Task SynchronizeForReadinessAsync(CancellationToken cancellationToken)
+    {
+        // Unlike TriggerSyncAsync's best-effort 100 ms gate, wait for an actual
+        // run of our own. A concurrent legacy trigger completing is not our receipt.
+        await _syncSemaphore.WaitAsync(cancellationToken);
+        try
+        {
+            await SynchronizeCoreAsync(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            _logger.LogInformation("CoreSync readiness synchronization completed");
+        }
+        finally
+        {
+            _syncSemaphore.Release();
+        }
+    }
+
+    private async Task SynchronizeCoreAsync(CancellationToken cancellationToken)
+    {
+        await _localSyncProvider.ApplyProvisionAsync(cancellationToken);
+
+        var syncAgent = new SyncAgent(_localSyncProvider, _remoteSyncProvider);
+
+        // With GUID PKs, INSERT conflicts only occur for truly duplicate records.
+        // Skip INSERT conflicts (same record already exists), ForceWrite for UPDATE/DELETE.
+        await syncAgent.SynchronizeAsync(
+            remoteConflictResolutionFunc: item =>
+            {
+                if (item.ChangeType == ChangeType.Insert)
+                {
+                    _logger.LogDebug("Sync: INSERT conflict on remote for {Table} PK={PK}, skipping (already exists)",
+                        item.TableName, GetPkFromItem(item));
+                    return ConflictResolution.Skip;
+                }
+                return ConflictResolution.ForceWrite;
+            },
+            localConflictResolutionFunc: item =>
+            {
+                if (item.ChangeType == ChangeType.Insert)
+                {
+                    _logger.LogDebug("Sync: INSERT conflict on local for {Table} PK={PK}, skipping (already exists)",
+                        item.TableName, GetPkFromItem(item));
+                    return ConflictResolution.Skip;
+                }
+                return ConflictResolution.ForceWrite;
+            },
+            cancellationToken: cancellationToken);
+        cancellationToken.ThrowIfCancellationRequested();
     }
 
     private static string GetPkFromItem(SyncItem item)

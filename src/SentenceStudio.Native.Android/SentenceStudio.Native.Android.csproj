@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net11.0-android</TargetFramework>
+    <SupportedOSPlatformVersion>36</SupportedOSPlatformVersion>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationId Condition="'$(Configuration)' == 'Debug'">com.simplyprofound.sentencestudio.compose.debug</ApplicationId>
+    <ApplicationId Condition="'$(Configuration)' == 'Release'">com.simplyprofound.sentencestudio</ApplicationId>
+    <ApplicationTitle Condition="'$(Configuration)' == 'Debug'">SentenceStudio Native Debug</ApplicationTitle>
+    <ApplicationTitle Condition="'$(Configuration)' == 'Release'">SentenceStudio</ApplicationTitle>
+    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationDisplayVersion>0.1</ApplicationDisplayVersion>
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+    <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
+    <DefaultItemExcludes>$(DefaultItemExcludes);AilohaBinding/**</DefaultItemExcludes>
+    <AndroidManifest>Properties/AndroidManifest.$(Configuration).xml</AndroidManifest>
+    <AndroidLinkTool Condition="'$(Configuration)' == 'Release'">r8</AndroidLinkTool>
+    <RestoreConfigFile>$(MSBuildProjectDirectory)/NuGet.Sources.config</RestoreConfigFile>
+    <NativeAndroidApiUrl Condition="'$(NativeAndroidApiUrl)' == '' and '$(Configuration)' == 'Debug'">http://10.0.2.2:5081/</NativeAndroidApiUrl>
+  </PropertyGroup>
+  <ItemGroup>
+    <AndroidResource Remove="Resources/xml/native_network_security_config.xml"
+                     Condition="'$(Configuration)' == 'Release'" />
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>SentenceStudioNativeApiUrl</_Parameter1>
+      <_Parameter2>$(NativeAndroidApiUrl)</_Parameter2>
+    </AssemblyAttribute>
+    <Compile Remove="AilohaBinding/**/*.cs" />
+    <PackageReference Include="Microsoft.AndroidX.Compose" />
+    <PackageReference Include="Microsoft.Extensions.Http" />
+    <ProjectReference Include="../SentenceStudio.Native/SentenceStudio.Native.csproj" />
+    <ProjectReference Include="AilohaBinding/Ailoha.Android.Binding.csproj"
+                      Condition="'$(Configuration)' == 'Debug'" />
+  </ItemGroup>
+  <Target Name="RequireNativeReleaseApiUrl"
+          BeforeTargets="CoreCompile"
+          Condition="'$(Configuration)' == 'Release'">
+    <Error Condition="'$(NativeAndroidApiUrl)' == ''"
+           Text="Native Release requires -p:NativeAndroidApiUrl=&lt;approved HTTPS API root&gt;." />
+  </Target>
+</Project>

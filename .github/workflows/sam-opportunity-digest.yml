@@ -77,11 +77,15 @@ jobs:
 
       - name: Disable dev-only local NuGet source
         if: steps.prereq.outputs.configured == 'true'
-        run: dotnet nuget disable source localnugets --configfile src/NuGet.config || true
+        run: dotnet nuget disable source localnugets --configfile src/NuGet.config
+
+      - name: Restore with repository-local CoreSync feed
+        if: steps.prereq.outputs.configured == 'true'
+        run: dotnet restore tools/SamOpportunityDigest/SamOpportunityDigest.csproj --configfile src/NuGet.config -p:IncludeMobileTargets=false -p:Configuration=Release
 
       - name: Build the digest tool
         if: steps.prereq.outputs.configured == 'true'
-        run: dotnet build tools/SamOpportunityDigest/SamOpportunityDigest.csproj --configuration Release
+        run: dotnet build tools/SamOpportunityDigest/SamOpportunityDigest.csproj --no-restore --configuration Release -p:IncludeMobileTargets=false
 
       - name: Validate the requested window
         id: window

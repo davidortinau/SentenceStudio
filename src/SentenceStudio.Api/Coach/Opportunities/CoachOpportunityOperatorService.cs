@@ -26,14 +26,10 @@ public enum CoachOpportunityOperatorStatus
     /// <summary>The request body was missing, malformed, or failed a bound.</summary>
     InvalidRequest = 2,
 
-    /// <summary>The reveal was refused because the row belongs to another learner.</summary>
-    /// <remarks>
-    /// Answered to the caller as a <b>404, not a 403</b>, exactly like
-    /// <see cref="NotAvailable"/>. A 403 here would confirm that this identifier names a real row
-    /// owned by somebody else, which is the existence oracle every other refusal on this surface
-    /// is shaped to avoid. The distinct member survives so the service can log the cross-owner
-    /// case for what it is; only the wire representation is collapsed.
-    /// </remarks>
+    /// <summary>
+    /// Legacy status retained for enum compatibility. Foreign rows now return
+    /// <see cref="NotAvailable"/> directly, before any row can be read.
+    /// </summary>
     CrossOwnerRefused = 3,
 
     /// <summary>
@@ -70,15 +66,13 @@ public readonly record struct CoachOpportunityOperatorResult<T>(
 /// </summary>
 /// <remarks>
 /// <para>
-/// Every read on this service is either <b>owner-scoped</b> or a <b>content-free aggregate</b>.
-/// The rollup groups by fingerprint and returns <c>COUNT(DISTINCT UserProfileId)</c> — a number,
-/// never an identifier — so a reviewer can see that three learners hit the same gap without the
-/// surface ever being able to say which three.
+/// Every read and write is scoped to the authenticated caller's profile before a database query
+/// executes. Even content-free aggregates and status summaries contain only that owner's rows.
 /// </para>
 /// <para>
 /// The gates are enforced by the endpoint layer (route mapping, environment, flag, cohort) and by
-/// this service (owner match, acknowledgement literal, key-ring durability). Both halves fail
-/// closed and neither is sufficient alone.
+/// this service (trusted owner scope, acknowledgement literal, key-ring durability). Both halves
+/// fail closed and neither is sufficient alone.
 /// </para>
 /// </remarks>
 public sealed class CoachOpportunityOperatorService
@@ -121,15 +115,21 @@ public sealed class CoachOpportunityOperatorService
     /// a screen that can decrypt learner messages. Being in the cohort has to be a deliberate
     /// entry in <c>Coach:AllowedUserProfileIds</c>.
     /// </remarks>
-    public bool IsCallerAuthorized()
+    public bool IsCallerAuthorized() => TryGetAuthorizedOwner(out _);
+
+    private bool TryGetAuthorizedOwner(out string userProfileId)
     {
-        if (!_options.CurrentValue.OperatorSurface.Enabled)
+        if (!_userScope.TryGetUserProfileId(out userProfileId)
+            || string.IsNullOrWhiteSpace(userProfileId))
         {
+            _logger.LogWarning(
+                "[Coach] Opportunity operator request has no active user profile id; refusing.");
+            userProfileId = string.Empty;
             return false;
         }
 
-        if (!_userScope.TryGetUserProfileId(out var userProfileId)
-            || string.IsNullOrWhiteSpace(userProfileId))
+        userProfileId = userProfileId.Trim();
+        if (!_options.CurrentValue.OperatorSurface.Enabled)
         {
             return false;
         }
@@ -162,7 +162,7 @@ public sealed class CoachOpportunityOperatorService
         CancellationToken cancellationToken = default,
         CoachGroundingReportFilter groundingFilter = default)
     {
-        if (!IsCallerAuthorized())
+        if (!TryGetAuthorizedOwner(out var ownerId))
         {
             return CoachOpportunityOperatorResult<CoachOpportunityPageDto>.Fail(
                 CoachOpportunityOperatorStatus.NotAvailable);
@@ -185,7 +185,8 @@ public sealed class CoachOpportunityOperatorService
 
         var query = _db.CoachOpportunities
             .AsNoTracking()
-            .Where(row => row.Disposition == CoachOpportunityDisposition.Product);
+            .Where(row => row.UserProfileId == ownerId
+                && row.Disposition == CoachOpportunityDisposition.Product);
 
         if (status is { } statusValue)
         {
@@ -217,7 +218,9 @@ public sealed class CoachOpportunityOperatorService
             // closed and an arbitrary string never reaches a WHERE clause. A row with no reports
             // never matches — which is the fail-closed reading and, deliberately, exactly what a
             // row whose reports do not match looks like from outside.
-            var reports = _db.CoachResponseReports.AsNoTracking();
+            var reports = _db.CoachResponseReports
+                .AsNoTracking()
+                .Where(report => report.UserProfileId == ownerId);
 
             if (groundingFilter.Stage is { } stage)
             {
@@ -269,24 +272,25 @@ public sealed class CoachOpportunityOperatorService
     }
 
     /// <summary>
-    /// The safe cross-learner aggregate: one line per problem, counts only.
+    /// One line per problem for the current owner, counts only.
     /// </summary>
     /// <remarks>
     /// Includes aggregate-only rows, because this is where their signal belongs. The projection
-    /// contains no owner identifier of any kind — <c>DistinctLearners</c> is the only trace of
-    /// who was affected, and it is a number.
+    /// retains its existing shape, but <c>DistinctLearners</c> can only count the current owner.
     /// </remarks>
     public async Task<CoachOpportunityOperatorResult<IReadOnlyList<CoachOpportunityRollupDto>>> RollupAsync(
         DateTime? since,
         CancellationToken cancellationToken = default)
     {
-        if (!IsCallerAuthorized())
+        if (!TryGetAuthorizedOwner(out var ownerId))
         {
             return CoachOpportunityOperatorResult<IReadOnlyList<CoachOpportunityRollupDto>>.Fail(
                 CoachOpportunityOperatorStatus.NotAvailable);
         }
 
-        var query = _db.CoachOpportunities.AsNoTracking();
+        var query = _db.CoachOpportunities
+            .AsNoTracking()
+            .Where(row => row.UserProfileId == ownerId);
 
         if (since is { } sinceValue)
         {
@@ -320,9 +324,7 @@ public sealed class CoachOpportunityOperatorService
 
         var fingerprints = grouped.Select(group => group.Key.Fingerprint).ToList();
 
-        // Statuses are read separately and reduced to a distinct set. A rollup line spans several
-        // learners, so "what has been decided about this problem" is a set of statuses rather
-        // than one, and the set carries no owner.
+        // Statuses are read separately and reduced to a distinct set for the same owner.
         //
         // The same `since` bound is applied here as above, and that is not incidental: without it
         // this query reads every row that ever carried the fingerprint, so a rollup windowed to
@@ -332,7 +334,8 @@ public sealed class CoachOpportunityOperatorService
         // inverts the decision the window was opened to support.
         var statusQuery = _db.CoachOpportunities
             .AsNoTracking()
-            .Where(row => fingerprints.Contains(row.Fingerprint));
+            .Where(row => row.UserProfileId == ownerId
+                && fingerprints.Contains(row.Fingerprint));
 
         if (since is { } statusSince)
         {
@@ -377,7 +380,7 @@ public sealed class CoachOpportunityOperatorService
         string id,
         CancellationToken cancellationToken = default)
     {
-        if (!IsCallerAuthorized())
+        if (!TryGetAuthorizedOwner(out var ownerId))
         {
             return CoachOpportunityOperatorResult<CoachOpportunityRowDto>.Fail(
                 CoachOpportunityOperatorStatus.NotAvailable);
@@ -385,7 +388,8 @@ public sealed class CoachOpportunityOperatorService
 
         var row = await _db.CoachOpportunities
             .AsNoTracking()
-            .FirstOrDefaultAsync(entity => entity.Id == id, cancellationToken)
+            .FirstOrDefaultAsync(entity => entity.UserProfileId == ownerId && entity.Id == id,
+                cancellationToken)
             .ConfigureAwait(false);
 
         if (row is null)
@@ -438,7 +442,8 @@ public sealed class CoachOpportunityOperatorService
     {
         var linked = _db.CoachResponseReports
             .AsNoTracking()
-            .Where(entity => entity.OpportunityId == row.Id);
+            .Where(entity => entity.UserProfileId == row.UserProfileId
+                && entity.OpportunityId == row.Id);
 
         // Counts and closed reason codes. Grouped in the database so a row that somehow collected
         // an unbounded number of reports still costs one small result set to summarise.
@@ -614,7 +619,7 @@ public sealed class CoachOpportunityOperatorService
         CoachOpportunityReviewRequest? request,
         CancellationToken cancellationToken = default)
     {
-        if (!IsCallerAuthorized())
+        if (!TryGetAuthorizedOwner(out var ownerId))
         {
             return CoachOpportunityOperatorResult<CoachOpportunityReviewResponse>.Fail(
                 CoachOpportunityOperatorStatus.NotAvailable);
@@ -630,7 +635,8 @@ public sealed class CoachOpportunityOperatorService
         }
 
         var row = await _db.CoachOpportunities
-            .FirstOrDefaultAsync(entity => entity.Id == id, cancellationToken)
+            .FirstOrDefaultAsync(entity => entity.UserProfileId == ownerId && entity.Id == id,
+                cancellationToken)
             .ConfigureAwait(false);
 
         if (row is null)
@@ -684,7 +690,8 @@ public sealed class CoachOpportunityOperatorService
                 CoachOpportunityOperatorStatus.InvalidRequest);
         }
 
-        var rollup = await SummarizeAsync(row.Fingerprint, cancellationToken).ConfigureAwait(false);
+        var rollup = await SummarizeAsync(row.Fingerprint, ownerId, cancellationToken)
+            .ConfigureAwait(false);
 
         return CoachOpportunityOperatorResult<CoachOpportunityReviewResponse>.Ok(
             new CoachOpportunityReviewResponse(
@@ -697,10 +704,9 @@ public sealed class CoachOpportunityOperatorService
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The only path on this surface that returns learner text, and it is guarded six ways: the
-    /// four surface gates, a Product disposition, non-null pointers, the literal acknowledgement,
-    /// an owner match (unless the Development-only cross-owner switch is on), and a durable key
-    /// ring.
+    /// The only path on this surface that returns learner text: the surface gates, Product
+    /// disposition, non-null pointers, literal acknowledgement, database-filtered owner match,
+    /// and durable key ring must all pass.
     /// </para>
     /// <para>
     /// <b>The key-ring refusal is not pedantry.</b> Decrypting history against an ephemeral ring
@@ -718,7 +724,7 @@ public sealed class CoachOpportunityOperatorService
         CoachOpportunityEvidenceRequest? request,
         CancellationToken cancellationToken = default)
     {
-        if (!IsCallerAuthorized())
+        if (!TryGetAuthorizedOwner(out var ownerId))
         {
             return CoachOpportunityOperatorResult<CoachOpportunityEvidenceResponse>.Fail(
                 CoachOpportunityOperatorStatus.NotAvailable);
@@ -748,28 +754,15 @@ public sealed class CoachOpportunityOperatorService
         }
 
         var row = await _db.CoachOpportunities
-            .FirstOrDefaultAsync(entity => entity.Id == id, cancellationToken)
+            .FirstOrDefaultAsync(entity => entity.UserProfileId == ownerId
+                && entity.Id == id
+                && entity.Disposition == CoachOpportunityDisposition.Product, cancellationToken)
             .ConfigureAwait(false);
 
-        if (row is null || row.Disposition != CoachOpportunityDisposition.Product)
+        if (row is null)
         {
             return CoachOpportunityOperatorResult<CoachOpportunityEvidenceResponse>.Fail(
                 CoachOpportunityOperatorStatus.NotAvailable);
-        }
-
-        _userScope.TryGetUserProfileId(out var callerId);
-        var crossOwner = !string.Equals(callerId, row.UserProfileId, StringComparison.Ordinal);
-
-        if (crossOwner && !_options.CurrentValue.OperatorSurface.AllowCrossOwnerEvidence)
-        {
-            _logger.LogWarning(
-                "[Coach] A cross-owner opportunity evidence reveal was refused. Kind={Kind} " +
-                "Capability={CapabilityCode}",
-                row.Kind,
-                row.CapabilityCode);
-
-            return CoachOpportunityOperatorResult<CoachOpportunityEvidenceResponse>.Fail(
-                CoachOpportunityOperatorStatus.CrossOwnerRefused);
         }
 
         if (string.IsNullOrWhiteSpace(row.ConversationId)
@@ -778,11 +771,12 @@ public sealed class CoachOpportunityOperatorService
         {
             return CoachOpportunityOperatorResult<CoachOpportunityEvidenceResponse>.Ok(
                 new CoachOpportunityEvidenceResponse(
-                    row.Id, CoachOpportunityEvidenceState.NotApplicable, null, null, crossOwner,
+                    row.Id, CoachOpportunityEvidenceState.NotApplicable, null, null, false,
                     row.EvidenceRevealCount));
         }
 
-        var (learnerText, coachText) = await ResolveAsync(row, cancellationToken).ConfigureAwait(false);
+        var (learnerText, coachText) = await ResolveAsync(row, ownerId, cancellationToken)
+            .ConfigureAwait(false);
         var state = learnerText is null && coachText is null
             ? CoachOpportunityEvidenceState.Unavailable
             : CoachOpportunityEvidenceState.Available;
@@ -803,35 +797,34 @@ public sealed class CoachOpportunityOperatorService
             _db.ChangeTracker.Clear();
             _logger.LogWarning(
                 "[Coach] An opportunity evidence reveal could not record its own audit counter. " +
-                "OpportunityId={OpportunityId} CrossOwner={CrossOwner}",
-                row.Id,
-                crossOwner);
+                "OpportunityId={OpportunityId}",
+                row.Id);
         }
 
         // Content-free. The counter is on the row that was read, so the audit and the thing
         // audited cannot drift apart, and no learner text reaches the log.
         _logger.LogInformation(
             "[Coach] Opportunity evidence revealed. OpportunityId={OpportunityId} Kind={Kind} " +
-            "CrossOwner={CrossOwner} RevealCount={RevealCount} State={EvidenceState}",
+            "RevealCount={RevealCount} State={EvidenceState}",
             row.Id,
             row.Kind,
-            crossOwner,
             row.EvidenceRevealCount,
             state);
 
         return CoachOpportunityOperatorResult<CoachOpportunityEvidenceResponse>.Ok(
             new CoachOpportunityEvidenceResponse(
-                row.Id, state, learnerText, coachText, crossOwner, row.EvidenceRevealCount));
+                row.Id, state, learnerText, coachText, false, row.EvidenceRevealCount));
     }
 
     /// <summary>The rollup line for one fingerprint, used to render a decision record.</summary>
     private async Task<CoachOpportunityRollupDto?> SummarizeAsync(
         string fingerprint,
+        string ownerId,
         CancellationToken cancellationToken)
     {
         var rows = await _db.CoachOpportunities
             .AsNoTracking()
-            .Where(row => row.Fingerprint == fingerprint)
+            .Where(row => row.UserProfileId == ownerId && row.Fingerprint == fingerprint)
             .Select(row => new
             {
                 row.UserProfileId,
@@ -876,20 +869,21 @@ public sealed class CoachOpportunityOperatorService
     /// Reads the two pointed-at messages through the owner-scoped, encrypted message store.
     /// </summary>
     /// <remarks>
-    /// The owner is built from the <b>row's</b> <c>UserProfileId</c>, so the content protector's
-    /// purpose chain does the enforcement rather than this method's own filter. A pointer copied
-    /// onto another row simply fails to decrypt.
+    /// The row is filtered by the trusted caller's owner id before reaching this method; the
+    /// encrypted message store independently scopes the pointer by that same owner.
     /// </remarks>
     private async Task<(string? LearnerText, string? CoachText)> ResolveAsync(
         CoachOpportunity row,
+        string ownerId,
         CancellationToken cancellationToken)
     {
-        if (_messages is null || string.IsNullOrWhiteSpace(row.ConversationId))
+        if (_messages is null || string.IsNullOrWhiteSpace(row.ConversationId)
+            || !string.Equals(row.UserProfileId, ownerId, StringComparison.Ordinal))
         {
             return (null, null);
         }
 
-        if (!CoachOwner.TryCreate(row.UserProfileId, row.TenantId, out var owner))
+        if (!CoachOwner.TryCreate(ownerId, row.TenantId, out var owner))
         {
             return (null, null);
         }

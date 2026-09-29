@@ -17,7 +17,7 @@ namespace SentenceStudio.Shared.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.9")
+                .HasAnnotation("ProductVersion", "10.0.11")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -1066,6 +1066,12 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<int>("EstimatedMinutes")
                         .HasColumnType("integer");
 
+                    b.Property<bool>("IsArchived")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false);
+
                     b.Property<bool>("IsCompleted")
                         .HasColumnType("boolean");
 
@@ -1106,7 +1112,8 @@ namespace SentenceStudio.Shared.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("UserProfileId", "Date", "PlanItemId")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("\"IsArchived\" = FALSE");
 
                     b.ToTable("DailyPlanCompletion", (string)null);
                 });
@@ -1920,10 +1927,15 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("UserProfileId")
+                        .HasColumnType("text");
+
                     b.Property<string>("VoiceId")
                         .HasColumnType("text");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("UserProfileId", "CreatedAt");
 
                     b.ToTable("StreamHistory", (string)null);
                 });

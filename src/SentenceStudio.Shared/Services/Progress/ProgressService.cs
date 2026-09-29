@@ -511,6 +511,35 @@ public class ProgressService : IProgressService
 
         _logger.LogDebug("✅ Cache date matches - enriching with latest completion data");
 
+        var userProfile = await _userProfileRepo.GetAsync();
+        if (userProfile is null)
+        {
+            _logger.LogWarning("Cannot hydrate the cached plan without an active user profile.");
+            return null;
+        }
+
+        using (var scope = _serviceProvider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var activeIds = await db.DailyPlanCompletions.AsNoTracking()
+                .Where(row => row.UserProfileId == userProfile.Id
+                    && row.Date == resolvedDate.Date
+                    && !row.IsArchived
+                    && !row.PlanItemId.StartsWith("adhoc-"))
+                .Select(row => row.PlanItemId)
+                .ToListAsync(ct);
+
+            if (!cachedPlan.Items.Select(item => item.Id)
+                    .ToHashSet(StringComparer.Ordinal).SetEquals(activeIds))
+            {
+                _cache.InvalidateTodaysPlan(resolvedDate);
+                _logger.LogInformation("Cached plan membership changed; reloading active items.");
+                cachedPlan = await ReconstructPlanFromDatabase(resolvedDate, ct);
+                if (cachedPlan is null)
+                    return null;
+            }
+        }
+
         // Enrich with latest completion data from database
         var enrichedPlan = await EnrichPlanWithCompletionDataAsync(cachedPlan, ct);
 
@@ -542,24 +571,35 @@ public class ProgressService : IProgressService
         _cache.InvalidateTodaysPlan(resolvedDate);
         _logger.LogDebug("✅ Cleared memory cache");
 
-        // CRITICAL: Also delete database records to prevent reconstruction
-        // Without this, GetCachedPlanAsync will reconstruct from database and never call LLM
+        // Move the active plan out of current view without deleting history.
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        var completionsToDelete = await db.DailyPlanCompletions
-            .Where(c => c.Date == resolvedDate.Date && c.UserProfileId == userProfile.Id)
+        var plan = await db.DailyPlans
+            .FirstOrDefaultAsync(p => p.Date == resolvedDate.Date && p.UserProfileId == userProfile.Id, ct);
+        var activeCompletions = await db.DailyPlanCompletions
+            .Where(c => c.Date == resolvedDate.Date
+                && c.UserProfileId == userProfile.Id
+                && !c.IsArchived)
             .ToListAsync(ct);
 
-        if (completionsToDelete.Any())
+        if (plan is not null)
+            db.DailyPlans.Remove(plan);
+        foreach (var completion in activeCompletions)
         {
-            db.DailyPlanCompletions.RemoveRange(completionsToDelete);
-            await db.SaveChangesAsync(ct);
-            if (_syncService != null) await _syncService.TriggerSyncAsync();
-            _logger.LogDebug("🗑️ Deleted {Count} DailyPlanCompletion records from database", completionsToDelete.Count);
+            completion.IsArchived = true;
+            completion.UpdatedAt = DateTime.UtcNow;
         }
 
-        _logger.LogDebug("✅ Cache and database cleared - next GenerateTodaysPlanAsync will create fresh plan from LLM");
+        if (plan is not null || activeCompletions.Count > 0)
+        {
+            await db.SaveChangesAsync(ct);
+            if (_syncService != null) await _syncService.TriggerSyncAsync();
+            _logger.LogInformation("Cleared the active plan and archived {Count} completion rows.",
+                activeCompletions.Count);
+        }
+
+        _logger.LogDebug("Cache and active plan cleared for regeneration.");
     }
 
     public async Task MarkPlanItemCompleteAsync(string planItemId, int minutesSpent, CancellationToken ct = default)
@@ -578,7 +618,7 @@ public class ProgressService : IProgressService
         var today = ResolveTodayKey();
         _logger.LogDebug("📅 Plan-today key: {Today:yyyy-MM-dd}", today);
 
-        var plan = _cache.GetTodaysPlan(today);
+        var plan = await GetCachedPlanAsync(today, ct);
 
         if (plan == null)
         {
@@ -612,7 +652,8 @@ public class ProgressService : IProgressService
 
         // Check if record already exists
         var existing = await db.DailyPlanCompletions
-            .FirstOrDefaultAsync(c => c.Date == today && c.PlanItemId == planItemId && c.UserProfileId == userProfile.Id, ct);
+            .FirstOrDefaultAsync(c => c.Date == today && c.PlanItemId == planItemId
+                && c.UserProfileId == userProfile.Id && !c.IsArchived, ct);
 
         if (existing != null)
         {
@@ -627,6 +668,15 @@ public class ProgressService : IProgressService
         }
         else
         {
+            if (await db.DailyPlanCompletions.AsNoTracking().AnyAsync(c =>
+                    c.Date == today && c.PlanItemId == planItemId
+                    && c.UserProfileId == userProfile.Id && c.IsArchived, ct))
+            {
+                _cache.InvalidateTodaysPlan(today);
+                _logger.LogWarning("Refused progress for a displaced plan item.");
+                return;
+            }
+
             _logger.LogDebug("💾 Creating new completion record in database");
             var completion = new DailyPlanCompletion
             {
@@ -747,6 +797,7 @@ public class ProgressService : IProgressService
                 row.UserProfileId == normalizedUserId
                 && row.Date == today
                 && row.PlanItemId == normalizedPlanItemId
+                && !row.IsArchived
                 && !row.PlanItemId.StartsWith("adhoc-"), ct);
         if (completion is null
             || !string.Equals(completion.ActivityType, expectedActivityType.ToString(), StringComparison.Ordinal)
@@ -816,7 +867,8 @@ public class ProgressService : IProgressService
             .SingleOrDefaultAsync(row =>
                 row.Date == today
                 && row.PlanItemId == normalizedPlanItemId
-                && row.UserProfileId == normalizedUserId, ct);
+                && row.UserProfileId == normalizedUserId
+                && !row.IsArchived, ct);
         if (existing is null)
         {
             _logger.LogWarning("Explicit-user plan progress update refused a missing current-plan item.");
@@ -858,7 +910,8 @@ public class ProgressService : IProgressService
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         var existing = await db.DailyPlanCompletions
-            .FirstOrDefaultAsync(c => c.Date == today && c.PlanItemId == planItemId && c.UserProfileId == userProfile.Id, ct);
+            .FirstOrDefaultAsync(c => c.Date == today && c.PlanItemId == planItemId
+                && c.UserProfileId == userProfile.Id && !c.IsArchived, ct);
 
         if (existing != null)
         {
@@ -881,6 +934,15 @@ public class ProgressService : IProgressService
         }
         else
         {
+            if (await db.DailyPlanCompletions.AsNoTracking().AnyAsync(c =>
+                    c.Date == today && c.PlanItemId == planItemId
+                    && c.UserProfileId == userProfile.Id && c.IsArchived, ct))
+            {
+                _cache.InvalidateTodaysPlan(today);
+                _logger.LogWarning("Refused progress for a displaced plan item.");
+                return;
+            }
+
             _logger.LogDebug("⚠️ No DailyPlanCompletion record found for planItemId='{PlanItemId}' on {Today:yyyy-MM-dd} — creating one", planItemId, today);
 
             // Create a new record from cached plan data to prevent data loss
@@ -1115,6 +1177,7 @@ public class ProgressService : IProgressService
                 row.UserProfileId == normalizedUserId
                 && row.Date == today
                 && row.PlanItemId == normalizedPlanItemId
+                && !row.IsArchived
                 && row.MinutesSpent == 0
                 && !row.IsCompleted, ct);
         if (completion is null)
@@ -1209,7 +1272,9 @@ public class ProgressService : IProgressService
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
         var completions = await db.DailyPlanCompletions
-            .Where(c => c.Date == plan.GeneratedForDate.Date && c.UserProfileId == userProfile.Id)
+            .Where(c => c.Date == plan.GeneratedForDate.Date
+                && c.UserProfileId == userProfile.Id
+                && !c.IsArchived)
             .ToListAsync(ct);
 
         _logger.LogDebug("📊 Found {Count} completion records", completions.Count);
@@ -1697,7 +1762,9 @@ public class ProgressService : IProgressService
         {
             // Check if record already exists
             var existing = await db.DailyPlanCompletions
-                .FirstOrDefaultAsync(c => c.Date == plan.GeneratedForDate.Date && c.PlanItemId == item.Id && c.UserProfileId == userProfile.Id, ct);
+                .FirstOrDefaultAsync(c => c.Date == plan.GeneratedForDate.Date
+                    && c.PlanItemId == item.Id && c.UserProfileId == userProfile.Id
+                    && !c.IsArchived, ct);
 
             // Serialize narrative to JSON once per loop
             string? narrativeJson = null;
@@ -1753,25 +1820,25 @@ public class ProgressService : IProgressService
             }
         }
 
-        // Orphan cleanup: remove completion rows for PlanItemIds no longer in today's plan,
-        // BUT only when they have zero user progress (MinutesSpent=0 AND !IsCompleted).
-        // This eliminates leftover rows from a prior plan-gen pass without ever destroying
-        // user work. Adhoc rows (PlanItemId starts with "adhoc-") are out of scope — those
-        // are manual additions and should never be auto-removed.
+        // Displaced plan items, including untouched ones, remain in activity
+        // history. Ad-hoc sessions are independent and stay untouched.
         var currentPlanItemIds = plan.Items.Select(i => i.Id).ToHashSet(StringComparer.Ordinal);
         var staleRows = await db.DailyPlanCompletions
             .Where(c => c.Date == plan.GeneratedForDate.Date
                 && c.UserProfileId == userProfile.Id
+                && !c.IsArchived
                 && !c.PlanItemId.StartsWith("adhoc-")
-                && !currentPlanItemIds.Contains(c.PlanItemId)
-                && c.MinutesSpent == 0
-                && !c.IsCompleted)
+                && !currentPlanItemIds.Contains(c.PlanItemId))
             .ToListAsync(ct);
         if (staleRows.Count > 0)
         {
-            db.DailyPlanCompletions.RemoveRange(staleRows);
-            _logger.LogInformation("🧹 Removed {Count} stale DailyPlanCompletion rows from a previous plan-gen pass (PlanItemIds: {Ids})",
-                staleRows.Count, string.Join(",", staleRows.Select(r => r.PlanItemId)));
+            foreach (var row in staleRows)
+            {
+                row.IsArchived = true;
+                row.UpdatedAt = nowUtc;
+            }
+            _logger.LogInformation("Archived {Count} displaced plan completion rows.",
+                staleRows.Count);
         }
 
         await db.SaveChangesAsync(ct);
@@ -1801,6 +1868,7 @@ public class ProgressService : IProgressService
         var completions = await db.DailyPlanCompletions
             .Where(c => c.Date == date.Date
                 && c.UserProfileId == userProfile.Id
+                && !c.IsArchived
                 && !c.PlanItemId.StartsWith("adhoc-"))
             .OrderBy(c => c.Priority)
             .ToListAsync(ct);
@@ -1980,7 +2048,7 @@ public class ProgressService : IProgressService
             return new List<ActivityLogWeek>();
         }
 
-        // Query all completions within the date range
+        // Activity history includes both active and archived completions.
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 

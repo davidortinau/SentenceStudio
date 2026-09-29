@@ -1,6 +1,6 @@
 @page "/vocab-quiz"
 @attribute [Authorize]
-@using Plugin.Maui.Audio
+@using SentenceStudio.Abstractions
 @using SentenceStudio.Shared.Services
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
 @implements IAsyncDisposable
@@ -667,7 +667,7 @@ else
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private ILogger<VocabQuiz> Logger { get; set; } = default!;
     [Inject] private ElevenLabsSpeechService SpeechService { get; set; } = default!;
-    [Inject] private IAudioManager AudioManager { get; set; } = default!;
+    [Inject] private IAudioPlayerFactory AudioPlayerFactory { get; set; } = default!;
     [Inject] private StreamHistoryRepository StreamHistoryRepo { get; set; } = default!;
     [Inject] private SentenceStudio.Services.SpeechVoicePreferences VoicePrefs { get; set; } = default!;
     [Inject] private SentenceStudio.Abstractions.IConnectivityService Connectivity { get; set; } = default!;
@@ -684,7 +684,7 @@ else
     [Inject] private ExampleSentenceRepository ExampleSentenceRepo { get; set; } = default!;
     [Inject] private SentenceStudio.Services.LanguageSegmentation.LanguageSegmenterFactory LanguageSegmenters { get; set; } = default!;
 
-    private const int BatchSize = 20;
+    private const int BatchSize = VocabQuizSourcePolicy.BatchSize;
     private const int ActiveWordCount = 10;
     private const int TurnsPerRound = 10;
 
@@ -712,7 +712,11 @@ else
     private SentenceStudio.Services.Timer.ActivityTimerLease? activityTimerLease;
     private CancellationTokenSource? activityTimerStartCts;
     private bool activityTimerStartInFlight;
-    private IAudioPlayer? audioPlayer;
+    private readonly UiAudioPlayerSession _nativeAudio = new();
+    private readonly CancellationTokenSource _audioLifetime = new();
+    private bool _browserAudioAttempted;
+    private bool _audioDisposed;
+    private bool _disposeStarted;
     private CancellationTokenSource? autoAdvanceCts;
     private CancellationTokenSource? sentenceHintLoadCts;
     private long sentenceHintLoadVersion;
@@ -993,48 +997,23 @@ else
                 var progress = progressDict.ContainsKey(word.Id) ? progressDict[word.Id]
                     : new SentenceStudio.Shared.Models.VocabularyProgress
                     {
-                        VocabularyWordId = word.Id, MasteryScore = 0.0f,
+                        VocabularyWordId = word.Id, UserId = currentUserId, MasteryScore = 0.0f,
                         TotalAttempts = 0, CorrectAttempts = 0
                     };
                 return new VocabularyQuizItem { Word = word, Progress = progress };
-            });
+            }).ToList();
 
-            if (!usingFocusVocabularyIds)
-            {
-                quizCandidates = quizCandidates
-                    .Where(i => !(i.IsKnown))
-                    .Where(i => !(i.Progress?.IsInGracePeriod ?? false));
-
-                if (DueOnly)
-                {
-                    // Compare in local frame (DateTime.Now): NextReviewDate is written
-                    // and read with DateTime.Now elsewhere (VocabularyProgressService,
-                    // IsDueForReview). On the webapp Now == UtcNow; on a non-UTC device
-                    // this stays consistent with the stored local-frame value.
-                    var now = DateTime.Now; // allow:srs-local-frame — match NextReviewDate writers + IsDueForReview
-                    quizCandidates = quizCandidates.Where(i =>
-                    {
-                        var totalAttempts = i.Progress?.TotalAttempts ?? 0;
-                        var nextReview = i.Progress?.NextReviewDate;
-
-                        if (totalAttempts == 0)
-                            return true;
-
-                        if (nextReview.HasValue && nextReview.Value <= now)
-                            return true;
-
-                        return false;
-                    });
-                }
-            }
+            // Focus-plan cards retain their full explicit set, including known
+            // words; the legacy non-focus path shares selection with native.
+            var nonFocusSelection = usingFocusVocabularyIds
+                ? null
+                : VocabQuizSourcePolicy.SelectNonFocusBatch(
+                    currentUserId, DueOnly, quizCandidates,
+                    DateTime.Now); // allow:srs-local-frame — match NextReviewDate writers
 
             batchPool = usingFocusVocabularyIds
                 ? quizCandidates.Take(BatchSize).ToList()
-                : quizCandidates
-                    .OrderBy(i => i.Progress?.MasteryScore ?? 0f)
-                    .ThenBy(_ => Guid.NewGuid())
-                    .Take(BatchSize)
-                    .ToList();
+                : nonFocusSelection!.Batch.ToList();
             
             // Fix 3: Mark items with DueOnly session flag
             foreach (var item in batchPool)
@@ -1581,11 +1560,18 @@ else
         if (cts is null)
             return;
 
-        cts.Cancel();
-        if (!activityTimerStartInFlight)
+        try
         {
-            cts.Dispose();
-            activityTimerStartCts = null;
+            cts.Cancel();
+        }
+        finally
+        {
+            if (!activityTimerStartInFlight)
+            {
+                cts.Dispose();
+                if (ReferenceEquals(activityTimerStartCts, cts))
+                    activityTimerStartCts = null;
+            }
         }
     }
 
@@ -2126,45 +2112,21 @@ else
 
     private QuizChoiceOption[] GenerateChoiceOptions(VocabularyQuizItem item)
     {
-        var correctOption = CreateChoiceOption(item);
-
         // #190 — sample distractors from the FULL vocabulary scope (resource-filtered or all user vocab),
-        // not just the active round. This guarantees a full set of 4 options even when remaining-to-learn
-        // shrinks to 1. Falls back to vocabItems if the scope hasn't been populated yet (defensive).
+        // not just the active round. Four options remain possible when the batch shrinks to one,
+        // provided the owner has enough distinct terms. Fall back to the active round if needed.
         var pool = distractorScope.Count > 0
             ? (IEnumerable<VocabularyWord>)distractorScope
             : vocabItems.Select(v => v.Word);
 
-        var options = pool
-            .Where(w => w.Id != item.Word.Id)
-            .Select(w => CreateChoiceOptionForWord(w))
-            .Where(option => !string.IsNullOrWhiteSpace(option.Text))
-            .Where(option => !string.Equals(option.Text, correctOption.Text, StringComparison.OrdinalIgnoreCase))
-            .GroupBy(option => option.Text, StringComparer.OrdinalIgnoreCase)
-            .Select(group => group.First())
-            .OrderBy(_ => Guid.NewGuid())
-            .Take(3)
-            .ToList();
-
-        // Edge case: if the full scope has fewer than 4 unique words, we degrade gracefully —
-        // we ship whatever distinct distractors we have plus the correct answer. This is
-        // deterministic by construction (no synthetic options injected) and avoids leaking
-        // "filler" answers that aren't real vocabulary.
-        options.Add(correctOption);
-        return options.OrderBy(_ => Guid.NewGuid()).ToArray();
-    }
-
-    private QuizChoiceOption CreateChoiceOption(VocabularyQuizItem item)
-        => CreateChoiceOptionForWord(item.Word);
-
-    private QuizChoiceOption CreateChoiceOptionForWord(VocabularyWord word)
-    {
-        var answerText = GetAnswerText(word);
-        var answerLanguage = promptUsesNativeLanguage
-            ? word.Language ?? targetLanguage
-            : nativeLanguage;
-
-        return new QuizChoiceOption(answerText, answerText, answerLanguage);
+        return VocabQuizSourcePolicy.CreateMultipleChoiceOptions(
+                item.Word, pool.ToList(), promptUsesNativeLanguage)
+            .Select(option => new QuizChoiceOption(
+                option.Text, option.Text,
+                promptUsesNativeLanguage
+                    ? option.Word.Language ?? targetLanguage
+                    : nativeLanguage))
+            .ToArray();
     }
 
     private async Task SelectMultipleChoice(string option)
@@ -2190,19 +2152,11 @@ else
         string answer = userMode == "MultipleChoice" ? userGuess : userInput;
         if (string.IsNullOrWhiteSpace(answer)) return;
 
-        // Use fuzzy matching for text mode; exact match for multiple choice (options are pre-set)
-        string? fuzzyCompleteForm = null;
-        if (userMode == "Text")
-        {
-            var matchResult = FuzzyMatcher.Evaluate(answer, correctAnswer);
-            isCorrect = matchResult.IsCorrect;
-            fuzzyCompleteForm = matchResult.CompleteForm;
-            // TODO: Log near-misses (IsCorrect == false but low Levenshtein distance) for future training data (#150)
-        }
-        else
-        {
-            isCorrect = string.Equals(answer.Trim(), correctAnswer.Trim(), StringComparison.OrdinalIgnoreCase);
-        }
+        // The source and native heads share the same isolated Text/MC verdict.
+        var matchResult = VocabQuizSourcePolicy.EvaluateAnswer(userMode, answer, correctAnswer);
+        isCorrect = matchResult.IsCorrect;
+        var fuzzyCompleteForm = userMode == "Text" ? matchResult.CompleteForm : null;
+        // TODO: Log near-misses (IsCorrect == false but low Levenshtein distance) for future training data (#150)
         showAnswer = true;
         sentenceHintExpanded = VocabQuizSentenceHintPolicy.GetExpandedState(
             sentenceHintExpanded,
@@ -2472,6 +2426,10 @@ else
 
     private async Task GoBack()
     {
+        _audioDisposed = true;
+        _audioLifetime.Cancel();
+        StopNativeAudioSafely();
+        await StopBrowserAudioAsync();
         await CloseImageFullscreenAsync(restoreFocus: false);
         if (showSessionSummary)
             await CompleteActiveSessionAsync();
@@ -2479,8 +2437,6 @@ else
         CancelActivityTimerStart();
         ActivityTimer.PauseAndStopOwnedSession(activityTimerLease);
         activityTimerLease = null;
-        audioPlayer?.Stop();
-        audioPlayer?.Dispose();
         NavManager.NavigateTo("/");
     }
 
@@ -2703,7 +2659,7 @@ else
 
     private async Task PlayAudioTextAsync(string text, string language)
     {
-        if (isPlayingAudio || string.IsNullOrWhiteSpace(text)) return;
+        if (_audioDisposed || isPlayingAudio || string.IsNullOrWhiteSpace(text)) return;
         isPlayingAudio = true;
 
         try
@@ -2718,12 +2674,14 @@ else
             }
             else if (Connectivity.IsInternetAvailable)
             {
-                audioStream = await SpeechService.TextToSpeechAsync(text, voiceId, 0.5f, 0.75f, 0.85f);
-
                 var cacheDir = Path.Combine(FileSystemService.AppDataDirectory, "AudioCache");
                 Directory.CreateDirectory(cacheDir);
                 var filePath = Path.Combine(cacheDir, $"word_{Guid.NewGuid()}.mp3");
-                using (var fs = File.Create(filePath)) { await audioStream.CopyToAsync(fs); }
+                using (var generatedAudio = await SpeechService.TextToSpeechAsync(text, voiceId, 0.5f, 0.75f, 0.85f))
+                using (var fs = File.Create(filePath))
+                {
+                    await generatedAudio.CopyToAsync(fs);
+                }
 
                 await StreamHistoryRepo.SaveStreamHistoryAsync(new StreamHistory
                 {
@@ -2740,27 +2698,40 @@ else
                 return;
             }
 
-            audioPlayer?.Stop();
-            audioPlayer?.Dispose();
-            audioPlayer = AudioManager.CreatePlayer(audioStream);
-            if (audioPlayer != null)
+            if (_audioDisposed)
             {
-                audioPlayer.Play();
+                audioStream.Dispose();
+                return;
+            }
+
+            if (AudioPlayerFactory.CanPlayLocally)
+            {
+                _nativeAudio.CreatePlayer(AudioPlayerFactory, audioStream).Play();
             }
             else
             {
-                // JS interop fallback for server-side Blazor (WebApp)
-                audioStream.Position = 0;
-                using var ms = new MemoryStream();
-                await audioStream.CopyToAsync(ms);
-                var base64 = Convert.ToBase64String(ms.ToArray());
-                await JS.InvokeVoidAsync("audioInterop.playFromBase64", base64, "audio/mpeg");
+                using (audioStream)
+                {
+                    _nativeAudio.Stop();
+                    audioStream.Position = 0;
+                    using var ms = new MemoryStream();
+                    await audioStream.CopyToAsync(ms);
+                    _browserAudioAttempted = true;
+                    await BrowserAudioPlayback.PlayAsync(JS, ms.ToArray(), _audioLifetime.Token, Logger);
+                }
             }
+        }
+        catch (OperationCanceledException) when (_audioDisposed)
+        {
         }
         catch (Exception ex)
         {
-            await EnableTextFallbackAsync();
-            Logger.LogError(ex, "Failed to play quiz audio for '{Text}'", text);
+            StopNativeAudioSafely();
+            if (!_audioDisposed)
+            {
+                await EnableTextFallbackAsync();
+                Logger.LogError(ex, "Failed to play quiz audio for '{Text}'", text);
+            }
         }
         finally
         {
@@ -2770,28 +2741,143 @@ else
 
     public async ValueTask DisposeAsync()
     {
-        Localize.CultureChanged -= OnCultureChanged;
-        CancelSentenceHintLoad();
-        await CloseImageFullscreenAsync(restoreFocus: false);
-        await RecordPendingAttemptAsync();
-        await PersistSnapshotAsync();
-        CancelActivityTimerStart();
-        ActivityTimer.PauseAndStopOwnedSession(activityTimerLease);
-        activityTimerLease = null;
-        autoAdvanceCts?.Cancel();
-        autoAdvanceCts?.Dispose();
-        audioPlayer?.Stop();
-        audioPlayer?.Dispose();
-        audioPlayer = null;
-        if (gestureModule is not null)
+        if (_disposeStarted) return;
+        _disposeStarted = true;
+        _audioDisposed = true;
+        try
         {
-            try { await gestureModule.DisposeAsync(); } catch { }
-            gestureModule = null;
+            try
+            {
+                _audioLifetime.Cancel();
+            }
+            finally
+            {
+                try
+                {
+                    Localize.CultureChanged -= OnCultureChanged;
+                }
+                finally
+                {
+                    try
+                    {
+                        StopNativeAudioSafely();
+                    }
+                    finally
+                    {
+                        try
+                        {
+                            await StopBrowserAudioAsync();
+                        }
+                        finally
+                        {
+                            CancelSentenceHintLoad();
+                        }
+                    }
+                }
+            }
+
+            await CloseImageFullscreenAsync(restoreFocus: false);
+            await RecordPendingAttemptAsync();
+            await PersistSnapshotAsync();
         }
-        if (modalModule is not null)
+        finally
         {
-            try { await modalModule.DisposeAsync(); } catch { }
-            modalModule = null;
+            try
+            {
+                CancelActivityTimerStart();
+            }
+            finally
+            {
+                try
+                {
+                    ActivityTimer.PauseAndStopOwnedSession(activityTimerLease);
+                }
+                finally
+                {
+                    activityTimerLease = null;
+                    var autoAdvance = autoAdvanceCts;
+                    autoAdvanceCts = null;
+                    try
+                    {
+                        autoAdvance?.Cancel();
+                    }
+                    finally
+                    {
+                        try
+                        {
+                            autoAdvance?.Dispose();
+                        }
+                        finally
+                        {
+                            try
+                            {
+                                var gesture = gestureModule;
+                                gestureModule = null;
+                                if (gesture is not null)
+                                {
+                                    try
+                                    {
+                                        await gesture.DisposeAsync();
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        Logger.LogWarning(ex, "Failed to dispose vocabulary quiz gesture module");
+                                    }
+                                }
+                            }
+                            finally
+                            {
+                                try
+                                {
+                                    var modal = modalModule;
+                                    modalModule = null;
+                                    if (modal is not null)
+                                    {
+                                        try
+                                        {
+                                            await modal.DisposeAsync();
+                                        }
+                                        catch (Exception ex)
+                                        {
+                                            Logger.LogWarning(ex, "Failed to dispose vocabulary quiz modal module");
+                                        }
+                                    }
+                                }
+                                finally
+                                {
+                                    _audioLifetime.Dispose();
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private void StopNativeAudioSafely()
+    {
+        try
+        {
+            _nativeAudio.Dispose();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not stop native quiz audio; continuing to save pending progress");
+        }
+    }
+
+    private async Task StopBrowserAudioAsync()
+    {
+        if (!_browserAudioAttempted) return;
+        _browserAudioAttempted = false;
+        try
+        {
+            await JS.InvokeVoidAsync("audioInterop.stop");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not stop browser quiz audio; continuing to save pending progress");
         }
     }
 

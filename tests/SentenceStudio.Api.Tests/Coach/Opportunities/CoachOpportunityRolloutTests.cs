@@ -43,9 +43,10 @@ public class CoachOpportunityRolloutTests
         var options = new CoachOpportunityOptions();
 
         options.OperatorSurface.Enabled.Should().BeFalse();
-        options.OperatorSurface.AllowCrossOwnerEvidence.Should().BeFalse(
-            "this is the one control that crosses the boundary the cross-tenant tests were " +
-            "built to defend");
+        typeof(CoachOpportunityOperatorSurfaceOptions).GetProperties()
+            .Select(property => property.Name)
+            .Should().BeEquivalentTo([nameof(CoachOpportunityOperatorSurfaceOptions.Enabled)],
+                "there must be no Development override for another learner's opportunities");
     }
 
     [Fact]
@@ -70,7 +71,6 @@ public class CoachOpportunityRolloutTests
 
         options.Enabled.Should().BeTrue();
         options.OperatorSurface.Enabled.Should().BeTrue();
-        options.OperatorSurface.AllowCrossOwnerEvidence.Should().BeFalse();
         options.RetentionDays.Should().Be(180);
     }
 
@@ -92,40 +92,6 @@ public class CoachOpportunityRolloutTests
             "route mapping already skips it there, but a route registration is a line of code " +
             "somebody can move — this makes the deployment illegal, not merely the request");
         result.FailureMessage.Should().Contain("Development-only");
-    }
-
-    [Fact]
-    public void CrossOwnerEvidenceCannotBeEnabledOutsideDevelopment()
-    {
-        var validator = new CoachOpportunityOptionsValidator(
-            new StubEnvironment { EnvironmentName = "Staging" });
-
-        validator.Validate(null, new CoachOpportunityOptions
-        {
-            OperatorSurface = new CoachOpportunityOperatorSurfaceOptions
-            {
-                Enabled = false,
-                AllowCrossOwnerEvidence = true
-            }
-        }).Failed.Should().BeTrue();
-    }
-
-    [Fact]
-    public void CrossOwnerEvidenceWithoutTheSurfaceIsRefused()
-    {
-        var validator = new CoachOpportunityOptionsValidator(
-            new StubEnvironment { EnvironmentName = Environments.Development });
-
-        validator.Validate(null, new CoachOpportunityOptions
-        {
-            OperatorSurface = new CoachOpportunityOperatorSurfaceOptions
-            {
-                Enabled = false,
-                AllowCrossOwnerEvidence = true
-            }
-        }).Failed.Should().BeTrue(
-            "a deployment that believes cross-owner reads are configured while the surface is " +
-            "off has a mistaken model of what it turned on");
     }
 
     [Fact]
@@ -153,7 +119,7 @@ public class CoachOpportunityRolloutTests
             .Failed.Should().BeTrue();
 
     [Fact]
-    public void ADevelopmentHostMayEnableEverything() =>
+    public void ADevelopmentHostMayEnableTheOwnerScopedSurface() =>
         new CoachOpportunityOptionsValidator(
                 new StubEnvironment { EnvironmentName = Environments.Development })
             .Validate(null, new CoachOpportunityOptions
@@ -161,8 +127,7 @@ public class CoachOpportunityRolloutTests
                 Enabled = true,
                 OperatorSurface = new CoachOpportunityOperatorSurfaceOptions
                 {
-                    Enabled = true,
-                    AllowCrossOwnerEvidence = true
+                    Enabled = true
                 }
             })
             .Succeeded.Should().BeTrue();
@@ -222,8 +187,7 @@ public class CoachOpportunityRolloutTests
             {
                 ["Coach:Opportunities:Enabled"] = "true",
                 ["Coach:Opportunities:RetentionDays"] = "90",
-                ["Coach:Opportunities:OperatorSurface:Enabled"] = "true",
-                ["Coach:Opportunities:OperatorSurface:AllowCrossOwnerEvidence"] = "true"
+                ["Coach:Opportunities:OperatorSurface:Enabled"] = "true"
             })
             .Build();
 
@@ -234,7 +198,6 @@ public class CoachOpportunityRolloutTests
         options.RetentionDays.Should().Be(90);
         options.Retention.Should().Be(TimeSpan.FromDays(90));
         options.OperatorSurface.Enabled.Should().BeTrue();
-        options.OperatorSurface.AllowCrossOwnerEvidence.Should().BeTrue();
     }
 
     // ---------------------------------------------------------------- gate 1: routes

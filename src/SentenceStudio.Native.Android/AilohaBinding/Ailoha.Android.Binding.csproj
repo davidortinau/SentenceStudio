@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net11.0-android</TargetFramework>
+    <SupportedOSPlatformVersion>36</SupportedOSPlatformVersion>
+    <IsBindingProject>true</IsBindingProject>
+    <!-- The Android Java dependency verifier reads PackageReference.Version directly. -->
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RestoreConfigFile>$(MSBuildProjectDirectory)/../NuGet.Sources.config</RestoreConfigFile>
+    <AilohaArtifactsDir Condition="'$(AilohaArtifactsDir)' == ''">$(HOME)/.copilot/session-state/588e0b81-01aa-497b-8dca-491b234ef8b6/files/ailoha/android-compose-proof/vendor</AilohaArtifactsDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AndroidX.Compose" Version="0.1.0-foundation.999911b.1" />
+    <PackageReference Include="Xamarin.Kotlin.StdLib" Version="2.4.0.1" />
+    <AndroidLibrary Include="$(AilohaArtifactsDir)/local/ailoha-android-agent-0.1.13-local-cycle3-final.aar"
+                    Manifest="$(AilohaArtifactsDir)/local/ailoha-android-agent-0.1.13-local.pom"
+                    JavaArtifact="com.ailoha:ailoha-android-agent:0.1.13-local"
+                    JavaVersion="0.1.13-local" />
+    <AndroidLibrary Include="$(AilohaArtifactsDir)/local/ailoha-android-agent-compose-0.1.13-local-cycle3-final.aar"
+                    Manifest="$(AilohaArtifactsDir)/local/ailoha-android-agent-compose-0.1.13-local.pom"
+                    JavaArtifact="com.ailoha:ailoha-android-agent-compose:0.1.13-local"
+                    JavaVersion="0.1.13-local" />
+    <AndroidLibrary Include="$(AilohaArtifactsDir)/nanohttpd-2.3.1.jar"
+                    JavaArtifact="org.nanohttpd:nanohttpd:2.3.1"
+                    JavaVersion="2.3.1"
+                    Bind="false" />
+  </ItemGroup>
+</Project>

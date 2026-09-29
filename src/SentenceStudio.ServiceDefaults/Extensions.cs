@@ -1,24 +1,18 @@
 using Azure.Monitor.OpenTelemetry.Exporter;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Maui.Hosting;
 using OpenTelemetry;
 using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
-using System.Text.RegularExpressions;
 
 namespace Microsoft.Extensions.Hosting;
 
-// Adds common .NET Aspire services: service discovery, resilience, health checks, and OpenTelemetry.
-// This project is intentionally **MAUI-safe** — it does not pull `OpenTelemetry.Instrumentation.AspNetCore`
-// or `Azure.Monitor.OpenTelemetry.AspNetCore` because those reference `Microsoft.AspNetCore.App` which
-// has no runtime pack for `maccatalyst-*` / `ios-*` / `android-*` RIDs and fails MAUI builds.
-// Web hosts that need ASP.NET Core instrumentation should add it locally in their Program.cs.
+// MAUI-free server defaults: OpenTelemetry, service discovery and HTTP resilience.
+// Web hosts add ASP.NET Core instrumentation and own their health checks/endpoints.
 // To learn more about using this project, see https://aka.ms/dotnet/aspire/service-defaults
 public static class Extensions
 {
@@ -41,9 +35,6 @@ public static class Extensions
             // Turn on service discovery by default
             http.AddServiceDiscovery();
         });
-
-        builder.Services.TryAddEnumerable(
-            ServiceDescriptor.Transient<IMauiInitializeService, OpenTelemetryInitializer>(_ => new OpenTelemetryInitializer()));
 
         // Uncomment the following to restrict the allowed schemes for service discovery.
         // builder.Services.Configure<ServiceDiscoveryOptions>(options =>
@@ -73,9 +64,6 @@ public static class Extensions
         builder.Services.AddOpenTelemetry()
             .WithMetrics(metrics =>
             {
-                // Uncomment the following line to enable reporting metrics coming from the .NET MAUI SDK, this might cause a lot of added telemetry
-                //metrics.AddMeter("Microsoft.Maui");
-
                 metrics.AddHttpClientInstrumentation()
                     .AddRuntimeInstrumentation()
                     // Learning Coach metrics. Name must match SentenceStudio.Api's
@@ -86,9 +74,6 @@ public static class Extensions
             })
             .WithTracing(tracing =>
             {
-                // Uncomment the following line to enable reporting tracing coming from the .NET MAUI SDK, this might cause a lot of added telemetry
-                //tracing.AddSource("Microsoft.Maui");
-
                 tracing.AddSource(builder.Environment.ApplicationName)
                     // Learning Coach spans. Name must match SentenceStudio.Api's
                     // CoachTelemetry.ActivitySourceName; CoachTelemetryNameContractTests pins it.
@@ -101,16 +86,6 @@ public static class Extensions
         builder.AddOpenTelemetryExporters();
 
         return builder;
-    }
-
-    private class OpenTelemetryInitializer : IMauiInitializeService
-    {
-        public void Initialize(IServiceProvider services)
-        {
-            services.GetService<MeterProvider>();
-            services.GetService<TracerProvider>();
-            services.GetService<LoggerProvider>();
-        }
     }
 
     private static TBuilder AddOpenTelemetryExporters<TBuilder>(this TBuilder builder) where TBuilder : IHostApplicationBuilder
@@ -127,9 +102,7 @@ public static class Extensions
         // Prod containers are built Release, so DEBUG is undefined → Azure Monitor activates as
         // long as AzureMonitor:ConnectionString is populated (appsettings.Production.json).
         //
-        // Wire the three exporters directly (log / metric / trace) rather than `UseAzureMonitor`
-        // from `Azure.Monitor.OpenTelemetry.AspNetCore` — that variant transitively drags
-        // `Microsoft.AspNetCore.App` which has no runtime pack for MAUI RIDs and breaks mobile builds.
+        // Keep the existing separate log, metric and trace exporters for server hosts.
 #if !DEBUG
         var azureMonitorConnectionString = builder.Configuration["AzureMonitor:ConnectionString"];
         if (!string.IsNullOrWhiteSpace(azureMonitorConnectionString))
@@ -151,7 +124,7 @@ public static class Extensions
 /// Well-known OpenTelemetry source and meter names for the Learning Coach.
 /// </summary>
 /// <remarks>
-/// These live in ServiceDefaults because ServiceDefaults is MAUI-safe and cannot reference
+/// These live in ServiceDefaults because it is independent of the API and cannot reference
 /// <c>SentenceStudio.Api</c>, where the coach itself lives. The API's <c>CoachTelemetry</c> declares
 /// the same names, and a unit test asserts the two agree — if they ever drift, coach spans and
 /// metrics would be created but never exported.

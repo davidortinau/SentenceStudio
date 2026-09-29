@@ -6,6 +6,12 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TARGET="$SCRIPT_DIR/validate-mobile-migrations.sh"
 WORK_ROOT="$SCRIPT_DIR/.test-work"
 WORK_DIR="$WORK_ROOT/validate-mobile-migrations.$$"
+TEST_MODE="${1:-}"
+
+if [[ $# -gt 1 || ( -n "$TEST_MODE" && "$TEST_MODE" != "--static-only" ) ]]; then
+    echo "Usage: $0 [--static-only]" >&2
+    exit 2
+fi
 
 pass=0
 fail=0
@@ -214,6 +220,58 @@ else
     ok "empty primary console log fails closed"
 fi
 
+if [[ "$EXPECTED_SCHEMA_MIGRATION" == "20260928050905_ArchiveDisplacedPlanItems" &&
+      "$EXPECTED_PREVIOUS_MIGRATION" == "20260927100455_AddStreamHistoryOwnerScope" ]] &&
+    require_expected_migration_pair; then
+    ok "the production preflight discovers StreamHistoryOwner -> ArchiveDisplacedPlanItems"
+else
+    bad "the production preflight must discover the current SQLite migration pair"
+fi
+
+if (EXPECTED_SCHEMA_MIGRATION="20990101000000_StaleArchive";
+    require_expected_migration_pair >/dev/null 2>&1); then
+    bad "the production preflight must reject a stale expected latest migration"
+else
+    ok "the production preflight rejects a stale expected latest migration"
+fi
+
+if (EXPECTED_PREVIOUS_MIGRATION="20990101000000_StalePrevious";
+    require_expected_migration_pair >/dev/null 2>&1); then
+    bad "the production preflight must reject a stale expected previous migration"
+else
+    ok "the production preflight rejects a stale expected previous migration"
+fi
+
+STAGING_MIGRATIONS_DIR="$WORK_DIR/newer-migration-fixture"
+mkdir -p "$STAGING_MIGRATIONS_DIR"
+printf '[Migration("%s")]\n' "$EXPECTED_PREVIOUS_MIGRATION" \
+    > "$STAGING_MIGRATIONS_DIR/$EXPECTED_PREVIOUS_MIGRATION.cs"
+printf '[Migration("%s")]\n' "$EXPECTED_SCHEMA_MIGRATION" \
+    > "$STAGING_MIGRATIONS_DIR/$EXPECTED_SCHEMA_MIGRATION.cs"
+printf '[Migration("20990101000000_NewerChange")]\n' \
+    > "$STAGING_MIGRATIONS_DIR/20990101000000_NewerChange.cs"
+if (MIGRATIONS_DIR="$STAGING_MIGRATIONS_DIR";
+    require_expected_migration_pair >/dev/null 2>&1); then
+    bad "the production preflight must reject a newly added SQLite migration"
+else
+    ok "the production preflight rejects a newly added SQLite migration"
+fi
+
+if verify_nonproduction_bundle_id \
+    "$SCRIPT_DIR/../src/SentenceStudio.MacOS/Info.plist" >/dev/null 2>&1; then
+    bad "production bundle identity must block native validation before build or launch"
+else
+    ok "production bundle identity blocks native validation before build or launch"
+fi
+
+if build_sqlite_connection_string "$TEMP_TEST_ROOT/disposable;Mode=ReadWriteCreate.db3" \
+    >/dev/null 2>&1; then
+    bad "connection-string metacharacters in a scratch database path must fail"
+else
+    ok "connection-string metacharacters in a scratch database path fail closed"
+fi
+
+if [[ "$TEST_MODE" != "--static-only" ]]; then
 MIGRATION_ID=$(discover_latest_migration_id)
 SCHEMA_ROOT=$(mktemp -d "$TEMP_TEST_ROOT/schema-XXXXXX")
 chmod 700 "$SCHEMA_ROOT"
@@ -221,21 +279,45 @@ mkdir -m 700 "$SCHEMA_ROOT/database"
 FIXTURE_DB="$SCHEMA_ROOT/database/complete.db3"
 LOG_PREFIX="$SCHEMA_ROOT/schema-fixture"
 create_private_file_exclusive "$FIXTURE_DB"
-if prepare_database_to_migration "$FIXTURE_DB" "$MIGRATION_ID"; then
+if prepare_database_to_migration "$FIXTURE_DB" "$EXPECTED_PREVIOUS_MIGRATION"; then
+    ok "EF tooling prepares the immediately previous StreamHistory owner migration"
+else
+    bad "EF tooling must prepare the immediately previous StreamHistory owner migration"
+    exit 1
+fi
+if validate_pending_precondition \
+    "$FIXTURE_DB" "$MIGRATION_ID" "$EXPECTED_PREVIOUS_MIGRATION" >/dev/null 2>&1; then
+    ok "previous EF state retains the ledger and StreamHistory owner but lacks plan archiving"
+else
+    bad "previous EF state must satisfy ledger/owner and pending plan-archive contracts"
+fi
+PREVIOUS_DB="$SCHEMA_ROOT/database/previous.db3"
+copy_database "$FIXTURE_DB" "$PREVIOUS_DB"
+if bash "$TARGET" --validate-database-only "$PREVIOUS_DB" "$MIGRATION_ID" \
+    >/dev/null 2>&1; then
+    bad "a previous-only EF fixture must not pass the latest migration gate"
+else
+    ok "a previous-only EF fixture cannot pass the latest migration gate"
+fi
+if apply_ef_migration "$FIXTURE_DB" "$MIGRATION_ID" latest-fixture; then
     if bash "$TARGET" --validate-database-only "$FIXTURE_DB" "$MIGRATION_ID" \
         >/dev/null 2>&1; then
-        ok "direct validation accepts the real complete EF migration schema"
+        ok "EF applies the latest migration and direct SQLite validation accepts its full schema"
     else
         bad "direct validation should accept the real complete EF migration schema"
     fi
 else
-    bad "EF tooling should create the complete schema fixture"
+    bad "EF tooling must discover and apply the latest plan-archive migration"
+    exit 1
 fi
 
 TOY_DB="$SCHEMA_ROOT/database/id-only.db3"
 sqlite3 "$TOY_DB" \
-    "CREATE TABLE \"__EFMigrationsHistory\" (\"MigrationId\" TEXT NOT NULL PRIMARY KEY, \"ProductVersion\" TEXT NOT NULL);
-     INSERT INTO \"__EFMigrationsHistory\" VALUES ('$MIGRATION_ID', 'test');"
+    'CREATE TABLE "__EFMigrationsHistory" ("MigrationId" TEXT NOT NULL PRIMARY KEY, "ProductVersion" TEXT NOT NULL);'
+while IFS= read -r migration_id; do
+    sqlite3 "$TOY_DB" \
+        "INSERT INTO \"__EFMigrationsHistory\" VALUES ('$migration_id', 'test');"
+done < <(discover_migration_ids)
 for table in \
     ApplicationOperation \
     ApplicationOperationConfirmation \
@@ -320,6 +402,67 @@ else
     ok "schema missing a required check constraint fails"
 fi
 
+MISSING_ARCHIVE_DB="$SCHEMA_ROOT/database/missing-archive.db3"
+copy_database "$PREVIOUS_DB" "$MISSING_ARCHIVE_DB"
+sqlite3 -batch -bail "$MISSING_ARCHIVE_DB" \
+    "INSERT INTO \"__EFMigrationsHistory\" VALUES ('$MIGRATION_ID', 'test');"
+if bash "$TARGET" --validate-database-only "$MISSING_ARCHIVE_DB" "$MIGRATION_ID" \
+    >/dev/null 2>&1; then
+    bad "archive history row without the IsArchived column and filtered index must fail"
+else
+    ok "archive history row without the IsArchived column and filtered index fails"
+fi
+
+MISSING_ARCHIVE_INDEX_DB="$SCHEMA_ROOT/database/missing-archive-index.db3"
+copy_database "$FIXTURE_DB" "$MISSING_ARCHIVE_INDEX_DB"
+sqlite3 -batch -bail "$MISSING_ARCHIVE_INDEX_DB" \
+    'DROP INDEX "IX_DailyPlanCompletion_UserProfileId_Date_PlanItemId";'
+if bash "$TARGET" --validate-database-only "$MISSING_ARCHIVE_INDEX_DB" "$MIGRATION_ID" \
+    >/dev/null 2>&1; then
+    bad "a missing plan-archive partial index must fail"
+else
+    ok "a missing plan-archive partial index fails"
+fi
+
+WRONG_ARCHIVE_FILTER_DB="$SCHEMA_ROOT/database/wrong-archive-filter.db3"
+copy_database "$FIXTURE_DB" "$WRONG_ARCHIVE_FILTER_DB"
+sqlite3 -batch -bail "$WRONG_ARCHIVE_FILTER_DB" \
+    'DROP INDEX "IX_DailyPlanCompletion_UserProfileId_Date_PlanItemId";
+     CREATE UNIQUE INDEX "IX_DailyPlanCompletion_UserProfileId_Date_PlanItemId"
+         ON "DailyPlanCompletion" ("UserProfileId", "Date", "PlanItemId")
+         WHERE "IsArchived" = 0 AND 0;'
+if bash "$TARGET" --validate-database-only "$WRONG_ARCHIVE_FILTER_DB" "$MIGRATION_ID" \
+    >/dev/null 2>&1; then
+    bad "a changed plan-archive partial-index predicate must fail"
+else
+    ok "a changed plan-archive partial-index predicate fails"
+fi
+
+EXTRA_OWNER_INDEX_DB="$SCHEMA_ROOT/database/extra-owner-index.db3"
+copy_database "$FIXTURE_DB" "$EXTRA_OWNER_INDEX_DB"
+sqlite3 -batch -bail "$EXTRA_OWNER_INDEX_DB" \
+    'CREATE INDEX "IX_StreamHistory_UnmodeledOwner"
+         ON "StreamHistory" ("UserProfileId");'
+if bash "$TARGET" --validate-database-only "$EXTRA_OWNER_INDEX_DB" "$MIGRATION_ID" \
+    >/dev/null 2>&1; then
+    bad "an extra owner index absent from the model must fail"
+else
+    ok "an extra owner index absent from the model fails"
+fi
+
+EXTRA_HISTORY_DB="$SCHEMA_ROOT/database/extra-history.db3"
+copy_database "$FIXTURE_DB" "$EXTRA_HISTORY_DB"
+sqlite3 -batch -bail "$EXTRA_HISTORY_DB" \
+    "INSERT INTO \"__EFMigrationsHistory\" VALUES ('99999999999999_Unexpected', 'test');"
+if bash "$TARGET" --validate-database-only "$EXTRA_HISTORY_DB" "$MIGRATION_ID" \
+    >/dev/null 2>&1; then
+    bad "latest migration with an unexpected history entry must fail"
+else
+    ok "latest migration with an unexpected history entry fails"
+fi
+fi
+
+if [[ "$TEST_MODE" != "--static-only" ]]; then
 ISOLATION_ROOT=$(mktemp -d "$TEMP_TEST_ROOT/isolation-XXXXXX")
 chmod 700 "$ISOLATION_ROOT"
 mkdir -m 700 "$ISOLATION_ROOT/database"
@@ -382,6 +525,7 @@ if [[ $? -ne 0 && "$identity_error" == *"shares device and inode"* ]]; then
     ok "live database device/inode alias fails before link-count fallback"
 else
     bad "live database device/inode alias must fail explicitly"
+fi
 fi
 
 cleanup_output=$(
@@ -474,8 +618,17 @@ assert_source_contains \
     'kill -KILL "$pid"' \
     "cleanup escalation is exact-PID only"
 assert_source_contains \
-    '--migration-validation-build-connection-string' \
-    "EF fixture connection strings come from the Debug SqliteConnectionStringBuilder helper"
+    'Mode=ReadWrite;Cache=Private;Pooling=False;Foreign Keys=True' \
+    "EF fixtures use a constrained scratch-only read/write SQLite connection"
+assert_source_contains \
+    'apply_ef_migration "$disposable_db" "$latest_migration"' \
+    "EF-only validation actually applies the latest discovered migration"
+assert_source_contains \
+    'seed_legacy_history_fixture "$disposable_db" "$scenario"' \
+    "EF-only validation seeds isolated single-user and ambiguous legacy fixtures"
+assert_source_contains \
+    'verify_nonproduction_bundle_id "$APP_BUNDLE/Contents/Info.plist"' \
+    "native launch checks the built bundle identity before open -n"
 assert_source_contains \
     'NETSDK1112' \
     "missing runtime packs trigger the approved mirror restore fallback"
@@ -508,9 +661,11 @@ else
     bad "app PID must be captured before early timeout paths"
 fi
 
-pending_line=$(grep -n 'validate_pending_precondition "$disposable_db"' "$TARGET" | cut -d: -f1)
+pending_line=$(grep -n 'validate_pending_precondition "$disposable_db"' "$TARGET" |
+    tail -1 | cut -d: -f1)
 launch_line=$(grep -n '^    open -n "$APP_BUNDLE"' "$TARGET" | cut -d: -f1)
-post_line=$(grep -n 'validate_disposable_database "$disposable_db"' "$TARGET" | cut -d: -f1)
+post_line=$(grep -n 'validate_disposable_database "$disposable_db"' "$TARGET" |
+    tail -1 | cut -d: -f1)
 if [[ "$pending_line" =~ ^[0-9]+$ &&
       "$launch_line" =~ ^[0-9]+$ &&
       "$post_line" =~ ^[0-9]+$ &&
@@ -519,6 +674,22 @@ if [[ "$pending_line" =~ ^[0-9]+$ &&
     ok "pending-state proof precedes launch and applied-state proof follows it"
 else
     bad "validator must prove the exact 0-to-1 migration transition"
+fi
+
+ef_pending_line=$(grep -n 'validate_pending_precondition "$disposable_db"' "$TARGET" |
+    head -1 | cut -d: -f1)
+ef_apply_line=$(grep -n 'apply_ef_migration "$disposable_db" "$latest_migration"' "$TARGET" |
+    cut -d: -f1)
+ef_post_line=$(grep -n 'validate_disposable_database "$disposable_db"' "$TARGET" |
+    head -1 | cut -d: -f1)
+if [[ "$ef_pending_line" =~ ^[0-9]+$ &&
+      "$ef_apply_line" =~ ^[0-9]+$ &&
+      "$ef_post_line" =~ ^[0-9]+$ &&
+      "$ef_pending_line" -lt "$ef_apply_line" &&
+      "$ef_apply_line" -lt "$ef_post_line" ]]; then
+    ok "EF-only mode proves pending history and ledger before applying and rechecking latest"
+else
+    bad "EF-only mode must prove the exact pending-to-applied history transition"
 fi
 
 echo

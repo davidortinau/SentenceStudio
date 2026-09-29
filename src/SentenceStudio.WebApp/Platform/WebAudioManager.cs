@@ -1,24 +1,14 @@
-using System.Reflection;
-using Plugin.Maui.Audio;
+using SentenceStudio.Abstractions;
 
 namespace SentenceStudio.WebApp.Platform;
 
 /// <summary>
-/// Runtime proxy for IAudioManager that returns safe defaults when MAUI audio APIs
-/// are unavailable in server-side Blazor.
+/// Browser audio is played through JS interop in the Blazor components, not on the web server.
 /// </summary>
-public class WebAudioManagerProxy : DispatchProxy
+public sealed class WebAudioPlayerFactory : IAudioPlayerFactory
 {
-    protected override object? Invoke(MethodInfo? targetMethod, object?[]? args)
-    {
-        if (targetMethod == null) return null;
+    public bool CanPlayLocally => false;
 
-        var returnType = targetMethod.ReturnType;
-        if (returnType == typeof(void)) return null;
-        if (returnType.IsValueType) return Activator.CreateInstance(returnType);
-        return null;
-    }
-
-    public static IAudioManager Create() =>
-        DispatchProxy.Create<IAudioManager, WebAudioManagerProxy>();
+    public IUiAudioPlayer? CreatePlayer(Stream audioStream) =>
+        throw new PlatformNotSupportedException("Audio playback belongs in the browser, not on the web server.");
 }

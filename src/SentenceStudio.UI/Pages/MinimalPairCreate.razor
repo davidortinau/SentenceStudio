@@ -90,7 +90,7 @@ else
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
     [Inject] private ILogger<MinimalPairCreate> Logger { get; set; } = default!;
-    [Inject] private IPreferences Preferences { get; set; } = default!;
+    [Inject] private SentenceStudio.Abstractions.IPreferencesService Preferences { get; set; } = default!;
 
     private List<VocabularyWord> availableWords = new();
     private bool isLoading = true;

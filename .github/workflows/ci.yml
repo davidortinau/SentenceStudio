@@ -50,6 +50,29 @@ jobs:
         # encrypted Coach payload written before an AppHost restart.
         run: bash scripts/validate-azurite-persistence.sh
 
+  platform-neutral-dependencies:
+    name: Server and shared dependency closure
+    runs-on: ubuntu-latest
+    # OS-enforced readonly source snapshot; 40 root restores/builds plus observed children.
+    timeout-minutes: 105
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.0.100-rc.1.26425.128'
+      - name: Install read-only Linux build sandbox
+        run: |
+          if ! command -v bwrap >/dev/null; then
+            sudo apt-get update -qq
+            sudo apt-get install -y --no-install-recommends bubblewrap
+          fi
+      - name: Test sandboxed dependency guard with real MSBuild fixtures
+        run: python3 -m unittest discover -s scripts/tests -p test_platform_neutral_dependencies.py
+      - name: Reject forbidden packages in build-observed dependency closures
+        run: python3 scripts/validate-platform-neutral-dependencies.py --scratch-parent "$RUNNER_TEMP"
+
   build:
     name: Build ${{ matrix.project }}
     runs-on: ubuntu-latest
@@ -99,10 +122,10 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Disable dev-only local NuGet source
-        run: dotnet nuget disable source localnugets --configfile src/NuGet.config || true
+        run: dotnet nuget disable source localnugets --configfile src/NuGet.config
 
       - name: Restore
-        run: dotnet restore ${{ matrix.path }} -p:IncludeMobileTargets=false
+        run: dotnet restore ${{ matrix.path }} --configfile src/NuGet.config -p:IncludeMobileTargets=false -p:Configuration=Release
 
       - name: Build
         run: dotnet build ${{ matrix.path }} --no-restore -c Release -p:IncludeMobileTargets=false
@@ -130,11 +153,11 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Disable dev-only local NuGet source
-        run: dotnet nuget disable source localnugets --configfile src/NuGet.config || true
+        run: dotnet nuget disable source localnugets --configfile src/NuGet.config
 
       - name: Restore & build unit tests
         run: |
-          dotnet restore tests/SentenceStudio.UnitTests/SentenceStudio.UnitTests.csproj -p:IncludeMobileTargets=false
+          dotnet restore tests/SentenceStudio.UnitTests/SentenceStudio.UnitTests.csproj --configfile src/NuGet.config -p:IncludeMobileTargets=false -p:Configuration=Release
           dotnet build tests/SentenceStudio.UnitTests/SentenceStudio.UnitTests.csproj --no-restore -c Release -p:IncludeMobileTargets=false
 
       # IntegrationTests excluded: references non-existent src/SentenceStudio/SentenceStudio.csproj
@@ -225,11 +248,11 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Disable dev-only local NuGet source
-        run: dotnet nuget disable source localnugets --configfile src/NuGet.config || true
+        run: dotnet nuget disable source localnugets --configfile src/NuGet.config
 
       - name: Restore & build api tests
         run: |
-          dotnet restore tests/SentenceStudio.Api.Tests/SentenceStudio.Api.Tests.csproj -p:IncludeMobileTargets=false
+          dotnet restore tests/SentenceStudio.Api.Tests/SentenceStudio.Api.Tests.csproj --configfile src/NuGet.config -p:IncludeMobileTargets=false -p:Configuration=Release
           dotnet build tests/SentenceStudio.Api.Tests/SentenceStudio.Api.Tests.csproj --no-restore -c Release -p:IncludeMobileTargets=false
 
       - name: Run api tests
@@ -300,11 +323,11 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Disable dev-only local NuGet source
-        run: dotnet nuget disable source localnugets --configfile src/NuGet.config || true
+        run: dotnet nuget disable source localnugets --configfile src/NuGet.config
 
       - name: Restore & build ui tests
         run: |
-          dotnet restore tests/SentenceStudio.UI.Tests/SentenceStudio.UI.Tests.csproj -p:IncludeMobileTargets=false
+          dotnet restore tests/SentenceStudio.UI.Tests/SentenceStudio.UI.Tests.csproj --configfile src/NuGet.config -p:IncludeMobileTargets=false -p:Configuration=Release
           dotnet build tests/SentenceStudio.UI.Tests/SentenceStudio.UI.Tests.csproj --no-restore -c Release -p:IncludeMobileTargets=false
 
       - name: Run ui tests
@@ -341,10 +364,10 @@ jobs:
     # caller's identity once the Blazor circuit takes over) is invisible to anything that stubs
     # authentication.
     #
-    # Throwaway by construction, on the same terms as the Api.Tests job: the container is created
-    # for this job and destroyed with it, WebAppPostgresServer only ever creates databases named
-    # webapp_it_* and refuses to drop anything without that prefix, and the credentials below are
-    # the container's own and deliberately not secrets so fork pull requests get this coverage too.
+    # Throwaway by construction: this job's service container is discarded after the job, and
+    # WebAppPostgresServer only creates uniquely named webapp_it_* databases after checking the
+    # cluster's per-run identity. It never drops databases. These container-only credentials are
+    # deliberately not secrets so fork pull requests get the real-Identity coverage too.
     services:
       postgres:
         image: postgres:17
@@ -365,6 +388,40 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # cluster_name is a server-start parameter. Set it ONLY on this job's identified service
+      # container, restart that same disposable container, and verify the marker before enabling
+      # the fixture. A missing marker fails the job rather than silently skipping database tests.
+      - name: Identify the disposable WebApp PostgreSQL cluster
+        env:
+          WEBAPP_PG_SERVICE_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$WEBAPP_PG_SERVICE_CONTAINER" =~ ^[0-9a-f]{64}$ ]] ||
+             [[ "$(docker inspect --format '{{.Config.Image}}' "$WEBAPP_PG_SERVICE_CONTAINER")" != "postgres:17" ]]; then
+            echo "::error::The expected WebApp PostgreSQL service container was not identified."
+            exit 1
+          fi
+
+          owner_id="$(python3 -c 'import uuid; print(uuid.uuid4().hex)')"
+          docker exec --user postgres "$WEBAPP_PG_SERVICE_CONTAINER" \
+            psql -X -v ON_ERROR_STOP=1 --dbname postgres \
+            -c "ALTER SYSTEM SET cluster_name TO 'webapp-it-$owner_id'"
+          docker restart "$WEBAPP_PG_SERVICE_CONTAINER" >/dev/null
+
+          actual=""
+          for attempt in {1..30}; do
+            actual="$(docker exec --user postgres "$WEBAPP_PG_SERVICE_CONTAINER" \
+              psql -XAt -v ON_ERROR_STOP=1 --dbname postgres \
+              -c 'SHOW cluster_name' 2>/dev/null || true)"
+            if [[ "$actual" == "webapp-it-$owner_id" ]]; then
+              echo "WEBAPP_PG_TEST_OWNER_ID=$owner_id" >> "$GITHUB_ENV"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::The isolated WebApp PostgreSQL service did not start with its owner marker."
+          exit 1
+
       # WebApp.Tests targets net11.0 to match SentenceStudio.WebApp, so it needs the same preview
       # SDK the UI.Tests job uses.
       - name: Setup .NET 11 preview SDK
@@ -383,17 +440,17 @@ jobs:
             ${{ runner.os }}-nuget-
 
       - name: Disable dev-only local NuGet source
-        run: dotnet nuget disable source localnugets --configfile src/NuGet.config || true
+        run: dotnet nuget disable source localnugets --configfile src/NuGet.config
 
       - name: Restore & build webapp tests
         run: |
-          dotnet restore tests/SentenceStudio.WebApp.Tests/SentenceStudio.WebApp.Tests.csproj -p:IncludeMobileTargets=false
+          dotnet restore tests/SentenceStudio.WebApp.Tests/SentenceStudio.WebApp.Tests.csproj --configfile src/NuGet.config -p:IncludeMobileTargets=false -p:Configuration=Release
           dotnet build tests/SentenceStudio.WebApp.Tests/SentenceStudio.WebApp.Tests.csproj --no-restore -c Release -p:IncludeMobileTargets=false
 
       - name: Run webapp tests
         env:
           # Points at the maintenance database only. Every test class creates its own webapp_it_*
-          # database on this server and drops it again.
+          # database on this job's disposable service; no fixture drops a database.
           WEBAPP_PG_TEST_CONNECTION: Host=localhost;Port=55433;Username=postgres;Password=postgres;Database=postgres
         run: >
           dotnet test tests/SentenceStudio.WebApp.Tests/SentenceStudio.WebApp.Tests.csproj
@@ -407,10 +464,8 @@ jobs:
       # success for a run that proved nothing. These tests are the only place the real Identity
       # cookie hand-off is exercised end to end, so a silent self-skip is worse than a red build.
       #
-      # Two independent checks, because either alone can pass while the suite is hollow:
-      #   1. No test carries a WebAppPostgresServer skip reason.
-      #   2. Enough tests actually executed — a filter typo or a build that produced no tests
-      #      also has to fail here.
+      # Check the actual outcomes of PostgreSQL-gated classes, not just a skip-reason message
+      # (TRX does not reliably include it), and enforce an executed-test floor.
       # The live-host verification is expected to skip in CI and is the only permitted skip.
       - name: Fail if the PostgreSQL-gated tests self-skipped
         if: always()
@@ -423,30 +478,53 @@ jobs:
           MINIMUM_EXECUTED = 25
 
           files = glob.glob("test-results/**/*.trx", recursive=True)
-          if not files:
-              sys.exit("::error::No .trx produced — the webapp test run did not complete.")
+          if len(files) != 1:
+              sys.exit("::error::Expected exactly one webapp .trx; the test run did not complete normally.")
 
           ns = {"t": "http://microsoft.com/schemas/VisualStudio/TeamTest/2010"}
           tree = ET.parse(files[0])
 
           counters = tree.find(".//t:Counters", ns)
+          if counters is None:
+              sys.exit("::error::The webapp .trx has no test counters.")
           executed = int(counters.get("executed", 0))
           total = int(counters.get("total", 0))
 
-          skipped = [
-              r.get("testName", "?")
-              for r in tree.findall(".//t:UnitTestResult", ns)
-              if r.get("outcome") == "NotExecuted"
-              and "PostgreSQL" in "".join(r.itertext())
-          ]
+          gated_classes = {
+              "SentenceStudio.WebApp.Tests.Auth.WebSignInCookieHandoffTests",
+              "SentenceStudio.WebApp.Tests.Auth.ServerAuthCircuitTokenTests",
+              "SentenceStudio.WebApp.Tests.Operator.SamOperatorEnvironmentGateTests",
+              "SentenceStudio.WebApp.Tests.Operator.SamOperatorSurfaceSessionTests",
+              "SentenceStudio.WebApp.Tests.Infrastructure.WebAppPostgresServerSafetyTests",
+          }
+          classes_by_id = {}
+          for test in tree.findall(".//t:UnitTest", ns):
+              method = test.find("t:TestMethod", ns)
+              if method is not None and method.get("className") in gated_classes:
+                  classes_by_id[test.get("id")] = method.get("className")
 
-          if skipped:
-              for name in skipped:
-                  print(f"::error::PostgreSQL-gated test self-skipped: {name}")
-              sys.exit(
-                  "::error::The WebApp PostgreSQL-gated tests skipped themselves. The service "
-                  "container did not come up, or WEBAPP_PG_TEST_CONNECTION is wrong."
-              )
+          outcomes = {name: [] for name in gated_classes}
+          for result in tree.findall(".//t:UnitTestResult", ns):
+              class_name = classes_by_id.get(result.get("testId"))
+              if class_name is None:
+                  test_name = result.get("testName", "")
+                  class_name = next(
+                      (name for name in gated_classes if test_name.startswith(name + ".")), None)
+              if class_name is not None:
+                  outcomes[class_name].append(result)
+
+          missing = [name for name, results in outcomes.items() if not results]
+          not_passed = [
+              result.get("testName", "?")
+              for results in outcomes.values() for result in results
+              if result.get("outcome") != "Passed"
+          ]
+          if missing or not_passed:
+              for name in missing:
+                  print(f"::error::No PostgreSQL-gated tests found for {name}")
+              for name in not_passed:
+                  print(f"::error::PostgreSQL-gated test did not pass: {name}")
+              sys.exit("::error::WebApp PostgreSQL integration coverage is missing or incomplete.")
 
           if executed < MINIMUM_EXECUTED:
               sys.exit(

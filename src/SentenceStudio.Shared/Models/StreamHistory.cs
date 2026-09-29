@@ -16,6 +16,12 @@ public partial class StreamHistory : ObservableObject
     public int Id { get; set; }
 
     /// <summary>
+    /// Owner of this audio history entry. Legacy entries have no reliable per-row
+    /// owner evidence and remain unowned until individually verified recovery.
+    /// </summary>
+    public string? UserProfileId { get; set; }
+
+    /// <summary>
     /// The phrase associated with this audio stream
     /// </summary>
     public string? Phrase { get; set; }

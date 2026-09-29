@@ -222,8 +222,9 @@ public interface IProgressService
     Task<TodaysPlan?> GetCachedPlanAsync(DateTime? date = null, CancellationToken ct = default);
 
     /// <summary>
-    /// Invalidates the cached plan and deletes today's <c>DailyPlanCompletion</c> rows so the next
-    /// <see cref="GenerateTodaysPlanAsync"/> regenerates fresh. Optional <paramref name="date"/> override
+    /// Invalidates the cached plan, removes its parent row, and archives today's
+    /// active completion rows so the next <see cref="GenerateTodaysPlanAsync"/>
+    /// regenerates fresh without discarding activity history. Optional <paramref name="date"/> override
     /// for tests; production callers should pass <c>null</c> (see <see cref="GetCachedPlanAsync"/>).
     /// </summary>
     Task ClearCachedPlanAsync(DateTime? date = null, CancellationToken ct = default);

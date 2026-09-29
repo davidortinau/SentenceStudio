@@ -7,7 +7,6 @@
     <PackageVersion Include="Aspire.Hosting.Azure.AppContainers" Version="13.5.0-preview.1.26315.1" />
     <PackageVersion Include="Aspire.Hosting.Azure.PostgreSQL" Version="13.5.0-preview.1.26315.1" />
     <PackageVersion Include="Aspire.Hosting.Azure.Storage" Version="13.5.0-preview.1.26315.1" />
-    <PackageVersion Include="Aspire.Hosting.Maui" Version="13.5.0-preview.1.26315.1" />
     <PackageVersion Include="Aspire.Hosting.PostgreSQL" Version="13.5.0-preview.1.26315.1" />
     <PackageVersion Include="Aspire.Hosting.Redis" Version="13.5.0-preview.1.26315.1" />
 
@@ -25,11 +24,11 @@
     <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.1" />
 
     <!-- Entity Framework Core -->
-    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.9" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.9" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.9" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.9" />
-    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.9" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.11" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.11" />
     <PackageVersion Include="Microsoft.EntityFrameworkCore.Tasks" Version="10.0.2" />
     <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
 
@@ -143,7 +142,8 @@
     <!-- CoreSync -->
     <PackageVersion Include="CoreSync.Http.Client" Version="0.1.129" />
     <PackageVersion Include="CoreSync.Http.Server" Version="0.1.129" />
-    <PackageVersion Include="CoreSync.PostgreSQL" Version="0.1.129-local2" />
+    <!-- Only the provider is local3; Http/Sqlite require the stable CoreSync base. -->
+    <PackageVersion Include="CoreSync.PostgreSQL" Version="[0.1.129-local3]" />
     <PackageVersion Include="CoreSync.Sqlite" Version="0.1.129" />
 
     <!-- Audio / Media -->

@@ -267,7 +267,7 @@ public class CoachLimitationCardAccessibilityTests
         Alternatives =
         [
             CoachAlternativeCode.RemoveOneListAtATime,
-            CoachAlternativeCode.ExportBeforeRemoving
+            CoachAlternativeCode.StartAFreshList
         ]
     };
 

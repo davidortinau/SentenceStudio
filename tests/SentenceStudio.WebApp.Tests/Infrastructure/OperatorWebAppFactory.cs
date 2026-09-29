@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Contracts.Startup;
 using SentenceStudio.Data;
 using SentenceStudio.Shared.Models;
 
@@ -30,10 +32,14 @@ public sealed class OperatorWebAppFactory : WebApplicationFactory<Program>, IAsy
 {
     private readonly string _label;
     private readonly string _environment;
+    private readonly Dictionary<string, string?> _previousHostSettings = new(StringComparer.Ordinal);
     private string? _database;
 
     /// <summary>The signing key the WebApp mints API tokens with during a test run.</summary>
     public const string JwtSigningKey = "webapp-integration-test-signing-key-at-least-32-chars";
+
+    /// <summary>A unique scratch directory under the test output, never the user's app data.</summary>
+    public string AppDataRoot { get; } = CreateAppDataRoot();
 
     public OperatorWebAppFactory(string label, string? environment = null)
     {
@@ -46,31 +52,78 @@ public sealed class OperatorWebAppFactory : WebApplicationFactory<Program>, IAsy
 
     public async Task InitializeAsync()
     {
-        Operator = await StubOperatorApi.StartAsync();
-        _database = await WebAppPostgresServer.CreateDatabaseAsync(_label);
+        var initialized = false;
+        try
+        {
+            _database = await WebAppPostgresServer.CreateDatabaseAsync(_label);
+            Operator = await StubOperatorApi.StartAsync();
 
-        ApplyHostSettings();
+            // Only the fixture migrates this new database; the WebApp host must only read it.
+            var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseNpgsql(WebAppPostgresServer.ConnectionStringFor(_database))
+                .AddInterceptors(new WebAppPostgresMigrationGuard(_database))
+                .ConfigureWarnings(w =>
+                    w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning))
+                .Options;
+            await using (var db = new ApplicationDbContext(options))
+            {
+                Operator.VersionMigrationId = db.Database.GetMigrations().Last();
+                await db.Database.OpenConnectionAsync();
+                try
+                {
+                    await WebAppPostgresServer.AssertOwnedDatabaseAsync(
+                        db.Database.GetDbConnection(), _database);
+                    await db.Database.MigrateAsync();
+                    await WebAppPostgresServer.AssertOwnedDatabaseAsync(
+                        db.Database.GetDbConnection(), _database);
+                    Operator.VersionDatabaseIdentity = await PostgresDatabaseIdentity.ReadAsync(
+                        db.Database.GetDbConnection(), Operator.VersionMigrationId);
+                }
+                finally
+                {
+                    await db.Database.CloseConnectionAsync();
+                }
+            }
 
-        // Force host construction now so a migration failure surfaces here rather than inside the
-        // first assertion.
-        _ = Services;
+            ApplyHostSettings();
+            _ = Services;
+            initialized = true;
+        }
+        finally
+        {
+            if (!initialized)
+            {
+                ClearHostSettings();
+                if (Operator is { } operatorApi)
+                {
+                    Operator = null!;
+                    await operatorApi.DisposeAsync();
+                }
+            }
+        }
     }
 
     public new async Task DisposeAsync()
     {
-        await base.DisposeAsync();
-
-        if (Operator is not null)
+        try
         {
-            await Operator.DisposeAsync();
+            await base.DisposeAsync();
         }
-
-        if (_database is not null)
+        finally
         {
-            await WebAppPostgresServer.DropDatabaseAsync(_database);
+            try
+            {
+                if (Operator is { } operatorApi)
+                {
+                    Operator = null!;
+                    await operatorApi.DisposeAsync();
+                }
+            }
+            finally
+            {
+                ClearHostSettings();
+            }
         }
-
-        ClearHostSettings();
     }
 
     /// <summary>
@@ -91,21 +144,46 @@ public sealed class OperatorWebAppFactory : WebApplicationFactory<Program>, IAsy
     {
         foreach (var (key, value) in HostSettings())
         {
+            _previousHostSettings[key] = Environment.GetEnvironmentVariable(key);
             Environment.SetEnvironmentVariable(key, value);
         }
     }
 
     private void ClearHostSettings()
     {
-        foreach (var (key, _) in HostSettings())
+        foreach (var (key, value) in _previousHostSettings)
         {
-            Environment.SetEnvironmentVariable(key, null);
+            Environment.SetEnvironmentVariable(key, value);
         }
+        _previousHostSettings.Clear();
+    }
+
+    private static string CreateAppDataRoot()
+    {
+        var project = new DirectoryInfo(AppContext.BaseDirectory);
+        while (project is not null &&
+               !File.Exists(Path.Combine(project.FullName, "SentenceStudio.WebApp.Tests.csproj")))
+        {
+            project = project.Parent;
+        }
+
+        var output = Path.GetFullPath(AppContext.BaseDirectory);
+        if (project is null ||
+            !output.StartsWith(
+                Path.Combine(project.FullName, "bin") + Path.DirectorySeparatorChar,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "WebApp test data must live under this test project's own bin directory.");
+        }
+
+        return Path.Combine(output, "webapp-test-data", Guid.NewGuid().ToString("N"));
     }
 
     private IEnumerable<KeyValuePair<string, string?>> HostSettings() =>
     [
         new("ConnectionStrings__sentencestudio", WebAppPostgresServer.ConnectionStringFor(_database!)),
+        new("WebApp__AppDataRoot", AppDataRoot),
 
         // The operator client's base address. Service discovery passes a concrete loopback URL
         // through untouched.
@@ -116,6 +194,11 @@ public sealed class OperatorWebAppFactory : WebApplicationFactory<Program>, IAsy
         new("Jwt__SigningKey", JwtSigningKey),
         new("Jwt__Issuer", "SentenceStudio"),
         new("Jwt__Audience", "SentenceStudio.Api"),
+
+        // Production-mode tests must not export their synthetic telemetry to a configured
+        // production collector. Restore both inherited values when the factory is disposed.
+        new("AzureMonitor__ConnectionString", ""),
+        new("OTEL_EXPORTER_OTLP_ENDPOINT", ""),
 
         // Keep the host off the network for everything that is not the stub.
         //
@@ -151,6 +234,9 @@ public sealed class OperatorWebAppFactory : WebApplicationFactory<Program>, IAsy
         using var scope = Services.CreateScope();
         var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await db.Database.OpenConnectionAsync();
+        await WebAppPostgresServer.AssertOwnedDatabaseAsync(
+            db.Database.GetDbConnection(), _database!);
 
         var profile = new UserProfile
         {

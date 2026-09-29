@@ -220,31 +220,13 @@ public static class CoachDeterministicCopy
     /// </remarks>
     public const string BulkVocabularyDeletionRefusal =
         "I can\u2019t remove your whole vocabulary from here \u2014 it would take your review " +
-        "history with it, and there\u2019s no undo. There are some smaller steps that get you " +
-        "most of the way, with a way back.";
+        "history with it, and there\u2019s no undo. We can look at smaller steps before you decide " +
+        "whether to remove anything.";
 
     /// <summary>S15. Names the bounded surface as the recommended one.</summary>
     public const string BulkVocabularyDeletionRedirect =
         "Your vocabulary screen lets you clear one list at a time, and you can see what\u2019s " +
         "going before it goes.";
-
-    /// <summary>S15. Names the export screen, which is real, before anything is removed.</summary>
-    /// <remarks>
-    /// <para>
-    /// This replaces a sentence that said a start-clean "lives in your settings". It does not.
-    /// Settings exports data and deletes coach conversation history; there is no account-level
-    /// delete-everything anywhere in this build. Naming a screen that cannot perform the request is
-    /// worse than naming none: the learner goes there, hunts for a control that was never written,
-    /// and concludes they missed it.
-    /// </para>
-    /// <para>
-    /// What Settings really offers is the export, and the export is the alternative that makes the
-    /// learner's original request recoverable rather than smaller. So this sentence names the
-    /// capability that exists, and the one that does not is simply not claimed.
-    /// </para>
-    /// </remarks>
-    public const string BulkVocabularyDeletionExportSurface =
-        "You can download a copy of everything from your settings first, so nothing is gone for good.";
 
     /// <summary>
     /// S16. Refuses disclosure in one sentence, without a lecture and without treating the ask as bad faith.

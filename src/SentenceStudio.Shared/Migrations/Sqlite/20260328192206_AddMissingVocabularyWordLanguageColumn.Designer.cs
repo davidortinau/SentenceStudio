@@ -426,6 +426,9 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                     b.Property<int>("MinutesSpent")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("NarrativeJson")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("PlanItemId")
                         .IsRequired()
                         .HasColumnType("TEXT");

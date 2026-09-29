@@ -88,7 +88,6 @@ public class CoachOpportunityProductionRolloutTests
 
         options.OperatorSurface.Enabled.Should().BeFalse(
             "it can decrypt learner messages and this host has no admin authorization primitive");
-        options.OperatorSurface.AllowCrossOwnerEvidence.Should().BeFalse();
     }
 
     [Fact]
@@ -151,8 +150,7 @@ public class CoachOpportunityProductionRolloutTests
 
                 // Negative control: forbidden inputs are present and enabled, so their absence from
                 // the result proves the forwarding allowlist rejected them.
-                ["Coach:Opportunities:OperatorSurface:Enabled"] = "true",
-                ["Coach:Opportunities:OperatorSurface:AllowCrossOwnerEvidence"] = "true"
+                ["Coach:Opportunities:OperatorSurface:Enabled"] = "true"
             })
             .Build();
 
@@ -169,8 +167,6 @@ public class CoachOpportunityProductionRolloutTests
         environment.Should().NotContainKey("Coach__Opportunities__OperatorSurface__Enabled",
             "an environment variable that could enable the evidence-decrypting surface is an " +
             "environment variable somebody can set on the wrong host");
-        environment.Should().NotContainKey(
-            "Coach__Opportunities__OperatorSurface__AllowCrossOwnerEvidence");
     }
 
     // ---------------------------------------------------------------- the reviewer path exists

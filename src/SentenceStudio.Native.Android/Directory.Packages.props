@@ -1,0 +1,7 @@
+<Project>
+  <Import Project="../../Directory.Packages.props" />
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.AndroidX.Compose" Version="0.1.0-foundation.999911b.1" />
+    <PackageVersion Include="Xamarin.Kotlin.StdLib" Version="2.4.0.1" />
+  </ItemGroup>
+</Project>

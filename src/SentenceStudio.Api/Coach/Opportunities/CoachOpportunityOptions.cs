@@ -89,17 +89,4 @@ public sealed class CoachOpportunityOperatorSurfaceOptions
 
     /// <summary>Whether the operator routes and page are available. Development-only.</summary>
     public bool Enabled { get; set; }
-
-    /// <summary>
-    /// Whether an operator may reveal evidence on a row they do not own.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Defaults to <b>false</b> and stays false. This is the one control in the design that
-    /// crosses the boundary the cross-tenant write tests were built to defend, so it is off, it
-    /// is Development-only by inheritance from the surface gates, and every reveal it permits is
-    /// counted on the row and logged.
-    /// </para>
-    /// </remarks>
-    public bool AllowCrossOwnerEvidence { get; set; }
 }

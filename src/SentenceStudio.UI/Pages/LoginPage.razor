@@ -148,9 +148,9 @@
                 // silent sign-in, which ignores the cache, and on failure republishes the current
                 // principal — anonymous, here — which would bounce the learner back to this page
                 // with no error shown.
-                if (AuthStateProvider is SentenceStudio.Services.MauiAuthenticationStateProvider mauiAuth)
+                if (AuthStateProvider is IClientAuthStateNotifier nativeAuth)
                 {
-                    mauiAuth.NotifySignedIn();
+                    nativeAuth.NotifySignedIn();
                 }
 
                 // If the sign-in returned a userId|token pair, the server still has to write the

@@ -79,10 +79,9 @@ public class VocabularyProgressService : IVocabularyProgressService
         // needing a logger dependency.
         bool wasMasteredBefore = progress.MasteredAt.HasValue;
 
-        // Core streak / mastery / spaced-repetition scoring. This is shared verbatim with duplicate-merge
-        // recalculation and the word-page mastery chart via VocabularyMasteryCalculator so the live path,
-        // a merge replay, and the rendered curve can never disagree.
-        VocabularyMasteryCalculator.ApplyAttempt(progress, attempt, DateTime.Now);
+        // The native transactional writer uses this same operation, including the
+        // legacy fields and quiz demonstration counters, rather than copying policy.
+        ApplyAttemptScoring(progress, attempt, DateTime.Now);
 
         if (!wasMasteredBefore && progress.MasteredAt.HasValue)
         {
@@ -90,13 +89,6 @@ public class VocabularyProgressService : IVocabularyProgressService
                 "Word {WordId} mastered. Mastery={Mastery:F2}, ProdInStreak={ProdStreak}. Next review in {Interval} days.",
                 progress.VocabularyWordId, progress.MasteryScore, progress.ProductionInStreak, progress.ReviewInterval);
         }
-
-        // LEGACY: Update old phase-specific fields for backward compatibility during migration
-#pragma warning disable CS0618
-        UpdatePhaseMetrics(progress, attempt);
-        UpdateLegacyFields(progress, attempt);
-#pragma warning restore CS0618
-        UpdateQuizDemonstrationCounters(progress, attempt);
 
         // Save progress
         progress = await _progressRepo.SaveAsync(progress);
@@ -151,6 +143,54 @@ public class VocabularyProgressService : IVocabularyProgressService
         await RecordLearningContextAsync(progress.Id, attempt);
 
         return progress;
+    }
+
+    /// <summary>
+    /// The source attempt path's entire progress mutation, including legacy
+    /// phase fields and quiz demonstration counts. Persistence and phrase
+    /// cascade remain the caller's responsibility.
+    /// </summary>
+    public static void ApplyAttemptScoring(
+        VocabularyProgress progress, VocabularyAttempt attempt, DateTime scoredAt)
+    {
+        ArgumentNullException.ThrowIfNull(progress);
+        ArgumentNullException.ThrowIfNull(attempt);
+
+        VocabularyMasteryCalculator.ApplyAttempt(progress, attempt, scoredAt);
+#pragma warning disable CS0618
+        UpdatePhaseMetrics(progress, attempt);
+        UpdateLegacyFields(progress, attempt);
+#pragma warning restore CS0618
+        UpdateQuizDemonstrationCounters(progress, attempt);
+    }
+
+    /// <summary>
+    /// Builds the same detailed attempt context for both the source service
+    /// and transactional native scoring. The caller persists it with progress.
+    /// </summary>
+    public static VocabularyLearningContext CreateLearningContext(
+        string vocabularyProgressId, VocabularyAttempt attempt, DateTime learnedAt)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(vocabularyProgressId);
+        ArgumentNullException.ThrowIfNull(attempt);
+
+        return new VocabularyLearningContext
+        {
+            VocabularyProgressId = vocabularyProgressId,
+            Activity = attempt.Activity,
+            InputMode = attempt.InputMode,
+            LearningResourceId = attempt.LearningResourceId,
+            WasCorrect = attempt.WasCorrect,
+            DifficultyScore = attempt.DifficultyWeight,
+            ResponseTimeMs = attempt.ResponseTimeMs,
+            UserConfidence = attempt.UserConfidence,
+            ContextType = attempt.ContextType,
+            UserInput = attempt.UserInput,
+            ExpectedAnswer = attempt.ExpectedAnswer,
+            LearnedAt = learnedAt,
+            // Legacy field
+            CorrectAnswersInContext = attempt.WasCorrect ? 1 : 0
+        };
     }
 
     /// <summary>
@@ -222,7 +262,7 @@ public class VocabularyProgressService : IVocabularyProgressService
         return allProgress.ToDictionary(p => p.VocabularyWordId, p => p);
     }
 
-    private void UpdatePhaseMetrics(VocabularyProgress progress, VocabularyAttempt attempt)
+    private static void UpdatePhaseMetrics(VocabularyProgress progress, VocabularyAttempt attempt)
     {
         // LEGACY: Keep updating old phase metrics during migration period
 #pragma warning disable CS0618
@@ -244,7 +284,7 @@ public class VocabularyProgressService : IVocabularyProgressService
 #pragma warning restore CS0618
     }
 
-    private void UpdateLegacyFields(VocabularyProgress progress, VocabularyAttempt attempt)
+    private static void UpdateLegacyFields(VocabularyProgress progress, VocabularyAttempt attempt)
     {
         // LEGACY: Update old fields for backward compatibility during migration
 #pragma warning disable CS0618
@@ -334,28 +374,9 @@ public class VocabularyProgressService : IVocabularyProgressService
         // No longer advances phases - kept for backward compatibility
     }
 
-    private Task RecordLearningContextAsync(string vocabularyProgressId, VocabularyAttempt attempt)
-    {
-        var context = new VocabularyLearningContext
-        {
-            VocabularyProgressId = vocabularyProgressId,
-            Activity = attempt.Activity,
-            InputMode = attempt.InputMode,
-            LearningResourceId = attempt.LearningResourceId,
-            WasCorrect = attempt.WasCorrect,
-            DifficultyScore = attempt.DifficultyWeight,
-            ResponseTimeMs = attempt.ResponseTimeMs,
-            UserConfidence = attempt.UserConfidence,
-            ContextType = attempt.ContextType,
-            UserInput = attempt.UserInput,
-            ExpectedAnswer = attempt.ExpectedAnswer,
-            LearnedAt = DateTime.Now,
-            // Legacy field
-            CorrectAnswersInContext = attempt.WasCorrect ? 1 : 0
-        };
-
-        return _contextRepo.SaveAsync(context);
-    }
+    private Task RecordLearningContextAsync(string vocabularyProgressId, VocabularyAttempt attempt) =>
+        _contextRepo.SaveAsync(CreateLearningContext(
+            vocabularyProgressId, attempt, DateTime.Now));
 
     private async Task<VocabularyProgress> GetOrCreateProgressAsync(string vocabularyWordId, string userId)
     {

@@ -16,7 +16,7 @@ namespace SentenceStudio.Services;
 /// authenticated optimistically while the token refresh happens in the background.
 /// This prevents login-screen flashes on app resume.
 /// </summary>
-public class MauiAuthenticationStateProvider : AuthenticationStateProvider
+public class MauiAuthenticationStateProvider : AuthenticationStateProvider, IClientAuthStateNotifier
 {
     private readonly IAuthService _authService;
     private readonly ILogger<MauiAuthenticationStateProvider> _logger;

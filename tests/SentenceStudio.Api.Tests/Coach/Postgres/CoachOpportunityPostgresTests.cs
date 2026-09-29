@@ -278,16 +278,14 @@ public class CoachOpportunityPostgresTests
     // ---------------------------------------------------------------- the rollup
 
     /// <summary>
-    /// The rollup counts distinct learners on the real provider.
+    /// The rollup counts only the current learner's rows on the real provider.
     /// </summary>
     /// <remarks>
-    /// <c>COUNT(DISTINCT UserProfileId)</c> is the only trace of who was affected, and it is
-    /// produced by a grouped LINQ projection — which SQLite and PostgreSQL do not translate
-    /// identically. Asserting it against the real provider is the difference between "the
-    /// expression compiles" and "the number an operator reads is right".
+    /// The owner filter must run before <c>COUNT(DISTINCT UserProfileId)</c>, which SQLite and
+    /// PostgreSQL do not translate identically. Both providers must agree on the owner's count.
     /// </remarks>
     [PostgresFact]
-    public async Task TheRollupCountsDistinctLearnersWithoutNamingThem()
+    public async Task TheRollupCountsOnlyTheCurrentLearnerWithoutNamingThem()
     {
         await using var harness = await CoachPostgresHarness.CreateAsync("opportunity-rollup");
 
@@ -313,10 +311,9 @@ public class CoachOpportunityPostgresTests
         var first = rollup.Value.Single(line =>
             line.CapabilityCode == CoachOpportunityCapabilityCodes.EntityLookupByName);
 
-        first.DistinctLearners.Should().Be(3,
-            "three learners hit it, and learner-a's second day must not be counted twice");
-        first.RowCount.Should().Be(4, "four rows: three learners plus a second day for one");
-        first.TotalOccurrences.Should().Be(4);
+        first.DistinctLearners.Should().Be(1);
+        first.RowCount.Should().Be(2, "only learner-a's two days contribute to this rollup");
+        first.TotalOccurrences.Should().Be(2);
 
         var second = rollup.Value.Single(line =>
             line.CapabilityCode == CoachOpportunityCapabilityCodes.WriteToolsDisabled);
@@ -366,8 +363,17 @@ public class CoachOpportunityPostgresTests
         var boundary = harness.Time.GetUtcNow().UtcDateTime.AddDays(30);
         harness.Time.Advance(TimeSpan.FromDays(60));
 
-        // The same problem, recurring now, undecided.
+        // The same problem recurs now for A and B, but only A's status may appear.
         await NewRecorder(harness, "learner-b").RecordAsync(Signal());
+        await NewRecorder(harness, "learner-a").RecordAsync(Signal());
+
+        await using (var setup = harness.NewContext())
+        {
+            var foreign = await setup.CoachOpportunities
+                .SingleAsync(row => row.UserProfileId == "learner-b");
+            foreign.Status = CoachOpportunityStatus.Accepted;
+            await setup.SaveChangesAsync();
+        }
 
         await using var db = harness.NewContext();
         var service = NewOperatorService(harness, db, "learner-a");
@@ -375,15 +381,16 @@ public class CoachOpportunityPostgresTests
         var windowed = await service.RollupAsync(boundary);
         var line = windowed.Value!.Should().ContainSingle().Subject;
 
-        line.DistinctLearners.Should().Be(1, "only the recent occurrence is in the window");
+        line.DistinctLearners.Should().Be(1, "only A's recent occurrence is in the window");
         line.Statuses.Should().BeEquivalentTo([nameof(CoachOpportunityStatus.New)],
-            "the old dismissal is outside the window and must not colour a fresh recurrence");
+            "neither A's old dismissal nor B's accepted row may colour A's fresh recurrence");
 
-        // Unwindowed, both are visible and both statuses are reported.
+        // Unwindowed, only A's two days contribute; B's accepted status stays private.
         var everything = await service.RollupAsync(null);
         var all = everything.Value!.Should().ContainSingle().Subject;
 
-        all.DistinctLearners.Should().Be(2);
+        all.DistinctLearners.Should().Be(1);
+        all.RowCount.Should().Be(2);
         all.Statuses.Should().BeEquivalentTo([
             nameof(CoachOpportunityStatus.New),
             nameof(CoachOpportunityStatus.Dismissed)

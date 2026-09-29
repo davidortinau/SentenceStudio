@@ -10,10 +10,9 @@ namespace SentenceStudio.Api.Coach.Opportunities;
 /// </summary>
 /// <remarks>
 /// <para>
-/// <b>Not salted with the owner.</b> The fingerprint answers "which gap is this", so
-/// <c>GROUP BY Fingerprint</c> gives the cross-learner rollup a reviewer needs. Per-learner
-/// deduplication comes from the unique index on
-/// <c>(UserProfileId, Fingerprint, DedupBucketDate)</c>, not from the digest.
+/// <b>Not salted with the owner.</b> The fingerprint answers "which gap is this", while every
+/// operator query filters on <c>UserProfileId</c> before grouping. Per-learner deduplication
+/// comes from the unique index on <c>(UserProfileId, Fingerprint, DedupBucketDate)</c>.
 /// </para>
 /// <para>
 /// Every input is a closed enum or a closed-vocabulary constant, so the digest is itself

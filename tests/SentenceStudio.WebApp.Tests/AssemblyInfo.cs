@@ -3,6 +3,6 @@
 // place before minimal hosting validates its container. Environment variables are process-wide, so
 // two factories alive at once would read each other's settings.
 //
-// Serialising the assembly is the right trade here anyway: each test owns a PostgreSQL database
-// and a loopback listener, and running those concurrently buys little.
+// Serialising the assembly is the right trade here anyway: the opt-in integration tests each
+// create a database on an explicitly owned disposable cluster and use a loopback listener.
 [assembly: CollectionBehavior(DisableTestParallelization = true)]

@@ -121,9 +121,15 @@ var postgres = postgresServer.AddDatabase("sentencestudio");
 
 var redis = builder.AddRedis("cache");
 
+// Isolated local runs need their own Azurite volume: media and the coach key ring both
+// live here. Keep the established volume name when no override is provided.
+var localAzuriteDataVolume = builder.Configuration["LocalAzurite:DataVolume"]?.Trim();
+
 var storage = builder.AddAzureStorage("storage")
     .RunAsEmulator(azurite => azurite
-        .WithDataVolume("sentencestudio-local-azurite-data")
+        .WithDataVolume(string.IsNullOrWhiteSpace(localAzuriteDataVolume)
+            ? "sentencestudio-local-azurite-data"
+            : localAzuriteDataVolume)
         .WithLifetime(ContainerLifetime.Persistent))
     .AddBlobs("media");
 
@@ -162,6 +168,13 @@ foreach (var dupIndex in coachEnvironmentResult.DuplicateAllowlistSourceIndices)
         $"warn: Coach:AllowedUserProfileIds[{dupIndex}] is a duplicate of an earlier entry and was dropped.");
 }
 
+// API and Workers use the same optional filesystem root, under separate api/worker directories.
+// Only local runs pass it to child processes; absent overrides and publish keep their defaults.
+const string appDataRootEnvironmentName = "SENTENCESTUDIO_APPDATA_ROOT";
+var localAppDataRoot = builder.ExecutionContext.IsRunMode
+    ? builder.Configuration[appDataRootEnvironmentName]?.Trim()
+    : null;
+
 var api = builder.AddProject<SentenceStudio_Api>("api")
     .WithEnvironment("AI__OpenAI__Endpoint", aiEndpoint)
     .WithEnvironment("AI__OpenAI__Models__Fast", aiFastModel)
@@ -178,7 +191,15 @@ var api = builder.AddProject<SentenceStudio_Api>("api")
     // leave it on the ephemeral ring for the life of the process.
     .WithReference(coachKeyRing)
     .WaitFor(coachKeyRing)
-    .WithExternalHttpEndpoints();
+    .WithExternalHttpEndpoints()
+    // /health is Development-only and reports database diagnostics. The existing public version
+    // route is mapped in every environment, after the API's pre-Run migrations and backfills.
+    .WithHttpHealthCheck("/api/version/info");
+
+if (!string.IsNullOrWhiteSpace(localAppDataRoot))
+{
+    api = api.WithEnvironment(appDataRootEnvironmentName, localAppDataRoot);
+}
 
 // The reader always emits the fail-closed Enabled and Implementation values, then adds only
 // explicitly configured pilot IDs and optional settings. Optional formats, ranges, and feature
@@ -203,10 +224,24 @@ var webapp = builder.AddProject<SentenceStudio_WebApp>("webapp")
     .WithEnvironment("ElevenLabsKey", elevenlabskey)
     .WithEnvironment("Jwt__SigningKey", jwtkey)
     .WithReference(api)
+    // Local AppHost startup waits for API HTTP readiness after its startup work, not merely Running.
+    // Deployed containers start independently; the WebApp enforces its own API/schema gate.
+    .WaitFor(api)
     .WithReference(redis)
     .WithReference(postgres)
     .WaitFor(postgres)
     .WithExternalHttpEndpoints();
+
+// Only a local run may forward an explicitly configured filesystem override. Leaving it
+// unset preserves the WebApp's existing default; publishing never captures a test path.
+if (builder.ExecutionContext.IsRunMode)
+{
+    var webAppDataRoot = builder.Configuration["WebApp:AppDataRoot"]?.Trim();
+    if (!string.IsNullOrWhiteSpace(webAppDataRoot))
+    {
+        webapp = webapp.WithEnvironment("WebApp__AppDataRoot", webAppDataRoot);
+    }
+}
 
 builder.AddProject<SentenceStudio_Marketing>("marketing")
     .WithExternalHttpEndpoints();
@@ -220,6 +255,11 @@ var workers = builder.AddProject<SentenceStudio_Workers>("workers")
     .WithReference(postgres)
     .WithReference(redis)
     .WithReference(storage);
+
+if (!string.IsNullOrWhiteSpace(localAppDataRoot))
+{
+    workers = workers.WithEnvironment(appDataRootEnvironmentName, localAppDataRoot);
+}
 
 // Part-of-speech backfill, forwarded to the workers host only — never to the API, which has no
 // business running a bulk classification chore. Every value is optional and forwarded verbatim
@@ -256,55 +296,19 @@ for (var i = 0; i < 8; i++)
     workers = workers.WithEnvironment($"VocabularyPartOfSpeechBackfill__UserProfileIds__{i}", profileId);
 }
 
-// MAUI clients and dev tunnels are local-dev only — excluded from Azure publish
-if (builder.ExecutionContext.IsRunMode)
+// Only separately run temporary MAUI reference heads need a public local API.
+// Normal and isolated server runs keep local API service discovery without a tunnel.
+// Opt in explicitly with LocalDevTunnel__Enabled=true when those heads need it.
+if (builder.ExecutionContext.IsRunMode &&
+    builder.Configuration.GetValue<bool>("LocalDevTunnel:Enabled", false))
 {
-    var openaikey = builder.AddParameter("openaikey", secret: true);
-    var syncfusionkey = builder.AddParameter("syncfusionkey", secret: true);
-
-    var maccatalyst = builder.AddMauiProject("maccatalyst", "../SentenceStudio.MacCatalyst/SentenceStudio.MacCatalyst.csproj");
-
-    maccatalyst.AddMacCatalystDevice()
-        .WithEnvironment("SyncfusionKey", syncfusionkey)
-        .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
-        .WithEnvironment("ElevenLabsKey", elevenlabskey)
-        .WithReference(api);
-
-    var windows = builder.AddMauiProject("windows", "../SentenceStudio.Windows/SentenceStudio.Windows.csproj");
-
-    windows.AddWindowsDevice()
-        .WithEnvironment("SyncfusionKey", syncfusionkey)
-        .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
-        .WithEnvironment("ElevenLabsKey", elevenlabskey)
-        .WithReference(api);
-
     // Dev tunnel for mobile platforms (iOS/Android can't reach localhost directly).
     // References the api "http" endpoint — the AppHost only activates the api project's
     // first (http) launch profile, so GetEndpoint("https") would fail to resolve and, under
     // Aspire 13.5+, cascade-fail every downstream resource that references the tunnel.
-    var publicDevTunnel = builder.AddDevTunnel("devtunnel-public")
+    builder.AddDevTunnel("devtunnel-public")
         .WithAnonymousAccess()
         .WithReference(api.GetEndpoint("http"));
-
-    // Android
-    var android = builder.AddMauiProject("android", "../SentenceStudio.Android/SentenceStudio.Android.csproj");
-
-    android.AddAndroidEmulator()
-        .WithOtlpDevTunnel()
-        .WithEnvironment("SyncfusionKey", syncfusionkey)
-        .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
-        .WithEnvironment("ElevenLabsKey", elevenlabskey)
-        .WithReference(api, publicDevTunnel);
-
-    // iOS
-    var ios = builder.AddMauiProject("ios", "../SentenceStudio.iOS/SentenceStudio.iOS.csproj");
-
-    ios.AddiOSSimulator()
-        .WithOtlpDevTunnel()
-        .WithEnvironment("SyncfusionKey", syncfusionkey)
-        .WithEnvironment("AI__OpenAI__ApiKey", openaikey)
-        .WithEnvironment("ElevenLabsKey", elevenlabskey)
-        .WithReference(api, publicDevTunnel);
 }
 
 builder.Build().Run();

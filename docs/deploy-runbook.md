@@ -50,6 +50,139 @@ for server hosts. That legacy key is only for local direct-client fallback paths
 `azd deploy` asks for `openaikey`, stop and fix AppHost/deploy wiring instead of copying
 or inventing a secret.
 
+## Application schema startup order
+
+The API is the **only server host** that applies `ApplicationDbContext` migrations
+**and runs its shared vocabulary/phrase startup backfills**. It now uses one
+nonpooled PostgreSQL session for the application, coach, and feedback migrations,
+shared backfills, number seeding, development-account seeding, and CoreSync
+provisioning through the caller-owned local3 provider overload. A latched
+session/backend check must abort startup rather than retry writes after losing
+the advisory lock. This source wiring has built locally, but a two-replica
+connection-loss proof is still required before deployment. Only after startup
+completes does the API serve `/api/version/info`.
+The public response includes `applicationStartupContract` and
+`applicationMigrationId`, in addition to the ordinary app version. Bump the startup
+contract in `src/SentenceStudio.Contracts/Startup/ApiApplicationStartupContract.cs`
+when API-owned shared backfill behavior changes without a new migration.
+Development/Testing API hosts with `Database:SkipMigrateOnStartup=true` return 503
+from the readiness route rather than falsely advertising startup completion.
+
+The WebApp does **not** migrate or run shared startup backfills. Before opening its
+HTTP listener, it requires the current startup contract and the same last compiled
+application migration ID from the API, then checks its own pending migrations
+**read-only**. A 200 from an older serving API revision, even with zero pending
+migrations, cannot release a WebApp whose startup contract differs. A new migration
+also prevents older API revisions from releasing the gate even if a contract bump
+was missed.
+
+Locally, AppHost also uses `WithHttpHealthCheck("/api/version/info")` and
+`WaitFor(api)` to hold WebApp startup until API readiness. That AppHost ordering is
+**not** a deployment guarantee for the `azd`/Azure Container Apps path in `azure.yaml`;
+the WebApp enforces the gate in its own process regardless of launch order. It retries
+temporary API failures, incompatible older revisions, or pending migrations for **up
+to three minutes for this gate only**, then logs a critical startup failure and exits
+rather than serving on an incompatible schema. Its actual total startup time also
+includes host construction and dependency initialization; the API's migration,
+backfills, and provisioning have **no three-minute bound**. This value is **not** a
+claim about the Container Apps startup probe allowance. No probe duration is
+configured in the checked-in `azure.yaml` or the AppHost resource declaration;
+inspect the **rendered/deployed** Container Apps probe configuration and revision
+health before rollout, rather than assuming any default applies. An invalid API
+response or an authorization requirement on the public version route fails immediately.
+The API refuses
+`Database:SkipMigrateOnStartup=true` outside Development and Testing.
+
+**Production HOLD — lock survivability:** the same-session implementation is not
+yet a passing fault-injection result. Do not deploy until a separately attested,
+fresh PostgreSQL cluster proves that killing the lock backend stops the old
+replica's migration, backfill, and CoreSync writes before the next replica writes.
+The currently drafted fault-test fixture is rejected for execution; do not run
+it or infer safety from healthy-connection tests.
+
+**Production HOLD — CoreSync package distribution:** `CoreSync.PostgreSQL` uses
+the exact range `[0.1.129-local3]` from the reviewed local CoreSync commit
+`d611359` (the provider nuspec records that commit). The staged provider-only
+repository feed contains this SHA-256-verified archive:
+
+| Package | SHA-256 |
+| --- | --- |
+| `CoreSync.PostgreSQL.0.1.129-local3.nupkg` | `c301f31bb4c7415242b545835230d566499f6805fd3bc74cd51098e10c0a05f9` |
+
+`src/NuGet.config` maps the **exact provider ID** to
+`lib/coresync-postgresql-local3`, a repository-local feed containing only the
+SHA-verified provider archive. It maps the **exact base ID** `CoreSync` to
+nuget.org, which serves the stable `CoreSync/0.1.129` needed by the 0.1.129
+HTTP and SQLite packages. NuGet's
+[package pattern precedence](https://learn.microsoft.com/en-us/nuget/consume-packages/package-source-mapping#package-pattern-precedence)
+puts exact IDs ahead of every `CoreSync*` prefix or `*` wildcard on the
+legacy `coresync-local`, public, and developer-local feeds; source-list
+order does not override this rule.
+The provider nuspec's minimum base dependency accepts stable 0.1.129, which
+the stable HTTP and SQLite packages also require. The base is not part of the
+repo-local provider seam; do not force the lower prerelease base or suppress
+NU1603/NU1605.
+
+A package already in the global cache bypasses source mapping, so a warm
+restore is not evidence for this fix. To prove cold resolution from the
+worktree root, run the following on a machine with the reviewed feed archive
+available (retain the scratch cache for inspection):
+
+```bash
+export NUGET_PACKAGES="$(mktemp -d "${TMPDIR:-/tmp}/ss-coresync.XXXXXX")"
+dotnet restore tests/SentenceStudio.Api.Tests/SentenceStudio.Api.Tests.csproj \
+  --configfile src/NuGet.config --force --no-cache \
+  -p:IncludeMobileTargets=false -p:Configuration=Release \
+  -warnaserror:NU1603,NU1605
+dotnet test tests/SentenceStudio.Api.Tests/SentenceStudio.Api.Tests.csproj \
+  --no-restore -c Release -p:IncludeMobileTargets=false \
+  --filter FullyQualifiedName~CoreSyncProviderPackageTests
+```
+
+The provenance test checks effective mappings, both resolved package IDs,
+the one-package reviewed feed, the cached provider archive's SHA-256, and the
+caller-owned overload. The CI workflows disable `localnugets`; CI has no
+access to `$HOME/work/LocalNuGets`. The reviewed provider archive is present
+in this worktree, not yet published or proven present in a CI checkout.
+**Do not deploy** until the dedicated feed archive is committed into the
+approved CI checkout or supplied through an approved CI-accessible feed,
+CI passes a cold exact-version restore and integrity test, and the separate
+lock-survivability and rollout gates above also pass. No package was
+published and no production release is authorized by this local change.
+
+**Rollout hold — older revisions:** a new WebApp will not run these backfills,
+but a previously deployed WebApp or API revision still contains the old startup
+code and does not participate in the new API advisory lock. Before authorizing
+production, confirm the actual API/WebApp revision mode, traffic routing,
+and startup/scale behavior;
+older replicas must not begin a competing backfill during the new API's startup.
+The WebApp checks one API response, not every target in a split-traffic rollout.
+Do not infer revision or probe behavior from local `WaitFor(api)` or the `azd`
+manifest alone. If old startup writers or a sufficient probe allowance cannot
+be ruled out, **hold deployment** until the rollout is staged safely.
+
+Before any production rollout, verify this path against an **isolated** PostgreSQL
+database with concurrently starting API replicas and API/WebApp processes; do not
+use production or a developer's existing data volume as the test database. The
+WebApp's readiness algorithm, redirect handling, and startup ownership tests do not
+require PostgreSQL. The separate real-Identity WebApp integration family remains
+opt-in: it requires `WEBAPP_PG_TEST_CONNECTION` to a loopback disposable cluster and
+`WEBAPP_PG_TEST_OWNER_ID` to a fresh per-run UUID matching the server's **startup**
+`cluster_name` (`webapp-it-<uuid>`). It ignores coach/design-time connection variables
+and never drops databases or test preferences. The fixture attests the actual open
+connection immediately before database creation, migration, and direct seeding;
+an EF command interceptor also attests every migration write, including an
+unexpected attempt to create a database on EF's maintenance connection;
+only names created in that process may be used for migration. Without that owned
+cluster it skips locally; with mismatched ownership it fails before any database
+is created. The CI WebApp job sets the marker on its own identified disposable
+PostgreSQL service, restarts it (the parameter is server-start-only), verifies the
+marker, and fails if any PostgreSQL-gated test is missing or skipped. Test hosts set
+`WebApp__AppDataRoot` to distinct paths under the test output, restore the prior
+environment after use, and leave scratch data intact rather than deleting files.
+After an authorized deploy, the mandatory post-deploy validator and
+migration-history checks below still apply.
+
 ---
 
 ## MANDATORY Pre-Deploy Safety Checklist
@@ -134,24 +267,27 @@ devices; the second killed dashboard interactivity on iOS). **A raw-DDL/schema-c
 CANNOT catch this** — the SQL is valid; EF just never invokes the migration. This same
 check runs in CI (`ci.yml` → `migration-guard`).
 
-**4b. Mobile runtime validation (real SQLite apply):**
+**4b. Mobile SQLite migration validation (real EF apply on private scratch databases):**
 
 ```bash
-bash scripts/validate-mobile-migrations.sh
+bash scripts/validate-mobile-migrations.sh --validate-native-sqlite-only
 ```
 
-**Pass condition:** exits 0 AND prints `Mobile schema sanity check PASSED`. The script now
-HARD-FAILS if native logs can't be fetched or the sanity signal is absent — a green grep
-over an empty log proves nothing. If it fails because MAUI DevFlow attached to the WRONG
-app (another DevFlow app running), close the other app and re-run; do NOT treat an
-unverified run as a pass.
+**Pass condition:** exits 0 after reporting `SQLite model parity, fresh migrations,
+and data-preserving upgrade passed` for **both** `net11.0-ios` and `net11.0-android`.
+This mode compiles each mobile Shared assembly in isolated outputs, checks EF discovery
+and the model/snapshot differ, applies migrations through real EF on fresh and prior
+scratch SQLite databases, and verifies migration history, schema, and retained rows.
+It does **not** launch an app or verify a signed native bundle. Before deployment,
+the platform owner must separately launch normal `MigrateAsync()` on a disposable
+simulator/emulator app database and inspect `__EFMigrationsHistory` and the affected
+columns/indexes. A Debug `EnsureCreated` preview is not migration proof.
 
-> **Device-free fallback when DevFlow is unreliable:** you may additionally confirm on a
-> real SQLite DB copy that the migration is DISCOVERED and APPLIED (not just that the DDL
-> parses) — run the native head and check `__EFMigrationsHistory` + the new table/column
-> appear. See `.squad/skills/ef-dual-provider-migrations/SKILL.md` → "Validating a migration
-> WITHOUT a device". Remember SQLite WAL mode: pull `db` + `-wal` + `-shm`, or terminate the
-> app first, or the DB looks stale.
+The unqualified script path is **not** this gate: it would launch the old MAUI
+reference head, whose production bundle identity is explicitly blocked. Do not
+disable its production-bundle guard to make the unqualified command pass. For
+isolated EF-only validation of the immediately previous SQLite migration,
+`--validate-ef-discovery-only` is available as an additional check.
 
 **If either gate fails: DO NOT DEPLOY.** Fix the migration first. Common failures:
 - Missing `[Migration]` attribute on the SQLite copy → migration silently skipped (4a catches this)

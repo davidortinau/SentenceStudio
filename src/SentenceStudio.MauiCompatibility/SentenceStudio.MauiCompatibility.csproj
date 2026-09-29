@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net11.0-android;net11.0-ios;net11.0-maccatalyst;net11.0-macos</TargetFrameworks>
+    <TargetFrameworks Condition="$([MSBuild]::IsOSPlatform('Windows'))">$(TargetFrameworks);net11.0-windows10.0.19041.0</TargetFrameworks>
+    <RootNamespace>SentenceStudio</RootNamespace>
+    <UseMaui>true</UseMaui>
+    <SingleProject>true</SingleProject>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+
+  <!-- Transitional dependency of the frozen MAUI heads only. Never reference this from a server project. -->
+  <ItemGroup>
+    <ProjectReference Include="..\SentenceStudio.AppLib\SentenceStudio.AppLib.csproj" />
+    <PackageReference Include="Microsoft.Maui.Controls" />
+    <PackageReference Include="CommunityToolkit.Maui" />
+    <PackageReference Include="Plugin.Maui.Audio" />
+    <PackageReference Include="SkiaSharp.Views.Maui.Controls" />
+    <PackageReference Include="Syncfusion.Maui.Toolkit" />
+    <PackageReference Include="Syncfusion.Maui.Inputs" />
+    <PackageReference Include="Syncfusion.Maui.Charts" />
+    <PackageReference Include="Syncfusion.Maui.Gauges" />
+    <PackageReference Include="Syncfusion.Maui.ProgressBar" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <MauiIcon Include="..\SentenceStudio.AppLib\Resources\AppIcon\appicon.svg" ForegroundFile="..\SentenceStudio.AppLib\Resources\AppIcon\studio_icon.png" Color="#0c0b10" />
+    <MauiSplashScreen Include="..\SentenceStudio.AppLib\Resources\AppIcon\studio_icon.png" Color="#0c0b10" BaseSize="400,400" />
+    <MauiImage Include="..\SentenceStudio.AppLib\Resources\Images\*" />
+    <MauiImage Update="..\SentenceStudio.AppLib\Resources\Images\dotnet_bot.png" Resize="True" BaseSize="300,185" />
+    <MauiFont Include="..\SentenceStudio.AppLib\Resources\Fonts\*" />
+    <MauiAsset Include="..\SentenceStudio.AppLib\Resources\Fonts\bm_yeonsung.ttf" LogicalName="fonts/bm_yeonsung.ttf" />
+    <MauiAsset Include="..\SentenceStudio.AppLib\Resources\Fonts\PretendardVariable.ttf" LogicalName="fonts/PretendardVariable.ttf" />
+    <MauiAsset Include="..\SentenceStudio.AppLib\Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
+    <MauiAsset Include="..\SentenceStudio.AppLib\wwwroot\index.html" LogicalName="wwwroot/index.html" />
+    <MauiAsset Include="..\SentenceStudio.AppLib\appsettings.json" LogicalName="appsettings.json" Condition="Exists('$(MSBuildProjectDirectory)/../SentenceStudio.AppLib/appsettings.json')" />
+    <MauiAsset Include="..\SentenceStudio.AppLib\appsettings.Development.json" LogicalName="appsettings.Development.json" />
+    <MauiAsset Include="..\SentenceStudio.AppLib\appsettings.Production.json" LogicalName="appsettings.Production.json" />
+    <EmbeddedResource Include="..\SentenceStudio.AppLib\appsettings.json" LogicalName="SentenceStudio.appsettings.json" Condition="Exists('$(MSBuildProjectDirectory)/../SentenceStudio.AppLib/appsettings.json')" />
+    <EmbeddedResource Include="..\SentenceStudio.AppLib\appsettings.Development.json" LogicalName="SentenceStudio.appsettings.Development.json" />
+    <EmbeddedResource Include="..\SentenceStudio.AppLib\appsettings.Production.json" LogicalName="SentenceStudio.appsettings.Production.json" />
+    <EmbeddedResource Include="$(ReferenceHeadConfig)" LogicalName="SentenceStudio.reference-head.generated.json" Condition="'$(ReferenceHeadConfig)' != ''" />
+  </ItemGroup>
+
+  <Target Name="ValidateReferenceHeadConfig" BeforeTargets="AssignTargetPaths" Condition="'$(ReferenceHeadConfig)' != ''">
+    <Error Condition="!Exists('$(ReferenceHeadConfig)')" Text="ReferenceHeadConfig does not exist. Generate a new standalone config with scripts/run-reference-head.py and pass its absolute path." />
+  </Target>
+</Project>

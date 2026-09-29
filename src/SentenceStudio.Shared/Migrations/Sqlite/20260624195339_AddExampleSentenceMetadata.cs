@@ -40,7 +40,7 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
             migrationBuilder.AddColumn<bool>(
                 name: "IsFlagged",
                 table: "ExampleSentence",
-                type: "boolean",
+                type: "INTEGER",
                 nullable: false,
                 defaultValue: false);
         }

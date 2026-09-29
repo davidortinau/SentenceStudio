@@ -7,12 +7,10 @@ namespace SentenceStudio;
 /// </summary>
 public interface IAppState
 {
-    Microsoft.Maui.ApplicationModel.AppTheme CurrentAppTheme { get; set; }
     UserProfile CurrentUserProfile { get; set; }
 }
 
 public class AppState : IAppState
 {
-    public Microsoft.Maui.ApplicationModel.AppTheme CurrentAppTheme { get; set; }
     public UserProfile CurrentUserProfile { get; set; }
 }

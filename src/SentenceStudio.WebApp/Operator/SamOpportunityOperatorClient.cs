@@ -7,8 +7,7 @@ namespace SentenceStudio.WebApp.Operator;
 
 /// <summary>One aggregated problem, exactly as the operator API reports it.</summary>
 /// <remarks>
-/// <c>DistinctLearners</c> is a count and never a list — the API has no shape that could return
-/// learner identifiers on this path, and this client has no member that could receive them.
+/// <c>DistinctLearners</c> remains on the wire, but can only count the authenticated owner.
 /// </remarks>
 public sealed record SamOpportunityRollup(
     string Fingerprint,
@@ -103,7 +102,8 @@ public sealed record SamOpportunityReviewResponse(
 /// <summary>The body that authorises an evidence reveal.</summary>
 public sealed record SamOpportunityEvidenceRequest(string Acknowledgement);
 
-/// <summary>The decrypted evidence for one Product row.</summary>
+/// <summary>The decrypted evidence for one Product row owned by the current learner.</summary>
+/// <param name="CrossOwner">Retained for wire compatibility; always false.</param>
 public sealed record SamOpportunityEvidenceResponse(
     string OpportunityId,
     string EvidenceState,
@@ -128,14 +128,10 @@ public enum SamOpportunityClientStatus
     InvalidRequest = 2,
 
     /// <summary>
-    /// The row belongs to another learner and cross-owner evidence is disabled.
+    /// Legacy status retained for ordinal compatibility. Foreign rows now arrive as 404.
     /// </summary>
     /// <remarks>
-    /// <b>Not reachable from an HTTP status any more, and deliberately so.</b> The server answers
-    /// a cross-owner refusal with the same 404 it answers "no such row" with, because a distinct
-    /// status would confirm that the identifier names a real row owned by somebody else. The
-    /// member is kept because the page renders it, and because removing it would silently change
-    /// a public enum's ordinals.
+    /// The member is no longer emitted by the client; removing it would renumber existing values.
     /// </remarks>
     CrossOwnerRefused = 3,
 
@@ -200,7 +196,7 @@ public sealed class SamOpportunityOperatorClient
         _logger = logger ?? throw new ArgumentNullException(nameof(logger));
     }
 
-    /// <summary>Reads the safe cross-learner rollup.</summary>
+    /// <summary>Reads the current owner's rollup.</summary>
     public Task<SamOpportunityResult<IReadOnlyList<SamOpportunityRollup>>> GetRollupAsync(
         DateTime? since = null,
         CancellationToken cancellationToken = default) =>

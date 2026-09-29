@@ -49,7 +49,7 @@ public static class MacOSMauiProgram
 #if DEBUG
         var migrationValidation = MigrationValidationOptions.FromCommandLine(
             commandLineArguments,
-            Common.Constants.DatabasePath);
+            Path.Combine(Microsoft.Maui.Storage.FileSystem.AppDataDirectory, Common.Constants.DatabaseFilename));
         if (migrationValidation is null)
         {
             builder.UseSentenceStudioApp();

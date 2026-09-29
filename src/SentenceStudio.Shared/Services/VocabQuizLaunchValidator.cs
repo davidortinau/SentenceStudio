@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Abstractions;
 using SentenceStudio.Data;
+using SentenceStudio.Services.Plans;
 using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Services;
@@ -154,6 +155,26 @@ public sealed class VocabQuizLaunchValidator
         rejectedCount += CountRejectedWordReferences(snapshot.SessionItemsWordIds, reachable, batchSet);
 
         return rejectedCount;
+    }
+
+    /// <summary>
+    /// Reads the plan's canonical focus facts, including the legacy narrative
+    /// fallback used by PlanService when focus facts were not yet persisted.
+    /// A native writer can validate a plan inside its own SQLite transaction
+    /// without opening the separately scoped PlanService.
+    /// </summary>
+    public static IReadOnlyList<string> GetPlanFocusVocabularyIds(
+        string? focusVocabularyFacts, string? narrativeFacts)
+    {
+        var focus = PlanFactsSerializer.DeserializeFocusVocabularyFacts(
+            focusVocabularyFacts);
+        if (focus.Count > 0)
+            return focus;
+
+        var preview = PlanFactsSerializer.DeserializeNarrativeFacts(narrativeFacts)
+            ?.VocabInsight?.PreviewWords;
+        return PlanFactsSerializer.NormalizeFocusVocabularyIds(
+            preview?.Select(word => word.WordId));
     }
 
     private static int CountRejectedWordReferences(

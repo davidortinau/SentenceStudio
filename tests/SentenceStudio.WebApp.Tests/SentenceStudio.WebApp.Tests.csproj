@@ -42,4 +42,14 @@
     <ProjectReference Include="..\..\src\SentenceStudio.WebApp\SentenceStudio.WebApp.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Share the reviewed Docker-only preflight, not the mutating startup-fence fixture. -->
+    <Compile Include="..\SentenceStudio.Api.Tests\Startup\StartupFenceDockerAttestor.cs"
+             Link="Startup\StartupFenceDockerAttestor.cs" />
+    <Compile Include="..\StartupCrossServiceReadiness\StartupGateCrossServiceProof.cs"
+             Link="Startup\StartupGateCrossServiceProof.cs" />
+    <Compile Include="..\StartupCrossServiceReadiness\ObservedApiVersionHttpStandIn.cs"
+             Link="Startup\ObservedApiVersionHttpStandIn.cs" />
+  </ItemGroup>
+
 </Project>

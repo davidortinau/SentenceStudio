@@ -40,8 +40,7 @@ public sealed class CoachOpportunity
     public string Id { get; set; } = string.Empty;
 
     /// <summary>
-    /// The owning learner. The only ownership authority — every query filters on this, or is a
-    /// content-free aggregate that returns counts and never an identifier.
+    /// The owning learner. Every operator read, write, and aggregate filters on this trusted id.
     /// </summary>
     public string UserProfileId { get; set; } = string.Empty;
 

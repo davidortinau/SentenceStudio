@@ -70,6 +70,7 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                     TitleKey = table.Column<string>(type: "TEXT", nullable: false),
                     DescriptionKey = table.Column<string>(type: "TEXT", nullable: false),
                     Rationale = table.Column<string>(type: "TEXT", nullable: false),
+                    NarrativeJson = table.Column<string>(type: "TEXT", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "TEXT", nullable: false)
                 },
@@ -80,8 +81,11 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
 
             // Copy data with GUID conversion - use COALESCE to handle empty UserProfile table
             // (migration may run before sync pulls user profiles from server)
+            // A legacy schema patch may already have added NarrativeJson to the source.
+            // SQLite resolves the original column ahead of the fallback alias when both
+            // exist; for an unpatched source, the projected alias supplies NULL.
             migrationBuilder.Sql(@"
-                INSERT INTO DailyPlanCompletion_new (Id, UserProfileId, Date, PlanItemId, ActivityType, ResourceId, SkillId, IsCompleted, CompletedAt, MinutesSpent, EstimatedMinutes, Priority, TitleKey, DescriptionKey, Rationale, CreatedAt, UpdatedAt)
+                INSERT INTO DailyPlanCompletion_new (Id, UserProfileId, Date, PlanItemId, ActivityType, ResourceId, SkillId, IsCompleted, CompletedAt, MinutesSpent, EstimatedMinutes, Priority, TitleKey, DescriptionKey, Rationale, NarrativeJson, CreatedAt, UpdatedAt)
                 SELECT 
                     lower(hex(randomblob(4))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(2))) || '-' || lower(hex(randomblob(6))) as Id,
                     COALESCE((SELECT Id FROM UserProfile LIMIT 1), '00000000-0000-0000-0000-000000000000') as UserProfileId,
@@ -98,9 +102,10 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                     TitleKey, 
                     DescriptionKey, 
                     Rationale, 
+                    legacy.""NarrativeJson"",
                     CreatedAt, 
                     UpdatedAt
-                FROM DailyPlanCompletion;
+                FROM (SELECT *, NULL AS ""NarrativeJson"" FROM DailyPlanCompletion) AS legacy;
             ");
 
             migrationBuilder.DropTable(name: "DailyPlanCompletion");

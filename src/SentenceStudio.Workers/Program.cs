@@ -10,6 +10,7 @@ using SentenceStudio.Services.LanguageSegmentation;
 using SentenceStudio.Services.Vocabulary;
 using SentenceStudio.Workers;
 using SentenceStudio.Workers.Platform;
+using SentenceStudio.Workers.Startup;
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.AddServiceDefaults("SentenceStudio.Workers");
@@ -86,6 +87,17 @@ if (!string.IsNullOrWhiteSpace(aiEndpoint))
         return new AzureOpenAIClient(new Uri(azureEndpoint), new DefaultAzureCredential(), options);
     });
 }
+
+// StartAsync on this hosted service blocks both background jobs until the API migration
+// owner responds with the expected contract and this process sees the migrated schema.
+// Workers may also start independently of Aspire, so AppHost.WaitFor(api) is not enough.
+var apiBaseUrl = builder.Configuration.GetValue<string>("ApiBaseUrl") ?? "https+http://api";
+WorkerApiReadinessGate.RegisterClient(builder.Services, new Uri(apiBaseUrl));
+builder.Services.AddScoped<IWorkerMigrationMetadata, EfWorkerMigrationMetadata>();
+builder.Services.AddSingleton<WorkerStartupReadiness>();
+builder.Services.AddSingleton<IWorkerStartupReadiness>(sp => sp.GetRequiredService<WorkerStartupReadiness>());
+builder.Services.Configure<HostOptions>(options => options.ServicesStartConcurrently = false);
+builder.Services.AddHostedService<WorkerStartupReadiness>(sp => sp.GetRequiredService<WorkerStartupReadiness>());
 
 builder.Services.AddHostedService<Worker>();
 

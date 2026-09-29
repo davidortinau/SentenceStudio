@@ -10,14 +10,11 @@ namespace SentenceStudio.WebApp.Operator;
 /// banner at the top; <see cref="Evidence"/> answers "could this one row be decrypted" and is
 /// rendered inside the open detail card. Telling the learner-facing consequence apart from the
 /// row-level one matters: a reviewer whose rollup and row list are working fine was being told
-/// the whole surface was unavailable because one row belonged to somebody else.
+/// the whole surface was unavailable because one row was no longer accessible.
 /// </para>
 /// <para>
-/// <b>The evidence text is deliberately identical for a refusal and for a row that does not
-/// exist.</b> The server answers a cross-owner refusal with the same 404 it answers "no such row"
-/// with, precisely so the identifier space cannot be probed for which rows exist and who owns
-/// them. A page that worded those two differently would rebuild that oracle in the browser, so the
-/// mapping below collapses them on purpose and a test asserts it.
+/// <b>The evidence text is deliberately identical for a foreign and a nonexistent row.</b>
+/// Both produce a 404, so the page must not recreate an ownership oracle through its notice.
 /// </para>
 /// </remarks>
 public static class SamOpportunityNotices
@@ -43,8 +40,7 @@ public static class SamOpportunityNotices
         SamOpportunityClientStatus.InvalidRequest =>
             "That request was rejected. Check the linked spec path shape.",
 
-        SamOpportunityClientStatus.CrossOwnerRefused =>
-            "This row belongs to another learner and cross-owner evidence is disabled.",
+        SamOpportunityClientStatus.CrossOwnerRefused => SurfaceUnavailable,
 
         SamOpportunityClientStatus.TransitionRefused =>
             "An accepted opportunity cannot be returned to a status the retention sweep would "

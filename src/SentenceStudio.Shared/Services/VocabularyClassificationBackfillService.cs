@@ -47,14 +47,32 @@ public class VocabularyClassificationBackfillService
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await BackfillLexicalUnitTypesCoreAsync(db, static () => { }, cancellationToken);
+    }
 
+    /// <summary>Runs the startup backfill on the caller's fenced database session.</summary>
+    public Task BackfillLexicalUnitTypesAsync(
+        ApplicationDbContext db, Action assertSession, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(db);
+        ArgumentNullException.ThrowIfNull(assertSession);
+        return BackfillLexicalUnitTypesCoreAsync(db, assertSession, cancellationToken);
+    }
+
+    private async Task BackfillLexicalUnitTypesCoreAsync(
+        ApplicationDbContext db, Action assertSession, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        assertSession();
         var startTime = DateTime.UtcNow;
         _logger.LogInformation("Starting vocabulary classification backfill...");
 
         // Load all rows where LexicalUnitType == Unknown
+        assertSession();
         var unknownWords = await db.VocabularyWords
             .Where(w => w.LexicalUnitType == LexicalUnitType.Unknown)
             .ToListAsync(cancellationToken);
+        assertSession();
 
         if (unknownWords.Count == 0)
         {
@@ -73,12 +91,16 @@ public class VocabularyClassificationBackfillService
 
         foreach (var word in unknownWords)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            assertSession();
             var classification = ClassifyHeuristic(word.TargetLanguageTerm ?? string.Empty, word.Tags);
             word.LexicalUnitType = classification;
             counts[classification]++;
         }
 
+        assertSession();
         await db.SaveChangesAsync(cancellationToken);
+        assertSession();
 
         var elapsed = (DateTime.UtcNow - startTime).TotalMilliseconds;
         _logger.LogInformation(
@@ -149,15 +171,33 @@ public class VocabularyClassificationBackfillService
     {
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await BackfillPhraseConstituentsCoreAsync(db, static () => { }, cancellationToken);
+    }
 
+    /// <summary>Runs the startup phrase backfill on the caller's fenced database session.</summary>
+    public Task BackfillPhraseConstituentsAsync(
+        ApplicationDbContext db, Action assertSession, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(db);
+        ArgumentNullException.ThrowIfNull(assertSession);
+        return BackfillPhraseConstituentsCoreAsync(db, assertSession, cancellationToken);
+    }
+
+    private async Task BackfillPhraseConstituentsCoreAsync(
+        ApplicationDbContext db, Action assertSession, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        assertSession();
         var startTime = DateTime.UtcNow;
         _logger.LogInformation("Starting phrase constituent backfill...");
 
         // Get all distinct user IDs from VocabularyProgress (vocabulary is tracked per-user via progress)
+        assertSession();
         var userIds = await db.VocabularyProgresses
             .Select(vp => vp.UserId)
             .Distinct()
             .ToListAsync(cancellationToken);
+        assertSession();
 
         if (userIds.Count == 0)
         {
@@ -171,6 +211,8 @@ public class VocabularyClassificationBackfillService
 
         foreach (var userId in userIds)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+            assertSession();
             _logger.LogDebug("Processing phrase constituents for user {UserId}", userId);
 
             // Pre-build lemma dictionary ONCE per user to avoid N+1 queries
@@ -179,6 +221,7 @@ public class VocabularyClassificationBackfillService
                 .Where(vp => vp.UserId == userId)
                 .Include(vp => vp.VocabularyWord)
                 .ToListAsync(cancellationToken);
+            assertSession();
 
             var userWords = userProgress
                 .Where(vp => vp.VocabularyWord != null)
@@ -202,9 +245,12 @@ public class VocabularyClassificationBackfillService
 
             foreach (var phrase in phrases)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+                assertSession();
                 // Idempotency guard: skip if constituents already exist
                 var hasConstituents = await db.PhraseConstituents
                     .AnyAsync(pc => pc.PhraseWordId == phrase.Id, cancellationToken);
+                assertSession();
 
                 if (hasConstituents)
                 {
@@ -277,6 +323,7 @@ public class VocabularyClassificationBackfillService
 
                 if (constituentsToInsert.Count > 0)
                 {
+                    assertSession();
                     db.PhraseConstituents.AddRange(constituentsToInsert);
                     totalConstituentsInserted += constituentsToInsert.Count;
                 }
@@ -289,7 +336,9 @@ public class VocabularyClassificationBackfillService
             }
 
             // Save per-user to keep transaction size reasonable
+            assertSession();
             await db.SaveChangesAsync(cancellationToken);
+            assertSession();
         }
 
         var elapsed = (DateTime.UtcNow - startTime).TotalMilliseconds;

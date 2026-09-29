@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <MobileSharedTfm Condition="'$(MobileSharedTfm)' == ''">net11.0-macos</MobileSharedTfm>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsTestProject>true</IsTestProject>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <!-- The compiled mobile Shared DLL is a file reference, so its package dependencies
+         are not inherited by the test host. -->
+    <Reference Include="$(MSBuildThisFileDirectory)../../src/SentenceStudio.Shared/bin/sqlite-parity/$(Configuration)/$(MobileSharedTfm)/SentenceStudio.Shared.dll">
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="RequireCompiledMobileModel" BeforeTargets="ResolveReferences"
+          Condition="!Exists('$(MSBuildThisFileDirectory)../../src/SentenceStudio.Shared/bin/sqlite-parity/$(Configuration)/$(MobileSharedTfm)/SentenceStudio.Shared.dll')">
+    <Error Text="Build SentenceStudio.Shared for $(MobileSharedTfm) with isolated bin/sqlite-parity and obj/sqlite-parity outputs before running migration tests." />
+  </Target>
+</Project>

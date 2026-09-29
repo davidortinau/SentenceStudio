@@ -1168,6 +1168,9 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
                     b.Property<float>("EaseFactor")
                         .HasColumnType("REAL");
 
+                    b.Property<int>("ExposureCount")
+                        .HasColumnType("INTEGER");
+
                     b.Property<DateTime>("FirstSeenAt")
                         .HasColumnType("TEXT");
 
@@ -1179,6 +1182,9 @@ namespace SentenceStudio.Shared.Migrations.Sqlite
 
                     b.Property<bool>("IsUserDeclared")
                         .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("LastExposedAt")
+                        .HasColumnType("TEXT");
 
                     b.Property<DateTime>("LastPracticedAt")
                         .HasColumnType("TEXT");

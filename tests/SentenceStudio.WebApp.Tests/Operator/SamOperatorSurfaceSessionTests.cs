@@ -71,6 +71,8 @@ public sealed class SamOperatorSurfaceSessionTests : IAsyncLifetime
             "the operator surface must render, not the not-found placeholder");
         body.Should().Contain("referent_lost_after_offer",
             "the rollup the API returned must reach the page");
+        body.Should().Contain("Sam capability gaps for this learner");
+        body.Should().NotContain("aggregated across learners");
         body.Should().NotContain("not available for this caller",
             "an allowed caller must not be told the surface is unavailable");
     }
@@ -102,6 +104,30 @@ public sealed class SamOperatorSurfaceSessionTests : IAsyncLifetime
             "the token must name the caller, so the API's cohort check decides on the real learner");
         profileClaim.Should().NotBe(
             bystander.UserProfileId, "no other learner's identity may reach the operator API");
+    }
+
+    [WebAppPostgresFact]
+    public async Task SwitchingBrowserSessionsSendsEachOwnersOwnTrustedProfileClaim()
+    {
+        var first = await _factory.SeedLearnerAsync("operator-first@sentencestudio.test", Password);
+        var second = await _factory.SeedLearnerAsync("operator-second@sentencestudio.test", Password);
+        var jwt = new JwtSecurityTokenHandler();
+
+        foreach (var (learner, other) in new[] { (first, second), (second, first) })
+        {
+            using var browser = _factory.CreateBrowserClient();
+            await _factory.SignInAsync(browser, learner);
+            (await browser.GetAsync(OperatorPath)).StatusCode.Should().Be(HttpStatusCode.OK);
+
+            var request = _factory.Operator.Requests.Last(entry =>
+                entry.Path.Contains("/operator/opportunities", StringComparison.Ordinal));
+            request.AuthorizationScheme.Should().Be("Bearer");
+            var ownerClaim = jwt.ReadJwtToken(request.BearerToken).Claims
+                .Single(claim => claim.Type == SentenceStudio.Contracts.AuthClaimTypes.UserProfileId)
+                .Value;
+            ownerClaim.Should().Be(learner.UserProfileId);
+            ownerClaim.Should().NotBe(other.UserProfileId);
+        }
     }
 
     // ------------------------------------------------- refusals are not sign-outs

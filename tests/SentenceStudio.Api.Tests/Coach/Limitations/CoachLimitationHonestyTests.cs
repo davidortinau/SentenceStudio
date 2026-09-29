@@ -73,9 +73,8 @@ public sealed class CoachLimitationHonestyTests
     {
         var settings = SettingsPageSource();
 
-        // The evidence for the claim, asserted rather than assumed. Settings really does export
-        // and really does delete coach history; what it has never had is an account-level wipe.
-        settings.Should().Contain("ExportData", "the export alternative depends on this existing");
+        // Profile/Settings export was retired; neither it nor a whole-data wipe may be offered.
+        settings.Should().NotContain("ExportData");
         settings.Should().Contain("ConfirmDeleteCoachHistory");
         settings.Should().NotContain("DeleteAccount");
         settings.Should().NotContain("StartClean");
@@ -86,7 +85,7 @@ public sealed class CoachLimitationHonestyTests
             "there is no screen that performs the whole request, and naming one that cannot is "
             + "worse than naming none");
 
-        limitation.ExportSurface!.Route.Should().Be(CoachRouteName.Settings);
+        limitation.ExportSurface.Should().BeNull();
     }
 
     [Fact]
@@ -96,8 +95,7 @@ public sealed class CoachLimitationHonestyTests
         copy.Should().NotBeEmpty();
 
         var s15 = CoachDeterministicCopy.BulkVocabularyDeletionRefusal
-                  + " " + CoachDeterministicCopy.BulkVocabularyDeletionRedirect
-                  + " " + CoachDeterministicCopy.BulkVocabularyDeletionExportSurface;
+                  + " " + CoachDeterministicCopy.BulkVocabularyDeletionRedirect;
 
         // The sentence that had to go: "If you really do want to start from nothing, that lives in
         // your settings."
@@ -105,19 +103,16 @@ public sealed class CoachLimitationHonestyTests
         s15.Should().NotContain("do it yourself",
             "which implied a self-service whole-vocabulary deletion that does not exist");
 
-        CoachDeterministicCopy.BulkVocabularyDeletionExportSurface.Should().Contain("copy",
-            "what Settings really offers is the export");
+        s15.Should().NotContain("download a copy");
     }
 
     [Fact]
-    public void The_export_alternative_and_the_export_screen_travel_together()
+    public void Retired_export_is_neither_offered_nor_linked()
     {
         var limitation = CoachLimitations.BulkVocabularyDeletion(412, AsOf);
 
-        limitation.Alternatives.Should().Contain(CoachAlternativeCode.ExportBeforeRemoving);
-        limitation.ExportSurface.Should().NotBeNull(
-            "a link with no alternative explaining it, or an alternative with no link, is half an "
-            + "answer either way");
+        limitation.Alternatives.Should().NotContain(CoachAlternativeCode.ExportBeforeRemoving);
+        limitation.ExportSurface.Should().BeNull();
     }
 
     // ------------------------------------------- B2: side effects are ceilings
@@ -369,7 +364,6 @@ public sealed class CoachLimitationHonestyTests
 
         limitation.Alternatives.Should().BeEquivalentTo(
             [
-                CoachAlternativeCode.ExportBeforeRemoving,
                 CoachAlternativeCode.RemoveOneListAtATime,
                 CoachAlternativeCode.StartAFreshList
             ],
@@ -378,7 +372,6 @@ public sealed class CoachLimitationHonestyTests
         // The proof, one capability at a time, read out of the shipped UI rather than asserted.
         var proofs = new (CoachAlternativeCode Code, string File, string Evidence)[]
         {
-            (CoachAlternativeCode.ExportBeforeRemoving, "Pages/Settings.razor", "ExportData"),
             (CoachAlternativeCode.RemoveOneListAtATime, "Pages/Vocabulary.razor", "RequestBulkDelete"),
             (CoachAlternativeCode.StartAFreshList, "Pages/ResourceAdd.razor", "@page \"/resources/add\"")
         };
@@ -392,7 +385,7 @@ public sealed class CoachLimitationHonestyTests
             proven++;
         }
 
-        proven.Should().Be(3, "every offered alternative was proven, not just counted");
+        proven.Should().Be(2, "every offered alternative was proven, not just counted");
     }
 
     [Fact]

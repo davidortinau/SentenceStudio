@@ -294,9 +294,9 @@
         // then returns to the login form so the user can sign in with another account.
         CacheService.InvalidateAll();
 
-        if (AuthStateProvider is SentenceStudio.Services.MauiAuthenticationStateProvider mauiAuth)
+        if (AuthStateProvider is IClientAuthStateNotifier nativeAuth)
         {
-            await mauiAuth.LogOutAsync();
+            await nativeAuth.LogOutAsync();
         }
 
         Preferences.Set("app_is_authenticated", false);

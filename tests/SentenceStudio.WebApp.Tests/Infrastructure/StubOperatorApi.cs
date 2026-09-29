@@ -1,10 +1,12 @@
 using System.Collections.Concurrent;
 using System.Net;
+using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Contracts.Startup;
 
 namespace SentenceStudio.WebApp.Tests.Infrastructure;
 
@@ -42,6 +44,18 @@ public sealed class StubOperatorApi : IAsyncDisposable
     /// <summary>What the list route answers with.</summary>
     public HttpStatusCode ListStatus { get; set; } = HttpStatusCode.OK;
 
+    /// <summary>What the public API startup/readiness route answers with.</summary>
+    public HttpStatusCode VersionStatus { get; set; } = HttpStatusCode.OK;
+
+    /// <summary>The migration ID advertised by the test API after its fixture has migrated.</summary>
+    public string VersionMigrationId { get; set; } = string.Empty;
+
+    /// <summary>The non-secret identity read from the migrated test database.</summary>
+    public string VersionDatabaseIdentity { get; set; } = string.Empty;
+
+    /// <summary>Optional redirect target for the readiness client's real HTTP handler test.</summary>
+    public string? VersionRedirectTarget { get; set; }
+
     /// <summary>The JSON body the list route returns when it answers 200.</summary>
     public string ListBody { get; set; } = """{"items":[],"total":0,"skip":0,"take":50}""";
 
@@ -75,6 +89,20 @@ public sealed class StubOperatorApi : IAsyncDisposable
         });
 
         const string prefix = "/api/v1/coach/operator/opportunities";
+
+        app.MapGet("/api/version/info", (HttpContext http) =>
+        {
+            if (stub.VersionRedirectTarget is not null)
+            {
+                http.Response.StatusCode = (int)stub.VersionStatus;
+                http.Response.Headers.Location = stub.VersionRedirectTarget;
+                return Task.CompletedTask;
+            }
+
+            return stub.Answer(http, stub.VersionStatus, stub.VersionBody());
+        });
+        app.MapGet("/api/version/ready-after-redirect", (HttpContext http) =>
+            stub.Answer(http, HttpStatusCode.OK, stub.VersionBody()));
 
         app.MapGet($"{prefix}/rollup", (HttpContext http) =>
             stub.Answer(http, stub.RollupStatus, stub.RollupBody));
@@ -137,6 +165,14 @@ public sealed class StubOperatorApi : IAsyncDisposable
         http.Response.ContentType = "application/json";
         await http.Response.WriteAsync(body);
     }
+
+    private string VersionBody() => JsonSerializer.Serialize(new
+    {
+        version = "1.0",
+        applicationStartupContract = ApiApplicationStartupContract.Current,
+        applicationMigrationId = VersionMigrationId,
+        databaseIdentity = VersionDatabaseIdentity
+    });
 
     public async ValueTask DisposeAsync()
     {

@@ -79,7 +79,7 @@ else
                 <div class="table-responsive">
                     <table class="table table-sm table-hover align-middle">
                         <caption class="visually-hidden">
-                            Sam capability gaps aggregated across learners
+                            Sam capability gaps for this learner
                         </caption>
                         <thead>
                             <tr>
@@ -386,8 +386,8 @@ else
                         <p class="text-secondary small mb-2">
                             <i class="bi bi-shield-lock me-1" aria-hidden="true"></i>
                             Revealing evidence decrypts two of this learner's stored messages,
-                            increments a counter on this row, and writes an audit line. Owner-scoped
-                            by default.
+                            increments a counter on this row, and writes an audit line. Only your
+                            own opportunities can be revealed.
                         </p>
 
                         @* Scoped to this card on purpose. A row whose evidence cannot be read says
@@ -416,10 +416,6 @@ else
                             <div class="alert alert-secondary">
                                 <div class="mb-2">
                                     <strong>Evidence state:</strong> @_evidence.EvidenceState
-                                    @if (_evidence.CrossOwner)
-                                    {
-                                        <span class="badge text-bg-danger ms-2">cross-owner</span>
-                                    }
                                 </div>
                                 <div class="mb-2">
                                     <strong>Prior coach message</strong>
@@ -538,12 +534,26 @@ else
                 var result = await _client.GetRollupAsync();
                 _rollup = result.IsOk ? result.Value! : [];
                 _notice = SamOpportunityNotices.Surface(result.Status);
+                if (!result.IsOk)
+                {
+                    CloseDetail();
+                    _rows = [];
+                }
             }
             else
             {
                 var result = await _client.ListAsync();
                 _rows = result.IsOk ? result.Value!.Items : [];
                 _notice = SamOpportunityNotices.Surface(result.Status);
+                if (!result.IsOk)
+                {
+                    CloseDetail();
+                    _rollup = [];
+                }
+                else if (_selected is not null && !_rows.Any(row => row.Id == _selected.Id))
+                {
+                    CloseDetail();
+                }
             }
         }
         finally
@@ -554,26 +564,39 @@ else
 
     private async Task SelectAsync(SamOpportunityRow row)
     {
-        _selected = row;
+        CloseDetail();
 
-        // Cleared on every selection. Evidence for one row must never render under another, and
-        // neither must the reason another row refused.
-        _evidence = null;
-        _evidenceNotice = null;
-        _markdown = null;
-        _reviewStatus = row.Status;
-        _reviewNote = row.ReviewerNoteCode ?? string.Empty;
-        _reviewSpecPath = row.LinkedSpecPath ?? string.Empty;
-
-        // The list row carries no report facts — the listing is a triage surface and a per-row
-        // join would make it proportional to the reports rather than to the page. The detail read
-        // is where they arrive, and its failure costs only the extra block.
-        if (_client is not null && string.Equals(row.Kind, "UserReportedResponse", StringComparison.Ordinal))
+        if (_client is null || _view != View.Rows)
         {
-            var detail = await _client.GetAsync(row.Id);
+            return;
+        }
+
+        await LoadAsync();
+        var currentRow = _rows.FirstOrDefault(candidate => candidate.Id == row.Id);
+        if (currentRow is null)
+        {
+            _notice ??= SamOpportunityNotices.SurfaceUnavailable;
+            return;
+        }
+
+        _selected = currentRow;
+        _reviewStatus = currentRow.Status;
+        _reviewNote = currentRow.ReviewerNoteCode ?? string.Empty;
+        _reviewSpecPath = currentRow.LinkedSpecPath ?? string.Empty;
+
+        // The list row carries no report facts. A failed detail read invalidates the selected
+        // row too: the active owner could have changed since the list was loaded.
+        if (string.Equals(currentRow.Kind, "UserReportedResponse", StringComparison.Ordinal))
+        {
+            var detail = await _client.GetAsync(currentRow.Id);
             if (detail.IsOk && detail.Value is { } full)
             {
                 _selected = full;
+            }
+            else
+            {
+                CloseDetail();
+                _notice = SamOpportunityNotices.Surface(detail.Status);
             }
         }
     }
@@ -600,6 +623,12 @@ else
         }
         else
         {
+            if (result.Status is SamOpportunityClientStatus.NotAvailable
+                or SamOpportunityClientStatus.Failed)
+            {
+                await LoadAsync();
+            }
+
             _notice = SamOpportunityNotices.Surface(result.Status);
         }
     }
@@ -611,9 +640,22 @@ else
             return;
         }
 
-        var result = await _client.RevealEvidenceAsync(_selected.Id);
+        var selectedId = _selected.Id;
+        var result = await _client.RevealEvidenceAsync(selectedId);
 
-        if (result.IsOk)
+        if (result.IsOk
+            || result.Status == SamOpportunityClientStatus.NotAvailable
+            || result.Status == SamOpportunityClientStatus.Failed)
+        {
+            await LoadAsync();
+        }
+
+        if (_selected?.Id != selectedId)
+        {
+            return;
+        }
+
+        if (result.IsOk && result.Value is { CrossOwner: false })
         {
             _evidence = result.Value;
             _evidenceNotice = null;
@@ -625,7 +667,9 @@ else
             // because one reveal was refused is both untrue and the thing that sent a reviewer
             // looking for an access problem that did not exist.
             _evidence = null;
-            _evidenceNotice = SamOpportunityNotices.Evidence(result.Status);
+            _evidenceNotice = result.IsOk
+                ? SamOpportunityNotices.EvidenceUnavailable
+                : SamOpportunityNotices.Evidence(result.Status);
         }
     }
 

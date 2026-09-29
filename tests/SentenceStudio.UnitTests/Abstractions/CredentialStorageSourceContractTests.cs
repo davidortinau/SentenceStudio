@@ -6,10 +6,10 @@ using Xunit;
 namespace SentenceStudio.UnitTests.Abstractions;
 
 /// <summary>
-/// Contract tests for the credential-handling code that lives in <c>SentenceStudio.AppLib</c>.
+/// Contract tests for the shared auth service and its temporary MAUI secure-storage adapter.
 ///
-/// <para>AppLib targets <c>net11.0</c> with <c>UseMaui</c>, so this <c>net10.0</c> test project
-/// cannot reference it (<c>NU1201</c>) and its types cannot be instantiated here. The behaviour
+/// <para>AppLib targets <c>net11.0</c> and MauiCompatibility targets native MAUI TFMs, so this
+/// <c>net10.0</c> test project cannot reference either (<c>NU1201</c>). The behaviour
 /// they encode is security-critical and previously regressed silently, so it is pinned against the
 /// source text instead — the same technique <see cref="MacOSKeychainGateSourceContractTests"/> uses
 /// for the macOS P/Invoke shim. The logic that <i>can</i> be executed was moved into
@@ -31,7 +31,7 @@ public class CredentialStorageSourceContractTests
     }
 
     private static string SecureStorageSource() => RepoFile(
-        "src", "SentenceStudio.AppLib", "Abstractions", "MauiSecureStorageService.cs");
+        "src", "SentenceStudio.MauiCompatibility", "Abstractions", "MauiSecureStorageService.cs");
 
     private static string AuthServiceSource() => RepoFile(
         "src", "SentenceStudio.AppLib", "Services", "IdentityAuthService.cs");

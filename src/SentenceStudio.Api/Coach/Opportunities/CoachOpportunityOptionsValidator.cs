@@ -64,26 +64,6 @@ public sealed class CoachOpportunityOptionsValidator : IValidateOptions<CoachOpp
                 "so it is Development-only. Set it to false, or run in Development.");
         }
 
-        if (options.OperatorSurface.AllowCrossOwnerEvidence && !isDevelopment)
-        {
-            failures.Add(
-                $"'{CoachOpportunityOperatorSurfaceOptions.SectionName}:AllowCrossOwnerEvidence' " +
-                $"is true in the '{environmentName}' environment. Reading one learner's messages " +
-                "from another learner's row is a deliberate cross-tenant read and is " +
-                "Development-only. Set it to false.");
-        }
-
-        if (options.OperatorSurface.AllowCrossOwnerEvidence && !options.OperatorSurface.Enabled)
-        {
-            // Not merely redundant: a deployment that believes cross-owner reads are configured
-            // while the surface is off has a mistaken model of what it turned on, and the next
-            // person to enable the surface inherits a permission nobody re-reviewed.
-            failures.Add(
-                $"'{CoachOpportunityOperatorSurfaceOptions.SectionName}:AllowCrossOwnerEvidence' " +
-                "is true while the operator surface itself is disabled. Enable the surface " +
-                "deliberately, or set AllowCrossOwnerEvidence to false.");
-        }
-
         return failures.Count == 0
             ? ValidateOptionsResult.Success
             : ValidateOptionsResult.Fail(failures);

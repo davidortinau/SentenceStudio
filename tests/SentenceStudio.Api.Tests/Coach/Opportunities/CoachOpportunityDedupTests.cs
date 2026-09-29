@@ -84,7 +84,7 @@ public class CoachOpportunityDedupTests
         rows.Select(row => row.UserProfileId).Should().BeEquivalentTo(["learner-a", "learner-b"]);
         rows.Select(row => row.Fingerprint).Distinct().Should().ContainSingle(
             "the fingerprint is a problem identity, not an owner identity — that is what makes " +
-            "the cross-learner rollup possible without ever naming a learner");
+            "owner-scoped rollups group each learner's repeated observations consistently");
     }
 
     [Fact]

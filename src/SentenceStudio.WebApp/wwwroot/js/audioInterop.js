@@ -62,6 +62,25 @@ window.audioInterop = {
         }
     },
 
+    startPlayback: async function (dotNetRef, intervalMs) {
+        var audio = this._player;
+        if (!audio) return false;
+
+        if (dotNetRef) {
+            this.startTimeTracking(dotNetRef, intervalMs);
+        } else {
+            this.stopTimeTracking();
+        }
+
+        try {
+            await audio.play();
+            return this._player === audio;
+        } catch (e) {
+            if (this._player === audio) this.stopTimeTracking();
+            throw e;
+        }
+    },
+
     pause: function () {
         if (this._player) {
             this._player.pause();
@@ -95,15 +114,23 @@ window.audioInterop = {
         if (!this._player) return;
 
         var self = this;
+        var audio = this._player;
         this._timeupdateRef = setInterval(function () {
-            if (self._player && !self._player.paused) {
-                dotNetRef.invokeMethodAsync('OnJsTimeUpdate', self._player.currentTime);
+            if (self._player === audio && !audio.paused) {
+                dotNetRef.invokeMethodAsync('OnJsTimeUpdate', audio.currentTime)
+                    .catch(function (e) {
+                        console.error("[audioInterop] Time update callback failed:", e);
+                    });
             }
         }, intervalMs || 50);
 
-        this._player.onended = function () {
-            dotNetRef.invokeMethodAsync('OnJsPlaybackEnded');
+        audio.onended = function () {
+            if (self._player !== audio) return;
             self.stopTimeTracking();
+            dotNetRef.invokeMethodAsync('OnJsPlaybackEnded')
+                .catch(function (e) {
+                    console.error("[audioInterop] Playback end callback failed:", e);
+                });
         };
     },
 

@@ -5,12 +5,9 @@
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
 		<IsAspireSharedProject>true</IsAspireSharedProject>
-
-		<!-- <MauiVersion>10.0.0-preview.6.25324.5</MauiVersion> -->
 	</PropertyGroup>
 
 	<ItemGroup>
-    <PackageReference Include="Microsoft.Maui.Core" />
 		<PackageReference Include="Microsoft.Extensions.Http.Resilience" />
     <PackageReference Include="Microsoft.Extensions.ServiceDiscovery" />
 		<PackageReference Include="Azure.Monitor.OpenTelemetry.Exporter" />

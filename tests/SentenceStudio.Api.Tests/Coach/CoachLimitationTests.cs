@@ -54,7 +54,7 @@ public sealed class CoachLimitationTests
     }
 
     [Fact]
-    public void S15_offers_only_reversible_alternatives()
+    public void S15_offers_bounded_alternatives_without_an_unsafe_export()
     {
         var limitation = CoachLimitations.BulkVocabularyDeletion(412, AsOf);
 
@@ -62,17 +62,15 @@ public sealed class CoachLimitationTests
 
         limitation.Alternatives.Should().BeEquivalentTo(
             [
-                CoachAlternativeCode.ExportBeforeRemoving,
                 CoachAlternativeCode.RemoveOneListAtATime,
                 CoachAlternativeCode.StartAFreshList
             ],
             options => options.WithStrictOrdering(),
-            "each of these leaves a way back, and the export leads because it is the only one that "
-            + "makes the learner's original request safe rather than smaller");
+            "Profile and Settings no longer offer a safe owner-scoped data export");
     }
 
     [Fact]
-    public void S15_recommends_the_bounded_surface_and_still_names_the_account_one()
+    public void S15_recommends_only_the_bounded_surface()
     {
         var limitation = CoachLimitations.BulkVocabularyDeletion(412, AsOf);
 
@@ -81,30 +79,20 @@ public sealed class CoachLimitationTests
             "the recommended screen is where the smallest reversible version of the request lives");
 
         limitation.FullScopeSurface.Should().BeNull(
-            "Settings exports data and deletes coach history; it offers no account-level "
-            + "start-clean, and naming a screen that cannot do the thing sends the learner "
-            + "hunting for a control that does not exist");
+            "Settings does not offer an account-level start-clean");
 
-        limitation.ExportSurface!.Route.Should().Be(
-            CoachRouteName.Settings,
-            "export is real, so the one screen S15 can honestly name is the export one");
+        limitation.ExportSurface.Should().BeNull(
+            "the retired Profile/Settings exporter must not be advertised as available");
     }
 
-    /// <summary>AC-G2. Both surfaces disclose before the learner can act on either.</summary>
+    /// <summary>AC-G2. The remaining destination discloses its side effect.</summary>
     [Fact]
-    public void S15_discloses_the_side_effect_of_every_surface_it_names()
+    public void S15_discloses_the_side_effect_of_its_destination()
     {
         var limitation = CoachLimitations.BulkVocabularyDeletion(412, AsOf);
 
         limitation.Destination!.SideEffect.Should().Be(CoachRouteSideEffect.EditsLearnerData);
-        limitation.ExportSurface!.SideEffect.Should().Be(
-            CoachRouteSideEffect.EditsLearnerData,
-            "Settings deletes coach conversation history, so its ceiling is not ChangesSettings");
-
-        new[] { limitation.Destination, limitation.ExportSurface }.Should().OnlyContain(
-            destination => destination!.SideEffect != CoachRouteSideEffect.Unknown,
-            "an undisclosed consequence on a screen that can delete a learner's data is the exact "
-            + "omission AC-G2 exists to prevent");
+        limitation.ExportSurface.Should().BeNull();
     }
 
     /// <summary>AC-S15. Nothing on this shape can express "here is the deletion, confirm it".</summary>
@@ -340,7 +328,6 @@ public sealed class CoachLimitationTests
     [Theory]
     [InlineData(nameof(CoachDeterministicCopy.BulkVocabularyDeletionRefusal))]
     [InlineData(nameof(CoachDeterministicCopy.BulkVocabularyDeletionRedirect))]
-    [InlineData(nameof(CoachDeterministicCopy.BulkVocabularyDeletionExportSurface))]
     [InlineData(nameof(CoachDeterministicCopy.ReviewAnswerRefusal))]
     [InlineData(nameof(CoachDeterministicCopy.ReviewAnswerHintLadderOffer))]
     [InlineData(nameof(CoachDeterministicCopy.ReviewAnswerShorterSessionOffer))]

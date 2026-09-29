@@ -11,7 +11,7 @@
 		<ApplicationId>com.simplyprofound.sentencestudio</ApplicationId>
 		<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
 		<ApplicationVersion>1</ApplicationVersion>
-		<SupportedOSPlatformVersion>21.0</SupportedOSPlatformVersion>
+		<SupportedOSPlatformVersion>24.0</SupportedOSPlatformVersion>
 	</PropertyGroup>
 
 	<ItemGroup>
@@ -27,6 +27,7 @@
 
 	<ItemGroup>
 		<ProjectReference Include="..\SentenceStudio.AppLib\SentenceStudio.AppLib.csproj" />
+		<ProjectReference Include="..\SentenceStudio.MauiCompatibility\SentenceStudio.MauiCompatibility.csproj" />
 		<ProjectReference Include="..\SentenceStudio.UI\SentenceStudio.UI.csproj" />
 		<ProjectReference Include="..\SentenceStudio.MauiServiceDefaults\SentenceStudio.MauiServiceDefaults.csproj" />
 	</ItemGroup>

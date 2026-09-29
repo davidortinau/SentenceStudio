@@ -219,11 +219,10 @@ public sealed class CoachLimitationDto
     /// </para>
     /// <para>
     /// <b>Null when no such screen exists, which is the shipped case today.</b> The first draft
-    /// pointed this at Settings for the bulk-vocabulary boundary. Settings exports data and deletes
-    /// coach conversation history; it does not offer an account-level start-clean, and no screen in
-    /// this build does. A destination that cannot do the thing is worse than none — the learner
-    /// goes there, cannot find the control, and concludes they missed it. Populate this only when
-    /// the named route genuinely performs the full-scope request.
+    /// pointed this at Settings for the bulk-vocabulary boundary. Settings cannot perform an
+    /// account-level start-clean, and the old Profile/Settings export is disabled. A destination
+    /// that cannot do the thing is worse than none. Populate this only when the named route
+    /// genuinely performs the full-scope request.
     /// </para>
     /// </remarks>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -234,16 +233,9 @@ public sealed class CoachLimitationDto
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Additive, and the honest half of what <see cref="FullScopeSurface"/> used to claim. Export
-    /// is a capability this build really has — <c>Settings.razor</c> and <c>DataExportService</c> —
-    /// so <see cref="CoachAlternativeCode.ExportBeforeRemoving"/> can name a screen without
-    /// inventing one. Its own field rather than a shared "other surface" slot, because the two
-    /// answer different questions: one is "where do I do the whole thing", the other is "where do I
-    /// make this recoverable first", and only the second is currently answerable.
-    /// </para>
-    /// <para>
-    /// Set it only alongside <see cref="CoachAlternativeCode.ExportBeforeRemoving"/>. A surface with
-    /// no alternative pointing at it is a link with no sentence explaining why it is there.
+    /// Kept for wire compatibility with older messages. The Profile/Settings exporter is disabled
+    /// because it was not owner-scoped; new server responses leave this null until a safe export
+    /// and its own product contract are approved. It is unrelated to the gated Sam operator export.
     /// </para>
     /// </remarks>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
@@ -335,7 +327,7 @@ public enum CoachAlternativeCode
     /// <summary>Start a fresh list and leave the existing words where they are.</summary>
     StartAFreshList = 3,
 
-    /// <summary>Export the words first, so the removal is recoverable outside the app.</summary>
+    /// <summary>Legacy wire value; not offered while Profile/Settings export is disabled.</summary>
     ExportBeforeRemoving = 5,
 
     /// <summary>Take a shorter session now rather than skipping it.</summary>

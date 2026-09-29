@@ -40,7 +40,6 @@ public static class CoreServiceExtensions
         services.AddSingleton<AudioAnalyzer>();
         services.AddSingleton<IYouTubeImportService, YouTubeImportService>();
         services.AddSingleton<ElevenLabsSpeechService>();
-        services.AddSingleton<DataExportService>();
         
         // YouTube channel monitoring services
         services.AddSingleton<ChannelMonitorService>();

@@ -555,7 +555,7 @@ public sealed class MigrationValidationOptionsTests : IDisposable
             Path.Combine(repoRoot, "src", "SentenceStudio.MacOS", "Main.cs"),
             Encoding.UTF8);
         var appBuilderSource = File.ReadAllText(
-            Path.Combine(repoRoot, "src", "SentenceStudio.AppLib", "Setup", "SentenceStudioAppBuilder.cs"),
+            Path.Combine(repoRoot, "src", "SentenceStudio.MauiCompatibility", "Setup", "SentenceStudioAppBuilder.cs"),
             Encoding.UTF8);
 
         Assert.StartsWith("#if DEBUG", optionsSource.TrimStart());

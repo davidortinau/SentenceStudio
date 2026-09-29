@@ -22,10 +22,10 @@ jobs:
         dotnet-version: '10.0.x'
 
     - name: Disable dev-only local NuGet source
-      run: dotnet nuget disable source localnugets --configfile src/NuGet.config || true
+      run: dotnet nuget disable source localnugets --configfile src/NuGet.config
 
     - name: Restore dependencies
-      run: dotnet restore tests/SentenceStudio.UnitTests/SentenceStudio.UnitTests.csproj -p:IncludeMobileTargets=false
+      run: dotnet restore tests/SentenceStudio.UnitTests/SentenceStudio.UnitTests.csproj --configfile src/NuGet.config -p:IncludeMobileTargets=false -p:Configuration=Release
 
     - name: Build unit tests
       run: dotnet build tests/SentenceStudio.UnitTests/SentenceStudio.UnitTests.csproj --no-restore --configuration Release -p:IncludeMobileTargets=false
@@ -71,10 +71,10 @@ jobs:
         dotnet-version: '10.0.x'
 
     - name: Disable dev-only local NuGet source
-      run: dotnet nuget disable source localnugets --configfile src/NuGet.config || true
+      run: dotnet nuget disable source localnugets --configfile src/NuGet.config
 
     - name: Restore dependencies
-      run: dotnet restore tests/SentenceStudio.Api.Tests/SentenceStudio.Api.Tests.csproj -p:IncludeMobileTargets=false
+      run: dotnet restore tests/SentenceStudio.Api.Tests/SentenceStudio.Api.Tests.csproj --configfile src/NuGet.config -p:IncludeMobileTargets=false -p:Configuration=Release
 
     - name: Build api tests
       run: dotnet build tests/SentenceStudio.Api.Tests/SentenceStudio.Api.Tests.csproj --no-restore --configuration Release -p:IncludeMobileTargets=false
@@ -115,10 +115,10 @@ jobs:
         dotnet-quality: 'preview'
 
     - name: Disable dev-only local NuGet source
-      run: dotnet nuget disable source localnugets --configfile src/NuGet.config || true
+      run: dotnet nuget disable source localnugets --configfile src/NuGet.config
 
     - name: Restore dependencies
-      run: dotnet restore tests/SentenceStudio.UI.Tests/SentenceStudio.UI.Tests.csproj -p:IncludeMobileTargets=false
+      run: dotnet restore tests/SentenceStudio.UI.Tests/SentenceStudio.UI.Tests.csproj --configfile src/NuGet.config -p:IncludeMobileTargets=false -p:Configuration=Release
 
     - name: Build ui tests
       run: dotnet build tests/SentenceStudio.UI.Tests/SentenceStudio.UI.Tests.csproj --no-restore --configuration Release -p:IncludeMobileTargets=false

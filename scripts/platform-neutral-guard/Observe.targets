@@ -1,0 +1,87 @@
+<Project InitialTargets="_DependencyGuardInstance">
+  <UsingTask TaskName="DependencyGuardRecord" AssemblyFile="$(DependencyGuardAssembly)" />
+
+  <ItemGroup Condition="'$(MSBuildProjectName)' == 'SentenceStudio.Shared'">
+    <EmbeddedResource Update="Resources/Strings/AppResources.resx">
+      <StronglyTypedFileName>$(IntermediateOutputPath)AppResources.Designer.cs</StronglyTypedFileName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <Target Name="_DependencyGuardInstance">
+    <DependencyGuardRecord
+      Phase="instance"
+      Token="$(DependencyGuardToken)"
+      Project="$(MSBuildProjectFullPath)"
+      Scratch="$(DependencyGuardScratch)"
+      AssetsFile="$(ProjectAssetsFile)"
+      BaseIntermediateOutputPath="$(BaseIntermediateOutputPath)"
+      MSBuildProjectExtensionsPath="$(MSBuildProjectExtensionsPath)"
+      RestoreOutputPath="$(RestoreOutputPath)"
+      BaseOutputPath="$(BaseOutputPath)"
+      OutputPath="$(OutputPath)"
+      OutDir="$(OutDir)"
+      TargetDir="$(TargetDir)"
+      IntermediateOutputPath="$(IntermediateOutputPath)"
+      RestorePackagesPath="$(RestorePackagesPath)"
+      NuGetPackageRoot="$(NuGetPackageRoot)"
+      RestoreConfigFile="$(RestoreConfigFile)"
+      RestoreFallbackFolders="$(RestoreFallbackFolders)"
+      RestoreAdditionalProjectFallbackFolders="$(RestoreAdditionalProjectFallbackFolders)"
+      RestoreAdditionalProjectSources="$(RestoreAdditionalProjectSources)"
+      MSBuildToolsPath="$(MSBuildToolsPath)"
+      RestoreForce="$(RestoreForce)"
+      RestoreNoCache="$(RestoreNoCache)"
+      RestoreRecursive="$(RestoreRecursive)"
+      BuildProjectReferences="$(BuildProjectReferences)"
+      NoWarn="$(NoWarn)"
+      TargetFramework="$(TargetFramework)"
+      TargetFrameworks="$(TargetFrameworks)"
+      RuntimeIdentifier="$(RuntimeIdentifier)"
+      SelfContained="$(SelfContained)"
+      Configuration="$(Configuration)"
+      Platform="$(Platform)"
+      IsCrossTargetingBuild="$(IsCrossTargetingBuild)"
+      PackageReferences="@(PackageReference)"
+      PackageDownloads="@(PackageDownload)"
+      ProjectReferences="@(ProjectReference)" />
+  </Target>
+
+  <Target Name="_DependencyGuardAssets" BeforeTargets="ResolvePackageAssets">
+    <DependencyGuardRecord
+      Phase="assets"
+      Token="$(DependencyGuardToken)"
+      Project="$(MSBuildProjectFullPath)"
+      Scratch="$(DependencyGuardScratch)"
+      AssetsFile="$(ProjectAssetsFile)"
+      BaseIntermediateOutputPath="$(BaseIntermediateOutputPath)"
+      MSBuildProjectExtensionsPath="$(MSBuildProjectExtensionsPath)"
+      RestoreOutputPath="$(RestoreOutputPath)"
+      BaseOutputPath="$(BaseOutputPath)"
+      OutputPath="$(OutputPath)"
+      OutDir="$(OutDir)"
+      TargetDir="$(TargetDir)"
+      IntermediateOutputPath="$(IntermediateOutputPath)"
+      RestorePackagesPath="$(RestorePackagesPath)"
+      NuGetPackageRoot="$(NuGetPackageRoot)"
+      RestoreConfigFile="$(RestoreConfigFile)"
+      RestoreFallbackFolders="$(RestoreFallbackFolders)"
+      RestoreAdditionalProjectFallbackFolders="$(RestoreAdditionalProjectFallbackFolders)"
+      RestoreAdditionalProjectSources="$(RestoreAdditionalProjectSources)"
+      MSBuildToolsPath="$(MSBuildToolsPath)"
+      RestoreForce="$(RestoreForce)"
+      RestoreNoCache="$(RestoreNoCache)"
+      RestoreRecursive="$(RestoreRecursive)"
+      BuildProjectReferences="$(BuildProjectReferences)"
+      NoWarn="$(NoWarn)"
+      TargetFramework="$(TargetFramework)"
+      TargetFrameworks="$(TargetFrameworks)"
+      RuntimeIdentifier="$(RuntimeIdentifier)"
+      SelfContained="$(SelfContained)"
+      Configuration="$(Configuration)"
+      Platform="$(Platform)"
+      IsCrossTargetingBuild="$(IsCrossTargetingBuild)"
+      PackageReferences="@(PackageReference)"
+      PackageDownloads="@(PackageDownload)"
+      ProjectReferences="@(ProjectReference)" />
+  </Target>
+</Project>

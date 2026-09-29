@@ -1,10 +1,10 @@
 @page "/how-do-you-say"
 @attribute [Authorize]
-@using Plugin.Maui.Audio
+@using SentenceStudio.Abstractions
 @using SentenceStudio.Services.Speech
 @using Microsoft.JSInterop
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
-@implements IDisposable
+@implements IAsyncDisposable
 
 <PageHeader Title='@Localize["Activity_HowDoYouSay"]' ShowBack="true" OnBack="GoBack" />
 
@@ -92,7 +92,7 @@ else if (history.Any())
     [Inject] private SentenceStudio.Services.SpeechVoicePreferences VoicePrefs { get; set; } = default!;
     [Inject] private SentenceStudio.Services.Speech.IVoiceDiscoveryService VoiceDiscovery { get; set; } = default!;
     [Inject] private SentenceStudio.Abstractions.IFileSystemService FileSystemService { get; set; } = default!;
-    [Inject] private IAudioManager AudioManager { get; set; } = default!;
+    [Inject] private IAudioPlayerFactory AudioPlayerFactory { get; set; } = default!;
     [Inject] private IJSRuntime JS { get; set; } = default!;
     [Inject] private NavigationManager NavManager { get; set; } = default!;
     [Inject] private ToastService Toast { get; set; } = default!;
@@ -105,16 +105,21 @@ else if (history.Any())
     private bool isLoadingHistory = true;
     private bool isAudioPlaying;
     private bool _useJsAudio;
+    private bool _browserAudioAttempted;
+    private bool _disposed;
+    private readonly CancellationTokenSource _audioLifetime = new();
+    private CancellationTokenSource? _audioRequestCts;
+    private int _audioGeneration;
 
     private List<VoiceInfo> availableVoices = new();
     private List<StreamHistory> history = new();
     private StreamHistory? currentPlayingItem;
-    private IAudioPlayer? audioPlayer;
+    private readonly UiAudioPlayerSession _nativeAudio = new();
 
     protected override async Task OnInitializedAsync()
     {
         Localize.CultureChanged += OnCultureChanged;
-        _useJsAudio = JS.GetType().Name.Contains("Remote", StringComparison.OrdinalIgnoreCase);
+        _useJsAudio = !AudioPlayerFactory.CanPlayLocally;
         var profile = await ProfileRepo.GetAsync();
         targetLanguage = profile?.TargetLanguage ?? "Korean";
 
@@ -162,9 +167,10 @@ else if (history.Any())
 
     private async Task SubmitPhrase()
     {
-        if (string.IsNullOrWhiteSpace(phrase) || isBusy) return;
+        if (_disposed || string.IsNullOrWhiteSpace(phrase) || isBusy) return;
 
         isBusy = true;
+        CancellationToken playbackToken = default;
         try
         {
             var voiceId = selectedVoiceId;
@@ -174,17 +180,17 @@ else if (history.Any())
                 return;
             }
 
-            var audioStream = await SpeechService.TextToSpeechAsync(phrase, voiceId, 0.5f, 0.75f, 0.85f);
-
-            // Save to cache
+            playbackToken = await BeginAudioRequestAsync();
             var cacheDir = Path.Combine(FileSystemService.AppDataDirectory, "AudioCache");
             Directory.CreateDirectory(cacheDir);
             var safeName = string.Join("_", phrase.Split(Path.GetInvalidFileNameChars())).Substring(0, Math.Min(50, phrase.Length));
             var filePath = Path.Combine(cacheDir, $"{safeName}_{Guid.NewGuid():N}.mp3");
+            using (var audioStream = await SpeechService.TextToSpeechAsync(phrase, voiceId, 0.5f, 0.75f, 0.85f))
             using (var fs = File.Create(filePath))
             {
-                await audioStream.CopyToAsync(fs);
+                await audioStream.CopyToAsync(fs, playbackToken);
             }
+            if (playbackToken.IsCancellationRequested) return;
 
             // Save to history
             var entry = new StreamHistory
@@ -195,22 +201,23 @@ else if (history.Any())
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
-            await HistoryRepo.SaveStreamHistoryAsync(entry);
+            if (await HistoryRepo.SaveStreamHistoryAsync(entry) <= 0)
+                throw new InvalidOperationException("Audio history could not be saved for the active user.");
 
             // Play it
-            StopAudio();
+            if (_disposed || playbackToken.IsCancellationRequested) return;
             if (_useJsAudio)
             {
-                var audioBytes = await File.ReadAllBytesAsync(filePath);
-                var base64 = Convert.ToBase64String(audioBytes);
-                await JS.InvokeVoidAsync("audioInterop.playFromBase64", base64, "audio/mpeg");
+                var audioBytes = await File.ReadAllBytesAsync(filePath, playbackToken);
+                if (_disposed || playbackToken.IsCancellationRequested) return;
+                _browserAudioAttempted = true;
+                await BrowserAudioPlayback.PlayAsync(JS, audioBytes, playbackToken);
             }
             else
             {
-                using var playStream = File.OpenRead(filePath);
-                audioPlayer = AudioManager.CreatePlayer(playStream);
-                audioPlayer.Play();
+                _nativeAudio.CreatePlayer(AudioPlayerFactory, File.OpenRead(filePath)).Play();
             }
+            if (_disposed || playbackToken.IsCancellationRequested) return;
             currentPlayingItem = entry;
             isAudioPlaying = true;
 
@@ -220,10 +227,17 @@ else if (history.Any())
             phrase = "";
             Toast.ShowSuccess("Audio generated!");
         }
+        catch (OperationCanceledException) when (_disposed || playbackToken.IsCancellationRequested)
+        {
+        }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to generate speech");
-            Toast.ShowError($"Error: {ex.Message}");
+            if (!_disposed && !playbackToken.IsCancellationRequested)
+            {
+                _nativeAudio.Stop();
+                Logger.LogError(ex, "Failed to generate speech");
+                Toast.ShowError($"Error: {ex.Message}");
+            }
         }
         finally
         {
@@ -233,31 +247,51 @@ else if (history.Any())
 
     private async Task PlayHistoryItem(StreamHistory item)
     {
-        if (currentPlayingItem?.Id == item.Id && isAudioPlaying)
-        {
-            StopAudio();
-            return;
-        }
+        if (_disposed) return;
 
-        StopAudio();
-
+        CancellationToken playbackToken = default;
         try
         {
-            if (!string.IsNullOrEmpty(item.AudioFilePath) && File.Exists(item.AudioFilePath))
+            var ownedItem = await HistoryRepo.GetStreamHistoryAsync(item.Id);
+            if (ownedItem is null)
+            {
+                await LoadHistory();
+                if (currentPlayingItem?.Id == item.Id)
+                    await StopAudioAsync();
+                Toast.ShowWarning("Audio unavailable.");
+                return;
+            }
+
+            if (currentPlayingItem?.Id == item.Id && isAudioPlaying)
+            {
+                await StopAudioAsync();
+                return;
+            }
+
+            playbackToken = await BeginAudioRequestAsync();
+            if (_disposed || playbackToken.IsCancellationRequested) return;
+            ownedItem = await HistoryRepo.GetStreamHistoryAsync(item.Id);
+            if (ownedItem is null)
+            {
+                await LoadHistory();
+                Toast.ShowWarning("Audio unavailable.");
+                return;
+            }
+            if (!string.IsNullOrEmpty(ownedItem.AudioFilePath) && File.Exists(ownedItem.AudioFilePath))
             {
                 if (_useJsAudio)
                 {
-                    var audioBytes = await File.ReadAllBytesAsync(item.AudioFilePath);
-                    var base64 = Convert.ToBase64String(audioBytes);
-                    await JS.InvokeVoidAsync("audioInterop.playFromBase64", base64, "audio/mpeg");
+                    var audioBytes = await File.ReadAllBytesAsync(ownedItem.AudioFilePath, playbackToken);
+                    if (_disposed || playbackToken.IsCancellationRequested) return;
+                    _browserAudioAttempted = true;
+                    await BrowserAudioPlayback.PlayAsync(JS, audioBytes, playbackToken);
                 }
                 else
                 {
-                    var stream = File.OpenRead(item.AudioFilePath);
-                    audioPlayer = AudioManager.CreatePlayer(stream);
-                    audioPlayer.Play();
+                    _nativeAudio.CreatePlayer(AudioPlayerFactory, File.OpenRead(ownedItem.AudioFilePath)).Play();
                 }
-                currentPlayingItem = item;
+                if (_disposed || playbackToken.IsCancellationRequested) return;
+                currentPlayingItem = ownedItem;
                 isAudioPlaying = true;
             }
             else
@@ -265,10 +299,17 @@ else if (history.Any())
                 Toast.ShowWarning("Audio file not found.");
             }
         }
+        catch (OperationCanceledException) when (_disposed || playbackToken.IsCancellationRequested)
+        {
+        }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to play audio");
-            Toast.ShowError("Playback error.");
+            if (!_disposed && !playbackToken.IsCancellationRequested)
+            {
+                _nativeAudio.Stop();
+                Logger.LogError(ex, "Failed to play audio");
+                Toast.ShowError("Playback error.");
+            }
         }
     }
 
@@ -276,16 +317,40 @@ else if (history.Any())
     {
         try
         {
-            if (currentPlayingItem?.Id == item.Id) StopAudio();
-
-            await HistoryRepo.DeleteStreamHistoryAsync(item);
-            history.Remove(item);
-
-            if (!string.IsNullOrEmpty(item.AudioFilePath) && File.Exists(item.AudioFilePath))
+            if (currentPlayingItem?.Id == item.Id)
             {
-                try { File.Delete(item.AudioFilePath); } catch { }
+                try
+                {
+                    await StopAudioAsync();
+                }
+                catch (JSDisconnectedException ex)
+                {
+                    Logger.LogWarning(ex,
+                        "How Do You Say browser audio stop was not confirmed: JS circuit disconnected; continuing deletion");
+                }
+                catch (Exception ex)
+                {
+                    Logger.LogWarning(ex,
+                        "How Do You Say audio stop was not confirmed; continuing deletion");
+                }
             }
 
+            var ownedItem = await HistoryRepo.GetStreamHistoryAsync(item.Id);
+            if (ownedItem is null)
+            {
+                await LoadHistory();
+                throw new InvalidOperationException("History item is unavailable for the active user.");
+            }
+
+            var deletedRows = await HistoryRepo.DeleteStreamHistoryAsync(ownedItem);
+            if (deletedRows <= 0)
+                throw new InvalidOperationException($"History item {item.Id} was not deleted from storage.");
+
+            history.RemoveAll(h => h.Id == ownedItem.Id);
+
+            // Audio files are retained: another profile or cached entry may
+            // reference the same path, and row ownership cannot establish
+            // exclusive file ownership.
             Toast.ShowSuccess("Deleted.");
         }
         catch (Exception ex)
@@ -307,23 +372,57 @@ else if (history.Any())
         if (e.Key == "Enter") await SubmitPhrase();
     }
 
-    private void StopAudio()
+    private async Task<CancellationToken> BeginAudioRequestAsync()
     {
-        if (_useJsAudio)
-        {
-            _ = JS.InvokeVoidAsync("audioInterop.stop");
-        }
-        audioPlayer?.Stop();
-        audioPlayer?.Dispose();
-        audioPlayer = null;
-        currentPlayingItem = null;
-        isAudioPlaying = false;
+        var generation = _audioGeneration + 1;
+        await StopAudioAsync();
+        if (_disposed || _audioGeneration != generation)
+            throw new OperationCanceledException();
+
+        _audioRequestCts = CancellationTokenSource.CreateLinkedTokenSource(_audioLifetime.Token);
+        return _audioRequestCts.Token;
     }
 
-    public void Dispose()
+    private async Task StopAudioAsync()
     {
+        _audioGeneration++;
+        var request = _audioRequestCts;
+        _audioRequestCts = null;
+        request?.Cancel();
+        request?.Dispose();
+        try
+        {
+            _nativeAudio.Stop();
+            if (_browserAudioAttempted)
+            {
+                _browserAudioAttempted = false;
+                await JS.InvokeVoidAsync("audioInterop.stop");
+            }
+        }
+        finally
+        {
+            currentPlayingItem = null;
+            isAudioPlaying = false;
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _disposed = true;
+        _audioLifetime.Cancel();
         Localize.CultureChanged -= OnCultureChanged;
-        StopAudio();
+        try
+        {
+            await StopAudioAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "How Do You Say audio stop was not confirmed during disposal");
+        }
+        finally
+        {
+            _audioLifetime.Dispose();
+        }
     }
 
     private void GoBack() => NavManager.NavigateTo("/");

@@ -1014,12 +1014,10 @@ else
         StateHasChanged();
         try
         {
-            // On mobile: trigger sync first
-            // Use runtime detection instead of compile-time since shared Razor components
-            // don't get platform-specific preprocessor symbols
-            if (SyncService != null && DeviceInfo.Platform != DevicePlatform.Unknown)
+            // Only native BlazorWebView hosts sync their local database with the server.
+            if (SyncService != null && BlazorHostKind.IsWebViewHost(NavManager.BaseUri))
             {
-                Logger.LogInformation("Triggering CoreSync from dashboard refresh (Platform: {Platform})", DeviceInfo.Platform);
+                Logger.LogInformation("Triggering CoreSync from dashboard refresh on native host");
                 await SyncService.TriggerSyncAsync();
                 Logger.LogInformation("CoreSync completed");
             }

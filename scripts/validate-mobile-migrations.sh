@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Validates the latest SQLite migration through the macOS AppKit head without using live
-# data as input. A fresh, mode-600 database is advanced to the immediately previous
-# migration with EF tooling, then the native app must apply the one pending migration.
+# Validates the latest SQLite migration on private scratch databases. The EF-only mode
+# advances through the immediately previous migration, then applies the pending one
+# without launching a native app. Native validation additionally requires a separate
+# bundle identity; the production identity must never be launched by this script.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
@@ -12,7 +13,9 @@ PROJECT="$REPO_ROOT/src/SentenceStudio.MacOS/SentenceStudio.MacOS.csproj"
 SHARED_PROJECT="$REPO_ROOT/src/SentenceStudio.Shared/SentenceStudio.Shared.csproj"
 APP_LIB_PROJECT="$REPO_ROOT/src/SentenceStudio.AppLib/SentenceStudio.AppLib.csproj"
 MIGRATIONS_DIR="$REPO_ROOT/src/SentenceStudio.Shared/Migrations/Sqlite"
-EXPECTED_SCHEMA_MIGRATION="20260903175044_AddApplicationOperationLedger"
+EXPECTED_SCHEMA_MIGRATION="20260928050905_ArchiveDisplacedPlanItems"
+EXPECTED_PREVIOUS_MIGRATION="20260927100455_AddStreamHistoryOwnerScope"
+PRODUCTION_BUNDLE_ID="com.simplyprofound.sentencestudio"
 WAIT_TIMEOUT="${MIGRATION_VALIDATION_WAIT_TIMEOUT:-90}"
 SIGNAL_TIMEOUT="${MIGRATION_VALIDATION_SIGNAL_TIMEOUT:-60}"
 
@@ -63,6 +66,44 @@ discover_previous_migration_id() {
         return 1
     fi
     printf '%s\n' "$migration_id"
+}
+
+require_expected_migration_pair() {
+    local latest
+    local previous
+
+    latest=$(discover_latest_migration_id) || return 1
+    previous=$(discover_previous_migration_id) || return 1
+
+    if [[ "$latest" != "$EXPECTED_SCHEMA_MIGRATION" ||
+          "$previous" != "$EXPECTED_PREVIOUS_MIGRATION" ]]; then
+        fail "Expected SQLite migration transition $EXPECTED_PREVIOUS_MIGRATION -> $EXPECTED_SCHEMA_MIGRATION; discovered $previous -> $latest."
+        return 1
+    fi
+}
+
+verify_nonproduction_bundle_id() {
+    local info_plist="$1"
+    local bundle_id
+
+    bundle_id=$(python3 - "$info_plist" <<'PY'
+import plistlib
+import sys
+
+with open(sys.argv[1], "rb") as stream:
+    bundle_id = plistlib.load(stream).get("CFBundleIdentifier")
+if not isinstance(bundle_id, str) or not bundle_id:
+    raise SystemExit("Bundle has no CFBundleIdentifier")
+print(bundle_id)
+PY
+    ) || {
+        fail "Could not verify the native app bundle identity: $info_plist"
+        return 1
+    }
+    if [[ "$bundle_id" == "$PRODUCTION_BUNDLE_ID" ]]; then
+        fail "Native validation cannot launch the production bundle identity $bundle_id. Use --validate-ef-discovery-only; open -n starts the real app identity even though it does not install an app."
+        return 1
+    fi
 }
 
 sqlite_readonly() {
@@ -297,47 +338,19 @@ build_native_app() {
         --no-restore > "$LOG_PREFIX.build" 2>&1
 }
 
-resolve_debug_app_binary() {
-    local candidate
-    candidate=$(find "$(dirname "$PROJECT")/bin/Debug/$TFM" \
-        -maxdepth 6 -type f -path '*/SentenceStudio.app/Contents/MacOS/SentenceStudio' \
-        -print -quit 2>/dev/null)
-    if [[ -n "$candidate" && -x "$candidate" ]]; then
-        realpath "$candidate"
-        return 0
-    fi
-
-    build_native_app || return 1
-    candidate=$(find "$(dirname "$PROJECT")/bin/Debug/$TFM" \
-        -maxdepth 6 -type f -path '*/SentenceStudio.app/Contents/MacOS/SentenceStudio' \
-        -print -quit)
-    [[ -n "$candidate" && -x "$candidate" ]] ||
-        {
-            fail "Could not resolve the Debug validation connection-string helper."
-            return 1
-        }
-    realpath "$candidate"
-}
-
 build_sqlite_connection_string() {
     local database="$1"
-    local helper_binary="$APP_BINARY"
-    local connection_string
+    local root
 
-    if [[ -z "$helper_binary" || ! -x "$helper_binary" ]]; then
-        helper_binary=$(resolve_debug_app_binary) || return 1
-    fi
-
-    connection_string=$(
-        "$helper_binary" \
-            --migration-validation-build-connection-string \
-            "$database"
-    ) || return 1
-    if [[ -z "$connection_string" ]]; then
-        fail "SqliteConnectionStringBuilder helper returned an empty connection string."
+    if [[ ! "$database" =~ ^/[A-Za-z0-9_./-]+$ ]]; then
+        fail "Scratch SQLite path cannot be represented safely in an EF connection string."
         return 1
     fi
-    printf '%s\n' "$connection_string"
+    root=$(dirname "$(dirname "$database")")
+    validate_isolation_paths "$root" "$database" "$HOME/Library/sstudio.db3" >/dev/null ||
+        return 1
+    printf 'Data Source=%s;Mode=ReadWrite;Cache=Private;Pooling=False;Foreign Keys=True;Default Timeout=30\n' \
+        "$database"
 }
 
 resolve_ef_tool_assembly() {
@@ -381,25 +394,35 @@ print(versions[0])
 prepare_database_to_migration() {
     local database="$1"
     local target_migration="$2"
+
+    if ! {
+        echo "Preparing disposable database with EF migrations through $target_migration."
+        GenerateDependencyFile=true GenerateRuntimeConfigurationFiles=true \
+            dotnet build "$SHARED_PROJECT" -f "$TFM" -c Debug \
+                -p:ValidateXcodeVersion=false --no-restore &&
+        GenerateRuntimeConfigurationFiles=true \
+            dotnet build "$APP_LIB_PROJECT" -f net11.0 -c Debug --no-restore
+    } > "$LOG_PREFIX.prepare-build" 2>&1; then
+        fail "EF scratch fixture build failed. Full build log: $LOG_PREFIX.prepare-build"
+        return 1
+    fi
+    apply_ef_migration "$database" "$target_migration" prepare
+}
+
+apply_ef_migration() {
+    local database="$1"
+    local target_migration="$2"
+    local log_name="$3"
     local shared_output="$REPO_ROOT/src/SentenceStudio.Shared/bin/Debug/$TFM"
     local app_lib_output="$REPO_ROOT/src/SentenceStudio.AppLib/bin/Debug/net11.0"
     local ef_tool
     local ef_design
     local connection_string
 
-    {
-        echo "Preparing disposable database with EF migrations through $target_migration."
-        GenerateDependencyFile=true GenerateRuntimeConfigurationFiles=true \
-            dotnet build "$SHARED_PROJECT" -f "$TFM" -c Debug \
-                -p:ValidateXcodeVersion=false --no-restore
-        GenerateRuntimeConfigurationFiles=true \
-            dotnet build "$APP_LIB_PROJECT" -f net11.0 -c Debug --no-restore
-    } > "$LOG_PREFIX.prepare-build" 2>&1
-
-    ef_tool=$(resolve_ef_tool_assembly)
-    ef_design=$(resolve_ef_design_assembly)
-    connection_string=$(build_sqlite_connection_string "$database")
-    dotnet exec \
+    ef_tool=$(resolve_ef_tool_assembly) || return 1
+    ef_design=$(resolve_ef_design_assembly) || return 1
+    connection_string=$(build_sqlite_connection_string "$database") || return 1
+    if ! dotnet exec \
         --depsfile "$shared_output/SentenceStudio.Shared.deps.json" \
         --additionalprobingpath "$HOME/.nuget/packages" \
         --runtimeconfig "$app_lib_output/SentenceStudio.AppLib.runtimeconfig.json" \
@@ -417,7 +440,33 @@ prepare_database_to_migration() {
         --design-assembly "$ef_design" \
         --configuration Debug \
         --nullable \
-        --working-dir "$REPO_ROOT" > "$LOG_PREFIX.prepare" 2>&1
+        --working-dir "$REPO_ROOT" > "$LOG_PREFIX.$log_name" 2>&1; then
+        fail "EF migration $target_migration failed on a scratch database. Full log: $LOG_PREFIX.$log_name"
+        return 1
+    fi
+}
+
+validate_migration_history_exact() {
+    local database="$1"
+    local target_migration="$2"
+    local expected_history
+    local actual_history
+
+    expected_history=$(
+        discover_migration_ids |
+            awk -v target="$target_migration" '
+                { print }
+                $0 == target { found=1; exit }
+                END { if (!found) exit 1 }
+            '
+    ) || return 1
+    actual_history=$(sqlite_readonly "$database" \
+        'PRAGMA query_only=ON; SELECT "MigrationId" FROM "__EFMigrationsHistory" ORDER BY "MigrationId";') ||
+        return 1
+    if [[ "$actual_history" != "$expected_history" ]]; then
+        fail "Scratch database EF migration history is not exactly the discovered sequence through $target_migration."
+        return 1
+    fi
 }
 
 validate_pending_precondition() {
@@ -457,23 +506,28 @@ validate_pending_precondition() {
           "$previous_count" != "1" ||
           "$history_count" != "$expected_history_count" ||
           "$last_applied" != "$previous_migration" ||
-          "$ledger_count" != "0" ||
+          "$ledger_count" != "6" ||
           "$prior_column_count" != "1" ]]; then
         fail "Disposable database is not exactly at the immediately previous migration."
         return 1
     fi
+    validate_migration_history_exact "$database" "$previous_migration" || return 1
+    validate_schema_contract "$database" previous || return 1
     echo "Pending migration precondition verified: $latest_migration count transitioned baseline=0; previous=$previous_migration."
 }
 
 validate_schema_contract() {
     local database="$1"
-    python3 - "$database" <<'PY'
+    local phase="${2:-latest}"
+    python3 - "$database" "$phase" <<'PY'
 import re
 import sqlite3
 import sys
 import urllib.parse
 
-database = sys.argv[1]
+database, phase = sys.argv[1:]
+if phase not in ("previous", "latest"):
+    raise SystemExit("Schema validation phase must be previous or latest")
 uri = "file:" + urllib.parse.quote(database, safe="/") + "?mode=ro"
 connection = sqlite3.connect(uri, uri=True)
 connection.execute("PRAGMA query_only=ON")
@@ -764,6 +818,14 @@ def canonical_filter_tokens(expression):
     return tuple(tokens)
 
 errors = []
+ledger_tables = {
+    row[0] for row in connection.execute(
+        "SELECT name FROM sqlite_schema WHERE type='table' "
+        "AND (name LIKE 'ApplicationOperation%' OR name='ApplicationProtectedPayload')"
+    )
+}
+if ledger_tables != set(columns):
+    errors.append("ApplicationOperation ledger: six-table set mismatch")
 for table, expected_columns in columns.items():
     actual_columns = [
         (row[1], row[2].upper(), row[3], row[5])
@@ -827,10 +889,95 @@ for table, expected_columns in columns.items():
             if not filter_matches:
                 errors.append(f"{table}: index filter mismatch for {name}")
 
+stream_table = connection.execute(
+    "SELECT 1 FROM sqlite_schema WHERE type='table' AND name='StreamHistory'"
+).fetchone()
+if not stream_table:
+    errors.append("StreamHistory: table is missing")
+else:
+    owner_columns = [
+        (row[1], row[2].upper(), row[3], row[5])
+        for row in connection.execute('PRAGMA table_info("StreamHistory")')
+        if row[1] == "UserProfileId"
+    ]
+    owner_index_name = "IX_StreamHistory_UserProfileId_CreatedAt"
+    owner_indexes = {}
+    for row in connection.execute('PRAGMA index_list("StreamHistory")'):
+        index_columns = tuple(
+            item[2] for item in connection.execute(f'PRAGMA index_info("{row[1]}")')
+        )
+        if row[1] == owner_index_name or "UserProfileId" in index_columns:
+            owner_indexes[row[1]] = (index_columns, row[2], row[3], row[4])
+
+    if owner_columns != [("UserProfileId", "TEXT", 0, 0)]:
+        errors.append("StreamHistory: nullable TEXT owner column contract mismatch")
+    if owner_indexes != {
+        owner_index_name: (("UserProfileId", "CreatedAt"), 0, "c", 0)
+    }:
+        errors.append("StreamHistory: owner index columns/order/uniqueness/filter contract mismatch")
+
+    # The current EF model declares UserProfileId as a scalar, not a relationship.
+    if list(connection.execute('PRAGMA foreign_key_list("StreamHistory")')):
+        errors.append("StreamHistory: unexpected foreign key absent from the EF model")
+
+plan_table = connection.execute(
+    "SELECT 1 FROM sqlite_schema WHERE type='table' AND name='DailyPlanCompletion'"
+).fetchone()
+if not plan_table:
+    errors.append("DailyPlanCompletion: table is missing")
+else:
+    archive_columns = [
+        (row[1], row[2].upper(), row[3], row[4], row[5])
+        for row in connection.execute('PRAGMA table_info("DailyPlanCompletion")')
+        if row[1] == "IsArchived"
+    ]
+    expected_archive_columns = (
+        [] if phase == "previous" else [("IsArchived", "INTEGER", 1, "0", 0)]
+    )
+    if archive_columns != expected_archive_columns:
+        errors.append("DailyPlanCompletion: IsArchived column/type/default contract mismatch")
+
+    plan_index_name = "IX_DailyPlanCompletion_UserProfileId_Date_PlanItemId"
+    plan_indexes = [
+        (
+            row[1], row[2], row[3], row[4],
+            tuple(column[2] for column in
+                  connection.execute(f'PRAGMA index_info("{plan_index_name}")'))
+        )
+        for row in connection.execute('PRAGMA index_list("DailyPlanCompletion")')
+        if row[1] == plan_index_name
+    ]
+    expected_plan_index = [
+        (plan_index_name, 1, "c", int(phase == "latest"),
+         ("UserProfileId", "Date", "PlanItemId"))
+    ]
+    if plan_indexes != expected_plan_index:
+        errors.append("DailyPlanCompletion: owner/day/plan index contract mismatch")
+
+    plan_index_sql = connection.execute(
+        "SELECT sql FROM sqlite_schema WHERE type='index' AND name=?",
+        (plan_index_name,)
+    ).fetchone()
+    actual_plan_filter = extract_complete_where_clause(
+        plan_index_sql[0] if plan_index_sql else ""
+    )
+    expected_plan_filter = '"IsArchived" = 0' if phase == "latest" else None
+    try:
+        filter_matches = (
+            actual_plan_filter is None if expected_plan_filter is None else
+            actual_plan_filter is not None and
+            canonical_filter_tokens(actual_plan_filter)
+            == canonical_filter_tokens(expected_plan_filter)
+        )
+    except ValueError:
+        filter_matches = False
+    if not filter_matches:
+        errors.append("DailyPlanCompletion: archive filter contract mismatch")
+
 connection.close()
 if errors:
     raise SystemExit("\n".join(errors))
-print("Complete six-table schema contract passed: columns, nullability, PKs, FKs, checks, and indexes.")
+print(f"Six-table ledger, StreamHistory owner, and {phase} plan-archive contracts passed.")
 PY
 }
 
@@ -841,6 +988,7 @@ validate_disposable_database() {
     local count
     local foreign_key_errors
 
+    require_expected_migration_pair || return 1
     if [[ "$migration_id" != "$EXPECTED_SCHEMA_MIGRATION" ]]; then
         fail "Expected-schema contract is pinned to $EXPECTED_SCHEMA_MIGRATION, not $migration_id."
         return 1
@@ -868,7 +1016,8 @@ validate_disposable_database() {
         return 1
     fi
 
-    validate_schema_contract "$database"
+    validate_migration_history_exact "$database" "$migration_id" || return 1
+    validate_schema_contract "$database" latest || return 1
     echo "Direct SQLite validation passed for migration $migration_id."
 }
 
@@ -1355,6 +1504,150 @@ run_pid_gap_cleanup_test_hook() {
     fail "Simulated interruption after open returned but before APP_PID assignment." || return 124
 }
 
+seed_legacy_history_fixture() {
+    local database="$1"
+    local scenario="$2"
+
+    sqlite3 -batch -bail -nofollow "$database" <<'SQL'
+INSERT INTO "UserProfile" ("Id", "Name", "NativeLanguage", "TargetLanguage",
+                           "CreatedAt", "PreferredSessionMinutes", "VocabQuizShowTextWithPhoto")
+VALUES ('00000000-0000-4000-8000-000000000001', 'Validator profile A', 'English',
+        'Korean', '2026-09-27T00:00:00Z', 20, 1);
+INSERT INTO "StreamHistory" ("Id", "Phrase", "Duration", "CreatedAt", "UpdatedAt")
+VALUES (7401, 'legacy validation', 1.0, '2026-09-27T00:00:00Z', '2026-09-27T00:00:00Z');
+SQL
+    if [[ "$scenario" == "ambiguous" ]]; then
+        sqlite3 -batch -bail -nofollow "$database" <<'SQL'
+INSERT INTO "UserProfile" ("Id", "Name", "NativeLanguage", "TargetLanguage",
+                           "CreatedAt", "PreferredSessionMinutes", "VocabQuizShowTextWithPhoto")
+VALUES ('00000000-0000-4000-8000-000000000002', 'Validator profile B', 'English',
+        'Spanish', '2026-09-27T00:00:00Z', 20, 1);
+SQL
+    fi
+}
+
+validate_legacy_history_fixture() {
+    local database="$1"
+    local profile_count="$2"
+    local actual
+
+    actual=$(sqlite_readonly "$database" \
+        "PRAGMA query_only=ON; SELECT
+            (SELECT COUNT(*) FROM \"UserProfile\") || '|' ||
+            (SELECT COUNT(*) FROM \"StreamHistory\") || '|' ||
+            (SELECT COUNT(*) FROM \"StreamHistory\" WHERE \"Id\"=7401 AND \"Phrase\"='legacy validation' AND \"UserProfileId\" IS NULL);")
+    if [[ "$actual" != "$profile_count|1|1" ]]; then
+        fail "EF migration changed or attributed a legacy StreamHistory row before an active user could be verified."
+        return 1
+    fi
+}
+
+run_ef_discovery_validation() {
+    local latest_migration
+    local previous_migration
+    local validation_root
+    local database_dir
+    local disposable_db
+    local live_db
+    local database_identity
+    local scenario
+    local expected_profiles
+
+    latest_migration=$(discover_latest_migration_id)
+    previous_migration=$(discover_previous_migration_id)
+    require_expected_migration_pair ||
+        return 1
+    initialize_physical_temp_root
+    umask 077
+    LOG_DIR=$(mktemp -d "$PHYSICAL_TMP_ROOT/ss-migration-ef-XXXXXX")
+    LOG_DIR=$(realpath "$LOG_DIR")
+    chmod 700 "$LOG_DIR"
+    LOG_PREFIX="$LOG_DIR/migration-validation"
+    validation_root="$LOG_DIR"
+    database_dir="$validation_root/database"
+    live_db="$HOME/Library/sstudio.db3"
+    mkdir -m 700 "$database_dir"
+    validate_private_root "$validation_root"
+
+    echo "EF-only migration transition: $previous_migration -> $latest_migration"
+    for scenario in single-user ambiguous; do
+        disposable_db="$database_dir/$scenario.db3"
+        create_private_file_exclusive "$disposable_db"
+        database_identity=$(validate_isolation_paths \
+            "$validation_root" "$disposable_db" "$live_db") || return 1
+
+        if [[ "$scenario" == "single-user" ]]; then
+            prepare_database_to_migration "$disposable_db" "$previous_migration" ||
+                return 1
+            expected_profiles=1
+        else
+            apply_ef_migration "$disposable_db" "$previous_migration" \
+                "$scenario.prepare" || return 1
+            expected_profiles=2
+        fi
+        [[ "$(validate_isolation_paths "$validation_root" "$disposable_db" "$live_db")" == "$database_identity" ]] ||
+            {
+                fail "Scratch database filesystem identity changed during EF preparation."
+                return 1
+            }
+        validate_pending_precondition "$disposable_db" \
+            "$latest_migration" "$previous_migration" || return 1
+        seed_legacy_history_fixture "$disposable_db" "$scenario"
+        apply_ef_migration "$disposable_db" "$latest_migration" \
+            "$scenario.apply" || return 1
+        [[ "$(validate_isolation_paths "$validation_root" "$disposable_db" "$live_db")" == "$database_identity" ]] ||
+            {
+                fail "Scratch database filesystem identity changed during EF application."
+                return 1
+            }
+        validate_disposable_database "$disposable_db" "$latest_migration" ||
+            return 1
+        validate_legacy_history_fixture "$disposable_db" "$expected_profiles" ||
+            return 1
+        echo "EF discovery/application and unowned legacy-row preservation passed: $scenario ($disposable_db)"
+    done
+    echo "EF-only SQLite validation passed; no native app was launched or installed."
+    echo "Validation artifacts retained: $LOG_DIR"
+}
+
+run_native_sqlite_parity_validation() {
+    local test_project="$REPO_ROOT/tests/SentenceStudio.SqliteMigrations.Tests/SentenceStudio.SqliteMigrations.Tests.csproj"
+    local test_output="$REPO_ROOT/tests/SentenceStudio.SqliteMigrations.Tests/bin/sqlite-parity/Debug/net11.0/SentenceStudio.Shared.dll"
+    local tfm
+    local shared_output
+    local -a isolated=(
+        "-p:BaseIntermediateOutputPath=obj/sqlite-parity/"
+        "-p:BaseOutputPath=bin/sqlite-parity/"
+        "-p:DefaultItemExcludes=obj/**"
+    )
+
+    require_expected_migration_pair || return 1
+    if ! dotnet restore "$SHARED_PROJECT" "${isolated[@]}" -v:q ||
+       ! dotnet restore "$test_project" "${isolated[@]}" -v:q; then
+        fail "Isolated mobile SQLite migration-test restore failed."
+        return 1
+    fi
+    for tfm in net11.0-ios net11.0-android; do
+        shared_output="$REPO_ROOT/src/SentenceStudio.Shared/bin/sqlite-parity/Debug/$tfm/SentenceStudio.Shared.dll"
+        if ! dotnet build "$SHARED_PROJECT" -f "$tfm" -c Debug --no-restore \
+            -p:ValidateXcodeVersion=false "${isolated[@]}" -v:q; then
+            fail "Isolated $tfm Shared build failed."
+            return 1
+        fi
+        if ! dotnet test "$test_project" -f net11.0 -c Debug --no-restore \
+            "-p:MobileSharedTfm=$tfm" "${isolated[@]}" \
+            --logger 'console;verbosity=normal' -v:q; then
+            fail "SQLite migration tests failed against the $tfm model."
+            return 1
+        fi
+        if ! cmp -s "$shared_output" "$test_output"; then
+            fail "Migration tests did not load the compiled $tfm Shared model."
+            return 1
+        fi
+        echo "SQLite model parity, fresh migrations, and data-preserving upgrade passed for $tfm."
+    done
+}
+
 run_full_validation() {
     local validation_root
     local database_dir
@@ -1378,6 +1671,8 @@ run_full_validation() {
     local process_command
     local agent_identity
 
+    verify_nonproduction_bundle_id \
+        "$REPO_ROOT/src/SentenceStudio.MacOS/Info.plist" || return 1
     initialize_physical_temp_root
     umask 077
     LOG_DIR=$(mktemp -d "$PHYSICAL_TMP_ROOT/ss-migration-XXXXXX")
@@ -1397,11 +1692,8 @@ run_full_validation() {
     previous_migration=$(discover_previous_migration_id)
     devflow_port=$(choose_available_devflow_port)
 
-    [[ "$latest_migration" == "$EXPECTED_SCHEMA_MIGRATION" ]] ||
-        {
-            fail "Expected-schema contract is stale; latest is $latest_migration."
-            return 1
-        }
+    require_expected_migration_pair ||
+        return 1
     if [[ ! "$devflow_port" =~ ^[0-9]+$ ]] ||
        [[ "$devflow_port" -lt 1024 || "$devflow_port" -gt 65535 ]]; then
         fail "Could not select a safe per-run DevFlow port."
@@ -1436,6 +1728,8 @@ run_full_validation() {
             return 1
         }
     APP_BUNDLE=$(realpath "$APP_BUNDLE")
+    verify_nonproduction_bundle_id "$APP_BUNDLE/Contents/Info.plist" ||
+        return 1
     APP_BINARY=$(realpath "$APP_BUNDLE/Contents/MacOS/SentenceStudio")
     [[ -x "$APP_BINARY" ]] ||
         {
@@ -1447,8 +1741,14 @@ run_full_validation() {
     capture_readonly_source_state "$live_db" "$source_before"
 
     create_private_file_exclusive "$disposable_db"
-    prepare_database_to_migration "$disposable_db" "$previous_migration"
     database_identity=$(validate_isolation_paths "$validation_root" "$disposable_db" "$live_db")
+    prepare_database_to_migration "$disposable_db" "$previous_migration" ||
+        return 1
+    [[ "$(validate_isolation_paths "$validation_root" "$disposable_db" "$live_db")" == "$database_identity" ]] ||
+        {
+            fail "Scratch database filesystem identity changed during EF preparation."
+            return 1
+        }
     read -r database_device database_inode <<< "$database_identity"
     validate_marker_file "$validation_root" "$validation_token"
     validate_pending_precondition "$disposable_db" "$latest_migration" "$previous_migration"
@@ -1623,6 +1923,22 @@ main() {
                 }
             validate_disposable_database "$2" "${3:-$(discover_latest_migration_id)}"
             ;;
+        --validate-ef-discovery-only)
+            [[ $# -eq 1 ]] ||
+                {
+                    echo "Usage: $0 --validate-ef-discovery-only" >&2
+                    return 2
+                }
+            run_ef_discovery_validation
+            ;;
+        --validate-native-sqlite-only)
+            [[ $# -eq 1 ]] ||
+                {
+                    echo "Usage: $0 --validate-native-sqlite-only" >&2
+                    return 2
+                }
+            run_native_sqlite_parity_validation
+            ;;
         --validate-isolation-only)
             [[ $# -eq 4 ]] ||
                 {
@@ -1652,7 +1968,7 @@ main() {
             run_full_validation
             ;;
         *)
-            echo "Usage: $0 [--validate-logs-only ...|--validate-database-only ...|--validate-isolation-only ...]" >&2
+            echo "Usage: $0 [--validate-native-sqlite-only|--validate-ef-discovery-only|--validate-logs-only ...|--validate-database-only ...|--validate-isolation-only ...]" >&2
             return 2
             ;;
     esac

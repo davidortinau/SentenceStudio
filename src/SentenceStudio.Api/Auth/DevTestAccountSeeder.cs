@@ -31,16 +31,36 @@ public sealed class DevTestAccountSeeder : IHostedService
         using var scope = _scopeFactory.CreateScope();
         var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        await SeedAsync(userManager, db, static () => { }, cancellationToken);
+    }
 
-        foreach (var account in Accounts)
+    /// <summary>
+    /// Allows the API's pre-listen path to inject an Identity store and DbContext
+    /// which both use its locked PostgreSQL connection.
+    /// </summary>
+    public async Task SeedAsync(
+        UserManager<ApplicationUser> userManager,
+        ApplicationDbContext db,
+        Action assertSession,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(userManager);
+        ArgumentNullException.ThrowIfNull(db);
+        ArgumentNullException.ThrowIfNull(assertSession);
+
+        for (var index = 0; index < Accounts.Length; index++)
         {
-            await EnsureAccountAsync(userManager, db, account, cancellationToken);
+            var account = Accounts[index];
+            cancellationToken.ThrowIfCancellationRequested();
+            assertSession();
+            await EnsureAccountAsync(
+                userManager, db, account, index + 1, assertSession, cancellationToken);
+            assertSession();
         }
 
         _logger.LogInformation(
-            "DevTestAccountSeeder: {AccountCount} accounts ensured ({Accounts})",
-            Accounts.Length,
-            string.Join(", ", Accounts.Select(a => a.ShortEmail)));
+            "DevTestAccountSeeder: {AccountCount} accounts ensured",
+            Accounts.Length);
     }
 
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
@@ -49,9 +69,13 @@ public sealed class DevTestAccountSeeder : IHostedService
         UserManager<ApplicationUser> userManager,
         ApplicationDbContext db,
         DevTestAccount account,
+        int accountOrdinal,
+        Action assertSession,
         CancellationToken cancellationToken)
     {
+        assertSession();
         var user = await userManager.FindByNameAsync(account.Email);
+        assertSession();
         if (user is null)
         {
             user = new ApplicationUser
@@ -64,29 +88,35 @@ public sealed class DevTestAccountSeeder : IHostedService
             };
             user.PasswordHash = userManager.PasswordHasher.HashPassword(user, account.Password);
 
+            assertSession();
             var createResult = await userManager.CreateAsync(user);
+            assertSession();
             if (!createResult.Succeeded)
             {
-                var errors = string.Join("; ", createResult.Errors.Select(e => e.Description));
-                throw new InvalidOperationException($"Dev test account '{account.Email}' could not be created: {errors}");
+                throw SeedFailure(accountOrdinal, "created");
             }
         }
         else if (!user.EmailConfirmed)
         {
             user.EmailConfirmed = true;
+            assertSession();
             var updateResult = await userManager.UpdateAsync(user);
+            assertSession();
             if (!updateResult.Succeeded)
             {
-                var errors = string.Join("; ", updateResult.Errors.Select(e => e.Description));
-                throw new InvalidOperationException($"Dev test account '{account.Email}' could not be confirmed: {errors}");
+                throw SeedFailure(accountOrdinal, "confirmed");
             }
         }
 
-        if (!await HasLinkedProfileAsync(db, user.UserProfileId, cancellationToken))
+        assertSession();
+        var hasLinkedProfile = await HasLinkedProfileAsync(db, user.UserProfileId, cancellationToken);
+        assertSession();
+        if (!hasLinkedProfile)
         {
             var profile = await db.UserProfiles.FirstOrDefaultAsync(
                 p => p.Email == account.Email,
                 cancellationToken);
+            assertSession();
 
             if (profile is null)
             {
@@ -100,18 +130,30 @@ public sealed class DevTestAccountSeeder : IHostedService
                     TargetCEFRLevel = "A1",
                     CreatedAt = DateTime.UtcNow
                 };
+                assertSession();
                 db.UserProfiles.Add(profile);
                 await db.SaveChangesAsync(cancellationToken);
+                assertSession();
             }
 
             user.UserProfileId = profile.Id;
+            assertSession();
             var updateResult = await userManager.UpdateAsync(user);
+            assertSession();
             if (!updateResult.Succeeded)
             {
-                var errors = string.Join("; ", updateResult.Errors.Select(e => e.Description));
-                throw new InvalidOperationException($"Dev test account '{account.Email}' could not be linked to a profile: {errors}");
+                throw SeedFailure(accountOrdinal, "linked to a profile");
             }
         }
+    }
+
+    private InvalidOperationException SeedFailure(int ordinal, string operation)
+    {
+        _logger.LogError(
+            "DevTestAccountSeeder: account #{AccountOrdinal} could not be {Operation}",
+            ordinal, operation);
+        return new InvalidOperationException(
+            $"Dev test account #{ordinal} could not be {operation}.");
     }
 
     private static async Task<bool> HasLinkedProfileAsync(

@@ -1,23 +1,23 @@
+using System.Data.Common;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Npgsql;
 
 namespace SentenceStudio.WebApp.Tests.Infrastructure;
 
 /// <summary>
-/// Resolves the PostgreSQL server the WebApp integration tests run against, and probes it once per
-/// process so the family skips cleanly on a machine with no server.
+/// Accepts only a per-run, explicitly identified loopback PostgreSQL test cluster.
 /// </summary>
 /// <remarks>
 /// <para>
-/// These tests boot the real <c>SentenceStudio.WebApp</c> pipeline, and that pipeline migrates
-/// <c>ApplicationDbContext</c> on startup. There is no in-memory substitute that would still prove
+/// These tests boot the real <c>SentenceStudio.WebApp</c> pipeline after the fixture migrates its
+/// newly created database. There is no in-memory substitute that would still prove
 /// what the family exists to prove — Identity cookie sign-in against the real user store — so a
 /// server is required rather than optional.
 /// </para>
 /// <para>
-/// The connection string is read from <c>WEBAPP_PG_TEST_CONNECTION</c>, falling back to the two
-/// variables the coach PostgreSQL family already uses so a developer configures one throwaway
-/// server, not three. Every test class creates and drops its own database on it; nothing here ever
-/// touches an existing database.
+/// No design-time or coach connection variable is considered. The test cluster must advertise the
+/// caller's fresh ownership ID as its server-side cluster_name before any database is created.
+/// Test databases are not dropped: cleanup belongs to the explicitly disposable test environment.
 /// </para>
 /// </remarks>
 public static class WebAppPostgresServer
@@ -25,19 +25,16 @@ public static class WebAppPostgresServer
     /// <summary>The variable this family prefers.</summary>
     public const string PrimaryVariable = "WEBAPP_PG_TEST_CONNECTION";
 
-    /// <summary>The coach test variable, reused when the primary is not set.</summary>
-    public const string CoachTestVariable = "COACH_PG_TEST_CONNECTION";
+    /// <summary>Fresh per-run UUID used to identify the disposable server itself.</summary>
+    public const string OwnershipVariable = "WEBAPP_PG_TEST_OWNER_ID";
 
-    /// <summary>The design-time variable, reused when neither of the above is set.</summary>
-    public const string DesignTimeVariable = "COACH_DB_CONNECTION";
-
-    /// <summary>Every database this family creates carries this prefix, and only these are dropped.</summary>
+    /// <summary>Every database this family creates carries this prefix.</summary>
     public const string DatabasePrefix = "webapp_it_";
 
     private static readonly object Gate = new();
-    private static bool _probed;
-    private static string? _adminConnectionString;
-    private static string? _skipReason;
+    private static readonly Dictionary<string, TestDatabase> CreatedDatabases = new(StringComparer.Ordinal);
+
+    private sealed record TestDatabase(string AdminConnectionString, string OwnerId);
 
     static WebAppPostgresServer()
     {
@@ -47,30 +44,21 @@ public static class WebAppPostgresServer
         AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
     }
 
-    /// <summary>Why the family is skipping, or null when a server is reachable.</summary>
+    /// <summary>Skip unless a specific disposable test server is explicitly selected.</summary>
     public static string? SkipReason
     {
         get
         {
-            Probe();
-            return _skipReason;
+            return string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(PrimaryVariable)) ||
+                   string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(OwnershipVariable))
+                ? $"Set both {PrimaryVariable} and {OwnershipVariable} for an owned disposable PostgreSQL test cluster."
+                : null;
         }
     }
 
-    /// <summary>The connection string for the maintenance database on the scratch server.</summary>
-    public static string AdminConnectionString
-    {
-        get
-        {
-            Probe();
-            return _adminConnectionString
-                ?? throw new InvalidOperationException(_skipReason ?? "No PostgreSQL server configured.");
-        }
-    }
-
-    /// <summary>Rewrites the admin connection string to point at <paramref name="database"/>.</summary>
+    /// <summary>Connects only to a database created by this fixture in this process.</summary>
     public static string ConnectionStringFor(string database) =>
-        new NpgsqlConnectionStringBuilder(AdminConnectionString)
+        new NpgsqlConnectionStringBuilder(GetCreatedDatabase(database).AdminConnectionString)
         {
             Database = database,
             MaxPoolSize = 40,
@@ -79,42 +67,63 @@ public static class WebAppPostgresServer
         }.ConnectionString;
 
     /// <summary>
-    /// Creates a database dedicated to one test class. The name carries a fresh GUID, so this can
-    /// never collide with, or overwrite, a database that already exists.
+    /// Creates a database dedicated to one test class. Its name retains the full GUID within
+    /// PostgreSQL's identifier limit; CREATE DATABASE refuses an existing name.
     /// </summary>
     public static async Task<string> CreateDatabaseAsync(
         string label, CancellationToken cancellationToken = default)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(label);
+        var (adminConnectionString, ownerId) = ReadConfiguration();
         var name = $"{DatabasePrefix}{Sanitize(label)}_{Guid.NewGuid():N}";
 
-        await using var connection = new NpgsqlConnection(AdminConnectionString);
+        await using var connection = new NpgsqlConnection(adminConnectionString);
         await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
+        await AssertClusterIdentityAsync(connection, "postgres", ownerId, cancellationToken)
+            .ConfigureAwait(false);
         await using var command = connection.CreateCommand();
         command.CommandText = $"CREATE DATABASE \"{name}\"";
         await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+
+        lock (Gate)
+        {
+            CreatedDatabases.Add(name, new TestDatabase(adminConnectionString, ownerId));
+        }
+
         return name;
     }
 
+    /// <summary>Attests the open migration or seed connection, not an earlier probe connection.</summary>
+    internal static Task AssertOwnedDatabaseAsync(
+        DbConnection connection, string database, CancellationToken cancellationToken = default) =>
+        AssertClusterIdentityAsync(
+            connection, database, GetCreatedDatabase(database).OwnerId, cancellationToken);
+
     /// <summary>
-    /// Drops a database this family created. Refuses anything that is not one of ours, so a
-    /// mistyped name can never take out a database that matters.
+    /// Rejects unowned hosts before even probing their server identity.
     /// </summary>
-    public static async Task DropDatabaseAsync(
-        string name, CancellationToken cancellationToken = default)
+    internal static string? ValidateConfiguration(string? connectionString, string? ownerId)
     {
-        if (!name.StartsWith(DatabasePrefix, StringComparison.Ordinal))
+        if (string.IsNullOrWhiteSpace(connectionString) || !Guid.TryParseExact(ownerId, "N", out _))
         {
-            throw new InvalidOperationException(
-                $"Refusing to drop '{name}': these tests only ever drop databases they created.");
+            return "An explicit connection and fresh per-run owner UUID are required.";
         }
 
-        NpgsqlConnection.ClearAllPools();
+        try
+        {
+            var parsed = new NpgsqlConnectionStringBuilder(connectionString);
+            if (parsed.Host is not ("localhost" or "127.0.0.1" or "::1") ||
+                parsed.Database != "postgres")
+            {
+                return "Only a loopback connection to the disposable cluster's postgres maintenance database is allowed.";
+            }
+        }
+        catch (ArgumentException)
+        {
+            return "The disposable PostgreSQL test connection is invalid.";
+        }
 
-        await using var connection = new NpgsqlConnection(AdminConnectionString);
-        await connection.OpenAsync(cancellationToken).ConfigureAwait(false);
-        await using var command = connection.CreateCommand();
-        command.CommandText = $"DROP DATABASE IF EXISTS \"{name}\" WITH (FORCE)";
-        await command.ExecuteNonQueryAsync(cancellationToken).ConfigureAwait(false);
+        return null;
     }
 
     private static string Sanitize(string label)
@@ -123,63 +132,72 @@ public static class WebAppPostgresServer
         var buffer = new char[take];
         for (var i = 0; i < take; i++)
         {
-            var c = label[i];
-            buffer[i] = char.IsLetterOrDigit(c) ? char.ToLowerInvariant(c) : '_';
+            var c = char.ToLowerInvariant(label[i]);
+            buffer[i] = c is >= 'a' and <= 'z' or >= '0' and <= '9' ? c : '_';
         }
 
         return new string(buffer);
     }
 
-    private static void Probe()
+    private static TestDatabase GetCreatedDatabase(string database)
     {
         lock (Gate)
         {
-            if (_probed)
-            {
-                return;
-            }
+            return CreatedDatabases.TryGetValue(database, out var created)
+                ? created
+                : throw new InvalidOperationException(
+                    "The WebApp fixture can only connect to databases it created in this process.");
+        }
+    }
 
-            _probed = true;
+    private static (string ConnectionString, string OwnerId) ReadConfiguration()
+    {
+        var raw = Environment.GetEnvironmentVariable(PrimaryVariable);
+        var ownerId = Environment.GetEnvironmentVariable(OwnershipVariable);
+        if (ValidateConfiguration(raw, ownerId) is { } reason)
+        {
+            throw new InvalidOperationException(reason);
+        }
 
-            var raw = Environment.GetEnvironmentVariable(PrimaryVariable)
-                ?? Environment.GetEnvironmentVariable(CoachTestVariable)
-                ?? Environment.GetEnvironmentVariable(DesignTimeVariable);
+        return (new NpgsqlConnectionStringBuilder(raw!) { Timeout = 5 }.ConnectionString, ownerId!);
+    }
 
-            if (string.IsNullOrWhiteSpace(raw))
-            {
-                _skipReason =
-                    $"No PostgreSQL server configured. Set {PrimaryVariable} (or {CoachTestVariable}) "
-                    + "to a throwaway server to run the WebApp integration tests.";
-                return;
-            }
+    private static async Task AssertClusterIdentityAsync(
+        DbConnection connection, string database, string ownerId, CancellationToken cancellationToken)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT current_setting('cluster_name'), current_database()";
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
 
-            try
-            {
-                var builder = new NpgsqlConnectionStringBuilder(raw) { Timeout = 5 };
-                if (string.IsNullOrWhiteSpace(builder.Database))
-                {
-                    builder.Database = "postgres";
-                }
-
-                using var connection = new NpgsqlConnection(builder.ConnectionString);
-                connection.Open();
-                using var command = connection.CreateCommand();
-                command.CommandText = "SELECT version()";
-                command.ExecuteScalar();
-                _adminConnectionString = builder.ConnectionString;
-            }
-            catch (Exception ex)
-            {
-                _skipReason = $"PostgreSQL server unreachable: {ex.GetType().Name}: {ex.Message}";
-            }
+        if (!await reader.ReadAsync(cancellationToken).ConfigureAwait(false) ||
+            reader.GetString(0) != $"webapp-it-{ownerId}" ||
+            reader.GetString(1) != database)
+        {
+            throw new InvalidOperationException(
+                "PostgreSQL test connection is not on the owned disposable cluster and database.");
         }
     }
 }
 
+/// <summary>Checks the actual connection for every EF migration write, including a new one.</summary>
+internal sealed class WebAppPostgresMigrationGuard(string database) : DbCommandInterceptor
+{
+    public override async ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
+        DbCommand command,
+        CommandEventData eventData,
+        InterceptionResult<int> result,
+        CancellationToken cancellationToken = default)
+    {
+        await WebAppPostgresServer.AssertOwnedDatabaseAsync(
+            command.Connection ?? throw new InvalidOperationException("Migration command has no connection."),
+            database,
+            cancellationToken).ConfigureAwait(false);
+        return result;
+    }
+}
+
 /// <summary>
-/// A fact that skips itself when no PostgreSQL server is configured, so the suite stays green on a
-/// machine without one while still failing loudly when a server is present and the behaviour is
-/// wrong.
+/// A fact that skips when no owned test cluster was selected. Explicit misconfiguration fails.
 /// </summary>
 [AttributeUsage(AttributeTargets.Method)]
 public sealed class WebAppPostgresFactAttribute : FactAttribute

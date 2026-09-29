@@ -40,6 +40,7 @@
     <ProjectReference Include="..\..\src\SentenceStudio.Application\SentenceStudio.Application.csproj" />
     <ProjectReference Include="..\..\src\SentenceStudio.Shared\SentenceStudio.Shared.csproj" />
     <ProjectReference Include="..\..\src\SentenceStudio.Sharing\SentenceStudio.Sharing.csproj" />
+    <ProjectReference Include="..\..\src\SentenceStudio.Workers\SentenceStudio.Workers.csproj" />
   </ItemGroup>
 
   <ItemGroup>
@@ -47,10 +48,22 @@
          provider copy so its real discovery metadata and Up/Down operations are testable. -->
     <Compile Include="..\..\src\SentenceStudio.Shared\Migrations\Sqlite\20260903175044_AddApplicationOperationLedger.cs"
              Link="AppOperations\Migrations\20260903175044_AddApplicationOperationLedger.Sqlite.cs" />
+    <Compile Include="..\..\src\SentenceStudio.Shared\Migrations\Sqlite\20260927100455_AddStreamHistoryOwnerScope.cs"
+             Link="Data\Migrations\20260927100455_AddStreamHistoryOwnerScope.Sqlite.cs" />
     <!-- The macOS head cannot be referenced by this net10.0 test project. This Debug-only,
          platform-neutral parser is source-linked so its fail-closed path contract is executable. -->
     <Compile Include="..\..\src\SentenceStudio.MacOS\MigrationValidationOptions.cs"
              Link="Platform\MigrationValidationOptions.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Share the reviewed Docker-only preflight, not the mutating startup-fence fixture. -->
+    <Compile Include="..\SentenceStudio.Api.Tests\Startup\StartupFenceDockerAttestor.cs"
+             Link="Startup\StartupFenceDockerAttestor.cs" />
+    <Compile Include="..\StartupCrossServiceReadiness\StartupGateCrossServiceProof.cs"
+             Link="Startup\StartupGateCrossServiceProof.cs" />
+    <Compile Include="..\StartupCrossServiceReadiness\ObservedApiVersionHttpStandIn.cs"
+             Link="Startup\ObservedApiVersionHttpStandIn.cs" />
   </ItemGroup>
 
   <!-- Exclude tests that depend on main SentenceStudio project -->

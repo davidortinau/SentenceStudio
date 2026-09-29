@@ -14,6 +14,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.AI;
 using Microsoft.IdentityModel.Tokens;
@@ -46,6 +47,7 @@ using SentenceStudio.Api.Feedback;
 using SentenceStudio.Api.Platform;
 using SentenceStudio.Api.Plans;
 using SentenceStudio.Api.Security.DataProtection;
+using SentenceStudio.Api.Startup;
 using SentenceStudio.Contracts;
 using SentenceStudio.Contracts.Ai;
 using SentenceStudio.Contracts.Auth;
@@ -161,10 +163,21 @@ builder.Services.AddScoped<JwtTokenService>();
 // swap for SmtpEmailSender in production.
 builder.Services.AddSingleton<IAppEmailSender, ConsoleEmailSender>();
 
-if (builder.Environment.IsDevelopment()
-    && builder.Configuration.GetValue("Auth:SeedDevTestAccounts", true))
+var skipDatabaseInitialization = builder.Configuration.GetValue("Database:SkipMigrateOnStartup", false);
+var seedDevelopmentAccounts = builder.Environment.IsDevelopment()
+    && builder.Configuration.GetValue("Auth:SeedDevTestAccounts", true);
+if (skipDatabaseInitialization && seedDevelopmentAccounts)
 {
-    builder.Services.AddHostedService<DevTestAccountSeeder>();
+    throw new InvalidOperationException(
+        "Database:SkipMigrateOnStartup=true cannot be combined with Auth:SeedDevTestAccounts=true " +
+        "in Development. Disable development account seeding when skipping startup migrations; " +
+        "seeding requires the PostgreSQL startup advisory-lock session.");
+}
+
+if (seedDevelopmentAccounts)
+{
+    // Normal pre-listen seeding runs explicitly on the locked backend below.
+    builder.Services.AddSingleton<DevTestAccountSeeder>();
 }
 
 builder.Services.AddScoped<ITenantContext, TenantContext>();
@@ -264,8 +277,6 @@ builder.AddNpgsqlDbContext<ApplicationDbContext>("sentencestudio", configureDbCo
 // sets never see each other's rows and either can be applied independently. Coach state
 // never syncs to a device, which is why it is a separate context rather than new tables
 // on ApplicationDbContext (CoreSync provisions everything it owns).
-const string CoachMigrationsHistoryTable = "__CoachMigrationsHistory";
-
 builder.Services.AddDbContext<SentenceStudio.Api.Coach.Persistence.CoachDbContext>(options =>
 {
     var coachConnectionString =
@@ -273,7 +284,7 @@ builder.Services.AddDbContext<SentenceStudio.Api.Coach.Persistence.CoachDbContex
         ?? builder.Configuration.GetConnectionString("sentencestudio");
 
     options.UseNpgsql(coachConnectionString, npgsql =>
-        npgsql.MigrationsHistoryTable(CoachMigrationsHistoryTable));
+        npgsql.MigrationsHistoryTable(StartupDbContextFactory.CoachMigrationsHistoryTable));
 
     // No PendingModelChangesWarning suppression here, deliberately. The coach schema is
     // single-provider and its migrations are hand-checked, so a model that has drifted from the
@@ -327,8 +338,8 @@ builder.Services.AddScoped<IApplicationOperationStore, EfApplicationOperationSto
 builder.Services.AddScoped<ApplicationOperationCoordinator>();
 builder.Services.AddScoped<CoachVocabularySetApplicationService>();
 
-// NumberDrill content seeder — populates NumberContext / NumberSubMode / NumberCounter
-// from lib/content/numbers/{language}.json (idempotent upsert by natural key).
+// Keep the ordinary scoped registration for runtime callers. Startup constructs
+// its own seeder with the locked DbContext instead of resolving this one.
 builder.Services.AddScoped<SentenceStudio.Services.Numbers.NumberContentSeeder>();
 
 // Multi-worktree footgun: if the API binds to a fresh Postgres volume (different worktree
@@ -489,47 +500,75 @@ if (!string.IsNullOrWhiteSpace(elevenLabsKey))
 }
 
 var app = builder.Build();
-var skipDatabaseInitialization = builder.Configuration.GetValue("Database:SkipMigrateOnStartup", false);
+
+if (skipDatabaseInitialization &&
+    !app.Environment.IsDevelopment() &&
+    !app.Environment.IsEnvironment("Testing"))
+{
+    throw new InvalidOperationException(
+        "The API owns application schema migrations; Database:SkipMigrateOnStartup is only allowed in Development or Testing.");
+}
 
 if (!skipDatabaseInitialization)
 {
-    // Apply EF Core migrations (creates tables if missing)
-    using (var scope = app.Services.CreateScope())
+    // The API alone owns pre-listen writes. Each startup-only EF context and CoreSync
+    // provisions on this one open backend; runtime DI remains independently pooled.
+    StartupDbContextFactory.RequireSingleDatabase(app.Configuration);
+    var startupToken = app.Lifetime.ApplicationStopping;
+    var connectionString = app.Configuration.GetConnectionString("sentencestudio")!;
+    var startupAttestor = app.Services.GetService<IStartupConnectionAttestor>();
+    if (app.Environment.IsEnvironment("Testing") && startupAttestor is null)
     {
-        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        await db.Database.MigrateAsync();
-
-        // Run vocabulary classification backfill (idempotent)
-        var backfillService = scope.ServiceProvider.GetRequiredService<VocabularyClassificationBackfillService>();
-        await backfillService.BackfillLexicalUnitTypesAsync();
-        
-        // Run phrase constituent backfill (idempotent, after classification)
-        await backfillService.BackfillPhraseConstituentsAsync();
-
-        // Seed Korean number content (NumberDrill activity — idempotent upsert by natural key)
-        var numberSeeder = scope.ServiceProvider.GetRequiredService<SentenceStudio.Services.Numbers.NumberContentSeeder>();
-        await numberSeeder.SeedAsync("ko");
+        throw new InvalidOperationException(
+            "Testing API startup requires a prewrite attestor for its actual PostgreSQL connection.");
     }
 
-    // Apply CoreSync provisioning (creates change-tracking tables if missing)
-    var syncProvider = app.Services.GetRequiredService<ISyncProvider>();
-    await syncProvider.ApplyProvisionAsync();
-
-    // Coach schema. Applied after the application migrations and inside its own try/catch:
-    // the coach is an opt-in, feature-flagged surface, so a coach migration failure must
-    // degrade the coach (its endpoints will fail) rather than stop the whole API from
-    // serving Today's Plan. Its own __CoachMigrationsHistory table keeps it independent of
-    // the application migration set even though both live in one database.
-    using (var coachScope = app.Services.CreateScope())
+    await using (var startupLock = await PostgresApplicationStartupLock.AcquireAsync(
+        connectionString, startupToken, startupAttestor))
     {
-        var coachStartupLogger = coachScope.ServiceProvider
+        var contexts = new StartupDbContextFactory(startupLock);
+        using var scope = app.Services.CreateScope();
+        using var db = contexts.CreateApplication();
+        if (!db.Database.GetMigrations().Any())
+        {
+            throw new InvalidOperationException(
+                "API cannot start: no application migrations were discovered.");
+        }
+
+        await db.Database.MigrateAsync(startupToken);
+        startupLock.EnsureActive(startupToken);
+
+        Action assertSession = () => startupLock.EnsureActive(startupToken);
+        var backfillService = scope.ServiceProvider.GetRequiredService<VocabularyClassificationBackfillService>();
+        await backfillService.BackfillLexicalUnitTypesAsync(db, assertSession, startupToken);
+        assertSession();
+        await backfillService.BackfillPhraseConstituentsAsync(db, assertSession, startupToken);
+        assertSession();
+
+        // Seed Korean number content (NumberDrill activity — idempotent upsert by natural key)
+        var numberSeeder = new SentenceStudio.Services.Numbers.NumberContentSeeder(
+            db, scope.ServiceProvider.GetRequiredService<
+                ILogger<SentenceStudio.Services.Numbers.NumberContentSeeder>>());
+        await numberSeeder.SeedAsync("ko", assertSession, startupToken);
+        assertSession();
+
+        // The concrete overload is required: ISyncProvider would open other connections.
+        if (app.Services.GetRequiredService<ISyncProvider>() is not PostgreSQLSyncProvider syncProvider)
+        {
+            throw new InvalidOperationException(
+                "The API startup sync provider must support caller-owned PostgreSQL provisioning.");
+        }
+        await startupLock.ProvisionAsync(syncProvider, startupToken);
+        assertSession();
+
+        // Coach and feedback keep independent migration histories but never use
+        // independent startup connections. Ordinary schema errors still degrade
+        // the optional feature; cancellation or lock loss stops the whole host.
+        var coachStartupLogger = scope.ServiceProvider
             .GetRequiredService<ILoggerFactory>()
             .CreateLogger("SentenceStudio.Api.Coach.Migrations");
 
-        // Where the Data Protection key ring landed. Logged through Describe(), which carries
-        // the mode, container, and blob names and nothing else — never the account URI, the
-        // connection string, or the Key Vault key identifier.
-        var keyRingPlan = coachScope.ServiceProvider
+        var keyRingPlan = scope.ServiceProvider
             .GetService<SentenceStudio.Api.Security.DataProtection.CoachKeyRingPlan>();
 
         if (keyRingPlan is null || !keyRingPlan.IsDurable)
@@ -544,40 +583,55 @@ if (!skipDatabaseInitialization)
             coachStartupLogger.LogInformation("Coach Data Protection key ring: {KeyRing}", keyRingPlan.Describe());
         }
 
-        try
-        {
-            var coachDb = coachScope.ServiceProvider.GetRequiredService<CoachDbContext>();
-            await coachDb.Database.MigrateAsync();
-            coachStartupLogger.LogInformation("Coach schema is up to date.");
-        }
-        catch (Exception ex)
-        {
-            coachStartupLogger.LogError(ex, "Coach migrations failed; the coach feature will be unavailable.");
-        }
-    }
+        await OptionalStartupMigration.RunAsync(
+            async ct =>
+            {
+                using var coachDb = contexts.CreateCoach();
+                await coachDb.Database.MigrateAsync(ct);
+                assertSession();
+                coachStartupLogger.LogInformation("Coach schema is up to date.");
+            },
+            startupLock.VerifyHeldAsync,
+            ex => coachStartupLogger.LogError(ex,
+                "Coach migrations failed; the coach feature will be unavailable."),
+            startupToken);
 
-    // Feedback schema. Same shape as the coach block above and for the same reason: its own
-    // __FeedbackMigrationsHistory table keeps it independent of both other migration sets, and a
-    // failure here degrades the feedback endpoints rather than stopping the API from serving
-    // Today's Plan. The endpoints resolve the ledger per request, so an unmigrated schema surfaces
-    // as a failed submission — never as a submission that skipped the exactly-once check.
-    using (var feedbackScope = app.Services.CreateScope())
-    {
-        var feedbackStartupLogger = feedbackScope.ServiceProvider
+        var feedbackStartupLogger = scope.ServiceProvider
             .GetRequiredService<ILoggerFactory>()
             .CreateLogger("SentenceStudio.Api.Feedback.Migrations");
+        await OptionalStartupMigration.RunAsync(
+            async ct =>
+            {
+                using var feedbackDb = contexts.CreateFeedback();
+                await feedbackDb.Database.MigrateAsync(ct);
+                assertSession();
+                feedbackStartupLogger.LogInformation("Feedback schema is up to date.");
+            },
+            startupLock.VerifyHeldAsync,
+            ex => feedbackStartupLogger.LogError(ex,
+                "Feedback migrations failed; feedback submission will be unavailable."),
+            startupToken);
 
-        try
+        if (seedDevelopmentAccounts)
         {
-            var feedbackDb = feedbackScope.ServiceProvider
-                .GetRequiredService<SentenceStudio.Api.Feedback.Persistence.FeedbackDbContext>();
-            await feedbackDb.Database.MigrateAsync();
-            feedbackStartupLogger.LogInformation("Feedback schema is up to date.");
+            // UserManager's default scoped store would silently take a different
+            // connection. Give it a startup-only store bound to the fenced context.
+            using var identityDb = contexts.CreateApplication();
+            using var identityStore = new UserStore<ApplicationUser, IdentityRole, ApplicationDbContext>(
+                identityDb);
+            using var userManager = ActivatorUtilities.CreateInstance<UserManager<ApplicationUser>>(
+                scope.ServiceProvider, identityStore);
+            var devSeeder = scope.ServiceProvider.GetRequiredService<DevTestAccountSeeder>();
+            await devSeeder.SeedAsync(userManager, identityDb, assertSession, startupToken);
+            assertSession();
         }
-        catch (Exception ex)
+
+        if (!app.Environment.IsEnvironment("Testing"))
         {
-            feedbackStartupLogger.LogError(
-                ex, "Feedback migrations failed; feedback submission will be unavailable.");
+            var diagnostics = scope.ServiceProvider.GetRequiredService<ILoggerFactory>()
+                .CreateLogger("SentenceStudio.Api.Diagnostics.EmptyUsersStartupCheck");
+            await LogEmptyUsersStartupCheckAsync(
+                db, diagnostics, app.Configuration, startupToken, startupLock.VerifyHeldAsync);
         }
     }
 }
@@ -585,53 +639,16 @@ if (!skipDatabaseInitialization)
 // Startup detection: warn loudly if AspNetUsers is empty. Catches the multi-worktree
 // case where Aspire spun up a fresh Postgres volume separate from the one holding real
 // user data. Read-only — SELECT COUNT(*) only, never mutates.
-if (!app.Environment.IsEnvironment("Testing"))
+// A host deliberately skipping initialization has no lock and uses the ordinary runtime context.
+if (skipDatabaseInitialization && !app.Environment.IsEnvironment("Testing"))
 {
     using var scope = app.Services.CreateScope();
     var startupLogger = scope.ServiceProvider
         .GetRequiredService<ILoggerFactory>()
         .CreateLogger("SentenceStudio.Api.Diagnostics.EmptyUsersStartupCheck");
-    try
-    {
-        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        if (EmptyUsersDetector.IsPostgres(db))
-        {
-            var userCount = await db.Users.CountAsync();
-            if (userCount == 0)
-            {
-                var connectionInfo = EmptyUsersDetector.DescribeConnection(db);
-                var banner = EmptyUsersDetector.BuildMessage(connectionInfo);
-                startupLogger.LogCritical("{EmptyUsersBanner}", banner);
-            }
-            else
-            {
-                startupLogger.LogInformation(
-                    "AspNetUsers populated at startup: {UserCount} user(s) on {Connection}.",
-                    userCount,
-                    EmptyUsersDetector.DescribeConnection(db));
-            }
-        }
-        else
-        {
-            startupLogger.LogDebug(
-                "Skipping empty-users startup check; provider is {Provider} (not Postgres).",
-                db.Database.ProviderName);
-        }
-    }
-    catch (Exception ex)
-    {
-        // Don't let a diagnostic check abort startup — the API still needs to come up so
-        // the existing DbContext health check can surface the underlying connectivity error.
-        startupLogger.LogWarning(ex, "Empty-users startup check failed; continuing.");
-    }
-
-    // Startup assertion: log JWT expiry and refresh-token grace window configuration
-    var jwtExpiryMinutes = int.TryParse(app.Configuration["Jwt:ExpiryMinutes"], out var expiry) ? expiry : 1440;
-    var graceWindowSeconds = int.TryParse(app.Configuration["RefreshToken:GraceWindowSeconds"], out var grace) ? grace : 60;
-    startupLogger.LogInformation(
-        "JWT lifetime: {JwtExpiryMinutes} minutes. Refresh-token grace window: {GraceWindowSeconds} seconds.",
-        jwtExpiryMinutes,
-        graceWindowSeconds);
+    var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    await LogEmptyUsersStartupCheckAsync(
+        db, startupLogger, app.Configuration, app.Lifetime.ApplicationStopping);
 }
 
 // Global unhandled-exception handler — MUST be the first middleware in the pipeline so it
@@ -1367,6 +1384,67 @@ static string StripAssemblyQualification(string assemblyQualifiedName)
 }
 
 app.Run();
+
+static async Task LogEmptyUsersStartupCheckAsync(
+    ApplicationDbContext db,
+    ILogger startupLogger,
+    IConfiguration configuration,
+    CancellationToken cancellationToken,
+    Func<CancellationToken, Task>? verifyLock = null)
+{
+    try
+    {
+        if (EmptyUsersDetector.IsPostgres(db))
+        {
+            var userCount = await db.Users.CountAsync(cancellationToken);
+            if (verifyLock is not null)
+            {
+                await verifyLock(cancellationToken);
+            }
+
+            if (userCount == 0)
+            {
+                var connectionInfo = EmptyUsersDetector.DescribeConnection(db);
+                startupLogger.LogCritical(
+                    "{EmptyUsersBanner}", EmptyUsersDetector.BuildMessage(connectionInfo));
+            }
+            else
+            {
+                startupLogger.LogInformation(
+                    "AspNetUsers populated at startup: {UserCount} user(s) on {Connection}.",
+                    userCount,
+                    EmptyUsersDetector.DescribeConnection(db));
+            }
+        }
+        else
+        {
+            startupLogger.LogDebug(
+                "Skipping empty-users startup check; provider is {Provider} (not Postgres).",
+                db.Database.ProviderName);
+        }
+    }
+    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+    {
+        throw;
+    }
+    catch (Exception ex)
+    {
+        if (verifyLock is not null)
+        {
+            await verifyLock(cancellationToken);
+        }
+
+        // Only a diagnostic read may degrade, never a lost startup backend.
+        startupLogger.LogWarning(ex, "Empty-users startup check failed; continuing.");
+    }
+
+    var jwtExpiryMinutes = int.TryParse(configuration["Jwt:ExpiryMinutes"], out var expiry) ? expiry : 1440;
+    var graceWindowSeconds = int.TryParse(configuration["RefreshToken:GraceWindowSeconds"], out var grace) ? grace : 60;
+    startupLogger.LogInformation(
+        "JWT lifetime: {JwtExpiryMinutes} minutes. Refresh-token grace window: {GraceWindowSeconds} seconds.",
+        jwtExpiryMinutes,
+        graceWindowSeconds);
+}
 
 static string GetWritableAppDataRoot()
 {

@@ -12,7 +12,7 @@ public static class OpenAIExtensions
     /// <summary>
     /// Registers a named "openai" HttpClient. Server projects that call AddServiceDefaults() already
     /// get resilience from ConfigureHttpClientDefaults — pass <paramref name="addExplicitResilience"/>
-    /// = true for MAUI / non-Aspire hosts that don't have global defaults.
+    /// = true for hosts that don't configure global HTTP client defaults.
     /// </summary>
     public static IServiceCollection AddResilientOpenAIHttpClient(
         this IServiceCollection services,

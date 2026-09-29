@@ -118,18 +118,30 @@ public sealed class PlanService : IPlanService
             return null;
         }
 
-        var completions = await _db.DailyPlanCompletions.AsNoTracking()
-            .Where(c => c.UserProfileId == userId && c.Date == todayKey)
-            .OrderBy(c => c.Priority)
-            .ThenBy(c => c.PlanItemId)
-            .ToListAsync(ct);
+        var completions = await LoadCompletionsAsync(userId, todayKey, tracked: false, ct);
 
         var streak = await ComputeStreakAsync(userId, todayLocal, ct);
 
         return BuildDto(plan, completions, streak);
     }
 
-    public async Task<TodaysPlanDto> GenerateTodayAsync(GenerateTodaysPlanRequest request, CancellationToken ct = default)
+    public Task<TodaysPlanDto> GenerateTodayAsync(
+        GenerateTodaysPlanRequest request, CancellationToken ct = default) =>
+        GenerateTodayCoreAsync(request, allowGeneratorWrites: true, ct);
+
+    /// <summary>
+    /// Native SQLite holds its writer transaction across generation. Run the
+    /// same deterministic planner in its existing read-only mode so its
+    /// separately scoped resource-seeding path cannot write outside that
+    /// transaction or contend for the SQLite writer lock.
+    /// </summary>
+    public Task<TodaysPlanDto> GenerateNativeTodayAsync(CancellationToken ct = default) =>
+        GenerateTodayCoreAsync(
+            new GenerateTodaysPlanRequest { Strategy = "deterministic" },
+            allowGeneratorWrites: false, ct);
+
+    private async Task<TodaysPlanDto> GenerateTodayCoreAsync(
+        GenerateTodaysPlanRequest request, bool allowGeneratorWrites, CancellationToken ct)
     {
         var userId = _scope.UserProfileId;
         var todayLocal = _dateContext.UserLocalDate;
@@ -144,7 +156,10 @@ public sealed class PlanService : IPlanService
             var generator = strategy == "llm" && _llm is not null
                 ? (IPlanGenerator)_llm
                 : _deterministic;
-            skeleton = await generator.GenerateAsync(userId, ct);
+            skeleton = allowGeneratorWrites
+                ? await generator.GenerateAsync(userId, ct)
+                : await _deterministic.GenerateAsync(
+                    new PlanBuildRequest { UserProfileId = userId, AllowWrites = false }, ct);
 
             // If LLM returned nothing, transparently fall back to deterministic.
             if (skeleton is null && generator is ILlmPlanGenerator)
@@ -159,6 +174,9 @@ public sealed class PlanService : IPlanService
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
+            if (!allowGeneratorWrites)
+                throw;
+
             // Exception type name only — never the exception object. The LLM generator reaches a
             // model provider, and a provider failure routinely quotes the prompt or the model's
             // own output in Exception.Message, in an inner exception, or in Exception.Data;
@@ -174,6 +192,10 @@ public sealed class PlanService : IPlanService
 
         if (skeleton is null)
         {
+            if (!allowGeneratorWrites)
+                throw new InvalidOperationException(
+                    "Native plan generation produced no feasible plan.");
+
             skeleton = new PlanSkeleton
             {
                 Activities = new List<PlannedActivity>(),
@@ -183,69 +205,11 @@ public sealed class PlanService : IPlanService
             strategy = "deterministic";
         }
 
-        // Resolve the date the generator stamped on its items. DPB uses
-        // IPlanDateContext.UserLocalDate via the same shared service, so
-        // these should match; carry the local-day instant to keep
-        // GeneratePlanItemId byte-stable with the existing client scheme.
-        var dateForIds = todayKey;
-
-        // Preserve per-item progress across regenerations. Look up existing
-        // completion rows for this user+date BEFORE we delete them.
-        var existing = await _db.DailyPlanCompletions
-            .Where(c => c.UserProfileId == userId && c.Date == todayKey)
-            .ToListAsync(ct);
+        // Use the same stable plan-item IDs and duplicate guard as coach
+        // revisions. Only currently active rows can carry progress forward.
+        var projected = ProjectSkeleton(skeleton, todayKey, priorityOffset: 0);
+        var existing = await LoadCompletionsAsync(userId, todayKey, tracked: true, ct);
         var existingByItemId = existing.ToDictionary(c => c.PlanItemId, StringComparer.Ordinal);
-
-        // Build the new completion rows from the skeleton's planned
-        // activities. Stable ids come from PlanConverter to match CoreSync.
-        var newCompletions = new List<DailyPlanCompletion>(skeleton.Activities.Count);
-        foreach (var activity in skeleton.Activities)
-        {
-            if (!Enum.TryParse<PlanActivityType>(activity.ActivityType, ignoreCase: false, out var activityType))
-            {
-                _logger.LogWarning(
-                    "Skipping unknown activity type '{ActivityType}' returned by generator.",
-                    activity.ActivityType);
-                continue;
-            }
-
-            var planItemId = PlanConverter.GeneratePlanItemId(
-                dateForIds, activityType, activity.ResourceId, activity.SkillId);
-
-            existingByItemId.TryGetValue(planItemId, out var prior);
-
-            // Capture per-item progress from the merge: take max minutes,
-            // OR isCompleted, and earliest non-null CompletedAt — same
-            // semantics CoreSync applies, so the HTTP path is consistent.
-            var minutesSpent = prior is null ? 0 : Math.Clamp(prior.MinutesSpent, 0, MaxMinutesSpent);
-            var isCompleted = prior?.IsCompleted ?? false;
-            var completedAt = prior?.CompletedAt;
-            var createdAt = prior?.CreatedAt ?? nowUtc;
-
-            newCompletions.Add(new DailyPlanCompletion
-            {
-                Id = prior?.Id ?? Guid.NewGuid().ToString("N"),
-                UserProfileId = userId,
-                Date = todayKey,
-                PlanItemId = planItemId,
-                ActivityType = activity.ActivityType,
-                ResourceId = activity.ResourceId,
-                SkillId = activity.SkillId,
-                IsCompleted = isCompleted,
-                CompletedAt = completedAt,
-                MinutesSpent = minutesSpent,
-                EstimatedMinutes = activity.EstimatedMinutes,
-                Priority = activity.Priority,
-                TitleKey = string.Empty,
-                DescriptionKey = string.Empty,
-#pragma warning disable CS0618 // legacy obsolete columns retained until drop-legacy migration
-                Rationale = string.Empty,
-                NarrativeJson = null,
-#pragma warning restore CS0618
-                CreatedAt = createdAt,
-                UpdatedAt = nowUtc,
-            });
-        }
 
         // Upsert the parent DailyPlan row keyed by (UserProfileId, Date).
         var planRow = await _db.DailyPlans
@@ -280,29 +244,28 @@ public sealed class PlanService : IPlanService
             planRow.UpdatedAt = nowUtc;
         }
 
-        // Replace child rows: remove rows that no longer appear in the new
-        // plan; upsert the rest. The unique (UserProfileId, Date, PlanItemId)
-        // index guarantees we never produce duplicates.
-        var newIdSet = new HashSet<string>(newCompletions.Select(c => c.PlanItemId), StringComparer.Ordinal);
-        foreach (var stale in existing.Where(c => !newIdSet.Contains(c.PlanItemId)))
+        var newIdSet = new HashSet<string>(projected.Select(item => item.PlanItemId), StringComparer.Ordinal);
+        foreach (var stale in existing.Where(row => !newIdSet.Contains(row.PlanItemId)))
         {
-            _db.DailyPlanCompletions.Remove(stale);
+            stale.IsArchived = true;
+            stale.UpdatedAt = nowUtc;
         }
-        foreach (var fresh in newCompletions)
+        foreach (var item in projected)
         {
-            if (existingByItemId.TryGetValue(fresh.PlanItemId, out var prior))
+            if (existingByItemId.TryGetValue(item.PlanItemId, out var prior))
             {
-                // Update in place so we don't churn the primary key.
-                prior.ActivityType = fresh.ActivityType;
-                prior.ResourceId = fresh.ResourceId;
-                prior.SkillId = fresh.SkillId;
-                prior.EstimatedMinutes = fresh.EstimatedMinutes;
-                prior.Priority = fresh.Priority;
+                // Matching active items keep their row identity and all
+                // previously logged progress.
+                prior.ActivityType = item.ActivityType;
+                prior.ResourceId = item.ResourceId;
+                prior.SkillId = item.SkillId;
+                prior.EstimatedMinutes = item.EstimatedMinutes;
+                prior.Priority = item.Priority;
                 prior.UpdatedAt = nowUtc;
             }
             else
             {
-                _db.DailyPlanCompletions.Add(fresh);
+                _db.DailyPlanCompletions.Add(NewCompletionRow(item, userId, todayKey, nowUtc));
             }
         }
 
@@ -310,12 +273,7 @@ public sealed class PlanService : IPlanService
 
         var streak = await ComputeStreakAsync(userId, todayLocal, ct);
 
-        // Reload completions tracked so we return what's on disk.
-        var finalCompletions = await _db.DailyPlanCompletions.AsNoTracking()
-            .Where(c => c.UserProfileId == userId && c.Date == todayKey)
-            .OrderBy(c => c.Priority)
-            .ThenBy(c => c.PlanItemId)
-            .ToListAsync(ct);
+        var finalCompletions = await LoadCompletionsAsync(userId, todayKey, tracked: false, ct);
 
         return BuildDto(planRow, finalCompletions, streak);
     }
@@ -330,7 +288,8 @@ public sealed class PlanService : IPlanService
         var row = await _db.DailyPlanCompletions
             .FirstOrDefaultAsync(c => c.UserProfileId == userId
                 && c.Date == dateKey
-                && c.PlanItemId == planItemId, ct);
+                && c.PlanItemId == planItemId
+                && !c.IsArchived, ct);
 
         if (row is null)
         {
@@ -359,7 +318,8 @@ public sealed class PlanService : IPlanService
         var row = await _db.DailyPlanCompletions
             .FirstOrDefaultAsync(c => c.UserProfileId == userId
                 && c.Date == dateKey
-                && c.PlanItemId == planItemId, ct);
+                && c.PlanItemId == planItemId
+                && !c.IsArchived, ct);
 
         if (row is null)
         {
@@ -401,17 +361,16 @@ public sealed class PlanService : IPlanService
 
         var plan = await _db.DailyPlans
             .FirstOrDefaultAsync(p => p.UserProfileId == userId && p.Date == todayKey, ct);
-        var completions = await _db.DailyPlanCompletions
-            .Where(c => c.UserProfileId == userId && c.Date == todayKey)
-            .ToListAsync(ct);
+        var completions = await LoadCompletionsAsync(userId, todayKey, tracked: true, ct);
 
         if (plan is not null)
         {
             _db.DailyPlans.Remove(plan);
         }
-        if (completions.Count > 0)
+        foreach (var completion in completions)
         {
-            _db.DailyPlanCompletions.RemoveRange(completions);
+            completion.IsArchived = true;
+            completion.UpdatedAt = _dateContext.UtcNow;
         }
 
         if (plan is not null || completions.Count > 0)
@@ -904,7 +863,8 @@ public sealed class PlanService : IPlanService
     private Task<List<DailyPlanCompletion>> LoadCompletionsAsync(
         string userId, DateTime dateKey, bool tracked, CancellationToken ct)
     {
-        var query = _db.DailyPlanCompletions.Where(c => c.UserProfileId == userId && c.Date == dateKey);
+        var query = _db.DailyPlanCompletions.Where(c =>
+            c.UserProfileId == userId && c.Date == dateKey && !c.IsArchived);
         if (!tracked)
         {
             query = query.AsNoTracking();
@@ -1223,8 +1183,7 @@ public sealed class PlanService : IPlanService
     {
         var sinceKey = ToDateKey(todayLocal.AddDays(-StreakLookbackDays));
 
-        // Gather all completed rows in window. Group by Date (we only care
-        // whether a day has at least one completion).
+        // Archived completions still count as practice history for streaks.
         var completedDays = await _db.DailyPlanCompletions.AsNoTracking()
             .Where(c => c.UserProfileId == userId
                 && c.IsCompleted

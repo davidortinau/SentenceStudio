@@ -2,6 +2,7 @@
 
 	<PropertyGroup>
 		<TargetFramework>net11.0</TargetFramework>
+		<!-- Temporary dependency of the old MAUI heads, not the server or native replacements. -->
 		<UseMaui>true</UseMaui>
 		<ImplicitUsings>enable</ImplicitUsings>
 		<Nullable>enable</Nullable>
@@ -17,9 +18,6 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<!-- VersionOverride: MauiServiceDefaults must stay on 9.x for these two.
-		     The 10.x versions pull transitives that conflict with <UseMaui>true</UseMaui>
-		     on the plain net10.0 TFM. -->
 		<PackageReference Include="Microsoft.Extensions.Http" />
 		<PackageReference Include="Microsoft.Extensions.Http.Resilience" />
 		<PackageReference Include="Microsoft.Extensions.ServiceDiscovery" />

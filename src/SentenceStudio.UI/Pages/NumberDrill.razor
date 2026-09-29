@@ -1,6 +1,6 @@
 @page "/numberdrill"
 @attribute [Authorize]
-@using Plugin.Maui.Audio
+@using SentenceStudio.Abstractions
 @using SentenceStudio.Services.Numbers
 @using SentenceStudio.Shared.Models.Numbers
 @using Microsoft.EntityFrameworkCore
@@ -12,7 +12,7 @@
 @inject NavigationManager NavManager
 @inject IJSRuntime JS
 @inject ILogger<NumberDrill> Logger
-@inject IAudioManager AudioManager
+@inject IAudioPlayerFactory AudioPlayerFactory
 @inject ElevenLabsSpeechService SpeechService
 @inject StreamHistoryRepository StreamHistoryRepo
 @inject SentenceStudio.Services.SpeechVoicePreferences VoicePrefs
@@ -536,7 +536,10 @@
     private NumberSessionSummary? sessionSummary;
     
     // Audio playback
-    private IAudioPlayer? audioPlayer;
+    private readonly UiAudioPlayerSession _nativeAudio = new();
+    private readonly CancellationTokenSource _audioLifetime = new();
+    private bool _browserAudioAttempted;
+    private bool _disposed;
     
     // Aggregated stats
     private int correctCount = 0;
@@ -701,7 +704,7 @@
     
     private async Task PlayAudioAsync()
     {
-        if (isPlayingAudio || currentItem == null || string.IsNullOrWhiteSpace(currentItem.AudioCue))
+        if (_disposed || isPlayingAudio || currentItem == null || string.IsNullOrWhiteSpace(currentItem.AudioCue))
             return;
             
         isPlayingAudio = true;
@@ -720,12 +723,14 @@
             }
             else if (Connectivity.IsInternetAvailable)
             {
-                audioStream = await SpeechService.TextToSpeechAsync(text, voiceId, speed: 1.0f);
-
                 var cacheDir = Path.Combine(FileSystemService.AppDataDirectory, "AudioCache");
                 Directory.CreateDirectory(cacheDir);
                 var filePath = Path.Combine(cacheDir, $"number_{Guid.NewGuid()}.mp3");
-                using (var fs = File.Create(filePath)) { await audioStream.CopyToAsync(fs); }
+                using (var generatedAudio = await SpeechService.TextToSpeechAsync(text, voiceId, speed: 1.0f))
+                using (var fs = File.Create(filePath))
+                {
+                    await generatedAudio.CopyToAsync(fs);
+                }
 
                 await StreamHistoryRepo.SaveStreamHistoryAsync(new StreamHistory
                 {
@@ -744,27 +749,38 @@
                 return;
             }
 
-            audioPlayer?.Stop();
-            audioPlayer?.Dispose();
-            audioPlayer = AudioManager.CreatePlayer(audioStream);
-            if (audioPlayer != null)
+            if (_disposed)
             {
-                audioPlayer.Play();
+                audioStream.Dispose();
+                return;
+            }
+
+            if (AudioPlayerFactory.CanPlayLocally)
+            {
+                _nativeAudio.CreatePlayer(AudioPlayerFactory, audioStream).Play();
             }
             else
             {
-                // JS interop fallback for server-side Blazor (WebApp)
-                audioStream.Position = 0;
-                using var ms = new MemoryStream();
-                await audioStream.CopyToAsync(ms);
-                var base64 = Convert.ToBase64String(ms.ToArray());
-                await JS.InvokeVoidAsync("audioInterop.playFromBase64", base64, "audio/mpeg");
+                using (audioStream)
+                {
+                    _nativeAudio.Stop();
+                    audioStream.Position = 0;
+                    using var ms = new MemoryStream();
+                    await audioStream.CopyToAsync(ms);
+                    _browserAudioAttempted = true;
+                    await BrowserAudioPlayback.PlayAsync(JS, ms.ToArray(), _audioLifetime.Token);
+                }
             }
+        }
+        catch (OperationCanceledException) when (_disposed)
+        {
         }
         catch (Exception ex)
         {
+            _nativeAudio.Stop();
             Logger.LogError(ex, "Failed to play number audio for '{Text}'", currentItem.AudioCue);
-            Toast.ShowError("Failed to play audio.");
+            if (!_disposed)
+                Toast.ShowError("Failed to play audio.");
         }
         finally
         {
@@ -1220,15 +1236,73 @@
     
     public async ValueTask DisposeAsync()
     {
-        Localize.CultureChanged -= OnCultureChanged;
-        ActivityTimer.PauseAndStopOwnedSession(activityTimerLease);
-        
-        audioPlayer?.Stop();
-        audioPlayer?.Dispose();
-        
-        if (jsModule != null)
+        if (_disposed) return;
+        _disposed = true;
+        try
         {
-            await jsModule.DisposeAsync();
+            _audioLifetime.Cancel();
+        }
+        finally
+        {
+            try
+            {
+                Localize.CultureChanged -= OnCultureChanged;
+            }
+            finally
+            {
+                try
+                {
+                    ActivityTimer.PauseAndStopOwnedSession(activityTimerLease);
+                }
+                finally
+                {
+                    try
+                    {
+                        _nativeAudio.Dispose();
+                    }
+                    finally
+                    {
+                        try
+                        {
+                            if (_browserAudioAttempted)
+                            {
+                                _browserAudioAttempted = false;
+                                try
+                                {
+                                    await JS.InvokeVoidAsync("audioInterop.stop");
+                                }
+                                catch (Exception ex)
+                                {
+                                    Logger.LogWarning(ex, "Failed to stop number-drill browser audio during disposal");
+                                }
+                            }
+                        }
+                        finally
+                        {
+                            try
+                            {
+                                _audioLifetime.Dispose();
+                            }
+                            finally
+                            {
+                                var module = jsModule;
+                                jsModule = null;
+                                if (module is not null)
+                                {
+                                    try
+                                    {
+                                        await module.DisposeAsync();
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        Logger.LogWarning(ex, "Failed to dispose number-drill browser module");
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

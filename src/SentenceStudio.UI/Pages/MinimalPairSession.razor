@@ -1,8 +1,8 @@
 @page "/minimal-pairs/session/{Id}"
 @attribute [Authorize]
-@using Plugin.Maui.Audio
+@using SentenceStudio.Abstractions
 @inject SentenceStudio.WebUI.Services.BlazorLocalizationService Localize
-@implements IDisposable
+@implements IAsyncDisposable
 
 <PageHeader Title='@Localize["Activity_MinimalPairs"]' ShowBack="true" OnBack="GoBack" />
 
@@ -95,7 +95,7 @@ else
     [Inject] private MinimalPairSessionRepository SessionRepo { get; set; } = default!;
     [Inject] private StreamHistoryRepository StreamHistoryRepo { get; set; } = default!;
     [Inject] private ElevenLabsSpeechService SpeechService { get; set; } = default!;
-    [Inject] private IAudioManager AudioManager { get; set; } = default!;
+    [Inject] private IAudioPlayerFactory AudioPlayerFactory { get; set; } = default!;
     [Inject] private SentenceStudio.Services.SpeechVoicePreferences VoicePrefs { get; set; } = default!;
     [Inject] private SentenceStudio.Abstractions.IConnectivityService Connectivity { get; set; } = default!;
     [Inject] private SentenceStudio.Abstractions.IFileSystemService FileSystemService { get; set; } = default!;
@@ -109,6 +109,9 @@ else
     private bool showSummary;
     private bool isPlayingAudio;
     private bool _useJsAudio;
+    private bool _browserAudioAttempted;
+    private bool _disposed;
+    private readonly CancellationTokenSource _audioLifetime = new();
     private bool hasCheckedAnswer;
     private bool isDebouncing;
     private string errorMessage = "";
@@ -128,7 +131,7 @@ else
     private string? selectedWordId;
     private bool? answerWasCorrect;
 
-    private IAudioPlayer? audioPlayer;
+    private readonly UiAudioPlayerSession _nativeAudio = new();
     private readonly Random random = new();
 
     private double Accuracy => (correctCount + incorrectCount) > 0
@@ -139,7 +142,7 @@ else
     protected override async Task OnInitializedAsync()
     {
         Localize.CultureChanged += OnCultureChanged;
-        _useJsAudio = JS.GetType().Name.Contains("Remote", StringComparison.OrdinalIgnoreCase);
+        _useJsAudio = !AudioPlayerFactory.CanPlayLocally;
         await InitializeSession();
     }
 
@@ -225,7 +228,7 @@ else
 
     private async Task PlayPromptAudio()
     {
-        if (promptWord == null) return;
+        if (_disposed || promptWord == null) return;
         isPlayingAudio = true;
 
         try
@@ -242,12 +245,14 @@ else
             }
             else if (Connectivity.IsInternetAvailable)
             {
-                audioStream = await SpeechService.TextToSpeechAsync(text, voiceId, 0.5f, 0.75f, 0.85f);
-
                 var cacheDir = Path.Combine(FileSystemService.AppDataDirectory, "AudioCache");
                 Directory.CreateDirectory(cacheDir);
                 var filePath = Path.Combine(cacheDir, $"word_{Guid.NewGuid()}.mp3");
-                using (var fs = File.Create(filePath)) { await audioStream.CopyToAsync(fs); }
+                using (var generatedAudio = await SpeechService.TextToSpeechAsync(text, voiceId, 0.5f, 0.75f, 0.85f))
+                using (var fs = File.Create(filePath))
+                {
+                    await generatedAudio.CopyToAsync(fs);
+                }
 
                 await StreamHistoryRepo.SaveStreamHistoryAsync(new StreamHistory
                 {
@@ -264,29 +269,41 @@ else
                 return;
             }
 
-            audioPlayer?.Stop();
-            audioPlayer?.Dispose();
+            if (_disposed)
+            {
+                audioStream.Dispose();
+                return;
+            }
 
             if (_useJsAudio)
             {
                 // Server-side Blazor: route audio through JS interop
-                audioStream.Position = 0;
-                using var ms = new MemoryStream();
-                await audioStream.CopyToAsync(ms);
-                var base64 = Convert.ToBase64String(ms.ToArray());
-                await JS.InvokeVoidAsync("audioInterop.playFromBase64", base64, "audio/mpeg");
-                audioPlayer = null;
+                using (audioStream)
+                {
+                    _nativeAudio.Stop();
+                    audioStream.Position = 0;
+                    using var ms = new MemoryStream();
+                    await audioStream.CopyToAsync(ms);
+                    _browserAudioAttempted = true;
+                    await BrowserAudioPlayback.PlayAsync(JS, ms.ToArray(), _audioLifetime.Token);
+                }
             }
             else
             {
-                audioPlayer = AudioManager.CreatePlayer(audioStream);
-                audioPlayer?.Play();
+                _nativeAudio.CreatePlayer(AudioPlayerFactory, audioStream).Play();
             }
+        }
+        catch (OperationCanceledException) when (_disposed)
+        {
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Failed to play audio");
-            errorMessage = "Audio playback error.";
+            _nativeAudio.Stop();
+            if (!_disposed)
+            {
+                Logger.LogError(ex, "Failed to play audio");
+                errorMessage = "Audio playback error.";
+            }
         }
         finally
         {
@@ -386,11 +403,49 @@ else
         </div>
     };
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
-        Localize.CultureChanged -= OnCultureChanged;
-        audioPlayer?.Stop();
-        audioPlayer?.Dispose();
-        audioPlayer = null;
+        if (_disposed) return;
+        _disposed = true;
+        try
+        {
+            _audioLifetime.Cancel();
+        }
+        finally
+        {
+            try
+            {
+                Localize.CultureChanged -= OnCultureChanged;
+            }
+            finally
+            {
+                try
+                {
+                    _nativeAudio.Dispose();
+                }
+                finally
+                {
+                    try
+                    {
+                        if (_browserAudioAttempted)
+                        {
+                            _browserAudioAttempted = false;
+                            try
+                            {
+                                await JS.InvokeVoidAsync("audioInterop.stop");
+                            }
+                            catch (Exception ex)
+                            {
+                                Logger.LogWarning(ex, "Failed to stop minimal-pair browser audio during disposal");
+                            }
+                        }
+                    }
+                    finally
+                    {
+                        _audioLifetime.Dispose();
+                    }
+                }
+            }
+        }
     }
 }

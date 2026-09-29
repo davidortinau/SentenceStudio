@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Options;
 using SentenceStudio.Services.Vocabulary;
+using SentenceStudio.Workers.Startup;
 
 namespace SentenceStudio.Workers;
 
@@ -15,29 +16,29 @@ namespace SentenceStudio.Workers;
 /// </para>
 /// <para>
 /// It is safe to leave registered: with the feature disabled — the default — the service returns
-/// before issuing any query, and this worker just logs that it had nothing to do.
+/// before issuing any query. With the feature enabled, the API/schema gate must succeed before
+/// resolving the backfill service.
 /// </para>
 /// </remarks>
 public sealed class PartOfSpeechBackfillWorker : BackgroundService
 {
-    /// <summary>
-    /// Delay before the pass, matching the existing worker's startup grace so migrations and
-    /// dependencies are settled before the first query.
-    /// </summary>
     private static readonly TimeSpan StartupDelay = TimeSpan.FromSeconds(10);
 
     private readonly IServiceProvider _serviceProvider;
     private readonly IOptions<VocabularyPartOfSpeechBackfillOptions> _options;
     private readonly ILogger<PartOfSpeechBackfillWorker> _logger;
+    private readonly IWorkerStartupReadiness _startupReadiness;
 
     public PartOfSpeechBackfillWorker(
         IServiceProvider serviceProvider,
         IOptions<VocabularyPartOfSpeechBackfillOptions> options,
-        ILogger<PartOfSpeechBackfillWorker> logger)
+        ILogger<PartOfSpeechBackfillWorker> logger,
+        IWorkerStartupReadiness startupReadiness)
     {
         _serviceProvider = serviceProvider;
         _options = options;
         _logger = logger;
+        _startupReadiness = startupReadiness;
     }
 
     /// <summary>True once the single pass has finished, whatever its outcome.</summary>
@@ -57,6 +58,18 @@ public sealed class PartOfSpeechBackfillWorker : BackgroundService
 
         try
         {
+            await _startupReadiness.WaitAsync(stoppingToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            _logger.LogInformation("Part-of-speech backfill worker cancelled before API/schema readiness.");
+            HasCompleted = true;
+            return;
+        }
+
+        try
+        {
+            // Keep the existing startup pacing; only the API/schema gate proves readiness.
             await Task.Delay(StartupDelay, stoppingToken).ConfigureAwait(false);
 
             using var scope = _serviceProvider.CreateScope();

@@ -28,8 +28,9 @@ namespace SentenceStudio.Api.Coach.Opportunities.Endpoints;
 /// because configuration reload does not re-run route mapping.
 /// </item>
 /// <item>
-/// <c>RequireAuthorization()</c>, and the caller's <c>user_profile_id</c> must be in
-/// <c>Coach:AllowedUserProfileIds</c>. The <c>__dev_all__</c> sentinel is <b>not</b> honoured.
+/// <c>RequireAuthorization()</c>, a nonempty <c>user_profile_id</c> from the authenticated
+/// principal in <c>Coach:AllowedUserProfileIds</c>, and a database owner filter on every query.
+/// The <c>__dev_all__</c> sentinel is <b>not</b> honoured.
 /// </item>
 /// </list>
 /// <para>
@@ -180,13 +181,13 @@ public static class CoachOpportunityOperatorEndpoints
     }
 
     /// <summary>
-    /// Streams the rollup as newline-delimited JSON, for pasting into a spec.
+    /// Exports the current owner's rollup as newline-delimited JSON, for pasting into a spec.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The export is the <em>rollup</em>, never the row list. That is what makes it safe to save
-    /// to a file and share: it carries counts and closed-vocabulary codes and no owner
-    /// identifier, so an exported artifact cannot become a per-learner record by accident.
+    /// The export is the <em>owner-scoped rollup</em>, never the row list or decrypted evidence.
+    /// It carries counts and closed-vocabulary codes for only the authenticated owner; evidence
+    /// remains available exclusively through the acknowledged, durable-key-ring-gated POST route.
     /// </para>
     /// <para>
     /// <b>Serialized with the web defaults, so every line is camelCase — the same casing
@@ -316,11 +317,9 @@ public static class CoachOpportunityOperatorEndpoints
     /// exist.
     /// </para>
     /// <para>
-    /// <b><see cref="CoachOpportunityOperatorStatus.CrossOwnerRefused"/> collapses into the same
-    /// 404.</b> A 403 answered only for identifiers that name a real row owned by somebody else,
-    /// so probing the identifier space would separate "does not exist" from "exists, not yours" —
-    /// the precise existence oracle the rest of this surface is built to deny. The refusal is
-    /// still logged distinctly server-side; only the wire representation is collapsed.
+    /// The legacy <see cref="CoachOpportunityOperatorStatus.CrossOwnerRefused"/> also maps to
+    /// 404. Foreign ids never produce it now: owner filtering makes them indistinguishable from
+    /// nonexistent ids in the database query itself.
     /// </para>
     /// </remarks>
     private static IResult ToResult<T>(CoachOpportunityOperatorResult<T> result) => result.Status switch
@@ -329,7 +328,7 @@ public static class CoachOpportunityOperatorEndpoints
         CoachOpportunityOperatorStatus.NotAvailable => Results.NotFound(),
         CoachOpportunityOperatorStatus.InvalidRequest => Results.BadRequest(),
 
-        // Indistinguishable from "no such row", on purpose. See the remarks above.
+        // Legacy compatibility: foreign rows now return NotAvailable directly.
         CoachOpportunityOperatorStatus.CrossOwnerRefused => Results.NotFound(),
 
         // A lifecycle rule, not an authorization one: the row exists and the caller may review

@@ -2,53 +2,16 @@
 	<PropertyGroup>
 		<TargetFramework>net11.0</TargetFramework>
 		<RootNamespace>SentenceStudio</RootNamespace>
-		<UseMaui Condition="'$(IncludeMobileTargets)' != 'false'">true</UseMaui>
-		<SingleProject Condition="'$(IncludeMobileTargets)' != 'false'">true</SingleProject>
 		<ImplicitUsings>disable</ImplicitUsings>
 		<Nullable>disable</Nullable>
 	</PropertyGroup>
 
 	<ItemGroup>
-		<!-- App Icon -->
-		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\studio_icon.png" Color="#0c0b10" />
-
-		<!-- Splash Screen -->
-		<MauiSplashScreen Include="Resources\AppIcon\studio_icon.png" Color="#0c0b10" BaseSize="400,400" />
-
-		<!-- Images -->
-		<MauiImage Include="Resources\Images\*" />
-		<MauiImage Update="Resources\Images\dotnet_bot.png" Resize="True" BaseSize="300,185" />
-
-		<!-- Custom Fonts -->
-		<MauiFont Include="Resources\Fonts\*" />
-
-		<!-- Korean font also as MauiAsset for SkiaSharp direct access (different logical name) -->
-		<MauiAsset Include="Resources\Fonts\bm_yeonsung.ttf" LogicalName="fonts/bm_yeonsung.ttf" />
-		<MauiAsset Include="Resources\Fonts\PretendardVariable.ttf" LogicalName="fonts/PretendardVariable.ttf" />
-
-		<!-- Raw Assets (also remove the "Resources\Raw" prefix) -->
-		<MauiAsset Include="Resources\Raw\**" LogicalName="%(RecursiveDir)%(Filename)%(Extension)" />
-
-		<!-- Host page for Blazor WebView -->
-		<MauiAsset Include="wwwroot\index.html" LogicalName="wwwroot/index.html" />
-
-	</ItemGroup>
-
-	<ItemGroup Condition="'$(IncludeMobileTargets)' == 'false'">
-		<Compile Remove="Platforms\**\*.cs" />
-	</ItemGroup>
-
-	<ItemGroup>
 		<PackageReference Include="Microsoft.AspNetCore.Components.Authorization" />
 		<PackageReference Include="Microsoft.Extensions.Http.Resilience" />
 		<PackageReference Include="Microsoft.Identity.Client" />
-		<PackageReference Include="Microsoft.Maui.Controls" />
 		<PackageReference Include="CommunityToolkit.Mvvm" />
-		<PackageReference Include="CommunityToolkit.Maui" />
-		<PackageReference Include="Plugin.Maui.Audio" />
 		<PackageReference Include="Scriban" />
-		<PackageReference Include="SkiaSharp.Views.Maui.Controls" />
-		<PackageReference Include="Syncfusion.Maui.Toolkit" />
 		<PackageReference Include="Microsoft.Extensions.Configuration.Binder" />
 		<PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" />
 		<PackageReference Include="Microsoft.Extensions.Configuration.Json" />
@@ -70,10 +33,6 @@
 		<PackageReference Include="OpenTelemetry.Instrumentation.Http" />
 		<PackageReference Include="CoreSync.Http.Client" />
 		<PackageReference Include="CoreSync.Sqlite" />
-		<PackageReference Include="Syncfusion.Maui.Inputs" />
-		<PackageReference Include="Syncfusion.Maui.Charts" />
-		<PackageReference Include="Syncfusion.Maui.Gauges" />
-		<PackageReference Include="Syncfusion.Maui.ProgressBar" />
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Tasks">
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -87,15 +46,4 @@
 	</ItemGroup>
 
 
-	<ItemGroup>
-		<MauiAsset Include="appsettings.json" LogicalName="appsettings.json" Condition="Exists('$(MSBuildProjectDirectory)/appsettings.json')" />
-		<MauiAsset Include="appsettings.Development.json" LogicalName="appsettings.Development.json" />
-		<MauiAsset Include="appsettings.Production.json" LogicalName="appsettings.Production.json" />
-	</ItemGroup>
-
-	<ItemGroup>
-		<EmbeddedResource Include="appsettings.json" Condition="Exists('$(MSBuildProjectDirectory)/appsettings.json')" />
-		<EmbeddedResource Include="appsettings.Development.json" />
-		<EmbeddedResource Include="appsettings.Production.json" />
-	</ItemGroup>
 </Project>

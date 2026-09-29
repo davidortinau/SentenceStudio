@@ -1,6 +1,6 @@
 using ElevenLabs;
 using Microsoft.Extensions.Logging;
-using Plugin.Maui.Audio;
+using SentenceStudio.Abstractions;
 using SentenceStudio.Models;
 using System.Timers;
 
@@ -13,7 +13,8 @@ namespace SentenceStudio.Services;
 public class TimestampedAudioManager : IDisposable
 {
     private readonly ILogger<TimestampedAudioManager> _logger;
-    private IAudioPlayer? _player;
+    private readonly IAudioPlayerFactory _audioPlayerFactory;
+    private IUiAudioPlayer? _player;
     private TimestampedAudio? _currentAudio;
     private readonly SentenceTimingCalculator _timingCalculator;
     private System.Timers.Timer? _progressTimer;
@@ -53,9 +54,13 @@ public class TimestampedAudioManager : IDisposable
     private Dictionary<double, int> _timestampToSentenceMap = new();
     private List<(double StartTime, double EndTime, int SentenceIndex)> _sentenceTimings = new();
 
-    public TimestampedAudioManager(SentenceTimingCalculator timingCalculator, ILogger<TimestampedAudioManager> logger)
+    public TimestampedAudioManager(
+        SentenceTimingCalculator timingCalculator,
+        IAudioPlayerFactory audioPlayerFactory,
+        ILogger<TimestampedAudioManager> logger)
     {
         _timingCalculator = timingCalculator;
+        _audioPlayerFactory = audioPlayerFactory;
         _logger = logger;
     }
 
@@ -116,23 +121,28 @@ public class TimestampedAudioManager : IDisposable
             _logger.LogDebug("Sentence {Index}: {StartTime:F2}s - {EndTime:F2}s", sentenceIdx, startTime, endTime);
         }
 
+        if (!_audioPlayerFactory.CanPlayLocally)
+        {
+            _logger.LogDebug("Local audio playback unavailable; the browser uses its JS audio player.");
+            return;
+        }
+
         try
         {
             // Create audio player from data
-            var audioStream = new MemoryStream(audio.AudioData);
-            _player = AudioManager.Current.CreatePlayer(audioStream);
+            using var audioStream = new MemoryStream(audio.AudioData, writable: false);
+            _player = _audioPlayerFactory.CreatePlayer(audioStream);
             if (_player != null)
             {
                 _player.PlaybackEnded += OnPlaybackEnded;
+                // Setup progress tracking timer (50ms for smooth real-time updates)
+                _progressTimer = new System.Timers.Timer(50);
+                _progressTimer.Elapsed += OnProgressTimerElapsed;
             }
             else
             {
-                _logger.LogWarning("AudioManager.CreatePlayer returned null — native audio unavailable (web/server context)");
+                _logger.LogWarning("The local audio player could not be created; browser audio remains available.");
             }
-
-            // Setup progress tracking timer (50ms for smooth real-time updates)
-            _progressTimer = new System.Timers.Timer(50);
-            _progressTimer.Elapsed += OnProgressTimerElapsed;
         }
         catch (Exception ex)
         {

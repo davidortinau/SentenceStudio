@@ -35,6 +35,14 @@ public class PostSignInNotificationTests
     // ------------------------------------------------------------- the happy path
 
     [Fact]
+    public void NativeProvider_ImplementsTheNeutralUiNotificationContract()
+    {
+        typeof(IClientAuthStateNotifier)
+            .IsAssignableFrom(typeof(MauiAuthenticationStateProvider))
+            .Should().BeTrue();
+    }
+
+    [Fact]
     public async Task NotifySignedIn_publishes_the_authenticated_principal_from_the_warm_cache()
     {
         var auth = new StubAuthService { IsSignedIn = true, AccessToken = TestJwt("a@example.test") };
@@ -111,8 +119,9 @@ public class PostSignInNotificationTests
     {
         var source = ReadSource("src/SentenceStudio.UI/Pages/LoginPage.razor");
 
-        source.Should().Contain("mauiAuth.NotifySignedIn()");
-        source.Should().NotContain("mauiAuth.LogInSilentlyAsync()");
+        source.Should().Contain("AuthStateProvider is IClientAuthStateNotifier nativeAuth");
+        source.Should().Contain("nativeAuth.NotifySignedIn()");
+        source.Should().NotContain("nativeAuth.LogInSilentlyAsync()");
     }
 
     /// <summary>

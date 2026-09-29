@@ -8,9 +8,8 @@
 
     1. THE FALSE LIMITATION. "I can't do that" about something the app plainly does is the worst
        output on this surface: the learner believes it, stops looking, and the feature might as
-       well not exist. So a limitation carries a typed destination, and when one is present this
-       card names the screen. There is no code path here that renders a refusal while suppressing
-       a destination the server sent.
+       well not exist. Valid typed destinations name the screen, but stale data-export metadata
+       cannot direct learners to the retired Profile/Settings action.
 
     2. THE UNDISCLOSED CONSEQUENCE. Sending somebody to the screen where they can delete their
        vocabulary is fine. Sending them without saying so is not. The side effect renders next to
@@ -86,20 +85,6 @@
                 <p class="coach-limitation-effect ss-caption1 text-secondary-ss mb-0"
                    data-coach-limitation-effect="@Destination.SideEffect">
                     @Localize["Coach_Limitation_SideEffectHeading"]: @Localize[EffectKey(Destination.SideEffect)]
-                </p>
-            </div>
-        }
-
-        @if (ExportSurface is not null && RouteKey(ExportSurface.Route) is { } exportLabel)
-        {
-            <div class="coach-limitation-export mb-2" data-coach-limitation-export="@ExportSurface.Route">
-                <span class="ss-caption1 text-secondary-ss">
-                    @Localize["Coach_Limitation_ExportSurfaceHeading"]
-                </span>
-                <span class="ss-body2">@Localize[exportLabel]</span>
-                <p class="coach-limitation-effect ss-caption1 text-secondary-ss mb-0"
-                   data-coach-limitation-effect="@ExportSurface.SideEffect">
-                    @Localize["Coach_Limitation_SideEffectHeading"]: @Localize[EffectKey(ExportSurface.SideEffect)]
                 </p>
             </div>
         }
@@ -323,18 +308,12 @@
     private CoachDestinationDto? FullScopeSurface =>
         Limitation!.FullScopeSurface is { Route: not CoachRouteName.Unknown } surface ? surface : null;
 
-    /// <summary>Where a copy can be taken before anything is removed, when the server named one.</summary>
-    /// <remarks>
-    /// Separate from <see cref="FullScopeSurface"/> and rendered separately. S15 no longer names a
-    /// whole-data screen — none exists — but it does name the export, which is real. Reusing the
-    /// full-scope slot would have put the export under a heading that promises a start-over.
-    /// </remarks>
-    private CoachDestinationDto? ExportSurface =>
-        Limitation!.ExportSurface is { Route: not CoachRouteName.Unknown } surface ? surface : null;
-
-    /// <summary>Alternatives this build can name. An unknown code is dropped, never rendered blank.</summary>
+    /// <summary>Alternatives that remain available. Retired account export is never offered.</summary>
     private IReadOnlyList<CoachAlternativeCode> Alternatives =>
-        Limitation!.Alternatives.Where(code => code != CoachAlternativeCode.Unknown).ToArray();
+        Limitation!.Alternatives
+            .Where(code => code != CoachAlternativeCode.Unknown
+                && code != CoachAlternativeCode.ExportBeforeRemoving)
+            .ToArray();
 
     /// <summary>
     /// The screen's name, or null for a route this build cannot resolve.
@@ -372,11 +351,9 @@
     {
         CoachAlternativeCode.RemoveOneListAtATime => "Coach_Alternative_RemoveOneListAtATime",
         CoachAlternativeCode.StartAFreshList => "Coach_Alternative_StartAFreshList",
-        CoachAlternativeCode.ExportBeforeRemoving => "Coach_Alternative_ExportBeforeRemoving",
         CoachAlternativeCode.TakeAShorterSession => "Coach_Alternative_TakeAShorterSession",
         CoachAlternativeCode.UseHintLadder => "Coach_Alternative_UseHintLadder",
-        // Unreachable: Alternatives filters Unknown out before rendering. Null keeps it that way
-        // if the filter is ever removed, rather than borrowing another member's label.
+        // Unknown and retired alternatives have no label to fall back to.
         _ => null
     };
 

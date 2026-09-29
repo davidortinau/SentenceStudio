@@ -29,9 +29,6 @@ public static class MauiProgram
             .UseShiny()
             .UseSentenceStudioApp();
 
-        // Wire HelpKit (Plugin.Maui.HelpKit) — multi-targeted net10/net11 during incubation.
-        builder.UseHelpKit();
-
         builder.AddMauiServiceDefaults("MacCatalyst");
 
         builder.AddAudio(
@@ -72,9 +69,6 @@ public static class MauiProgram
 #endif
 
         var app = builder.Build();
-
-        // HelpKit ingest after services are built. Fire-and-forget; never blocks boot.
-        SentenceStudio.HelpKitIntegration.TriggerBackgroundIngest(app.Services);
 
         return SentenceStudioAppBuilder.InitializeApp(app);
     }

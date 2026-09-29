@@ -63,6 +63,15 @@ public sealed class SamOpportunityEvidenceNoticeTests : IAsyncLifetime
     }
 
     [Fact]
+    public void AForeignRowNeverOffersACrossOwnerOverrideNotice()
+    {
+        SamOpportunityNotices.Evidence(SamOpportunityClientStatus.CrossOwnerRefused)
+            .Should().Be(SamOpportunityNotices.EvidenceUnavailable);
+        SamOpportunityNotices.Surface(SamOpportunityClientStatus.CrossOwnerRefused)
+            .Should().Be(SamOpportunityNotices.SurfaceUnavailable);
+    }
+
+    [Fact]
     public void TheEvidenceMessageNeverClaimsTheSurfaceIsUnavailable()
     {
         var statuses = Enum.GetValues<SamOpportunityClientStatus>();

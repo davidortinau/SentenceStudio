@@ -14,6 +14,7 @@ public class DailyPlanCompletion
     public string? ResourceId { get; set; }
     public string? SkillId { get; set; }
     public bool IsCompleted { get; set; }
+    public bool IsArchived { get; set; }
     public DateTime? CompletedAt { get; set; }
     
     /// <summary>

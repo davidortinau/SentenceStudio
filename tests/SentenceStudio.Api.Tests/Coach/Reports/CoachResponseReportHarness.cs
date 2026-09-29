@@ -103,8 +103,8 @@ internal sealed class CoachResponseReportHarness : IDisposable
     /// <remarks>
     /// The recorder is built per owner too, not shared. In production both the service and the
     /// recorder read the same ambient request scope, so a harness that reused one recorder across
-    /// two owners would have written both learners' ledger rows under the first one — and the
-    /// cross-learner rollup assertion would have been measuring the harness.
+    /// two owners would have written both learners' ledger rows under the first one and invalidated
+    /// the owner-isolation assertions.
     /// </remarks>
     public CoachResponseReportService NewService(CoachDbContext db, string? userProfileId = null)
     {

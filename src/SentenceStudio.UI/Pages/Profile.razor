@@ -130,22 +130,6 @@ else
         </button>
     </div>
 
-    @* Export *@
-    <div class="card card-ss p-4 mb-3">
-        <h5 class="ss-title3 mb-3">@Localize["Profile_DataExport"]</h5>
-        <button class="btn btn-ss-secondary w-100" @onclick="ExportData" disabled="@isExporting">
-            @if (isExporting)
-            {
-                <span class="spinner-border spinner-border-sm me-2"></span>
-                <span>@exportProgressMessage</span>
-            }
-            else
-            {
-                <span>@Localize["Profile_ExportAllData"]</span>
-            }
-        </button>
-    </div>
-
     @* Danger Zone *@
     <div class="card card-ss p-4 border border-danger mb-5">
         <h5 class="ss-title3 text-error-ss mb-3">@Localize["Profile_DangerZone"]</h5>
@@ -188,7 +172,6 @@ else
 
 @code {
     [Inject] private UserProfileRepository ProfileRepo { get; set; }
-    [Inject] private DataExportService ExportService { get; set; }
     [Inject] private ToastService Toast { get; set; }
     [Inject] private IJSRuntime JS { get; set; }
     [Inject] private IAppState AppState { get; set; }
@@ -205,8 +188,6 @@ else
     private string displayLanguage = "English";
     private int preferredSessionMinutes = 15;
     private string targetCEFRLevel = "A2";
-    private bool isExporting;
-    private string exportProgressMessage = "";
     private bool showDeleteConfirm;
     private bool isDeleting;
 
@@ -325,26 +306,6 @@ else
         {
             Logger.LogError(ex, "Failed to save profile");
             Toast.ShowError(Localize.Get("Profile_SaveFailed", ex.Message));
-        }
-    }
-
-    private async Task ExportData()
-    {
-        isExporting = true;
-        exportProgressMessage = Localize["Profile_Exporting"];
-        try
-        {
-            await ExportService.ExportAllDataAsZipAsync();
-            Toast.ShowSuccess(Localize["Profile_ExportSuccess"]);
-        }
-        catch (Exception ex)
-        {
-            Toast.ShowError(Localize.Get("Profile_ExportFailed", ex.Message));
-        }
-        finally
-        {
-            isExporting = false;
-            exportProgressMessage = "";
         }
     }
 
