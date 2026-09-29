@@ -10,6 +10,7 @@ using SentenceStudio.Services.Plans;
 using SentenceStudio.Services.Progress;
 using SentenceStudio.Shared.Models;
 using SentenceStudio.Contracts.Plans;
+using SentenceStudio.Native;
 
 namespace SentenceStudio.Native.iOS.Platform;
 
@@ -47,15 +48,21 @@ public sealed record NativePreviewFixture(string Surface, string Owner, string E
         return new NativePreviewFixture(surface, owner, profile.Email);
     }
 
-    public static NativePreviewFixture? FromAssembly()
+    public static NativePreviewFixture? FromAssembly() =>
+        FromAttributes(
+            typeof(NativePreviewFixture).Assembly
+                .GetCustomAttributes<AssemblyMetadataAttribute>(),
+            NativeApiEndpoint.FromAssembly());
+
+    internal static NativePreviewFixture? FromAttributes(
+        IEnumerable<AssemblyMetadataAttribute> metadata, Uri? endpoint)
     {
-        var attributes = typeof(NativePreviewFixture).Assembly
-            .GetCustomAttributes<AssemblyMetadataAttribute>()
+        var attributes = metadata
             .ToDictionary(attribute => attribute.Key, attribute => attribute.Value);
         if (!attributes.TryGetValue("SentenceStudio.Native.PreviewSurface", out var surface))
             return null;
         if (surface is not ("dashboard" or "question" or "mc" or "mc-back"
-                or "mc-resume" or "mc-details" or "feedback" or "summary" or "complete"
+                or "mc-resume" or "feedback" or "summary" or "complete"
                 or "back" or "resume")
             || !attributes.TryGetValue("SentenceStudio.Native.PreviewSchema", out var schema)
             || schema != "true"
@@ -63,12 +70,32 @@ public sealed record NativePreviewFixture(string Surface, string Owner, string E
             || string.IsNullOrWhiteSpace(owner)
             || !attributes.TryGetValue("SentenceStudio.Native.PreviewEmail", out var email)
             || string.IsNullOrWhiteSpace(email)
-            || NativeApiEndpoint.FromAssembly() is not { IsLoopback: true })
+            || endpoint is not { IsLoopback: true })
             throw new InvalidOperationException(
                 "A native Debug preview needs an isolated local API, profile owner, and preview-only schema.");
 
         return new NativePreviewFixture(surface, owner, email);
     }
+
+    internal NativePlanCard? SelectAssignedQuizCard(NativeDashboardState dashboard)
+    {
+        if (Surface == "dashboard")
+            return null;
+
+        var card = dashboard.Cards.FirstOrDefault(item =>
+            item.Activity == PlanActivityType.VocabularyReview && !item.IsCompleted);
+        if (card is not null)
+            return card;
+        if (dashboard.Cards.Any(item =>
+                item.Activity == PlanActivityType.VocabularyReview && item.IsCompleted))
+            return null;
+        throw new InvalidOperationException("The preview plan has no assigned quiz card.");
+    }
+
+    internal bool ShouldShowRestoredSummary(NativeQuizState quiz) =>
+        Surface is not ("complete" or "back" or "mc-back")
+        && quiz is { Phase: NativePhase.Summary,
+            Destination: NativeDestination.QuizSummary };
 
     public async Task SeedAsync(IServiceProvider provider)
     {

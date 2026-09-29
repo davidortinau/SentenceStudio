@@ -24,12 +24,18 @@ public sealed class NativeSliceJourneyTests
             NativeSliceFixture.EmailA, "fixture-password");
         Assert.Equal(NativeDestination.Dashboard, signedIn.Destination);
         Assert.Equal(NativeSliceFixture.UserA, signedIn.UserId);
+        Assert.False(fixture.Preferences.Get("remember_me", false));
 
         var dashboard = fixture.Dashboard;
         Assert.Equal(NativePhase.Empty, (await dashboard.LoadAsync()).Phase);
         var generated = await dashboard.GenerateAsync();
         Assert.Equal(NativePhase.Ready, generated.Phase);
         var card = Assert.Single(generated.Cards);
+        Assert.Equal(1, generated.TotalCount);
+        Assert.Equal(card.EstimatedMinutes, generated.EstimatedTotalMinutes);
+        Assert.Equal(0, generated.MinutesSpent);
+        Assert.Equal(0, generated.CompletionPercentage);
+        Assert.Null(card.ResourceTitle);
         var launch = await dashboard.SelectAssignedQuizAsync(card.Id);
         Assert.NotNull(launch);
 
@@ -39,18 +45,33 @@ public sealed class NativeSliceJourneyTests
         Assert.True(question.CanSubmit);
         Assert.True(question.Prompt!.IsTargetLanguagePrompt);
         Assert.True(question.Prompt.TargetLanguageEngaged);
+        Assert.Null(question.SelectedAnswer);
         await Task.Delay(30);
 
         while (question.Phase == NativePhase.Ready
             && question.Destination == NativeDestination.VocabularyQuiz)
         {
-            var answer = await quiz.AnswerAsync(question.Choices[0].Text);
+            var submitted = question.Choices[0].Text;
+            var answer = await quiz.AnswerAsync(submitted);
             Assert.Equal(NativePhase.Feedback, answer.Phase);
+            Assert.Equal(submitted, answer.SelectedAnswer);
+            Assert.NotNull(answer.AnswerWasCorrect);
+            Assert.Equal(answer.AnswerWasCorrect,
+                answer.FeedbackKey == NativeText.QuizCorrect);
             question = await quiz.NextAsync();
+            Assert.Null(question.SelectedAnswer);
         }
+
         Assert.Equal(NativePhase.Summary, question.Phase);
         Assert.Equal(4, question.TotalTurns);
         Assert.Equal(1, question.RoundsCompleted);
+        Assert.Equal(4, question.Results.Length);
+        Assert.All(question.Results, result =>
+        {
+            Assert.StartsWith($"word-{NativeSliceFixture.UserA}-", result.WordId);
+            Assert.StartsWith($"target-{NativeSliceFixture.UserA}-", result.TargetLanguageTerm);
+            Assert.StartsWith($"native-{NativeSliceFixture.UserA}-", result.NativeLanguageTerm);
+        });
         Assert.Equal(4, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
         Assert.True(question.Elapsed > TimeSpan.Zero);
 
@@ -58,6 +79,8 @@ public sealed class NativeSliceJourneyTests
         Assert.Equal(NativeDestination.TodaysPlan, back.Destination);
         var completed = await dashboard.LoadAsync();
         Assert.True(Assert.Single(completed.Cards).IsCompleted);
+        Assert.Equal(1, completed.CompletedCount);
+        Assert.Equal(100, completed.CompletionPercentage);
         var before = await fixture.RowsAsync(NativeSliceFixture.UserA, card.Id);
         Assert.Equal(ActivitySessionStatus.Completed, before.Session?.Status);
         Assert.Equal(before.Item.CompletedAt, (await fixture.RowsAsync(
@@ -73,6 +96,21 @@ public sealed class NativeSliceJourneyTests
         Assert.Equal(before.Item.CompletedAt,
             (await fixture.RowsAsync(NativeSliceFixture.UserA, card.Id)).Item.CompletedAt);
         Assert.Equal(4, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
+    }
+
+    [Fact]
+    public async Task SignInRememberMe_StoresOnlyTheSignedInOwnersEmailPreference()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA);
+
+        var signedIn = await fixture.Auth.SignInAsync(
+            NativeSliceFixture.EmailA, "fixture-password", rememberMe: true);
+
+        Assert.Equal(NativeDestination.Dashboard, signedIn.Destination);
+        Assert.True(fixture.Preferences.Get("remember_me", false));
+        Assert.Equal(NativeSliceFixture.EmailA,
+            fixture.Preferences.Get("remember_email", string.Empty));
     }
 
     [Fact]
@@ -286,6 +324,7 @@ public sealed class NativeSliceJourneyTests
             (await fixture.Dashboard.SelectAssignedQuizAsync(planItemId))!);
         Assert.Equal(NativePhase.Summary, summary.Phase);
         Assert.Equal(0, summary.TotalTurns);
+        Assert.True(summary.Results.IsDefaultOrEmpty);
         await quiz.DoneAsync();
         await quiz.DoneAsync();
         var rows = await fixture.RowsAsync(NativeSliceFixture.UserA, planItemId);
@@ -293,6 +332,37 @@ public sealed class NativeSliceJourneyTests
         Assert.Equal(0, rows.Item.MinutesSpent);
         Assert.Null(rows.Session);
         Assert.Equal(0, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
+    }
+
+    [Fact]
+    public async Task FinalMasteredRound_ShowsPerWordSummaryBeforeDoneCompletesPlan()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA, known: true);
+        var planId = await fixture.GenerateQuizPlanAsync(NativeSliceFixture.UserA);
+        using var quiz = fixture.Quiz;
+        var question = await quiz.OpenAsync(
+            (await fixture.Dashboard.SelectAssignedQuizAsync(planId))!);
+        for (var turn = 0; turn < 4; turn++)
+        {
+            Assert.Equal(NativePhase.Ready, question.Phase);
+            Assert.Equal("Text", question.Mode);
+            var nativeTerm = "native-" + question.Prompt!.WordId["word-".Length..];
+            Assert.Equal(NativePhase.Feedback,
+                (await quiz.AnswerAsync(nativeTerm)).Phase);
+            question = await quiz.NextAsync();
+        }
+
+        Assert.Equal(NativePhase.Summary, question.Phase);
+        Assert.Equal(4, question.Results.Length);
+        Assert.All(question.Results, result => Assert.True(result.WasCorrect));
+        Assert.False((await fixture.RowsAsync(
+            NativeSliceFixture.UserA, planId)).Item.IsCompleted);
+        Assert.Equal(NativeDestination.TodaysPlan,
+            (await quiz.DoneAsync()).Destination);
+        Assert.True((await fixture.RowsAsync(
+            NativeSliceFixture.UserA, planId)).Item.IsCompleted);
+        Assert.Equal(4, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
     }
 
     [Fact]
@@ -314,6 +384,8 @@ public sealed class NativeSliceJourneyTests
         }
         Assert.Equal(NativePhase.Summary, question.Phase);
         Assert.Equal(10, question.TotalTurns);
+        var firstRoundResults = question.Results.Select(result => result.WordId).ToHashSet();
+        Assert.True(firstRoundResults.SetEquals(seenFirst));
 
         question = await quiz.ContinueRoundAsync();
         var seenSecond = new HashSet<string>();
@@ -328,5 +400,55 @@ public sealed class NativeSliceJourneyTests
         Assert.Equal(20, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
         Assert.Equal(NativePhase.Summary, question.Phase);
         Assert.Equal(2, question.RoundsCompleted);
+        Assert.True(seenSecond.SetEquals(question.Results.Select(result => result.WordId)));
+    }
+
+    [Fact]
+    public async Task CompletedRoundSummary_RestoresOwnerScopedWordsMeaningsAndVerdicts()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA);
+        await fixture.SeedAsync(NativeSliceFixture.UserB);
+        var planId = await fixture.GenerateQuizPlanAsync(NativeSliceFixture.UserA);
+        using var quiz = fixture.Quiz;
+        var question = await quiz.OpenAsync(
+            (await fixture.Dashboard.SelectAssignedQuizAsync(planId))!);
+        var expected = new Dictionary<string, bool>();
+        for (var turn = 0; turn < 4; turn++)
+        {
+            var wordId = question.Prompt!.WordId;
+            var nativeTerm = "native-" + wordId["word-".Length..];
+            var answer = turn == 0
+                ? question.Choices.Single(choice => choice.Text == nativeTerm).Text
+                : question.Choices.First(choice => choice.Text != nativeTerm).Text;
+            expected.Add(wordId, turn == 0);
+            var feedback = await quiz.AnswerAsync(answer);
+            Assert.Equal(turn == 0, feedback.AnswerWasCorrect);
+            question = await quiz.NextAsync();
+        }
+
+        Assert.Equal(NativePhase.Summary, question.Phase);
+        Assert.Equal(4, question.Results.Length);
+        foreach (var result in question.Results)
+        {
+            Assert.True(expected.TryGetValue(result.WordId, out var correct));
+            Assert.Equal(correct, result.WasCorrect);
+            Assert.Equal("target-" + result.WordId["word-".Length..],
+                result.TargetLanguageTerm);
+            Assert.Equal("native-" + result.WordId["word-".Length..],
+                result.NativeLanguageTerm);
+            Assert.StartsWith($"word-{NativeSliceFixture.UserA}-", result.WordId);
+        }
+        Assert.Equal(4, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
+        Assert.Equal(0, await fixture.AttemptCountAsync(NativeSliceFixture.UserB));
+
+        fixture.Restart();
+        fixture.Activate(NativeSliceFixture.UserA);
+        using var resumed = fixture.Quiz;
+        var launch = await fixture.Dashboard.SelectAssignedQuizAsync(planId);
+        Assert.Equal(NativePhase.ResumeChoice, (await resumed.OpenAsync(launch!)).Phase);
+        var restored = await resumed.ResumeAsync();
+        Assert.Equal(NativePhase.Summary, restored.Phase);
+        Assert.Equal(question.Results.ToArray(), restored.Results.ToArray());
     }
 }

@@ -1,0 +1,210 @@
+using AndroidX.Compose;
+using AndroidX.Compose.Runtime;
+using System.Globalization;
+using ComposeButton = AndroidX.Compose.Button;
+
+namespace SentenceStudio.Native.Android;
+
+internal sealed partial class AndroidSliceShell
+{
+    private static Text Heading(string value, AndroidVisualPalette palette,
+        int size = 28, Modifier? modifier = null) => new(value)
+    {
+        Modifier = modifier,
+        Color = palette.Text,
+        FontSize = new Sp(size),
+        FontWeight = FontWeight.SemiBold,
+    };
+
+    private static Text QuizPromptHeading(string value, AndroidVisualPalette palette) => new(value)
+    {
+        Modifier = Modifier.FillMaxWidth().Padding(vertical: 14)
+            .TestTag(NativeAccess.QuizQuestion)
+            .Semantics(semantics => semantics.ContentDescription(value)),
+        Color = palette.Primary,
+        FontSize = new Sp(AndroidVisualTheme.QuizPromptSize),
+        FontWeight = FontWeight.Bold,
+        Align = TextAlign.Center,
+    };
+
+    private static Text Body(string value, AndroidVisualPalette palette,
+        bool secondary = false, Modifier? modifier = null) => new(value)
+    {
+        Modifier = modifier,
+        Color = secondary ? palette.SecondaryText : palette.Text,
+        FontSize = new Sp(15),
+    };
+
+    private static ComposableNode Card(AndroidVisualPalette palette,
+        string? automationId, params ComposableNode[] children)
+    {
+        var modifier = Modifier.FillMaxWidth().Padding(bottom: 12);
+        if (automationId is not null)
+            modifier = modifier.TestTag(automationId);
+        var surface = new Surface
+        {
+            Modifier = modifier,
+            Shape = Shape.RoundedCorners(AndroidVisualTheme.CardRadius),
+            Color = palette.Card,
+        };
+        var content = new Column(Arrangement.SpacedBy(8))
+        {
+            Modifier = Modifier.FillMaxWidth().Padding(AndroidVisualTheme.CardPadding),
+        };
+        foreach (var child in children)
+            content.Add(child);
+        surface.Add(content);
+        return surface;
+    }
+
+    private static ComposableNode StatusAlert(string message,
+        AndroidVisualPalette palette, bool error = false,
+        string? automationId = null, bool success = false)
+    {
+        var modifier = Modifier.FillMaxWidth().Padding(bottom: 12);
+        if (automationId is not null)
+            modifier = modifier.TestTag(automationId);
+        var surface = new Surface
+        {
+            Modifier = modifier.Border(1,
+                error ? palette.Danger : success ? palette.Success : palette.Border,
+                AndroidVisualTheme.ControlRadius),
+            Shape = Shape.RoundedCorners(AndroidVisualTheme.ControlRadius),
+            Color = error ? palette.DangerSurface : palette.Elevated,
+        };
+        surface.Add(Body(message, palette, modifier: Modifier.Padding(12)));
+        return surface;
+    }
+
+    private static ComposableNode Action(string label, string automationId,
+        Action command, bool enabled, bool primary = true)
+    {
+        var modifier = Modifier.FillMaxWidth()
+            .HeightIn(min: AndroidVisualTheme.ControlHeight)
+            .TestTag(automationId)
+            .Semantics(semantics => semantics.ContentDescription(label));
+        if (!primary)
+        {
+            var secondary = new OutlinedButton(onClick: command, enabled: enabled)
+            {
+                Modifier = modifier,
+                Shape = Shape.RoundedCorners(AndroidVisualTheme.ControlRadius),
+            };
+            secondary.Add(new Text(label));
+            return secondary;
+        }
+        var button = new ComposeButton(onClick: command, enabled: enabled)
+        {
+            Modifier = modifier,
+            Shape = Shape.RoundedCorners(AndroidVisualTheme.ControlRadius),
+        };
+        button.Add(new Text(label));
+        return button;
+    }
+
+    private ComposableNode ScreenHeader(string title, AndroidVisualPalette palette,
+        bool back = false, bool refresh = false)
+    {
+        var row = new Row(Arrangement.SpaceBetween, Alignment.Vertical.CenterVertically)
+        {
+            Modifier = Modifier.FillMaxWidth()
+                .Background(palette.Background)
+                .Border(1, palette.Border)
+                .Padding(horizontal: AndroidVisualTheme.PagePadding, vertical: 10)
+                .TestTag("native.screen.header"),
+        };
+        if (back)
+        {
+            var button = new OutlinedButton(onClick: HandleBackAction, enabled: !Busy.Value)
+            {
+                Modifier = Modifier.TestTag("native.quiz.back")
+                    .Semantics(semantics => semantics.ContentDescription(Localize("Common_Back"))),
+            };
+            button.Add(new Text(Localize("Common_Back")));
+            row.Add(button);
+        }
+        row.Add(Heading(title, palette, 22));
+        if (refresh)
+        {
+            var button = new OutlinedButton(onClick: RefreshPlan, enabled: !Busy.Value)
+            {
+                Modifier = Modifier.TestTag("native.dashboard.refresh")
+                    .Semantics(semantics => semantics.ContentDescription(Localize("Common_Refresh"))),
+            };
+            button.Add(new Text(Localize("Common_Refresh")));
+            row.Add(button);
+        }
+        return row;
+    }
+
+    private static ComposableNode ProgressBar(float progress,
+        AndroidVisualPalette palette, bool completed = false) =>
+        new LinearProgressIndicator
+        {
+            Modifier = Modifier.FillMaxWidth().Height(8)
+                .Clip(4),
+            Progress = Math.Clamp(progress, 0f, 1f),
+            Color = completed ? palette.Success : palette.Primary,
+            TrackColor = palette.Border,
+        };
+
+    private static ComposableNode SummaryStatistic(
+        int value, string label, AndroidVisualPalette palette)
+    {
+        var number = Heading(value.ToString(CultureInfo.CurrentCulture),
+            palette, 22, Modifier.FillMaxWidth());
+        number.Align = TextAlign.Center;
+        var caption = Body(label, palette, secondary: true,
+            modifier: Modifier.FillMaxWidth());
+        caption.FontSize = new Sp(AndroidVisualTheme.CaptionSize);
+        caption.Align = TextAlign.Center;
+        return new Column(Arrangement.SpacedBy(2),
+            Alignment.Horizontal.CenterHorizontally)
+        {
+            Modifier.Weight(1f),
+            number,
+            caption,
+        };
+    }
+
+    private static ComposableNode ChoiceAction(IComposer composer,
+        AndroidVisualPalette palette, NativeQuizChoice choice, int index,
+        NativeQuizState state, Action<string> answer, bool enabled)
+    {
+        var graded = state.Phase == NativePhase.Feedback;
+        var correct = graded && string.Equals(choice.Text,
+            state.CorrectAnswerAfterGrading, StringComparison.OrdinalIgnoreCase);
+        var selectedWrong = graded && !correct && string.Equals(choice.Text,
+            state.SelectedAnswer, StringComparison.OrdinalIgnoreCase);
+        var selected = string.Equals(choice.Text, state.SelectedAnswer,
+            StringComparison.OrdinalIgnoreCase);
+        var color = selectedWrong ? palette.DangerSurface : palette.Card;
+        var border = correct ? palette.Success
+            : selectedWrong ? palette.Danger
+            : selected ? palette.Primary : palette.Border;
+        var caption = correct ? $" - {Localize(NativeText.QuizCorrect)}"
+            : selectedWrong ? $" - {Localize(NativeText.QuizIncorrect)}" : string.Empty;
+        var label = choice.Text + caption;
+        var button = new ComposeButton(() => answer(choice.Text), enabled: enabled)
+        {
+            Modifier = Modifier.FillMaxWidth()
+                .HeightIn(min: AndroidVisualTheme.ControlHeight)
+                .Border(graded && (correct || selectedWrong) ? 2 : 1,
+                    border, AndroidVisualTheme.ControlRadius)
+                .TestTag($"{NativeAccess.QuizChoice}.{index}")
+                .Semantics(semantics =>
+                {
+                    semantics.ContentDescription(label);
+                    semantics.Selected(selected);
+                }),
+            Shape = Shape.RoundedCorners(AndroidVisualTheme.ControlRadius),
+            Colors = composer.ButtonColors(
+                containerColor: color,
+                contentColor: palette.Text,
+                disabledContainerColor: color,
+                disabledContentColor: palette.Text),
+        };
+        button.Add(new Text(label));
+        return button;
+    }
+}

@@ -95,6 +95,105 @@ public sealed class NativeQuizModalityTests
         Assert.Equal(nativePrompt ? null : Word.TargetLanguageTerm, cue.PromptText);
     }
 
+    public static IEnumerable<object[]> NativePhoneMediaMatrix()
+    {
+        foreach (var direction in new[] { "TargetToNative", "NativeToTarget", "Mixed" })
+        {
+            var turns = direction switch
+            {
+                "TargetToNative" => new[] { false },
+                "NativeToTarget" => new[] { true },
+                _ => new[] { false, true }
+            };
+            foreach (var nativePrompt in turns)
+            foreach (var text in new[] { false, true })
+            foreach (var audio in new[] { false, true })
+            foreach (var photo in new[] { false, true })
+            foreach (var showTextWithPhoto in new[] { false, true })
+            foreach (var mode in new[] { "MultipleChoice", "Text" })
+                yield return [direction, nativePrompt, text, audio, photo,
+                    showTextWithPhoto, mode];
+        }
+    }
+
+    [Theory]
+    [MemberData(nameof(NativePhoneMediaMatrix))]
+    public void NativePhoneMediaMatrix_GatesUnsupportedTurnsBeforeRendering(
+        string direction, bool nativePrompt, bool text, bool audio, bool photo,
+        bool showTextWithPhoto, string mode)
+    {
+        var preferences = NewPreferences();
+        preferences.DisplayDirection = direction;
+        preferences.UseTextPrompt = text;
+        preferences.UseAudioPrompt = audio;
+        preferences.UsePhotoPrompt = photo;
+
+        var allowed = NativeQuizModality.CanPresentWithoutMedia(
+            nativePrompt, mode, preferences, hasPhoto: true, showTextWithPhoto);
+        var writtenExposure = text && (!nativePrompt || !photo || showTextWithPhoto);
+        var requiredAudioUnavailable = audio && !text;
+        var requiredPhotoUnavailable = photo && !writtenExposure;
+        var audioChoicesUnsupported = nativePrompt && mode == "MultipleChoice" && audio;
+        if (requiredAudioUnavailable || requiredPhotoUnavailable
+            || audioChoicesUnsupported)
+        {
+            Assert.False(allowed);
+            return;
+        }
+
+        Assert.True(allowed);
+        var cue = NativeQuizModality.Render(
+            Word, nativePrompt, preferences, showTextWithPhoto,
+            audioAvailable: false, audioHeard: false,
+            photoLoaded: false, photoVisible: false,
+            targetResponseVisible: nativePrompt || mode == "Text",
+            nativeLanguage: "English", targetLanguage: "French");
+        Assert.True(cue.ShowWrittenPrompt);
+        Assert.True(cue.TargetLanguageEngaged);
+        Assert.False(cue.ShowPhoto);
+        Assert.False(cue.CanPlayPromptAudio);
+        Assert.Equal(nativePrompt ? Word.NativeLanguageTerm : Word.TargetLanguageTerm,
+            cue.PromptText);
+    }
+
+    [Fact]
+    public void AbsentPhoto_AllowsTheSourceWrittenEmptyStateFallback()
+    {
+        var preferences = NewPreferences();
+        preferences.UseTextPrompt = false;
+        preferences.UseAudioPrompt = false;
+        preferences.UsePhotoPrompt = true;
+        Assert.True(NativeQuizModality.CanPresentWithoutMedia(
+            promptUsesNativeLanguage: true, mode: "MultipleChoice",
+            preferences, hasPhoto: false, showTextWithPhoto: false));
+    }
+
+    [Theory]
+    [MemberData(nameof(NativePhoneMediaMatrix))]
+    public void RequiredMedia_MustBeAvailableBeforeTheTurnCanBePresented(
+        string direction, bool nativePrompt, bool text, bool audio, bool photo,
+        bool showTextWithPhoto, string mode)
+    {
+        var preferences = NewPreferences();
+        preferences.DisplayDirection = direction;
+        preferences.UseTextPrompt = text;
+        preferences.UseAudioPrompt = audio;
+        preferences.UsePhotoPrompt = photo;
+
+        var audioChoicesUnsupported = nativePrompt && mode == "MultipleChoice" && audio;
+        var writtenExposure = text && (!nativePrompt || !photo || showTextWithPhoto);
+        foreach (var audioAvailable in new[] { false, true })
+        foreach (var photoRendered in new[] { false, true })
+        {
+            var expected = !audioChoicesUnsupported
+                && (!audio || text || audioAvailable)
+                && (!photo || writtenExposure || photoRendered);
+            Assert.Equal(expected, NativeQuizModality.CanPresent(
+                nativePrompt, mode, preferences, hasPhoto: true, showTextWithPhoto,
+                audioAvailable, photoRendered));
+        }
+    }
+
     [Fact]
     public void FirstRunPreferences_AreL2PromptTextAndAudioWithPhotoOff()
     {
@@ -104,6 +203,9 @@ public sealed class NativeQuizModalityTests
         Assert.True(preferences.UseAudioPrompt);
         Assert.False(preferences.UsePhotoPrompt);
         Assert.Equal(2000, preferences.AutoAdvanceDuration);
+        Assert.True(NativeQuizModality.CanPresentWithoutMedia(
+            promptUsesNativeLanguage: false, mode: "MultipleChoice",
+            preferences, hasPhoto: true, showTextWithPhoto: false));
 
         var defaultTurn = NativeQuizModality.Render(
             Word, promptUsesNativeLanguage: false, preferences,
@@ -147,8 +249,8 @@ public sealed class NativeQuizModalityTests
             var brokenPhoto = NativeQuizModality.Render(
                 Word, nativePrompt, preferences, false,
                 false, false, false, false, true, "English", "French");
-            Assert.True(brokenPhoto.ShowWrittenPrompt);
-            Assert.True(brokenPhoto.TargetLanguageEngaged);
+            Assert.False(brokenPhoto.ShowWrittenPrompt);
+            Assert.False(brokenPhoto.TargetLanguageEngaged);
         }
     }
 
@@ -183,8 +285,34 @@ public sealed class NativeQuizModalityTests
         var offline = NativeQuizModality.Render(
             Word, false, preferences, false,
             false, false, false, false, false, "English", "French");
-        Assert.True(offline.ShowWrittenPrompt);
-        Assert.True(offline.TargetLanguageEngaged);
+        Assert.False(offline.ShowWrittenPrompt);
+        Assert.False(offline.TargetLanguageEngaged);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void MixedTurns_HeardAudioCannotReplaceAnUnrenderedRequiredPhoto(
+        bool nativePrompt)
+    {
+        var preferences = NewPreferences();
+        preferences.DisplayDirection = "Mixed";
+        preferences.UseTextPrompt = false;
+        preferences.UseAudioPrompt = true;
+        preferences.UsePhotoPrompt = true;
+
+        var cue = NativeQuizModality.Render(
+            Word, nativePrompt, preferences, showTextWithPhoto: false,
+            audioAvailable: true, audioHeard: true,
+            photoLoaded: false, photoVisible: false,
+            targetResponseVisible: true, "English", "French");
+
+        Assert.False(cue.ShowWrittenPrompt);
+        Assert.False(cue.ShowPhoto);
+        Assert.False(cue.TargetLanguageEngaged);
+        Assert.False(NativeQuizModality.CanPresent(
+            nativePrompt, "Text", preferences, hasPhoto: true,
+            showTextWithPhoto: false, audioAvailable: true, photoRendered: false));
     }
 
     [Fact]

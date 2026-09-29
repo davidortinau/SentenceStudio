@@ -22,6 +22,12 @@
              Link="NativeApiEndpoint.cs" />
     <Compile Include="../../src/SentenceStudio.Native.iOS/Platform/NativeProfileAuthService.cs"
              Link="NativeProfileAuthService.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.iOS/Platform/NativePreviewFixture.cs"
+             Link="NativePreviewFixture.cs" Condition="'$(Configuration)' == 'Debug'" />
+    <Compile Include="../SentenceStudio.Native.Tests/NativeSliceFixture.cs"
+             Link="NativeSliceFixture.cs" Condition="'$(Configuration)' == 'Debug'" />
+    <Compile Include="../SentenceStudio.Native.Tests/ScratchPorts.cs"
+             Link="ScratchPorts.cs" Condition="'$(Configuration)' == 'Debug'" />
     <Using Include="Xunit" />
   </ItemGroup>
 </Project>

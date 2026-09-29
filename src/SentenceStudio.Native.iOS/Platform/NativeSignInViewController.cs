@@ -5,25 +5,33 @@ using UIKit;
 namespace SentenceStudio.Native.iOS.Platform;
 
 public sealed class NativeSignInViewController(
-    Action<string, string> signIn,
+    Action<string, string, bool> signIn,
     Action retry) : UIViewController
 {
     private UITextField _email = null!;
     private UITextField _password = null!;
+    private UIButton _passwordToggle = null!;
+    private UISwitch _remember = null!;
     private UILabel _status = null!;
+    private UIView _statusSurface = null!;
     private UIButton _submit = null!;
     private UIButton _retry = null!;
     private UIActivityIndicatorView _spinner = null!;
+    private bool _canSubmit;
+    private bool _showPassword;
 
     public override void ViewDidLoad()
     {
         base.ViewDidLoad();
-        View!.BackgroundColor = UIColor.SystemBackground;
+        View!.BackgroundColor = NativeVisualTheme.Background;
+        View.TintColor = NativeVisualTheme.Primary;
 
         var title = new UILabel
         {
             Text = "SentenceStudio",
             Font = UIFont.GetPreferredFontForTextStyle(UIFontTextStyle.LargeTitle),
+            TextColor = NativeVisualTheme.Primary,
+            TextAlignment = UITextAlignment.Center,
             AdjustsFontForContentSizeCategory = true,
             AccessibilityTraits = UIAccessibilityTrait.Header
         };
@@ -31,6 +39,8 @@ public sealed class NativeSignInViewController(
         {
             Text = Text(NativeText.SignIn),
             Font = UIFont.GetPreferredFontForTextStyle(UIFontTextStyle.Title2),
+            TextColor = NativeVisualTheme.Text,
+            TextAlignment = UITextAlignment.Center,
             AdjustsFontForContentSizeCategory = true,
             AccessibilityTraits = UIAccessibilityTrait.Header
         };
@@ -40,6 +50,8 @@ public sealed class NativeSignInViewController(
             AccessibilityLabel = Text(NativeText.Email),
             AccessibilityIdentifier = NativeAccess.Email,
             BorderStyle = UITextBorderStyle.RoundedRect,
+            BackgroundColor = NativeVisualTheme.Elevated,
+            TextColor = NativeVisualTheme.Text,
             TextContentType = UITextContentType.EmailAddress,
             KeyboardType = UIKeyboardType.EmailAddress,
             AutocorrectionType = UITextAutocorrectionType.No,
@@ -55,6 +67,8 @@ public sealed class NativeSignInViewController(
             AccessibilityLabel = Text(NativeText.Password),
             AccessibilityIdentifier = NativeAccess.Password,
             BorderStyle = UITextBorderStyle.RoundedRect,
+            BackgroundColor = NativeVisualTheme.Elevated,
+            TextColor = NativeVisualTheme.Text,
             SecureTextEntry = true,
             TextContentType = UITextContentType.Password,
             ReturnKeyType = UIReturnKeyType.Go,
@@ -62,61 +76,167 @@ public sealed class NativeSignInViewController(
             AdjustsFontForContentSizeCategory = true
         };
         _password.EditingDidEndOnExit += (_, _) => SignIn();
+        _passwordToggle = UIButton.FromType(UIButtonType.System);
+        _passwordToggle.AccessibilityIdentifier = NativeAccess.PasswordVisibility;
+        _passwordToggle.AccessibilityLabel = Text(NativeText.ShowPassword);
+        _passwordToggle.SetImage(UIImage.GetSystemImage("eye"), UIControlState.Normal);
+        _passwordToggle.TintColor = NativeVisualTheme.Primary;
+        _passwordToggle.TouchUpInside += (_, _) => TogglePasswordVisibility();
+        var passwordRow = new UIStackView([_password, _passwordToggle])
+        {
+            Axis = UILayoutConstraintAxis.Horizontal,
+            Alignment = UIStackViewAlignment.Center,
+            Spacing = 8,
+        };
+        _remember = new UISwitch
+        {
+            On = false,
+            OnTintColor = NativeVisualTheme.Primary,
+            AccessibilityLabel = Text(NativeText.RememberMe),
+            AccessibilityIdentifier = NativeAccess.RememberMe,
+        };
+        var rememberLabel = new UILabel
+        {
+            Text = Text(NativeText.RememberMe),
+            Font = UIFont.GetPreferredFontForTextStyle(UIFontTextStyle.Body),
+            AdjustsFontForContentSizeCategory = true,
+            TextColor = NativeVisualTheme.Text,
+        };
+        var rememberRow = new UIStackView([_remember, rememberLabel])
+        {
+            Axis = UILayoutConstraintAxis.Horizontal,
+            Alignment = UIStackViewAlignment.Center,
+            Spacing = 12,
+        };
+        _email.EditingChanged += (_, _) => UpdateSubmitAvailability();
+        _password.EditingChanged += (_, _) => UpdateSubmitAvailability();
         _status = new UILabel
         {
             AccessibilityIdentifier = NativeAccess.AuthError,
-            TextColor = UIColor.Label,
+            TextColor = NativeVisualTheme.Text,
             Lines = 0,
             Font = UIFont.GetPreferredFontForTextStyle(UIFontTextStyle.Body),
             AdjustsFontForContentSizeCategory = true,
-            Hidden = true
+            TranslatesAutoresizingMaskIntoConstraints = false,
         };
+        _statusSurface = new UIView
+        {
+            BackgroundColor = NativeVisualTheme.DangerSurface,
+            Hidden = true,
+        };
+        _statusSurface.Layer.CornerRadius = NativeVisualTheme.ControlRadius;
+        _statusSurface.AddSubview(_status);
+        NSLayoutConstraint.ActivateConstraints(
+        [
+            _status.LeadingAnchor.ConstraintEqualTo(_statusSurface.LeadingAnchor, 12),
+            _status.TrailingAnchor.ConstraintEqualTo(_statusSurface.TrailingAnchor, -12),
+            _status.TopAnchor.ConstraintEqualTo(_statusSurface.TopAnchor, 12),
+            _status.BottomAnchor.ConstraintEqualTo(_statusSurface.BottomAnchor, -12),
+        ]);
         _submit = UIButton.FromType(UIButtonType.System);
         _submit.SetTitle(Text(NativeText.SignIn), UIControlState.Normal);
         _submit.AccessibilityIdentifier = NativeAccess.SignIn;
         _submit.TitleLabel!.Font = UIFont.GetPreferredFontForTextStyle(UIFontTextStyle.Headline);
+        _submit.BackgroundColor = NativeVisualTheme.Primary;
+        _submit.SetTitleColor(NativeVisualTheme.OnPrimary, UIControlState.Normal);
+        _submit.Layer.CornerRadius = NativeVisualTheme.ControlRadius;
         _submit.TouchUpInside += (_, _) => SignIn();
 
         _retry = UIButton.FromType(UIButtonType.System);
         _retry.SetTitle(Text(NativeText.Retry), UIControlState.Normal);
         _retry.AccessibilityIdentifier = "native.auth.retry";
+        _retry.BackgroundColor = NativeVisualTheme.Elevated;
+        _retry.SetTitleColor(NativeVisualTheme.Text, UIControlState.Normal);
+        _retry.Layer.CornerRadius = NativeVisualTheme.ControlRadius;
         _retry.TouchUpInside += (_, _) => retry();
         _retry.Hidden = true;
         _spinner = new UIActivityIndicatorView(UIActivityIndicatorViewStyle.Medium)
         {
-            HidesWhenStopped = true
+            HidesWhenStopped = true,
+            Color = NativeVisualTheme.Primary,
         };
 
-        var form = new UIStackView([title, heading, _email, _password, _status,
-            _submit, _retry, _spinner])
+        var form = new UIStackView([heading, _statusSurface,
+            _email, passwordRow, rememberRow, _submit, _retry, _spinner])
         {
             Axis = UILayoutConstraintAxis.Vertical,
             Spacing = 16,
             Alignment = UIStackViewAlignment.Fill,
             TranslatesAutoresizingMaskIntoConstraints = false
         };
-        form.SetCustomSpacing(32, title);
-        View.AddSubview(form);
+        var card = new UIView
+        {
+            TranslatesAutoresizingMaskIntoConstraints = false,
+            BackgroundColor = NativeVisualTheme.Card,
+        };
+        card.Layer.CornerRadius = NativeVisualTheme.CardRadius;
+        card.AddSubview(form);
+        NSLayoutConstraint.ActivateConstraints(
+        [
+            form.LeadingAnchor.ConstraintEqualTo(card.LeadingAnchor,
+                NativeVisualTheme.CardPadding),
+            form.TrailingAnchor.ConstraintEqualTo(card.TrailingAnchor,
+                -NativeVisualTheme.CardPadding),
+            form.TopAnchor.ConstraintEqualTo(card.TopAnchor,
+                NativeVisualTheme.CardPadding),
+            form.BottomAnchor.ConstraintEqualTo(card.BottomAnchor,
+                -NativeVisualTheme.CardPadding),
+        ]);
+        var content = new UIStackView([title, card])
+        {
+            Axis = UILayoutConstraintAxis.Vertical,
+            Spacing = 20,
+            Alignment = UIStackViewAlignment.Fill,
+            TranslatesAutoresizingMaskIntoConstraints = false,
+        };
+        var scroll = new UIScrollView
+        {
+            TranslatesAutoresizingMaskIntoConstraints = false,
+            KeyboardDismissMode = UIScrollViewKeyboardDismissMode.Interactive,
+        };
+        View.AddSubview(scroll);
+        scroll.AddSubview(content);
         var constraints = new List<NSLayoutConstraint>
         {
-            form.TopAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.TopAnchor, 28),
-            _email.HeightAnchor.ConstraintGreaterThanOrEqualTo(44),
-            _password.HeightAnchor.ConstraintGreaterThanOrEqualTo(44),
-            _submit.HeightAnchor.ConstraintGreaterThanOrEqualTo(44),
-            _retry.HeightAnchor.ConstraintGreaterThanOrEqualTo(44)
+            scroll.TopAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.TopAnchor),
+            scroll.BottomAnchor.ConstraintEqualTo(View.KeyboardLayoutGuide.TopAnchor),
+            scroll.LeadingAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.LeadingAnchor),
+            scroll.TrailingAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.TrailingAnchor),
+            content.TopAnchor.ConstraintGreaterThanOrEqualTo(
+                scroll.ContentLayoutGuide.TopAnchor, 20),
+            content.BottomAnchor.ConstraintEqualTo(scroll.ContentLayoutGuide.BottomAnchor, -20),
+            _email.HeightAnchor.ConstraintGreaterThanOrEqualTo(NativeVisualTheme.ControlHeight),
+            _password.HeightAnchor.ConstraintGreaterThanOrEqualTo(NativeVisualTheme.ControlHeight),
+            _passwordToggle.WidthAnchor.ConstraintEqualTo(NativeVisualTheme.ControlHeight),
+            _passwordToggle.HeightAnchor.ConstraintGreaterThanOrEqualTo(
+                NativeVisualTheme.ControlHeight),
+            _submit.HeightAnchor.ConstraintGreaterThanOrEqualTo(NativeVisualTheme.ControlHeight),
+            _retry.HeightAnchor.ConstraintGreaterThanOrEqualTo(NativeVisualTheme.ControlHeight),
         };
+        var centered = content.CenterYAnchor.ConstraintEqualTo(
+            scroll.FrameLayoutGuide.CenterYAnchor);
+        centered.Priority = 750;
+        constraints.Add(centered);
         if (UIDevice.CurrentDevice.UserInterfaceIdiom == UIUserInterfaceIdiom.Pad)
         {
-            constraints.Add(form.CenterXAnchor.ConstraintEqualTo(
-                View.SafeAreaLayoutGuide.CenterXAnchor));
-            constraints.Add(form.WidthAnchor.ConstraintEqualTo(520));
+            constraints.Add(content.WidthAnchor.ConstraintEqualTo(520));
+            constraints.Add(scroll.ContentLayoutGuide.WidthAnchor.ConstraintEqualTo(
+                scroll.FrameLayoutGuide.WidthAnchor));
+            constraints.Add(content.CenterXAnchor.ConstraintEqualTo(
+                scroll.FrameLayoutGuide.CenterXAnchor));
         }
         else
         {
-            constraints.Add(form.LeadingAnchor.ConstraintEqualTo(
-                View.SafeAreaLayoutGuide.LeadingAnchor, 20));
-            constraints.Add(form.TrailingAnchor.ConstraintEqualTo(
-                View.SafeAreaLayoutGuide.TrailingAnchor, -20));
+            // NSLayoutDimension's two-argument overload multiplies; use the three-argument offset overload.
+            constraints.Add(content.LeadingAnchor.ConstraintEqualTo(
+                scroll.ContentLayoutGuide.LeadingAnchor,
+                NativeVisualTheme.PagePadding));
+            constraints.Add(content.TrailingAnchor.ConstraintEqualTo(
+                scroll.ContentLayoutGuide.TrailingAnchor,
+                -NativeVisualTheme.PagePadding));
+            constraints.Add(content.WidthAnchor.ConstraintEqualTo(
+                scroll.FrameLayoutGuide.WidthAnchor, 1,
+                -2 * NativeVisualTheme.PagePadding));
         }
         NSLayoutConstraint.ActivateConstraints(constraints.ToArray());
     }
@@ -132,13 +252,24 @@ public sealed class NativeSignInViewController(
             _spinner.StartAnimating();
         else
             _spinner.StopAnimating();
-        _submit.Enabled = !loading && canAuthenticate;
-        _email.Enabled = !loading;
-        _password.Enabled = !loading;
+        _canSubmit = !loading && canAuthenticate;
+        UpdateSubmitAvailability();
+        _email.Enabled = !loading && canAuthenticate;
+        _password.Enabled = !loading && canAuthenticate;
+        _passwordToggle.Enabled = !loading && canAuthenticate;
+        _remember.Enabled = !loading && canAuthenticate;
         _retry.Hidden = loading || state.Phase is not (NativePhase.PendingSync or NativePhase.Error);
-        _status.Hidden = state.ErrorKey is null && !loading;
+        _statusSurface.Hidden = state.ErrorKey is null && !loading;
         _status.Text = loading ? Text("Common_Loading")
             : state.ErrorKey is { } error ? Text(error) : null;
+    }
+
+    private void UpdateSubmitAvailability()
+    {
+        _submit.Enabled = _canSubmit
+            && !string.IsNullOrWhiteSpace(_email.Text)
+            && !string.IsNullOrWhiteSpace(_password.Text);
+        _submit.Alpha = _submit.Enabled ? 1 : 0.55f;
     }
 
     private void SignIn()
@@ -148,7 +279,19 @@ public sealed class NativeSignInViewController(
         var password = _password.Text ?? string.Empty;
         _password.Text = string.Empty;
         _password.ResignFirstResponder();
-        signIn(_email.Text ?? string.Empty, password);
+        signIn(_email.Text ?? string.Empty, password, _remember.On);
+    }
+
+    private void TogglePasswordVisibility()
+    {
+        var value = _password.Text;
+        _showPassword = !_showPassword;
+        _password.SecureTextEntry = !_showPassword;
+        _password.Text = value;
+        _passwordToggle.SetImage(UIImage.GetSystemImage(
+            _showPassword ? "eye.slash" : "eye"), UIControlState.Normal);
+        _passwordToggle.AccessibilityLabel = Text(_showPassword
+            ? NativeText.HidePassword : NativeText.ShowPassword);
     }
 
     private static string Text(string key)

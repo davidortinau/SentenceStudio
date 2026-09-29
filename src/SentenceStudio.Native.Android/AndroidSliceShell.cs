@@ -2,6 +2,7 @@ using AndroidX.Compose;
 using AndroidX.Compose.Runtime;
 using Microsoft.Extensions.DependencyInjection;
 using SentenceStudio.Native;
+using ComposeScrollState = AndroidX.Compose.ScrollState;
 
 namespace SentenceStudio.Native.Android;
 
@@ -10,6 +11,10 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
     private readonly SemaphoreSlim _actions = new(1, 1);
     private readonly CancellationTokenSource _lifetime = new();
     private readonly MutableState<int> _revision = new(0);
+    private ComposeScrollState _signInScroll = null!;
+    private ComposeScrollState _dashboardScroll = null!;
+    private ComposeScrollState _quizScroll = null!;
+    private bool _insightExpanded;
     private AndroidServiceHost? _host;
     private IServiceScope? _scope;
     private NativeAuthPresenter? _auth;
@@ -28,10 +33,15 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
         new(NativePhase.Idle, NativeDestination.VocabularyQuiz);
     internal MutableState<string> Email { get; } = new(string.Empty);
     internal MutableState<string> Password { get; } = new(string.Empty);
+    internal MutableState<bool> Remember { get; } = new(false);
+    internal MutableState<bool> ShowPassword { get; } = new(false);
     internal MutableState<string> Answer { get; } = new(string.Empty);
     internal MutableState<string> Correction { get; } = new(string.Empty);
     internal MutableState<string> Error { get; } = new(string.Empty);
     internal MutableState<bool> Busy { get; } = new(false);
+
+    internal void RefreshForUiMode() => Post(() =>
+        _revision.Value = unchecked(_revision.Value + 1));
 
     public void Start() => Execute(InitializeNormalAsync);
 
@@ -74,7 +84,8 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
         if (_auth is null)
             throw new InvalidOperationException("Authentication has not initialized.");
         var result = await _auth.SignInAsync(
-            Email.Value.Trim(), Password.Value, cancellationToken: cancellationToken);
+            Email.Value.Trim(), Password.Value, rememberMe: Remember.Value,
+            cancellationToken: cancellationToken);
         Post(() => Password.Value = string.Empty);
         await HandleAuthAsync(result, cancellationToken);
     });
@@ -91,6 +102,11 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
 
     public void SignOut() => Execute(async cancellationToken =>
     {
+        Post(() =>
+        {
+            Remember.Value = false;
+            ShowPassword.Value = false;
+        });
 #if DEBUG
         if (_preview)
         {
@@ -203,6 +219,8 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
 
     public void AnswerQuiz(string response) => Execute(async cancellationToken =>
     {
+        if (Quiz is { Phase: NativePhase.Ready, Mode: "MultipleChoice" })
+            Publish(() => Quiz = Quiz with { SelectedAnswer = response });
         var previous = Quiz.TurnId;
         var state = await RequiredQuiz().AnswerAsync(response, cancellationToken);
         await ApplyQuizStateAsync(state, cancellationToken);
@@ -222,9 +240,22 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
             await RequiredQuiz().SubmitCorrectionAsync(
                 Correction.Value, cancellationToken), cancellationToken));
 
+    public void OverrideQuiz() => Execute(async cancellationToken =>
+    {
+        var turnId = Quiz.TurnId;
+        var state = await RequiredQuiz().OverrideAsCorrectAsync(cancellationToken);
+        await ApplyQuizStateAsync(state, cancellationToken);
+        if (!_preview && state.Phase == NativePhase.Feedback
+            && !state.RequiresCorrection && state.TurnId == turnId)
+            _ = AutoAdvanceAsync(turnId);
+    });
+
     public void RetryQuizSave() => Execute(async cancellationToken =>
         await ApplyQuizStateAsync(
-            await RequiredQuiz().RetryPendingSaveAsync(cancellationToken), cancellationToken));
+            Quiz.Destination == NativeDestination.QuizSummary
+                ? await RequiredQuiz().DoneAsync(cancellationToken)
+                : await RequiredQuiz().RetryPendingSaveAsync(cancellationToken),
+            cancellationToken));
 
     public void ContinueRound() => Execute(async cancellationToken =>
         await ApplyQuizStateAsync(

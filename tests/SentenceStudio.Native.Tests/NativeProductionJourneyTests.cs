@@ -211,7 +211,12 @@ public sealed class NativeProductionJourneyTests
                 BEGIN SELECT RAISE(ABORT, 'injected completion failure'); END;
                 """);
         }
-        Assert.Equal(NativePhase.Error, (await quiz.DoneAsync()).Phase);
+        var failedCompletion = await quiz.DoneAsync();
+        Assert.Equal(NativePhase.Error, failedCompletion.Phase);
+        Assert.Equal(NativeDestination.QuizSummary, failedCompletion.Destination);
+        Assert.Equal(2, failedCompletion.Results.Length);
+        Assert.All(failedCompletion.Results, result =>
+            Assert.StartsWith($"word-{NativeSliceFixture.UserA}-", result.WordId));
         var rolledBack = await fixture.RowsAsync(NativeSliceFixture.UserA, card.Id);
         Assert.False(rolledBack.Item.IsCompleted);
         Assert.Equal(ActivitySessionStatus.InProgress, rolledBack.Session!.Status);

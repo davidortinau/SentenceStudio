@@ -45,7 +45,7 @@ public sealed partial class NativeQuizPresenter
                 return RefuseLaunch();
             if (!heard)
             {
-                logger.LogWarning("Quiz prompt audio failed; restoring written cue.");
+                logger.LogWarning("Quiz prompt audio failed.");
                 _audioAvailable = false;
                 errorKey ??= NativeText.QuizUnavailable;
             }
@@ -93,7 +93,7 @@ public sealed partial class NativeQuizPresenter
                 return RefuseInvalidAction();
             _photoLoaded = false;
             _photoVisible = false;
-            logger.LogWarning("Quiz photo failed to load; switching to available text/audio cues.");
+            logger.LogWarning("Quiz photo failed to load; checking the configured prompt.");
             return SetState(QuestionState(graded: State.Phase == NativePhase.Feedback,
                 errorKey: NativeText.QuizUnavailable));
         }
@@ -495,16 +495,9 @@ public sealed partial class NativeQuizPresenter
             _turnIndex++;
         }
 
-        if (_batch.All(item => item.ReadyToRotateOut))
-        {
-            _roundsCompleted++;
-            _round = _roundArchive.ToList();
-            _turnIndex = _round.Count;
-            await SaveSnapshotAsync(summaryVisible: true, cancellationToken);
-            return await CompleteAsync(cancellationToken);
-        }
-
-        if (_round.Count == 0 || _turnIndex >= _round.Count || _turnIndex >= TurnsPerRound)
+        if (_batch.All(item => item.ReadyToRotateOut)
+            || _round.Count == 0 || _turnIndex >= _round.Count
+            || _turnIndex >= TurnsPerRound)
         {
             _roundsCompleted++;
             // A complete round needs an on-disk summary so Done and Back
@@ -525,6 +518,11 @@ public sealed partial class NativeQuizPresenter
         _mode = _round[_turnIndex].ChooseInteractionMode();
         var next = await PresentQuestionAsync(
             _promptUsesNative, _mode, graded: false, cancellationToken);
+        if (next.Phase == NativePhase.Blocked)
+        {
+            _clock.Stop();
+            return SetState(next);
+        }
         await SaveSnapshotAsync(summaryVisible: false, cancellationToken);
         return SetState(next with { HasPendingSync = _pendingSync });
     }
@@ -655,6 +653,10 @@ public sealed partial class NativeQuizPresenter
                 return await CompleteAsync(cancellationToken);
             if (_launch is null || !HasOwner(_launch.UserId))
                 return RefuseLaunch();
+            if (State is { Phase: NativePhase.Blocked, Prompt: null,
+                    ErrorKey: NativeText.QuizUnavailable })
+                return SetState(new(NativePhase.Ready, NativeDestination.TodaysPlan,
+                    Elapsed: _clock.Stop(), HasPendingSync: _pendingSync));
             if (_needsResumeAfterCommitFailure)
             {
                 // Q25b at the last turn can have an in-memory summary cursor
@@ -688,6 +690,9 @@ public sealed partial class NativeQuizPresenter
             return SetState(State with {
                 Phase = NativePhase.Error, ErrorKey = NativeText.SaveFailed });
         }
+        if (State is { Phase: NativePhase.Blocked, Prompt: null,
+                ErrorKey: NativeText.QuizUnavailable })
+            return State;
         if (_allMasteredAtLaunch)
             return State;
         _clock.Pause();

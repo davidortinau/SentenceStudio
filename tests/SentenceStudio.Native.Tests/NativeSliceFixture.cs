@@ -76,6 +76,7 @@ internal sealed class NativeSliceFixture : IDisposable
     public ScratchSyncReadiness Sync { get; } = new();
     public ScratchRemoteSyncCompletion RemoteSync { get; } = new();
     public ScratchQuizMedia Media { get; } = new();
+    public IServiceProvider Provider => _provider;
     public ScratchActivitySessions FaultSessions => _provider
         .GetRequiredService<ScratchActivitySessions>();
     public ScratchAttemptCommitter Committer => _provider

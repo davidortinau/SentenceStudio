@@ -138,6 +138,11 @@ public sealed partial class NativeQuizPresenter
         _mode = _round[0].ChooseInteractionMode();
         var state = await PresentQuestionAsync(
             _promptUsesNative, _mode, graded: false, cancellationToken);
+        if (state.Phase == NativePhase.Blocked)
+        {
+            _clock.Stop();
+            return SetState(state);
+        }
         await SaveSnapshotAsync(summaryVisible: false, cancellationToken);
         return SetState(state with { HasPendingSync = _pendingSync });
     }
@@ -152,19 +157,9 @@ public sealed partial class NativeQuizPresenter
         _mode = mode;
         _audioHeard = false; // Restored turns must re-engage with audio before answering.
 
-        if (mode == "MultipleChoice")
-        {
-            _choices = await choices.CreateAsync(
-                _launch.UserId, item.Word, _reachableWords,
-                promptUsesNative, cancellationToken);
-            ValidateChoices(item.Word, promptUsesNative, _choices);
-        }
-        else
-        {
-            _choices = [];
-        }
-        if (!HasOwner(_launch.UserId))
-            return RefuseLaunch();
+        if (promptUsesNative && mode == "MultipleChoice"
+            && quizPreferences.UseAudioPrompt)
+            return BlockMediaTurn();
 
         var promptTerm = promptUsesNative
             ? item.Word.NativeLanguageTerm!
@@ -180,34 +175,51 @@ public sealed partial class NativeQuizPresenter
         }
         catch (HttpRequestException ex)
         {
-            logger.LogWarning(ex, "Quiz prompt audio is offline; using written cue.");
+            logger.LogWarning(ex, "Quiz prompt audio is offline.");
             _audioAvailable = false;
             mediaError = true;
         }
-        try
-        {
-            _photoLoaded = quizPreferences.UsePhotoPrompt
-                && !string.IsNullOrWhiteSpace(item.Word.MnemonicImageUri)
-                && await media.CanShowPhotoAsync(item.Word.MnemonicImageUri!, cancellationToken);
-        }
-        catch (HttpRequestException ex)
-        {
-            logger.LogWarning(ex, "Quiz photo is offline; using other cues.");
-            _photoLoaded = false;
-            mediaError = true;
-        }
+        _photoLoaded = false;
+        _photoVisible = false;
         if (mediaError)
             _pendingSync = true;
-        _photoVisible = _photoLoaded;
-        _questionStartedAt = _clock.Elapsed;
         if (!HasOwner(_launch.UserId))
             return RefuseLaunch();
+        if (!NativeQuizModality.CanPresent(
+            promptUsesNative, mode, quizPreferences,
+            !string.IsNullOrWhiteSpace(item.Word.MnemonicImageUri),
+            _profile.VocabQuizShowTextWithPhoto,
+            _audioAvailable, photoRendered: false))
+            return BlockMediaTurn();
+
+        if (mode == "MultipleChoice")
+        {
+            _choices = await choices.CreateAsync(
+                _launch.UserId, item.Word, _reachableWords,
+                promptUsesNative, cancellationToken);
+            ValidateChoices(item.Word, promptUsesNative, _choices);
+        }
+        else
+        {
+            _choices = [];
+        }
+        if (!HasOwner(_launch.UserId))
+            return RefuseLaunch();
+
+        _questionStartedAt = _clock.Elapsed;
         return QuestionState(graded, mediaError ? NativeText.ConnectionError : null);
     }
 
     private NativeQuizState QuestionState(bool graded, string? errorKey = null)
     {
         var word = _round[_turnIndex].Word;
+        if (!NativeQuizModality.CanPresent(
+            _promptUsesNative, _mode, quizPreferences,
+            !string.IsNullOrWhiteSpace(word.MnemonicImageUri),
+            _profile!.VocabQuizShowTextWithPhoto,
+            _audioAvailable, _photoLoaded && _photoVisible))
+            return BlockMediaTurn();
+
         var responseIsTarget = _mode == "Text"
             || _promptUsesNative && _choices.Length > 0;
         var prompt = NativeQuizModality.Render(
@@ -237,19 +249,54 @@ public sealed partial class NativeQuizPresenter
             RoundsCompleted: _roundsCompleted,
             Elapsed: _clock.Elapsed,
             HasPendingSync: _pendingSync,
-            TurnId: _turnId);
+            TurnId: _turnId,
+            SelectedAnswer: graded ? _pending?.UserInput : null,
+            AnswerWasCorrect: graded ? _pending?.WasCorrect : null);
     }
 
-    private NativeQuizState SummaryState() => new(
-        NativePhase.Summary,
-        NativeDestination.QuizSummary,
-        CurrentTurn: _round.Count,
-        TurnsInRound: _round.Count,
-        TotalTurns: _totalTurns,
-        CorrectCount: _correctCount,
-        RoundsCompleted: _roundsCompleted,
-        Elapsed: _clock.Elapsed,
-        HasPendingSync: _pendingSync);
+    private NativeQuizState BlockMediaTurn()
+    {
+        _choices = [];
+        _photoLoaded = false;
+        _photoVisible = false;
+        _clock.Stop();
+        logger.LogWarning("Native quiz turn needs media or audio choices unavailable in the phone slice.");
+        return new(NativePhase.Blocked, NativeDestination.VocabularyQuiz,
+            ErrorKey: NativeText.QuizUnavailable, HasPendingSync: _pendingSync);
+    }
+
+    private NativeQuizState SummaryState()
+    {
+        if (_launch is null || !HasOwner(_launch.UserId))
+            return new(NativePhase.Blocked, NativeDestination.VocabularyQuiz,
+                ErrorKey: NativeText.QuizUnavailable);
+
+        var reachable = _reachableWords.Select(word => word.Id)
+            .ToHashSet(StringComparer.Ordinal);
+        if (_roundArchive.Any(item =>
+            item.Progress?.UserId != _launch.UserId
+            || item.Progress.VocabularyWordId != item.Word.Id
+            || !reachable.Contains(item.Word.Id)))
+            return new(NativePhase.Blocked, NativeDestination.VocabularyQuiz,
+                ErrorKey: NativeText.QuizUnavailable);
+
+        var results = _roundArchive.Select(item => new NativeQuizResult(
+            item.Word.Id, item.Word.TargetLanguageTerm!,
+            item.Word.NativeLanguageTerm!, item.WasCorrectThisSession))
+            .ToImmutableArray();
+        return new(
+            NativePhase.Summary,
+            NativeDestination.QuizSummary,
+            CurrentTurn: _round.Count,
+            TurnsInRound: _round.Count,
+            TotalTurns: _totalTurns,
+            CorrectCount: _correctCount,
+            RoundsCompleted: _roundsCompleted,
+            Elapsed: _clock.Elapsed,
+            HasPendingSync: _pendingSync,
+            WordsMastered: _wordsMastered,
+            Results: results);
+    }
 
     private void ValidateChoices(
         VocabularyWord question, bool promptUsesNative,

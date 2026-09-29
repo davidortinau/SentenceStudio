@@ -5569,6 +5569,22 @@ For example: {0} ...</value>
     <value>Signing in...</value>
     <comment>Login in progress</comment>
   </data>
+  <data name="Login_ShowPassword" xml:space="preserve">
+    <value>Show password</value>
+    <comment>Accessible password visibility action</comment>
+  </data>
+  <data name="Login_HidePassword" xml:space="preserve">
+    <value>Hide password</value>
+    <comment>Accessible password visibility action</comment>
+  </data>
+  <data name="Login_ShowPasswordShort" xml:space="preserve">
+    <value>Show</value>
+    <comment>Short visible label for password reveal action</comment>
+  </data>
+  <data name="Login_HidePasswordShort" xml:space="preserve">
+    <value>Hide</value>
+    <comment>Short visible label for password conceal action</comment>
+  </data>
   <data name="Login_ForgotPassword" xml:space="preserve">
     <value>Forgot your password?</value>
     <comment>Forgot password link</comment>

@@ -80,7 +80,15 @@ public sealed class NativeDashboardPresenter(
                     ErrorKey: NativeText.NoPlan, HasPendingSync: true), owner)
                 : SetState(new(NativePhase.Ready, generated.GeneratedForDate,
                     MapCards(generated.Items), HasPendingSync: true,
-                    CompletedCount: generated.CompletedCount), owner);
+                    CompletedCount: generated.CompletedCount,
+                    TotalCount: generated.TotalCount,
+                    EstimatedTotalMinutes: generated.EstimatedTotalMinutes,
+                    MinutesSpent: generated.Items.Sum(item => item.MinutesSpent),
+                    CompletionPercentage: generated.CompletionPercentage,
+                    CurrentStreak: generated.Streak.CurrentStreak,
+                    LongestStreak: generated.Streak.LongestStreak,
+                    Narrative: generated.Narrative,
+                    Rationale: generated.Rationale), owner);
         }
         catch (HttpRequestException ex)
         {
@@ -215,7 +223,15 @@ public sealed class NativeDashboardPresenter(
             return SetState(new(NativePhase.Ready, plan.GeneratedForDate,
                 MapCards(plan.Items),
                 HasPendingSync: pendingSync,
-                CompletedCount: plan.CompletedCount), owner);
+                CompletedCount: plan.CompletedCount,
+                TotalCount: plan.TotalCount,
+                EstimatedTotalMinutes: plan.EstimatedTotalMinutes,
+                MinutesSpent: plan.Items.Sum(item => item.MinutesSpent),
+                CompletionPercentage: plan.CompletionPercentage,
+                CurrentStreak: plan.Streak.CurrentStreak,
+                LongestStreak: plan.Streak.LongestStreak,
+                Narrative: plan.Narrative,
+                Rationale: plan.Rationale), owner);
         }
         catch (HttpRequestException ex)
         {
@@ -287,7 +303,9 @@ public sealed class NativeDashboardPresenter(
                 TitleKey: activity == PlanActivityType.VocabularyReview
                     ? NativeText.PlanVocabTitle : null,
                 DescriptionKey: activity == PlanActivityType.VocabularyReview
-                    ? NativeText.PlanVocabDescription : null);
+                    ? NativeText.PlanVocabDescription : null,
+                ResourceTitle: item.ResourceTitle,
+                VocabDueCount: item.VocabDueCount);
         }).ToImmutableArray();
 
     private NativeDashboardState SetState(

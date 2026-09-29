@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using SentenceStudio.Contracts.Plans;
 using SentenceStudio.Services.Progress;
 using SentenceStudio.Shared.Models;
 
@@ -23,6 +24,11 @@ public static class NativeText
     public const string SignInUnavailable = "Login_NotAvailable";
     public const string Email = "Common_Email";
     public const string Password = "Common_Password";
+    public const string RememberMe = "Common_RememberMe";
+    public const string ShowPassword = "Login_ShowPassword";
+    public const string HidePassword = "Login_HidePassword";
+    public const string ShowPasswordShort = "Login_ShowPasswordShort";
+    public const string HidePasswordShort = "Login_HidePasswordShort";
     public const string Retry = "Common_Retry";
     public const string SaveFailed = "Common_SaveFailed";
     public const string AnswerRequired = "VocabQuiz_TypeAnswer";
@@ -45,6 +51,7 @@ public static class NativeText
     public const string QuizNext = "VocabQuiz_Next";
     public const string QuizCorrect = "Common_Correct";
     public const string QuizIncorrect = "Common_Incorrect";
+    public const string QuizOverride = "VocabQuiz_IWasCorrect";
     public const string QuizPhoto = "VocabQuiz_PhotoHint";
     public const string Done = "Common_Done";
 }
@@ -53,6 +60,8 @@ public static class NativeAccess
 {
     public const string Email = "native.auth.email";
     public const string Password = "native.auth.password";
+    public const string PasswordVisibility = "native.auth.password.visibility";
+    public const string RememberMe = "native.auth.remember";
     public const string SignIn = "native.auth.submit";
     public const string AuthError = "native.auth.error";
     public const string Plan = "native.dashboard.plan";
@@ -65,6 +74,7 @@ public static class NativeAccess
     public const string QuizDetails = "native.quiz.details";
     public const string QuizResume = "native.quiz.resume";
     public const string QuizSummary = "native.quiz.summary";
+    public const string QuizSummaryResult = "native.quiz.summary.result";
 }
 
 public sealed record NativeAuthState(
@@ -87,7 +97,9 @@ public sealed record NativePlanCard(
     ImmutableArray<string> FocusVocabularyIds,
     string AccessibilityId = NativeAccess.PlanCard,
     string? TitleKey = null,
-    string? DescriptionKey = null);
+    string? DescriptionKey = null,
+    string? ResourceTitle = null,
+    int? VocabDueCount = null);
 
 public sealed record NativeDashboardState(
     NativePhase Phase,
@@ -95,7 +107,15 @@ public sealed record NativeDashboardState(
     ImmutableArray<NativePlanCard> Cards = default,
     string? ErrorKey = null,
     bool HasPendingSync = false,
-    int CompletedCount = 0);
+    int CompletedCount = 0,
+    int TotalCount = 0,
+    int EstimatedTotalMinutes = 0,
+    int MinutesSpent = 0,
+    double CompletionPercentage = 0,
+    int CurrentStreak = 0,
+    int LongestStreak = 0,
+    PlanNarrativeDto? Narrative = null,
+    string? Rationale = null);
 
 /// <summary>Owner/date/item and source launch context travel together; never accept a bare item ID.</summary>
 public sealed record NativeQuizLaunch(
@@ -108,6 +128,12 @@ public sealed record NativeQuizLaunch(
     bool DueOnly = false);
 
 public sealed record NativeQuizChoice(string Text, string AccessibilityId = NativeAccess.QuizChoice);
+
+public sealed record NativeQuizResult(
+    string WordId,
+    string TargetLanguageTerm,
+    string NativeLanguageTerm,
+    bool WasCorrect);
 
 public sealed record NativeQuizPrompt(
     string WordId,
@@ -150,7 +176,11 @@ public sealed record NativeQuizState(
     bool HasPendingSync = false,
     NativeQuizOverlay Overlay = NativeQuizOverlay.None,
     NativeQuizSentencePrompt? Sentence = null,
-    string? TurnId = null);
+    string? TurnId = null,
+    string? SelectedAnswer = null,
+    bool? AnswerWasCorrect = null,
+    int WordsMastered = 0,
+    ImmutableArray<NativeQuizResult> Results = default);
 
 /// <summary>The original vocabulary attempt is passed to shared scoring unchanged.</summary>
 public sealed record NativeQuizCommitReceipt(string TurnId, VocabularyProgress Progress);

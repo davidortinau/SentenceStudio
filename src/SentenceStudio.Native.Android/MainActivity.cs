@@ -1,4 +1,6 @@
 using Android.App;
+using Android.Content.PM;
+using Android.Content.Res;
 using Android.OS;
 using Android.Views;
 using AndroidX.Activity;
@@ -6,7 +8,8 @@ using AndroidX.Compose;
 
 namespace SentenceStudio.Native.Android;
 
-[Activity(MainLauncher = true, Exported = true, Theme = "@android:style/Theme.Material.Light.NoActionBar")]
+[Activity(MainLauncher = true, Exported = true, Theme = "@style/SentenceStudioNativeTheme",
+    ConfigurationChanges = ConfigChanges.UiMode)]
 public sealed class MainActivity : ComponentActivity
 {
     private AndroidSliceShell? _shell;
@@ -21,6 +24,12 @@ public sealed class MainActivity : ComponentActivity
         OnBackPressedDispatcher.AddCallback(this, _backCallback);
         this.SetContent(_shell.Build);
         _shell.Start();
+    }
+
+    public override void OnConfigurationChanged(Configuration newConfig)
+    {
+        base.OnConfigurationChanged(newConfig);
+        _shell?.RefreshForUiMode();
     }
 
     internal void UpdateBackHandling(bool canGoBack)

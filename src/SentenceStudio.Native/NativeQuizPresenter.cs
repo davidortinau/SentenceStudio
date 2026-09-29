@@ -336,17 +336,23 @@ public sealed partial class NativeQuizPresenter(
                     return await AdvanceCommittedAsync(receipt, cancellationToken);
                 }
 
-                return SetState(await PresentQuestionAsync(
+                var feedback = await PresentQuestionAsync(
                     snapshot.PromptUsesNativeLanguage, snapshot.UserMode,
-                    graded: true, cancellationToken));
+                    graded: true, cancellationToken);
+                if (feedback.Phase == NativePhase.Blocked)
+                    _clock.Stop();
+                return SetState(feedback);
             }
 
             if (_stored.SummaryVisible)
                 return SetState(SummaryState());
 
-            var restored = SetState(await PresentQuestionAsync(
+            var question = await PresentQuestionAsync(
                 snapshot.PromptUsesNativeLanguage, snapshot.UserMode,
-                graded: false, cancellationToken));
+                graded: false, cancellationToken);
+            if (question.Phase == NativePhase.Blocked)
+                _clock.Stop();
+            var restored = SetState(question);
             _needsResumeAfterCommitFailure = false;
             return restored;
         }

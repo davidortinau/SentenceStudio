@@ -32,8 +32,9 @@ public sealed class NativeAppController : IDisposable
     private string _answer = string.Empty;
     private string _correction = string.Empty;
     private string? _startupError;
-    private SwiftView? _detailsSheet;
     private NativeSignInViewController? _signInModal;
+    private NativeVisualViewController? _visualController;
+    private bool _insightExpanded;
     private bool _preview;
     private bool _authenticatedSample;
     private bool _busy;
@@ -62,11 +63,7 @@ public sealed class NativeAppController : IDisposable
             if (NativePreviewFixture.FromAssembly() is { } fixture)
             {
                 await RunPreviewJourneyAsync(fixture);
-                OnMain(() => {
-                    Render();
-                    if (fixture.Surface == "mc-details")
-                        OpenDetails();
-                });
+                OnMain(Render);
                 return;
             }
 #endif
@@ -97,7 +94,6 @@ public sealed class NativeAppController : IDisposable
             _quiz?.Dispose();
             _quiz = null;
             _quizLaunch = null;
-            _detailsSheet = null;
             _authState = new(NativePhase.Error, NativeDestination.SignIn,
                 ErrorKey: NativeText.UnexpectedError);
         }
@@ -120,16 +116,9 @@ public sealed class NativeAppController : IDisposable
         if (fixture.Surface == "dashboard")
             return;
 
-        var card = _dashboardState.Cards.FirstOrDefault(item =>
-            item.Activity == SentenceStudio.Services.Progress.PlanActivityType.VocabularyReview
-            && !item.IsCompleted);
-        if (card is null && fixture.Surface == "complete"
-            && _dashboardState.Cards.Any(item =>
-                item.Activity == SentenceStudio.Services.Progress.PlanActivityType.VocabularyReview
-                && item.IsCompleted))
-            return;
+        var card = fixture.SelectAssignedQuizCard(_dashboardState);
         if (card is null)
-            throw new InvalidOperationException("The preview plan has no assigned quiz card.");
+            return;
 
         await OpenAssignedQuizAsync(card.Id);
         if (_quiz is null)
@@ -143,6 +132,12 @@ public sealed class NativeAppController : IDisposable
         else if (fixture.Surface is "resume" or "mc-resume")
         {
             throw new InvalidOperationException("A preview resume choice needs a saved quiz session.");
+        }
+
+        if (fixture.ShouldShowRestoredSummary(_quizState))
+        {
+            _destination = NativeDestination.QuizSummary;
+            return;
         }
 
         if (fixture.Surface is "back" or "mc-back")
@@ -165,10 +160,10 @@ public sealed class NativeAppController : IDisposable
                 throw new InvalidOperationException("The preview question could not be restored.");
             return;
         }
-        if ((fixture.Surface is "feedback" or "mc-details")
+        if (fixture.Surface == "feedback"
             && _quizState.Phase == NativePhase.Ready)
             await AnswerPreviewQuestionAsync(provider);
-        if (fixture.Surface is "feedback" or "mc-details")
+        if (fixture.Surface == "feedback")
         {
             if (_quizState.Phase != NativePhase.Feedback)
                 throw new InvalidOperationException("The real quiz did not persist feedback.");
@@ -263,7 +258,12 @@ public sealed class NativeAppController : IDisposable
                     await _dashboard.RefreshAsync(_lifetime.Token)),
                 generate: () => Submit(async () => _dashboardState =
                     await _dashboard.GenerateAsync(_lifetime.Token)),
-                openQuiz: OpenQuiz);
+                openQuiz: OpenQuiz,
+                insightExpanded: _insightExpanded,
+                toggleInsight: () => {
+                    _insightExpanded = !_insightExpanded;
+                    Render();
+                });
         }
         else if (_destination is NativeDestination.VocabularyQuiz or NativeDestination.QuizSummary
                  && _quiz is not null)
@@ -277,10 +277,13 @@ public sealed class NativeAppController : IDisposable
             page = NativeFeatureViews.Quiz(
                 _quizState, _answer, _busy, canRetry, CreateBanner(), Text,
                 answerChanged: value => _answer = value,
-                selectChoice: value => Submit(async () => {
-                    _quizState = await _quiz.AnswerAsync(value, _lifetime.Token);
-                    ScheduleAutoAdvance();
-                }),
+                selectChoice: value => {
+                    _quizState = _quizState with { SelectedAnswer = value };
+                    Submit(async () => {
+                        _quizState = await _quiz.AnswerAsync(value, _lifetime.Token);
+                        ScheduleAutoAdvance();
+                    });
+                },
                 playPrompt: () => Submit(async () =>
                     _quizState = await _quiz.PlayPromptAsync(_lifetime.Token)),
                 submitText: () => Submit(async () => {
@@ -314,38 +317,36 @@ public sealed class NativeAppController : IDisposable
                 }),
                 done: () => Submit(ReturnFromQuizAsync),
                 back: () => Submit(BackFromQuizAsync),
-                retry: () => Submit(RetryQuizAsync),
-                details: OpenDetails);
-
-            if (_quizState.Phase == NativePhase.Feedback)
-            {
-                var presentingQuiz = _quiz;
-                SwiftView? sheet = null;
-                sheet = Views.Sheet(page,
-                    Views.List(
-                        Views.Text(Text("VocabQuiz_LearningDetails")),
-                        Views.Text(_quizState.Prompt?.PromptText ?? string.Empty),
-                        Views.Text(_quizState.CorrectAnswerAfterGrading ?? string.Empty),
-                        Views.Button(Text(NativeText.Done), () => sheet!.IsPresented = false)
-                            .WithAccessibilityIdentifier("native.quiz.details.close")),
-                    onDismissed: () => {
-                        if (ReferenceEquals(_quiz, presentingQuiz)
-                            && presentingQuiz.State.Overlay == NativeQuizOverlay.LearningDetails)
-                            _quizState = presentingQuiz.DismissOverlay();
-                        if (ReferenceEquals(_detailsSheet, sheet))
-                            _detailsSheet = null;
-                    });
-                _detailsSheet = sheet;
-                page = sheet;
-            }
-            else
-            {
-                _detailsSheet = null;
-            }
+                retry: () => Submit(RetryQuizAsync));
         }
         else
         {
             page = Views.Text(Text(NativeText.SignIn));
+        }
+
+        if (_destination is NativeDestination.Dashboard or NativeDestination.TodaysPlan
+            or NativeDestination.VocabularyQuiz or NativeDestination.QuizSummary)
+        {
+            _visualController ??= new NativeVisualViewController();
+            if (_destination is NativeDestination.Dashboard or NativeDestination.TodaysPlan)
+                _visualController.Show(page, Text("Dashboard_Title"),
+                    dashboard: _dashboardState);
+            else
+                _visualController.Show(page, Text(NativeText.Quiz),
+                    quiz: _quizState,
+                    answerChanged: value => _answer = value,
+                    correctionChanged: value => _correction = value);
+            if (!ReferenceEquals(_rootController(), _visualController))
+                _replaceRoot(_visualController);
+            if (_signInModal is { } previousSignIn)
+            {
+                _signInModal = null;
+                previousSignIn.Dispose();
+            }
+#if AILOHA_DEBUG
+            _ = TagInputsWhenRealizedAsync();
+#endif
+            return;
         }
 
         if (_startupError is not null)
@@ -363,10 +364,11 @@ public sealed class NativeAppController : IDisposable
             if (_signInModal is null)
             {
                 _signInModal = new NativeSignInViewController(
-                    (email, password) => Submit(async () => {
+                    (email, password, rememberMe) => Submit(async () => {
                         if (_auth is null)
                             return;
                         _authState = await _auth.SignInAsync(email, password,
+                            rememberMe: rememberMe,
                             cancellationToken: _lifetime.Token);
                         await RouteAfterAuthAsync();
                     }),
@@ -494,15 +496,6 @@ public sealed class NativeAppController : IDisposable
         _quizLaunch = null;
     }
 
-    private void OpenDetails()
-    {
-        if (_quiz is null || _detailsSheet is null)
-            return;
-        _quizState = _quiz.OpenDetails();
-        if (_quizState.Overlay == NativeQuizOverlay.LearningDetails)
-            _detailsSheet.IsPresented = true;
-    }
-
     private SwiftView? CreateBanner()
     {
         if (_preview)
@@ -604,6 +597,7 @@ public sealed class NativeAppController : IDisposable
         _disposed = true;
         _lifetime.Cancel();
         _quiz?.Dispose();
+        _visualController?.Dispose();
         _signInModal?.Dispose();
         _signInModal = null;
         _services?.Dispose();

@@ -13,7 +13,7 @@ if [[ ! -f "$official/Info.plist" ]]; then
   exit 1
 fi
 
-build_root="$head_dir/obj/ailoha-debug"
+build_root="${AILOHA_DEBUG_BUILD_ROOT:-$head_dir/obj/ailoha-debug}"
 mkdir -p "$build_root/device/AilohaDebugShim.framework" \
   "$build_root/simulator/AilohaDebugShim.framework" \
   "$build_root/cache" "$build_root/scratch"

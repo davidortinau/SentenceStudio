@@ -72,7 +72,109 @@ public sealed class NativeHeadContractTests
         var debugNetworking = Assert.Single(project.Descendants("PartialAppManifest"));
         Assert.Contains("'$(Configuration)' == 'Debug'",
             debugNetworking.Attribute("Condition")!.Value, StringComparison.Ordinal);
-        Assert.True(File.Exists(Path.Combine(HeadPath, "Native", "AilohaDebugShim.swift")));
+        var shim = File.ReadAllText(Path.Combine(HeadPath, "Native", "AilohaDebugShim.swift"));
+        Assert.Contains("portFallbackCount: 32", shim);
+    }
+
+    [Fact]
+    public void VisualHost_KeepsSwiftUiActionsAccessibleAndOwnsInsetsOnce()
+    {
+        var host = File.ReadAllText(Path.Combine(
+            HeadPath, "Platform", "NativeVisualViewController.cs"));
+        Assert.Contains("SwiftUIHost.CreateController(node)", host);
+        Assert.Contains("UIButton.FromType(UIButtonType.System)", host);
+        Assert.Contains("button.TouchUpInside += (_, _) => node.InvokeAction();", host);
+        Assert.Contains("field.EditingChanged += (_, _) =>", host);
+        Assert.Contains("_answerChanged?.Invoke(field.Text ?? string.Empty)", host);
+        Assert.Contains("Card(field, null, compact: true)", host);
+        Assert.Contains("Card(content, id + \".container\", compact: true)", host);
+        Assert.Contains("selected ? NativeVisualTheme.Primary", host);
+        Assert.Contains("SelectedAnswer = value", File.ReadAllText(Path.Combine(
+            HeadPath, "NativeAppController.cs")));
+        Assert.Contains("View.SafeAreaLayoutGuide.TopAnchor", host);
+        Assert.Contains("View.KeyboardLayoutGuide.TopAnchor", host);
+        Assert.Contains("SwiftUIHost.DetachController(node, host)", host);
+    }
+
+    [Fact]
+    public void QuizSummary_ProjectsWordMeaningAndLocalizedTextualResult()
+    {
+        var feature = File.ReadAllText(Path.Combine(
+            HeadPath, "Features", "NativeFeatureViews.cs"));
+        var host = File.ReadAllText(Path.Combine(
+            HeadPath, "Platform", "NativeVisualViewController.cs"));
+        Assert.Contains("state.Results.IsDefault ? [] : state.Results", feature);
+        Assert.Contains("case NativePhase.Error when state.Destination == NativeDestination.QuizSummary:",
+            feature);
+        Assert.Contains("result.TargetLanguageTerm", feature);
+        Assert.Contains("result.NativeLanguageTerm", feature);
+        Assert.Contains("result.WasCorrect", feature);
+        Assert.Contains("NativeText.QuizCorrect : NativeText.QuizIncorrect", feature);
+        Assert.Contains("NativeAccess.QuizSummaryResult", feature);
+        Assert.Contains("NativeVisualTheme.Primary", host);
+        Assert.Contains("text(NativeText.QuizOverride)", feature);
+        Assert.Contains("state.Prompt?.ShowPhoto == true", feature);
+    }
+
+    [Fact]
+    public void QuizPrompt_UsesCenteredScaledReferenceDisplayAndSemanticPrimary()
+    {
+        var reference = File.ReadAllText(Path.Combine(
+            HeadPath, "..", "SentenceStudio.UI", "Pages", "VocabQuiz.razor"));
+        var feature = File.ReadAllText(Path.Combine(
+            HeadPath, "Features", "NativeFeatureViews.cs"));
+        var host = File.ReadAllText(Path.Combine(
+            HeadPath, "Platform", "NativeVisualViewController.cs"));
+        var theme = File.ReadAllText(Path.Combine(
+            HeadPath, "Platform", "NativeVisualTheme.cs"));
+        Assert.Contains("ss-display mb-2\" style=\"color: var(--bs-primary);\"",
+            reference);
+        Assert.Contains("WithAccessibilityIdentifier(NativeAccess.QuizQuestion)", feature);
+        Assert.Contains("UIFontMetrics.GetMetrics(", host);
+        Assert.Contains("UIFontTextStyle.LargeTitle.GetConstant()!.ToString()", host);
+        Assert.Contains("GetScaledFont(UIFont.BoldSystemFontOfSize(NativeVisualTheme.QuizPromptSize))", host);
+        Assert.Contains("label.TextAlignment = UITextAlignment.Center", host);
+        Assert.Contains("label.TextColor = NativeVisualTheme.Primary", host);
+        Assert.Contains("internal const int QuizPromptSize = 42", theme);
+        Assert.Contains("ThemeCatalog.Default.PaletteFor(dark ?", theme);
+    }
+
+    [Fact]
+    public void SignInScrollContentDefinesBothEdgesAndViewportWidth()
+    {
+        var source = File.ReadAllText(Path.Combine(
+            HeadPath, "Platform", "NativeSignInViewController.cs"));
+        Assert.Matches(
+            @"content\.LeadingAnchor\.ConstraintEqualTo\(\s*scroll\.ContentLayoutGuide\.LeadingAnchor",
+            source);
+        Assert.Matches(
+            @"content\.TrailingAnchor\.ConstraintEqualTo\(\s*scroll\.ContentLayoutGuide\.TrailingAnchor",
+            source);
+        Assert.Matches(
+            @"content\.WidthAnchor\.ConstraintEqualTo\(\s*scroll\.FrameLayoutGuide\.WidthAnchor,\s*1,\s*-2 \* NativeVisualTheme\.PagePadding",
+            source);
+    }
+
+    [Fact]
+    public void DeferredLearningDetailsPreview_CannotReportFalseUiCoverage()
+    {
+        Assert.DoesNotContain("\"mc-details\"", File.ReadAllText(Path.Combine(
+            HeadPath, "Platform", "NativePreviewFixture.cs")));
+        Assert.DoesNotContain("OpenDetails()", File.ReadAllText(Path.Combine(
+            HeadPath, "NativeAppController.cs")));
+    }
+
+    [Fact]
+    public void NativeSignInControls_HaveRealVisibilityAndRememberBehavior()
+    {
+        var signIn = File.ReadAllText(Path.Combine(
+            HeadPath, "Platform", "NativeSignInViewController.cs"));
+        Assert.Contains("NativeAccess.PasswordVisibility", signIn);
+        Assert.Contains("_password.SecureTextEntry = !_showPassword", signIn);
+        Assert.Contains("NativeAccess.RememberMe", signIn);
+        Assert.Contains("signIn(_email.Text ?? string.Empty, password, _remember.On)", signIn);
+        Assert.Contains("rememberMe: rememberMe", File.ReadAllText(Path.Combine(
+            HeadPath, "NativeAppController.cs")));
     }
 
     [Fact]

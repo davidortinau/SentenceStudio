@@ -9211,6 +9211,24 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Hide password.
+        /// </summary>
+        internal static string Login_HidePassword {
+            get {
+                return ResourceManager.GetString("Login_HidePassword", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Hide.
+        /// </summary>
+        internal static string Login_HidePasswordShort {
+            get {
+                return ResourceManager.GetString("Login_HidePasswordShort", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Invalid email or password. Please try again..
         /// </summary>
         internal static string Login_InvalidCredentials {
@@ -9234,6 +9252,24 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Login_NotAvailable {
             get {
                 return ResourceManager.GetString("Login_NotAvailable", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Show password.
+        /// </summary>
+        internal static string Login_ShowPassword {
+            get {
+                return ResourceManager.GetString("Login_ShowPassword", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Show.
+        /// </summary>
+        internal static string Login_ShowPasswordShort {
+            get {
+                return ResourceManager.GetString("Login_ShowPasswordShort", resourceCulture);
             }
         }
 
