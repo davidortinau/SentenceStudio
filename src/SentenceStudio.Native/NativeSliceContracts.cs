@@ -115,7 +115,8 @@ public sealed record NativeDashboardState(
     int CurrentStreak = 0,
     int LongestStreak = 0,
     PlanNarrativeDto? Narrative = null,
-    string? Rationale = null);
+    string? Rationale = null,
+    VocabProgressSummary? VocabSummary = null);
 
 /// <summary>Owner/date/item and source launch context travel together; never accept a bare item ID.</summary>
 public sealed record NativeQuizLaunch(

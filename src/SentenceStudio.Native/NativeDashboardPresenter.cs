@@ -22,6 +22,7 @@ public sealed class NativeDashboardPresenter(
     INativePlanCreation creation,
     IActivitySessionService sessions,
     NativePendingWrites pendingWrites,
+    VocabularyProgressRepository vocabulary,
     ILogger<NativeDashboardPresenter> logger)
 {
     private NativeDashboardState _state = new(NativePhase.Idle);
@@ -56,9 +57,13 @@ public sealed class NativeDashboardPresenter(
             if (!lease.Database.Database.IsSqlite())
                 throw new NotSupportedException("Native plan regeneration requires SQLite.");
 
+            var vocabSummary = await LoadVocabSummaryAsync(owner, cancellationToken);
+            if (!TryCurrentUser(out var currentOwner) || currentOwner != owner)
+                return SetState(new(NativePhase.Blocked, ErrorKey: NativeText.PlanError));
+
             await using var transaction = await lease.Database.Database.BeginTransactionAsync(
                 IsolationLevel.Serializable, cancellationToken);
-            if (!TryCurrentUser(out var currentOwner) || currentOwner != owner)
+            if (!TryCurrentUser(out currentOwner) || currentOwner != owner)
                 return SetState(new(NativePhase.Blocked, ErrorKey: NativeText.PlanError));
 
             var current = await lease.Service.GetTodayAsync(cancellationToken);
@@ -73,13 +78,19 @@ public sealed class NativeDashboardPresenter(
             if (!TryCurrentUser(out currentOwner) || currentOwner != owner)
                 return SetState(new(NativePhase.Blocked, ErrorKey: NativeText.PlanError));
 
+            var resourceTitles = await GetOwnedResourceTitlesAsync(
+                lease.Database, owner, generated.Items, cancellationToken);
+            if (!TryCurrentUser(out currentOwner) || currentOwner != owner)
+                return SetState(new(NativePhase.Blocked, ErrorKey: NativeText.PlanError));
+
             await transaction.CommitAsync(cancellationToken);
             pendingWrites.MarkPending(owner);
             return generated.Items.Count == 0
                 ? SetState(new(NativePhase.Empty, generated.GeneratedForDate,
-                    ErrorKey: NativeText.NoPlan, HasPendingSync: true), owner)
+                    ErrorKey: NativeText.NoPlan, HasPendingSync: true,
+                    VocabSummary: vocabSummary), owner)
                 : SetState(new(NativePhase.Ready, generated.GeneratedForDate,
-                    MapCards(generated.Items), HasPendingSync: true,
+                    MapCards(generated.Items, resourceTitles), HasPendingSync: true,
                     CompletedCount: generated.CompletedCount,
                     TotalCount: generated.TotalCount,
                     EstimatedTotalMinutes: generated.EstimatedTotalMinutes,
@@ -88,7 +99,8 @@ public sealed class NativeDashboardPresenter(
                     CurrentStreak: generated.Streak.CurrentStreak,
                     LongestStreak: generated.Streak.LongestStreak,
                     Narrative: generated.Narrative,
-                    Rationale: generated.Rationale), owner);
+                    Rationale: generated.Rationale,
+                    VocabSummary: vocabSummary), owner);
         }
         catch (HttpRequestException ex)
         {
@@ -211,17 +223,28 @@ public sealed class NativeDashboardPresenter(
                     return SetState(new(NativePhase.Blocked, ErrorKey: NativeText.PlanError));
             }
 
+            var vocabSummary = await LoadVocabSummaryAsync(owner, cancellationToken);
+            if (!TryCurrentUser(out current) || current != owner)
+                return SetState(new(NativePhase.Blocked, ErrorKey: NativeText.PlanError));
+
             if (plan is null)
                 return SetState(new(NativePhase.Empty,
                     ErrorKey: NativeText.NoPlan,
-                    HasPendingSync: pendingSync), owner);
+                    HasPendingSync: pendingSync,
+                    VocabSummary: vocabSummary), owner);
             if (plan.Items.Count == 0)
                 return SetState(new(NativePhase.Empty, plan.GeneratedForDate,
                     ErrorKey: generateIfMissing ? NativeText.PlanGenerationError : NativeText.NoPlan,
-                    HasPendingSync: pendingSync), owner);
+                    HasPendingSync: pendingSync,
+                    VocabSummary: vocabSummary), owner);
+
+            var resourceTitles = await GetOwnedResourceTitlesAsync(
+                lease.Database, owner, plan.Items, cancellationToken);
+            if (!TryCurrentUser(out current) || current != owner)
+                return SetState(new(NativePhase.Blocked, ErrorKey: NativeText.PlanError));
 
             return SetState(new(NativePhase.Ready, plan.GeneratedForDate,
-                MapCards(plan.Items),
+                MapCards(plan.Items, resourceTitles),
                 HasPendingSync: pendingSync,
                 CompletedCount: plan.CompletedCount,
                 TotalCount: plan.TotalCount,
@@ -231,7 +254,8 @@ public sealed class NativeDashboardPresenter(
                 CurrentStreak: plan.Streak.CurrentStreak,
                 LongestStreak: plan.Streak.LongestStreak,
                 Narrative: plan.Narrative,
-                Rationale: plan.Rationale), owner);
+                Rationale: plan.Rationale,
+                VocabSummary: vocabSummary), owner);
         }
         catch (HttpRequestException ex)
         {
@@ -290,7 +314,40 @@ public sealed class NativeDashboardPresenter(
         return false;
     }
 
-    private static ImmutableArray<NativePlanCard> MapCards(IEnumerable<PlanItemDto> items) =>
+    private static async Task<Dictionary<string, string>> GetOwnedResourceTitlesAsync(
+        ApplicationDbContext db, string owner, IEnumerable<PlanItemDto> items,
+        CancellationToken cancellationToken)
+    {
+        var ids = items.Select(item => item.ResourceId)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Select(id => id!)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (ids.Length == 0)
+            return new(StringComparer.Ordinal);
+
+        var resources = await db.LearningResources.AsNoTracking()
+            .Where(resource => resource.UserProfileId == owner && ids.Contains(resource.Id))
+            .Select(resource => new { resource.Id, resource.Title })
+            .ToListAsync(cancellationToken);
+        return resources.ToDictionary(resource => resource.Id, resource => resource.Title,
+            StringComparer.Ordinal);
+    }
+
+    private async Task<VocabProgressSummary> LoadVocabSummaryAsync(
+        string owner, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var (newCount, learning, familiar, review, known) =
+            await vocabulary.GetVocabSummaryCountsAsync(owner);
+        cancellationToken.ThrowIfCancellationRequested();
+        var accuracy = await vocabulary.GetSuccessRate7dAsync(owner);
+        cancellationToken.ThrowIfCancellationRequested();
+        return new(newCount, learning, familiar, review, known, accuracy);
+    }
+
+    private static ImmutableArray<NativePlanCard> MapCards(
+        IEnumerable<PlanItemDto> items, IReadOnlyDictionary<string, string> resourceTitles) =>
         items.Select(item =>
         {
             if (!Enum.TryParse<PlanActivityType>(item.ActivityType, false, out var activity))
@@ -300,11 +357,26 @@ public sealed class NativeDashboardPresenter(
                 item.EstimatedMinutes, item.MinutesSpent, item.IsCompleted,
                 item.ResourceId, item.SkillId,
                 item.FocusVocabularyIds.ToImmutableArray(),
-                TitleKey: activity == PlanActivityType.VocabularyReview
-                    ? NativeText.PlanVocabTitle : null,
+                TitleKey: activity switch
+                {
+                    PlanActivityType.VocabularyReview => "Activity_VocabularyReview",
+                    PlanActivityType.Reading => "Activity_Reading",
+                    PlanActivityType.Listening => "Activity_Listening",
+                    PlanActivityType.VideoWatching => "Activity_VideoWatching",
+                    PlanActivityType.Shadowing => "Activity_Shadowing",
+                    PlanActivityType.Cloze => "Activity_ClozeExercise",
+                    PlanActivityType.Translation => "Activity_Translate",
+                    PlanActivityType.Writing => "Activity_Writing",
+                    PlanActivityType.SceneDescription => "Activity_DescribeScene",
+                    PlanActivityType.Conversation => "Activity_Conversation",
+                    PlanActivityType.VocabularyGame => "Activity_VocabMatching",
+                    PlanActivityType.NumberDrill => "Activity_NumberDrill",
+                    _ => "Activity_Generic",
+                },
                 DescriptionKey: activity == PlanActivityType.VocabularyReview
                     ? NativeText.PlanVocabDescription : null,
-                ResourceTitle: item.ResourceTitle,
+                ResourceTitle: item.ResourceId is { } id
+                    && resourceTitles.TryGetValue(id, out var title) ? title : null,
                 VocabDueCount: item.VocabDueCount);
         }).ToImmutableArray();
 

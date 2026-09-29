@@ -5908,6 +5908,24 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Collapsed.
+        /// </summary>
+        internal static string Dashboard_InsightCollapsed {
+            get {
+                return ResourceManager.GetString("Dashboard_InsightCollapsed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Expanded.
+        /// </summary>
+        internal static string Dashboard_InsightExpanded {
+            get {
+                return ResourceManager.GetString("Dashboard_InsightExpanded", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to {0}% mastery.
         /// </summary>
         internal static string Dashboard_InsightMastery {

@@ -31,23 +31,50 @@ internal sealed class DebugPreviewPlanGenerator : IDeterministicPlanGenerator
                 new PlannedActivity
                 {
                     ActivityType = nameof(PlanActivityType.VocabularyReview),
+                    ResourceId = DebugPreviewFixture.ResourceId,
                     FocusVocabularyIds = FocusWordIds.ToList(),
-                    EstimatedMinutes = 10,
+                    EstimatedMinutes = 6,
                     Priority = 1,
+                    Rationale = "Isolated Debug preview fixture",
+                },
+                new PlannedActivity
+                {
+                    ActivityType = nameof(PlanActivityType.Cloze),
+                    ResourceId = DebugPreviewFixture.ResourceId,
+                    EstimatedMinutes = 10,
+                    Priority = 2,
+                    Rationale = "Isolated Debug preview fixture",
+                },
+                new PlannedActivity
+                {
+                    ActivityType = nameof(PlanActivityType.Writing),
+                    ResourceId = DebugPreviewFixture.ResourceId,
+                    EstimatedMinutes = 10,
+                    Priority = 3,
                     Rationale = "Isolated Debug preview fixture",
                 },
             ],
             FocusVocabularyIds = FocusWordIds.ToList(),
-            TotalMinutes = 10,
+            TotalMinutes = 26,
             ResourceSelectionReason = "Isolated Debug preview fixture",
+            Narrative = new PlanNarrative(
+                [new PlanResourceSummary(
+                    DebugPreviewFixture.ResourceId,
+                    DebugPreviewFixture.ResourceTitle,
+                    "Vocabulary List",
+                    "The saved vocabulary list supplies this preview plan.")],
+                null,
+                $"This preview plan uses {FocusWordIds.Count} saved words for review, cloze, and writing.",
+                ["Practice words from the saved vocabulary list"]),
         });
     }
 }
 
 internal static class DebugPreviewFixture
 {
-    internal const string OwnerId = "native-android-debug-preview";
-    private const string ResourceId = "native-preview-vocabulary";
+    internal const string OwnerId = "native-android-dashboard-20260929";
+    internal const string ResourceId = "native-dashboard-preview-vocabulary";
+    internal const string ResourceTitle = "Debug preview vocabulary";
     private static readonly (string Target, string Native)[] Words =
     [
         ("안녕하세요", "hello"),
@@ -62,7 +89,7 @@ internal static class DebugPreviewFixture
         var services = scope.ServiceProvider;
         var database = services.GetRequiredService<ApplicationDbContext>();
         var wordIds = Enumerable.Range(0, Words.Length)
-            .Select(index => $"native-preview-word-{index}")
+            .Select(index => $"native-dashboard-preview-word-{index}")
             .ToList();
         var seeded = await database.UserProfiles.AsNoTracking()
             .AnyAsync(profile => profile.Id == OwnerId, cancellationToken);
@@ -83,7 +110,7 @@ internal static class DebugPreviewFixture
                 UserProfileId = OwnerId,
                 Language = "Korean",
                 MediaType = "Vocabulary List",
-                Title = "Debug preview vocabulary",
+                Title = ResourceTitle,
                 CreatedAt = DateTime.UtcNow,
             });
             for (var index = 0; index < Words.Length; index++)
@@ -98,13 +125,13 @@ internal static class DebugPreviewFixture
                 });
                 database.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping
                 {
-                    Id = $"native-preview-mapping-{index}",
+                    Id = $"native-dashboard-preview-mapping-{index}",
                     ResourceId = ResourceId,
                     VocabularyWordId = wordId,
                 });
                 database.VocabularyProgresses.Add(new VocabularyProgress
                 {
-                    Id = $"native-preview-progress-{index}",
+                    Id = $"native-dashboard-preview-progress-{index}",
                     UserId = OwnerId,
                     VocabularyWordId = wordId,
                     MasteryScore = 0.9f,
@@ -116,7 +143,8 @@ internal static class DebugPreviewFixture
             await database.SaveChangesAsync(cancellationToken);
         }
         else if (await database.VocabularyWords.AsNoTracking()
-            .CountAsync(word => word.Id.StartsWith("native-preview-word-"), cancellationToken)
+            .CountAsync(word => word.Id.StartsWith("native-dashboard-preview-word-"),
+                cancellationToken)
             != Words.Length)
         {
             throw new InvalidOperationException(

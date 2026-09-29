@@ -1,9 +1,16 @@
+using System.Collections.Immutable;
 using SentenceStudio.Native;
 
 namespace SentenceStudio.Native.Android;
 
 internal static class AndroidRoutePolicy
 {
+    // Add a bottom tab only when its top-level destination has a working native screen.
+    public static ImmutableArray<NativeDestination> TopLevelDestinations { get; } =
+        [NativeDestination.Dashboard];
+
+    public static bool UsesBottomTabs => TopLevelDestinations.Length > 1;
+
     public static NativeDestination AfterAuth(NativeAuthState state) =>
         state.Phase == NativePhase.Ready
             && state.Destination is NativeDestination.Dashboard or NativeDestination.Onboarding

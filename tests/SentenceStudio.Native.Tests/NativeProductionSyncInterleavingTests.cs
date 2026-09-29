@@ -70,6 +70,7 @@ public sealed class NativeProductionSyncInterleavingTests
             delayed,
             services.GetRequiredService<IActivitySessionService>(),
             services.GetRequiredService<NativePendingWrites>(),
+            services.GetRequiredService<VocabularyProgressRepository>(),
             services.GetRequiredService<ILogger<NativeDashboardPresenter>>());
 
         var generating = dashboard.GenerateAsync();

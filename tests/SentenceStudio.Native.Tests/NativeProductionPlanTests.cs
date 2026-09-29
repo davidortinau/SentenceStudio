@@ -431,6 +431,7 @@ public sealed class NativeProductionPlanTests
             NewAdapter(fixture),
             services.GetRequiredService<IActivitySessionService>(),
             services.GetRequiredService<NativePendingWrites>(),
+            services.GetRequiredService<VocabularyProgressRepository>(),
             services.GetRequiredService<ILogger<NativeDashboardPresenter>>());
     }
 

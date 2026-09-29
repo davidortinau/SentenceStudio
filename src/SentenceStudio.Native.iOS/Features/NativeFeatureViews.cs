@@ -14,13 +14,16 @@ public static class NativeFeatureViews
         Func<string, string> text,
         Action refresh,
         Action generate,
-        Action<string> openQuiz,
         bool insightExpanded,
         Action toggleInsight)
     {
         var items = new List<SwiftView>();
         if (banner is not null)
             items.Add(banner);
+        items.Add(Views.Button(text("Common_Refresh"), refresh)
+            .WithAccessibilityIdentifier("native.dashboard.refresh"));
+        items.Add(Views.Text(text(NativeText.Today))
+            .WithAccessibilityIdentifier("native.dashboard.mode.today"));
         if (state.HasPendingSync)
             items.Add(Views.Text($"{text("DebugHealth_CoreSync")}: {text("DebugHealth_Pending")}")
                 .WithAccessibilityIdentifier("native.plan.pending"));
@@ -44,9 +47,6 @@ public static class NativeFeatureViews
                     .WithAccessibilityIdentifier("native.plan.empty"));
                 break;
             case NativePhase.Ready:
-                if (state.PlanDate is { } date)
-                    items.Add(Views.Text(date.ToString("D", CultureInfo.CurrentCulture))
-                        .WithAccessibilityIdentifier("native.plan.date"));
                 if (state.CurrentStreak > 0)
                 {
                     var streak = string.Format(CultureInfo.CurrentCulture,
@@ -58,13 +58,15 @@ public static class NativeFeatureViews
                         .WithAccessibilityIdentifier("native.plan.streak"));
                 }
                 items.Add(Views.VStack(
-                    Views.Text(text("Dashboard_TodaysProgress"))
-                        .WithAccessibilityIdentifier("native.plan.progress.title"),
-                    Views.Text(string.Format(CultureInfo.CurrentCulture,
-                        text("Dashboard_ProgressCounts"),
-                        state.CompletedCount, state.TotalCount,
-                        state.MinutesSpent, state.EstimatedTotalMinutes))
-                        .WithAccessibilityIdentifier("native.plan.progress.count"))
+                    Views.HStack(
+                        Views.Text(text("Dashboard_TodaysProgress"))
+                            .WithAccessibilityIdentifier("native.plan.progress.title"),
+                        Views.Text(string.Format(CultureInfo.CurrentCulture,
+                            text("Dashboard_ProgressCounts"),
+                            state.CompletedCount, state.TotalCount,
+                            state.MinutesSpent, state.EstimatedTotalMinutes))
+                            .WithAccessibilityIdentifier("native.plan.progress.count"))
+                        .WithAccessibilityIdentifier("native.plan.progress.row"))
                     .WithAccessibilityIdentifier("native.plan.progress"));
                 if (state.Narrative is { } narrative)
                 {
@@ -75,11 +77,19 @@ public static class NativeFeatureViews
                     };
                     if (insightExpanded)
                     {
-                        insight.Add(Views.Text(narrative.Story));
+                        if (!string.IsNullOrWhiteSpace(narrative.Story))
+                            insight.Add(Views.Text(narrative.Story)
+                                .WithAccessibilityIdentifier("native.plan.insight.story"));
                         foreach (var resource in narrative.Resources)
                         {
-                            insight.Add(Views.Text(resource.Title));
-                            insight.Add(Views.Text(resource.SelectionReason));
+                            if (string.IsNullOrWhiteSpace(resource.Title))
+                                continue;
+                            insight.Add(Views.Text(resource.Title)
+                                .WithAccessibilityIdentifier("native.plan.insight.resource.title"));
+                            if (!string.IsNullOrWhiteSpace(resource.SelectionReason))
+                                insight.Add(Views.Text(resource.SelectionReason)
+                                    .WithAccessibilityIdentifier(
+                                        "native.plan.insight.resource.reason"));
                         }
                         if (narrative.VocabInsight is { } vocab)
                         {
@@ -112,9 +122,10 @@ public static class NativeFeatureViews
                         }
                         if (narrative.FocusAreas.Count > 0)
                         {
-                            insight.Add(Views.Text(text("Dashboard_FocusAreas")));
+                            insight.Add(Views.Text(text("Dashboard_FocusAreas"))
+                                .WithAccessibilityIdentifier("native.plan.insight.focus.title"));
                             foreach (var area in narrative.FocusAreas)
-                                insight.Add(Views.Text(area));
+                                insight.Add(Views.Text($"\u2022 {area}"));
                         }
                     }
                     items.Add(Views.VStack(insight.ToArray())
@@ -143,26 +154,21 @@ public static class NativeFeatureViews
                         : string.Format(CultureInfo.CurrentCulture,
                             text("Dashboard_EstimateMinutes"), card.EstimatedMinutes);
                     var metadata = card.ResourceTitle is { Length: > 0 }
-                        ? $"{card.ResourceTitle} - {minutes}" : minutes;
+                        ? $"{card.ResourceTitle} \u00b7 {minutes}" : minutes;
                     if (card.VocabDueCount > 0)
-                        metadata += " - " + string.Format(CultureInfo.CurrentCulture,
+                        metadata += " \u00b7 " + string.Format(CultureInfo.CurrentCulture,
                             text("Dashboard_VocabDueCount"), card.VocabDueCount.Value);
-                    var cardContent = new List<SwiftView>();
-                    if (card.Activity == PlanActivityType.VocabularyReview && !card.IsCompleted)
-                        cardContent.Add(Views.Button(name, () => openQuiz(card.Id))
-                            .WithAccessibilityIdentifier($"{NativeAccess.PlanCard}.{card.Id}"));
-                    else
-                        cardContent.Add(Views.Text(name)
-                            .WithAccessibilityIdentifier("native.plan.card.title"));
+                    var cardContent = new List<SwiftView>
+                    {
+                        Views.Text(name).WithAccessibilityIdentifier("native.plan.card.title"),
+                    };
                     cardContent.Add(Views.Text(metadata)
                         .WithAccessibilityIdentifier("native.plan.card.metadata"));
                     if (card.IsCompleted)
                         cardContent.Add(Views.Text(text("PlanSummary_Completed"))
                             .WithAccessibilityIdentifier("native.plan.card.completed"));
                     items.Add(Views.VStack(cardContent.ToArray())
-                        .WithAccessibilityIdentifier(card.IsCompleted
-                            ? $"{NativeAccess.PlanCard}.{card.Id}"
-                            : $"native.plan.card.container.{card.Id}"));
+                        .WithAccessibilityIdentifier($"native.plan.card.container.{card.Id}"));
                 }
                 break;
             default:
@@ -170,15 +176,49 @@ public static class NativeFeatureViews
                     .WithAccessibilityIdentifier("native.dashboard.status"));
                 break;
         }
+        if (state.VocabSummary is { } vocabulary)
+            AddVocabularySummary(items, vocabulary, text);
         if (busy)
             items.Add(Views.Text(text("Common_Loading"))
                 .WithAccessibilityIdentifier("native.dashboard.busy"));
-        else
-            items.Add(Views.Button(text(state.Phase is NativePhase.Error or NativePhase.Blocked
-                    ? NativeText.Retry : "Common_Refresh"), refresh)
-                .WithAccessibilityIdentifier("native.dashboard.refresh"));
         return Views.Scroll(items.ToArray());
     }
+
+    private static void AddVocabularySummary(
+        List<SwiftView> items, VocabProgressSummary summary, Func<string, string> text)
+    {
+        items.Add(Views.Text(text("Dashboard_VocabularyHeader"))
+            .WithAccessibilityIdentifier("native.dashboard.vocab.title"));
+        items.Add(Views.HStack(
+            VocabularyTile(summary.New, text("Dashboard_VocabNew"), "new"),
+            VocabularyTile(summary.Learning, text("Dashboard_VocabLearning"), "learning")));
+        items.Add(Views.HStack(
+            VocabularyTile(summary.Familiar, text("Dashboard_VocabFamiliar"), "familiar"),
+            VocabularyTile(summary.Review, text("Dashboard_VocabReview"), "review")));
+        items.Add(Views.HStack(
+            VocabularyTile(summary.Known, text("Dashboard_VocabKnown"), "known"),
+            Views.Text(string.Empty)));
+
+        var total = summary.New + summary.Learning + summary.Familiar
+            + summary.Review + summary.Known;
+        if (total > 0)
+            items.Add(Views.HStack(
+                Views.Text($"{text("Dashboard_TotalWordsLabel")} " +
+                    total.ToString(CultureInfo.CurrentCulture))
+                    .WithAccessibilityIdentifier("native.dashboard.vocab.total"),
+                Views.Text($"{text("Dashboard_WeeklyAccuracyLabel")} " +
+                    $"{Math.Round(summary.SuccessRate7d * 100).ToString(CultureInfo.CurrentCulture)}%")
+                    .WithAccessibilityIdentifier("native.dashboard.vocab.accuracy"))
+                .WithAccessibilityIdentifier("native.dashboard.vocab.summary"));
+    }
+
+    private static SwiftView VocabularyTile(int count, string label, string name) =>
+        Views.VStack(
+            Views.Text(count.ToString(CultureInfo.CurrentCulture))
+                .WithAccessibilityIdentifier($"native.dashboard.vocab.stat.{name}.value"),
+            Views.Text(label)
+                .WithAccessibilityIdentifier($"native.dashboard.vocab.stat.{name}.label"))
+        .WithAccessibilityIdentifier($"native.dashboard.vocab.stat.{name}");
 
     public static SwiftView Quiz(
         NativeQuizState state,

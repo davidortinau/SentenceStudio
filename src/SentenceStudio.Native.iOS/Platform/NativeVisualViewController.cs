@@ -1,10 +1,14 @@
+#if !NATIVE_DASHBOARD_LABEL_TEST
 using Foundation;
 using Microsoft.SwiftUI;
 using SentenceStudio.Native;
+using SentenceStudio.Services.Progress;
 using UIKit;
+#endif
 
 namespace SentenceStudio.Native.iOS.Platform;
 
+#if !NATIVE_DASHBOARD_LABEL_TEST
 internal sealed class NativeVisualViewController : UIViewController
 {
     private readonly List<(SwiftView View, UIViewController Host)> _hosted = [];
@@ -18,12 +22,29 @@ internal sealed class NativeVisualViewController : UIViewController
     private UIProgressView _progressBar = null!;
     private Action<string>? _answerChanged;
     private Action<string>? _correctionChanged;
+    private Action<string>? _openQuiz;
+    private bool _insightExpanded;
+    private bool _dashboardBusy;
 
     public override void ViewDidLoad()
     {
         base.ViewDidLoad();
         View!.BackgroundColor = NativeVisualTheme.Background;
         View.TintColor = NativeVisualTheme.Primary;
+        var statusChrome = new UIView
+        {
+            BackgroundColor = NativeVisualTheme.Header,
+            TranslatesAutoresizingMaskIntoConstraints = false,
+            IsAccessibilityElement = false,
+        };
+        View.AddSubview(statusChrome);
+        NSLayoutConstraint.ActivateConstraints(
+        [
+            statusChrome.TopAnchor.ConstraintEqualTo(View.TopAnchor),
+            statusChrome.BottomAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.TopAnchor),
+            statusChrome.LeadingAnchor.ConstraintEqualTo(View.LeadingAnchor),
+            statusChrome.TrailingAnchor.ConstraintEqualTo(View.TrailingAnchor),
+        ]);
 
         _title = Label(string.Empty, UIFontTextStyle.Title2);
         _title.AccessibilityTraits = UIAccessibilityTrait.Header;
@@ -37,7 +58,7 @@ internal sealed class NativeVisualViewController : UIViewController
                 8, NativeVisualTheme.PagePadding),
             LayoutMarginsRelativeArrangement = true,
         };
-        _header.BackgroundColor = NativeVisualTheme.Background;
+        _header.BackgroundColor = NativeVisualTheme.Header;
         _header.HeightAnchor.ConstraintGreaterThanOrEqualTo(56).Active = true;
 
         _body = new UIStackView
@@ -53,6 +74,7 @@ internal sealed class NativeVisualViewController : UIViewController
         var scroll = new UIScrollView
         {
             KeyboardDismissMode = UIScrollViewKeyboardDismissMode.Interactive,
+            BackgroundColor = NativeVisualTheme.Background,
         };
         scroll.AddSubview(_body);
         NSLayoutConstraint.ActivateConstraints(
@@ -85,7 +107,7 @@ internal sealed class NativeVisualViewController : UIViewController
             LayoutMargins = new UIEdgeInsets(12, NativeVisualTheme.PagePadding,
                 12, NativeVisualTheme.PagePadding),
             LayoutMarginsRelativeArrangement = true,
-            BackgroundColor = NativeVisualTheme.Background,
+            BackgroundColor = NativeVisualTheme.Header,
             Hidden = true,
             AccessibilityIdentifier = "native.quiz.footer",
         };
@@ -114,7 +136,13 @@ internal sealed class NativeVisualViewController : UIViewController
     public void Show(SwiftView page, string title,
         NativeDashboardState? dashboard = null, NativeQuizState? quiz = null,
         Action<string>? answerChanged = null,
-        Action<string>? correctionChanged = null)
+        Action<string>? correctionChanged = null,
+        Action<string>? openQuiz = null,
+        Action? regenerate = null,
+        Action? signOut = null,
+        bool insightExpanded = false,
+        bool preview = false,
+        bool busy = false)
     {
         if (!IsViewLoaded)
             LoadViewIfNeeded();
@@ -124,6 +152,9 @@ internal sealed class NativeVisualViewController : UIViewController
         Clear();
         _answerChanged = answerChanged;
         _correctionChanged = correctionChanged;
+        _openQuiz = openQuiz;
+        _insightExpanded = insightExpanded;
+        _dashboardBusy = dashboard is not null && busy;
         _title.Text = title;
         _body.AccessibilityIdentifier = quiz is null
             ? NativeAccess.Plan : "native.quiz.screen";
@@ -144,6 +175,32 @@ internal sealed class NativeVisualViewController : UIViewController
                 AddNode(_body, child, dashboard, quiz);
         }
         page.Dispose();
+        if (dashboard is not null && signOut is not null)
+        {
+            var menuItems = new List<UIMenuElement>();
+            if (dashboard.Phase == NativePhase.Ready && regenerate is not null)
+                menuItems.Add(UIAction.Create(
+                    LocalizationManager.Instance.GetString(NativeText.Regenerate),
+                    UIImage.GetSystemImage("arrow.clockwise"), "native.dashboard.regenerate",
+                    _ => regenerate()));
+            menuItems.Add(UIAction.Create(
+                preview ? "Exit Debug preview" : LocalizationManager.Instance.GetString("Nav_Logout"),
+                UIImage.GetSystemImage("rectangle.portrait.and.arrow.right"),
+                "native.dashboard.sign-out", _ => signOut()));
+            var more = UIButton.FromType(UIButtonType.System);
+            more.AccessibilityIdentifier = "native.dashboard.menu";
+            more.AccessibilityLabel = LocalizationManager.Instance.GetString("More");
+            more.SetImage(UIImage.GetSystemImage("ellipsis"), UIControlState.Normal);
+            more.TintColor = NativeVisualTheme.Text;
+            more.Enabled = !busy;
+            more.Menu = UIMenu.Create(menuItems.ToArray());
+            more.ShowsMenuAsPrimaryAction = true;
+            more.WidthAnchor.ConstraintEqualTo(
+                NativeVisualTheme.ControlHeight).Active = true;
+            more.HeightAnchor.ConstraintGreaterThanOrEqualTo(
+                NativeVisualTheme.ControlHeight).Active = true;
+            _header.AddArrangedSubview(more);
+        }
 
         _footer.Hidden = quiz?.Prompt is null
             || quiz.Phase is not (NativePhase.Ready or NativePhase.Feedback or NativePhase.Error)
@@ -166,14 +223,21 @@ internal sealed class NativeVisualViewController : UIViewController
         var id = node.AccessibilityIdentifier;
         if (node.Kind is "vstack" or "hstack")
         {
+            var vocabRow = node.Kind == "hstack"
+                && node.Children.Any(child => child.AccessibilityIdentifier?
+                    .StartsWith("native.dashboard.vocab.stat.", StringComparison.Ordinal) == true);
             var content = new UIStackView
             {
                 Axis = node.Kind == "hstack"
                     ? UILayoutConstraintAxis.Horizontal : UILayoutConstraintAxis.Vertical,
                 Alignment = UIStackViewAlignment.Fill,
                 Distribution = node.Kind == "hstack"
-                    ? UIStackViewDistribution.FillEqually : UIStackViewDistribution.Fill,
-                Spacing = node.Kind == "hstack" ? 4 : 8,
+                    ? id is "native.plan.progress.row" or "native.dashboard.vocab.summary"
+                        ? UIStackViewDistribution.EqualSpacing
+                        : UIStackViewDistribution.FillEqually
+                    : UIStackViewDistribution.Fill,
+                Spacing = node.Kind == "hstack"
+                    ? vocabRow ? 12 : 4 : 8,
             };
             while (node.Children.Count > 0)
             {
@@ -182,6 +246,22 @@ internal sealed class NativeVisualViewController : UIViewController
                 AddNode(content, child, dashboard, quiz);
             }
             node.Dispose();
+            if (id?.StartsWith("native.plan.card.container.", StringComparison.Ordinal) == true
+                && dashboard is not null)
+            {
+                var cardId = id["native.plan.card.container.".Length..];
+                var card = dashboard.Cards.SingleOrDefault(item => item.Id == cardId);
+                if (card is null)
+                    throw new InvalidOperationException("A displayed plan card has no owner-scoped item.");
+                parent.AddArrangedSubview(DashboardCard(content, card));
+                return;
+            }
+            if (id == "native.plan.progress.row")
+            {
+                content.AccessibilityIdentifier = id;
+                parent.AddArrangedSubview(content);
+                return;
+            }
             if (string.IsNullOrEmpty(id))
             {
                 parent.AddArrangedSubview(content);
@@ -189,22 +269,24 @@ internal sealed class NativeVisualViewController : UIViewController
             }
             var shell = Card(content, id);
             if (id == "native.plan.progress" && dashboard is not null)
-                AddProgress(content, dashboard.CompletionPercentage / 100,
-                    dashboard.CompletedCount == dashboard.TotalCount);
-            if (id?.StartsWith("native.plan.card.", StringComparison.Ordinal) == true
-                && content.ArrangedSubviews.Any(item =>
-                    item.AccessibilityIdentifier == "native.plan.card.completed"))
-            {
-                SetBorder(shell, NativeVisualTheme.Success);
-                AddProgress(content, 1, completed: true);
-            }
+                AddProgress(content, dashboard.CompletionPercentage / 100, completed: true);
             parent.AddArrangedSubview(shell);
             return;
         }
         if (node.Kind == "text")
         {
+            if (id == "native.dashboard.mode.today")
+            {
+                parent.AddArrangedSubview(SelectedPlanMode(node.Text, id));
+                node.Dispose();
+                return;
+            }
             var label = Label(node.Text, TextStyle(id),
                 secondary: id is "native.plan.card.metadata" or "native.plan.date"
+                    or "native.plan.insight.resource.reason"
+                    or "native.dashboard.vocab.accuracy"
+                    || id.StartsWith("native.dashboard.vocab.stat.", StringComparison.Ordinal)
+                        && id.EndsWith(".label", StringComparison.Ordinal)
                     || id.StartsWith(NativeAccess.QuizSummaryResult + ".", StringComparison.Ordinal)
                         && id.EndsWith(".meaning", StringComparison.Ordinal));
             label.AccessibilityIdentifier = id;
@@ -228,6 +310,32 @@ internal sealed class NativeVisualViewController : UIViewController
                 label.AccessibilityTraits = UIAccessibilityTrait.Selected;
             if (id is NativeAccess.QuizQuestion or "native.quiz.summary.title")
                 label.AccessibilityTraits = UIAccessibilityTrait.Header;
+            if (id == "native.plan.insight.resource.title")
+                label.Font = UIFont.GetPreferredFontForTextStyle(UIFontTextStyle.Headline);
+            if (id == "native.plan.insight.focus.title")
+                label.Font = UIFont.GetPreferredFontForTextStyle(UIFontTextStyle.Headline);
+            if (id == "native.dashboard.vocab.title")
+            {
+                label.Font = UIFontMetrics.GetMetrics(
+                        UIFontTextStyle.Title2.GetConstant()!.ToString())
+                    .GetScaledFont(UIFont.BoldSystemFontOfSize(22));
+                label.AccessibilityTraits = UIAccessibilityTrait.Header;
+            }
+            if (id.StartsWith("native.dashboard.vocab.stat.", StringComparison.Ordinal))
+            {
+                label.TextAlignment = UITextAlignment.Center;
+                if (id.EndsWith(".value", StringComparison.Ordinal))
+                {
+                    label.Font = UIFontMetrics.GetMetrics(
+                            UIFontTextStyle.Title2.GetConstant()!.ToString())
+                        .GetScaledFont(UIFont.BoldSystemFontOfSize(24));
+                    label.TextColor = id.Contains(".learning.", StringComparison.Ordinal)
+                        || id.Contains(".review.", StringComparison.Ordinal)
+                        ? NativeVisualTheme.WarningText
+                        : id.Contains(".known.", StringComparison.Ordinal)
+                            ? NativeVisualTheme.KnownText : NativeVisualTheme.Primary;
+                }
+            }
             node.Dispose();
             if (id is NativeAccess.QuizFeedback or "native.quiz.error"
                 or "native.dashboard.status" or "native.plan.insight.pattern")
@@ -283,6 +391,8 @@ internal sealed class NativeVisualViewController : UIViewController
         if (id.StartsWith(NativeAccess.QuizChoice + ".", StringComparison.Ordinal))
             parent.AddArrangedSubview(Choice(
                 HostControl(node, primary: false, decorate: false), id, quiz));
+        else if (id == "native.plan.insight.toggle")
+            parent.AddArrangedSubview(InsightHeader(node));
         else
             parent.AddArrangedSubview(HostControl(node,
                 primary: id is "native.quiz.next" or "native.quiz.submit"
@@ -314,6 +424,161 @@ internal sealed class NativeVisualViewController : UIViewController
         return wrapper;
     }
 
+    private UIView SelectedPlanMode(string title, string id)
+    {
+        var icon = new UIImageView(UIImage.GetSystemImage("calendar"))
+        {
+            TintColor = NativeVisualTheme.OnPrimary,
+            ContentMode = UIViewContentMode.ScaleAspectFit,
+            IsAccessibilityElement = false,
+        };
+        icon.WidthAnchor.ConstraintEqualTo(20).Active = true;
+        icon.HeightAnchor.ConstraintEqualTo(20).Active = true;
+        var label = Label(title, UIFontTextStyle.Headline);
+        label.TextColor = NativeVisualTheme.OnPrimary;
+        var selected = new UIStackView([icon, label])
+        {
+            Axis = UILayoutConstraintAxis.Horizontal,
+            Alignment = UIStackViewAlignment.Center,
+            Spacing = 8,
+            LayoutMargins = new UIEdgeInsets(10, 16, 10, 16),
+            LayoutMarginsRelativeArrangement = true,
+            BackgroundColor = NativeVisualTheme.Primary,
+            AccessibilityIdentifier = id,
+            AccessibilityLabel = title,
+            AccessibilityTraits = UIAccessibilityTrait.Selected
+                | UIAccessibilityTrait.StaticText,
+            IsAccessibilityElement = true,
+        };
+        selected.Layer.CornerRadius = NativeVisualTheme.ControlRadius;
+        selected.HeightAnchor.ConstraintGreaterThanOrEqualTo(
+            NativeVisualTheme.ControlHeight).Active = true;
+        return selected;
+    }
+
+    private UIView InsightHeader(SwiftView node)
+    {
+        var button = (UIButton)HostControl(node, primary: false);
+        button.HorizontalAlignment = UIControlContentHorizontalAlignment.Left;
+        button.SetImage(UIImage.GetSystemImage("lightbulb"), UIControlState.Normal);
+        button.SetTitleColor(NativeVisualTheme.Text, UIControlState.Normal);
+        button.TintColor = NativeVisualTheme.Primary;
+        button.AccessibilityValue = LocalizationManager.Instance.GetString(
+            _insightExpanded ? "Dashboard_InsightExpanded" : "Dashboard_InsightCollapsed");
+        button.SetContentHuggingPriority(250, UILayoutConstraintAxis.Horizontal);
+
+        var chevron = new UIImageView(UIImage.GetSystemImage(
+            _insightExpanded ? "chevron.up" : "chevron.down"))
+        {
+            TintColor = NativeVisualTheme.Text,
+            ContentMode = UIViewContentMode.ScaleAspectFit,
+            IsAccessibilityElement = false,
+            AccessibilityIdentifier = "native.plan.insight.chevron",
+        };
+        chevron.WidthAnchor.ConstraintEqualTo(20).Active = true;
+        chevron.HeightAnchor.ConstraintEqualTo(20).Active = true;
+        var row = new UIStackView([button, chevron])
+        {
+            Axis = UILayoutConstraintAxis.Horizontal,
+            Alignment = UIStackViewAlignment.Center,
+            Spacing = 8,
+        };
+        row.HeightAnchor.ConstraintGreaterThanOrEqualTo(
+            NativeVisualTheme.ControlHeight).Active = true;
+        return row;
+    }
+
+    private UIView DashboardCard(UIStackView content, NativePlanCard card)
+    {
+        var title = content.ArrangedSubviews.OfType<UILabel>()
+            .FirstOrDefault(view => view.AccessibilityIdentifier == "native.plan.card.title")
+            ?.Text ?? card.Title;
+        var metadata = content.ArrangedSubviews.OfType<UILabel>()
+            .FirstOrDefault(view => view.AccessibilityIdentifier == "native.plan.card.metadata")
+            ?.Text ?? string.Empty;
+        content.Alpha = card.IsCompleted ? 0.75f : 1f;
+        if (!card.IsCompleted && card.MinutesSpent > 0 && card.EstimatedMinutes > 0)
+            AddProgress(content, (double)card.MinutesSpent / card.EstimatedMinutes,
+                completed: false);
+
+        var iconName = card.IsCompleted ? "checkmark.circle.fill" : card.Activity switch
+        {
+            PlanActivityType.VocabularyReview => "checklist",
+            PlanActivityType.Listening or PlanActivityType.Shadowing => "headphones",
+            PlanActivityType.Writing or PlanActivityType.Translation => "square.and.pencil",
+            PlanActivityType.Reading => "book",
+            PlanActivityType.VideoWatching => "play.rectangle",
+            PlanActivityType.SceneDescription => "photo",
+            PlanActivityType.Conversation => "text.bubble",
+            PlanActivityType.NumberDrill => "number",
+            _ => "square.grid.2x2",
+        };
+        var icon = new UIImageView(UIImage.GetSystemImage(iconName))
+        {
+            TintColor = card.IsCompleted
+                ? NativeVisualTheme.Success : NativeVisualTheme.Primary,
+            ContentMode = UIViewContentMode.ScaleAspectFit,
+            IsAccessibilityElement = false,
+        };
+        icon.WidthAnchor.ConstraintEqualTo(24).Active = true;
+        icon.HeightAnchor.ConstraintEqualTo(24).Active = true;
+        content.SetContentHuggingPriority(250, UILayoutConstraintAxis.Horizontal);
+        var row = new UIStackView([icon, content])
+        {
+            Axis = UILayoutConstraintAxis.Horizontal,
+            Alignment = UIStackViewAlignment.Center,
+            Spacing = 12,
+        };
+        var canOpen = card.Activity == PlanActivityType.VocabularyReview
+            && !card.IsCompleted && _openQuiz is not null;
+        if (canOpen)
+        {
+            var chevron = new UIImageView(UIImage.GetSystemImage("chevron.right"))
+            {
+                TintColor = NativeVisualTheme.SecondaryText,
+                ContentMode = UIViewContentMode.ScaleAspectFit,
+                IsAccessibilityElement = false,
+            };
+            chevron.WidthAnchor.ConstraintEqualTo(14).Active = true;
+            chevron.HeightAnchor.ConstraintEqualTo(20).Active = true;
+            row.AddArrangedSubview(chevron);
+        }
+        var shell = Card(row, $"native.plan.card.container.{card.Id}");
+        var completedStatus = card.IsCompleted
+            ? content.ArrangedSubviews.OfType<UILabel>()
+                .FirstOrDefault(view => view.AccessibilityIdentifier
+                    == "native.plan.card.completed")?.Text
+                ?? LocalizationManager.Instance.GetString("PlanSummary_Completed")
+            : null;
+        var accessibilityLabel = NativeDashboardCardAccessibility.Label(
+            title, metadata, completedStatus);
+        if (canOpen)
+        {
+            var button = UIButton.FromType(UIButtonType.Custom);
+            button.AccessibilityIdentifier = $"{NativeAccess.PlanCard}.{card.Id}";
+            button.AccessibilityLabel = accessibilityLabel;
+            button.AccessibilityTraits = UIAccessibilityTrait.Button;
+            button.TranslatesAutoresizingMaskIntoConstraints = false;
+            button.TouchUpInside += (_, _) => _openQuiz?.Invoke(card.Id);
+            shell.AddSubview(button);
+            NSLayoutConstraint.ActivateConstraints(
+            [
+                button.TopAnchor.ConstraintEqualTo(shell.TopAnchor),
+                button.BottomAnchor.ConstraintEqualTo(shell.BottomAnchor),
+                button.LeadingAnchor.ConstraintEqualTo(shell.LeadingAnchor),
+                button.TrailingAnchor.ConstraintEqualTo(shell.TrailingAnchor),
+            ]);
+        }
+        else
+        {
+            shell.AccessibilityIdentifier = $"{NativeAccess.PlanCard}.{card.Id}";
+            shell.AccessibilityLabel = accessibilityLabel;
+            shell.AccessibilityTraits = UIAccessibilityTrait.StaticText;
+            shell.IsAccessibilityElement = true;
+        }
+        return shell;
+    }
+
     private UIView HostControl(SwiftView node, bool primary, bool decorate = true)
     {
         var id = node.AccessibilityIdentifier;
@@ -333,12 +598,24 @@ internal sealed class NativeVisualViewController : UIViewController
                 button.SetContentHuggingPriority(750, UILayoutConstraintAxis.Horizontal);
             var inline = !decorate
                 || id is "native.quiz.back" or "native.dashboard.refresh"
+                    or "native.plan.insight.toggle"
                 || id.StartsWith(NativeAccess.PlanCard + ".", StringComparison.Ordinal);
             button.BackgroundColor = inline ? UIColor.Clear
                 : primary ? NativeVisualTheme.Primary : NativeVisualTheme.Elevated;
             button.SetTitleColor(primary && !inline
                     ? NativeVisualTheme.OnPrimary : NativeVisualTheme.Primary,
                 UIControlState.Normal);
+            if (id == "native.dashboard.refresh")
+            {
+                button.Enabled = !_dashboardBusy;
+                button.AccessibilityLabel = node.Text;
+                button.SetTitle(null, UIControlState.Normal);
+                button.SetImage(UIImage.GetSystemImage("arrow.clockwise"),
+                    UIControlState.Normal);
+                button.TintColor = NativeVisualTheme.Text;
+                button.WidthAnchor.ConstraintEqualTo(
+                    NativeVisualTheme.ControlHeight).Active = true;
+            }
             button.TouchUpInside += (_, _) => node.InvokeAction();
             _hosted.Add((node, host));
             return button;
@@ -402,20 +679,30 @@ internal sealed class NativeVisualViewController : UIViewController
 
     private static void AddProgress(UIStackView parent, double amount, bool completed)
     {
-        parent.AddArrangedSubview(new UIProgressView(UIProgressViewStyle.Default)
+        var progress = new UIProgressView(UIProgressViewStyle.Default)
         {
             Progress = (float)Math.Clamp(amount, 0, 1),
             ProgressTintColor = completed ? NativeVisualTheme.Success
                 : NativeVisualTheme.Primary,
-            TrackTintColor = NativeVisualTheme.Border,
-        });
+            TrackTintColor = completed
+                ? NativeVisualTheme.Elevated : NativeVisualTheme.Border,
+            ClipsToBounds = true,
+        };
+        progress.Layer.CornerRadius = 3;
+        progress.HeightAnchor.ConstraintGreaterThanOrEqualTo(6).Active = true;
+        parent.AddArrangedSubview(progress);
     }
 
     private static UIFontTextStyle TextStyle(string? id) => id switch
     {
         NativeAccess.QuizQuestion => UIFontTextStyle.LargeTitle,
         "native.quiz.correct-answer" or "native.quiz.summary.title"
-            or "native.plan.progress.title" => UIFontTextStyle.Title2,
+            => UIFontTextStyle.Title2,
+        "native.plan.progress.title" => UIFontTextStyle.Headline,
+        "native.plan.progress.count" => UIFontTextStyle.Footnote,
+        "native.dashboard.vocab.title" => UIFontTextStyle.Title2,
+        "native.dashboard.vocab.total" or "native.dashboard.vocab.accuracy"
+            => UIFontTextStyle.Subheadline,
         var value when value?.EndsWith(".value", StringComparison.Ordinal) == true
             => UIFontTextStyle.Title2,
         var value when value?.EndsWith(".label", StringComparison.Ordinal) == true
@@ -482,4 +769,12 @@ internal sealed class NativeVisualViewController : UIViewController
             Clear();
         base.Dispose(disposing);
     }
+}
+#endif
+
+internal static class NativeDashboardCardAccessibility
+{
+    internal static string Label(string title, string metadata, string? completedStatus) =>
+        string.Join(". ", new[] { title, metadata, completedStatus }
+            .Where(part => !string.IsNullOrWhiteSpace(part)));
 }

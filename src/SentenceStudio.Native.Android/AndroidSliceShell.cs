@@ -15,6 +15,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
     private ComposeScrollState _dashboardScroll = null!;
     private ComposeScrollState _quizScroll = null!;
     private bool _insightExpanded;
+    private bool _dashboardMenuOpen;
     private AndroidServiceHost? _host;
     private IServiceScope? _scope;
     private NativeAuthPresenter? _auth;
@@ -106,6 +107,8 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
         {
             Remember.Value = false;
             ShowPassword.Value = false;
+            _insightExpanded = false;
+            _dashboardMenuOpen = false;
         });
 #if DEBUG
         if (_preview)
@@ -159,6 +162,8 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
         _dashboard = _scope.ServiceProvider.GetRequiredService<NativeDashboardPresenter>();
         _dashboard.StateChanged += OnDashboardChanged;
         _preview = true;
+        _insightExpanded = false;
+        _dashboardMenuOpen = false;
         Publish(() => Destination = NativeDestination.Dashboard);
         await _dashboard.LoadAsync(cancellationToken);
     });
@@ -183,6 +188,13 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
         if (_dashboard is null)
             throw new InvalidOperationException("Dashboard has not initialized.");
         await _dashboard.RefreshAsync(cancellationToken);
+    });
+
+    public void RegeneratePlan() => Execute(async cancellationToken =>
+    {
+        if (_dashboard is null)
+            throw new InvalidOperationException("Dashboard has not initialized.");
+        await _dashboard.RegenerateAsync(cancellationToken);
     });
 
     public void OpenQuiz(string planItemId) => Execute(async cancellationToken =>

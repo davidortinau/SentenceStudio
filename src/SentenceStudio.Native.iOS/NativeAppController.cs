@@ -4,9 +4,11 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.SwiftUI;
+using SentenceStudio.Abstractions;
 using SentenceStudio.Data;
 using SentenceStudio.Native.iOS.Features;
 using SentenceStudio.Native.iOS.Platform;
+using SentenceStudio.Services;
 using UIKit;
 using Views = Microsoft.SwiftUI.SwiftUI;
 
@@ -258,7 +260,6 @@ public sealed class NativeAppController : IDisposable
                     await _dashboard.RefreshAsync(_lifetime.Token)),
                 generate: () => Submit(async () => _dashboardState =
                     await _dashboard.GenerateAsync(_lifetime.Token)),
-                openQuiz: OpenQuiz,
                 insightExpanded: _insightExpanded,
                 toggleInsight: () => {
                     _insightExpanded = !_insightExpanded;
@@ -330,7 +331,14 @@ public sealed class NativeAppController : IDisposable
             _visualController ??= new NativeVisualViewController();
             if (_destination is NativeDestination.Dashboard or NativeDestination.TodaysPlan)
                 _visualController.Show(page, Text("Dashboard_Title"),
-                    dashboard: _dashboardState);
+                    dashboard: _dashboardState,
+                    openQuiz: OpenQuiz,
+                    regenerate: () => Submit(async () => _dashboardState =
+                        await _dashboard!.RegenerateAsync(_lifetime.Token)),
+                    signOut: () => Submit(SignOutAsync),
+                    insightExpanded: _insightExpanded,
+                    preview: _preview,
+                    busy: _busy);
             else
                 _visualController.Show(page, Text(NativeText.Quiz),
                     quiz: _quizState,
@@ -494,6 +502,41 @@ public sealed class NativeAppController : IDisposable
         _quiz?.Dispose();
         _quiz = null;
         _quizLaunch = null;
+    }
+
+    private async Task SignOutAsync()
+    {
+        if (_preview)
+        {
+#if DEBUG
+            var fixtureOwner = NativePreviewFixture.FromAssembly()?.Owner
+                ?? throw new InvalidOperationException("The Debug preview owner is unavailable.");
+            var preferences = _services!.Provider.GetRequiredService<IPreferencesService>();
+            var scope = _services.Provider.GetRequiredService<DeviceUserScopeProvider>();
+            if (preferences.Get(UserProfileRepository.ActiveProfileIdKey, string.Empty)
+                    != fixtureOwner
+                || !scope.TryGetUserProfileId(out var currentOwner)
+                || currentOwner != fixtureOwner)
+                throw new InvalidOperationException(
+                    "The Debug preview owner changed before leaving the preview.");
+            preferences.Remove(UserProfileRepository.ActiveProfileIdKey);
+            scope.SetActiveUser(null);
+#endif
+            _preview = false;
+            _auth ??= _services!.Provider.GetRequiredService<NativeAuthPresenter>();
+            _authState = new(NativePhase.Ready, NativeDestination.SignIn);
+        }
+        else
+        {
+            if (_auth is null)
+                throw new InvalidOperationException("Authentication has not initialized.");
+            _authState = await _auth.SignOutAsync(_lifetime.Token);
+        }
+
+        _authenticatedSample = false;
+        _insightExpanded = false;
+        _dashboardState = new(NativePhase.Idle);
+        _destination = NativeDestination.SignIn;
     }
 
     private SwiftView? CreateBanner()

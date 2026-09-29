@@ -27,18 +27,21 @@ internal sealed partial class AndroidSliceShell
                 .Semantics(semantics => semantics.TestTagsAsResourceId(true)),
         };
 #if DEBUG
-        if (_preview)
+        if (_preview && Destination is not (NativeDestination.Dashboard
+            or NativeDestination.TodaysPlan))
             content.Add(StatusAlert("Debug preview - isolated sample; not signed in.",
                 palette, automationId: "native.debug.preview.banner"));
 #endif
         content.Add(Destination switch
         {
-            NativeDestination.Dashboard or NativeDestination.TodaysPlan => RenderDashboard(composer, palette),
+            NativeDestination.Dashboard or NativeDestination.TodaysPlan => RenderDashboard(palette),
             NativeDestination.VocabularyQuiz or NativeDestination.QuizSummary => RenderQuiz(composer, palette),
             NativeDestination.Onboarding => RenderOnboardingNotice(palette),
             _ => RenderSignIn(palette),
         });
-        if (!string.IsNullOrWhiteSpace(Error.Value))
+        if (!string.IsNullOrWhiteSpace(Error.Value)
+            && Destination is not (NativeDestination.Dashboard
+                or NativeDestination.TodaysPlan))
             content.Add(StatusAlert(Error.Value, palette, error: true,
                 automationId: "native.shell.error"));
         var surface = new Surface
@@ -182,15 +185,10 @@ internal sealed partial class AndroidSliceShell
                     SignOut, !Busy.Value, primary: false)),
         };
 
-    private ComposableNode RenderDashboard(IComposer composer, AndroidVisualPalette palette)
+    private ComposableNode RenderDashboard(AndroidVisualPalette palette)
     {
         var state = Dashboard;
         var cards = state.Cards.IsDefault ? [] : state.Cards;
-        var exitLabel = Localize("Nav_Logout");
-#if DEBUG
-        if (_preview)
-            exitLabel = "Exit Debug preview";
-#endif
         var viewport = new Column(Arrangement.SpacedBy(8))
         {
             Modifier = Modifier.FillMaxWidth().Weight(1f)
@@ -198,9 +196,15 @@ internal sealed partial class AndroidSliceShell
                 .Padding(horizontal: AndroidVisualTheme.PagePadding, vertical: 16)
                 .TestTag(NativeAccess.Plan),
         };
-        if (state.PlanDate is { } date)
-            viewport.Add(Body(date.ToString("D", CultureInfo.CurrentCulture),
-                palette, secondary: true));
+#if DEBUG
+        if (_preview)
+            viewport.Add(StatusAlert("Debug preview - isolated sample; not signed in.",
+                palette, automationId: "native.debug.preview.banner"));
+#endif
+        if (!string.IsNullOrWhiteSpace(Error.Value))
+            viewport.Add(StatusAlert(Error.Value, palette, error: true,
+                automationId: "native.shell.error"));
+        viewport.Add(SelectedPlanMode(palette));
         if (state.HasPendingSync)
             viewport.Add(StatusAlert("Local changes have not synced yet.", palette));
         if (state.CurrentStreak > 0)
@@ -215,73 +219,18 @@ internal sealed partial class AndroidSliceShell
 
         if (state.Phase == NativePhase.Ready)
         {
-            var summaryRow = new Row(Arrangement.SpaceBetween,
-                Alignment.Vertical.CenterVertically)
-            {
-                Modifier = Modifier.FillMaxWidth(),
-            };
-            summaryRow.Add(Body(Localize("Dashboard_TodaysProgress"), palette));
-            summaryRow.Add(Body(string.Format(CultureInfo.CurrentCulture,
+            var counts = Body(string.Format(CultureInfo.CurrentCulture,
                 Localize("Dashboard_ProgressCounts"),
                 state.CompletedCount, state.TotalCount,
-                state.MinutesSpent, state.EstimatedTotalMinutes), palette, secondary: true));
-            viewport.Add(Card(palette, "native.plan.progress", summaryRow,
+                state.MinutesSpent, state.EstimatedTotalMinutes), palette, secondary: true);
+            counts.FontSize = new Sp(14);
+            viewport.Add(Card(palette, "native.plan.progress",
+                Heading(Localize("Dashboard_TodaysProgress"), palette, 17),
+                counts,
                 ProgressBar((float)(state.CompletionPercentage / 100),
-                    palette, state.CompletedCount == state.TotalCount)));
+                    palette, completed: true)));
             if (state.Narrative is { } narrative)
-            {
-                var insight = new List<ComposableNode>
-                {
-                    Action(Localize("Dashboard_TodaysInsight"),
-                        "native.plan.insight.toggle",
-                        () => Publish(() => _insightExpanded = !_insightExpanded),
-                        !Busy.Value, primary: false),
-                };
-                if (_insightExpanded)
-                {
-                    insight.Add(Body(narrative.Story, palette));
-                    foreach (var resource in narrative.Resources)
-                    {
-                        insight.Add(Body(resource.Title, palette));
-                        insight.Add(Body(resource.SelectionReason, palette, secondary: true));
-                    }
-                    if (narrative.VocabInsight is { } vocab)
-                    {
-                        insight.Add(Body(string.Join(" · ",
-                        [
-                            $"{vocab.NewCount} {Localize("Dashboard_InsightNew")}",
-                            $"{vocab.ReviewCount} {Localize("Dashboard_InsightReview")}",
-                            $"{vocab.TotalDue} {Localize("Dashboard_InsightTotalDue")}",
-                        ]), palette));
-                        if (vocab.AverageMastery > 0)
-                            insight.Add(Body(string.Format(CultureInfo.CurrentCulture,
-                                Localize("Dashboard_InsightMastery"),
-                                (vocab.AverageMastery * 100).ToString("F0",
-                                    CultureInfo.CurrentCulture)), palette, secondary: true));
-                        var struggling = vocab.StrugglingCategories
-                            .Where(tag => tag.TotalAttempts > 0 && tag.AverageAccuracy < 0.6f)
-                            .Select(tag => $"{tag.Tag} ({tag.AverageAccuracy:P0})").ToArray();
-                        if (struggling.Length > 0)
-                            insight.Add(Body($"{Localize("Dashboard_StrugglingWith")} " +
-                                string.Join(", ", struggling), palette, secondary: true));
-                        if (!string.IsNullOrWhiteSpace(vocab.PatternInsight))
-                            insight.Add(StatusAlert(vocab.PatternInsight, palette));
-                        if (vocab.SampleStrugglingWords.Count > 0)
-                            insight.Add(Body(string.Format(CultureInfo.CurrentCulture,
-                                Localize(struggling.Length > 0
-                                    ? "Dashboard_WordsToReview" : "Dashboard_WordsToDiscover"),
-                                string.Join(", ", vocab.SampleStrugglingWords)),
-                                palette, secondary: true));
-                    }
-                    if (narrative.FocusAreas.Count > 0)
-                    {
-                        insight.Add(Body(Localize("Dashboard_FocusAreas"), palette));
-                        foreach (var focus in narrative.FocusAreas)
-                            insight.Add(Body(focus, palette, secondary: true));
-                    }
-                }
-                viewport.Add(Card(palette, "native.plan.insight", insight.ToArray()));
-            }
+                viewport.Add(StudyInsight(narrative, palette));
             else if (!string.IsNullOrWhiteSpace(state.Rationale))
             {
                 var rationale = new List<ComposableNode>();
@@ -296,7 +245,7 @@ internal sealed partial class AndroidSliceShell
                     rationale.ToArray()));
             }
             foreach (var card in cards)
-                viewport.Add(RenderPlanCard(composer, card, palette));
+                viewport.Add(RenderPlanCard(card, palette));
         }
         else if (state.Phase == NativePhase.Empty)
         {
@@ -312,18 +261,226 @@ internal sealed partial class AndroidSliceShell
             viewport.Add(Body(Localize("Common_Loading"), palette, secondary: true,
                 modifier: Modifier.TestTag("native.dashboard.status")));
 
-        viewport.Add(Action(exitLabel, "native.auth.signout",
-            SignOut, !Busy.Value, primary: false));
+        if (state.VocabSummary is { } vocabulary)
+            AddVocabularySummary(viewport, vocabulary, palette);
+
         return new Column
         {
             Modifier.FillMaxSize().TestTag("native.dashboard.screen"),
-            ScreenHeader(Localize("Dashboard_Title"), palette, refresh: true),
+            DashboardAppBar(palette),
             viewport,
         };
     }
 
+    private ComposableNode SelectedPlanMode(AndroidVisualPalette palette)
+    {
+        var surface = new Surface
+        {
+            Modifier = Modifier.FillMaxWidth().Padding(bottom: 12)
+                .TestTag("native.dashboard.mode.today")
+                .Semantics(semantics =>
+                {
+                    semantics.ContentDescription(Localize(NativeText.Today));
+                    semantics.Selected(true);
+                }),
+            Shape = Shape.RoundedCorners(AndroidVisualTheme.ControlRadius),
+            Color = palette.Primary,
+            ContentColor = palette.OnPrimary,
+        };
+        surface.Add(new Row(Arrangement.SpacedBy(8),
+            Alignment.Vertical.CenterVertically)
+        {
+            Modifier.FillMaxWidth().HeightIn(min: AndroidVisualTheme.ControlHeight)
+                .Padding(horizontal: 16),
+            new Icon(Icons.Default.DateRange, Localize(NativeText.Today))
+            {
+                Modifier = Modifier.Size(20),
+                Tint = palette.OnPrimary,
+            },
+            new Text(Localize(NativeText.Today))
+            {
+                Color = palette.OnPrimary,
+                FontSize = new Sp(16),
+                FontWeight = FontWeight.Medium,
+            },
+        });
+        return surface;
+    }
+
+    private ComposableNode StudyInsight(
+        PlanNarrativeDto narrative, AndroidVisualPalette palette)
+    {
+        var expanded = _insightExpanded;
+        var label = Localize("Dashboard_TodaysInsight");
+        var header = new Row(Arrangement.SpaceBetween,
+            Alignment.Vertical.CenterVertically)
+        {
+            Modifier.FillMaxWidth().HeightIn(min: AndroidVisualTheme.ControlHeight)
+                .TestTag("native.plan.insight.toggle")
+                .Clickable(() => Publish(() => _insightExpanded = !_insightExpanded))
+                .Semantics(semantics =>
+                {
+                    semantics.ContentDescription(label);
+                    semantics.StateDescription(Localize(expanded
+                        ? "Dashboard_InsightExpanded" : "Dashboard_InsightCollapsed"));
+                    semantics.Role(SemanticsRole.Button);
+                }),
+            new Row(Arrangement.SpacedBy(10),
+                Alignment.Vertical.CenterVertically)
+            {
+                new Icon(Icons.Default.Info, label)
+                {
+                    Modifier = Modifier.Size(20),
+                    Tint = palette.Primary,
+                },
+                Body(label, palette),
+            },
+            new Icon(expanded
+                    ? Icons.Default.KeyboardArrowUp : Icons.Default.KeyboardArrowDown,
+                Localize(expanded
+                    ? "Dashboard_InsightExpanded" : "Dashboard_InsightCollapsed"))
+            {
+                Modifier = Modifier.Size(20).TestTag("native.plan.insight.chevron"),
+                Tint = palette.Text,
+            },
+        };
+        var content = new List<ComposableNode> { header };
+        if (expanded)
+        {
+            if (!string.IsNullOrWhiteSpace(narrative.Story))
+                content.Add(Body(narrative.Story, palette,
+                    modifier: Modifier.TestTag("native.plan.insight.story")));
+            foreach (var resource in narrative.Resources)
+            {
+                if (string.IsNullOrWhiteSpace(resource.Title))
+                    continue;
+                var resourceHeading = new Row(Arrangement.SpacedBy(8),
+                    Alignment.Vertical.CenterVertically)
+                {
+                    Modifier.FillMaxWidth(),
+                    new Icon(resource.MediaType.Contains("Video",
+                            StringComparison.OrdinalIgnoreCase)
+                            ? Icons.Default.PlayArrow : Icons.Default.Info,
+                        resource.MediaType)
+                    {
+                        Modifier = Modifier.Size(20),
+                        Tint = palette.Primary,
+                    },
+                    Heading(resource.Title, palette, 16),
+                };
+                content.Add(resourceHeading);
+                if (!string.IsNullOrWhiteSpace(resource.SelectionReason))
+                    content.Add(Body(resource.SelectionReason, palette, secondary: true));
+            }
+            if (narrative.VocabInsight is { } vocab)
+            {
+                content.Add(Body(string.Join("    ",
+                [
+                    $"{vocab.NewCount} {Localize("Dashboard_InsightNew")}",
+                    $"{vocab.ReviewCount} {Localize("Dashboard_InsightReview")}",
+                    $"{vocab.TotalDue} {Localize("Dashboard_InsightTotalDue")}",
+                ]), palette, modifier: Modifier.TestTag("native.plan.insight.vocab")));
+                if (vocab.AverageMastery > 0)
+                    content.Add(Body(string.Format(CultureInfo.CurrentCulture,
+                        Localize("Dashboard_InsightMastery"),
+                        (vocab.AverageMastery * 100).ToString("F0",
+                            CultureInfo.CurrentCulture)), palette));
+                var struggling = vocab.StrugglingCategories
+                    .Where(tag => tag.TotalAttempts > 0 && tag.AverageAccuracy < 0.6f)
+                    .Select(tag => $"{tag.Tag} ({tag.AverageAccuracy:P0})").ToArray();
+                if (struggling.Length > 0)
+                    content.Add(Body($"{Localize("Dashboard_StrugglingWith")} " +
+                        string.Join(", ", struggling), palette, secondary: true));
+                if (!string.IsNullOrWhiteSpace(vocab.PatternInsight))
+                    content.Add(StatusAlert(vocab.PatternInsight, palette));
+                if (vocab.SampleStrugglingWords.Count > 0)
+                    content.Add(Body(string.Format(CultureInfo.CurrentCulture,
+                        Localize(struggling.Length > 0
+                            ? "Dashboard_WordsToReview" : "Dashboard_WordsToDiscover"),
+                        string.Join(", ", vocab.SampleStrugglingWords)),
+                        palette, secondary: true));
+            }
+            if (narrative.FocusAreas.Count > 0)
+            {
+                content.Add(Heading(Localize("Dashboard_FocusAreas"), palette, 16));
+                foreach (var focus in narrative.FocusAreas)
+                    content.Add(Body($"\u2022 {focus}", palette));
+            }
+        }
+        return Card(palette, "native.plan.insight", content.ToArray());
+    }
+
+    private void AddVocabularySummary(
+        Column viewport, VocabProgressSummary summary, AndroidVisualPalette palette)
+    {
+        viewport.Add(Heading(Localize("Dashboard_VocabularyHeader"), palette, 22,
+            Modifier.FillMaxWidth().Padding(vertical: 12)
+                .TestTag("native.dashboard.vocab.title")));
+        viewport.Add(new Row(Arrangement.SpacedBy(12))
+        {
+            Modifier.FillMaxWidth(),
+            VocabularyTile(summary.New, "Dashboard_VocabNew", "new",
+                palette.Primary, palette),
+            VocabularyTile(summary.Learning, "Dashboard_VocabLearning", "learning",
+                palette.WarningText, palette),
+        });
+        viewport.Add(new Row(Arrangement.SpacedBy(12))
+        {
+            Modifier.FillMaxWidth(),
+            VocabularyTile(summary.Familiar, "Dashboard_VocabFamiliar", "familiar",
+                palette.Primary, palette),
+            VocabularyTile(summary.Review, "Dashboard_VocabReview", "review",
+                palette.WarningText, palette),
+        });
+        viewport.Add(new Row(Arrangement.SpacedBy(12))
+        {
+            Modifier.FillMaxWidth(),
+            VocabularyTile(summary.Known, "Dashboard_VocabKnown", "known",
+                palette.KnownText, palette),
+            new Box { Modifier.Weight(1f) },
+        });
+        var total = summary.New + summary.Learning + summary.Familiar
+            + summary.Review + summary.Known;
+        if (total > 0)
+            viewport.Add(Card(palette, "native.dashboard.vocab.summary",
+                Body($"{Localize("Dashboard_TotalWordsLabel")} " +
+                    total.ToString(CultureInfo.CurrentCulture), palette),
+                Body($"{Localize("Dashboard_WeeklyAccuracyLabel")} " +
+                    $"{Math.Round(summary.SuccessRate7d * 100).ToString(CultureInfo.CurrentCulture)}%",
+                    palette, secondary: true)));
+    }
+
+    private ComposableNode VocabularyTile(
+        int count, string labelKey, string name, Color numberColor,
+        AndroidVisualPalette palette)
+    {
+        var label = Localize(labelKey);
+        var number = Heading(count.ToString(CultureInfo.CurrentCulture), palette, 24);
+        number.Color = numberColor;
+        number.Align = TextAlign.Center;
+        var caption = Body(label, palette, secondary: true);
+        caption.Align = TextAlign.Center;
+        var tile = new Surface
+        {
+            Modifier = Modifier.Weight(1f).HeightIn(min: 88)
+                .TestTag($"native.dashboard.vocab.stat.{name}")
+                .Semantics(semantics =>
+                    semantics.ContentDescription($"{count} {label}")),
+            Shape = Shape.RoundedCorners(AndroidVisualTheme.CardRadius),
+            Color = palette.Card,
+        };
+        tile.Add(new Column(Arrangement.SpacedBy(4),
+            Alignment.Horizontal.CenterHorizontally)
+        {
+            Modifier.FillMaxWidth().Padding(12),
+            number,
+            caption,
+        });
+        return tile;
+    }
+
     private ComposableNode RenderPlanCard(
-        IComposer composer, NativePlanCard card, AndroidVisualPalette palette)
+        NativePlanCard card, AndroidVisualPalette palette)
     {
         var title = card.TitleKey is null ? card.Title : Localize(card.TitleKey);
         var minutes = card.MinutesSpent > 0
@@ -332,67 +489,75 @@ internal sealed partial class AndroidSliceShell
             : string.Format(CultureInfo.CurrentCulture, Localize("Dashboard_EstimateMinutes"),
                 card.EstimatedMinutes);
         var metadata = card.ResourceTitle is { Length: > 0 }
-            ? $"{card.ResourceTitle} - {minutes}" : minutes;
+            ? $"{card.ResourceTitle} \u00b7 {minutes}" : minutes;
         if (card.VocabDueCount > 0)
-            metadata += " - " + string.Format(CultureInfo.CurrentCulture,
+            metadata += " \u00b7 " + string.Format(CultureInfo.CurrentCulture,
                 Localize("Dashboard_VocabDueCount"), card.VocabDueCount.Value);
         var label = card.IsCompleted
             ? $"{title}. {Localize("PlanSummary_Completed")}. {metadata}"
             : $"{title}. {metadata}";
-        var children = new List<ComposableNode>
+        var canOpen = card.Activity == PlanActivityType.VocabularyReview
+            && !card.IsCompleted;
+        var modifier = Modifier.FillMaxWidth().Padding(bottom: 8)
+            .TestTag($"{card.AccessibilityId}.{card.Id}");
+        if (canOpen && !Busy.Value)
+            modifier = modifier.Clickable(() => OpenQuiz(card.Id))
+                .Semantics(semantics =>
+                {
+                    semantics.ContentDescription(label);
+                    semantics.Role(SemanticsRole.Button);
+                });
+        else
+            modifier = modifier.Semantics(semantics => semantics.ContentDescription(label));
+
+        var icon = card.IsCompleted ? Icons.Default.CheckCircle
+            : card.Activity switch
+            {
+                PlanActivityType.VocabularyReview => Icons.Default.Check,
+                PlanActivityType.Listening or PlanActivityType.Shadowing
+                    or PlanActivityType.VideoWatching => Icons.Default.PlayArrow,
+                PlanActivityType.Writing or PlanActivityType.Translation => Icons.Default.Edit,
+                PlanActivityType.Reading => Icons.Default.Info,
+                _ => Icons.Default.DateRange,
+            };
+        var details = new Column(Arrangement.SpacedBy(3))
         {
+            Modifier.Weight(1f),
             Heading(title, palette, 17),
             Body(metadata, palette, secondary: true),
         };
         if (card.IsCompleted)
-        {
-            children.Add(Body(Localize("PlanSummary_Completed"), palette));
-            children.Add(ProgressBar(1, palette, completed: true));
-        }
+            details.Add(Body(Localize("PlanSummary_Completed"), palette));
         else if (card.MinutesSpent > 0 && card.EstimatedMinutes > 0)
-            children.Add(ProgressBar(
+            details.Add(ProgressBar(
                 (float)card.MinutesSpent / card.EstimatedMinutes, palette));
-        if (card.Activity == PlanActivityType.VocabularyReview && !card.IsCompleted)
+        var content = new Row(Arrangement.SpacedBy(12),
+            Alignment.Vertical.CenterVertically)
         {
-            var button = new AndroidX.Compose.Button(
-                () => OpenQuiz(card.Id), enabled: !Busy.Value)
+            Modifier.FillMaxWidth().HeightIn(min: 76)
+                .Padding(AndroidVisualTheme.CardPadding)
+                .Alpha(card.IsCompleted ? 0.75f : 1f),
+            new Icon(icon, title)
             {
-                Modifier = Modifier.FillMaxWidth().Padding(bottom: 12)
-                    .HeightIn(min: AndroidVisualTheme.ControlHeight)
-                    .TestTag($"{card.AccessibilityId}.{card.Id}")
-                    .Semantics(semantics => semantics.ContentDescription(label)),
-                Shape = Shape.RoundedCorners(AndroidVisualTheme.CardRadius),
-                Colors = composer.ButtonColors(
-                    containerColor: palette.Card, contentColor: palette.Text,
-                    disabledContainerColor: palette.Card,
-                    disabledContentColor: palette.Text),
-            };
-            var inner = new Column(Arrangement.SpacedBy(8))
+                Modifier = Modifier.Size(24),
+                Tint = card.IsCompleted ? palette.Success : palette.Primary,
+            },
+            details,
+        };
+        if (canOpen)
+            content.Add(new Icon(Icons.AutoMirrored.Default.KeyboardArrowRight, title)
             {
-                Modifier = Modifier.FillMaxWidth().Padding(4),
-            };
-            foreach (var child in children)
-                inner.Add(child);
-            button.Add(inner);
-            return button;
-        }
-        var cardSurface = new Surface
+                Modifier = Modifier.Size(20),
+                Tint = palette.SecondaryText,
+            });
+        var surface = new Surface
         {
-            Modifier = Modifier.FillMaxWidth().Padding(bottom: 12)
-                .TestTag($"{card.AccessibilityId}.{card.Id}")
-                .Semantics(semantics => semantics.ContentDescription(
-                    label)),
+            Modifier = modifier,
             Shape = Shape.RoundedCorners(AndroidVisualTheme.CardRadius),
             Color = palette.Card,
         };
-        var content = new Column(Arrangement.SpacedBy(8))
-        {
-            Modifier = Modifier.FillMaxWidth().Padding(AndroidVisualTheme.CardPadding),
-        };
-        foreach (var child in children)
-            content.Add(child);
-        cardSurface.Add(content);
-        return cardSurface;
+        surface.Add(content);
+        return surface;
     }
 
     private ComposableNode RenderQuiz(IComposer composer, AndroidVisualPalette palette)

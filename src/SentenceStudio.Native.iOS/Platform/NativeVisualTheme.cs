@@ -21,6 +21,9 @@ internal static class NativeVisualTheme
     internal static readonly UIColor Background = Dynamic(dark =>
         ThemeCatalog.Default.PaletteFor(dark ? ThemeMode.Dark : ThemeMode.Light).Surface);
 
+    internal static readonly UIColor Header = Dynamic(dark =>
+        SrgbColor.Parse(dark ? "#0C1222" : "#FFFFFF"));
+
     internal static readonly UIColor Text = Dynamic(dark =>
         SrgbColor.Parse(dark ? "#F8FAFF" : "#0B0D12"));
 
@@ -38,6 +41,12 @@ internal static class NativeVisualTheme
 
     internal static readonly UIColor Success = Dynamic(_ =>
         SrgbColor.Parse("#12B886"));
+
+    internal static readonly UIColor WarningText = Dynamic(dark =>
+        SrgbColor.Parse(dark ? "#FFD77A" : "#855900"));
+
+    internal static readonly UIColor KnownText = Dynamic(dark =>
+        SrgbColor.Parse(dark ? "#63DCAA" : "#136F52"));
 
     internal static readonly UIColor Danger = Dynamic(_ =>
         SrgbColor.Parse("#E13B30"));

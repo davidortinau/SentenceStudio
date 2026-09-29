@@ -17,7 +17,9 @@ internal sealed record AndroidVisualPalette(
     Color Border,
     Color Success,
     Color Danger,
-    Color DangerSurface);
+    Color DangerSurface,
+    Color WarningText,
+    Color KnownText);
 
 internal static class AndroidVisualTheme
 {
@@ -44,7 +46,9 @@ internal static class AndroidVisualTheme
             Color.FromHex(dark ? "#263457" : "#D6DAF0"),
             Color.FromHex("#12B886"),
             Color.FromHex("#E13B30"),
-            Color.FromHex(dark ? "#401C27" : "#FFF0EF"));
+            Color.FromHex(dark ? "#401C27" : "#FFF0EF"),
+            Color.FromHex(dark ? "#FFD77A" : "#855900"),
+            Color.FromHex(dark ? "#63DCAA" : "#136F52"));
     }
 
     private static readonly AndroidVisualPalette Light = Create(false);

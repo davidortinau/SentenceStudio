@@ -2257,6 +2257,14 @@
     <value>오늘의 학습 인사이트</value>
     <comment>Dashboard: insight panel header</comment>
   </data>
+  <data name="Dashboard_InsightCollapsed" xml:space="preserve">
+    <value>접힘</value>
+    <comment>Dashboard: study insight accessibility state</comment>
+  </data>
+  <data name="Dashboard_InsightExpanded" xml:space="preserve">
+    <value>펼침</value>
+    <comment>Dashboard: study insight accessibility state</comment>
+  </data>
   <data name="Dashboard_InsightNew" xml:space="preserve">
     <value>신규</value>
     <comment>Dashboard: insight new count label</comment>

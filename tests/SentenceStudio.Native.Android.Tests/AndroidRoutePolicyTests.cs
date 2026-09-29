@@ -6,6 +6,18 @@ namespace SentenceStudio.Native.Android.Tests;
 public sealed class AndroidRoutePolicyTests
 {
     [Fact]
+    public void SingleRealTopLevelDestination_DoesNotRenderBottomTabs()
+    {
+        Assert.Equal(NativeDestination.Dashboard,
+            Assert.Single(AndroidRoutePolicy.TopLevelDestinations));
+        Assert.False(AndroidRoutePolicy.UsesBottomTabs);
+        Assert.DoesNotContain(NativeDestination.TodaysPlan,
+            AndroidRoutePolicy.TopLevelDestinations);
+        Assert.DoesNotContain(NativeDestination.VocabularyQuiz,
+            AndroidRoutePolicy.TopLevelDestinations);
+    }
+
+    [Fact]
     public void OnlyReadyAuthenticatedDashboardOpensPlan()
     {
         Assert.Equal(NativeDestination.Dashboard,

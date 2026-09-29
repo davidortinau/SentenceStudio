@@ -137,6 +137,73 @@ internal sealed partial class AndroidSliceShell
         return row;
     }
 
+    private ComposableNode DashboardAppBar(AndroidVisualPalette palette)
+    {
+        var refresh = new IconButton(RefreshPlan, enabled: !Busy.Value)
+        {
+            Modifier = Modifier.TestTag("native.dashboard.refresh")
+                .Semantics(semantics => semantics.ContentDescription(
+                    Localize("Common_Refresh"))),
+        };
+        refresh.Add(new Icon(Icons.Default.Refresh, Localize("Common_Refresh"))
+        {
+            Modifier = Modifier.Size(24),
+            Tint = palette.Text,
+        });
+        var overflow = new IconButton(
+            () => Publish(() => _dashboardMenuOpen = true), enabled: !Busy.Value)
+        {
+            Modifier = Modifier.TestTag("native.dashboard.menu")
+                .Semantics(semantics => semantics.ContentDescription(Localize("More"))),
+        };
+        overflow.Add(new Icon(Icons.Default.MoreVert, Localize("More"))
+        {
+            Modifier = Modifier.Size(24),
+            Tint = palette.Text,
+        });
+        var menu = new DropdownMenu(
+            expanded: _dashboardMenuOpen,
+            onDismissRequest: () => Publish(() => _dashboardMenuOpen = false));
+        if (Dashboard.Phase == NativePhase.Ready)
+            menu.Add(new DropdownMenuItem(
+                text: new Text(Localize(NativeText.Regenerate)),
+                onClick: () =>
+                {
+                    Publish(() => _dashboardMenuOpen = false);
+                    RegeneratePlan();
+                })
+            {
+                Modifier = Modifier.TestTag("native.dashboard.menu.regenerate"),
+            });
+        var signOutLabel = Localize("Nav_Logout");
+#if DEBUG
+        if (_preview)
+            signOutLabel = "Exit Debug preview";
+#endif
+        menu.Add(new DropdownMenuItem(
+            text: new Text(signOutLabel),
+            onClick: () =>
+            {
+                Publish(() => _dashboardMenuOpen = false);
+                SignOut();
+            })
+        {
+            Modifier = Modifier.TestTag("native.dashboard.menu.signout"),
+        });
+        return new TopAppBar
+        {
+            Modifier = Modifier.FillMaxWidth().TestTag("native.dashboard.appbar"),
+            Title = Heading(Localize("Dashboard_Title"), palette, 20,
+                Modifier.Semantics(semantics => semantics.Heading())),
+            Actions = new Row(Arrangement.SpacedBy(4),
+                Alignment.Vertical.CenterVertically)
+            {
+                refresh,
+                new Box { overflow, menu },
+            },
+        };
+    }
+
     private static ComposableNode ProgressBar(float progress,
         AndroidVisualPalette palette, bool completed = false) =>
         new LinearProgressIndicator
@@ -144,8 +211,10 @@ internal sealed partial class AndroidSliceShell
             Modifier = Modifier.FillMaxWidth().Height(8)
                 .Clip(4),
             Progress = Math.Clamp(progress, 0f, 1f),
-            Color = completed ? palette.Success : palette.Primary,
-            TrackColor = palette.Border,
+            Color = progress <= 0f
+                ? completed ? palette.Elevated : palette.Border
+                : completed ? palette.Success : palette.Primary,
+            TrackColor = completed ? palette.Elevated : palette.Border,
         };
 
     private static ComposableNode SummaryStatistic(

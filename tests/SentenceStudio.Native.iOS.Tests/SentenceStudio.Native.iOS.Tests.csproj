@@ -5,6 +5,7 @@
     <IsPackable>false</IsPackable>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <DefineConstants>$(DefineConstants);NATIVE_DASHBOARD_LABEL_TEST</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
@@ -22,6 +23,10 @@
              Link="NativeApiEndpoint.cs" />
     <Compile Include="../../src/SentenceStudio.Native.iOS/Platform/NativeProfileAuthService.cs"
              Link="NativeProfileAuthService.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.iOS/Features/IosDashboardNavigation.cs"
+             Link="IosDashboardNavigation.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.iOS/Platform/NativeVisualViewController.cs"
+             Link="NativeVisualViewController.cs" />
     <Compile Include="../../src/SentenceStudio.Native.iOS/Platform/NativePreviewFixture.cs"
              Link="NativePreviewFixture.cs" Condition="'$(Configuration)' == 'Debug'" />
     <Compile Include="../SentenceStudio.Native.Tests/NativeSliceFixture.cs"
