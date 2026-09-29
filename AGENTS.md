@@ -17,14 +17,19 @@ SentenceStudio is moving from .NET MAUI Blazor Hybrid native clients to:
 - **Web:** the existing Blazor WebApp remains supported.
 
 The native platform heads use platform-native UI stacks. New native code must
-not depend directly or transitively on:
+not depend directly or transitively on the MAUI UI stack:
 
-- `Microsoft.Maui.*`
-- `Microsoft.Maui.Controls`
+- `Microsoft.Maui.Controls*`, XAML, Shell, MAUI handlers/layouts, or MAUI UI hosting
 - MauiReactor / Reactor.Maui
 - MAUI Community Toolkit UI
 - MAUI BlazorWebView
 - Comet
+
+`Microsoft.Maui.Essentials` and other non-UI `Microsoft.Maui.*` packages are
+permitted for native platform services after reviewing their function, target
+platform support, and transitive dependency closure. Reject packages that bring
+in `Microsoft.Maui.Controls*` or other MAUI UI dependencies; do not write
+unnecessary custom platform services solely to avoid the package-name prefix.
 
 Windows and Linux native heads are out of scope until Captain explicitly adds
 them.
@@ -611,7 +616,9 @@ Before commit:
 
 - current phase and slice are explicit;
 - change is required by a current acceptance case;
-- active code contains no new MAUI/MauiReactor/Comet dependency;
+- native code contains no new MAUI Controls/UI-stack, MauiReactor, or Comet
+  dependency; any non-UI `Microsoft.Maui.*` use has a reviewed function and
+  transitive dependency closure;
 - owner scoping fails closed;
 - data-preservation rules are respected;
 - tests cover recurring defects and public API changes;
