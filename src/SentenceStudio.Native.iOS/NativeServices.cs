@@ -11,6 +11,7 @@ using SentenceStudio.Services.PlanGeneration;
 using SentenceStudio.Services.Plans;
 using SentenceStudio.Services.Progress;
 using SentenceStudio.Shared.Models.DailyPlanGeneration;
+using SentenceStudio;
 
 namespace SentenceStudio.Native.iOS;
 
@@ -50,7 +51,8 @@ public sealed class NativeServices : IDisposable
         services.AddSingleton<ISecureStorageService, NativeKeychain>();
         services.AddSingleton<IConnectivityService, NativeConnectivity>();
         services.AddSingleton<IFileSystemService, NativeFileSystem>();
-        services.AddSingleton<ISyncService, NoOpSyncService>();
+        if (endpoint is null)
+            services.AddSingleton<ISyncService, NoOpSyncService>();
         services.AddSingleton<DeviceUserScopeProvider>();
         services.AddSingleton<IUserScopeProvider>(sp =>
             sp.GetRequiredService<DeviceUserScopeProvider>());
@@ -84,6 +86,9 @@ public sealed class NativeServices : IDisposable
 
         if (endpoint is not null)
         {
+            services.AddTransient<AuthenticatedHttpMessageHandler>();
+            services.AddSyncServices(database, endpoint, downloadOnlyProfile: true);
+            services.AddSingleton<ISyncService, SyncService>();
             services.AddHttpClient("AuthClient", client =>
             {
                 client.BaseAddress = endpoint;
@@ -97,10 +102,11 @@ public sealed class NativeServices : IDisposable
                     sp.GetRequiredService<IPreferencesService>(),
                     sp.GetRequiredService<ILogger<IdentityAuthService>>()));
             services.AddSingleton<IAuthService, NativeProfileAuthService>();
-            services.AddSingleton<INativeSyncReadiness, NativeApiSyncReadiness>();
         }
 
         services.AddSentenceStudioNativeSlice();
+        if (endpoint is not null)
+            services.AddOwnerBoundNativeSyncReadiness();
         return new NativeServices(services.BuildServiceProvider(validateScopes: true), database);
     }
 

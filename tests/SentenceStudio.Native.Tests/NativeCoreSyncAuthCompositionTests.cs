@@ -1,6 +1,8 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Security.Claims;
+using CoreSync;
+using CoreSync.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using SentenceStudio;
 using SentenceStudio.Abstractions;
@@ -16,6 +18,22 @@ public sealed class NativeCoreSyncAuthCompositionTests
 {
     private const string Owner = "native-owner-a";
     private const string OtherOwner = "native-owner-b";
+
+    [Fact]
+    public void NativeProfileIsDownloadedWithoutUploadingItsBootstrapCopy()
+    {
+        var native = new SqliteSyncConfigurationBuilder("Data Source=native.sqlite")
+            .ConfigureSyncTables(downloadOnlyProfile: true).Build();
+        var existing = new SqliteSyncConfigurationBuilder("Data Source=existing.sqlite")
+            .ConfigureSyncTables().Build();
+
+        Assert.Equal(SyncDirection.DownloadOnly,
+            Assert.Single(native.Tables, table => table.Name == "UserProfile").SyncDirection);
+        Assert.Equal(SyncDirection.UploadAndDownload,
+            Assert.Single(existing.Tables, table => table.Name == "UserProfile").SyncDirection);
+        Assert.Equal(existing.Tables.Select(table => table.Name),
+            native.Tables.Select(table => table.Name));
+    }
 
     [Fact]
     public async Task NormalCoreSyncRegistration_ResolvesRealReadinessAndSendsOwnerBearer()
@@ -34,6 +52,7 @@ public sealed class NativeCoreSyncAuthCompositionTests
         Assert.Equal(1, scenario.Server.Calls);
         Assert.Equal("Bearer", scenario.Server.AuthorizationScheme);
         Assert.Equal(scenario.Auth.Token, scenario.Server.AuthorizationToken);
+        Assert.Equal(Owner, scenario.Server.NativeOwnerHeader);
     }
 
     [Fact]
@@ -54,6 +73,7 @@ public sealed class NativeCoreSyncAuthCompositionTests
 
         Assert.Equal(1, scenario.Server.Calls);
         Assert.Equal(scenario.Auth.Token, scenario.Server.AuthorizationToken);
+        Assert.Equal(Owner, scenario.Server.NativeOwnerHeader);
         Assert.Null(scenario.Scope.CaptureStamp().PublishedOwner);
         Assert.False(scenario.Scope.TryGetUserProfileId(out _));
     }
@@ -203,7 +223,7 @@ public sealed class NativeCoreSyncAuthCompositionTests
             services.AddSingleton<IConnectivityService>(new OnlineConnectivity());
             services.AddSyncServices(
                 Path.Combine(Path.GetTempPath(), $"native-auth-{Guid.NewGuid():N}.sqlite"),
-                new Uri("https://api.example.invalid/"));
+                new Uri("https://api.example.invalid/"), downloadOnlyProfile: true);
             services.AddSingleton<ISyncService, SyncService>();
             services.AddOwnerBoundNativeSyncReadiness();
             services.AddHttpClient("HttpClientToServer")
@@ -277,6 +297,7 @@ public sealed class NativeCoreSyncAuthCompositionTests
         public int Calls { get; private set; }
         public string? AuthorizationScheme { get; private set; }
         public string? AuthorizationToken { get; private set; }
+        public string? NativeOwnerHeader { get; private set; }
 
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request, CancellationToken cancellationToken)
@@ -284,6 +305,9 @@ public sealed class NativeCoreSyncAuthCompositionTests
             Calls++;
             AuthorizationScheme = request.Headers.Authorization?.Scheme;
             AuthorizationToken = request.Headers.Authorization?.Parameter;
+            NativeOwnerHeader = request.Headers.TryGetValues(
+                SharedSyncRegistration.NativeOwnerHeader, out var values)
+                ? values.SingleOrDefault() : null;
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK));
         }
     }

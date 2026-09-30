@@ -30,6 +30,8 @@ public sealed class SceneDelegate : UIResponder, IUIWindowSceneDelegate
             RootViewController = _hostingController
         };
         Window.MakeKeyAndVisible();
+        Microsoft.Maui.ApplicationModel.Platform.Init(() => Window?.RootViewController
+            ?? throw new InvalidOperationException("The iOS root controller is not available."));
 #if AILOHA_DEBUG
         AilohaDebug.Start();
 #endif

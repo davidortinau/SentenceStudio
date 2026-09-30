@@ -11,6 +11,7 @@
     <ApplicationId Condition="'$(Configuration)' != 'Debug'">com.simplyprofound.sentencestudio.native.preview</ApplicationId>
     <SupportedOSPlatformVersion>26.0</SupportedOSPlatformVersion>
     <UseInterpreter>true</UseInterpreter>
+    <UseMauiEssentials>true</UseMauiEssentials>
   </PropertyGroup>
 
   <ItemGroup Condition="'$(NativeApiBaseUrl)' != ''">
@@ -54,6 +55,7 @@
   <ItemGroup>
     <PackageVersion Include="Microsoft.SwiftUI" Version="0.1.0-preview.3" />
     <PackageReference Include="Microsoft.SwiftUI" />
+    <PackageReference Include="Microsoft.Maui.Essentials" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
     <PackageReference Include="Microsoft.Extensions.Http" />
     <PackageReference Include="Microsoft.Extensions.Logging.Console" />

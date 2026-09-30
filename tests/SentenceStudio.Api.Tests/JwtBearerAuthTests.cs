@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using SentenceStudio;
 using SentenceStudio.Api.Tests.Infrastructure;
 using SentenceStudio.Contracts.Auth;
 
@@ -100,6 +101,25 @@ public class JwtBearerAuthTests : IClassFixture<JwtBearerApiFactory>
 
         response.StatusCode.Should().Be(HttpStatusCode.OK,
             "CoreSync should accept the same JWTs the API accepts");
+    }
+
+    [Fact]
+    public async Task CoreSync_NativeOwnerHeaderMustMatchTheBearerClaim()
+    {
+        var owner = Guid.NewGuid().ToString();
+        var token = TestJwtGenerator.GenerateToken(userProfileId: owner);
+
+        using var wrongOwner = new HttpRequestMessage(HttpMethod.Get, CoreSyncStoreIdPath);
+        wrongOwner.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        wrongOwner.Headers.Add(SharedSyncRegistration.NativeOwnerHeader, Guid.NewGuid().ToString());
+        using var refused = await _client.SendAsync(wrongOwner);
+        refused.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        using var rightOwner = new HttpRequestMessage(HttpMethod.Get, CoreSyncStoreIdPath);
+        rightOwner.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        rightOwner.Headers.Add(SharedSyncRegistration.NativeOwnerHeader, owner);
+        using var accepted = await _client.SendAsync(rightOwner);
+        accepted.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [Fact]

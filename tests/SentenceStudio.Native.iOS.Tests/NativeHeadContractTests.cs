@@ -39,15 +39,21 @@ public sealed class NativeHeadContractTests
                 == "../SentenceStudio.Shared/SentenceStudio.Shared.csproj");
         Assert.Contains(project.Descendants("PackageReference"),
             reference => reference.Attribute("Include")?.Value == "Microsoft.SwiftUI");
+        Assert.Contains(project.Descendants("PackageReference"),
+            reference => reference.Attribute("Include")?.Value == "Microsoft.Maui.Essentials");
+        Assert.Equal("true", project.Descendants("UseMauiEssentials").Single().Value);
         Assert.Equal("0.1.0-preview.3", project.Descendants("PackageVersion")
             .Single(item => item.Attribute("Include")?.Value == "Microsoft.SwiftUI")
             .Attribute("Version")?.Value);
         Assert.DoesNotContain(project.Descendants("PackageReference"), reference =>
-            (reference.Attribute("Include")?.Value ?? string.Empty).Contains(
-                "Maui", StringComparison.OrdinalIgnoreCase));
-        Assert.DoesNotContain(project.Descendants("PackageReference"), reference =>
-            (reference.Attribute("Include")?.Value ?? string.Empty).Contains(
-                "Comet", StringComparison.OrdinalIgnoreCase));
+        {
+            var packageId = reference.Attribute("Include")?.Value ?? string.Empty;
+            return packageId.StartsWith("Microsoft.Maui.Controls", StringComparison.OrdinalIgnoreCase)
+                || packageId.Contains("MauiReactor", StringComparison.OrdinalIgnoreCase)
+                || packageId.Contains("Reactor.Maui", StringComparison.OrdinalIgnoreCase)
+                || packageId.Contains("BlazorWebView", StringComparison.OrdinalIgnoreCase)
+                || packageId.Contains("Comet", StringComparison.OrdinalIgnoreCase);
+        });
         Assert.DoesNotContain(project.Descendants("ProjectReference"), reference =>
             (reference.Attribute("Include")?.Value ?? string.Empty).Contains(
                 "MauiCompatibility", StringComparison.OrdinalIgnoreCase));
@@ -58,6 +64,44 @@ public sealed class NativeHeadContractTests
             id.Attribute("Condition")?.Value.Contains("NativePreviewSurface",
                 StringComparison.Ordinal) == true
             && id.Value.EndsWith(".fixture", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void NativePreferences_UsesEssentialsWithoutChangingCredentialNamespaceOrAllowingBulkClear()
+    {
+        var preferences = File.ReadAllText(Path.Combine(
+            HeadPath, "Platform", "NativePreferences.cs"));
+        Assert.Contains("Preferences.Default.Get(key, defaultValue)", preferences);
+        Assert.Contains("Preferences.Default.Set(key, value)", preferences);
+        Assert.Contains("Preferences.Default.Remove(key)", preferences);
+        Assert.DoesNotContain("Preferences.Default.Clear(", preferences);
+
+        var scene = File.ReadAllText(Path.Combine(HeadPath, "SceneDelegate.cs"));
+        Assert.Contains("Platform.Init(() => Window?.RootViewController", scene);
+        Assert.True(scene.IndexOf("Platform.Init(", StringComparison.Ordinal)
+            < scene.IndexOf("_app.Start()", StringComparison.Ordinal));
+
+        var services = File.ReadAllText(Path.Combine(HeadPath, "NativeServices.cs"));
+        Assert.Contains("services.AddSingleton<IPreferencesService, NativePreferences>();", services);
+        Assert.Contains("services.AddSingleton<ISecureStorageService, NativeKeychain>();", services);
+        Assert.Contains("new IdentityAuthService(", services);
+        Assert.Contains("services.AddSingleton<IAuthService, NativeProfileAuthService>();", services);
+    }
+
+    [Fact]
+    public void CanonicalHead_UsesExistingCoreSyncAndGeneratesMissingPlanAfterOwnerBoundRestore()
+    {
+        var services = File.ReadAllText(Path.Combine(HeadPath, "NativeServices.cs"));
+        var controller = File.ReadAllText(Path.Combine(HeadPath, "NativeAppController.cs"));
+
+        Assert.Contains("services.AddSyncServices(database, endpoint, downloadOnlyProfile: true)", services);
+        Assert.Contains("services.AddSingleton<ISyncService, SyncService>();", services);
+        Assert.Contains("services.AddOwnerBoundNativeSyncReadiness();", services);
+        Assert.DoesNotContain("services.AddSingleton<INativeSyncReadiness, NativeApiSyncReadiness>();",
+            services);
+        Assert.Contains("await _dashboard.GenerateAsync(_lifetime.Token)", controller);
+        Assert.Contains("await _dashboard.RefreshAsync(_lifetime.Token)", controller);
+        Assert.Contains("services.AddSingleton<IAuthService, NativeProfileAuthService>();", services);
     }
 
     [Fact]

@@ -131,8 +131,10 @@ public sealed class AppHostMigrationStartupOrderTests
 
         api.Should().Contain("builder.AddNpgsqlDbContext<ApplicationDbContext>(\"sentencestudio\"")
             .And.Contain("builder.Services.AddDbContext<SentenceStudio.Api.Coach.Persistence.CoachDbContext>(options =>")
-            .And.Contain("builder.Services.AddSingleton<ISyncProvider>(sp =>")
+            .And.Contain("builder.Services.AddSingleton<PostgreSQLSyncProvider>(sp =>")
             .And.Contain("return new PostgreSQLSyncProvider(configurationBuilder.Build(), ProviderMode.Remote);")
+            .And.Contain("builder.Services.AddSingleton<ISyncProvider, NativeOwnerSyncProvider>();")
+            .And.Contain("app.Services.GetRequiredService<PostgreSQLSyncProvider>()")
             .And.Contain("var contexts = new StartupDbContextFactory(startupLock);");
         feedback.Should().Contain("services.AddDbContext<FeedbackDbContext>(options =>")
             .And.Contain("services.AddHostedService<FeedbackRetentionBackgroundService>();");

@@ -158,6 +158,8 @@ public sealed class OwnerBoundNativeSyncBearerHandler(
             throw new UnauthorizedAccessException("Native sync owner changed before sending.");
 
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        request.Headers.Remove(SharedSyncRegistration.NativeOwnerHeader);
+        request.Headers.Add(SharedSyncRegistration.NativeOwnerHeader, owner);
         return await base.SendAsync(request, cancellationToken);
     }
 

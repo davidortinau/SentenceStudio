@@ -232,7 +232,11 @@ public sealed class NativeAppController : IDisposable
             }
 #endif
             if (_dashboard is not null)
-                _dashboardState = await _dashboard.LoadAsync(_lifetime.Token);
+            {
+                _dashboardState = await _dashboard.GenerateAsync(_lifetime.Token);
+                if (_dashboardState is { Phase: NativePhase.Ready, HasPendingSync: true })
+                    _dashboardState = await _dashboard.RefreshAsync(_lifetime.Token);
+            }
         }
         else if (_authState.Destination == NativeDestination.Onboarding)
         {
@@ -498,7 +502,9 @@ public sealed class NativeAppController : IDisposable
     {
         _destination = NativeDestination.Dashboard;
         if (_dashboard is not null)
-            _dashboardState = await _dashboard.LoadAsync(_lifetime.Token);
+            _dashboardState = _preview || _authenticatedSample
+                ? await _dashboard.LoadAsync(_lifetime.Token)
+                : await _dashboard.RefreshAsync(_lifetime.Token);
         _quiz?.Dispose();
         _quiz = null;
         _quizLaunch = null;

@@ -12,7 +12,10 @@ namespace SentenceStudio;
 /// </summary>
 public static class SharedSyncRegistration
 {
-    public static SqliteSyncConfigurationBuilder ConfigureSyncTables(this SqliteSyncConfigurationBuilder builder)
+    public const string NativeOwnerHeader = "X-SentenceStudio-Native-Owner";
+
+    public static SqliteSyncConfigurationBuilder ConfigureSyncTables(
+        this SqliteSyncConfigurationBuilder builder, bool downloadOnlyProfile = false)
     {
         return builder
             .Table<LearningResource>("LearningResource", syncDirection: SyncDirection.UploadAndDownload)
@@ -21,7 +24,8 @@ public static class SharedSyncRegistration
             .Table<Challenge>("Challenge", syncDirection: SyncDirection.UploadAndDownload)
             .Table<Conversation>("Conversation", syncDirection: SyncDirection.UploadAndDownload)
             .Table<ConversationChunk>("ConversationChunk", syncDirection: SyncDirection.UploadAndDownload)
-            .Table<UserProfile>("UserProfile", syncDirection: SyncDirection.UploadAndDownload)
+            .Table<UserProfile>("UserProfile", syncDirection: downloadOnlyProfile
+                ? SyncDirection.DownloadOnly : SyncDirection.UploadAndDownload)
             .Table<SkillProfile>("SkillProfile", syncDirection: SyncDirection.UploadAndDownload)
             .Table<VocabularyList>("VocabularyList", syncDirection: SyncDirection.UploadAndDownload)
             .Table<VocabularyProgress>("VocabularyProgress", syncDirection: SyncDirection.UploadAndDownload)

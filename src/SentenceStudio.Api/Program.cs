@@ -5,6 +5,7 @@ using System.Text.Json;
 using CoreSync;
 using CoreSync.Http.Server;
 using CoreSync.PostgreSQL;
+using SentenceStudio.Api.Sync;
 using ElevenLabs;
 using Microsoft.EntityFrameworkCore;
 using ElevenLabs.Models;
@@ -355,13 +356,17 @@ builder.Services.AddHealthChecks()
 // CoreSync server — allows mobile clients to sync through the API endpoint
 // (mobile devices can't reach the separate 'web' service directly)
 builder.Services.AddCoreSyncHttpServer();
-builder.Services.AddSingleton<ISyncProvider>(sp =>
+builder.Services.AddSingleton<NativeSyncDownloadSessions>();
+builder.Services.AddSingleton<NativeSyncUploadSessions>();
+builder.Services.AddSingleton<PostgreSQLSyncProvider>(sp =>
 {
     var connectionString = sp.GetRequiredService<IConfiguration>().GetConnectionString("sentencestudio")!;
     var configurationBuilder = new PostgreSQLSyncConfigurationBuilder(connectionString)
         .ConfigureSyncTables();
     return new PostgreSQLSyncProvider(configurationBuilder.Build(), ProviderMode.Remote);
 });
+builder.Services.AddSingleton<NativeSyncStoreBindings>();
+builder.Services.AddSingleton<ISyncProvider, NativeOwnerSyncProvider>();
 
 // User profile repository (lives in SentenceStudio.Shared; not pulled in via the
 // AppLib core-services extension because the API project does not reference AppLib).
@@ -553,11 +558,7 @@ if (!skipDatabaseInitialization)
         assertSession();
 
         // The concrete overload is required: ISyncProvider would open other connections.
-        if (app.Services.GetRequiredService<ISyncProvider>() is not PostgreSQLSyncProvider syncProvider)
-        {
-            throw new InvalidOperationException(
-                "The API startup sync provider must support caller-owned PostgreSQL provisioning.");
-        }
+        var syncProvider = app.Services.GetRequiredService<PostgreSQLSyncProvider>();
         await startupLock.ProvisionAsync(syncProvider, startupToken);
         assertSession();
 
@@ -717,8 +718,38 @@ if (app.Environment.IsDevelopment())
 }
 app.UseCoreSyncHttpServer(optionsConfigure: options =>
 {
-    // CoreSync syncs per-user data, so its endpoints must enforce the same auth pipeline as the rest of the API.
-    options.AllEndpoints = endpoint => endpoint.RequireAuthorization();
+    options.AllEndpoints = endpoint =>
+    {
+        endpoint.RequireAuthorization();
+        endpoint.AddEndpointFilter(async (context, next) =>
+        {
+            try
+            {
+                NativeOwnerSyncProvider.GetNativeOwner(context.HttpContext);
+                return await next(context);
+            }
+            catch (BadHttpRequestException ex) when (ex.StatusCode == StatusCodes.Status403Forbidden)
+            {
+                return Results.StatusCode(StatusCodes.Status403Forbidden);
+            }
+        });
+    };
+    options.GetBulkChangeSetAsyncEndPoint = endpoint =>
+        endpoint.AddEndpointFilter(NativeSyncDownloadSessions.BindDownloadAsync);
+    options.GetBulkChangeSetItemEndPoint = endpoint =>
+        endpoint.AddEndpointFilter(NativeSyncDownloadSessions.GuardChunkAsync);
+    options.GetBulkChangeSetItemBinaryEndPoint = endpoint =>
+        endpoint.AddEndpointFilter(NativeSyncDownloadSessions.GuardChunkAsync);
+    options.PostBeginApplyBulkChangesEndPoint = endpoint =>
+        endpoint.AddEndpointFilter(NativeSyncUploadSessions.GuardBeginAsync);
+    options.PostApplyBulkChangesItemEndPoint = endpoint =>
+        endpoint.AddEndpointFilter(NativeSyncUploadSessions.GuardJsonChunkAsync);
+    options.PostApplyBulkChangesItemBinaryEndPoint = endpoint =>
+        endpoint.AddEndpointFilter(NativeSyncUploadSessions.GuardBinaryChunkAsync);
+    options.PostCompleteApplyBulkChangesAsyncEndPoint = endpoint =>
+        endpoint.AddEndpointFilter(NativeSyncUploadSessions.GuardCompleteAsync);
+    options.PostCompleteApplyBulkChangesBinaryAsyncEndPoint = endpoint =>
+        endpoint.AddEndpointFilter(NativeSyncUploadSessions.GuardCompleteAsync);
 });
 
 // Auth endpoints (anonymous — they handle login/register)

@@ -269,6 +269,12 @@ public sealed class NativeDashboardPresenter(
             return SetState(new(NativePhase.Error,
                 ErrorKey: NativeText.PlanGenerationError, HasPendingSync: true), owner);
         }
+        catch (InvalidOperationException ex) when (generateIfMissing)
+        {
+            logger.LogWarning(ex, "Native dashboard could not generate a feasible plan.");
+            return SetState(new(NativePhase.Error,
+                ErrorKey: NativeText.PlanGenerationError, HasPendingSync: pendingSync), owner);
+        }
     }
 
     private async Task ReconcileCompletedQuizSessionsAsync(

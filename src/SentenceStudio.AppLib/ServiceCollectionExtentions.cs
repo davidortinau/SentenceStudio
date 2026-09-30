@@ -16,14 +16,16 @@ namespace SentenceStudio;
 
 public static class ServiceCollectionExtentions
 {
-    public static void AddSyncServices(this IServiceCollection services, string databasePath, Uri serverUri)
+    public static void AddSyncServices(
+        this IServiceCollection services, string databasePath, Uri serverUri,
+        bool downloadOnlyProfile = false)
     {
         services.AddSingleton<ISyncProvider>(serviceProvider =>
         {
             var connectionString = $"Data Source={databasePath}";
             var configurationBuilder =
                 new SqliteSyncConfigurationBuilder(connectionString)
-                    .ConfigureSyncTables();
+                    .ConfigureSyncTables(downloadOnlyProfile);
 
             return new SqliteSyncProvider(configurationBuilder.Build(), ProviderMode.Local, new SyncLogger(serviceProvider.GetRequiredService<ILogger<SyncLogger>>()));
         });
