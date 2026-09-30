@@ -138,6 +138,27 @@ The current risk-first slice is:
 `sign in -> Dashboard -> Today's Plan -> assigned Vocabulary Quiz -> complete
 the activity -> return -> completed plan item -> restart with state preserved`
 
+### Reuse established backend paths first
+
+Per Captain, the existing Web API, authentication, daily-plan generation, and
+CoreSync paths have run in Azure and were largely reused by the Flutter client.
+Presume these paths are reusable for native ports. Wire and exercise them first
+with authenticated, populated test accounts and real data in isolated stores.
+During integration, inspect local and server owner IDs, transferred rows, plan
+and completion effects, and restart persistence. An authenticated profile
+response or pending-sync indicator alone does not prove row isolation or
+successful synchronization.
+
+Keep absent or foreign user identities fail-closed and preserve all user data.
+If integration reproduces a client-specific failure, make the smallest change
+that fixes it; modify the API only when the observed failure requires it. Stop
+an operation that actually crosses owners or risks data loss until it is fixed.
+Do not disable or replace proven backend paths, or block the first running
+client slice, solely on hypothetical risks or a demand to re-prove established
+server behavior before integration. Complete two-owner transfer, server-row
+isolation, and other release-specific checks before shipping; they do not
+precede initial integration absent an observed blocker.
+
 Required sequence:
 
 1. Read only enough source and framework documentation to implement the slice
