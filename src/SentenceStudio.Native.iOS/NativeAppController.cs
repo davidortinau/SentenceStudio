@@ -16,10 +16,8 @@ namespace SentenceStudio.Native.iOS;
 
 public sealed class NativeAppController : IDisposable
 {
-    private readonly SwiftView _slot;
-    private readonly UIViewController _hostingController;
-    private readonly Func<UIViewController?> _rootController;
-    private readonly Action<UIViewController> _replaceRoot;
+    private readonly UINavigationController _navigation;
+    private readonly NavigationObserver _navigationObserver;
     private readonly CancellationTokenSource _lifetime = new();
     private NativeServices? _services;
     private NativeAuthPresenter? _auth;
@@ -33,25 +31,24 @@ public sealed class NativeAppController : IDisposable
     private NativeQuizState _quizState = new(NativePhase.Idle, NativeDestination.VocabularyQuiz);
     private string _answer = string.Empty;
     private string _correction = string.Empty;
-    private string? _startupError;
     private NativeSignInViewController? _signInModal;
-    private NativeVisualViewController? _visualController;
+    private NativeVisualViewController? _dashboardController;
+    private NativeVisualViewController? _quizController;
+    private UIAction? _quizBackAction;
     private bool _insightExpanded;
     private bool _preview;
     private bool _authenticatedSample;
+    private bool _quizWasPushed;
+    private bool _nativePopPending;
+    private bool _handlingNativePop;
     private bool _busy;
     private bool _disposed;
 
-    public NativeAppController(
-        SwiftView slot,
-        UIViewController hostingController,
-        Func<UIViewController?> rootController,
-        Action<UIViewController> replaceRoot)
+    public NativeAppController(UINavigationController navigation)
     {
-        _slot = slot;
-        _hostingController = hostingController;
-        _rootController = rootController;
-        _replaceRoot = replaceRoot;
+        _navigation = navigation;
+        _navigationObserver = new NavigationObserver(OnNavigationDidShow);
+        _navigation.Delegate = _navigationObserver;
     }
 
     public async void Start()
@@ -89,7 +86,6 @@ public sealed class NativeAppController : IDisposable
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Native iOS startup failed.");
-            _startupError = ex.GetType().Name;
             _destination = NativeDestination.SignIn;
             _preview = false;
             _authenticatedSample = false;
@@ -255,23 +251,31 @@ public sealed class NativeAppController : IDisposable
             return;
         }
 
-        SwiftView page;
         if (_destination == NativeDestination.Dashboard && _dashboard is not null)
         {
-            page = NativeFeatureViews.Dashboard(
-                _dashboardState, _busy, CreateBanner(), Text,
-                refresh: () => Submit(async () => _dashboardState =
-                    await _dashboard.RefreshAsync(_lifetime.Token)),
-                generate: () => Submit(async () => _dashboardState =
-                    await _dashboard.GenerateAsync(_lifetime.Token)),
-                insightExpanded: _insightExpanded,
-                toggleInsight: () => {
-                    _insightExpanded = !_insightExpanded;
-                    Render();
-                });
+            var dashboardController = ShowDashboard(CreateDashboardPage());
+            _navigation.SetNavigationBarHidden(false, false);
+            if (!ReferenceEquals(_navigation.ViewControllers?.FirstOrDefault(),
+                    dashboardController))
+                _navigation.SetViewControllers([dashboardController], false);
+            else if (_navigation.ViewControllers?.Length > 1)
+            {
+                _quizWasPushed = false;
+                _navigation.PopToRootViewController(true);
+            }
+            if (_signInModal is { } previousSignIn)
+            {
+                _signInModal = null;
+                previousSignIn.Dispose();
+            }
+#if AILOHA_DEBUG
+            _ = TagInputsWhenRealizedAsync();
+#endif
+            return;
         }
-        else if (_destination is NativeDestination.VocabularyQuiz or NativeDestination.QuizSummary
-                 && _quiz is not null)
+
+        if (_destination is NativeDestination.VocabularyQuiz or NativeDestination.QuizSummary
+            && _quiz is not null)
         {
             var canRetry = _quizState.Phase == NativePhase.Error
                 && ((_quizState.Destination == NativeDestination.QuizSummary
@@ -279,7 +283,7 @@ public sealed class NativeAppController : IDisposable
                     || (_quizState.CurrentTurn == 0
                         && _quizState.ErrorKey == NativeText.ConnectionError
                         && _quizLaunch is not null));
-            page = NativeFeatureViews.Quiz(
+            var page = NativeFeatureViews.Quiz(
                 _quizState, _answer, _busy, canRetry, CreateBanner(), Text,
                 answerChanged: value => _answer = value,
                 selectChoice: value => {
@@ -321,35 +325,27 @@ public sealed class NativeAppController : IDisposable
                     _destination = NativeDestination.VocabularyQuiz;
                 }),
                 done: () => Submit(ReturnFromQuizAsync),
-                back: () => Submit(BackFromQuizAsync),
                 retry: () => Submit(RetryQuizAsync));
-        }
-        else
-        {
-            page = Views.Text(Text(NativeText.SignIn));
-        }
-
-        if (_destination is NativeDestination.Dashboard or NativeDestination.TodaysPlan
-            or NativeDestination.VocabularyQuiz or NativeDestination.QuizSummary)
-        {
-            _visualController ??= new NativeVisualViewController();
-            if (_destination is NativeDestination.Dashboard or NativeDestination.TodaysPlan)
-                _visualController.Show(page, Text("Dashboard_Title"),
-                    dashboard: _dashboardState,
-                    openQuiz: OpenQuiz,
-                    regenerate: () => Submit(async () => _dashboardState =
-                        await _dashboard!.RegenerateAsync(_lifetime.Token)),
-                    signOut: () => Submit(SignOutAsync),
-                    insightExpanded: _insightExpanded,
-                    preview: _preview,
-                    busy: _busy);
-            else
-                _visualController.Show(page, Text(NativeText.Quiz),
-                    quiz: _quizState,
-                    answerChanged: value => _answer = value,
-                    correctionChanged: value => _correction = value);
-            if (!ReferenceEquals(_rootController(), _visualController))
-                _replaceRoot(_visualController);
+            var dashboardController = _dashboardController
+                ?? ShowDashboard(CreateDashboardPage());
+            _quizController ??= new NativeVisualViewController();
+            _quizController.Show(page, Text(NativeText.Quiz),
+                quiz: _quizState,
+                answerChanged: value => _answer = value,
+                correctionChanged: value => _correction = value,
+                busy: _busy);
+            _navigation.SetNavigationBarHidden(false, false);
+            if (!_nativePopPending
+                && !ReferenceEquals(_navigation.TopViewController, _quizController))
+            {
+                if (!ReferenceEquals(_navigation.ViewControllers?.FirstOrDefault(),
+                        dashboardController))
+                    _navigation.SetViewControllers([dashboardController], false);
+                _navigation.PushViewController(_quizController, true);
+                _quizWasPushed = true;
+            }
+            if (_navigation.InteractivePopGestureRecognizer is { } popGesture)
+                popGesture.Enabled = !_busy;
             if (_signInModal is { } previousSignIn)
             {
                 _signInModal = null;
@@ -361,16 +357,6 @@ public sealed class NativeAppController : IDisposable
             return;
         }
 
-        if (_startupError is not null)
-            page = Views.VStack(
-                Views.Text($"{Text(NativeText.UnexpectedError)} ({_startupError})"),
-                page);
-
-        var previous = _slot.Children.ToArray();
-        _slot.Clear();
-        foreach (var removed in previous)
-            removed.Dispose();
-        _slot.Add(page);
         if (_destination == NativeDestination.SignIn && !_preview)
         {
             if (_signInModal is null)
@@ -394,20 +380,96 @@ public sealed class NativeAppController : IDisposable
                         await RouteAfterAuthAsync();
                     }));
             }
-            if (!ReferenceEquals(_rootController(), _signInModal))
-                _replaceRoot(_signInModal);
+            if (!ReferenceEquals(_navigation.TopViewController, _signInModal))
+            {
+                _quizWasPushed = false;
+                _navigation.SetNavigationBarHidden(true, false);
+                _navigation.SetViewControllers([_signInModal], false);
+            }
             _signInModal?.ShowState(_authState, _busy, _auth is not null);
-        }
-        else if (_signInModal is { } presented)
-        {
-            _signInModal = null;
-            _replaceRoot(_hostingController);
-            presented.Dispose();
         }
 #if AILOHA_DEBUG
         if (_signInModal is null)
             _ = TagInputsWhenRealizedAsync();
 #endif
+    }
+
+    private SwiftView CreateDashboardPage() =>
+        NativeFeatureViews.Dashboard(
+            _dashboardState, _busy, CreateBanner(), Text,
+            refresh: () => Submit(async () => _dashboardState =
+                await _dashboard!.RefreshAsync(_lifetime.Token)),
+            generate: () => Submit(async () => _dashboardState =
+                await _dashboard!.GenerateAsync(_lifetime.Token)),
+            insightExpanded: _insightExpanded,
+            toggleInsight: () => {
+                _insightExpanded = !_insightExpanded;
+                Render();
+            });
+
+    private NativeVisualViewController ShowDashboard(SwiftView page)
+    {
+        _dashboardController ??= new NativeVisualViewController();
+        _dashboardController.Show(page, Text("Dashboard_Title"),
+            dashboard: _dashboardState,
+            openQuiz: OpenQuiz,
+            regenerate: () => Submit(async () => _dashboardState =
+                await _dashboard!.RegenerateAsync(_lifetime.Token)),
+            signOut: () => Submit(SignOutAsync),
+            insightExpanded: _insightExpanded,
+            preview: _preview,
+            busy: _busy);
+        var navigationItem = _dashboardController.NavigationItem;
+        var backItem = navigationItem.BackBarButtonItem;
+        if (backItem is null)
+        {
+            backItem = new UIBarButtonItem(string.Empty, UIBarButtonItemStyle.Plain, null, null);
+            navigationItem.BackBarButtonItem = backItem;
+        }
+        backItem.AccessibilityLabel = Text("Dashboard_Title");
+        return _dashboardController;
+    }
+
+    private void OnNavigationDidShow(UIViewController shown)
+    {
+        if (_disposed || !ReferenceEquals(_navigation.TopViewController, shown))
+            return;
+        if (ReferenceEquals(shown, _quizController))
+        {
+            _quizBackAction ??= UIAction.Create(_ => Submit(BackFromQuizAsync));
+            _quizController!.NavigationItem.BackAction = _quizBackAction;
+            return;
+        }
+        if (ReferenceEquals(shown, _dashboardController) && _quizController is not null)
+            _quizController.NavigationItem.BackAction = null;
+        if (!_quizWasPushed || _nativePopPending
+            || !ReferenceEquals(shown, _dashboardController)
+            || _destination is not (NativeDestination.VocabularyQuiz
+                or NativeDestination.QuizSummary))
+            return;
+
+        _quizWasPushed = false;
+        _nativePopPending = true;
+        if (!_busy)
+            HandlePoppedQuiz();
+    }
+
+    private void HandlePoppedQuiz()
+    {
+        if (_handlingNativePop || !_nativePopPending)
+            return;
+        _handlingNativePop = true;
+        Submit(async () => {
+            try
+            {
+                await BackFromQuizAsync();
+            }
+            finally
+            {
+                _handlingNativePop = false;
+                _nativePopPending = false;
+            }
+        });
     }
 
 #if AILOHA_DEBUG
@@ -417,7 +479,7 @@ public sealed class NativeAppController : IDisposable
         {
             await Task.Delay(250, _lifetime.Token);
             OnMain(() => {
-                if (_disposed || _rootController()?.View is not { } root)
+                if (_disposed || _navigation.View is not { } root)
                     return;
                 if (_quizState.Phase == NativePhase.Ready && _quizState.Mode == "Text")
                     AilohaDebug.TagInput(root, Text(NativeText.AnswerRequired), NativeAccess.QuizAnswer);
@@ -469,8 +531,11 @@ public sealed class NativeAppController : IDisposable
     {
         if (_quiz is null)
             return;
+        _logger?.LogInformation("Native iOS quiz Back invoked in {Phase} at turn {Turn}.",
+            _quizState.Phase, _quizState.CurrentTurn);
         if (_quizState.CurrentTurn == 0
-            && _quizState.Phase is (NativePhase.Empty or NativePhase.Error or NativePhase.Blocked)
+            && _quizState.Phase is (NativePhase.ResumeChoice or NativePhase.Empty
+                or NativePhase.Error or NativePhase.Blocked)
             && _quizState.Destination != NativeDestination.QuizSummary)
         {
             await ReturnToDashboardAsync();
@@ -565,7 +630,6 @@ public sealed class NativeAppController : IDisposable
         try
         {
             await action();
-            _startupError = null;
         }
         catch (OperationCanceledException) when (_disposed)
         {
@@ -574,7 +638,6 @@ public sealed class NativeAppController : IDisposable
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Native iOS action failed.");
-            _startupError = ex.GetType().Name;
             if (_destination == NativeDestination.Dashboard)
                 _dashboardState = _dashboardState with {
                     Phase = NativePhase.Error, ErrorKey = NativeText.PlanError };
@@ -589,7 +652,12 @@ public sealed class NativeAppController : IDisposable
         {
             OnMain(() => {
                 _busy = false;
-                Render();
+                if (_nativePopPending && !_handlingNativePop
+                    && _destination is (NativeDestination.VocabularyQuiz
+                        or NativeDestination.QuizSummary))
+                    HandlePoppedQuiz();
+                else
+                    Render();
             });
         }
     }
@@ -646,10 +714,25 @@ public sealed class NativeAppController : IDisposable
         _disposed = true;
         _lifetime.Cancel();
         _quiz?.Dispose();
-        _visualController?.Dispose();
+        _navigation.WeakDelegate = null;
+        _navigationObserver.Dispose();
+        _dashboardController?.Dispose();
+        if (_quizController is not null)
+            _quizController.NavigationItem.BackAction = null;
+        _quizBackAction?.Dispose();
+        _quizController?.Dispose();
         _signInModal?.Dispose();
         _signInModal = null;
         _services?.Dispose();
         _lifetime.Dispose();
+    }
+
+    private sealed class NavigationObserver(Action<UIViewController> onShown)
+        : UINavigationControllerDelegate
+    {
+        public override void DidShowViewController(
+            UINavigationController navigationController,
+            UIViewController viewController, bool animated) =>
+            onShown(viewController);
     }
 }

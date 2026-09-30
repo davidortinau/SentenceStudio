@@ -240,14 +240,9 @@ public static class NativeFeatureViews
         Action startFresh,
         Action continueRound,
         Action done,
-        Action back,
         Action retry)
     {
-        var items = new List<SwiftView>
-        {
-            Views.Button(text("Common_Back"), back)
-                .WithAccessibilityIdentifier("native.quiz.back")
-        };
+        var items = new List<SwiftView>();
         if (banner is not null)
             items.Insert(0, banner);
         if (state.HasPendingSync)
@@ -287,7 +282,7 @@ public static class NativeFeatureViews
                         .WithAccessibilityIdentifier("native.quiz.status"));
                     break;
                 }
-                RenderQuestion(items, state, answer, busy, text, answerChanged,
+                RenderQuestion(items, state, answer, text, answerChanged,
                     selectChoice, playPrompt, submitText);
                 if (state.Phase == NativePhase.Feedback)
                     RenderFeedback(items, state, correction, text, correctionChanged,
@@ -362,7 +357,6 @@ public static class NativeFeatureViews
         List<SwiftView> items,
         NativeQuizState state,
         string answer,
-        bool busy,
         Func<string, string> text,
         Action<string> answerChanged,
         Action<string> selectChoice,
@@ -381,14 +375,6 @@ public static class NativeFeatureViews
                 items.Add(Views.Button(text("VocabQuiz_ListenAndAnswer"), playPrompt)
                     .WithAccessibilityIdentifier("native.quiz.play-prompt"));
         }
-        if (state.Phase == NativePhase.Feedback)
-        {
-            if (state.CorrectAnswerAfterGrading is { } correct)
-                items.Add(Views.Text(correct)
-                    .WithAccessibilityIdentifier("native.quiz.correct-answer"));
-            items.Add(Views.Text(text(state.FeedbackKey ?? NativeText.QuizIncorrect))
-                .WithAccessibilityIdentifier(NativeAccess.QuizFeedback));
-        }
         if (!state.CanSubmit && state.Phase != NativePhase.Feedback)
             items.Add(Views.Text(text(NativeText.QuizUnavailable)));
         else if (state.Mode == "MultipleChoice")
@@ -396,29 +382,31 @@ public static class NativeFeatureViews
             for (var index = 0; index < state.Choices.Length; index++)
             {
                 var choice = state.Choices[index];
-                var label = choice.Text;
-                if (state.Phase == NativePhase.Feedback
-                    && string.Equals(label, state.CorrectAnswerAfterGrading,
-                        StringComparison.OrdinalIgnoreCase))
-                    label += $" - {text(NativeText.QuizCorrect)}";
-                else if (state.Phase == NativePhase.Feedback
-                    && string.Equals(label, state.SelectedAnswer,
-                        StringComparison.OrdinalIgnoreCase))
-                    label += $" - {text(NativeText.QuizIncorrect)}";
                 var id = $"{NativeAccess.QuizChoice}.{index}";
-                items.Add(state.Phase == NativePhase.Ready && !busy
-                    ? Views.Button(label, () => selectChoice(choice.Text))
-                        .WithAccessibilityIdentifier(id)
-                    : Views.Text(label).WithAccessibilityIdentifier(id));
+                items.Add(Views.Button(choice.Text, () => selectChoice(choice.Text))
+                    .WithAccessibilityIdentifier(id));
             }
         }
-        else if (state.Mode == "Text" && state.Phase == NativePhase.Ready)
+        else if (state.Mode == "Text")
         {
+            var displayedAnswer = state.Phase == NativePhase.Feedback
+                ? state.SelectedAnswer ?? throw new InvalidOperationException(
+                    "A graded text answer must retain the submitted response.")
+                : answer;
             items.Add(Views.Text(text("VocabQuiz_TypeTranslation")));
-            items.Add(Views.TextField(text(NativeText.AnswerRequired), answer, answerChanged)
+            items.Add(Views.TextField(text(NativeText.AnswerRequired), displayedAnswer, answerChanged)
                 .WithAccessibilityIdentifier(NativeAccess.QuizAnswer));
-            items.Add(Views.Button(text("VocabQuiz_SubmitAnswer"), submitText)
-                .WithAccessibilityIdentifier("native.quiz.submit"));
+            if (state.Phase == NativePhase.Ready)
+                items.Add(Views.Button(text("VocabQuiz_SubmitAnswer"), submitText)
+                    .WithAccessibilityIdentifier("native.quiz.submit"));
+        }
+        if (state.Phase == NativePhase.Feedback)
+        {
+            if (state.CorrectAnswerAfterGrading is { } correct)
+                items.Add(Views.Text(correct)
+                    .WithAccessibilityIdentifier("native.quiz.correct-answer"));
+            items.Add(Views.Text(text(state.FeedbackKey ?? NativeText.QuizIncorrect))
+                .WithAccessibilityIdentifier(NativeAccess.QuizFeedback));
         }
     }
 

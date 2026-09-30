@@ -25,9 +25,15 @@ public sealed class NativeDashboardContractTests
         var feature = Source("Features/NativeFeatureViews.cs");
         var host = Source("Platform/NativeVisualViewController.cs");
         var controller = Source("NativeAppController.cs");
+        var scene = Source("SceneDelegate.cs");
 
         Assert.Contains("WithAccessibilityIdentifier(\"native.dashboard.refresh\")", feature);
-        Assert.Contains("if (id is \"native.quiz.back\" or \"native.dashboard.refresh\")", host);
+        Assert.Contains("new UINavigationController(_hostingController)", scene);
+        Assert.Contains("RootViewController = _navigationController", scene);
+        Assert.DoesNotContain("RootViewController = controller", scene);
+        Assert.Contains("if (id == \"native.dashboard.refresh\")", host);
+        Assert.Contains("NavigationItem.RightBarButtonItems = refresh is null", host);
+        Assert.Contains("new UIBarButtonItem(more)", host);
         Assert.Contains("more.Menu = UIMenu.Create(menuItems.ToArray())", host);
         Assert.Contains("more.ShowsMenuAsPrimaryAction = true", host);
         Assert.Contains("\"native.dashboard.regenerate\"", host);
@@ -44,13 +50,13 @@ public sealed class NativeDashboardContractTests
         Assert.Contains("scope.SetActiveUser(null)", controller);
         Assert.Contains("_dashboard!.RegenerateAsync(_lifetime.Token)", controller);
         Assert.Contains("new UIScrollView", host);
-        Assert.Contains("new UIStackView([_header, scroll, _footer])", host);
+        Assert.Contains("new UIStackView([_scroll, _footer])", host);
         Assert.Contains("View.SafeAreaLayoutGuide.TopAnchor", host);
+        Assert.Contains("View.KeyboardLayoutGuide.UsesBottomSafeArea = false", host);
+        Assert.Contains("root.BottomAnchor.ConstraintEqualTo(View.KeyboardLayoutGuide.TopAnchor)", host);
         Assert.Contains("BackgroundColor = NativeVisualTheme.Background", host);
         Assert.Contains("View!.BackgroundColor = NativeVisualTheme.Background", host);
-        Assert.Contains(
-            "statusChrome.BottomAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.TopAnchor)",
-            host);
+        Assert.DoesNotContain("statusChrome", host);
         Assert.DoesNotContain("Dashboard_ChooseMyOwn", feature);
         Assert.DoesNotContain("UITabBarController", host);
     }
@@ -68,6 +74,12 @@ public sealed class NativeDashboardContractTests
             feature);
         Assert.Contains("button.AccessibilityValue = LocalizationManager.Instance.GetString(",
             host);
+        Assert.Contains("button.AccessibilityTraits = UIAccessibilityTrait.Button", host);
+        Assert.Contains("button.AccessibilityLabel = node.Text", host);
+        Assert.Contains("var shell = id == \"native.plan.insight\"", host);
+        Assert.Contains("var header = content.ArrangedSubviews.FirstOrDefault() as UIButton", host);
+        Assert.Contains("sections.AddArrangedSubview(content)", host);
+        Assert.Contains("UserInteractionEnabled = false", host);
         Assert.Contains("_insightExpanded ? \"chevron.up\" : \"chevron.down\"", host);
         Assert.Contains("narrative.Story", feature);
         Assert.Contains("resource.SelectionReason", feature);

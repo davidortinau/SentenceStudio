@@ -13,10 +13,9 @@ internal sealed class NativeVisualViewController : UIViewController
 {
     private readonly List<(SwiftView View, UIViewController Host)> _hosted = [];
     private readonly List<(UIView View, UIColor Color)> _borders = [];
-    private UIStackView _header = null!;
     private UIStackView _body = null!;
     private UIStackView _footer = null!;
-    private UILabel _title = null!;
+    private UIScrollView _scroll = null!;
     private UILabel _progress = null!;
     private UILabel _correct = null!;
     private UIProgressView _progressBar = null!;
@@ -25,41 +24,15 @@ internal sealed class NativeVisualViewController : UIViewController
     private Action<string>? _openQuiz;
     private bool _insightExpanded;
     private bool _dashboardBusy;
+    private bool _quizBusy;
+    private bool _quizCanAnswer;
 
     public override void ViewDidLoad()
     {
         base.ViewDidLoad();
         View!.BackgroundColor = NativeVisualTheme.Background;
         View.TintColor = NativeVisualTheme.Primary;
-        var statusChrome = new UIView
-        {
-            BackgroundColor = NativeVisualTheme.Header,
-            TranslatesAutoresizingMaskIntoConstraints = false,
-            IsAccessibilityElement = false,
-        };
-        View.AddSubview(statusChrome);
-        NSLayoutConstraint.ActivateConstraints(
-        [
-            statusChrome.TopAnchor.ConstraintEqualTo(View.TopAnchor),
-            statusChrome.BottomAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.TopAnchor),
-            statusChrome.LeadingAnchor.ConstraintEqualTo(View.LeadingAnchor),
-            statusChrome.TrailingAnchor.ConstraintEqualTo(View.TrailingAnchor),
-        ]);
-
-        _title = Label(string.Empty, UIFontTextStyle.Title2);
-        _title.AccessibilityTraits = UIAccessibilityTrait.Header;
-        _title.SetContentCompressionResistancePriority(250, UILayoutConstraintAxis.Horizontal);
-        _header = new UIStackView([_title])
-        {
-            Axis = UILayoutConstraintAxis.Horizontal,
-            Alignment = UIStackViewAlignment.Center,
-            Spacing = 10,
-            LayoutMargins = new UIEdgeInsets(8, NativeVisualTheme.PagePadding,
-                8, NativeVisualTheme.PagePadding),
-            LayoutMarginsRelativeArrangement = true,
-        };
-        _header.BackgroundColor = NativeVisualTheme.Header;
-        _header.HeightAnchor.ConstraintGreaterThanOrEqualTo(56).Active = true;
+        View.KeyboardLayoutGuide.UsesBottomSafeArea = false;
 
         _body = new UIStackView
         {
@@ -71,19 +44,21 @@ internal sealed class NativeVisualViewController : UIViewController
             LayoutMarginsRelativeArrangement = true,
             TranslatesAutoresizingMaskIntoConstraints = false,
         };
-        var scroll = new UIScrollView
+        _scroll = new UIScrollView
         {
             KeyboardDismissMode = UIScrollViewKeyboardDismissMode.Interactive,
             BackgroundColor = NativeVisualTheme.Background,
+            ContentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentBehavior.Never,
+            AutomaticallyAdjustsScrollIndicatorInsets = false,
         };
-        scroll.AddSubview(_body);
+        _scroll.AddSubview(_body);
         NSLayoutConstraint.ActivateConstraints(
         [
-            _body.TopAnchor.ConstraintEqualTo(scroll.ContentLayoutGuide.TopAnchor),
-            _body.BottomAnchor.ConstraintEqualTo(scroll.ContentLayoutGuide.BottomAnchor),
-            _body.LeadingAnchor.ConstraintEqualTo(scroll.ContentLayoutGuide.LeadingAnchor),
-            _body.TrailingAnchor.ConstraintEqualTo(scroll.ContentLayoutGuide.TrailingAnchor),
-            _body.WidthAnchor.ConstraintEqualTo(scroll.FrameLayoutGuide.WidthAnchor),
+            _body.TopAnchor.ConstraintEqualTo(_scroll.ContentLayoutGuide.TopAnchor),
+            _body.BottomAnchor.ConstraintEqualTo(_scroll.ContentLayoutGuide.BottomAnchor),
+            _body.LeadingAnchor.ConstraintEqualTo(_scroll.ContentLayoutGuide.LeadingAnchor),
+            _body.TrailingAnchor.ConstraintEqualTo(_scroll.ContentLayoutGuide.TrailingAnchor),
+            _body.WidthAnchor.ConstraintEqualTo(_scroll.FrameLayoutGuide.WidthAnchor),
         ]);
 
         _progress = Label(string.Empty, UIFontTextStyle.Body, secondary: true);
@@ -112,25 +87,40 @@ internal sealed class NativeVisualViewController : UIViewController
             AccessibilityIdentifier = "native.quiz.footer",
         };
 
-        var root = new UIStackView([_header, scroll, _footer])
+        var root = new UIStackView([_scroll, _footer])
         {
             Axis = UILayoutConstraintAxis.Vertical,
             Alignment = UIStackViewAlignment.Fill,
             TranslatesAutoresizingMaskIntoConstraints = false,
         };
         View.AddSubview(root);
-        var bottom = root.BottomAnchor.ConstraintEqualTo(
-            View.SafeAreaLayoutGuide.BottomAnchor);
-        bottom.Priority = 750;
         NSLayoutConstraint.ActivateConstraints(
         [
             root.TopAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.TopAnchor),
             root.LeadingAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.LeadingAnchor),
             root.TrailingAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.TrailingAnchor),
-            root.BottomAnchor.ConstraintLessThanOrEqualTo(
-                View.KeyboardLayoutGuide.TopAnchor),
-            bottom,
+            root.BottomAnchor.ConstraintEqualTo(View.KeyboardLayoutGuide.TopAnchor),
         ]);
+        UpdateBottomInsets();
+    }
+
+    public override void ViewSafeAreaInsetsDidChange()
+    {
+        base.ViewSafeAreaInsetsDidChange();
+        UpdateBottomInsets();
+    }
+
+    private void UpdateBottomInsets()
+    {
+        if (_scroll is null || _footer is null)
+            return;
+
+        var safeBottom = View!.SafeAreaInsets.Bottom;
+        var scrollBottom = _footer.Hidden ? safeBottom : 0;
+        _scroll.ContentInset = new UIEdgeInsets(0, 0, scrollBottom, 0);
+        _scroll.VerticalScrollIndicatorInsets = new UIEdgeInsets(0, 0, scrollBottom, 0);
+        _footer.LayoutMargins = new UIEdgeInsets(12, NativeVisualTheme.PagePadding,
+            12 + safeBottom, NativeVisualTheme.PagePadding);
     }
 
     public void Show(SwiftView page, string title,
@@ -155,22 +145,19 @@ internal sealed class NativeVisualViewController : UIViewController
         _openQuiz = openQuiz;
         _insightExpanded = insightExpanded;
         _dashboardBusy = dashboard is not null && busy;
-        _title.Text = title;
+        _quizBusy = quiz is not null && busy;
+        _quizCanAnswer = quiz?.Phase == NativePhase.Ready;
+        NavigationItem.Title = title;
         _body.AccessibilityIdentifier = quiz is null
             ? NativeAccess.Plan : "native.quiz.screen";
+        UIBarButtonItem? refresh = null;
         while (page.Children.Count > 0)
         {
             var child = page.Children[0];
             page.RemoveAt(0);
             var id = child.AccessibilityIdentifier;
-            if (id is "native.quiz.back" or "native.dashboard.refresh")
-            {
-                var headerControl = HostControl(child, primary: false);
-                if (id == "native.quiz.back")
-                    _header.InsertArrangedSubview(headerControl, 0);
-                else
-                    _header.AddArrangedSubview(headerControl);
-            }
+            if (id == "native.dashboard.refresh")
+                refresh = new UIBarButtonItem(HostControl(child, primary: false));
             else
                 AddNode(_body, child, dashboard, quiz);
         }
@@ -199,7 +186,9 @@ internal sealed class NativeVisualViewController : UIViewController
                 NativeVisualTheme.ControlHeight).Active = true;
             more.HeightAnchor.ConstraintGreaterThanOrEqualTo(
                 NativeVisualTheme.ControlHeight).Active = true;
-            _header.AddArrangedSubview(more);
+            NavigationItem.RightBarButtonItems = refresh is null
+                ? [new UIBarButtonItem(more)]
+                : [new UIBarButtonItem(more), refresh];
         }
 
         _footer.Hidden = quiz?.Prompt is null
@@ -215,6 +204,7 @@ internal sealed class NativeVisualViewController : UIViewController
             _progressBar.Progress = quiz.TurnsInRound == 0 ? 0
                 : (float)quiz.CurrentTurn / quiz.TurnsInRound;
         }
+        UpdateBottomInsets();
     }
 
     private void AddNode(UIStackView parent, SwiftView node,
@@ -267,7 +257,8 @@ internal sealed class NativeVisualViewController : UIViewController
                 parent.AddArrangedSubview(content);
                 return;
             }
-            var shell = Card(content, id);
+            var shell = id == "native.plan.insight"
+                ? InsightCard(content, id) : Card(content, id);
             if (id == "native.plan.progress" && dashboard is not null)
                 AddProgress(content, dashboard.CompletionPercentage / 100, completed: true);
             parent.AddArrangedSubview(shell);
@@ -374,6 +365,8 @@ internal sealed class NativeVisualViewController : UIViewController
                 TintColor = NativeVisualTheme.Primary,
                 AutocorrectionType = UITextAutocorrectionType.Default,
             };
+            field.Enabled = !_quizBusy
+                && (id != NativeAccess.QuizAnswer || quiz?.Phase == NativePhase.Ready);
             field.EditingChanged += (_, _) =>
             {
                 if (id == NativeAccess.QuizAnswer)
@@ -415,7 +408,30 @@ internal sealed class NativeVisualViewController : UIViewController
         var selected = quiz?.Phase == NativePhase.Ready
             && string.Equals(answer, quiz.SelectedAnswer,
                 StringComparison.OrdinalIgnoreCase);
-        var wrapper = Card(content, id + ".container", compact: true);
+        content.AccessibilityValue = correct
+            ? LocalizationManager.Instance.GetString(NativeText.QuizCorrect)
+            : wrong ? LocalizationManager.Instance.GetString(NativeText.QuizIncorrect)
+            : null;
+        var status = new UIImageView(UIImage.GetSystemImage(
+            correct ? "checkmark.circle.fill" : wrong ? "xmark.circle.fill" : "circle"))
+        {
+            TintColor = correct ? NativeVisualTheme.Success
+                : wrong ? NativeVisualTheme.Danger : NativeVisualTheme.Border,
+            Alpha = correct || wrong ? 1 : 0,
+            ContentMode = UIViewContentMode.ScaleAspectFit,
+            IsAccessibilityElement = false,
+            AccessibilityIdentifier = id + ".status",
+        };
+        status.WidthAnchor.ConstraintEqualTo(20).Active = true;
+        status.HeightAnchor.ConstraintEqualTo(20).Active = true;
+        content.SetContentCompressionResistancePriority(250, UILayoutConstraintAxis.Horizontal);
+        var row = new UIStackView([content, status])
+        {
+            Axis = UILayoutConstraintAxis.Horizontal,
+            Alignment = UIStackViewAlignment.Center,
+            Spacing = 8,
+        };
+        var wrapper = Card(row, id + ".container", compact: true);
         SetBorder(wrapper, correct ? NativeVisualTheme.Success
             : wrong ? NativeVisualTheme.Danger
             : selected ? NativeVisualTheme.Primary : NativeVisualTheme.Border);
@@ -459,14 +475,27 @@ internal sealed class NativeVisualViewController : UIViewController
     private UIView InsightHeader(SwiftView node)
     {
         var button = (UIButton)HostControl(node, primary: false);
-        button.HorizontalAlignment = UIControlContentHorizontalAlignment.Left;
-        button.SetImage(UIImage.GetSystemImage("lightbulb"), UIControlState.Normal);
-        button.SetTitleColor(NativeVisualTheme.Text, UIControlState.Normal);
-        button.TintColor = NativeVisualTheme.Primary;
+        button.SetTitle(null, UIControlState.Normal);
+        button.AccessibilityLabel = node.Text;
+        button.AccessibilityTraits = UIAccessibilityTrait.Button;
+        button.IsAccessibilityElement = true;
+        button.HeightAnchor.ConstraintGreaterThanOrEqualTo(
+            NativeVisualTheme.ControlHeight + 2 * NativeVisualTheme.CardPadding).Active = true;
         button.AccessibilityValue = LocalizationManager.Instance.GetString(
             _insightExpanded ? "Dashboard_InsightExpanded" : "Dashboard_InsightCollapsed");
-        button.SetContentHuggingPriority(250, UILayoutConstraintAxis.Horizontal);
 
+        var icon = new UIImageView(UIImage.GetSystemImage("lightbulb"))
+        {
+            TintColor = NativeVisualTheme.Primary,
+            ContentMode = UIViewContentMode.ScaleAspectFit,
+            IsAccessibilityElement = false,
+        };
+        icon.WidthAnchor.ConstraintEqualTo(20).Active = true;
+        icon.HeightAnchor.ConstraintEqualTo(20).Active = true;
+        var label = Label(node.Text, UIFontTextStyle.Body);
+        label.IsAccessibilityElement = false;
+        var spacer = new UIView();
+        spacer.SetContentHuggingPriority(1, UILayoutConstraintAxis.Horizontal);
         var chevron = new UIImageView(UIImage.GetSystemImage(
             _insightExpanded ? "chevron.up" : "chevron.down"))
         {
@@ -477,15 +506,65 @@ internal sealed class NativeVisualViewController : UIViewController
         };
         chevron.WidthAnchor.ConstraintEqualTo(20).Active = true;
         chevron.HeightAnchor.ConstraintEqualTo(20).Active = true;
-        var row = new UIStackView([button, chevron])
+        var row = new UIStackView([icon, label, spacer, chevron])
         {
             Axis = UILayoutConstraintAxis.Horizontal,
             Alignment = UIStackViewAlignment.Center,
             Spacing = 8,
+            TranslatesAutoresizingMaskIntoConstraints = false,
+            UserInteractionEnabled = false,
+            IsAccessibilityElement = false,
         };
-        row.HeightAnchor.ConstraintGreaterThanOrEqualTo(
-            NativeVisualTheme.ControlHeight).Active = true;
-        return row;
+        button.AddSubview(row);
+        NSLayoutConstraint.ActivateConstraints(
+        [
+            row.TopAnchor.ConstraintEqualTo(button.TopAnchor, NativeVisualTheme.CardPadding),
+            row.BottomAnchor.ConstraintEqualTo(button.BottomAnchor, -NativeVisualTheme.CardPadding),
+            row.LeadingAnchor.ConstraintEqualTo(button.LeadingAnchor, NativeVisualTheme.CardPadding),
+            row.TrailingAnchor.ConstraintEqualTo(button.TrailingAnchor, -NativeVisualTheme.CardPadding),
+        ]);
+        return button;
+    }
+
+    private static UIView InsightCard(UIStackView content, string id)
+    {
+        var header = content.ArrangedSubviews.FirstOrDefault() as UIButton
+            ?? throw new InvalidOperationException("The insight card requires a native button header.");
+        content.RemoveArrangedSubview(header);
+        header.RemoveFromSuperview();
+
+        var sections = new UIStackView([header])
+        {
+            Axis = UILayoutConstraintAxis.Vertical,
+            Spacing = 8,
+            TranslatesAutoresizingMaskIntoConstraints = false,
+        };
+        if (content.ArrangedSubviews.Length > 0)
+        {
+            content.LayoutMargins = new UIEdgeInsets(
+                0, NativeVisualTheme.CardPadding,
+                NativeVisualTheme.CardPadding, NativeVisualTheme.CardPadding);
+            content.LayoutMarginsRelativeArrangement = true;
+            sections.AddArrangedSubview(content);
+        }
+        else
+            content.Dispose();
+
+        var card = new UIView
+        {
+            BackgroundColor = NativeVisualTheme.Card,
+            AccessibilityIdentifier = id,
+        };
+        card.Layer.CornerRadius = NativeVisualTheme.CardRadius;
+        card.AddSubview(sections);
+        NSLayoutConstraint.ActivateConstraints(
+        [
+            sections.TopAnchor.ConstraintEqualTo(card.TopAnchor),
+            sections.BottomAnchor.ConstraintEqualTo(card.BottomAnchor),
+            sections.LeadingAnchor.ConstraintEqualTo(card.LeadingAnchor),
+            sections.TrailingAnchor.ConstraintEqualTo(card.TrailingAnchor),
+        ]);
+        return card;
     }
 
     private UIView DashboardCard(UIStackView content, NativePlanCard card)
@@ -605,6 +684,14 @@ internal sealed class NativeVisualViewController : UIViewController
             button.SetTitleColor(primary && !inline
                     ? NativeVisualTheme.OnPrimary : NativeVisualTheme.Primary,
                 UIControlState.Normal);
+            if (id.StartsWith(NativeAccess.QuizChoice + ".", StringComparison.Ordinal))
+            {
+                button.Enabled = !_quizBusy && _quizCanAnswer;
+                button.SetTitleColor(NativeVisualTheme.Text, UIControlState.Disabled);
+                button.TitleLabel.Lines = 0;
+                button.TitleLabel.LineBreakMode = UILineBreakMode.WordWrap;
+                button.TitleLabel.TextAlignment = UITextAlignment.Center;
+            }
             if (id == "native.dashboard.refresh")
             {
                 button.Enabled = !_dashboardBusy;
@@ -728,6 +815,7 @@ internal sealed class NativeVisualViewController : UIViewController
 
     private void Clear()
     {
+        NavigationItem.RightBarButtonItems = null;
         foreach (var (node, host) in _hosted)
         {
             if (host.ParentViewController is not null)
@@ -744,13 +832,6 @@ internal sealed class NativeVisualViewController : UIViewController
         foreach (var view in _body.ArrangedSubviews.ToArray())
         {
             _body.RemoveArrangedSubview(view);
-            view.RemoveFromSuperview();
-            view.Dispose();
-        }
-        foreach (var view in _header.ArrangedSubviews
-            .Where(view => !ReferenceEquals(view, _title)).ToArray())
-        {
-            _header.RemoveArrangedSubview(view);
             view.RemoveFromSuperview();
             view.Dispose();
         }

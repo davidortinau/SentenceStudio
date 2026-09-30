@@ -11,6 +11,7 @@ public sealed class SceneDelegate : UIResponder, IUIWindowSceneDelegate
 {
     private SwiftView? _root;
     private UIViewController? _hostingController;
+    private UINavigationController? _navigationController;
     private NativeAppController? _app;
 
     [Export("window")]
@@ -23,11 +24,14 @@ public sealed class SceneDelegate : UIResponder, IUIWindowSceneDelegate
             return;
 
         var slot = Views.VStack(Views.Text("Checking sign-in..."));
-        _root = Views.Navigation("SentenceStudio", slot);
+        _root = slot;
         _hostingController = SwiftUIHost.CreateController(_root);
+        _navigationController = new UINavigationController(_hostingController);
+        _navigationController.NavigationBar.PrefersLargeTitles = false;
+        _navigationController.SetNavigationBarHidden(true, false);
         Window = new UIWindow(windowScene)
         {
-            RootViewController = _hostingController
+            RootViewController = _navigationController
         };
         Window.MakeKeyAndVisible();
         Microsoft.Maui.ApplicationModel.Platform.Init(() => Window?.RootViewController
@@ -35,16 +39,7 @@ public sealed class SceneDelegate : UIResponder, IUIWindowSceneDelegate
 #if AILOHA_DEBUG
         AilohaDebug.Start();
 #endif
-        _app = new NativeAppController(
-            slot, _hostingController,
-            () => Window?.RootViewController,
-            controller => {
-                if (Window is { } window)
-                {
-                    window.RootViewController = controller;
-                    window.MakeKeyAndVisible();
-                }
-            });
+        _app = new NativeAppController(_navigationController);
         _app.Start();
     }
 
@@ -63,6 +58,8 @@ public sealed class SceneDelegate : UIResponder, IUIWindowSceneDelegate
         _hostingController = null;
         _root?.Dispose();
         _root = null;
+        _navigationController?.Dispose();
+        _navigationController = null;
         Window = null;
     }
 }

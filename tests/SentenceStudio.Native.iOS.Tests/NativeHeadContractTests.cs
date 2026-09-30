@@ -131,13 +131,104 @@ public sealed class NativeHeadContractTests
         Assert.Contains("field.EditingChanged += (_, _) =>", host);
         Assert.Contains("_answerChanged?.Invoke(field.Text ?? string.Empty)", host);
         Assert.Contains("Card(field, null, compact: true)", host);
-        Assert.Contains("Card(content, id + \".container\", compact: true)", host);
+        Assert.Contains("Card(row, id + \".container\", compact: true)", host);
         Assert.Contains("selected ? NativeVisualTheme.Primary", host);
         Assert.Contains("SelectedAnswer = value", File.ReadAllText(Path.Combine(
             HeadPath, "NativeAppController.cs")));
         Assert.Contains("View.SafeAreaLayoutGuide.TopAnchor", host);
         Assert.Contains("View.KeyboardLayoutGuide.TopAnchor", host);
+        Assert.Contains("View.KeyboardLayoutGuide.UsesBottomSafeArea = false", host);
+        Assert.Contains(
+            "ContentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentBehavior.Never",
+            host);
+        Assert.Contains("_scroll.ContentInset = new UIEdgeInsets(0, 0, scrollBottom, 0)", host);
+        Assert.Contains(
+            "_scroll.VerticalScrollIndicatorInsets = new UIEdgeInsets(0, 0, scrollBottom, 0)",
+            host);
         Assert.Contains("SwiftUIHost.DetachController(node, host)", host);
+    }
+
+    [Fact]
+    public void UIKitStack_PushesQuizAndKeepsTheSystemBackItemForTapAndSwipe()
+    {
+        var scene = File.ReadAllText(Path.Combine(HeadPath, "SceneDelegate.cs"));
+        var controller = File.ReadAllText(Path.Combine(HeadPath, "NativeAppController.cs"));
+        var feature = File.ReadAllText(Path.Combine(
+            HeadPath, "Features", "NativeFeatureViews.cs"));
+
+        Assert.Contains("RootViewController = _navigationController", scene);
+        Assert.Contains("_navigation.SetViewControllers([dashboardController], false)", controller);
+        Assert.Contains("_navigation.PushViewController(_quizController, true)", controller);
+        Assert.Contains("_navigation.PopToRootViewController(true)", controller);
+        Assert.Contains("_navigation.SetViewControllers([_signInModal], false)", controller);
+        Assert.Contains("new UIBarButtonItem(string.Empty, UIBarButtonItemStyle.Plain, null, null)",
+            controller);
+        Assert.Contains("navigationItem.BackBarButtonItem = backItem", controller);
+        Assert.Contains("backItem.AccessibilityLabel = Text(\"Dashboard_Title\")", controller);
+        Assert.Contains("_quizBackAction ??= UIAction.Create(_ => Submit(BackFromQuizAsync))",
+            controller);
+        Assert.Contains("_quizController!.NavigationItem.BackAction = _quizBackAction",
+            controller);
+        Assert.Equal(1, controller.Split("Submit(BackFromQuizAsync)",
+            StringSplitOptions.None).Length - 1);
+        Assert.DoesNotContain("NavigationItem.LeftBarButtonItem", controller);
+        Assert.DoesNotContain("NavigationItem.HidesBackButton = true", controller);
+        Assert.DoesNotContain("chevron.backward", controller);
+        Assert.Contains("_navigation.InteractivePopGestureRecognizer", controller);
+        Assert.Contains("!ReferenceEquals(_navigation.TopViewController, shown)", controller);
+        Assert.Contains("_quizController.NavigationItem.BackAction = null", controller);
+        Assert.Contains("if (_handlingNativePop || !_nativePopPending)", controller);
+        Assert.Contains("await BackFromQuizAsync()", controller);
+        Assert.Contains("_nativePopPending", controller);
+        Assert.DoesNotContain("WithAccessibilityIdentifier(\"native.quiz.back\")", feature);
+    }
+
+    [Fact]
+    public void ResumeChoiceBack_ReturnsWithoutSuspendingAnUnopenedRound()
+    {
+        var source = File.ReadAllText(Path.Combine(HeadPath, "NativeAppController.cs"));
+        var start = source.IndexOf("private async Task BackFromQuizAsync()", StringComparison.Ordinal);
+        Assert.True(start >= 0);
+        var end = source.IndexOf("private async Task RetryQuizAsync()", start,
+            StringComparison.Ordinal);
+        Assert.True(end > start);
+        var back = source[start..end];
+
+        Assert.Contains("NativePhase.ResumeChoice", back);
+        Assert.Contains("await ReturnToDashboardAsync();", back);
+        Assert.True(back.IndexOf("await ReturnToDashboardAsync()", StringComparison.Ordinal)
+            < back.IndexOf("await _quiz.BackAsync(", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void QuizKeepsTheSameChoiceButtonsAndShowsFeedbackAfterThem()
+    {
+        var feature = File.ReadAllText(Path.Combine(
+            HeadPath, "Features", "NativeFeatureViews.cs"));
+        var host = File.ReadAllText(Path.Combine(
+            HeadPath, "Platform", "NativeVisualViewController.cs"));
+        var questionStart = feature.IndexOf(
+            "private static void RenderQuestion(", StringComparison.Ordinal);
+        var feedbackStart = feature.IndexOf(
+            "private static void RenderFeedback(", StringComparison.Ordinal);
+        Assert.True(questionStart >= 0 && feedbackStart > questionStart);
+        var question = feature[questionStart..feedbackStart];
+
+        var choice = question.IndexOf(
+            "items.Add(Views.Button(choice.Text", StringComparison.Ordinal);
+        var feedback = question.IndexOf(
+            "if (state.Phase == NativePhase.Feedback)", StringComparison.Ordinal);
+        Assert.True(choice >= 0 && feedback > choice);
+        Assert.DoesNotContain("Views.Text(label)", question);
+        Assert.Contains("else if (state.Mode == \"Text\")", question);
+        Assert.Contains("state.SelectedAnswer ?? throw new InvalidOperationException(", question);
+        Assert.Contains(
+            "Views.TextField(text(NativeText.AnswerRequired), displayedAnswer, answerChanged)",
+            question);
+        Assert.Contains("button.Enabled = !_quizBusy && _quizCanAnswer", host);
+        Assert.Contains("content.AccessibilityValue = correct", host);
+        Assert.Contains("status.WidthAnchor.ConstraintEqualTo(20)", host);
+        Assert.Contains("button.TitleLabel.Lines = 0", host);
     }
 
     [Fact]
@@ -189,13 +280,23 @@ public sealed class NativeHeadContractTests
         var source = File.ReadAllText(Path.Combine(
             HeadPath, "Platform", "NativeSignInViewController.cs"));
         Assert.Matches(
-            @"content\.LeadingAnchor\.ConstraintEqualTo\(\s*scroll\.ContentLayoutGuide\.LeadingAnchor",
+            @"content\.LeadingAnchor\.ConstraintEqualTo\(\s*_scroll\.ContentLayoutGuide\.LeadingAnchor",
             source);
         Assert.Matches(
-            @"content\.TrailingAnchor\.ConstraintEqualTo\(\s*scroll\.ContentLayoutGuide\.TrailingAnchor",
+            @"content\.TrailingAnchor\.ConstraintEqualTo\(\s*_scroll\.ContentLayoutGuide\.TrailingAnchor",
             source);
         Assert.Matches(
-            @"content\.WidthAnchor\.ConstraintEqualTo\(\s*scroll\.FrameLayoutGuide\.WidthAnchor,\s*1,\s*-2 \* NativeVisualTheme\.PagePadding",
+            @"content\.WidthAnchor\.ConstraintEqualTo\(\s*_scroll\.FrameLayoutGuide\.WidthAnchor,\s*1,\s*-2 \* NativeVisualTheme\.PagePadding",
+            source);
+        Assert.Contains("View.KeyboardLayoutGuide.UsesBottomSafeArea = false", source);
+        Assert.Contains(
+            "ContentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentBehavior.Never",
+            source);
+        Assert.Contains("_scroll.BottomAnchor.ConstraintEqualTo(View.KeyboardLayoutGuide.TopAnchor)",
+            source);
+        Assert.Contains("_scroll.ContentInset = new UIEdgeInsets(0, 0, bottom, 0)", source);
+        Assert.Contains(
+            "_scroll.VerticalScrollIndicatorInsets = new UIEdgeInsets(0, 0, bottom, 0)",
             source);
     }
 

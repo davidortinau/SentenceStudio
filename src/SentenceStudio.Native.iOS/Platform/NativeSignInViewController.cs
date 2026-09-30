@@ -17,6 +17,7 @@ public sealed class NativeSignInViewController(
     private UIButton _submit = null!;
     private UIButton _retry = null!;
     private UIActivityIndicatorView _spinner = null!;
+    private UIScrollView _scroll = null!;
     private bool _canSubmit;
     private bool _showPassword;
 
@@ -25,6 +26,7 @@ public sealed class NativeSignInViewController(
         base.ViewDidLoad();
         View!.BackgroundColor = NativeVisualTheme.Background;
         View.TintColor = NativeVisualTheme.Primary;
+        View.KeyboardLayoutGuide.UsesBottomSafeArea = false;
 
         var title = new UILabel
         {
@@ -189,22 +191,24 @@ public sealed class NativeSignInViewController(
             Alignment = UIStackViewAlignment.Fill,
             TranslatesAutoresizingMaskIntoConstraints = false,
         };
-        var scroll = new UIScrollView
+        _scroll = new UIScrollView
         {
             TranslatesAutoresizingMaskIntoConstraints = false,
             KeyboardDismissMode = UIScrollViewKeyboardDismissMode.Interactive,
+            ContentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentBehavior.Never,
+            AutomaticallyAdjustsScrollIndicatorInsets = false,
         };
-        View.AddSubview(scroll);
-        scroll.AddSubview(content);
+        View.AddSubview(_scroll);
+        _scroll.AddSubview(content);
         var constraints = new List<NSLayoutConstraint>
         {
-            scroll.TopAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.TopAnchor),
-            scroll.BottomAnchor.ConstraintEqualTo(View.KeyboardLayoutGuide.TopAnchor),
-            scroll.LeadingAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.LeadingAnchor),
-            scroll.TrailingAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.TrailingAnchor),
+            _scroll.TopAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.TopAnchor),
+            _scroll.BottomAnchor.ConstraintEqualTo(View.KeyboardLayoutGuide.TopAnchor),
+            _scroll.LeadingAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.LeadingAnchor),
+            _scroll.TrailingAnchor.ConstraintEqualTo(View.SafeAreaLayoutGuide.TrailingAnchor),
             content.TopAnchor.ConstraintGreaterThanOrEqualTo(
-                scroll.ContentLayoutGuide.TopAnchor, 20),
-            content.BottomAnchor.ConstraintEqualTo(scroll.ContentLayoutGuide.BottomAnchor, -20),
+                _scroll.ContentLayoutGuide.TopAnchor, 20),
+            content.BottomAnchor.ConstraintEqualTo(_scroll.ContentLayoutGuide.BottomAnchor, -20),
             _email.HeightAnchor.ConstraintGreaterThanOrEqualTo(NativeVisualTheme.ControlHeight),
             _password.HeightAnchor.ConstraintGreaterThanOrEqualTo(NativeVisualTheme.ControlHeight),
             _passwordToggle.WidthAnchor.ConstraintEqualTo(NativeVisualTheme.ControlHeight),
@@ -214,31 +218,47 @@ public sealed class NativeSignInViewController(
             _retry.HeightAnchor.ConstraintGreaterThanOrEqualTo(NativeVisualTheme.ControlHeight),
         };
         var centered = content.CenterYAnchor.ConstraintEqualTo(
-            scroll.FrameLayoutGuide.CenterYAnchor);
+            _scroll.FrameLayoutGuide.CenterYAnchor);
         centered.Priority = 750;
         constraints.Add(centered);
         if (UIDevice.CurrentDevice.UserInterfaceIdiom == UIUserInterfaceIdiom.Pad)
         {
             constraints.Add(content.WidthAnchor.ConstraintEqualTo(520));
-            constraints.Add(scroll.ContentLayoutGuide.WidthAnchor.ConstraintEqualTo(
-                scroll.FrameLayoutGuide.WidthAnchor));
+            constraints.Add(_scroll.ContentLayoutGuide.WidthAnchor.ConstraintEqualTo(
+                _scroll.FrameLayoutGuide.WidthAnchor));
             constraints.Add(content.CenterXAnchor.ConstraintEqualTo(
-                scroll.FrameLayoutGuide.CenterXAnchor));
+                _scroll.FrameLayoutGuide.CenterXAnchor));
         }
         else
         {
             // NSLayoutDimension's two-argument overload multiplies; use the three-argument offset overload.
             constraints.Add(content.LeadingAnchor.ConstraintEqualTo(
-                scroll.ContentLayoutGuide.LeadingAnchor,
+                _scroll.ContentLayoutGuide.LeadingAnchor,
                 NativeVisualTheme.PagePadding));
             constraints.Add(content.TrailingAnchor.ConstraintEqualTo(
-                scroll.ContentLayoutGuide.TrailingAnchor,
+                _scroll.ContentLayoutGuide.TrailingAnchor,
                 -NativeVisualTheme.PagePadding));
             constraints.Add(content.WidthAnchor.ConstraintEqualTo(
-                scroll.FrameLayoutGuide.WidthAnchor, 1,
+                _scroll.FrameLayoutGuide.WidthAnchor, 1,
                 -2 * NativeVisualTheme.PagePadding));
         }
         NSLayoutConstraint.ActivateConstraints(constraints.ToArray());
+        UpdateBottomInsets();
+    }
+
+    public override void ViewSafeAreaInsetsDidChange()
+    {
+        base.ViewSafeAreaInsetsDidChange();
+        UpdateBottomInsets();
+    }
+
+    private void UpdateBottomInsets()
+    {
+        if (_scroll is null)
+            return;
+        var bottom = View!.SafeAreaInsets.Bottom;
+        _scroll.ContentInset = new UIEdgeInsets(0, 0, bottom, 0);
+        _scroll.VerticalScrollIndicatorInsets = new UIEdgeInsets(0, 0, bottom, 0);
     }
 
     public void ShowState(NativeAuthState state, bool busy, bool canAuthenticate)
