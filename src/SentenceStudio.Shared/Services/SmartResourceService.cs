@@ -63,7 +63,9 @@ public class SmartResourceService
                     .Select(r => r.SmartResourceType!),
                 StringComparer.Ordinal);
 
-            // Seed definitions for each smart resource type. Order preserved.
+            // Keep CreatedAt as a local wall clock for legacy smart rows. SQLite
+            // loses DateTime.Kind, so UTC writes would need persisted provenance
+            // to be distinguishable from those rows. Order preserved.
             var definitions = new[]
             {
                 new LearningResource

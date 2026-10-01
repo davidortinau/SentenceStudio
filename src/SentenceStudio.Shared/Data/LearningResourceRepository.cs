@@ -302,6 +302,107 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
         return resource;
     }
 
+    /// <summary>
+    /// Updates only the editable metadata if the original owner-scoped snapshot still matches.
+    /// Provisioned CoreSync tracks the local row update for a later sync; this does not claim remote success.
+    /// </summary>
+    public async Task<ResourceMetadataUpdateResult> UpdateResourceMetadataAsync(
+        string resourceId,
+        string userProfileId,
+        ResourceMetadataSnapshot? original,
+        string title,
+        string? description,
+        string? tags,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(userProfileId))
+        {
+            _logger.LogWarning("UpdateResourceMetadataAsync called without an owner — refusing write to prevent cross-tenant data changes.");
+            return ResourceMetadataUpdateResult.NotFoundOrForbidden;
+        }
+
+        if (string.IsNullOrWhiteSpace(resourceId) || string.IsNullOrWhiteSpace(title) || original is null)
+        {
+            _logger.LogWarning("UpdateResourceMetadataAsync refused an invalid resource ID, title, or original snapshot.");
+            return ResourceMetadataUpdateResult.ValidationFailed;
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        if (db.Database.IsSqlite() && string.IsNullOrEmpty(original.SqliteUpdatedAtText))
+        {
+            _logger.LogWarning("UpdateResourceMetadataAsync refused a SQLite snapshot without the stored timestamp.");
+            return ResourceMetadataUpdateResult.ValidationFailed;
+        }
+
+        var updatedAt = DateTime.UtcNow;
+        if (updatedAt <= original.UpdatedAt)
+            updatedAt = original.UpdatedAt.AddTicks(10);
+
+        var updated = await MatchOriginalMetadata(db, resourceId, userProfileId, original)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(r => r.Title, title)
+                .SetProperty(r => r.Description, description)
+                .SetProperty(r => r.Tags, tags)
+                .SetProperty(r => r.UpdatedAt, updatedAt), cancellationToken);
+
+        if (updated == 1)
+            return ResourceMetadataUpdateResult.Success;
+        if (updated != 0)
+            throw new InvalidOperationException("A resource metadata update affected more than one row.");
+
+        var owned = await db.LearningResources.AsNoTracking()
+            .Where(r => r.Id == resourceId && r.UserProfileId == userProfileId)
+            .Select(r => new { r.IsSmartResource })
+            .SingleOrDefaultAsync(cancellationToken);
+        if (owned is null)
+        {
+            _logger.LogWarning("UpdateResourceMetadataAsync refused a missing or unowned resource.");
+            return ResourceMetadataUpdateResult.NotFoundOrForbidden;
+        }
+
+        if (owned.IsSmartResource)
+        {
+            _logger.LogWarning("UpdateResourceMetadataAsync refused a smart resource.");
+            return ResourceMetadataUpdateResult.SmartReadOnly;
+        }
+
+        return ResourceMetadataUpdateResult.Conflict;
+    }
+
+    internal static IQueryable<LearningResource> MatchOriginalMetadata(
+        ApplicationDbContext db, string resourceId, string userProfileId,
+        ResourceMetadataSnapshot original)
+    {
+        var matches = db.LearningResources.Where(r => r.Id == resourceId
+            && r.UserProfileId == userProfileId && !r.IsSmartResource);
+        if (db.Database.IsSqlite())
+            matches = matches.Where(r => r.UpdatedAt.ToString() == original.SqliteUpdatedAtText);
+        else
+            matches = matches.Where(r => r.UpdatedAt == original.UpdatedAt);
+        matches = original.Title is null
+            ? matches.Where(r => r.Title == null)
+            : matches.Where(r => r.Title == original.Title);
+        matches = original.Description is null
+            ? matches.Where(r => r.Description == null)
+            : matches.Where(r => r.Description == original.Description);
+        matches = original.Tags is null
+            ? matches.Where(r => r.Tags == null)
+            : matches.Where(r => r.Tags == original.Tags);
+        return matches;
+    }
+
+    [Obsolete("Pass the original ResourceMetadataSnapshot and handle ResourceMetadataUpdateResult.")]
+    public Task<bool> UpdateResourceMetadataAsync(
+        string resourceId, string userProfileId, string title,
+        string? description, string? tags, CancellationToken cancellationToken = default)
+    {
+        _logger.LogError("UpdateResourceMetadataAsync refused a metadata write without an original snapshot.");
+        throw new InvalidOperationException(
+            "Resource metadata updates require an original resource snapshot.");
+    }
+
     public async Task<string> SaveResourceAsync(LearningResource resource, string? userProfileId = null)
     {
         var userId = ResolveUserId(userProfileId);

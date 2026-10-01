@@ -21,6 +21,8 @@
     <ProjectReference Include="../../src/SentenceStudio.Native/SentenceStudio.Native.csproj" />
     <Compile Include="../../src/SentenceStudio.Native.iOS/Platform/NativeApiEndpoint.cs"
              Link="NativeApiEndpoint.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.iOS/Platform/NativeResourceDateFormatter.cs"
+             Link="NativeResourceDateFormatter.cs" />
     <Compile Include="../../src/SentenceStudio.Native.iOS/Platform/NativeProfileAuthService.cs"
              Link="NativeProfileAuthService.cs" />
     <Compile Include="../../src/SentenceStudio.Native.iOS/Features/IosDashboardNavigation.cs"

@@ -8,15 +8,27 @@ namespace SentenceStudio.Native.iOS.Tests;
 public sealed class NativeDashboardContractTests
 {
     [Fact]
-    public void OnlyTheImplementedDashboardIsTopLevel_NoDeadTabs()
+    public void DashboardAndResourcesAreTheOnlyImplementedTopLevelDestinations()
     {
-        Assert.Equal(NativeDestination.Dashboard,
-            Assert.Single(IosDashboardNavigation.TopLevelDestinations));
-        Assert.False(IosDashboardNavigation.UsesBottomTabs);
+        Assert.Equal([NativeDestination.Dashboard, NativeDestination.Resources],
+            IosDashboardNavigation.TopLevelDestinations.ToArray());
+        Assert.True(IosDashboardNavigation.UsesBottomTabs);
         Assert.DoesNotContain(NativeDestination.TodaysPlan,
             IosDashboardNavigation.TopLevelDestinations);
         Assert.DoesNotContain(NativeDestination.VocabularyQuiz,
             IosDashboardNavigation.TopLevelDestinations);
+        Assert.DoesNotContain(NativeDestination.ResourceDetail,
+            IosDashboardNavigation.TopLevelDestinations);
+        Assert.DoesNotContain(NativeDestination.ResourceEdit,
+            IosDashboardNavigation.TopLevelDestinations);
+        var host = Source("NativeAppController.cs");
+        var detach = host.IndexOf("_window.RootViewController = tabs;",
+            StringComparison.Ordinal);
+        var adopt = host.IndexOf(
+            "tabs.ViewControllers = [_navigation, _resources.Navigation];",
+            StringComparison.Ordinal);
+        Assert.True(detach >= 0 && detach < adopt,
+            "UIKit cannot adopt a UINavigationController while it is UIWindow.RootViewController.");
     }
 
     [Fact]

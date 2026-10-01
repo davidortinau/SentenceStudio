@@ -1,5 +1,11 @@
 # Import & Resource E2E Tests
 
+The native iOS Resources acceptance matrix is in
+`management-pages.md` (R07/R09). It covers browsing, search/filter, bounded
+detail and title/description/tags editing only. The import, vocabulary
+generation, quick-add, delete and full Resource Edit cases below continue to
+apply to the WebApp, not to this accepted native slice.
+
 ## 1. Import (`/import`)
 
 **Prereqs:** None  

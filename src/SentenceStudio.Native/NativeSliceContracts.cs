@@ -9,7 +9,11 @@ namespace SentenceStudio.Native;
 /// Platform heads translate these destinations into their own navigation APIs.
 /// Neither a URL nor a MAUI page is an application destination.
 /// </summary>
-public enum NativeDestination { SignIn, Onboarding, Dashboard, TodaysPlan, VocabularyQuiz, QuizSummary }
+public enum NativeDestination
+{
+    SignIn, Onboarding, Dashboard, TodaysPlan, VocabularyQuiz, QuizSummary,
+    Resources, ResourceDetail, ResourceEdit
+}
 
 public enum NativePhase { Idle, Loading, Ready, Empty, PendingSync, ResumeChoice, Feedback, Summary, Blocked, Error }
 
@@ -75,6 +79,21 @@ public static class NativeAccess
     public const string QuizResume = "native.quiz.resume";
     public const string QuizSummary = "native.quiz.summary";
     public const string QuizSummaryResult = "native.quiz.summary.result";
+    public const string ResourcesTab = "native.tab.resources";
+    public const string DashboardTab = "native.tab.dashboard";
+    public const string ResourceSearch = "native.resources.search";
+    public const string ResourceType = "native.resources.filter.type";
+    public const string ResourceLanguage = "native.resources.filter.language";
+    public const string ResourceRow = "native.resources.row";
+    public const string ResourceDetail = "native.resources.detail";
+    public const string ResourceTitle = "native.resources.edit.title";
+    public const string ResourceDescription = "native.resources.edit.description";
+    public const string ResourceTags = "native.resources.edit.tags";
+    public const string ResourceSave = "native.resources.edit.save";
+    public const string ResourceCancel = "native.resources.edit.cancel";
+    public const string ResourceConflict = "native.resources.edit.conflict";
+    public const string ResourceConflictAlert = "native.resources.edit.conflict.alert";
+    public const string ResourceReload = "native.resources.edit.reload";
 }
 
 public sealed record NativeAuthState(

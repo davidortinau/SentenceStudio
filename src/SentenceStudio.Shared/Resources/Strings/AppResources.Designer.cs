@@ -9985,6 +9985,204 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to This resource changed elsewhere. Your edits were not saved. Reload to see the latest version; reloading discards your draft..
+        /// </summary>
+        internal static string NativeResources_Conflict {
+            get {
+                return ResourceManager.GetString("NativeResources_Conflict", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Newer resource available.
+        /// </summary>
+        internal static string NativeResources_ConflictTitle {
+            get {
+                return ResourceManager.GetString("NativeResources_ConflictTitle", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Edit.
+        /// </summary>
+        internal static string NativeResources_Edit {
+            get {
+                return ResourceManager.GetString("NativeResources_Edit", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No learning resources yet..
+        /// </summary>
+        internal static string NativeResources_Empty {
+            get {
+                return ResourceManager.GetString("NativeResources_Empty", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Keep editing.
+        /// </summary>
+        internal static string NativeResources_KeepEditing {
+            get {
+                return ResourceManager.GetString("NativeResources_KeepEditing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Language.
+        /// </summary>
+        internal static string NativeResources_LanguageFilter {
+            get {
+                return ResourceManager.GetString("NativeResources_LanguageFilter", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Resources could not be loaded. Try again..
+        /// </summary>
+        internal static string NativeResources_LoadError {
+            get {
+                return ResourceManager.GetString("NativeResources_LoadError", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Next field.
+        /// </summary>
+        internal static string NativeResources_NextField {
+            get {
+                return ResourceManager.GetString("NativeResources_NextField", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No resources match your search or filters..
+        /// </summary>
+        internal static string NativeResources_NoMatches {
+            get {
+                return ResourceManager.GetString("NativeResources_NoMatches", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Preview.
+        /// </summary>
+        internal static string NativeResources_Preview {
+            get {
+                return ResourceManager.GetString("NativeResources_Preview", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Reload and discard draft.
+        /// </summary>
+        internal static string NativeResources_ReloadDiscard {
+            get {
+                return ResourceManager.GetString("NativeResources_ReloadDiscard", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Newer resource data could not be loaded. Your draft is still here. Try again..
+        /// </summary>
+        internal static string NativeResources_ReloadError {
+            get {
+                return ResourceManager.GetString("NativeResources_ReloadError", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Saved locally, but the resource could not be reloaded. Go back and retry..
+        /// </summary>
+        internal static string NativeResources_SavedReloadError {
+            get {
+                return ResourceManager.GetString("NativeResources_SavedReloadError", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Could not save this resource. Try again..
+        /// </summary>
+        internal static string NativeResources_SaveError {
+            get {
+                return ResourceManager.GetString("NativeResources_SaveError", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to This edit can no longer be saved. Reload to review the current resource..
+        /// </summary>
+        internal static string NativeResources_SaveInvalid {
+            get {
+                return ResourceManager.GetString("NativeResources_SaveInvalid", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to This resource could not be saved. It may have changed or become unavailable..
+        /// </summary>
+        internal static string NativeResources_SaveRefused {
+            get {
+                return ResourceManager.GetString("NativeResources_SaveRefused", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Sync.
+        /// </summary>
+        internal static string NativeResources_Sync {
+            get {
+                return ResourceManager.GetString("NativeResources_Sync", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Sync confirmed.
+        /// </summary>
+        internal static string NativeResources_SyncConfirmed {
+            get {
+                return ResourceManager.GetString("NativeResources_SyncConfirmed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Sync could not be confirmed. Check your connection and retry..
+        /// </summary>
+        internal static string NativeResources_SyncUnconfirmed {
+            get {
+                return ResourceManager.GetString("NativeResources_SyncUnconfirmed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Type.
+        /// </summary>
+        internal static string NativeResources_TypeFilter {
+            get {
+                return ResourceManager.GetString("NativeResources_TypeFilter", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Not available.
+        /// </summary>
+        internal static string NativeResources_Unavailable {
+            get {
+                return ResourceManager.GetString("NativeResources_Unavailable", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Untitled resource.
+        /// </summary>
+        internal static string NativeResources_Untitled {
+            get {
+                return ResourceManager.GetString("NativeResources_Untitled", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Activity.
         /// </summary>
         internal static string Nav_Activity {

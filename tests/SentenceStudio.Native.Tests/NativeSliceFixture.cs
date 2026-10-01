@@ -90,6 +90,7 @@ internal sealed class NativeSliceFixture : IDisposable
         .GetRequiredService<VocabularyQuizPreferences>();
     public NativeAuthPresenter Auth => _provider.GetRequiredService<NativeAuthPresenter>();
     public NativeDashboardPresenter Dashboard => _provider.GetRequiredService<NativeDashboardPresenter>();
+    public NativeResourcePresenter Resources => _provider.GetRequiredService<NativeResourcePresenter>();
     public NativeQuizPresenter Quiz => _provider.GetRequiredService<NativeQuizPresenter>();
     public IServiceScope Scope() => _provider.CreateScope();
     public NativePlanLease PlanLease(string userId) =>

@@ -39,7 +39,7 @@ public sealed class SceneDelegate : UIResponder, IUIWindowSceneDelegate
 #if AILOHA_DEBUG
         AilohaDebug.Start();
 #endif
-        _app = new NativeAppController(_navigationController);
+        _app = new NativeAppController(Window, _navigationController);
         _app.Start();
     }
 

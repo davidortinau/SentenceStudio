@@ -6,12 +6,31 @@ using SentenceStudio.Data;
 using SentenceStudio.Native;
 using SentenceStudio.Native.Tests;
 using SentenceStudio.Native.iOS.Platform;
+using SentenceStudio.Services.Plans;
 using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Native.iOS.Tests;
 
 public sealed class NativePreviewRestartTests
 {
+    [Fact]
+    public async Task PreviewDueDatesUseThePlanClockRatherThanWallClock()
+    {
+        using var fixture = new NativeSliceFixture(
+            productionAdapters: true, realPlanGenerator: true);
+        await SelectFixture("mc").SeedAsync(fixture.Provider);
+
+        using var scope = fixture.Scope();
+        var planNow = scope.ServiceProvider.GetRequiredService<IPlanDateContext>().UtcNow;
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var due = await db.VocabularyProgresses.AsNoTracking()
+            .Where(row => row.UserId == NativeSliceFixture.UserA)
+            .Select(row => row.NextReviewDate)
+            .FirstAsync();
+        Assert.Equal(planNow.AddDays(-3), due);
+        Assert.Equal(NativePhase.Ready, (await fixture.Dashboard.LoadAsync()).Phase);
+    }
+
     [Fact]
     public async Task McFixture_RestoresPersistedSummaryAndCompletedCardAcrossColdStarts()
     {

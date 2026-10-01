@@ -2,7 +2,11 @@ using CoreSync;
 using CoreSync.Sqlite;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Moq;
 using SentenceStudio;
+using SentenceStudio.Abstractions;
 using SentenceStudio.Data;
 using SentenceStudio.Shared.Models;
 
@@ -107,6 +111,116 @@ public class CoreSyncRegistrationTests
 
         var completionColumns = await GetColumnNamesAsync(keepAlive, "DailyPlanCompletion");
         Assert.DoesNotContain("FocusVocabularyIdsJson", completionColumns);
+    }
+
+    [Fact]
+    public async Task ResourceMetadataUpdate_IsTrackedForNextCoreSyncRoundTrip()
+    {
+        var local = await CreateProvisionedStoreAsync($"MetadataLocal{Guid.NewGuid():N}", ProviderMode.Local);
+        var remote = await CreateProvisionedStoreAsync($"MetadataRemote{Guid.NewGuid():N}", ProviderMode.Remote);
+        await using var localKeepAlive = local.KeepAlive;
+        await using var remoteKeepAlive = remote.KeepAlive;
+
+        var timestamp = new DateTime(2026, 1, 1, 12, 0, 0, DateTimeKind.Utc);
+        await using (var db = new ApplicationDbContext(local.Options))
+        {
+            db.LearningResources.AddRange(
+                new LearningResource
+                {
+                    Id = "owned-metadata",
+                    UserProfileId = "owner-a",
+                    Title = "Before",
+                    Description = "Original",
+                    Tags = "old, tags",
+                    CreatedAt = timestamp,
+                    UpdatedAt = timestamp
+                },
+                new LearningResource
+                {
+                    Id = "foreign-metadata",
+                    UserProfileId = "owner-b",
+                    Title = "Other owner",
+                    CreatedAt = timestamp,
+                    UpdatedAt = timestamp
+                });
+            await db.SaveChangesAsync();
+        }
+
+        await new SyncAgent(local.Provider, remote.Provider).SynchronizeAsync();
+        await using (var db = new ApplicationDbContext(remote.Options))
+        {
+            Assert.Equal("Before", (await db.LearningResources.SingleAsync(r => r.Id == "owned-metadata")).Title);
+        }
+
+        var services = new ServiceCollection();
+        services.AddDbContext<ApplicationDbContext>(options => options.UseSqlite(localKeepAlive));
+        using var serviceProvider = services.BuildServiceProvider();
+        var repository = new LearningResourceRepository(
+            serviceProvider,
+            NullLogger<LearningResourceRepository>.Instance,
+            Mock.Of<IFileSystemService>());
+
+        ResourceMetadataSnapshot original;
+        await using (var db = new ApplicationDbContext(local.Options))
+        {
+            original = await db.LearningResources.AsNoTracking()
+                .Where(r => r.Id == "owned-metadata" && r.UserProfileId == "owner-a")
+                .Select(r => new ResourceMetadataSnapshot(
+                    r.UpdatedAt, r.Title, r.Description, r.Tags, r.UpdatedAt.ToString()))
+                .SingleAsync();
+        }
+
+        await using (var db = new ApplicationDbContext(remote.Options))
+        {
+            var row = await db.LearningResources.SingleAsync(r => r.Id == "owned-metadata");
+            row.Description = "Remote description";
+            row.Tags = "remote, tags";
+            row.UpdatedAt = DateTime.UtcNow;
+            await db.SaveChangesAsync();
+        }
+
+        await new SyncAgent(local.Provider, remote.Provider).SynchronizeAsync();
+        Assert.Equal(ResourceMetadataUpdateResult.Conflict,
+            await repository.UpdateResourceMetadataAsync(
+                "owned-metadata", "owner-a", original, "Stale title", "Original", "old, tags"));
+        await using (var db = new ApplicationDbContext(local.Options))
+        {
+            var row = await db.LearningResources.AsNoTracking()
+                .SingleAsync(r => r.Id == "owned-metadata");
+            Assert.Equal("Before", row.Title);
+            Assert.Equal("Remote description", row.Description);
+            Assert.Equal("remote, tags", row.Tags);
+            original = await db.LearningResources.AsNoTracking()
+                .Where(r => r.Id == "owned-metadata" && r.UserProfileId == "owner-a")
+                .Select(r => new ResourceMetadataSnapshot(
+                    r.UpdatedAt, r.Title, r.Description, r.Tags, r.UpdatedAt.ToString()))
+                .SingleAsync();
+        }
+
+        Assert.Equal(ResourceMetadataUpdateResult.Success,
+            await repository.UpdateResourceMetadataAsync(
+                "owned-metadata", "owner-a", original, "After", "Updated", "new,  spaced"));
+        await using (var db = new ApplicationDbContext(remote.Options))
+        {
+            Assert.Equal("Before", (await db.LearningResources.SingleAsync(r => r.Id == "owned-metadata")).Title);
+            Assert.Equal("Remote description", (await db.LearningResources.SingleAsync(r => r.Id == "owned-metadata")).Description);
+        }
+
+        await new SyncAgent(local.Provider, remote.Provider).SynchronizeAsync();
+        await using (var db = new ApplicationDbContext(remote.Options))
+        {
+            var updated = await db.LearningResources.SingleAsync(r => r.Id == "owned-metadata");
+            Assert.Equal("owner-a", updated.UserProfileId);
+            Assert.Equal("After", updated.Title);
+            Assert.Equal("Updated", updated.Description);
+            Assert.Equal("new,  spaced", updated.Tags);
+            Assert.True(updated.UpdatedAt > timestamp);
+
+            var foreign = await db.LearningResources.SingleAsync(r => r.Id == "foreign-metadata");
+            Assert.Equal("owner-b", foreign.UserProfileId);
+            Assert.Equal("Other owner", foreign.Title);
+            Assert.Equal(timestamp, foreign.UpdatedAt);
+        }
     }
 
     private static async Task<ProvisionedStore> CreateProvisionedStoreAsync(string storeName, ProviderMode mode)

@@ -3661,6 +3661,72 @@ For example: {0} ...</value>
     <value>No resources found</value>
     <comment>Empty state</comment>
   </data>
+  <data name="NativeResources_Empty" xml:space="preserve">
+    <value>No learning resources yet.</value>
+  </data>
+  <data name="NativeResources_NoMatches" xml:space="preserve">
+    <value>No resources match your search or filters.</value>
+  </data>
+  <data name="NativeResources_LoadError" xml:space="preserve">
+    <value>Resources could not be loaded. Try again.</value>
+  </data>
+  <data name="NativeResources_ConflictTitle" xml:space="preserve">
+    <value>Newer resource available</value>
+  </data>
+  <data name="NativeResources_Conflict" xml:space="preserve">
+    <value>This resource changed elsewhere. Your edits were not saved. Reload to see the latest version; reloading discards your draft.</value>
+  </data>
+  <data name="NativeResources_KeepEditing" xml:space="preserve">
+    <value>Keep editing</value>
+  </data>
+  <data name="NativeResources_ReloadDiscard" xml:space="preserve">
+    <value>Reload and discard draft</value>
+  </data>
+  <data name="NativeResources_ReloadError" xml:space="preserve">
+    <value>Newer resource data could not be loaded. Your draft is still here. Try again.</value>
+  </data>
+  <data name="NativeResources_SaveInvalid" xml:space="preserve">
+    <value>This edit can no longer be saved. Reload to review the current resource.</value>
+  </data>
+  <data name="NativeResources_SaveError" xml:space="preserve">
+    <value>Could not save this resource. Try again.</value>
+  </data>
+  <data name="NativeResources_SaveRefused" xml:space="preserve">
+    <value>This resource could not be saved. It may have changed or become unavailable.</value>
+  </data>
+  <data name="NativeResources_SavedReloadError" xml:space="preserve">
+    <value>Saved locally, but the resource could not be reloaded. Go back and retry.</value>
+  </data>
+  <data name="NativeResources_SyncUnconfirmed" xml:space="preserve">
+    <value>Sync could not be confirmed. Check your connection and retry.</value>
+  </data>
+  <data name="NativeResources_SyncConfirmed" xml:space="preserve">
+    <value>Sync confirmed</value>
+  </data>
+  <data name="NativeResources_Sync" xml:space="preserve">
+    <value>Sync</value>
+  </data>
+  <data name="NativeResources_Edit" xml:space="preserve">
+    <value>Edit</value>
+  </data>
+  <data name="NativeResources_TypeFilter" xml:space="preserve">
+    <value>Type</value>
+  </data>
+  <data name="NativeResources_LanguageFilter" xml:space="preserve">
+    <value>Language</value>
+  </data>
+  <data name="NativeResources_Preview" xml:space="preserve">
+    <value>Preview</value>
+  </data>
+  <data name="NativeResources_Unavailable" xml:space="preserve">
+    <value>Not available</value>
+  </data>
+  <data name="NativeResources_Untitled" xml:space="preserve">
+    <value>Untitled resource</value>
+  </data>
+  <data name="NativeResources_NextField" xml:space="preserve">
+    <value>Next field</value>
+  </data>
   <data name="Resources_AddFirstResource" xml:space="preserve">
     <value>Add Your First Resource</value>
     <comment>Empty state button</comment>

@@ -10,6 +10,37 @@
 | 4 | Click a resource card | Navigates to `/resources/edit/{id}` |
 | 5 | Click "Add Resource" | Navigates to `/resources/add` |
 
+### Native iOS Resources browse/detail/metadata-edit acceptance (R07/R09)
+
+This is a bounded native replacement of the WebApp Resources and Resource Edit
+journey, not a replacement of WebApp Add/Delete/import/vocabulary editing.
+Use the signed-in canonical squad-jayne simulator and its populated owner data.
+Never seed, delete, or patch that database to make a test pass. Capture the
+selected non-smart row's original metadata and a consistent SQLite backup
+before making a reversible edit.
+
+| State | Action | Expected native result |
+|-------|--------|------------------------|
+| Top level | Open the authenticated app; select Resources, then Dashboard and Resources | Exactly two working bottom tabs, each with its own `UINavigationController` stack; no tab during sign-in, and the assigned quiz retains its full-screen stack |
+| Populated | Open Resources | Owner's actual resources, smart first/alphabetical then user-owned by `UpdatedAt` descending, native virtualized list with title, type, language and created date; count and real type/language options |
+| Search | Search separately by title, description, tags and language | Case-insensitive owned matches only; clearing search restores the current type/language selection and source order |
+| Filters and no match | Select a real synced type and language, then search for an absent term; clear both | Only matching owned rows; distinct no-match message (not the true-empty message); clearing restores 14 canonical rows |
+| True empty and load error | Exercise isolated presenter fixtures, not the canonical database | Empty-only owner shows true empty; failed DB read shows retryable load error, not zero resources |
+| Detail | Select a non-smart item with mapped vocabulary and transcript | System push and Back; full title, description, type, language, URL, tags, timestamps, bounded read-only transcript/translation previews and vocabulary count; long title/URL wrap and scroll |
+| Smart and missing/foreign | Exercise smart resource in UI and missing/foreign IDs in isolated tests | Smart has system-updated explanation and no edit control; missing/foreign IDs never show another owner's data |
+| Draft and cancel | Edit title, multiline description and tags; Cancel; repeat using system Back/swipe | Keyboard keeps fields in safe-area scrolling viewport; both exit paths discard draft without updating any row or sync marker |
+| Validation and save | Attempt blank title, then edit all three metadata fields and Save once | Title required; one owner-bound metadata update only; form progress, explicit refusal/error on failure; detail and list reload from storage, sort reflects `UpdatedAt` |
+| Nullable and empty metadata | In isolated owned resources, save only the title on rows with null, empty, and whitespace description/tags; separately clear nonempty description/tags in the editor | Untouched values retain exact null/empty/whitespace storage; deliberate clear stores an empty string, not null; title is nonblank without trimming the chosen text |
+| Concurrent update | On an isolated fixture, open an editor, change the title, apply a newer CoreSync-style description/tags update, then Save | Conflict alert names the unsaved draft and newer data, Save cannot overwrite it, draft remains visible/editable, Reload and discard draft presents current owner-scoped fields and a fresh snapshot; Cancel/Back discard without writing |
+| Refusals and interrupted reload | Exercise missing/foreign, newly smart, invalid snapshot, reload failure and repeated Save on disposable fixtures | Distinct honest feedback, no pending marker without successful write; reload error retains draft and offers Retry; back/cancel causes no write |
+| Sync while editing | With an isolated delayed-sync fixture, start Sync then open an edit draft before it completes | Title/description/tags draft remains intact; Cancel performs no write; persisted detail refreshes only after the editor closes |
+| Sync and cold restart | Observe after local save; request sync; terminate only the native app and relaunch in place | Pending shown until owner-confirmed CoreSync result; offline/unconfirmed never claims server success; confirmed only after a verified run; state/data survive a cold restart |
+| Restoration and isolation | Restore the exact original title/description/tags through the same UI and sync again | Local/server selected metadata matches original; selected owner ID, vocabulary mappings, transcript, translation, progress, plans, and every other owner's rows remain unchanged |
+| Accessibility and appearance | Capture list, detail and edit in light/dark, English/Korean, larger text, keyboard shown and scrolled | Native roles/names/states/IDs, text scaling, readable contrast, correct focus order and no clipped controls or text; no emoji |
+
+Keep before/edit/restored local and server SHA-256 evidence with the private test
+artifacts; do not put raw account credentials or user content in logs.
+
 ## 2. Add Resource (`/resources/add`)
 
 **Services:** LearningResourceRepository

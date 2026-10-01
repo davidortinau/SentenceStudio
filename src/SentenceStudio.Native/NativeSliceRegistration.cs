@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Abstractions;
+using SentenceStudio.Native.Adapters;
 using SentenceStudio.Services;
 using SentenceStudio.Services.Plans;
 using SentenceStudio.Services.Timer;
@@ -35,6 +36,8 @@ public static class NativeSliceRegistration
         services.AddTransient<NativeAuthPresenter>();
         services.AddTransient<NativeDashboardPresenter>();
         services.AddTransient<NativeQuizPresenter>();
+        services.TryAddSingleton<INativeResourceStore, NativeResourceStore>();
+        services.AddTransient<NativeResourcePresenter>();
         return services;
     }
 

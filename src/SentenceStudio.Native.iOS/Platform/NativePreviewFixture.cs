@@ -101,6 +101,7 @@ public sealed record NativePreviewFixture(string Surface, string Owner, string E
     {
         using var scope = provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var fixtureNow = scope.ServiceProvider.GetRequiredService<IPlanDateContext>().UtcNow;
         if (await db.UserProfiles.AnyAsync(profile => profile.Id != Owner))
             throw new InvalidOperationException(
                 "The isolated Debug fixture refuses a database containing another owner.");
@@ -115,7 +116,7 @@ public sealed record NativePreviewFixture(string Surface, string Owner, string E
                 NativeLanguage = "English",
                 TargetLanguage = "Korean",
                 DisplayLanguage = "English",
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = fixtureNow
             });
         }
 
@@ -129,7 +130,7 @@ public sealed record NativePreviewFixture(string Surface, string Owner, string E
                 Title = "Preview vocabulary",
                 MediaType = "Vocabulary List",
                 Language = "Korean",
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = fixtureNow
             });
 
             var vocabulary = new (string Target, string Meaning)[]
@@ -168,7 +169,7 @@ public sealed record NativePreviewFixture(string Surface, string Owner, string E
                     CurrentStreak = multipleChoiceFixture ? 0f : 3f,
                     TotalAttempts = multipleChoiceFixture ? 0 : 3,
                     QuizRecognitionDemonstrations = multipleChoiceFixture ? 0 : 3,
-                    NextReviewDate = DateTime.UtcNow.AddDays(-3)
+                    NextReviewDate = fixtureNow.AddDays(-3)
                 });
             }
             await db.SaveChangesAsync();

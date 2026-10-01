@@ -16,6 +16,7 @@ namespace SentenceStudio.Native.iOS;
 
 public sealed class NativeAppController : IDisposable
 {
+    private readonly UIWindow _window;
     private readonly UINavigationController _navigation;
     private readonly NavigationObserver _navigationObserver;
     private readonly CancellationTokenSource _lifetime = new();
@@ -34,6 +35,8 @@ public sealed class NativeAppController : IDisposable
     private NativeSignInViewController? _signInModal;
     private NativeVisualViewController? _dashboardController;
     private NativeVisualViewController? _quizController;
+    private UITabBarController? _tabs;
+    private IosResourcesCoordinator? _resources;
     private UIAction? _quizBackAction;
     private bool _insightExpanded;
     private bool _preview;
@@ -44,8 +47,9 @@ public sealed class NativeAppController : IDisposable
     private bool _busy;
     private bool _disposed;
 
-    public NativeAppController(UINavigationController navigation)
+    public NativeAppController(UIWindow window, UINavigationController navigation)
     {
+        _window = window;
         _navigation = navigation;
         _navigationObserver = new NavigationObserver(OnNavigationDidShow);
         _navigation.Delegate = _navigationObserver;
@@ -268,6 +272,7 @@ public sealed class NativeAppController : IDisposable
                 _signInModal = null;
                 previousSignIn.Dispose();
             }
+            ShowTopLevelTabs();
 #if AILOHA_DEBUG
             _ = TagInputsWhenRealizedAsync();
 #endif
@@ -329,6 +334,7 @@ public sealed class NativeAppController : IDisposable
             var dashboardController = _dashboardController
                 ?? ShowDashboard(CreateDashboardPage());
             _quizController ??= new NativeVisualViewController();
+            _quizController.HidesBottomBarWhenPushed = true;
             _quizController.Show(page, Text(NativeText.Quiz),
                 quiz: _quizState,
                 answerChanged: value => _answer = value,
@@ -359,6 +365,7 @@ public sealed class NativeAppController : IDisposable
 
         if (_destination == NativeDestination.SignIn && !_preview)
         {
+            HideTopLevelTabs();
             if (_signInModal is null)
             {
                 _signInModal = new NativeSignInViewController(
@@ -406,6 +413,44 @@ public sealed class NativeAppController : IDisposable
                 _insightExpanded = !_insightExpanded;
                 Render();
             });
+
+    private void ShowTopLevelTabs()
+    {
+        if (_tabs is not null || _services is null)
+            return;
+        _resources = new IosResourcesCoordinator(
+            _services.Provider.GetRequiredService<NativeResourcePresenter>(),
+            _services.Provider.GetRequiredService<ILogger<IosResourcesCoordinator>>(),
+            Text);
+        _navigation.TabBarItem = new UITabBarItem(
+            Text("Dashboard_Title"), UIImage.GetSystemImage("house"), 0)
+        {
+            AccessibilityIdentifier = NativeAccess.DashboardTab,
+        };
+        _resources.Navigation.TabBarItem = new UITabBarItem(
+            Text("Resources_Title"), UIImage.GetSystemImage("books.vertical"), 1)
+        {
+            AccessibilityIdentifier = NativeAccess.ResourcesTab,
+        };
+        var tabs = new UITabBarController();
+        // Detach the old window root before making it a child of the tab controller.
+        _window.RootViewController = tabs;
+        tabs.ViewControllers = [_navigation, _resources.Navigation];
+        tabs.SelectedIndex = 0;
+        _tabs = tabs;
+    }
+
+    private void HideTopLevelTabs()
+    {
+        if (_tabs is not { } tabs)
+            return;
+        tabs.ViewControllers = [];
+        _window.RootViewController = _navigation;
+        _resources?.Dispose();
+        _resources = null;
+        tabs.Dispose();
+        _tabs = null;
+    }
 
     private NativeVisualViewController ShowDashboard(SwiftView page)
     {
@@ -715,6 +760,10 @@ public sealed class NativeAppController : IDisposable
         _lifetime.Cancel();
         _quiz?.Dispose();
         _navigation.WeakDelegate = null;
+        if (_tabs is not null)
+            _tabs.ViewControllers = [];
+        _resources?.Dispose();
+        _tabs?.Dispose();
         _navigationObserver.Dispose();
         _dashboardController?.Dispose();
         if (_quizController is not null)
