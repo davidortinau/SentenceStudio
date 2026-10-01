@@ -111,6 +111,50 @@ public sealed class NativeResourceContractTests
         }
     }
 
+    [Theory]
+    [InlineData("AppResources.resx", "All Types", "All Languages")]
+    [InlineData("AppResources.ko.resx", "모든 유형", "모든 언어")]
+    public void FilterDefaultsRemainCompleteInBothLanguages(
+        string resourceFile, string allTypes, string allLanguages)
+    {
+        var path = Path.GetFullPath(Path.Combine(
+            Path.GetDirectoryName(CurrentFile())!,
+            "../../src/SentenceStudio.Shared/Resources/Strings", resourceFile));
+        var resources = XDocument.Load(path).Descendants("data").ToArray();
+        string Value(string key) => Assert.Single(resources,
+            item => item.Attribute("name")?.Value == key).Element("value")!.Value;
+
+        Assert.Equal(allTypes, Value("Resources_AllTypes"));
+        Assert.Equal(allLanguages, Value("Resources_AllLanguages"));
+    }
+
+    [Fact]
+    public void FiltersUseIntrinsicSizingAndWrapFullSelectedValues()
+    {
+        var headPath = Path.GetFullPath(Path.Combine(
+            Path.GetDirectoryName(CurrentFile())!, "../../src/SentenceStudio.Native.iOS"));
+        var view = File.ReadAllText(Path.Combine(
+            headPath, "Platform", "NativeResourceViewControllers.cs"));
+        var list = view[..view.IndexOf("internal sealed class NativeResourceDetailViewController",
+            StringComparison.Ordinal)];
+
+        Assert.Contains("Distribution = UIStackViewDistribution.FillProportionally", list);
+        Assert.Contains(".IsAccessibilityCategory()", list);
+        Assert.Contains("naturalWidth > availableWidth", list);
+        Assert.Contains("UIButtonConfiguration.PlainButtonConfiguration", list);
+        Assert.Contains("configuration.TitleLineBreakMode = UILineBreakMode.WordWrap;", list);
+        Assert.Contains("configuration.CornerStyle = UIButtonConfigurationCornerStyle.Fixed;", list);
+        Assert.Contains("configuration.Background.CornerRadius = NativeVisualTheme.ControlRadius;", list);
+        Assert.Contains("button.SizeThatFits(", list);
+        Assert.Contains("button.TitleLabel.Lines = 0;", list);
+        Assert.Contains("button.TitleLabel.LineBreakMode = UILineBreakMode.WordWrap;", list);
+        Assert.DoesNotContain("UIStackViewDistribution.FillEqually", list);
+        Assert.DoesNotContain("UILineBreakMode.TailTruncation", list);
+        Assert.DoesNotContain("button.ContentEdgeInsets", list);
+        Assert.Contains("button.AccessibilityValue = current ?? all;", list);
+        Assert.Contains("button.HeightAnchor.ConstraintGreaterThanOrEqualTo(", list);
+    }
+
     [Fact]
     public void ListAndDetailUseTheSameLocalTimestampFormatter()
     {

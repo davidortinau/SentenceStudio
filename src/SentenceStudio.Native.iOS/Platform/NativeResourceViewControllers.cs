@@ -1,5 +1,6 @@
 using System.Globalization;
 using CoreFoundation;
+using CoreGraphics;
 using Foundation;
 using SentenceStudio.Data;
 using UIKit;
@@ -20,6 +21,9 @@ internal sealed class NativeResourceListViewController(
     private UISearchController _search = null!;
     private UIButton _type = null!;
     private UIButton _language = null!;
+    private UIStackView _filters = null!;
+    private NSLayoutConstraint _typeHeight = null!;
+    private NSLayoutConstraint _languageHeight = null!;
     private UIButton _sync = null!;
     private UIButton _retry = null!;
     private UILabel _status = null!;
@@ -46,12 +50,12 @@ internal sealed class NativeResourceListViewController(
         NavigationItem.HidesSearchBarWhenScrolling = false;
         DefinesPresentationContext = true;
 
-        _type = FilterButton(NativeAccess.ResourceType);
-        _language = FilterButton(NativeAccess.ResourceLanguage);
-        var filters = new UIStackView([_type, _language])
+        _type = FilterButton(NativeAccess.ResourceType, out _typeHeight);
+        _language = FilterButton(NativeAccess.ResourceLanguage, out _languageHeight);
+        _filters = new UIStackView([_type, _language])
         {
             Axis = UILayoutConstraintAxis.Horizontal,
-            Distribution = UIStackViewDistribution.FillEqually,
+            Distribution = UIStackViewDistribution.FillProportionally,
             Spacing = 8,
         };
         _count = NativeResourceLayout.Label(string.Empty, UIFontTextStyle.Footnote,
@@ -73,7 +77,7 @@ internal sealed class NativeResourceListViewController(
             HidesWhenStopped = true,
             Color = NativeVisualTheme.Primary,
         };
-        var heading = new UIStackView([filters, _count, _syncStatus, _status, _retry, _activity])
+        var heading = new UIStackView([_filters, _count, _syncStatus, _status, _retry, _activity])
         {
             Axis = UILayoutConstraintAxis.Vertical,
             Spacing = 8,
@@ -122,6 +126,12 @@ internal sealed class NativeResourceListViewController(
     {
         base.ViewWillAppear(animated);
         onAppear();
+    }
+
+    public override void ViewDidLayoutSubviews()
+    {
+        base.ViewDidLayoutSubviews();
+        UpdateFilterLayout();
     }
 
     public void Show(NativeResourceListState state)
@@ -181,6 +191,7 @@ internal sealed class NativeResourceListViewController(
         UpdateFilter(_language, text("NativeResources_LanguageFilter"),
             text("Resources_AllLanguages"), state.Language, state.Languages,
             value => filter(state.MediaType, value));
+        UpdateFilterLayout();
         _type.Enabled = canFilter;
         _language.Enabled = canFilter;
         _table.UserInteractionEnabled = canFilter;
@@ -199,18 +210,27 @@ internal sealed class NativeResourceListViewController(
         _table.UserInteractionEnabled = false;
     }
 
-    private static UIButton FilterButton(string id)
+    private static UIButton FilterButton(string id, out NSLayoutConstraint minimumHeight)
     {
         var button = UIButton.FromType(UIButtonType.System);
+        var configuration = UIButtonConfiguration.PlainButtonConfiguration;
+        configuration.TitleLineBreakMode = UILineBreakMode.WordWrap;
+        configuration.ContentInsets = new NSDirectionalEdgeInsets(8, 12, 8, 12);
+        configuration.BaseForegroundColor = NativeVisualTheme.Text;
+        configuration.CornerStyle = UIButtonConfigurationCornerStyle.Fixed;
+        configuration.Background.BackgroundColor = NativeVisualTheme.Elevated;
+        configuration.Background.CornerRadius = NativeVisualTheme.ControlRadius;
+        button.Configuration = configuration;
         button.AccessibilityIdentifier = id;
-        button.BackgroundColor = NativeVisualTheme.Elevated;
         button.SetTitleColor(NativeVisualTheme.Text, UIControlState.Normal);
         button.TitleLabel!.Font = UIFont.GetPreferredFontForTextStyle(UIFontTextStyle.Body);
         button.TitleLabel.AdjustsFontForContentSizeCategory = true;
-        button.TitleLabel.LineBreakMode = UILineBreakMode.TailTruncation;
-        button.Layer.CornerRadius = NativeVisualTheme.ControlRadius;
-        button.HeightAnchor.ConstraintGreaterThanOrEqualTo(
-            NativeVisualTheme.ControlHeight).Active = true;
+        button.TitleLabel.Lines = 0;
+        button.TitleLabel.LineBreakMode = UILineBreakMode.WordWrap;
+        button.SetContentCompressionResistancePriority(250, UILayoutConstraintAxis.Horizontal);
+        minimumHeight = button.HeightAnchor.ConstraintGreaterThanOrEqualTo(
+            NativeVisualTheme.ControlHeight);
+        minimumHeight.Active = true;
         button.ShowsMenuAsPrimaryAction = true;
         return button;
     }
@@ -238,6 +258,40 @@ internal sealed class NativeResourceListViewController(
             }
         button.Menu = UIMenu.Create(actions.ToArray());
     }
+
+    private void UpdateFilterLayout()
+    {
+        if (_filters is null || !IsViewLoaded)
+            return;
+        var availableWidth = View!.SafeAreaLayoutGuide.LayoutFrame.Width
+            - 2 * NativeVisualTheme.PagePadding;
+        if (availableWidth <= 0)
+            return;
+        var naturalWidth = _type.IntrinsicContentSize.Width
+            + _language.IntrinsicContentSize.Width + _filters.Spacing;
+        var vertical = UIApplication.SharedApplication.GetPreferredContentSizeCategory()
+            .IsAccessibilityCategory() || naturalWidth > availableWidth;
+        var axis = vertical ? UILayoutConstraintAxis.Vertical : UILayoutConstraintAxis.Horizontal;
+        if (_filters.Axis != axis)
+        {
+            _filters.Axis = axis;
+            _filters.Distribution = vertical
+                ? UIStackViewDistribution.Fill : UIStackViewDistribution.FillProportionally;
+        }
+        var typeHeight = vertical
+            ? FittedFilterHeight(_type, availableWidth) : NativeVisualTheme.ControlHeight;
+        var languageHeight = vertical
+            ? FittedFilterHeight(_language, availableWidth) : NativeVisualTheme.ControlHeight;
+        if (_typeHeight.Constant != typeHeight)
+            _typeHeight.Constant = typeHeight;
+        if (_languageHeight.Constant != languageHeight)
+            _languageHeight.Constant = languageHeight;
+    }
+
+    private static nfloat FittedFilterHeight(UIButton button, nfloat width) =>
+        (nfloat)Math.Max(NativeVisualTheme.ControlHeight,
+            Math.Ceiling((double)button.SizeThatFits(
+                new CGSize(width, nfloat.MaxValue)).Height));
 
     private sealed class ResourceRows(
         Action<string> open, Func<string, string> text) : UITableViewSource
