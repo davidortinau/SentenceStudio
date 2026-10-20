@@ -239,16 +239,29 @@ docker run --rm --env-file $BACKUP/pg.env $PG psql -d sentencestudio -At -c \
   | tee $BACKUP/row-counts.txt
 rm $BACKUP/pg.env
 
-# 4. Close access. The CanNotDelete lock on the server (Step 3) also blocks deleting
-#    firewall rules, so point the rule at an unroutable documentation address instead.
-az postgres flexible-server firewall-rule update -g $RG --name $SERVER --subscription $S \
-  --rule-name $RULE --start-ip-address 192.0.2.1 --end-ip-address 192.0.2.1
+# 4. Close access: delete the rule. The CanNotDelete lock on the server (Step 3) also
+#    blocks deleting its firewall rules, so lift the lock, delete the rule, and put the
+#    lock back. The subshell's EXIT trap restores the lock even if the delete fails.
+#    The lock is off for about a minute.
+(
+  LOCK_ARGS=(-n do-not-delete-postgres -g $RG --resource $SERVER
+    --resource-type Microsoft.DBforPostgreSQL/flexibleServers --subscription $S)
+  trap 'az lock create "${LOCK_ARGS[@]}" -t CanNotDelete \
+    --notes "Protect production managed PostgreSQL from accidental deletion" -o none' EXIT
+  az lock delete "${LOCK_ARGS[@]}" &&
+  az postgres flexible-server firewall-rule delete -g $RG --name $SERVER --subscription $S \
+    --rule-name $RULE --yes
+)
+az lock list -g $RG --subscription $S -o table
+az postgres flexible-server firewall-rule list -g $RG --name $SERVER --subscription $S -o table
 ```
 
 **Pass condition:** the `TABLE DATA` count matches the number of application tables
-(68 on 2026-10-20), `row-counts.txt` holds the live counts, and the firewall rule no
-longer points at your IP.
-**If this fails:** STOP. Do not deploy a migration without a verified dump.
+(68 on 2026-10-20), `row-counts.txt` holds the live counts, the lock list shows
+`do-not-delete-postgres` (CanNotDelete) again, and the only firewall rule left is
+`AllowAllAzureIps`.
+**If this fails:** STOP. Do not deploy a migration without a verified dump. If the lock
+is missing, recreate it with the Step 3 command before doing anything else.
 
 ### Step 2: Verify the Flexible Server is healthy
 
