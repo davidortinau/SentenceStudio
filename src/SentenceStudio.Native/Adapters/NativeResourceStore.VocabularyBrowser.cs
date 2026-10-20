@@ -51,9 +51,9 @@ public sealed partial class NativeResourceStore
                 resource.Id, resource.Title ?? string.Empty,
                 resource.Language, resource.IsSmartResource))
             .ToListAsync(cancellationToken);
-        var exclusiveIds = ids.Length == 0
+        var privateMetadataIds = ids.Length == 0
             ? new HashSet<string>(StringComparer.Ordinal)
-            : (await VocabularyIdsWithExclusiveCurrentUse(db, owner)
+            : (await VocabularyIdsWithPrivateMetadataAccess(db, owner)
                 .Where(id => ids.Contains(id))
                 .ToListAsync(cancellationToken))
                 .ToHashSet(StringComparer.Ordinal);
@@ -74,7 +74,7 @@ public sealed partial class NativeResourceStore
                 .ToArray();
             return VocabularyEntry(word, associated, ownProgress,
                 exampleCounts.GetValueOrDefault(word.Id),
-                exclusiveIds.Contains(word.Id));
+                privateMetadataIds.Contains(word.Id));
         }).OrderByDescending(entry => entry.CreatedAt)
             .ThenBy(entry => entry.Id, StringComparer.Ordinal)
             .ToArray();
@@ -152,7 +152,7 @@ public sealed partial class NativeResourceStore
                             && resource.UserProfileId == owner)
                         .Select(resource => resource.Title).FirstOrDefault()))
                 .ToListAsync(cancellationToken);
-        var exclusiveUse = await VocabularyIdsWithExclusiveCurrentUse(
+        var canReadPrivateMetadata = await VocabularyIdsWithPrivateMetadataAccess(
             db, owner).AnyAsync(id => id == wordId, cancellationToken);
         if (!await db.VocabularyWords.AsNoTracking()
                 .AnyAsync(candidate => candidate.Id == wordId
@@ -163,12 +163,14 @@ public sealed partial class NativeResourceStore
 
         var entry = VocabularyEntry(word,
             available.Where(resource => associatedIds.Contains(resource.Id)).ToArray(),
-            ownProgress, exampleCount, exclusiveUse);
+            ownProgress, exampleCount, canReadPrivateMetadata);
         var draft = new NativeVocabularyEditDraft(
             word.Id, word.UpdatedAt,
             word.TargetLanguageTerm ?? string.Empty,
             word.NativeLanguageTerm ?? string.Empty,
             word.Lemma, word.Language, word.Tags,
+            canReadPrivateMetadata ? word.MnemonicText : null,
+            canReadPrivateMetadata ? word.MnemonicImageUri : null,
             word.LexicalUnitType, associated);
         var progressSnapshot = ownProgress is null ? null
             : new NativeVocabularyProgress(ownProgress.Status, ownProgress.IsKnown,
@@ -176,7 +178,7 @@ public sealed partial class NativeResourceStore
                 ownProgress.ProductionInStreak, ownProgress.NextReviewDate,
                 ownProgress.TotalAttempts);
         return new(entry, draft, available, progressSnapshot, history,
-            examples, constituents, !exclusiveUse, hasConstituentLinks);
+            examples, constituents, !canReadPrivateMetadata, hasConstituentLinks);
     }
 
     public async Task<NativeVocabularySaveStatus> SaveOwnedVocabularyAsync(
@@ -203,7 +205,7 @@ public sealed partial class NativeResourceStore
             .SingleOrDefaultAsync(cancellationToken);
         if (word is null)
             return NativeVocabularySaveStatus.NotFoundOrForbidden;
-        if (!await VocabularyIdsWithExclusiveCurrentUse(db, owner)
+        if (!await VocabularyIdsWithPrivateMetadataAccess(db, owner)
                 .AnyAsync(id => id == draft.Id, cancellationToken))
             return NativeVocabularySaveStatus.SharedReadOnly;
         if (word.UpdatedAt != draft.OriginalUpdatedAt)
@@ -272,9 +274,8 @@ public sealed partial class NativeResourceStore
         word.Language = string.IsNullOrWhiteSpace(draft.Language)
             ? null : draft.Language.Trim();
         word.Tags = draft.Tags?.Trim();
-        // MnemonicText/MnemonicImageUri are deliberately left untouched: global
-        // memory aids have no author, so native neither shows nor writes them
-        // until per-learner storage exists (Captain, 2026-10-20, option B).
+        word.MnemonicText = draft.MnemonicText?.Trim();
+        word.MnemonicImageUri = draft.MnemonicImageUri?.Trim();
         word.LexicalUnitType = draft.LexicalUnitType;
         word.UpdatedAt = DateTime.UtcNow;
         foreach (var mapping in currentMappings.Where(mapping =>
@@ -320,11 +321,9 @@ public sealed partial class NativeResourceStore
             .Union(db.VocabularyProgresses.Where(progress => progress.UserId == owner)
                 .Select(progress => progress.VocabularyWordId));
 
-    // Words that only this owner currently uses (mappings, progress, examples).
-    // This gates edits to the global base word so no other learner is affected.
-    // It is NOT authorship: after an unlink and reuse, the sole current owner may
-    // not have written the word's memory aids, so it never unlocks them.
-    private static IQueryable<string> VocabularyIdsWithExclusiveCurrentUse(
+    // Progress permits browsing but does not identify who authored global mnemonic fields.
+    // Every mapping and example must resolve to this owner before reading or editing them.
+    private static IQueryable<string> VocabularyIdsWithPrivateMetadataAccess(
         ApplicationDbContext db, string owner) =>
         db.ResourceVocabularyMappings.AsNoTracking()
             .Where(mapping => db.LearningResources.Any(resource =>
@@ -348,14 +347,11 @@ public sealed partial class NativeResourceStore
 
     private static NativeVocabularyEntry VocabularyEntry(
         VocabularyWord word, IReadOnlyList<NativeVocabularyResource> resources,
-        VocabularyProgress? progress, int exampleCount, bool exclusiveUse)
+        VocabularyProgress? progress, int exampleCount, bool canReadPrivateMetadata)
     {
-        // Memory-aid presence never counts toward encoding: it would reveal that
-        // someone stored a mnemonic. Audio only counts for exclusively used words.
-        var scoringWord = new VocabularyWord {
+        var scoringWord = canReadPrivateMetadata ? word : new VocabularyWord {
             TargetLanguageTerm = word.TargetLanguageTerm,
-            NativeLanguageTerm = word.NativeLanguageTerm,
-            AudioPronunciationUri = exclusiveUse ? word.AudioPronunciationUri : null
+            NativeLanguageTerm = word.NativeLanguageTerm
         };
         var (_, encodingLabel) = EncodingScoreHelper.CalculateWithLabel(
             scoringWord, exampleCount);

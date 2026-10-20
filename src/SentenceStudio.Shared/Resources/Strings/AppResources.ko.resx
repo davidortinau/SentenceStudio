@@ -8463,9 +8463,6 @@
   <data name="NativeVocabulary_SharedReadOnly" xml:space="preserve">
     <value>이 단어는 다른 프로필과 공유됩니다. 여기에서 볼 수 있지만 공유 단어를 수정할 수는 없습니다.</value>
   </data>
-  <data name="NativeVocabulary_MemoryAidsHidden" xml:space="preserve">
-    <value>연상 이야기와 암기 이미지는 아직 여기에서 보거나 수정할 수 없습니다. 저장된 내용은 그대로 보관됩니다.</value>
-  </data>
   <data name="NativeVocabulary_Conflict" xml:space="preserve">
     <value>이 단어가 다른 곳에서 변경되었습니다. 수정 내용은 저장되지 않았습니다. 뒤로 가서 다시 열어 최신 내용을 확인해 주세요.</value>
   </data>

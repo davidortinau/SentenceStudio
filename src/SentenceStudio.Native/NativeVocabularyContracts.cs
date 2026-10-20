@@ -32,12 +32,11 @@ public sealed record NativeVocabularyExample(
 public sealed record NativeVocabularyConstituent(
     string Id, string TargetTerm, string NativeTerm);
 
-// Memory aids (MnemonicText/MnemonicImageUri) are global with no author, so the
-// native draft cannot carry them; see NativeResourceStore.VocabularyBrowser.
 public sealed record NativeVocabularyEditDraft(
     string Id, DateTime OriginalUpdatedAt,
     string TargetTerm, string NativeTerm,
     string? Lemma, string? Language, string? Tags,
+    string? MnemonicText, string? MnemonicImageUri,
     LexicalUnitType LexicalUnitType,
     IReadOnlyList<string> ResourceIds);
 

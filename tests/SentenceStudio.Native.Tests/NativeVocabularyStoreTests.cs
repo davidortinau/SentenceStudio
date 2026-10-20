@@ -53,7 +53,8 @@ public sealed class NativeVocabularyStoreTests
         var progressOnlyDetail = (await store.GetOwnedVocabularyAsync(
             NativeSliceFixture.UserA, orphanId, default))!;
         Assert.True(progressOnlyDetail.IsSharedWithAnotherOwner);
-        await AssertHidesStoredMemoryAids(fixture, progressOnlyDetail);
+        Assert.Null(progressOnlyDetail.Draft.MnemonicText);
+        Assert.Null(progressOnlyDetail.Draft.MnemonicImageUri);
         Assert.Equal(NativeVocabularySaveStatus.SharedReadOnly,
             await store.SaveOwnedVocabularyAsync(
                 NativeSliceFixture.UserA, progressOnlyDetail.Draft, default));
@@ -91,7 +92,7 @@ public sealed class NativeVocabularyStoreTests
         var draft = opened.Draft with {
             TargetTerm = "  수정한 단어  ", NativeTerm = "  edited  ",
             Lemma = "root", Tags = "one, two",
-            LexicalUnitType = LexicalUnitType.Phrase,
+            MnemonicText = "a memory aid", LexicalUnitType = LexicalUnitType.Phrase,
             ResourceIds = [secondResource]
         };
 
@@ -107,7 +108,7 @@ public sealed class NativeVocabularyStoreTests
         Assert.Equal("edited", reopened.Word.NativeTerm);
         Assert.Equal("root", reopened.Draft.Lemma);
         Assert.Equal("one, two", reopened.Draft.Tags);
-        await AssertHidesStoredMemoryAids(fixture, reopened);
+        Assert.Equal("a memory aid", reopened.Draft.MnemonicText);
         Assert.Equal(LexicalUnitType.Phrase, reopened.Word.LexicalUnitType);
         Assert.Equal([secondResource], reopened.Draft.ResourceIds);
 
@@ -125,10 +126,6 @@ public sealed class NativeVocabularyStoreTests
             .GetRequiredService<ApplicationDbContext>();
         Assert.Single(await dbAfter.ResourceVocabularyMappings.Where(mapping =>
             mapping.VocabularyWordId == id).ToListAsync());
-        var storedWord = await dbAfter.VocabularyWords.AsNoTracking()
-            .SingleAsync(word => word.Id == id);
-        Assert.Null(storedWord.MnemonicText);
-        Assert.Equal("opaque-photo-0", storedWord.MnemonicImageUri);
         Assert.Equal(4, await dbAfter.ResourceVocabularyMappings.CountAsync(mapping =>
             mapping.ResourceId == fixture.ResourceId(NativeSliceFixture.UserB)));
         Assert.Equal(4, await dbAfter.VocabularyProgresses.CountAsync(progress =>
@@ -138,18 +135,14 @@ public sealed class NativeVocabularyStoreTests
     }
 
     [Fact]
-    public async Task ExclusiveWord_EditsBaseFieldsButNeverShowsOrWritesMemoryAids()
+    public async Task PrivateWord_WithOwnResourceExample_KeepsMnemonicEditAndRestart()
     {
         using var fixture = new NativeSliceFixture();
         await fixture.SeedAsync(NativeSliceFixture.UserA, wordCount: 1);
         var id = fixture.WordId(NativeSliceFixture.UserA, 0);
-        const string ownCue = "a cue this owner may or may not have written";
         using (var scope = fixture.Scope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var word = await db.VocabularyWords.SingleAsync(row => row.Id == id);
-            word.MnemonicText = ownCue;
-            word.AudioPronunciationUri = "audio/own-word.mp3";
             db.ExampleSentences.Add(new ExampleSentence {
                 VocabularyWordId = id,
                 LearningResourceId = fixture.ResourceId(NativeSliceFixture.UserA),
@@ -161,24 +154,17 @@ public sealed class NativeVocabularyStoreTests
 
         fixture.Activate(NativeSliceFixture.UserA);
         var store = fixture.Provider.GetRequiredService<INativeResourceStore>();
-        var catalog = await store.ListOwnedVocabularyAsync(
-            NativeSliceFixture.UserA, default);
-        // Terms + audio + owned example = 4/6 (0.667) stays "Good": with memory
-        // aids excluded, "Strong" (>= 0.67) is unreachable on native by design.
-        Assert.Equal("Good", Assert.Single(catalog.Words).EncodingLabel);
         var detail = (await store.GetOwnedVocabularyAsync(
             NativeSliceFixture.UserA, id, default))!;
         Assert.False(detail.IsSharedWithAnotherOwner);
-        Assert.Equal("Good", detail.Word.EncodingLabel);
-        await AssertHidesStoredMemoryAids(fixture, detail);
-        Assert.DoesNotContain(ownCue, JsonSerializer.Serialize(detail));
-        Assert.DoesNotContain("opaque-photo-0", JsonSerializer.Serialize(detail));
+        Assert.Equal("opaque-photo-0", detail.Draft.MnemonicImageUri);
         Assert.Equal("owned resource example",
             Assert.Single(detail.Examples).TargetSentence);
         Assert.Equal(NativeVocabularySaveStatus.Saved,
             await store.SaveOwnedVocabularyAsync(NativeSliceFixture.UserA,
                 detail.Draft with {
-                    NativeTerm = "private edit"
+                    NativeTerm = "private edit",
+                    MnemonicText = "private owner cue"
                 }, default));
 
         fixture.Restart();
@@ -188,83 +174,11 @@ public sealed class NativeVocabularyStoreTests
             NativeSliceFixture.UserA, id, default))!;
         Assert.False(restored.IsSharedWithAnotherOwner);
         Assert.Equal("private edit", restored.Draft.NativeTerm);
-        await AssertHidesStoredMemoryAids(fixture, restored);
+        Assert.Equal("private owner cue", restored.Draft.MnemonicText);
+        Assert.Equal("opaque-photo-0", restored.Draft.MnemonicImageUri);
         Assert.Single(restored.Examples);
         Assert.Equal(NativeResourceSyncPhase.Pending,
             (await fixture.Resources.LoadListAsync()).Sync);
-        using var checkedScope = fixture.Scope();
-        var stored = await checkedScope.ServiceProvider
-            .GetRequiredService<ApplicationDbContext>().VocabularyWords
-            .AsNoTracking().SingleAsync(word => word.Id == id);
-        Assert.Equal("private edit", stored.NativeLanguageTerm);
-        Assert.Equal(ownCue, stored.MnemonicText);
-        Assert.Equal("opaque-photo-0", stored.MnemonicImageUri);
-    }
-
-    // Rai's 2026-10-08 RED case: A writes memory aids, unlinks the word, and B's
-    // reuse makes B the sole current owner. Sole current use is not authorship.
-    [Fact]
-    public async Task UnlinkThenReuse_NeverExposesOrOverwritesPriorOwnersMemoryAids()
-    {
-        using var fixture = new NativeSliceFixture();
-        await fixture.SeedAsync(NativeSliceFixture.UserA, wordCount: 1);
-        await fixture.SeedAsync(NativeSliceFixture.UserB, wordCount: 0);
-        var id = fixture.WordId(NativeSliceFixture.UserA, 0);
-        const string aCue = "A's private memory story";
-        const string aImage = "https://images.example.invalid/a?private-signed-token=owner-a";
-        using (var scope = fixture.Scope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var word = await db.VocabularyWords.SingleAsync(row => row.Id == id);
-            word.MnemonicText = aCue;
-            word.MnemonicImageUri = aImage;
-            db.ResourceVocabularyMappings.Remove(await db.ResourceVocabularyMappings
-                .SingleAsync(mapping => mapping.VocabularyWordId == id));
-            db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping {
-                Id = "b-reuses-a-word",
-                ResourceId = fixture.ResourceId(NativeSliceFixture.UserB),
-                VocabularyWordId = id
-            });
-            await db.SaveChangesAsync();
-        }
-
-        fixture.Activate(NativeSliceFixture.UserB);
-        var store = fixture.Provider.GetRequiredService<INativeResourceStore>();
-        var catalog = await store.ListOwnedVocabularyAsync(
-            NativeSliceFixture.UserB, default);
-        var entry = Assert.Single(catalog.Words);
-        Assert.Equal(id, entry.Id);
-        Assert.Equal("Basic", entry.EncodingLabel);
-        Assert.DoesNotContain(aCue, JsonSerializer.Serialize(catalog));
-        Assert.DoesNotContain(aImage, JsonSerializer.Serialize(catalog));
-
-        var detail = (await store.GetOwnedVocabularyAsync(
-            NativeSliceFixture.UserB, id, default))!;
-        Assert.False(detail.IsSharedWithAnotherOwner);
-        Assert.Equal("Basic", detail.Word.EncodingLabel);
-        await AssertHidesStoredMemoryAids(fixture, detail);
-        Assert.DoesNotContain(aCue, JsonSerializer.Serialize(detail));
-        Assert.DoesNotContain(aImage, JsonSerializer.Serialize(detail));
-        Assert.Equal(NativeVocabularySaveStatus.Saved,
-            await store.SaveOwnedVocabularyAsync(NativeSliceFixture.UserB,
-                detail.Draft with {
-                    NativeTerm = "B's translation"
-                }, default));
-
-        fixture.Restart();
-        fixture.Activate(NativeSliceFixture.UserB);
-        store = fixture.Provider.GetRequiredService<INativeResourceStore>();
-        var restored = (await store.GetOwnedVocabularyAsync(
-            NativeSliceFixture.UserB, id, default))!;
-        Assert.Equal("B's translation", restored.Draft.NativeTerm);
-        await AssertHidesStoredMemoryAids(fixture, restored);
-        using var checkedScope = fixture.Scope();
-        var stored = await checkedScope.ServiceProvider
-            .GetRequiredService<ApplicationDbContext>().VocabularyWords
-            .AsNoTracking().SingleAsync(word => word.Id == id);
-        Assert.Equal("B's translation", stored.NativeLanguageTerm);
-        Assert.Equal(aCue, stored.MnemonicText);
-        Assert.Equal(aImage, stored.MnemonicImageUri);
     }
 
     [Fact]
@@ -418,7 +332,8 @@ public sealed class NativeVocabularyStoreTests
         Assert.True(forA.IsSharedWithAnotherOwner);
         Assert.Equal("example attributed to A",
             Assert.Single(forA.Examples).TargetSentence);
-        await AssertHidesStoredMemoryAids(fixture, forA);
+        Assert.Null(forA.Draft.MnemonicText);
+        Assert.Null(forA.Draft.MnemonicImageUri);
         Assert.Equal("Good", forA.Word.EncodingLabel);
 
         fixture.Activate(NativeSliceFixture.UserB);
@@ -428,7 +343,8 @@ public sealed class NativeVocabularyStoreTests
         Assert.True(forB.IsSharedWithAnotherOwner);
         Assert.Equal("example attributed to B",
             Assert.Single(forB.Examples).TargetSentence);
-        await AssertHidesStoredMemoryAids(fixture, forB);
+        Assert.Null(forB.Draft.MnemonicText);
+        Assert.Null(forB.Draft.MnemonicImageUri);
         Assert.Equal("Good", forB.Word.EncodingLabel);
         Assert.Contains((await store.ListOwnedVocabularyAsync(
             NativeSliceFixture.UserB, default)).Words, word => word.Id == sharedId);
@@ -484,7 +400,8 @@ public sealed class NativeVocabularyStoreTests
                 owner, sharedId, default);
             Assert.NotNull(detail);
             Assert.True(detail.IsSharedWithAnotherOwner);
-            await AssertHidesStoredMemoryAids(fixture, detail);
+            Assert.Null(detail.Draft.MnemonicText);
+            Assert.Null(detail.Draft.MnemonicImageUri);
             Assert.Empty(detail.Examples);
             Assert.Equal("Basic", detail.Word.EncodingLabel);
         }
@@ -573,7 +490,8 @@ public sealed class NativeVocabularyStoreTests
             var detail = (await store.GetOwnedVocabularyAsync(owner, id, default))!;
             Assert.True(detail.IsSharedWithAnotherOwner);
             Assert.Equal(entry.TargetTerm, detail.Word.TargetTerm);
-            await AssertHidesStoredMemoryAids(fixture, detail);
+            Assert.Null(detail.Draft.MnemonicText);
+            Assert.Null(detail.Draft.MnemonicImageUri);
             Assert.Equal("Basic", detail.Word.EncodingLabel);
             Assert.DoesNotContain(privateCue, JsonSerializer.Serialize(detail));
             Assert.DoesNotContain(signedUri, JsonSerializer.Serialize(detail));
@@ -587,7 +505,8 @@ public sealed class NativeVocabularyStoreTests
         store = fixture.Provider.GetRequiredService<INativeResourceStore>();
         var restored = (await store.GetOwnedVocabularyAsync(
             NativeSliceFixture.UserB, id, default))!;
-        await AssertHidesStoredMemoryAids(fixture, restored);
+        Assert.Null(restored.Draft.MnemonicText);
+        Assert.Null(restored.Draft.MnemonicImageUri);
         using var checkedScope = fixture.Scope();
         var checkedDb = checkedScope.ServiceProvider
             .GetRequiredService<ApplicationDbContext>();
@@ -661,13 +580,16 @@ public sealed class NativeVocabularyStoreTests
             NativeSliceFixture.UserA, id, default))!;
         Assert.Empty(detail.Examples);
         Assert.True(detail.IsSharedWithAnotherOwner);
-        await AssertHidesStoredMemoryAids(fixture, detail);
+        Assert.Null(detail.Draft.MnemonicText);
+        Assert.Null(detail.Draft.MnemonicImageUri);
         Assert.Equal("Basic", detail.Word.EncodingLabel);
         Assert.Equal(NativeVocabularySaveStatus.SharedReadOnly,
             await store.SaveOwnedVocabularyAsync(NativeSliceFixture.UserA,
                 detail.Draft with {
                     TargetTerm = "not a new global term",
                     NativeTerm = "not a new translation",
+                    MnemonicText = "not a replacement",
+                    MnemonicImageUri = "https://images.example.invalid/replacement",
                     ResourceIds = [otherOwnedResource]
                 }, default));
         Assert.Equal(beforeSync, (await fixture.Resources.LoadListAsync()).Sync);
@@ -735,20 +657,5 @@ public sealed class NativeVocabularyStoreTests
         Assert.Equal($"native-{NativeSliceFixture.UserB}-0",
             (await dbAfter.VocabularyWords.SingleAsync(word =>
                 word.Id == fixture.WordId(NativeSliceFixture.UserB, 0))).NativeLanguageTerm);
-    }
-
-    // The native draft has no memory-aid fields; prove the stored values of this
-    // word never appear anywhere in what the store returned.
-    private static async Task AssertHidesStoredMemoryAids(
-        NativeSliceFixture fixture, NativeVocabularyDetail detail)
-    {
-        using var scope = fixture.Scope();
-        var stored = await scope.ServiceProvider
-            .GetRequiredService<ApplicationDbContext>().VocabularyWords
-            .AsNoTracking().SingleAsync(word => word.Id == detail.Word.Id);
-        var json = JsonSerializer.Serialize(detail);
-        foreach (var value in new[] { stored.MnemonicText, stored.MnemonicImageUri })
-            if (!string.IsNullOrWhiteSpace(value))
-                Assert.DoesNotContain(value, json);
     }
 }

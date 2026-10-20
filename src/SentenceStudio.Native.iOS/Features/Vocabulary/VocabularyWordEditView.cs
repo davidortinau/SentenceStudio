@@ -265,11 +265,25 @@ internal static class VocabularyWordEditView
             "VocabWordEdit_TagsPlaceholder", "native.vocabulary.edit.tags",
             draft.Tags ?? string.Empty, nameof(draft.Tags), state, style,
             text, actions, readOnly));
-        // Mnemonic story/image are global fields with no author, so native
-        // hides them until per-learner storage exists (Captain, option B).
-        fields.Add(style.Text(Views.Text(text("NativeVocabulary_MemoryAidsHidden")),
-                SourceTextRole.Body2, SourceTextTone.Secondary)
-            .WithAccessibilityIdentifier("native.vocabulary.edit.memory-aids.hidden"));
+        var mnemonic = Views.TextEditor(draft.MnemonicText ?? string.Empty,
+                readOnly || state.Saving ? null
+                    : value => actions.Change(nameof(draft.MnemonicText), value))
+            .WithTextEditorScrollBackgroundHidden()
+            .WithMinimumHeight(110);
+        mnemonic.IsEnabled = !readOnly && !state.Saving;
+        fields.Add(Views.VStack(
+            style.Text(Views.Text(text("VocabWordEdit_MnemonicStory")),
+                SourceTextRole.Body2, SourceTextTone.Secondary),
+            style.Input(mnemonic)
+                .WithAccessibilityIdentifier("native.vocabulary.edit.mnemonic")));
+        fields.Add(TextField("VocabWordEdit_MnemonicImageUrl",
+            "VocabWordEdit_MnemonicImageUrl",
+            "native.vocabulary.edit.image.url", draft.MnemonicImageUri ?? string.Empty,
+            nameof(draft.MnemonicImageUri), state, style, text, actions, readOnly));
+        if (state.Photo is { } photo)
+            fields.Add(Views.ImageFromBytes(
+                    photo.Bytes, text("VocabWordEdit_MnemonicAlt"), 120)
+                .WithAccessibilityIdentifier("native.vocabulary.edit.image.preview"));
         return Card(style, "VocabWordEdit_EncodingMemoryAids",
             text, fields.ToArray());
     }
