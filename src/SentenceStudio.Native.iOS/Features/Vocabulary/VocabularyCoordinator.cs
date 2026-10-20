@@ -23,7 +23,7 @@ internal sealed record VocabularyListPresentation(
 internal sealed record VocabularyEditPresentation(
     bool Loading, bool Saving, NativeVocabularyDetail? Detail,
     NativeVocabularyEditDraft? Draft, string? ErrorKey,
-    bool PlayingAudio, NativeQuizPhotoAsset? Photo);
+    bool PlayingAudio);
 
 internal sealed class VocabularyCoordinator : IDisposable
 {
@@ -41,7 +41,6 @@ internal sealed class VocabularyCoordinator : IDisposable
     private VocabularyFilterState? _filters;
     private NativeVocabularyDetail? _detail;
     private NativeVocabularyEditDraft? _draft;
-    private NativeQuizPhotoAsset? _photo;
     private string? _selectedWordId;
     private DeviceUserScopeProvider.ScopeStamp _ownerStamp;
     private string? _owner;
@@ -113,10 +112,8 @@ internal sealed class VocabularyCoordinator : IDisposable
     }
 
     internal VocabularyEditPresentation EditState => TryOwner(out _)
-        ? new(_formLoading, _saving, _detail, _draft, _editErrorKey, _playingAudio,
-            _photo)
-        : new(false, false, null, null, "Vocabulary_NoActiveProfile",
-            false, null);
+        ? new(_formLoading, _saving, _detail, _draft, _editErrorKey, _playingAudio)
+        : new(false, false, null, null, "Vocabulary_NoActiveProfile", false);
 
     internal async Task<bool> OpenAsync(string owner)
     {
@@ -153,7 +150,6 @@ internal sealed class VocabularyCoordinator : IDisposable
         _formOpen = false;
         _detail = null;
         _draft = null;
-        _photo = null;
         _selectedWordId = null;
         _catalog = new(false, [], []);
         _owner = null;
@@ -169,7 +165,6 @@ internal sealed class VocabularyCoordinator : IDisposable
         _formOpen = false;
         _detail = null;
         _draft = null;
-        _photo = null;
         _selectedWordId = null;
         _editErrorKey = null;
         _media.StopPlayback();
@@ -272,7 +267,6 @@ internal sealed class VocabularyCoordinator : IDisposable
         _formOpen = true;
         _formLoading = true;
         _editErrorKey = null;
-        _photo = null;
         Publish(formChanged: true);
         try
         {
@@ -290,9 +284,6 @@ internal sealed class VocabularyCoordinator : IDisposable
             _draft = detail?.Draft;
             if (detail is null)
                 _editErrorKey = "VocabWordEdit_NotFound";
-            else if (!string.IsNullOrWhiteSpace(detail.Draft.MnemonicImageUri))
-                Run(() => LoadPhotoPreviewAsync(
-                    owner, detail.Word.Id, detail.Draft.MnemonicImageUri));
         }
         catch (Exception ex)
         {
@@ -328,8 +319,6 @@ internal sealed class VocabularyCoordinator : IDisposable
             nameof(draft.Lemma) => draft with { Lemma = value },
             nameof(draft.Language) => draft with { Language = value },
             nameof(draft.Tags) => draft with { Tags = value },
-            nameof(draft.MnemonicText) => draft with { MnemonicText = value },
-            nameof(draft.MnemonicImageUri) => draft with { MnemonicImageUri = value },
             nameof(draft.LexicalUnitType) when
                 Enum.TryParse<LexicalUnitType>(value, out var type) =>
                     draft with { LexicalUnitType = type },
@@ -395,7 +384,6 @@ internal sealed class VocabularyCoordinator : IDisposable
                 _formOpen = false;
                 _draft = null;
                 _detail = null;
-                _photo = null;
                 await ReloadAsync();
             }
             else
@@ -471,31 +459,6 @@ internal sealed class VocabularyCoordinator : IDisposable
         {
             _playingAudio = false;
             Publish(formChanged: true);
-        }
-    }
-
-    private async Task LoadPhotoPreviewAsync(string owner, string wordId, string uri)
-    {
-        try
-        {
-            if (await _store.GetOwnedVocabularyAsync(owner, wordId, _lifetime.Token)
-                    is null)
-                return;
-            var photo = await _media.LoadPhotoAsync(uri, _lifetime.Token);
-            if (_formOpen && _draft is { } draft
-                && draft.Id == wordId && draft.MnemonicImageUri == uri
-                && _selectedWordId == wordId && TryOwner(out _))
-            {
-                _photo = photo;
-                Publish(formChanged: true);
-            }
-        }
-        catch (OperationCanceledException) when (_disposed)
-        {
-        }
-        catch (Exception ex)
-        {
-            _logger.LogWarning(ex, "Native Vocabulary image preview unavailable.");
         }
     }
 
@@ -598,7 +561,6 @@ internal sealed class VocabularyCoordinator : IDisposable
         _catalog = new(false, [], []);
         _detail = null;
         _draft = null;
-        _photo = null;
         _selectedWordId = null;
         _owner = null;
         Interlocked.Increment(ref _formGeneration);

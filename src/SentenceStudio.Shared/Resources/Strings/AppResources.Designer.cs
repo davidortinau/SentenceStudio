@@ -10993,6 +10993,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Mnemonic stories and images can&apos;t be viewed or edited here yet. Saved ones are kept..
+        /// </summary>
+        internal static string NativeVocabulary_MemoryAidsHidden {
+            get {
+                return ResourceManager.GetString("NativeVocabulary_MemoryAidsHidden", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to No constituent words added yet..
         /// </summary>
         internal static string NativeVocabulary_NoConstituents {

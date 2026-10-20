@@ -27,6 +27,20 @@ public sealed class NativeVocabularyRouteTests
     }
 
     [Fact]
+    public void WordEditor_HidesMemoryAidsAndCannotDraftThem()
+    {
+        // Captain's option B (2026-10-20): global mnemonic fields have no author.
+        var view = Source("Features/Vocabulary/VocabularyWordEditView.cs");
+        Assert.Contains("NativeVocabulary_MemoryAidsHidden", view);
+        Assert.DoesNotContain("draft.MnemonicText", view);
+        Assert.DoesNotContain("draft.MnemonicImageUri", view);
+        Assert.DoesNotContain("native.vocabulary.edit.mnemonic", view);
+        Assert.DoesNotContain("native.vocabulary.edit.image", view);
+        var coordinator = Source("Features/Vocabulary/VocabularyCoordinator.cs");
+        Assert.DoesNotContain("Mnemonic", coordinator);
+    }
+
+    [Fact]
     public void DelayedCatalogCompletion_ReprojectsMountedPhoneChoicesWithoutResettingDraft()
     {
         var coordinator = Source("Features/Vocabulary/VocabularyCoordinator.cs");

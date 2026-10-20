@@ -9108,6 +9108,9 @@ For example: {0} ...</value>
   <data name="NativeVocabulary_SharedReadOnly" xml:space="preserve">
     <value>This word is shared with another profile. You can view it here, but cannot edit the shared word.</value>
   </data>
+  <data name="NativeVocabulary_MemoryAidsHidden" xml:space="preserve">
+    <value>Mnemonic stories and images can't be viewed or edited here yet. Saved ones are kept.</value>
+  </data>
   <data name="NativeVocabulary_Conflict" xml:space="preserve">
     <value>This word changed elsewhere. Your edits were not saved. Go back and reopen it to review the latest version.</value>
   </data>
