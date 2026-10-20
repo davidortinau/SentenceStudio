@@ -202,22 +202,53 @@ For infrastructure changes (like provisioning the Flexible Server), use `azd pro
 
 ### Step 1: Back up the production database
 
-```bash
-# pg_dump via the Flexible Server's public endpoint
-# (requires psql client and network access — use az postgres flexible-server connect)
-az postgres flexible-server execute \
-  --name db-rsn72awybem6s --resource-group rg-sstudio-prod-biz \
-  --admin-user <admin> --admin-password <password> \
-  --database-name sentencestudio \
-  --querytext "SELECT count(*) FROM \"Users\";"
+Azure keeps automatic restore points for **7 days** (`backup.backupRetentionDays`),
+which is a fallback, not a substitute. Before any deploy that includes a migration or
+data change, take your own full dump. This procedure was verified on 2026-10-20.
 
-# Full backup: use az postgres flexible-server backup (built-in, daily, 35-day retention)
-az postgres flexible-server backup list \
-  --resource-group rg-sstudio-prod-biz --server-name db-rsn72awybem6s
+```bash
+S=66f9fa8f-604f-4688-bec1-16ff9a86a8e5
+RG=rg-sstudio-prod-biz; SERVER=db-rsn72awybem6s
+BACKUP=~/sstudio-prod-backup-$(date +%Y%m%d); mkdir -p $BACKUP && chmod 700 $BACKUP
+RULE=deploy-backup-$(date +%Y%m%d-%H%M)   # computed once; reused in step 4
+PG=postgres:16                            # client major version >= the server's (16)
+
+# 1. Credentials stay in a private file, never on a command line.
+umask 077
+az keyvault secret show --vault-name dbkv-rsn72awybem6s -n connectionstrings--db \
+  --query value -o tsv > $BACKUP/conn.txt
+python3 - "$BACKUP/conn.txt" > $BACKUP/pg.env <<'PY'
+import sys
+p = dict(x.split("=", 1) for x in open(sys.argv[1]).read().strip().split(";") if "=" in x)
+print(f"PGHOST={p['Host']}\nPGUSER={p['Username']}\nPGPASSWORD={p['Password']}\nPGSSLMODE=require")
+PY
+rm $BACKUP/conn.txt
+
+# 2. Temporary firewall rule for your IP.
+MYIP=$(curl -s https://api.ipify.org)
+az postgres flexible-server firewall-rule create -g $RG --name $SERVER --subscription $S \
+  --rule-name $RULE --start-ip-address $MYIP --end-ip-address $MYIP
+
+# 3. Dump (custom format for pg_restore) and verify.
+docker run --rm --env-file $BACKUP/pg.env -v $BACKUP:/out $PG \
+  pg_dump -d sentencestudio -Fc -f /out/sentencestudio.dump
+docker run --rm -v $BACKUP:/in $PG pg_restore -l /in/sentencestudio.dump | grep -c 'TABLE DATA'
+# Record key row counts to compare against the restored copy in 4c.
+docker run --rm --env-file $BACKUP/pg.env $PG psql -d sentencestudio -At -c \
+  'select (select count(*) from "VocabularyWord"), (select count(*) from "VocabularyProgress"), (select count(*) from "UserProfile")' \
+  | tee $BACKUP/row-counts.txt
+rm $BACKUP/pg.env
+
+# 4. Close access. The CanNotDelete lock on the server (Step 3) also blocks deleting
+#    firewall rules, so point the rule at an unroutable documentation address instead.
+az postgres flexible-server firewall-rule update -g $RG --name $SERVER --subscription $S \
+  --rule-name $RULE --start-ip-address 192.0.2.1 --end-ip-address 192.0.2.1
 ```
 
-**Pass condition:** Backup list is non-empty, or you've verified the built-in backup schedule is active.
-**If this fails:** STOP. Verify the Flexible Server is healthy before proceeding.
+**Pass condition:** the `TABLE DATA` count matches the number of application tables
+(68 on 2026-10-20), `row-counts.txt` holds the live counts, and the firewall rule no
+longer points at your IP.
+**If this fails:** STOP. Do not deploy a migration without a verified dump.
 
 ### Step 2: Verify the Flexible Server is healthy
 
@@ -288,6 +319,39 @@ reference head, whose production bundle identity is explicitly blocked. Do not
 disable its production-bundle guard to make the unqualified command pass. For
 isolated EF-only validation of the immediately previous SQLite migration,
 `--validate-ef-discovery-only` is available as an additional check.
+
+**4c. Server migration rehearsal on a copy of production (PostgreSQL):**
+
+Restore the Step 1 dump into a throwaway local container and apply the pending
+migrations to it, exactly as the API will (same shell as Step 1, so `$BACKUP` and
+`$PG` are set):
+
+```bash
+docker run -d --name ss-migration-rehearsal -e POSTGRES_PASSWORD=rehearsal \
+  -p 127.0.0.1:55433:5432 $PG
+docker cp $BACKUP/sentencestudio.dump ss-migration-rehearsal:/tmp/prod.dump
+docker exec ss-migration-rehearsal sh -c 'createdb -U postgres sentencestudio && \
+  pg_restore -U postgres -d sentencestudio --no-owner --no-privileges /tmp/prod.dump'
+dotnet ef database update --project src/SentenceStudio.Shared/SentenceStudio.Shared.csproj \
+  --startup-project src/SentenceStudio.Shared/SentenceStudio.Shared.csproj --framework net10.0 \
+  --connection "Host=127.0.0.1;Port=55433;Database=sentencestudio;Username=postgres;Password=rehearsal"
+docker exec ss-migration-rehearsal psql -U postgres -d sentencestudio -At -c \
+  'select (select count(*) from "VocabularyWord"), (select count(*) from "VocabularyProgress"), (select count(*) from "UserProfile")'
+docker rm -f -v ss-migration-rehearsal   # the copy holds production data
+```
+
+**Pass condition:** every pending migration logs `Applying migration ...` followed by
+`Done.`, and the counts printed after the update equal `$BACKUP/row-counts.txt`.
+This rehearses the schema only: the API's startup backfills (such as word owners) run
+on the real deploy, after `MigrateAsync`, under the API's startup lock.
+
+**Devices back up automatically.** The MAUI apps (DX24), the native iOS head, and
+the native Android head copy an existing on-device SQLite database before applying
+pending migrations (`SqliteMigrationBackup`). The copy sits next to the database as
+`<db>.premigration-<utc-time>-<migration>.sqlite` (Android keeps it in the app's
+no-backup folder, outside Auto Backup), and only the newest 2 are kept. If
+the copy can't be written and verified (integrity check plus matching row counts in
+every table), nothing is migrated and startup fails with a clear log entry.
 
 **If either gate fails: DO NOT DEPLOY.** Fix the migration first. Common failures:
 - Missing `[Migration]` attribute on the SQLite copy → migration silently skipped (4a catches this)

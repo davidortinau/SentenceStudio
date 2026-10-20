@@ -96,6 +96,19 @@ public class SyncService : ISyncService, IRemoteSyncCompletion
             // the migration history so only NEW migrations run.
             var conn = dbContext.Database.GetDbConnection();
             await conn.OpenAsync();
+
+            // Back up first: everything below can change the schema (legacy history seeding,
+            // the old integer-schema reset, column patches, pending migrations). If a verified
+            // copy can't be written, nothing is changed and startup fails closed.
+#if ANDROID
+            // Android Auto Backup caps an app at 25 MB; copies in the no-backup folder don't count.
+            var backupDirectory = global::Android.App.Application.Context.NoBackupFilesDir?.AbsolutePath;
+#else
+            string? backupDirectory = null;
+#endif
+            var preMigrationCopy = await SentenceStudio.Data.SqliteMigrationBackup.BackupIfMigrationPendingAsync(
+                dbContext, conn.DataSource, _logger, backupDirectory: backupDirectory);
+
             try
             {
                 using var checkCmd = conn.CreateCommand();
@@ -216,6 +229,10 @@ public class SyncService : ISyncService, IRemoteSyncCompletion
             {
                 await dbContext.Database.MigrateAsync();
                 _logger.LogInformation("Mobile database migrated successfully");
+                if (preMigrationCopy is not null)
+                    SentenceStudio.Data.SqliteMigrationBackup.PruneBackups(
+                        conn.DataSource, SentenceStudio.Data.SqliteMigrationBackup.KeepBackups,
+                        _logger, backupDirectory, keepPath: preMigrationCopy);
             }
             catch (Exception migrationEx)
             {

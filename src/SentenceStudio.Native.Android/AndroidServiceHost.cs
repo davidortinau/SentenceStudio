@@ -157,13 +157,12 @@ internal sealed class AndroidServiceHost : IDisposable
             throw new InvalidOperationException(
                 "No Android SQLite migrations were discovered; native startup refused.");
 
-        if (existingDatabase
-            && (await db.Database.GetPendingMigrationsAsync(cancellationToken)).Any())
-            throw new InvalidOperationException(
-                "An existing native database has pending migrations; a verified backup is required.");
-
-        if (!existingDatabase)
-            await db.Database.MigrateAsync(cancellationToken);
+        // An existing database is copied and verified before pending migrations apply;
+        // if the copy fails, nothing is migrated and startup fails closed.
+        // Copies go to the no-backup folder so they don't count toward Auto Backup's 25 MB cap.
+        await SqliteMigrationBackup.MigrateWithBackupAsync(db, _databasePath,
+            scope.ServiceProvider.GetRequiredService<ILogger<AndroidServiceHost>>(), cancellationToken,
+            global::Android.App.Application.Context.NoBackupFilesDir?.AbsolutePath);
     }
 
     internal sealed class UnavailableNativeLlmPlanGeneration : ILlmPlanGenerationService

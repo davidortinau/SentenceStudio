@@ -149,7 +149,8 @@ public sealed class NativeServices : IDisposable
         }
         else
         {
-            await context.Database.MigrateAsync(cancellationToken);
+            await SqliteMigrationBackup.MigrateWithBackupAsync(context, _database,
+                _provider.GetRequiredService<ILogger<NativeServices>>(), cancellationToken);
         }
         context.EnableWalMode();
     }
