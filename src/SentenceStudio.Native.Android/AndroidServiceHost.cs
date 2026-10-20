@@ -56,7 +56,7 @@ internal sealed class AndroidServiceHost : IDisposable
         AndroidReplacementGuard.RefuseLegacyDatabase(dataRoot);
 #endif
         var databasePath = Path.Combine(dataRoot, preview
-            ? "sentence-studio-debug-preview-archived-plan.sqlite"
+            ? "sentence-studio-debug-preview-word-owner.sqlite"
             : "sentence-studio-native.sqlite");
 
         var services = new ServiceCollection();

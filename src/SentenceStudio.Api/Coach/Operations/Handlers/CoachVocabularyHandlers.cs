@@ -146,7 +146,7 @@ public sealed class CoachVocabularyEntryHandler : CoachWriteHandlerBase<CoachVoc
                 UpdatedAt = DateTime.UtcNow
             };
 
-            var saved = await _resources.SaveWordAsync(word).ConfigureAwait(false);
+            var saved = await _resources.SaveWordAsync(word, userProfileId).ConfigureAwait(false);
             if (saved <= 0)
             {
                 throw DataAccessFailure(new InvalidOperationException("The vocabulary entry was not saved."));

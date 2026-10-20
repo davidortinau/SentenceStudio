@@ -70,6 +70,8 @@ public partial class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.Entity<VocabularyWord>().Property(e => e.MnemonicText).IsRequired(false);
         modelBuilder.Entity<VocabularyWord>().Property(e => e.MnemonicImageUri).IsRequired(false);
         modelBuilder.Entity<VocabularyWord>().Property(e => e.AudioPronunciationUri).IsRequired(false);
+        modelBuilder.Entity<VocabularyWord>().Property(e => e.UserProfileId).IsRequired(false);
+        modelBuilder.Entity<VocabularyWord>().HasIndex(e => e.UserProfileId);
         // LexicalUnitType enum: explicit int conversion + default value (0 = Unknown)
         // Required for reliable 0-storage on backfill across both PostgreSQL (server) and SQLite (MAUI)
         modelBuilder.Entity<VocabularyWord>().Property(e => e.LexicalUnitType).HasConversion<int>().HasDefaultValue(LexicalUnitType.Unknown);

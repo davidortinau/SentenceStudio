@@ -40,8 +40,8 @@ public sealed class NativeServices : IDisposable
                 ? (PreviewSurface() is "mc" or "mc-feedback" or "mc-back"
                     or "mc-resume" or "mc-details"
                     or "mc-style-feedback-correct" or "mc-style-feedback-wrong")
-                    ? "sentencestudio.preview.mc.v2.sqlite"
-                    : "sentencestudio.preview.v2.sqlite"
+                    ? "sentencestudio.preview.mc.v3.sqlite"
+                    : "sentencestudio.preview.v3.sqlite"
                 : "sentencestudio.sqlite");
         var endpoint = NativeApiEndpoint.FromAssembly();
 

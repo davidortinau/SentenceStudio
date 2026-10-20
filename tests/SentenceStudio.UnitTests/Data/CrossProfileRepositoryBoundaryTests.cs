@@ -784,7 +784,8 @@ public sealed class CrossProfileRepositoryBoundaryTests : IDisposable
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         };
-        (await ResourceRepository.SaveWordAsync(newWord)).Should().BeGreaterThan(0);
+        // The creating learner owns the new word (and any memory aids on it).
+        (await ResourceRepository.SaveWordAsync(newWord, UserB)).Should().BeGreaterThan(0);
         (await ResourceRepository.AddVocabularyToResourceAsync(resourceB.Id, newWord.Id, UserB))
             .Should().BeTrue();
 

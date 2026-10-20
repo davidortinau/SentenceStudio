@@ -220,10 +220,10 @@ else
     ok "empty primary console log fails closed"
 fi
 
-if [[ "$EXPECTED_SCHEMA_MIGRATION" == "20260928050905_ArchiveDisplacedPlanItems" &&
-      "$EXPECTED_PREVIOUS_MIGRATION" == "20260927100455_AddStreamHistoryOwnerScope" ]] &&
+if [[ "$EXPECTED_SCHEMA_MIGRATION" == "20261020095243_AddVocabularyWordOwner" &&
+      "$EXPECTED_PREVIOUS_MIGRATION" == "20260928050905_ArchiveDisplacedPlanItems" ]] &&
     require_expected_migration_pair; then
-    ok "the production preflight discovers StreamHistoryOwner -> ArchiveDisplacedPlanItems"
+    ok "the production preflight discovers ArchiveDisplacedPlanItems -> AddVocabularyWordOwner"
 else
     bad "the production preflight must discover the current SQLite migration pair"
 fi

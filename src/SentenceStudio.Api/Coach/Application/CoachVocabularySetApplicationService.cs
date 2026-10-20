@@ -594,6 +594,7 @@ public sealed class CoachVocabularySetApplicationService(
                 var word = new VocabularyWord
                 {
                     Id = Guid.NewGuid().ToString(),
+                    UserProfileId = context.Operation.Scope.UserProfileId,
                     TargetLanguageTerm = pair.TargetTerm,
                     NativeLanguageTerm = pair.NativeTerm,
                     Lemma = pair.TargetTerm,

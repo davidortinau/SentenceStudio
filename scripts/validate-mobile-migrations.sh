@@ -13,8 +13,8 @@ PROJECT="$REPO_ROOT/src/SentenceStudio.MacOS/SentenceStudio.MacOS.csproj"
 SHARED_PROJECT="$REPO_ROOT/src/SentenceStudio.Shared/SentenceStudio.Shared.csproj"
 APP_LIB_PROJECT="$REPO_ROOT/src/SentenceStudio.AppLib/SentenceStudio.AppLib.csproj"
 MIGRATIONS_DIR="$REPO_ROOT/src/SentenceStudio.Shared/Migrations/Sqlite"
-EXPECTED_SCHEMA_MIGRATION="20260928050905_ArchiveDisplacedPlanItems"
-EXPECTED_PREVIOUS_MIGRATION="20260927100455_AddStreamHistoryOwnerScope"
+EXPECTED_SCHEMA_MIGRATION="20261020095243_AddVocabularyWordOwner"
+EXPECTED_PREVIOUS_MIGRATION="20260928050905_ArchiveDisplacedPlanItems"
 PRODUCTION_BUNDLE_ID="com.simplyprofound.sentencestudio"
 WAIT_TIMEOUT="${MIGRATION_VALIDATION_WAIT_TIMEOUT:-90}"
 SIGNAL_TIMEOUT="${MIGRATION_VALIDATION_SIGNAL_TIMEOUT:-60}"
@@ -931,9 +931,7 @@ else:
         for row in connection.execute('PRAGMA table_info("DailyPlanCompletion")')
         if row[1] == "IsArchived"
     ]
-    expected_archive_columns = (
-        [] if phase == "previous" else [("IsArchived", "INTEGER", 1, "0", 0)]
-    )
+    expected_archive_columns = [("IsArchived", "INTEGER", 1, "0", 0)]
     if archive_columns != expected_archive_columns:
         errors.append("DailyPlanCompletion: IsArchived column/type/default contract mismatch")
 
@@ -948,7 +946,7 @@ else:
         if row[1] == plan_index_name
     ]
     expected_plan_index = [
-        (plan_index_name, 1, "c", int(phase == "latest"),
+        (plan_index_name, 1, "c", 1,
          ("UserProfileId", "Date", "PlanItemId"))
     ]
     if plan_indexes != expected_plan_index:
@@ -961,7 +959,7 @@ else:
     actual_plan_filter = extract_complete_where_clause(
         plan_index_sql[0] if plan_index_sql else ""
     )
-    expected_plan_filter = '"IsArchived" = 0' if phase == "latest" else None
+    expected_plan_filter = '"IsArchived" = 0'
     try:
         filter_matches = (
             actual_plan_filter is None if expected_plan_filter is None else
@@ -974,10 +972,37 @@ else:
     if not filter_matches:
         errors.append("DailyPlanCompletion: archive filter contract mismatch")
 
+word_owner_columns = [
+    (row[1], row[2].upper(), row[3], row[4], row[5])
+    for row in connection.execute('PRAGMA table_info("VocabularyWord")')
+    if row[1] == "UserProfileId"
+]
+expected_word_owner_columns = (
+    [] if phase == "previous" else [("UserProfileId", "TEXT", 0, None, 0)]
+)
+if word_owner_columns != expected_word_owner_columns:
+    errors.append("VocabularyWord: UserProfileId owner column contract mismatch")
+word_owner_index = "IX_VocabularyWord_UserProfileId"
+word_owner_indexes = [
+    (
+        row[1], row[2], row[3], row[4],
+        tuple(column[2] for column in
+              connection.execute(f'PRAGMA index_info("{word_owner_index}")'))
+    )
+    for row in connection.execute('PRAGMA index_list("VocabularyWord")')
+    if row[1] == word_owner_index
+]
+expected_word_owner_indexes = (
+    [] if phase == "previous"
+    else [(word_owner_index, 0, "c", 0, ("UserProfileId",))]
+)
+if word_owner_indexes != expected_word_owner_indexes:
+    errors.append("VocabularyWord: owner index contract mismatch")
+
 connection.close()
 if errors:
     raise SystemExit("\n".join(errors))
-print(f"Six-table ledger, StreamHistory owner, and {phase} plan-archive contracts passed.")
+print(f"Six-table ledger, StreamHistory owner, plan-archive, and {phase} word-owner contracts passed.")
 PY
 }
 

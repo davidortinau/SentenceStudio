@@ -10,6 +10,14 @@ public partial class VocabularyWord : ObservableObject
 {
     public string Id { get; set; } = Guid.NewGuid().ToString();
 
+    /// <summary>
+    /// The learner (UserProfile.Id) who owns this word and its memory aids.
+    /// Set by <see cref="SentenceStudio.Data.VocabularyWordOwnership"/> when exactly
+    /// one account links to the word; null only for legacy rows with no single owner.
+    /// Never serialized, so clients and AI responses cannot assign it.
+    /// </summary>
+    [JsonIgnore] public string? UserProfileId { get; set; }
+
     [Description("The word in the user's native language, usually English.")]
     [ObservableProperty]
     private string? nativeLanguageTerm;

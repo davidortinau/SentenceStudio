@@ -104,6 +104,10 @@ internal sealed class NativeOwnerSyncProvider(
             await command.ExecuteNonQueryAsync(ct);
         }
 
+        // Only the server decides word owners: a client value could blank a stored owner
+        // or claim a word it cannot see is shared. Owners are stamped after apply.
+        IgnoreClientWordOwners(changes.Items);
+
         if (owner is not null && changes.Items.Count > 0)
         {
             await using var scope = scopes.CreateAsyncScope();
@@ -122,7 +126,52 @@ internal sealed class NativeOwnerSyncProvider(
         var applied = owner is null ? changes : new SyncChangeSet(
             new SyncAnchor(scopedStoreId, changes.SourceAnchor.Version),
             changes.TargetAnchor, OrderNativeItems(changes.Items));
-        return await provider.ApplyChangesAsync(applied, onConflict, ct);
+        var anchor = await provider.ApplyChangesAsync(applied, onConflict, ct);
+
+        // CoreSync writes rows directly, bypassing ApplicationDbContext's owner stamping.
+        // Older clients never send VocabularyWord.UserProfileId, so stamp it here while
+        // the upload lock is still held.
+        var touchedWords = TouchedWordIds(changes.Items);
+        if (touchedWords.Count > 0)
+        {
+            await using var scope = scopes.CreateAsyncScope();
+            await VocabularyWordOwnership.StampAsync(
+                scope.ServiceProvider.GetRequiredService<ApplicationDbContext>(),
+                touchedWords, cancellationToken: ct);
+        }
+        return anchor;
+    }
+
+    internal static void IgnoreClientWordOwners(IReadOnlyList<SyncItem> items)
+    {
+        foreach (var item in items)
+        {
+            if (item.TableName != "VocabularyWord" || item.Values is null)
+                continue;
+            foreach (var key in item.Values.Keys
+                .Where(key => string.Equals(key, "UserProfileId", StringComparison.OrdinalIgnoreCase))
+                .ToArray())
+                item.Values.Remove(key);
+        }
+    }
+
+    private static HashSet<string> TouchedWordIds(IReadOnlyList<SyncItem> items)
+    {
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var item in items)
+        {
+            if (item.Values is null || item.ChangeType == ChangeType.Delete)
+                continue;
+            var id = item.TableName switch
+            {
+                "VocabularyWord" => Value(item, "Id"),
+                "ResourceVocabularyMapping" or "VocabularyProgress" => Value(item, "VocabularyWordId"),
+                _ => null
+            };
+            if (!string.IsNullOrWhiteSpace(id))
+                ids.Add(id);
+        }
+        return ids;
     }
 
     private static IReadOnlyList<SyncItem> OrderNativeItems(IReadOnlyList<SyncItem> items)
@@ -438,11 +487,18 @@ internal sealed class NativeOwnerSyncProvider(
     private static async Task<Dictionary<string, string?>> GetStoredWordOwnersAsync(
         ApplicationDbContext db, string[] ids, CancellationToken ct)
     {
-        var existing = await db.VocabularyWords.AsNoTracking()
+        var stored = await db.VocabularyWords.AsNoTracking()
             .Where(word => ids.Contains(word.Id))
-            .Select(word => word.Id).ToListAsync(ct);
-        if (existing.Count == 0)
+            .Select(word => new { word.Id, word.UserProfileId })
+            .ToListAsync(ct);
+        if (stored.Count == 0)
             return new Dictionary<string, string?>(StringComparer.Ordinal);
+        var recorded = stored.Where(word => word.UserProfileId != null)
+            .ToDictionary(word => word.Id, word => word.UserProfileId, StringComparer.Ordinal);
+        var existing = stored.Where(word => word.UserProfileId == null)
+            .Select(word => word.Id).ToList();
+        if (existing.Count == 0)
+            return recorded;
 
         var mappingOwners = await (
             from mapping in db.ResourceVocabularyMappings.AsNoTracking()
@@ -462,11 +518,10 @@ internal sealed class NativeOwnerSyncProvider(
             .ToDictionary(group => group.Key,
                 group => group.Select(reference => reference.Owner).Distinct().ToArray(),
                 StringComparer.Ordinal);
-        return existing.ToDictionary(
-            id => id,
-            id => ownersByWord.TryGetValue(id, out var owners) && owners.Length == 1
-                ? owners[0] : null,
-            StringComparer.Ordinal);
+        foreach (var id in existing)
+            recorded[id] = ownersByWord.TryGetValue(id, out var owners) && owners.Length == 1
+                ? owners[0] : null;
+        return recorded;
     }
 
     private sealed record StoredRowOwner(string Id, string? Owner);

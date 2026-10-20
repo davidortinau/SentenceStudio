@@ -1725,16 +1725,21 @@ public class ContentImportService : IContentImportService
 
                             if (sharedUserWordIds.Contains(existingWord.Id))
                             {
+                                // Memory aids belong to the word's owner; copy them only
+                                // when the importer owns the shared original.
+                                var ownsMemoryAids = !string.IsNullOrEmpty(userId)
+                                    && existingWord.UserProfileId == userId;
                                 var clonedWord = new VocabularyWord
                                 {
                                     Id = Guid.NewGuid().ToString(),
+                                    UserProfileId = userId,
                                     TargetLanguageTerm = trimmedTarget,
                                     NativeLanguageTerm = row.NativeLanguageTerm?.Trim(),
                                     Lemma = existingWord.Lemma,
                                     Language = effectiveTargetLanguage,
                                     Tags = existingWord.Tags,
-                                    MnemonicText = existingWord.MnemonicText,
-                                    MnemonicImageUri = existingWord.MnemonicImageUri,
+                                    MnemonicText = ownsMemoryAids ? existingWord.MnemonicText : null,
+                                    MnemonicImageUri = ownsMemoryAids ? existingWord.MnemonicImageUri : null,
                                     AudioPronunciationUri = existingWord.AudioPronunciationUri,
                                     LexicalUnitType = NormalizeImportLexicalUnitType(row.LexicalUnitType),
                                     CreatedAt = DateTime.UtcNow,
@@ -1813,6 +1818,7 @@ public class ContentImportService : IContentImportService
                             var newDuplicate = new VocabularyWord
                             {
                                 Id = Guid.NewGuid().ToString(),
+                                UserProfileId = string.IsNullOrEmpty(userId) ? null : userId,
                                 TargetLanguageTerm = trimmedTarget,
                                 NativeLanguageTerm = row.NativeLanguageTerm?.Trim(),
                                 Language = effectiveTargetLanguage,
@@ -1845,6 +1851,7 @@ public class ContentImportService : IContentImportService
                     var newWord = new VocabularyWord
                     {
                         Id = Guid.NewGuid().ToString(),
+                        UserProfileId = string.IsNullOrEmpty(userId) ? null : userId,
                         TargetLanguageTerm = trimmedTarget,
                         NativeLanguageTerm = row.NativeLanguageTerm?.Trim(),
                         Language = effectiveTargetLanguage,

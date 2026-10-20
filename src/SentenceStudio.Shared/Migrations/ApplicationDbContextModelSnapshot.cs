@@ -185,13 +185,13 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<DateTime>("ExpiresAtUtc")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<DateTime?>("RevokedAtUtc")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<string>("OperationId")
                         .IsRequired()
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime?>("RevokedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("UserProfileId")
                         .IsRequired()
@@ -200,12 +200,12 @@ namespace SentenceStudio.Shared.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("OperationId", "ConfirmationDigest")
-                        .IsUnique();
-
                     b.HasIndex("OperationId")
                         .IsUnique()
                         .HasFilter("\"ConsumedAtUtc\" IS NULL AND \"RevokedAtUtc\" IS NULL");
+
+                    b.HasIndex("OperationId", "ConfirmationDigest")
+                        .IsUnique();
 
                     b.HasIndex("UserProfileId", "ExpiresAtUtc");
 
@@ -565,14 +565,14 @@ namespace SentenceStudio.Shared.Migrations
 
                     b.HasIndex("Status", "LeaseExpiresAtUtc");
 
+                    b.HasIndex("UserProfileId", "PurgeAfterUtc");
+
                     b.HasIndex("UserProfileId", "Authority", "DecisionReferenceDigest")
                         .HasFilter("\"DecisionReferenceDigest\" IS NOT NULL");
 
                     b.HasIndex("UserProfileId", "Authority", "IdempotencyDigest")
                         .IsUnique()
                         .HasFilter("\"IdempotencyDigest\" IS NOT NULL");
-
-                    b.HasIndex("UserProfileId", "PurgeAfterUtc");
 
                     b.HasIndex("UserProfileId", "Status", "ExpiresAtUtc");
 
@@ -584,9 +584,9 @@ namespace SentenceStudio.Shared.Migrations
                         {
                             t.HasCheckConstraint("CK_ApplicationOperation_Authority", "\"Authority\" IN ('NativeLocal','Server')");
 
-                            t.HasCheckConstraint("CK_ApplicationOperation_Capability", "\"CapabilityVersion\" > 0 AND length(\"CapabilityCode\") > 0 AND length(\"CapabilityFamily\") > 0 AND length(\"CapabilityFingerprint\") = 71");
-
                             t.HasCheckConstraint("CK_ApplicationOperation_CanonicalRequestDigest", "length(\"CanonicalRequestDigest\") = 32");
+
+                            t.HasCheckConstraint("CK_ApplicationOperation_Capability", "\"CapabilityVersion\" > 0 AND length(\"CapabilityCode\") > 0 AND length(\"CapabilityFamily\") > 0 AND length(\"CapabilityFingerprint\") = 71");
 
                             t.HasCheckConstraint("CK_ApplicationOperation_Confirmation", "\"Confirmation\" IN ('Gesture','Accept','ProtectedConfirmation')");
 
@@ -2313,7 +2313,12 @@ namespace SentenceStudio.Shared.Migrations
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("UserProfileId")
+                        .HasColumnType("text");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("UserProfileId");
 
                     b.ToTable("VocabularyWord", (string)null);
                 });

@@ -77,6 +77,64 @@ public sealed class NativeOwnerSyncProviderTests
     }
 
     [Fact]
+    public async Task StoredWordOwner_WinsOverCurrentLinks()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:");
+        await connection.OpenAsync();
+        await using var db = await SeedTwoOwnersAsync(connection);
+        // A's recorded word that B later linked to, and a legacy ownerless word.
+        db.VocabularyWords.AddRange(
+            new VocabularyWord { Id = "recorded-word", TargetLanguageTerm = "기록", UserProfileId = Owner },
+            new VocabularyWord { Id = "legacy-word", TargetLanguageTerm = "옛" });
+        await db.SaveChangesAsync();
+        await db.Database.ExecuteSqlRawAsync(
+            """
+            INSERT INTO ResourceVocabularyMapping (Id, ResourceId, VocabularyWordId)
+            VALUES ('foreign-link', 'foreign-resource', 'recorded-word'),
+                   ('legacy-link', 'owned-resource', 'legacy-word')
+            """);
+
+        var owners = await NativeOwnerSyncProvider.GetStoredOwnersAsync(
+            db, "VocabularyWord", ["recorded-word", "legacy-word"], default);
+
+        Assert.Equal(Owner, owners["recorded-word"]);
+        Assert.Equal(Owner, owners["legacy-word"]);
+    }
+
+    [Fact]
+    public void Upload_DropsClientSentWordOwnersSoOnlyTheServerDecides()
+    {
+        var claimed = Item("VocabularyWord", "claimed-word",
+            ("UserProfileId", Foreign), ("TargetLanguageTerm", "kept"));
+        var blank = new SyncItem("VocabularyWord", ChangeType.Update,
+            new Dictionary<string, object?> { ["Id"] = "blank-word", ["userprofileid"] = null });
+        var resource = Item("LearningResource", "owned-resource", ("UserProfileId", Owner));
+
+        NativeOwnerSyncProvider.IgnoreClientWordOwners([claimed, blank, resource]);
+
+        Assert.False(claimed.Values.ContainsKey("UserProfileId"));
+        Assert.Equal("kept", claimed.Values["TargetLanguageTerm"].Value);
+        Assert.DoesNotContain(blank.Values.Keys,
+            key => key.Equals("UserProfileId", StringComparison.OrdinalIgnoreCase));
+        Assert.Equal(Owner, resource.Values["UserProfileId"].Value);
+    }
+
+    private static async Task<ApplicationDbContext> SeedTwoOwnersAsync(SqliteConnection connection)
+    {
+        var db = new ApplicationDbContext(
+            new DbContextOptionsBuilder<ApplicationDbContext>().UseSqlite(connection).Options);
+        await db.Database.EnsureCreatedAsync();
+        db.UserProfiles.AddRange(
+            new UserProfile { Id = Owner, Email = "owner@example.test" },
+            new UserProfile { Id = Foreign, Email = "foreign@example.test" });
+        db.LearningResources.AddRange(
+            new LearningResource { Id = "owned-resource", UserProfileId = Owner },
+            new LearningResource { Id = "foreign-resource", UserProfileId = Foreign });
+        await db.SaveChangesAsync();
+        return db;
+    }
+
+    [Fact]
     public void NativeOwnerHeader_RequiresTheSameAuthenticatedBearerOwner()
     {
         var context = new DefaultHttpContext

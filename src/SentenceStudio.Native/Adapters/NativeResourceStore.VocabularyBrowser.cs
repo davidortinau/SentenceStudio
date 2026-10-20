@@ -51,13 +51,6 @@ public sealed partial class NativeResourceStore
                 resource.Id, resource.Title ?? string.Empty,
                 resource.Language, resource.IsSmartResource))
             .ToListAsync(cancellationToken);
-        var privateMetadataIds = ids.Length == 0
-            ? new HashSet<string>(StringComparer.Ordinal)
-            : (await VocabularyIdsWithPrivateMetadataAccess(db, owner)
-                .Where(id => ids.Contains(id))
-                .ToListAsync(cancellationToken))
-                .ToHashSet(StringComparer.Ordinal);
-
         if (!IsActiveOwner(owner) || !userScope.IsCurrent(stamp))
             return new(false, [], []);
 
@@ -74,7 +67,7 @@ public sealed partial class NativeResourceStore
                 .ToArray();
             return VocabularyEntry(word, associated, ownProgress,
                 exampleCounts.GetValueOrDefault(word.Id),
-                privateMetadataIds.Contains(word.Id));
+                word.UserProfileId == owner);
         }).OrderByDescending(entry => entry.CreatedAt)
             .ThenBy(entry => entry.Id, StringComparer.Ordinal)
             .ToArray();
@@ -152,7 +145,8 @@ public sealed partial class NativeResourceStore
                             && resource.UserProfileId == owner)
                         .Select(resource => resource.Title).FirstOrDefault()))
                 .ToListAsync(cancellationToken);
-        var canReadPrivateMetadata = await VocabularyIdsWithPrivateMetadataAccess(
+        var ownsWord = word.UserProfileId == owner;
+        var editable = ownsWord && await VocabularyIdsWithExclusiveCurrentUse(
             db, owner).AnyAsync(id => id == wordId, cancellationToken);
         if (!await db.VocabularyWords.AsNoTracking()
                 .AnyAsync(candidate => candidate.Id == wordId
@@ -163,14 +157,14 @@ public sealed partial class NativeResourceStore
 
         var entry = VocabularyEntry(word,
             available.Where(resource => associatedIds.Contains(resource.Id)).ToArray(),
-            ownProgress, exampleCount, canReadPrivateMetadata);
+            ownProgress, exampleCount, ownsWord);
         var draft = new NativeVocabularyEditDraft(
             word.Id, word.UpdatedAt,
             word.TargetLanguageTerm ?? string.Empty,
             word.NativeLanguageTerm ?? string.Empty,
             word.Lemma, word.Language, word.Tags,
-            canReadPrivateMetadata ? word.MnemonicText : null,
-            canReadPrivateMetadata ? word.MnemonicImageUri : null,
+            ownsWord ? word.MnemonicText : null,
+            ownsWord ? word.MnemonicImageUri : null,
             word.LexicalUnitType, associated);
         var progressSnapshot = ownProgress is null ? null
             : new NativeVocabularyProgress(ownProgress.Status, ownProgress.IsKnown,
@@ -178,7 +172,7 @@ public sealed partial class NativeResourceStore
                 ownProgress.ProductionInStreak, ownProgress.NextReviewDate,
                 ownProgress.TotalAttempts);
         return new(entry, draft, available, progressSnapshot, history,
-            examples, constituents, !canReadPrivateMetadata, hasConstituentLinks);
+            examples, constituents, !editable, hasConstituentLinks);
     }
 
     public async Task<NativeVocabularySaveStatus> SaveOwnedVocabularyAsync(
@@ -205,7 +199,8 @@ public sealed partial class NativeResourceStore
             .SingleOrDefaultAsync(cancellationToken);
         if (word is null)
             return NativeVocabularySaveStatus.NotFoundOrForbidden;
-        if (!await VocabularyIdsWithPrivateMetadataAccess(db, owner)
+        if (word.UserProfileId != owner
+            || !await VocabularyIdsWithExclusiveCurrentUse(db, owner)
                 .AnyAsync(id => id == draft.Id, cancellationToken))
             return NativeVocabularySaveStatus.SharedReadOnly;
         if (word.UpdatedAt != draft.OriginalUpdatedAt)
@@ -321,9 +316,10 @@ public sealed partial class NativeResourceStore
             .Union(db.VocabularyProgresses.Where(progress => progress.UserId == owner)
                 .Select(progress => progress.VocabularyWordId));
 
-    // Progress permits browsing but does not identify who authored global mnemonic fields.
-    // Every mapping and example must resolve to this owner before reading or editing them.
-    private static IQueryable<string> VocabularyIdsWithPrivateMetadataAccess(
+    // Words no other account currently uses (mappings, progress, examples). Owners may
+    // edit only these, so a legacy word another learner still links to stays read-only.
+    // Memory-aid visibility comes from VocabularyWord.UserProfileId, not from this.
+    private static IQueryable<string> VocabularyIdsWithExclusiveCurrentUse(
         ApplicationDbContext db, string owner) =>
         db.ResourceVocabularyMappings.AsNoTracking()
             .Where(mapping => db.LearningResources.Any(resource =>
@@ -347,9 +343,9 @@ public sealed partial class NativeResourceStore
 
     private static NativeVocabularyEntry VocabularyEntry(
         VocabularyWord word, IReadOnlyList<NativeVocabularyResource> resources,
-        VocabularyProgress? progress, int exampleCount, bool canReadPrivateMetadata)
+        VocabularyProgress? progress, int exampleCount, bool ownsMemoryAids)
     {
-        var scoringWord = canReadPrivateMetadata ? word : new VocabularyWord {
+        var scoringWord = ownsMemoryAids ? word : new VocabularyWord {
             TargetLanguageTerm = word.TargetLanguageTerm,
             NativeLanguageTerm = word.NativeLanguageTerm
         };

@@ -19,6 +19,7 @@ public sealed class SqliteMigrationApplicationTests
     private const string IndexMigration = "20260621193737_AddVocabularyDuplicateLookupIndexes";
     private const string StreamOwnerMigration = "20260927100455_AddStreamHistoryOwnerScope";
     private const string ArchiveMigration = "20260928050905_ArchiveDisplacedPlanItems";
+    private const string WordOwnerMigration = "20261020095243_AddVocabularyWordOwner";
 
     [Fact]
     public async Task FreshDatabase_AppliesEveryDiscoveredMigration()
@@ -30,6 +31,7 @@ public sealed class SqliteMigrationApplicationTests
         Assert.Contains(IndexMigration, discovered);
         Assert.Contains(StreamOwnerMigration, discovered);
         Assert.Contains(ArchiveMigration, discovered);
+        Assert.Contains(WordOwnerMigration, discovered);
 
         await db.Database.MigrateAsync();
 
@@ -266,6 +268,67 @@ public sealed class SqliteMigrationApplicationTests
         Assert.Equal(2, await upgraded.DailyPlanCompletions
             .CountAsync(row => row.UserProfileId == plan.UserProfileId
                 && row.Date == plan.Date && row.PlanItemId == plan.PlanItemId));
+
+        await AssertSchemaAsync(scratch.ConnectionString);
+        await AssertModeledColumnsAsync(upgraded, scratch.ConnectionString);
+    }
+
+    [Fact]
+    public async Task ImmediatelyPreviousDatabase_AddsWordOwner_AndBackfillStampsOnlySingleOwnerWords()
+    {
+        using var scratch = new ScratchDatabase();
+        await using (var previous = CreateContext(scratch.ConnectionString))
+        {
+            await previous.Database.MigrateAsync(ArchiveMigration);
+            Assert.Equal(ArchiveMigration,
+                (await previous.Database.GetAppliedMigrationsAsync()).Last());
+            Assert.Contains(WordOwnerMigration, await previous.Database.GetPendingMigrationsAsync());
+        }
+
+        // Offline rows written before the owner column existed (raw SQL: the current
+        // model already maps UserProfileId).
+        await using (var connection = new SqliteConnection(scratch.ConnectionString))
+        {
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText = """
+                INSERT INTO LearningResource (Id, UserProfileId, CreatedAt, UpdatedAt, IsSmartResource)
+                VALUES ('res-a', 'owner-a', '2026-09-02 10:00:00', '2026-09-02 10:00:00', 0),
+                       ('res-b', 'owner-b', '2026-09-02 10:00:00', '2026-09-02 10:00:00', 0);
+                INSERT INTO VocabularyWord (Id, TargetLanguageTerm, NativeLanguageTerm, MnemonicText, CreatedAt, UpdatedAt)
+                VALUES ('word-a', '고양이', 'cat', 'A''s cat story', '2026-09-02 10:00:00', '2026-09-02 10:00:00'),
+                       ('word-shared', '개', 'dog', NULL, '2026-09-02 10:00:00', '2026-09-02 10:00:00'),
+                       ('word-unlinked', '새', 'bird', 'whose story?', '2026-09-02 10:00:00', '2026-09-02 10:00:00');
+                INSERT INTO ResourceVocabularyMapping (Id, ResourceId, VocabularyWordId)
+                VALUES ('map-a', 'res-a', 'word-a'),
+                       ('map-shared-a', 'res-a', 'word-shared'),
+                       ('map-shared-b', 'res-b', 'word-shared');
+                """;
+            await command.ExecuteNonQueryAsync();
+        }
+
+        await using var upgraded = CreateContext(scratch.ConnectionString);
+        await upgraded.Database.MigrateAsync();
+        Assert.Equal(upgraded.Database.GetMigrations(),
+            await upgraded.Database.GetAppliedMigrationsAsync());
+        Assert.False(upgraded.Database.HasPendingModelChanges());
+        Assert.All(await upgraded.VocabularyWords.AsNoTracking().ToListAsync(),
+            word => Assert.Null(word.UserProfileId));
+
+        var result = await VocabularyWordOwnership.BackfillAsync(upgraded);
+        Assert.Equal("owner-a", Assert.Single(result.Stamped, pair => pair.Key == "word-a").Value);
+        Assert.Single(result.Stamped);
+        Assert.Equal(1, result.Shared);
+        Assert.Equal(1, result.Unlinked);
+
+        var words = await upgraded.VocabularyWords.AsNoTracking()
+            .ToDictionaryAsync(word => word.Id);
+        Assert.Equal("owner-a", words["word-a"].UserProfileId);
+        Assert.Equal("A's cat story", words["word-a"].MnemonicText);
+        Assert.Null(words["word-shared"].UserProfileId);
+        Assert.Null(words["word-unlinked"].UserProfileId);
+        Assert.Equal("whose story?", words["word-unlinked"].MnemonicText);
+        Assert.Equal(3, await upgraded.ResourceVocabularyMappings.CountAsync());
 
         await AssertSchemaAsync(scratch.ConnectionString);
         await AssertModeledColumnsAsync(upgraded, scratch.ConnectionString);
@@ -511,6 +574,7 @@ public sealed class SqliteMigrationApplicationTests
             word.ToTable("VocabularyWord").HasKey(row => row.Id);
             word.Ignore(row => row.LexicalUnitType);
             word.Ignore(row => row.PartOfSpeech);
+            word.Ignore(row => row.UserProfileId);
             word.Ignore(row => row.LearningResources);
             word.Ignore(row => row.ResourceMappings);
             word.Ignore(row => row.ExampleSentences);

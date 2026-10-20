@@ -457,6 +457,7 @@ public class VideoImportPipelineService : IVideoImportPipeline
             var wordId = existing?.Id ?? word.Id;
             if (existing == null)
             {
+                word.UserProfileId = import.UserProfileId;
                 word.TargetLanguageTerm = targetTerm;
                 word.Language = import.Language;
                 word.CreatedAt = DateTime.UtcNow;

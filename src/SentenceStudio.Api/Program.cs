@@ -549,6 +549,12 @@ if (!skipDatabaseInitialization)
         assertSession();
         await backfillService.BackfillPhraseConstituentsAsync(db, assertSession, startupToken);
         assertSession();
+        var wordOwnership = await VocabularyWordOwnership.BackfillAsync(
+            db, assertSession, startupToken);
+        assertSession();
+        app.Logger.LogInformation(
+            "Vocabulary word owners: {Stamped} stamped, {Shared} shared, {Unlinked} unlinked",
+            wordOwnership.Stamped.Count, wordOwnership.Shared, wordOwnership.Unlinked);
 
         // Seed Korean number content (NumberDrill activity — idempotent upsert by natural key)
         var numberSeeder = new SentenceStudio.Services.Numbers.NumberContentSeeder(

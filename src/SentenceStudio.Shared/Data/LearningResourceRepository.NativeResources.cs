@@ -123,6 +123,7 @@ public partial class LearningResourceRepository
         if (reusable is null)
         {
             word.Id = Guid.NewGuid().ToString();
+            word.UserProfileId = userProfileId;
             word.TargetLanguageTerm = targetTerm;
             word.NativeLanguageTerm = word.NativeLanguageTerm?.Trim() ?? string.Empty;
             word.Language = language;
@@ -190,6 +191,7 @@ public partial class LearningResourceRepository
             if (reusable is null)
             {
                 candidate.Id = Guid.NewGuid().ToString();
+                candidate.UserProfileId = userProfileId;
                 candidate.TargetLanguageTerm = target;
                 candidate.NativeLanguageTerm = candidate.NativeLanguageTerm?.Trim()
                     ?? string.Empty;
@@ -267,18 +269,13 @@ public partial class LearningResourceRepository
         return (resource, ResourceVocabularyWriteStatus.Success);
     }
 
+    // Reuse only a word available to this learner (VocabularyWordOwnership.AvailableTo):
+    // never another account's word or an ownerless one carrying someone's memory aids.
     private static Task<VocabularyWord?> FindReusableWordAsync(
         ApplicationDbContext db, string owner, string targetTerm, string? language,
         CancellationToken cancellationToken) =>
-        db.VocabularyWords
+        VocabularyWordOwnership.AvailableTo(db, owner)
             .Where(word => word.TargetLanguageTerm == targetTerm && word.Language == language)
-            .Where(word => !db.ResourceVocabularyMappings
-                .Any(mapping => mapping.VocabularyWordId == word.Id)
-                || db.ResourceVocabularyMappings
-                    .Where(mapping => mapping.VocabularyWordId == word.Id)
-                    .Join(db.LearningResources.Where(resource => resource.UserProfileId == owner),
-                        mapping => mapping.ResourceId, resource => resource.Id,
-                        (mapping, resource) => mapping.Id).Any())
             .OrderBy(word => word.Id)
             .FirstOrDefaultAsync(cancellationToken);
 }
