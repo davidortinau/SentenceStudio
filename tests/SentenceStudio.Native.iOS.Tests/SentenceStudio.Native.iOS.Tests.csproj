@@ -9,6 +9,8 @@
 
   <ItemGroup>
     <Compile Remove="LiveApiSmoke.cs" />
+    <!-- Nested project: its own bin/obj output must not join this compile. -->
+    <Compile Remove="LiveApiSmoke/**" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio">
