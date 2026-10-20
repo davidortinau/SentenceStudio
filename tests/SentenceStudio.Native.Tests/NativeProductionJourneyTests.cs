@@ -53,9 +53,10 @@ public sealed class NativeProductionJourneyTests
         var signedIn = await fixture.Auth.SignInAsync(
             NativeSliceFixture.EmailA, "fixture-password");
         Assert.Equal(NativeDestination.Dashboard, signedIn.Destination);
-        Assert.Equal(NativePhase.Empty, (await fixture.Dashboard.LoadAsync()).Phase);
-        var generated = await fixture.Dashboard.GenerateAsync();
+        var generated = await fixture.Dashboard.LoadAsync();
         Assert.Equal(NativePhase.Ready, generated.Phase);
+        Assert.Equal(generated.Cards.Select(card => card.Id),
+            (await fixture.Dashboard.GenerateAsync()).Cards.Select(card => card.Id));
         Assert.False(fixture.LastPlanGenerationAllowedWrites);
         var card = Assert.Single(generated.Cards);
         var launch = await fixture.Dashboard.SelectAssignedQuizAsync(card.Id);
@@ -132,13 +133,17 @@ public sealed class NativeProductionJourneyTests
             (await fixture.Auth.RestoreAsync()).Destination);
         var restored = await fixture.Dashboard.LoadAsync();
         Assert.True(Assert.Single(restored.Cards).IsCompleted);
-        Assert.Null(await fixture.Dashboard.SelectAssignedQuizAsync(card.Id));
+        var replay = await fixture.Dashboard.SelectAssignedQuizAsync(card.Id);
+        Assert.NotNull(replay);
+        using (var reopened = fixture.Quiz)
+            Assert.NotEqual(NativePhase.Blocked, (await reopened.OpenAsync(
+                replay with { IsRepractice = true })).Phase);
         Assert.Equal(completedAt,
             (await fixture.RowsAsync(NativeSliceFixture.UserA, card.Id)).Item.CompletedAt);
         Assert.Equal(committed,
             await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
         fixture.Activate(NativeSliceFixture.UserB);
-        Assert.Equal(NativePhase.Empty, (await fixture.Dashboard.LoadAsync()).Phase);
+        Assert.Equal(NativePhase.Ready, (await fixture.Dashboard.LoadAsync()).Phase);
         Assert.Equal(0, await fixture.AttemptCountAsync(NativeSliceFixture.UserB));
     }
 

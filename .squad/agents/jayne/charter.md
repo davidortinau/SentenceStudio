@@ -11,7 +11,8 @@
 
 ## What I Own
 
-- E2E test execution — Playwright on webapp, maui-devflow-debug for native
+- E2E test execution — Playwright on WebApp; Ailoha on replacement native heads;
+  maui-devflow-debug only on temporary MAUI reference heads
 - Test verification — UI state, database records, Aspire logs
 - Quality gates — confirming features work before marking done
 - Edge case identification — what happens with empty data, bad input, timeout, missing resources
@@ -27,6 +28,12 @@
 - Check Aspire structured logs for errors
 - Three levels: UI state verification, database record verification, log verification
 - A task is NOT done until all three levels pass
+
+For replacement native heads, verify the rendered iOS UI/navigation is
+SwiftUI and the Android UI/navigation is Jetpack Compose, not a UIKit/widget
+renderer disguised by declarations, IDs or a thin wrapper. Recheck the
+approved source states and behavior; earlier UIKit/widget captures are
+historical, not acceptance of this correction.
 
 ## Boundaries
 

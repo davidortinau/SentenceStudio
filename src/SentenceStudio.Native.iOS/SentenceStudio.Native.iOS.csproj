@@ -4,11 +4,12 @@
     <OutputType>Exe</OutputType>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <ApplicationTitle>SentenceStudio Native</ApplicationTitle>
+    <ApplicationTitle>SentenceStudio</ApplicationTitle>
     <AppBundleManifest>Info.plist</AppBundleManifest>
     <ApplicationId Condition="'$(Configuration)' == 'Debug'">com.simplyprofound.sentencestudio.native.debug</ApplicationId>
     <ApplicationId Condition="'$(Configuration)' == 'Debug' and '$(NativePreviewSurface)' != ''">com.simplyprofound.sentencestudio.native.fixture</ApplicationId>
     <ApplicationId Condition="'$(Configuration)' != 'Debug'">com.simplyprofound.sentencestudio.native.preview</ApplicationId>
+    <ApplicationTitle Condition="'$(ApplicationId)' == 'com.simplyprofound.sentencestudio.native.pageui.kaylee'">SS Review</ApplicationTitle>
     <SupportedOSPlatformVersion>26.0</SupportedOSPlatformVersion>
     <UseInterpreter>true</UseInterpreter>
     <UseMauiEssentials>true</UseMauiEssentials>
@@ -18,6 +19,12 @@
     <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
       <_Parameter1>SentenceStudio.Native.ApiBaseUrl</_Parameter1>
       <_Parameter2>$(NativeApiBaseUrl)</_Parameter2>
+    </AssemblyAttribute>
+  </ItemGroup>
+  <ItemGroup Condition="'$(Configuration)' == 'Debug' and '$(NativeSourceAtBuildSha)' != ''">
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+      <_Parameter1>SentenceStudio.Native.SourceAtBuildSha</_Parameter1>
+      <_Parameter2>$(NativeSourceAtBuildSha)</_Parameter2>
     </AssemblyAttribute>
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)' == 'Debug' and '$(NativePreviewSchema)' == 'true'">
@@ -39,6 +46,11 @@
       <_Parameter1>SentenceStudio.Native.PreviewEmail</_Parameter1>
       <_Parameter2>$(NativePreviewEmail)</_Parameter2>
     </AssemblyAttribute>
+    <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute"
+                       Condition="'$(NativePreviewAppearance)' != ''">
+      <_Parameter1>SentenceStudio.Native.PreviewAppearance</_Parameter1>
+      <_Parameter2>$(NativePreviewAppearance)</_Parameter2>
+    </AssemblyAttribute>
   </ItemGroup>
   <ItemGroup Condition="'$(Configuration)' == 'Debug' and '$(NativeAuthenticatedSampleOwnerId)' != ''">
     <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
@@ -53,7 +65,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageVersion Include="Microsoft.SwiftUI" Version="0.1.0-preview.3" />
+    <PackageVersion Include="Microsoft.SwiftUI" Version="0.1.0-preview.25" />
     <PackageReference Include="Microsoft.SwiftUI" />
     <PackageReference Include="Microsoft.Maui.Essentials" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" />
@@ -63,6 +75,11 @@
     <ProjectReference Include="../SentenceStudio.Native/SentenceStudio.Native.csproj" />
     <ProjectReference Include="../SentenceStudio.Shared/SentenceStudio.Shared.csproj" />
     <PartialAppManifest Include="DebugNetworking.plist" Condition="'$(Configuration)' == 'Debug'" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <BundleResource Include="Resources/Fonts/*.ttf"
+                    Link="Fonts/%(Filename)%(Extension)" />
   </ItemGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Debug' and '$(AilohaAgentXCFramework)' != ''">

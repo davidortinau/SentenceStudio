@@ -280,9 +280,9 @@ public sealed class NativeProductionPlanTests
         fixture.Activate(NativeSliceFixture.UserA);
         var dashboard = NewDashboard(fixture);
 
-        Assert.Equal(NativePhase.Empty, (await dashboard.LoadAsync()).Phase);
-        var generated = await dashboard.GenerateAsync();
+        var generated = await dashboard.LoadAsync();
         Assert.Equal(NativePhase.Ready, generated.Phase);
+        Assert.Equal(generated.PlanDate, (await dashboard.GenerateAsync()).PlanDate);
         var card = Assert.Single(generated.Cards);
 
         using (var lease = fixture.PlanLease(NativeSliceFixture.UserA))
@@ -432,6 +432,8 @@ public sealed class NativeProductionPlanTests
             services.GetRequiredService<IActivitySessionService>(),
             services.GetRequiredService<NativePendingWrites>(),
             services.GetRequiredService<VocabularyProgressRepository>(),
+            services.GetRequiredService<LearningResourceRepository>(),
+            services.GetRequiredService<SkillProfileRepository>(),
             services.GetRequiredService<ILogger<NativeDashboardPresenter>>());
     }
 

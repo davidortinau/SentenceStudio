@@ -18,6 +18,8 @@ internal sealed record NativeQuizStoredState
     public required DateOnly PlanDate { get; init; }
     public required string LaunchContextKey { get; init; }
     public string? PlanItemRowId { get; init; }
+    public string? AdHocPlanItemId { get; init; }
+    public bool IsRepractice { get; init; }
     public required string DisplayDirection { get; init; }
     public required string TurnId { get; init; }
     public required VocabQuizSessionSnapshot Snapshot { get; init; }
@@ -25,6 +27,10 @@ internal sealed record NativeQuizStoredState
     public bool RequiresCorrection { get; init; }
     public bool SummaryVisible { get; init; }
     public long ElapsedTicks { get; init; }
+    public string? SentenceSubmissionId { get; init; }
+    public string? SentenceSourceInput { get; init; }
+    public IReadOnlyList<NativeQuizSentenceGrade> SentenceResults { get; init; } = [];
+    public bool SentenceCreditApplied { get; init; }
 
     public string Serialize() => JsonSerializer.Serialize(this, JsonOptions);
 
@@ -36,7 +42,12 @@ internal sealed record NativeQuizStoredState
             || string.IsNullOrWhiteSpace(state.UserId)
             || string.IsNullOrWhiteSpace(state.LaunchContextKey)
             || string.IsNullOrWhiteSpace(state.TurnId)
-            || state.ElapsedTicks < 0)
+            || state.ElapsedTicks < 0
+            || (state.SentenceSubmissionId is not null
+                && (!Guid.TryParseExact(state.SentenceSubmissionId, "N", out _)
+                    || string.IsNullOrWhiteSpace(state.SentenceSourceInput)))
+            || (state.SentenceCreditApplied
+                && (state.SentenceResults is null || state.SentenceResults.Count == 0)))
             throw new JsonException("Native quiz snapshot cannot be resumed safely.");
         return state;
     }

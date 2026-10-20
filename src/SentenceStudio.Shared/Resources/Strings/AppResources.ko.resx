@@ -2045,6 +2045,22 @@
     <value>삭제 실패: {0}</value>
     <comment>Profile: Account deletion failure toast</comment>
   </data>
+  <data name="NativeProfile_OwnerUnavailable" xml:space="preserve">
+    <value>프로필을 보려면 확인된 계정으로 로그인하세요.</value>
+    <comment>Native Profile: no current verified owner</comment>
+  </data>
+  <data name="NativeProfile_NotFound" xml:space="preserve">
+    <value>현재 계정의 프로필을 찾을 수 없습니다.</value>
+    <comment>Native Profile: owner has no local profile row</comment>
+  </data>
+  <data name="NativeProfile_SaveUnavailable" xml:space="preserve">
+    <value>여기서 변경한 내용은 임시 초안입니다. 안전한 서버 저장 기능이 준비되기 전에는 저장할 수 없으며, 뒤로 가면 변경 사항이 사라집니다.</value>
+    <comment>Native Profile: disabled Save while server persistence is unavailable</comment>
+  </data>
+  <data name="NativeProfile_AccountActionUnavailable" xml:space="preserve">
+    <value>여기에서는 비밀번호 변경과 계정 삭제를 사용할 수 없습니다. 계정은 변경되지 않습니다.</value>
+    <comment>Native Profile: disabled account operations</comment>
+  </data>
   <data name="Common_Refresh" xml:space="preserve">
     <value>새로고침</value>
     <comment>Common: refresh action</comment>
@@ -2389,6 +2405,18 @@
     <value>아직 어휘 데이터가 없습니다. 연습을 시작하세요!</value>
     <comment>Dashboard: empty vocab state</comment>
   </data>
+  <data name="NativeDashboard_NumbersUnavailable" xml:space="preserve">
+    <value>숫자 학습 현황을 불러오지 못했습니다. 새로고침해 주세요.</value>
+  </data>
+  <data name="NativeDashboard_ActivityNotAvailable" xml:space="preserve">
+    <value>이 활동은 아직 사용할 수 없습니다.</value>
+  </data>
+  <data name="NativeDashboard_ChooseOwnUnavailable" xml:space="preserve">
+    <value>활동 선택 항목을 불러오지 못했습니다. 다시 시도해 주세요.</value>
+  </data>
+  <data name="NativeDashboard_SelectionUnavailable" xml:space="preserve">
+    <value>선택한 학습 자료나 기술을 사용할 수 없습니다. 다시 선택해 주세요.</value>
+  </data>
   <data name="Dashboard_EstimateMinutes" xml:space="preserve">
     <value>약 {0}분</value>
     <comment>Dashboard: estimated minutes for item</comment>
@@ -2607,6 +2635,18 @@
   <data name="ActivityLog_WeekMinutes" xml:space="preserve">
     <value>{0}분</value>
     <comment>ActivityLog: week total minutes. {0}=minutes</comment>
+  </data>
+  <data name="NativeActivityLog_OwnerUnavailable" xml:space="preserve">
+    <value>연습 기록을 보려면 확인된 계정으로 로그인하세요.</value>
+    <comment>Native Activity Log: active owner has changed or is unavailable.</comment>
+  </data>
+  <data name="NativeActivityLog_LoadError" xml:space="preserve">
+    <value>연습 기록을 불러오지 못했습니다. 새로고침해 주세요.</value>
+    <comment>Native Activity Log: a read-only history query failed.</comment>
+  </data>
+  <data name="NativeActivityLog_FilterEmpty" xml:space="preserve">
+    <value>이 필터에 해당하는 연습 활동이 없습니다.</value>
+    <comment>Native Activity Log: the selected input/output filter has no matching history.</comment>
   </data>
   <data name="MainLayout_Syncing" xml:space="preserve">
     <value>동기화 중...</value>
@@ -3443,6 +3483,27 @@
   <data name="NativeResources_SaveError" xml:space="preserve">
     <value>리소스를 저장할 수 없습니다. 다시 시도하세요.</value>
   </data>
+  <data name="NativeResources_GenerationPartial" xml:space="preserve">
+    <value>리소스 수정 사항은 저장되었지만 어휘 생성을 완료하지 못했습니다. 리소스를 다시 불러온 후 다시 시도하세요.</value>
+  </data>
+  <data name="NativeResources_DeleteFailed" xml:space="preserve">
+    <value>리소스를 삭제할 수 없습니다. 다시 시도하세요.</value>
+  </data>
+  <data name="NativeResources_FileTooLarge" xml:space="preserve">
+    <value>파일이 1 MB 크기 제한을 초과했습니다.</value>
+  </data>
+  <data name="NativeResources_UnsupportedFile" xml:space="preserve">
+    <value>.txt 또는 .csv 파일을 선택하세요.</value>
+  </data>
+  <data name="NativeResources_FileReadError" xml:space="preserve">
+    <value>선택한 파일을 읽을 수 없습니다. 다시 시도하세요.</value>
+  </data>
+  <data name="NativeResources_SaveLanguageBeforeQuickAdd" xml:space="preserve">
+    <value>빠른 추가를 사용하려면 변경한 언어를 먼저 저장하세요.</value>
+  </data>
+  <data name="NativeResources_LexicalIdiom" xml:space="preserve">
+    <value>관용구</value>
+  </data>
   <data name="NativeResources_SaveRefused" xml:space="preserve">
     <value>리소스를 저장할 수 없습니다. 변경되었거나 사용할 수 없게 되었을 수 있습니다.</value>
   </data>
@@ -3506,6 +3567,12 @@
   <data name="Resources_SetNativeLanguage" xml:space="preserve">
     <value>먼저 프로필에서 모국어를 설정하세요.</value>
     <comment>Toast error</comment>
+  </data>
+  <data name="NativeResources_SetTargetLanguage" xml:space="preserve">
+    <value>먼저 프로필에서 학습할 언어를 설정하세요.</value>
+  </data>
+  <data name="NativeResources_StarterFailed" xml:space="preserve">
+    <value>시작 학습 자료를 만들지 못했습니다. 다시 시도해 주세요.</value>
   </data>
   <data name="Resources_StarterExists" xml:space="preserve">
     <value>스타터 리소스가 이미 존재합니다! 리소스 로딩 중...</value>
@@ -4795,6 +4862,10 @@
     <value>모양</value>
     <comment>Section heading</comment>
   </data>
+  <data name="Settings_SystemMode" xml:space="preserve">
+    <value>시스템</value>
+    <comment>Appearance follows the device or browser setting</comment>
+  </data>
   <data name="Settings_LightMode" xml:space="preserve">
     <value>밝은</value>
     <comment>Radio label</comment>
@@ -4846,6 +4917,18 @@
   <data name="Settings_AutoAdvanceDurationLabel" xml:space="preserve">
     <value>자동 진행 시간: {0}초</value>
     <comment>Slider label</comment>
+  </data>
+  <data name="NativeSettings_OwnerUnavailable" xml:space="preserve">
+    <value>설정을 사용할 수 없습니다. 현재 프로필이 변경되었거나 확인할 수 없습니다. 뒤로 돌아가 설정을 다시 여세요.</value>
+    <comment>Native Settings: missing or revoked owner, including an unverified local preview.</comment>
+  </data>
+  <data name="NativeSettings_CurrentVoice" xml:space="preserve">
+    <value>현재 음성</value>
+    <comment>Native Settings: locally saved voice shown when discovery is unavailable.</comment>
+  </data>
+  <data name="NativeSettings_VoicesRequireSignIn" xml:space="preserve">
+    <value>다른 음성을 선택하려면 로그인해야 합니다. 현재 음성은 기기에서 사용할 수 있습니다.</value>
+    <comment>Native Settings: a Debug preview has no authenticated voice service.</comment>
   </data>
   <data name="Settings_DataManagementSection" xml:space="preserve">
     <value>데이터 관리</value>
@@ -5503,6 +5586,15 @@
     <value>회원가입에 실패했습니다. 정보를 확인하고 다시 시도하세요.</value>
     <comment>Registration error</comment>
   </data>
+  <data name="NativeAuth_RegistrationAccepted" xml:space="preserve">
+    <value>이 주소로 계정을 만들 수 있는 경우, 전송된 확인 안내를 따르세요.</value>
+  </data>
+  <data name="NativeAuth_RecoveryUnavailable" xml:space="preserve">
+    <value>아직 이 앱에서는 비밀번호를 재설정할 수 없습니다.</value>
+  </data>
+  <data name="NativeAuth_RecoveryFailed" xml:space="preserve">
+    <value>비밀번호 재설정을 요청할 수 없습니다. 이메일 주소를 확인하고 다시 시도하세요.</value>
+  </data>
   <data name="ForgotPassword_Title" xml:space="preserve">
     <value>비밀번호 찾기</value>
     <comment>Forgot password page title</comment>
@@ -5554,6 +5646,39 @@
   <data name="Onboarding_EnterName" xml:space="preserve">
     <value>이름을 입력하세요</value>
     <comment>Name input placeholder</comment>
+  </data>
+  <data name="NativeOnboarding_Incomplete" xml:space="preserve">
+    <value>이름, 언어 및 학습 설정을 먼저 완료해 주세요.</value>
+  </data>
+  <data name="NativeOnboarding_SaveFailed" xml:space="preserve">
+    <value>프로필을 저장하지 못했습니다. 다시 시도해 주세요.</value>
+  </data>
+  <data name="NativeOnboarding_StarterFailed" xml:space="preserve">
+    <value>시작 학습 자료를 만들지 못했습니다. 다시 시도하거나 이 단계를 건너뛰세요.</value>
+  </data>
+  <data name="NativeVocabQuiz_FullForm" xml:space="preserve">
+    <value>완전한 표현: {0}</value>
+  </data>
+  <data name="NativeVocabQuiz_Mnemonic" xml:space="preserve">
+    <value>기억법</value>
+  </data>
+  <data name="NativeVocabQuiz_ModeRecognitionCheck" xml:space="preserve">
+    <value>입력한 답이 틀려 인식 여부를 다시 확인합니다.</value>
+  </data>
+  <data name="NativeVocabQuiz_ModeKnownConfirmation" xml:space="preserve">
+    <value>이미 아는 단어를 직접 표현할 수 있는지 확인합니다.</value>
+  </data>
+  <data name="NativeVocabQuiz_ModeLifetimeStreak" xml:space="preserve">
+    <value>누적 연속 정답 횟수가 세 번 이상입니다.</value>
+  </data>
+  <data name="NativeVocabQuiz_ModeMastery" xml:space="preserve">
+    <value>숙련도가 50퍼센트 이상입니다.</value>
+  </data>
+  <data name="NativeVocabQuiz_ModeFocusRecognition" xml:space="preserve">
+    <value>집중 단어: 직접 입력하기 전에 세 번의 인식 학습을 완료합니다.</value>
+  </data>
+  <data name="NativeVocabQuiz_ModeBuildingRecognition" xml:space="preserve">
+    <value>연습을 통해 단어 인식을 쌓고 있습니다.</value>
   </data>
   <data name="Onboarding_GeneratingNames" xml:space="preserve">
     <value>이름 제안 생성 중...</value>
@@ -6182,6 +6307,10 @@
   <data name="PlanSummary_Plan" xml:space="preserve">
     <value>계획</value>
     <comment>Plan label</comment>
+  </data>
+  <data name="PlanSummary_Freeform" xml:space="preserve">
+    <value>자유 연습</value>
+    <comment>Label for ad-hoc (non-plan) activity cluster in day summary</comment>
   </data>
   <data name="PlanSummary_TotalTime" xml:space="preserve">
     <value>총 시간</value>
@@ -8183,5 +8312,179 @@
   </data>
   <data name="Coach_Announce_RepairUnknownNoEvidence" xml:space="preserve">
     <value>이 버전의 앱에서는 쌤이 이 답변의 확인 문제를 어떻게 처리했는지 설명할 수 없어요.</value>
+  </data>
+  <data name="Native_SyncPending" xml:space="preserve">
+    <value>동기화가 대기 중입니다. 연결 상태를 확인하고 새로고침하세요.</value>
+  </data>
+  <data name="NativeDashboard_QuickStartDescription" xml:space="preserve">
+    <value>바로 연습을 시작할 수 있도록 학습 언어의 자주 쓰는 어휘로 시작용 학습 자료를 만듭니다.</value>
+  </data>
+  <data name="NativeDashboard_NumbersMastery" xml:space="preserve">
+    <value>숫자 숙달도</value>
+  </data>
+  <data name="NativeDashboard_NumbersEmptyTitle" xml:space="preserve">
+    <value>한국어 숫자 학습 시작하기</value>
+  </data>
+  <data name="NativeDashboard_NumbersEmptyDescription" xml:space="preserve">
+    <value>첫 학습을 완료하면 시간, 나이, 세기 연습을 시작할 수 있습니다.</value>
+  </data>
+  <data name="NativeDashboard_NumbersDue" xml:space="preserve">
+    <value>{0}개 복습 예정</value>
+  </data>
+  <data name="NativeDashboard_NumbersCorrect" xml:space="preserve">
+    <value>{0}/{1}개 정답</value>
+  </data>
+  <data name="NativeVocabQuiz_UseInSentence" xml:space="preserve">
+    <value>문장에서 사용하기</value>
+  </data>
+  <data name="NativeVocabQuiz_SentenceResults" xml:space="preserve">
+    <value>{2}에 대해 {1}개 문장 중 {0}개가 숙달도에 반영되었습니다.</value>
+  </data>
+  <data name="NativeVocabQuiz_ShowImage" xml:space="preserve">
+    <value>이미지 보기</value>
+  </data>
+  <data name="NativeVocabQuiz_HideImage" xml:space="preserve">
+    <value>이미지 숨기기</value>
+  </data>
+  <data name="NativeVocabQuiz_PlayChoice" xml:space="preserve">
+    <value>옵션 {0} 듣기</value>
+  </data>
+  <data name="NativeVocabQuiz_ChooseChoice" xml:space="preserve">
+    <value>옵션 {0} 선택</value>
+  </data>
+  <data name="NativeVocabQuiz_ListenToChoose" xml:space="preserve">
+    <value>옵션 {0}을 듣고 선택하세요</value>
+  </data>
+  <data name="NativeVocabQuiz_FuzzyFeedback" xml:space="preserve">
+    <value>정답입니다! 전체 형태: {0}</value>
+  </data>
+  <data name="NativeVocabQuiz_CorrectFeedback" xml:space="preserve">
+    <value>정답입니다!</value>
+  </data>
+  <data name="NativeVocabQuiz_IncorrectFeedback" xml:space="preserve">
+    <value>정답은 {0}입니다.</value>
+  </data>
+  <data name="NativeVocabQuiz_Language_Korean" xml:space="preserve">
+    <value>한국어</value>
+  </data>
+  <data name="NativeVocabQuiz_Language_English" xml:space="preserve">
+    <value>영어</value>
+  </data>
+  <data name="NativeVocabQuiz_Language_French" xml:space="preserve">
+    <value>프랑스어</value>
+  </data>
+  <data name="NativeVocabQuiz_Language_German" xml:space="preserve">
+    <value>독일어</value>
+  </data>
+  <data name="NativeVocabQuiz_Language_Spanish" xml:space="preserve">
+    <value>스페인어</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_TotalAttempts" xml:space="preserve">
+    <value>총 시도 횟수</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_CorrectAttempts" xml:space="preserve">
+    <value>정답 횟수</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_CurrentStreak" xml:space="preserve">
+    <value>현재 연속 정답</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_ProductionInStreak" xml:space="preserve">
+    <value>연속 정답 중 표현하기</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_EffectiveStreak" xml:space="preserve">
+    <value>유효 연속 정답</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_MasteryScore" xml:space="preserve">
+    <value>숙달도 점수</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_SrsSchedule" xml:space="preserve">
+    <value>간격 반복 복습 일정</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_ReviewInterval" xml:space="preserve">
+    <value>복습 간격</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_Days" xml:space="preserve">
+    <value>{0}일</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_EaseFactor" xml:space="preserve">
+    <value>용이도 계수</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_IsDueForReview" xml:space="preserve">
+    <value>복습할 차례</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_QuizContext" xml:space="preserve">
+    <value>퀴즈 정보</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_QuizMode" xml:space="preserve">
+    <value>퀴즈 모드</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_TextMode" xml:space="preserve">
+    <value>직접 입력</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_MultipleChoiceMode" xml:space="preserve">
+    <value>객관식</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_DueOnly" xml:space="preserve">
+    <value>복습할 항목만</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_WhyMode" xml:space="preserve">
+    <value>이 모드를 선택한 이유</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_RecognitionDemonstrations" xml:space="preserve">
+    <value>인식 확인 횟수</value>
+  </data>
+  <data name="NativeResources_SyncPending" xml:space="preserve">
+    <value>동기화가 대기 중입니다. 연결 상태를 확인하고 새로고침하세요.</value>
+  </data>
+  <data name="NativeResources_VocabularyPartial" xml:space="preserve">
+    <value>자료 정보는 저장되었지만 일부 어휘 연결을 저장하지 못했습니다. 입력 중인 내용은 유지됩니다. 자료를 다시 열어 재시도하세요.</value>
+  </data>
+  <data name="NativeResources_StagedWord" xml:space="preserve">
+    <value>언어가 변경된 임시 입력에 있는 단어입니다. 자료를 저장하면 연결됩니다.</value>
+  </data>
+  <data name="NativeVocabQuiz_SentenceGradeUnavailable" xml:space="preserve">
+    <value>지금은 이 문장을 채점할 수 없습니다. 다시 시도해 주세요.</value>
+  </data>
+  <data name="NativeVocabQuiz_SentenceTargetUnconfirmed" xml:space="preserve">
+    <value>이 문장에서 "{0}"의 사용을 확인할 수 없습니다. 문장을 고쳐 다시 제출해 주세요.</value>
+  </data>
+  <data name="NativeVocabQuiz_SentenceMeaningful" xml:space="preserve">
+    <value>여기서 "{0}"을 의미에 맞게 사용했습니다.</value>
+  </data>
+  <data name="NativeVocabQuiz_SentenceUnclear" xml:space="preserve">
+    <value>이 문장에서는 "{0}"을 정확하고 자연스럽게 사용했는지 아직 확인할 수 없습니다.</value>
+  </data>
+  <data name="NativeVocabulary_LoadFailed" xml:space="preserve">
+    <value>어휘를 불러오지 못했습니다. 다시 시도해 주세요.</value>
+  </data>
+  <data name="NativeVocabulary_WordLoadFailed" xml:space="preserve">
+    <value>이 단어를 불러오지 못했습니다. 다시 시도해 주세요.</value>
+  </data>
+  <data name="NativeVocabulary_SharedReadOnly" xml:space="preserve">
+    <value>이 단어는 다른 프로필과 공유됩니다. 여기에서 볼 수 있지만 공유 단어를 수정할 수는 없습니다.</value>
+  </data>
+  <data name="NativeVocabulary_Conflict" xml:space="preserve">
+    <value>이 단어가 다른 곳에서 변경되었습니다. 수정 내용은 저장되지 않았습니다. 뒤로 가서 다시 열어 최신 내용을 확인해 주세요.</value>
+  </data>
+  <data name="NativeVocabulary_AssociationRequired" xml:space="preserve">
+    <value>단어를 어휘 목록에 유지하려면 내 자료를 하나 이상 선택하세요.</value>
+  </data>
+  <data name="NativeVocabulary_ConstituentsLocked" xml:space="preserve">
+    <value>이 단어에는 구성 단어 연결이 있습니다. 유형을 변경하려면 구성 단어 편집기가 필요합니다.</value>
+  </data>
+  <data name="NativeVocabulary_Constituents" xml:space="preserve">
+    <value>구성 단어</value>
+  </data>
+  <data name="NativeVocabulary_NoConstituents" xml:space="preserve">
+    <value>아직 구성 단어가 없습니다.</value>
+  </data>
+  <data name="NativeVocabulary_ReferenceSentences" xml:space="preserve">
+    <value>참고 문장</value>
+  </data>
+  <data name="NativeVocabulary_AudioUnavailable" xml:space="preserve">
+    <value>지금은 오디오를 재생할 수 없습니다. 다시 시도해 주세요.</value>
+  </data>
+  <data name="NativeVocabulary_SavedSyncUnconfirmed" xml:space="preserve">
+    <value>단어가 이 기기에 저장되었지만 동기화는 확인되지 않았습니다. 기기 데이터를 보존하고 나중에 다시 동기화해 주세요.</value>
   </data>
 </root>

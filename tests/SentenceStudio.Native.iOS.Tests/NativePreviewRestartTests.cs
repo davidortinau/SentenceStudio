@@ -256,7 +256,8 @@ public sealed class NativePreviewRestartTests
     [InlineData("mc")]
     [InlineData("mc-resume")]
     [InlineData("complete")]
-    public async Task CompletedQuizCard_SelectsDashboardNotAnotherLaunch(string surface)
+    public async Task PreviewAutoSelector_SkipsCompletedCardWhileSelectionDoesNotWrite(
+        string surface)
     {
         using var fixture = new NativeSliceFixture(
             productionAdapters: true, realPlanGenerator: true);
@@ -281,6 +282,7 @@ public sealed class NativePreviewRestartTests
         await preview.SeedAsync(fixture.Provider);
         dashboard = await fixture.Dashboard.LoadAsync();
         Assert.Null(preview.SelectAssignedQuizCard(dashboard));
+        Assert.NotNull(await fixture.Dashboard.SelectAssignedQuizAsync(card.Id));
         Assert.Equal(before.Item.CompletedAt,
             (await fixture.RowsAsync(NativeSliceFixture.UserA, card.Id)).Item.CompletedAt);
         Assert.Equal(10, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
@@ -320,6 +322,94 @@ public sealed class NativePreviewRestartTests
                     "https://api.example.invalid/", false)));
     }
 
+    [Theory]
+    [InlineData("onboarding")]
+    [InlineData("onboarding-preferences")]
+    [InlineData("starter-loading")]
+    [InlineData("signin-loading")]
+    [InlineData("signin-error")]
+    [InlineData("mc-feedback")]
+    [InlineData("mc-style-feedback-correct")]
+    [InlineData("mc-style-feedback-wrong")]
+    public void ControlledVisualStates_RequireIsolatedDebugFixture(string surface)
+    {
+        var endpoint = NativeApiEndpoint.Validate(
+            "http://127.0.0.1:5081/", true);
+        var selected = NativePreviewFixture.FromAttributes(
+            Metadata(surface).Append(new AssemblyMetadataAttribute(
+                "SentenceStudio.Native.PreviewAppearance",
+                "v1.flatly.light.150")), endpoint)!;
+
+        Assert.Equal(surface, selected.Surface);
+        Assert.Equal("v1.flatly.light.150", selected.AppearanceToken);
+        Assert.Throws<InvalidOperationException>(() =>
+            NativePreviewFixture.FromAttributes(
+                Metadata(surface).Append(new AssemblyMetadataAttribute(
+                    "SentenceStudio.Native.PreviewAppearance", "not-a-theme")),
+                endpoint));
+        Assert.Throws<InvalidOperationException>(() =>
+            NativePreviewFixture.FromAttributes(
+                Metadata(surface).Where(attribute =>
+                    attribute.Key != "SentenceStudio.Native.PreviewSchema"),
+                endpoint));
+        Assert.Throws<InvalidOperationException>(() =>
+            NativePreviewFixture.FromAttributes(Metadata(surface),
+                NativeApiEndpoint.Validate("https://api.example.invalid/", false)));
+    }
+
+    [Fact]
+    public void SavedMcFeedbackPreview_CannotAnswerAQuestionOrOpenAnotherDatabase()
+    {
+        var service = File.ReadAllText(Path.GetFullPath(Path.Combine(
+            Path.GetDirectoryName(CurrentFile())!,
+            "../../src/SentenceStudio.Native.iOS/NativeServices.cs")));
+        Assert.Contains("\"mc\" or \"mc-feedback\" or \"mc-back\"", service);
+
+        var controller = File.ReadAllText(Path.GetFullPath(Path.Combine(
+            Path.GetDirectoryName(CurrentFile())!,
+            "../../src/SentenceStudio.Native.iOS/App/ApplicationController.Quiz.cs")));
+        var start = controller.IndexOf("if (fixture.Surface == \"mc-feedback\")",
+            StringComparison.Ordinal);
+        Assert.True(start >= 0);
+        var answer = controller.IndexOf("await AnswerPreviewQuestionAsync(provider);",
+            start, StringComparison.Ordinal);
+        Assert.True(answer > start);
+        var guardedPreview = controller[start..answer];
+        Assert.Contains("Phase: NativePhase.Feedback, Mode: \"MultipleChoice\"",
+            guardedPreview);
+        Assert.Contains("RequiresCorrection: false", guardedPreview);
+        Assert.DoesNotContain("await AnswerPreviewQuestionAsync(provider);",
+            guardedPreview);
+    }
+
+    [Fact]
+    public void StylingMcFeedback_UsesRealIsolatedChoiceScoringWithoutChangingSavedFeedback()
+    {
+        var controller = File.ReadAllText(Path.GetFullPath(Path.Combine(
+            Path.GetDirectoryName(CurrentFile())!,
+            "../../src/SentenceStudio.Native.iOS/App/ApplicationController.Quiz.cs")));
+        var start = controller.IndexOf(
+            "if (fixture.Surface is \"mc-style-feedback-correct\"",
+            StringComparison.Ordinal);
+        var next = controller.IndexOf("if (fixture.Surface is \"question\"",
+            start, StringComparison.Ordinal);
+        Assert.True(start >= 0 && next > start);
+        var isolated = controller[start..next];
+        Assert.Contains(
+            "if (_quizState is { Phase: NativePhase.Ready, Mode: \"MultipleChoice\" })",
+            isolated);
+        Assert.DoesNotContain(
+            "if (_quizState is not { Phase: NativePhase.Ready",
+            isolated);
+        Assert.Contains("await AnswerPreviewQuestionAsync(provider,", isolated);
+        Assert.Contains("incorrect: fixture.Surface == \"mc-style-feedback-wrong\"",
+            isolated);
+        Assert.Contains("Phase: NativePhase.Feedback, Mode: \"MultipleChoice\"", isolated);
+        Assert.DoesNotContain("ScheduleAutoAdvance()", isolated);
+        Assert.Contains("_quizState = await _quiz!.AnswerAsync(answer, _lifetime.Token);",
+            controller);
+    }
+
     private static NativePreviewFixture SelectFixture(string surface) =>
         NativePreviewFixture.FromAttributes(
             Metadata(surface), NativeApiEndpoint.Validate(
@@ -332,6 +422,9 @@ public sealed class NativePreviewRestartTests
         new("SentenceStudio.Native.PreviewOwnerId", NativeSliceFixture.UserA),
         new("SentenceStudio.Native.PreviewEmail", NativeSliceFixture.EmailA)
     ];
+
+    private static string CurrentFile([System.Runtime.CompilerServices.CallerFilePath]
+        string path = "") => path;
 
     private static async Task<SentenceStudio.Shared.Models.VocabularyWord> WordAsync(
         NativeSliceFixture fixture, string wordId)

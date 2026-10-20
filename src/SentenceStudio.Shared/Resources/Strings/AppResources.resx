@@ -2289,6 +2289,22 @@ Ready to practice? Say "yes" to start, or tell me what you'd like to change.</va
     <value>Deletion failed: {0}</value>
     <comment>Profile: Account deletion failure toast</comment>
   </data>
+  <data name="NativeProfile_OwnerUnavailable" xml:space="preserve">
+    <value>Sign in with a verified account to view your profile.</value>
+    <comment>Native Profile: no current verified owner</comment>
+  </data>
+  <data name="NativeProfile_NotFound" xml:space="preserve">
+    <value>No profile was found for the active account.</value>
+    <comment>Native Profile: owner has no local profile row</comment>
+  </data>
+  <data name="NativeProfile_SaveUnavailable" xml:space="preserve">
+    <value>Changes here are drafts. Saving requires a safe server update; going back discards them.</value>
+    <comment>Native Profile: disabled Save while server persistence is unavailable</comment>
+  </data>
+  <data name="NativeProfile_AccountActionUnavailable" xml:space="preserve">
+    <value>Password changes and account deletion are unavailable here. Your account will not be changed.</value>
+    <comment>Native Profile: disabled account operations</comment>
+  </data>
   <data name="Common_Refresh" xml:space="preserve">
     <value>Refresh</value>
     <comment>Common: refresh action</comment>
@@ -2633,6 +2649,18 @@ Ready to practice? Say "yes" to start, or tell me what you'd like to change.</va
     <value>No vocabulary data yet. Start practicing!</value>
     <comment>Dashboard: empty vocab state</comment>
   </data>
+  <data name="NativeDashboard_NumbersUnavailable" xml:space="preserve">
+    <value>Number mastery could not be loaded. Try refreshing.</value>
+  </data>
+  <data name="NativeDashboard_ActivityNotAvailable" xml:space="preserve">
+    <value>This activity is not available yet.</value>
+  </data>
+  <data name="NativeDashboard_ChooseOwnUnavailable" xml:space="preserve">
+    <value>Activity choices could not be loaded. Try again.</value>
+  </data>
+  <data name="NativeDashboard_SelectionUnavailable" xml:space="preserve">
+    <value>Some selected resources or skills are unavailable. Please select them again.</value>
+  </data>
   <data name="Dashboard_EstimateMinutes" xml:space="preserve">
     <value>~{0} min</value>
     <comment>Dashboard: estimated minutes for item</comment>
@@ -2855,6 +2883,18 @@ Ready to practice? Say "yes" to start, or tell me what you'd like to change.</va
   <data name="ActivityLog_WeekMinutes" xml:space="preserve">
     <value>{0} m</value>
     <comment>ActivityLog: week total minutes. {0}=minutes</comment>
+  </data>
+  <data name="NativeActivityLog_OwnerUnavailable" xml:space="preserve">
+    <value>Sign in with a verified account to view your practice history.</value>
+    <comment>Native Activity Log: active owner has changed or is unavailable.</comment>
+  </data>
+  <data name="NativeActivityLog_LoadError" xml:space="preserve">
+    <value>Practice history could not be loaded. Try refreshing.</value>
+    <comment>Native Activity Log: a read-only history query failed.</comment>
+  </data>
+  <data name="NativeActivityLog_FilterEmpty" xml:space="preserve">
+    <value>No practice activity matches this filter.</value>
+    <comment>Native Activity Log: the selected input/output filter has no matching history.</comment>
   </data>
   <data name="MainLayout_Syncing" xml:space="preserve">
     <value>Syncing...</value>
@@ -3691,6 +3731,27 @@ For example: {0} ...</value>
   <data name="NativeResources_SaveError" xml:space="preserve">
     <value>Could not save this resource. Try again.</value>
   </data>
+  <data name="NativeResources_GenerationPartial" xml:space="preserve">
+    <value>Your resource changes were saved, but vocabulary generation could not be finished. Reload the resource before retrying.</value>
+  </data>
+  <data name="NativeResources_DeleteFailed" xml:space="preserve">
+    <value>Could not delete this resource. Try again.</value>
+  </data>
+  <data name="NativeResources_FileTooLarge" xml:space="preserve">
+    <value>The file exceeds the 1 MB size limit.</value>
+  </data>
+  <data name="NativeResources_UnsupportedFile" xml:space="preserve">
+    <value>Choose a .txt or .csv file.</value>
+  </data>
+  <data name="NativeResources_FileReadError" xml:space="preserve">
+    <value>Could not read the selected file. Try again.</value>
+  </data>
+  <data name="NativeResources_SaveLanguageBeforeQuickAdd" xml:space="preserve">
+    <value>Save the changed language before using quick add.</value>
+  </data>
+  <data name="NativeResources_LexicalIdiom" xml:space="preserve">
+    <value>Idiom</value>
+  </data>
   <data name="NativeResources_SaveRefused" xml:space="preserve">
     <value>This resource could not be saved. It may have changed or become unavailable.</value>
   </data>
@@ -3754,6 +3815,12 @@ For example: {0} ...</value>
   <data name="Resources_SetNativeLanguage" xml:space="preserve">
     <value>Please set up your native language in your profile first.</value>
     <comment>Toast error</comment>
+  </data>
+  <data name="NativeResources_SetTargetLanguage" xml:space="preserve">
+    <value>Please set up the language you are learning in your profile first.</value>
+  </data>
+  <data name="NativeResources_StarterFailed" xml:space="preserve">
+    <value>Starter resource could not be created. Try again.</value>
   </data>
   <data name="Resources_StarterExists" xml:space="preserve">
     <value>Starter resource already exists! Loading your resources…</value>
@@ -5043,6 +5110,10 @@ For example: {0} ...</value>
     <value>Appearance</value>
     <comment>Section heading</comment>
   </data>
+  <data name="Settings_SystemMode" xml:space="preserve">
+    <value>System</value>
+    <comment>Appearance follows the device or browser setting</comment>
+  </data>
   <data name="Settings_LightMode" xml:space="preserve">
     <value>Light</value>
     <comment>Radio label</comment>
@@ -5094,6 +5165,18 @@ For example: {0} ...</value>
   <data name="Settings_AutoAdvanceDurationLabel" xml:space="preserve">
     <value>Auto-Advance Duration: {0} s</value>
     <comment>Slider label</comment>
+  </data>
+  <data name="NativeSettings_OwnerUnavailable" xml:space="preserve">
+    <value>Settings are unavailable: the active profile changed or could not be verified. Go back and reopen Settings.</value>
+    <comment>Native Settings: missing or revoked owner, including an unverified local preview.</comment>
+  </data>
+  <data name="NativeSettings_CurrentVoice" xml:space="preserve">
+    <value>Current voice</value>
+    <comment>Native Settings: locally saved voice shown when discovery is unavailable.</comment>
+  </data>
+  <data name="NativeSettings_VoicesRequireSignIn" xml:space="preserve">
+    <value>Voice choices need sign-in. Your current voice is available locally.</value>
+    <comment>Native Settings: a Debug preview has no authenticated voice service.</comment>
   </data>
   <data name="Settings_DataManagementSection" xml:space="preserve">
     <value>Data Management</value>
@@ -5751,6 +5834,15 @@ For example: {0} ...</value>
     <value>Registration failed. Please check your information and try again.</value>
     <comment>Registration error</comment>
   </data>
+  <data name="NativeAuth_RegistrationAccepted" xml:space="preserve">
+    <value>If an account can be created for this address, follow the confirmation instructions sent to it.</value>
+  </data>
+  <data name="NativeAuth_RecoveryUnavailable" xml:space="preserve">
+    <value>Password recovery is not available in this app yet.</value>
+  </data>
+  <data name="NativeAuth_RecoveryFailed" xml:space="preserve">
+    <value>Could not request password recovery. Check your address and try again.</value>
+  </data>
   <data name="ForgotPassword_Title" xml:space="preserve">
     <value>Forgot Password</value>
     <comment>Forgot password page title</comment>
@@ -5802,6 +5894,39 @@ For example: {0} ...</value>
   <data name="Onboarding_EnterName" xml:space="preserve">
     <value>Enter your name</value>
     <comment>Name input placeholder</comment>
+  </data>
+  <data name="NativeOnboarding_Incomplete" xml:space="preserve">
+    <value>Complete your name, languages, and learning preferences first.</value>
+  </data>
+  <data name="NativeOnboarding_SaveFailed" xml:space="preserve">
+    <value>Your profile could not be saved. Please try again.</value>
+  </data>
+  <data name="NativeOnboarding_StarterFailed" xml:space="preserve">
+    <value>Starter content could not be created. You can retry or skip this step.</value>
+  </data>
+  <data name="NativeVocabQuiz_FullForm" xml:space="preserve">
+    <value>Full form: {0}</value>
+  </data>
+  <data name="NativeVocabQuiz_Mnemonic" xml:space="preserve">
+    <value>Mnemonic</value>
+  </data>
+  <data name="NativeVocabQuiz_ModeRecognitionCheck" xml:space="preserve">
+    <value>Recognition check after a wrong typed answer.</value>
+  </data>
+  <data name="NativeVocabQuiz_ModeKnownConfirmation" xml:space="preserve">
+    <value>Confirm production of an already known word.</value>
+  </data>
+  <data name="NativeVocabQuiz_ModeLifetimeStreak" xml:space="preserve">
+    <value>Lifetime streak is at least three.</value>
+  </data>
+  <data name="NativeVocabQuiz_ModeMastery" xml:space="preserve">
+    <value>Mastery score is at least 50 percent.</value>
+  </data>
+  <data name="NativeVocabQuiz_ModeFocusRecognition" xml:space="preserve">
+    <value>Focus word: complete three recognition demonstrations before typing.</value>
+  </data>
+  <data name="NativeVocabQuiz_ModeBuildingRecognition" xml:space="preserve">
+    <value>Still building recognition through practice.</value>
   </data>
   <data name="Onboarding_GeneratingNames" xml:space="preserve">
     <value>Generating name suggestions...</value>
@@ -8832,5 +8957,179 @@ For example: {0} ...</value>
   </data>
   <data name="Coach_Announce_RepairUnknownNoEvidence" xml:space="preserve">
     <value>This version of the app can’t describe how Sam handled a verification issue with this answer.</value>
+  </data>
+  <data name="Native_SyncPending" xml:space="preserve">
+    <value>Sync is pending. Check your connection and refresh.</value>
+  </data>
+  <data name="NativeDashboard_QuickStartDescription" xml:space="preserve">
+    <value>Create a starter resource with common vocabulary for your target language so you can begin practicing immediately.</value>
+  </data>
+  <data name="NativeDashboard_NumbersMastery" xml:space="preserve">
+    <value>Numbers — Mastery</value>
+  </data>
+  <data name="NativeDashboard_NumbersEmptyTitle" xml:space="preserve">
+    <value>Start mastering Korean numbers</value>
+  </data>
+  <data name="NativeDashboard_NumbersEmptyDescription" xml:space="preserve">
+    <value>Your first session unlocks Time, Age, and Counting practice.</value>
+  </data>
+  <data name="NativeDashboard_NumbersDue" xml:space="preserve">
+    <value>{0} due</value>
+  </data>
+  <data name="NativeDashboard_NumbersCorrect" xml:space="preserve">
+    <value>{0}/{1} correct</value>
+  </data>
+  <data name="NativeVocabQuiz_UseInSentence" xml:space="preserve">
+    <value>Use in a sentence</value>
+  </data>
+  <data name="NativeVocabQuiz_SentenceResults" xml:space="preserve">
+    <value>{0} of {1} sentences counted toward mastery for {2}.</value>
+  </data>
+  <data name="NativeVocabQuiz_ShowImage" xml:space="preserve">
+    <value>Show image</value>
+  </data>
+  <data name="NativeVocabQuiz_HideImage" xml:space="preserve">
+    <value>Hide image</value>
+  </data>
+  <data name="NativeVocabQuiz_PlayChoice" xml:space="preserve">
+    <value>Play option {0}</value>
+  </data>
+  <data name="NativeVocabQuiz_ChooseChoice" xml:space="preserve">
+    <value>Choose option {0}</value>
+  </data>
+  <data name="NativeVocabQuiz_ListenToChoose" xml:space="preserve">
+    <value>Play option {0} before choosing</value>
+  </data>
+  <data name="NativeVocabQuiz_FuzzyFeedback" xml:space="preserve">
+    <value>Correct! Full form: {0}</value>
+  </data>
+  <data name="NativeVocabQuiz_CorrectFeedback" xml:space="preserve">
+    <value>Correct!</value>
+  </data>
+  <data name="NativeVocabQuiz_IncorrectFeedback" xml:space="preserve">
+    <value>The answer is: {0}</value>
+  </data>
+  <data name="NativeVocabQuiz_Language_Korean" xml:space="preserve">
+    <value>Korean</value>
+  </data>
+  <data name="NativeVocabQuiz_Language_English" xml:space="preserve">
+    <value>English</value>
+  </data>
+  <data name="NativeVocabQuiz_Language_French" xml:space="preserve">
+    <value>French</value>
+  </data>
+  <data name="NativeVocabQuiz_Language_German" xml:space="preserve">
+    <value>German</value>
+  </data>
+  <data name="NativeVocabQuiz_Language_Spanish" xml:space="preserve">
+    <value>Spanish</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_TotalAttempts" xml:space="preserve">
+    <value>Total attempts</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_CorrectAttempts" xml:space="preserve">
+    <value>Correct attempts</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_CurrentStreak" xml:space="preserve">
+    <value>Current streak</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_ProductionInStreak" xml:space="preserve">
+    <value>Production in streak</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_EffectiveStreak" xml:space="preserve">
+    <value>Effective streak</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_MasteryScore" xml:space="preserve">
+    <value>Mastery score</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_SrsSchedule" xml:space="preserve">
+    <value>SRS schedule</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_ReviewInterval" xml:space="preserve">
+    <value>Review interval</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_Days" xml:space="preserve">
+    <value>{0} days</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_EaseFactor" xml:space="preserve">
+    <value>Ease factor</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_IsDueForReview" xml:space="preserve">
+    <value>Due for review</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_QuizContext" xml:space="preserve">
+    <value>Quiz context</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_QuizMode" xml:space="preserve">
+    <value>Quiz mode</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_TextMode" xml:space="preserve">
+    <value>Text</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_MultipleChoiceMode" xml:space="preserve">
+    <value>Multiple choice</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_DueOnly" xml:space="preserve">
+    <value>Due-only filter</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_WhyMode" xml:space="preserve">
+    <value>Why this mode</value>
+  </data>
+  <data name="NativeVocabQuiz_Details_RecognitionDemonstrations" xml:space="preserve">
+    <value>Recognition demonstrations</value>
+  </data>
+  <data name="NativeResources_SyncPending" xml:space="preserve">
+    <value>Sync is pending. Check your connection and refresh.</value>
+  </data>
+  <data name="NativeResources_VocabularyPartial" xml:space="preserve">
+    <value>Resource details were saved, but some vocabulary links could not be saved. Your draft is preserved; reopen and retry.</value>
+  </data>
+  <data name="NativeResources_StagedWord" xml:space="preserve">
+    <value>This word is staged in the changed-language draft. Save the resource to attach it.</value>
+  </data>
+  <data name="NativeVocabQuiz_SentenceGradeUnavailable" xml:space="preserve">
+    <value>We couldn't grade this sentence right now. Please try again.</value>
+  </data>
+  <data name="NativeVocabQuiz_SentenceTargetUnconfirmed" xml:space="preserve">
+    <value>We couldn't confirm usage of "{0}" in this sentence. Try rewriting it and submit again.</value>
+  </data>
+  <data name="NativeVocabQuiz_SentenceMeaningful" xml:space="preserve">
+    <value>"{0}" is used meaningfully here.</value>
+  </data>
+  <data name="NativeVocabQuiz_SentenceUnclear" xml:space="preserve">
+    <value>This doesn't yet show a clear, correct use of "{0}".</value>
+  </data>
+  <data name="NativeVocabulary_LoadFailed" xml:space="preserve">
+    <value>Could not load vocabulary. Please retry.</value>
+  </data>
+  <data name="NativeVocabulary_WordLoadFailed" xml:space="preserve">
+    <value>Could not load this word. Please retry.</value>
+  </data>
+  <data name="NativeVocabulary_SharedReadOnly" xml:space="preserve">
+    <value>This word is shared with another profile. You can view it here, but cannot edit the shared word.</value>
+  </data>
+  <data name="NativeVocabulary_Conflict" xml:space="preserve">
+    <value>This word changed elsewhere. Your edits were not saved. Go back and reopen it to review the latest version.</value>
+  </data>
+  <data name="NativeVocabulary_AssociationRequired" xml:space="preserve">
+    <value>Keep at least one owned resource selected so this word remains in your vocabulary.</value>
+  </data>
+  <data name="NativeVocabulary_ConstituentsLocked" xml:space="preserve">
+    <value>This word has constituent links. Changing its type requires the constituent editor.</value>
+  </data>
+  <data name="NativeVocabulary_Constituents" xml:space="preserve">
+    <value>Constituent Words</value>
+  </data>
+  <data name="NativeVocabulary_NoConstituents" xml:space="preserve">
+    <value>No constituent words added yet.</value>
+  </data>
+  <data name="NativeVocabulary_ReferenceSentences" xml:space="preserve">
+    <value>Reference Sentences</value>
+  </data>
+  <data name="NativeVocabulary_AudioUnavailable" xml:space="preserve">
+    <value>Audio is unavailable right now. Please retry.</value>
+  </data>
+  <data name="NativeVocabulary_SavedSyncUnconfirmed" xml:space="preserve">
+    <value>Word saved on this device, but sync could not be confirmed. Keep this device's data and retry syncing later.</value>
   </data>
 </root>

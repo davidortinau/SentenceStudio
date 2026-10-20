@@ -17,6 +17,12 @@ public sealed class DeviceUserScopeProvider : IUserScopeProvider
 
     public readonly record struct ScopeStamp(long Generation, string? PublishedOwner);
 
+    /// <summary>
+    /// Raised synchronously after a scope generation changes, outside the scope lock.
+    /// Subscribers must revalidate their stamp and dispatch UI work to the UI thread.
+    /// </summary>
+    public event Action? ScopeChanged;
+
     public sealed class AuthenticationLease : IDisposable
     {
         private readonly SemaphoreSlim _gate;
@@ -74,12 +80,15 @@ public sealed class DeviceUserScopeProvider : IUserScopeProvider
     /// </summary>
     public void SetActiveUser(string? userProfileId)
     {
+        Action? changed;
         lock (_gate)
         {
             _activeUserProfileId =
                 string.IsNullOrWhiteSpace(userProfileId) ? null : userProfileId;
             _generation = checked(_generation + 1);
+            changed = ScopeChanged;
         }
+        changed?.Invoke();
     }
 
     public ScopeStamp CaptureStamp()
@@ -91,6 +100,7 @@ public sealed class DeviceUserScopeProvider : IUserScopeProvider
     public bool TryBeginAuthentication(
         ScopeStamp? previouslyPublished, out ScopeStamp transition)
     {
+        Action? changed;
         lock (_gate)
         {
             if (_activeUserProfileId is not null
@@ -113,8 +123,10 @@ public sealed class DeviceUserScopeProvider : IUserScopeProvider
             _activeUserProfileId = null;
             _generation = checked(_generation + 1);
             transition = new ScopeStamp(_generation, null);
-            return true;
+            changed = ScopeChanged;
         }
+        changed?.Invoke();
+        return true;
     }
 
     public bool IsCurrent(ScopeStamp stamp)
@@ -148,6 +160,7 @@ public sealed class DeviceUserScopeProvider : IUserScopeProvider
         out ScopeStamp published)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(owner);
+        Action? changed;
         lock (_gate)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -160,12 +173,15 @@ public sealed class DeviceUserScopeProvider : IUserScopeProvider
             _activeUserProfileId = owner;
             _generation = checked(_generation + 1);
             published = new ScopeStamp(_generation, owner);
-            return true;
+            changed = ScopeChanged;
         }
+        changed?.Invoke();
+        return true;
     }
 
     public bool TryClearIfCurrent(ScopeStamp stamp)
     {
+        Action? changed;
         lock (_gate)
         {
             if (!IsCurrent(stamp))
@@ -173,8 +189,10 @@ public sealed class DeviceUserScopeProvider : IUserScopeProvider
 
             _activeUserProfileId = null;
             _generation = checked(_generation + 1);
-            return true;
+            changed = ScopeChanged;
         }
+        changed?.Invoke();
+        return true;
     }
 
     private bool IsLeaseCurrent(ReadinessLease lease)

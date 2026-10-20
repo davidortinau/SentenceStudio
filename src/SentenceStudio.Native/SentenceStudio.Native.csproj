@@ -19,4 +19,13 @@
     <ProjectReference Include="../SentenceStudio.Shared/SentenceStudio.Shared.csproj" />
     <ProjectReference Include="../SentenceStudio.Contracts/SentenceStudio.Contracts.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/GetStarterVocabulary.scriban-txt"
+                      LogicalName="SentenceStudio.Native.Prompts.GetStarterVocabulary.scriban-txt" />
+    <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/ExtractNativeResourceVocabulary.scriban-txt"
+                      LogicalName="SentenceStudio.Native.Prompts.ExtractNativeResourceVocabulary.scriban-txt" />
+    <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/GradeSentence.scriban-txt"
+                      LogicalName="SentenceStudio.Native.Prompts.GradeSentence.scriban-txt" />
+  </ItemGroup>
 </Project>

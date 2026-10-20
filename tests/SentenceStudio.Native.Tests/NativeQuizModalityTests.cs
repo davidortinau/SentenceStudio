@@ -95,6 +95,36 @@ public sealed class NativeQuizModalityTests
         Assert.Equal(nativePrompt ? null : Word.TargetLanguageTerm, cue.PromptText);
     }
 
+    [Theory]
+    [InlineData("TargetToNative", false)]
+    [InlineData("NativeToTarget", true)]
+    [InlineData("Mixed", false)]
+    [InlineData("Mixed", true)]
+    public void FeedbackRevealsHiddenNativePhotoTextWithoutEverHidingTargetText(
+        string direction, bool nativePrompt)
+    {
+        var preferences = NewPreferences();
+        preferences.DisplayDirection = direction;
+        preferences.UseTextPrompt = true;
+        preferences.UseAudioPrompt = false;
+        preferences.UsePhotoPrompt = true;
+        NativeQuizPrompt Render(bool graded) => NativeQuizModality.Render(
+            Word, nativePrompt, preferences, showTextWithPhoto: false,
+            audioAvailable: false, audioHeard: false,
+            photoLoaded: true, photoVisible: true,
+            targetResponseVisible: true, nativeLanguage: "English",
+            targetLanguage: "French", isAnswerFeedbackVisible: graded);
+
+        var before = Render(false);
+        Assert.Equal(nativePrompt ? null : Word.TargetLanguageTerm, before.PromptText);
+        Assert.True(before.TargetLanguageEngaged);
+        var feedback = Render(true);
+        Assert.Equal(nativePrompt ? Word.NativeLanguageTerm : Word.TargetLanguageTerm,
+            feedback.PromptText);
+        Assert.Equal(before.PromptText, Render(false).PromptText);
+        Assert.Equal(NativeText.QuizPhoto, feedback.PhotoAccessibilityKey);
+    }
+
     public static IEnumerable<object[]> NativePhoneMediaMatrix()
     {
         foreach (var direction in new[] { "TargetToNative", "NativeToTarget", "Mixed" })
@@ -118,7 +148,7 @@ public sealed class NativeQuizModalityTests
 
     [Theory]
     [MemberData(nameof(NativePhoneMediaMatrix))]
-    public void NativePhoneMediaMatrix_GatesUnsupportedTurnsBeforeRendering(
+    public void NativePhoneMediaMatrix_UsesReadableFallbackBeforeMediaRenders(
         string direction, bool nativePrompt, bool text, bool audio, bool photo,
         bool showTextWithPhoto, string mode)
     {
@@ -130,17 +160,6 @@ public sealed class NativeQuizModalityTests
 
         var allowed = NativeQuizModality.CanPresentWithoutMedia(
             nativePrompt, mode, preferences, hasPhoto: true, showTextWithPhoto);
-        var writtenExposure = text && (!nativePrompt || !photo || showTextWithPhoto);
-        var requiredAudioUnavailable = audio && !text;
-        var requiredPhotoUnavailable = photo && !writtenExposure;
-        var audioChoicesUnsupported = nativePrompt && mode == "MultipleChoice" && audio;
-        if (requiredAudioUnavailable || requiredPhotoUnavailable
-            || audioChoicesUnsupported)
-        {
-            Assert.False(allowed);
-            return;
-        }
-
         Assert.True(allowed);
         var cue = NativeQuizModality.Render(
             Word, nativePrompt, preferences, showTextWithPhoto,
@@ -170,7 +189,7 @@ public sealed class NativeQuizModalityTests
 
     [Theory]
     [MemberData(nameof(NativePhoneMediaMatrix))]
-    public void RequiredMedia_MustBeAvailableBeforeTheTurnCanBePresented(
+    public void MissingMediaEitherFallsBackToTextOrUsesAvailableCue(
         string direction, bool nativePrompt, bool text, bool audio, bool photo,
         bool showTextWithPhoto, string mode)
     {
@@ -180,15 +199,10 @@ public sealed class NativeQuizModalityTests
         preferences.UseAudioPrompt = audio;
         preferences.UsePhotoPrompt = photo;
 
-        var audioChoicesUnsupported = nativePrompt && mode == "MultipleChoice" && audio;
-        var writtenExposure = text && (!nativePrompt || !photo || showTextWithPhoto);
         foreach (var audioAvailable in new[] { false, true })
         foreach (var photoRendered in new[] { false, true })
         {
-            var expected = !audioChoicesUnsupported
-                && (!audio || text || audioAvailable)
-                && (!photo || writtenExposure || photoRendered);
-            Assert.Equal(expected, NativeQuizModality.CanPresent(
+            Assert.True(NativeQuizModality.CanPresent(
                 nativePrompt, mode, preferences, hasPhoto: true, showTextWithPhoto,
                 audioAvailable, photoRendered));
         }
@@ -245,12 +259,13 @@ public sealed class NativeQuizModalityTests
             var hidden = NativeQuizModality.Render(
                 Word, nativePrompt, preferences, false,
                 false, false, true, false, true, "English", "French");
-            Assert.False(hidden.TargetLanguageEngaged);
+            Assert.True(hidden.ShowWrittenPrompt);
+            Assert.True(hidden.TargetLanguageEngaged);
             var brokenPhoto = NativeQuizModality.Render(
                 Word, nativePrompt, preferences, false,
                 false, false, false, false, true, "English", "French");
-            Assert.False(brokenPhoto.ShowWrittenPrompt);
-            Assert.False(brokenPhoto.TargetLanguageEngaged);
+            Assert.True(brokenPhoto.ShowWrittenPrompt);
+            Assert.True(brokenPhoto.TargetLanguageEngaged);
         }
     }
 
@@ -285,14 +300,14 @@ public sealed class NativeQuizModalityTests
         var offline = NativeQuizModality.Render(
             Word, false, preferences, false,
             false, false, false, false, false, "English", "French");
-        Assert.False(offline.ShowWrittenPrompt);
-        Assert.False(offline.TargetLanguageEngaged);
+        Assert.True(offline.ShowWrittenPrompt);
+        Assert.True(offline.TargetLanguageEngaged);
     }
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void MixedTurns_HeardAudioCannotReplaceAnUnrenderedRequiredPhoto(
+    public void MixedTurns_HeardAudioPreservesLearningWhenPhotoHasNotRendered(
         bool nativePrompt)
     {
         var preferences = NewPreferences();
@@ -309,8 +324,8 @@ public sealed class NativeQuizModalityTests
 
         Assert.False(cue.ShowWrittenPrompt);
         Assert.False(cue.ShowPhoto);
-        Assert.False(cue.TargetLanguageEngaged);
-        Assert.False(NativeQuizModality.CanPresent(
+        Assert.True(cue.TargetLanguageEngaged);
+        Assert.True(NativeQuizModality.CanPresent(
             nativePrompt, "Text", preferences, hasPhoto: true,
             showTextWithPhoto: false, audioAvailable: true, photoRendered: false));
     }

@@ -18,8 +18,10 @@ public sealed class NativeSliceJourneyTests
         await fixture.SeedAsync(NativeSliceFixture.UserA);
 
         Assert.Equal(NativeDestination.SignIn, (await fixture.Auth.RestoreAsync()).Destination);
-        Assert.Equal(NativePhase.Error,
-            (await fixture.Auth.SignInAsync(NativeSliceFixture.EmailA, "incorrect")).Phase);
+        var invalid = await fixture.Auth.SignInAsync(
+            NativeSliceFixture.EmailA, "incorrect");
+        Assert.Equal(NativePhase.Error, invalid.Phase);
+        Assert.Equal(NativeText.InvalidCredentials, invalid.ErrorKey);
         var signedIn = await fixture.Auth.SignInAsync(
             NativeSliceFixture.EmailA, "fixture-password");
         Assert.Equal(NativeDestination.Dashboard, signedIn.Destination);
@@ -27,9 +29,10 @@ public sealed class NativeSliceJourneyTests
         Assert.False(fixture.Preferences.Get("remember_me", false));
 
         var dashboard = fixture.Dashboard;
-        Assert.Equal(NativePhase.Empty, (await dashboard.LoadAsync()).Phase);
-        var generated = await dashboard.GenerateAsync();
+        var generated = await dashboard.LoadAsync();
         Assert.Equal(NativePhase.Ready, generated.Phase);
+        Assert.Equal(generated.Cards.Select(card => card.Id),
+            (await dashboard.GenerateAsync()).Cards.Select(card => card.Id));
         var card = Assert.Single(generated.Cards);
         Assert.Equal(1, generated.TotalCount);
         Assert.Equal(card.EstimatedMinutes, generated.EstimatedTotalMinutes);

@@ -8,6 +8,7 @@ How to decide who handles what.
 |-----------|----------|----------|
 | UI pages, Blazor components, layout, styling | Kaylee | Build activity page, fix button alignment, add dashboard card |
 | MauiReactor pages, native MAUI UI | Kaylee | Convert page to MauiReactor, add native gesture handler |
+| Replacement iOS SwiftUI and Android Compose UI | Separate platform UI owners; Zoe guards architecture, Jayne verifies | Correct already-created screens and their navigation without UIKit/widget fallback |
 | API endpoints, services, data layer | Wash | Add API route, create service class, write repository method |
 | Database schema, EF Core migrations | Wash | Add model, create migration, fix schema issue |
 | DI registration, Aspire config | Wash | Register service, configure AppHost, add environment variable |
@@ -24,6 +25,23 @@ How to decide who handles what.
 | Bug verification, regression checks | Jayne | Confirm fix works, check for side effects |
 | Async issue work (bugs, tests, small features) | Squad member | @copilot issue assignment is blocked until all three model settings are enforceable |
 | Session logging | Scribe | Automatic — never needs routing |
+
+## Replacement-head presentation gate
+
+Apply `AGENTS.md`'s 2026-10-03 directive before assigning or accepting native
+iOS/Android UI work: actual iOS screens, forms, dialogs, selectors and navigation
+must be SwiftUI-rendered (`NavigationStack`/`NavigationLink`/path); Android
+actual UI/navigation must be Jetpack Compose-rendered. Native push/pop
+*behavior* was approved, not UIKit `UINavigationController` implementation.
+Project-authored `SwiftView`-to-UIKit translation, UIKit feature/view-controller
+screens, or Android widget/AppCompat UI do not pass as declarative rendering.
+Any app-authored UIKit/Android-widget use, including host/bootstrap/picker/
+service cases, must first be presented to Captain with minimal necessity,
+alternatives, citations and data impact for explicit scoped approval. Do not
+default an exception or silently drop source controls, 177 required states or
+56 open findings. Zoe owns the instruction/architecture gate; platform owners
+own distinct UI files; Jayne rechecks running SwiftUI/Compose behavior. Do not
+assign external bridge changes without Captain's permission.
 
 ## Issue Routing
 

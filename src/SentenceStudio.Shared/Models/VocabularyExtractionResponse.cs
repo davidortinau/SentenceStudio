@@ -20,12 +20,15 @@ public class VocabularyExtractionResponse
 public class ExtractedVocabularyItem
 {
     [JsonPropertyName("targetLanguageTerm")]
-    [Description("Korean word/phrase in dictionary form")]
+    [Description("Target-language word or phrase in dictionary form")]
     public string TargetLanguageTerm { get; set; } = string.Empty;
 
     [JsonPropertyName("nativeLanguageTerm")]
-    [Description("English definition — clear, concise")]
+    [Description("Translation into the learner's native language — clear and concise")]
     public string NativeLanguageTerm { get; set; } = string.Empty;
+
+    [Description("Actual language of this term; use the target language unless it is borrowed or mixed-language")]
+    public string? Language { get; set; }
 
     [JsonPropertyName("romanization")]
     [Description("Revised Romanization of Korean")]
@@ -85,7 +88,7 @@ public class ExtractedVocabularyItem
             TargetLanguageTerm = TargetLanguageTerm,
             NativeLanguageTerm = NativeLanguageTerm,
             Lemma = string.IsNullOrWhiteSpace(Lemma) ? TargetLanguageTerm : Lemma,
-            Language = language,
+            Language = string.IsNullOrWhiteSpace(Language) ? language : Language.Trim(),
             Tags = tagsList.Any() ? string.Join("; ", tagsList) : null,
             // Persist the part of speech the extractor already produced. Before
             // this it was computed and discarded, so nothing downstream could

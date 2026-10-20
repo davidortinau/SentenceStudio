@@ -1,10 +1,12 @@
 using System.Collections.Immutable;
 using System.Net.Http;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Contracts.Plans;
 using SentenceStudio.Services;
 using SentenceStudio.Services.Plans;
+using SentenceStudio.Services.Progress;
 using SentenceStudio.Shared.Models;
 using SentenceStudio.Shared.Services;
 
@@ -86,6 +88,7 @@ public sealed partial class NativeQuizPresenter
         _totalTurns = 0;
         _correctCount = 0;
         _requiresCorrection = false;
+        ResetSentenceSubmission();
 
         if (_batch.Count == 0)
         {
@@ -100,7 +103,31 @@ public sealed partial class NativeQuizPresenter
                 ErrorKey: NativeText.QuizEmpty));
         }
 
-        _clock.Start(_launch.PlanItemId, TimeSpan.Zero);
+        await LoadSentenceHintsAsync(cancellationToken);
+        if (_launch.PlanItemId.Length == 0 && string.IsNullOrWhiteSpace(_planItemRowId))
+        {
+            var adHoc = await planProgress.StartAdHocSessionAsync(
+                _launch.UserId, PlanActivityType.VocabularyReview,
+                !_launch.DueOnly && _launch.ResourceIds.Length == 1
+                    ? _launch.ResourceIds[0] : null,
+                _launch.SkillId, _batch.Select(item => item.Word.Id).ToArray(),
+                estimatedMinutes: 10, cancellationToken);
+            if (string.IsNullOrWhiteSpace(adHoc) || !HasOwner(_launch.UserId))
+                return RefuseLaunch();
+            using var lease = plans.ForOwner(_launch.UserId);
+            var row = await lease.Database.DailyPlanCompletions.AsNoTracking()
+                .SingleOrDefaultAsync(item => item.UserProfileId == _launch.UserId
+                    && item.Date == _launch.PlanDate.ToDateTime(
+                        TimeOnly.MinValue, DateTimeKind.Utc)
+                    && item.PlanItemId == adHoc && item.ActivityType == ActivityType
+                    && !item.IsArchived, cancellationToken);
+            if (row is null)
+                return RefuseLaunch();
+            _adHocPlanItemId = adHoc;
+            _planItemRowId = row.Id;
+        }
+
+        _clock.Start(_adHocPlanItemId ?? _launch.PlanItemId, TimeSpan.Zero);
         try
         {
             return await SetupRoundAsync(cancellationToken);
@@ -156,33 +183,51 @@ public sealed partial class NativeQuizPresenter
         _promptUsesNative = promptUsesNative;
         _mode = mode;
         _audioHeard = false; // Restored turns must re-engage with audio before answering.
-
-        if (promptUsesNative && mode == "MultipleChoice"
-            && quizPreferences.UseAudioPrompt)
-            return BlockMediaTurn();
+        _heardAnswerChoices.Clear();
+        media.StopPlayback();
+        ResetSentenceHints(VocabQuizSentenceHintTransition.LoadCurrentItem);
+        _feedbackStartedAt = null;
 
         var promptTerm = promptUsesNative
             ? item.Word.NativeLanguageTerm!
             : item.Word.TargetLanguageTerm!;
         var language = promptUsesNative
             ? _profile.NativeLanguage
-            : _profile.TargetLanguage;
+            : item.Word.Language ?? _profile.TargetLanguage;
         var mediaError = false;
         try
         {
             _audioAvailable = quizPreferences.UseAudioPrompt
                 && await media.CanPlayPromptAsync(promptTerm, language, cancellationToken);
         }
-        catch (HttpRequestException ex)
+        catch (Exception ex) when (ex is HttpRequestException or IOException
+            || ex is OperationCanceledException && !cancellationToken.IsCancellationRequested)
         {
-            logger.LogWarning(ex, "Quiz prompt audio is offline.");
+            logger.LogWarning("Quiz prompt audio is unavailable: {Failure}",
+                ex.GetType().Name);
             _audioAvailable = false;
             mediaError = true;
         }
-        _photoLoaded = false;
+        _photoAsset = null;
+        if (!string.IsNullOrWhiteSpace(item.Word.MnemonicImageUri)
+            && (quizPreferences.UsePhotoPrompt || quizPreferences.ShowMnemonicImage))
+        {
+            try
+            {
+                _photoAsset = await media.LoadPhotoAsync(
+                    item.Word.MnemonicImageUri, cancellationToken);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or IOException
+                || ex is OperationCanceledException && !cancellationToken.IsCancellationRequested)
+            {
+                logger.LogWarning("Quiz photo could not be loaded: {Failure}",
+                    ex.GetType().Name);
+                mediaError = true;
+            }
+        }
+        _photoLoaded = _photoAsset is not null;
+        _photoDesired = _photoLoaded && quizPreferences.UsePhotoPrompt;
         _photoVisible = false;
-        if (mediaError)
-            _pendingSync = true;
         if (!HasOwner(_launch.UserId))
             return RefuseLaunch();
         if (!NativeQuizModality.CanPresent(
@@ -198,15 +243,72 @@ public sealed partial class NativeQuizPresenter
                 _launch.UserId, item.Word, _reachableWords,
                 promptUsesNative, cancellationToken);
             ValidateChoices(item.Word, promptUsesNative, _choices);
+            _answerAudioAvailable = promptUsesNative
+                && quizPreferences.UseAudioPrompt;
+            if (_answerAudioAvailable)
+            {
+                foreach (var choice in _choices)
+                {
+                    bool canPlay;
+                    try
+                    {
+                        canPlay = await media.CanPlayPromptAsync(
+                            choice.Text, choice.AudioLanguage ?? _profile.TargetLanguage,
+                            cancellationToken);
+                    }
+                    catch (Exception ex) when (ex is HttpRequestException or IOException
+                        || ex is OperationCanceledException
+                            && !cancellationToken.IsCancellationRequested)
+                    {
+                        logger.LogWarning("Quiz answer audio unavailable: {Failure}",
+                            ex.GetType().Name);
+                        canPlay = false;
+                        mediaError = true;
+                    }
+                    if (!canPlay)
+                    {
+                        _answerAudioAvailable = false;
+                        break;
+                    }
+                }
+            }
         }
         else
         {
             _choices = [];
+            _answerAudioAvailable = false;
         }
         if (!HasOwner(_launch.UserId))
             return RefuseLaunch();
 
         _questionStartedAt = _clock.Elapsed;
+        if (quizPreferences.AutoPlayVocabAudio && _audioAvailable)
+        {
+            try
+            {
+                _audioHeard = await PlayAudioAsync(
+                    promptTerm, language, cancellationToken);
+                if (!_audioHeard)
+                {
+                    _audioAvailable = false;
+                    mediaError = true;
+                }
+            }
+            catch (Exception ex) when (ex is HttpRequestException or IOException
+                || ex is OperationCanceledException && !cancellationToken.IsCancellationRequested)
+            {
+                if (_disposed)
+                    throw;
+                logger.LogWarning("Quiz prompt autoplay unavailable: {Failure}",
+                    ex.GetType().Name);
+                _audioAvailable = false;
+                mediaError = true;
+            }
+            if (_disposed)
+                throw new OperationCanceledException();
+            if (!HasOwner(_launch.UserId))
+                return RefuseLaunch();
+        }
         return QuestionState(graded, mediaError ? NativeText.ConnectionError : null);
     }
 
@@ -221,15 +323,37 @@ public sealed partial class NativeQuizPresenter
             return BlockMediaTurn();
 
         var responseIsTarget = _mode == "Text"
-            || _promptUsesNative && _choices.Length > 0;
+            || _promptUsesNative && _choices.Length > 0
+                && (!_answerAudioAvailable || _heardAnswerChoices.Count > 0);
+        var correctFeedback = graded && _pending?.WasCorrect == true;
         var prompt = NativeQuizModality.Render(
             word, _promptUsesNative, quizPreferences,
             _profile!.VocabQuizShowTextWithPhoto,
             _audioAvailable, _audioHeard,
             _photoLoaded, _photoVisible,
             responseIsTarget, _profile.NativeLanguage,
-            _profile.TargetLanguage);
+            _profile.TargetLanguage,
+            isAnswerFeedbackVisible: graded) with
+        {
+            Photo = _photoAsset,
+            PhotoRequested = _photoAsset is not null
+                && (_photoDesired || correctFeedback && quizPreferences.ShowMnemonicImage),
+            CanTogglePhotoText = VocabQuizPhotoTextPolicy.IsTextToggleEligible(
+                _photoAsset is not null, quizPreferences.UsePhotoPrompt, _promptUsesNative),
+            ShowTextWithPhoto = _profile.VocabQuizShowTextWithPhoto
+        };
+        if (correctFeedback && _photoAsset is not null && _photoVisible)
+            prompt = prompt with {
+                ShowPhoto = true,
+                PhotoUri = word.MnemonicImageUri
+            };
 
+        var completeForm = correctFeedback && _mode == "Text"
+            ? VocabQuizSourcePolicy.EvaluateAnswer(
+                "Text", _pending!.UserInput ?? string.Empty,
+                _pending.ExpectedAnswer ?? string.Empty).CompleteForm
+            : null;
+        var hints = CurrentSentenceHints();
         return new NativeQuizState(
             graded ? NativePhase.Feedback : NativePhase.Ready,
             NativeDestination.VocabularyQuiz,
@@ -251,16 +375,35 @@ public sealed partial class NativeQuizPresenter
             HasPendingSync: _pendingSync,
             TurnId: _turnId,
             SelectedAnswer: graded ? _pending?.UserInput : null,
-            AnswerWasCorrect: graded ? _pending?.WasCorrect : null);
+            AnswerWasCorrect: graded ? _pending?.WasCorrect : null,
+            CompleteForm: completeForm,
+            FeedbackMnemonicText: correctFeedback && quizPreferences.ShowMnemonicImage
+                && !string.IsNullOrWhiteSpace(word.MnemonicText)
+                    ? word.MnemonicText : null,
+            FeedbackPhotoCandidateUri: correctFeedback && quizPreferences.ShowMnemonicImage
+                && _photoAsset is not null && !string.IsNullOrWhiteSpace(word.MnemonicImageUri)
+                    ? word.MnemonicImageUri : null)
+        {
+            SentenceHints = _sentenceHintsExpanded ? hints : [],
+            CanShowSentenceHints = !hints.IsDefaultOrEmpty,
+            SentenceHintsExpanded = _sentenceHintsExpanded,
+            CanPlayAnswerAudio = _answerAudioAvailable,
+            HeardAnswerChoiceIndices =
+                _heardAnswerChoices.Order().ToImmutableArray(),
+            FeedbackStartedAt = graded && !_requiresCorrection
+                ? (_feedbackStartedAt ??= DateTimeOffset.UtcNow) : null,
+            AutoAdvanceDurationMs = quizPreferences.AutoAdvanceDuration
+        };
     }
 
     private NativeQuizState BlockMediaTurn()
     {
         _choices = [];
         _photoLoaded = false;
+        _photoDesired = false;
         _photoVisible = false;
         _clock.Stop();
-        logger.LogWarning("Native quiz turn needs media or audio choices unavailable in the phone slice.");
+        logger.LogWarning("Quiz turn was refused because no safe prompt or target-language response is available.");
         return new(NativePhase.Blocked, NativeDestination.VocabularyQuiz,
             ErrorKey: NativeText.QuizUnavailable, HasPendingSync: _pendingSync);
     }
@@ -282,7 +425,8 @@ public sealed partial class NativeQuizPresenter
 
         var results = _roundArchive.Select(item => new NativeQuizResult(
             item.Word.Id, item.Word.TargetLanguageTerm!,
-            item.Word.NativeLanguageTerm!, item.WasCorrectThisSession))
+            item.Word.NativeLanguageTerm!, item.WasCorrectThisSession,
+            item.ReadyToRotateOut))
             .ToImmutableArray();
         return new(
             NativePhase.Summary,
@@ -354,13 +498,19 @@ public sealed partial class NativeQuizPresenter
             PlanDate = _launch.PlanDate,
             LaunchContextKey = _contextKey,
             PlanItemRowId = _planItemRowId,
+            AdHocPlanItemId = _adHocPlanItemId,
+            IsRepractice = _launch.IsRepractice,
             DisplayDirection = _displayDirection!,
             TurnId = _turnId,
             Snapshot = snapshot,
             PendingAttempt = _pending,
             RequiresCorrection = _requiresCorrection,
             SummaryVisible = summaryVisible,
-            ElapsedTicks = _clock.Elapsed.Ticks
+            ElapsedTicks = _clock.Elapsed.Ticks,
+            SentenceSubmissionId = _sentenceSubmissionId,
+            SentenceSourceInput = _sentenceInput,
+            SentenceResults = _sentenceResults,
+            SentenceCreditApplied = _sentenceCreditApplied
         };
         var session = await sessions.SaveSnapshotAsync(
             _launch.UserId, ActivityType, _contextKey, stored.Serialize())

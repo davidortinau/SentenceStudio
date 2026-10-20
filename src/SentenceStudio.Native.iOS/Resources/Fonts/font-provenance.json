@@ -1,0 +1,82 @@
+{
+  "schema": 1,
+  "purpose": "Source Bootswatch font families for the native iOS head, not a replacement for the original app's font assets.",
+  "originalSource": "SentenceStudio 59c72262ab649047d29addbb5177c81958c18ac1",
+  "css": {
+    "flatly": "SentenceStudio.UI/wwwroot/css/themes/flatly.min.css: @import Lato normal 400/700 and italic 400; --bs-font-sans-serif: Lato",
+    "vapor": "SentenceStudio.UI/wwwroot/css/themes/vapor.min.css: @import Lato normal 400/700; --bs-font-sans-serif: Lato",
+    "sketchy": "SentenceStudio.UI/wwwroot/css/themes/sketchy.min.css: @import Neucha and Cabin Sketch normal 400; body and inputs use Neucha, headings and b/strong use Cabin Sketch",
+    "otherThemes": "Seoul Pop, Ocean, Forest, Sunset, Monochrome, Slate and Brite use the Bootstrap system-ui stack on the affected iOS pages"
+  },
+  "licenses": [
+    {
+      "family": "Lato",
+      "file": "Fonts/Licenses/Lato-OFL.txt",
+      "sha256": "74ba064d03f1f1c4a952da936c3eb71866c34404916734de3cae73b34357e59e",
+      "source": "https://raw.githubusercontent.com/google/fonts/9710da1eacb3be272583c3224dcb70f9da6eadbb/ofl/lato/OFL.txt",
+      "fontEmbeddedCopyright": "Copyright (c) 2010-2011 by tyPoland Lukasz Dziedzic with Reserved Font Name Lato. Licensed under SIL OFL 1.1."
+    },
+    {
+      "family": "Neucha",
+      "file": "Fonts/Licenses/Neucha-OFL.txt",
+      "sha256": "656a20870fbcb8f559f1c6308c1df90ac93d7cd0279aab49b43a43b5e58534e6",
+      "source": "https://raw.githubusercontent.com/google/fonts/9710da1eacb3be272583c3224dcb70f9da6eadbb/ofl/neucha/OFL.txt"
+    },
+    {
+      "family": "Cabin Sketch",
+      "file": "Fonts/Licenses/CabinSketch-OFL.txt",
+      "sha256": "f6fc9fbae062e4efc1b0306e27715d43cd64a48b8ffba81c22034b8efee4fce2",
+      "source": "https://raw.githubusercontent.com/google/fonts/9710da1eacb3be272583c3224dcb70f9da6eadbb/ofl/cabinsketch/OFL.txt"
+    }
+  ],
+  "faces": [
+    {
+      "file": "Fonts/Lato-Regular.ttf",
+      "postScriptName": "Lato-Regular",
+      "weight": 400,
+      "version": "1.104",
+      "sha256": "f43f1c7780d69792278f04b136c934a0298fc66f2e974bac13dd2e53adc52bde",
+      "source": "https://fonts.gstatic.com/s/lato/v25/S6uyw4BMUTPHvxk.ttf"
+    },
+    {
+      "file": "Fonts/Lato-Bold.ttf",
+      "postScriptName": "Lato-Bold",
+      "weight": 700,
+      "version": "1.104",
+      "sha256": "02e8f4be57ddc47cb7882c41b60216b6085b1ceaf717514be2b88fa15396238d",
+      "source": "https://fonts.gstatic.com/s/lato/v25/S6u9w4BMUTPHh6UVew8.ttf"
+    },
+    {
+      "file": "Fonts/Lato-Italic.ttf",
+      "postScriptName": "Lato-Italic",
+      "weight": 400,
+      "version": "1.104",
+      "sha256": "ae2f4abf0bf802b3710c474f05d1a34f086ef57001f5751d03e428e113f5a684",
+      "source": "https://fonts.gstatic.com/s/lato/v25/S6u8w4BMUTPHjxswWw.ttf"
+    },
+    {
+      "file": "Fonts/Neucha.ttf",
+      "postScriptName": "Neucha",
+      "weight": 400,
+      "version": "001.001",
+      "sha256": "7927bd6ce090fa032857dcbc3ad0e8b765c462d0a72a8779068132496b4e087d",
+      "source": "https://raw.githubusercontent.com/google/fonts/9710da1eacb3be272583c3224dcb70f9da6eadbb/ofl/neucha/Neucha.ttf"
+    },
+    {
+      "file": "Fonts/CabinSketch-Regular.ttf",
+      "postScriptName": "CabinSketch-Regular",
+      "weight": 400,
+      "version": "1.100",
+      "sha256": "a6f989fcc910ca321e06cd6a20dbcab20f9e41bce084911432857cfe286355e7",
+      "source": "https://raw.githubusercontent.com/google/fonts/9710da1eacb3be272583c3224dcb70f9da6eadbb/ofl/cabinsketch/CabinSketch-Regular.ttf"
+    },
+    {
+      "file": "Fonts/CabinSketch-Bold.ttf",
+      "postScriptName": "CabinSketch-Bold",
+      "weight": 700,
+      "version": "1.100",
+      "sha256": "0961688037b97947495c2e35e6e5a93f2b234490514e33346605ffedf9c7e6be",
+      "source": "https://raw.githubusercontent.com/google/fonts/9710da1eacb3be272583c3224dcb70f9da6eadbb/ofl/cabinsketch/CabinSketch-Bold.ttf"
+    }
+  ]
+}

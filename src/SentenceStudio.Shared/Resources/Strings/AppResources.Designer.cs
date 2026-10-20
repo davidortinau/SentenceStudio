@@ -9967,6 +9967,159 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Sync is pending. Check your connection and refresh..
+        /// </summary>
+        internal static string Native_SyncPending {
+            get {
+                return ResourceManager.GetString("Native_SyncPending", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No practice activity matches this filter..
+        /// </summary>
+        internal static string NativeActivityLog_FilterEmpty {
+            get {
+                return ResourceManager.GetString("NativeActivityLog_FilterEmpty", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Practice history could not be loaded. Try refreshing..
+        /// </summary>
+        internal static string NativeActivityLog_LoadError {
+            get {
+                return ResourceManager.GetString("NativeActivityLog_LoadError", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Sign in with a verified account to view your practice history..
+        /// </summary>
+        internal static string NativeActivityLog_OwnerUnavailable {
+            get {
+                return ResourceManager.GetString("NativeActivityLog_OwnerUnavailable", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Could not request password recovery. Check your address and try again..
+        /// </summary>
+        internal static string NativeAuth_RecoveryFailed {
+            get {
+                return ResourceManager.GetString("NativeAuth_RecoveryFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Password recovery is not available in this app yet..
+        /// </summary>
+        internal static string NativeAuth_RecoveryUnavailable {
+            get {
+                return ResourceManager.GetString("NativeAuth_RecoveryUnavailable", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to If an account can be created for this address, follow the confirmation instructions sent to it..
+        /// </summary>
+        internal static string NativeAuth_RegistrationAccepted {
+            get {
+                return ResourceManager.GetString("NativeAuth_RegistrationAccepted", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to This activity is not available yet..
+        /// </summary>
+        internal static string NativeDashboard_ActivityNotAvailable {
+            get {
+                return ResourceManager.GetString("NativeDashboard_ActivityNotAvailable", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Activity choices could not be loaded. Try again..
+        /// </summary>
+        internal static string NativeDashboard_ChooseOwnUnavailable {
+            get {
+                return ResourceManager.GetString("NativeDashboard_ChooseOwnUnavailable", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0}/{1} correct.
+        /// </summary>
+        internal static string NativeDashboard_NumbersCorrect {
+            get {
+                return ResourceManager.GetString("NativeDashboard_NumbersCorrect", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} due.
+        /// </summary>
+        internal static string NativeDashboard_NumbersDue {
+            get {
+                return ResourceManager.GetString("NativeDashboard_NumbersDue", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Your first session unlocks Time, Age, and Counting practice..
+        /// </summary>
+        internal static string NativeDashboard_NumbersEmptyDescription {
+            get {
+                return ResourceManager.GetString("NativeDashboard_NumbersEmptyDescription", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Start mastering Korean numbers.
+        /// </summary>
+        internal static string NativeDashboard_NumbersEmptyTitle {
+            get {
+                return ResourceManager.GetString("NativeDashboard_NumbersEmptyTitle", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Numbers — Mastery.
+        /// </summary>
+        internal static string NativeDashboard_NumbersMastery {
+            get {
+                return ResourceManager.GetString("NativeDashboard_NumbersMastery", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Number mastery could not be loaded. Try refreshing..
+        /// </summary>
+        internal static string NativeDashboard_NumbersUnavailable {
+            get {
+                return ResourceManager.GetString("NativeDashboard_NumbersUnavailable", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Create a starter resource with common vocabulary for your target language so you can begin practicing immediately..
+        /// </summary>
+        internal static string NativeDashboard_QuickStartDescription {
+            get {
+                return ResourceManager.GetString("NativeDashboard_QuickStartDescription", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Some selected resources or skills are unavailable. Please select them again..
+        /// </summary>
+        internal static string NativeDashboard_SelectionUnavailable {
+            get {
+                return ResourceManager.GetString("NativeDashboard_SelectionUnavailable", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Native Language.
         /// </summary>
         internal static string NativeLanguage {
@@ -9981,6 +10134,69 @@ namespace SentenceStudio.Resources.Strings {
         internal static string NativeLanguageTerm {
             get {
                 return ResourceManager.GetString("NativeLanguageTerm", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Complete your name, languages, and learning preferences first..
+        /// </summary>
+        internal static string NativeOnboarding_Incomplete {
+            get {
+                return ResourceManager.GetString("NativeOnboarding_Incomplete", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Your profile could not be saved. Please try again..
+        /// </summary>
+        internal static string NativeOnboarding_SaveFailed {
+            get {
+                return ResourceManager.GetString("NativeOnboarding_SaveFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Starter content could not be created. You can retry or skip this step..
+        /// </summary>
+        internal static string NativeOnboarding_StarterFailed {
+            get {
+                return ResourceManager.GetString("NativeOnboarding_StarterFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Password changes and account deletion are unavailable here. Your account will not be changed..
+        /// </summary>
+        internal static string NativeProfile_AccountActionUnavailable {
+            get {
+                return ResourceManager.GetString("NativeProfile_AccountActionUnavailable", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No profile was found for the active account..
+        /// </summary>
+        internal static string NativeProfile_NotFound {
+            get {
+                return ResourceManager.GetString("NativeProfile_NotFound", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Sign in with a verified account to view your profile..
+        /// </summary>
+        internal static string NativeProfile_OwnerUnavailable {
+            get {
+                return ResourceManager.GetString("NativeProfile_OwnerUnavailable", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Changes here are drafts. Saving requires a safe server update; going back discards them..
+        /// </summary>
+        internal static string NativeProfile_SaveUnavailable {
+            get {
+                return ResourceManager.GetString("NativeProfile_SaveUnavailable", resourceCulture);
             }
         }
 
@@ -10003,6 +10219,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Could not delete this resource. Try again..
+        /// </summary>
+        internal static string NativeResources_DeleteFailed {
+            get {
+                return ResourceManager.GetString("NativeResources_DeleteFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Edit.
         /// </summary>
         internal static string NativeResources_Edit {
@@ -10021,6 +10246,33 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Could not read the selected file. Try again..
+        /// </summary>
+        internal static string NativeResources_FileReadError {
+            get {
+                return ResourceManager.GetString("NativeResources_FileReadError", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The file exceeds the 1 MB size limit..
+        /// </summary>
+        internal static string NativeResources_FileTooLarge {
+            get {
+                return ResourceManager.GetString("NativeResources_FileTooLarge", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Your resource changes were saved, but vocabulary generation could not be finished. Reload the resource before retrying..
+        /// </summary>
+        internal static string NativeResources_GenerationPartial {
+            get {
+                return ResourceManager.GetString("NativeResources_GenerationPartial", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Keep editing.
         /// </summary>
         internal static string NativeResources_KeepEditing {
@@ -10035,6 +10287,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string NativeResources_LanguageFilter {
             get {
                 return ResourceManager.GetString("NativeResources_LanguageFilter", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Idiom.
+        /// </summary>
+        internal static string NativeResources_LexicalIdiom {
+            get {
+                return ResourceManager.GetString("NativeResources_LexicalIdiom", resourceCulture);
             }
         }
 
@@ -10120,11 +10381,47 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Save the changed language before using quick add..
+        /// </summary>
+        internal static string NativeResources_SaveLanguageBeforeQuickAdd {
+            get {
+                return ResourceManager.GetString("NativeResources_SaveLanguageBeforeQuickAdd", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to This resource could not be saved. It may have changed or become unavailable..
         /// </summary>
         internal static string NativeResources_SaveRefused {
             get {
                 return ResourceManager.GetString("NativeResources_SaveRefused", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Please set up the language you are learning in your profile first..
+        /// </summary>
+        internal static string NativeResources_SetTargetLanguage {
+            get {
+                return ResourceManager.GetString("NativeResources_SetTargetLanguage", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to This word is staged in the changed-language draft. Save the resource to attach it..
+        /// </summary>
+        internal static string NativeResources_StagedWord {
+            get {
+                return ResourceManager.GetString("NativeResources_StagedWord", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Starter resource could not be created. Try again..
+        /// </summary>
+        internal static string NativeResources_StarterFailed {
+            get {
+                return ResourceManager.GetString("NativeResources_StarterFailed", resourceCulture);
             }
         }
 
@@ -10143,6 +10440,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string NativeResources_SyncConfirmed {
             get {
                 return ResourceManager.GetString("NativeResources_SyncConfirmed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Sync is pending. Check your connection and refresh..
+        /// </summary>
+        internal static string NativeResources_SyncPending {
+            get {
+                return ResourceManager.GetString("NativeResources_SyncPending", resourceCulture);
             }
         }
 
@@ -10174,11 +10480,560 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Choose a .txt or .csv file..
+        /// </summary>
+        internal static string NativeResources_UnsupportedFile {
+            get {
+                return ResourceManager.GetString("NativeResources_UnsupportedFile", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Untitled resource.
         /// </summary>
         internal static string NativeResources_Untitled {
             get {
                 return ResourceManager.GetString("NativeResources_Untitled", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Resource details were saved, but some vocabulary links could not be saved. Your draft is preserved; reopen and retry..
+        /// </summary>
+        internal static string NativeResources_VocabularyPartial {
+            get {
+                return ResourceManager.GetString("NativeResources_VocabularyPartial", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Current voice.
+        /// </summary>
+        internal static string NativeSettings_CurrentVoice {
+            get {
+                return ResourceManager.GetString("NativeSettings_CurrentVoice", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Settings are unavailable: the active profile changed or could not be verified. Go back and reopen Settings..
+        /// </summary>
+        internal static string NativeSettings_OwnerUnavailable {
+            get {
+                return ResourceManager.GetString("NativeSettings_OwnerUnavailable", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Voice choices need sign-in. Your current voice is available locally..
+        /// </summary>
+        internal static string NativeSettings_VoicesRequireSignIn {
+            get {
+                return ResourceManager.GetString("NativeSettings_VoicesRequireSignIn", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Choose option {0}.
+        /// </summary>
+        internal static string NativeVocabQuiz_ChooseChoice {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_ChooseChoice", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Correct!.
+        /// </summary>
+        internal static string NativeVocabQuiz_CorrectFeedback {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_CorrectFeedback", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Correct attempts.
+        /// </summary>
+        internal static string NativeVocabQuiz_Details_CorrectAttempts {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_Details_CorrectAttempts", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Current streak.
+        /// </summary>
+        internal static string NativeVocabQuiz_Details_CurrentStreak {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_Details_CurrentStreak", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} days.
+        /// </summary>
+        internal static string NativeVocabQuiz_Details_Days {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_Details_Days", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Due-only filter.
+        /// </summary>
+        internal static string NativeVocabQuiz_Details_DueOnly {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_Details_DueOnly", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Ease factor.
+        /// </summary>
+        internal static string NativeVocabQuiz_Details_EaseFactor {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_Details_EaseFactor", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Effective streak.
+        /// </summary>
+        internal static string NativeVocabQuiz_Details_EffectiveStreak {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_Details_EffectiveStreak", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Due for review.
+        /// </summary>
+        internal static string NativeVocabQuiz_Details_IsDueForReview {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_Details_IsDueForReview", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Mastery score.
+        /// </summary>
+        internal static string NativeVocabQuiz_Details_MasteryScore {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_Details_MasteryScore", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Multiple choice.
+        /// </summary>
+        internal static string NativeVocabQuiz_Details_MultipleChoiceMode {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_Details_MultipleChoiceMode", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Production in streak.
+        /// </summary>
+        internal static string NativeVocabQuiz_Details_ProductionInStreak {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_Details_ProductionInStreak", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Quiz context.
+        /// </summary>
+        internal static string NativeVocabQuiz_Details_QuizContext {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_Details_QuizContext", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Quiz mode.
+        /// </summary>
+        internal static string NativeVocabQuiz_Details_QuizMode {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_Details_QuizMode", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Recognition demonstrations.
+        /// </summary>
+        internal static string NativeVocabQuiz_Details_RecognitionDemonstrations {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_Details_RecognitionDemonstrations", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Review interval.
+        /// </summary>
+        internal static string NativeVocabQuiz_Details_ReviewInterval {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_Details_ReviewInterval", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to SRS schedule.
+        /// </summary>
+        internal static string NativeVocabQuiz_Details_SrsSchedule {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_Details_SrsSchedule", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Text.
+        /// </summary>
+        internal static string NativeVocabQuiz_Details_TextMode {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_Details_TextMode", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Total attempts.
+        /// </summary>
+        internal static string NativeVocabQuiz_Details_TotalAttempts {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_Details_TotalAttempts", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Why this mode.
+        /// </summary>
+        internal static string NativeVocabQuiz_Details_WhyMode {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_Details_WhyMode", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Full form: {0}.
+        /// </summary>
+        internal static string NativeVocabQuiz_FullForm {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_FullForm", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Correct! Full form: {0}.
+        /// </summary>
+        internal static string NativeVocabQuiz_FuzzyFeedback {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_FuzzyFeedback", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Hide image.
+        /// </summary>
+        internal static string NativeVocabQuiz_HideImage {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_HideImage", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The answer is: {0}.
+        /// </summary>
+        internal static string NativeVocabQuiz_IncorrectFeedback {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_IncorrectFeedback", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to English.
+        /// </summary>
+        internal static string NativeVocabQuiz_Language_English {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_Language_English", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to French.
+        /// </summary>
+        internal static string NativeVocabQuiz_Language_French {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_Language_French", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to German.
+        /// </summary>
+        internal static string NativeVocabQuiz_Language_German {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_Language_German", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Korean.
+        /// </summary>
+        internal static string NativeVocabQuiz_Language_Korean {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_Language_Korean", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Spanish.
+        /// </summary>
+        internal static string NativeVocabQuiz_Language_Spanish {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_Language_Spanish", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Play option {0} before choosing.
+        /// </summary>
+        internal static string NativeVocabQuiz_ListenToChoose {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_ListenToChoose", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Mnemonic.
+        /// </summary>
+        internal static string NativeVocabQuiz_Mnemonic {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_Mnemonic", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Still building recognition through practice..
+        /// </summary>
+        internal static string NativeVocabQuiz_ModeBuildingRecognition {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_ModeBuildingRecognition", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Focus word: complete three recognition demonstrations before typing..
+        /// </summary>
+        internal static string NativeVocabQuiz_ModeFocusRecognition {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_ModeFocusRecognition", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Confirm production of an already known word..
+        /// </summary>
+        internal static string NativeVocabQuiz_ModeKnownConfirmation {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_ModeKnownConfirmation", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Lifetime streak is at least three..
+        /// </summary>
+        internal static string NativeVocabQuiz_ModeLifetimeStreak {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_ModeLifetimeStreak", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Mastery score is at least 50 percent..
+        /// </summary>
+        internal static string NativeVocabQuiz_ModeMastery {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_ModeMastery", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Recognition check after a wrong typed answer..
+        /// </summary>
+        internal static string NativeVocabQuiz_ModeRecognitionCheck {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_ModeRecognitionCheck", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Play option {0}.
+        /// </summary>
+        internal static string NativeVocabQuiz_PlayChoice {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_PlayChoice", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to We couldn&apos;t grade this sentence right now. Please try again..
+        /// </summary>
+        internal static string NativeVocabQuiz_SentenceGradeUnavailable {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_SentenceGradeUnavailable", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to &quot;{0}&quot; is used meaningfully here..
+        /// </summary>
+        internal static string NativeVocabQuiz_SentenceMeaningful {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_SentenceMeaningful", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} of {1} sentences counted toward mastery for {2}..
+        /// </summary>
+        internal static string NativeVocabQuiz_SentenceResults {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_SentenceResults", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to We couldn&apos;t confirm usage of &quot;{0}&quot; in this sentence. Try rewriting it and submit again..
+        /// </summary>
+        internal static string NativeVocabQuiz_SentenceTargetUnconfirmed {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_SentenceTargetUnconfirmed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to This doesn&apos;t yet show a clear, correct use of &quot;{0}&quot;..
+        /// </summary>
+        internal static string NativeVocabQuiz_SentenceUnclear {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_SentenceUnclear", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Show image.
+        /// </summary>
+        internal static string NativeVocabQuiz_ShowImage {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_ShowImage", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Use in a sentence.
+        /// </summary>
+        internal static string NativeVocabQuiz_UseInSentence {
+            get {
+                return ResourceManager.GetString("NativeVocabQuiz_UseInSentence", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Keep at least one owned resource selected so this word remains in your vocabulary..
+        /// </summary>
+        internal static string NativeVocabulary_AssociationRequired {
+            get {
+                return ResourceManager.GetString("NativeVocabulary_AssociationRequired", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Audio is unavailable right now. Please retry..
+        /// </summary>
+        internal static string NativeVocabulary_AudioUnavailable {
+            get {
+                return ResourceManager.GetString("NativeVocabulary_AudioUnavailable", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to This word changed elsewhere. Your edits were not saved. Go back and reopen it to review the latest version..
+        /// </summary>
+        internal static string NativeVocabulary_Conflict {
+            get {
+                return ResourceManager.GetString("NativeVocabulary_Conflict", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Constituent Words.
+        /// </summary>
+        internal static string NativeVocabulary_Constituents {
+            get {
+                return ResourceManager.GetString("NativeVocabulary_Constituents", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to This word has constituent links. Changing its type requires the constituent editor..
+        /// </summary>
+        internal static string NativeVocabulary_ConstituentsLocked {
+            get {
+                return ResourceManager.GetString("NativeVocabulary_ConstituentsLocked", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Could not load vocabulary. Please retry..
+        /// </summary>
+        internal static string NativeVocabulary_LoadFailed {
+            get {
+                return ResourceManager.GetString("NativeVocabulary_LoadFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No constituent words added yet..
+        /// </summary>
+        internal static string NativeVocabulary_NoConstituents {
+            get {
+                return ResourceManager.GetString("NativeVocabulary_NoConstituents", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Reference Sentences.
+        /// </summary>
+        internal static string NativeVocabulary_ReferenceSentences {
+            get {
+                return ResourceManager.GetString("NativeVocabulary_ReferenceSentences", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Word saved on this device, but sync could not be confirmed. Keep this device&apos;s data and retry syncing later..
+        /// </summary>
+        internal static string NativeVocabulary_SavedSyncUnconfirmed {
+            get {
+                return ResourceManager.GetString("NativeVocabulary_SavedSyncUnconfirmed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to This word is shared with another profile. You can view it here, but cannot edit the shared word..
+        /// </summary>
+        internal static string NativeVocabulary_SharedReadOnly {
+            get {
+                return ResourceManager.GetString("NativeVocabulary_SharedReadOnly", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Could not load this word. Please retry..
+        /// </summary>
+        internal static string NativeVocabulary_WordLoadFailed {
+            get {
+                return ResourceManager.GetString("NativeVocabulary_WordLoadFailed", resourceCulture);
             }
         }
 
@@ -14488,6 +15343,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Settings_ShowMnemonics {
             get {
                 return ResourceManager.GetString("Settings_ShowMnemonics", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to System.
+        /// </summary>
+        internal static string Settings_SystemMode {
+            get {
+                return ResourceManager.GetString("Settings_SystemMode", resourceCulture);
             }
         }
 

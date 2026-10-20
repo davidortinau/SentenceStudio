@@ -15,11 +15,23 @@
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
     <ProjectReference Include="../../src/SentenceStudio.Native/SentenceStudio.Native.csproj" />
+    <Compile Include="../../src/SentenceStudio.Native.Android/AndroidPlanServiceRegistrations.cs"
+             Link="AndroidPlanServiceRegistrations.cs" />
     <Compile Include="../../src/SentenceStudio.Native.Android/AndroidRoutePolicy.cs"
              Link="AndroidRoutePolicy.cs" />
     <Compile Include="../../src/SentenceStudio.Native.Android/AndroidReplacementGuard.cs"
              Link="AndroidReplacementGuard.cs" />
     <Compile Include="../../src/SentenceStudio.Native.Android/AndroidQuizInputPolicy.cs"
              Link="AndroidQuizInputPolicy.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.Android/AndroidQuizFeedbackPhotoPolicy.cs"
+             Link="AndroidQuizFeedbackPhotoPolicy.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.Android/AndroidQuizPhotoPresentationPolicy.cs"
+             Link="AndroidQuizPhotoPresentationPolicy.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.Android/AndroidQuizPhotoTransform.cs"
+             Link="AndroidQuizPhotoTransform.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.Android/AndroidQuizMediaPolicy.cs"
+             Link="AndroidQuizMediaPolicy.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.Android/AndroidRegistrationPolicy.cs"
+             Link="AndroidRegistrationPolicy.cs" />
   </ItemGroup>
 </Project>

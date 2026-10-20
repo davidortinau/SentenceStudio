@@ -13,6 +13,38 @@ namespace SentenceStudio.Native.Tests;
 public sealed class NativeSliceBoundaryTests
 {
     [Fact]
+    public async Task BackFromResumeChoicePreservesTheOriginalSnapshotAndAllowsLaterResume()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA);
+        var planId = await fixture.GenerateQuizPlanAsync(NativeSliceFixture.UserA);
+        var launch = (await fixture.Dashboard.SelectAssignedQuizAsync(planId))!;
+        using (var initial = fixture.Quiz)
+        {
+            Assert.Equal(NativePhase.Ready, (await initial.OpenAsync(launch)).Phase);
+            Assert.Equal(NativeDestination.TodaysPlan, (await initial.BackAsync()).Destination);
+        }
+        var original = await fixture.RowsAsync(NativeSliceFixture.UserA, planId);
+        Assert.NotNull(original.Session);
+
+        using (var choice = fixture.Quiz)
+        {
+            Assert.Equal(NativePhase.ResumeChoice, (await choice.OpenAsync(launch)).Phase);
+            var back = await choice.BackAsync();
+            Assert.Equal(NativePhase.Ready, back.Phase);
+            Assert.Equal(NativeDestination.TodaysPlan, back.Destination);
+            Assert.Null(back.ErrorKey);
+        }
+        var after = await fixture.RowsAsync(NativeSliceFixture.UserA, planId);
+        Assert.Equal(original.Session.StateJson, after.Session!.StateJson);
+        Assert.Equal(original.Item.MinutesSpent, after.Item.MinutesSpent);
+        Assert.Equal(0, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
+        using var resumed = fixture.Quiz;
+        Assert.Equal(NativePhase.ResumeChoice, (await resumed.OpenAsync(launch)).Phase);
+        Assert.Equal(NativePhase.Ready, (await resumed.ResumeAsync()).Phase);
+    }
+
+    [Fact]
     public async Task Q25a_ImmediateProcessInterruption_RestoresGradedPendingBeforeNext()
     {
         using var fixture = new NativeSliceFixture();
@@ -372,7 +404,7 @@ public sealed class NativeSliceBoundaryTests
     [InlineData("TargetToNative")]
     [InlineData("NativeToTarget")]
     [InlineData("Mixed")]
-    public async Task PhotoOnlyWithoutRenderedImage_BlocksEveryDirectionBeforeGrading(
+    public async Task PhotoOnlyWithoutRenderedImageFallsBackToWrittenPrompt(
         string direction)
     {
         using var fixture = new NativeSliceFixture();
@@ -381,26 +413,26 @@ public sealed class NativeSliceBoundaryTests
         fixture.QuizPreferences.UseTextPrompt = false;
         fixture.QuizPreferences.UseAudioPrompt = false;
         fixture.QuizPreferences.UsePhotoPrompt = true;
-        fixture.Media.PhotoAvailable = true;
+        fixture.Media.PhotoAvailable = false;
         var planId = await fixture.GenerateQuizPlanAsync(NativeSliceFixture.UserA);
         using var quiz = fixture.Quiz;
         var state = await quiz.OpenAsync(
             (await fixture.Dashboard.SelectAssignedQuizAsync(planId))!);
-        Assert.Equal(NativePhase.Blocked, state.Phase);
-        Assert.Null(state.Prompt);
-        Assert.True(state.Choices.IsDefaultOrEmpty);
-        Assert.False(state.CanSubmit);
-        Assert.Equal(NativePhase.Blocked, (await quiz.AnswerAsync("guess")).Phase);
-        Assert.Equal(NativePhase.Blocked, (await quiz.SuspendAsync()).Phase);
+        Assert.Equal(NativePhase.Ready, state.Phase);
+        Assert.NotNull(state.Prompt);
+        Assert.True(state.Prompt.ShowWrittenPrompt);
+        Assert.False(state.Prompt.ShowPhoto);
+        Assert.True(state.CanSubmit);
+        Assert.Equal(NativePhase.Ready, (await quiz.AnswerAsync("guess")).Phase);
         Assert.Equal(NativeDestination.TodaysPlan,
             (await quiz.BackAsync()).Destination);
-        Assert.Null((await fixture.RowsAsync(NativeSliceFixture.UserA, planId)).Session);
+        Assert.NotNull((await fixture.RowsAsync(NativeSliceFixture.UserA, planId)).Session);
         Assert.Equal(NativeQuizOverlay.None, quiz.OpenPhoto().Overlay);
         Assert.Equal(0, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
     }
 
     [Fact]
-    public async Task PhotoOnlyNativePrompt_TextOverrideWithoutRenderedPhotoCannotReplaceCue()
+    public async Task PhotoOnlyNativePrompt_TextOverrideUsesWrittenFallbackUntilImageRenders()
     {
         using var fixture = new NativeSliceFixture();
         await fixture.SeedAsync(NativeSliceFixture.UserA, known: true);
@@ -419,16 +451,17 @@ public sealed class NativeSliceBoundaryTests
         using var quiz = fixture.Quiz;
         var state = await quiz.OpenAsync(
             (await fixture.Dashboard.SelectAssignedQuizAsync(planId))!);
-        Assert.Equal(NativePhase.Blocked, state.Phase);
-        Assert.Null(state.Prompt);
-        Assert.False(state.CanSubmit);
-        Assert.Null((await fixture.RowsAsync(NativeSliceFixture.UserA, planId)).Session);
+        Assert.Equal(NativePhase.Ready, state.Phase);
+        Assert.NotNull(state.Prompt);
+        Assert.True(state.Prompt.ShowWrittenPrompt);
+        Assert.True(state.CanSubmit);
+        Assert.NotNull((await fixture.RowsAsync(NativeSliceFixture.UserA, planId)).Session);
     }
 
     [Theory]
-    [InlineData(false, NativePhase.Blocked)]
+    [InlineData(false, NativePhase.Ready)]
     [InlineData(true, NativePhase.Ready)]
-    public async Task NativePhotoPrompt_WithConfiguredText_RespectsSourceHideShowRule(
+    public async Task NativePhotoPrompt_WithoutLoadedAsset_KeepsWrittenFallback(
         bool showTextWithPhoto, NativePhase expectedPhase)
     {
         using var fixture = new NativeSliceFixture();
@@ -445,25 +478,16 @@ public sealed class NativeSliceBoundaryTests
         fixture.QuizPreferences.UseTextPrompt = true;
         fixture.QuizPreferences.UseAudioPrompt = false;
         fixture.QuizPreferences.UsePhotoPrompt = true;
-        fixture.Media.PhotoAvailable = true;
+        fixture.Media.PhotoAvailable = false;
         var planId = await fixture.GenerateQuizPlanAsync(NativeSliceFixture.UserA);
         using var quiz = fixture.Quiz;
         var state = await quiz.OpenAsync(
             (await fixture.Dashboard.SelectAssignedQuizAsync(planId))!);
         Assert.Equal(expectedPhase, state.Phase);
-        if (showTextWithPhoto)
-        {
-            Assert.Equal("Text", state.Mode);
-            Assert.StartsWith("native-", state.Prompt!.PromptText);
-            Assert.True(state.CanSubmit);
-            Assert.False(state.Prompt.ShowPhoto);
-        }
-        else
-        {
-            Assert.Null(state.Prompt);
-            Assert.False(state.CanSubmit);
-            Assert.Null((await fixture.RowsAsync(NativeSliceFixture.UserA, planId)).Session);
-        }
+        Assert.Equal("Text", state.Mode);
+        Assert.StartsWith("native-", state.Prompt!.PromptText);
+        Assert.True(state.CanSubmit);
+        Assert.False(state.Prompt.ShowPhoto);
         Assert.Equal(0, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
     }
 
@@ -472,7 +496,7 @@ public sealed class NativeSliceBoundaryTests
     [InlineData(true, false)]
     [InlineData(false, true)]
     [InlineData(true, true)]
-    public async Task NativePromptAudioChoices_BlockBeforeRenderingEvenWithTextPreference(
+    public async Task NativePromptAudioChoicesUseTargetTextFallbackUntilAudioChoicesExist(
         bool useTextPrompt, bool photoEnabled)
     {
         using var fixture = new NativeSliceFixture();
@@ -483,23 +507,23 @@ public sealed class NativeSliceBoundaryTests
         fixture.QuizPreferences.UsePhotoPrompt = photoEnabled;
         var planId = await fixture.GenerateQuizPlanAsync(NativeSliceFixture.UserA);
         using var quiz = fixture.Quiz;
-        var unavailable = await quiz.OpenAsync(
+        var fallback = await quiz.OpenAsync(
             (await fixture.Dashboard.SelectAssignedQuizAsync(planId))!);
-        Assert.Equal(NativePhase.Blocked, unavailable.Phase);
-        Assert.Null(unavailable.Prompt);
-        Assert.True(unavailable.Choices.IsDefaultOrEmpty);
-        Assert.False(unavailable.CanSubmit);
-        Assert.Null(unavailable.FeedbackKey);
-        Assert.Equal(NativePhase.Blocked,
+        Assert.Equal(NativePhase.Ready, fallback.Phase);
+        Assert.NotNull(fallback.Prompt);
+        Assert.True(fallback.Prompt.ShowWrittenPrompt);
+        Assert.True(fallback.CanSubmit);
+        Assert.All(fallback.Choices,
+            option => Assert.StartsWith("target-", option.Text));
+        Assert.Equal(NativePhase.Ready,
             (await quiz.AnswerAsync("written option")).Phase);
-        Assert.Equal(NativePhase.Blocked, (await quiz.SuspendAsync()).Phase);
         Assert.Equal(NativeDestination.TodaysPlan, (await quiz.BackAsync()).Destination);
         Assert.Equal(0, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
-        Assert.Null((await fixture.RowsAsync(NativeSliceFixture.UserA, planId)).Session);
+        Assert.NotNull((await fixture.RowsAsync(NativeSliceFixture.UserA, planId)).Session);
     }
 
     [Fact]
-    public async Task NativePromptTypedResponse_AudioOnlyUnavailableBlocksBeforeSnapshot()
+    public async Task NativePromptTypedResponse_AudioOnlyUnavailableShowsWrittenCue()
     {
         using var fixture = new NativeSliceFixture();
         await fixture.SeedAsync(NativeSliceFixture.UserA, known: true);
@@ -510,17 +534,17 @@ public sealed class NativeSliceBoundaryTests
         using var quiz = fixture.Quiz;
         var state = await quiz.OpenAsync(
             (await fixture.Dashboard.SelectAssignedQuizAsync(planId))!);
-        Assert.Equal(NativePhase.Blocked, state.Phase);
-        Assert.Null(state.Prompt);
-        Assert.False(state.CanSubmit);
-        Assert.Null((await fixture.RowsAsync(NativeSliceFixture.UserA, planId)).Session);
+        Assert.Equal(NativePhase.Ready, state.Phase);
+        Assert.True(state.Prompt!.ShowWrittenPrompt);
+        Assert.True(state.CanSubmit);
+        Assert.NotNull((await fixture.RowsAsync(NativeSliceFixture.UserA, planId)).Session);
     }
 
     [Theory]
     [InlineData("TargetToNative")]
     [InlineData("NativeToTarget")]
     [InlineData("Mixed")]
-    public async Task AudioOnlyUnavailable_BlocksTypedTurnsInEveryDirection(
+    public async Task AudioOnlyUnavailable_FallsBackToTextInEveryDirection(
         string direction)
     {
         using var fixture = new NativeSliceFixture();
@@ -533,11 +557,10 @@ public sealed class NativeSliceBoundaryTests
         using var quiz = fixture.Quiz;
         var state = await quiz.OpenAsync(
             (await fixture.Dashboard.SelectAssignedQuizAsync(planId))!);
-        Assert.Equal(NativePhase.Blocked, state.Phase);
-        Assert.Null(state.Prompt);
-        Assert.True(state.Choices.IsDefaultOrEmpty);
-        Assert.False(state.CanSubmit);
-        Assert.Null((await fixture.RowsAsync(NativeSliceFixture.UserA, planId)).Session);
+        Assert.Equal(NativePhase.Ready, state.Phase);
+        Assert.True(state.Prompt!.ShowWrittenPrompt);
+        Assert.True(state.CanSubmit);
+        Assert.NotNull((await fixture.RowsAsync(NativeSliceFixture.UserA, planId)).Session);
         Assert.Equal(0, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
     }
 
@@ -549,6 +572,7 @@ public sealed class NativeSliceBoundaryTests
         fixture.QuizPreferences.UseTextPrompt = false;
         fixture.QuizPreferences.UseAudioPrompt = true;
         fixture.QuizPreferences.UsePhotoPrompt = false;
+        fixture.QuizPreferences.AutoPlayVocabAudio = false;
         fixture.Media.AudioAvailable = true;
         var planId = await fixture.GenerateQuizPlanAsync(NativeSliceFixture.UserA);
         using var quiz = fixture.Quiz;
@@ -571,41 +595,183 @@ public sealed class NativeSliceBoundaryTests
         Assert.Equal(NativePhase.Feedback, (await again.ResumeAsync()).Phase);
     }
 
+    [Theory]
+    [InlineData("TargetToNative", "Korean", "target-")]
+    [InlineData("NativeToTarget", "English", "native-")]
+    public async Task AutoplayUsesThePromptSideOncePerTurnAndNeverTheAnswer(
+        string direction, string expectedLanguage, string expectedPrefix)
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA);
+        fixture.QuizPreferences.DisplayDirection = direction;
+        fixture.QuizPreferences.UseTextPrompt = false;
+        fixture.QuizPreferences.UseAudioPrompt = true;
+        fixture.QuizPreferences.AutoPlayVocabAudio = true;
+        fixture.Media.AudioAvailable = true;
+        var planId = await fixture.GenerateQuizPlanAsync(NativeSliceFixture.UserA);
+        using var quiz = fixture.Quiz;
+        var question = await quiz.OpenAsync(
+            (await fixture.Dashboard.SelectAssignedQuizAsync(planId))!);
+        Assert.Equal(NativePhase.Ready, question.Phase);
+        Assert.Equal(direction == "TargetToNative", question.CanSubmit);
+        var played = Assert.Single(fixture.Media.Played);
+        Assert.Equal(expectedLanguage, played.Language);
+        Assert.StartsWith(expectedPrefix, played.Text);
+        if (direction == "NativeToTarget")
+        {
+            var audioChoice = await quiz.PlayAnswerChoiceAsync(0, question.TurnId!);
+            Assert.True(audioChoice.CanSubmit);
+            Assert.Equal("Korean", fixture.Media.Played[^1].Language);
+        }
+        var heardCount = fixture.Media.Played.Count;
+        quiz.OpenDetails();
+        quiz.DismissOverlay();
+        Assert.Equal(heardCount, fixture.Media.Played.Count);
+        await quiz.AnswerAsync(question.Choices[0].Text);
+        var next = await quiz.NextAsync();
+        Assert.Equal(NativePhase.Ready, next.Phase);
+        Assert.Equal(heardCount + 1, fixture.Media.Played.Count);
+        Assert.Equal(expectedLanguage, fixture.Media.Played[^1].Language);
+    }
+
     [Fact]
-    public async Task UnavailableListeningAndPhotoPorts_BlockWithoutPersistingASnapshot()
+    public async Task CorrectFeedbackExposesMnemonicCandidatesOnlyUntilTheNextTurn()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA);
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            foreach (var word in await db.VocabularyWords.ToListAsync())
+                word.MnemonicText = "remember this meaning";
+            await db.SaveChangesAsync();
+        }
+        fixture.QuizPreferences.ShowMnemonicImage = true;
+        fixture.QuizPreferences.UsePhotoPrompt = false;
+        fixture.Media.PhotoAvailable = true;
+        var planId = await fixture.GenerateQuizPlanAsync(NativeSliceFixture.UserA);
+        using var quiz = fixture.Quiz;
+        var question = await quiz.OpenAsync(
+            (await fixture.Dashboard.SelectAssignedQuizAsync(planId))!);
+        Assert.Null(question.FeedbackMnemonicText);
+        Assert.Null(question.FeedbackPhotoCandidateUri);
+        Assert.False(question.Prompt!.ShowPhoto);
+        var correct = await quiz.AnswerAsync(question.Choices[0].Text);
+        Assert.Equal("remember this meaning", correct.FeedbackMnemonicText);
+        Assert.StartsWith("opaque-photo-", correct.FeedbackPhotoCandidateUri);
+        Assert.False(correct.Prompt!.ShowPhoto);
+        Assert.True(correct.Prompt.PhotoRequested);
+        var renderedFeedback = await quiz.PhotoRenderedAsync(correct.TurnId!);
+        Assert.True(renderedFeedback.Prompt!.ShowPhoto);
+
+        var next = await quiz.NextAsync();
+        Assert.Null(next.FeedbackMnemonicText);
+        Assert.Null(next.FeedbackPhotoCandidateUri);
+        var wrong = await quiz.AnswerAsync(next.Choices[^1].Text);
+        Assert.False(wrong.AnswerWasCorrect);
+        Assert.Null(wrong.FeedbackMnemonicText);
+        Assert.Null(wrong.FeedbackPhotoCandidateUri);
+    }
+
+    [Fact]
+    public async Task LearningDetailsExposeOnlyOwnedProgressAndDismissWithoutLeakingTerms()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA, known: true);
+        await fixture.SeedAsync(NativeSliceFixture.UserB, known: true);
+        var planId = await fixture.GenerateQuizPlanAsync(NativeSliceFixture.UserA);
+        using var quiz = fixture.Quiz;
+        var question = await quiz.OpenAsync(
+            (await fixture.Dashboard.SelectAssignedQuizAsync(planId))!);
+        var overlay = quiz.OpenDetails();
+        Assert.Equal(NativeQuizOverlay.LearningDetails, overlay.Overlay);
+        var details = overlay.Details!;
+        Assert.NotNull(details);
+        Assert.Equal(8, details.TotalAttempts);
+        Assert.Equal(.9f, details.MasteryScore);
+        Assert.Equal("Text", details.Mode);
+        Assert.False(details.DueOnly);
+        Assert.DoesNotContain("target-", details.ToString());
+        Assert.DoesNotContain("native-", details.ToString());
+        var dismissed = quiz.DismissOverlay();
+        Assert.Equal(NativeQuizOverlay.None, dismissed.Overlay);
+        Assert.Null(dismissed.Details);
+        Assert.Equal(question.Prompt!.WordId, dismissed.Prompt!.WordId);
+    }
+
+    [Fact]
+    public async Task FuzzyAcceptedTextShowsCompleteFormAndRestoresItWithoutRegrading()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA, known: true);
+        fixture.SetPlanFocus(NativeSliceFixture.UserA,
+            fixture.WordId(NativeSliceFixture.UserA, 0));
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            (await db.VocabularyWords.SingleAsync(word =>
+                word.Id == fixture.WordId(NativeSliceFixture.UserA, 0)))
+                .NativeLanguageTerm = "remaining/leftover";
+            await db.SaveChangesAsync();
+        }
+        var planId = await fixture.GenerateQuizPlanAsync(NativeSliceFixture.UserA);
+        var launch = (await fixture.Dashboard.SelectAssignedQuizAsync(planId))!;
+        using (var quiz = fixture.Quiz)
+        {
+            var question = await quiz.OpenAsync(launch);
+            Assert.Equal("Text", question.Mode);
+            Assert.Null(question.CompleteForm);
+            var feedback = await quiz.AnswerAsync("leftover");
+            Assert.Equal(NativePhase.Feedback, feedback.Phase);
+            Assert.True(feedback.AnswerWasCorrect);
+            Assert.Equal("remaining/leftover", feedback.CompleteForm);
+            Assert.Equal(NativeDestination.TodaysPlan, (await quiz.BackAsync()).Destination);
+        }
+        using var resumed = fixture.Quiz;
+        Assert.Equal(NativePhase.ResumeChoice, (await resumed.OpenAsync(launch)).Phase);
+        Assert.Equal("remaining/leftover", (await resumed.ResumeAsync()).CompleteForm);
+        Assert.Equal(0, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
+    }
+
+    [Fact]
+    public async Task UnavailableListeningAndPhotoPortsFallBackWithoutPretendingMediaPlayed()
     {
         using var fixture = new NativeSliceFixture();
         await fixture.SeedAsync(NativeSliceFixture.UserA);
         fixture.QuizPreferences.UseTextPrompt = false;
         fixture.QuizPreferences.UseAudioPrompt = true;
         fixture.QuizPreferences.UsePhotoPrompt = true;
+        fixture.QuizPreferences.AutoPlayVocabAudio = false;
         fixture.Media.AudioAvailabilityOffline = true;
         fixture.Media.PhotoAvailabilityOffline = true;
         var planId = await fixture.GenerateQuizPlanAsync(NativeSliceFixture.UserA);
         using var quiz = fixture.Quiz;
         var fallback = await quiz.OpenAsync(
             (await fixture.Dashboard.SelectAssignedQuizAsync(planId))!);
-        Assert.Equal(NativePhase.Blocked, fallback.Phase);
-        Assert.Null(fallback.Prompt);
-        Assert.False(fallback.CanSubmit);
+        Assert.Equal(NativePhase.Ready, fallback.Phase);
+        Assert.True(fallback.Prompt!.ShowWrittenPrompt);
+        Assert.False(fallback.Prompt.CanPlayPromptAudio);
+        Assert.False(fallback.Prompt.ShowPhoto);
+        Assert.True(fallback.CanSubmit);
         Assert.Equal(0, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
-        Assert.Null((await fixture.RowsAsync(NativeSliceFixture.UserA, planId)).Session);
+        Assert.NotNull((await fixture.RowsAsync(NativeSliceFixture.UserA, planId)).Session);
         fixture.Media.AudioAvailabilityOffline = false;
         fixture.Media.PhotoAvailabilityOffline = false;
         fixture.Media.AudioAvailable = true;
         fixture.QuizPreferences.UsePhotoPrompt = false;
         using var later = fixture.Quiz;
-        var unheard = await later.OpenAsync(
-            (await fixture.Dashboard.SelectAssignedQuizAsync(planId))!);
+        Assert.Equal(NativePhase.ResumeChoice, (await later.OpenAsync(
+            (await fixture.Dashboard.SelectAssignedQuizAsync(planId))!)).Phase);
+        var unheard = await later.ResumeAsync();
         Assert.Equal(NativePhase.Ready, unheard.Phase);
         Assert.False(unheard.CanSubmit);
         fixture.Media.PlaybackOffline = true;
         var playbackFailure = await later.PlayPromptAsync();
-        Assert.Equal(NativePhase.Blocked, playbackFailure.Phase);
-        Assert.Null(playbackFailure.Prompt);
-        Assert.True(playbackFailure.Choices.IsDefaultOrEmpty);
-        Assert.False(playbackFailure.CanSubmit);
-        Assert.Equal(NativePhase.Blocked,
+        Assert.Equal(NativePhase.Ready, playbackFailure.Phase);
+        Assert.True(playbackFailure.Prompt!.ShowWrittenPrompt);
+        Assert.False(playbackFailure.Prompt.CanPlayPromptAudio);
+        Assert.True(playbackFailure.CanSubmit);
+        Assert.Equal(NativePhase.Ready,
             (await later.AnswerAsync("guessed without hearing")).Phase);
         Assert.Equal(0, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
     }
@@ -677,7 +843,7 @@ public sealed class NativeSliceBoundaryTests
         using var fixture = new NativeSliceFixture();
         await fixture.SeedAsync(NativeSliceFixture.UserA);
         fixture.QuizPreferences.UsePhotoPrompt = true;
-        fixture.Media.PhotoAvailable = true;
+        fixture.Media.PhotoAvailable = false;
         var planId = await fixture.GenerateQuizPlanAsync(NativeSliceFixture.UserA);
         using var quiz = fixture.Quiz;
         var question = await quiz.OpenAsync(
@@ -692,7 +858,7 @@ public sealed class NativeSliceBoundaryTests
     }
 
     [Fact]
-    public async Task SentenceShortcut_ShowsTargetLanguageButCannotCreditWithoutSharedGrader()
+    public async Task SentenceShortcut_ShowsTargetLanguageAndFailsWithoutARealGrader()
     {
         using var fixture = new NativeSliceFixture();
         await fixture.SeedAsync(NativeSliceFixture.UserA);
@@ -703,9 +869,12 @@ public sealed class NativeSliceBoundaryTests
         Assert.NotNull(sentence.Sentence);
         Assert.Contains("target-", sentence.Sentence.TargetLanguageTerm);
         Assert.Equal("Korean", sentence.Sentence.TargetLanguage);
-        Assert.Equal(NativePhase.Blocked, quiz.SubmitSentence("synthetic target sentence").Phase);
-        Assert.Equal(0, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
         Assert.Equal(NativePhase.Ready, quiz.CancelSentenceShortcut().Phase);
+        quiz.OpenSentenceShortcut();
+        var unavailable = await quiz.SubmitSentenceAsync("synthetic target sentence");
+        Assert.Equal(NativePhase.Error, unavailable.Phase);
+        Assert.Equal(NativeText.SaveFailed, unavailable.ErrorKey);
+        Assert.Equal(0, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
     }
 
     [Fact]
@@ -757,7 +926,7 @@ public sealed class NativeSliceBoundaryTests
         Assert.True(Assert.Single(dashboard.Cards).IsCompleted);
         Assert.Equal(ActivitySessionStatus.Completed,
             (await fixture.RowsAsync(NativeSliceFixture.UserA, planId)).Session?.Status);
-        Assert.Null(await fixture.Dashboard.SelectAssignedQuizAsync(planId));
+        Assert.NotNull(await fixture.Dashboard.SelectAssignedQuizAsync(planId));
         Assert.Equal(2, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
     }
 
@@ -768,9 +937,9 @@ public sealed class NativeSliceBoundaryTests
         await fixture.SeedAsync(NativeSliceFixture.UserA);
         fixture.Activate(NativeSliceFixture.UserA);
         var dashboard = fixture.Dashboard;
-        var syncedEmpty = await dashboard.RefreshAsync();
-        Assert.Equal(NativePhase.Empty, syncedEmpty.Phase);
-        Assert.False(syncedEmpty.HasPendingSync);
+        var createdDuringRefresh = await dashboard.RefreshAsync();
+        Assert.Equal(NativePhase.Ready, createdDuringRefresh.Phase);
+        Assert.True(createdDuringRefresh.HasPendingSync);
 
         fixture.Sync.Outcome = NativeSyncOutcome.Offline;
         var local = await dashboard.GenerateAsync();
@@ -788,6 +957,7 @@ public sealed class NativeSliceBoundaryTests
         await fixture.SeedAsync(NativeSliceFixture.UserA);
         fixture.Activate(NativeSliceFixture.UserA);
         var dashboard = fixture.Dashboard;
+        Assert.True((await dashboard.RefreshAsync()).HasPendingSync);
         Assert.False((await dashboard.RefreshAsync()).HasPendingSync);
         fixture.Sync.DuringSynchronization = owner => fixture.MarkPendingForTest(owner);
         Assert.True((await dashboard.RefreshAsync()).HasPendingSync);

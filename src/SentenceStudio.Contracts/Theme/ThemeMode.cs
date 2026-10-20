@@ -1,7 +1,7 @@
 namespace SentenceStudio.Contracts.Theme;
 
 /// <summary>
-/// The light/dark presentation mode. A closed set — there is no third value.
+/// The saved appearance choice: a fixed light or dark override, or the live system appearance.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -11,31 +11,44 @@ namespace SentenceStudio.Contracts.Theme;
 /// device preferences, both of which are parsed through <see cref="TryParse"/>, which rejects
 /// unrecognized input rather than admitting it as a sentinel. Adding <c>Unknown</c> now would mean
 /// every <c>switch</c> in the UI has to answer "what colour is Unknown?" for a case that cannot
-/// occur. When an appearance action DTO is actually added to the Coach wire protocol, that is the
-/// moment to introduce a wire-shaped enum with <c>Unknown</c> — as a separate type, mapped at the
-/// boundary.
+/// occur. <see cref="System"/> is a user choice, not an unknown value; each presentation host
+/// resolves it against its own OS appearance. When an appearance action DTO is actually added to
+/// the Coach wire protocol, introduce a separate wire-shaped enum at that boundary.
 /// </para>
 /// </remarks>
 public enum ThemeMode
 {
-    Light,
-    Dark
+    Light = 0,
+    Dark = 1,
+    System = 2
 }
 
 /// <summary>
 /// Conversions between <see cref="ThemeMode"/> and the lowercase token used by
-/// <c>data-bs-theme</c>, the appearance cookie, and device preferences.
+/// the appearance cookie and device preferences. The effective <c>data-bs-theme</c> is always
+/// light or dark, never system.
 /// </summary>
 public static class ThemeModeExtensions
 {
     public const string LightToken = "light";
     public const string DarkToken = "dark";
+    public const string SystemToken = "system";
 
-    /// <summary>The token written to <c>data-bs-theme</c> and to the persistence substrate.</summary>
+    /// <summary>The saved choice's token, which must be resolved before writing to Bootstrap.</summary>
     public static string ToToken(this ThemeMode mode) => mode switch
     {
         ThemeMode.Light => LightToken,
         ThemeMode.Dark => DarkToken,
+        ThemeMode.System => SystemToken,
+        _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unrecognized theme mode.")
+    };
+
+    /// <summary>Resolves the saved choice to an effective light/dark mode for an OS appearance.</summary>
+    public static ThemeMode ResolveEffective(this ThemeMode mode, bool systemIsDark) => mode switch
+    {
+        ThemeMode.Light => ThemeMode.Light,
+        ThemeMode.Dark => ThemeMode.Dark,
+        ThemeMode.System => systemIsDark ? ThemeMode.Dark : ThemeMode.Light,
         _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unrecognized theme mode.")
     };
 
@@ -55,6 +68,12 @@ public static class ThemeModeExtensions
         if (string.Equals(token, DarkToken, StringComparison.OrdinalIgnoreCase))
         {
             mode = ThemeMode.Dark;
+            return true;
+        }
+
+        if (string.Equals(token, SystemToken, StringComparison.OrdinalIgnoreCase))
+        {
+            mode = ThemeMode.System;
             return true;
         }
 

@@ -93,9 +93,7 @@ public sealed class NativeProfileBootstrap(
             response.EnsureSuccessStatusCode();
             var profile = await response.Content.ReadFromJsonAsync<NativeApiProfile>()
                 ?? throw new InvalidOperationException("The API returned an empty profile.");
-            if (!string.Equals(owner, profile.Id, StringComparison.Ordinal)
-                || string.IsNullOrWhiteSpace(profile.NativeLanguage)
-                || string.IsNullOrWhiteSpace(profile.TargetLanguage))
+            if (!string.Equals(owner, profile.Id, StringComparison.Ordinal))
                 throw new UnauthorizedAccessException("The API profile does not match the signed-in owner.");
 
             db.UserProfiles.Add(new UserProfile
@@ -103,8 +101,10 @@ public sealed class NativeProfileBootstrap(
                 Id = owner,
                 Name = profile.DisplayName,
                 Email = profile.Email,
-                NativeLanguage = profile.NativeLanguage,
-                TargetLanguage = profile.TargetLanguage,
+                NativeLanguage = string.IsNullOrWhiteSpace(profile.NativeLanguage)
+                    ? string.Empty : profile.NativeLanguage,
+                TargetLanguage = string.IsNullOrWhiteSpace(profile.TargetLanguage)
+                    ? string.Empty : profile.TargetLanguage,
                 DisplayLanguage = profile.DisplayLanguage,
                 TargetCEFRLevel = profile.TargetCefrLevel,
                 PreferredSessionMinutes = profile.PreferredSessionMinutes,
@@ -119,8 +119,8 @@ public sealed class NativeProfileBootstrap(
         string Id,
         string DisplayName,
         string Email,
-        string NativeLanguage,
-        string TargetLanguage,
+        string? NativeLanguage,
+        string? TargetLanguage,
         string DisplayLanguage,
         string TargetCefrLevel,
         int PreferredSessionMinutes);

@@ -10,7 +10,7 @@ using SentenceStudio.Services;
 namespace SentenceStudio.Native;
 
 /// <summary>One instance per signed-in native shell, never a process-wide service locator.</summary>
-public sealed class NativeAuthPresenter(
+public sealed partial class NativeAuthPresenter(
     IAuthService auth,
     IPreferencesService preferences,
     UserProfileRepository profiles,
@@ -18,6 +18,8 @@ public sealed class NativeAuthPresenter(
     IPostLoginRouter postLogin,
     INativeSyncReadiness sync,
     NativePendingWrites pendingWrites,
+    NativeResourcePresenter resources,
+    SkillProfileRepository skills,
     ILogger<NativeAuthPresenter> logger)
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -126,7 +128,7 @@ public sealed class NativeAuthPresenter(
             cancellationToken.ThrowIfCancellationRequested();
             if (result is null)
                 return SetState(new(NativePhase.Error, NativeDestination.SignIn,
-                    ErrorKey: NativeText.UnexpectedError));
+                    ErrorKey: NativeText.InvalidCredentials));
 
             var state = await EnterAuthenticatedAsync(result, cancellationToken);
             if (state.Phase == NativePhase.Ready && state.UserId is { } signedInOwner
@@ -142,9 +144,11 @@ public sealed class NativeAuthPresenter(
         }
         catch (HttpRequestException ex)
         {
-            logger.LogWarning(ex, "Native sign-in cannot reach the server.");
+            logger.LogWarning(ex, "Native sign-in HTTP or transport failure.");
             return SetState(new(NativePhase.Error, NativeDestination.SignIn,
-                ErrorKey: NativeText.ConnectionError));
+                ErrorKey: ex.StatusCode is null
+                    ? NativeText.ConnectionError
+                    : NativeText.UnexpectedError));
         }
         catch (NotSupportedException ex)
         {
@@ -156,6 +160,12 @@ public sealed class NativeAuthPresenter(
             or System.Text.Json.JsonException)
         {
             logger.LogError(ex, "Native sign-in could not persist or decode the auth response.");
+            return SetState(new(NativePhase.Error, NativeDestination.SignIn,
+                ErrorKey: NativeText.UnexpectedError));
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(ex, "Native sign-in failed unexpectedly.");
             return SetState(new(NativePhase.Error, NativeDestination.SignIn,
                 ErrorKey: NativeText.UnexpectedError));
         }
@@ -318,7 +328,7 @@ public sealed class NativeAuthPresenter(
             var hasPopulatedProfile = localProfile is not null
                 && !string.IsNullOrWhiteSpace(localProfile.NativeLanguage)
                 && !string.IsNullOrWhiteSpace(localProfile.TargetLanguage);
-            if (!hasPopulatedProfile && outcome != NativeSyncOutcome.Confirmed)
+            if (localProfile is null && outcome != NativeSyncOutcome.Confirmed)
             {
                 deferred = new(NativePhase.PendingSync, NativeDestination.SignIn,
                     owner, NativeText.ConnectionError, HasPendingSync: true);

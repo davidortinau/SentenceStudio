@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "profiles": {
+    "native-ios": {
+      "description": "Run native iOS regressions, then compile the simulator app. No install or runtime acceptance.",
+      "inputs": ["src", "tests/SentenceStudio.Native.iOS.Tests", "tests/SentenceStudio.Native.Tests", "Directory.Packages.props", "global.json", "NuGet.Config", "{home}/.nuget/packages/microsoft.swiftui/0.1.0-preview.25"],
+      "tools": [["dotnet", "--version"], ["xcodebuild", "-version"]],
+      "steps": [
+        {
+          "name": "native-ios-tests",
+          "argv": ["dotnet", "test", "tests/SentenceStudio.Native.iOS.Tests/SentenceStudio.Native.iOS.Tests.csproj", "-f", "net11.0", "--no-restore", "-m:1", "-p:BuildInParallel=false", "--logger", "console;verbosity=minimal"],
+          "cwd": ".",
+          "timeout": 600
+        },
+        {
+          "name": "simulator-build",
+          "argv": ["dotnet", "build", "src/SentenceStudio.Native.iOS/SentenceStudio.Native.iOS.csproj", "-f", "net11.0-ios", "-c", "Debug", "-p:RuntimeIdentifier=iossimulator-arm64", "-m:1", "-p:BuildInParallel=false", "--no-restore", "-v:quiet"],
+          "cwd": ".",
+          "timeout": 600
+        }
+      ]
+    },
+    "native-ios-tests": {
+      "description": "Build and run native iOS host-side regression tests. Does not build, install, or accept the app.",
+      "inputs": ["src", "tests/SentenceStudio.Native.iOS.Tests", "tests/SentenceStudio.Native.Tests", "Directory.Packages.props", "global.json", "NuGet.Config"],
+      "tools": [["dotnet", "--version"]],
+      "steps": [
+        {
+          "name": "native-ios-tests",
+          "argv": ["dotnet", "test", "tests/SentenceStudio.Native.iOS.Tests/SentenceStudio.Native.iOS.Tests.csproj", "-f", "net11.0", "--no-restore", "-m:1", "-p:BuildInParallel=false", "--logger", "console;verbosity=minimal"],
+          "cwd": ".",
+          "timeout": 600
+        }
+      ]
+    },
+    "native-ios-build": {
+      "description": "Compile the current native iOS simulator app with restored packages. No deployment or runtime acceptance.",
+      "inputs": ["src", "Directory.Packages.props", "global.json", "NuGet.Config", "{home}/.nuget/packages/microsoft.swiftui/0.1.0-preview.25"],
+      "tools": [["dotnet", "--version"], ["xcodebuild", "-version"]],
+      "steps": [
+        {
+          "name": "simulator-build",
+          "argv": ["dotnet", "build", "src/SentenceStudio.Native.iOS/SentenceStudio.Native.iOS.csproj", "-f", "net11.0-ios", "-c", "Debug", "-p:RuntimeIdentifier=iossimulator-arm64", "-m:1", "-p:BuildInParallel=false", "--no-restore", "-v:quiet"],
+          "cwd": ".",
+          "timeout": 600
+        }
+      ]
+    },
+    "swiftui-framework": {
+      "description": "Build and verify the existing local SwiftUI XCFramework only when bridge sources change. Does not pack, publish, or update the consuming app package.",
+      "inputs": ["{home}/work/Microsoft.SwiftUI/native", "{home}/work/Microsoft.SwiftUI/scripts/build-xcframework.sh", "{home}/work/Microsoft.SwiftUI/scripts/verify-xcframework.py", "{home}/work/Microsoft.SwiftUI/scripts/inventory-xcframework.py"],
+      "tools": [["xcodebuild", "-version"], ["swift", "--version"]],
+      "steps": [
+        {
+          "name": "framework-build",
+          "argv": ["bash", "scripts/build-xcframework.sh"],
+          "cwd": "{home}/work/Microsoft.SwiftUI",
+          "timeout": 900
+        }
+      ]
+    },
+    "rebuild-baseline": {
+      "description": "Read the current approved rebuild baseline. Requires --param record=<current-record-path>; never creates approval.",
+      "inputs": ["{record}", "{home}/.copilot/skills/app-rebuild-v2/scripts/rebuild.py"],
+      "tools": [["python3", "--version"]],
+      "steps": [
+        {
+          "name": "baseline",
+          "argv": ["python3", "{home}/.copilot/skills/app-rebuild-v2/scripts/rebuild.py", "check", "{record}", "--gate", "baseline"],
+          "cwd": ".",
+          "timeout": 120
+        }
+      ]
+    }
+  }
+}

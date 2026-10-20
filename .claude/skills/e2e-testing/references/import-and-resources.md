@@ -1,10 +1,12 @@
 # Import & Resource E2E Tests
 
-The native iOS Resources acceptance matrix is in
-`management-pages.md` (R07/R09). It covers browsing, search/filter, bounded
-detail and title/description/tags editing only. The import, vocabulary
-generation, quick-add, delete and full Resource Edit cases below continue to
-apply to the WebApp, not to this accepted native slice.
+The previous native iOS Resources browse/detail/three-field implementation
+was a partial smoke-test subset, not accepted source parity. The Add/Delete,
+import, vocabulary generation, quick-add, and full Resource Edit cases below
+remain required for native source-fidelity acceptance when their journeys are
+implemented; they also continue to apply to the WebApp. Do not expand Android
+Resources by copying the partial iOS subset. Already-created Android screens
+can be corrected in parallel from the same original source contract.
 
 ## 1. Import (`/import`)
 
@@ -24,20 +26,40 @@ apply to the WebApp, not to this accepted native slice.
 
 ## 2. Resource Edit — Generate Vocabulary (`/resources/edit/{id}`)
 
-**Prereqs:** A saved LearningResource with transcript  
-**Services:** AiGatewayClient → API `/api/v1/ai/chat` → OpenAI
+**Prereqs:** A saved, owned, editable LearningResource; a verified owner-bound AI gateway
+
+**Services:** Owner-bound AiGatewayClient → API `/api/v1/ai/chat` → OpenAI
 
 | Step | Action | Verify |
 |------|--------|--------|
-| 1 | Navigate to `/resources/edit/{id}` | Resource fields populated; transcript visible |
-| 2 | Click "Generate from Transcript" | Spinner appears; wait up to 120s |
-| 3 | Generation completes | Vocabulary list appears below transcript |
+| 1 | Open the owned resource; change transcript, language, title, and another scalar without pressing Save | Draft remains editable and AI has not been called |
+| 2 | Click "Generate from Transcript" | Spinner appears; AI receives the **current unsaved** transcript and language, not the previously persisted values |
+| 3 | Generation completes | Draft scalars persist with the new vocabulary mappings; report actual generated/created/reused/skipped counts, not guessed duplicates |
+| 4 | Change the stored resource while a second AI response is in flight | Optimistic conflict preserves the newer row and draft; no stale vocabulary is attached |
+| 5 | Retry with another signed-in owner | Foreign resource and vocabulary stay invisible; no pending write or prompt is sent under the wrong bearer |
 
 **DB:**
 ```sql
 SELECT COUNT(*) FROM ResourceVocabularyMapping WHERE ResourceId = '<id>';
 ```
 **Pitfall:** Non-Latin languages use different generation logic. `IsLatinScriptLanguage` must normalize names.
+The native iOS Save-first Generate gate remains a **temporary, non-parity** state until
+the head enables this current-draft contract after Shared integration; a passing
+SQLite test alone does not satisfy this running-app case.
+
+### 2.1 Native resource file and vocabulary boundaries
+
+- On create and edit, import comma/tab `.txt` or `.csv` with an empty native gloss.
+  Reopen after restart: the owned word and mapping retain the empty gloss.
+- Import on an owned resource whose Language is `Other`; paste/file remain
+  available even though quick-add search/create is unavailable. Foreign or
+  smart resources refuse the same mutation.
+- Unsupported extension, a file over 1 MB (including an underestimated stream),
+  empty file, and read failure show distinct localized, non-parameterized errors.
+  No file path or exception text is displayed or logged.
+- Import only duplicates: no new mapping and **no new pending-sync revision**.
+  Confirmed sync requires an owner-bound operation and a server-row receipt,
+  not an ambient `TriggerSyncAsync` or a local pending indicator.
 
 ## 3. Vocabulary Detail (`/vocabulary/edit/{id}`)
 

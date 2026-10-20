@@ -10,3 +10,18 @@ public sealed record AuthResult(
     string AccessToken,
     string? UserName,
     DateTimeOffset ExpiresOn);
+
+public enum AuthRegistrationOutcome
+{
+    SignedIn, ConfirmationRequired, Rejected, TransportFailure, Unavailable
+}
+
+public sealed record AuthRegistrationResult(
+    AuthRegistrationOutcome Outcome, AuthResult? Session = null);
+
+public enum AuthPasswordRecoveryOutcome
+{
+    Accepted, Rejected, TransportFailure, Unavailable
+}
+
+public sealed record AuthPasswordRecoveryResult(AuthPasswordRecoveryOutcome Outcome);

@@ -1,6 +1,9 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using CoreSync;
+using CoreSync.Http.Client;
+using CoreSync.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
@@ -174,12 +177,38 @@ public sealed class OwnerBoundNativeSyncBearerHandler(
 
 /// <summary>
 /// Explicit opt-in for heads with a real Shared SyncService and its configured
-/// AuthClient. Heads without CoreSync keep the safe default readiness port.
+/// AuthClient. Only these native heads coalesce proved local mapping undos;
+/// legacy CoreSync registrations keep their original export behavior.
+/// Heads without CoreSync keep the safe default readiness port.
 /// </summary>
 public static class OwnerBoundNativeSyncReadinessRegistration
 {
     public static IServiceCollection AddOwnerBoundNativeSyncReadiness(this IServiceCollection services)
     {
+        var localRegistration = services.LastOrDefault(
+            descriptor => descriptor.ServiceType == typeof(ISyncProvider));
+        if (localRegistration?.ImplementationFactory is { } createLocal)
+        {
+            services[services.IndexOf(localRegistration)] =
+                ServiceDescriptor.Singleton<ISyncProvider>(provider =>
+            {
+                var local = (ISyncProvider)createLocal(provider);
+                if (local is not SqliteSyncProvider sqlite)
+                    return local;
+
+                var scope = provider.GetRequiredService<DeviceUserScopeProvider>();
+                var preferences = provider.GetRequiredService<IPreferencesService>();
+                return new NativeLocalOnlyMappingExportProvider(
+                    sqlite, provider.GetRequiredService<ISyncProviderHttpClient>(),
+                    () => scope.TryGetLeasedReadinessOwner(out var owner)
+                        && string.Equals(preferences.Get(
+                            UserProfileRepository.ActiveProfileIdKey, string.Empty),
+                            owner, StringComparison.Ordinal)
+                            ? owner : null,
+                    provider.GetRequiredService<ILogger<NativeLocalOnlyMappingExportProvider>>());
+            });
+        }
+
         services.TryAddTransient<AuthenticatedHttpMessageHandler>();
         services.TryAddTransient<OwnerBoundNativeSyncBearerHandler>();
         services.AddHttpClient("HttpClientToServer")

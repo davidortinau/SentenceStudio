@@ -16,6 +16,42 @@ public sealed partial class NativeQuizPresenter
     public TimeSpan AutoAdvanceDelay =>
         TimeSpan.FromMilliseconds(quizPreferences.AutoAdvanceDuration);
 
+    private async Task<bool> PlayAudioAsync(
+        string text, string language, CancellationToken cancellationToken)
+    {
+        using var playback = CancellationTokenSource.CreateLinkedTokenSource(
+            cancellationToken, _lifetime.Token);
+        Volatile.Write(ref _activeAudio, playback);
+        try
+        {
+            return await media.PlayPromptAsync(text, language, playback.Token);
+        }
+        finally
+        {
+            Interlocked.CompareExchange(ref _activeAudio, null, playback);
+        }
+    }
+
+    private void StopActiveAudioBeforeNavigation(string? expectedTurnId = null)
+    {
+        if (_disposed || _launch is null || !HasOwner(_launch.UserId)
+            || expectedTurnId is not null
+                && (_turnId != expectedTurnId || State.Phase != NativePhase.Feedback))
+            return;
+        var playback = Volatile.Read(ref _activeAudio);
+        if (playback is null)
+            return;
+        try
+        {
+            playback.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            return;
+        }
+        media.StopPlayback();
+    }
+
     public async Task<NativeQuizState> PlayPromptAsync(CancellationToken cancellationToken = default)
     {
         await _gate.WaitAsync(cancellationToken);
@@ -25,33 +61,124 @@ public sealed partial class NativeQuizPresenter
                 || State.Phase != NativePhase.Ready || !_audioAvailable)
                 return RefuseInvalidAction();
 
+            var launch = _launch;
+            var turnId = _turnId;
             var word = _round[_turnIndex].Word;
             var text = _promptUsesNative ? word.NativeLanguageTerm! : word.TargetLanguageTerm!;
             var language = _promptUsesNative
-                ? _profile!.NativeLanguage : _profile!.TargetLanguage;
+                ? _profile!.NativeLanguage : word.Language ?? _profile!.TargetLanguage;
             bool heard;
             string? errorKey = null;
             try
             {
-                heard = await media.PlayPromptAsync(text, language, cancellationToken);
+                heard = await PlayAudioAsync(text, language, cancellationToken);
             }
-            catch (HttpRequestException ex)
+            catch (Exception ex) when (ex is HttpRequestException or IOException
+                || ex is OperationCanceledException && !cancellationToken.IsCancellationRequested)
             {
-                logger.LogWarning(ex, "Quiz prompt audio playback is offline.");
+                logger.LogWarning("Quiz prompt audio playback failed: {Failure}",
+                    ex.GetType().Name);
                 heard = false;
                 errorKey = NativeText.ConnectionError;
             }
-            if (!HasOwner(_launch.UserId))
+            if (_disposed)
+                return new(NativePhase.Idle, NativeDestination.VocabularyQuiz);
+            if (!ReferenceEquals(_launch, launch) || _turnId != turnId)
+                return State;
+            if (!HasOwner(launch.UserId))
                 return RefuseLaunch();
             if (!heard)
             {
                 logger.LogWarning("Quiz prompt audio failed.");
                 _audioAvailable = false;
-                errorKey ??= NativeText.QuizUnavailable;
+                errorKey ??= NativeText.ConnectionError;
             }
             _audioHeard = heard;
             return SetState(QuestionState(graded: false,
                 errorKey: errorKey));
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public async Task<NativeQuizState> PlayAnswerChoiceAsync(
+        int optionIndex, string turnId, CancellationToken cancellationToken = default)
+    {
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            if (_launch is null || !HasOwner(_launch.UserId)
+                || State.Phase is not (NativePhase.Ready or NativePhase.Feedback)
+                || State.Overlay != NativeQuizOverlay.None || State.Sentence is not null
+                || _turnId != turnId || !_promptUsesNative
+                || _mode != "MultipleChoice" || !_answerAudioAvailable
+                || optionIndex < 0 || optionIndex >= _choices.Length)
+                return RefuseInvalidAction();
+
+            var launch = _launch;
+            var choice = _choices[optionIndex];
+            bool heard;
+            try
+            {
+                heard = await PlayAudioAsync(
+                    choice.Text, choice.AudioLanguage ?? _profile!.TargetLanguage,
+                    cancellationToken);
+            }
+            catch (Exception ex) when (ex is HttpRequestException or IOException
+                || ex is OperationCanceledException && !cancellationToken.IsCancellationRequested)
+            {
+                logger.LogWarning("Quiz answer-choice audio unavailable: {Failure}",
+                    ex.GetType().Name);
+                heard = false;
+            }
+            if (_disposed)
+                return new(NativePhase.Idle, NativeDestination.VocabularyQuiz);
+            if (!ReferenceEquals(_launch, launch) || _turnId != turnId)
+                return State;
+            if (!HasOwner(launch.UserId))
+                return RefuseLaunch();
+            if (heard)
+            {
+                _heardAnswerChoices.Add(optionIndex);
+                return SetState(QuestionState(
+                    graded: State.Phase == NativePhase.Feedback));
+            }
+            _answerAudioAvailable = false;
+            _heardAnswerChoices.Clear();
+            _audioAvailable = false;
+            return SetState(QuestionState(graded: State.Phase == NativePhase.Feedback,
+                errorKey: NativeText.ConnectionError));
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public async Task<NativeQuizState> SetPhotoTextVisibleAsync(
+        bool showText, string turnId, CancellationToken cancellationToken = default)
+    {
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            if (_launch is null || !HasOwner(_launch.UserId)
+                || _profile is null || _turnId != turnId
+                || State.Prompt?.CanTogglePhotoText != true
+                || State.Phase is not (NativePhase.Ready or NativePhase.Feedback)
+                || State.Overlay != NativeQuizOverlay.None)
+                return RefuseInvalidAction();
+            if (!await profiles.SaveVocabQuizShowTextWithPhotoAsync(
+                    _launch.UserId, showText))
+                return SetState(State with { ErrorKey = NativeText.SaveFailed });
+            if (!HasOwner(_launch.UserId))
+                return RefuseLaunch();
+            _profile.VocabQuizShowTextWithPhoto = showText;
+            pendingWrites.MarkPending(_launch.UserId);
+            _pendingSync = true;
+            return SetState(QuestionState(graded: State.Phase == NativePhase.Feedback)
+                with { HasPendingSync = true });
         }
         finally
         {
@@ -71,7 +198,30 @@ public sealed partial class NativeQuizPresenter
             if (_launch is null || !HasOwner(_launch.UserId)
                 || State.Overlay != NativeQuizOverlay.None || !_photoLoaded)
                 return RefuseInvalidAction();
-            _photoVisible = visible;
+            _photoDesired = visible;
+            _photoVisible = false;
+            return SetState(QuestionState(graded: State.Phase == NativePhase.Feedback));
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public async Task<NativeQuizState> PhotoRenderedAsync(
+        string turnId, CancellationToken cancellationToken = default)
+    {
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            if (_turnId != turnId || _turnIndex >= _round.Count
+                || State.Phase is not (NativePhase.Ready or NativePhase.Feedback))
+                return State;
+            if (_launch is null || !HasOwner(_launch.UserId)
+                || !_photoLoaded || State.Overlay != NativeQuizOverlay.None
+                || State.Prompt?.PhotoRequested != true)
+                return RefuseInvalidAction();
+            _photoVisible = true;
             return SetState(QuestionState(graded: State.Phase == NativePhase.Feedback));
         }
         finally
@@ -92,10 +242,12 @@ public sealed partial class NativeQuizPresenter
             if (_launch is null || !HasOwner(_launch.UserId))
                 return RefuseInvalidAction();
             _photoLoaded = false;
+            _photoDesired = false;
             _photoVisible = false;
+            _photoAsset = null;
             logger.LogWarning("Quiz photo failed to load; checking the configured prompt.");
             return SetState(QuestionState(graded: State.Phase == NativePhase.Feedback,
-                errorKey: NativeText.QuizUnavailable));
+                errorKey: NativeText.ConnectionError));
         }
         finally
         {
@@ -105,24 +257,69 @@ public sealed partial class NativeQuizPresenter
 
     public NativeQuizState OpenDetails()
     {
-        if (State.Phase is not (NativePhase.Ready or NativePhase.Feedback))
+        if (State.Phase is not (NativePhase.Ready or NativePhase.Feedback)
+            || State.Overlay != NativeQuizOverlay.None
+            || State.Sentence is not null)
             return RefuseInvalidAction();
-        return SetState(State with { Overlay = NativeQuizOverlay.LearningDetails });
+        if (_launch is null || !HasOwner(_launch.UserId) || _turnIndex >= _round.Count)
+            return RefuseInvalidAction();
+        var item = _round[_turnIndex];
+        var p = item.Progress;
+        if (p is not null && (p.UserId != _launch.UserId
+            || p.VocabularyWordId != item.Word.Id))
+            return RefuseLaunch();
+        var reason = item.PendingRecognitionCheck
+            ? "NativeVocabQuiz_ModeRecognitionCheck"
+            : _mode == "Text"
+                ? item.RequiresFullSessionDemonstration && item.UseKnownWordShortcut
+                    ? "NativeVocabQuiz_ModeKnownConfirmation"
+                    : (p?.CurrentStreak ?? 0f) >= 3f
+                        ? "NativeVocabQuiz_ModeLifetimeStreak"
+                        : "NativeVocabQuiz_ModeMastery"
+                : item.RequiresFullSessionDemonstration
+                    ? "NativeVocabQuiz_ModeFocusRecognition"
+                    : "NativeVocabQuiz_ModeBuildingRecognition";
+        var details = new NativeQuizLearningDetails(
+            p?.Status ?? LearningStatus.Unknown,
+            p?.TotalAttempts ?? 0,
+            p?.CorrectAttempts ?? 0,
+            p?.Accuracy ?? 0f,
+            p?.CurrentStreak ?? 0f,
+            p?.ProductionInStreak ?? 0,
+            p?.EffectiveStreak ?? 0f,
+            p?.MasteryScore ?? 0f,
+            p?.NextReviewDate,
+            p?.ReviewInterval ?? 1,
+            p?.EaseFactor ?? 2.5f,
+            p?.IsDueForReview == true,
+            _mode, _launch.DueOnly, reason,
+            Math.Clamp(p?.QuizRecognitionDemonstrations ?? 0, 0, 3));
+        return SetState(State with {
+            Overlay = NativeQuizOverlay.LearningDetails,
+            Details = details
+        });
     }
 
     public NativeQuizState OpenPhoto()
     {
         if (State.Phase is not (NativePhase.Ready or NativePhase.Feedback)
-            || State.Prompt?.ShowPhoto != true)
+            || State.Prompt?.Photo is null
+            || State.Prompt.ShowPhoto != true
+            || State.Overlay != NativeQuizOverlay.None
+            || State.Sentence is not null)
             return RefuseInvalidAction();
-        return SetState(State with { Overlay = NativeQuizOverlay.FullscreenPhoto });
+        ResetSentenceHints(VocabQuizSentenceHintTransition.OpenFullscreen);
+        return SetState(State with {
+            Overlay = NativeQuizOverlay.FullscreenPhoto,
+            SentenceHintsExpanded = false, SentenceHints = []
+        });
     }
 
     public NativeQuizState DismissOverlay()
     {
         if (State.Overlay == NativeQuizOverlay.None)
             return RefuseInvalidAction();
-        return SetState(State with { Overlay = NativeQuizOverlay.None });
+        return SetState(State with { Overlay = NativeQuizOverlay.None, Details = null });
     }
 
     public async Task<NativeQuizState> AnswerAsync(
@@ -150,11 +347,26 @@ public sealed partial class NativeQuizPresenter
             var word = _round[_turnIndex].Word;
             var expected = _promptUsesNative
                 ? word.TargetLanguageTerm! : word.NativeLanguageTerm!;
-            if (_mode == "MultipleChoice" && !_choices.Any(option =>
-                    string.Equals(option.Text, answer, StringComparison.Ordinal)))
+            var answerChoiceIndex = -1;
+            if (_mode == "MultipleChoice")
+                for (var index = 0; index < _choices.Length; index++)
+                    if (string.Equals(_choices[index].Text, answer,
+                            StringComparison.Ordinal))
+                    {
+                        answerChoiceIndex = index;
+                        break;
+                    }
+            if (_mode == "MultipleChoice" && answerChoiceIndex < 0)
             {
                 logger.LogWarning("Quiz answer refused an option outside the visible choice set.");
                 return SetState(State with { ErrorKey = NativeText.QuizUnavailable });
+            }
+            if (_mode == "MultipleChoice" && _answerAudioAvailable
+                && _promptUsesNative
+                && !_heardAnswerChoices.Contains(answerChoiceIndex))
+            {
+                logger.LogWarning("Quiz refused an answer-choice letter before its target audio played.");
+                return SetState(State with { ErrorKey = NativeText.AnswerRequired });
             }
 
             FuzzyMatchResult grade;
@@ -282,6 +494,7 @@ public sealed partial class NativeQuizPresenter
             {
                 await SaveSnapshotAsync(summaryVisible: false, cancellationToken);
                 _overrideRetryPending = false;
+                _feedbackStartedAt = null;
                 return SetState(QuestionState(graded: true)
                     with { HasPendingSync = _pendingSync });
             }
@@ -314,34 +527,27 @@ public sealed partial class NativeQuizPresenter
             || State.Phase != NativePhase.Ready || _pending is not null)
             return RefuseInvalidAction();
         var word = _round[_turnIndex].Word;
+        ResetSentenceSubmission();
+        ResetSentenceHints(VocabQuizSentenceHintTransition.SentenceShortcut);
         return SetState(State with {
             Mode = "Sentence",
             Sentence = NativeQuizModality.RenderSentence(
                 word, _profile!.TargetLanguage),
-            CanSubmit = false
+            CanSubmit = false,
+            SentenceHintsExpanded = false,
+            SentenceHints = [],
+            SentenceResults = [],
+            SentenceSuccessCount = 0
         });
     }
 
     public NativeQuizState CancelSentenceShortcut()
     {
-        if (State.Sentence is null)
+        if (State.Sentence is null || State.IsSentenceSubmitting
+            || _sentenceSubmissionId is not null)
             return RefuseInvalidAction();
+        ResetSentenceSubmission();
         return SetState(QuestionState(graded: false));
-    }
-
-    public NativeQuizState SubmitSentence(string sentence)
-    {
-        if (_launch is null || !HasOwner(_launch.UserId)
-            || State.Phase != NativePhase.Ready || State.Sentence is null
-            || string.IsNullOrWhiteSpace(sentence))
-            return RefuseInvalidAction();
-
-        // The source target-ID/UsageCorrect matching and atomic sentence
-        // attempt write still live in Razor. Do not interpret an AI grade
-        // here or claim L2 production was credited before Shared owns it.
-        logger.LogWarning("Native sentence submission blocked until shared target-use grading is available.");
-        return SetState(State with {
-            Phase = NativePhase.Blocked, ErrorKey = NativeText.QuizUnavailable });
     }
 
     public async Task<NativeQuizState> SubmitCorrectionAsync(
@@ -368,6 +574,7 @@ public sealed partial class NativeQuizPresenter
             {
                 await SaveSnapshotAsync(summaryVisible: false, cancellationToken);
                 _correctionRetryPending = false;
+                _feedbackStartedAt = null;
                 return SetState(QuestionState(graded: true)
                     with { HasPendingSync = _pendingSync });
             }
@@ -398,11 +605,16 @@ public sealed partial class NativeQuizPresenter
             return State;
 
         var expectedTurnId = _turnId;
+        var startedAt = State.FeedbackStartedAt;
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken, _lifetime.Token);
         try
         {
-            await Task.Delay(AutoAdvanceDelay, linked.Token);
+            var elapsed = startedAt is { } start
+                ? DateTimeOffset.UtcNow - start : TimeSpan.Zero;
+            var remaining = AutoAdvanceDelay - elapsed;
+            if (remaining > TimeSpan.Zero)
+                await Task.Delay(remaining, linked.Token);
             return await NextCoreAsync(expectedTurnId, linked.Token);
         }
         catch (OperationCanceledException) when (_disposed)
@@ -417,11 +629,14 @@ public sealed partial class NativeQuizPresenter
     private async Task<NativeQuizState> NextCoreAsync(
         string? expectedTurnId, CancellationToken cancellationToken)
     {
+        StopActiveAudioBeforeNavigation(expectedTurnId);
         await _gate.WaitAsync(cancellationToken);
         try
         {
             if (expectedTurnId is not null
-                && (_turnId != expectedTurnId || State.Phase != NativePhase.Feedback))
+                && (_turnId != expectedTurnId || State.Phase != NativePhase.Feedback
+                    || State.Overlay != NativeQuizOverlay.None
+                    || State.Sentence is not null))
                 return State;
             if (_launch is null || !HasOwner(_launch.UserId)
                 || State.Phase != NativePhase.Feedback || _pending is null
@@ -573,6 +788,36 @@ public sealed partial class NativeQuizPresenter
         var minutes = (int)Math.Floor(elapsed.TotalMinutes);
         try
         {
+            if (_launch.IsRepractice)
+            {
+                if (!_allMasteredAtLaunch && _resumable is not null)
+                    await sessions.CompleteAsync(
+                        _launch.UserId, ActivityType, _contextKey);
+                if (!HasOwner(_launch.UserId))
+                    return RefuseLaunch();
+                _clock.Stop();
+                return SetState(new(NativePhase.Ready, NativeDestination.TodaysPlan,
+                    Elapsed: elapsed, HasPendingSync: _pendingSync));
+            }
+            if (_launch.PlanItemId.Length == 0)
+            {
+                if (!string.IsNullOrWhiteSpace(_adHocPlanItemId)
+                    && !await planProgress.UpdatePlanItemProgressAsync(
+                        _launch.UserId, _adHocPlanItemId, minutes, cancellationToken))
+                    return RefuseLaunch();
+                if (!_allMasteredAtLaunch && _resumable is not null)
+                    await sessions.CompleteAsync(
+                        _launch.UserId, ActivityType, _contextKey);
+                if (!HasOwner(_launch.UserId))
+                    return RefuseLaunch();
+                if (!string.IsNullOrWhiteSpace(_adHocPlanItemId)
+                    || _resumable is not null)
+                    pendingWrites.MarkPending(_launch.UserId);
+                _clock.Stop();
+                _pendingSync = pendingWrites.IsPending(_launch.UserId);
+                return SetState(new(NativePhase.Ready, NativeDestination.TodaysPlan,
+                    Elapsed: elapsed, HasPendingSync: _pendingSync));
+            }
             if (committer is INativeQuizCompletion production)
             {
                 if (string.IsNullOrWhiteSpace(_planItemRowId))
@@ -643,6 +888,7 @@ public sealed partial class NativeQuizPresenter
 
     public async Task<NativeQuizState> BackAsync(CancellationToken cancellationToken = default)
     {
+        StopActiveAudioBeforeNavigation();
         await _gate.WaitAsync(cancellationToken);
         try
         {
@@ -653,6 +899,9 @@ public sealed partial class NativeQuizPresenter
                 return await CompleteAsync(cancellationToken);
             if (_launch is null || !HasOwner(_launch.UserId))
                 return RefuseLaunch();
+            if (State.Phase == NativePhase.ResumeChoice)
+                return SetState(new(NativePhase.Ready, NativeDestination.TodaysPlan,
+                    HasPendingSync: _pendingSync));
             if (State is { Phase: NativePhase.Blocked, Prompt: null,
                     ErrorKey: NativeText.QuizUnavailable })
                 return SetState(new(NativePhase.Ready, NativeDestination.TodaysPlan,
@@ -700,14 +949,25 @@ public sealed partial class NativeQuizPresenter
         {
             await SaveSnapshotAsync(
                 summaryVisible: State.Phase == NativePhase.Summary, cancellationToken);
-            using var lease = plans.ForOwner(_launch.UserId);
             pendingWrites.MarkPending(_launch.UserId);
             _pendingSync = true;
-            var saved = await lease.Service
-                .UpdateProgressAsync(
+            bool saved;
+            if (_launch.PlanItemId.Length == 0)
+                saved = !string.IsNullOrWhiteSpace(_adHocPlanItemId)
+                    && await planProgress.UpdatePlanItemProgressAsync(
+                        _launch.UserId, _adHocPlanItemId,
+                        (int)Math.Floor(_clock.Elapsed.TotalMinutes),
+                        cancellationToken);
+            else if (_launch.IsRepractice)
+                saved = true;
+            else
+            {
+                using var lease = plans.ForOwner(_launch.UserId);
+                saved = await lease.Service.UpdateProgressAsync(
                     _launch.PlanDate, _launch.PlanItemId,
                     (int)Math.Floor(_clock.Elapsed.TotalMinutes),
                     cancellationToken);
+            }
             if (!saved || !HasOwner(_launch.UserId))
                 return RefuseLaunch();
 

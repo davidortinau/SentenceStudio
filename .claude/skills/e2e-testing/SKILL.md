@@ -6,7 +6,8 @@ description: >
   "does it work", "try it", "make sure", or any variation of testing a feature or fix in a running app.
   Also use after EVERY bug fix or feature implementation as a mandatory final verification step — even
   if you think a build check is enough. Covers: launching via Aspire, interacting with Playwright (webapp)
-  or maui-devflow-debug (native), verifying UI state, checking database records, and reading structured logs.
+  or Ailoha (replacement native heads) or maui-devflow-debug (reference MAUI heads),
+  verifying UI state, checking database records, and reading structured logs.
   If someone asks you to test anything in this app, or to verify a fix works, or to run a smoke test,
   or to check that CRUD operations work, or to confirm audio/quiz/import/activity features behave correctly
   — this is the skill to use. Do NOT skip this skill when verification is needed.
@@ -26,13 +27,26 @@ The rule is simple: **if you changed it, you test it**.
 
 ## Testing Platforms
 
+For the replacement app, use the native checkout's `AGENTS.md` and the
+current rebuild session's persistent `files/native-platform-rebuild.json`
+state matrix. Runtime checks must
+exercise **actual SwiftUI-rendered** iOS screens/navigation and **actual
+Jetpack Compose-rendered** Android screens/navigation. A `SwiftView` declaration
+translated to UIKit, a SwiftUI host around UIKit content, a UIKit navigation
+stack, and an Android widget/AppCompat screen do not meet this gate without
+Captain's prior explicit approval for the exact use. Preserve all source
+controls/behavior; old renderer captures remain historical until recaptured.
+Use Ailoha for replacement-head UI actions; DevFlow is for old MAUI reference
+heads only.
+
 | Platform | Tool | When to use |
 |----------|------|-------------|
-| **Webapp** (Blazor Server) | Aspire + **Canvas browser** (Playwright fallback) | Default — fastest feedback loop |
-| **macOS (AppKit)** / **Mac Catalyst** | maui-devflow-debug skill | macOS is the preferred native surface; Mac Catalyst only for iOS-shaped behavior |
-| **iOS / Android** | maui-devflow-debug skill | When testing mobile-specific behavior |
+| **Webapp** (Blazor Server) | Aspire + **Canvas browser** (Playwright fallback) | When the WebApp/shared workflow is changed |
+| **Replacement iOS / Android / macOS** | Ailoha Debug plus current binary and runtime evidence | Test the actual changed platform and required states |
+| **Temporary MAUI reference heads** | maui-devflow-debug skill | Reference capture only, not replacement-head validation |
 
-Always test on webapp first. Only test native when the feature is platform-specific.
+Test the surface that changed; do not substitute a WebApp or old MAUI result
+for a replacement native-head journey.
 
 ## Browser: Canvas First
 

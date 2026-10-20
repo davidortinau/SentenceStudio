@@ -1,27 +1,56 @@
 using AndroidX.Compose;
 using AndroidX.Compose.Runtime;
+using AndroidX.Compose.UI.Text.Input;
 using Microsoft.Extensions.DependencyInjection;
+using SentenceStudio.Abstractions;
+using SentenceStudio.Contracts.Theme;
 using SentenceStudio.Native;
+using SentenceStudio.Services.Theme;
 using ComposeScrollState = AndroidX.Compose.ScrollState;
 
 namespace SentenceStudio.Native.Android;
 
 internal sealed partial class AndroidSliceShell(MainActivity activity) : IDisposable
 {
+    private enum AccountEntry { SignIn, Register, Recovery }
+
     private readonly SemaphoreSlim _actions = new(1, 1);
     private readonly CancellationTokenSource _lifetime = new();
     private readonly MutableState<int> _revision = new(0);
+    private DevicePreferencesThemeStore _appearanceStore =
+        new(new AndroidPreferences(activity));
+    private AppearanceSelection? _appearance;
+    private bool _appearanceSettingsOpen;
+    private ComposeScrollState _settingsScroll = null!;
     private ComposeScrollState _signInScroll = null!;
+    private ComposeScrollState _onboardingScroll = null!;
     private ComposeScrollState _dashboardScroll = null!;
     private ComposeScrollState _quizScroll = null!;
+    private ComposeScrollState _detailsScroll = null!;
     private bool _insightExpanded;
     private bool _dashboardMenuOpen;
+    private AccountEntry _accountEntry;
+    private bool _registrationComplete;
+    private bool _resetSent;
+    private int _onboardingStep;
+    private int _onboardingMinutes = 15;
+    private string _onboardingCefr = "A2";
+    private string[] _suggestedNames = [];
+    private bool _loadingSuggestedNames;
     private AndroidServiceHost? _host;
     private IServiceScope? _scope;
     private NativeAuthPresenter? _auth;
     private NativeDashboardPresenter? _dashboard;
     private NativeQuizPresenter? _quiz;
+    private AndroidQuizMedia? _media;
+    private AndroidQuizPhotoDialog? _photoDialog;
+    private FocusRequester? _photoFocus;
+    private string? _photoFocusTurnId;
+    private int _photoFocusRestoreVersion;
     private string? _displayedQuizTurnId;
+    private string? _feedbackPhotoOwner;
+    private string? _feedbackPhotoTurnId;
+    private string? _feedbackPhotoUri;
     private bool _preview;
     private bool _disposed;
 
@@ -33,16 +62,61 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
     internal NativeQuizState Quiz { get; private set; } =
         new(NativePhase.Idle, NativeDestination.VocabularyQuiz);
     internal MutableState<string> Email { get; } = new(string.Empty);
+    internal MutableState<TextFieldValue> DisplayName { get; } =
+        new(ComposeExtensions.NewTextFieldValue(string.Empty));
+    internal MutableState<TextFieldValue> OnboardingName { get; } =
+        new(ComposeExtensions.NewTextFieldValue(string.Empty));
+    internal MutableState<string> NativeLanguage { get; } = new("English");
+    internal MutableState<string> TargetLanguage { get; } = new("Korean");
     internal MutableState<string> Password { get; } = new(string.Empty);
+    internal MutableState<string> ConfirmPassword { get; } = new(string.Empty);
     internal MutableState<bool> Remember { get; } = new(false);
     internal MutableState<bool> ShowPassword { get; } = new(false);
-    internal MutableState<string> Answer { get; } = new(string.Empty);
-    internal MutableState<string> Correction { get; } = new(string.Empty);
+    internal MutableState<bool> ShowConfirmPassword { get; } = new(false);
+    internal MutableState<TextFieldValue> Answer { get; } =
+        new(ComposeExtensions.NewTextFieldValue(string.Empty));
+    internal MutableState<TextFieldValue> Correction { get; } =
+        new(ComposeExtensions.NewTextFieldValue(string.Empty));
     internal MutableState<string> Error { get; } = new(string.Empty);
     internal MutableState<bool> Busy { get; } = new(false);
 
     internal void RefreshForUiMode() => Post(() =>
         _revision.Value = unchecked(_revision.Value + 1));
+
+    private AppearanceSelection CurrentAppearance =>
+        _appearance ??= _appearanceStore.TryLoad(out var stored)
+            ? stored : AppearanceSelection.Default;
+
+    private void UseAppearanceStore(bool preview)
+    {
+        _appearanceStore = new DevicePreferencesThemeStore(
+            new AndroidPreferences(activity, preview));
+        _appearance = null;
+    }
+
+    private void OpenAppearanceSettings() => Publish(() =>
+    {
+        if (Destination is not (NativeDestination.Dashboard or NativeDestination.TodaysPlan)
+            || Busy.Value)
+            return;
+        _dashboardMenuOpen = false;
+        _appearanceSettingsOpen = true;
+        Error.Value = string.Empty;
+    });
+
+    private void SelectAppearanceMode(ThemeMode mode)
+    {
+        if (!_appearanceSettingsOpen)
+            return;
+        var next = CurrentAppearance.WithMode(mode);
+        if (next == CurrentAppearance)
+            return;
+        Execute(async cancellationToken =>
+        {
+            await _appearanceStore.SaveAsync(next, cancellationToken);
+            Publish(() => _appearance = next);
+        });
+    }
 
     public void Start() => Execute(InitializeNormalAsync);
 
@@ -51,6 +125,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
         _host = AndroidServiceHost.Create(activity);
         await _host.InitializeAsync(cancellationToken);
         _scope = _host.CreateScope();
+        _media = _scope.ServiceProvider.GetRequiredService<AndroidQuizMedia>();
         _auth = _scope.ServiceProvider.GetRequiredService<NativeAuthPresenter>();
         _dashboard = _scope.ServiceProvider.GetRequiredService<NativeDashboardPresenter>();
         _auth.StateChanged += OnAuthChanged;
@@ -60,6 +135,28 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
 
     public bool HandleBack()
     {
+        if (_appearanceSettingsOpen)
+        {
+            Publish(() => _appearanceSettingsOpen = false);
+            return true;
+        }
+        if (_photoDialog is not null || Quiz.Overlay == NativeQuizOverlay.FullscreenPhoto)
+        {
+            DismissOverlay();
+            return true;
+        }
+        if (Destination == NativeDestination.Onboarding
+            && _onboardingStep > 0)
+        {
+            OnboardingPrevious();
+            return true;
+        }
+        if (Destination == NativeDestination.SignIn
+            && _accountEntry != AccountEntry.SignIn)
+        {
+            ReturnToSignIn();
+            return true;
+        }
         if (!AndroidRoutePolicy.HandlesBack(Destination))
             return false;
         Execute(async cancellationToken =>
@@ -80,6 +177,15 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
         return true;
     }
 
+    internal bool HandlePhotoEscape()
+    {
+        if (_photoDialog is null
+            || Quiz.Overlay != NativeQuizOverlay.FullscreenPhoto)
+            return false;
+        DismissOverlay();
+        return true;
+    }
+
     public void SignIn() => Execute(async cancellationToken =>
     {
         if (_auth is null)
@@ -89,6 +195,35 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
             cancellationToken: cancellationToken);
         Post(() => Password.Value = string.Empty);
         await HandleAuthAsync(result, cancellationToken);
+    });
+
+    public void OpenRegistration() => Publish(() =>
+    {
+        _accountEntry = AccountEntry.Register;
+        _registrationComplete = false;
+        Password.Value = string.Empty;
+        ConfirmPassword.Value = string.Empty;
+        ShowPassword.Value = false;
+        ShowConfirmPassword.Value = false;
+        Error.Value = string.Empty;
+    });
+
+    public void OpenRecovery() => Publish(() =>
+    {
+        _accountEntry = AccountEntry.Recovery;
+        _resetSent = false;
+        Password.Value = string.Empty;
+        Error.Value = string.Empty;
+    });
+
+    public void ReturnToSignIn() => Publish(() =>
+    {
+        _accountEntry = AccountEntry.SignIn;
+        Password.Value = string.Empty;
+        ConfirmPassword.Value = string.Empty;
+        ShowPassword.Value = false;
+        ShowConfirmPassword.Value = false;
+        Error.Value = string.Empty;
     });
 
     public void RetryAuth() => Execute(async cancellationToken =>
@@ -107,8 +242,13 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
         {
             Remember.Value = false;
             ShowPassword.Value = false;
+            ShowConfirmPassword.Value = false;
+            Password.Value = string.Empty;
+            ConfirmPassword.Value = string.Empty;
             _insightExpanded = false;
             _dashboardMenuOpen = false;
+            _appearanceSettingsOpen = false;
+            _chooseSelector.Value = (int)ChooseSelector.None;
         });
 #if DEBUG
         if (_preview)
@@ -127,6 +267,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
             _host = null;
             _dashboard = null;
             _preview = false;
+            UseAppearanceStore(preview: false);
             Publish(() => Destination = NativeDestination.SignIn);
             await InitializeNormalAsync(cancellationToken);
             return;
@@ -135,6 +276,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
         if (_auth is null)
             throw new InvalidOperationException("Authentication has not initialized.");
         await HandleAuthAsync(await _auth.SignOutAsync(cancellationToken), cancellationToken);
+        _media?.ClearForSignedOut();
     });
 
 #if DEBUG
@@ -158,10 +300,12 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
         _host = AndroidServiceHost.CreatePreview(activity);
         await _host.InitializeAsync(cancellationToken);
         _scope = _host.CreateScope();
+        _media = _scope.ServiceProvider.GetRequiredService<AndroidQuizMedia>();
         await DebugPreviewFixture.PrepareAsync(_host, _scope, cancellationToken);
         _dashboard = _scope.ServiceProvider.GetRequiredService<NativeDashboardPresenter>();
         _dashboard.StateChanged += OnDashboardChanged;
         _preview = true;
+        UseAppearanceStore(preview: true);
         _insightExpanded = false;
         _dashboardMenuOpen = false;
         Publish(() => Destination = NativeDestination.Dashboard);
@@ -204,7 +348,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
         var launch = await _dashboard.SelectAssignedQuizAsync(planItemId, cancellationToken);
         if (launch is null)
         {
-            ShowError("This assigned quiz is no longer available. Refresh Today's Plan.");
+            ShowError(Localize(NativeText.QuizUnavailable));
             return;
         }
         if (_quiz is null)
@@ -214,8 +358,9 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
         }
         Publish(() =>
         {
-            Answer.Value = string.Empty;
-            Correction.Value = string.Empty;
+            Answer.Value = ComposeExtensions.NewTextFieldValue(string.Empty);
+            Correction.Value = ComposeExtensions.NewTextFieldValue(string.Empty);
+            Quiz = new(NativePhase.Loading, NativeDestination.VocabularyQuiz);
             Destination = NativeDestination.VocabularyQuiz;
         });
         await ApplyQuizStateAsync(await _quiz.OpenAsync(launch, cancellationToken), cancellationToken);
@@ -241,7 +386,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
             _ = AutoAdvanceAsync(previous);
     });
 
-    public void SubmitTextAnswer() => AnswerQuiz(Answer.Value);
+    public void SubmitTextAnswer() => AnswerQuiz(Answer.Value.Text ?? string.Empty);
 
     public void NextQuestion() => Execute(async cancellationToken =>
         await ApplyQuizStateAsync(
@@ -250,7 +395,8 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
     public void SubmitCorrection() => Execute(async cancellationToken =>
         await ApplyQuizStateAsync(
             await RequiredQuiz().SubmitCorrectionAsync(
-                Correction.Value, cancellationToken), cancellationToken));
+                Correction.Value.Text ?? string.Empty, cancellationToken),
+            cancellationToken));
 
     public void OverrideQuiz() => Execute(async cancellationToken =>
     {
@@ -277,9 +423,108 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
         await ApplyQuizStateAsync(
             await RequiredQuiz().DoneAsync(cancellationToken), cancellationToken));
 
-    public void OpenDetails() => ApplyQuizState(RequiredQuiz().OpenDetails());
-    public void OpenPhoto() => ApplyQuizState(RequiredQuiz().OpenPhoto());
-    public void DismissOverlay() => ApplyQuizState(RequiredQuiz().DismissOverlay());
+    public void OpenPhoto()
+    {
+        if (Quiz.Phase != NativePhase.Ready
+            || Quiz.Prompt?.ShowPhoto != true
+            || Quiz.Overlay != NativeQuizOverlay.None
+            || !_preview && !HasDashboardOwner(Auth.UserId))
+            return;
+        var state = RequiredQuiz().OpenPhoto();
+        if (state.Overlay != NativeQuizOverlay.FullscreenPhoto)
+        {
+            ApplyQuizState(state);
+            return;
+        }
+        if (state.Prompt?.PhotoUri is not { } uri || _media is null
+            || !_media.TryGetPhoto(uri, out var bitmap) || bitmap is null)
+        {
+            ApplyQuizState(RequiredQuiz().DismissOverlay());
+            ShowError(Localize(NativeText.QuizUnavailable));
+            return;
+        }
+        if (ShowPhotoDialog(bitmap, state.TurnId, uri))
+            ApplyQuizState(state);
+        else
+            ApplyQuizState(RequiredQuiz().DismissOverlay());
+    }
+
+    private bool ShowPhotoDialog(
+        global::Android.Graphics.Bitmap bitmap, string? turnId, string photoUri)
+    {
+        var ownerId = Auth.UserId;
+        if (string.IsNullOrWhiteSpace(turnId)
+            || string.IsNullOrWhiteSpace(ownerId))
+            return false;
+        AndroidQuizPhotoDialog? viewer = null;
+        try
+        {
+            viewer = new AndroidQuizPhotoDialog(
+                activity, bitmap, ownerId, turnId, photoUri,
+                Localize("Common_Close"), Localize(NativeText.QuizPhoto),
+                Localize("VocabQuiz_FullscreenPhoto"),
+                () => OnPhotoDismissed(viewer!));
+            _photoDialog?.Dispose();
+            _photoDialog = viewer;
+            _photoFocusTurnId = turnId;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            viewer?.Dispose();
+            _photoDialog = null;
+            _photoFocusTurnId = null;
+            ShowFailure(ex);
+            return false;
+        }
+    }
+
+    private void OnPhotoDismissed(AndroidQuizPhotoDialog viewer)
+    {
+        if (!ReferenceEquals(_photoDialog, viewer))
+            return;
+        _photoDialog = null;
+        viewer.Dispose();
+        if (_quiz?.State.Overlay == NativeQuizOverlay.FullscreenPhoto)
+            ApplyQuizState(_quiz.DismissOverlay());
+        QueuePhotoFocusRestore();
+    }
+
+    public void DismissOverlay()
+    {
+        var viewer = _photoDialog;
+        _photoDialog = null;
+        viewer?.Dispose();
+        if (_quiz?.State.Overlay is not (null or NativeQuizOverlay.None))
+            ApplyQuizState(_quiz.DismissOverlay());
+        if (viewer is not null)
+            QueuePhotoFocusRestore();
+    }
+
+    private void ClosePhotoDialogWithoutRestore()
+    {
+        var viewer = _photoDialog;
+        _photoDialog = null;
+        _photoFocusTurnId = null;
+        viewer?.Dispose();
+    }
+
+    private void QueuePhotoFocusRestore()
+    {
+        var turn = _photoFocusTurnId;
+        _photoFocusTurnId = null;
+        if (turn is null)
+            return;
+        Publish(() =>
+        {
+            if (Destination == NativeDestination.VocabularyQuiz
+                && HasDashboardOwner(Auth.UserId)
+                && Quiz.TurnId == turn
+                && Quiz.Phase == NativePhase.Ready
+                && Quiz.Prompt?.ShowPhoto == true)
+                _photoFocusRestoreVersion++;
+        });
+    }
 
     public void PlayPrompt() => Execute(async cancellationToken =>
         await ApplyQuizStateAsync(
@@ -333,8 +578,26 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
     {
         Publish(() =>
         {
+            if (Auth.UserId != state.UserId)
+            {
+                ClosePhotoDialogWithoutRestore();
+                _media?.ClearForSignedOut();
+                Dashboard = new(NativePhase.Loading);
+                Quiz = new(NativePhase.Idle, NativeDestination.VocabularyQuiz);
+                _displayedQuizTurnId = null;
+                ClearFeedbackPhoto();
+                _insightExpanded = false;
+                _appearanceSettingsOpen = false;
+                _chooseSelector.Value = (int)ChooseSelector.None;
+            }
             Auth = state;
             Destination = AndroidRoutePolicy.AfterAuth(state);
+            if (Destination != NativeDestination.SignIn)
+            {
+                _accountEntry = AccountEntry.SignIn;
+                Password.Value = string.Empty;
+                ConfirmPassword.Value = string.Empty;
+            }
         });
         if (state.Phase == NativePhase.Ready
             && state.Destination == NativeDestination.Dashboard)
@@ -342,11 +605,18 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
             if (_dashboard is not null)
                 await _dashboard.LoadAsync(cancellationToken);
         }
+        else if (state.Phase == NativePhase.Ready
+            && state.Destination == NativeDestination.Onboarding)
+            await LoadOnboardingAsync(state.UserId, cancellationToken);
     }
 
     private async Task ApplyQuizStateAsync(
         NativeQuizState state, CancellationToken cancellationToken)
     {
+        if (state.Prompt is { ShowPhoto: true, PhotoUri: { } photoUri }
+            && state.TurnId is { } turnId
+            && (_media is null || !_media.TryGetPhoto(photoUri, out _)))
+            state = await RequiredQuiz().PhotoFailedAsync(turnId, cancellationToken);
         ApplyQuizState(state);
         if (state.Destination == NativeDestination.TodaysPlan
             && state.Phase == NativePhase.Ready && _dashboard is not null)
@@ -362,18 +632,47 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
         });
     }
 
-    private void OnAuthChanged(NativeAuthState state) => Publish(() => Auth = state);
+    private void OnAuthChanged(NativeAuthState state) => Publish(() =>
+    {
+        if (Auth.UserId != state.UserId)
+        {
+            ClosePhotoDialogWithoutRestore();
+            _media?.ClearForSignedOut();
+            Dashboard = new(NativePhase.Loading);
+            Quiz = new(NativePhase.Idle, NativeDestination.VocabularyQuiz);
+            _displayedQuizTurnId = null;
+            ClearFeedbackPhoto();
+            _insightExpanded = false;
+            _appearanceSettingsOpen = false;
+            _chooseSelector.Value = (int)ChooseSelector.None;
+        }
+        Auth = state;
+    });
     private void OnDashboardChanged(NativeDashboardState state) =>
-        Publish(() => Dashboard = state);
+        Publish(() => Dashboard = _preview || HasDashboardOwner(Auth.UserId)
+            ? _dashboard?.State ?? state
+            : new(NativePhase.Blocked, ErrorKey: NativeText.PlanError));
     private void OnQuizChanged(NativeQuizState state) =>
-        Publish(() => UpdateQuizState(state));
+        Publish(() => UpdateQuizState(_preview || HasDashboardOwner(Auth.UserId)
+            ? _quiz?.State ?? state
+            : new(NativePhase.Blocked, NativeDestination.VocabularyQuiz,
+                ErrorKey: NativeText.QuizUnavailable)));
 
     private void UpdateQuizState(NativeQuizState state)
     {
+        if (_photoDialog is { } viewer
+            && !AndroidQuizPhotoPresentationPolicy.CanPresent(
+                state, Auth.UserId, viewer.OwnerId, viewer.TurnId,
+                viewer.PhotoUri))
+            ClosePhotoDialogWithoutRestore();
+        if (!AndroidQuizFeedbackPhotoPolicy.CanDisplay(
+                state, Auth.UserId, _feedbackPhotoOwner,
+                _feedbackPhotoTurnId, _feedbackPhotoUri))
+            ClearFeedbackPhoto();
         if (AndroidQuizInputPolicy.ShouldClearForNewTurn(_displayedQuizTurnId, state))
         {
-            Answer.Value = string.Empty;
-            Correction.Value = string.Empty;
+            Answer.Value = ComposeExtensions.NewTextFieldValue(string.Empty);
+            Correction.Value = ComposeExtensions.NewTextFieldValue(string.Empty);
             _displayedQuizTurnId = state.TurnId;
         }
         else if (state.Phase is NativePhase.ResumeChoice or NativePhase.Summary
@@ -382,6 +681,13 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
             _displayedQuizTurnId = null;
         }
         Quiz = state;
+    }
+
+    private void ClearFeedbackPhoto()
+    {
+        _feedbackPhotoOwner = null;
+        _feedbackPhotoTurnId = null;
+        _feedbackPhotoUri = null;
     }
 
     private void Execute(Func<CancellationToken, Task> action) => _ = ExecuteAsync(action);
@@ -419,12 +725,15 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
 
     private void ShowFailure(Exception ex)
     {
-        global::Android.Util.Log.Error(
-            "SentenceStudio.Native", $"Android journey failed ({ex.GetType().Name}): {ex.Message}");
-        ShowError(ex is InvalidOperationException
-            && ex.Message.Contains("PendingModelChangesWarning", StringComparison.Ordinal)
-            ? "Shared SQLite migrations do not match the Android data model. No database was reset."
-            : $"Something went wrong ({ex.GetType().Name}). Check the Android logs and retry.");
+        if (ex is InvalidOperationException
+            && (ex.Message.Contains("pending migrations", StringComparison.OrdinalIgnoreCase)
+                || ex.Message.Contains("PendingModelChangesWarning", StringComparison.Ordinal)))
+            global::Android.Util.Log.Error("SentenceStudio.Native",
+                "Android SQLite migration preflight refused startup; existing data was not reset.");
+        else
+            global::Android.Util.Log.Error(
+                "SentenceStudio.Native", $"Android journey failed ({ex.GetType().Name}).");
+        ShowError(Localize(NativeText.UnexpectedError));
     }
 
     private void ShowError(string message) => Post(() => Error.Value = message);
@@ -432,7 +741,16 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
     private void Publish(Action update) => Post(() =>
     {
         update();
-        activity.UpdateBackHandling(AndroidRoutePolicy.HandlesBack(Destination));
+        if (_photoDialog is not null
+            && Destination != NativeDestination.VocabularyQuiz)
+            ClosePhotoDialogWithoutRestore();
+        activity.UpdateBackHandling(_appearanceSettingsOpen
+            || AndroidRoutePolicy.HandlesBack(Destination)
+            || _photoDialog is not null
+            || Destination == NativeDestination.Onboarding
+                && _onboardingStep > 0
+            || Destination == NativeDestination.SignIn
+                && _accountEntry != AccountEntry.SignIn);
         _revision.Value = unchecked(_revision.Value + 1);
     });
 
@@ -461,6 +779,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
             _quiz.StateChanged -= OnQuizChanged;
             _quiz.Dispose();
         }
+        ClosePhotoDialogWithoutRestore();
         _scope?.Dispose();
         _host?.Dispose();
         _lifetime.Dispose();

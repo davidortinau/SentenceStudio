@@ -14,7 +14,7 @@ using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Native;
 
-public sealed class NativeDashboardPresenter(
+public sealed partial class NativeDashboardPresenter(
     NativePlanLeaseFactory plans,
     DeviceUserScopeProvider userScope,
     IPreferencesService preferences,
@@ -23,10 +23,19 @@ public sealed class NativeDashboardPresenter(
     IActivitySessionService sessions,
     NativePendingWrites pendingWrites,
     VocabularyProgressRepository vocabulary,
+    LearningResourceRepository resources,
+    SkillProfileRepository skills,
     ILogger<NativeDashboardPresenter> logger)
 {
+    private const string ModeKeyPrefix = "DashboardMode:";
     private NativeDashboardState _state = new(NativePhase.Idle);
     private string? _stateOwner;
+    private string? _modeOwner;
+    private NativeDashboardMode _mode = NativeDashboardMode.TodaysPlan;
+    private ImmutableArray<NativeNumberContextStat> _numberContexts = [];
+    private string? _numberErrorKey;
+    private NativeChooseOwnState? _chooseOwn;
+    private long _chooseOwnGeneration;
 
     public NativeDashboardState State =>
         _stateOwner is not null
@@ -36,20 +45,36 @@ public sealed class NativeDashboardPresenter(
 
     public event Action<NativeDashboardState>? StateChanged;
 
+    public NativeDashboardState SetMode(NativeDashboardMode mode)
+    {
+        if (!TryCurrentUser(out var owner))
+            return SetState(new(NativePhase.Blocked, ErrorKey: NativeText.PlanError));
+        if (!Enum.IsDefined(mode))
+            throw new ArgumentOutOfRangeException(nameof(mode));
+        EnsureMode(owner);
+        _mode = mode;
+        preferences.Set(ModeKeyPrefix + owner,
+            mode == NativeDashboardMode.TodaysPlan ? "TodaysPlan" : "ChooseOwn");
+        return SetState(_state with { Mode = mode }, owner);
+    }
+
     public Task<NativeDashboardState> LoadAsync(CancellationToken cancellationToken = default) =>
-        LoadCoreAsync(generateIfMissing: false, synchronize: false, cancellationToken);
+        LoadCoreAsync(generateIfMissing: true, synchronize: false, cancellationToken);
 
     public Task<NativeDashboardState> GenerateAsync(CancellationToken cancellationToken = default) =>
         LoadCoreAsync(generateIfMissing: true, synchronize: false, cancellationToken);
 
     public Task<NativeDashboardState> RefreshAsync(CancellationToken cancellationToken = default) =>
-        LoadCoreAsync(generateIfMissing: false, synchronize: true, cancellationToken);
+        LoadCoreAsync(generateIfMissing: true, synchronize: true, cancellationToken);
 
     public async Task<NativeDashboardState> RegenerateAsync(CancellationToken cancellationToken = default)
     {
         if (!TryCurrentUser(out var owner))
             return SetState(new(NativePhase.Blocked, ErrorKey: NativeText.PlanError));
 
+        EnsureMode(owner);
+        if (_mode != NativeDashboardMode.TodaysPlan)
+            return State;
         SetState(new(NativePhase.Loading, HasPendingSync: pendingWrites.IsPending(owner)), owner);
         try
         {
@@ -60,6 +85,7 @@ public sealed class NativeDashboardPresenter(
             var vocabSummary = await LoadVocabSummaryAsync(owner, cancellationToken);
             if (!TryCurrentUser(out var currentOwner) || currentOwner != owner)
                 return SetState(new(NativePhase.Blocked, ErrorKey: NativeText.PlanError));
+            await LoadNumberContextsAsync(lease.Database, owner, cancellationToken);
 
             await using var transaction = await lease.Database.Database.BeginTransactionAsync(
                 IsolationLevel.Serializable, cancellationToken);
@@ -135,13 +161,10 @@ public sealed class NativeDashboardPresenter(
         var item = plan.Items.SingleOrDefault(card =>
             card.Id == planItemId && card.ActivityType == nameof(PlanActivityType.VocabularyReview));
         if (item?.IsCompleted == true)
-        {
             await ReconcileCompletedQuizSessionsAsync(userId, plan, cancellationToken);
-            return null;
-        }
         if (item is null)
         {
-            logger.LogWarning("Native quiz card launch refused an unavailable or completed item.");
+            logger.LogWarning("Native quiz card launch refused an unavailable item.");
             return null;
         }
 
@@ -151,7 +174,10 @@ public sealed class NativeDashboardPresenter(
             item.Id,
             item.ResourceId is null ? [] : [item.ResourceId],
             item.SkillId,
-            item.FocusVocabularyIds.ToImmutableArray());
+            item.FocusVocabularyIds.ToImmutableArray())
+        {
+            IsRepractice = item.IsCompleted
+        };
     }
 
     private async Task<NativeDashboardState> LoadCoreAsync(
@@ -163,6 +189,7 @@ public sealed class NativeDashboardPresenter(
             return SetState(new(NativePhase.Blocked, ErrorKey: NativeText.PlanError));
         }
 
+        EnsureMode(owner);
         var pendingSync = State.Phase == NativePhase.Idle
             || State.HasPendingSync || pendingWrites.IsPending(owner);
         SetState(new(NativePhase.Loading, HasPendingSync: pendingSync), owner);
@@ -185,8 +212,42 @@ public sealed class NativeDashboardPresenter(
 
             using var lease = plans.ForOwner(owner);
             var planService = lease.Service;
+            var hasResources = await lease.Database.LearningResources.AsNoTracking()
+                .AnyAsync(resource => resource.UserProfileId == owner, cancellationToken);
+            if (!hasResources)
+            {
+                if (!synchronize)
+                {
+                    var revision = pendingWrites.Revision(owner);
+                    var readiness = await sync.SynchronizeAsync(owner, cancellationToken);
+                    if (!TryCurrentUser(out var syncedOwner) || syncedOwner != owner)
+                        return SetState(new(NativePhase.Blocked, ErrorKey: NativeText.PlanError));
+                    if (readiness == NativeSyncOutcome.Confirmed)
+                        pendingWrites.MarkConfirmedIfUnchanged(owner, revision);
+                    pendingSync = readiness != NativeSyncOutcome.Confirmed
+                        || pendingWrites.IsPending(owner);
+                    hasResources = await lease.Database.LearningResources.AsNoTracking()
+                        .AnyAsync(resource => resource.UserProfileId == owner,
+                            cancellationToken);
+                }
+                var hasVocabulary = await lease.Database.VocabularyProgresses
+                    .AsNoTracking()
+                    .AnyAsync(progress => progress.UserId == owner,
+                        cancellationToken);
+                if (!hasResources && pendingSync)
+                    return SetState(new(NativePhase.PendingSync,
+                        HasPendingSync: true), owner);
+                if (!hasResources && !hasVocabulary)
+                    return SetState(new(NativePhase.Empty) {
+                        IsNewUser = true
+                    }, owner);
+            }
+            await LoadNumberContextsAsync(lease.Database, owner, cancellationToken);
+            if (_mode == NativeDashboardMode.ChooseOwn)
+                await LoadChooseOwnDataAsync(owner, cancellationToken);
             var plan = await planService.GetTodayAsync(cancellationToken);
-            if (generateIfMissing && plan is null)
+            if (generateIfMissing && _mode == NativeDashboardMode.TodaysPlan
+                && plan is null)
             {
                 NativePlanCreateResult created;
                 try
@@ -352,6 +413,48 @@ public sealed class NativeDashboardPresenter(
         return new(newCount, learning, familiar, review, known, accuracy);
     }
 
+    private async Task LoadNumberContextsAsync(
+        ApplicationDbContext db, string owner, CancellationToken cancellationToken)
+    {
+        _numberContexts = [];
+        _numberErrorKey = null;
+        try
+        {
+            var targetLanguage = await db.UserProfiles.AsNoTracking()
+                .Where(profile => profile.Id == owner)
+                .Select(profile => profile.TargetLanguage)
+                .SingleOrDefaultAsync(cancellationToken);
+            if (!string.Equals(targetLanguage, "Korean", StringComparison.OrdinalIgnoreCase))
+                return;
+            var rows = await db.NumberMasteryProgresses.AsNoTracking()
+                .Where(progress => progress.UserProfileId == owner
+                    && progress.LanguageCode == "ko")
+                .ToListAsync(cancellationToken);
+            var now = DateTime.UtcNow;
+            _numberContexts = rows.GroupBy(progress => progress.ContextCode)
+                .Select(group =>
+                {
+                    var correct = group.Sum(item => item.CorrectCount);
+                    var total = group.Sum(item => item.TotalCount);
+                    return new NativeNumberContextStat(
+                        group.Key, correct, total,
+                        group.Count(item => item.DueDate <= now),
+                        total > 0 ? (int)Math.Round(100.0 * correct / total) : 0);
+                })
+                .OrderBy(item => item.ContextCode, StringComparer.Ordinal)
+                .ToImmutableArray();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Native dashboard number insight could not be loaded.");
+            _numberErrorKey = NativeText.NumberInsightError;
+        }
+    }
+
     private static ImmutableArray<NativePlanCard> MapCards(
         IEnumerable<PlanItemDto> items, IReadOnlyDictionary<string, string> resourceTitles) =>
         items.Select(item =>
@@ -395,9 +498,32 @@ public sealed class NativeDashboardPresenter(
             value = new(NativePhase.Blocked, ErrorKey: NativeText.PlanError);
             expectedOwner = null;
         }
+        if (expectedOwner is not null)
+        {
+            EnsureMode(expectedOwner);
+            value = value with {
+                Mode = _mode,
+                NumberContexts = _numberContexts,
+                NumberErrorKey = _numberErrorKey,
+                ChooseOwn = _chooseOwn
+            };
+        }
         _stateOwner = expectedOwner;
         _state = value;
         StateChanged?.Invoke(State);
         return State;
+    }
+
+    private void EnsureMode(string owner)
+    {
+        if (_modeOwner == owner)
+            return;
+        _modeOwner = owner;
+        _numberContexts = [];
+        _numberErrorKey = null;
+        _chooseOwn = null;
+        _chooseOwnGeneration++;
+        _mode = preferences.Get(ModeKeyPrefix + owner, "TodaysPlan") == "ChooseOwn"
+            ? NativeDashboardMode.ChooseOwn : NativeDashboardMode.TodaysPlan;
     }
 }

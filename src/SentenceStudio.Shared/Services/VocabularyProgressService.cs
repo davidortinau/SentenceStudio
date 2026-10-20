@@ -102,9 +102,10 @@ public class VocabularyProgressService : IVocabularyProgressService
                 .AsNoTracking()
                 .FirstOrDefaultAsync(w => w.Id == attempt.VocabularyWordId);
 
-            if (word != null &&
-                (word.LexicalUnitType == LexicalUnitType.Phrase ||
-                 word.LexicalUnitType == LexicalUnitType.Sentence))
+            var cascadeActivity = word is null
+                ? null
+                : CreateConstituentCascadeActivity(word.LexicalUnitType, attempt);
+            if (cascadeActivity is not null)
             {
                 var constituents = await db.PhraseConstituents
                     .AsNoTracking()
@@ -115,10 +116,6 @@ public class VocabularyProgressService : IVocabularyProgressService
                 _logger.LogInformation(
                     "PhraseCascade start: PhraseId={PhraseId} UserId={UserId} ConstituentCount={Count}",
                     word.Id, attempt.UserId, constituents.Count);
-
-                // Tag cascaded activity with correctness suffix for analytics
-                var correctnessSuffix = attempt.WasCorrect ? "" : ":Incorrect";
-                var cascadeActivity = $"PhraseCascade:{attempt.Activity}{correctnessSuffix}";
 
                 foreach (var constituentId in constituents)
                 {
@@ -191,6 +188,42 @@ public class VocabularyProgressService : IVocabularyProgressService
             // Legacy field
             CorrectAnswersInContext = attempt.WasCorrect ? 1 : 0
         };
+    }
+
+    /// <summary>Returns the source activity tag for direct phrase/sentence constituents.</summary>
+    public static string? CreateConstituentCascadeActivity(
+        LexicalUnitType lexicalUnitType, VocabularyAttempt attempt)
+    {
+        ArgumentNullException.ThrowIfNull(attempt);
+        return lexicalUnitType is LexicalUnitType.Phrase or LexicalUnitType.Sentence
+            ? $"PhraseCascade:{attempt.Activity}{(attempt.WasCorrect ? "" : ":Incorrect")}"
+            : null;
+    }
+
+    /// <summary>Creates an exposure-only context without crediting a child attempt.</summary>
+    public static VocabularyLearningContext CreatePassiveExposureContext(
+        string vocabularyProgressId, string activity, DateTime exposedAt)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(vocabularyProgressId);
+        return new VocabularyLearningContext
+        {
+            VocabularyProgressId = vocabularyProgressId,
+            Activity = activity,
+            InputMode = "Passive",
+            WasCorrect = true,
+            DifficultyScore = 0f,
+            ContextType = "Exposure",
+            LearnedAt = exposedAt
+        };
+    }
+
+    /// <summary>Updates exposure metadata without changing practice or mastery.</summary>
+    public static void ApplyPassiveExposure(VocabularyProgress progress, DateTime exposedAt)
+    {
+        ArgumentNullException.ThrowIfNull(progress);
+        progress.LastExposedAt = exposedAt;
+        progress.ExposureCount++;
+        progress.UpdatedAt = exposedAt;
     }
 
     /// <summary>
@@ -687,23 +720,11 @@ public class VocabularyProgressService : IVocabularyProgressService
     {
         var progress = await GetOrCreateProgressAsync(vocabularyWordId, userId);
 
-        var context = new VocabularyLearningContext
-        {
-            VocabularyProgressId = progress.Id,
-            Activity = activity,
-            InputMode = "Passive",
-            WasCorrect = true,
-            DifficultyScore = 0f,
-            ContextType = "Exposure",
-            LearnedAt = DateTime.Now
-        };
-
+        var context = CreatePassiveExposureContext(progress.Id, activity, DateTime.Now);
         await _contextRepo.SaveAsync(context);
 
         // Update passive exposure tracking — NOT LastPracticedAt (SRS uses that)
-        progress.LastExposedAt = DateTime.Now;
-        progress.ExposureCount++;
-        progress.UpdatedAt = DateTime.Now;
+        ApplyPassiveExposure(progress, DateTime.Now);
         await _progressRepo.SaveAsync(progress);
 
         _logger.LogDebug("Passive exposure recorded: Word {WordId}, User {UserId}, Activity {Activity}, ExposureCount {Count}",

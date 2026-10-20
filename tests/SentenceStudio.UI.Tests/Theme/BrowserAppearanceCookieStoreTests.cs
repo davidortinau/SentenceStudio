@@ -62,6 +62,18 @@ public class BrowserAppearanceCookieStoreTests
     }
 
     [Fact]
+    public void Web_cookie_rejects_native_System_before_SSR_can_emit_a_Bootstrap_mode()
+    {
+        var context = RequestWithCookie("v1.ocean.system.110");
+
+        AppearanceCookie.TryRead(context.Request, out _).Should().BeFalse();
+        var service = new ThemeService(Build(context));
+        service.Current.Should().Be(AppearanceSelection.Default);
+        service.CurrentMode.Should().Be("dark");
+        context.Response.Headers.SetCookie.ToString().Should().BeEmpty();
+    }
+
+    [Fact]
     public void Each_request_reads_its_own_browsers_cookie()
     {
         // Two learners, two browsers, one server. The scoped store means each request's HttpContext
@@ -133,6 +145,18 @@ public class BrowserAppearanceCookieStoreTests
         (await store.LoadAsync()).Should().BeNull();
     }
 
+    [Fact]
+    public async Task Web_circuit_refuses_native_System_without_caching_or_writing_it()
+    {
+        var channel = new FakeCookieChannel { Value = "v1.forest.system.115" };
+        var store = Build(context: null, channel);
+
+        (await store.LoadAsync()).Should().BeNull();
+        store.TryLoad(out _).Should().BeFalse();
+        channel.ReadCount.Should().Be(1);
+        channel.Written.Should().BeEmpty();
+    }
+
     // -------------------------------------------------------------------------------------------
     // Circuit read path
     // -------------------------------------------------------------------------------------------
@@ -199,6 +223,20 @@ public class BrowserAppearanceCookieStoreTests
         setCookie.Should().Contain("secure", "the request was HTTPS");
         setCookie.Should().NotContain("httponly",
             "the circuit has no response to write through, so the browser must be able to write it");
+    }
+
+    [Fact]
+    public async Task Web_store_does_not_write_System_to_an_SSR_response()
+    {
+        var context = RequestWithCookie(null);
+        var store = Build(context);
+
+        Func<Task> save = async () => await store.SaveAsync(
+            new AppearanceSelection("ocean", ThemeMode.System, 1.0));
+
+        await save.Should().ThrowAsync<ArgumentOutOfRangeException>();
+        context.Response.Headers.SetCookie.ToString().Should().BeEmpty();
+        store.TryLoad(out _).Should().BeFalse();
     }
 
     [Fact]
@@ -303,6 +341,23 @@ public class BrowserAppearanceCookieStoreTests
         await store.SaveAsync(new AppearanceSelection("brite", ThemeMode.Dark, 1.5));
 
         channel.Written.Should().ContainSingle().Which.Should().Be("v1.brite.dark.150");
+    }
+
+    [Fact]
+    public async Task Web_store_does_not_persist_System_or_replace_a_cached_explicit_choice()
+    {
+        var channel = new FakeCookieChannel();
+        var store = Build(context: null, channel);
+        var light = new AppearanceSelection("forest", ThemeMode.Light, 1.25);
+        await store.SaveAsync(light);
+
+        Func<Task> saveSystem = async () => await store.SaveAsync(
+            light.WithMode(ThemeMode.System));
+
+        await saveSystem.Should().ThrowAsync<ArgumentOutOfRangeException>();
+        channel.Written.Should().ContainSingle().Which.Should().Be(light.ToToken());
+        store.TryLoad(out var cached).Should().BeTrue();
+        cached.Should().Be(light);
     }
 
     [Fact]

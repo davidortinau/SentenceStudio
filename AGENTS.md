@@ -16,6 +16,62 @@ SentenceStudio is moving from .NET MAUI Blazor Hybrid native clients to:
 - **macOS:** .NET for native macOS/AppKit with SwiftUI.
 - **Web:** the existing Blazor WebApp remains supported.
 
+### Native presentation correction — Captain, 2026-10-03
+
+> All SwiftUI for iOS is our goal. If anywhere we absolutely must use UIKit, raise that with me first for approval. The same goes for Jetpack Compose on Android. Revise the plan and whatever instructions you have noted so we don't make this mistake in the future for this project. Then go do the refactoring.
+
+All actual iOS feature screens, forms, lists, selectors, dialogs, content, and
+navigation must be authored **and rendered** in SwiftUI. Android actual UI and
+navigation must be authored **and rendered** in Jetpack Compose; do not substitute
+app-authored `Android.Widget`/AppCompat views, dialogs, or viewers. "Native
+navigation" means SwiftUI `NavigationStack`/`NavigationLink`/path or Compose
+navigation while preserving approved push/pop, title, back, safe-area, and
+return behavior; it does **not** authorize a UIKit `UINavigationController`.
+
+**Approval gate:** Before **any app-authored UIKit use** on iOS or Android
+widget/AppCompat/view-rendered UI use on Android, even for hosting, startup,
+navigation, lifecycle, pickers, permissions, or services, first show Captain
+the specific minimal necessity, alternatives considered, framework/source
+citations, and data impact. Obtain his explicit approval scoped to that exact
+use before implementation. Do not presume a blanket platform-bootstrap or
+host exception. Non-UI platform services that do not use these UI APIs remain
+available; a picker that renders UI is not automatically a non-UI service.
+SwiftUI's private framework internals are not app-authored UIKit usage.
+
+`NativeVisualViewController` is project-authored UIKit translation of
+`SwiftView` nodes into `UIStackView`/`UILabel`/`UIButton`; it does not become
+SwiftUI rendering by retaining declarations, IDs, a package reference, or a
+thin SwiftUI wrapper. Do not replace it with another custom translation
+renderer. If a currently required feature lacks a SwiftUI/Compose bridge
+primitive (for example `NavigationStack`, `Form`, or `Picker`), first read that
+bridge and Comet in `/Users/davidortinau/work/maui-labs` as **read-only prior
+art**, then extend the existing bridge only as narrowly as the blocked feature
+requires. Do not change external repositories without Captain's permission,
+except under the narrow standing approval below.
+
+**Local SwiftUI bridge standing approval (Captain, 2026-10-07):** For an
+approved native feature or correction blocked by the installed facade, small,
+additive, parameterized convenience modifiers in the existing local
+`Microsoft.SwiftUI` bridge and a distinct matching local package build do not
+need another permission request. Preserve defaults for existing callers; read
+the framework/source and prior art, add guards and tests, and retain build,
+review, and running-app verification gates. This does **not** authorize a
+general Frame/layout framework, new dependencies, architecture changes,
+upstream publishing, commits or pushes, app-authored UIKit/Android widgets,
+data/schema/auth changes, or interruption of a live Quiz/app session. Other
+external-repository edits still require scoped approval.
+
+The 2026-09-30 native-navigation decision approved behavior, not UIKit
+implementation; the weaker 2026-10-03 "prefer SwiftUI/Compose" inbox note is
+superseded on implementation and exceptions, not erased from history. The
+approved source-fidelity contract remains **177 required states, 56 open
+findings, zero exclusions**. Keep all source actions, controls, overlays,
+services, owner scoping, API/auth/plan/sync behavior, and existing safety
+corrections. No missing state may be removed or marked accepted by this
+architecture correction. Earlier UIKit/widget evidence stays historical until
+the new presentation is captured and reviewed. The existing macOS SwiftUI
+goal remains; this correction adds no macOS implementation work.
+
 The native platform heads use platform-native UI stacks. New native code must
 not depend directly or transitively on the MAUI UI stack:
 
@@ -88,6 +144,8 @@ Use the standalone `Microsoft.AndroidX.Compose` package from
 
 - Author Compose UI in C#.
 - Use Material 3 and native Compose semantics.
+- Implement screens and navigation in Compose itself, including dialogs and
+  selectors; platform-view fallback needs Captain's scoped approval above.
 - Keep UI state and platform-independent workflows outside the Android head.
 - Add stable semantic/test tags for Ailoha and accessibility.
 - Verify both Debug and Release/R8. Compose JNI calls can work in Debug and be
@@ -102,8 +160,11 @@ Use the standalone `Microsoft.SwiftUI` package from
 
 - Author feature declarations in C# through the SwiftUI facade.
 - Share feature views and design tokens between iOS and macOS.
-- Keep UIKit and AppKit hosts, scenes, windows, menus, navigation shells,
-  permissions, and lifecycle behavior platform-specific.
+- Render actual iOS feature UI and navigation through SwiftUI, not an
+  app-authored UIKit interpretation of SwiftUI declarations. Platform-specific
+  lifecycle/services never grant an automatic UIKit presentation exception.
+- Preserve the existing macOS SwiftUI goal and platform-specific desktop
+  behavior; do not add macOS implementation as part of this correction.
 - iPhone and iPad must have adaptive layouts; do not stretch a phone layout.
 - macOS must behave like a desktop application with resizable windows,
   keyboard navigation, menus, pointer interaction, and desktop density.
@@ -167,6 +228,15 @@ Required sequence:
 3. Review the running slice on every target platform.
 4. Expand shared foundations only in response to a demonstrated blocker or the
    next approved slice.
+
+The risk-first slice sets delivery order, not source-parity scope. Every
+created native screen and reachable overlay retains its complete original
+UI and behavior contract until Captain explicitly approves a change. New
+feature expansion remains on hold; after Captain approves the source backlog,
+separate iOS and Android owners correct already-created screens in parallel
+from the original source. Assign one owner per shared presenter or service;
+serialize only overlapping Shared/Native builds, restores, tests, or actual
+shared-file prerequisites.
 
 Before starting infrastructure, abstractions, CI guards, reusable libraries,
 upstream work, or broad refactoring, answer:
@@ -581,8 +651,8 @@ Do not:
 - Lists must use native virtualization.
 - Respect safe areas and system insets exactly once at the boundary-owning
   container.
-- Use native platform navigation and modal conventions while preserving the
-  source information hierarchy and outcomes.
+- Use SwiftUI navigation/modals on iOS and Compose navigation/modals on
+  Android while preserving the source information hierarchy and outcomes.
 - Keep iOS/macOS shared feature UI adaptive rather than platform-identical.
 - Do not put emoji in UI, logs, code output, or user-facing text. Use native
   symbols/icons or plain text.

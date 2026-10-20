@@ -335,6 +335,48 @@ public partial class UserProfileRepository : SentenceStudio.Application.Learners
     }
 
     /// <summary>
+    /// Updates only onboarding fields on the exact authenticated owner row,
+    /// or creates that same owner's local row after the caller verified the token.
+    /// Returns zero for an unchanged owned row and -1 for invalid ownership or input.
+    /// </summary>
+    public async Task<int> SaveOnboardingProfileForOwnerAsync(
+        string owner, string name, string nativeLanguage, string targetLanguage,
+        int preferredSessionMinutes, string targetCefrLevel, string? email,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(owner))
+        {
+            _logger.LogWarning("SaveOnboardingProfileForOwnerAsync refused an absent owner.");
+            return -1;
+        }
+        if (string.IsNullOrWhiteSpace(name)
+            || string.IsNullOrWhiteSpace(nativeLanguage)
+            || string.IsNullOrWhiteSpace(targetLanguage)
+            || preferredSessionMinutes <= 0)
+            return -1;
+
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var profile = await db.UserProfiles.FirstOrDefaultAsync(
+            item => item.Id == owner, cancellationToken);
+        if (profile is null)
+        {
+            profile = new UserProfile {
+                Id = owner, Email = email, CreatedAt = DateTime.UtcNow
+            };
+            db.UserProfiles.Add(profile);
+        }
+        profile.Name = name;
+        profile.NativeLanguage = nativeLanguage;
+        profile.TargetLanguage = targetLanguage;
+        profile.DisplayLanguage = "English";
+        profile.PreferredSessionMinutes = preferredSessionMinutes;
+        profile.TargetCEFRLevel = targetCefrLevel;
+        var affected = await db.SaveChangesAsync(cancellationToken);
+        return affected;
+    }
+
+    /// <summary>
     /// Persists only the <see cref="UserProfile.VocabQuizShowTextWithPhoto"/> property for
     /// the given user. Unlike <see cref="SaveAsync"/>, this performs a tracked single-property
     /// update and cannot overwrite unrelated concurrent changes.

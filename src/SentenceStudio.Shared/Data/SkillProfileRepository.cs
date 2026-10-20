@@ -123,7 +123,8 @@ public partial class SkillProfileRepository : SentenceStudio.Application.Skills.
         }
     }
 
-    public async Task<string> SaveAsync(SkillProfile item, string? userProfileId = null)
+    public async Task<string> SaveAsync(
+        SkillProfile item, string? userProfileId = null, bool triggerSync = true)
     {
         var userId = ResolveUserId(userProfileId);
         if (string.IsNullOrWhiteSpace(userId))
@@ -165,7 +166,8 @@ public partial class SkillProfileRepository : SentenceStudio.Application.Skills.
 
             int result = await db.SaveChangesAsync();
 
-            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            if (triggerSync)
+                _syncService?.TriggerSyncAsync().ConfigureAwait(false);
 
             return item.Id;
         }

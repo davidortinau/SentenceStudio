@@ -42,7 +42,7 @@ public sealed class NativeHeadContractTests
         Assert.Contains(project.Descendants("PackageReference"),
             reference => reference.Attribute("Include")?.Value == "Microsoft.Maui.Essentials");
         Assert.Equal("true", project.Descendants("UseMauiEssentials").Single().Value);
-        Assert.Equal("0.1.0-preview.3", project.Descendants("PackageVersion")
+        Assert.Equal("0.1.0-preview.25", project.Descendants("PackageVersion")
             .Single(item => item.Attribute("Include")?.Value == "Microsoft.SwiftUI")
             .Attribute("Version")?.Value);
         Assert.DoesNotContain(project.Descendants("PackageReference"), reference =>
@@ -64,6 +64,36 @@ public sealed class NativeHeadContractTests
             id.Attribute("Condition")?.Value.Contains("NativePreviewSurface",
                 StringComparison.Ordinal) == true
             && id.Value.EndsWith(".fixture", StringComparison.Ordinal));
+        Assert.Contains(project.Descendants("AssemblyAttribute"), item =>
+            item.Attribute("Condition")?.Value.Contains("NativePreviewAppearance",
+                StringComparison.Ordinal) == true
+            && item.Elements("_Parameter1").Single().Value
+                == "SentenceStudio.Native.PreviewAppearance");
+    }
+
+    [Fact]
+    public void LauncherTitle_UsesDefaultAndAllowsPerBuildReviewLabelWithoutChangingIdentity()
+    {
+        var project = XDocument.Load(Path.Combine(
+            HeadPath, "SentenceStudio.Native.iOS.csproj"));
+        var manifest = XDocument.Load(Path.Combine(HeadPath, "Info.plist"));
+
+        var titles = project.Descendants("ApplicationTitle").ToArray();
+        Assert.Equal(2, titles.Length);
+        Assert.Equal("SentenceStudio", titles[0].Value);
+        Assert.Equal("SS Review", titles[1].Value);
+        Assert.Equal(
+            "'$(ApplicationId)' == 'com.simplyprofound.sentencestudio.native.pageui.kaylee'",
+            titles[1].Attribute("Condition")?.Value);
+        Assert.DoesNotContain(manifest.Descendants("key"),
+            key => key.Value == "CFBundleDisplayName");
+        Assert.Equal("com.simplyprofound.sentencestudio.native.debug",
+            project.Descendants("ApplicationId").Single(id =>
+                id.Attribute("Condition")?.Value
+                    == "'$(Configuration)' == 'Debug'").Value);
+        Assert.DoesNotContain("NativeApplicationTitle",
+            File.ReadAllText(Path.Combine(HeadPath,
+                "SentenceStudio.Native.iOS.csproj")));
     }
 
     [Fact]
@@ -76,10 +106,10 @@ public sealed class NativeHeadContractTests
         Assert.Contains("Preferences.Default.Remove(key)", preferences);
         Assert.DoesNotContain("Preferences.Default.Clear(", preferences);
 
-        var scene = File.ReadAllText(Path.Combine(HeadPath, "SceneDelegate.cs"));
-        Assert.Contains("Platform.Init(() => Window?.RootViewController", scene);
-        Assert.True(scene.IndexOf("Platform.Init(", StringComparison.Ordinal)
-            < scene.IndexOf("_app.Start()", StringComparison.Ordinal));
+        var program = File.ReadAllText(Path.Combine(HeadPath, "Program.cs"));
+        Assert.Contains("SwiftUIApplication.Run(scene.Root)", program);
+        Assert.DoesNotContain("Platform.Init(", program);
+        Assert.DoesNotContain("SceneDelegate", program);
 
         var services = File.ReadAllText(Path.Combine(HeadPath, "NativeServices.cs"));
         Assert.Contains("services.AddSingleton<IPreferencesService, NativePreferences>();", services);
@@ -92,14 +122,15 @@ public sealed class NativeHeadContractTests
     public void CanonicalHead_UsesExistingCoreSyncAndGeneratesMissingPlanAfterOwnerBoundRestore()
     {
         var services = File.ReadAllText(Path.Combine(HeadPath, "NativeServices.cs"));
-        var controller = File.ReadAllText(Path.Combine(HeadPath, "NativeAppController.cs"));
+        var controller = File.ReadAllText(Path.Combine(
+            HeadPath, "App/ApplicationController.cs"));
 
         Assert.Contains("services.AddSyncServices(database, endpoint, downloadOnlyProfile: true)", services);
         Assert.Contains("services.AddSingleton<ISyncService, SyncService>();", services);
         Assert.Contains("services.AddOwnerBoundNativeSyncReadiness();", services);
         Assert.DoesNotContain("services.AddSingleton<INativeSyncReadiness, NativeApiSyncReadiness>();",
             services);
-        Assert.Contains("await _dashboard.GenerateAsync(_lifetime.Token)", controller);
+        Assert.Contains("await _dashboard.LoadAsync(_lifetime.Token)", controller);
         Assert.Contains("await _dashboard.RefreshAsync(_lifetime.Token)", controller);
         Assert.Contains("services.AddSingleton<IAuthService, NativeProfileAuthService>();", services);
     }
@@ -121,72 +152,54 @@ public sealed class NativeHeadContractTests
     }
 
     [Fact]
-    public void VisualHost_KeepsSwiftUiActionsAccessibleAndOwnsInsetsOnce()
+    public void NamedFeatureViews_AreMountedDirectlyUnderSwiftUIOwnedScene()
     {
-        var host = File.ReadAllText(Path.Combine(
-            HeadPath, "Platform", "NativeVisualViewController.cs"));
-        Assert.Contains("SwiftUIHost.CreateController(node)", host);
-        Assert.Contains("UIButton.FromType(UIButtonType.System)", host);
-        Assert.Contains("button.TouchUpInside += (_, _) => node.InvokeAction();", host);
-        Assert.Contains("field.EditingChanged += (_, _) =>", host);
-        Assert.Contains("_answerChanged?.Invoke(field.Text ?? string.Empty)", host);
-        Assert.Contains("Card(field, null, compact: true)", host);
-        Assert.Contains("Card(row, id + \".container\", compact: true)", host);
-        Assert.Contains("selected ? NativeVisualTheme.Primary", host);
-        Assert.Contains("SelectedAnswer = value", File.ReadAllText(Path.Combine(
-            HeadPath, "NativeAppController.cs")));
-        Assert.Contains("View.SafeAreaLayoutGuide.TopAnchor", host);
-        Assert.Contains("View.KeyboardLayoutGuide.TopAnchor", host);
-        Assert.Contains("View.KeyboardLayoutGuide.UsesBottomSafeArea = false", host);
-        Assert.Contains(
-            "ContentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentBehavior.Never",
-            host);
-        Assert.Contains("_scroll.ContentInset = new UIEdgeInsets(0, 0, scrollBottom, 0)", host);
-        Assert.Contains(
-            "_scroll.VerticalScrollIndicatorInsets = new UIEdgeInsets(0, 0, scrollBottom, 0)",
-            host);
-        Assert.Contains("SwiftUIHost.DetachController(node, host)", host);
+        var scene = File.ReadAllText(Path.Combine(
+            HeadPath, "App/ApplicationScene.cs"));
+        var dashboard = File.ReadAllText(Path.Combine(
+            HeadPath, "Features", "Dashboard", "DashboardView.cs"));
+        var quiz = File.ReadAllText(Path.Combine(
+            HeadPath, "Features", "Quiz", "QuizView.cs"));
+        var controller = File.ReadAllText(Path.Combine(
+            HeadPath, "App/ApplicationController.Quiz.cs"));
+
+        Assert.Contains("Views.VStack(_app.RenderDashboardContent(_style))", scene);
+        Assert.Contains("_app.RenderQuizContent(_style, out _quizPhotoCover)", scene);
+        Assert.Contains("Views.VStack(_app.RenderResources", scene);
+        Assert.Contains("Views.VStack(ResourceFormContent())", scene);
+        Assert.Contains("SelectedAnswer = value", controller);
+        Assert.Contains("WithAccessibilityIdentifier(NativeAccess.Plan)", dashboard);
+        Assert.Contains("WithAccessibilityIdentifier(\"native.quiz.screen\")", quiz);
+        Assert.DoesNotContain("SwiftUIHost.CreateController", scene);
+        Assert.DoesNotContain("UIStackView", scene);
     }
 
     [Fact]
-    public void UIKitStack_PushesQuizAndKeepsTheSystemBackItemForTapAndSwipe()
+    public void SwiftUIStack_PushesQuizAndRoutesSystemBackThroughPresenterOnce()
     {
-        var scene = File.ReadAllText(Path.Combine(HeadPath, "SceneDelegate.cs"));
-        var controller = File.ReadAllText(Path.Combine(HeadPath, "NativeAppController.cs"));
+        var scene = File.ReadAllText(Path.Combine(HeadPath, "App/ApplicationScene.cs"));
+        var controller = File.ReadAllText(Path.Combine(
+            HeadPath, "App/ApplicationController.Quiz.cs"));
         var feature = File.ReadAllText(Path.Combine(
-            HeadPath, "Features", "NativeFeatureViews.cs"));
+            HeadPath, "Features", "Quiz", "QuizView.cs"));
 
-        Assert.Contains("RootViewController = _navigationController", scene);
-        Assert.Contains("_navigation.SetViewControllers([dashboardController], false)", controller);
-        Assert.Contains("_navigation.PushViewController(_quizController, true)", controller);
-        Assert.Contains("_navigation.PopToRootViewController(true)", controller);
-        Assert.Contains("_navigation.SetViewControllers([_signInModal], false)", controller);
-        Assert.Contains("new UIBarButtonItem(string.Empty, UIBarButtonItemStyle.Plain, null, null)",
-            controller);
-        Assert.Contains("navigationItem.BackBarButtonItem = backItem", controller);
-        Assert.Contains("backItem.AccessibilityLabel = Text(\"Dashboard_Title\")", controller);
-        Assert.Contains("_quizBackAction ??= UIAction.Create(_ => Submit(BackFromQuizAsync))",
-            controller);
-        Assert.Contains("_quizController!.NavigationItem.BackAction = _quizBackAction",
-            controller);
-        Assert.Equal(1, controller.Split("Submit(BackFromQuizAsync)",
-            StringSplitOptions.None).Length - 1);
-        Assert.DoesNotContain("NavigationItem.LeftBarButtonItem", controller);
-        Assert.DoesNotContain("NavigationItem.HidesBackButton = true", controller);
-        Assert.DoesNotContain("chevron.backward", controller);
-        Assert.Contains("_navigation.InteractivePopGestureRecognizer", controller);
-        Assert.Contains("!ReferenceEquals(_navigation.TopViewController, shown)", controller);
-        Assert.Contains("_quizController.NavigationItem.BackAction = null", controller);
+        Assert.Contains("Views.NavigationStack(_selectorSheet", scene);
+        Assert.Contains("_dashboardStack.Push(\"quiz\", _quizSheet)", scene);
+        Assert.Contains("_app.OnQuizPopped()", scene);
+        Assert.Contains("if (routes.Count != 0)", scene);
+        Assert.Contains("if (_app.IsQuizOpen)", scene);
         Assert.Contains("if (_handlingNativePop || !_nativePopPending)", controller);
         Assert.Contains("await BackFromQuizAsync()", controller);
         Assert.Contains("_nativePopPending", controller);
+        Assert.DoesNotContain("UINavigationController", scene);
         Assert.DoesNotContain("WithAccessibilityIdentifier(\"native.quiz.back\")", feature);
     }
 
     [Fact]
-    public void ResumeChoiceBack_ReturnsWithoutSuspendingAnUnopenedRound()
+    public void ResumeChoiceBack_UsesOwnerCheckedPresenterWithoutUnopenedRoundSnapshot()
     {
-        var source = File.ReadAllText(Path.Combine(HeadPath, "NativeAppController.cs"));
+        var source = File.ReadAllText(Path.Combine(
+            HeadPath, "App/ApplicationController.Quiz.cs"));
         var start = source.IndexOf("private async Task BackFromQuizAsync()", StringComparison.Ordinal);
         Assert.True(start >= 0);
         var end = source.IndexOf("private async Task RetryQuizAsync()", start,
@@ -194,132 +207,135 @@ public sealed class NativeHeadContractTests
         Assert.True(end > start);
         var back = source[start..end];
 
-        Assert.Contains("NativePhase.ResumeChoice", back);
+        Assert.DoesNotContain("NativePhase.ResumeChoice", back);
+        Assert.Equal(1, back.Split("await _quiz.BackAsync(",
+            StringSplitOptions.None).Length - 1);
         Assert.Contains("await ReturnToDashboardAsync();", back);
-        Assert.True(back.IndexOf("await ReturnToDashboardAsync()", StringComparison.Ordinal)
-            < back.IndexOf("await _quiz.BackAsync(", StringComparison.Ordinal));
+        Assert.True(back.LastIndexOf("await _quiz.BackAsync(", StringComparison.Ordinal)
+            < back.LastIndexOf("await ReturnToDashboardAsync()", StringComparison.Ordinal));
+        Assert.DoesNotContain("SuspendAsync(", back);
+        Assert.DoesNotContain("SaveSnapshotAsync(", back);
     }
 
     [Fact]
-    public void QuizKeepsTheSameChoiceButtonsAndShowsFeedbackAfterThem()
+    public void QuizKeepsChoicesButShowsStatusAndAnswerBeforeThem()
     {
         var feature = File.ReadAllText(Path.Combine(
-            HeadPath, "Features", "NativeFeatureViews.cs"));
-        var host = File.ReadAllText(Path.Combine(
-            HeadPath, "Platform", "NativeVisualViewController.cs"));
+            HeadPath, "Features", "Quiz", "QuizQuestionView.cs"));
         var questionStart = feature.IndexOf(
-            "private static void RenderQuestion(", StringComparison.Ordinal);
+            "internal static void Add(", StringComparison.Ordinal);
         var feedbackStart = feature.IndexOf(
-            "private static void RenderFeedback(", StringComparison.Ordinal);
+            "private static SwiftView QuizChoice(", StringComparison.Ordinal);
         Assert.True(questionStart >= 0 && feedbackStart > questionStart);
         var question = feature[questionStart..feedbackStart];
 
-        var choice = question.IndexOf(
-            "items.Add(Views.Button(choice.Text", StringComparison.Ordinal);
+        var term = question.IndexOf(
+            "native.quiz.correct-answer", StringComparison.Ordinal);
         var feedback = question.IndexOf(
             "if (state.Phase == NativePhase.Feedback)", StringComparison.Ordinal);
-        Assert.True(choice >= 0 && feedback > choice);
-        Assert.DoesNotContain("Views.Text(label)", question);
+        var choices = question.IndexOf(
+            "if (state.Mode == \"MultipleChoice\")", StringComparison.Ordinal);
+        Assert.True(feedback >= 0 && term > feedback && choices > term);
+        Assert.Contains("QuizChoice(style, state, choice.Text,", question);
+        Assert.Contains("audioChoices && !canSelectAudioChoice(index)", question);
         Assert.Contains("else if (state.Mode == \"Text\")", question);
-        Assert.Contains("state.SelectedAnswer ?? throw new InvalidOperationException(", question);
-        Assert.Contains(
-            "Views.TextField(text(NativeText.AnswerRequired), displayedAnswer, answerChanged)",
+        Assert.Contains("state.SelectedAnswer ?? answer", question);
+        Assert.Contains("NativeText.CorrectionRequired : NativeText.AnswerRequired",
             question);
-        Assert.Contains("button.Enabled = !_quizBusy && _quizCanAnswer", host);
-        Assert.Contains("content.AccessibilityValue = correct", host);
-        Assert.Contains("status.WidthAnchor.ConstraintEqualTo(20)", host);
-        Assert.Contains("button.TitleLabel.Lines = 0", host);
+        Assert.Contains("answerChanged(value);", question);
+        Assert.Contains("!string.IsNullOrWhiteSpace(value)", question);
+        Assert.Contains("|| string.IsNullOrWhiteSpace(_answer)",
+            File.ReadAllText(Path.Combine(
+                HeadPath, "App/ApplicationController.Quiz.cs")));
+        Assert.Contains("if (_busy || _quizState.Phase != NativePhase.Ready)",
+            File.ReadAllText(Path.Combine(
+                HeadPath, "App/ApplicationController.Quiz.cs")));
     }
 
     [Fact]
     public void QuizSummary_ProjectsWordMeaningAndLocalizedTextualResult()
     {
         var feature = File.ReadAllText(Path.Combine(
-            HeadPath, "Features", "NativeFeatureViews.cs"));
-        var host = File.ReadAllText(Path.Combine(
-            HeadPath, "Platform", "NativeVisualViewController.cs"));
+            HeadPath, "Features", "Quiz", "QuizSummaryView.cs"));
+        var quiz = File.ReadAllText(Path.Combine(
+            HeadPath, "Features", "Quiz", "QuizView.cs"));
+        var feedback = File.ReadAllText(Path.Combine(
+            HeadPath, "Features", "Quiz", "QuizFeedbackView.cs"));
         Assert.Contains("state.Results.IsDefault ? [] : state.Results", feature);
         Assert.Contains("case NativePhase.Error when state.Destination == NativeDestination.QuizSummary:",
-            feature);
+            quiz);
         Assert.Contains("result.TargetLanguageTerm", feature);
         Assert.Contains("result.NativeLanguageTerm", feature);
         Assert.Contains("result.WasCorrect", feature);
-        Assert.Contains("NativeText.QuizCorrect : NativeText.QuizIncorrect", feature);
+        Assert.Contains("? result.ReadyToRotateOut", feature);
+        Assert.Contains(": NativeText.QuizCorrect", feature);
+        Assert.Contains(": NativeText.QuizIncorrect", feature);
         Assert.Contains("NativeAccess.QuizSummaryResult", feature);
-        Assert.Contains("NativeVisualTheme.Primary", host);
-        Assert.Contains("text(NativeText.QuizOverride)", feature);
-        Assert.Contains("state.Prompt?.ShowPhoto == true", feature);
+        Assert.Contains("Views.Text(result.TargetLanguageTerm)", feature);
+        Assert.Contains("text(NativeText.QuizOverride)", feedback);
+        Assert.DoesNotContain("if (state.Prompt?.ShowPhoto == true)", feature);
     }
 
     [Fact]
-    public void QuizPrompt_UsesCenteredScaledReferenceDisplayAndSemanticPrimary()
+    public void QuizPrompt_UsesSwiftUIDynamicTypeAndKeepsSourcePromptSemantics()
     {
         var reference = File.ReadAllText(Path.Combine(
             HeadPath, "..", "SentenceStudio.UI", "Pages", "VocabQuiz.razor"));
         var feature = File.ReadAllText(Path.Combine(
-            HeadPath, "Features", "NativeFeatureViews.cs"));
-        var host = File.ReadAllText(Path.Combine(
-            HeadPath, "Platform", "NativeVisualViewController.cs"));
-        var theme = File.ReadAllText(Path.Combine(
-            HeadPath, "Platform", "NativeVisualTheme.cs"));
+            HeadPath, "Features", "Quiz", "QuizQuestionView.cs"));
+        var quiz = File.ReadAllText(Path.Combine(
+            HeadPath, "Features", "Quiz", "QuizView.cs"));
         Assert.Contains("ss-display mb-2\" style=\"color: var(--bs-primary);\"",
             reference);
         Assert.Contains("WithAccessibilityIdentifier(NativeAccess.QuizQuestion)", feature);
-        Assert.Contains("UIFontMetrics.GetMetrics(", host);
-        Assert.Contains("UIFontTextStyle.LargeTitle.GetConstant()!.ToString()", host);
-        Assert.Contains("GetScaledFont(UIFont.BoldSystemFontOfSize(NativeVisualTheme.QuizPromptSize))", host);
-        Assert.Contains("label.TextAlignment = UITextAlignment.Center", host);
-        Assert.Contains("label.TextColor = NativeVisualTheme.Primary", host);
-        Assert.Contains("internal const int QuizPromptSize = 42", theme);
-        Assert.Contains("ThemeCatalog.Default.PaletteFor(dark ?", theme);
+        Assert.Contains("SourceTextRole.Display, SourceTextTone.Primary", feature);
+        Assert.Contains("Views.BottomInset(page, footer)", quiz);
+        Assert.DoesNotContain("UIFontMetrics", feature);
     }
 
     [Fact]
-    public void SignInScrollContentDefinesBothEdgesAndViewportWidth()
+    public void SignInUsesSwiftUIScrollAndSecureFieldWithoutUIKitKeyboardGuide()
     {
         var source = File.ReadAllText(Path.Combine(
-            HeadPath, "Platform", "NativeSignInViewController.cs"));
-        Assert.Matches(
-            @"content\.LeadingAnchor\.ConstraintEqualTo\(\s*_scroll\.ContentLayoutGuide\.LeadingAnchor",
+            HeadPath, "Features", "Authentication", "SignInView.cs"));
+        Assert.Contains("Views.Scroll(content.ToArray())", source);
+        Assert.Contains("Views.SecureField(text(\"Common_PasswordPlaceholder\")",
             source);
-        Assert.Matches(
-            @"content\.TrailingAnchor\.ConstraintEqualTo\(\s*_scroll\.ContentLayoutGuide\.TrailingAnchor",
-            source);
-        Assert.Matches(
-            @"content\.WidthAnchor\.ConstraintEqualTo\(\s*_scroll\.FrameLayoutGuide\.WidthAnchor,\s*1,\s*-2 \* NativeVisualTheme\.PagePadding",
-            source);
-        Assert.Contains("View.KeyboardLayoutGuide.UsesBottomSafeArea = false", source);
-        Assert.Contains(
-            "ContentInsetAdjustmentBehavior = UIScrollViewContentInsetAdjustmentBehavior.Never",
-            source);
-        Assert.Contains("_scroll.BottomAnchor.ConstraintEqualTo(View.KeyboardLayoutGuide.TopAnchor)",
-            source);
-        Assert.Contains("_scroll.ContentInset = new UIEdgeInsets(0, 0, bottom, 0)", source);
-        Assert.Contains(
-            "_scroll.VerticalScrollIndicatorInsets = new UIEdgeInsets(0, 0, bottom, 0)",
-            source);
+        Assert.Contains("WithAccessibilityIdentifier(NativeAccess.Email)", source);
+        Assert.Contains("WithAccessibilityIdentifier(NativeAccess.Password)", source);
+        Assert.DoesNotContain("View.KeyboardLayoutGuide", source);
     }
 
     [Fact]
-    public void DeferredLearningDetailsPreview_CannotReportFalseUiCoverage()
+    public void LearningDetails_AreARealInformationSheetWithoutPlaceholderCaption()
     {
         Assert.DoesNotContain("\"mc-details\"", File.ReadAllText(Path.Combine(
             HeadPath, "Platform", "NativePreviewFixture.cs")));
-        Assert.DoesNotContain("OpenDetails()", File.ReadAllText(Path.Combine(
-            HeadPath, "NativeAppController.cs")));
+        Assert.DoesNotContain("QuizDetailsLocalized",
+            File.ReadAllText(Path.Combine(
+                HeadPath, "Features", "Quiz", "QuizLearningDetailsView.cs")));
+        Assert.DoesNotContain("native.quiz.details.unavailable",
+            File.ReadAllText(Path.Combine(
+                HeadPath, "Features", "Quiz", "QuizLearningDetailsView.cs")));
+        Assert.Contains("_quiz.OpenDetails()",
+            File.ReadAllText(Path.Combine(
+                HeadPath, "App/ApplicationController.Quiz.cs")));
     }
 
     [Fact]
     public void NativeSignInControls_HaveRealVisibilityAndRememberBehavior()
     {
         var signIn = File.ReadAllText(Path.Combine(
-            HeadPath, "Platform", "NativeSignInViewController.cs"));
+            HeadPath, "Features", "Authentication", "SignInView.cs"));
         Assert.Contains("NativeAccess.PasswordVisibility", signIn);
-        Assert.Contains("_password.SecureTextEntry = !_showPassword", signIn);
+        Assert.Contains("? Views.TextField(text(\"Common_PasswordPlaceholder\")",
+            signIn);
+        Assert.Contains(": Views.SecureField(text(\"Common_PasswordPlaceholder\")",
+            signIn);
         Assert.Contains("NativeAccess.RememberMe", signIn);
-        Assert.Contains("signIn(_email.Text ?? string.Empty, password, _remember.On)", signIn);
-        Assert.Contains("rememberMe: rememberMe", File.ReadAllText(Path.Combine(
-            HeadPath, "NativeAppController.cs")));
+        Assert.Contains("_email, password, _rememberMe, _lifetime.Token)",
+            File.ReadAllText(Path.Combine(
+                HeadPath, "App/ApplicationController.cs")));
     }
 
     [Fact]
@@ -357,7 +373,7 @@ public sealed class NativeHeadContractTests
         var manifest = XDocument.Load(Path.Combine(HeadPath, "Info.plist"));
         var fields = manifest.Descendants("key").Select(key => key.Value).ToArray();
         Assert.Contains("UILaunchScreen", fields);
-        Assert.Contains("UIApplicationSceneManifest", fields);
+        Assert.DoesNotContain("UIApplicationSceneManifest", fields);
         Assert.Contains("UIDeviceFamily", fields);
         Assert.Equal(["1", "2"], manifest.Descendants("integer").Select(element => element.Value));
         Assert.Equal("26.0", XDocument.Load(Path.Combine(HeadPath, "SentenceStudio.Native.iOS.csproj"))

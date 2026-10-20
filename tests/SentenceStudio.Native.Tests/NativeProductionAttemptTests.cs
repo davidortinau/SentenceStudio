@@ -762,25 +762,12 @@ public sealed class NativeProductionAttemptTests
             word.LexicalUnitType = LexicalUnitType.Phrase;
             await db.SaveChangesAsync();
         }
-        await Assert.ThrowsAsync<NotSupportedException>(() =>
-            adapter.CommitAsync(NativeSliceFixture.UserA,
-                pending.State.LaunchContextKey, pending.State.TurnId,
-                pending.State.PendingAttempt!, CancellationToken.None));
-        Assert.Equal(0, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
-        Assert.Empty(await ReceiptsAsync(fixture, NativeSliceFixture.UserA));
-
-        using (var scope = fixture.Scope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            var word = await db.VocabularyWords.SingleAsync(row =>
-                row.Id == pending.State.PendingAttempt!.VocabularyWordId);
-            word.LexicalUnitType = LexicalUnitType.Word;
-            await db.SaveChangesAsync();
-        }
         var receipt = await adapter.CommitAsync(
             NativeSliceFixture.UserA, pending.State.LaunchContextKey,
             pending.State.TurnId, pending.State.PendingAttempt!,
             CancellationToken.None);
+        Assert.Equal(1, receipt.Progress.TotalAttempts);
+        Assert.Single(await ReceiptsAsync(fixture, NativeSliceFixture.UserA));
         using (var scope = fixture.Scope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -799,6 +786,308 @@ public sealed class NativeProductionAttemptTests
                 pending.State.PendingAttempt!, CancellationToken.None));
         Assert.Equal(1, await fixture.TotalAttemptsAsync(
             NativeSliceFixture.UserA, receipt.Progress.VocabularyWordId));
+    }
+
+    [Fact]
+    public async Task WordWithStoredConstituent_DoesNotCascade()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA, wordCount: 2);
+        await SetConstituentsAsync(fixture, 0, LexicalUnitType.Word, 1);
+        fixture.SetPlanFocus(NativeSliceFixture.UserA,
+            fixture.WordId(NativeSliceFixture.UserA, 0));
+        var adapter = NewAdapter(fixture);
+        var pending = await PreparePendingAsync(
+            fixture, NativeSliceFixture.UserA, adapter);
+
+        var committed = await adapter.CommitAsync(
+            NativeSliceFixture.UserA, pending.State.LaunchContextKey,
+            pending.State.TurnId, pending.State.PendingAttempt!,
+            CancellationToken.None);
+
+        using var scope = fixture.Scope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        Assert.Equal(1, committed.Progress.TotalAttempts);
+        Assert.Null(await db.VocabularyProgresses.AsNoTracking()
+            .SingleOrDefaultAsync(row => row.UserId == NativeSliceFixture.UserA
+                && row.VocabularyWordId == fixture.WordId(NativeSliceFixture.UserA, 1)));
+        Assert.Single(await db.VocabularyLearningContexts.AsNoTracking()
+            .Where(row => row.VocabularyProgressId == committed.Progress.Id)
+            .ToListAsync());
+        Assert.Single(await ReceiptsAsync(fixture, NativeSliceFixture.UserA));
+    }
+
+    [Theory]
+    [InlineData(LexicalUnitType.Phrase, true)]
+    [InlineData(LexicalUnitType.Phrase, false)]
+    [InlineData(LexicalUnitType.Sentence, true)]
+    [InlineData(LexicalUnitType.Sentence, false)]
+    public async Task CompositeAttempt_ExposesDirectConstituentsOnly_AndReplaysOnce(
+        LexicalUnitType lexicalType, bool wasCorrect)
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA);
+        await SetConstituentsAsync(fixture, 0, lexicalType, 1, 2);
+        await SetConstituentsAsync(fixture, 1, LexicalUnitType.Phrase, 3);
+        fixture.SetPlanFocus(NativeSliceFixture.UserA,
+            fixture.WordId(NativeSliceFixture.UserA, 0));
+        var lastPracticed = DateTime.Now.AddDays(-3);
+        var lastExposed = DateTime.Now.AddDays(-2);
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.VocabularyProgresses.Add(new VocabularyProgress
+            {
+                UserId = NativeSliceFixture.UserA,
+                VocabularyWordId = fixture.WordId(NativeSliceFixture.UserA, 1),
+                MasteryScore = 0.65f,
+                CurrentStreak = 3f,
+                ProductionInStreak = 1,
+                LastPracticedAt = lastPracticed,
+                ExposureCount = 2,
+                LastExposedAt = lastExposed
+            });
+            await db.SaveChangesAsync();
+        }
+        var adapter = NewAdapter(fixture);
+        var pending = await PreparePendingAsync(
+            fixture, NativeSliceFixture.UserA, adapter, wasCorrect);
+        Assert.Equal(wasCorrect, pending.State.PendingAttempt!.WasCorrect);
+
+        var committed = await adapter.CommitAsync(
+            NativeSliceFixture.UserA, pending.State.LaunchContextKey,
+            pending.State.TurnId, pending.State.PendingAttempt,
+            CancellationToken.None);
+        Assert.Equal(1, committed.Progress.TotalAttempts);
+        Assert.Equal(wasCorrect ? 1 : 0, committed.Progress.CorrectAttempts);
+        var tag = wasCorrect
+            ? "PhraseCascade:VocabularyQuiz"
+            : "PhraseCascade:VocabularyQuiz:Incorrect";
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var first = await db.VocabularyProgresses.AsNoTracking().SingleAsync(
+                row => row.UserId == NativeSliceFixture.UserA
+                    && row.VocabularyWordId == fixture.WordId(NativeSliceFixture.UserA, 1));
+            var second = await db.VocabularyProgresses.AsNoTracking().SingleAsync(
+                row => row.UserId == NativeSliceFixture.UserA
+                    && row.VocabularyWordId == fixture.WordId(NativeSliceFixture.UserA, 2));
+            Assert.Null(await db.VocabularyProgresses.AsNoTracking()
+                .SingleOrDefaultAsync(row => row.UserId == NativeSliceFixture.UserA
+                    && row.VocabularyWordId == fixture.WordId(NativeSliceFixture.UserA, 3)));
+            Assert.Equal(3, first.ExposureCount);
+            Assert.True(first.LastExposedAt > lastExposed);
+            Assert.Equal(lastPracticed, first.LastPracticedAt);
+            Assert.Equal(0.65f, first.MasteryScore);
+            Assert.Equal(3f, first.CurrentStreak);
+            Assert.Equal(1, first.ProductionInStreak);
+            Assert.Equal(0, first.TotalAttempts);
+            Assert.Equal(1, second.ExposureCount);
+            Assert.NotNull(second.LastExposedAt);
+            Assert.Equal(0f, second.MasteryScore);
+            Assert.Equal(0f, second.CurrentStreak);
+            Assert.Equal(0, second.TotalAttempts);
+            foreach (var child in new[] { first, second })
+            {
+                var exposure = await db.VocabularyLearningContexts.AsNoTracking()
+                    .SingleAsync(row => row.VocabularyProgressId == child.Id);
+                Assert.Equal(tag, exposure.Activity);
+                Assert.Equal("Passive", exposure.InputMode);
+                Assert.Equal("Exposure", exposure.ContextType);
+                Assert.True(exposure.WasCorrect);
+                Assert.Equal(0f, exposure.DifficultyScore);
+                Assert.Equal(0, exposure.CorrectAnswersInContext);
+                Assert.Null(exposure.LearningResourceId);
+                Assert.Null(exposure.UserInput);
+                Assert.Null(exposure.ExpectedAnswer);
+            }
+            var mainContext = await db.VocabularyLearningContexts.AsNoTracking()
+                .SingleAsync(row => row.VocabularyProgressId == committed.Progress.Id);
+            Assert.Equal("VocabularyQuiz", mainContext.Activity);
+            Assert.Equal(wasCorrect, mainContext.WasCorrect);
+        }
+
+        fixture.Restart();
+        fixture.Activate(NativeSliceFixture.UserA);
+        adapter = NewAdapter(fixture);
+        Assert.Equal(committed.Progress.Id, (await adapter.FindAsync(
+            NativeSliceFixture.UserA, pending.State.LaunchContextKey,
+            pending.State.TurnId, CancellationToken.None))!.Progress.Id);
+        var replay = await adapter.CommitAsync(
+            NativeSliceFixture.UserA, pending.State.LaunchContextKey,
+            pending.State.TurnId, pending.State.PendingAttempt,
+            CancellationToken.None);
+        Assert.Equal(committed.Progress.Id, replay.Progress.Id);
+        Assert.Equal(1, replay.Progress.TotalAttempts);
+        Assert.Equal(1, await fixture.TotalAttemptsAsync(
+            NativeSliceFixture.UserA, pending.State.PendingAttempt.VocabularyWordId));
+        Assert.Equal(3, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
+        Assert.Single(await ReceiptsAsync(fixture, NativeSliceFixture.UserA));
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            Assert.Equal(3, await db.VocabularyProgresses.AsNoTracking()
+                .Where(row => row.UserId == NativeSliceFixture.UserA
+                    && row.VocabularyWordId == fixture.WordId(NativeSliceFixture.UserA, 1))
+                .Select(row => row.ExposureCount).SingleAsync());
+            Assert.Equal(1, await db.VocabularyProgresses.AsNoTracking()
+                .Where(row => row.UserId == NativeSliceFixture.UserA
+                    && row.VocabularyWordId == fixture.WordId(NativeSliceFixture.UserA, 2))
+                .Select(row => row.ExposureCount).SingleAsync());
+        }
+    }
+
+    [Theory]
+    [InlineData(LexicalUnitType.Phrase)]
+    [InlineData(LexicalUnitType.Sentence)]
+    public async Task CompositeWithNoConstituents_CommitsOnlyItsOwnAttempt(
+        LexicalUnitType lexicalType)
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA, wordCount: 2);
+        await SetConstituentsAsync(fixture, 0, lexicalType);
+        fixture.SetPlanFocus(NativeSliceFixture.UserA,
+            fixture.WordId(NativeSliceFixture.UserA, 0));
+        var adapter = NewAdapter(fixture);
+        var pending = await PreparePendingAsync(
+            fixture, NativeSliceFixture.UserA, adapter);
+
+        var committed = await adapter.CommitAsync(
+            NativeSliceFixture.UserA, pending.State.LaunchContextKey,
+            pending.State.TurnId, pending.State.PendingAttempt!,
+            CancellationToken.None);
+        Assert.Equal(1, committed.Progress.TotalAttempts);
+        Assert.Equal(1, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
+        Assert.Single(await ReceiptsAsync(fixture, NativeSliceFixture.UserA));
+    }
+
+    [Fact]
+    public async Task CompositeAttempt_RejectsForeignOwnerAndArchivedPlanBeforeAnyExposure()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA, wordCount: 2);
+        await fixture.SeedAsync(NativeSliceFixture.UserB, wordCount: 2);
+        await SetConstituentsAsync(fixture, 0, LexicalUnitType.Phrase, 1);
+        fixture.SetPlanFocus(NativeSliceFixture.UserA,
+            fixture.WordId(NativeSliceFixture.UserA, 0));
+        var adapter = NewAdapter(fixture);
+        var pending = await PreparePendingAsync(
+            fixture, NativeSliceFixture.UserA, adapter);
+
+        fixture.Activate(NativeSliceFixture.UserB);
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            adapter.CommitAsync(NativeSliceFixture.UserA,
+                pending.State.LaunchContextKey, pending.State.TurnId,
+                pending.State.PendingAttempt!, CancellationToken.None));
+        fixture.Activate(NativeSliceFixture.UserA);
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var card = await db.DailyPlanCompletions.SingleAsync(row =>
+                row.UserProfileId == NativeSliceFixture.UserA
+                && row.PlanItemId == pending.PlanItemId);
+            card.IsArchived = true;
+            await db.SaveChangesAsync();
+        }
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            adapter.CommitAsync(NativeSliceFixture.UserA,
+                pending.State.LaunchContextKey, pending.State.TurnId,
+                pending.State.PendingAttempt!, CancellationToken.None));
+
+        Assert.Equal(0, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
+        Assert.Equal(0, await fixture.AttemptCountAsync(NativeSliceFixture.UserB));
+        Assert.Equal(0, await fixture.TotalAttemptsAsync(
+            NativeSliceFixture.UserA, fixture.WordId(NativeSliceFixture.UserA, 0)));
+        Assert.Empty(await ReceiptsAsync(fixture, NativeSliceFixture.UserA));
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            Assert.False(await db.VocabularyProgresses.AsNoTracking()
+                .AnyAsync(row => row.UserId == NativeSliceFixture.UserA
+                    && row.VocabularyWordId == fixture.WordId(NativeSliceFixture.UserA, 1)));
+        }
+    }
+
+    [Fact]
+    public async Task ConstituentContextInsertFault_RollsBackWholeTurn_AndSameTurnIdRetries()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA, wordCount: 3);
+        await SetConstituentsAsync(fixture, 0, LexicalUnitType.Phrase, 1, 2);
+        fixture.SetPlanFocus(NativeSliceFixture.UserA,
+            fixture.WordId(NativeSliceFixture.UserA, 0));
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.VocabularyProgresses.Add(new VocabularyProgress
+            {
+                UserId = NativeSliceFixture.UserA,
+                VocabularyWordId = fixture.WordId(NativeSliceFixture.UserA, 1),
+                ExposureCount = 4
+            });
+            await db.SaveChangesAsync();
+        }
+        var adapter = NewAdapter(fixture);
+        var pending = await PreparePendingAsync(
+            fixture, NativeSliceFixture.UserA, adapter);
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            await db.Database.ExecuteSqlRawAsync("""
+                CREATE TRIGGER RejectPhraseExposure
+                BEFORE INSERT ON "VocabularyLearningContext"
+                WHEN NEW."Activity" LIKE 'PhraseCascade:%'
+                BEGIN SELECT RAISE(ABORT, 'injected constituent context failure'); END;
+                """);
+        }
+
+        await Assert.ThrowsAsync<DbUpdateException>(() => adapter.CommitAsync(
+            NativeSliceFixture.UserA, pending.State.LaunchContextKey,
+            pending.State.TurnId, pending.State.PendingAttempt!,
+            CancellationToken.None));
+        Assert.Null(await adapter.FindAsync(
+            NativeSliceFixture.UserA, pending.State.LaunchContextKey,
+            pending.State.TurnId, CancellationToken.None));
+        Assert.Equal(0, await fixture.TotalAttemptsAsync(
+            NativeSliceFixture.UserA, fixture.WordId(NativeSliceFixture.UserA, 0)));
+        Assert.Equal(0, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
+        Assert.Empty(await ReceiptsAsync(fixture, NativeSliceFixture.UserA));
+        Assert.Equal(pending.SourceJson, (await fixture.RowsAsync(
+            NativeSliceFixture.UserA, pending.PlanItemId)).Session!.StateJson);
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            Assert.Null(await db.VocabularyProgresses.AsNoTracking().SingleOrDefaultAsync(
+                row => row.UserId == NativeSliceFixture.UserA
+                    && row.VocabularyWordId == fixture.WordId(NativeSliceFixture.UserA, 0)));
+            Assert.Null(await db.VocabularyProgresses.AsNoTracking().SingleOrDefaultAsync(
+                row => row.UserId == NativeSliceFixture.UserA
+                    && row.VocabularyWordId == fixture.WordId(NativeSliceFixture.UserA, 2)));
+            Assert.Equal(4, await db.VocabularyProgresses.AsNoTracking()
+                .Where(row => row.UserId == NativeSliceFixture.UserA
+                    && row.VocabularyWordId == fixture.WordId(NativeSliceFixture.UserA, 1))
+                .Select(row => row.ExposureCount).SingleAsync());
+            await db.Database.ExecuteSqlRawAsync("DROP TRIGGER RejectPhraseExposure;");
+        }
+        var committed = await adapter.CommitAsync(
+            NativeSliceFixture.UserA, pending.State.LaunchContextKey,
+            pending.State.TurnId, pending.State.PendingAttempt!,
+            CancellationToken.None);
+        Assert.Equal(1, committed.Progress.TotalAttempts);
+        Assert.Equal(3, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
+        Assert.Single(await ReceiptsAsync(fixture, NativeSliceFixture.UserA));
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            Assert.Equal(5, await db.VocabularyProgresses.AsNoTracking()
+                .Where(row => row.UserId == NativeSliceFixture.UserA
+                    && row.VocabularyWordId == fixture.WordId(NativeSliceFixture.UserA, 1))
+                .Select(row => row.ExposureCount).SingleAsync());
+            Assert.Equal(1, await db.VocabularyProgresses.AsNoTracking()
+                .Where(row => row.UserId == NativeSliceFixture.UserA
+                    && row.VocabularyWordId == fixture.WordId(NativeSliceFixture.UserA, 2))
+                .Select(row => row.ExposureCount).SingleAsync());
+        }
     }
 
     [Theory]
@@ -885,6 +1174,7 @@ public sealed class NativeProductionAttemptTests
             services.GetRequiredService<UserProfileRepository>(),
             services.GetRequiredService<LearningResourceRepository>(),
             services.GetRequiredService<VocabularyProgressRepository>(),
+            services.GetRequiredService<IServiceScopeFactory>(),
             services.GetRequiredService<VocabQuizLaunchValidator>(),
             services.GetRequiredService<IProgressService>(),
             services.GetRequiredService<IActivitySessionService>(),
@@ -892,6 +1182,8 @@ public sealed class NativeProductionAttemptTests
             services.GetRequiredService<INativeQuizChoices>(),
             services.GetRequiredService<INativeQuizEligibility>(),
             services.GetRequiredService<INativeQuizGrader>(),
+            services.GetRequiredService<INativeQuizSentenceGrader>(),
+            services.GetRequiredService<INativeQuizSentenceCommitter>(),
             services.GetRequiredService<INativeQuizMedia>(),
             committer,
             services.GetRequiredService<INativeSyncReadiness>(),
@@ -902,15 +1194,21 @@ public sealed class NativeProductionAttemptTests
 
     private static async Task<PendingTurn> PreparePendingAsync(
         NativeSliceFixture fixture, string userId,
-        NativeQuizAttemptCommitterAdapter adapter)
+        NativeQuizAttemptCommitterAdapter adapter, bool answerCorrect = true)
     {
         var planItemId = await fixture.GenerateQuizPlanAsync(userId);
         var launch = (await fixture.Dashboard.SelectAssignedQuizAsync(planItemId))!;
         using var quiz = NewPresenter(fixture, adapter);
         var ready = await quiz.OpenAsync(launch);
         Assert.Equal(NativePhase.Ready, ready.Phase);
-        var answer = ready.Mode == "Text"
-            ? "definitely-not-the-word" : ready.Choices[0].Text;
+        if (!answerCorrect)
+        {
+            Assert.Equal("MultipleChoice", ready.Mode);
+            Assert.True(ready.Choices.Length > 1);
+        }
+        var answer = !answerCorrect ? ready.Choices[1].Text
+            : ready.Mode == "Text"
+                ? "definitely-not-the-word" : ready.Choices[0].Text;
         var feedback = await quiz.AnswerAsync(answer);
         Assert.Equal(NativePhase.Feedback, feedback.Phase);
         if (feedback.RequiresCorrection)
@@ -925,6 +1223,24 @@ public sealed class NativeProductionAttemptTests
         Assert.NotNull(state.PendingAttempt);
         Assert.Equal(ready.Prompt!.WordId, state.PendingAttempt.VocabularyWordId);
         return new PendingTurn(planItemId, launch, state, source.StateJson);
+    }
+
+    private static async Task SetConstituentsAsync(
+        NativeSliceFixture fixture, int parentIndex, LexicalUnitType type,
+        params int[] childIndexes)
+    {
+        using var scope = fixture.Scope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var parentId = fixture.WordId(NativeSliceFixture.UserA, parentIndex);
+        var parent = await db.VocabularyWords.SingleAsync(row => row.Id == parentId);
+        parent.LexicalUnitType = type;
+        db.PhraseConstituents.AddRange(childIndexes.Select(index =>
+            new PhraseConstituent
+            {
+                PhraseWordId = parentId,
+                ConstituentWordId = fixture.WordId(NativeSliceFixture.UserA, index)
+            }));
+        await db.SaveChangesAsync();
     }
 
     private static async Task<List<ActivitySession>> ReceiptsAsync(

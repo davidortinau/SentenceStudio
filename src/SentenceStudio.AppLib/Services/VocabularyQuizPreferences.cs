@@ -59,11 +59,11 @@ public class VocabularyQuizPreferences
 
             if (!string.Equals(value, normalized, StringComparison.Ordinal))
             {
-                _logger.LogWarning("⚠️ Invalid DisplayDirection: {Direction}. Defaulting to {DirectionValue}.", value, normalized);
+                _logger.LogWarning("Invalid DisplayDirection: {Direction}. Defaulting to {DirectionValue}.", value, normalized);
             }
 
             _preferences.Set(KEY_DISPLAY_DIRECTION, normalized);
-            _logger.LogInformation("📋 Vocab quiz display direction set to: {Direction}", normalized);
+            _logger.LogInformation("Vocab quiz display direction set to: {Direction}", normalized);
         }
     }
 
@@ -76,7 +76,7 @@ public class VocabularyQuizPreferences
         set
         {
             _preferences.Set(KEY_AUTO_PLAY_VOCAB_AUDIO, value);
-            _logger.LogInformation("📋 Vocab quiz auto-play vocab audio set to: {Value}", value);
+            _logger.LogInformation("Vocab quiz auto-play vocab audio set to: {Value}", value);
         }
     }
 
@@ -90,7 +90,7 @@ public class VocabularyQuizPreferences
         set
         {
             _preferences.Set(KEY_AUTO_PLAY_SAMPLE_AUDIO, value);
-            _logger.LogInformation("📋 Vocab quiz auto-play sample audio set to: {Value}", value);
+            _logger.LogInformation("Vocab quiz auto-play sample audio set to: {Value}", value);
         }
     }
 
@@ -103,7 +103,7 @@ public class VocabularyQuizPreferences
         set
         {
             _preferences.Set(KEY_SHOW_MNEMONIC_IMAGE, value);
-            _logger.LogInformation("📋 Vocab quiz show mnemonic image set to: {Value}", value);
+            _logger.LogInformation("Vocab quiz show mnemonic image set to: {Value}", value);
         }
     }
 
@@ -144,7 +144,7 @@ public class VocabularyQuizPreferences
         set
         {
             _preferences.Set(KEY_USE_TEXT_PROMPT, value);
-            _logger.LogInformation("📋 Vocab quiz text prompt enabled: {Value}", value);
+            _logger.LogInformation("Vocab quiz text prompt enabled: {Value}", value);
         }
     }
 
@@ -157,7 +157,7 @@ public class VocabularyQuizPreferences
         set
         {
             _preferences.Set(KEY_USE_AUDIO_PROMPT, value);
-            _logger.LogInformation("📋 Vocab quiz audio prompt enabled: {Value}", value);
+            _logger.LogInformation("Vocab quiz audio prompt enabled: {Value}", value);
         }
     }
 
@@ -170,7 +170,7 @@ public class VocabularyQuizPreferences
         set
         {
             _preferences.Set(KEY_USE_PHOTO_PROMPT, value);
-            _logger.LogInformation("📋 Vocab quiz photo prompt enabled: {Value}", value);
+            _logger.LogInformation("Vocab quiz photo prompt enabled: {Value}", value);
         }
     }
 
@@ -194,7 +194,7 @@ public class VocabularyQuizPreferences
         UseTextPrompt = DEFAULT_USE_TEXT_PROMPT;
         UseAudioPrompt = DEFAULT_USE_AUDIO_PROMPT;
         UsePhotoPrompt = DEFAULT_USE_PHOTO_PROMPT;
-        _logger.LogInformation("🔄 Vocab quiz preferences reset to defaults");
+        _logger.LogInformation("Vocab quiz preferences reset to defaults");
     }
 
     private static string NormalizeDisplayDirection(string? value) => value switch

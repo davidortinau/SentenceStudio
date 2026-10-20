@@ -1,6 +1,7 @@
 using System.Reflection;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Abstractions;
 using SentenceStudio.Data;
@@ -45,6 +46,9 @@ internal sealed class AndroidServiceHost : IDisposable
     private static AndroidServiceHost CreateCore(AndroidContext context, bool preview)
     {
         ArgumentNullException.ThrowIfNull(context);
+        if (context is not MainActivity activity)
+            throw new ArgumentException("The Android service host requires MainActivity.",
+                nameof(context));
         var apiUri = GetApiUri();
         var dataRoot = context.FilesDir?.AbsolutePath
             ?? throw new DirectoryNotFoundException("Android app-private storage is unavailable.");
@@ -68,12 +72,16 @@ internal sealed class AndroidServiceHost : IDisposable
 
         services.AddDbContext<ApplicationDbContext>(options =>
             options.UseSqlite($"Data Source={databasePath};Pooling=False"));
-        services.AddHttpClient("AuthClient", client => client.BaseAddress = apiUri);
+        services.AddHttpClient("AuthClient", client =>
+        {
+            client.BaseAddress = apiUri;
+            client.Timeout = TimeSpan.FromSeconds(15);
+        });
         if (!preview)
         {
-            services.AddTransient<AuthenticatedHttpMessageHandler>();
-            services.AddSyncServices(databasePath, apiUri);
+            services.AddSyncServices(databasePath, apiUri, downloadOnlyProfile: true);
             services.AddSingleton<ISyncService, SyncService>();
+            services.AddOwnerBoundNativeAiGateway(apiUri);
         }
 
         services.AddTransient<IPlanDateContext>(_ =>
@@ -88,18 +96,10 @@ internal sealed class AndroidServiceHost : IDisposable
         else
 #endif
         {
-            services.AddSingleton<DeterministicPlanBuilder>();
-            services.AddSingleton<GeneratedPlanValidator>();
-            services.AddSingleton<IDeterministicPlanGenerator, DeterministicPlanGenerator>();
+            AndroidPlanServiceRegistrations.AddProduction(services);
         }
-        services.AddSingleton<IPlanCopyProvider, EnglishPlanCopyProvider>();
-        services.AddScoped<IPlanService, PlanService>();
-
-        services.AddScoped<UserProfileRepository>();
-        services.AddScoped<LearningResourceRepository>();
-        services.AddScoped<SkillProfileRepository>();
+        AndroidPlanServiceRegistrations.AddCommon(services);
         services.AddScoped<UserActivityRepository>();
-        services.AddScoped<VocabularyProgressRepository>();
         services.AddScoped<VocabularyLearningContextRepository>();
         services.AddScoped<VocabularyProgressService>();
         services.AddScoped<IVocabularyProgressService>(sp =>
@@ -121,6 +121,19 @@ internal sealed class AndroidServiceHost : IDisposable
         services.AddSingleton<INativeQuizGrader, NativeQuizGraderAdapter>();
         services.AddSentenceStudioNativeSlice();
         services.AddSentenceStudioNativeIdentityAuth();
+        services.AddSingleton(sp => new AndroidQuizMedia(
+            activity, apiUri,
+            sp.GetRequiredService<DeviceUserScopeProvider>(),
+            sp.GetRequiredService<IPreferencesService>(),
+            sp.GetRequiredService<IConnectivityService>(),
+            sp.GetRequiredService<ILogger<AndroidQuizMedia>>()));
+        services.Replace(ServiceDescriptor.Singleton<INativeQuizMedia>(sp =>
+            sp.GetRequiredService<AndroidQuizMedia>()));
+        if (!preview)
+        {
+            services.AddSentenceStudioNativeProductionAdapters();
+            services.AddOwnerBoundNativeSyncReadiness();
+        }
 
         return new AndroidServiceHost(services.BuildServiceProvider(
             new ServiceProviderOptions { ValidateScopes = true }), databasePath, preview);

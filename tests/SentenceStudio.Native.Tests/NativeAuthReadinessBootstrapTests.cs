@@ -1,6 +1,7 @@
 using System.Net;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Abstractions;
@@ -13,6 +14,64 @@ namespace SentenceStudio.Native.Tests;
 
 public sealed class NativeAuthReadinessBootstrapTests
 {
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest)]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    public async Task InvalidCredentialsLeaveSignInAvailableAndAllowCorrectedSubmission(
+        HttpStatusCode rejection)
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedProfileAsync(NativeSliceFixture.UserA);
+        fixture.SetAuthStatus(rejection);
+        var auth = fixture.Auth;
+
+        var rejected = await auth.SignInAsync(
+            NativeSliceFixture.EmailA, "bad-password");
+        Assert.Equal(NativePhase.Error, rejected.Phase);
+        Assert.Equal(NativeDestination.SignIn, rejected.Destination);
+        Assert.Equal(NativeText.InvalidCredentials, rejected.ErrorKey);
+        Assert.Null(await fixture.SecureStorage.GetAsync(AuthTokenStore.JwtKey));
+        Assert.False(fixture.UserScope.TryGetUserProfileId(out _));
+
+        fixture.SetAuthStatus(null);
+        var corrected = await auth.SignInAsync(
+            NativeSliceFixture.EmailA, "fixture-password");
+        Assert.Equal(NativePhase.Ready, corrected.Phase);
+        Assert.Equal(NativeDestination.Dashboard, corrected.Destination);
+    }
+
+    [Fact]
+    public async Task IncompleteOwnedProfileRoutesOnboardingWithoutRemoteConfirmation()
+    {
+        using var fixture = new NativeSliceFixture(ownerBoundReadiness: true);
+        await fixture.SeedProfileAsync(NativeSliceFixture.UserA);
+        await fixture.SeedProfileAsync(NativeSliceFixture.UserB);
+        using (var serviceScope = fixture.Scope())
+        {
+            var db = serviceScope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var incomplete = await db.UserProfiles.SingleAsync(profile =>
+                profile.Id == NativeSliceFixture.UserA);
+            incomplete.TargetLanguage = "";
+            await db.SaveChangesAsync();
+        }
+        fixture.SetConnectivity(false);
+        var auth = fixture.Auth;
+        var routed = await auth.SignInAsync(
+            NativeSliceFixture.EmailA, "fixture-password");
+
+        Assert.Equal(NativePhase.Ready, routed.Phase);
+        Assert.Equal(NativeDestination.Onboarding, routed.Destination);
+        Assert.Equal(NativeSliceFixture.UserA, routed.UserId);
+        Assert.True(routed.HasPendingSync);
+        Assert.False(fixture.Preferences.Get("is_onboarded", false));
+        Assert.True(fixture.UserScope.TryGetUserProfileId(out var active));
+        Assert.Equal(NativeSliceFixture.UserA, active);
+        fixture.Activate(NativeSliceFixture.UserB);
+        Assert.Equal(NativePhase.Blocked, auth.State.Phase);
+        Assert.Null(auth.State.UserId);
+    }
+
     [Fact]
     public async Task FreshSignIn_PublishesTrustedOwnerOnlyAfterVerifiedSync_ThenRoutesDashboard()
     {
@@ -464,6 +523,8 @@ public sealed class NativeAuthReadinessBootstrapTests
             services.GetRequiredService<IPostLoginRouter>(),
             services.GetRequiredService<INativeSyncReadiness>(),
             services.GetRequiredService<NativePendingWrites>(),
+            services.GetRequiredService<NativeResourcePresenter>(),
+            services.GetRequiredService<SkillProfileRepository>(),
             services.GetRequiredService<ILogger<NativeAuthPresenter>>());
 
         var result = await presenter.SignInAsync(
@@ -516,6 +577,8 @@ public sealed class NativeAuthReadinessBootstrapTests
             services.GetRequiredService<IPostLoginRouter>(),
             services.GetRequiredService<INativeSyncReadiness>(),
             services.GetRequiredService<NativePendingWrites>(),
+            services.GetRequiredService<NativeResourcePresenter>(),
+            services.GetRequiredService<SkillProfileRepository>(),
             services.GetRequiredService<ILogger<NativeAuthPresenter>>());
 
         Assert.Equal(NativePhase.Ready,

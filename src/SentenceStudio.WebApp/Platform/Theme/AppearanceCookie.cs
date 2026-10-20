@@ -24,8 +24,9 @@ namespace SentenceStudio.WebApp.Platform.Theme;
 /// integer percentage. No identity, no user id, no token, no secret — nothing that grants anything.
 /// The worst a forged value can do is show its own author an unusual colour scheme, and even that
 /// is bounded: it is parsed by <see cref="AppearanceSelection.TryParse"/>, which enforces a length
-/// cap, a fixed shape, membership of the closed theme catalogue, membership of the closed mode set,
-/// and a numeric range. Anything else is discarded and the default is used.
+/// cap, a fixed shape, membership of the closed theme catalogue, and a numeric range. The native
+/// contract also permits System; this Web cookie accepts only Light or Dark because Bootstrap
+/// cannot render <c>data-bs-theme="system"</c>. Anything else is discarded.
 /// </para>
 /// <para>
 /// <b>Why it is not <c>HttpOnly</c>.</b> Once an interactive circuit is running there is no HTTP
@@ -60,7 +61,14 @@ public static class AppearanceCookie
             return false;
         }
 
-        return AppearanceSelection.TryParse(token, out selection);
+        if (AppearanceSelection.TryParse(token, out selection)
+            && selection.Mode != ThemeMode.System)
+        {
+            return true;
+        }
+
+        selection = null!;
+        return false;
     }
 
     /// <summary>

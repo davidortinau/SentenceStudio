@@ -44,6 +44,7 @@ public static class NativeText
     public const string PlanError = "Dashboard_UnableToLoadPlan";
     public const string PlanGenerationError = "Dashboard_UnableToGeneratePlan";
     public const string PlanNetworkError = "Dashboard_NetworkErrorTryAgain";
+    public const string NumberInsightError = "NativeDashboard_NumbersUnavailable";
     public const string Regenerate = "Dashboard_RegeneratePlan";
     public const string Quiz = "Activity_VocabQuiz";
     public const string QuizEmpty = "VocabQuiz_NoVocab";
@@ -57,6 +58,12 @@ public static class NativeText
     public const string QuizIncorrect = "Common_Incorrect";
     public const string QuizOverride = "VocabQuiz_IWasCorrect";
     public const string QuizPhoto = "VocabQuiz_PhotoHint";
+    public const string QuizCompleteForm = "NativeVocabQuiz_FullForm";
+    public const string QuizMnemonic = "NativeVocabQuiz_Mnemonic";
+    public const string SentenceGradeUnavailable = "NativeVocabQuiz_SentenceGradeUnavailable";
+    public const string SentenceTargetUnconfirmed = "NativeVocabQuiz_SentenceTargetUnconfirmed";
+    public const string SentenceMeaningful = "NativeVocabQuiz_SentenceMeaningful";
+    public const string SentenceUnclear = "NativeVocabQuiz_SentenceUnclear";
     public const string Done = "Common_Done";
 }
 
@@ -103,6 +110,45 @@ public sealed record NativeAuthState(
     string? ErrorKey = null,
     bool HasPendingSync = false);
 
+public enum NativeRegistrationOutcome
+{
+    SignedIn, ConfirmationRequired, Rejected, TransportFailure, Unavailable, Failed
+}
+
+public sealed record NativeRegistrationResult(
+    NativeRegistrationOutcome Outcome, string? ErrorKey = null,
+    NativeAuthState? AuthState = null);
+
+public enum NativePasswordRecoveryOutcome
+{
+    Accepted, Rejected, TransportFailure, Unavailable
+}
+
+public sealed record NativePasswordRecoveryResult(
+    NativePasswordRecoveryOutcome Outcome, string? ErrorKey = null);
+
+public sealed record NativeOnboardingDraft(
+    string Name, string NativeLanguage, string TargetLanguage,
+    int PreferredSessionMinutes = 15, string TargetCefrLevel = "A2");
+
+public enum NativeOnboardingOutcome { Success, Invalid, Blocked, Failed }
+
+public sealed record NativeOnboardingResult(
+    NativeOnboardingOutcome Outcome, string? ErrorKey = null,
+    int ContentStepsDone = 0);
+
+public static class NativeOnboardingOptions
+{
+    public static ImmutableArray<string> NativeLanguages { get; } =
+        ["English", "Korean", "French", "German", "Spanish", "Japanese", "Chinese"];
+    public static ImmutableArray<string> TargetLanguages { get; } =
+        ["Korean", "English", "French", "German", "Spanish", "Japanese", "Chinese"];
+    public static ImmutableArray<int> SessionMinutes { get; } =
+        [5, 10, 15, 20, 30, 45];
+    public static ImmutableArray<string> CefrLevels { get; } =
+        ["A1", "A2", "B1", "B2", "C1", "C2"];
+}
+
 public sealed record NativePlanCard(
     string Id,
     PlanActivityType Activity,
@@ -120,6 +166,24 @@ public sealed record NativePlanCard(
     string? ResourceTitle = null,
     int? VocabDueCount = null);
 
+public enum NativeDashboardMode { TodaysPlan, ChooseOwn }
+
+public sealed record NativeNumberContextStat(
+    string ContextCode, int CorrectCount, int TotalCount,
+    int DueCount, int MasteryPercentage);
+
+public sealed record NativeChooseOwnOption(string Id, string Title);
+
+public sealed record NativeChooseOwnActivity(string Route, string LabelKey);
+
+public sealed record NativeChooseOwnState(
+    ImmutableArray<NativeChooseOwnOption> Resources,
+    ImmutableArray<NativeChooseOwnOption> Skills,
+    ImmutableArray<string> SelectedResourceIds,
+    string? SelectedSkillId,
+    bool ShowAllActivities = false,
+    string? ErrorKey = null);
+
 public sealed record NativeDashboardState(
     NativePhase Phase,
     DateOnly? PlanDate = null,
@@ -135,7 +199,28 @@ public sealed record NativeDashboardState(
     int LongestStreak = 0,
     PlanNarrativeDto? Narrative = null,
     string? Rationale = null,
-    VocabProgressSummary? VocabSummary = null);
+    VocabProgressSummary? VocabSummary = null)
+{
+    public NativeDashboardMode Mode { get; init; } = NativeDashboardMode.TodaysPlan;
+    public bool IsNewUser { get; init; }
+    public ImmutableArray<NativeNumberContextStat> NumberContexts { get; init; }
+    public string? NumberErrorKey { get; init; }
+    public NativeChooseOwnState? ChooseOwn { get; init; }
+
+    public ImmutableArray<TagInsightDto> StrugglingCategories =>
+        Narrative?.VocabInsight?.StrugglingCategories
+            .Where(category => category.TotalAttempts > 0
+                && category.AverageAccuracy < 0.6f).ToImmutableArray() ?? [];
+
+    public ImmutableArray<TagInsightDto> NewCategories =>
+        Narrative?.VocabInsight?.StrugglingCategories
+            .Where(category => category.TotalAttempts == 0).ToImmutableArray() ?? [];
+
+    public ImmutableArray<TagInsightDto> DoingWellCategories =>
+        Narrative?.VocabInsight?.StrugglingCategories
+            .Where(category => category.TotalAttempts > 0
+                && category.AverageAccuracy >= 0.6f).ToImmutableArray() ?? [];
+}
 
 /// <summary>Owner/date/item and source launch context travel together; never accept a bare item ID.</summary>
 public sealed record NativeQuizLaunch(
@@ -145,15 +230,33 @@ public sealed record NativeQuizLaunch(
     ImmutableArray<string> ResourceIds,
     string? SkillId,
     ImmutableArray<string> FocusVocabularyIds,
-    bool DueOnly = false);
+    bool DueOnly = false)
+{
+    public bool IsRepractice { get; init; }
+}
 
-public sealed record NativeQuizChoice(string Text, string AccessibilityId = NativeAccess.QuizChoice);
+public sealed record NativeQuizSettingsState(
+    string Direction, bool AutoPlayAudio, bool ShowMnemonics,
+    bool UseTextPrompt, bool UseAudioPrompt, bool UsePhotoPrompt,
+    int AutoAdvanceDurationMs, string VoiceLanguage, string VoiceId)
+{
+    public ImmutableArray<NativeQuizVoiceOption> VoiceOptions { get; init; } = [];
+    public string? ErrorKey { get; init; }
+}
+
+public sealed record NativeQuizVoiceOption(string Id, string Name);
+
+public sealed record NativeQuizChoice(string Text, string AccessibilityId = NativeAccess.QuizChoice)
+{
+    public string? AudioLanguage { get; init; }
+}
 
 public sealed record NativeQuizResult(
     string WordId,
     string TargetLanguageTerm,
     string NativeLanguageTerm,
-    bool WasCorrect);
+    bool WasCorrect,
+    bool ReadyToRotateOut = false);
 
 public sealed record NativeQuizPrompt(
     string WordId,
@@ -166,7 +269,17 @@ public sealed record NativeQuizPrompt(
     bool CanPlayPromptAudio,
     bool ShowPhoto,
     bool TargetLanguageEngaged,
-    string PhotoAccessibilityKey = NativeText.QuizPhoto);
+    string PhotoAccessibilityKey = NativeText.QuizPhoto)
+{
+    public NativeQuizPhotoAsset? Photo { get; init; }
+    public bool PhotoRequested { get; init; }
+    public bool CanTogglePhotoText { get; init; }
+    public bool ShowTextWithPhoto { get; init; }
+}
+
+public sealed record NativeQuizPhotoAsset(byte[] Bytes, string ContentType);
+
+public sealed record NativeQuizSentenceHint(int ExampleSentenceId, string TargetSentence);
 
 public sealed record NativeQuizSentencePrompt(
     string WordId,
@@ -175,6 +288,14 @@ public sealed record NativeQuizSentencePrompt(
     string TargetLanguage,
     string InstructionKey = "VocabQuiz_WriteOneSentence",
     string AccessibilityId = NativeAccess.QuizAnswer);
+
+public sealed record NativeQuizLearningDetails(
+    LearningStatus Status,
+    int TotalAttempts, int CorrectAttempts, float Accuracy,
+    float CurrentStreak, int ProductionInStreak, float EffectiveStreak,
+    float MasteryScore, DateTime? NextReviewDate, int ReviewInterval,
+    float EaseFactor, bool IsDueForReview, string Mode, bool DueOnly,
+    string WhyModeKey, int RecognitionDemonstrations);
 
 public sealed record NativeQuizState(
     NativePhase Phase,
@@ -200,7 +321,39 @@ public sealed record NativeQuizState(
     string? SelectedAnswer = null,
     bool? AnswerWasCorrect = null,
     int WordsMastered = 0,
-    ImmutableArray<NativeQuizResult> Results = default);
+    ImmutableArray<NativeQuizResult> Results = default,
+    string? CompleteForm = null,
+    string? FeedbackMnemonicText = null,
+    string? FeedbackPhotoCandidateUri = null,
+    NativeQuizLearningDetails? Details = null)
+{
+    public ImmutableArray<NativeQuizSentenceHint> SentenceHints { get; init; } = [];
+    public bool CanShowSentenceHints { get; init; }
+    public bool SentenceHintsExpanded { get; init; }
+    public bool CanPlayAnswerAudio { get; init; }
+    public ImmutableArray<int> HeardAnswerChoiceIndices { get; init; } = [];
+    public DateTimeOffset? FeedbackStartedAt { get; init; }
+    public int AutoAdvanceDurationMs { get; init; }
+    public ImmutableArray<NativeQuizSentenceGrade> SentenceResults { get; init; } = [];
+    public int SentenceSuccessCount { get; init; }
+    public bool IsSentenceSubmitting { get; init; }
+    public string? SentenceDraft { get; init; }
+}
+
+public sealed record NativeQuizSentenceGrade(
+    string Sentence, bool UsageCorrect, string UsageExplanation,
+    double? Accuracy, double? Fluency, string AccuracyExplanation,
+    string FluencyExplanation, string RecommendedSentence, string GrammarNotes,
+    bool GradeUnavailable = false)
+{
+    public string? TargetUsedForm { get; init; }
+    public bool HasVerifiedTargetUse { get; init; }
+}
+
+public sealed record NativeQuizSentenceCommitReceipt(
+    string SubmissionId, int SuccessCount,
+    ImmutableArray<NativeQuizSentenceGrade> Results,
+    VocabularyProgress? Progress);
 
 /// <summary>The original vocabulary attempt is passed to shared scoring unchanged.</summary>
 public sealed record NativeQuizCommitReceipt(string TurnId, VocabularyProgress Progress);

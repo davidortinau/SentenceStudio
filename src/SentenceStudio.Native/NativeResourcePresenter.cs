@@ -1,12 +1,13 @@
 using System.Collections.Immutable;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Abstractions;
+using SentenceStudio.Common;
 using SentenceStudio.Data;
 using SentenceStudio.Services;
 
 namespace SentenceStudio.Native;
 
-public sealed class NativeResourcePresenter(
+public sealed partial class NativeResourcePresenter(
     DeviceUserScopeProvider userScope,
     IPreferencesService preferences,
     INativeResourceStore store,
@@ -15,12 +16,16 @@ public sealed class NativeResourcePresenter(
     ILogger<NativeResourcePresenter> logger)
 {
     private static readonly StringComparer FilterComparer = StringComparer.OrdinalIgnoreCase;
+    private static readonly ImmutableArray<string> TypeCatalog = Constants.MediaTypes.ToImmutableArray();
+    private static readonly ImmutableArray<string> LanguageCatalog = Constants.Languages.ToImmutableArray();
+    private const string ViewModeKey = "resources-view-mode";
     private IReadOnlyList<NativeResourceItem> _all = [];
     private string? _owner;
     private DeviceUserScopeProvider.ScopeStamp? _ownerStamp;
     private string _searchText = string.Empty;
     private string? _mediaType;
     private string? _language;
+    private NativeResourceViewMode _viewMode = NativeResourceViewMode.Grid;
     private NativeResourceSyncPhase _syncPhase = NativeResourceSyncPhase.Unconfirmed;
     private string? _syncErrorKey;
     private NativeResourceListState _list = new(NativeResourceListPhase.Idle);
@@ -137,11 +142,15 @@ public sealed class NativeResourcePresenter(
                     cancellationToken, synchronization))
                     return false;
                 logger.LogError(ex, "Native resource list load failed.");
-                _list = _list with {
-                    Phase = NativeResourceListPhase.LoadError,
-                    Items = [],
-                    ErrorKey = "NativeResources_LoadError"
-                };
+                _list = previous.Phase is NativeResourceListPhase.Populated
+                    or NativeResourceListPhase.Empty or NativeResourceListPhase.NoMatches
+                    ? previous with { ErrorKey = "NativeResources_LoadError",
+                        Sync = _syncPhase, SyncErrorKey = _syncErrorKey }
+                    : _list with {
+                        Phase = NativeResourceListPhase.LoadError,
+                        Items = [],
+                        ErrorKey = "NativeResources_LoadError"
+                    };
                 return true;
             }
         }
@@ -162,17 +171,47 @@ public sealed class NativeResourcePresenter(
         if (!TryCurrentOwner(out var owner) || _owner != owner)
             return Block();
         var selectedType = mediaType is null ? null
-            : _list.Types.FirstOrDefault(option => FilterComparer.Equals(option, mediaType))
-                ?? throw new ArgumentException("The selected resource type is not owned.", nameof(mediaType));
+            : TypeCatalog.FirstOrDefault(option => FilterComparer.Equals(option, mediaType))
+                ?? throw new ArgumentException("The selected resource type is not in the catalog.", nameof(mediaType));
         var selectedLanguage = language is null ? null
-            : _list.Languages.FirstOrDefault(option => FilterComparer.Equals(option, language))
-                ?? throw new ArgumentException("The selected resource language is not owned.", nameof(language));
+            : LanguageCatalog.FirstOrDefault(option => FilterComparer.Equals(option, language))
+                ?? throw new ArgumentException("The selected resource language is not in the catalog.", nameof(language));
         _mediaType = selectedType;
         _language = selectedLanguage;
         return CanProjectList()
             ? ProjectList()
             : _list = _list with {
                 MediaType = _mediaType, Language = _language };
+    }
+
+    public NativeResourceListState SetViewMode(NativeResourceViewMode viewMode)
+    {
+        if (!TryCurrentOwner(out var owner) || _owner != owner)
+            return Block();
+        if (!Enum.IsDefined(viewMode))
+            throw new ArgumentOutOfRangeException(nameof(viewMode));
+        _viewMode = viewMode;
+        preferences.Set(ViewModeKey, viewMode == NativeResourceViewMode.Grid ? "grid" : "list");
+        return _list = _list with { ViewMode = viewMode };
+    }
+
+    public NativeResourceDetailState BeginCreate()
+    {
+        if (!TryCurrentOwner(out var owner))
+        {
+            Block();
+            return _detail;
+        }
+        if (!SelectOwner(owner, userScope.CaptureStamp()))
+            return Detail;
+        if (Volatile.Read(ref _saving) != 0)
+            return _detail;
+        _detailLoadGeneration++;
+        return _detail = new(NativeResourceDetailPhase.Creating,
+            Draft: new NativeResourceDraft(string.Empty, null, null,
+                MediaType: TypeCatalog[0], Language: LanguageCatalog[0],
+                StagedVocabulary: []),
+            Sync: _syncPhase, SyncErrorKey: _syncErrorKey);
     }
 
     public async Task<NativeResourceDetailState> OpenAsync(
@@ -261,7 +300,8 @@ public sealed class NativeResourcePresenter(
     {
         if (!TryCurrentOwner(out var owner) || _owner != owner
             || _detail.Resource is not { } resource
-            || _detail.Phase != NativeResourceDetailPhase.Ready)
+            || _detail.Phase != NativeResourceDetailPhase.Ready
+            || Volatile.Read(ref _vocabularyMutation) != 0)
             return false;
         if (resource.IsSmartResource)
         {
@@ -272,8 +312,7 @@ public sealed class NativeResourcePresenter(
             return false;
         }
         _detail = _detail with {
-            Draft = new NativeResourceDraft(resource.Title,
-                resource.OriginalMetadata.Description, resource.OriginalMetadata.Tags),
+            Draft = DraftFor(resource),
             ErrorKey = null,
             LastSaveResult = null
         };
@@ -288,8 +327,16 @@ public sealed class NativeResourcePresenter(
             return _detail;
         }
         if (_detail.Draft is not { } draft || Volatile.Read(ref _saving) != 0
+            || Volatile.Read(ref _vocabularyMutation) != 0
             || _detail.Reloading)
             throw new InvalidOperationException("No editable resource draft is active.");
+        if (field == NativeResourceField.Language
+            && _detail.Resource is not null
+            && !draft.StagedVocabulary.IsDefaultOrEmpty
+            && !string.Equals(draft.Language, value, StringComparison.Ordinal))
+            return _detail = _detail with {
+                ErrorKey = "NativeResources_SaveLanguageBeforeQuickAdd"
+            };
         var refusal = _detail.Phase is NativeResourceDetailPhase.Conflict
             or NativeResourceDetailPhase.NotFound or NativeResourceDetailPhase.ReadOnly
             || _detail.LastSaveResult == ResourceMetadataUpdateResult.ValidationFailed;
@@ -302,22 +349,56 @@ public sealed class NativeResourcePresenter(
                     Description = value ?? string.Empty, DescriptionDirty = true },
                 NativeResourceField.Tags => draft with {
                     Tags = value ?? string.Empty, TagsDirty = true },
+                NativeResourceField.MediaType => draft with {
+                    MediaType = SelectCatalogValue(TypeCatalog, value), MediaTypeDirty = true },
+                NativeResourceField.Language => draft with {
+                    Language = SelectCatalogValue(LanguageCatalog, value), LanguageDirty = true },
+                NativeResourceField.MediaUrl => draft with {
+                    MediaUrl = value ?? string.Empty, MediaUrlDirty = true },
+                NativeResourceField.Transcript => draft with {
+                    Transcript = value ?? string.Empty, TranscriptDirty = true },
+                NativeResourceField.Translation => draft with {
+                    Translation = value ?? string.Empty, TranslationDirty = true },
                 _ => throw new ArgumentOutOfRangeException(nameof(field))
             },
-            Phase = refusal ? _detail.Phase : NativeResourceDetailPhase.Ready,
+            Phase = refusal ? _detail.Phase
+                : _detail.Resource is null
+                    ? NativeResourceDetailPhase.Creating
+                    : NativeResourceDetailPhase.Ready,
             ErrorKey = refusal ? _detail.ErrorKey : null,
             LastSaveResult = refusal ? _detail.LastSaveResult : null
         };
+        if (field == NativeResourceField.Language)
+        {
+            Interlocked.Increment(ref _vocabularySearchGeneration);
+            _detail = _detail with { VocabularySearch = null };
+            if (_detail.Resource is null && _detail.Draft is { } stagedDraft
+                && !stagedDraft.StagedVocabulary.IsDefaultOrEmpty)
+                _detail = _detail with {
+                    Draft = stagedDraft with {
+                        StagedVocabulary = stagedDraft.StagedVocabulary
+                            .Select(row => row with { Language = stagedDraft.Language })
+                            .ToImmutableArray()
+                    }
+                };
+        }
         return _detail;
     }
 
     public void CancelEdit()
     {
-        if (Volatile.Read(ref _saving) != 0)
+        if (Volatile.Read(ref _saving) != 0
+            || Volatile.Read(ref _vocabularyMutation) != 0)
             return;
         if (_detail.Phase == NativeResourceDetailPhase.LoadError
             && _detail.Resource is null)
             return;
+        if (_detail.Resource is null)
+        {
+            _detail = new(NativeResourceDetailPhase.Idle, Sync: _syncPhase,
+                SyncErrorKey: _syncErrorKey);
+            return;
+        }
         _detail = _detail with {
             Draft = null,
             Phase = _detail.Resource?.IsSmartResource == true
@@ -330,6 +411,32 @@ public sealed class NativeResourcePresenter(
         };
     }
 
+    private static string SelectCatalogValue(ImmutableArray<string> catalog, string? value) =>
+        catalog.FirstOrDefault(option => FilterComparer.Equals(option, value))
+        ?? throw new ArgumentException("The selected value is not in the resource catalog.");
+
+    private static NativeResourceDraft DraftFor(NativeResourceDetail resource) =>
+        new(resource.Title, resource.OriginalMetadata.Description, resource.OriginalMetadata.Tags,
+            MediaType: resource.MediaType, Language: resource.Language,
+            MediaUrl: resource.MediaUrl, Transcript: resource.Transcript,
+            Translation: resource.Translation);
+
+    private static ResourceContentUpdate ContentFromDraft(
+        NativeResourceDetail resource, NativeResourceDraft draft)
+    {
+        var content = resource.OriginalContent ?? new ResourceContentSnapshot(
+            resource.OriginalMetadata, resource.MediaType, resource.Language,
+            resource.MediaUrl, resource.Transcript, resource.Translation);
+        return new ResourceContentUpdate(draft.Title,
+            draft.DescriptionDirty ? draft.Description : content.Metadata.Description,
+            draft.TagsDirty ? draft.Tags : content.Metadata.Tags,
+            draft.MediaTypeDirty ? draft.MediaType : content.MediaType,
+            draft.LanguageDirty ? draft.Language : content.Language,
+            draft.MediaUrlDirty ? draft.MediaUrl : content.MediaUrl,
+            draft.TranscriptDirty ? draft.Transcript : content.Transcript,
+            draft.TranslationDirty ? draft.Translation : content.Translation);
+    }
+
     public async Task<bool> SaveAsync(CancellationToken cancellationToken = default)
     {
         if (!TryCurrentOwner(out var owner) || _owner != owner)
@@ -337,10 +444,20 @@ public sealed class NativeResourcePresenter(
             Block();
             return false;
         }
-        if (_detail is not { Resource: { IsSmartResource: false } resource, Draft: { } draft }
-            || _detail.Reloading
-            || _detail.Phase is not (NativeResourceDetailPhase.Ready
-                or NativeResourceDetailPhase.SaveError)
+        var ownerStamp = userScope.CaptureStamp();
+        if (!IsCurrentOwnerStamp(owner, ownerStamp))
+        {
+            Block();
+            return false;
+        }
+        var resource = _detail.Resource;
+        var draft = _detail.Draft;
+        var creating = resource is null && _detail.Phase is
+            (NativeResourceDetailPhase.Creating or NativeResourceDetailPhase.SaveError);
+        if (draft is null || _detail.Reloading
+            || !creating && (resource?.IsSmartResource != false
+                || _detail.Phase is not (NativeResourceDetailPhase.Ready
+                    or NativeResourceDetailPhase.SaveError))
             || _detail.LastSaveResult == ResourceMetadataUpdateResult.ValidationFailed)
             return false;
         if (Interlocked.CompareExchange(ref _saving, 1, 0) != 0)
@@ -349,34 +466,74 @@ public sealed class NativeResourcePresenter(
         {
             _detail = _detail with {
                 Phase = NativeResourceDetailPhase.SaveError,
-                ErrorKey = "ResourceEdit_TitleRequired"
+                ErrorKey = creating ? "ResourceAdd_TitleRequired"
+                    : "ResourceEdit_TitleRequired"
+            };
+            Volatile.Write(ref _saving, 0);
+            return false;
+        }
+        if (!creating && !draft.StagedVocabulary.IsDefaultOrEmpty
+            && draft.StagedVocabulary.Any(row => row.Language != draft.Language))
+        {
+            _detail = _detail with {
+                Phase = NativeResourceDetailPhase.SaveError,
+                ErrorKey = "NativeResources_SaveInvalid"
             };
             Volatile.Write(ref _saving, 0);
             return false;
         }
 
         var committed = false;
+        string? committedResourceId = null;
         _detail = _detail with {
             Phase = NativeResourceDetailPhase.Saving, ErrorKey = null,
             LastSaveResult = null };
         try
         {
-            if (!IsCurrentOwner(owner))
+            if (!IsCurrentOwnerStamp(owner, ownerStamp))
             {
                 Block();
                 return false;
             }
-            var original = resource.OriginalMetadata;
-            var result = await store.SaveMetadataAsync(
-                owner, resource.Id, original, draft.Title,
-                draft.DescriptionDirty ? draft.Description : original.Description,
-                draft.TagsDirty ? draft.Tags : original.Tags, cancellationToken);
+            string resourceId;
+            ResourceMetadataUpdateResult result;
+            string? createErrorKey = null;
+            if (creating)
+            {
+                var created = await store.CreateAsync(owner, draft, cancellationToken);
+                result = created.Result switch
+                {
+                    NativeResourceMutationResult.Success => ResourceMetadataUpdateResult.Success,
+                    NativeResourceMutationResult.Invalid => ResourceMetadataUpdateResult.ValidationFailed,
+                    NativeResourceMutationResult.NotFoundOrForbidden =>
+                        ResourceMetadataUpdateResult.NotFoundOrForbidden,
+                    _ => ResourceMetadataUpdateResult.Conflict
+                };
+                resourceId = created.ResourceId ?? string.Empty;
+                createErrorKey = created.ErrorKey;
+                if (result == ResourceMetadataUpdateResult.Success
+                    && string.IsNullOrWhiteSpace(resourceId))
+                    throw new InvalidOperationException("Resource create reported success without an ID.");
+            }
+            else
+            {
+                var original = resource!.OriginalMetadata;
+                var content = resource.OriginalContent ?? new ResourceContentSnapshot(
+                    original, resource.MediaType, resource.Language, resource.MediaUrl,
+                    resource.Transcript, resource.Translation);
+                result = await store.SaveContentAsync(
+                    owner, resource.Id, content,
+                    ContentFromDraft(resource, draft),
+                    cancellationToken);
+                resourceId = resource.Id;
+            }
             if (result == ResourceMetadataUpdateResult.Success)
             {
                 committed = true;
+                committedResourceId = resourceId;
                 pendingWrites.MarkPending(owner);
             }
-            if (!IsCurrentOwner(owner))
+            if (!IsCurrentOwnerStamp(owner, ownerStamp))
             {
                 Block();
                 return false;
@@ -396,16 +553,51 @@ public sealed class NativeResourcePresenter(
                     _ => throw new ArgumentOutOfRangeException(nameof(result), result, null)
                 };
                 _detail = _detail with {
-                    Phase = phase, ErrorKey = error, LastSaveResult = result
+                    Phase = creating && phase == NativeResourceDetailPhase.NotFound
+                        ? NativeResourceDetailPhase.SaveError : phase,
+                    ErrorKey = createErrorKey ?? error,
+                    LastSaveResult = creating ? null : result
                 };
                 return false;
             }
             _syncPhase = NativeResourceSyncPhase.Pending;
             _syncErrorKey = null;
 
-            var reloaded = await store.GetAsync(owner, resource.Id, cancellationToken);
+            if (!creating && !draft.StagedVocabulary.IsDefaultOrEmpty)
+            {
+                foreach (var word in draft.StagedVocabulary)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    var linked = word.IsExisting
+                        ? await store.AttachVocabularyAsync(
+                            owner, resourceId, word.Id, draft.Language!, cancellationToken)
+                        : await store.CreateVocabularyAsync(
+                            owner, resourceId, word, draft.Language!, cancellationToken);
+                    if (!IsCurrentOwnerStamp(owner, ownerStamp))
+                    {
+                        Block();
+                        return false;
+                    }
+                    if (linked is NativeResourceMutationResult.Success
+                        or NativeResourceMutationResult.AlreadyPresent)
+                        continue;
+                    logger.LogWarning(
+                        "A resource was saved but a staged vocabulary association failed ({Result}).",
+                        linked);
+                    _detail = new(NativeResourceDetailPhase.LoadError,
+                        Resource: resource, Draft: draft,
+                        ErrorKey: "NativeResources_SavedReloadError",
+                        Sync: _syncPhase)
+                    {
+                        CommittedResourceId = resourceId
+                    };
+                    return false;
+                }
+            }
+
+            var reloaded = await store.GetAsync(owner, resourceId, cancellationToken);
             var rows = await store.ListAsync(owner, cancellationToken);
-            if (!IsCurrentOwner(owner))
+            if (!IsCurrentOwnerStamp(owner, ownerStamp))
             {
                 Block();
                 return false;
@@ -421,27 +613,43 @@ public sealed class NativeResourcePresenter(
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            if (IsCurrentOwner(owner))
+            if (IsCurrentOwnerStamp(owner, ownerStamp))
                 _detail = committed
                     ? new(NativeResourceDetailPhase.LoadError,
+                        Resource: !creating && !draft.StagedVocabulary.IsDefaultOrEmpty
+                            ? resource : null,
+                        Draft: !creating && !draft.StagedVocabulary.IsDefaultOrEmpty
+                            ? draft : null,
                         ErrorKey: "NativeResources_SavedReloadError", Sync: _syncPhase)
+                    {
+                        CommittedResourceId = committedResourceId
+                    }
                     : _detail with {
-                        Phase = NativeResourceDetailPhase.Ready, Draft = draft,
+                        Phase = creating ? NativeResourceDetailPhase.Creating
+                            : NativeResourceDetailPhase.Ready,
+                        Draft = draft,
                         ErrorKey = null };
             throw;
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Native resource save or reload failed.");
-            if (!IsCurrentOwner(owner))
+            if (!IsCurrentOwnerStamp(owner, ownerStamp))
             {
                 Block();
                 return false;
             }
             _detail = committed
                 ? new(NativeResourceDetailPhase.LoadError,
+                    Resource: !creating && !draft.StagedVocabulary.IsDefaultOrEmpty
+                        ? resource : null,
+                    Draft: !creating && !draft.StagedVocabulary.IsDefaultOrEmpty
+                        ? draft : null,
                     ErrorKey: "NativeResources_SavedReloadError",
                     Sync: _syncPhase)
+                {
+                    CommittedResourceId = committedResourceId
+                }
                 : _detail with {
                     Phase = NativeResourceDetailPhase.SaveError,
                     ErrorKey = "NativeResources_SaveError",
@@ -463,18 +671,29 @@ public sealed class NativeResourcePresenter(
             Block();
             return false;
         }
+        var ownerStamp = userScope.CaptureStamp();
+        if (!IsCurrentOwnerStamp(owner, ownerStamp))
+        {
+            Block();
+            return false;
+        }
         if (_detail is not { Resource: { } resource, Draft: { } draft }
             || _detail.Reloading || Volatile.Read(ref _saving) != 0
-            || _detail.Phase is not (NativeResourceDetailPhase.Conflict
-                or NativeResourceDetailPhase.NotFound or NativeResourceDetailPhase.ReadOnly
-                or NativeResourceDetailPhase.SaveError))
+            || (_detail.Phase is not (NativeResourceDetailPhase.Conflict
+                    or NativeResourceDetailPhase.NotFound
+                    or NativeResourceDetailPhase.ReadOnly
+                    or NativeResourceDetailPhase.SaveError)
+                && (_detail.Phase != NativeResourceDetailPhase.LoadError
+                    || _detail.ErrorKey is not
+                        ("NativeResources_GenerationPartial"
+                            or "NativeResources_SavedReloadError"))))
             return false;
 
         _detail = _detail with { Reloading = true };
         try
         {
             var current = await store.GetAsync(owner, resource.Id, cancellationToken);
-            if (!IsCurrentOwner(owner))
+            if (!IsCurrentOwnerStamp(owner, ownerStamp))
             {
                 Block();
                 return false;
@@ -495,22 +714,25 @@ public sealed class NativeResourcePresenter(
                 ? new(NativeResourceDetailPhase.ReadOnly, current, Sync: _syncPhase,
                     SyncErrorKey: _syncErrorKey)
                 : new(NativeResourceDetailPhase.Ready, current,
-                    new NativeResourceDraft(current.Title,
-                        current.OriginalMetadata.Description,
-                        current.OriginalMetadata.Tags),
+                    _detail.ErrorKey == "NativeResources_SavedReloadError"
+                        && !draft.StagedVocabulary.IsDefaultOrEmpty
+                        ? DraftFor(current) with {
+                            StagedVocabulary = draft.StagedVocabulary }
+                        : DraftFor(current),
                     Sync: _syncPhase, SyncErrorKey: _syncErrorKey);
             return true;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            if (ReferenceEquals(_detail.Draft, draft))
+            if (IsCurrentOwnerStamp(owner, ownerStamp)
+                && ReferenceEquals(_detail.Draft, draft))
                 _detail = _detail with { Reloading = false };
             throw;
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Native resource conflict reload failed.");
-            if (!IsCurrentOwner(owner))
+            if (!IsCurrentOwnerStamp(owner, ownerStamp))
             {
                 Block();
                 return false;
@@ -649,18 +871,6 @@ public sealed class NativeResourcePresenter(
 
     private NativeResourceListState ProjectList()
     {
-        var types = _all.Select(item => item.MediaType)
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Select(value => value!)
-            .Distinct(FilterComparer)
-            .OrderBy(value => value, FilterComparer)
-            .ToImmutableArray();
-        var languages = _all.Select(item => item.Language)
-            .Where(value => !string.IsNullOrWhiteSpace(value))
-            .Select(value => value!)
-            .Distinct(FilterComparer)
-            .OrderBy(value => value, FilterComparer)
-            .ToImmutableArray();
         var matching = _all.Where(item =>
             (_mediaType is null || FilterComparer.Equals(item.MediaType, _mediaType))
             && (_language is null || FilterComparer.Equals(item.Language, _language))
@@ -673,9 +883,9 @@ public sealed class NativeResourcePresenter(
         var phase = _all.Count == 0 ? NativeResourceListPhase.Empty
             : matching.Length == 0 ? NativeResourceListPhase.NoMatches
             : NativeResourceListPhase.Populated;
-        return _list = new(phase, matching, types, languages,
+        return _list = new(phase, matching, TypeCatalog, LanguageCatalog,
             _searchText, _mediaType, _language, Sync: _syncPhase,
-            SyncErrorKey: _syncErrorKey);
+            SyncErrorKey: _syncErrorKey, ViewMode: _viewMode);
     }
 
     private bool CanProjectList() =>
@@ -686,13 +896,11 @@ public sealed class NativeResourcePresenter(
     private void ReconcileFilters()
     {
         if (_mediaType is not null)
-            _mediaType = _all.Select(item => item.MediaType)
-                .FirstOrDefault(option => !string.IsNullOrWhiteSpace(option)
-                    && FilterComparer.Equals(option, _mediaType));
+            _mediaType = TypeCatalog.FirstOrDefault(option =>
+                FilterComparer.Equals(option, _mediaType));
         if (_language is not null)
-            _language = _all.Select(item => item.Language)
-                .FirstOrDefault(option => !string.IsNullOrWhiteSpace(option)
-                    && FilterComparer.Equals(option, _language));
+            _language = LanguageCatalog.FirstOrDefault(option =>
+                FilterComparer.Equals(option, _language));
     }
 
     private bool SelectOwner(
@@ -715,7 +923,9 @@ public sealed class NativeResourcePresenter(
                 _searchText = string.Empty;
                 _mediaType = null;
                 _language = null;
-                _list = new(NativeResourceListPhase.Idle);
+                _viewMode = preferences.Get(ViewModeKey, "grid") == "list"
+                    ? NativeResourceViewMode.List : NativeResourceViewMode.Grid;
+                _list = new(NativeResourceListPhase.Idle, ViewMode: _viewMode);
                 _detail = new(NativeResourceDetailPhase.Idle);
                 _syncPhase = NativeResourceSyncPhase.Unconfirmed;
                 _syncErrorKey = null;

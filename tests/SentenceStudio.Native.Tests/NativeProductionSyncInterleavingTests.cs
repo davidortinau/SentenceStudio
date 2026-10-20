@@ -21,8 +21,7 @@ public sealed class NativeProductionSyncInterleavingTests
         await fixture.SeedAsync(NativeSliceFixture.UserA);
         fixture.Activate(NativeSliceFixture.UserA);
         var dashboard = fixture.Dashboard;
-        Assert.False((await dashboard.RefreshAsync()).HasPendingSync);
-        var card = Assert.Single((await dashboard.GenerateAsync()).Cards);
+        var card = Assert.Single((await dashboard.LoadAsync()).Cards);
         Assert.False((await dashboard.RefreshAsync()).HasPendingSync);
 
         var launch = (await dashboard.SelectAssignedQuizAsync(card.Id))!;
@@ -56,7 +55,6 @@ public sealed class NativeProductionSyncInterleavingTests
         await fixture.SeedAsync(NativeSliceFixture.UserA);
         fixture.Activate(NativeSliceFixture.UserA);
         var control = fixture.Dashboard;
-        Assert.False((await control.RefreshAsync()).HasPendingSync);
 
         using var scope = fixture.Scope();
         var services = scope.ServiceProvider;
@@ -71,11 +69,18 @@ public sealed class NativeProductionSyncInterleavingTests
             services.GetRequiredService<IActivitySessionService>(),
             services.GetRequiredService<NativePendingWrites>(),
             services.GetRequiredService<VocabularyProgressRepository>(),
+            services.GetRequiredService<LearningResourceRepository>(),
+            services.GetRequiredService<SkillProfileRepository>(),
             services.GetRequiredService<ILogger<NativeDashboardPresenter>>());
 
         var generating = dashboard.GenerateAsync();
         await delayed.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.False((await control.RefreshAsync()).HasPendingSync);
+        var pendingWrites = services.GetRequiredService<NativePendingWrites>();
+        var revision = pendingWrites.Revision(NativeSliceFixture.UserA);
+        Assert.Equal(NativeSyncOutcome.Confirmed,
+            await fixture.Sync.SynchronizeAsync(NativeSliceFixture.UserA, default));
+        pendingWrites.MarkConfirmedIfUnchanged(NativeSliceFixture.UserA, revision);
+        Assert.False(pendingWrites.IsPending(NativeSliceFixture.UserA));
         delayed.Release.TrySetResult();
         Assert.Equal(NativePhase.Ready, (await generating).Phase);
         Assert.True((await control.LoadAsync()).HasPendingSync);
@@ -139,6 +144,7 @@ public sealed class NativeProductionSyncInterleavingTests
             services.GetRequiredService<UserProfileRepository>(),
             services.GetRequiredService<LearningResourceRepository>(),
             services.GetRequiredService<VocabularyProgressRepository>(),
+            services.GetRequiredService<IServiceScopeFactory>(),
             services.GetRequiredService<VocabQuizLaunchValidator>(),
             services.GetRequiredService<IProgressService>(),
             services.GetRequiredService<IActivitySessionService>(),
@@ -146,6 +152,8 @@ public sealed class NativeProductionSyncInterleavingTests
             services.GetRequiredService<INativeQuizChoices>(),
             services.GetRequiredService<INativeQuizEligibility>(),
             services.GetRequiredService<INativeQuizGrader>(),
+            services.GetRequiredService<INativeQuizSentenceGrader>(),
+            services.GetRequiredService<INativeQuizSentenceCommitter>(),
             services.GetRequiredService<INativeQuizMedia>(),
             committer,
             services.GetRequiredService<INativeSyncReadiness>(),

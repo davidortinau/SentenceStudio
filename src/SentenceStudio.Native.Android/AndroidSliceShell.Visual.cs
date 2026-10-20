@@ -103,38 +103,46 @@ internal sealed partial class AndroidSliceShell
     }
 
     private ComposableNode ScreenHeader(string title, AndroidVisualPalette palette,
-        bool back = false, bool refresh = false)
+        bool back = false, bool refresh = false, string backAutomationId = "native.quiz.back")
     {
-        var row = new Row(Arrangement.SpaceBetween, Alignment.Vertical.CenterVertically)
+        var bar = new TopAppBar
         {
-            Modifier = Modifier.FillMaxWidth()
-                .Background(palette.Background)
-                .Border(1, palette.Border)
-                .Padding(horizontal: AndroidVisualTheme.PagePadding, vertical: 10)
-                .TestTag("native.screen.header"),
+            Modifier = Modifier.FillMaxWidth().TestTag("native.screen.header"),
+            Title = Heading(title, palette, 22,
+                Modifier.Semantics(semantics => semantics.Heading()))
         };
         if (back)
         {
-            var button = new OutlinedButton(onClick: HandleBackAction, enabled: !Busy.Value)
+            var button = new IconButton(
+                onClick: HandleBackAction, enabled: !Busy.Value)
             {
-                Modifier = Modifier.TestTag("native.quiz.back")
+                Modifier = Modifier.TestTag(backAutomationId)
                     .Semantics(semantics => semantics.ContentDescription(Localize("Common_Back"))),
             };
-            button.Add(new Text(Localize("Common_Back")));
-            row.Add(button);
+            button.Add(new Icon(Icons.AutoMirrored.Default.ArrowBack,
+                Localize("Common_Back"))
+            {
+                Modifier = Modifier.Size(24),
+                Tint = palette.Text
+            });
+            bar.NavigationIcon = button;
         }
-        row.Add(Heading(title, palette, 22));
         if (refresh)
         {
-            var button = new OutlinedButton(onClick: RefreshPlan, enabled: !Busy.Value)
+            var button = new IconButton(
+                onClick: RefreshPlan, enabled: !Busy.Value)
             {
                 Modifier = Modifier.TestTag("native.dashboard.refresh")
                     .Semantics(semantics => semantics.ContentDescription(Localize("Common_Refresh"))),
             };
-            button.Add(new Text(Localize("Common_Refresh")));
-            row.Add(button);
+            button.Add(new Icon(Icons.Default.Refresh, Localize("Common_Refresh"))
+            {
+                Modifier = Modifier.Size(24),
+                Tint = palette.Text
+            });
+            bar.Actions = button;
         }
-        return row;
+        return bar;
     }
 
     private ComposableNode DashboardAppBar(AndroidVisualPalette palette)
@@ -175,6 +183,12 @@ internal sealed partial class AndroidSliceShell
             {
                 Modifier = Modifier.TestTag("native.dashboard.menu.regenerate"),
             });
+        menu.Add(new DropdownMenuItem(
+            text: new Text(Localize("Settings_Title")),
+            onClick: OpenAppearanceSettings)
+        {
+            Modifier = Modifier.TestTag("native.dashboard.menu.settings"),
+        });
         var signOutLabel = Localize("Nav_Logout");
 #if DEBUG
         if (_preview)
@@ -190,17 +204,18 @@ internal sealed partial class AndroidSliceShell
         {
             Modifier = Modifier.TestTag("native.dashboard.menu.signout"),
         });
+        var actions = new Row(Arrangement.SpacedBy(4),
+            Alignment.Vertical.CenterVertically);
+        if (!Dashboard.IsNewUser || _preview)
+            actions.Add(refresh);
+        actions.Add(new Box { overflow, menu });
         return new TopAppBar
         {
             Modifier = Modifier.FillMaxWidth().TestTag("native.dashboard.appbar"),
-            Title = Heading(Localize("Dashboard_Title"), palette, 20,
+            Title = Heading(Localize(Dashboard.IsNewUser && !_preview
+                    ? "Dashboard_Welcome" : "Dashboard_Title"), palette, 20,
                 Modifier.Semantics(semantics => semantics.Heading())),
-            Actions = new Row(Arrangement.SpacedBy(4),
-                Alignment.Vertical.CenterVertically)
-            {
-                refresh,
-                new Box { overflow, menu },
-            },
+            Actions = actions,
         };
     }
 

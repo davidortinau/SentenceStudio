@@ -110,7 +110,7 @@ public class AppearanceSelectionTests
     {
         foreach (var theme in ThemeCatalog.All)
         {
-            foreach (var mode in new[] { ThemeMode.Light, ThemeMode.Dark })
+            foreach (var mode in Enum.GetValues<ThemeMode>())
             {
                 var original = new AppearanceSelection(theme.Id, mode, 1.15);
 
@@ -126,6 +126,7 @@ public class AppearanceSelectionTests
         new AppearanceSelection("seoul-pop", ThemeMode.Dark, 1.0).ToToken().Should().Be("v1.seoul-pop.dark.100");
         new AppearanceSelection("vapor", ThemeMode.Light, 0.85).ToToken().Should().Be("v1.vapor.light.85");
         new AppearanceSelection("brite", ThemeMode.Light, 1.5).ToToken().Should().Be("v1.brite.light.150");
+        new AppearanceSelection("ocean", ThemeMode.System, 1.25).ToToken().Should().Be("v1.ocean.system.125");
     }
 
     [Fact]
@@ -217,8 +218,10 @@ public class AppearanceSelectionTests
     [Theory]
     [InlineData("light", ThemeMode.Light)]
     [InlineData("dark", ThemeMode.Dark)]
+    [InlineData("system", ThemeMode.System)]
     [InlineData("LIGHT", ThemeMode.Light)]
     [InlineData("Dark", ThemeMode.Dark)]
+    [InlineData("SYSTEM", ThemeMode.System)]
     public void Mode_tokens_parse_case_insensitively(string token, ThemeMode expected)
     {
         ThemeModeExtensions.TryParse(token, out var mode).Should().BeTrue();
@@ -230,17 +233,18 @@ public class AppearanceSelectionTests
     [InlineData("")]
     [InlineData(null)]
     [InlineData("auto")]
-    [InlineData("system")]
     public void Unknown_mode_tokens_are_rejected(string? token)
     {
         ThemeModeExtensions.TryParse(token, out _).Should().BeFalse();
     }
 
     [Fact]
-    public void The_mode_enum_stays_a_closed_pair()
+    public void The_mode_enum_keeps_Light_Dark_values_and_appends_System()
     {
-        // Guards the documented decision not to add an Unknown member until there is a wire DTO
-        // that needs one. If a third value appears, every mode switch in the UI needs revisiting.
-        Enum.GetValues<ThemeMode>().Should().Equal(ThemeMode.Light, ThemeMode.Dark);
+        Enum.GetValues<ThemeMode>().Should().Equal(
+            ThemeMode.Light, ThemeMode.Dark, ThemeMode.System);
+        ((int)ThemeMode.Light).Should().Be(0);
+        ((int)ThemeMode.Dark).Should().Be(1);
+        ((int)ThemeMode.System).Should().Be(2);
     }
 }

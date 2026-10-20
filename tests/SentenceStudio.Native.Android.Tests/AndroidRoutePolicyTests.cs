@@ -1,3 +1,4 @@
+using System.Reflection;
 using SentenceStudio.Native;
 using SentenceStudio.Native.Android;
 
@@ -62,5 +63,23 @@ public sealed class AndroidRoutePolicyTests
             AndroidRoutePolicy.AfterQuizBack(new(
                 NativePhase.Blocked, NativeDestination.VocabularyQuiz,
                 ErrorKey: NativeText.QuizUnavailable)));
+    }
+
+    [Fact]
+    public void ResumeChoiceBackDelegatesToThePresenterAndFollowsItsDestination()
+    {
+        var root = typeof(AndroidRoutePolicyTests).Assembly
+            .GetCustomAttributes<AssemblyMetadataAttribute>()
+            .Single(attribute => attribute.Key == "NativeAndroidHeadRoot").Value!;
+        var source = File.ReadAllText(Path.Combine(root, "AndroidSliceShell.cs"));
+        var back = source[source.IndexOf("public bool HandleBack()", StringComparison.Ordinal)
+            ..source.IndexOf("public void SignIn()", StringComparison.Ordinal)];
+        Assert.Contains("await _quiz.BackAsync(cancellationToken)", back);
+        Assert.Contains("await ApplyQuizStateAsync(state, cancellationToken)", back);
+        Assert.DoesNotContain("ExitResumeChoiceWithoutSaving", back);
+        Assert.DoesNotContain("SaveSnapshot", back);
+        Assert.Equal(NativeDestination.Dashboard,
+            AndroidRoutePolicy.AfterQuiz(new(
+                NativePhase.Ready, NativeDestination.TodaysPlan)));
     }
 }

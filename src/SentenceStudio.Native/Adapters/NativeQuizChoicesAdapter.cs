@@ -34,6 +34,9 @@ public sealed class NativeQuizChoicesAdapter(
         }
 
         NativeQuizOwnerGuard.RequireActiveOwner(userId, scope, preferences, cancellationToken);
-        return options.Select(option => new NativeQuizChoice(option.Text)).ToImmutableArray();
+        return options.Select(option => new NativeQuizChoice(option.Text)
+        {
+            AudioLanguage = option.Word.Language
+        }).ToImmutableArray();
     }
 }

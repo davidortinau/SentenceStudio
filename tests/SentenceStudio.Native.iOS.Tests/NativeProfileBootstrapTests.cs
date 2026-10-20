@@ -1,6 +1,7 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
 using System.Security.Claims;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -8,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using SentenceStudio.Contracts;
 using SentenceStudio.Data;
 using SentenceStudio.Native.iOS.Platform;
+using SentenceStudio.Services;
 
 namespace SentenceStudio.Native.iOS.Tests;
 
@@ -30,12 +32,57 @@ public sealed class NativeProfileBootstrapTests
         await fixture.Bootstrap.EnsureLocalProfileAsync(Token("owner-a"));
         Assert.Equal(1, fixture.RequestCount);
         Assert.Equal(1, await db.UserProfiles.CountAsync());
+        var route = await fixture.Services
+            .GetRequiredService<IPostLoginRouter>()
+            .DecideRouteAsync("owner-a");
+        Assert.Equal("/", route.Path);
     }
 
-    [Fact]
-    public async Task ForeignProfile_RefusedWithoutCrossOwnerRow()
+    [Theory]
+    [InlineData(null, "Korean", "", "Korean")]
+    [InlineData("English", null, "English", "")]
+    [InlineData("", "Korean", "", "Korean")]
+    [InlineData("English", "", "English", "")]
+    [InlineData("   ", "Korean", "", "Korean")]
+    public async Task MatchingIncompleteProfile_PersistsWithoutInventingLanguages(
+        string? nativeLanguage, string? targetLanguage,
+        string expectedNative, string expectedTarget)
     {
-        using var fixture = new ProfileFixture("owner-b");
+        using var fixture = new ProfileFixture("owner-a")
+        {
+            NativeLanguage = nativeLanguage,
+            TargetLanguage = targetLanguage
+        };
+        await fixture.Bootstrap.EnsureLocalProfileAsync(Token("owner-a"));
+
+        using var scope = fixture.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var profile = await db.UserProfiles.AsNoTracking().SingleAsync();
+        Assert.Equal("owner-a", profile.Id);
+        Assert.Equal(expectedNative, profile.NativeLanguage);
+        Assert.Equal(expectedTarget, profile.TargetLanguage);
+        Assert.True(string.IsNullOrEmpty(profile.NativeLanguage)
+            || string.IsNullOrEmpty(profile.TargetLanguage));
+        Assert.Equal(0, await db.DailyPlanCompletions.CountAsync());
+        Assert.Equal(1, fixture.RequestCount);
+        var route = await fixture.Services
+            .GetRequiredService<IPostLoginRouter>()
+            .DecideRouteAsync("owner-a");
+        Assert.Equal("/onboarding", route.Path);
+        Assert.False(route.DeferUntilSyncCompletes);
+        Assert.False(route.ShouldMarkOnboarded);
+    }
+
+    [Theory]
+    [InlineData("English", "Korean")]
+    [InlineData(null, null)]
+    public async Task ForeignProfile_RefusedWithoutCrossOwnerRow(
+        string? nativeLanguage, string? targetLanguage)
+    {
+        using var fixture = new ProfileFixture("owner-b") {
+            NativeLanguage = nativeLanguage,
+            TargetLanguage = targetLanguage
+        };
         await Assert.ThrowsAsync<UnauthorizedAccessException>(
             () => fixture.Bootstrap.EnsureLocalProfileAsync(Token("owner-a")));
 
@@ -44,11 +91,14 @@ public sealed class NativeProfileBootstrapTests
         Assert.Equal(0, await db.UserProfiles.CountAsync());
     }
 
-    [Fact]
-    public async Task UnauthorizedApi_RefusedWithoutCreatingLocalUser()
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    public async Task UnauthorizedApi_RefusedWithoutCreatingLocalUser(
+        HttpStatusCode responseStatus)
     {
         using var fixture = new ProfileFixture("owner-a") {
-            ResponseStatus = HttpStatusCode.Forbidden
+            ResponseStatus = responseStatus
         };
         await Assert.ThrowsAsync<UnauthorizedAccessException>(
             () => fixture.Bootstrap.EnsureLocalProfileAsync(Token("owner-a")));
@@ -80,8 +130,10 @@ public sealed class NativeProfileBootstrapTests
 
     private sealed class ProfileFixture : IDisposable
     {
-        private readonly string _folder = Path.Combine(
-            Path.GetTempPath(), "SentenceStudio.Native.iOS.Tests", Guid.NewGuid().ToString("N"));
+        private readonly string _folder = Path.GetFullPath(Path.Combine(
+            Path.GetDirectoryName(CurrentFile())!,
+            "obj", "native-profile-bootstrap-tests",
+            Guid.NewGuid().ToString("N")));
         private readonly string _returnedOwner;
         private readonly ServiceProvider _services;
 
@@ -93,6 +145,9 @@ public sealed class NativeProfileBootstrapTests
             services.AddLogging();
             services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseSqlite($"Data Source={Path.Combine(_folder, "profile.sqlite")};Pooling=False"));
+            services.AddSingleton<ISyncService, NoOpSyncService>();
+            services.AddSingleton<UserProfileRepository>();
+            services.AddSingleton<IPostLoginRouter, PostLoginRouter>();
             services.AddHttpClient("AuthClient", client =>
                 client.BaseAddress = new Uri("https://api.example.invalid/"))
                 .ConfigurePrimaryHttpMessageHandler(() =>
@@ -109,6 +164,8 @@ public sealed class NativeProfileBootstrapTests
         public int RequestCount { get; private set; }
         public HttpStatusCode ResponseStatus { get; set; } = HttpStatusCode.OK;
         public bool SimulateTimeout { get; set; }
+        public string? NativeLanguage { get; set; } = "English";
+        public string? TargetLanguage { get; set; } = "Korean";
 
         public void Dispose()
         {
@@ -129,7 +186,7 @@ public sealed class NativeProfileBootstrapTests
                 var body = JsonSerializer.Serialize(new {
                     Id = fixture._returnedOwner, DisplayName = "Canonical Test User",
                     Email = "squad-jayne@sentencestudio.test",
-                    NativeLanguage = "English", TargetLanguage = "Korean",
+                    fixture.NativeLanguage, fixture.TargetLanguage,
                     DisplayLanguage = "English", TargetCefrLevel = "A1",
                     PreferredSessionMinutes = 20
                 });
@@ -138,5 +195,7 @@ public sealed class NativeProfileBootstrapTests
                 });
             }
         }
+
+        private static string CurrentFile([CallerFilePath] string file = "") => file;
     }
 }

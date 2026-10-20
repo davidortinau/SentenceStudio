@@ -86,13 +86,12 @@ public sealed class BrowserAppearanceCookieStore : IThemePreferenceStore
             return false;
         }
 
-        if (!AppearanceSelection.TryParse(token, out selection))
+        if (!AppearanceCookie.TryRead(http.Request, out selection))
         {
-            // Hand-edited, truncated, or written by a build with a different token layout. Rejected
-            // rather than coerced, and logged without the value so a malformed cookie cannot inject
-            // arbitrary text into the log.
+            // The native System token is valid in the shared contract but not in Bootstrap.
+            // Reject it here, like a malformed cookie, without echoing the value to the log.
             _logger.LogWarning(
-                "Discarding an invalid {Cookie} cookie ({Length} chars); using the default appearance.",
+                "Discarding an invalid or unsupported {Cookie} cookie ({Length} chars); using the default appearance.",
                 AppearanceCookie.Name,
                 token?.Length ?? 0);
             return false;
@@ -123,10 +122,11 @@ public sealed class BrowserAppearanceCookieStore : IThemePreferenceStore
             return null;
         }
 
-        if (!AppearanceSelection.TryParse(token, out var selection))
+        if (!AppearanceSelection.TryParse(token, out var selection)
+            || selection.Mode == ThemeMode.System)
         {
             _logger.LogWarning(
-                "Discarding an invalid {Cookie} cookie read from the browser ({Length} chars); using the default appearance.",
+                "Discarding an invalid or unsupported {Cookie} cookie read from the browser ({Length} chars); using the default appearance.",
                 AppearanceCookie.Name,
                 token.Length);
             return null;
@@ -141,6 +141,12 @@ public sealed class BrowserAppearanceCookieStore : IThemePreferenceStore
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(selection);
+        if (selection.Mode == ThemeMode.System)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(selection), selection.Mode,
+                "The WebApp supports only Light and Dark appearance modes.");
+        }
 
         _cached = selection;
         var token = selection.ToToken();

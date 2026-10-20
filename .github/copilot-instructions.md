@@ -1,5 +1,30 @@
 # Copilot Coding Agent — Squad Instructions
 
+## Active native replacement instructions
+
+For work under `src/SentenceStudio.Native*/` and the replacement app, read
+`AGENTS.md` in the native checkout first. The MAUI/MauiReactor/DevFlow guidance
+below governs the **temporary reference heads**, not the new native heads.
+Captain's 2026-10-03 directive is: "All SwiftUI for iOS is our goal. If
+anywhere we absolutely must use UIKit, raise that with me first for approval.
+The same goes for Jetpack Compose on Android. Revise the plan and whatever
+instructions you have noted so we don't make this mistake in the future for
+this project. Then go do the refactoring."
+
+iOS feature content, forms, lists, selectors, dialogs, and navigation must
+actually render in SwiftUI (`NavigationStack`/`NavigationLink`/path for
+navigation); Android actual UI/navigation must render in Jetpack Compose.
+An app-authored `SwiftView`-to-UIKit renderer, `UINavigationController`, or
+Android widget/AppCompat UI is not a fallback. Before **any** actual app-authored
+UIKit/Android-widget use, including host/bootstrap/service/picker cases, bring
+Captain the minimal necessity, alternatives, citations, and data impact and
+obtain explicit approval for that exact use. Apple's internal SwiftUI
+implementation is not an app-authored violation. Preserve the 177 required
+source states/56 open findings, approved native navigation *behavior*,
+proven services, data safety and historical evidence; no runtime parity is
+conferred by this architecture correction. The older generic-hosting
+"preferred UI" note is superseded, not rewritten.
+
 You are working on a project that uses **Squad**, an AI team framework. When picking up issues autonomously, follow these guidelines.
 
 ## Required Reading: AGENTS.md

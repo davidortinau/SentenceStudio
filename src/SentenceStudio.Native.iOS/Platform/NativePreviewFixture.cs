@@ -10,11 +10,13 @@ using SentenceStudio.Services.Plans;
 using SentenceStudio.Services.Progress;
 using SentenceStudio.Shared.Models;
 using SentenceStudio.Contracts.Plans;
+using SentenceStudio.Contracts.Theme;
 using SentenceStudio.Native;
 
 namespace SentenceStudio.Native.iOS.Platform;
 
-public sealed record NativePreviewFixture(string Surface, string Owner, string Email)
+public sealed record NativePreviewFixture(
+    string Surface, string Owner, string Email, string? AppearanceToken = null)
 {
     public static async Task<NativePreviewFixture?> ForAuthenticatedOwnerAsync(
         IServiceProvider provider, string? owner, CancellationToken cancellationToken)
@@ -61,7 +63,11 @@ public sealed record NativePreviewFixture(string Surface, string Owner, string E
             .ToDictionary(attribute => attribute.Key, attribute => attribute.Value);
         if (!attributes.TryGetValue("SentenceStudio.Native.PreviewSurface", out var surface))
             return null;
-        if (surface is not ("dashboard" or "question" or "mc" or "mc-back"
+        if (surface is not ("dashboard" or "onboarding" or "onboarding-preferences"
+                or "starter-loading"
+                or "signin-loading"
+                or "signin-error" or "question" or "mc" or "mc-feedback"
+                or "mc-style-feedback-correct" or "mc-style-feedback-wrong" or "mc-back"
                 or "mc-resume" or "feedback" or "summary" or "complete"
                 or "back" or "resume")
             || !attributes.TryGetValue("SentenceStudio.Native.PreviewSchema", out var schema)
@@ -74,7 +80,14 @@ public sealed record NativePreviewFixture(string Surface, string Owner, string E
             throw new InvalidOperationException(
                 "A native Debug preview needs an isolated local API, profile owner, and preview-only schema.");
 
-        return new NativePreviewFixture(surface, owner, email);
+        var appearance = attributes.GetValueOrDefault(
+            "SentenceStudio.Native.PreviewAppearance");
+        if (appearance is not null
+            && !AppearanceSelection.TryParse(appearance, out _))
+            throw new InvalidOperationException(
+                "The isolated Debug preview appearance token is invalid.");
+
+        return new NativePreviewFixture(surface, owner, email, appearance);
     }
 
     internal NativePlanCard? SelectAssignedQuizCard(NativeDashboardState dashboard)

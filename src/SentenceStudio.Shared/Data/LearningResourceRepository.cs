@@ -371,6 +371,69 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
         return ResourceMetadataUpdateResult.Conflict;
     }
 
+    /// <summary>
+    /// Atomically updates all editable scalar fields against the original owned row.
+    /// In particular, this never replaces the Vocabulary navigation collection.
+    /// </summary>
+    public async Task<ResourceMetadataUpdateResult> UpdateResourceContentAsync(
+        string resourceId, string userProfileId, ResourceContentSnapshot? original,
+        ResourceContentUpdate? content, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(userProfileId))
+        {
+            _logger.LogWarning("UpdateResourceContentAsync refused an absent owner.");
+            return ResourceMetadataUpdateResult.NotFoundOrForbidden;
+        }
+
+        if (string.IsNullOrWhiteSpace(resourceId) || original is null || content is null
+            || string.IsNullOrWhiteSpace(content.Title))
+            return ResourceMetadataUpdateResult.ValidationFailed;
+
+        cancellationToken.ThrowIfCancellationRequested();
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        if (db.Database.IsSqlite() && string.IsNullOrEmpty(original.Metadata.SqliteUpdatedAtText))
+            return ResourceMetadataUpdateResult.ValidationFailed;
+
+        var updatedAt = DateTime.UtcNow;
+        if (updatedAt <= original.Metadata.UpdatedAt)
+            updatedAt = original.Metadata.UpdatedAt.AddTicks(10);
+
+        var updated = await MatchOriginalMetadata(
+                db, resourceId, userProfileId, original.Metadata)
+            .Where(resource => resource.MediaType == original.MediaType
+                && resource.Language == original.Language
+                && resource.MediaUrl == original.MediaUrl
+                && resource.Transcript == original.Transcript
+                && resource.Translation == original.Translation)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(resource => resource.Title, content.Title)
+                .SetProperty(resource => resource.Description, content.Description)
+                .SetProperty(resource => resource.Tags, content.Tags)
+                .SetProperty(resource => resource.MediaType, content.MediaType)
+                .SetProperty(resource => resource.Language, content.Language)
+                .SetProperty(resource => resource.MediaUrl, content.MediaUrl)
+                .SetProperty(resource => resource.Transcript, content.Transcript)
+                .SetProperty(resource => resource.Translation, content.Translation)
+                .SetProperty(resource => resource.UpdatedAt, updatedAt), cancellationToken);
+
+        if (updated == 1)
+            return ResourceMetadataUpdateResult.Success;
+        if (updated != 0)
+            throw new InvalidOperationException("A resource content update affected more than one row.");
+
+        var owned = await db.LearningResources.AsNoTracking()
+            .Where(resource => resource.Id == resourceId
+                && resource.UserProfileId == userProfileId)
+            .Select(resource => (bool?)resource.IsSmartResource)
+            .SingleOrDefaultAsync(cancellationToken);
+        if (owned is null)
+            return ResourceMetadataUpdateResult.NotFoundOrForbidden;
+        return owned.Value
+            ? ResourceMetadataUpdateResult.SmartReadOnly
+            : ResourceMetadataUpdateResult.Conflict;
+    }
+
     internal static IQueryable<LearningResource> MatchOriginalMetadata(
         ApplicationDbContext db, string resourceId, string userProfileId,
         ResourceMetadataSnapshot original)
@@ -503,6 +566,70 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
     }
 
     /// <summary>
+    /// Creates a resource and its new vocabulary mappings in one SaveChanges transaction.
+    /// The ordinary SaveResourceAsync path only accepts already-persisted, owner-reachable words.
+    /// </summary>
+    public async Task<ResourceCreationResult> CreateOwnedResourceWithVocabularyAsync(
+        LearningResource resource, IReadOnlyList<VocabularyWord> words,
+        string userProfileId, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(userProfileId))
+        {
+            _logger.LogWarning("CreateOwnedResourceWithVocabularyAsync refused an absent owner.");
+            return new(ResourceCreationStatus.NotFoundOrForbidden);
+        }
+
+        if (resource is null || words is null || resource.IsSmartResource
+            || string.IsNullOrWhiteSpace(resource.Id)
+            || string.IsNullOrWhiteSpace(resource.Title)
+            || resource.Vocabulary.Count != 0 || resource.VocabularyMappings.Count != 0
+            || words.Any(word => string.IsNullOrWhiteSpace(word.Id)
+                || string.IsNullOrWhiteSpace(word.TargetLanguageTerm))
+            || words.Select(word => word.Id).Distinct(StringComparer.Ordinal).Count() != words.Count
+            || words.Select(word => word.TargetLanguageTerm!.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase).Count() != words.Count)
+            return new(ResourceCreationStatus.Invalid);
+
+        cancellationToken.ThrowIfCancellationRequested();
+        using var scope = _serviceProvider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        if (!await db.UserProfiles.AnyAsync(profile => profile.Id == userProfileId,
+                cancellationToken))
+            return new(ResourceCreationStatus.NotFoundOrForbidden);
+
+        var ids = words.Select(word => word.Id).ToArray();
+        if (await db.LearningResources.AnyAsync(row => row.Id == resource.Id, cancellationToken)
+            || ids.Length != 0 && await db.VocabularyWords.AnyAsync(
+                word => ids.Contains(word.Id), cancellationToken))
+            return new(ResourceCreationStatus.AlreadyExists);
+        if (resource.Tags?.Contains("starter", StringComparison.OrdinalIgnoreCase) == true
+            && await db.LearningResources.AnyAsync(row => row.UserProfileId == userProfileId
+                && row.Language == resource.Language
+                && row.Tags != null && row.Tags.Contains("starter"), cancellationToken))
+            return new(ResourceCreationStatus.AlreadyExists);
+
+        var now = DateTime.UtcNow;
+        resource.UserProfileId = userProfileId;
+        resource.CreatedAt = now;
+        resource.UpdatedAt = now;
+        db.LearningResources.Add(resource);
+        foreach (var word in words)
+        {
+            word.CreatedAt = now;
+            word.UpdatedAt = now;
+            db.VocabularyWords.Add(word);
+            db.ResourceVocabularyMappings.Add(new ResourceVocabularyMapping
+            {
+                ResourceId = resource.Id,
+                VocabularyWordId = word.Id
+            });
+        }
+
+        await db.SaveChangesAsync(cancellationToken);
+        return new(ResourceCreationStatus.Success, resource.Id);
+    }
+
+    /// <summary>
     /// Deletes a resource the caller owns, together with the progress its words no longer reach.
     /// </summary>
     /// <remarks>
@@ -539,7 +666,9 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
     /// have removed one.
     /// </para>
     /// </remarks>
-    public async Task<int> DeleteResourceAsync(LearningResource resource, string? userProfileId = null)
+    public async Task<int> DeleteResourceAsync(
+        LearningResource resource, string? userProfileId = null,
+        bool allowSmartResource = true, bool triggerSync = true)
     {
         var userId = ResolveUserId(userProfileId);
         if (string.IsNullOrWhiteSpace(userId))
@@ -558,7 +687,8 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
         // operation's success and would otherwise be reasoning about a row that was never ours.
         var ownershipProved = await db.LearningResources
             .AsNoTracking()
-            .AnyAsync(r => r.Id == resourceId && r.UserProfileId == userId);
+            .AnyAsync(r => r.Id == resourceId && r.UserProfileId == userId
+                && (allowSmartResource || !r.IsSmartResource));
         if (!ownershipProved)
         {
             _logger.LogWarning("DeleteResourceAsync refused a missing or unowned resource.");
@@ -576,7 +706,8 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
                     db.ChangeTracker.Clear();
 
                     var ownedResource = await db.LearningResources
-                        .FirstOrDefaultAsync(r => r.Id == resourceId && r.UserProfileId == userId, ct);
+                        .FirstOrDefaultAsync(r => r.Id == resourceId && r.UserProfileId == userId
+                            && (allowSmartResource || !r.IsSmartResource), ct);
                     if (ownedResource is null)
                     {
                         // Somebody else's request removed it between the ownership check and here.
@@ -641,7 +772,8 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
                         .AnyAsync(r => r.Id == resourceId, ct);
                 });
 
-            _syncService?.TriggerSyncAsync().ConfigureAwait(false);
+            if (affected > 0 && triggerSync)
+                _syncService?.TriggerSyncAsync().ConfigureAwait(false);
 
             return affected;
         }
@@ -852,9 +984,10 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
         }
     }
 
-    public async Task<bool> StarterResourceExistsAsync(string? targetLanguage = null)
+    public async Task<bool> StarterResourceExistsAsync(
+        string? targetLanguage = null, string? userProfileId = null)
     {
-        var userId = ActiveUserId;
+        var userId = ResolveUserId(userProfileId);
         if (string.IsNullOrEmpty(userId))
         {
             _logger.LogWarning("StarterResourceExistsAsync called without an active user — returning false to prevent cross-tenant data leak (and to avoid blocking starter creation).");
@@ -1010,10 +1143,12 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
     /// <summary>
     /// Search active-user vocabulary in a single language, excluding words already attached to the resource.
     /// </summary>
-    public async Task<List<VocabularyWord>> SearchVocabularyWordsForResourceAsync(string query, string language, string resourceId, int limit = 20)
+    public async Task<List<VocabularyWord>> SearchVocabularyWordsForResourceAsync(
+        string query, string language, string resourceId, int limit = 20,
+        string? userProfileId = null, CancellationToken cancellationToken = default)
     {
-        var userId = ActiveUserId;
-        if (string.IsNullOrEmpty(userId))
+        var userId = ResolveUserId(userProfileId);
+        if (string.IsNullOrWhiteSpace(userId))
         {
             _logger.LogWarning("SearchVocabularyWordsForResourceAsync called without an active user — returning empty result to prevent cross-tenant data leak.");
             return new List<VocabularyWord>();
@@ -1021,6 +1156,13 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
 
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        if (string.IsNullOrWhiteSpace(language)
+            || language.Equals("Other", StringComparison.OrdinalIgnoreCase)
+            || !await db.LearningResources.AnyAsync(resource =>
+                resource.Id == resourceId && resource.UserProfileId == userId
+                && !resource.IsSmartResource && resource.Language == language,
+                cancellationToken))
+            return [];
 
         var searchTerm = query?.ToLower().Trim() ?? string.Empty;
         var safeLimit = Math.Max(0, limit);
@@ -1056,7 +1198,7 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
 
         return await results
             .Take(safeLimit)
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
     }
 
     /// <summary>

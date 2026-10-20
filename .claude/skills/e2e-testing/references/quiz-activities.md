@@ -6,6 +6,12 @@
 **URL:** `/vocab-quiz?resourceIds=<id>&skillId=<id>`
 **Services:** VocabularyProgressService, ElevenLabs (audio), ProgressCacheService
 
+These WebApp source cases also define native Quiz behavior; assigned MC/text
+completion alone does not satisfy native fidelity. Run direction × prompt
+modality × response modality × toggle, including audio-on/off and photo-on/off,
+and verify the first-run default path. Native photo/details/shortcut/settings
+remain incomplete until their running-platform journeys are proved.
+
 ### 1.1 Happy path (defaults)
 
 | Step | Action | Verify |
@@ -15,7 +21,7 @@
 | 3 | Wait 2s (don't click Next) | Auto-advances to next word |
 | 4 | Click wrong answer | "The answer is: X" feedback |
 | 5 | Click speaker 🔊 | Spinner → done (audio plays) |
-| 6 | Complete 10 questions | Summary screen with accuracy % |
+| 6 | Complete 10 questions | Summary shows correct/total/mastered/round counts and per-word outcomes |
 | 7 | Navigate to Dashboard | "Learning" count > 0; "New" decreased |
 
 **DB:** `SELECT COUNT(*) FROM VocabularyProgress WHERE UserId = '<userId>' AND TotalAttempts > 0`
@@ -42,11 +48,11 @@ Symbols under test (do not invent new ones — use these exact fields):
 |---|------------------|----------------|-------------------|---------------------------|-----------------------|------------------|---------------|
 | A | TargetToNative | false | — | Target term (text) | Native-language options | ✅ recognition of meaning | Target term visible; response is native; correct answer scores. |
 | B | TargetToNative | true | true | Target term (text) + photo | Native-language options | ✅ recognition of meaning + visual anchor | Target term visible next to photo; response is native. |
-| C | TargetToNative | true | **false** | Photo only, **no target text** | Native-language options | ❌ **BLOCKED — no L2 on screen** | The "Hide text with photo" toggle **must be unreachable** in this direction — either not rendered, or rendered but disabled with an aria-labeled explanation. If reachable and pressed, the target term must not be hidden. Failing this row is a Learning Value Gate violation and blocks release. |
+| C | TargetToNative | true | **false** | Target term (text) + photo | Native-language options | ✅ target-script recognition | The hide-text control is unavailable on target-prompt turns; the target text remains visible even when the persisted preference is false. |
 | D | NativeToTarget | false | — | Native-language cue (text) | Target-language options | ✅ recall of form | Native prompt visible; response is target; correct answer scores. |
 | E | NativeToTarget | true | true | Native cue + photo | Target-language options | ✅ recall + visual anchor | Both visible; response is target. |
 | F | NativeToTarget | true | false | Photo only before grading; native text during feedback | Target-language options | ✅ picture → target recall | Native prompt is hidden before submission, then revealed for both correct and incorrect feedback until auto/manual advance. |
-| G | Mixed | true | false | Per turn: rows C or F | Per turn | Depends per turn | Every native-prompt turn behaves like F, including feedback reveal and next-item reset. Every target-prompt turn behaves like B even though `ShowTextWithPhoto=false`. Rejects if any target-prompt turn hides the target term. |
+| G | Mixed | true | false | Per turn: rows C or F | Per turn | ✅ per-turn target exposure/retrieval | Every native-prompt turn behaves like F, including feedback reveal and next-item reset. Every target-prompt turn behaves like C with the target term visible despite `ShowTextWithPhoto=false`. |
 
 **Executable checks per row:**
 
@@ -54,7 +60,7 @@ Symbols under test (do not invent new ones — use these exact fields):
 2. Load `/vocab-quiz` with a photo-bearing resource.
 3. Read the DOM prompt region:
    - Row A/B/D/E/G-target: assert the target-language term text is present in the prompt heading region (`.ss-display` or equivalent).
-   - Row C: assert the target-language term is **not** present in the DOM. If it is not present, this row is a **failure**, because such a state must be unreachable. Passing this row requires either that the toggle producing it is not rendered, or that clicking it does not remove the target term.
+   - Row C: assert the target-language term **is visible in the prompt heading** and the Hide Text control is absent or disabled for that target-prompt turn. A stored `ShowTextWithPhoto=false` value must not remove the target term.
    - Row F/G-native: assert the native prompt may be absent from the DOM (permitted), and assert the response buttons contain target-language text.
 4. For row F and native-prompt turns in row G:
    - Before grading, assert the native prompt text is absent.
@@ -73,6 +79,65 @@ Symbols under test (do not invent new ones — use these exact fields):
 - The `ShowTextWithPhoto` field defaults to `false` at the DB level. Combined with `TargetToNative` default direction, first-time-use of the photo prompt lands in row C unless UI gates it.
 - `Mixed` mode randomizes direction per turn via `ShouldUseNativePrompt()` — a single test navigation must cycle enough turns to observe both direction outcomes, or the test must seed the RNG.
 - Toggling `showTextWithPhoto` persists via `SaveVocabQuizShowTextWithPhotoAsync`. Reset the field between test runs or the state leaks across cases.
+
+### 1.2a Native fallback, feedback, and timing acceptance
+
+| Setup/action | Required observation |
+|--------------|----------------------|
+| For each direction (including both Mixed turn directions), disable text and make audio/photo unavailable | A readable prompt and target-language-engaging response remain; no nonexistent audio/photo is reported as played or rendered; answer-side audio never substitutes for the prompt |
+| Enable real audio, leave the first-run `AutoPlayVocabAudio=true`, then advance/restart | Prompt-side word plays once per eligible turn in the prompt language, never the answer language; manual play and offline failure have truthful fallback |
+| NativeToTarget or Mixed/native MC with audio-answer letters A–D | Before playing, each letter's Choose action is disabled and its separate Play action speaks the target-language option; after successful playback that letter is enabled, selecting it grades exactly once. If playback fails, all options show their target-language text instead of offering selectable native-only letters. Repeat with photo on/hidden native text and ensure target-language engagement remains possible. Accessibility labels announce only the option letter before playback, never the correct-answer term. |
+| Native-language photo with `ShowTextWithPhoto=false`, answer correctly and incorrectly | Hidden native text reveals for both feedback outcomes, then resets on the next item and on resume; target-language prompt text remains visible in TargetToNative and Mixed turns |
+| Light/Dark selected from the normal Dashboard → Settings action, then navigate through Dashboard/Quiz/Resources/edit and restart | Both palettes and font scale persist from the normal `AppAppearance` preference, without Ailoha/fixture preference injection, and changing only the mode does not reset the theme/scale or recreate a focused input/NavigationStack |
+| Correct and incorrect MC/Text feedback, then wrong Text correction | Correct-answer term and status alert both appear before choices/typed input; wrong Text clears and reuses the same field for Type Correct/Submit/Enter; no second correction field. Auto-advance progress moves at start/mid/selected 1–10s endpoint, cancels on manual Next/Back/override/restart and never double-scores. Footer counter stays START, correct-count pill END, and a real divider stays above both with keyboard visible. |
+| Correct feedback with `ShowMnemonicImage=true` while `UsePhotoPrompt=false`; then answer incorrectly on another turn | Only correct feedback exposes mnemonic text and an image candidate; a platform image load must succeed before counting it as rendered or fullscreen-capable |
+| Open Learning Details before and after grading, dismiss via Back/close | Show only owner-scoped status, attempts, accuracy, streak, mastery, SRS timing and mode reason; no target/native answer term appears in the panel or accessibility metadata |
+| Type a fuzzy-accepted response with a complete form; complete a round; Back from ResumeChoice | Full form appears only after grading and survives resume; summary distinguishes correct/incorrect/rotated-out rows and totals; ResumeChoice Back preserves the snapshot without another write |
+| Quiz Ready → More → Use in a sentence, with an empty editor and then entered text | The real multiline editor has a visible source-style border and readable text. Grade is disabled while empty, enables as text is entered without remounting the editor or losing focus, and remains reachable when the keyboard is up. Cancel returns to the same turn without grading. Submit an owned target-language sentence through the real grader and verify one persisted owner-scoped result, feedback and Continue. Submit a native-language-only sentence against a target-language term (for example, English `I eat fruit.` against Korean `과일`): even if the AI proposes a Korean translation, production mastery credit must remain zero. An unavailable grade shows a truthful retry/Continue path without claiming success. |
+| Select auto-advance duration 1, 5, 5.5 and 10 seconds; restart | The selected half-second values persist, and observed feedback dwell time follows the chosen duration; do not copy the old silent 5-second clamp |
+
+### 1.2b Native exhaustive preference cells
+
+For each **effective** turn direction `TargetToNative`, `NativeToTarget`,
+`Mixed-target` and `Mixed-native`, each response mode `MC` and `Text`, and
+each `UseTextPrompt`/`UseAudioPrompt`/`UsePhotoPrompt` bit pattern `000`,
+`001`, `010`, `011`, `100`, `101`, `110`, `111`, exercise the **64**
+`M:{direction}:{mode}:{bits}` cells from the approved iOS screen-state
+matrix. Configure settings through the normal Settings screen; do not inject
+preference values or mutate a protected owner's quiz attempts. Source data
+conditions (owned image present/absent, audio playable/cached/offline) are
+recorded alongside each result, not treated as an excluded row.
+
+| Per-cell condition | Target-language action to verify |
+|--------------------|----------------------------------|
+| TargetToNative or Mixed-target, any mode/bits | Written target prompt stays visible whenever photo is on; if all three modalities are off or configured media fail, written target prompt appears as fallback. Recognition/comprehension of the target form must be possible before revealing native meaning. |
+| NativeToTarget or Mixed-native, Text, any bits | Learner produces the target-language form in the same TextField; hidden native photo text returns for **both** feedback outcomes. Audio on the prompt must play only native-language input, not answer-side target audio. |
+| NativeToTarget or Mixed-native, MC, audio available | Learner hears a target-language option from its separate Play button before that letter may be selected; failed/unavailable playback falls back to visible target-language option text. The correct target term must never be exposed as a prompt hint or alt label. |
+| NativeToTarget or Mixed-native, MC, audio off/unavailable | Response buttons visibly contain target-language candidate forms, including photo-only native prompt cells; choosing the correct form exercises target retrieval. |
+| Photo bit=1, no owned image | Stay in the text/audio portion of the same cell with source-conditional image absence, no fabricated image/thumbnail or false N/A for the overall cell. |
+| `000` | Settings normalizes to a text-prompt fallback on save. Before any saved preference exists, the source default `TargetToNative` + text/audio on and photo off must still expose the written target form. |
+
+For every cell also check generic photo accessibility labels, Info's
+answer-free owner statistics, prompt-language audio, cancellation/return and
+same-turn save exactly once. Run correct **and** incorrect Text correction in
+both effective directions, and explicitly observe both Mixed turn directions
+before recording a Mixed result. If a requested media/destination bridge is
+not implemented, record the cell as blocked—not passing or not applicable.
+
+### 1.2c Native Quiz prompt-circle controls
+
+Pinned `VocabQuiz.razor:255-288` sets the prompt-row audio, photo, Info and
+sentence-hint icon buttons to `44px × 44px`, `rounded-circle` and `p-0`.
+On a data-safe native Quiz session, use Ailoha's live tree and screenshots:
+
+| State | Check |
+|-------|-------|
+| Ready and feedback, Light and Dark, default and accessibility-extra-large text | Audio (`native.quiz.play-prompt`) and Info (`native.quiz.details`) each paint a 44×44 circle and retain a 44×44 button frame. Both SF Symbols remain wholly within their painted circles at the selected app font scale, including 150%, while the prompt, answer and accessibility text continue to scale normally. Preserve accessible names, actions and source-derived outline colors. |
+| Owned photo present or target-language sentence hints available | Photo toggle (`native.quiz.photo.toggle`) and hints toggle (`native.quiz.hints.toggle`) have the same 44×44 painted circle and hit bounds before and after the existing icon changes; absent optional controls stay absent. |
+| Existing busy/disabled cases | During audio, do not start overlapping playback; photo remains disabled when busy. Info still opens the same owner-scoped, answer-free details sheet. The answer-choice Play buttons and Quiz More menu keep their distinct source geometry. |
+
+Never interrupt or mutate Captain's active canonical Quiz to run this case.
+Use only root-approved isolation or a separately authorized data-safe journey.
 
 ### 1.3 Target-language sample-sentence hints
 

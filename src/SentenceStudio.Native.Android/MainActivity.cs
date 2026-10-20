@@ -38,6 +38,15 @@ public sealed class MainActivity : ComponentActivity
             _backCallback.Enabled = canGoBack;
     }
 
+    public override bool DispatchKeyEvent(KeyEvent? e)
+    {
+        if (e?.KeyCode == Keycode.Escape
+            && e.Action == KeyEventActions.Down
+            && _shell?.HandlePhotoEscape() == true)
+            return true;
+        return base.DispatchKeyEvent(e);
+    }
+
     protected override void OnDestroy()
     {
         _shell?.Dispose();

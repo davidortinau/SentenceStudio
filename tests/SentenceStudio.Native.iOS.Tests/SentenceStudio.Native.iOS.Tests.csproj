@@ -5,7 +5,6 @@
     <IsPackable>false</IsPackable>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <DefineConstants>$(DefineConstants);NATIVE_DASHBOARD_LABEL_TEST</DefineConstants>
   </PropertyGroup>
 
   <ItemGroup>
@@ -23,18 +22,48 @@
              Link="NativeApiEndpoint.cs" />
     <Compile Include="../../src/SentenceStudio.Native.iOS/Platform/NativeResourceDateFormatter.cs"
              Link="NativeResourceDateFormatter.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.iOS/Platform/NativeResourceQuickKeyCommands.cs"
+             Link="NativeResourceQuickKeyCommands.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.iOS/Platform/NativeLocalizedText.cs"
+             Link="NativeLocalizedText.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.iOS/App/ApplicationFormRoutes.cs"
+             Link="ApplicationFormRoutes.cs" />
     <Compile Include="../../src/SentenceStudio.Native.iOS/Platform/NativeProfileAuthService.cs"
              Link="NativeProfileAuthService.cs" />
-    <Compile Include="../../src/SentenceStudio.Native.iOS/Features/IosDashboardNavigation.cs"
-             Link="IosDashboardNavigation.cs" />
-    <Compile Include="../../src/SentenceStudio.Native.iOS/Platform/NativeVisualViewController.cs"
-             Link="NativeVisualViewController.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.iOS/Features/LearningResources/LearningResourceViewState.cs"
+             Link="LearningResourceViewState.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.iOS/Features/LearningResources/LearningResourceInputSelection.cs"
+             Link="LearningResourceInputSelection.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Vocabulary/VocabularyFilterState.cs"
+             Link="VocabularyFilterState.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Skills/SkillsCoordinator.cs"
+             Link="SkillsCoordinator.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Profile/ProfileCoordinator.cs"
+             Link="ProfileCoordinator.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.iOS/Features/ActivityLog/ActivityLogReader.cs"
+             Link="ActivityLogReader.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.iOS/Features/ActivityLog/ActivityLogCoordinator.cs"
+             Link="ActivityLogCoordinator.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.iOS/Styling/SourceUiLayout.cs"
+             Link="SourceUiLayout.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.iOS/Styling/SourceUiAppearance.cs"
+             Link="SourceUiAppearance.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.iOS/Styling/SourceUiTypography.cs"
+             Link="SourceUiTypography.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Settings/QuizSettingsDraft.cs"
+             Link="QuizSettingsDraft.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.iOS/Features/Settings/SettingsCoordinator.cs"
+             Link="SettingsCoordinator.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.iOS/Platform/NativeDashboardCardAccessibility.cs"
+             Link="NativeDashboardCardAccessibility.cs" />
     <Compile Include="../../src/SentenceStudio.Native.iOS/Platform/NativePreviewFixture.cs"
              Link="NativePreviewFixture.cs" Condition="'$(Configuration)' == 'Debug'" />
     <Compile Include="../SentenceStudio.Native.Tests/NativeSliceFixture.cs"
              Link="NativeSliceFixture.cs" Condition="'$(Configuration)' == 'Debug'" />
     <Compile Include="../SentenceStudio.Native.Tests/ScratchPorts.cs"
              Link="ScratchPorts.cs" Condition="'$(Configuration)' == 'Debug'" />
+    <Compile Include="../SentenceStudio.Native.Tests/ScratchResourceAiGateway.cs"
+             Link="ScratchResourceAiGateway.cs" Condition="'$(Configuration)' == 'Debug'" />
     <Using Include="Xunit" />
   </ItemGroup>
 </Project>

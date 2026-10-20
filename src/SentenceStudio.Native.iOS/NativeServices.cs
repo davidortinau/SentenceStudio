@@ -37,7 +37,9 @@ public sealed class NativeServices : IDisposable
         // EnsureCreated previews are not migratable; a new file keeps the old sandbox intact.
         var database = Path.Combine(folder,
             PreviewSchemaEnabled()
-                ? (PreviewSurface() is "mc" or "mc-back" or "mc-resume" or "mc-details")
+                ? (PreviewSurface() is "mc" or "mc-feedback" or "mc-back"
+                    or "mc-resume" or "mc-details"
+                    or "mc-style-feedback-correct" or "mc-style-feedback-wrong")
                     ? "sentencestudio.preview.mc.v2.sqlite"
                     : "sentencestudio.preview.v2.sqlite"
                 : "sentencestudio.sqlite");
@@ -61,6 +63,7 @@ public sealed class NativeServices : IDisposable
         services.AddSingleton<LearningResourceRepository>();
         services.AddSingleton<SkillProfileRepository>();
         services.AddSingleton<UserActivityRepository>();
+        services.AddSingleton<StreamHistoryRepository>();
         services.AddSingleton<VocabularyProgressRepository>();
         services.AddSingleton<VocabularyLearningContextRepository>();
         services.AddSingleton<VocabularyProgressService>();
@@ -80,13 +83,24 @@ public sealed class NativeServices : IDisposable
         services.AddSingleton<VocabularyQuizPreferences>();
         services.AddSingleton<INativePlanCreation, NativePlanCreationAdapter>();
         services.AddSingleton<INativeQuizAttemptCommitter, NativeQuizAttemptCommitterAdapter>();
+        services.AddSingleton<INativeQuizSentenceCommitter, NativeQuizSentenceAttemptCommitter>();
         services.AddSingleton<INativeQuizChoices, NativeQuizChoicesAdapter>();
         services.AddSingleton<INativeQuizEligibility, NativeQuizEligibilityAdapter>();
         services.AddSingleton<INativeQuizGrader, NativeQuizGraderAdapter>();
+        services.AddSingleton<INativeQuizMedia>(sp =>
+            new NativeQuizMedia(
+                sp.GetRequiredService<DeviceUserScopeProvider>(),
+                sp.GetRequiredService<IPreferencesService>(),
+                sp.GetRequiredService<IConnectivityService>(),
+                sp.GetRequiredService<IFileSystemService>(),
+                sp.GetRequiredService<SpeechVoicePreferences>(),
+                sp.GetRequiredService<StreamHistoryRepository>(),
+                sp.GetService<IAuthService>(),
+                sp.GetService<INativeQuizSpeechSource>(),
+                endpoint));
 
         if (endpoint is not null)
         {
-            services.AddTransient<AuthenticatedHttpMessageHandler>();
             services.AddSyncServices(database, endpoint, downloadOnlyProfile: true);
             services.AddSingleton<ISyncService, SyncService>();
             services.AddHttpClient("AuthClient", client =>
@@ -102,6 +116,9 @@ public sealed class NativeServices : IDisposable
                     sp.GetRequiredService<IPreferencesService>(),
                     sp.GetRequiredService<ILogger<IdentityAuthService>>()));
             services.AddSingleton<IAuthService, NativeProfileAuthService>();
+            services.AddOwnerBoundNativeAiGateway(endpoint);
+            services.AddOwnerBoundNativeQuizSpeech(endpoint);
+            services.AddOwnerBoundNativeSentenceGrader(endpoint);
         }
 
         services.AddSentenceStudioNativeSlice();

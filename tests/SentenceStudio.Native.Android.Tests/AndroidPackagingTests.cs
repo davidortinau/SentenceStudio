@@ -87,6 +87,8 @@ public sealed class AndroidPackagingTests
         Assert.Contains("NativeAccess.PasswordVisibility", composition);
         Assert.Contains("VisualTransformation = ShowPassword.Value", composition);
         Assert.Contains("NativeText.ShowPasswordShort", composition);
+        Assert.Contains("state.Phase is not (NativePhase.Loading or NativePhase.Blocked)",
+            composition);
         Assert.Contains("new TextButton(", composition);
         Assert.DoesNotContain("TrailingIcon = new IconButton", composition);
         foreach (var culture in new[] { "AppResources.resx", "AppResources.ko.resx" })
@@ -101,6 +103,67 @@ public sealed class AndroidPackagingTests
                 Assert.Contains(resources.Descendants("data"),
                     entry => (string?)entry.Attribute("name") == key);
         }
+    }
+
+    [Fact]
+    public void AccountEntryAndOnboardingUseNativeRoutesNotAWebAppNotice()
+    {
+        var shell = File.ReadAllText(Path.Combine(HeadRoot, "AndroidSliceShell.cs"));
+        var composition = File.ReadAllText(Path.Combine(
+            HeadRoot, "AndroidSliceShell.Compose.cs"));
+        var auth = File.ReadAllText(Path.Combine(
+            HeadRoot, "AndroidSliceShell.Auth.cs"));
+        var onboarding = File.ReadAllText(Path.Combine(
+            HeadRoot, "AndroidSliceShell.Onboarding.cs"));
+
+        Assert.Contains("OpenRegistration", shell);
+        Assert.Contains("OpenRecovery", shell);
+        Assert.Contains("native.auth.register.open", composition);
+        Assert.Contains("native.auth.forgot.open", composition);
+        Assert.Contains("native.auth.register.submit", auth);
+        Assert.Contains("native.auth.recovery.send", auth);
+        Assert.Contains("NativeAuth_RegistrationAccepted", auth);
+        Assert.Contains("NativePasswordRecoveryOutcome.Accepted", auth);
+        Assert.DoesNotContain("PostAsJsonAsync", auth);
+        Assert.DoesNotContain("Register_VerificationSent", auth);
+        Assert.Contains("RenderOnboarding(palette)", composition);
+        Assert.Contains("native.auth.onboarding.pending", onboarding);
+        Assert.Contains("native.auth.onboarding.unavailable", onboarding);
+        Assert.DoesNotContain("FinishOnboardingAsync(", onboarding);
+        Assert.DoesNotContain("SaveOnboardingProfileAsync(", onboarding);
+        Assert.Contains("NativeOnboardingOptions.NativeLanguages", onboarding);
+        Assert.Contains("NativeOnboardingOptions.TargetLanguages", onboarding);
+        Assert.Contains("NativeOnboardingOptions.SessionMinutes", onboarding);
+        Assert.Contains("NativeOnboardingOptions.CefrLevels", onboarding);
+        Assert.Contains("Common_MinutesShort", onboarding);
+        Assert.Contains("inline: true", onboarding);
+        Assert.Contains("RenderOnboardingSteps(palette)", onboarding);
+        Assert.Contains("new Row(Arrangement.Center", onboarding);
+        Assert.Contains(".VerticalScroll(_onboardingScroll)", onboarding);
+        Assert.Contains("composer.LaunchedEffect(onboardingKey", composition);
+        Assert.Contains("_onboardingScroll.ScrollToAsync(0, cancellationToken)",
+            composition);
+        Assert.Contains("_onboardingMinutes = 15", onboarding);
+        Assert.Contains("_onboardingCefr = \"A2\"", onboarding);
+        Assert.DoesNotContain("Complete your account setup in the WebApp",
+            composition);
+    }
+
+    [Fact]
+    public void PendingReadinessAndDataLoadsShowNativeProgressInsteadOfAStaticNotice()
+    {
+        var auth = File.ReadAllText(Path.Combine(
+            HeadRoot, "AndroidSliceShell.Auth.cs"));
+        var composition = File.ReadAllText(Path.Combine(
+            HeadRoot, "AndroidSliceShell.Compose.cs"));
+
+        Assert.Contains("MainLayout_SyncingProfile", auth);
+        Assert.Contains("native.auth.sync.progress", auth);
+        Assert.Contains("native.auth.sync.retry", auth);
+        Assert.Contains("native.auth.signin.progress", composition);
+        Assert.Contains("native.dashboard.loading.progress", composition);
+        Assert.Contains("native.dashboard.sync.retry", composition);
+        Assert.Contains("native.quiz.loading.progress", composition);
     }
 
     [Fact]
@@ -126,6 +189,35 @@ public sealed class AndroidPackagingTests
     }
 
     [Fact]
+    public void QuizAutoPlayIsOwnedByTheSharedPresenter_NotQueuedTwiceByTheHead()
+    {
+        var shell = File.ReadAllText(Path.Combine(
+            HeadRoot, "AndroidSliceShell.cs"));
+        var policy = File.ReadAllText(Path.Combine(
+            HeadRoot, "AndroidQuizInputPolicy.cs"));
+        Assert.DoesNotContain("QueuePromptAutoPlay", shell);
+        Assert.DoesNotContain("ShouldAutoPlay", policy);
+        Assert.Contains("RequiredQuiz().PlayPromptAsync(cancellationToken)", shell);
+    }
+
+    [Fact]
+    public void TextCorrectionRetainsTheAnswerFieldPositionAndImeSubmit()
+    {
+        var composition = File.ReadAllText(Path.Combine(
+            HeadRoot, "AndroidSliceShell.Compose.cs"));
+        var shell = File.ReadAllText(Path.Combine(HeadRoot, "AndroidSliceShell.cs"));
+        Assert.Contains("native.quiz.answer.reveal", composition);
+        Assert.Contains("native.quiz.feedback.slot", composition);
+        Assert.Contains("var text = needsCorrection ? Correction : Answer", composition);
+        Assert.Contains("MutableState<TextFieldValue> Answer", shell);
+        Assert.Contains("ComposeExtensions.NewTextFieldValue(string.Empty)", shell);
+        Assert.Contains("native.quiz.correction.submit", composition);
+        Assert.Contains("NativeText.CorrectionRequired", composition);
+        Assert.Contains("KeyboardActionsHelper.Create(onDone:", composition);
+        Assert.DoesNotContain("new OutlinedTextField(Correction", composition);
+    }
+
+    [Fact]
     public void QuizSummary_RendersOwnedWordMeaningAndTextualVerdict()
     {
         var composition = File.ReadAllText(Path.Combine(
@@ -134,8 +226,128 @@ public sealed class AndroidPackagingTests
         Assert.Contains("result.TargetLanguageTerm", composition);
         Assert.Contains("result.NativeLanguageTerm", composition);
         Assert.Contains("result.WasCorrect", composition);
-        Assert.Contains("NativeText.QuizCorrect : NativeText.QuizIncorrect", composition);
+        Assert.Contains("result.ReadyToRotateOut", composition);
+        Assert.Contains("\"VocabQuiz_Mastered\" : NativeText.QuizCorrect", composition);
+        Assert.Contains("NativeText.QuizIncorrect", composition);
         Assert.Contains("NativeAccess.QuizSummaryResult", composition);
+    }
+
+    [Fact]
+    public void QuizCompleteFormAndMnemonicAppearOnlyInCorrectGradedFeedback()
+    {
+        var composition = File.ReadAllText(Path.Combine(
+            HeadRoot, "AndroidSliceShell.Compose.cs"));
+        var start = composition.IndexOf("if (state.Phase == NativePhase.Feedback)",
+            StringComparison.Ordinal);
+        Assert.True(start >= 0);
+        var end = composition.IndexOf("if (state.ErrorKey is not null)",
+            start, StringComparison.Ordinal);
+        Assert.True(end > start);
+        var feedback = composition[start..end];
+
+        Assert.Contains("state.AnswerWasCorrect == true", feedback);
+        Assert.Contains("state.CompleteForm", feedback);
+        Assert.Contains("NativeVocabQuiz_FullForm", feedback);
+        Assert.Contains("state.FeedbackMnemonicText", feedback);
+        Assert.Contains("NativeVocabQuiz_Mnemonic", feedback);
+        Assert.Contains("native.quiz.feedback.mnemonic", feedback);
+    }
+
+    [Fact]
+    public void QuizDetailsSheetIsStagedWithoutLeakingAnswerTermsOrExposingMissingCopy()
+    {
+        var composition = File.ReadAllText(Path.Combine(
+            HeadRoot, "AndroidSliceShell.Compose.cs"));
+        var start = composition.IndexOf(
+            "private ComposableNode RenderLearningDetails(", StringComparison.Ordinal);
+        var end = composition.IndexOf(
+            "private static ComposableNode DetailField(", start,
+            StringComparison.Ordinal);
+        Assert.True(start >= 0 && end > start);
+        var details = composition[start..end];
+        Assert.DoesNotContain("\"native.quiz.details.open\"", composition);
+        Assert.DoesNotContain("new IconButton(OpenDetails", composition);
+        Assert.Contains("state.Overlay == NativeQuizOverlay.LearningDetails",
+            composition);
+        Assert.Contains("new ModalBottomSheet(onDismissRequest: DismissOverlay)",
+            details);
+        Assert.Contains("NativeAccess.QuizDetails", details);
+        Assert.Contains("0.7f", details);
+        Assert.Contains("details.TotalAttempts", details);
+        Assert.Contains("details.CorrectAttempts", details);
+        Assert.Contains("details.CurrentStreak", details);
+        Assert.Contains("details.ProductionInStreak", details);
+        Assert.Contains("details.EffectiveStreak", details);
+        Assert.Contains("details.MasteryScore", details);
+        Assert.Contains("details.NextReviewDate", details);
+        Assert.Contains("details.ReviewInterval", details);
+        Assert.Contains("details.EaseFactor", details);
+        Assert.Contains("details.IsDueForReview", details);
+        Assert.Contains("details.Mode", details);
+        Assert.Contains("details.DueOnly", details);
+        Assert.Contains("details.WhyModeKey", details);
+        Assert.DoesNotContain("TargetLanguageTerm", details);
+        Assert.DoesNotContain("NativeLanguageTerm", details);
+        Assert.DoesNotContain("CorrectAnswerAfterGrading", details);
+        Assert.DoesNotContain("PromptText", details);
+    }
+
+    [Theory]
+    [InlineData("AppResources.resx")]
+    [InlineData("AppResources.ko.resx")]
+    public void QuizDetailsRemainUnreachableWhileMetricLabelsAreMissing(
+        string culture)
+    {
+        var resources = XDocument.Load(Path.Combine(HeadRoot, "..",
+            "SentenceStudio.Shared", "Resources", "Strings", culture));
+        var keys = resources.Descendants("data")
+            .Select(entry => (string?)entry.Attribute("name") ?? string.Empty)
+            .ToHashSet(StringComparer.Ordinal);
+        var missing = new[]
+        {
+            "TotalAttempts", "CorrectAttempts", "CurrentStreak",
+            "ProductionInStreak", "EffectiveStreak", "MasteryScore",
+            "SrsSchedule", "ReviewInterval", "Days", "EaseFactor",
+            "IsDueForReview", "QuizContext", "QuizMode", "TextMode",
+            "MultipleChoiceMode", "DueOnly", "WhyMode",
+            "RecognitionDemonstrations"
+        }.Where(suffix => !keys.Contains("NativeVocabQuiz_Details_" + suffix))
+            .ToArray();
+        Assert.NotEmpty(missing);
+        Assert.DoesNotContain("new IconButton(OpenDetails", File.ReadAllText(
+            Path.Combine(HeadRoot, "AndroidSliceShell.Compose.cs")));
+    }
+
+    [Fact]
+    public void GradedFeedbackPhotoRequiresDecodedImageButCannotOpenThePromptViewer()
+    {
+        var composition = File.ReadAllText(Path.Combine(
+            HeadRoot, "AndroidSliceShell.Compose.cs"));
+        var shell = File.ReadAllText(Path.Combine(
+            HeadRoot, "AndroidSliceShell.cs"));
+        Assert.Contains("media.CanShowPhotoAsync(candidate.Uri, cancellationToken)",
+            composition);
+        Assert.Contains("Auth.UserId == candidate.Owner", composition);
+        Assert.Contains("Quiz.TurnId == candidate.Turn", composition);
+        Assert.Contains("media.TryGetPhoto(candidate.Uri, out _)", composition);
+        Assert.Contains("AndroidQuizFeedbackPhotoPolicy.CanDisplay(", composition);
+        Assert.Contains("native.quiz.photo.feedback.thumbnail", composition);
+        Assert.Contains("var interactive = !feedback && Quiz.Phase == NativePhase.Ready",
+            composition);
+        Assert.Contains("modifier = interactive", composition);
+        Assert.Contains(".Clickable(OpenPhoto)", composition);
+        Assert.DoesNotContain("OpenFeedbackPhoto", composition);
+        Assert.DoesNotContain("OpenGradedPhoto", shell);
+        Assert.Contains("AndroidQuizPhotoPresentationPolicy.CanPresent(", shell);
+        var open = shell[shell.IndexOf(
+            "public void OpenPhoto()", StringComparison.Ordinal)
+            ..shell.IndexOf("private void OnPhotoDismissed(",
+                StringComparison.Ordinal)];
+        Assert.Contains("Quiz.Phase != NativePhase.Ready", open);
+        Assert.Contains("Quiz.Overlay != NativeQuizOverlay.None", open);
+        Assert.Contains("_media.TryGetPhoto(uri, out var bitmap)", open);
+        Assert.Contains("ApplyQuizState(RequiredQuiz().DismissOverlay())", open);
+        Assert.DoesNotContain("NativePhase.Feedback", open);
     }
 
     [Theory]
@@ -185,7 +397,109 @@ public sealed class AndroidPackagingTests
         Assert.Contains("FontWeight = FontWeight.Bold", visual);
         Assert.Contains("Align = TextAlign.Center", visual);
         Assert.Contains("viewport.Add(QuizPromptHeading(question, palette))", composition);
-        Assert.DoesNotContain("OpenPhoto()", composition);
+        Assert.Contains("native.quiz.tools", composition);
+        Assert.Contains("\"native.quiz.audio\"", composition);
+        Assert.Contains("prompt.ShowPhoto && prompt.CanPlayPromptAudio", composition);
+        Assert.Contains("VocabQuiz_ListenLookAnswer", composition);
+        Assert.Contains("VocabQuiz_LookAndAnswer", composition);
+        Assert.Contains("viewport.Add(RenderQuizPhoto(photoUri, palette))", composition);
+        Assert.Contains("new Image(painter, Localize(NativeText.QuizPhoto))",
+            composition);
+        Assert.Contains(".Clickable(OpenPhoto)", composition);
+    }
+
+    [Fact]
+    public void FullscreenPhotoUsesComposeImageGesturesAndAccessibleClose()
+    {
+        var viewer = File.ReadAllText(Path.Combine(
+            HeadRoot, "AndroidQuizPhotoDialog.cs"));
+        var shell = File.ReadAllText(Path.Combine(
+            HeadRoot, "AndroidSliceShell.cs"));
+        var composition = File.ReadAllText(Path.Combine(
+            HeadRoot, "AndroidSliceShell.Compose.cs"));
+        Assert.Contains("new BoxWithConstraints(", viewer);
+        Assert.Contains("Modifier.FillMaxSize().ClipToBounds()", viewer);
+        Assert.Contains("Modifier.MatchParentSize()", viewer);
+        Assert.Contains("Modifier.FillMaxSize().SafeDrawingPadding().Padding(16)",
+            viewer);
+        Assert.Contains("native.quiz.photo.backdrop", viewer);
+        Assert.Contains(".DetectTapGestures(", viewer);
+        Assert.Contains(".DetectTransformGestures(", viewer);
+        Assert.Contains(".GraphicsLayer(", viewer);
+        Assert.Contains("_transform.ContainsImage(", viewer);
+        Assert.Contains("new Image(_painter, _imageLabel)", viewer);
+        Assert.Contains("new IconButton(onClick:", viewer);
+        Assert.Contains("native.quiz.photo.viewer", viewer);
+        Assert.Contains("native.quiz.photo.image", viewer);
+        Assert.Contains("native.quiz.photo.close", viewer);
+        Assert.Contains(".SystemBarsPadding().Padding(16)", viewer);
+        Assert.Contains(".FocusRequester(_closeFocus)", viewer);
+        Assert.Contains("semantics.ContentDescription(_title)", viewer);
+        Assert.Contains("semantics.ContentDescription(_closeLabel)", viewer);
+        Assert.DoesNotContain("using Android.Widget", viewer);
+        Assert.DoesNotContain("new Dialog(", viewer);
+        var backdropTap = viewer[viewer.IndexOf(
+            "onTap: location =>", StringComparison.Ordinal)..viewer.IndexOf(
+            "onDoubleTap: location =>", StringComparison.Ordinal)];
+        Assert.Contains("!_transform.ContainsImage(location.X, location.Y)",
+            backdropTap);
+        Assert.Contains("_onDismiss()", backdropTap);
+        var closeButton = viewer[viewer.IndexOf(
+            "var close = new IconButton(", StringComparison.Ordinal)..viewer.IndexOf(
+            "topBar.Add(close)", StringComparison.Ordinal)];
+        Assert.Contains("_onDismiss()", closeButton);
+        Assert.Contains("Localize(NativeText.QuizPhoto)", shell);
+        Assert.Contains("theme.Add(photoViewer.Render())", composition);
+        Assert.Contains("photoViewer.FocusClose()", composition);
+        Assert.Contains("AndroidQuizPhotoPresentationPolicy.CanPresent(",
+            composition);
+        Assert.Contains("_photoDialog?.Dispose()", shell);
+        Assert.Contains("QueuePhotoFocusRestore()", shell);
+        var dismiss = shell[shell.IndexOf(
+            "private void OnPhotoDismissed(", StringComparison.Ordinal)..shell.IndexOf(
+            "public void PlayPrompt()", StringComparison.Ordinal)];
+        Assert.Contains("ApplyQuizState(_quiz.DismissOverlay())", dismiss);
+        Assert.Contains("QueuePhotoFocusRestore()", dismiss);
+        Assert.Contains("private void ClosePhotoDialogWithoutRestore()", dismiss);
+        Assert.Contains("composer.LaunchedEffect(restoreVersion", composition);
+        Assert.Contains(".FocusRequester(_photoFocus!)", composition);
+    }
+
+    [Fact]
+    public void ActivityRoutesBackEscapeAndDestructionWithoutHostingWidgetPresentation()
+    {
+        var activity = File.ReadAllText(Path.Combine(
+            HeadRoot, "MainActivity.cs"));
+        var shell = File.ReadAllText(Path.Combine(
+            HeadRoot, "AndroidSliceShell.cs"));
+        var viewer = File.ReadAllText(Path.Combine(
+            HeadRoot, "AndroidQuizPhotoDialog.cs"));
+        Assert.Contains("this.SetContent(_shell.Build)", activity);
+        Assert.Contains("activity._shell?.HandleBack()", activity);
+        Assert.Contains("e?.KeyCode == Keycode.Escape", activity);
+        Assert.Contains("e.Action == KeyEventActions.Down", activity);
+        Assert.Contains("_shell?.HandlePhotoEscape()", activity);
+        Assert.Contains("base.DispatchKeyEvent(e)", activity);
+        Assert.Contains("_shell?.Dispose()", activity);
+        Assert.Contains("Quiz.Overlay == NativeQuizOverlay.FullscreenPhoto", shell);
+        Assert.Contains("viewer?.Dispose()", shell);
+        Assert.Contains("_lifetime.Cancel()", shell);
+        Assert.Contains("if (_disposed)", viewer);
+        Assert.Contains("key: \"photo-tap\"", viewer);
+        Assert.Contains("key: \"photo-transform\"", viewer);
+        Assert.DoesNotContain("SetContentView(", activity);
+
+        foreach (var file in Directory.EnumerateFiles(HeadRoot, "*.cs"))
+        {
+            var source = File.ReadAllText(file);
+            foreach (var widget in new[]
+            {
+                "using Android.Widget", "new Dialog(", "new FrameLayout(",
+                "new ImageView(", "new TextView(", "new EditText(",
+                "new AlertDialog.Builder(", ".SetContentView("
+            })
+                Assert.DoesNotContain(widget, source);
+        }
     }
 
     [Theory]
@@ -198,6 +512,9 @@ public sealed class AndroidPackagingTests
         XNamespace android = "http://schemas.android.com/apk/res/android";
         Assert.Equal("36",
             (string?)manifest.Descendants("uses-sdk").Single().Attribute(android + "minSdkVersion"));
+        Assert.Contains(manifest.Descendants("queries").Descendants("action"),
+            action => (string?)action.Attribute(android + "name")
+                == "android.intent.action.TTS_SERVICE");
         var application = manifest.Descendants("application").Single();
         if (configuration == "Release")
         {

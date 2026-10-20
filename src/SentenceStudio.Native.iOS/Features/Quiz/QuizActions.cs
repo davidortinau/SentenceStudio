@@ -1,0 +1,28 @@
+namespace SentenceStudio.Native.iOS.Features.Quiz;
+
+internal sealed record QuizActions(
+    Action<string> AnswerChanged,
+    Action<bool> AnswerFocusChanged,
+    Func<int, bool> CanSelectAudioChoice,
+    Action<string> SelectChoice,
+    Action PlayPrompt,
+    Action<int> PlayChoiceAudio,
+    Action SubmitText,
+    Action SubmitCorrection,
+    Action OverrideAsCorrect,
+    Action Next,
+    Action Resume,
+    Action StartFresh,
+    Action ContinueRound,
+    Action Done,
+    Action Retry,
+    Action OpenDetails,
+    Action ToggleSentenceHints,
+    Action<string> PhotoRendered,
+    Action<string, string> PhotoFailed,
+    Action OpenPhoto,
+    Action TogglePhotoVisible,
+    Action<string> SentenceChanged,
+    Action SubmitSentence,
+    Action CancelSentence,
+    Action ContinueAfterSentence);

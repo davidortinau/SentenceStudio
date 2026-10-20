@@ -25,6 +25,7 @@ public sealed partial class NativeQuizPresenter(
     UserProfileRepository profiles,
     LearningResourceRepository resources,
     VocabularyProgressRepository progress,
+    IServiceScopeFactory scopes,
     VocabQuizLaunchValidator validator,
     IProgressService planProgress,
     IActivitySessionService sessions,
@@ -32,6 +33,8 @@ public sealed partial class NativeQuizPresenter(
     INativeQuizChoices choices,
     INativeQuizEligibility eligibility,
     INativeQuizGrader grader,
+    INativeQuizSentenceGrader sentenceGrader,
+    INativeQuizSentenceCommitter sentenceCommitter,
     INativeQuizMedia media,
     INativeQuizAttemptCommitter committer,
     INativeSyncReadiness sync,
@@ -49,6 +52,7 @@ public sealed partial class NativeQuizPresenter(
     private NativeQuizLaunch? _launch;
     private string? _contextKey;
     private string? _planItemRowId;
+    private string? _adHocPlanItemId;
     private string? _displayDirection;
     private UserProfile? _profile;
     private List<VocabularyQuizItem> _batch = [];
@@ -72,6 +76,7 @@ public sealed partial class NativeQuizPresenter(
     private bool _allMasteredAtLaunch;
     private bool _audioHeard;
     private bool _audioAvailable;
+    private CancellationTokenSource? _activeAudio;
     private bool _photoLoaded;
     private bool _photoVisible;
     private bool _promptUsesNative;
@@ -103,42 +108,64 @@ public sealed partial class NativeQuizPresenter(
             ResetDifferentLaunch(launch);
             SetState(new(NativePhase.Loading, NativeDestination.VocabularyQuiz));
             if (!HasOwner(launch.UserId)
-                || string.IsNullOrWhiteSpace(launch.PlanItemId)
-                || launch.DueOnly)
+                || launch.PlanItemId is null
+                || launch.PlanItemId.Length > 0
+                    && string.IsNullOrWhiteSpace(launch.PlanItemId))
                 return RefuseLaunch();
 
+            var direct = launch.PlanItemId.Length == 0;
+            if (direct && launch.IsRepractice)
+                return RefuseLaunch();
             using (var lease = plans.ForOwner(launch.UserId))
             {
-                var plan = await lease.Service.GetTodayAsync(cancellationToken);
-                var card = plan?.Items.SingleOrDefault(item =>
-                    item.Id == launch.PlanItemId
-                    && item.ActivityType == nameof(PlanActivityType.VocabularyReview));
-                var focusIds = launch.FocusVocabularyIds.IsDefault ? [] : launch.FocusVocabularyIds.AsEnumerable();
-                var resourceIds = launch.ResourceIds.IsDefault ? [] : launch.ResourceIds.AsEnumerable();
-                if (plan is null || plan.GeneratedForDate != launch.PlanDate
-                    || card is null || card.IsCompleted
-                    || resourceIds.Count() > 1
-                    || !card.FocusVocabularyIds.SequenceEqual(focusIds, StringComparer.Ordinal)
-                    || !string.Equals(card.ResourceId, resourceIds.SingleOrDefault(), StringComparison.Ordinal)
-                    || !string.Equals(card.SkillId, launch.SkillId, StringComparison.Ordinal))
+                if (lease.LocalDate != launch.PlanDate)
                     return RefuseLaunch();
+                if (!direct)
+                {
+                    var plan = await lease.Service.GetTodayAsync(cancellationToken);
+                    var card = plan?.Items.SingleOrDefault(item =>
+                        item.Id == launch.PlanItemId
+                        && item.ActivityType == nameof(PlanActivityType.VocabularyReview));
+                    var focusIds = launch.FocusVocabularyIds.IsDefault
+                        ? [] : launch.FocusVocabularyIds.AsEnumerable();
+                    var resourceIds = launch.ResourceIds.IsDefault
+                        ? [] : launch.ResourceIds.AsEnumerable();
+                    if (plan is null || plan.GeneratedForDate != launch.PlanDate
+                        || card is null || resourceIds.Count() > 1
+                        || card.IsCompleted != launch.IsRepractice
+                        || !card.FocusVocabularyIds.SequenceEqual(
+                            focusIds, StringComparer.Ordinal)
+                        || !string.Equals(card.ResourceId,
+                            resourceIds.SingleOrDefault(), StringComparison.Ordinal)
+                        || !string.Equals(card.SkillId, launch.SkillId,
+                            StringComparison.Ordinal))
+                        return RefuseLaunch();
 
-                _planItemRowId = await lease.Database.DailyPlanCompletions.AsNoTracking()
-                    .Where(row => row.UserProfileId == launch.UserId
-                        && row.Date == launch.PlanDate.ToDateTime(
-                            TimeOnly.MinValue, DateTimeKind.Utc)
-                        && row.PlanItemId == launch.PlanItemId && !row.IsArchived)
-                    .Select(row => row.Id)
-                    .SingleOrDefaultAsync(cancellationToken);
-                if (string.IsNullOrWhiteSpace(_planItemRowId))
-                    return RefuseLaunch();
+                    _planItemRowId = await lease.Database.DailyPlanCompletions.AsNoTracking()
+                        .Where(row => row.UserProfileId == launch.UserId
+                            && row.Date == launch.PlanDate.ToDateTime(
+                                TimeOnly.MinValue, DateTimeKind.Utc)
+                            && row.PlanItemId == launch.PlanItemId && !row.IsArchived)
+                        .Select(row => row.Id)
+                        .SingleOrDefaultAsync(cancellationToken);
+                    if (string.IsNullOrWhiteSpace(_planItemRowId))
+                        return RefuseLaunch();
+                }
             }
 
             var route = await validator.ValidateRouteAsync(
                 launch.UserId,
                 launch.ResourceIds.IsDefault ? [] : launch.ResourceIds,
                 launch.SkillId);
-            if (!route.IsValid || !HasOwner(launch.UserId))
+            if (!route.IsValid || !HasOwner(launch.UserId)
+                || direct && (!launch.ResourceIds.IsDefault
+                    && launch.ResourceIds.Distinct(StringComparer.Ordinal).Count()
+                        != launch.ResourceIds.Length
+                    || !launch.FocusVocabularyIds.IsDefault
+                        && launch.FocusVocabularyIds.Distinct(StringComparer.Ordinal).Count()
+                            != launch.FocusVocabularyIds.Length
+                    || route.Resources.Count != (launch.ResourceIds.IsDefault
+                        ? 0 : launch.ResourceIds.Length)))
                 return RefuseLaunch();
 
             _profile = await profiles.GetByIdAsync(launch.UserId, cancellationToken);
@@ -151,12 +178,13 @@ public sealed partial class NativeQuizPresenter(
 
             var focus = FocusVocabularySelection.NormalizeFocusVocabularyIds(
                 launch.FocusVocabularyIds.IsDefault ? [] : launch.FocusVocabularyIds);
-            if (focus.Count == 0 && route.Resources.Count == 1)
+            if (focus.Count == 0 && !launch.DueOnly && route.Resources.Count > 0)
             {
-                var assignedResourceId = route.Resources[0].Id;
+                var scopedResources = route.Resources.Select(resource => resource.Id)
+                    .ToHashSet(StringComparer.Ordinal);
                 _reachableWords = _reachableWords.Where(word =>
                     word.LearningResources.Any(resource =>
-                        resource.Id == assignedResourceId)).ToList();
+                        scopedResources.Contains(resource.Id))).ToList();
             }
             var selected = focus.Count == 0
                 ? _reachableWords.Where(FocusVocabularySelection.IsUsableVocabularyWord).ToList()
@@ -167,15 +195,18 @@ public sealed partial class NativeQuizPresenter(
                 return SetState(new(NativePhase.Empty, NativeDestination.VocabularyQuiz,
                     ErrorKey: NativeText.QuizEmpty));
 
-            var verified = await planProgress.ValidatePlanItemAsync(
-                launch.UserId, launch.PlanItemId,
-                PlanActivityType.VocabularyReview,
-                route.Resources.Count == 1 ? route.Resources[0].Id : null,
-                route.Skill?.Id,
-                selected.Select(word => word.Id).ToArray(),
-                cancellationToken);
-            if (verified is null || !HasOwner(launch.UserId))
-                return RefuseLaunch();
+            if (!direct)
+            {
+                var verified = await planProgress.ValidatePlanItemAsync(
+                    launch.UserId, launch.PlanItemId,
+                    PlanActivityType.VocabularyReview,
+                    route.Resources.Count == 1 ? route.Resources[0].Id : null,
+                    route.Skill?.Id,
+                    selected.Select(word => word.Id).ToArray(),
+                    cancellationToken);
+                if (verified is null || !HasOwner(launch.UserId))
+                    return RefuseLaunch();
+            }
 
             _launch = launch;
             _contextKey = VocabQuizSessionSnapshot.BuildLaunchContextKey(
@@ -193,6 +224,24 @@ public sealed partial class NativeQuizPresenter(
             try
             {
                 _stored = NativeQuizStoredState.Deserialize(_resumable.StateJson);
+                if (direct)
+                {
+                    using var lease = plans.ForOwner(launch.UserId);
+                    var row = await lease.Database.DailyPlanCompletions.AsNoTracking()
+                        .SingleOrDefaultAsync(item => item.Id == _stored.PlanItemRowId
+                            && item.UserProfileId == launch.UserId
+                            && item.Date == launch.PlanDate.ToDateTime(
+                                TimeOnly.MinValue, DateTimeKind.Utc)
+                            && item.PlanItemId == _stored.AdHocPlanItemId
+                            && item.PlanItemId.StartsWith("adhoc-")
+                            && item.ActivityType == ActivityType && !item.IsArchived,
+                            cancellationToken);
+                    if (row is null)
+                        throw new InvalidOperationException(
+                            "A direct quiz lost its owner-scoped activity row.");
+                    _planItemRowId = row.Id;
+                    _adHocPlanItemId = row.PlanItemId;
+                }
                 if (!ValidateStoredState(_stored, selected))
                     throw new InvalidOperationException("Stored quiz context does not match the active plan.");
                 return SetState(new(NativePhase.ResumeChoice, NativeDestination.VocabularyQuiz));
@@ -296,6 +345,9 @@ public sealed partial class NativeQuizPresenter(
                 };
                 return quizItem;
             }).ToList();
+            await LoadSentenceHintsAsync(cancellationToken);
+            if (!HasOwner(_launch.UserId))
+                return RefuseLaunch();
             var byId = _batch.ToDictionary(item => item.Word.Id, StringComparer.Ordinal);
             _round = snapshot.RoundWordOrder.Select(id => byId[id]).ToList();
             _roundArchive = (snapshot.SessionItemsWordIds.Count > 0
@@ -309,6 +361,10 @@ public sealed partial class NativeQuizPresenter(
             _correctCount = snapshot.CorrectCount;
             _pending = _stored.PendingAttempt;
             _requiresCorrection = _stored.RequiresCorrection;
+            _sentenceSubmissionId = _stored.SentenceSubmissionId;
+            _sentenceInput = _stored.SentenceSourceInput;
+            _sentenceResults = _stored.SentenceResults.ToImmutableArray();
+            _sentenceCreditApplied = _stored.SentenceCreditApplied;
             pendingWrites.RestoreUnmarkedCommittedTurns(
                 _launch.UserId, snapshot.TotalTurns - (_pending is null ? 0 : 1));
             _pendingSync = pendingWrites.IsPending(_launch.UserId);
@@ -317,7 +373,51 @@ public sealed partial class NativeQuizPresenter(
             _turnId = _stored.TurnId;
             _clock.Stop();
             var elapsedTicks = Math.Max(_stored.ElapsedTicks, _clock.Elapsed.Ticks);
-            _clock.Start(_launch.PlanItemId, TimeSpan.FromTicks(elapsedTicks));
+            _clock.Start(_adHocPlanItemId ?? _launch.PlanItemId,
+                TimeSpan.FromTicks(elapsedTicks));
+
+            if (_sentenceSubmissionId is not null)
+            {
+                var receipt = await sentenceCommitter.FindAsync(
+                    _launch.UserId, _contextKey!, _turnId,
+                    _sentenceSubmissionId, cancellationToken);
+                if (receipt is not null && !_sentenceCreditApplied)
+                {
+                    ApplySentenceReceipt(receipt);
+                    await SaveSnapshotAsync(summaryVisible: false, cancellationToken);
+                }
+                else if (receipt is not null
+                    && (receipt.SuccessCount != _sentenceResults.Count(
+                        result => result.UsageCorrect && !result.GradeUnavailable)
+                        || !receipt.Results.SequenceEqual(_sentenceResults)))
+                    throw new InvalidOperationException(
+                        "The credited sentence results disagree with their receipt.");
+                else if (receipt is null && _sentenceCreditApplied)
+                    throw new InvalidOperationException(
+                        "The credited sentence submission lost its receipt.");
+                var sentenceQuestion = await PresentQuestionAsync(
+                    snapshot.PromptUsesNativeLanguage, snapshot.UserMode,
+                    graded: false, cancellationToken);
+                if (sentenceQuestion.Phase == NativePhase.Blocked)
+                    return SetState(sentenceQuestion);
+                var sentenceState = sentenceQuestion with
+                {
+                    Phase = _sentenceResults.Length > 0 && receipt is null
+                        ? NativePhase.Error : NativePhase.Ready,
+                    Mode = "Sentence",
+                    Sentence = NativeQuizModality.RenderSentence(
+                        _round[_turnIndex].Word, _profile!.TargetLanguage),
+                    SentenceResults = _sentenceCreditApplied ? _sentenceResults : [],
+                    SentenceSuccessCount = _sentenceCreditApplied
+                        ? _sentenceResults.Count(result => result.UsageCorrect
+                            && !result.GradeUnavailable) : 0,
+                    SentenceDraft = _sentenceCreditApplied ? null : _sentenceInput,
+                    ErrorKey = _sentenceResults.Length > 0 && receipt is null
+                        ? NativeText.SaveFailed : null,
+                    CanSubmit = false
+                };
+                return SetState(sentenceState);
+            }
 
             if (_pending is not null)
             {
@@ -362,6 +462,12 @@ public sealed partial class NativeQuizPresenter(
             return SetState(new(NativePhase.Blocked, NativeDestination.VocabularyQuiz,
                 ErrorKey: NativeText.ResumeUnavailable));
         }
+        catch (InvalidOperationException ex)
+        {
+            logger.LogWarning(ex, "Native quiz resume could not verify its sentence receipt.");
+            return SetState(new(NativePhase.Blocked, NativeDestination.VocabularyQuiz,
+                ErrorKey: NativeText.ResumeUnavailable));
+        }
         finally
         {
             _gate.Release();
@@ -385,9 +491,14 @@ public sealed partial class NativeQuizPresenter(
             && string.Equals(stored.UserId, _launch.UserId, StringComparison.Ordinal)
             && !string.IsNullOrWhiteSpace(stored.PlanItemRowId)
             && string.Equals(stored.PlanItemRowId, _planItemRowId, StringComparison.Ordinal)
+            && (string.IsNullOrEmpty(_launch.PlanItemId)
+                ? !string.IsNullOrWhiteSpace(stored.AdHocPlanItemId)
+                    && stored.AdHocPlanItemId == _adHocPlanItemId
+                : stored.AdHocPlanItemId is null)
             && stored.PlanDate == _launch.PlanDate
             && string.Equals(stored.LaunchContextKey, _contextKey, StringComparison.Ordinal)
             && string.Equals(stored.DisplayDirection, _displayDirection, StringComparison.Ordinal)
+            && stored.IsRepractice == _launch.IsRepractice
             && VocabQuizLaunchValidator.CountRejectedSnapshotReferences(
                 snapshot, _launch.PlanItemId,
                 _launch.FocusVocabularyIds.IsDefault ? [] : _launch.FocusVocabularyIds,
@@ -414,6 +525,10 @@ public sealed partial class NativeQuizPresenter(
             && (_displayDirection == "Mixed"
                 || snapshot.PromptUsesNativeLanguage == (_displayDirection == "NativeToTarget"))
             && (!stored.SummaryVisible || stored.PendingAttempt is null)
+            && (stored.SentenceSubmissionId is null
+                || !stored.SummaryVisible && stored.PendingAttempt is null
+                    && !stored.RequiresCorrection
+                    && stored.SentenceResults is not null)
             && (!stored.RequiresCorrection || stored.PendingAttempt is {
                 WasCorrect: false, InputMode: "Text" })
             && (stored.PendingAttempt is null
@@ -452,9 +567,11 @@ public sealed partial class NativeQuizPresenter(
         if (_pending is not null && _stored?.PendingAttempt is null)
             logger.LogWarning("Leaving an unsaved graded quiz turn after an account or context change.");
         _clock.Discard();
+        media.StopPlayback();
         _launch = null;
         _contextKey = null;
         _planItemRowId = null;
+        _adHocPlanItemId = null;
         _profile = null;
         _resumable = null;
         _stored = null;
@@ -464,6 +581,12 @@ public sealed partial class NativeQuizPresenter(
         _roundArchive.Clear();
         _reachableWords.Clear();
         _choices = [];
+        _photoAsset = null;
+        _photoDesired = false;
+        ResetSentenceSubmission();
+        _sentenceHints = new Dictionary<string, IReadOnlyList<VocabQuizSentenceHint>>(
+            StringComparer.Ordinal);
+        _sentenceHintsExpanded = false;
         _stateOwner = null;
     }
 
@@ -471,9 +594,11 @@ public sealed partial class NativeQuizPresenter(
     {
         logger.LogWarning("Native quiz refused a missing, stale, or mismatched owner/plan context.");
         _clock.Discard();
+        media.StopPlayback();
         _launch = null;
         _contextKey = null;
         _planItemRowId = null;
+        _adHocPlanItemId = null;
         _pending = null;
         _stored = null;
         _resumable = null;
@@ -482,6 +607,12 @@ public sealed partial class NativeQuizPresenter(
         _roundArchive.Clear();
         _reachableWords.Clear();
         _choices = [];
+        _photoAsset = null;
+        _photoDesired = false;
+        ResetSentenceSubmission();
+        _sentenceHints = new Dictionary<string, IReadOnlyList<VocabQuizSentenceHint>>(
+            StringComparer.Ordinal);
+        _sentenceHintsExpanded = false;
         _overrideRetryPending = false;
         _correctionRetryPending = false;
         _needsResumeAfterCommitFailure = false;
@@ -503,21 +634,28 @@ public sealed partial class NativeQuizPresenter(
             return;
         _disposed = true;
         _lifetime.Cancel();
+        media.StopPlayback();
         _clock.Dispose();
         _launch = null;
         _contextKey = null;
         _planItemRowId = null;
+        _adHocPlanItemId = null;
         _profile = null;
         _resumable = null;
         _batch.Clear();
         _round.Clear();
         _roundArchive.Clear();
         _reachableWords.Clear();
+        _photoAsset = null;
+        _photoDesired = false;
+        ResetSentenceSubmission();
+        _sentenceHints = new Dictionary<string, IReadOnlyList<VocabQuizSentenceHint>>(
+            StringComparer.Ordinal);
         _pending = null;
         _stored = null;
         _stateOwner = null;
         _state = new(NativePhase.Idle, NativeDestination.VocabularyQuiz);
-        _gate.Dispose();
+        // Cancelled playback can still be unwinding through this semaphore.
         _lifetime.Dispose();
     }
 }

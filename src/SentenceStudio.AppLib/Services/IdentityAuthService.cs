@@ -2,8 +2,10 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Net.Http;
 using System.Net.Http.Json;
 using System.Security.Claims;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using SentenceStudio.Abstractions;
+using SentenceStudio.Contracts;
 using SentenceStudio.Data;
 using SentenceStudio.Shared.Diagnostics;
 
@@ -229,26 +231,30 @@ public sealed class IdentityAuthService : IAuthService
             _logger.LogInformation("Attempting login to {BaseAddress}/api/auth/login for {Email}",
                 _http.BaseAddress, AuthLogRedaction.MaskEmail(email));
 
-            var response = await _http.PostAsJsonAsync("/api/auth/login", new { Email = email, Password = password });
+            using var response = await _http.PostAsJsonAsync(
+                "/api/auth/login", new { Email = email, Password = password });
 
-            if (!response.IsSuccessStatusCode)
+            if (response.StatusCode is System.Net.HttpStatusCode.BadRequest
+                or System.Net.HttpStatusCode.Unauthorized
+                or System.Net.HttpStatusCode.Forbidden)
             {
-                var body = await response.Content.ReadAsStringAsync();
-                _logger.LogWarning("Login failed with status {Status}: {Body}", response.StatusCode, body);
+                _logger.LogWarning("Login credentials rejected with status {Status}.",
+                    response.StatusCode);
                 return null;
             }
+            response.EnsureSuccessStatusCode();
 
             var authResponse = await response.Content.ReadFromJsonAsync<AuthResponseDto>();
             if (authResponse is null)
-                return null;
+                throw new InvalidOperationException("Login succeeded without an auth response.");
 
             await StoreTokens(authResponse);
             return ToAuthResult(authResponse);
         }
         catch (HttpRequestException ex)
         {
-            _logger.LogError(ex, "Login HTTP error — cannot reach API at {BaseAddress}", _http.BaseAddress);
-            throw; // Let UI show a connectivity-specific message
+            _logger.LogError(ex, "Login request failed with HTTP or transport error.");
+            throw;
         }
         catch (Exception ex)
         {
@@ -259,63 +265,123 @@ public sealed class IdentityAuthService : IAuthService
 
     /// <summary>
     /// Register a new account via POST /api/auth/register.
-    /// On success returns an AuthResult if the API auto-logs-in, or null
-    /// if the user needs to confirm their email first.
+    /// Legacy callers receive a session only when the API issues credentials.
+    /// Use RegisterWithOutcomeAsync to distinguish confirmation from failures.
     /// </summary>
-    public async Task<AuthResult?> RegisterAsync(string email, string password, string displayName)
+    public async Task<AuthResult?> RegisterAsync(
+        string email, string password, string displayName) =>
+        (await RegisterWithOutcomeAsync(email, password, displayName)).Session;
+
+    public async Task<AuthRegistrationResult> RegisterWithOutcomeAsync(
+        string email, string password, string displayName,
+        CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(password)
+            || string.IsNullOrWhiteSpace(displayName))
+            return new(AuthRegistrationOutcome.Rejected);
         try
         {
-            var response = await _http.PostAsJsonAsync("/api/auth/register", new
+            using var response = await _http.PostAsJsonAsync("/api/auth/register", new
             {
                 Email = email,
                 Password = password,
                 DisplayName = displayName
-            });
+            }, cancellationToken);
 
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogWarning("Registration failed with status {Status}", response.StatusCode);
-                return null;
+                return new(AuthRegistrationOutcome.Rejected);
             }
 
-            // Some APIs return tokens on register; try to read them
-            AuthResponseDto? authResponse;
-            try
+            await using var body = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var document = await JsonDocument.ParseAsync(
+                body, cancellationToken: cancellationToken);
+            if (document.RootElement.ValueKind != JsonValueKind.Object)
+                return new(AuthRegistrationOutcome.Rejected);
+            var root = document.RootElement;
+            if (root.TryGetProperty("token", out _)
+                || root.TryGetProperty("Token", out _))
             {
-                authResponse = await response.Content.ReadFromJsonAsync<AuthResponseDto>();
-            }
-            catch (Exception ex) when (ex is System.Text.Json.JsonException or NotSupportedException)
-            {
-                // Registration succeeded but the body is not an auth response (email confirmation
-                // required). Deliberately narrow: a catch-all here used to swallow the token-storage
-                // failure below and report "check your email" for an account that was in fact
-                // signed in but had no persisted credentials.
-                _logger.LogInformation(
-                    "Registration succeeded without an auth payload — email confirmation is likely required.");
-                return null;
-            }
-
-            if (authResponse?.Token is not null)
-            {
-                await StoreTokens(authResponse);
-                return ToAuthResult(authResponse);
+                var issued = root.Deserialize<AuthResponseDto>(
+                    new JsonSerializerOptions(JsonSerializerDefaults.Web));
+                if (issued is null || string.IsNullOrWhiteSpace(issued.Token)
+                    || string.IsNullOrWhiteSpace(issued.RefreshToken)
+                    || string.IsNullOrWhiteSpace(issued.UserProfileId)
+                    || issued.ExpiresAt <= DateTime.UtcNow
+                    || !TokenMatchesOwner(issued.Token, issued.UserProfileId))
+                    return new(AuthRegistrationOutcome.Rejected);
+                await StoreTokens(issued);
+                return new(AuthRegistrationOutcome.SignedIn, ToAuthResult(issued));
             }
 
-            return null;
+            return root.TryGetProperty("message", out var message)
+                && message.ValueKind == JsonValueKind.String
+                && !string.IsNullOrWhiteSpace(message.GetString())
+                    ? new(AuthRegistrationOutcome.ConfirmationRequired)
+                    : new(AuthRegistrationOutcome.Rejected);
         }
         catch (AuthTokenPersistenceException)
         {
-            // Registration succeeded server-side but the credentials could not be stored (already
-            // rolled back). Surfacing it beats returning null, which this method uses to mean
-            // "check your email" — a message that would send the learner looking for a mail that
-            // is never coming.
             throw;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            _logger.LogWarning("Registration transport failed ({FailureType}).",
+                ex.GetType().Name);
+            return new(AuthRegistrationOutcome.TransportFailure);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Registration failed");
-            return null;
+            _logger.LogWarning("Registration response was not usable ({FailureType}).",
+                ex.GetType().Name);
+            return new(AuthRegistrationOutcome.Rejected);
+        }
+    }
+
+    public async Task<AuthPasswordRecoveryResult> RequestPasswordRecoveryAsync(
+        string email, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(email))
+            return new(AuthPasswordRecoveryOutcome.Rejected);
+        try
+        {
+            using var response = await _http.PostAsJsonAsync(
+                "/api/auth/forgot-password", new { Email = email }, cancellationToken);
+            return response.IsSuccessStatusCode
+                ? new(AuthPasswordRecoveryOutcome.Accepted)
+                : new(AuthPasswordRecoveryOutcome.Rejected);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
+        {
+            _logger.LogWarning("Password recovery transport failed ({FailureType}).",
+                ex.GetType().Name);
+            return new(AuthPasswordRecoveryOutcome.TransportFailure);
+        }
+    }
+
+    private static bool TokenMatchesOwner(string token, string owner)
+    {
+        try
+        {
+            var jwt = new JwtSecurityTokenHandler().ReadJwtToken(token);
+            var claims = jwt.Claims.Where(claim =>
+                claim.Type == AuthClaimTypes.UserProfileId).ToArray();
+            return jwt.ValidTo > DateTime.UtcNow && claims.Length == 1
+                && string.Equals(claims[0].Value, owner, StringComparison.Ordinal);
+        }
+        catch (Exception ex) when (ex is ArgumentException
+            or Microsoft.IdentityModel.Tokens.SecurityTokenException)
+        {
+            return false;
         }
     }
 

@@ -1,20 +1,46 @@
+using System.Collections.Immutable;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Abstractions;
 using SentenceStudio.Data;
+using SentenceStudio.Services;
 using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Native.Adapters;
 
-public sealed class NativeResourceStore(
+public sealed partial class NativeResourceStore(
     IServiceScopeFactory scopes,
-    LearningResourceRepository resources,
+    DeviceUserScopeProvider userScope,
+    IPreferencesService preferences,
+    NativePendingWrites pendingWrites,
     ILogger<NativeResourceStore> logger) : INativeResourceStore
 {
+    private bool IsActiveOwner(string owner)
+    {
+        var activeOwner = !string.IsNullOrWhiteSpace(owner)
+            && userScope.TryGetUserProfileId(out var active)
+            && string.Equals(active, owner, StringComparison.Ordinal)
+            && string.Equals(
+            preferences.Get(UserProfileRepository.ActiveProfileIdKey, string.Empty),
+            owner, StringComparison.Ordinal);
+        if (!activeOwner)
+            logger.LogWarning("Native resource operation refused a missing or changed active owner.");
+        return activeOwner;
+    }
+
+    private async Task<TResult> WithResourcesAsync<TResult>(
+        Func<LearningResourceRepository, Task<TResult>> operation)
+    {
+        using var scope = scopes.CreateScope();
+        return await operation(
+            scope.ServiceProvider.GetRequiredService<LearningResourceRepository>());
+    }
+
     public async Task<IReadOnlyList<NativeResourceItem>> ListAsync(
         string owner, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(owner))
+        if (!IsActiveOwner(owner))
         {
             logger.LogWarning("Native resource list refused an absent owner.");
             return [];
@@ -53,7 +79,7 @@ public sealed class NativeResourceStore(
     public async Task<NativeResourceDetail?> GetAsync(
         string owner, string resourceId, CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(owner) || string.IsNullOrWhiteSpace(resourceId))
+        if (!IsActiveOwner(owner) || string.IsNullOrWhiteSpace(resourceId))
         {
             logger.LogWarning("Native resource detail refused an absent owner or resource.");
             return null;
@@ -61,8 +87,32 @@ public sealed class NativeResourceStore(
 
         using var scope = scopes.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        return await DetailQuery(db, owner, resourceId)
+        var detail = await DetailQuery(db, owner, resourceId)
             .SingleOrDefaultAsync(cancellationToken);
+        if (detail is null)
+            return null;
+
+        var words = await db.ResourceVocabularyMappings.AsNoTracking()
+            .Where(mapping => mapping.ResourceId == resourceId
+                && db.LearningResources.Any(resource =>
+                    resource.Id == mapping.ResourceId && resource.UserProfileId == owner))
+            .Join(db.VocabularyWords.AsNoTracking(),
+                mapping => mapping.VocabularyWordId, word => word.Id,
+                (_, word) => word)
+            .OrderBy(word => word.TargetLanguageTerm)
+            .ThenBy(word => word.Id)
+            .Select(word => new NativeResourceVocabularyRow(
+                    word.Id, word.TargetLanguageTerm ?? string.Empty,
+                    word.NativeLanguageTerm ?? string.Empty, word.LexicalUnitType,
+                    word.Tags, word.Language, word.Lemma, word.PartOfSpeech))
+            .ToListAsync(cancellationToken);
+        return detail with {
+            Vocabulary = words.ToImmutableArray(),
+            VocabularyCount = words.Count,
+            OriginalContent = new ResourceContentSnapshot(
+                detail.OriginalMetadata, detail.MediaType, detail.Language,
+                detail.MediaUrl, detail.Transcript, detail.Translation)
+        };
     }
 
     internal static IQueryable<NativeResourceDetail> DetailQuery(
@@ -92,13 +142,78 @@ public sealed class NativeResourceStore(
                     mapping.ResourceId == resource.Id),
                 new ResourceMetadataSnapshot(resource.UpdatedAt, resource.Title,
                     resource.Description, resource.Tags,
-                    db.Database.IsSqlite() ? resource.UpdatedAt.ToString() : null)));
+                    db.Database.IsSqlite() ? resource.UpdatedAt.ToString() : null))
+            {
+                Transcript = resource.Transcript,
+                Translation = resource.Translation
+            });
 
     public Task<ResourceMetadataUpdateResult> SaveMetadataAsync(
         string owner, string resourceId, ResourceMetadataSnapshot original,
         string title, string? description, string? tags,
         CancellationToken cancellationToken) =>
-        resources.UpdateResourceMetadataAsync(
-            resourceId, owner, original, title, description, tags,
-            cancellationToken);
+        IsActiveOwner(owner)
+            ? WithResourcesAsync(repository => repository.UpdateResourceMetadataAsync(
+                resourceId, owner, original, title, description, tags,
+                cancellationToken))
+            : Task.FromResult(ResourceMetadataUpdateResult.NotFoundOrForbidden);
+
+    public Task<ResourceMetadataUpdateResult> SaveContentAsync(
+        string owner, string resourceId, ResourceContentSnapshot original,
+        ResourceContentUpdate content, CancellationToken cancellationToken) =>
+        IsActiveOwner(owner)
+            ? WithResourcesAsync(repository => repository.UpdateResourceContentAsync(
+                resourceId, owner, original, content, cancellationToken))
+            : Task.FromResult(ResourceMetadataUpdateResult.NotFoundOrForbidden);
+
+    public async Task<NativeResourceCreateResult> CreateAsync(
+        string owner, NativeResourceDraft draft, CancellationToken cancellationToken)
+    {
+        if (!IsActiveOwner(owner))
+            return new(NativeResourceMutationResult.NotFoundOrForbidden);
+        if (draft is null || string.IsNullOrWhiteSpace(draft.Title))
+            return new(NativeResourceMutationResult.Invalid, ErrorKey: "ResourceAdd_TitleRequired");
+
+        var resource = new LearningResource
+        {
+            Title = draft.Title,
+            Description = draft.Description,
+            Tags = draft.Tags,
+            MediaType = string.IsNullOrWhiteSpace(draft.MediaType) ? "Other" : draft.MediaType,
+            Language = string.IsNullOrWhiteSpace(draft.Language) ? "Other" : draft.Language,
+            MediaUrl = draft.MediaUrl,
+            Transcript = draft.Transcript,
+            Translation = draft.Translation
+        };
+        var staged = draft.StagedVocabulary.IsDefault
+            ? [] : draft.StagedVocabulary;
+        var words = staged.Select(row => new VocabularyWord
+        {
+            Id = row.Id,
+            TargetLanguageTerm = row.TargetTerm.Trim(),
+            NativeLanguageTerm = row.NativeTerm.Trim(),
+            Language = row.Language ?? resource.Language,
+            Tags = row.Tags,
+            Lemma = row.Lemma,
+            PartOfSpeech = row.PartOfSpeech,
+            LexicalUnitType = row.LexicalUnitType == LexicalUnitType.Unknown
+                ? VocabularyClassificationBackfillService.ClassifyHeuristic(row.TargetTerm, row.Tags)
+                : row.LexicalUnitType
+        }).ToArray();
+        var outcome = await WithResourcesAsync(repository =>
+            repository.CreateOwnedResourceWithVocabularyAsync(
+                resource, words, owner, cancellationToken));
+        return outcome.Status switch
+        {
+            ResourceCreationStatus.Success => new(NativeResourceMutationResult.Success,
+                outcome.ResourceId),
+            ResourceCreationStatus.Invalid => new(NativeResourceMutationResult.Invalid,
+                ErrorKey: "NativeResources_SaveInvalid"),
+            ResourceCreationStatus.NotFoundOrForbidden =>
+                new(NativeResourceMutationResult.NotFoundOrForbidden),
+            ResourceCreationStatus.AlreadyExists =>
+                new(NativeResourceMutationResult.AlreadyPresent),
+            _ => throw new ArgumentOutOfRangeException(nameof(outcome))
+        };
+    }
 }

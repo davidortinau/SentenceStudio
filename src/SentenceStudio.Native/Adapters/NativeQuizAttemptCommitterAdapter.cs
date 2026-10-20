@@ -115,21 +115,7 @@ public sealed class NativeQuizAttemptCommitterAdapter(
                 cancellationToken);
         if (progress is null)
         {
-            var now = DateTime.Now;
-            progress = new VocabularyProgress
-            {
-                UserId = userId,
-                VocabularyWordId = frozenAttempt.VocabularyWordId,
-                FirstSeenAt = now,
-                LastPracticedAt = now,
-                CreatedAt = now,
-                UpdatedAt = now,
-#pragma warning disable CS0618
-                CurrentPhase = LearningPhase.Recognition,
-#pragma warning restore CS0618
-                ReviewInterval = 1,
-                EaseFactor = 2.5f
-            };
+            progress = CreateNewProgress(userId, frozenAttempt.VocabularyWordId);
             db.VocabularyProgresses.Add(progress);
         }
 
@@ -141,6 +127,8 @@ public sealed class NativeQuizAttemptCommitterAdapter(
             userId, userScope, preferences, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
 
+        await RecordDirectConstituentExposuresAsync(
+            db, userId, approved.Word, frozenAttempt, cancellationToken);
         var context = VocabularyProgressService.CreateLearningContext(
             progress.Id, frozenAttempt, DateTime.Now);
         // Match the source repository's new-context timestamp treatment.
@@ -154,7 +142,7 @@ public sealed class NativeQuizAttemptCommitterAdapter(
             LaunchContextKey = launchContextKey,
             TurnId = turnId,
             PlanDate = stored.PlanDate,
-            PlanId = approved.Plan.Id,
+            PlanId = approved.Plan?.Id ?? string.Empty,
             PlanItemRowId = approved.Card.Id,
             SourceSessionId = source.Id,
             SourceStateJson = source.StateJson,
@@ -236,7 +224,7 @@ public sealed class NativeQuizAttemptCommitterAdapter(
 
         if (journal.Version != 1 || journal.UserId != userId
             || journal.LaunchContextKey != launchContextKey || journal.TurnId != turnId
-            || journal.SourceSessionId <= 0 || string.IsNullOrWhiteSpace(journal.PlanId)
+            || journal.SourceSessionId <= 0 || journal.PlanId is null
             || string.IsNullOrWhiteSpace(journal.PlanItemRowId)
             || string.IsNullOrWhiteSpace(journal.LearningContextId)
             || journal.Attempt is null || journal.ScoredProgress is null)
@@ -252,6 +240,10 @@ public sealed class NativeQuizAttemptCommitterAdapter(
         var captured = ReadStoredState(journal.SourceStateJson);
         if (captured.PlanDate != journal.PlanDate)
             throw new InvalidOperationException("Quiz attempt receipt plan date changed.");
+        if (string.IsNullOrEmpty(captured.Snapshot.PlanItemId)
+            != string.IsNullOrEmpty(journal.PlanId))
+            throw new InvalidOperationException(
+                "Quiz receipt's direct/assigned launch identity changed.");
         await RequireHistoricalPendingAsync(
             db, userId, launchContextKey, turnId, captured, journal,
             cancellationToken);
@@ -308,6 +300,26 @@ public sealed class NativeQuizAttemptCommitterAdapter(
             userId, launchContextKey, turnId, stored, attempt);
         var dateKey = stored.PlanDate.ToDateTime(
             TimeOnly.MinValue, DateTimeKind.Utc);
+        if (string.IsNullOrWhiteSpace(snapshot.PlanItemId))
+        {
+            var adHoc = await db.DailyPlanCompletions.AsNoTracking()
+                .SingleOrDefaultAsync(value => value.Id == stored.PlanItemRowId
+                    && value.UserProfileId == userId && value.Date == dateKey
+                    && value.PlanItemId == stored.AdHocPlanItemId
+                    && value.PlanItemId.StartsWith("adhoc-")
+                    && value.ActivityType == QuizSessionActivityType
+                    && !value.IsArchived, cancellationToken);
+            if (adHoc is null
+                || adHoc.ResourceId != (snapshot.DueOnly || snapshot.ResourceIds.Count != 1
+                    ? null : snapshot.ResourceIds[0])
+                || adHoc.SkillId != snapshot.SkillId)
+                throw new InvalidOperationException(
+                    "Direct quiz scoring needs its current owned ad-hoc activity row.");
+            var directWord = await RequireOwnedSnapshotAsync(
+                db, userId, snapshot, attempt, adHoc,
+                snapshot.FocusVocabularyIds, cancellationToken);
+            return new ApprovedPending(null, adHoc, directWord);
+        }
         var plan = await db.DailyPlans.AsNoTracking()
             .SingleOrDefaultAsync(value => value.UserProfileId == userId
                 && value.Date == dateKey, cancellationToken)
@@ -322,7 +334,8 @@ public sealed class NativeQuizAttemptCommitterAdapter(
                 && !value.IsArchived, cancellationToken);
         if (card is null || card.ActivityType != QuizSessionActivityType
             || stored.PlanItemRowId != card.Id
-            || card.IsCompleted || card.CompletedAt is not null
+            || card.IsCompleted != stored.IsRepractice
+            || card.IsCompleted != (card.CompletedAt is not null)
             || card.ResourceId != snapshot.ResourceIds.SingleOrDefault()
             || card.SkillId != snapshot.SkillId)
             throw new InvalidOperationException(
@@ -336,9 +349,9 @@ public sealed class NativeQuizAttemptCommitterAdapter(
             throw new InvalidOperationException(
                 "Quiz snapshot does not match the plan's assigned vocabulary.");
 
-        await RequireOwnedSnapshotAsync(
+        var word = await RequireOwnedSnapshotAsync(
             db, userId, snapshot, attempt, card, focus, cancellationToken);
-        return new ApprovedPending(plan, card);
+        return new ApprovedPending(plan, card, word);
     }
 
     private static async Task RequireHistoricalPendingAsync(
@@ -350,6 +363,26 @@ public sealed class NativeQuizAttemptCommitterAdapter(
             userId, launchContextKey, turnId, captured, journal.Attempt);
         var dateKey = captured.PlanDate.ToDateTime(
             TimeOnly.MinValue, DateTimeKind.Utc);
+        if (string.IsNullOrWhiteSpace(snapshot.PlanItemId))
+        {
+            var adHoc = await db.DailyPlanCompletions.AsNoTracking()
+                .SingleOrDefaultAsync(value => value.Id == journal.PlanItemRowId
+                    && value.UserProfileId == userId && value.Date == dateKey
+                    && value.PlanItemId == captured.AdHocPlanItemId
+                    && value.PlanItemId.StartsWith("adhoc-")
+                    && value.ActivityType == QuizSessionActivityType,
+                    cancellationToken);
+            if (adHoc is null || journal.PlanId.Length != 0
+                || adHoc.ResourceId != (snapshot.DueOnly || snapshot.ResourceIds.Count != 1
+                    ? null : snapshot.ResourceIds[0])
+                || adHoc.SkillId != snapshot.SkillId)
+                throw new InvalidOperationException(
+                    "Direct quiz receipt lost its original owned activity row.");
+            await RequireOwnedSnapshotAsync(
+                db, userId, snapshot, journal.Attempt, adHoc,
+                snapshot.FocusVocabularyIds, cancellationToken);
+            return;
+        }
         // A regenerated plan may change focus, archive the old card, and
         // replace its parent. The receipt's original row ID is the stable
         // evidence; the logical PlanItemId alone is not unique in history.
@@ -383,9 +416,8 @@ public sealed class NativeQuizAttemptCommitterAdapter(
             || stored.TurnId != turnId || stored.SummaryVisible
             || stored.RequiresCorrection || stored.PendingAttempt is null
             || !SameAttempt(stored.PendingAttempt, attempt)
-            || string.IsNullOrWhiteSpace(snapshot.PlanItemId)
             || snapshot.PlanItemId?.StartsWith("adhoc-", StringComparison.Ordinal) == true
-            || snapshot.DueOnly
+            || stored.IsRepractice && string.IsNullOrWhiteSpace(snapshot.PlanItemId)
             || snapshot.FocusVocabularyIds is null || snapshot.ResourceIds is null
             || snapshot.BatchPool is null || snapshot.RoundWordOrder is null
             || snapshot.SessionItemsWordIds is null
@@ -400,6 +432,7 @@ public sealed class NativeQuizAttemptCommitterAdapter(
             || snapshot.SessionItemsWordIds.Distinct(StringComparer.Ordinal).Count()
                 != snapshot.SessionItemsWordIds.Count
             || snapshot.ResourceIds.Count > 1
+                && !string.IsNullOrWhiteSpace(snapshot.PlanItemId)
             || snapshot.CurrentTurnInRound < 0
             || snapshot.CurrentTurnInRound >= snapshot.RoundWordOrder.Count
             || snapshot.UserMode is not ("Text" or "MultipleChoice")
@@ -433,19 +466,19 @@ public sealed class NativeQuizAttemptCommitterAdapter(
         return snapshot;
     }
 
-    private static async Task RequireOwnedSnapshotAsync(
+    private static async Task<VocabularyWord> RequireOwnedSnapshotAsync(
         ApplicationDbContext db, string userId,
         VocabQuizSessionSnapshot snapshot, VocabularyAttempt attempt,
         DailyPlanCompletion card, IReadOnlyList<string> focus,
         CancellationToken cancellationToken)
     {
-        var resourceId = snapshot.ResourceIds.SingleOrDefault();
-        if (resourceId is not null
-            && !await db.LearningResources.AsNoTracking()
-                .AnyAsync(resource => resource.Id == resourceId
-                    && resource.UserProfileId == userId, cancellationToken))
+        var selectedResourceIds = snapshot.ResourceIds.ToHashSet(StringComparer.Ordinal);
+        if (await db.LearningResources.AsNoTracking()
+                .CountAsync(resource => resource.UserProfileId == userId
+                    && selectedResourceIds.Contains(resource.Id), cancellationToken)
+            != selectedResourceIds.Count)
             throw new InvalidOperationException(
-                "Quiz plan resource is not owned by the active user.");
+                "Quiz resources are not owned by the active user.");
         if (snapshot.SkillId is not null
             && !await db.SkillProfiles.AsNoTracking()
                 .AnyAsync(skill => skill.Id == snapshot.SkillId
@@ -457,7 +490,10 @@ public sealed class NativeQuizAttemptCommitterAdapter(
         var reachable = await db.ResourceVocabularyMappings.AsNoTracking()
             .Join(db.LearningResources.AsNoTracking().Where(resource =>
                     resource.UserProfileId == userId
-                    && (resourceId == null || resource.Id == resourceId)),
+                    && (selectedResourceIds.Count == 0
+                        || card.PlanItemId.StartsWith("adhoc-")
+                            && (snapshot.DueOnly || snapshot.FocusVocabularyIds.Count > 0)
+                        || selectedResourceIds.Contains(resource.Id))),
                 mapping => mapping.ResourceId, resource => resource.Id,
                 (mapping, resource) => mapping.VocabularyWordId)
             .Where(wordId => batchIds.Contains(wordId))
@@ -467,23 +503,77 @@ public sealed class NativeQuizAttemptCommitterAdapter(
             || focus.Count > 0 && batchIds.Any(id => !focus.Contains(
                 id, StringComparer.Ordinal))
             || VocabQuizLaunchValidator.CountRejectedSnapshotReferences(
-                snapshot, card.PlanItemId, focus,
-                snapshot.ResourceIds, false, card.SkillId, reachable) != 0)
+                snapshot, card.PlanItemId.StartsWith("adhoc-")
+                    ? string.Empty : card.PlanItemId,
+                focus, snapshot.ResourceIds, snapshot.DueOnly,
+                card.SkillId, reachable) != 0)
             throw new InvalidOperationException(
                 "Quiz pending turn references vocabulary outside its approved owner graph.");
 
         var word = await db.VocabularyWords.AsNoTracking().SingleOrDefaultAsync(
             item => item.Id == attempt.VocabularyWordId, cancellationToken)
             ?? throw new InvalidOperationException("Quiz pending word is missing.");
-        if (word.LexicalUnitType is LexicalUnitType.Phrase or LexicalUnitType.Sentence)
-            throw new NotSupportedException(
-                "Phrase and sentence attempts require the source constituent cascade.");
         var expected = snapshot.PromptUsesNativeLanguage
             ? word.TargetLanguageTerm : word.NativeLanguageTerm;
         if (string.IsNullOrWhiteSpace(expected)
             || !string.Equals(expected, attempt.ExpectedAnswer, StringComparison.Ordinal))
             throw new InvalidOperationException(
                 "Quiz pending answer does not match the persisted word and direction.");
+        return word;
+    }
+
+    internal static async Task RecordDirectConstituentExposuresAsync(
+        ApplicationDbContext db, string userId, VocabularyWord word,
+        VocabularyAttempt attempt, CancellationToken cancellationToken)
+    {
+        var activity = VocabularyProgressService.CreateConstituentCascadeActivity(
+            word.LexicalUnitType, attempt);
+        if (activity is null)
+            return;
+
+        var constituentIds = await db.PhraseConstituents.AsNoTracking()
+            .Where(row => row.PhraseWordId == word.Id && row.ConstituentWordId != null)
+            .Select(row => row.ConstituentWordId!)
+            .ToListAsync(cancellationToken);
+
+        foreach (var constituentId in constituentIds)
+        {
+            var child = await db.VocabularyProgresses.SingleOrDefaultAsync(
+                row => row.UserId == userId
+                    && row.VocabularyWordId == constituentId, cancellationToken);
+            if (child is null)
+            {
+                child = CreateNewProgress(userId, constituentId);
+                db.VocabularyProgresses.Add(child);
+            }
+
+            var exposedAt = DateTime.Now;
+            var context = VocabularyProgressService.CreatePassiveExposureContext(
+                child.Id, activity, exposedAt);
+            context.CreatedAt = exposedAt;
+            context.UpdatedAt = exposedAt;
+            db.VocabularyLearningContexts.Add(context);
+            VocabularyProgressService.ApplyPassiveExposure(child, exposedAt);
+        }
+    }
+
+    internal static VocabularyProgress CreateNewProgress(string userId, string wordId)
+    {
+        var now = DateTime.Now;
+        return new VocabularyProgress
+        {
+            UserId = userId,
+            VocabularyWordId = wordId,
+            FirstSeenAt = now,
+            LastPracticedAt = now,
+            CreatedAt = now,
+            UpdatedAt = now,
+#pragma warning disable CS0618
+            CurrentPhase = LearningPhase.Recognition,
+#pragma warning restore CS0618
+            ReviewInterval = 1,
+            EaseFactor = 2.5f
+        };
     }
 
     private void RequireRequest(
@@ -506,7 +596,7 @@ public sealed class NativeQuizAttemptCommitterAdapter(
                 "Native quiz attempt receipts require SQLite writer serialization.");
     }
 
-    private static NativeQuizStoredState ReadStoredState(string json)
+    internal static NativeQuizStoredState ReadStoredState(string json)
     {
         try
         {
@@ -724,7 +814,7 @@ public sealed class NativeQuizAttemptCommitterAdapter(
     }
 
     private sealed record ApprovedPending(
-        DailyPlan Plan, DailyPlanCompletion Card);
+        DailyPlan? Plan, DailyPlanCompletion Card, VocabularyWord Word);
 
     private sealed record VerifiedReceipt(
         NativeQuizCommitReceipt Receipt, StoredAttemptReceipt State);

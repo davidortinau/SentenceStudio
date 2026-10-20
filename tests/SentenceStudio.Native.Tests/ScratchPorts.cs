@@ -12,6 +12,22 @@ using SentenceStudio.Shared.Services;
 
 namespace SentenceStudio.Native.Tests;
 
+internal sealed class ScratchAmbientSync : ISyncService
+{
+    private int _calls;
+
+    public int Calls => Volatile.Read(ref _calls);
+    public bool IsInitialSyncInProgress => false;
+    public event Action? InitialSyncCompleted { add { } remove { } }
+    public void BeginInitialSync() { }
+    public Task InitializeDatabaseAsync() => Task.CompletedTask;
+    public Task TriggerSyncAsync()
+    {
+        Interlocked.Increment(ref _calls);
+        return Task.CompletedTask;
+    }
+}
+
 internal sealed class ScratchSyncReadiness : INativeSyncReadiness
 {
     public NativeSyncOutcome Outcome { get; set; } = NativeSyncOutcome.Confirmed;
@@ -55,13 +71,24 @@ internal sealed class ScratchRemoteSyncCompletion : IRemoteSyncCompletion
 
 internal sealed class ScratchQuizMedia : INativeQuizMedia
 {
+    private readonly TaskCompletionSource<bool> _playbackStarted =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private TaskCompletionSource<bool>? _pendingPlayback;
+
     public bool AudioAvailable { get; set; }
     public bool PhotoAvailable { get; set; }
     public bool PlaySucceeds { get; set; } = true;
+    public bool HoldPlaybackCompletion { get; set; }
     public bool AudioAvailabilityOffline { get; set; }
     public bool PlaybackOffline { get; set; }
     public bool PhotoAvailabilityOffline { get; set; }
     public List<(string Text, string Language)> Played { get; } = [];
+    public int Stopped { get; private set; }
+    public Task PlaybackStarted => _playbackStarted.Task;
+    public TaskCompletionSource<bool>? PendingPlayback =>
+        Volatile.Read(ref _pendingPlayback);
+    public bool FinishPlayback(bool completed) =>
+        PendingPlayback?.TrySetResult(completed) ?? false;
 
     public Task<bool> CanPlayPromptAsync(
         string text, string language, CancellationToken cancellationToken) =>
@@ -72,9 +99,18 @@ internal sealed class ScratchQuizMedia : INativeQuizMedia
     public Task<bool> PlayPromptAsync(
         string text, string language, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (PlaybackOffline)
             throw new HttpRequestException("Scratch playback offline.");
         Played.Add((text, language));
+        if (HoldPlaybackCompletion && PlaySucceeds)
+        {
+            var completion = new TaskCompletionSource<bool>(
+                TaskCreationOptions.RunContinuationsAsynchronously);
+            Volatile.Write(ref _pendingPlayback, completion);
+            _playbackStarted.TrySetResult(true);
+            return completion.Task.WaitAsync(cancellationToken);
+        }
         return Task.FromResult(PlaySucceeds);
     }
 
@@ -82,6 +118,21 @@ internal sealed class ScratchQuizMedia : INativeQuizMedia
         PhotoAvailabilityOffline
             ? Task.FromException<bool>(new HttpRequestException("Scratch photo offline."))
             : Task.FromResult(PhotoAvailable);
+
+    public Task<NativeQuizPhotoAsset?> LoadPhotoAsync(
+        string photoUri, CancellationToken cancellationToken) =>
+        PhotoAvailabilityOffline
+            ? Task.FromException<NativeQuizPhotoAsset?>(
+                new HttpRequestException("Scratch photo offline."))
+            : Task.FromResult(PhotoAvailable
+                ? new NativeQuizPhotoAsset([137, 80, 78, 71], "image/png")
+                : null);
+
+    public void StopPlayback()
+    {
+        Stopped++;
+        PendingPlayback?.TrySetResult(false);
+    }
 }
 
 /// <summary>
@@ -174,6 +225,8 @@ internal sealed class ScratchActivitySessions(ActivitySessionService inner)
     : IActivitySessionService
 {
     public bool FailNextSnapshot { get; set; }
+    public int? FailSnapshotAtCall { get; set; }
+    public int SnapshotCalls { get; private set; }
     public bool FailNextComplete { get; set; }
     private TaskCompletionSource? _snapshotEntered;
     private TaskCompletionSource? _snapshotRelease;
@@ -194,6 +247,7 @@ internal sealed class ScratchActivitySessions(ActivitySessionService inner)
     public async Task<ActivitySession?> SaveSnapshotAsync(
         string userId, string activityType, string launchContextKey, string stateJson)
     {
+        SnapshotCalls++;
         if (_snapshotEntered is { } entered)
         {
             _snapshotEntered = null;
@@ -201,9 +255,10 @@ internal sealed class ScratchActivitySessions(ActivitySessionService inner)
             await _snapshotRelease!.Task;
             _snapshotRelease = null;
         }
-        if (FailNextSnapshot)
+        if (FailNextSnapshot || SnapshotCalls == FailSnapshotAtCall)
         {
             FailNextSnapshot = false;
+            FailSnapshotAtCall = null;
             throw new DbUpdateException("Synthetic failure before the next snapshot.");
         }
         return await inner.SaveSnapshotAsync(userId, activityType, launchContextKey, stateJson);

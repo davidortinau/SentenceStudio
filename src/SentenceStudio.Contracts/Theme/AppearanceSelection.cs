@@ -46,7 +46,7 @@ public sealed record AppearanceSelection
     {
         Theme = ThemeCatalog.Get(themeId);
 
-        if (mode is not (ThemeMode.Light or ThemeMode.Dark))
+        if (mode is not (ThemeMode.Light or ThemeMode.Dark or ThemeMode.System))
         {
             throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unrecognized theme mode.");
         }
@@ -69,14 +69,18 @@ public sealed record AppearanceSelection
     /// <summary>The chosen theme's stable id — the value written to <c>data-ss-theme</c>.</summary>
     public string ThemeId => Theme.Id;
 
-    /// <summary>Light or dark — the value written to <c>data-bs-theme</c>.</summary>
+    /// <summary>The saved choice. System must be resolved before writing <c>data-bs-theme</c>.</summary>
     public ThemeMode Mode { get; }
 
     /// <summary>Text scale multiplier, applied as the <c>--ss-font-scale</c> CSS variable.</summary>
     public double FontScale { get; }
 
-    /// <summary>The palette in force for <see cref="Mode"/>.</summary>
+    /// <summary>The palette for an explicit mode; use <see cref="PaletteFor"/> for System.</summary>
     public ThemePalette Palette => Theme.PaletteFor(Mode);
+
+    /// <summary>The effective palette after resolving System against the current OS appearance.</summary>
+    public ThemePalette PaletteFor(bool systemIsDark) =>
+        Theme.PaletteFor(Mode.ResolveEffective(systemIsDark));
 
     /// <summary>What a browser or device gets before it has chosen anything.</summary>
     public static AppearanceSelection Default { get; } =

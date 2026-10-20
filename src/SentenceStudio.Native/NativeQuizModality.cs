@@ -30,11 +30,6 @@ public static class NativeQuizModality
     {
         ArgumentNullException.ThrowIfNull(preferences);
 
-        // The source uses audio-only answer buttons on native-prompt MC turns.
-        if (promptUsesNativeLanguage && mode == "MultipleChoice"
-            && preferences.UseAudioPrompt)
-            return false;
-
         return RequiredPromptMediaAvailable(promptUsesNativeLanguage, preferences,
             hasPhoto, showTextWithPhoto, audioAvailable, photoRendered);
     }
@@ -47,19 +42,15 @@ public static class NativeQuizModality
         bool audioAvailable,
         bool photoRendered)
     {
-        // With a native-language photo and hidden text, the image is the cue
-        // even if text prompts are otherwise enabled. The override only
-        // exposes text alongside a rendered photo, not in place of one.
-        var writtenExposure = preferences.UseTextPrompt
+        var written = preferences.UseTextPrompt
+            || !(preferences.UseAudioPrompt && audioAvailable)
+                && !(preferences.UsePhotoPrompt && hasPhoto && photoRendered);
+        var writtenExposure = written
             && (!promptUsesNativeLanguage || !hasPhoto
-                || !preferences.UsePhotoPrompt || showTextWithPhoto);
-        if (preferences.UsePhotoPrompt && hasPhoto
-            && !photoRendered && !writtenExposure)
-            return false;
-
-        // Audio without an explicitly enabled text prompt is a listening turn.
-        return !preferences.UseAudioPrompt || audioAvailable
-            || preferences.UseTextPrompt;
+                || !preferences.UsePhotoPrompt || !photoRendered || showTextWithPhoto);
+        return writtenExposure
+            || preferences.UseAudioPrompt && audioAvailable
+            || preferences.UsePhotoPrompt && hasPhoto && photoRendered;
     }
 
     public static NativeQuizSentencePrompt RenderSentence(
@@ -82,18 +73,16 @@ public static class NativeQuizModality
         bool photoVisible,
         bool targetResponseVisible,
         string nativeLanguage,
-        string targetLanguage)
+        string targetLanguage,
+        bool isAnswerFeedbackVisible = false)
     {
         ArgumentNullException.ThrowIfNull(word);
         ArgumentNullException.ThrowIfNull(preferences);
 
         var usePhoto = preferences.UsePhotoPrompt && photoLoaded && photoVisible;
         var useAudio = preferences.UseAudioPrompt && audioAvailable;
-        // The source falls back to text only when no prompt modality is active.
         var written = preferences.UseTextPrompt
-            || !preferences.UseAudioPrompt
-                && (!preferences.UsePhotoPrompt
-                    || string.IsNullOrWhiteSpace(word.MnemonicImageUri));
+            || !useAudio && !usePhoto;
 
         var showText = VocabQuizPhotoTextPolicy.ShouldDisplayText(
             written,
@@ -102,12 +91,13 @@ public static class NativeQuizModality
             usePhoto,
             promptUsesNativeLanguage,
             showTextWithPhoto,
-            isAnswerFeedbackVisible: false);
+            isAnswerFeedbackVisible);
 
         var promptTerm = promptUsesNativeLanguage
             ? word.NativeLanguageTerm
             : word.TargetLanguageTerm;
-        var promptLanguage = promptUsesNativeLanguage ? nativeLanguage : targetLanguage;
+        var promptLanguage = promptUsesNativeLanguage
+            ? nativeLanguage : word.Language ?? targetLanguage;
         var meaningfulCue = showText || usePhoto || useAudio && audioHeard;
         var mediaReady = RequiredPromptMediaAvailable(
             promptUsesNativeLanguage, preferences,

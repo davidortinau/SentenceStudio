@@ -1,6 +1,8 @@
+using System.Collections.Immutable;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
+using SentenceStudio.Common;
 using SentenceStudio.Data;
 using SentenceStudio.Native;
 using SentenceStudio.Native.Adapters;
@@ -11,7 +13,7 @@ namespace SentenceStudio.Native.Tests;
 public sealed class NativeResourcePresenterTests
 {
     [Fact]
-    public async Task List_UsesSourceSmartFirstOrderingAndOnlyActualOwnedFilterValues()
+    public async Task List_UsesSourceSmartFirstOrderingAndFullSourceFilterCatalog()
     {
         using var fixture = new NativeSliceFixture();
         await fixture.SeedAsync(NativeSliceFixture.UserA);
@@ -32,8 +34,8 @@ public sealed class NativeResourcePresenterTests
         Assert.Equal(["smart-a", "smart-z", "video-new",
             fixture.ResourceId(NativeSliceFixture.UserA)],
             list.Items.Select(item => item.Id));
-        Assert.Equal(["Video", "Vocabulary List"], list.Types.ToArray());
-        Assert.Equal(["Korean", "Spanish"], list.Languages.ToArray());
+        Assert.Equal(Constants.MediaTypes, list.Types.ToArray());
+        Assert.Equal(Constants.Languages, list.Languages.ToArray());
         Assert.DoesNotContain(list.Items, item => item.Id == "foreign-film");
         Assert.Equal(NativeResourceListPhase.Populated, presenter.Search("shore").Phase);
         Assert.Equal("video-new", Assert.Single(presenter.List.Items).Id);
@@ -72,8 +74,8 @@ public sealed class NativeResourcePresenterTests
         var presenter = Create(fixture, store);
 
         var list = await presenter.LoadListAsync();
-        Assert.Equal(["Video"], list.Types.ToArray());
-        Assert.Equal(["Korean"], list.Languages.ToArray());
+        Assert.Equal(Constants.MediaTypes, list.Types.ToArray());
+        Assert.Equal(Constants.Languages, list.Languages.ToArray());
         Assert.Equal(6, list.Items.Length);
         Assert.Equal(["upper", "lower", "type-only"],
             presenter.Filter("video", null).Items.Select(item => item.Id));
@@ -102,10 +104,10 @@ public sealed class NativeResourcePresenterTests
         ]);
         presenter.Search("shore");
         var refreshed = await presenter.LoadListAsync();
-        Assert.Equal(["video"], refreshed.Types.ToArray());
-        Assert.Equal(["korean"], refreshed.Languages.ToArray());
-        Assert.Equal("video", refreshed.MediaType);
-        Assert.Equal("korean", refreshed.Language);
+        Assert.Equal(Constants.MediaTypes, refreshed.Types.ToArray());
+        Assert.Equal(Constants.Languages, refreshed.Languages.ToArray());
+        Assert.Equal("Video", refreshed.MediaType);
+        Assert.Equal("Korean", refreshed.Language);
         Assert.Equal("shore", refreshed.SearchText);
         Assert.Equal("refreshed", Assert.Single(refreshed.Items).Id);
         Assert.Single(presenter.Filter(null, null).Items);
@@ -130,6 +132,22 @@ public sealed class NativeResourcePresenterTests
         Assert.Equal(item.UpdatedAt, detail.UpdatedAt);
         Assert.Equal(DateTimeKind.Unspecified, detail.CreatedAt.Kind);
         Assert.Equal(DateTimeKind.Unspecified, detail.UpdatedAt.Kind);
+    }
+
+    [Fact]
+    public async Task Store_ReadsFullOwnerResourceAndMappedWordRows()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA);
+        fixture.Activate(NativeSliceFixture.UserA);
+        var store = fixture.Provider.GetRequiredService<INativeResourceStore>();
+
+        var detail = await store.GetAsync(
+            NativeSliceFixture.UserA, fixture.ResourceId(NativeSliceFixture.UserA), default);
+
+        Assert.NotNull(detail);
+        Assert.Equal(4, detail.Vocabulary.Length);
+        Assert.NotNull(detail.OriginalContent);
     }
 
     [Fact]
@@ -168,13 +186,15 @@ public sealed class NativeResourcePresenterTests
         Assert.Equal(NativeResourceListPhase.Populated,
             (await broken.LoadListAsync()).Phase);
         brokenStore.FailList = true;
-        Assert.Equal(NativeResourceListPhase.LoadError,
+        Assert.Equal(NativeResourceListPhase.Populated,
             (await broken.LoadListAsync()).Phase);
-        Assert.Equal(NativeResourceListPhase.LoadError,
+        Assert.Equal("NativeResources_LoadError", broken.List.ErrorKey);
+        Assert.Single(broken.List.Items);
+        Assert.Equal(NativeResourceListPhase.Populated,
             broken.Search("Original").Phase);
-        Assert.Equal(NativeResourceListPhase.LoadError,
+        Assert.Equal(NativeResourceListPhase.Populated,
             broken.Filter("Video", "Korean").Phase);
-        Assert.Empty(broken.List.Items);
+        Assert.Single(broken.List.Items);
     }
 
     [Fact]
@@ -245,6 +265,11 @@ public sealed class NativeResourcePresenterTests
         Assert.Equal(240, detail.Resource.TranslationPreview!.Length);
         Assert.True(detail.Resource.HasTranscript);
         Assert.True(detail.Resource.HasTranslation);
+        Assert.Equal(20_000, detail.Resource.Transcript!.Length);
+        Assert.Equal(18_000, detail.Resource.Translation!.Length);
+        Assert.Equal(4, detail.Resource.Vocabulary.Length);
+        Assert.All(detail.Resource.Vocabulary, word =>
+            Assert.StartsWith($"target-{NativeSliceFixture.UserA}", word.TargetTerm));
         Assert.Equal(4, detail.Resource.VocabularyCount);
         Assert.Equal("Korean", detail.Resource.Language);
         Assert.StartsWith("https://example.invalid/", detail.Resource.MediaUrl);
@@ -688,7 +713,6 @@ public sealed class NativeResourcePresenterTests
         Assert.Equal(phase, presenter.Detail.Phase);
         Assert.False(await presenter.SaveAsync());
         Assert.Equal(1, store.SaveCalls);
-
         store.SaveOutcome = ResourceMetadataUpdateResult.Success;
         Assert.True(await presenter.ReloadDraftAsync());
         Assert.Equal(NativeResourceDetailPhase.Ready, presenter.Detail.Phase);
@@ -696,6 +720,40 @@ public sealed class NativeResourcePresenterTests
         Assert.Null(presenter.Detail.LastSaveResult);
         presenter.CancelEdit();
         Assert.Equal(1, store.SaveCalls);
+    }
+
+    [Fact]
+    public async Task FailedStagedAssociation_KeepsDraftAndReloadsCommittedRowBeforeRetry()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var store = new FakeStore { FailAttach = true };
+        var presenter = Create(fixture, store);
+        await presenter.OpenAsync("owner-resource");
+        Assert.True(presenter.BeginEdit());
+        presenter.ChangeDraft(NativeResourceField.Language, "Japanese");
+        var candidate = Assert.Single((await presenter.SearchVocabularyAsync("いす"))
+            .Results);
+        Assert.Equal(NativeResourceMutationResult.Success,
+            await presenter.AttachExistingVocabularyAsync(candidate.Id));
+
+        Assert.False(await presenter.SaveAsync());
+        Assert.Equal(NativeResourceDetailPhase.LoadError, presenter.Detail.Phase);
+        Assert.Equal("NativeResources_SavedReloadError", presenter.Detail.ErrorKey);
+        Assert.Equal("Japanese", store.StoredDetail("owner-resource").Language);
+        Assert.Single(presenter.Detail.Draft!.StagedVocabulary);
+        Assert.Equal(1, store.AttachCalls);
+        Assert.Equal(1, store.SaveCalls);
+
+        store.FailAttach = false;
+        Assert.True(await presenter.ReloadDraftAsync());
+        Assert.Single(presenter.Detail.Draft!.StagedVocabulary);
+        Assert.True(await presenter.SaveAsync());
+        Assert.Equal(NativeResourceDetailPhase.Ready, presenter.Detail.Phase);
+        Assert.Equal(candidate.Id,
+            Assert.Single(presenter.Detail.Resource!.Vocabulary).Id);
+        Assert.Equal(2, store.AttachCalls);
+        Assert.Equal(2, store.SaveCalls);
     }
 
     [Fact]
@@ -1266,6 +1324,125 @@ public sealed class NativeResourcePresenterTests
     }
 
     [Fact]
+    public async Task CreatedResourceIdSurvivesPostCommitReloadFailureOnlyForItsOwner()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var store = new FakeStore { FailGetAfterCreate = true };
+        var presenter = Create(fixture, store);
+        presenter.BeginCreate();
+        presenter.ChangeDraft(NativeResourceField.Title, "Committed new resource");
+
+        Assert.False(await presenter.SaveAsync());
+        Assert.Equal(NativeResourceDetailPhase.LoadError, presenter.Detail.Phase);
+        Assert.Equal("NativeResources_SavedReloadError", presenter.Detail.ErrorKey);
+        Assert.Equal("created-resource", presenter.Detail.CommittedResourceId);
+        Assert.False(await presenter.SaveAsync());
+        Assert.Equal(1, store.CreateCalls);
+
+        fixture.Activate(NativeSliceFixture.UserB);
+        Assert.Equal(NativeResourceDetailPhase.Blocked, presenter.Detail.Phase);
+        Assert.Null(presenter.Detail.CommittedResourceId);
+        fixture.Activate(NativeSliceFixture.UserA);
+        store.FailGetAfterCreate = false;
+        Assert.Equal("Committed new resource",
+            (await presenter.OpenAsync("created-resource")).Resource!.Title);
+    }
+
+    [Fact]
+    public async Task CancellationAfterCreateKeepsCommittedIdWithoutOfferingAnotherCreate()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var store = new FakeStore {
+            ReloadGate = new TaskCompletionSource<bool>(
+                TaskCreationOptions.RunContinuationsAsynchronously)
+        };
+        var presenter = Create(fixture, store);
+        presenter.BeginCreate();
+        presenter.ChangeDraft(NativeResourceField.Title, "Committed before cancel");
+        using var cancellation = new CancellationTokenSource();
+        var saving = presenter.SaveAsync(cancellation.Token);
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => saving);
+        Assert.Equal("created-resource", presenter.Detail.CommittedResourceId);
+        Assert.Equal(NativeResourceDetailPhase.LoadError, presenter.Detail.Phase);
+        Assert.False(await presenter.SaveAsync());
+        Assert.Equal(1, store.CreateCalls);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DeleteFailureReturnsNonFormatErrorWithoutClaimingAnyWrite(bool throws)
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var store = new FakeStore { ThrowOnDelete = throws };
+        var presenter = Create(fixture, store);
+        await presenter.OpenAsync("owner-resource");
+        Assert.True(presenter.RequestDelete());
+
+        Assert.Equal(NativeResourceMutationResult.Failed,
+            await presenter.ConfirmDeleteAsync());
+        Assert.Equal("NativeResources_DeleteFailed", presenter.Detail.ErrorKey);
+        Assert.Equal(NativeResourceDetailPhase.Ready, presenter.Detail.Phase);
+        Assert.False(presenter.Detail.ShowDeleteConfirmation);
+        Assert.Equal(NativeResourceSyncPhase.Unconfirmed, presenter.Detail.Sync);
+        Assert.Equal(1, store.DeleteCalls);
+        Assert.Equal("Original", store.StoredDetail("owner-resource").Title);
+    }
+
+    [Fact]
+    public async Task CancelledDeleteBeforeAnyWriteDoesNotClaimSavedReloadOrPending()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var store = new FakeStore { CancelBeforeDelete = true };
+        var presenter = Create(fixture, store);
+        await presenter.OpenAsync("owner-resource");
+        Assert.True(presenter.RequestDelete());
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            presenter.ConfirmDeleteAsync(cancellation.Token));
+        Assert.Equal(NativeResourceDetailPhase.Ready, presenter.Detail.Phase);
+        Assert.False(presenter.Detail.ShowDeleteConfirmation);
+        Assert.Null(presenter.Detail.ErrorKey);
+        Assert.Equal(NativeResourceSyncPhase.Unconfirmed, presenter.Detail.Sync);
+        Assert.Equal("Original", store.StoredDetail("owner-resource").Title);
+    }
+
+    [Fact]
+    public async Task FailedGeneratedImportReportsSavedDraftWithoutInventingVocabularySuccess()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var store = new FakeStore();
+        var presenter = Create(fixture, store);
+        await presenter.OpenAsync("owner-resource");
+        Assert.True(presenter.BeginEdit());
+        presenter.ChangeDraft(NativeResourceField.Transcript, "new unsaved transcript");
+
+        var result = await presenter.GenerateVocabularyAsync();
+        Assert.Equal(NativeResourceMutationResult.Failed, result.Result);
+        Assert.Equal("NativeResources_GenerationPartial", result.ErrorKey);
+        Assert.Equal("NativeResources_GenerationPartial", presenter.Detail.ErrorKey);
+        Assert.Equal(NativeResourceDetailPhase.LoadError, presenter.Detail.Phase);
+        Assert.Equal(NativeResourceSyncPhase.Pending, presenter.Detail.Sync);
+        Assert.Equal("new unsaved transcript",
+            store.StoredDetail("owner-resource").Transcript);
+        Assert.Equal(1, store.SaveCalls);
+        Assert.False(await presenter.SaveAsync());
+        Assert.Equal(1, store.SaveCalls);
+        Assert.True(await presenter.ReloadDraftAsync());
+        Assert.Equal(NativeResourceDetailPhase.Ready, presenter.Detail.Phase);
+        Assert.Equal("new unsaved transcript", presenter.Detail.Draft!.Transcript);
+    }
+
+    [Fact]
     public async Task DetailAndSave_FailClosedWhenOwnerSwitchesOrReadFails()
     {
         using var fixture = new NativeSliceFixture();
@@ -1369,11 +1546,18 @@ public sealed class NativeResourcePresenterTests
         public bool FailList { get; set; }
         public bool FailGet { get; set; }
         public bool FailGetAfterSave { get; set; }
+        public bool FailGetAfterCreate { get; set; }
+        public bool ThrowOnDelete { get; set; }
+        public bool CancelBeforeDelete { get; set; }
         public bool FailSave { get; set; }
         public bool RefuseSave { get; set; }
+        public bool FailAttach { get; set; }
         public ResourceMetadataUpdateResult SaveOutcome { get; set; } =
             ResourceMetadataUpdateResult.Success;
         public int SaveCalls { get; private set; }
+        public int CreateCalls { get; private set; }
+        public int DeleteCalls { get; private set; }
+        public int AttachCalls { get; private set; }
         public string? LastSaveOwner { get; private set; }
         public string? LastSaveResourceId { get; private set; }
         public TaskCompletionSource<bool>? SaveGate { get; set; }
@@ -1416,15 +1600,90 @@ public sealed class NativeResourcePresenterTests
         public async Task<NativeResourceDetail?> GetAsync(
             string owner, string resourceId, CancellationToken cancellationToken)
         {
-            if (FailGet || FailGetAfterSave && SaveCalls > 0)
+            if (FailGet || FailGetAfterSave && SaveCalls > 0
+                || FailGetAfterCreate && CreateCalls > 0)
                 throw new InvalidOperationException("Scratch detail unavailable.");
             if (DelayedGets.TryGetValue(resourceId, out var delayed))
                 return await delayed.Task;
-            if (ReloadGate is not null && SaveCalls > 0)
+            if (ReloadGate is not null && (SaveCalls > 0 || CreateCalls > 0))
                 await ReloadGate.Task.WaitAsync(cancellationToken);
             return resourceId == _resource.Id ? _resource
                 : _additionalResources.GetValueOrDefault(resourceId);
         }
+
+        public Task<NativeResourceCreateResult> CreateAsync(
+            string owner, NativeResourceDraft draft, CancellationToken cancellationToken)
+        {
+            CreateCalls++;
+            var id = "created-resource";
+            _additionalResources[id] = _resource with {
+                Id = id, Title = draft.Title,
+                OriginalMetadata = _resource.OriginalMetadata with {
+                    Title = draft.Title
+                }
+            };
+            return Task.FromResult(new NativeResourceCreateResult(
+                NativeResourceMutationResult.Success, id));
+        }
+
+        public Task<NativeResourceMutationResult> DeleteAsync(
+            string owner, string resourceId, CancellationToken cancellationToken)
+        {
+            DeleteCalls++;
+            if (CancelBeforeDelete)
+                throw new OperationCanceledException(cancellationToken);
+            if (ThrowOnDelete)
+                throw new IOException("scratch private path");
+            return Task.FromResult(NativeResourceMutationResult.Failed);
+        }
+
+        public Task<NativeResourceGeneratedVocabulary> GenerateVocabularyFromDraftAsync(
+            string owner, string resourceId, NativeResourceDraft draft,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new NativeResourceGeneratedVocabulary(
+                [new NativeResourceVocabularyRow("generated", "강", "river")],
+                1, 0));
+
+        public Task<IReadOnlyList<NativeResourceVocabularyRow>> SearchVocabularyAsync(
+            string owner, string resourceId, string language, string query,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<NativeResourceVocabularyRow>>([
+                new NativeResourceVocabularyRow("owner-word", "いす", "chair",
+                    Language: "Japanese") { IsExisting = true }
+            ]);
+
+        public Task<NativeResourceMutationResult> AttachVocabularyAsync(
+            string owner, string resourceId, string wordId, string language,
+            CancellationToken cancellationToken)
+        {
+            AttachCalls++;
+            if (FailAttach)
+                return Task.FromResult(NativeResourceMutationResult.Failed);
+            var resource = StoredDetail(resourceId);
+            if (!resource.Vocabulary.IsDefaultOrEmpty
+                && resource.Vocabulary.Any(word => word.Id == wordId))
+                return Task.FromResult(NativeResourceMutationResult.AlreadyPresent);
+            var vocabulary = resource.Vocabulary.IsDefault
+                ? ImmutableArray<NativeResourceVocabularyRow>.Empty
+                : resource.Vocabulary;
+            var updated = resource with {
+                Vocabulary = vocabulary.Add(new NativeResourceVocabularyRow(
+                    wordId, "いす", "chair", Language: language)),
+                VocabularyCount = vocabulary.Length + 1
+            };
+            if (resourceId == _resource.Id)
+                _resource = updated;
+            else
+                _additionalResources[resourceId] = updated;
+            return Task.FromResult(NativeResourceMutationResult.Success);
+        }
+
+        public Task<NativeResourceImportResult> ImportVocabularyAsync(
+            string owner, string resourceId, string? language,
+            IReadOnlyList<NativeResourceVocabularyRow> words,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new NativeResourceImportResult(
+                0, 0, NativeResourceMutationResult.Failed));
 
         public async Task<ResourceMetadataUpdateResult> SaveMetadataAsync(
             string owner, string resourceId, ResourceMetadataSnapshot original,
@@ -1455,6 +1714,38 @@ public sealed class NativeResourcePresenterTests
             else
                 _additionalResources[resourceId] = updated;
             return ResourceMetadataUpdateResult.Success;
+        }
+
+        public async Task<ResourceMetadataUpdateResult> SaveContentAsync(
+            string owner, string resourceId, ResourceContentSnapshot original,
+            ResourceContentUpdate content, CancellationToken cancellationToken)
+        {
+            var result = await SaveMetadataAsync(owner, resourceId, original.Metadata,
+                content.Title, content.Description, content.Tags, cancellationToken);
+            if (result != ResourceMetadataUpdateResult.Success)
+                return result;
+            var saved = StoredDetail(resourceId);
+            var updated = saved with {
+                MediaType = content.MediaType,
+                Language = content.Language,
+                MediaUrl = content.MediaUrl,
+                Transcript = content.Transcript,
+                Translation = content.Translation,
+                HasTranscript = !string.IsNullOrEmpty(content.Transcript),
+                HasTranslation = !string.IsNullOrEmpty(content.Translation),
+                TranscriptPreview = content.Transcript is { Length: > 240 } transcript
+                    ? transcript[..240] : content.Transcript,
+                TranslationPreview = content.Translation is { Length: > 240 } translation
+                    ? translation[..240] : content.Translation,
+                OriginalContent = new ResourceContentSnapshot(
+                    saved.OriginalMetadata, content.MediaType, content.Language,
+                    content.MediaUrl, content.Transcript, content.Translation)
+            };
+            if (resourceId == _resource.Id)
+                _resource = updated;
+            else
+                _additionalResources[resourceId] = updated;
+            return result;
         }
     }
 }

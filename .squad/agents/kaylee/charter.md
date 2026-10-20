@@ -17,6 +17,13 @@
 - Dashboard and navigation — `Index.razor`, activity routing, page headers
 - CSS and styling — Bootstrap classes, `activity-page-wrapper` layout system, no emojis ever
 
+For replacement native heads (not reference MAUI UI), implement actual iOS
+feature screens/navigation in SwiftUI and Android screens/navigation in
+Jetpack Compose. UIKit `UINavigationController`, project-authored
+`SwiftView`-to-UIKit rendering and Android widget/AppCompat fallbacks require
+Captain's prior scoped approval; read `AGENTS.md`'s 2026-10-03 gate. Keep
+source-fidelity states, navigation behavior and proven services intact.
+
 ## How I Work
 
 - Follow established activity page patterns: `activity-page-wrapper` → `PageHeader` → `activity-content` → `activity-input-bar`

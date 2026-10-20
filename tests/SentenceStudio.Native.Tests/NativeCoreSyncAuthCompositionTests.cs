@@ -36,9 +36,23 @@ public sealed class NativeCoreSyncAuthCompositionTests
     }
 
     [Fact]
+    public void LegacyCoreSyncRegistration_DoesNotInstallNativeExportDecorator()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSyncServices($"unused-{Guid.NewGuid():N}.sqlite",
+            new Uri("https://api.example.invalid/"));
+        using var provider = services.BuildServiceProvider();
+        Assert.IsType<SqliteSyncProvider>(
+            provider.GetRequiredService<ISyncProvider>());
+    }
+
+    [Fact]
     public async Task NormalCoreSyncRegistration_ResolvesRealReadinessAndSendsOwnerBearer()
     {
         using var scenario = new Scenario();
+        Assert.IsType<NativeLocalOnlyMappingExportProvider>(
+            scenario.Services.GetRequiredService<ISyncProvider>());
         Assert.IsType<OwnerBoundNativeSyncReadiness>(
             scenario.Services.GetRequiredService<INativeSyncReadiness>());
         Assert.Same(scenario.Services.GetRequiredService<ISyncService>(),

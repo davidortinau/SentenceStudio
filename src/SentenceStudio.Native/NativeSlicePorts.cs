@@ -83,12 +83,34 @@ public interface INativeQuizGrader
         string expectedAnswer, CancellationToken cancellationToken);
 }
 
+public interface INativeQuizSentenceGrader
+{
+    Task<NativeQuizSentenceGrade> GradeAsync(
+        string userId, string sentence, VocabularyWord word,
+        string targetLanguage, string nativeLanguage, CancellationToken cancellationToken);
+}
+
+public interface INativeQuizSentenceCommitter
+{
+    Task<NativeQuizSentenceCommitReceipt?> FindAsync(
+        string userId, string launchContextKey, string turnId,
+        string submissionId, CancellationToken cancellationToken);
+
+    Task<NativeQuizSentenceCommitReceipt> CommitAsync(
+        string userId, string launchContextKey, string turnId,
+        string submissionId, IReadOnlyList<NativeQuizSentenceGrade> results,
+        CancellationToken cancellationToken);
+}
+
 /// <summary>Platform media adapters report playback only after it actually succeeds.</summary>
 public interface INativeQuizMedia
 {
     Task<bool> CanPlayPromptAsync(string text, string language, CancellationToken cancellationToken);
     Task<bool> PlayPromptAsync(string text, string language, CancellationToken cancellationToken);
     Task<bool> CanShowPhotoAsync(string photoUri, CancellationToken cancellationToken);
+    Task<NativeQuizPhotoAsset?> LoadPhotoAsync(string photoUri, CancellationToken cancellationToken) =>
+        Task.FromResult<NativeQuizPhotoAsset?>(null);
+    void StopPlayback() { }
 }
 
 internal sealed class UnconfirmedNativeSyncReadiness(
@@ -237,6 +259,29 @@ internal sealed class UnavailableNativeQuizGrader : INativeQuizGrader
         string expectedAnswer, CancellationToken cancellationToken)
         => throw new NotSupportedException(
             "Shared Vocab Quiz MC/Text grading must be extracted from VocabQuiz.razor.");
+}
+
+internal sealed class UnavailableNativeQuizSentenceGrader : INativeQuizSentenceGrader
+{
+    public Task<NativeQuizSentenceGrade> GradeAsync(
+        string userId, string sentence, VocabularyWord word,
+        string targetLanguage, string nativeLanguage, CancellationToken cancellationToken) =>
+        Task.FromException<NativeQuizSentenceGrade>(
+            new InvalidOperationException("The authenticated sentence grader is offline."));
+}
+
+internal sealed class UnavailableNativeQuizSentenceCommitter : INativeQuizSentenceCommitter
+{
+    public Task<NativeQuizSentenceCommitReceipt?> FindAsync(
+        string userId, string launchContextKey, string turnId,
+        string submissionId, CancellationToken cancellationToken) =>
+        Task.FromResult<NativeQuizSentenceCommitReceipt?>(null);
+
+    public Task<NativeQuizSentenceCommitReceipt> CommitAsync(
+        string userId, string launchContextKey, string turnId, string submissionId,
+        IReadOnlyList<NativeQuizSentenceGrade> results, CancellationToken cancellationToken) =>
+        Task.FromException<NativeQuizSentenceCommitReceipt>(
+            new InvalidOperationException("The owner-scoped sentence receipt writer is unavailable."));
 }
 
 internal sealed class UnavailableNativeQuizMedia : INativeQuizMedia

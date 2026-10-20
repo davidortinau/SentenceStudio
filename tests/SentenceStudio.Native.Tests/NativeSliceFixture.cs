@@ -16,6 +16,7 @@ using SentenceStudio.Data;
 using SentenceStudio.Native;
 using SentenceStudio.Native.Adapters;
 using SentenceStudio.Services;
+using SentenceStudio.Services.Api;
 using SentenceStudio.Services.PlanGeneration;
 using SentenceStudio.Services.Plans;
 using SentenceStudio.Services.Progress;
@@ -41,17 +42,31 @@ internal sealed class NativeSliceFixture : IDisposable
     private readonly ScratchAuthHandler _authHandler = new();
     private readonly ScratchPlanGenerator _generator = new();
     private readonly ScratchConnectivity _connectivity = new();
+    private readonly ScratchAmbientSync _ambientSync = new();
     private readonly bool _productionAdapters;
     private readonly bool _realPlanGenerator;
     private readonly bool _ownerBoundReadiness;
+    private readonly bool _resourceAiEnabled;
+    private readonly bool _scopedResourceRepository;
+    private readonly bool _sentenceGradingEnabled;
+    private readonly INativeQuizSentenceGrader? _sentenceGraderOverride;
+    private readonly bool _validateScopes;
 
     public NativeSliceFixture(
         bool productionAdapters = false, bool realPlanGenerator = false,
-        bool ownerBoundReadiness = false)
+        bool ownerBoundReadiness = false, bool resourceAiEnabled = false,
+        bool scopedResourceRepository = false,
+        bool sentenceGradingEnabled = false, bool validateScopes = false,
+        INativeQuizSentenceGrader? sentenceGraderOverride = null)
     {
         _productionAdapters = productionAdapters;
         _realPlanGenerator = realPlanGenerator;
         _ownerBoundReadiness = ownerBoundReadiness;
+        _resourceAiEnabled = resourceAiEnabled;
+        _scopedResourceRepository = scopedResourceRepository;
+        _sentenceGradingEnabled = sentenceGradingEnabled;
+        _sentenceGraderOverride = sentenceGraderOverride;
+        _validateScopes = validateScopes;
         Directory.CreateDirectory(_directory);
         _database = Path.Combine(_directory, "native-slice.sqlite");
         _authHandler.Register(EmailA, UserA);
@@ -74,8 +89,11 @@ internal sealed class NativeSliceFixture : IDisposable
     }
 
     public ScratchSyncReadiness Sync { get; } = new();
+    public ScratchAmbientSync AmbientSync => _ambientSync;
     public ScratchRemoteSyncCompletion RemoteSync { get; } = new();
     public ScratchQuizMedia Media { get; } = new();
+    public ScratchSentenceGateway SentenceGateway { get; } = new();
+    public ScratchResourceAiGateway ResourceAi { get; } = new();
     public IServiceProvider Provider => _provider;
     public ScratchActivitySessions FaultSessions => _provider
         .GetRequiredService<ScratchActivitySessions>();
@@ -118,6 +136,12 @@ internal sealed class NativeSliceFixture : IDisposable
     public void SetLoginResponseHook(
         Func<string, CancellationToken, Task>? hook) =>
         _authHandler.BeforeLoginResponseAsync = hook;
+    public void SetRegistrationResponder(
+        Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>>? handler) =>
+        _authHandler.RegistrationResponseAsync = handler;
+    public void SetRecoveryResponder(
+        Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>>? handler) =>
+        _authHandler.RecoveryResponseAsync = handler;
 
     public void Activate(string userId)
     {
@@ -309,7 +333,12 @@ internal sealed class NativeSliceFixture : IDisposable
         services.AddSingleton<ISecureStorageService>(_secureStorage);
         services.AddSingleton<IConnectivityService>(_connectivity);
         services.AddSingleton<IFileSystemService>(new ScratchFiles(_directory));
-        services.AddSingleton<ISyncService, NoOpSyncService>();
+        services.AddSingleton<ISyncService>(_ambientSync);
+        if (_resourceAiEnabled)
+        {
+            services.AddSingleton<IAiGatewayClient>(ResourceAi);
+            services.AddSingleton<IOwnerBoundNativeAiGateway>(ResourceAi);
+        }
         services.AddSingleton(_userScope);
         services.AddSingleton<IUserScopeProvider>(sp =>
             sp.GetRequiredService<DeviceUserScopeProvider>());
@@ -329,7 +358,10 @@ internal sealed class NativeSliceFixture : IDisposable
         services.AddSingleton<IPlanCopyProvider, EnglishPlanCopyProvider>();
         services.AddScoped<IPlanService, PlanService>();
         services.AddSingleton<UserProfileRepository>();
-        services.AddSingleton<LearningResourceRepository>();
+        if (_scopedResourceRepository)
+            services.AddScoped<LearningResourceRepository>();
+        else
+            services.AddSingleton<LearningResourceRepository>();
         services.AddSingleton<SkillProfileRepository>();
         services.AddSingleton<UserActivityRepository>();
         services.AddSingleton<VocabularyProgressRepository>();
@@ -354,6 +386,15 @@ internal sealed class NativeSliceFixture : IDisposable
         services.AddSingleton<INativeQuizChoices, ScratchChoices>();
         services.AddSingleton<INativeQuizEligibility, ScratchQuizEligibility>();
         services.AddSingleton<INativeQuizGrader, ScratchQuizGrader>();
+        if (_sentenceGradingEnabled)
+        {
+            services.AddSingleton<IOwnerBoundNativeSentenceGateway>(SentenceGateway);
+            if (_sentenceGraderOverride is null)
+                services.AddSingleton<INativeQuizSentenceGrader, NativeQuizSentenceGrader>();
+            else
+                services.AddSingleton<INativeQuizSentenceGrader>(_sentenceGraderOverride);
+            services.AddSingleton<INativeQuizSentenceCommitter, NativeQuizSentenceAttemptCommitter>();
+        }
         if (_ownerBoundReadiness)
             services.AddSingleton<IRemoteSyncCompletion>(RemoteSync);
         services.AddSingleton(sp =>
@@ -379,7 +420,9 @@ internal sealed class NativeSliceFixture : IDisposable
         }
         else if (_ownerBoundReadiness)
             services.AddOwnerBoundNativeSyncReadiness();
-        return services.BuildServiceProvider();
+        return services.BuildServiceProvider(new ServiceProviderOptions {
+            ValidateScopes = _scopedResourceRepository || _validateScopes
+        });
     }
 
     internal sealed class ScratchPreferences : IPreferencesService
@@ -401,10 +444,13 @@ internal sealed class NativeSliceFixture : IDisposable
     internal sealed class ScratchSecureStorage : ISecureStorageService
     {
         private readonly ConcurrentDictionary<string, string> _values = new();
+        public bool RejectWrites { get; set; }
         public Task<string?> GetAsync(string key) =>
             Task.FromResult(_values.TryGetValue(key, out var value) ? value : null);
         public Task SetAsync(string key, string value)
         {
+            if (RejectWrites)
+                throw new InvalidOperationException("Fixture credential storage refused write.");
             _values[key] = value;
             return Task.CompletedTask;
         }
@@ -487,6 +533,10 @@ internal sealed class NativeSliceFixture : IDisposable
         public string? TokenOwnerOverride { get; set; }
         public bool DuplicateOwnerClaim { get; set; }
         public Func<string, CancellationToken, Task>? BeforeLoginResponseAsync { get; set; }
+        public Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>>?
+            RegistrationResponseAsync { get; set; }
+        public Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>>?
+            RecoveryResponseAsync { get; set; }
         public int ProfileRequests { get; private set; }
         public bool Offline { get; set; }
         public void Register(string email, string userId) => _users[email] = userId;
@@ -515,6 +565,12 @@ internal sealed class NativeSliceFixture : IDisposable
                     }
                     : new HttpResponseMessage(HttpStatusCode.Forbidden);
             }
+            if (request.RequestUri?.AbsolutePath == "/api/auth/register"
+                && RegistrationResponseAsync is { } register)
+                return await register(request, cancellationToken);
+            if (request.RequestUri?.AbsolutePath == "/api/auth/forgot-password"
+                && RecoveryResponseAsync is { } recover)
+                return await recover(request, cancellationToken);
             if (ForcedStatus is { } status)
                 return new HttpResponseMessage(status);
             if (request.RequestUri?.AbsolutePath != "/api/auth/login")
