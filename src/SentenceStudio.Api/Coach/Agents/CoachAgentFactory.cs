@@ -66,6 +66,11 @@ public sealed class CoachAgentFactory : ICoachAgentFactory
     private IChatClient? _harnessServicesClient;
     private CoachHarnessServiceProvider? _harnessServices;
 
+    /// <summary>Guards the cached traced client. The factory is a singleton.</summary>
+    private readonly Lock _tracedClientGate = new();
+    private IChatClient? _tracedClientSource;
+    private IChatClient? _tracedClient;
+
     /// <param name="loggerFactory">
     /// The application factory. Used only for this class's own shape-only logs; it is never handed
     /// to the agent internals.
@@ -239,10 +244,47 @@ public sealed class CoachAgentFactory : ICoachAgentFactory
     }
 
     /// <summary>
-    /// Resolves the keyed fast-tier client, falling back to the default registration.
-    /// Both are singletons, so this is safe to call from a singleton factory.
+    /// Resolves the keyed fast-tier client, falling back to the default registration, and wraps it
+    /// once in OpenTelemetry middleware. Both registrations are singletons, so this is safe to call
+    /// from a singleton factory.
     /// </summary>
-    private IChatClient? ResolveChatClient() =>
-        _services.GetKeyedService<IChatClient>(AiTier.Fast.ToKey())
-        ?? _services.GetService<IChatClient>();
+    /// <remarks>
+    /// <para>
+    /// The middleware turns each model call into a <c>chat</c> span. The agent adds function
+    /// invocation on top of this client, and that layer finds its ActivitySource through the inner
+    /// client, so each tool call also becomes an <c>execute_tool</c> span. Together they show which
+    /// tools a turn ran, in order, in the Aspire dashboard.
+    /// </para>
+    /// <para>
+    /// Content capture stays off. Spans carry the model, token counts, and tool names, never the
+    /// prompt, the reply, or tool arguments and results. The middleware gets the content-free
+    /// logger factory for the same reason the agent does.
+    /// </para>
+    /// <para>
+    /// Cached and keyed on the client instance, like the harness container, so both arms share one
+    /// traced client and the harness cache keeps hitting.
+    /// </para>
+    /// </remarks>
+    private IChatClient? ResolveChatClient()
+    {
+        var client = _services.GetKeyedService<IChatClient>(AiTier.Fast.ToKey())
+            ?? _services.GetService<IChatClient>();
+        if (client is null)
+        {
+            return null;
+        }
+
+        lock (_tracedClientGate)
+        {
+            if (_tracedClient is null || !ReferenceEquals(_tracedClientSource, client))
+            {
+                _tracedClient = client.AsBuilder()
+                    .UseOpenTelemetry(_modelLoggerFactory, configure: o => o.EnableSensitiveData = false)
+                    .Build();
+                _tracedClientSource = client;
+            }
+
+            return _tracedClient;
+        }
+    }
 }
