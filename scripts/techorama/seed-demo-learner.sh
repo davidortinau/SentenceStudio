@@ -28,8 +28,12 @@
 #
 # Defaults: --email techorama-demo@example.test --volume sentencestudio-techorama-demo-db-data
 #
-# The stack must be running with that volume:
-#   LocalDb__DataVolume=sentencestudio-techorama-demo-db-data aspire run
+# The stack must be running with that volume. For the talk, from src/SentenceStudio.AppHost:
+#   LocalDb__DataVolume=sentencestudio-techorama-demo-db-data \
+#   Coach__Memory__Enabled=true Coach__SamWriteTools__Enabled=true \
+#   Coach__AllowedUserProfileIds__3=__dev_all__ Coach__ReasoningEffort=low aspire run
+# At the default reasoning effort (minimal), Sam often refuses "What's due for review?" on this
+# learner: an evidence-window validation rule rejects the answer.
 
 set -euo pipefail
 
