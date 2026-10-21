@@ -1410,301 +1410,301 @@ public class ContentImportService : IContentImportService
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var exampleSentenceRepository = scope.ServiceProvider.GetRequiredService<ExampleSentenceRepository>();
-        await using var transaction = await db.Database.BeginTransactionAsync(ct);
-        bool isNewResource = false;
+        // The web host registers PostgreSQL through Aspire, which installs NpgsqlRetryingExecutionStrategy.
+        // That strategy refuses a transaction it does not own, so every server-side import failed at
+        // BeginTransactionAsync. The transaction now runs inside the strategy, as in
+        // LearningResourceRepository.DeleteResourceAsync. A retry repeats the whole attempt, so each
+        // attempt starts from the database and resets the counts and items a failed attempt recorded.
+        var strategy = db.Database.CreateExecutionStrategy();
 
         try
         {
-            // Step 1: Get or create the target resource
-            LearningResource targetResource;
-
-            if (commit.Target.Mode == ImportTargetMode.Existing)
+            return await strategy.ExecuteAsync(async () =>
             {
-                if (string.IsNullOrEmpty(commit.Target.ExistingResourceId))
-                    throw new ArgumentException("ExistingResourceId is required when Mode is Existing.", nameof(commit.Target));
+                db.ChangeTracker.Clear();
+                warnings = new List<string>(commit.Preview.Warnings);
+                items = new List<ContentImportItemResult>();
+                createdCount = 0;
+                skippedCount = 0;
+                updatedCount = 0;
+                failedCount = 0;
 
-                targetResource = await db.LearningResources
-                    .Include(r => r.VocabularyMappings)
-                    .FirstOrDefaultAsync(r => r.Id == commit.Target.ExistingResourceId && r.UserProfileId == userId, ct);
+                await using var transaction = await db.Database.BeginTransactionAsync(ct);
+                bool isNewResource = false;
 
-                if (targetResource == null)
-                    throw new InvalidOperationException($"Resource with ID {commit.Target.ExistingResourceId} was not found for the active user.");
+                // Step 1: Get or create the target resource
+                LearningResource targetResource;
 
-                // If transcript harvest requested, store/overwrite transcript on existing resource
-                if (commit.HarvestTranscript && !string.IsNullOrEmpty(transcriptText))
+                if (commit.Target.Mode == ImportTargetMode.Existing)
                 {
-                    targetResource.Transcript = transcriptText;
-                    targetResource.MediaType = "Transcript";
+                    if (string.IsNullOrEmpty(commit.Target.ExistingResourceId))
+                        throw new ArgumentException("ExistingResourceId is required when Mode is Existing.", nameof(commit.Target));
+
+                    targetResource = await db.LearningResources
+                        .Include(r => r.VocabularyMappings)
+                        .FirstOrDefaultAsync(r => r.Id == commit.Target.ExistingResourceId && r.UserProfileId == userId, ct);
+
+                    if (targetResource == null)
+                        throw new InvalidOperationException($"Resource with ID {commit.Target.ExistingResourceId} was not found for the active user.");
+
+                    // If transcript harvest requested, store/overwrite transcript on existing resource
+                    if (commit.HarvestTranscript && !string.IsNullOrEmpty(transcriptText))
+                    {
+                        targetResource.Transcript = transcriptText;
+                        targetResource.MediaType = "Transcript";
+                    }
+
+                    _logger.LogInformation("Appending vocabulary to existing resource: {ResourceId} ({Title})",
+                        targetResource.Id, targetResource.Title);
+                }
+                else // ImportTargetMode.New
+                {
+                    if (string.IsNullOrEmpty(commit.Target.NewResourceTitle))
+                        throw new ArgumentException("NewResourceTitle is required when Mode is New.", nameof(commit.Target));
+
+                    // Determine MediaType based on harvest checkboxes
+                    var mediaType = commit.HarvestTranscript ? "Transcript" : "Vocabulary List";
+
+                    targetResource = new LearningResource
+                    {
+                        Id = Guid.NewGuid().ToString(),
+                        Title = commit.Target.NewResourceTitle,
+                        Description = commit.Target.NewResourceDescription ?? string.Empty,
+                        MediaType = mediaType,
+                        Transcript = commit.HarvestTranscript ? transcriptText : null,
+                        Language = commit.Target.TargetLanguage,
+                        Tags = "imported",
+                        IsSmartResource = false,
+                        UserProfileId = userId,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow,
+                        VocabularyMappings = new List<ResourceVocabularyMapping>()
+                    };
+
+                    db.LearningResources.Add(targetResource);
+                    isNewResource = true;
+                    // ID is set via Guid.NewGuid().ToString() above — no DB save needed yet.
+                    // EF will persist the resource + vocab + mappings atomically at line 1631.
+
+                    _logger.LogInformation("Created new resource: {ResourceId} ({Title})", targetResource.Id, targetResource.Title);
                 }
 
-                _logger.LogInformation("Appending vocabulary to existing resource: {ResourceId} ({Title})",
-                    targetResource.Id, targetResource.Title);
-            }
-            else // ImportTargetMode.New
-            {
-                if (string.IsNullOrEmpty(commit.Target.NewResourceTitle))
-                    throw new ArgumentException("NewResourceTitle is required when Mode is New.", nameof(commit.Target));
+                var effectiveTargetLanguage = string.IsNullOrWhiteSpace(targetResource.Language)
+                    ? commit.Target.TargetLanguage
+                    : targetResource.Language;
 
-                // Determine MediaType based on harvest checkboxes
-                var mediaType = commit.HarvestTranscript ? "Transcript" : "Vocabulary List";
+                // Step 2: Get existing mappings for this resource to prevent duplicates
+                var existingMappingWordIds = new HashSet<string>(
+                    targetResource.VocabularyMappings.Select(m => m.VocabularyWordId),
+                    StringComparer.Ordinal);
 
-                targetResource = new LearningResource
-                {
-                    Id = Guid.NewGuid().ToString(),
-                    Title = commit.Target.NewResourceTitle,
-                    Description = commit.Target.NewResourceDescription ?? string.Empty,
-                    MediaType = mediaType,
-                    Transcript = commit.HarvestTranscript ? transcriptText : null,
-                    Language = commit.Target.TargetLanguage,
-                    Tags = "imported",
-                    IsSmartResource = false,
-                    UserProfileId = userId,
-                    CreatedAt = DateTime.UtcNow,
-                    UpdatedAt = DateTime.UtcNow,
-                    VocabularyMappings = new List<ResourceVocabularyMapping>()
-                };
-
-                db.LearningResources.Add(targetResource);
-                isNewResource = true;
-                // ID is set via Guid.NewGuid().ToString() above — no DB save needed yet.
-                // EF will persist the resource + vocab + mappings atomically at line 1631.
-
-                _logger.LogInformation("Created new resource: {ResourceId} ({Title})", targetResource.Id, targetResource.Title);
-            }
-
-            var effectiveTargetLanguage = string.IsNullOrWhiteSpace(targetResource.Language)
-                ? commit.Target.TargetLanguage
-                : targetResource.Language;
-
-            // Step 2: Get existing mappings for this resource to prevent duplicates
-            var existingMappingWordIds = new HashSet<string>(
-                targetResource.VocabularyMappings.Select(m => m.VocabularyWordId),
-                StringComparer.Ordinal);
-
-            var existingUserWords = string.IsNullOrEmpty(userId)
-                ? new List<VocabularyWord>()
-                : await (
-                    from mapping in db.ResourceVocabularyMappings
-                    join resource in db.LearningResources on mapping.ResourceId equals resource.Id
-                    join word in db.VocabularyWords on mapping.VocabularyWordId equals word.Id
-                    where resource.UserProfileId == userId
-                    select word)
-                    .Distinct()
-                    .ToListAsync(ct);
-            var existingUserWordIds = existingUserWords.Select(word => word.Id).ToList();
-            var sharedUserWordIds = existingUserWordIds.Count == 0
-                ? new HashSet<string>(StringComparer.Ordinal)
-                : new HashSet<string>(
-                    await (
+                var existingUserWords = string.IsNullOrEmpty(userId)
+                    ? new List<VocabularyWord>()
+                    : await (
                         from mapping in db.ResourceVocabularyMappings
                         join resource in db.LearningResources on mapping.ResourceId equals resource.Id
-                        where existingUserWordIds.Contains(mapping.VocabularyWordId) && resource.UserProfileId != userId
-                        select mapping.VocabularyWordId)
-                    .Distinct()
-                    .ToListAsync(ct),
-                    StringComparer.Ordinal);
-            var phraseLinkedExistingWordIds = new HashSet<string>(StringComparer.Ordinal);
-            if (existingUserWordIds.Count > 0)
-            {
-                var otherUserProgressWordIds = await db.VocabularyProgresses
-                    .Where(p => existingUserWordIds.Contains(p.VocabularyWordId) && p.UserId != userId)
-                    .Select(p => p.VocabularyWordId)
-                    .Distinct()
-                    .ToListAsync(ct);
-                sharedUserWordIds.UnionWith(otherUserProgressWordIds);
-
-                var otherUserPairWords = await db.MinimalPairs
-                    .Where(p => p.UserId != userId && (existingUserWordIds.Contains(p.VocabularyWordAId) || existingUserWordIds.Contains(p.VocabularyWordBId)))
-                    .Select(p => new { p.VocabularyWordAId, p.VocabularyWordBId })
-                    .ToListAsync(ct);
-                foreach (var pair in otherUserPairWords)
+                        join word in db.VocabularyWords on mapping.VocabularyWordId equals word.Id
+                        where resource.UserProfileId == userId
+                        select word)
+                        .Distinct()
+                        .ToListAsync(ct);
+                var existingUserWordIds = existingUserWords.Select(word => word.Id).ToList();
+                var sharedUserWordIds = existingUserWordIds.Count == 0
+                    ? new HashSet<string>(StringComparer.Ordinal)
+                    : new HashSet<string>(
+                        await (
+                            from mapping in db.ResourceVocabularyMappings
+                            join resource in db.LearningResources on mapping.ResourceId equals resource.Id
+                            where existingUserWordIds.Contains(mapping.VocabularyWordId) && resource.UserProfileId != userId
+                            select mapping.VocabularyWordId)
+                        .Distinct()
+                        .ToListAsync(ct),
+                        StringComparer.Ordinal);
+                var phraseLinkedExistingWordIds = new HashSet<string>(StringComparer.Ordinal);
+                if (existingUserWordIds.Count > 0)
                 {
-                    if (existingUserWordIds.Contains(pair.VocabularyWordAId))
-                        sharedUserWordIds.Add(pair.VocabularyWordAId);
-                    if (existingUserWordIds.Contains(pair.VocabularyWordBId))
-                        sharedUserWordIds.Add(pair.VocabularyWordBId);
-                }
+                    var otherUserProgressWordIds = await db.VocabularyProgresses
+                        .Where(p => existingUserWordIds.Contains(p.VocabularyWordId) && p.UserId != userId)
+                        .Select(p => p.VocabularyWordId)
+                        .Distinct()
+                        .ToListAsync(ct);
+                    sharedUserWordIds.UnionWith(otherUserProgressWordIds);
 
-                var otherUserAttemptWords = await db.MinimalPairAttempts
-                    .Where(a => a.UserId != userId && (existingUserWordIds.Contains(a.PromptWordId) || existingUserWordIds.Contains(a.SelectedWordId)))
-                    .Select(a => new { a.PromptWordId, a.SelectedWordId })
-                    .ToListAsync(ct);
-                foreach (var attempt in otherUserAttemptWords)
-                {
-                    if (existingUserWordIds.Contains(attempt.PromptWordId))
-                        sharedUserWordIds.Add(attempt.PromptWordId);
-                    if (existingUserWordIds.Contains(attempt.SelectedWordId))
-                        sharedUserWordIds.Add(attempt.SelectedWordId);
-                }
-
-                var phraseConstituentWords = await db.PhraseConstituents
-                    .Where(pc => existingUserWordIds.Contains(pc.PhraseWordId) || (pc.ConstituentWordId != null && existingUserWordIds.Contains(pc.ConstituentWordId)))
-                    .Select(pc => new { pc.PhraseWordId, pc.ConstituentWordId })
-                    .ToListAsync(ct);
-                foreach (var phraseConstituent in phraseConstituentWords)
-                {
-                    if (existingUserWordIds.Contains(phraseConstituent.PhraseWordId))
-                        phraseLinkedExistingWordIds.Add(phraseConstituent.PhraseWordId);
-                    if (phraseConstituent.ConstituentWordId != null && existingUserWordIds.Contains(phraseConstituent.ConstituentWordId))
-                        phraseLinkedExistingWordIds.Add(phraseConstituent.ConstituentWordId);
-                }
-
-                var exampleReferences = await db.ExampleSentences
-                    .Where(example => existingUserWordIds.Contains(example.VocabularyWordId))
-                    .Select(example => new { example.VocabularyWordId, example.LearningResourceId })
-                    .ToListAsync(ct);
-                var exampleResourceIds = exampleReferences
-                    .Select(example => example.LearningResourceId)
-                    .Where(id => id != null)
-                    .Distinct(StringComparer.Ordinal)
-                    .ToList();
-                var exampleResourceOwners = exampleResourceIds.Count == 0
-                    ? new Dictionary<string, string?>(StringComparer.Ordinal)
-                    : await db.LearningResources
-                        .Where(resource => exampleResourceIds.Contains(resource.Id))
-                        .ToDictionaryAsync(resource => resource.Id, resource => resource.UserProfileId, StringComparer.Ordinal, ct);
-                foreach (var example in exampleReferences)
-                {
-                    if (example.LearningResourceId == null ||
-                        !exampleResourceOwners.TryGetValue(example.LearningResourceId, out var ownerId) ||
-                        ownerId != userId)
+                    var otherUserPairWords = await db.MinimalPairs
+                        .Where(p => p.UserId != userId && (existingUserWordIds.Contains(p.VocabularyWordAId) || existingUserWordIds.Contains(p.VocabularyWordBId)))
+                        .Select(p => new { p.VocabularyWordAId, p.VocabularyWordBId })
+                        .ToListAsync(ct);
+                    foreach (var pair in otherUserPairWords)
                     {
-                        sharedUserWordIds.Add(example.VocabularyWordId);
+                        if (existingUserWordIds.Contains(pair.VocabularyWordAId))
+                            sharedUserWordIds.Add(pair.VocabularyWordAId);
+                        if (existingUserWordIds.Contains(pair.VocabularyWordBId))
+                            sharedUserWordIds.Add(pair.VocabularyWordBId);
                     }
-                }
-            }
-            var existingUserWordsByImportKey = existingUserWords
-                .GroupBy(word => BuildImportDedupKey(word.TargetLanguageTerm, word.Language, word.LexicalUnitType), StringComparer.Ordinal)
-                .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
 
-            // In-batch dedup cache: tracks words created/reused during THIS commit so that
-            // subsequent rows with the same duplicate-policy target key reuse the same VocabularyWord
-            // instead of querying the DB (which can't see tracked-but-unsaved entities) and
-            // accidentally creating duplicates within a single import. Honors DedupMode:
-            // ImportAll bypasses this cache so it can intentionally create duplicates.
-            var batchWordsByImportKey = new Dictionary<string, VocabularyWord>(StringComparer.Ordinal);
-            var pendingExampleRows = new List<(VocabularyWord Word, ImportRow Row)>();
-
-            // Step 3: Process selected rows with dedup logic
-            // CRITICAL: Follow the SaveResourceAsync transaction pattern from LearningResourceRepository
-            // - Detach nav props
-            // - Dedup check (shared duplicate policy, active-user scoped)
-            // - Save words first
-            // - Create mappings
-            // - Single SaveChanges
-
-            var selectedRows = commit.Preview.Rows.Where(r => r.IsSelected && r.Status != RowStatus.Error).ToList();
-
-            foreach (var row in selectedRows)
-            {
-                ct.ThrowIfCancellationRequested();
-
-                if (string.IsNullOrEmpty(row.TargetLanguageTerm))
-                {
-                    failedCount++;
-                    var reason = "Target language term is empty";
-                    warnings.Add($"Row {row.RowNumber}: {reason}.");
-                    items.Add(new ContentImportItemResult
+                    var otherUserAttemptWords = await db.MinimalPairAttempts
+                        .Where(a => a.UserId != userId && (existingUserWordIds.Contains(a.PromptWordId) || existingUserWordIds.Contains(a.SelectedWordId)))
+                        .Select(a => new { a.PromptWordId, a.SelectedWordId })
+                        .ToListAsync(ct);
+                    foreach (var attempt in otherUserAttemptWords)
                     {
-                        VocabularyWordId = null,
-                        Lemma = string.Empty,
-                        NativeLanguageTerm = row.NativeLanguageTerm ?? string.Empty,
-                        Type = row.LexicalUnitType,
-                        Status = ImportItemStatus.Failed,
-                        Reason = reason
-                    });
-                    _logger.LogError("Import row failed for lemma {Lemma} (type {Type}): {Reason}",
-                        string.Empty, row.LexicalUnitType, reason);
-                    continue;
-                }
+                        if (existingUserWordIds.Contains(attempt.PromptWordId))
+                            sharedUserWordIds.Add(attempt.PromptWordId);
+                        if (existingUserWordIds.Contains(attempt.SelectedWordId))
+                            sharedUserWordIds.Add(attempt.SelectedWordId);
+                    }
 
-                // TODO (River, Wave 2): Handle single-column imports with AI translation here
-                if (string.IsNullOrEmpty(row.NativeLanguageTerm))
-                {
-                    failedCount++;
-                    var reason = "Native language term is empty (AI translation not yet implemented)";
-                    warnings.Add($"Row {row.RowNumber}: {reason}.");
-                    items.Add(new ContentImportItemResult
+                    var phraseConstituentWords = await db.PhraseConstituents
+                        .Where(pc => existingUserWordIds.Contains(pc.PhraseWordId) || (pc.ConstituentWordId != null && existingUserWordIds.Contains(pc.ConstituentWordId)))
+                        .Select(pc => new { pc.PhraseWordId, pc.ConstituentWordId })
+                        .ToListAsync(ct);
+                    foreach (var phraseConstituent in phraseConstituentWords)
                     {
-                        VocabularyWordId = null,
-                        Lemma = row.TargetLanguageTerm?.Trim() ?? string.Empty,
-                        NativeLanguageTerm = string.Empty,
-                        Type = row.LexicalUnitType,
-                        Status = ImportItemStatus.Failed,
-                        Reason = reason
-                    });
-                    _logger.LogError("Import row failed for lemma {Lemma} (type {Type}): {Reason}",
-                        row.TargetLanguageTerm?.Trim(), row.LexicalUnitType, reason);
-                    continue;
-                }
+                        if (existingUserWordIds.Contains(phraseConstituent.PhraseWordId))
+                            phraseLinkedExistingWordIds.Add(phraseConstituent.PhraseWordId);
+                        if (phraseConstituent.ConstituentWordId != null && existingUserWordIds.Contains(phraseConstituent.ConstituentWordId))
+                            phraseLinkedExistingWordIds.Add(phraseConstituent.ConstituentWordId);
+                    }
 
-                var importKey = BuildImportDedupKey(row.TargetLanguageTerm, effectiveTargetLanguage, row.LexicalUnitType);
-                var trimmedTarget = row.TargetLanguageTerm?.Trim() ?? string.Empty;
-
-                VocabularyWord wordToMap;
-
-                // First, check the in-batch cache to avoid creating duplicates for same-term rows
-                // within this single import. ImportAll mode skips the cache so duplicates can be
-                // created intentionally (matching DB query bypass behavior).
-                if (commit.DedupMode != DedupMode.ImportAll &&
-                    batchWordsByImportKey.TryGetValue(importKey, out var batchWord))
-                {
-                    wordToMap = batchWord;
-
-                    if (commit.DedupMode == DedupMode.Update)
+                    var exampleReferences = await db.ExampleSentences
+                        .Where(example => existingUserWordIds.Contains(example.VocabularyWordId))
+                        .Select(example => new { example.VocabularyWordId, example.LearningResourceId })
+                        .ToListAsync(ct);
+                    var exampleResourceIds = exampleReferences
+                        .Select(example => example.LearningResourceId)
+                        .Where(id => id != null)
+                        .Distinct(StringComparer.Ordinal)
+                        .ToList();
+                    var exampleResourceOwners = exampleResourceIds.Count == 0
+                        ? new Dictionary<string, string?>(StringComparer.Ordinal)
+                        : await db.LearningResources
+                            .Where(resource => exampleResourceIds.Contains(resource.Id))
+                            .ToDictionaryAsync(resource => resource.Id, resource => resource.UserProfileId, StringComparer.Ordinal, ct);
+                    foreach (var example in exampleReferences)
                     {
-                        // Apply the latest non-empty native term so the final saved value reflects
-                        // the most recent row's translation, mirroring the "last write wins" semantics
-                        // a user would expect from successive Update rows for the same term.
-                        var trimmedNative = row.NativeLanguageTerm?.Trim();
-                        if (!string.IsNullOrEmpty(trimmedNative))
+                        if (example.LearningResourceId == null ||
+                            !exampleResourceOwners.TryGetValue(example.LearningResourceId, out var ownerId) ||
+                            ownerId != userId)
                         {
-                            wordToMap.NativeLanguageTerm = trimmedNative;
-                            wordToMap.UpdatedAt = DateTime.UtcNow;
+                            sharedUserWordIds.Add(example.VocabularyWordId);
                         }
                     }
-
-                    skippedCount++;
-                    items.Add(new ContentImportItemResult
-                    {
-                        VocabularyWordId = wordToMap.Id,
-                        Lemma = trimmedTarget,
-                        NativeLanguageTerm = row.NativeLanguageTerm?.Trim() ?? string.Empty,
-                        Type = row.LexicalUnitType,
-                        Status = ImportItemStatus.Skipped,
-                        Reason = "Duplicate within batch"
-                    });
-                    _logger.LogDebug("In-batch duplicate reused for term: {TargetTerm}", trimmedTarget);
                 }
-                else
-                {
-                    existingUserWordsByImportKey.TryGetValue(importKey, out var existingWord);
-                    var cacheImportedWord = true;
+                var existingUserWordsByImportKey = existingUserWords
+                    .GroupBy(word => BuildImportDedupKey(word.TargetLanguageTerm, word.Language, word.LexicalUnitType), StringComparer.Ordinal)
+                    .ToDictionary(group => group.Key, group => group.First(), StringComparer.Ordinal);
 
-                if (existingWord != null)
+                // In-batch dedup cache: tracks words created/reused during THIS commit so that
+                // subsequent rows with the same duplicate-policy target key reuse the same VocabularyWord
+                // instead of querying the DB (which can't see tracked-but-unsaved entities) and
+                // accidentally creating duplicates within a single import. Honors DedupMode:
+                // ImportAll bypasses this cache so it can intentionally create duplicates.
+                var batchWordsByImportKey = new Dictionary<string, VocabularyWord>(StringComparer.Ordinal);
+                var pendingExampleRows = new List<(VocabularyWord Word, ImportRow Row)>();
+
+                // Step 3: Process selected rows with dedup logic
+                // CRITICAL: Follow the SaveResourceAsync transaction pattern from LearningResourceRepository
+                // - Detach nav props
+                // - Dedup check (shared duplicate policy, active-user scoped)
+                // - Save words first
+                // - Create mappings
+                // - Single SaveChanges
+
+                var selectedRows = commit.Preview.Rows.Where(r => r.IsSelected && r.Status != RowStatus.Error).ToList();
+
+                foreach (var row in selectedRows)
                 {
-                    // Word already exists in database
-                    switch (commit.DedupMode)
+                    ct.ThrowIfCancellationRequested();
+
+                    if (string.IsNullOrEmpty(row.TargetLanguageTerm))
                     {
-                        case DedupMode.Skip:
-                            // Reuse existing word
-                            wordToMap = existingWord;
-                            skippedCount++;
-                            items.Add(new ContentImportItemResult
-                            {
-                                VocabularyWordId = existingWord.Id,
-                                Lemma = trimmedTarget,
-                                NativeLanguageTerm = row.NativeLanguageTerm?.Trim() ?? string.Empty,
-                                Type = row.LexicalUnitType,
-                                Status = ImportItemStatus.Skipped,
-                                Reason = "Already exists in resource"
-                            });
-                            _logger.LogDebug("Skipping duplicate word: {TargetTerm}", trimmedTarget);
-                            break;
+                        failedCount++;
+                        var reason = "Target language term is empty";
+                        warnings.Add($"Row {row.RowNumber}: {reason}.");
+                        items.Add(new ContentImportItemResult
+                        {
+                            VocabularyWordId = null,
+                            Lemma = string.Empty,
+                            NativeLanguageTerm = row.NativeLanguageTerm ?? string.Empty,
+                            Type = row.LexicalUnitType,
+                            Status = ImportItemStatus.Failed,
+                            Reason = reason
+                        });
+                        _logger.LogError("Import row failed for lemma {Lemma} (type {Type}): {Reason}",
+                            string.Empty, row.LexicalUnitType, reason);
+                        continue;
+                    }
 
-                        case DedupMode.Update:
-                            if (phraseLinkedExistingWordIds.Contains(existingWord.Id))
+                    // TODO (River, Wave 2): Handle single-column imports with AI translation here
+                    if (string.IsNullOrEmpty(row.NativeLanguageTerm))
+                    {
+                        failedCount++;
+                        var reason = "Native language term is empty (AI translation not yet implemented)";
+                        warnings.Add($"Row {row.RowNumber}: {reason}.");
+                        items.Add(new ContentImportItemResult
+                        {
+                            VocabularyWordId = null,
+                            Lemma = row.TargetLanguageTerm?.Trim() ?? string.Empty,
+                            NativeLanguageTerm = string.Empty,
+                            Type = row.LexicalUnitType,
+                            Status = ImportItemStatus.Failed,
+                            Reason = reason
+                        });
+                        _logger.LogError("Import row failed for lemma {Lemma} (type {Type}): {Reason}",
+                            row.TargetLanguageTerm?.Trim(), row.LexicalUnitType, reason);
+                        continue;
+                    }
+
+                    var importKey = BuildImportDedupKey(row.TargetLanguageTerm, effectiveTargetLanguage, row.LexicalUnitType);
+                    var trimmedTarget = row.TargetLanguageTerm?.Trim() ?? string.Empty;
+
+                    VocabularyWord wordToMap;
+
+                    // First, check the in-batch cache to avoid creating duplicates for same-term rows
+                    // within this single import. ImportAll mode skips the cache so duplicates can be
+                    // created intentionally (matching DB query bypass behavior).
+                    if (commit.DedupMode != DedupMode.ImportAll &&
+                        batchWordsByImportKey.TryGetValue(importKey, out var batchWord))
+                    {
+                        wordToMap = batchWord;
+
+                        if (commit.DedupMode == DedupMode.Update)
+                        {
+                            // Apply the latest non-empty native term so the final saved value reflects
+                            // the most recent row's translation, mirroring the "last write wins" semantics
+                            // a user would expect from successive Update rows for the same term.
+                            var trimmedNative = row.NativeLanguageTerm?.Trim();
+                            if (!string.IsNullOrEmpty(trimmedNative))
                             {
+                                wordToMap.NativeLanguageTerm = trimmedNative;
+                                wordToMap.UpdatedAt = DateTime.UtcNow;
+                            }
+                        }
+
+                        skippedCount++;
+                        items.Add(new ContentImportItemResult
+                        {
+                            VocabularyWordId = wordToMap.Id,
+                            Lemma = trimmedTarget,
+                            NativeLanguageTerm = row.NativeLanguageTerm?.Trim() ?? string.Empty,
+                            Type = row.LexicalUnitType,
+                            Status = ImportItemStatus.Skipped,
+                            Reason = "Duplicate within batch"
+                        });
+                        _logger.LogDebug("In-batch duplicate reused for term: {TargetTerm}", trimmedTarget);
+                    }
+                    else
+                    {
+                        existingUserWordsByImportKey.TryGetValue(importKey, out var existingWord);
+                        var cacheImportedWord = true;
+
+                    if (existingWord != null)
+                    {
+                        // Word already exists in database
+                        switch (commit.DedupMode)
+                        {
+                            case DedupMode.Skip:
+                                // Reuse existing word
                                 wordToMap = existingWord;
                                 skippedCount++;
                                 items.Add(new ContentImportItemResult
@@ -1714,261 +1714,279 @@ public class ContentImportService : IContentImportService
                                     NativeLanguageTerm = row.NativeLanguageTerm?.Trim() ?? string.Empty,
                                     Type = row.LexicalUnitType,
                                     Status = ImportItemStatus.Skipped,
-                                    Reason = "Phrase-linked entries require manual edit"
+                                    Reason = "Already exists in resource"
                                 });
-                                _logger.LogWarning(
-                                    "Skipping update for phrase-linked word {WordId} to avoid ownerless phrase graph changes.",
-                                    existingWord.Id);
-                                cacheImportedWord = false;
+                                _logger.LogDebug("Skipping duplicate word: {TargetTerm}", trimmedTarget);
                                 break;
-                            }
 
-                            if (sharedUserWordIds.Contains(existingWord.Id))
-                            {
-                                var clonedWord = new VocabularyWord
+                            case DedupMode.Update:
+                                if (phraseLinkedExistingWordIds.Contains(existingWord.Id))
+                                {
+                                    wordToMap = existingWord;
+                                    skippedCount++;
+                                    items.Add(new ContentImportItemResult
+                                    {
+                                        VocabularyWordId = existingWord.Id,
+                                        Lemma = trimmedTarget,
+                                        NativeLanguageTerm = row.NativeLanguageTerm?.Trim() ?? string.Empty,
+                                        Type = row.LexicalUnitType,
+                                        Status = ImportItemStatus.Skipped,
+                                        Reason = "Phrase-linked entries require manual edit"
+                                    });
+                                    _logger.LogWarning(
+                                        "Skipping update for phrase-linked word {WordId} to avoid ownerless phrase graph changes.",
+                                        existingWord.Id);
+                                    cacheImportedWord = false;
+                                    break;
+                                }
+
+                                if (sharedUserWordIds.Contains(existingWord.Id))
+                                {
+                                    var clonedWord = new VocabularyWord
+                                    {
+                                        Id = Guid.NewGuid().ToString(),
+                                        TargetLanguageTerm = trimmedTarget,
+                                        NativeLanguageTerm = row.NativeLanguageTerm?.Trim(),
+                                        Lemma = existingWord.Lemma,
+                                        Language = effectiveTargetLanguage,
+                                        Tags = existingWord.Tags,
+                                        MnemonicText = existingWord.MnemonicText,
+                                        MnemonicImageUri = existingWord.MnemonicImageUri,
+                                        AudioPronunciationUri = existingWord.AudioPronunciationUri,
+                                        LexicalUnitType = NormalizeImportLexicalUnitType(row.LexicalUnitType),
+                                        CreatedAt = DateTime.UtcNow,
+                                        UpdatedAt = DateTime.UtcNow
+                                    };
+                                    db.VocabularyWords.Add(clonedWord);
+
+                                    var activeMappingsToReplace = await (
+                                            from mapping in db.ResourceVocabularyMappings
+                                            join resource in db.LearningResources on mapping.ResourceId equals resource.Id
+                                            where mapping.VocabularyWordId == existingWord.Id && resource.UserProfileId == userId
+                                            select mapping)
+                                        .ToListAsync(ct);
+                                    foreach (var mapping in activeMappingsToReplace)
+                                    {
+                                        mapping.VocabularyWordId = clonedWord.Id;
+                                        if (mapping.ResourceId == targetResource.Id)
+                                        {
+                                            existingMappingWordIds.Remove(existingWord.Id);
+                                            existingMappingWordIds.Add(clonedWord.Id);
+                                        }
+                                    }
+
+                                    await ReparentActiveUserDataToCloneAsync(db, existingWord.Id, clonedWord.Id, userId, ct);
+
+                                    wordToMap = clonedWord;
+                                    _logger.LogWarning(
+                                        "Cloned shared word {ExistingWordId} for active user {UserId} instead of mutating cross-tenant vocabulary.",
+                                        existingWord.Id, userId);
+                                }
+                                else
+                                {
+                                    // Update existing word with new native term. Safe only when the word is not mapped to another tenant.
+                                    existingWord.NativeLanguageTerm = row.NativeLanguageTerm?.Trim();
+                                    existingWord.Language = effectiveTargetLanguage;
+                                    existingWord.UpdatedAt = DateTime.UtcNow;
+
+                                    // Detach navigation properties to prevent cascade issues
+                                    if (existingWord.LearningResources?.Any() == true)
+                                    {
+                                        foreach (var resource in existingWord.LearningResources)
+                                        {
+                                            db.Entry(resource).State = EntityState.Detached;
+                                        }
+                                        existingWord.LearningResources.Clear();
+                                    }
+
+                                    if (existingWord.ResourceMappings?.Any() == true)
+                                    {
+                                        foreach (var mapping in existingWord.ResourceMappings)
+                                        {
+                                            db.Entry(mapping).State = EntityState.Detached;
+                                        }
+                                        existingWord.ResourceMappings.Clear();
+                                    }
+
+                                    db.VocabularyWords.Update(existingWord);
+                                    wordToMap = existingWord;
+                                }
+
+                                updatedCount++;
+                                items.Add(new ContentImportItemResult
+                                {
+                                    VocabularyWordId = wordToMap.Id,
+                                    Lemma = trimmedTarget,
+                                    NativeLanguageTerm = row.NativeLanguageTerm?.Trim() ?? string.Empty,
+                                    Type = row.LexicalUnitType,
+                                    Status = ImportItemStatus.Updated,
+                                    Reason = null
+                                });
+                                _logger.LogDebug("Updating existing word for active user import: {TargetTerm}", trimmedTarget);
+                                break;
+
+                            case DedupMode.ImportAll:
+                                // Import as new word even if duplicate (creates duplicate entries)
+                                var newDuplicate = new VocabularyWord
                                 {
                                     Id = Guid.NewGuid().ToString(),
                                     TargetLanguageTerm = trimmedTarget,
                                     NativeLanguageTerm = row.NativeLanguageTerm?.Trim(),
-                                    Lemma = existingWord.Lemma,
                                     Language = effectiveTargetLanguage,
-                                    Tags = existingWord.Tags,
-                                    MnemonicText = existingWord.MnemonicText,
-                                    MnemonicImageUri = existingWord.MnemonicImageUri,
-                                    AudioPronunciationUri = existingWord.AudioPronunciationUri,
-                                    LexicalUnitType = NormalizeImportLexicalUnitType(row.LexicalUnitType),
+                                    LexicalUnitType = row.LexicalUnitType,
                                     CreatedAt = DateTime.UtcNow,
                                     UpdatedAt = DateTime.UtcNow
                                 };
-                                db.VocabularyWords.Add(clonedWord);
-
-                                var activeMappingsToReplace = await (
-                                        from mapping in db.ResourceVocabularyMappings
-                                        join resource in db.LearningResources on mapping.ResourceId equals resource.Id
-                                        where mapping.VocabularyWordId == existingWord.Id && resource.UserProfileId == userId
-                                        select mapping)
-                                    .ToListAsync(ct);
-                                foreach (var mapping in activeMappingsToReplace)
+                                db.VocabularyWords.Add(newDuplicate);
+                                wordToMap = newDuplicate;
+                                createdCount++;
+                                items.Add(new ContentImportItemResult
                                 {
-                                    mapping.VocabularyWordId = clonedWord.Id;
-                                    if (mapping.ResourceId == targetResource.Id)
-                                    {
-                                        existingMappingWordIds.Remove(existingWord.Id);
-                                        existingMappingWordIds.Add(clonedWord.Id);
-                                    }
-                                }
+                                    VocabularyWordId = newDuplicate.Id,
+                                    Lemma = trimmedTarget,
+                                    NativeLanguageTerm = row.NativeLanguageTerm?.Trim() ?? string.Empty,
+                                    Type = row.LexicalUnitType,
+                                    Status = ImportItemStatus.Created,
+                                    Reason = null
+                                });
+                                _logger.LogDebug("Importing duplicate word as new entry: {TargetTerm}", trimmedTarget);
+                                break;
 
-                                await ReparentActiveUserDataToCloneAsync(db, existingWord.Id, clonedWord.Id, userId, ct);
-
-                                wordToMap = clonedWord;
-                                _logger.LogWarning(
-                                    "Cloned shared word {ExistingWordId} for active user {UserId} instead of mutating cross-tenant vocabulary.",
-                                    existingWord.Id, userId);
-                            }
-                            else
-                            {
-                                // Update existing word with new native term. Safe only when the word is not mapped to another tenant.
-                                existingWord.NativeLanguageTerm = row.NativeLanguageTerm?.Trim();
-                                existingWord.Language = effectiveTargetLanguage;
-                                existingWord.UpdatedAt = DateTime.UtcNow;
-
-                                // Detach navigation properties to prevent cascade issues
-                                if (existingWord.LearningResources?.Any() == true)
-                                {
-                                    foreach (var resource in existingWord.LearningResources)
-                                    {
-                                        db.Entry(resource).State = EntityState.Detached;
-                                    }
-                                    existingWord.LearningResources.Clear();
-                                }
-
-                                if (existingWord.ResourceMappings?.Any() == true)
-                                {
-                                    foreach (var mapping in existingWord.ResourceMappings)
-                                    {
-                                        db.Entry(mapping).State = EntityState.Detached;
-                                    }
-                                    existingWord.ResourceMappings.Clear();
-                                }
-
-                                db.VocabularyWords.Update(existingWord);
-                                wordToMap = existingWord;
-                            }
-
-                            updatedCount++;
-                            items.Add(new ContentImportItemResult
-                            {
-                                VocabularyWordId = wordToMap.Id,
-                                Lemma = trimmedTarget,
-                                NativeLanguageTerm = row.NativeLanguageTerm?.Trim() ?? string.Empty,
-                                Type = row.LexicalUnitType,
-                                Status = ImportItemStatus.Updated,
-                                Reason = null
-                            });
-                            _logger.LogDebug("Updating existing word for active user import: {TargetTerm}", trimmedTarget);
-                            break;
-
-                        case DedupMode.ImportAll:
-                            // Import as new word even if duplicate (creates duplicate entries)
-                            var newDuplicate = new VocabularyWord
-                            {
-                                Id = Guid.NewGuid().ToString(),
-                                TargetLanguageTerm = trimmedTarget,
-                                NativeLanguageTerm = row.NativeLanguageTerm?.Trim(),
-                                Language = effectiveTargetLanguage,
-                                LexicalUnitType = row.LexicalUnitType,
-                                CreatedAt = DateTime.UtcNow,
-                                UpdatedAt = DateTime.UtcNow
-                            };
-                            db.VocabularyWords.Add(newDuplicate);
-                            wordToMap = newDuplicate;
-                            createdCount++;
-                            items.Add(new ContentImportItemResult
-                            {
-                                VocabularyWordId = newDuplicate.Id,
-                                Lemma = trimmedTarget,
-                                NativeLanguageTerm = row.NativeLanguageTerm?.Trim() ?? string.Empty,
-                                Type = row.LexicalUnitType,
-                                Status = ImportItemStatus.Created,
-                                Reason = null
-                            });
-                            _logger.LogDebug("Importing duplicate word as new entry: {TargetTerm}", trimmedTarget);
-                            break;
-
-                        default:
-                            throw new InvalidOperationException($"Unknown DedupMode: {commit.DedupMode}");
+                            default:
+                                throw new InvalidOperationException($"Unknown DedupMode: {commit.DedupMode}");
+                        }
                     }
-                }
-                else
-                {
-                    // New word — create it
-                    var newWord = new VocabularyWord
+                    else
                     {
-                        Id = Guid.NewGuid().ToString(),
-                        TargetLanguageTerm = trimmedTarget,
-                        NativeLanguageTerm = row.NativeLanguageTerm?.Trim(),
-                        Language = effectiveTargetLanguage,
-                        LexicalUnitType = row.LexicalUnitType,
-                        CreatedAt = DateTime.UtcNow,
-                        UpdatedAt = DateTime.UtcNow
-                    };
+                        // New word — create it
+                        var newWord = new VocabularyWord
+                        {
+                            Id = Guid.NewGuid().ToString(),
+                            TargetLanguageTerm = trimmedTarget,
+                            NativeLanguageTerm = row.NativeLanguageTerm?.Trim(),
+                            Language = effectiveTargetLanguage,
+                            LexicalUnitType = row.LexicalUnitType,
+                            CreatedAt = DateTime.UtcNow,
+                            UpdatedAt = DateTime.UtcNow
+                        };
 
-                    db.VocabularyWords.Add(newWord);
-                    wordToMap = newWord;
-                    createdCount++;
-                    items.Add(new ContentImportItemResult
-                    {
-                        VocabularyWordId = newWord.Id,
-                        Lemma = trimmedTarget,
-                        NativeLanguageTerm = row.NativeLanguageTerm?.Trim() ?? string.Empty,
-                        Type = row.LexicalUnitType,
-                        Status = ImportItemStatus.Created,
-                        Reason = null
-                    });
-                    _logger.LogDebug("Creating new word: {TargetTerm}", trimmedTarget);
-                }
+                        db.VocabularyWords.Add(newWord);
+                        wordToMap = newWord;
+                        createdCount++;
+                        items.Add(new ContentImportItemResult
+                        {
+                            VocabularyWordId = newWord.Id,
+                            Lemma = trimmedTarget,
+                            NativeLanguageTerm = row.NativeLanguageTerm?.Trim() ?? string.Empty,
+                            Type = row.LexicalUnitType,
+                            Status = ImportItemStatus.Created,
+                            Reason = null
+                        });
+                        _logger.LogDebug("Creating new word: {TargetTerm}", trimmedTarget);
+                    }
 
-                    // Cache for the rest of this batch (skip ImportAll so duplicates remain intentional).
-                    if (commit.DedupMode != DedupMode.ImportAll && cacheImportedWord)
+                        // Cache for the rest of this batch (skip ImportAll so duplicates remain intentional).
+                        if (commit.DedupMode != DedupMode.ImportAll && cacheImportedWord)
+                        {
+                            batchWordsByImportKey[importKey] = wordToMap;
+                            existingUserWordsByImportKey[importKey] = wordToMap;
+                        }
+                    }
+
+                    // Step 4: Create mapping if it doesn't already exist for this resource
+                    if (!existingMappingWordIds.Contains(wordToMap.Id))
                     {
-                        batchWordsByImportKey[importKey] = wordToMap;
-                        existingUserWordsByImportKey[importKey] = wordToMap;
+                        var mapping = new ResourceVocabularyMapping
+                        {
+                            Id = Guid.NewGuid().ToString(),
+                            ResourceId = targetResource.Id,
+                            VocabularyWordId = wordToMap.Id
+                        };
+
+                        db.ResourceVocabularyMappings.Add(mapping);
+                        existingMappingWordIds.Add(wordToMap.Id); // Prevent duplicate mappings within this import
+                        _logger.LogDebug("Creating mapping: Resource {ResourceId} -> Word {WordId}", targetResource.Id, wordToMap.Id);
+                    }
+                    else
+                    {
+                        _logger.LogDebug("Mapping already exists for word {WordId} in resource {ResourceId}", wordToMap.Id, targetResource.Id);
+                    }
+
+                    if (!string.IsNullOrWhiteSpace(row.SourceSentence))
+                    {
+                        pendingExampleRows.Add((wordToMap, row));
                     }
                 }
 
-                // Step 4: Create mapping if it doesn't already exist for this resource
-                if (!existingMappingWordIds.Contains(wordToMap.Id))
+                // Step 5: Update resource timestamp
+                targetResource.UpdatedAt = DateTime.UtcNow;
+                // Only call Update for existing resources — new resources are already tracked via Add
+                if (!isNewResource)
                 {
-                    var mapping = new ResourceVocabularyMapping
+                    db.LearningResources.Update(targetResource);
+                }
+
+                // Step 6: Single SaveChanges for the entire transaction
+                await db.SaveChangesAsync(ct);
+
+                if (pendingExampleRows.Count > 0)
+                {
+                    var pendingWordIds = pendingExampleRows
+                        .Select(pending => pending.Word.Id)
+                        .Distinct(StringComparer.Ordinal)
+                        .ToList();
+                    var existingExamples = await db.ExampleSentences
+                        .Where(example => pendingWordIds.Contains(example.VocabularyWordId))
+                        .ToListAsync(ct);
+                    var existingExamplesByWordId = existingExamples
+                        .GroupBy(example => example.VocabularyWordId)
+                        .ToDictionary(group => group.Key, group => (IReadOnlyCollection<ExampleSentence>)group.ToList());
+
+                    foreach (var (word, row) in pendingExampleRows)
                     {
-                        Id = Guid.NewGuid().ToString(),
-                        ResourceId = targetResource.Id,
-                        VocabularyWordId = wordToMap.Id
-                    };
-
-                    db.ResourceVocabularyMappings.Add(mapping);
-                    existingMappingWordIds.Add(wordToMap.Id); // Prevent duplicate mappings within this import
-                    _logger.LogDebug("Creating mapping: Resource {ResourceId} -> Word {WordId}", targetResource.Id, wordToMap.Id);
+                        existingExamplesByWordId.TryGetValue(word.Id, out var existingForWord);
+                        await exampleSentenceRepository.CreateFromReadingIfNewAsync(
+                            word,
+                            targetResource.Id,
+                            row.SourceSentence!,
+                            row.SourceSentenceTranslation,
+                            existingForWord ?? Array.Empty<ExampleSentence>(),
+                            status: ExampleSentenceStatus.Curated,
+                            ct: ct);
+                    }
                 }
-                else
+
+                await transaction.CommitAsync(ct);
+
+                // Zero-vocab edge case: if transcript was stored but no vocab extracted,
+                // persist the resource with a clear status message rather than failing silently.
+                if (createdCount == 0 && skippedCount == 0 && updatedCount == 0 && commit.HarvestTranscript)
                 {
-                    _logger.LogDebug("Mapping already exists for word {WordId} in resource {ResourceId}", wordToMap.Id, targetResource.Id);
+                    warnings.Add("Transcript stored on resource, but no vocabulary was extracted or committed.");
                 }
-
-                if (!string.IsNullOrWhiteSpace(row.SourceSentence))
+                else if (createdCount == 0 && skippedCount == 0 && updatedCount == 0)
                 {
-                    pendingExampleRows.Add((wordToMap, row));
+                    warnings.Add("No vocabulary entries were imported. Check content format or harvest settings.");
                 }
-            }
 
-            // Step 5: Update resource timestamp
-            targetResource.UpdatedAt = DateTime.UtcNow;
-            // Only call Update for existing resources — new resources are already tracked via Add
-            if (!isNewResource)
-            {
-                db.LearningResources.Update(targetResource);
-            }
+                _logger.LogInformation("Import complete: {Created} created, {Skipped} skipped, {Updated} updated, {Failed} failed",
+                    createdCount, skippedCount, updatedCount, failedCount);
 
-            // Step 6: Single SaveChanges for the entire transaction
-            await db.SaveChangesAsync(ct);
+                // Trigger sync (fire-and-forget)
+                var syncService = _serviceProvider.GetService<ISyncService>();
+                syncService?.TriggerSyncAsync().ConfigureAwait(false);
 
-            if (pendingExampleRows.Count > 0)
-            {
-                var pendingWordIds = pendingExampleRows
-                    .Select(pending => pending.Word.Id)
-                    .Distinct(StringComparer.Ordinal)
-                    .ToList();
-                var existingExamples = await db.ExampleSentences
-                    .Where(example => pendingWordIds.Contains(example.VocabularyWordId))
-                    .ToListAsync(ct);
-                var existingExamplesByWordId = existingExamples
-                    .GroupBy(example => example.VocabularyWordId)
-                    .ToDictionary(group => group.Key, group => (IReadOnlyCollection<ExampleSentence>)group.ToList());
-
-                foreach (var (word, row) in pendingExampleRows)
+                return new ContentImportResult
                 {
-                    existingExamplesByWordId.TryGetValue(word.Id, out var existingForWord);
-                    await exampleSentenceRepository.CreateFromReadingIfNewAsync(
-                        word,
-                        targetResource.Id,
-                        row.SourceSentence!,
-                        row.SourceSentenceTranslation,
-                        existingForWord ?? Array.Empty<ExampleSentence>(),
-                        status: ExampleSentenceStatus.Curated,
-                        ct: ct);
-                }
-            }
-
-            await transaction.CommitAsync(ct);
-
-            // Zero-vocab edge case: if transcript was stored but no vocab extracted,
-            // persist the resource with a clear status message rather than failing silently.
-            if (createdCount == 0 && skippedCount == 0 && updatedCount == 0 && commit.HarvestTranscript)
-            {
-                warnings.Add("Transcript stored on resource, but no vocabulary was extracted or committed.");
-            }
-            else if (createdCount == 0 && skippedCount == 0 && updatedCount == 0)
-            {
-                warnings.Add("No vocabulary entries were imported. Check content format or harvest settings.");
-            }
-
-            _logger.LogInformation("Import complete: {Created} created, {Skipped} skipped, {Updated} updated, {Failed} failed",
-                createdCount, skippedCount, updatedCount, failedCount);
-
-            // Trigger sync (fire-and-forget)
-            var syncService = _serviceProvider.GetService<ISyncService>();
-            syncService?.TriggerSyncAsync().ConfigureAwait(false);
-
-            return new ContentImportResult
-            {
-                ResourceId = targetResource.Id,
-                CreatedCount = createdCount,
-                SkippedCount = skippedCount,
-                UpdatedCount = updatedCount,
-                FailedCount = failedCount,
-                Items = items,
-                Warnings = warnings
-            };
+                    ResourceId = targetResource.Id,
+                    CreatedCount = createdCount,
+                    SkippedCount = skippedCount,
+                    UpdatedCount = updatedCount,
+                    FailedCount = failedCount,
+                    Items = items,
+                    Warnings = warnings
+                };
+            });
         }
         catch (Exception ex)
         {
