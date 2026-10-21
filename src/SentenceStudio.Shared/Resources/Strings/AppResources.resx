@@ -8743,4 +8743,44 @@ For example: {0} ...</value>
   <data name="Coach_Announce_RepairUnknownNoEvidence" xml:space="preserve">
     <value>This version of the app can’t describe how Sam handled a verification issue with this answer.</value>
   </data>
+  <data name="Conversation_Voice" xml:space="preserve">
+    <value>Voice</value>
+    <comment>Voice mode button label</comment>
+  </data>
+  <data name="Conversation_VoiceStart" xml:space="preserve">
+    <value>Talk with voice</value>
+    <comment>Starts voice mode in the conversation</comment>
+  </data>
+  <data name="Conversation_VoiceEnd" xml:space="preserve">
+    <value>End voice</value>
+    <comment>Ends voice mode</comment>
+  </data>
+  <data name="Conversation_VoiceConnecting" xml:space="preserve">
+    <value>Connecting…</value>
+    <comment>Voice mode is starting</comment>
+  </data>
+  <data name="Conversation_VoiceListening" xml:space="preserve">
+    <value>Listening. Speak when you are ready.</value>
+    <comment>Voice mode is waiting for the learner</comment>
+  </data>
+  <data name="Conversation_VoiceSpeaking" xml:space="preserve">
+    <value>{0} is speaking</value>
+    <comment>Voice partner is speaking; {0} is the persona name</comment>
+  </data>
+  <data name="Conversation_VoiceTranscribing" xml:space="preserve">
+    <value>Transcribing…</value>
+    <comment>Placeholder while a spoken turn is transcribed</comment>
+  </data>
+  <data name="Conversation_VoiceToolNote" xml:space="preserve">
+    <value>Checked your vocabulary: {0}</value>
+    <comment>Shown when the partner looked up the learner's vocabulary</comment>
+  </data>
+  <data name="Conversation_VoiceUnavailable" xml:space="preserve">
+    <value>Voice is not available right now.</value>
+    <comment>Voice mode failed to start</comment>
+  </data>
+  <data name="Conversation_VoiceMicDenied" xml:space="preserve">
+    <value>Voice mode needs microphone access.</value>
+    <comment>Microphone permission denied</comment>
+  </data>
 </root>

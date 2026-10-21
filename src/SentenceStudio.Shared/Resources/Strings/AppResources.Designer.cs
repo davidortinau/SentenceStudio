@@ -5710,6 +5710,96 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Voice.
+        /// </summary>
+        internal static string Conversation_Voice {
+            get {
+                return ResourceManager.GetString("Conversation_Voice", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Connecting….
+        /// </summary>
+        internal static string Conversation_VoiceConnecting {
+            get {
+                return ResourceManager.GetString("Conversation_VoiceConnecting", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to End voice.
+        /// </summary>
+        internal static string Conversation_VoiceEnd {
+            get {
+                return ResourceManager.GetString("Conversation_VoiceEnd", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Listening. Speak when you are ready..
+        /// </summary>
+        internal static string Conversation_VoiceListening {
+            get {
+                return ResourceManager.GetString("Conversation_VoiceListening", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Voice mode needs microphone access..
+        /// </summary>
+        internal static string Conversation_VoiceMicDenied {
+            get {
+                return ResourceManager.GetString("Conversation_VoiceMicDenied", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} is speaking.
+        /// </summary>
+        internal static string Conversation_VoiceSpeaking {
+            get {
+                return ResourceManager.GetString("Conversation_VoiceSpeaking", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Talk with voice.
+        /// </summary>
+        internal static string Conversation_VoiceStart {
+            get {
+                return ResourceManager.GetString("Conversation_VoiceStart", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Checked your vocabulary: {0}.
+        /// </summary>
+        internal static string Conversation_VoiceToolNote {
+            get {
+                return ResourceManager.GetString("Conversation_VoiceToolNote", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Transcribing….
+        /// </summary>
+        internal static string Conversation_VoiceTranscribing {
+            get {
+                return ResourceManager.GetString("Conversation_VoiceTranscribing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Voice is not available right now..
+        /// </summary>
+        internal static string Conversation_VoiceUnavailable {
+            get {
+                return ResourceManager.GetString("Conversation_VoiceUnavailable", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Conversation Complete.
         /// </summary>
         internal static string ConversationComplete {
