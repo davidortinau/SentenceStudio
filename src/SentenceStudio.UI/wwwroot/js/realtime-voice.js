@@ -79,8 +79,11 @@ export async function start(dotnetRef, options) {
 }
 
 function isPlaying(s) {
-  // Small tail so the end of the partner's sentence is not picked up as learner speech.
-  return s.playing.size > 0 || s.context.currentTime < s.nextPlayTime + 0.25;
+  // Keep the microphone paused a little past the end of the partner's audio. Scheduled time does not
+  // include the device's output latency, and a room speaker adds reverb, so without this tail the end
+  // of the partner's sentence comes back as a noise-only learner turn.
+  const outputLatency = s.context.outputLatency || s.context.baseLatency || 0;
+  return s.playing.size > 0 || s.context.currentTime < s.nextPlayTime + 0.6 + outputLatency;
 }
 
 export function enqueue(base64) {
@@ -122,26 +125,34 @@ export function clearPlayback() {
 
 // Keep the latest spoken turn in view while voice mode runs.
 //
-// Transcripts arrive as many small text updates, so this watches the thread for changes rather
-// than asking .NET to scroll after every delta. It follows the Coach's rules
+// Transcripts arrive as many small text updates, so this watches the page for changes rather than
+// asking .NET to scroll after every delta. It follows the Coach's rules
 // (coach-autoscroll-policy.js): a reader at the bottom keeps up with new turns; a reader who has
 // scrolled up to reread something is left where they are until they scroll back down.
+//
+// The thread is found by id on every update, because Blazor can re-create the element (for example
+// while the conversation is still loading), and an observer on the old element would go silent.
 let follower = null;
 
-export function followThread(container) {
+export function followThread(threadId) {
   unfollowThread();
-  if (!container) return;
+  if (!threadId) return;
 
-  const f = { container, pinned: true, frame: 0 };
+  const f = { threadId, pinned: true, frame: 0 };
 
-  f.scroller = () => scrollerFor(container);
+  f.thread = () => document.getElementById(f.threadId);
+  f.scroller = () => {
+    const thread = f.thread();
+    return thread ? scrollerFor(thread) : null;
+  };
   f.toBottom = () => {
     const el = f.scroller();
-    el.scrollTop = el.scrollHeight;
+    if (el) el.scrollTop = el.scrollHeight;
   };
   // Scroll events do not bubble, so listen in the capture phase to see whichever element scrolls.
   f.onScroll = () => {
-    f.pinned = distanceFromBottom(f.scroller()) <= NEAR_BOTTOM_THRESHOLD_PX;
+    const el = f.scroller();
+    if (el) f.pinned = distanceFromBottom(el) <= NEAR_BOTTOM_THRESHOLD_PX;
   };
   f.observer = new MutationObserver(() => {
     if (!f.pinned || f.frame) return;
@@ -152,7 +163,7 @@ export function followThread(container) {
   });
 
   document.addEventListener('scroll', f.onScroll, { capture: true, passive: true });
-  f.observer.observe(container, { childList: true, subtree: true, characterData: true });
+  f.observer.observe(document.body, { childList: true, subtree: true, characterData: true });
   follower = f;
   f.toBottom();
 }

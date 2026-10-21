@@ -29,6 +29,8 @@ public partial class Conversation
     private enum VoiceState { Off, Connecting, Listening, PartnerSpeaking }
 
     private VoiceState voiceState = VoiceState.Off;
+    private bool conversationReady;
+    private int voiceGeneration;
     private bool voiceAvailable;
     private double micLevel;
     private IRealtimeClient? realtimeClient;
@@ -67,25 +69,35 @@ public partial class Conversation
 
         StopAudio();
         voiceState = VoiceState.Connecting;
+        var generation = ++voiceGeneration;
         StateHasChanged();
 
         try
         {
             var instructions = await ConversationSvc.GetVoiceInstructionsAsync(activeScenario, targetLanguage, chunks);
-            voiceSession = await ConversationVoiceSession.StartAsync(
+            var session = await ConversationVoiceSession.StartAsync(
                 realtimeClient,
                 instructions,
                 targetLanguage,
                 RealtimeVoiceRegistration.TranscriptionModel(Configuration),
                 userVocabulary,
                 Logger);
+
+            // The learner ended voice, or the conversation restarted, while this session was connecting.
+            if (generation != voiceGeneration || voiceState != VoiceState.Connecting)
+            {
+                await session.DisposeAsync();
+                return;
+            }
+
+            voiceSession = session;
             WireVoiceEvents(voiceSession);
 
             playbackQueue = Channel.CreateUnbounded<string>(new UnboundedChannelOptions { SingleReader = true });
             voiceModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./_content/SentenceStudio.UI/js/realtime-voice.js");
             voiceRef ??= DotNetObjectReference.Create(this);
             await voiceModule.InvokeAsync<bool>("start", voiceRef, new { halfDuplex = true });
-            await voiceModule.InvokeVoidAsync("followThread", chatContainer);
+            await voiceModule.InvokeVoidAsync("followThread", "conversation-thread");
             _ = PumpPlaybackAsync(playbackQueue.Reader);
 
             voiceState = VoiceState.Listening;
@@ -138,6 +150,19 @@ public partial class Conversation
 
         session.UserTranscriptCompleted += (itemId, text) => _ = InvokeAsync(() =>
         {
+            // Noise (a cough, a room speaker) can still be committed as a turn and transcribed as "."
+            // or "...". A turn with no letters or digits is not something the learner said.
+            if (!string.IsNullOrEmpty(text) && !text.Any(char.IsLetterOrDigit))
+            {
+                if (voiceUserChunks.Remove(itemId, out var noise))
+                {
+                    chunks.Remove(noise);
+                    voiceChunks.Remove(noise);
+                }
+                StateHasChanged();
+                return;
+            }
+
             if (!voiceUserChunks.TryGetValue(itemId, out var chunk))
             {
                 if (string.IsNullOrWhiteSpace(text))
@@ -265,6 +290,7 @@ public partial class Conversation
     private async Task StopVoiceAsync()
     {
         var wasOn = IsVoiceOn;
+        voiceGeneration++;
         voiceState = VoiceState.Off;
         playbackQueue?.Writer.TryComplete();
         playbackQueue = null;

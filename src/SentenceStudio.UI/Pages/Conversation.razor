@@ -65,7 +65,7 @@ else
     }
 
     @* Chat messages — scrollable, fills remaining space *@
-    <div class="d-flex flex-column gap-2 flex-grow-1 overflow-auto pb-2" @ref="chatContainer">
+    <div id="conversation-thread" class="d-flex flex-column gap-2 flex-grow-1 overflow-auto pb-2" @ref="chatContainer">
         @foreach (var chunk in chunks)
         {
             var isUser = chunk.Role == ConversationRole.User;
@@ -209,7 +209,7 @@ else
             {
                 <button class="btn btn-ss-secondary btn-sm px-2 text-nowrap" @onclick="ToggleVoice"
                         title='@Localize["Conversation_VoiceStart"]' aria-label='@Localize["Conversation_VoiceStart"]'
-                        disabled="@isWaitingForReply" data-testid="voice-start">
+                        disabled="@(isWaitingForReply || isBusy || !conversationReady)" data-testid="voice-start">
                     <i class="bi bi-mic"></i><span class="d-none d-md-inline ms-1">@Localize["Conversation_Voice"]</span>
                 </button>
             }
@@ -331,6 +331,11 @@ else
         {
             Logger.LogError(ex, "Failed to initialize conversation");
             Toast.ShowError("Could not start conversation.");
+        }
+        finally
+        {
+            // Voice waits for the persona, scenarios, and vocabulary it depends on.
+            conversationReady = true;
         }
     }
 
