@@ -2,6 +2,8 @@
 // Audio in both directions is PCM16 mono at 24 kHz, the format the realtime session uses.
 // The browser only moves audio; the realtime session itself lives on the server.
 
+import { distanceFromBottom, NEAR_BOTTOM_THRESHOLD_PX } from './coach-autoscroll-policy.js';
+
 const SAMPLE_RATE = 24000;
 const CHUNK_SAMPLES = 2400; // 100 ms per chunk sent to .NET
 
@@ -118,7 +120,66 @@ export function clearPlayback() {
   s.nextPlayTime = 0;
 }
 
+// Keep the latest spoken turn in view while voice mode runs.
+//
+// Transcripts arrive as many small text updates, so this watches the thread for changes rather
+// than asking .NET to scroll after every delta. It follows the Coach's rules
+// (coach-autoscroll-policy.js): a reader at the bottom keeps up with new turns; a reader who has
+// scrolled up to reread something is left where they are until they scroll back down.
+let follower = null;
+
+export function followThread(container) {
+  unfollowThread();
+  if (!container) return;
+
+  const f = { container, pinned: true, frame: 0 };
+
+  f.scroller = () => scrollerFor(container);
+  f.toBottom = () => {
+    const el = f.scroller();
+    el.scrollTop = el.scrollHeight;
+  };
+  // Scroll events do not bubble, so listen in the capture phase to see whichever element scrolls.
+  f.onScroll = () => {
+    f.pinned = distanceFromBottom(f.scroller()) <= NEAR_BOTTOM_THRESHOLD_PX;
+  };
+  f.observer = new MutationObserver(() => {
+    if (!f.pinned || f.frame) return;
+    f.frame = requestAnimationFrame(() => {
+      f.frame = 0;
+      if (f.pinned) f.toBottom();
+    });
+  });
+
+  document.addEventListener('scroll', f.onScroll, { capture: true, passive: true });
+  f.observer.observe(container, { childList: true, subtree: true, characterData: true });
+  follower = f;
+  f.toBottom();
+}
+
+export function unfollowThread() {
+  const f = follower;
+  follower = null;
+  if (!f) return;
+  f.observer.disconnect();
+  document.removeEventListener('scroll', f.onScroll, { capture: true });
+  if (f.frame) cancelAnimationFrame(f.frame);
+}
+
+// The thread may scroll itself or, when the layout lets it grow, an ancestor does. Use whichever
+// element actually scrolls right now.
+function scrollerFor(el) {
+  for (let node = el; node && node !== document.body; node = node.parentElement) {
+    const overflowY = getComputedStyle(node).overflowY;
+    if ((overflowY === 'auto' || overflowY === 'scroll') && node.scrollHeight > node.clientHeight + 1) {
+      return node;
+    }
+  }
+  return document.scrollingElement || document.documentElement;
+}
+
 export async function stop() {
+  unfollowThread();
   const s = state;
   state = null;
   if (!s) return;
