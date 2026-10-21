@@ -30,12 +30,28 @@ public static class RealtimeVoiceRegistration
 
     /// <summary>
     /// Adds a singleton <see cref="IRealtimeClient"/>. <paramref name="credentialProvider"/> returns a
-    /// bearer value for each new session: an Entra access token on servers, or an API key.
+    /// bearer value for each new session (an Entra access token on servers), used against the
+    /// configured <c>AI:OpenAI:Endpoint</c> and realtime model.
     /// </summary>
     public static IServiceCollection AddRealtimeVoice(
         this IServiceCollection services,
         IConfiguration configuration,
         Func<IServiceProvider, CancellationToken, ValueTask<string>> credentialProvider)
+    {
+        ArgumentNullException.ThrowIfNull(credentialProvider);
+        return services.AddRealtimeVoice(configuration, async (sp, ct) =>
+            new RealtimeCredential(await credentialProvider(sp, ct).ConfigureAwait(false)));
+    }
+
+    /// <summary>
+    /// Adds a singleton <see cref="IRealtimeClient"/> whose <paramref name="credentialProvider"/> can also
+    /// supply the endpoint and model per session. Devices use this with a short-lived client secret
+    /// minted by the API, so they need no key and no AI endpoint configuration of their own.
+    /// </summary>
+    public static IServiceCollection AddRealtimeVoice(
+        this IServiceCollection services,
+        IConfiguration configuration,
+        Func<IServiceProvider, CancellationToken, ValueTask<RealtimeCredential>> credentialProvider)
     {
         ArgumentNullException.ThrowIfNull(credentialProvider);
 
@@ -70,24 +86,24 @@ public static class RealtimeVoiceRegistration
     /// </para>
     /// </remarks>
     private sealed class PerSessionCredentialRealtimeClient(
-        Uri? endpoint,
-        string model,
-        Func<CancellationToken, ValueTask<string>> credentialProvider) : IRealtimeClient
+        Uri? defaultEndpoint,
+        string defaultModel,
+        Func<CancellationToken, ValueTask<RealtimeCredential>> credentialProvider) : IRealtimeClient
     {
-        private readonly ChatClientMetadata _metadata = new("openai", endpoint, model);
+        private readonly ChatClientMetadata _metadata = new("openai", defaultEndpoint, defaultModel);
 
         public async Task<IRealtimeClientSession> CreateSessionAsync(
             RealtimeSessionOptions? options = null, CancellationToken cancellationToken = default)
         {
             var credential = await credentialProvider(cancellationToken).ConfigureAwait(false);
             var clientOptions = new OaiRealtimeClientOptions();
-            if (endpoint is not null)
+            if ((credential.Endpoint ?? defaultEndpoint) is { } endpoint)
             {
                 clientOptions.Endpoint = endpoint;
             }
 
-            var realtime = new OaiRealtimeClient(new ApiKeyCredential(credential), clientOptions);
-            using var client = new OpenAIRealtimeClient(realtime, model);
+            var realtime = new OaiRealtimeClient(new ApiKeyCredential(credential.Value), clientOptions);
+            using var client = new OpenAIRealtimeClient(realtime, credential.Model ?? defaultModel);
             return await client.CreateSessionAsync(options, cancellationToken).ConfigureAwait(false);
         }
 
@@ -102,3 +118,9 @@ public static class RealtimeVoiceRegistration
         }
     }
 }
+
+/// <summary>
+/// The credential for one realtime session: a bearer value (Entra token, API key, or ephemeral
+/// client secret) and, optionally, the endpoint and model it is valid for.
+/// </summary>
+public sealed record RealtimeCredential(string Value, Uri? Endpoint = null, string? Model = null);
