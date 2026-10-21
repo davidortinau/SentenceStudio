@@ -13,7 +13,7 @@ namespace SentenceStudio.Services
         private readonly ILogger<ConversationService> _logger;
 
         // Default persona name - could be made configurable
-        private const string DefaultPersonaName = "김철수";
+        public const string DefaultPersonaName = "김철수";
 
         public ConversationService(IServiceProvider serviceProvider, ILogger<ConversationService> logger)
         {
@@ -84,6 +84,37 @@ namespace SentenceStudio.Services
 
         public async Task SaveConversationChunk(ConversationChunk chunk)
             => await Repository.SaveConversationChunkAsync(chunk);
+
+        /// <summary>
+        /// Renders the instructions for a realtime voice session from the same scenario fields the
+        /// text conversation uses, plus the recent thread so the voice partner picks up where text left off.
+        /// </summary>
+        public async Task<string> GetVoiceInstructionsAsync(
+            ConversationScenario? scenario, string targetLanguage, IReadOnlyList<ConversationChunk> recentChunks)
+        {
+            using Stream templateStream = await _fileSystem.OpenAppPackageFileAsync("Conversation.voice.scriban-txt");
+            using var reader = new StreamReader(templateStream);
+            var template = Template.Parse(await reader.ReadToEndAsync());
+
+            var recentTurns = string.Join("\n", recentChunks
+                .Where(c => !string.IsNullOrWhiteSpace(c.Text))
+                .TakeLast(8)
+                .Select(c => $"{(c.Role == ConversationRole.User ? "Learner" : scenario?.PersonaName ?? DefaultPersonaName)}: {c.Text}"));
+
+            return await template.RenderAsync(new
+            {
+                scenario = new
+                {
+                    persona_name = scenario?.PersonaName ?? DefaultPersonaName,
+                    persona_description = scenario?.PersonaDescription ?? "a friendly conversation partner",
+                    situation_description = scenario?.SituationDescription ?? "A casual conversation to practise speaking.",
+                    conversation_type = (scenario?.ConversationType ?? ConversationType.OpenEnded).ToString(),
+                    question_bank = scenario?.QuestionBank
+                },
+                target_language = targetLanguage,
+                recent_turns = recentTurns
+            });
+        }
 
         /// <summary>
         /// The persona's opening line. The persona prompt goes as the system instructions and the

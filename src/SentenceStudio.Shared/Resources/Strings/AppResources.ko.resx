@@ -9556,4 +9556,44 @@
     <value>“{0}”은(는) 내 어휘에 그대로 남아 있습니다.</value>
     <comment>Sam's remove-word reply when the delete keeps the learner's word and none of their resources linked it (B85). {0} is the word. Korean draft; needs review.</comment>
   </data>
+  <data name="Conversation_Voice" xml:space="preserve">
+    <value>음성</value>
+    <comment>Voice mode button label</comment>
+  </data>
+  <data name="Conversation_VoiceStart" xml:space="preserve">
+    <value>음성으로 대화하기</value>
+    <comment>Starts voice mode in the conversation</comment>
+  </data>
+  <data name="Conversation_VoiceEnd" xml:space="preserve">
+    <value>음성 종료</value>
+    <comment>Ends voice mode</comment>
+  </data>
+  <data name="Conversation_VoiceConnecting" xml:space="preserve">
+    <value>연결 중…</value>
+    <comment>Voice mode is starting</comment>
+  </data>
+  <data name="Conversation_VoiceListening" xml:space="preserve">
+    <value>듣고 있어요. 준비되면 말해 보세요.</value>
+    <comment>Voice mode is waiting for the learner</comment>
+  </data>
+  <data name="Conversation_VoiceSpeaking" xml:space="preserve">
+    <value>{0} 님이 말하는 중</value>
+    <comment>Voice partner is speaking; {0} is the persona name</comment>
+  </data>
+  <data name="Conversation_VoiceTranscribing" xml:space="preserve">
+    <value>받아쓰는 중…</value>
+    <comment>Placeholder while a spoken turn is transcribed</comment>
+  </data>
+  <data name="Conversation_VoiceToolNote" xml:space="preserve">
+    <value>내 단어장 확인: {0}</value>
+    <comment>Shown when the partner looked up the learner's vocabulary</comment>
+  </data>
+  <data name="Conversation_VoiceUnavailable" xml:space="preserve">
+    <value>지금은 음성을 사용할 수 없어요.</value>
+    <comment>Voice mode failed to start</comment>
+  </data>
+  <data name="Conversation_VoiceMicDenied" xml:space="preserve">
+    <value>음성 모드에는 마이크 권한이 필요해요.</value>
+    <comment>Microphone permission denied</comment>
+  </data>
 </root>
