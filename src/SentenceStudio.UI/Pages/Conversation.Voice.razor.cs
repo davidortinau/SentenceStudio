@@ -84,6 +84,7 @@ public partial class Conversation
             voiceModule ??= await JS.InvokeAsync<IJSObjectReference>("import", "./_content/SentenceStudio.UI/js/realtime-voice.js");
             voiceRef ??= DotNetObjectReference.Create(this);
             await voiceModule.InvokeAsync<bool>("start", voiceRef, new { halfDuplex = true });
+            await voiceModule.InvokeVoidAsync("followThread", chatContainer);
             _ = PumpPlaybackAsync(playbackQueue.Reader);
 
             voiceState = VoiceState.Listening;
