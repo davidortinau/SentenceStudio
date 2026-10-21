@@ -1,0 +1,192 @@
+{
+  "$comment": "Synthetic Korean excerpts authored for this evaluation (no third-party text). Each fixture lists the vocabulary a careful human reviewer expects the Import flow to produce in dictionary form. 'expected' items drive recall; 'expected' plus 'allowed' terms are the acceptable set for precision; 'forbidden' terms are mistakes the excerpt is designed to tempt (surface forms instead of lemmas, wrong irregular lemmas, proper nouns, English words). Any extracted term containing Latin letters is also treated as forbidden. Excerpts intentionally contain no commas so the app routes them to AI free-text extraction (see docs/evaluation/README.md).",
+  "targetLanguage": "Korean",
+  "nativeLanguage": "English",
+  "fixtures": [
+    {
+      "id": "daily-routine",
+      "title": "Baseline: everyday routine",
+      "trap": "None. Regular verbs and particles, a baseline for the other fixtures.",
+      "tags": [ "baseline" ],
+      "text": "저는 아침마다 일찍 일어나서 공원에서 산책을 해요. 산책한 후에 커피를 마시면서 신문을 읽어요. 주말에는 친구와 함께 시장에 가서 신선한 과일을 사요.",
+      "expected": [
+        { "lemma": "아침", "gloss": "morning" },
+        { "lemma": "일찍", "gloss": "early" },
+        { "lemma": "일어나다", "gloss": "to get up, to wake up" },
+        { "lemma": "공원", "gloss": "park" },
+        { "lemma": "산책", "gloss": "walk, stroll", "alternates": [ "산책하다", "산책을 하다" ] },
+        { "lemma": "마시다", "gloss": "to drink", "alternates": [ "커피를 마시다" ] },
+        { "lemma": "신문", "gloss": "newspaper", "alternates": [ "신문을 읽다" ] },
+        { "lemma": "읽다", "gloss": "to read", "alternates": [ "신문을 읽다" ] },
+        { "lemma": "주말", "gloss": "weekend" },
+        { "lemma": "친구", "gloss": "friend" },
+        { "lemma": "함께", "gloss": "together" },
+        { "lemma": "시장", "gloss": "market", "alternates": [ "시장에 가다" ] },
+        { "lemma": "신선하다", "gloss": "to be fresh" },
+        { "lemma": "과일", "gloss": "fruit", "alternates": [ "과일을 사다" ] },
+        { "lemma": "사다", "gloss": "to buy", "alternates": [ "과일을 사다" ] }
+      ],
+      "allowed": [ "저", "마다", "커피", "후", "후에", "가다", "하다", "주말에" ],
+      "forbidden": [
+        { "term": "일어나서", "why": "conjugated surface form of 일어나다" },
+        { "term": "공원에서", "why": "noun with particle" },
+        { "term": "마시면서", "why": "conjugated surface form of 마시다" },
+        { "term": "읽어요", "why": "conjugated surface form of 읽다" },
+        { "term": "사요", "why": "conjugated surface form of 사다" },
+        { "term": "신선한", "why": "modifier form of 신선하다" },
+        { "term": "산책한", "why": "modifier form of 산책하다" }
+      ]
+    },
+    {
+      "id": "conjugation-trap",
+      "title": "Trap: past tense and connective endings",
+      "trap": "Every predicate is conjugated (past tense, -아서, -는데, -었을 때) and most nouns carry particles. Tempts the model to return surface forms instead of dictionary forms.",
+      "tags": [ "trap:lemmatization" ],
+      "text": "어제 비가 많이 와서 우산을 잃어버렸어요. 그래서 편의점에서 새 우산을 샀는데 너무 비쌌어요. 집에 도착했을 때 옷이 다 젖어 있었어요.",
+      "expected": [
+        { "lemma": "어제", "gloss": "yesterday" },
+        { "lemma": "비", "gloss": "rain", "alternates": [ "비가 오다", "비 오다" ] },
+        { "lemma": "많이", "gloss": "a lot, much" },
+        { "lemma": "우산", "gloss": "umbrella" },
+        { "lemma": "잃어버리다", "gloss": "to lose (something)", "alternates": [ "우산을 잃어버리다" ] },
+        { "lemma": "편의점", "gloss": "convenience store" },
+        { "lemma": "새", "gloss": "new", "alternates": [ "새 우산" ] },
+        { "lemma": "사다", "gloss": "to buy" },
+        { "lemma": "너무", "gloss": "too, very" },
+        { "lemma": "비싸다", "gloss": "to be expensive" },
+        { "lemma": "집", "gloss": "house, home" },
+        { "lemma": "도착하다", "gloss": "to arrive", "alternates": [ "도착" ] },
+        { "lemma": "옷", "gloss": "clothes" },
+        { "lemma": "젖다", "gloss": "to get wet", "alternates": [ "젖어 있다", "옷이 젖다" ] }
+      ],
+      "allowed": [ "오다", "그래서", "다", "때", "있다", "-어 있다", "-았을 때", "-ㄹ 때" ],
+      "forbidden": [
+        { "term": "와서", "why": "conjugated surface form of 오다" },
+        { "term": "잃어버렸어요", "why": "conjugated surface form of 잃어버리다" },
+        { "term": "잃어버렸다", "why": "past tense, not dictionary form" },
+        { "term": "편의점에서", "why": "noun with particle" },
+        { "term": "샀는데", "why": "conjugated surface form of 사다" },
+        { "term": "샀다", "why": "past tense, not dictionary form" },
+        { "term": "비쌌어요", "why": "conjugated surface form of 비싸다" },
+        { "term": "비쌌다", "why": "past tense, not dictionary form" },
+        { "term": "도착했을", "why": "conjugated surface form of 도착하다" },
+        { "term": "젖어", "why": "conjugated surface form of 젖다" },
+        { "term": "우산을", "why": "noun with particle" }
+      ]
+    },
+    {
+      "id": "proper-noun-trap",
+      "title": "Trap: person names and brand names",
+      "trap": "Two person names (민준, 지수), a fictional company (한빛전자, whose parts look like ordinary words) and a real coffee brand (스타벅스). The prompt says to skip person and brand names.",
+      "tags": [ "trap:proper-noun" ],
+      "text": "민준 씨는 한빛전자에서 일하는 회사원이에요. 퇴근 후에 지수 씨와 함께 스타벅스에서 영어를 공부해요. 다음 달에 부산으로 출장을 갈 예정이에요.",
+      "expected": [
+        { "lemma": "일하다", "gloss": "to work", "alternates": [ "일" ] },
+        { "lemma": "회사원", "gloss": "office worker, company employee" },
+        { "lemma": "퇴근", "gloss": "leaving work", "alternates": [ "퇴근하다", "퇴근 후" ] },
+        { "lemma": "영어", "gloss": "English (language)", "alternates": [ "영어를 공부하다" ] },
+        { "lemma": "공부하다", "gloss": "to study", "alternates": [ "공부", "영어를 공부하다" ] },
+        { "lemma": "다음 달", "gloss": "next month" },
+        { "lemma": "출장", "gloss": "business trip", "alternates": [ "출장을 가다", "출장 가다", "출장하다" ] },
+        { "lemma": "예정", "gloss": "plan, schedule", "alternates": [ "예정이다", "-ㄹ 예정이다" ] }
+      ],
+      "allowed": [ "씨", "후", "후에", "함께", "가다", "다음", "달", "이다", "회사", "부산" ],
+      "forbidden": [
+        { "term": "민준", "why": "person name" },
+        { "term": "민준 씨", "why": "person name" },
+        { "term": "지수", "why": "person name" },
+        { "term": "지수 씨", "why": "person name" },
+        { "term": "한빛전자", "why": "company (brand) name" },
+        { "term": "한빛", "why": "part of a company name" },
+        { "term": "스타벅스", "why": "brand name" },
+        { "term": "회사원이에요", "why": "conjugated surface form" },
+        { "term": "공부해요", "why": "conjugated surface form of 공부하다" }
+      ]
+    },
+    {
+      "id": "mixed-language",
+      "title": "Trap: English class notes mixed with Korean",
+      "trap": "Half the excerpt is English. The prompt says to extract only Korean terms, so English words must not become vocabulary.",
+      "tags": [ "trap:mixed-language" ],
+      "text": "Class note: 오늘 선생님이 '시간이 없다'라는 표현을 설명해 주셨어요. It means to have no time. We also practiced 약속을 지키다 which means to keep a promise. 숙제는 내일까지 제출해야 해요.",
+      "expected": [
+        { "lemma": "선생님", "gloss": "teacher" },
+        { "lemma": "시간이 없다", "gloss": "to have no time", "alternates": [ "시간 없다" ] },
+        { "lemma": "표현", "gloss": "expression" },
+        { "lemma": "설명하다", "gloss": "to explain", "alternates": [ "설명", "설명해 주다" ] },
+        { "lemma": "약속을 지키다", "gloss": "to keep a promise", "alternates": [ "약속 지키다" ] },
+        { "lemma": "숙제", "gloss": "homework" },
+        { "lemma": "내일", "gloss": "tomorrow", "alternates": [ "내일까지" ] },
+        { "lemma": "제출하다", "gloss": "to submit, to hand in", "alternates": [ "제출" ] }
+      ],
+      "allowed": [ "오늘", "시간", "없다", "약속", "지키다", "까지", "주다", "-아/어 주다", "-해야 하다", "-아야 하다", "-어야 하다", "하다", "라는", "-라는" ],
+      "forbidden": [
+        { "term": "설명해", "why": "conjugated surface form of 설명하다" },
+        { "term": "주셨어요", "why": "conjugated surface form of 주다" },
+        { "term": "제출해야", "why": "conjugated surface form of 제출하다" }
+      ]
+    },
+    {
+      "id": "idiom-trap",
+      "title": "Trap: idioms that lose meaning when split",
+      "trap": "Three idioms (발이 넓다, 귀를 기울이다, 마음이 놓이다). Splitting them into literal parts (foot, wide, ear, tilt) loses the meaning a learner needs.",
+      "tags": [ "trap:idiom" ],
+      "text": "새로 온 팀장님은 발이 넓어서 모르는 사람이 없어요. 회의 시간에 제 의견을 말했더니 다들 귀를 기울였어요. 처음에는 긴장했지만 지금은 마음이 놓여요.",
+      "expected": [
+        { "lemma": "팀장", "gloss": "team leader", "alternates": [ "팀장님" ] },
+        { "lemma": "발이 넓다", "gloss": "to know a lot of people (lit. to have wide feet)", "alternates": [ "발 넓다" ] },
+        { "lemma": "회의", "gloss": "meeting", "alternates": [ "회의 시간" ] },
+        { "lemma": "의견", "gloss": "opinion", "alternates": [ "의견을 말하다" ] },
+        { "lemma": "귀를 기울이다", "gloss": "to listen attentively (lit. to tilt one's ear)", "alternates": [ "귀 기울이다" ] },
+        { "lemma": "긴장하다", "gloss": "to be nervous, to be tense", "alternates": [ "긴장" ] },
+        { "lemma": "마음이 놓이다", "gloss": "to feel relieved", "alternates": [ "마음 놓이다", "마음을 놓다", "마음 놓다" ] }
+      ],
+      "allowed": [ "새로", "오다", "모르다", "사람", "없다", "시간", "제", "말하다", "다들", "처음", "처음에는", "지금", "발", "넓다", "귀", "기울이다", "마음", "놓이다", "모르는 사람이 없다" ],
+      "forbidden": [
+        { "term": "넓어서", "why": "conjugated surface form of 넓다" },
+        { "term": "기울였어요", "why": "conjugated surface form of 기울이다" },
+        { "term": "놓여요", "why": "conjugated surface form of 놓이다" },
+        { "term": "긴장했지만", "why": "conjugated surface form of 긴장하다" },
+        { "term": "말했더니", "why": "conjugated surface form of 말하다" },
+        { "term": "팀장님은", "why": "noun with particle" }
+      ]
+    },
+    {
+      "id": "irregular-trap",
+      "title": "Trap: irregular verbs and honorific forms",
+      "trap": "Irregular stems (추워서 from 춥다, 들으시고 from 듣다, 만드신 from 만들다) wrapped in honorific endings. Tempts wrong lemmas such as 추우다, 들으다, 들다 or 만드다.",
+      "tags": [ "trap:irregular" ],
+      "text": "할머니께서 직접 만드신 김치가 정말 맛있었어요. 날씨가 추워서 따뜻한 국을 끓여 드렸어요. 할머니는 제 노래를 들으시고 아주 기뻐하셨어요.",
+      "expected": [
+        { "lemma": "할머니", "gloss": "grandmother" },
+        { "lemma": "직접", "gloss": "directly, in person, oneself" },
+        { "lemma": "만들다", "gloss": "to make" },
+        { "lemma": "맛있다", "gloss": "to be delicious" },
+        { "lemma": "날씨", "gloss": "weather", "alternates": [ "날씨가 춥다" ] },
+        { "lemma": "춥다", "gloss": "to be cold (weather)", "alternates": [ "날씨가 춥다" ] },
+        { "lemma": "따뜻하다", "gloss": "to be warm" },
+        { "lemma": "국", "gloss": "soup", "alternates": [ "국을 끓이다" ] },
+        { "lemma": "끓이다", "gloss": "to boil, to cook (soup)", "alternates": [ "국을 끓이다", "끓여 드리다" ] },
+        { "lemma": "노래", "gloss": "song", "alternates": [ "노래를 듣다" ] },
+        { "lemma": "듣다", "gloss": "to listen, to hear", "alternates": [ "노래를 듣다" ] },
+        { "lemma": "기뻐하다", "gloss": "to be glad, to rejoice", "alternates": [ "기쁘다" ] }
+      ],
+      "allowed": [ "김치", "정말", "아주", "드리다", "-아/어 드리다", "제", "께서" ],
+      "forbidden": [
+        { "term": "만드신", "why": "honorific modifier form of 만들다" },
+        { "term": "만드다", "why": "wrong lemma for 만드신 (should be 만들다)" },
+        { "term": "맛있었어요", "why": "conjugated surface form of 맛있다" },
+        { "term": "추워서", "why": "conjugated surface form of 춥다" },
+        { "term": "추우다", "why": "wrong lemma for 추워서 (should be 춥다)" },
+        { "term": "추웁다", "why": "wrong lemma for 추워서 (should be 춥다)" },
+        { "term": "따뜻한", "why": "modifier form of 따뜻하다" },
+        { "term": "끓여", "why": "conjugated surface form of 끓이다" },
+        { "term": "드렸어요", "why": "conjugated surface form of 드리다" },
+        { "term": "들으시고", "why": "conjugated surface form of 듣다" },
+        { "term": "들으다", "why": "wrong lemma for 들으시고 (should be 듣다)" },
+        { "term": "들다", "why": "wrong lemma for 들으시고 (들다 is a different verb)" },
+        { "term": "기뻐하셨어요", "why": "conjugated surface form of 기뻐하다" }
+      ]
+    }
+  ]
+}
