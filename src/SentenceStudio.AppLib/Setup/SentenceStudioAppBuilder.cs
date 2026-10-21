@@ -12,6 +12,7 @@ using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 using SentenceStudio.Abstractions;
 using SentenceStudio.Services;
+using SentenceStudio.Services.Realtime;
 using SentenceStudio.Services.Theme;
 #if DEBUG
 using System.Data;
@@ -143,6 +144,21 @@ public static class SentenceStudioAppBuilder
         builder.Services.AddAuthServices(builder.Configuration, apiBaseUri);
 
         builder.Services.AddApiClients(apiBaseUri);
+
+        // Voice mode for the Conversation activity. The device never holds a key: each session
+        // starts with a short-lived client secret minted by the API, then connects directly to the
+        // realtime endpoint. Enabled on iOS only for now; other heads keep the Voice button hidden
+        // until their WebView microphone path is verified.
+        if (DeviceInfo.Platform == DevicePlatform.iOS)
+        {
+            builder.Services.AddRealtimeVoice(builder.Configuration, async (sp, ct) =>
+            {
+                var secret = await sp.GetRequiredService<SentenceStudio.Services.Api.IRealtimeApiClient>()
+                    .CreateClientSecretAsync(ct);
+                return new SentenceStudio.Services.Realtime.RealtimeCredential(
+                    secret.ClientSecret, new Uri(secret.Endpoint), secret.Model);
+            });
+        }
 #if DEBUG
         if (validationConnection is null)
         {

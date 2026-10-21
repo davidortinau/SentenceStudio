@@ -434,6 +434,9 @@ if (!string.IsNullOrWhiteSpace(aiEndpoint))
     });
 }
 
+// Mints ephemeral realtime client secrets with this host's Entra identity; see RealtimeEndpoints.
+builder.Services.AddRealtimeClientSecrets();
+
 // GitHub API client for feedback issue creation.
 //
 // RemoveAllResilienceHandlers is load-bearing, not tidying. AddServiceDefaults installs the
@@ -744,6 +747,8 @@ app.MapProfileEndpoints();
 
 // Speech / voice discovery
 app.MapSpeechEndpoints();
+// Short-lived client secrets for device-side realtime voice sessions (MAUI Conversation voice mode).
+app.MapRealtimeEndpoints();
 
 app.MapGet("/api/v1/auth/bootstrap", (ClaimsPrincipal user, ITenantContext tenantContext) =>
     Results.Ok(new BootstrapResponse
