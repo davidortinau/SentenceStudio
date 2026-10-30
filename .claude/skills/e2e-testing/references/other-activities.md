@@ -11,8 +11,14 @@
 | 1 | Navigate to conversation URL | Chat interface loads |
 | 2 | Type a message, press send | AI response appears (10–30s) |
 | 3 | Continue conversation | Context maintained across turns |
+| 4 | With Sam's FAB visible (coach on, panel closed), look at the composer's right end at desktop width and at phone width (< 768px) | The FAB sits to the right of Send with a visible gap and covers no control. "Voice" and "Send" labels have padding on both sides; below 768px both are icons |
 
 **Pitfall:** Requires working AI gateway chain.
+
+**Regression (2026-10-23):** Sam's FAB is fixed to the viewport corner and covered Send; the Voice
+label ran into its button's right edge. While the FAB is rendered, `.conversation-composer` and
+the activity shell's `.activity-input-bar` / `.activity-footer` reserve its corner (app.css
+"Keeping bottom bars clear of the FAB"). Contract tests: `SamFabClearanceContractTests`.
 
 ## 2. Reading (`/reading`)
 

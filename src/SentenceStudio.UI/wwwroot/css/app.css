@@ -1536,6 +1536,39 @@ h3:focus,
     margin-bottom: -1rem;
 }
 
+/* Conversation's composer is a card rather than the shell's input bar. Its padding lives here,
+   not in a p-3 utility, because p-3 is !important and the composer has to give up its right edge
+   to Sam's FAB (see "Keeping bottom bars clear of the FAB"). */
+.conversation-composer {
+    padding: 1rem;
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+}
+
+/* In an input row the text field gives way, never the buttons. .btn-ss-primary and
+   .btn-ss-secondary set min-width: 44px, which replaces flexbox's automatic floor of "no narrower
+   than my own content". A squeezed button then narrows past its label, and the label runs into
+   the button's right edge. */
+.activity-input-bar form > .btn,
+.conversation-composer .btn-ss-primary,
+.conversation-composer .btn-ss-secondary {
+    flex-shrink: 0;
+}
+
+.activity-input-bar form > .form-control,
+.conversation-composer .form-control {
+    min-width: 0;
+}
+
+/* Shadowing's footer row holds five controls and no text field to give way. On a phone it also
+   gives up its right edge to Sam's FAB, so below sm the buttons trade side padding for width.
+   Each keeps the 44px floor from .btn-ss-*, and Play keeps its own px-3 (it is !important). */
+@media (max-width: 575.98px) {
+    .shadowing-controls .btn {
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+    }
+}
+
 /* ─── Vocabulary Matching tile grid ─── */
 /* ─── Vocabulary Matching — uniform tiles, no scroll ─── */
 
@@ -3506,13 +3539,19 @@ body.coach-open .toast-container-ss {
    ========================================================================== */
 
 /* --- FAB (Floating Action Button) --- */
+
+/* The FAB's footprint. Bottom bars read these to keep clear of it (see "Keeping bottom bars clear
+   of the FAB" below), so change the size or inset here and never as a literal in either rule. */
+:root {
+    --sam-fab-size: 48px;
+    --sam-fab-inset: 1.5rem;
+}
+
 .sam-fab {
     position: fixed;
-    bottom: 1.5rem;
-    right: 1.5rem;
     z-index: 1050;
-    width: 48px;
-    height: 48px;
+    width: var(--sam-fab-size);
+    height: var(--sam-fab-size);
     border-radius: 50%;
     border: none;
     background: var(--bs-primary);
@@ -3528,8 +3567,8 @@ body.coach-open .toast-container-ss {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
     transition: transform 0.15s ease, box-shadow 0.15s ease;
     /* Safe area for notched devices */
-    bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px));
-    right: calc(1.5rem + env(safe-area-inset-right, 0px));
+    bottom: calc(var(--sam-fab-inset) + env(safe-area-inset-bottom, 0px));
+    right: calc(var(--sam-fab-inset) + env(safe-area-inset-right, 0px));
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -3564,6 +3603,32 @@ body.coach-open .toast-container-ss {
     /* The ring separates the badge from the button beneath it, so it belongs to the button's
        colour, not to a literal white that disappears on a light primary. */
     border: 2px solid var(--ss-on-primary, #fff);
+}
+
+/* --- Keeping bottom bars clear of the FAB ---
+   The FAB is fixed to the viewport's bottom-right corner, which is where every activity puts its
+   primary action: Send, Grade, Next, the correct-count badge. While the FAB is on screen, a bar
+   pinned to the bottom of the page reserves that corner, so the FAB sits beside the bar's controls
+   instead of on top of them.
+
+   :has() ties the reservation to the FAB actually being rendered. With the panel open, the coach
+   switched off, or a signed-out shell there is no FAB, and the bars get their full width back. */
+body:has(.sam-fab) {
+    /* Measured from the edge the FAB is inset from, out to 0.75rem past the FAB's far side. */
+    --sam-fab-clearance: calc(var(--sam-fab-inset) + var(--sam-fab-size) + 0.75rem);
+}
+
+/* The activity shell's bars bleed to main's edge, which is the same line the FAB is inset from:
+   both sit inside the shell's safe-area inline padding. */
+body:has(.sam-fab) .activity-input-bar,
+body:has(.sam-fab) .activity-footer {
+    padding-right: var(--sam-fab-clearance);
+}
+
+/* The conversation composer is a card inside main's 1rem padding, so it starts 1rem nearer the
+   FAB. Below 768px main pads 0.75rem, which leaves a 0.5rem gap instead of 0.75rem. */
+body:has(.sam-fab) .conversation-composer {
+    padding-right: calc(var(--sam-fab-clearance) - 1rem);
 }
 
 /* --- Panel (non-modal aside) --- */
@@ -3783,9 +3848,8 @@ body.coach-open .toast-container-ss {
 
 /* --- Responsive: small viewports get full-width panel --- */
 @media (max-width: 575.98px) {
-    .sam-fab {
-        bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
-        right: calc(1rem + env(safe-area-inset-right, 0px));
+    :root {
+        --sam-fab-inset: 1rem;
     }
 
     .sam-panel--compact,

@@ -350,11 +350,13 @@ public class ViewportBoundSurfaceSafeAreaContractTests
     [Fact]
     public void Sam_fab_owns_the_bottom_and_right_edges_it_touches()
     {
+        // The inset is a variable so the bottom bars that keep clear of the FAB read the same
+        // number (SamFabClearanceContractTests); the safe-area ownership is unchanged.
         var block = CssBlock(".sam-fab");
         block.Should().Contain(
-            "bottom: calc(1.5rem + env(safe-area-inset-bottom, 0px))");
+            "bottom: calc(var(--sam-fab-inset) + env(safe-area-inset-bottom, 0px))");
         block.Should().Contain(
-            "right: calc(1.5rem + env(safe-area-inset-right, 0px))");
+            "right: calc(var(--sam-fab-inset) + env(safe-area-inset-right, 0px))");
     }
 
     [Fact]

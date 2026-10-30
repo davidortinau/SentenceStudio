@@ -657,3 +657,13 @@ Corporate VPN firewall policy blocks Azure Container Apps data plane and Azure m
 - Applies to any Captain access from behind corporate VPN (not specific to this incident)
 
 **Status:** Diagnosed and mitigated. Safe to proceed post-VPN disconnect.
+
+### 2026-10-23: Bottom bars reserve Sam's FAB corner instead of the FAB covering them
+
+**By:** Claude (session with Captain, Techorama demo prep)
+**What:** Sam's FAB is fixed to the viewport's bottom-right corner, which covered Conversation's Send button and the primary action of every activity shell bar (Grade, Next, the correct-count badge). While the FAB is rendered (`body:has(.sam-fab)`), `.activity-input-bar`, `.activity-footer` and `.conversation-composer` pad their right edge by `--sam-fab-clearance` (FAB inset + 48px + 0.75rem), so the FAB docks beside the controls. The FAB's size and inset are now `:root` variables (`--sam-fab-size`, `--sam-fab-inset`; 1rem below 576px) that both the FAB and the clearance read. Input rows keep their buttons at natural width and let the text field give way, because `.btn-ss-*` `min-width: 44px` overrides flexbox's content-width floor and squeezed buttons lost their right padding (the "Voice" label). Below md, Conversation's Send is an icon like Voice; below sm, Shadowing's Prev/Next are chevrons with slimmer padding so its five controls fit beside the FAB down to 360px.
+**Alternatives rejected:** lifting the FAB above the bar (needs JS measurement and then covers the newest chat bubble and answer options); hiding the FAB on activities (removes Sam where learners ask about words).
+**References:** `src/SentenceStudio.UI/wwwroot/css/app.css` ("Keeping bottom bars clear of the FAB"); `tests/SentenceStudio.UI.Tests/Layout/SamFabClearanceContractTests.cs`; `.claude/skills/e2e-testing/references/other-activities.md` §1 step 4.
+**Why:** Captain reported the overlap on the conversation activity before the Techorama demo. Verified in the macOS head's WKWebView as the demo learner at 1280/1100/900/800/700px, and in a geometry harness across five page types from 1280 down to 360px.
+
+---

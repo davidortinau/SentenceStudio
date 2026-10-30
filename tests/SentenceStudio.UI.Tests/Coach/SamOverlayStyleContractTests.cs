@@ -52,14 +52,18 @@ public class SamOverlayStyleContractTests
     /// </param>
     private static string Block(string selector, string? within = null)
     {
-        var source = within is null ? Css : AtRuleBody(within);
+        // Same-query media blocks sit next to the rules they serve (the phone block for Sam's
+        // panel is not the only max-width: 575.98px block), so search every one of them.
+        IReadOnlyList<string> sources = within is null ? [Css] : AtRuleBodies(within);
 
         // Selector lists are comma separated and the selector may be one of several, so the match
         // is anchored on a boundary rather than on the whole prelude.
         var pattern = Regex.Escape(selector) + @"(?:\s*,\s*[^{]+)?\s*\{([^}]*)\}";
-        var match = Regex.Matches(source, pattern)
-            .Cast<Match>()
-            .FirstOrDefault(m => SelectorListOf(source, m).Contains(selector, StringComparison.Ordinal));
+        var match = sources
+            .SelectMany(source => Regex.Matches(source, pattern)
+                .Cast<Match>()
+                .Where(m => SelectorListOf(source, m).Contains(selector, StringComparison.Ordinal)))
+            .FirstOrDefault();
 
         match.Should().NotBeNull($"the stylesheet must define {selector}"
             + (within is null ? string.Empty : $" inside @media ({within})"));
@@ -72,14 +76,6 @@ public class SamOverlayStyleContractTests
         var start = source.LastIndexOf('}', match.Index);
         var open = source.IndexOf('{', match.Index);
         return source[(start + 1)..open];
-    }
-
-    /// <summary>The body of the first at-rule whose prelude contains <paramref name="prelude"/>.</summary>
-    private static string AtRuleBody(string prelude)
-    {
-        var bodies = AtRuleBodies(prelude);
-        bodies.Should().NotBeEmpty($"the stylesheet must have an @media ({prelude}) block");
-        return bodies[0];
     }
 
     /// <summary>

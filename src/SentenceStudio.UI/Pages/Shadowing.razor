@@ -72,14 +72,18 @@ else
 @if (sentences.Any() && !isBusy)
 {
     <div class="activity-footer">
-        <div class="d-flex justify-content-between align-items-center mb-2">
-            <button class="btn btn-sm btn-ss-secondary" @onclick="PreviousSentence" disabled="@(currentIndex <= 0)">
-                <i class="bi bi-chevron-left me-1"></i> @Localize["Shadowing_Prev"]
+        <div class="d-flex justify-content-between align-items-center mb-2 shadowing-controls">
+            @* Below sm the labels drop to chevrons and the buttons slim down (app.css
+               .shadowing-controls): on a phone this row shares its width with Sam's FAB, which
+               the footer keeps clear of. *@
+            <button class="btn btn-sm btn-ss-secondary" @onclick="PreviousSentence" disabled="@(currentIndex <= 0)"
+                    aria-label='@Localize["Shadowing_Prev"]'>
+                <i class="bi bi-chevron-left" aria-hidden="true"></i><span class="d-none d-sm-inline ms-1">@Localize["Shadowing_Prev"]</span>
             </button>
             <div class="d-flex align-items-center gap-2">
                 <button class="btn btn-sm @(playbackSpeed == 0.6f ? "btn-ss-primary" : "btn-ss-secondary")" @onclick="() => SetPlaybackSpeed(0.6f)"
                         disabled="@isBuffering">@Localize["Shadowing_Slow"]</button>
-                <button class="btn btn-ss-primary px-4" @onclick="TogglePlayback"
+                <button class="btn btn-ss-primary px-3 px-sm-4" @onclick="TogglePlayback"
                         disabled="@isBuffering">
                     @if (isBuffering)
                     {
@@ -93,8 +97,9 @@ else
                 <button class="btn btn-sm @(playbackSpeed == 1.0f ? "btn-ss-primary" : "btn-ss-secondary")" @onclick="() => SetPlaybackSpeed(1.0f)"
                         disabled="@isBuffering">@Localize["Shadowing_Normal"]</button>
             </div>
-            <button class="btn btn-sm btn-ss-secondary" @onclick="NextSentence" disabled="@(currentIndex >= sentences.Count - 1)">
-                @Localize["Shadowing_Next"] <i class="bi bi-chevron-right ms-1"></i>
+            <button class="btn btn-sm btn-ss-secondary" @onclick="NextSentence" disabled="@(currentIndex >= sentences.Count - 1)"
+                    aria-label='@Localize["Shadowing_Next"]'>
+                <span class="d-none d-sm-inline me-1">@Localize["Shadowing_Next"]</span><i class="bi bi-chevron-right" aria-hidden="true"></i>
             </button>
         </div>
         <div class="text-center">

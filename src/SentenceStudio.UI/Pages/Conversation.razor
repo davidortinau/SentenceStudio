@@ -158,8 +158,9 @@ else
         </div>
     }
 
-    @* Input area — anchored to bottom *@
-    <div class="card card-ss p-3 flex-shrink-0 mt-auto" style="padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px)) !important;">
+    @* Input area — anchored to bottom. conversation-composer owns the padding, including the
+       right-hand space it gives up to Sam's FAB, so do not add a p-* utility here. *@
+    <div class="card card-ss flex-shrink-0 mt-auto conversation-composer">
         @if (IsVoiceOn)
         {
             <div class="d-flex align-items-center gap-3" data-testid="voice-panel" role="status" aria-live="polite">
@@ -213,9 +214,12 @@ else
                     <i class="bi bi-mic"></i><span class="d-none d-md-inline ms-1">@Localize["Conversation_Voice"]</span>
                 </button>
             }
-            <button class="btn btn-ss-primary px-4 text-nowrap" @onclick="SendMessage"
+            @* Icon below md, like Voice beside it: on a phone the row also gives up its right
+               edge to Sam's FAB, and the text field needs that width more than the label does. *@
+            <button class="btn btn-ss-primary px-md-4 text-nowrap" @onclick="SendMessage"
+                    aria-label='@Localize["Conversation_Send"]'
                     disabled="@(isWaitingForReply || string.IsNullOrWhiteSpace(userInput))">
-                @Localize["Conversation_Send"]
+                <i class="bi bi-send d-md-none" aria-hidden="true"></i><span class="d-none d-md-inline">@Localize["Conversation_Send"]</span>
             </button>
         </div>
         }
