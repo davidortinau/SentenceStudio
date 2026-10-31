@@ -23,20 +23,11 @@ internal static class SignInView
         Action togglePassword,
         Action signIn,
         Action retry,
+        Action forgotPassword,
+        Action createAccount,
         Action<SwiftView> registerSubmit)
     {
-        var content = new List<SwiftView>
-        {
-            Views.HStack(
-                Views.Image("translate")
-                    .WithForegroundColor(style.Appearance.Text.Light,
-                        style.Appearance.Text.Dark),
-                style.Text(Views.Text("SentenceStudio"),
-                    SourceTextRole.Brand,
-                    sourceHeading: true))
-                .WithFlexibleWidth(440, SwiftHorizontalAlignment.Center)
-                .WithAccessibilityIdentifier("native.auth.brand")
-        };
+        var content = new List<SwiftView> { Brand(style) };
         var form = new List<SwiftView>
         {
             style.Text(Views.Text(text(NativeText.SignIn)),
@@ -107,9 +98,43 @@ internal static class SignInView
             .WithAccessibilityIdentifier(NativeAccess.SignIn);
         registerSubmit(submit);
         form.Add(submit);
-        if (!busy && state.Phase is NativePhase.PendingSync or NativePhase.Error)
-            form.Add(style.SecondaryButton(text(NativeText.Retry), retry)
+        // A failed form sign-in is corrected and resubmitted with Sign In.
+        // Only an offline stored session gets a separate, labelled restore.
+        if (!busy && state is { Phase: NativePhase.PendingSync, UserId: null })
+            form.Add(style.SecondaryButton(text("NativeAuth_RestoreSessionRetry"), retry)
                 .WithAccessibilityIdentifier("native.auth.retry"));
+        form.Add(Views.Divider());
+        var forgot = Link(style, text("Login_ForgotPassword"), forgotPassword,
+            "native.auth.forgot");
+        forgot.IsEnabled = !busy;
+        var create = Link(style, text("Login_CreateOne"), createAccount,
+            "native.auth.register");
+        create.IsEnabled = !busy;
+        var createRow = Views.HStack(
+            style.Text(Views.Text(text("Login_NoAccountCreateOne")),
+                SourceTextRole.DefaultBody, SourceTextTone.PlainCard),
+            create);
+        createRow.Spacing = 4;
+        form.Add(forgot.WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center));
+        form.Add(createRow.WithAdaptiveStack(320)
+            .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center));
+        content.Add(Card(style, form));
+        return AuthPage(style, content, "native.auth.screen");
+    }
+
+    internal static SwiftView Brand(SourceUiStyle style) =>
+        Views.HStack(
+            Views.Image("translate")
+                .WithForegroundColor(style.Appearance.Text.Light,
+                    style.Appearance.Text.Dark),
+            style.Text(Views.Text("SentenceStudio"),
+                SourceTextRole.Brand,
+                sourceHeading: true))
+            .WithFlexibleWidth(440, SwiftHorizontalAlignment.Center)
+            .WithAccessibilityIdentifier("native.auth.brand");
+
+    internal static SwiftView Card(SourceUiStyle style, List<SwiftView> form)
+    {
         var formBody = Views.VStack(form.ToArray())
             .WithPadding(SourceUiLayout.LargeCardInset)
             .WithFlexibleWidth(440, SwiftHorizontalAlignment.Center)
@@ -118,12 +143,26 @@ internal static class SignInView
                 style.Appearance.BootstrapRadius)
             .WithShadow("#000000", "#000000", 4, 0.075, 2);
         formBody.Spacing = SourceUiLayout.FormGap;
-        content.Add(formBody);
+        return formBody;
+    }
+
+    internal static SwiftView AuthPage(
+        SourceUiStyle style, List<SwiftView> content, string screenId)
+    {
         var page = Views.Scroll(content.ToArray())
             .WithCenterWhenShort()
             .WithPadding(SourceUiLayout.AuthOuterInset);
         page.Spacing = SourceUiLayout.LargeCardInset;
         return style.Page(page)
-            .WithAccessibilityIdentifier("native.auth.screen");
+            .WithAccessibilityIdentifier(screenId);
     }
+
+    /// <summary>Source login footer anchors: primary-coloured underlined links.</summary>
+    internal static SwiftView Link(
+        SourceUiStyle style, string title, Action action, string id) =>
+        Views.Button(style.Text(Views.Text(title).WithUnderline(),
+                    SourceTextRole.DefaultBody, SourceTextTone.Primary), action)
+            .WithButtonStyle(SwiftButtonStyle.Plain)
+            .WithMinimumHeight(SourceUiLayout.MinimumTouchHeight)
+            .WithAccessibilityIdentifier(id);
 }

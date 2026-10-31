@@ -78,7 +78,6 @@ internal sealed partial class ApplicationController : IDisposable
     private bool _onboardingCreatingStarter;
     private int _selectedTab;
     private int _skillsOriginTab;
-    private static bool OnboardingDurabilityAvailable => false;
     internal SourceUiAppearance Appearance { get; private set; } =
         LoadAppearance();
 
@@ -191,6 +190,7 @@ internal sealed partial class ApplicationController : IDisposable
             else
             {
                 _auth = _services.Provider.GetRequiredService<NativeAuthPresenter>();
+                _auth.StateChanged += OnAuthProgress;
                 _dashboard = _services.Provider
                     .GetRequiredService<NativeDashboardPresenter>();
                 _authState = await _auth.RestoreAsync(_lifetime.Token);
@@ -319,7 +319,7 @@ internal sealed partial class ApplicationController : IDisposable
         _skills.Changed += Publish;
     }
 
-    internal SwiftView RenderSignIn(SourceUiStyle style) =>
+    private SwiftView RenderSignInForm(SourceUiStyle style) =>
         SignInView.Page(
             style, _authState, _email, _password, _rememberMe, _showPassword,
             _busy, _auth is not null
@@ -352,16 +352,9 @@ internal sealed partial class ApplicationController : IDisposable
                     _email, password, _rememberMe, _lifetime.Token);
                 await RouteAfterAuthAsync();
             }),
-            retry: () => Run(async () =>
-            {
-                if (_auth is null)
-                    return;
-                _authState = _authState.Phase == NativePhase.PendingSync
-                    && _authState.UserId is not null
-                    ? await _auth.RetryReadinessAsync(_lifetime.Token)
-                    : await _auth.RestoreAsync(_lifetime.Token);
-                await RouteAfterAuthAsync();
-            }),
+            retry: RetryAuthReadiness,
+            forgotPassword: () => OpenAccountEntry(AccountEntry.Recovery),
+            createAccount: () => OpenAccountEntry(AccountEntry.Register),
             registerSubmit: submit => _signInSubmit = submit);
 
     private void UpdateSignInSubmitAvailability()
@@ -379,7 +372,7 @@ internal sealed partial class ApplicationController : IDisposable
         OnboardingView.Page(
             style, _onboardingStep, _onboardingDraft, _onboardingErrorKey,
             _authState.HasPendingSync, _busy, _onboardingStepsDone,
-            _onboardingCreatingStarter, OnboardingDurabilityAvailable,
+            _onboardingCreatingStarter,
             Text, changed: draft =>
             {
                 _onboardingDraft = draft;
@@ -427,11 +420,6 @@ internal sealed partial class ApplicationController : IDisposable
     {
         if (_auth is null)
             return;
-        if (!OnboardingDurabilityAvailable)
-        {
-            _onboardingErrorKey = "Coach_Hint_Unknown";
-            return;
-        }
         _onboardingErrorKey = null;
         _onboardingStepsDone = 0;
         var saved = await _auth.SaveOnboardingProfileAsync(

@@ -7,7 +7,7 @@ namespace SentenceStudio.Native.iOS.Tests;
 public sealed class NativeOnboardingContractTests
 {
     [Fact]
-    public void SixStepNativeOnboarding_GatesTypedSaveAndFinishOnRemoteDurability()
+    public void SixStepNativeOnboarding_FinishesThroughOwnerCheckedPresenterSave()
     {
         var view = Source("Features/Onboarding/OnboardingView.cs");
         var app = Source("App/ApplicationController.cs");
@@ -23,7 +23,8 @@ public sealed class NativeOnboardingContractTests
         Assert.Contains("Onboarding_CreateStarter", view);
         Assert.Contains("Onboarding_SkipSetup", view);
         Assert.Contains("native.onboarding.signout", view);
-        Assert.Contains("native.onboarding.finish.unavailable", view);
+        Assert.DoesNotContain("native.onboarding.finish.unavailable", view);
+        Assert.DoesNotContain("Coach_Hint_Unknown", view);
         Assert.Contains("SetCustomButtonAvailability(starter, style.Appearance,",
             view);
         Assert.Contains("SetCustomButtonAvailability(skip, style.Appearance,",
@@ -44,9 +45,10 @@ public sealed class NativeOnboardingContractTests
         Assert.Contains("Views.VStack(_app.RenderOnboarding(_style))", scene);
         Assert.Contains("registerNext: next => _onboardingNextButton = next", app);
         Assert.Contains("SetCustomButtonAvailability(", app);
-        Assert.Contains("private static bool OnboardingDurabilityAvailable => false;", app);
-        Assert.Contains("if (!OnboardingDurabilityAvailable)", app);
-        Assert.Contains("_onboardingCreatingStarter, OnboardingDurabilityAvailable", app);
+        // Profile durability is now the presenter's remote write-through,
+        // not a permanently disabled finish button.
+        Assert.DoesNotContain("OnboardingDurabilityAvailable", app);
+        Assert.DoesNotContain("Coach_Hint_Unknown", app);
         Assert.Contains("_auth.SaveOnboardingProfileAsync(", app);
         Assert.Contains("_auth.FinishOnboardingAsync(", app);
         Assert.Contains("GetByIdAsync(owner, _lifetime.Token)", app);
@@ -96,7 +98,7 @@ public sealed class NativeOnboardingContractTests
             "Onboarding_CreateStarter", "Onboarding_SkipSetup",
             "Onboarding_Back", "Onboarding_Next", "Nav_Logout",
             "NativeOnboarding_Incomplete", "NativeOnboarding_SaveFailed",
-            "NativeOnboarding_StarterFailed", "Coach_Hint_Unknown"
+            "NativeOnboarding_StarterFailed"
         })
             Assert.True(strings.Any(data =>
                     data.Attribute("name")?.Value == key

@@ -55,6 +55,24 @@ public sealed class NativeProfileAuthService(
             await profiles.EnsureLocalProfileAsync(result.AccessToken);
         return result;
     }
+
+    // The interface defaults report Unavailable; forward the outcome-bearing
+    // account calls so the native Register and Forgot Password screens reach
+    // the established Identity API instead of a dead end.
+    public async Task<AuthRegistrationResult> RegisterWithOutcomeAsync(
+        string email, string password, string displayName,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await identity.RegisterWithOutcomeAsync(
+            email, password, displayName, cancellationToken);
+        if (result is { Outcome: AuthRegistrationOutcome.SignedIn, Session: { } session })
+            await profiles.EnsureLocalProfileAsync(session.AccessToken);
+        return result;
+    }
+
+    public Task<AuthPasswordRecoveryResult> RequestPasswordRecoveryAsync(
+        string email, CancellationToken cancellationToken = default) =>
+        identity.RequestPasswordRecoveryAsync(email, cancellationToken);
 }
 
 public sealed class NativeProfileBootstrap(

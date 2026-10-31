@@ -11,7 +11,7 @@ internal static class OnboardingView
         SourceUiStyle style,
         int step, NativeOnboardingDraft draft, string? errorKey,
         bool pendingSync, bool busy, int contentStepsDone,
-        bool creatingStarter, bool finishAvailable,
+        bool creatingStarter,
         Func<string, string> text,
         Action<NativeOnboardingDraft> changed,
         Action back, Action next, Action<bool> finish,
@@ -125,11 +125,6 @@ internal static class OnboardingView
                 content.Add(Heading(style, text("Onboarding_AllSet")));
                 content.Add(style.Text(Views.Text(text("Onboarding_CreateStarterContent")),
                     SourceTextRole.Body1, SourceTextTone.Secondary));
-                if (!finishAvailable)
-                    content.Add(style.Text(Views.Text(text("Coach_Hint_Unknown")),
-                            SourceTextRole.Caption1, SourceTextTone.Secondary)
-                        .WithAccessibilityIdentifier(
-                            "native.onboarding.finish.unavailable"));
                 if (busy)
                 {
                     var steps = creatingStarter
@@ -157,7 +152,7 @@ internal static class OnboardingView
                         .WithAccessibilityIdentifier(
                             "native.onboarding.finish.starter");
                     SourceUiStyle.SetCustomButtonAvailability(starter, style.Appearance,
-                        SourceButtonRole.Primary, finishAvailable);
+                        SourceButtonRole.Primary, true);
                     content.Add(starter);
                     var skip = style.SecondaryButton(
                             text("Onboarding_SkipSetup"), () => finish(false),
@@ -166,7 +161,7 @@ internal static class OnboardingView
                         .WithAccessibilityIdentifier(
                             "native.onboarding.finish.skip");
                     SourceUiStyle.SetCustomButtonAvailability(skip, style.Appearance,
-                        SourceButtonRole.FilledSecondary, finishAvailable);
+                        SourceButtonRole.FilledSecondary, true);
                     content.Add(skip);
                 }
                 break;
