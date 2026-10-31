@@ -132,7 +132,7 @@ internal sealed partial class AndroidSliceShell
                     Localize("Resources_SearchPlaceholder"))),
             Placeholder = new Text(Localize("Resources_SearchPlaceholder")),
             LeadingIcon = new Icon(Icons.Default.Search,
-                Localize("Resources_SearchPlaceholder")) { Modifier = Modifier.Size(20) },
+                Localize("Resources_SearchPlaceholder")) { Modifier = Modifier.Size(20), Tint = palette.SecondaryText },
         });
         var types = state.Types.IsDefault ? [] : state.Types;
         var languages = state.Languages.IsDefault ? [] : state.Languages;
@@ -255,7 +255,7 @@ internal sealed partial class AndroidSliceShell
                     resources.SetViewMode(mode);
             })
         {
-            Modifier = Modifier.Weight(1f).TestTag(tag).Semantics(semantics =>
+            Modifier = Modifier.TestTag(tag).Semantics(semantics =>
             {
                 semantics.ContentDescription(label);
                 semantics.Selected(selected);
@@ -288,7 +288,7 @@ internal sealed partial class AndroidSliceShell
         {
             Modifier.FillMaxWidth(),
             new Text(values[selectedIndex]) { MaxLines = 1, Color = palette.Text },
-            new Icon(Icons.Default.ArrowDropDown, label) { Modifier = Modifier.Size(20) },
+            new Icon(Icons.Default.ArrowDropDown, label) { Modifier = Modifier.Size(20), Tint = palette.Text },
         });
         var dropdown = new DropdownMenu(expanded: _resourceMenu == menu,
             onDismissRequest: CloseResourceMenu)
@@ -312,7 +312,7 @@ internal sealed partial class AndroidSliceShell
                 }),
                 // The source select marks exactly one option.
                 TrailingIcon = isSelected
-                    ? new Icon(Icons.Default.Check, values[choice]) { Modifier = Modifier.Size(20) }
+                    ? new Icon(Icons.Default.Check, values[choice]) { Modifier = Modifier.Size(20), Tint = palette.Text }
                     : null,
             });
         }

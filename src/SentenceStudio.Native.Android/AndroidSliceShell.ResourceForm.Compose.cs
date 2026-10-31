@@ -327,7 +327,7 @@ internal sealed partial class AndroidSliceShell
         {
             Modifier.FillMaxWidth(),
             new Text(selected) { Color = palette.Text },
-            new Icon(Icons.Default.ArrowDropDown, label) { Modifier = Modifier.Size(20) },
+            new Icon(Icons.Default.ArrowDropDown, label) { Modifier = Modifier.Size(20), Tint = palette.Text },
         });
         var dropdown = new DropdownMenu(expanded: _resourceMenu == menu,
             onDismissRequest: CloseResourceMenu);
@@ -347,7 +347,7 @@ internal sealed partial class AndroidSliceShell
                     semantics.Selected(isSelected);
                 }),
                 TrailingIcon = isSelected
-                    ? new Icon(Icons.Default.Check, value) { Modifier = Modifier.Size(20) }
+                    ? new Icon(Icons.Default.Check, value) { Modifier = Modifier.Size(20), Tint = palette.Text }
                     : null,
             });
         }
@@ -511,7 +511,7 @@ internal sealed partial class AndroidSliceShell
                 Modifier = Modifier.TestTag(
                     $"native.resources.form.vocabulary.kind.{word.Id}.option.{index}"),
                 TrailingIcon = isSelected
-                    ? new Icon(Icons.Default.Check, kind.Item2) { Modifier = Modifier.Size(20) }
+                    ? new Icon(Icons.Default.Check, kind.Item2) { Modifier = Modifier.Size(20), Tint = palette.Text }
                     : null,
             });
         }
@@ -696,7 +696,7 @@ internal sealed partial class AndroidSliceShell
             var segment = new SegmentedButton(selected: selected,
                 onClick: () => resources.DelimiterChanged(value))
             {
-                Modifier = Modifier.Weight(1f)
+                Modifier = Modifier
                     .TestTag($"native.resources.form.vocabulary.delimiter.{value}")
                     .Semantics(semantics =>
                     {
