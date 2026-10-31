@@ -361,7 +361,11 @@ internal sealed partial class ApplicationController
     {
         if (_quiz is null || !IsQuizOpen)
             return;
-        _quizState = await _quiz.NextAsync(_lifetime.Token);
+        // Scope Next to the displayed feedback turn so a tap that races the
+        // auto-advance is ignored instead of refused against the next turn.
+        _quizState = _quizState.TurnId is { } displayedTurn
+            ? await _quiz.NextAsync(displayedTurn, _lifetime.Token)
+            : await _quiz.NextAsync(_lifetime.Token);
         _answer = string.Empty;
         _quizInputFocused = false;
         _quizCorrectionCompleted = false;
@@ -624,7 +628,7 @@ internal sealed partial class ApplicationController
                     return;
                 state = current is {
                     Phase: NativePhase.Feedback, Overlay: NativeQuizOverlay.None }
-                    ? await quiz.NextAsync(cancellation.Token) : current;
+                    ? await quiz.NextAsync(expectedTurnId, cancellation.Token) : current;
             }
             _quizState = state;
             if (state.Phase == NativePhase.Summary)

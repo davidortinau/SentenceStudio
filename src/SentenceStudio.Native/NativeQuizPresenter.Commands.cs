@@ -626,6 +626,15 @@ public sealed partial class NativeQuizPresenter
     public Task<NativeQuizState> NextAsync(CancellationToken cancellationToken = default) =>
         NextCoreAsync(expectedTurnId: null, cancellationToken);
 
+    /// <summary>
+    /// Advances only the feedback turn the learner actually saw. A Next that
+    /// arrives after that turn already advanced (for example, a tap racing the
+    /// auto-advance) is a stale duplicate and returns the current state.
+    /// </summary>
+    public Task<NativeQuizState> NextAsync(
+        string turnId, CancellationToken cancellationToken = default) =>
+        NextCoreAsync(turnId, cancellationToken);
+
     private async Task<NativeQuizState> NextCoreAsync(
         string? expectedTurnId, CancellationToken cancellationToken)
     {
@@ -663,7 +672,12 @@ public sealed partial class NativeQuizPresenter
                 }
                 if (!HasOwner(_launch.UserId))
                     return RefuseLaunch();
-                return await AdvanceCommittedAsync(receipt, cancellationToken);
+                // The attempt is durable; the advance clears the pending turn
+                // before presenting the next one. A caller cancellation here
+                // (the head cancels the auto-advance when Next is tapped) must
+                // not abandon that half-applied advance, which left feedback
+                // visible with no pending attempt and refused every later Next.
+                return await AdvanceCommittedAsync(receipt, _lifetime.Token);
             }
             catch (NotSupportedException ex)
             {

@@ -151,7 +151,7 @@ public sealed class NativeQuizSourceLayoutContractTests
         var due = auto.IndexOf("await quiz.AutoAdvanceAsync(cancellation.Token)",
             StringComparison.Ordinal);
         var close = auto.IndexOf("quiz.DismissOverlay()", StringComparison.Ordinal);
-        var next = auto.IndexOf("await quiz.NextAsync(cancellation.Token)",
+        var next = auto.IndexOf("await quiz.NextAsync(expectedTurnId, cancellation.Token)",
             StringComparison.Ordinal);
         Assert.True(due >= 0 && close > due && next > close);
         Assert.Contains("expectedTurnId", auto);
@@ -195,7 +195,9 @@ public sealed class NativeQuizSourceLayoutContractTests
         Assert.Contains("cancellation.IsCancellationRequested || _disposed", app);
         Assert.Contains("if (QueueQuizAudioNavigation(QuizAudioNavigation.Next))", app);
         Assert.Contains("if (QueueQuizAudioNavigation(QuizAudioNavigation.Back))", app);
-        Assert.Contains("_quizState = await _quiz.NextAsync(_lifetime.Token);", app);
+        // Manual Next is scoped to the displayed feedback turn so a tap racing
+        // the auto-advance is ignored rather than refused against the next turn.
+        Assert.Contains("? await _quiz.NextAsync(displayedTurn, _lifetime.Token)", app);
         Assert.Contains("_quizState = await _quiz.BackAsync(_lifetime.Token);", app);
         Assert.Contains("_quizAudioCancellation?.Cancel();", app);
         Assert.Contains("if (!_busy || _quizAudioCancellation is null)\n"

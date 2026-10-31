@@ -77,4 +77,97 @@ public sealed class NativeQuizTimingTests
         Assert.Null(afterDelay.ErrorKey);
         Assert.Equal(1, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
     }
+
+    // Regression (iOS 26.5, 2026-10-31): a learner pressed Next while the
+    // auto-advance had already committed the turn and was presenting (and
+    // auto-playing) the next prompt. The head cancels the timer before sending
+    // Next; that cancellation used to abort the committed advance mid-way,
+    // leaving the previous feedback on screen with no pending attempt, so every
+    // later Next was refused with QuizUnavailable.
+    [Fact]
+    public async Task NextWhileAutoAdvancePresentsTheNextTurn_IsIgnoredAndNeverBricksTheQuiz()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA);
+        var planId = await fixture.GenerateQuizPlanAsync(NativeSliceFixture.UserA);
+        Assert.Equal(NativeQuizTimingUpdate.Applied,
+            NativeQuizTiming.TrySet(fixture.QuizPreferences, 1000));
+        fixture.QuizPreferences.UseAudioPrompt = true;
+        fixture.Media.AudioAvailable = true;
+        using var quiz = fixture.Quiz;
+        var question = await quiz.OpenAsync(
+            (await fixture.Dashboard.SelectAssignedQuizAsync(planId))!);
+        var feedback = await quiz.AnswerAsync(question.Choices[0].Text);
+        Assert.Equal(NativePhase.Feedback, feedback.Phase);
+        var answeredTurn = feedback.TurnId!;
+
+        fixture.Media.HoldPlaybackCompletion = true;
+        using var timer = new CancellationTokenSource();
+        var scheduled = quiz.AutoAdvanceAsync(timer.Token);
+        await fixture.Media.PlaybackStarted.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(1, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
+
+        // ApplicationController.AdvanceQuiz: CancelAutoAdvance, then Next for
+        // the feedback turn that is still displayed.
+        timer.Cancel();
+        var manual = quiz.NextAsync(answeredTurn);
+        await Task.Delay(50);
+        Assert.True(fixture.Media.FinishPlayback(true));
+        var advanced = await scheduled.WaitAsync(TimeSpan.FromSeconds(10));
+        var ignored = await manual.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.Equal(NativePhase.Ready, advanced.Phase);
+        Assert.Equal(2, advanced.CurrentTurn);
+        Assert.NotEqual(answeredTurn, advanced.TurnId);
+        Assert.Equal(NativePhase.Ready, ignored.Phase);
+        Assert.Equal(advanced.TurnId, ignored.TurnId);
+        Assert.Null(ignored.ErrorKey);
+        Assert.Equal(1, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
+
+        fixture.Media.HoldPlaybackCompletion = false;
+        var second = await quiz.AnswerAsync(ignored.Choices[0].Text);
+        Assert.Equal(NativePhase.Feedback, second.Phase);
+        var third = await quiz.NextAsync(second.TurnId!);
+        Assert.True(third.Phase is NativePhase.Ready or NativePhase.Summary);
+        Assert.Null(third.ErrorKey);
+        Assert.Equal(2, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
+    }
+
+    [Fact]
+    public async Task UnscopedNextAfterCancelledAutoAdvance_LeavesTheQuizAdvanceable()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA);
+        var planId = await fixture.GenerateQuizPlanAsync(NativeSliceFixture.UserA);
+        Assert.Equal(NativeQuizTimingUpdate.Applied,
+            NativeQuizTiming.TrySet(fixture.QuizPreferences, 1000));
+        fixture.QuizPreferences.UseAudioPrompt = true;
+        fixture.Media.AudioAvailable = true;
+        using var quiz = fixture.Quiz;
+        var question = await quiz.OpenAsync(
+            (await fixture.Dashboard.SelectAssignedQuizAsync(planId))!);
+        var feedback = await quiz.AnswerAsync(question.Choices[0].Text);
+
+        fixture.Media.HoldPlaybackCompletion = true;
+        using var timer = new CancellationTokenSource();
+        var scheduled = quiz.AutoAdvanceAsync(timer.Token);
+        await fixture.Media.PlaybackStarted.WaitAsync(TimeSpan.FromSeconds(10));
+        timer.Cancel();
+        var manual = quiz.NextAsync();
+        try { await scheduled.WaitAsync(TimeSpan.FromSeconds(10)); }
+        catch (OperationCanceledException) { }
+        await manual.WaitAsync(TimeSpan.FromSeconds(10));
+        fixture.Media.HoldPlaybackCompletion = false;
+
+        // Whatever the duplicate Next returned, the session must not be stuck
+        // on the previous feedback without a pending attempt.
+        var state = quiz.State;
+        Assert.NotEqual(feedback.TurnId, state.TurnId);
+        Assert.Equal(2, state.CurrentTurn);
+        var answered = await quiz.AnswerAsync(state.Choices[0].Text);
+        Assert.Equal(NativePhase.Feedback, answered.Phase);
+        var next = await quiz.NextAsync();
+        Assert.True(next.Phase is NativePhase.Ready or NativePhase.Summary);
+        Assert.Equal(2, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
+    }
 }
