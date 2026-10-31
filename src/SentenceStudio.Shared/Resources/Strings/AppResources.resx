@@ -9176,4 +9176,34 @@ For example: {0} ...</value>
   <data name="NativeVocabulary_SavedSyncUnconfirmed" xml:space="preserve">
     <value>Word saved on this device, but sync could not be confirmed. Keep this device's data and retry syncing later.</value>
   </data>
+  <data name="NativeSam_SyncRequired" xml:space="preserve">
+    <value>Your latest practice has to sync before {0} can help. Nothing changed. Try again when sync completes.</value>
+  </data>
+  <data name="NativeSam_VocabularySetIntro" xml:space="preserve">
+    <value>Review all {0} terms. Approving saves the complete set; declining saves none.</value>
+  </data>
+  <data name="NativeSam_VocabularySetApprove" xml:space="preserve">
+    <value>Approve complete set</value>
+  </data>
+  <data name="NativeSam_VocabularySetDecline" xml:space="preserve">
+    <value>Decline</value>
+  </data>
+  <data name="NativeSam_VocabularySetSaving" xml:space="preserve">
+    <value>Saving…</value>
+  </data>
+  <data name="NativeSam_VocabularySetApproved" xml:space="preserve">
+    <value>Vocabulary set approved. Start Vocab Review when you are ready.</value>
+  </data>
+  <data name="NativeSam_VocabularySetDeclined" xml:space="preserve">
+    <value>Vocabulary set declined. Nothing was saved.</value>
+  </data>
+  <data name="NativeSam_VocabularySetFailed" xml:space="preserve">
+    <value>The vocabulary set decision could not be saved. Nothing was changed.</value>
+  </data>
+  <data name="NativeSam_VocabularySetStart" xml:space="preserve">
+    <value>Start Vocab Review</value>
+  </data>
+  <data name="NativeSam_VocabularyReviewNotReady" xml:space="preserve">
+    <value>This vocabulary set has not reached this device yet. Try again after sync completes.</value>
+  </data>
 </root>

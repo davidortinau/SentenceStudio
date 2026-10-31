@@ -10534,6 +10534,96 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Your latest practice has to sync before {0} can help. Nothing changed. Try again when sync completes..
+        /// </summary>
+        internal static string NativeSam_SyncRequired {
+            get {
+                return ResourceManager.GetString("NativeSam_SyncRequired", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to This vocabulary set has not reached this device yet. Try again after sync completes..
+        /// </summary>
+        internal static string NativeSam_VocabularyReviewNotReady {
+            get {
+                return ResourceManager.GetString("NativeSam_VocabularyReviewNotReady", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Approve complete set.
+        /// </summary>
+        internal static string NativeSam_VocabularySetApprove {
+            get {
+                return ResourceManager.GetString("NativeSam_VocabularySetApprove", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Vocabulary set approved. Start Vocab Review when you are ready..
+        /// </summary>
+        internal static string NativeSam_VocabularySetApproved {
+            get {
+                return ResourceManager.GetString("NativeSam_VocabularySetApproved", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Decline.
+        /// </summary>
+        internal static string NativeSam_VocabularySetDecline {
+            get {
+                return ResourceManager.GetString("NativeSam_VocabularySetDecline", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Vocabulary set declined. Nothing was saved..
+        /// </summary>
+        internal static string NativeSam_VocabularySetDeclined {
+            get {
+                return ResourceManager.GetString("NativeSam_VocabularySetDeclined", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The vocabulary set decision could not be saved. Nothing was changed..
+        /// </summary>
+        internal static string NativeSam_VocabularySetFailed {
+            get {
+                return ResourceManager.GetString("NativeSam_VocabularySetFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Review all {0} terms. Approving saves the complete set; declining saves none..
+        /// </summary>
+        internal static string NativeSam_VocabularySetIntro {
+            get {
+                return ResourceManager.GetString("NativeSam_VocabularySetIntro", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Saving….
+        /// </summary>
+        internal static string NativeSam_VocabularySetSaving {
+            get {
+                return ResourceManager.GetString("NativeSam_VocabularySetSaving", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Start Vocab Review.
+        /// </summary>
+        internal static string NativeSam_VocabularySetStart {
+            get {
+                return ResourceManager.GetString("NativeSam_VocabularySetStart", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Current voice.
         /// </summary>
         internal static string NativeSettings_CurrentVoice {

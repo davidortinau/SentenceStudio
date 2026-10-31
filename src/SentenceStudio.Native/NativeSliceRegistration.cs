@@ -50,6 +50,8 @@ public static class NativeSliceRegistration
         services.AddTransient<NativeQuizPresenter>();
         services.TryAddSingleton<INativeResourceStore, NativeResourceStore>();
         services.AddTransient<NativeResourcePresenter>();
+        services.TryAddSingleton<INativeSamClient, UnavailableNativeSamClient>();
+        services.AddTransient<NativeSamPresenter>();
         return services;
     }
 
