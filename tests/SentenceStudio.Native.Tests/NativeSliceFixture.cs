@@ -10,6 +10,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Logging;
 using SentenceStudio.Abstractions;
 using SentenceStudio.Contracts;
 using SentenceStudio.Data;
@@ -51,14 +52,17 @@ internal sealed class NativeSliceFixture : IDisposable
     private readonly bool _sentenceGradingEnabled;
     private readonly INativeQuizSentenceGrader? _sentenceGraderOverride;
     private readonly bool _validateScopes;
+    private readonly bool _ownerStores;
 
     public NativeSliceFixture(
         bool productionAdapters = false, bool realPlanGenerator = false,
         bool ownerBoundReadiness = false, bool resourceAiEnabled = false,
         bool scopedResourceRepository = false,
         bool sentenceGradingEnabled = false, bool validateScopes = false,
-        INativeQuizSentenceGrader? sentenceGraderOverride = null)
+        INativeQuizSentenceGrader? sentenceGraderOverride = null,
+        bool ownerStores = false)
     {
+        _ownerStores = ownerStores;
         _productionAdapters = productionAdapters;
         _realPlanGenerator = realPlanGenerator;
         _ownerBoundReadiness = ownerBoundReadiness;
@@ -72,6 +76,9 @@ internal sealed class NativeSliceFixture : IDisposable
         _authHandler.Register(EmailA, UserA);
         _authHandler.Register(EmailB, UserB);
         _provider = BuildProvider();
+        // Owner-routed databases are created and migrated when their owner signs in.
+        if (ownerStores)
+            return;
         using var scope = _provider.CreateScope();
         scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Database.EnsureCreated();
         using var connection = OpenConnection();
@@ -122,6 +129,10 @@ internal sealed class NativeSliceFixture : IDisposable
         string userId,
         params (string Type, string? ResourceId, string? SkillId, int Minutes, int Priority)[] activities) =>
         _generator.SetActivities(userId, activities);
+    public string Root => _directory;
+    public string DatabasePath => _database;
+    public void RegisterUser(string email, string userId) =>
+        _authHandler.Register(email, userId);
     public void SetAuthStatus(HttpStatusCode? status) =>
         _authHandler.ForcedStatus = status;
     public void SetAuthOffline(bool offline) =>
@@ -305,6 +316,12 @@ internal sealed class NativeSliceFixture : IDisposable
     public void Dispose()
     {
         _provider.Dispose();
+        if (_ownerStores)
+        {
+            SqliteConnection.ClearAllPools();
+            Directory.Delete(_directory, recursive: true);
+            return;
+        }
         foreach (var name in new[] {
             "native-slice.sqlite", "native-slice.sqlite-wal", "native-slice.sqlite-shm" })
         {
@@ -326,10 +343,18 @@ internal sealed class NativeSliceFixture : IDisposable
     {
         var services = new ServiceCollection();
         services.AddLogging();
-        services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseSqlite($"Data Source={_database};Pooling=False")
-                .ConfigureWarnings(w =>
-                    w.Ignore(RelationalEventId.PendingModelChangesWarning)));
+        if (_ownerStores)
+            services.AddNativeOwnerSqlite(sp => new NativeOwnerStores(
+                _directory, Path.GetFileName(_database),
+                sp.GetRequiredService<DeviceUserScopeProvider>(),
+                sp.GetRequiredService<ILogger<NativeOwnerStores>>(),
+                // SQLite migrations compile only for platform heads; tests use the model.
+                prepare: (db, _, ct) => db.Database.EnsureCreatedAsync(ct)));
+        else
+            services.AddDbContext<ApplicationDbContext>(options =>
+                options.UseSqlite($"Data Source={_database};Pooling=False")
+                    .ConfigureWarnings(w =>
+                        w.Ignore(RelationalEventId.PendingModelChangesWarning)));
         services.AddSingleton<IPreferencesService>(_preferences);
         services.AddSingleton<ISecureStorageService>(_secureStorage);
         services.AddSingleton<IConnectivityService>(_connectivity);

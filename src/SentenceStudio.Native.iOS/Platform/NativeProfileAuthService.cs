@@ -78,7 +78,8 @@ public sealed class NativeProfileAuthService(
 public sealed class NativeProfileBootstrap(
     IHttpClientFactory clients,
     IServiceScopeFactory scopes,
-    ILogger<NativeProfileBootstrap> logger)
+    ILogger<NativeProfileBootstrap> logger,
+    SentenceStudio.Native.Adapters.NativeOwnerStores? ownerStores = null)
 {
     public async Task EnsureLocalProfileAsync(string jwt)
     {
@@ -86,6 +87,11 @@ public sealed class NativeProfileBootstrap(
             .FirstOrDefault(claim => claim.Type == AuthClaimTypes.UserProfileId)?.Value;
         if (string.IsNullOrWhiteSpace(owner))
             throw new UnauthorizedAccessException("The authenticated token has no profile owner.");
+
+        // The profile row belongs in the signed-in owner's own database, never
+        // in the database of whoever used this device before.
+        if (ownerStores is not null)
+            await ownerStores.ActivateAsync(owner, CancellationToken.None);
 
         using var scope = scopes.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();

@@ -70,8 +70,17 @@ internal sealed class AndroidServiceHost : IDisposable
         services.AddSingleton<IUserScopeProvider>(sp =>
             sp.GetRequiredService<DeviceUserScopeProvider>());
 
-        services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseSqlite($"Data Source={databasePath};Pooling=False"));
+        // One database (and CoreSync store) per signed-in owner; the existing
+        // file stays in place for the owner its rows prove.
+        services.AddNativeOwnerSqlite(sp => preview
+            ? NativeOwnerStores.Fixed(databasePath,
+                sp.GetRequiredService<DeviceUserScopeProvider>(),
+                sp.GetRequiredService<ILogger<NativeOwnerStores>>())
+            : new NativeOwnerStores(dataRoot, Path.GetFileName(databasePath),
+                sp.GetRequiredService<DeviceUserScopeProvider>(),
+                sp.GetRequiredService<ILogger<NativeOwnerStores>>(),
+                // Copies go to the no-backup folder so they don't count toward Auto Backup's 25 MB cap.
+                global::Android.App.Application.Context.NoBackupFilesDir?.AbsolutePath));
         services.AddHttpClient("AuthClient", client =>
         {
             client.BaseAddress = apiUri;
@@ -141,28 +150,28 @@ internal sealed class AndroidServiceHost : IDisposable
 
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
-        var existingDatabase = File.Exists(_databasePath);
-        using var scope = CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 #if DEBUG
         if (_preview)
         {
+            var existingDatabase = File.Exists(_databasePath);
+            using var scope = CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             if (!existingDatabase)
                 await db.Database.EnsureCreatedAsync(cancellationToken);
             return;
         }
 #endif
-        var migrations = db.Database.GetMigrations();
-        if (!migrations.Any())
+        // GetMigrations reads the compiled model only; no owner database is opened here.
+        await using var probe = new ApplicationDbContext(
+            new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseSqlite($"Data Source={_databasePath};Pooling=False").Options);
+        if (!probe.Database.GetMigrations().Any())
             throw new InvalidOperationException(
                 "No Android SQLite migrations were discovered; native startup refused.");
 
-        // An existing database is copied and verified before pending migrations apply;
-        // if the copy fails, nothing is migrated and startup fails closed.
-        // Copies go to the no-backup folder so they don't count toward Auto Backup's 25 MB cap.
-        await SqliteMigrationBackup.MigrateWithBackupAsync(db, _databasePath,
-            scope.ServiceProvider.GetRequiredService<ILogger<AndroidServiceHost>>(), cancellationToken,
-            global::Android.App.Application.Context.NoBackupFilesDir?.AbsolutePath);
+        // Each owner database is copied and verified before pending migrations apply
+        // when that owner signs in (NativeOwnerStores.ActivateAsync); if the copy fails,
+        // nothing is migrated and sign-in fails closed.
     }
 
     internal sealed class UnavailableNativeLlmPlanGeneration : ILlmPlanGenerationService

@@ -47,8 +47,17 @@ public sealed class NativeServices : IDisposable
 
         var services = new ServiceCollection();
         services.AddLogging(logging => logging.AddConsole().SetMinimumLevel(LogLevel.Information));
-        services.AddDbContext<ApplicationDbContext>(
-            options => options.UseSqlite($"Data Source={database};Pooling=False"));
+        // One database (and CoreSync store) per signed-in owner; the existing
+        // file stays in place for the owner its rows prove.
+        var preview = PreviewSchemaEnabled();
+        services.AddNativeOwnerSqlite(sp => preview
+            ? NativeOwnerStores.Fixed(database,
+                sp.GetRequiredService<DeviceUserScopeProvider>(),
+                sp.GetRequiredService<ILogger<NativeOwnerStores>>())
+            : new NativeOwnerStores(folder, Path.GetFileName(database),
+                sp.GetRequiredService<DeviceUserScopeProvider>(),
+                sp.GetRequiredService<ILogger<NativeOwnerStores>>(),
+                afterMigrate: context => context.EnableWalMode()));
         services.AddSingleton<IPreferencesService, NativePreferences>();
         services.AddSingleton<ISecureStorageService, NativeKeychain>();
         services.AddSingleton<IConnectivityService, NativeConnectivity>();
@@ -127,8 +136,14 @@ public sealed class NativeServices : IDisposable
         return new NativeServices(services.BuildServiceProvider(validateScopes: true), database);
     }
 
+    /// <summary>
+    /// Owner databases migrate (with a verified backup) when their owner signs in;
+    /// only the isolated Debug preview database is prepared at startup.
+    /// </summary>
     public async Task InitializeDatabaseAsync(CancellationToken cancellationToken = default)
     {
+        if (!PreviewSchemaEnabled())
+            return;
         using var scope = _provider.CreateScope();
         var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         if (PreviewSchemaEnabled())
@@ -146,11 +161,6 @@ public sealed class NativeServices : IDisposable
             }
             _provider.GetRequiredService<ILogger<NativeServices>>().LogWarning(
                 "Debug preview uses EF EnsureCreated on an isolated simulator sandbox; migrations are not verified.");
-        }
-        else
-        {
-            await SqliteMigrationBackup.MigrateWithBackupAsync(context, _database,
-                _provider.GetRequiredService<ILogger<NativeServices>>(), cancellationToken);
         }
         context.EnableWalMode();
     }

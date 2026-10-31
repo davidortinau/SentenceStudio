@@ -203,6 +203,22 @@ public sealed class DeviceUserScopeProvider : IUserScopeProvider
                 && lease.Stamp.PublishedOwner == _activeUserProfileId;
     }
 
+    /// <summary>
+    /// True when this flow still carries a readiness lease that a sign-out or
+    /// owner switch revoked. Such a flow must not fall back to the new owner.
+    /// </summary>
+    public bool HasRevokedReadinessLease
+    {
+        get
+        {
+            var lease = _readinessLease.Value;
+            if (lease is null)
+                return false;
+            lock (_gate)
+                return !IsLeaseCurrent(lease);
+        }
+    }
+
     public string UserProfileId
     {
         get

@@ -187,25 +187,22 @@ public static class OwnerBoundNativeSyncReadinessRegistration
     {
         var localRegistration = services.LastOrDefault(
             descriptor => descriptor.ServiceType == typeof(ISyncProvider));
+        var ownerStores = services.Any(
+            descriptor => descriptor.ServiceType == typeof(NativeOwnerStores));
         if (localRegistration?.ImplementationFactory is { } createLocal)
         {
             services[services.IndexOf(localRegistration)] =
                 ServiceDescriptor.Singleton<ISyncProvider>(provider =>
             {
+                // Owner-routed heads keep one CoreSync store per owner database,
+                // so the API's store-to-owner binding never sees a second account.
+                if (ownerStores)
+                    return NativeOwnerStoreRegistration.CreateRouter(
+                        provider, sqlite => DecorateLocal(provider, sqlite));
                 var local = (ISyncProvider)createLocal(provider);
-                if (local is not SqliteSyncProvider sqlite)
-                    return local;
-
-                var scope = provider.GetRequiredService<DeviceUserScopeProvider>();
-                var preferences = provider.GetRequiredService<IPreferencesService>();
-                return new NativeLocalOnlyMappingExportProvider(
-                    sqlite, provider.GetRequiredService<ISyncProviderHttpClient>(),
-                    () => scope.TryGetLeasedReadinessOwner(out var owner)
-                        && string.Equals(preferences.Get(
-                            UserProfileRepository.ActiveProfileIdKey, string.Empty),
-                            owner, StringComparison.Ordinal)
-                            ? owner : null,
-                    provider.GetRequiredService<ILogger<NativeLocalOnlyMappingExportProvider>>());
+                return local is SqliteSyncProvider sqlite
+                    ? DecorateLocal(provider, sqlite)
+                    : local;
             });
         }
 
@@ -249,5 +246,19 @@ public static class OwnerBoundNativeSyncReadinessRegistration
         services.Replace(ServiceDescriptor.Singleton<
             INativeSyncReadiness, OwnerBoundNativeSyncReadiness>());
         return services;
+    }
+
+    private static ISyncProvider DecorateLocal(IServiceProvider provider, SqliteSyncProvider sqlite)
+    {
+        var scope = provider.GetRequiredService<DeviceUserScopeProvider>();
+        var preferences = provider.GetRequiredService<IPreferencesService>();
+        return new NativeLocalOnlyMappingExportProvider(
+            sqlite, provider.GetRequiredService<ISyncProviderHttpClient>(),
+            () => scope.TryGetLeasedReadinessOwner(out var owner)
+                && string.Equals(preferences.Get(
+                    UserProfileRepository.ActiveProfileIdKey, string.Empty),
+                    owner, StringComparison.Ordinal)
+                    ? owner : null,
+            provider.GetRequiredService<ILogger<NativeLocalOnlyMappingExportProvider>>());
     }
 }

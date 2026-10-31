@@ -21,7 +21,8 @@ public sealed partial class NativeAuthPresenter(
     NativeResourcePresenter resources,
     SkillProfileRepository skills,
     ILogger<NativeAuthPresenter> logger,
-    INativeProfileRemoteStore? profileRemote = null)
+    INativeProfileRemoteStore? profileRemote = null,
+    Adapters.NativeOwnerStores? ownerStores = null)
 {
     private readonly SemaphoreSlim _gate = new(1, 1);
     private string? _trustedOwnerId;
@@ -273,6 +274,14 @@ public sealed partial class NativeAuthPresenter(
                 || !scope.IsCurrent(current))
                 return RefuseChangedOwner();
 
+            // Each owner reads, writes and syncs only its own device database.
+            if (ownerStores is not null)
+            {
+                await ownerStores.ActivateAsync(owner, cancellationToken);
+                if (!HasAuthenticatedOwner(owner))
+                    return RefuseChangedOwner();
+            }
+
             return await ResolveReadinessAsync(owner, cancellationToken);
         }
         catch
@@ -467,6 +476,8 @@ public sealed partial class NativeAuthPresenter(
 
     private void ClearOwnedScope()
     {
+        // No owner remains signed in: no owner database stays selectable.
+        ownerStores?.Deactivate();
         if (_published is { } published)
             scope.TryClearIfCurrent(published);
         else if (_transition is { } transition)
