@@ -27,8 +27,14 @@ public sealed class NativeQuizSpeechSource(
     DeviceUserScopeProvider scope,
     IHttpMessageHandlerFactory handlers,
     ILogger<SpeechGatewayClient> logger,
-    Uri apiRoot) : INativeQuizSpeechSource
+    Uri apiRoot,
+    TimeSpan? timeout = null) : INativeQuizSpeechSource
 {
+    /// <summary>Bounded wait for synthesized prompt audio or the voice list.</summary>
+    public static TimeSpan DefaultTimeout { get; } = TimeSpan.FromSeconds(10);
+
+    private TimeSpan SpeechTimeout => timeout ?? DefaultTimeout;
+
     public async Task<Stream?> SynthesizeAsync(
         string owner, string promptText, string voiceId, CancellationToken cancellationToken)
     {
@@ -91,11 +97,13 @@ public sealed class NativeQuizSpeechSource(
         {
             InnerHandler = handlers.CreateHandler(OwnerBoundNativeAiGateway.ClientName)
         };
-        // The handler factory owns the pooled inner pipeline.
+        // The handler factory owns the pooled inner pipeline. The quiz waits for autoplayed
+        // prompt audio before presenting each question, so an unanswered request must fall
+        // back to the existing no-audio state quickly rather than after 30 seconds.
         return new HttpClient(bearer, disposeHandler: false)
         {
             BaseAddress = apiRoot,
-            Timeout = TimeSpan.FromSeconds(30)
+            Timeout = SpeechTimeout
         };
     }
 }

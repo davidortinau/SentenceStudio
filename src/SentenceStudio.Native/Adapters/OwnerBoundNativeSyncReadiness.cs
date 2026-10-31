@@ -233,8 +233,12 @@ public static class OwnerBoundNativeSyncReadinessRegistration
 
         services.TryAddTransient<AuthenticatedHttpMessageHandler>();
         services.TryAddTransient<OwnerBoundNativeSyncBearerHandler>();
+        services.TryAddSingleton(NativeSyncTimeouts.Default);
+        services.TryAddTransient<NativeSyncResponseTimeoutHandler>();
+        // Innermost: only the wait for the server's answer is bounded, after the owner checks.
         services.AddHttpClient("HttpClientToServer")
-            .AddHttpMessageHandler<OwnerBoundNativeSyncBearerHandler>();
+            .AddHttpMessageHandler<OwnerBoundNativeSyncBearerHandler>()
+            .AddHttpMessageHandler<NativeSyncResponseTimeoutHandler>();
         services.TryAddSingleton<IRemoteSyncCompletion>(serviceProvider =>
             serviceProvider.GetRequiredService<ISyncService>() switch
             {
