@@ -53,6 +53,12 @@ internal static class DashboardView
                     fillAvailableWidth: true)
                 .WithFlexibleWidth();
             items.Add(switcher);
+            // Local plan/progress is shown, but the last sync did not confirm it with the
+            // server (offline or the server did not answer). Same text as the PendingSync phase.
+            if (state.HasPendingSync)
+                items.Add(style.Text(Views.Text(text("Native_SyncPending")),
+                        SourceTextRole.Caption1, SourceTextTone.Secondary)
+                    .WithAccessibilityIdentifier("native.dashboard.sync.caption"));
         }
         if (state.Mode == NativeDashboardMode.ChooseOwn
             && state.Phase is (NativePhase.Ready or NativePhase.Empty))

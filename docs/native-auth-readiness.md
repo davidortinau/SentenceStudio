@@ -184,6 +184,14 @@ overwriting it. Dates are merged as UTC instants (zone-less client text is
 read as UTC, as the PostgreSQL session already stores it). `DailyPlanCompletion`
 (`MinutesSpent`, completion) remains last-writer-wins: it has no per-event log.
 
+Convergence takes one sync: when a download adopts a server progress Id
+(`NativeProgressIdentityReconciler`) or keeps a local progress row pending on
+conflict, the native local provider asks `SyncService` (via
+`ISyncFollowUpSource`) for one follow-up pass inside the same readiness or
+background run, so the merged row reaches the server immediately instead of on
+the device's next sync. At most one extra pass runs; a request raised by that
+pass waits for the next sync.
+
 ### Sync and speech timeouts
 
 The shared `HttpClientToServer` timeout is 10 minutes so large bodies can
@@ -193,6 +201,18 @@ change-set requests within 120 seconds (the source app's per-attempt timeout).
 A timed-out run saves no anchor, so pending writes stay pending and readiness
 reports the honest unconfirmed state. Quiz speech requests give up after 10
 seconds and use the existing no-audio fallback.
+
+Waits do not stack: `NativeServerReachability` remembers for 45 seconds that
+the API did not answer (a sync or speech timeout, or a refused connection).
+Any HTTP response from the CoreSync, AuthClient, or speech pipelines clears it.
+Inside that window, owner-bound readiness returns `Unconfirmed` without another
+probe (for example Dashboard readiness right after a timed-out sign-in
+restore), quiz speech takes the existing no-audio/connection-error fallback at
+once, and a source `TriggerSyncAsync` that a caller awaits (ProgressService
+session start) continues in the background instead of holding the caller. The
+owner checks still run first, nothing is dropped, and background triggers still
+send. The iOS and Android Dashboards show `Native_SyncPending` while their
+loaded plan/progress has unconfirmed sync.
 
 ### Synchronized owner/reference audit
 

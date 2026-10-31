@@ -163,6 +163,9 @@ public sealed class AndroidPackagingTests
         Assert.Contains("native.auth.signin.progress", composition);
         Assert.Contains("native.dashboard.loading.progress", composition);
         Assert.Contains("native.dashboard.sync.retry", composition);
+        Assert.Contains("Localize(\"Native_SyncPending\")", composition);
+        Assert.Contains("native.dashboard.sync.caption", composition);
+        Assert.DoesNotContain("DebugHealth_CoreSync", composition);
         Assert.Contains("native.quiz.loading.progress", composition);
     }
 

@@ -104,6 +104,16 @@ public sealed class NativeSwiftUIDashboardContractTests
     }
 
     [Fact]
+    public void ReadyDashboardWithUnconfirmedSync_ShowsThePendingSyncText()
+    {
+        var dashboard = Source("Features/Dashboard/DashboardView.cs");
+        var caption = dashboard[dashboard.IndexOf("if (state.HasPendingSync)", StringComparison.Ordinal)..];
+        Assert.Contains("text(\"Native_SyncPending\")", caption);
+        Assert.Contains("native.dashboard.sync.caption", caption);
+        Assert.DoesNotContain("DebugHealth_CoreSync", dashboard);
+    }
+
+    [Fact]
     public void DashboardPendingSyncIsNotPassiveCopyAndProgressFitsPhoneViewport()
     {
         var feature = Source("Features/Dashboard/TodaysPlanView.cs");

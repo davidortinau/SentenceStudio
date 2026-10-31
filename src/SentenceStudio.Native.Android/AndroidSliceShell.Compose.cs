@@ -317,10 +317,11 @@ internal sealed partial class AndroidSliceShell
             && state.Mode == NativeDashboardMode.ChooseOwn
             && (state.Phase is NativePhase.Ready or NativePhase.Empty)
             && HasDashboardOwner(Auth.UserId);
-        if (state.HasPendingSync)
-            viewport.Add(StatusAlert(
-                $"{Localize("DebugHealth_CoreSync")}: " +
-                Localize("DebugHealth_Pending"), palette));
+        // Same honest text as the iOS Dashboard and its PendingSync phase.
+        if (state.HasPendingSync
+            && state.Phase is NativePhase.Ready or NativePhase.Empty)
+            viewport.Add(StatusAlert(Localize("Native_SyncPending"), palette,
+                automationId: "native.dashboard.sync.caption"));
         if (chooseMode)
             viewport.Add(RenderChooseOwn(palette));
         else
