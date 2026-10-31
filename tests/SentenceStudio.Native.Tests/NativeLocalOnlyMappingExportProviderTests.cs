@@ -1,11 +1,14 @@
 using CoreSync;
+using CoreSync.Http.Client;
 using CoreSync.Sqlite;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using SentenceStudio;
 using SentenceStudio.Data;
 using SentenceStudio.Native.Adapters;
+using SentenceStudio.Services;
 using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Native.Tests;
@@ -265,6 +268,44 @@ public sealed class NativeLocalOnlyMappingExportProviderTests
             Assert.Equal(2, await db.VocabularyLearningContexts
                 .CountAsync(context => context.VocabularyProgressId == serverProgress));
         }
+    }
+
+    [Fact]
+    public async Task ConcurrentFirstProgress_OneAppSync_ConvergesBothSides()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var ids = await SeedConcurrentFirstProgressAsync(fixture);
+        var remote = new HttpRemote(fixture.Server);
+        using var services = new ServiceCollection().BuildServiceProvider();
+        var sync = new SyncService(fixture.Native, remote,
+            NullLogger<SyncService>.Instance, services);
+
+        // The download adopts the server Id; the same readiness run then uploads the merge.
+        await sync.SynchronizeForReadinessAsync(CancellationToken.None);
+        await AssertConvergedAsync(fixture, ids);
+        Assert.Equal(2, remote.Passes);
+
+        // Nothing merged: one pass, and the converged rows stay as they are.
+        remote.Passes = 0;
+        await sync.SynchronizeForReadinessAsync(CancellationToken.None);
+        Assert.Equal(1, remote.Passes);
+        await AssertConvergedAsync(fixture, ids);
+    }
+
+    [Fact]
+    public async Task FollowUpPass_IsBounded_EvenWhenEveryDownloadAsksForAnother()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var remote = new HttpRemote(fixture.Server);
+        using var services = new ServiceCollection().BuildServiceProvider();
+        var sync = new SyncService(new AlwaysFollowUp(fixture.Native), remote,
+            NullLogger<SyncService>.Instance, services);
+
+        await sync.SynchronizeForReadinessAsync(CancellationToken.None);
+        Assert.Equal(2, remote.Passes);
+        remote.Passes = 0;
+        await sync.TriggerSyncAsync();
+        Assert.Equal(2, remote.Passes);
     }
 
     [Fact]
@@ -701,6 +742,67 @@ public sealed class NativeLocalOnlyMappingExportProviderTests
             }
             return inner.ApplyChangesAsync(changes, onConflict, ct);
         }
+    }
+
+    /// <summary>The app's HTTP remote surface over the in-memory server; counts sync passes.</summary>
+    private sealed class HttpRemote(ISyncProviderBase inner) : ISyncProviderHttpClient
+    {
+        public int Passes { get; set; }
+#pragma warning disable CS0067 // Progress is not reported by the in-memory server.
+        public event EventHandler<SyncProgressEventArgs>? SyncProgress;
+#pragma warning restore CS0067
+        public string[]? SyncTableNames => inner.SyncTableNames;
+        public Task<Guid> GetStoreIdAsync(CancellationToken ct = default)
+        {
+            Passes++;
+            return inner.GetStoreIdAsync(ct);
+        }
+        public Task SaveVersionForStoreAsync(
+            Guid storeId, long version, CancellationToken ct = default) =>
+            inner.SaveVersionForStoreAsync(storeId, version, ct);
+        public Task<SyncChangeSet> GetChangesAsync(
+            Guid storeId, SyncFilterParameter[]? filters = null,
+            SyncDirection direction = SyncDirection.UploadAndDownload,
+            string[]? tables = null, CancellationToken ct = default) =>
+            inner.GetChangesAsync(storeId, filters, direction, tables, ct);
+        public Task<SyncAnchor> ApplyChangesAsync(
+            SyncChangeSet changes, Func<SyncItem, ConflictResolution>? onConflict = null,
+            CancellationToken ct = default) =>
+            inner.ApplyChangesAsync(changes, onConflict, ct);
+    }
+
+    /// <summary>A local provider whose every download asks for a follow-up upload.</summary>
+    private sealed class AlwaysFollowUp(ISyncProvider inner) : ISyncProvider, ISyncFollowUpSource
+    {
+        public bool TakeFollowUpRequest() => true;
+        public string[]? SyncTableNames => inner.SyncTableNames;
+        public Task<Guid> GetStoreIdAsync(CancellationToken ct = default) =>
+            inner.GetStoreIdAsync(ct);
+        public Task SaveVersionForStoreAsync(
+            Guid storeId, long version, CancellationToken ct = default) =>
+            inner.SaveVersionForStoreAsync(storeId, version, ct);
+        public Task<SyncChangeSet> GetChangesAsync(
+            Guid storeId, SyncFilterParameter[]? filters = null,
+            SyncDirection direction = SyncDirection.UploadAndDownload,
+            string[]? tables = null, CancellationToken ct = default) =>
+            inner.GetChangesAsync(storeId, filters, direction, tables, ct);
+        public Task<SyncAnchor> ApplyChangesAsync(
+            SyncChangeSet changes, Func<SyncItem, ConflictResolution>? onConflict = null,
+            CancellationToken ct = default) =>
+            inner.ApplyChangesAsync(changes, onConflict, ct);
+        public Task ApplyProvisionAsync(CancellationToken ct = default) =>
+            inner.ApplyProvisionAsync(ct);
+        public Task RemoveProvisionAsync(CancellationToken ct = default) =>
+            inner.RemoveProvisionAsync(ct);
+        public Task<SyncVersion> GetSyncVersionAsync(CancellationToken ct = default) =>
+            inner.GetSyncVersionAsync(ct);
+        public Task<SyncVersion> ApplyRetentionPolicyAsync(
+            int minVersion, CancellationToken ct = default) =>
+            inner.ApplyRetentionPolicyAsync(minVersion, ct);
+        public Task EnableChangeTrackingForTable(string tableName, CancellationToken ct = default) =>
+            inner.EnableChangeTrackingForTable(tableName, ct);
+        public Task DisableChangeTrackingForTable(string tableName, CancellationToken ct = default) =>
+            inner.DisableChangeTrackingForTable(tableName, ct);
     }
 
     private sealed class FailLocalSave(ISyncProviderBase inner) : ISyncProviderBase

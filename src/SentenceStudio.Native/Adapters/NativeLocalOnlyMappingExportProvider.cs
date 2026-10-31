@@ -2,6 +2,7 @@ using CoreSync;
 using CoreSync.Sqlite;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.Logging;
+using SentenceStudio.Services;
 
 namespace SentenceStudio.Native.Adapters;
 
@@ -19,8 +20,16 @@ internal sealed class NativeLocalOnlyMappingExportProvider(
     ILogger<NativeLocalOnlyMappingExportProvider> logger,
     // Test seam only: wraps the local CoreSync apply to simulate interruption.
     Func<SyncChangeSet, Func<SyncItem, ConflictResolution>?, CancellationToken,
-        Task<SyncAnchor>>? applyLocalOverride = null) : ISyncProvider
+        Task<SyncAnchor>>? applyLocalOverride = null) : ISyncProvider, ISyncFollowUpSource
 {
+    private int _followUpRequested;
+
+    /// <summary>
+    /// A download that adopted a server Id or kept a local progress row pending leaves a
+    /// merged local row that only an upload sends; SyncService then uploads it in the same run.
+    /// </summary>
+    public bool TakeFollowUpRequest() => Interlocked.Exchange(ref _followUpRequested, 0) == 1;
+
     private const string MappingTable = "ResourceVocabularyMapping";
     private const string ResourceTable = "LearningResource";
 
@@ -42,9 +51,11 @@ internal sealed class NativeLocalOnlyMappingExportProvider(
             return await ApplyLocalAsync(changeSet, onConflictFunc, cancellationToken);
 
         // Committed before the apply: the adopted rows already hold the merged history.
-        await new NativeProgressIdentityReconciler(
+        var adopted = await new NativeProgressIdentityReconciler(
                 local.Configuration.ConnectionString, logger)
             .ReconcileAsync(changeSet, owner, cancellationToken);
+        if (adopted.Count > 0)
+            Volatile.Write(ref _followUpRequested, 1);
 
         // A downloaded progress row conflicts only when this device changed the same row
         // after its last upload: an adopted merge above, or an attempt recorded while this
@@ -62,6 +73,7 @@ internal sealed class NativeLocalOnlyMappingExportProvider(
 
     private ConflictResolution KeepLocalProgress(SyncItem item)
     {
+        Volatile.Write(ref _followUpRequested, 1);
         logger.LogInformation(
             "Native sync kept local VocabularyProgress {Id} pending; its next upload merges the server row.",
             item.Values.TryGetValue("Id", out var id) ? id?.Value : null);

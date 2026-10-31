@@ -32,6 +32,17 @@ public interface IRemoteSyncCompletion
     Task SynchronizeForReadinessAsync(CancellationToken cancellationToken);
 }
 
+/// <summary>
+/// Implemented by a local provider whose download can leave a local row that only an
+/// upload sends to the server (for example a merge of two devices' concurrent progress).
+/// <see cref="SyncService"/> then runs at most one follow-up pass in the same sync.
+/// </summary>
+public interface ISyncFollowUpSource
+{
+    /// <summary>Returns and clears whether the last download asked for a follow-up upload.</summary>
+    bool TakeFollowUpRequest();
+}
+
 public class NoOpSyncService : ISyncService
 {
     public Task InitializeDatabaseAsync() => Task.CompletedTask;
@@ -377,6 +388,22 @@ public class SyncService : ISyncService, IRemoteSyncCompletion
     {
         await _localSyncProvider.ApplyProvisionAsync(cancellationToken);
 
+        var followUp = _localSyncProvider as ISyncFollowUpSource;
+        // A request left by an earlier failed run is answered by this run's own upload.
+        followUp?.TakeFollowUpRequest();
+        await SynchronizePassAsync(cancellationToken);
+        if (followUp?.TakeFollowUpRequest() != true)
+            return;
+
+        // The download merged rows that only an upload sends; send them now instead of on
+        // the next sync. Bounded: a request raised by this pass waits for the next sync.
+        _logger.LogInformation("Sync: running one follow-up pass to upload rows merged during the download");
+        await SynchronizePassAsync(cancellationToken);
+        followUp.TakeFollowUpRequest();
+    }
+
+    private async Task SynchronizePassAsync(CancellationToken cancellationToken)
+    {
         var syncAgent = new SyncAgent(_localSyncProvider, _remoteSyncProvider);
 
         // With GUID PKs, INSERT conflicts only occur for truly duplicate records.

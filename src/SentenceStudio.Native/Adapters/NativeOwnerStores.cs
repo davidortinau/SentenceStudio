@@ -346,8 +346,11 @@ internal sealed class NativeOwnerStoreWriteGuard(string owner) : SaveChangesInte
 internal sealed class NativeOwnerSyncProviderRouter(
     NativeOwnerStores stores,
     DeviceUserScopeProvider scope,
-    Func<string, ISyncProvider> create) : ISyncProvider
+    Func<string, ISyncProvider> create) : ISyncProvider, ISyncFollowUpSource
 {
+    public bool TakeFollowUpRequest() =>
+        Current is ISyncFollowUpSource followUp && followUp.TakeFollowUpRequest();
+
     private readonly ConcurrentDictionary<string, ISyncProvider> _providers =
         new(StringComparer.Ordinal);
 
