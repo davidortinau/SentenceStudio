@@ -161,6 +161,39 @@ format. The derived cursor's version must not change casually: replacing an
 in-use alias without copying its versions would replay existing rows and
 rewrite mixed local/UTC SQLite timestamps.
 
+### Concurrent attempts on one progress row
+
+Two devices (or a device and the WebApp) that practice a word both already
+have share one `VocabularyProgress` Id. CoreSync's update is last-writer-wins,
+so the server used to keep only one side's counted attempts while every
+`VocabularyLearningContext` (one per attempt or exposure) survived.
+
+`NativeOwnerSyncProvider` now calls `VocabularyProgressConcurrentMerge` for an
+authenticated native upload while it holds the upload lock. For each uploaded
+row the server already stores, the merge is the stored row plus only the
+uploaded contexts the server does not hold yet, scored with the live attempt
+path (a chronological replay when every counted attempt has a context). An
+upload whose counters already include the stored row is applied unchanged, and
+a re-sent upload adds nothing because contexts are matched by Id. The merged
+values are force-written in CoreSync's own transaction with the contexts, then
+the row is touched as a server-origin change so the uploading device downloads
+the merged row in the same sync. If that touch is lost, the next upload merges
+again. On the device, a downloaded progress row that conflicts with a local
+change made during the sync keeps the local row pending instead of
+overwriting it. Dates are merged as UTC instants (zone-less client text is
+read as UTC, as the PostgreSQL session already stores it). `DailyPlanCompletion`
+(`MinutesSpent`, completion) remains last-writer-wins: it has no per-event log.
+
+### Sync and speech timeouts
+
+The shared `HttpClientToServer` timeout is 10 minutes so large bodies can
+transfer. Native heads add `NativeSyncResponseTimeoutHandler`: the store-id
+read that starts every CoreSync run must start answering within 10 seconds,
+change-set requests within 120 seconds (the source app's per-attempt timeout).
+A timed-out run saves no anchor, so pending writes stay pending and readiness
+reports the honest unconfirmed state. Quiz speech requests give up after 10
+seconds and use the existing no-audio fallback.
+
 ### Synchronized owner/reference audit
 
 The table set below is shared by SQLite and PostgreSQL in
