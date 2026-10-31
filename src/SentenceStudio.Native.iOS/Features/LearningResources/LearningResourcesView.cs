@@ -237,10 +237,13 @@ internal static class LearningResourcesView
         for (var index = 0; index < choices.Length; index++)
         {
             var choice = index;
-            choices[index] = Views.Button(
-                    Views.HStack(Views.Text(values[index]).WithFlexibleWidth(),
-                        Views.Image("checkmark")
-                            .WithOpacity(index == selectedIndex ? 1 : 0)),
+            // iOS menu rows ignore opacity on their image, so only the selected
+            // row may carry the checkmark (the source select marks one option).
+            var optionLabel = index == selectedIndex
+                ? Views.HStack(Views.Text(values[index]).WithFlexibleWidth(),
+                    Views.Image("checkmark"))
+                : Views.Text(values[index]);
+            choices[index] = Views.Button(optionLabel,
                     () => changed(choice == 0 ? null : values[choice]))
                 .WithAccessibilityLabel(values[index])
                 .WithAccessibilitySelected(index == selectedIndex);

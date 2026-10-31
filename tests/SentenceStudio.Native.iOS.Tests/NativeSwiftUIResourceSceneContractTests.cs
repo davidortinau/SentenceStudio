@@ -30,8 +30,8 @@ public sealed class NativeSwiftUIResourceSceneContractTests
         Assert.Contains("menu.Children[0].Children[0].Text = nextMenu.Text;",
             update);
         Assert.Contains("option.WithAccessibilitySelected(selected);", update);
-        Assert.Contains("option.Children[0].Children[1].WithOpacity(selected ? 1 : 0);",
-            update);
+        Assert.DoesNotContain("WithOpacity(selected", update);
+        Assert.Contains("option.Add(label);", update);
         Assert.Contains("menu.Text = nextMenu.Text;", update);
         Assert.DoesNotContain("picker.SelectedIndex", update);
         Assert.Contains("var modes = controls.Children[1];", update);
@@ -60,6 +60,9 @@ public sealed class NativeSwiftUIResourceSceneContractTests
                 StringComparison.Ordinal)];
 
         Assert.Contains("var page = Views.Scroll(scrollContent)", page);
+        // iOS menus ignore image opacity: only the selected filter row has a checkmark.
+        Assert.DoesNotContain(".WithOpacity(index == selectedIndex", browser);
+        Assert.Contains("var optionLabel = index == selectedIndex", browser);
         Assert.DoesNotContain("Views.List(", page);
         Assert.Contains("items.Add(search);", page);
         Assert.Contains("items.Add(controls);", page);
@@ -79,7 +82,7 @@ public sealed class NativeSwiftUIResourceSceneContractTests
         Assert.Contains("menu.Children[option].Text != nextMenu.Children[option].Text",
             scene);
         Assert.Contains("menu.Children[0].Children[0].Kind != \"text\"", scene);
-        Assert.Contains("menu.Children[option].Children[0].Children[1].Kind != \"image\"",
+        Assert.Contains("!IsFilterOptionLabel(menu.Children[option].Children[0])",
             scene);
     }
 

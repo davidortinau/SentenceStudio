@@ -438,9 +438,20 @@ internal sealed partial class ApplicationScene : IDisposable
                     optionIndex++)
                 {
                     var option = menu.Children[optionIndex];
+                    var nextOption = nextMenu.Children[optionIndex];
                     var selected = option.Text == nextMenu.Text;
                     option.WithAccessibilitySelected(selected);
-                    option.Children[0].Children[1].WithOpacity(selected ? 1 : 0);
+                    // iOS menu rows drop image opacity, so only the selected row
+                    // carries a checkmark; move the rebuilt label into place.
+                    if (option.Children[0].Kind != nextOption.Children[0].Kind)
+                    {
+                        var label = nextOption.Children[0];
+                        nextOption.RemoveAt(0);
+                        var previous = option.Children[0];
+                        option.RemoveAt(0);
+                        previous.Dispose();
+                        option.Add(label);
+                    }
                 }
             }
         }
@@ -503,6 +514,13 @@ internal sealed partial class ApplicationScene : IDisposable
         _resourcesSearch = search;
     }
 
+    /// <summary>A filter row is plain text, or text plus the selected checkmark.</summary>
+    private static bool IsFilterOptionLabel(SwiftView label) =>
+        label.Kind == "text"
+        || label.Kind == "hstack" && label.Children.Count == 2
+            && label.Children[0].Kind == "text"
+            && label.Children[1].Kind == "image";
+
     private static bool SameBrowserControls(SwiftView currentPage, SwiftView nextPage)
     {
         if (currentPage.Kind != "scroll" || nextPage.Kind != "scroll"
@@ -549,14 +567,8 @@ internal sealed partial class ApplicationScene : IDisposable
                     || nextMenu.Children[option].Kind != "button"
                     || menu.Children[option].Children.Count != 1
                     || nextMenu.Children[option].Children.Count != 1
-                    || menu.Children[option].Children[0].Kind != "hstack"
-                    || nextMenu.Children[option].Children[0].Kind != "hstack"
-                    || menu.Children[option].Children[0].Children.Count != 2
-                    || nextMenu.Children[option].Children[0].Children.Count != 2
-                    || menu.Children[option].Children[0].Children[0].Kind != "text"
-                    || nextMenu.Children[option].Children[0].Children[0].Kind != "text"
-                    || menu.Children[option].Children[0].Children[1].Kind != "image"
-                    || nextMenu.Children[option].Children[0].Children[1].Kind != "image"
+                    || !IsFilterOptionLabel(menu.Children[option].Children[0])
+                    || !IsFilterOptionLabel(nextMenu.Children[option].Children[0])
                     || menu.Children[option].Text != nextMenu.Children[option].Text)
                     return false;
         }

@@ -223,9 +223,8 @@ public sealed class NativeSourceStylingContractTests
             + "            .WithFlexibleWidth());", filter);
         Assert.Contains("menuLabel.Spacing = SourceUiLayout.ItemGap;", filter);
         Assert.Contains("var menu = Views.Menu(menuLabel, choices)", filter);
-        Assert.Contains("Views.Image(\"checkmark\")\n"
-            + "                            .WithOpacity(index == selectedIndex ? 1 : 0)",
-            filter);
+        Assert.Contains("var optionLabel = index == selectedIndex", filter);
+        Assert.DoesNotContain(".WithOpacity(index == selectedIndex", filter);
         Assert.DoesNotContain("style.Input(Views.Menu(", filter);
         Assert.DoesNotContain("Views.Picker(", filter);
         Assert.DoesNotContain(".WithLineLimit(", filter);
