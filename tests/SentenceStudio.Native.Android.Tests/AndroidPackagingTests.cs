@@ -295,7 +295,7 @@ public sealed class AndroidPackagingTests
     [Theory]
     [InlineData("AppResources.resx")]
     [InlineData("AppResources.ko.resx")]
-    public void QuizDetailsRemainUnreachableWhileMetricLabelsAreMissing(
+    public void QuizDetailsLabelsExistButAndroidDetailsAreNotYetExposed(
         string culture)
     {
         var resources = XDocument.Load(Path.Combine(HeadRoot, "..",
@@ -313,7 +313,10 @@ public sealed class AndroidPackagingTests
             "RecognitionDemonstrations"
         }.Where(suffix => !keys.Contains("NativeVocabQuiz_Details_" + suffix))
             .ToArray();
-        Assert.NotEmpty(missing);
+        // The shared Learning Details labels now exist (iOS shows the sheet).
+        // Android parity for the Details control is a tracked follow-up; until
+        // it lands, the Compose head must not expose a half-built control.
+        Assert.Empty(missing);
         Assert.DoesNotContain("new IconButton(OpenDetails", File.ReadAllText(
             Path.Combine(HeadRoot, "AndroidSliceShell.Compose.cs")));
     }
