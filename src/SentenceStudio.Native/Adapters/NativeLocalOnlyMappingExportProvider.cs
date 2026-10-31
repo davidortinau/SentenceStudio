@@ -16,7 +16,10 @@ internal sealed class NativeLocalOnlyMappingExportProvider(
     SqliteSyncProvider local,
     ISyncProviderBase remote,
     Func<string?> activeOwner,
-    ILogger<NativeLocalOnlyMappingExportProvider> logger) : ISyncProvider
+    ILogger<NativeLocalOnlyMappingExportProvider> logger,
+    // Test seam only: wraps the local CoreSync apply to simulate interruption.
+    Func<SyncChangeSet, Func<SyncItem, ConflictResolution>?, CancellationToken,
+        Task<SyncAnchor>>? applyLocalOverride = null) : ISyncProvider
 {
     private const string MappingTable = "ResourceVocabularyMapping";
     private const string ResourceTable = "LearningResource";
@@ -36,28 +39,34 @@ internal sealed class NativeLocalOnlyMappingExportProvider(
     {
         if (activeOwner() is not { Length: > 0 } owner
             || !Guid.TryParse(owner, out var ownerId) || ownerId == Guid.Empty)
-            return await local.ApplyChangesAsync(changeSet, onConflictFunc, cancellationToken);
+            return await ApplyLocalAsync(changeSet, onConflictFunc, cancellationToken);
 
-        var reconciler = new NativeProgressIdentityReconciler(
-            local.Configuration.ConnectionString, logger);
-        var adoptions = await reconciler.AdoptRemoteIdsAsync(changeSet, owner, cancellationToken);
-        if (adoptions.Count == 0)
-            return await local.ApplyChangesAsync(changeSet, onConflictFunc, cancellationToken);
+        // Committed before the apply: the adopted rows already hold the merged history.
+        var adopted = await new NativeProgressIdentityReconciler(
+                local.Configuration.ConnectionString, logger)
+            .ReconcileAsync(changeSet, owner, cancellationToken);
+        if (adopted.Count == 0)
+            return await ApplyLocalAsync(changeSet, onConflictFunc, cancellationToken);
 
-        // The adopted row now has a local change, so the server row arrives as a
-        // conflict. Take the server values; FoldAsync then restores the local history.
-        var adopted = adoptions.Select(adoption => adoption.Remote.Id)
-            .ToHashSet(StringComparer.Ordinal);
-        var anchor = await local.ApplyChangesAsync(changeSet, item =>
+        // The merged row has newer local changes, so the server row arrives as a conflict.
+        // Keep the merged row (it already folds the server values in) and let the server's
+        // contexts insert under it; it uploads as an ordinary update on the next sync.
+        return await ApplyLocalAsync(changeSet, item =>
             item.TableName == NativeProgressIdentityReconciler.ProgressTable
+                && item.ChangeType != ChangeType.Delete
                 && item.Values.TryGetValue("Id", out var id)
                 && id?.Value is string value && adopted.Contains(value)
-                ? ConflictResolution.ForceWrite
+                ? ConflictResolution.Skip
                 : onConflictFunc?.Invoke(item) ?? ConflictResolution.Skip,
             cancellationToken);
-        await reconciler.FoldAsync(adoptions, owner, cancellationToken);
-        return anchor;
     }
+
+    private Task<SyncAnchor> ApplyLocalAsync(
+        SyncChangeSet changeSet, Func<SyncItem, ConflictResolution>? onConflictFunc,
+        CancellationToken cancellationToken) =>
+        applyLocalOverride is null
+            ? local.ApplyChangesAsync(changeSet, onConflictFunc, cancellationToken)
+            : applyLocalOverride(changeSet, onConflictFunc, cancellationToken);
 
     public Task ApplyProvisionAsync(CancellationToken cancellationToken = default) =>
         local.ApplyProvisionAsync(cancellationToken);

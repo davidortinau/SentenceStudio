@@ -294,6 +294,229 @@ public sealed class NativeLocalOnlyMappingExportProviderTests
         }
     }
 
+    [Fact]
+    public async Task ConcurrentFirstProgress_CancelledInsideApply_NextSyncKeepsMergedHistoryOnBothSides()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var ids = await SeedConcurrentFirstProgressAsync(fixture);
+        var conflicts = new List<ConflictResolution>();
+        // Cancel inside the CoreSync apply transaction, right after it resolved the
+        // adopted row's conflict (for example the user navigated away mid-sync).
+        var interrupted = fixture.NativeWith((changes, onConflict, ct) =>
+            fixture.Local.Provider.ApplyChangesAsync(changes, item =>
+            {
+                var resolution = onConflict!(item);
+                conflicts.Add(resolution);
+                throw new OperationCanceledException("Sync cancelled mid-apply.");
+            }, ct));
+
+        var failure = await Assert.ThrowsAsync<SynchronizationException>(() =>
+            fixture.SynchronizeLikeAppAsync(interrupted));
+        Assert.IsAssignableFrom<OperationCanceledException>(failure.InnerException);
+        Assert.Equal([ConflictResolution.Skip], conflicts);
+        await AssertMergedLocalRowAsync(fixture, ids, expectServerContext: false);
+
+        await fixture.SynchronizeLikeAppAsync();
+        await AssertConvergedAsync(fixture, ids);
+        // A further round trip neither double counts nor loses anything.
+        await fixture.SynchronizeLikeAppAsync();
+        await AssertConvergedAsync(fixture, ids);
+    }
+
+    [Fact]
+    public async Task ConcurrentFirstProgress_InterruptedBeforeApply_LeavesCompleteMergedRow()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var ids = await SeedConcurrentFirstProgressAsync(fixture);
+        var applied = false;
+        var interrupted = fixture.NativeWith((_, _, _) =>
+        {
+            applied = true;
+            throw new OperationCanceledException("Sync cancelled before apply.");
+        });
+
+        await Assert.ThrowsAsync<SynchronizationException>(() =>
+            fixture.SynchronizeLikeAppAsync(interrupted));
+        Assert.True(applied);
+        // No half state: the rename never exists without the folded history.
+        await AssertMergedLocalRowAsync(fixture, ids, expectServerContext: false);
+        await using (var db = fixture.Remote.OpenContext())
+        {
+            var server = await db.VocabularyProgresses.SingleAsync();
+            Assert.Equal(1, server.TotalAttempts);
+        }
+
+        // The merged row uploads first; the server keeps the other device's history too.
+        await fixture.SynchronizeLikeAppAsync();
+        await AssertConvergedAsync(fixture, ids);
+    }
+
+    [Fact]
+    public async Task NonCollidingProgressDownload_IsAppliedUnchanged()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var serverProgress = Guid.NewGuid().ToString();
+        var t0 = new DateTime(2026, 10, 31, 14, 53, 35).AddTicks(1234567);
+        VocabularyProgress expected;
+        await using (var db = fixture.Remote.OpenContext())
+        {
+            expected = Progress(serverProgress, Owner, t0);
+            db.VocabularyProgresses.Add(expected);
+            db.VocabularyLearningContexts.Add(Attempt(Guid.NewGuid().ToString(), serverProgress, t0));
+            await db.SaveChangesAsync();
+        }
+
+        await fixture.SynchronizeLikeAppAsync();
+        await using var local = fixture.Local.OpenContext();
+        var row = await local.VocabularyProgresses.SingleAsync();
+        Assert.Equal(serverProgress, row.Id);
+        Assert.Equal(expected.TotalAttempts, row.TotalAttempts);
+        Assert.Equal(expected.MasteryScore, row.MasteryScore);
+        Assert.Equal(expected.NextReviewDate, row.NextReviewDate);
+        Assert.Equal(expected.FirstSeenAt, row.FirstSeenAt);
+        Assert.Equal(expected.UpdatedAt, row.UpdatedAt);
+        Assert.Equal(1, await local.VocabularyLearningContexts.CountAsync());
+    }
+
+    [Fact]
+    public async Task ForeignOwnerCollision_IsNeverMerged()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var t0 = new DateTime(2026, 10, 31, 14, 53, 35);
+        await using (var db = fixture.Remote.OpenContext())
+        {
+            db.UserProfiles.Add(new UserProfile { Id = OtherOwner, Email = "other@example.test" });
+            await db.SaveChangesAsync();
+        }
+        await fixture.SynchronizeLikeAppAsync();
+
+        var foreignLocal = Guid.NewGuid().ToString();
+        var foreignServer = Guid.NewGuid().ToString();
+        await using (var db = fixture.Local.OpenContext())
+        {
+            db.VocabularyProgresses.Add(Progress(foreignLocal, OtherOwner, t0));
+            await db.SaveChangesAsync();
+        }
+        await using (var db = fixture.Remote.OpenContext())
+        {
+            db.VocabularyProgresses.Add(Progress(foreignServer, OtherOwner, t0.AddMinutes(1)));
+            await db.SaveChangesAsync();
+        }
+
+        await fixture.SynchronizeLikeAppAsync();
+        await using (var db = fixture.Local.OpenContext())
+        {
+            var row = await db.VocabularyProgresses.SingleAsync();
+            Assert.Equal(foreignLocal, row.Id);
+            Assert.Equal(1, row.TotalAttempts);
+            Assert.Equal(t0, row.UpdatedAt);
+        }
+        await using (var db = fixture.Remote.OpenContext())
+        {
+            var row = await db.VocabularyProgresses.SingleAsync();
+            Assert.Equal(foreignServer, row.Id);
+            Assert.Equal(1, row.TotalAttempts);
+            Assert.Equal(t0.AddMinutes(1), row.UpdatedAt);
+        }
+    }
+
+    [Fact]
+    public void DownloadedDateTimes_ConvertExactly()
+    {
+        var ticks = new DateTime(2026, 10, 31, 14, 53, 35).AddTicks(1234567).Ticks;
+
+        var unspecified = (DateTime)NativeProgressIdentityReconciler.ConvertValue(
+            "2026-10-31 14:53:35.1234567", typeof(DateTime));
+        Assert.Equal(ticks, unspecified.Ticks);
+        Assert.Equal(DateTimeKind.Unspecified, unspecified.Kind);
+
+        var utc = (DateTime)NativeProgressIdentityReconciler.ConvertValue(
+            "2026-10-31T14:53:35.1234567Z", typeof(DateTime?));
+        Assert.Equal(ticks, utc.Ticks);
+        Assert.Equal(DateTimeKind.Utc, utc.Kind);
+
+        var typed = new DateTime(ticks, DateTimeKind.Local);
+        var kept = (DateTime)NativeProgressIdentityReconciler.ConvertValue(typed, typeof(DateTime));
+        Assert.Equal(typed.Ticks, kept.Ticks);
+        Assert.Equal(DateTimeKind.Local, kept.Kind);
+
+        var instant = (DateTime)NativeProgressIdentityReconciler.ConvertValue(
+            new DateTimeOffset(ticks, TimeSpan.FromHours(9)), typeof(DateTime));
+        Assert.Equal(ticks - TimeSpan.FromHours(9).Ticks, instant.Ticks);
+        Assert.Equal(DateTimeKind.Utc, instant.Kind);
+    }
+
+    private sealed record ConcurrentIds(
+        string ServerProgress, string ServerContext, string LocalProgress, string LocalContext,
+        DateTime ServerFirstSeen, DateTime LocalLastPracticed);
+
+    /// <summary>
+    /// The other device already uploaded its first progress for the word; this device made its
+    /// own first progress for the same word offline. Times carry sub-second ticks.
+    /// </summary>
+    private static async Task<ConcurrentIds> SeedConcurrentFirstProgressAsync(Fixture fixture)
+    {
+        var ids = new ConcurrentIds(
+            Guid.NewGuid().ToString(), Guid.NewGuid().ToString(),
+            Guid.NewGuid().ToString(), Guid.NewGuid().ToString(),
+            new DateTime(2026, 10, 31, 14, 53, 35).AddTicks(1234567),
+            new DateTime(2026, 10, 31, 14, 55, 35).AddTicks(7654321));
+        await using (var db = fixture.Remote.OpenContext())
+        {
+            db.VocabularyProgresses.Add(Progress(ids.ServerProgress, Owner, ids.ServerFirstSeen));
+            db.VocabularyLearningContexts.Add(
+                Attempt(ids.ServerContext, ids.ServerProgress, ids.ServerFirstSeen));
+            await db.SaveChangesAsync();
+        }
+        await using (var db = fixture.Local.OpenContext())
+        {
+            db.VocabularyProgresses.Add(Progress(ids.LocalProgress, Owner, ids.LocalLastPracticed));
+            db.VocabularyLearningContexts.Add(
+                Attempt(ids.LocalContext, ids.LocalProgress, ids.LocalLastPracticed));
+            await db.SaveChangesAsync();
+        }
+        return ids;
+    }
+
+    private static void AssertMerged(VocabularyProgress row, ConcurrentIds ids)
+    {
+        Assert.Equal(ids.ServerProgress, row.Id);
+        Assert.Equal(Owner, row.UserId);
+        Assert.Equal(2, row.TotalAttempts);
+        Assert.Equal(2, row.CorrectAttempts);
+        Assert.Equal(2, row.QuizRecognitionDemonstrations);
+        Assert.Equal(2, row.RecognitionAttempts);
+        Assert.Equal(2, row.MultipleChoiceCorrect);
+        Assert.Equal(2f, row.CurrentStreak);
+        Assert.Equal(ids.ServerFirstSeen, row.FirstSeenAt);
+        Assert.Equal(ids.ServerFirstSeen, row.CreatedAt);
+        Assert.Equal(ids.LocalLastPracticed, row.LastPracticedAt);
+    }
+
+    private static async Task AssertMergedLocalRowAsync(
+        Fixture fixture, ConcurrentIds ids, bool expectServerContext)
+    {
+        await using var db = fixture.Local.OpenContext();
+        AssertMerged(await db.VocabularyProgresses.SingleAsync(), ids);
+        var contexts = await db.VocabularyLearningContexts
+            .Select(context => new { context.Id, context.VocabularyProgressId }).ToListAsync();
+        Assert.All(contexts, context => Assert.Equal(ids.ServerProgress, context.VocabularyProgressId));
+        Assert.Contains(contexts, context => context.Id == ids.LocalContext);
+        Assert.Equal(expectServerContext, contexts.Any(context => context.Id == ids.ServerContext));
+    }
+
+    private static async Task AssertConvergedAsync(Fixture fixture, ConcurrentIds ids)
+    {
+        await AssertMergedLocalRowAsync(fixture, ids, expectServerContext: true);
+        await using var db = fixture.Remote.OpenContext();
+        AssertMerged(await db.VocabularyProgresses.SingleAsync(), ids);
+        Assert.Equal(
+            new[] { ids.LocalContext, ids.ServerContext }.Order(),
+            (await db.VocabularyLearningContexts
+                .Where(context => context.VocabularyProgressId == ids.ServerProgress)
+                .Select(context => context.Id).ToListAsync()).Order());
+    }
+
     private static VocabularyProgress Progress(string id, string owner, DateTime at) => new()
     {
         Id = id, UserId = owner, VocabularyWordId = Word, TotalAttempts = 1,
@@ -332,7 +555,14 @@ public sealed class NativeLocalOnlyMappingExportProviderTests
         public Store Remote { get; }
         public RejectingRemote Server { get; }
         public ISyncProvider Native { get; }
-        public Guid RemoteId => Remote.Provider.GetStoreIdAsync().GetAwaiter().GetResult();
+        public ISyncProvider NativeWith(
+            Func<SyncChangeSet, Func<SyncItem, ConflictResolution>?, CancellationToken,
+                Task<SyncAnchor>> applyLocal) =>
+            new NativeLocalOnlyMappingExportProvider(
+                Local.Provider, Server, () => Owner,
+                NullLogger<NativeLocalOnlyMappingExportProvider>.Instance, applyLocal);
+
+        public Guid RemoteId =>Remote.Provider.GetStoreIdAsync().GetAwaiter().GetResult();
 
         public static async Task<Fixture> CreateAsync(bool seedRemoteMapping = false)
         {
@@ -362,8 +592,8 @@ public sealed class NativeLocalOnlyMappingExportProviderTests
         }
 
         // Mirrors SyncService: skip insert conflicts, force updates and deletes.
-        public Task SynchronizeLikeAppAsync() =>
-            new SyncAgent(Native, Server).SynchronizeAsync(
+        public Task SynchronizeLikeAppAsync(ISyncProvider? native = null) =>
+            new SyncAgent(native ?? Native, Server).SynchronizeAsync(
                 remoteConflictResolutionFunc: item => item.ChangeType == ChangeType.Insert
                     ? ConflictResolution.Skip : ConflictResolution.ForceWrite,
                 localConflictResolutionFunc: item => item.ChangeType == ChangeType.Insert
