@@ -19,6 +19,21 @@ namespace SentenceStudio.Native.Tests;
 /// </summary>
 public sealed class NativeOwnerStoresTests
 {
+    [Fact]
+    public void AdoptionChecksEveryOwnerBearingTableInTheModel()
+    {
+        var columns = NativeOwnerStores.OwnedColumns.ToHashSet();
+        // Tables an earlier hand-kept list missed; a B row in any of them must
+        // make a legacy file ambiguous instead of letting A adopt it.
+        Assert.Contains(("ActivitySession", "UserId"), columns);
+        Assert.Contains(("VocabularyWord", "UserProfileId"), columns);
+        Assert.Contains(("VocabularyProgress", "UserId"), columns);
+        Assert.Contains(("LearningResource", "UserProfileId"), columns);
+        Assert.Contains(columns, item => item.Table.StartsWith("MinimalPair", StringComparison.Ordinal));
+        Assert.Contains(columns, item => item.Table.StartsWith("Number", StringComparison.Ordinal));
+        Assert.DoesNotContain(columns, item => item.Table == "UserProfile");
+    }
+
     private const string Password = "fixture-password";
     private const string EmailA = "owner-a@example.invalid";
     private const string EmailB = "owner-b@example.invalid";

@@ -253,22 +253,29 @@ public sealed class NativeOwnerStores
                 ? owner : null;
     }
 
-    private static readonly (string Table, string Column)[] OwnedColumns =
-    [
-        ("LearningResource", "UserProfileId"),
-        ("SkillProfile", "UserProfileId"),
-        ("VocabularyProgress", "UserId"),
-        ("DailyPlan", "UserProfileId"),
-        ("DailyPlanCompletion", "UserProfileId"),
-        ("UserActivity", "UserProfileId"),
-        ("Conversation", "UserProfileId"),
-        ("ConversationChunk", "UserProfileId"),
-        ("DiaryEntry", "UserProfileId"),
-        ("MonitoredChannel", "UserProfileId"),
-        ("VideoImport", "UserProfileId"),
-        ("StreamHistory", "UserProfileId"),
-        ("WordAssociationScore", "UserProfileId"),
-    ];
+    /// <summary>
+    /// Every owner-bearing table and column in the model (UserProfileId or UserId),
+    /// so adoption checks all of an owner's rows, not a hand-kept subset.
+    /// </summary>
+    internal static readonly IReadOnlyList<(string Table, string Column)> OwnedColumns =
+        BuildOwnedColumns();
+
+    private static IReadOnlyList<(string Table, string Column)> BuildOwnedColumns()
+    {
+        using var context = new ApplicationDbContext(
+            new DbContextOptionsBuilder<ApplicationDbContext>()
+                .UseSqlite("Data Source=:memory:").Options);
+        return context.Model.GetEntityTypes()
+            .Where(entity => entity.ClrType != typeof(UserProfile)
+                && entity.GetTableName() is not null)
+            .SelectMany(entity => new[] { "UserProfileId", "UserId" }
+                .Select(entity.FindProperty)
+                .Where(property => property is not null && property.ClrType == typeof(string))
+                .Select(property => (entity.GetTableName()!, property!.GetColumnName())))
+            .Distinct()
+            .OrderBy(item => item.Item1, StringComparer.Ordinal)
+            .ToArray();
+    }
 
     private static async Task<bool> HasColumnAsync(SqliteConnection connection,
         string table, string column, CancellationToken cancellationToken)
@@ -316,12 +323,11 @@ internal sealed class NativeOwnerStoreWriteGuard(string owner) : SaveChangesInte
             if (entry.State is not (EntityState.Added or EntityState.Modified)
                 || entry.Entity is VocabularyWord)
                 continue;
-            var property = entry.Entity switch
-            {
-                UserProfile => "Id",
-                VocabularyProgress => nameof(VocabularyProgress.UserId),
-                _ => "UserProfileId"
-            };
+            var property = entry.Entity is UserProfile
+                ? "Id"
+                : entry.Metadata.FindProperty("UserProfileId") is not null
+                    ? "UserProfileId"
+                    : "UserId";
             if (entry.Metadata.FindProperty(property) is null)
                 continue;
             if (entry.Property(property).CurrentValue is string value
