@@ -372,7 +372,242 @@ public sealed class NativeSamPresenterTests
     public void PersonaFollowsTheStudyLanguage(string? language, string culture) =>
         Assert.Equal(culture, NativeSamPresenter.PersonaCulture(language));
 
+    // ------------------------------------------------ busy / failure regressions
+
+    public static TheoryData<string, NativeSamStatus> PreflightSessionFailures => new()
+    {
+        { "network", NativeSamStatus.Offline },
+        { "owner", NativeSamStatus.Unavailable },
+    };
+
+    [Theory]
+    [MemberData(nameof(PreflightSessionFailures))]
+    public async Task PlanReReadFailureAfterPreflightSyncReleasesThePanel(string failure, NativeSamStatus expected)
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var api = new FakeSam();
+        api.Conversations.Add(Conversation("t"));
+        var sam = Create(fixture, api);
+        await sam.RefreshAvailabilityAsync();
+        await sam.OpenAsync(NativeSamPanelSize.Compact);
+
+        fixture.MarkPendingForTest(NativeSliceFixture.UserA);
+        fixture.Sync.Outcome = NativeSyncOutcome.Confirmed;
+        api.Overrides[nameof(ICoachApiClient.StartSessionAsync)] = _ => Fail<CoachSessionResponse>(
+            failure == "network" ? new HttpRequestException("offline")
+                : new UnauthorizedAccessException("Sam owner changed."));
+        sam.SetDraft("Make it 5 minutes");
+        await sam.SendAsync();
+
+        Assert.False(sam.State.Busy);
+        Assert.Equal(expected, sam.State.Status);
+        Assert.False(sam.State.CanRetry);
+        Assert.Equal(0, api.Turns);
+        Assert.Equal("Make it 5 minutes", sam.State.Draft);
+    }
+
+    [Fact]
+    public async Task HttpClientTimeoutIsRecoverableAndNotShownAsStop()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var api = new FakeSam();
+        api.Conversations.Add(Conversation("t"));
+        var sam = Create(fixture, api);
+        await sam.RefreshAvailabilityAsync();
+        await sam.OpenAsync(NativeSamPanelSize.Compact);
+
+        api.Overrides[nameof(ICoachApiClient.SubmitConversationTurnAsync)] = _ =>
+            Fail<CoachTurnOperationDto>(new TaskCanceledException(
+                "The request was canceled due to the configured HttpClient.Timeout.",
+                new TimeoutException()));
+        sam.SetDraft("What should I study?");
+        await sam.SendAsync();
+
+        Assert.False(sam.State.Busy);
+        Assert.Equal(NativeSamStatus.Incomplete, sam.State.Status);
+        Assert.NotEqual("Coach_Stopped", sam.State.NoticeKey);
+        Assert.True(sam.State.CanRetry);
+        Assert.True(sam.State.CanRecover);
+
+        // The outcome is unknown, so Try Again reuses the keys and the server replays.
+        api.Overrides.Remove(nameof(ICoachApiClient.SubmitConversationTurnAsync));
+        await sam.RetryAsync();
+        Assert.Equal(2, api.Submitted.Count);
+        Assert.Equal(api.Submitted[0].OperationId, api.Submitted[1].OperationId);
+        Assert.Equal(api.Submitted[0].IdempotencyKey, api.Submitted[1].IdempotencyKey);
+        Assert.Equal(NativeSamStatus.Ready, sam.State.Status);
+    }
+
+    [Fact]
+    public async Task RetryAfterADefinitiveServerFailureSendsUnderNewKeys()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var api = new FakeSam();
+        api.Conversations.Add(Conversation("t"));
+        var sam = Create(fixture, api);
+        await sam.RefreshAvailabilityAsync();
+        await sam.OpenAsync(NativeSamPanelSize.Compact);
+
+        api.Overrides[nameof(ICoachApiClient.SubmitConversationTurnAsync)] = args =>
+            Task.FromResult(Operation((CoachConversationTurnRequest)args[1]!, (string)args[0]!,
+                CoachTurnOperationState.Failed));
+        sam.SetDraft("Plan my week");
+        await sam.SendAsync();
+        Assert.False(sam.State.Busy);
+        Assert.Equal(NativeSamStatus.Failed, sam.State.Status);
+        Assert.True(sam.State.CanRetry);
+
+        api.Overrides.Remove(nameof(ICoachApiClient.SubmitConversationTurnAsync));
+        await sam.RetryAsync();
+        Assert.Equal(2, api.Submitted.Count);
+        Assert.NotEqual(api.Submitted[0].OperationId, api.Submitted[1].OperationId);
+        Assert.NotEqual(api.Submitted[0].IdempotencyKey, api.Submitted[1].IdempotencyKey);
+        Assert.Equal(NativeSamStatus.Ready, sam.State.Status);
+    }
+
+    [Fact]
+    public async Task LostResponseRetryKeepsTheSameKeys()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var api = new FakeSam();
+        api.Conversations.Add(Conversation("t"));
+        var sam = Create(fixture, api);
+        await sam.RefreshAvailabilityAsync();
+        await sam.OpenAsync(NativeSamPanelSize.Compact);
+
+        api.Overrides[nameof(ICoachApiClient.SubmitConversationTurnAsync)] = _ =>
+            Fail<CoachTurnOperationDto>(new HttpRequestException("connection reset"));
+        sam.SetDraft("Hello");
+        await sam.SendAsync();
+        Assert.False(sam.State.Busy);
+        Assert.Equal(NativeSamStatus.Offline, sam.State.Status);
+        Assert.True(sam.State.CanRetry);
+
+        api.Overrides.Remove(nameof(ICoachApiClient.SubmitConversationTurnAsync));
+        await sam.RetryAsync();
+        Assert.Equal(api.Submitted[0].OperationId, api.Submitted[1].OperationId);
+        Assert.Equal(api.Submitted[0].IdempotencyKey, api.Submitted[1].IdempotencyKey);
+    }
+
+    [Fact]
+    public async Task ConversationGoneMidTurnReleasesBusyAndNewConversationWorks()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var api = new FakeSam();
+        api.Conversations.Add(Conversation("t"));
+        var sam = Create(fixture, api);
+        await sam.RefreshAvailabilityAsync();
+        await sam.OpenAsync(NativeSamPanelSize.Compact);
+
+        api.Overrides[nameof(ICoachApiClient.SubmitConversationTurnAsync)] = args =>
+        {
+            api.Gone.Add((string)args[0]!); // the transcript read-back answers 404
+            return Task.FromResult(Operation((CoachConversationTurnRequest)args[1]!, (string)args[0]!,
+                CoachTurnOperationState.Completed, Turn()));
+        };
+        sam.SetDraft("Hello");
+        await sam.SendAsync();
+
+        Assert.False(sam.State.Busy);
+        Assert.False(sam.State.StillWorking);
+        Assert.False(sam.State.CanStop);
+        Assert.Null(sam.State.ConversationId);
+        Assert.Equal("Coach_ConversationGone", sam.State.NoticeKey);
+
+        await sam.NewConversationAsync();
+        Assert.Equal(1, api.Created);
+        Assert.Equal("created-1", sam.State.ConversationId);
+        Assert.Equal(NativeSamStatus.Ready, sam.State.Status);
+    }
+
+    public static TheoryData<string, NativeSamStatus> SessionReadFailures => new()
+    {
+        { "network", NativeSamStatus.Offline },
+        { "owner", NativeSamStatus.Unavailable },
+    };
+
+    [Theory]
+    [MemberData(nameof(SessionReadFailures))]
+    public async Task SessionReadFailureOnOpeningAConversationIsAnHonestStatus(
+        string failure, NativeSamStatus expected)
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var api = new FakeSam();
+        api.Conversations.Add(Conversation("one", minutesAgo: 1));
+        api.Conversations.Add(Conversation("two", minutesAgo: 9));
+        var sam = Create(fixture, api);
+        await sam.RefreshAvailabilityAsync();
+        await sam.OpenAsync(NativeSamPanelSize.Compact);
+        await sam.ToggleConversationsAsync();
+
+        api.Overrides[nameof(ICoachApiClient.StartSessionAsync)] = _ => Fail<CoachSessionResponse>(
+            failure == "network" ? new HttpRequestException("offline")
+                : new UnauthorizedAccessException("token owner mismatch"));
+        await sam.OpenConversationAsync("two");
+        Assert.Equal(expected, sam.State.Status);
+        Assert.False(sam.State.Busy);
+
+        // Re-opening the panel on the current conversation takes the same path.
+        sam.Close();
+        await sam.OpenAsync(NativeSamPanelSize.Compact);
+        Assert.Equal(expected, sam.State.Status);
+    }
+
+    [Fact]
+    public async Task VocabularyDecisionIsRefusedWhileATurnIsRunning()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var api = new FakeSam();
+        api.Conversations.Add(Conversation("t"));
+        api.TurnResult = (_, _) => Turn(vocabularySet: new CoachVocabularySetProposal
+        {
+            ProposalId = "p-1", Topic = "food", Title = "Food", TargetLanguageTag = "ko",
+            Terms = [new CoachVocabularyTermDto { TargetTerm = "밥", NativeTerm = "rice" }]
+        });
+        api.ApprovalResult = request => new CoachVocabularySetApprovalResponse
+        {
+            ProposalId = request.ProposalReference, Decision = request.Decision,
+            ActivityPath = "/vocab-quiz?resourceIds=res-42"
+        };
+        var sam = Create(fixture, api);
+        await sam.RefreshAvailabilityAsync();
+        await sam.OpenAsync(NativeSamPanelSize.Compact);
+        sam.SetDraft("words about food");
+        await sam.SendAsync();
+        Assert.Equal("p-1", sam.State.VocabularySet?.ProposalId);
+
+        var busyDuringTurn = false;
+        api.Overrides[nameof(ICoachApiClient.SubmitConversationTurnAsync)] = args =>
+        {
+            busyDuringTurn = sam.State.Busy;
+            _ = sam.ApproveVocabularySetAsync();
+            return Task.FromResult(Operation((CoachConversationTurnRequest)args[1]!, (string)args[0]!,
+                CoachTurnOperationState.Completed, Turn()));
+        };
+        sam.SetDraft("one more question");
+        await sam.SendAsync();
+
+        Assert.True(busyDuringTurn);
+        Assert.Null(api.LastApproval);
+    }
+
     // ------------------------------------------------------------------ helpers
+
+    private static Task<T> Fail<T>(Exception ex) => Task.FromException<T>(ex);
+
+    private static CoachTurnOperationDto Operation(CoachConversationTurnRequest request, string conversation,
+        CoachTurnOperationState state, CoachTurnResponse? result = null) => new()
+    {
+        OperationId = request.OperationId!, ConversationId = conversation, State = state, Result = result,
+        Messages = [], CreatedAtUtc = DateTime.UtcNow, UpdatedAtUtc = DateTime.UtcNow
+    };
 
     private static NativeSamPresenter Create(NativeSliceFixture fixture, FakeSam api) =>
         new(api, fixture.UserScope, fixture.Preferences,
@@ -490,8 +725,15 @@ public sealed class NativeSamPresenterTests
             return call(proxy, cancellationToken);
         }
 
+        public Dictionary<string, Func<object?[], object?>> Overrides { get; } = new();
+        public List<CoachConversationTurnRequest> Submitted { get; } = [];
+
         private object? Handle(string name, object?[] args)
         {
+            if (name == nameof(ICoachApiClient.SubmitConversationTurnAsync))
+                Submitted.Add((CoachConversationTurnRequest)args[1]!);
+            if (Overrides.TryGetValue(name, out var handler))
+                return handler(args);
             switch (name)
             {
                 case nameof(ICoachApiClient.GetAvailabilityAsync):

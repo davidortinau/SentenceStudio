@@ -128,7 +128,21 @@ public sealed partial class NativeSamPresenter
 
         Publish(_state with { Busy = true, Status = applying ? NativeSamStatus.Applying : NativeSamStatus.Running,
             CanRetry = false, CanRecover = false, NoticeKey = null, StillWorking = false, CanStop = false });
+        try
+        {
+            await RunTurnCoreAsync(owner, conversationId, request, learnerText, cancellationToken, retry);
+        }
+        finally
+        {
+            // Every exit, including an early return when the conversation went away,
+            // releases the panel: a turn never leaves every action disabled.
+            ReleaseBusy();
+        }
+    }
 
+    private async Task RunTurnCoreAsync(string owner, string conversationId, CoachTurnRequest request,
+        string? learnerText, CancellationToken cancellationToken, bool retry)
+    {
         // Native preflight (policy section 10): local practice must reach the server
         // before Sam reads or edits Today's Plan, so it never acts on stale state.
         if (pendingWrites.IsPending(owner))
@@ -158,7 +172,19 @@ public sealed partial class NativeSamPresenter
             }
             pendingWrites.MarkConfirmedIfUnchanged(owner, revision);
             // The synced plan may carry a new version; read it before the turn.
-            await LoadSessionAsync(owner, cancellationToken);
+            try
+            {
+                await LoadSessionAsync(owner, cancellationToken);
+            }
+            catch (Exception ex) when (IsRecoverable(ex, cancellationToken))
+            {
+                // Nothing was sent: the draft stays in the composer and nothing is retried.
+                logger.LogWarning(ex, "Sam could not re-read Today's Plan after sync; the turn was not sent.");
+                if (IsCurrent(owner))
+                    Publish(_state with { Busy = false, Status = StatusFor(ex),
+                        StillWorking = false, CanStop = false });
+                return;
+            }
             if (!IsCurrent(owner))
                 return;
             request = WithPlanVersion(request);
@@ -208,9 +234,12 @@ public sealed partial class NativeSamPresenter
             _pendingIdempotencyKey = null;
             await ApplyOperationAsync(owner, conversationId, operation, floor, cancellationToken);
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested
+            && (run.IsCancellationRequested || ex is TurnCancelledOnServerException))
         {
-            // The learner pressed Stop: a deliberate action is never shown as a failure.
+            // Stop (local, or already accepted by the server) is a deliberate action and is
+            // never shown as a failure. HttpClient's own timeout is not Stop: it leaves the
+            // run token untouched and falls through to the recoverable branch below.
             if (IsCurrent(owner))
             {
                 MarkLocalFailed();
@@ -247,6 +276,29 @@ public sealed partial class NativeSamPresenter
         }
     }
 
+    /// <summary>
+    /// Releases a busy flag no branch cleared (an unexpected early return or fault),
+    /// so the panel never stays Running with every action disabled. A run still in
+    /// a working status ends as an honest failure.
+    /// </summary>
+    private void ReleaseBusy()
+    {
+        if (!_state.Busy || !TryOwner(out _) || !_state.Busy)
+            return;
+        Publish(_state with
+        {
+            Busy = false,
+            StillWorking = false,
+            CanStop = false,
+            Status = _state.Status is NativeSamStatus.Running or NativeSamStatus.Applying
+                or NativeSamStatus.Undoing ? NativeSamStatus.Failed : _state.Status,
+        });
+    }
+
+    /// <summary>The server reports the turn as cancelled (a Stop it already accepted).</summary>
+    private sealed class TurnCancelledOnServerException()
+        : OperationCanceledException("Sam turn was cancelled on the server.");
+
     /// <summary>Polls a durable operation to a terminal state (source SettleOperationAsync).</summary>
     private async Task<CoachTurnOperationDto> SettleAsync(string owner, string conversationId,
         CoachTurnOperationDto operation, CancellationToken cancellationToken)
@@ -266,13 +318,17 @@ public sealed partial class NativeSamPresenter
                 ?? throw new CoachApiException(System.Net.HttpStatusCode.NotFound,
                     CoachProblemTypes.ConversationNotFound, title: null, detail: null);
         }
-        return current.State switch
-        {
-            CoachTurnOperationState.Completed => current,
-            CoachTurnOperationState.Cancelled => throw new OperationCanceledException(),
-            _ => throw new CoachApiException(System.Net.HttpStatusCode.InternalServerError,
-                problemType: null, title: null, detail: "Sam turn failed."),
-        };
+        if (current.State == CoachTurnOperationState.Completed)
+            return current;
+        // A terminal Failed or Cancelled operation is definitive: the server replays
+        // that same outcome for its keys, so Try Again must send under new ones.
+        // Keys stay only while the outcome is unknown (lost response, timeout).
+        _pendingOperationId = null;
+        _pendingIdempotencyKey = null;
+        if (current.State == CoachTurnOperationState.Cancelled)
+            throw new TurnCancelledOnServerException();
+        throw new CoachApiException(System.Net.HttpStatusCode.InternalServerError,
+            problemType: null, title: null, detail: "Sam turn failed.");
     }
 
     private async Task ApplyOperationAsync(string owner, string conversationId,
@@ -385,7 +441,17 @@ public sealed partial class NativeSamPresenter
         if (!TryOwner(out var owner) || !_state.IsOpen)
             return;
         PlanChanged?.Invoke();
-        await LoadSessionAsync(owner, cancellationToken);
+        try
+        {
+            await LoadSessionAsync(owner, cancellationToken);
+        }
+        catch (Exception ex) when (IsRecoverable(ex, cancellationToken))
+        {
+            logger.LogWarning(ex, "Sam could not re-read Today's Plan.");
+            if (IsCurrent(owner))
+                Publish(_state with { Status = StatusFor(ex) });
+            return;
+        }
         if (IsCurrent(owner))
             Publish(_state with { Status = NativeSamStatus.Ready });
     }
@@ -416,7 +482,7 @@ public sealed partial class NativeSamPresenter
             if (!IsCurrent(owner) || _state.ConversationId != conversationId)
                 return;
             await LoadTranscriptAsync(owner, conversationId, cancellationToken);
-            if (!IsCurrent(owner))
+            if (!IsCurrent(owner) || _state.ConversationId != conversationId)
                 return;
             ApplyTurn(result, answerId: null);
             if (rejected && result.ChangeReceipt is null)
@@ -439,6 +505,10 @@ public sealed partial class NativeSamPresenter
                         ? false : _state.CanUndo,
                 });
             }
+        }
+        finally
+        {
+            ReleaseBusy();
         }
     }
 
@@ -468,7 +538,8 @@ public sealed partial class NativeSamPresenter
         CancellationToken cancellationToken)
     {
         if (!TryOwner(out var owner) || _state.VocabularySet is not { } proposal
-            || _state.VocabularySetBusy || _state.ConversationId is not { } conversationId)
+            || _state.VocabularySetBusy || _state.Busy
+            || _state.ConversationId is not { } conversationId)
             return;
         if (!connectivity.IsInternetAvailable)
         {

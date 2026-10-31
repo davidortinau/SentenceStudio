@@ -408,7 +408,18 @@ public sealed partial class NativeSamPresenter(
         AdoptConversation(conversationId, closed);
         if (!keepStatus)
             Publish(_state with { Status = NativeSamStatus.Resuming });
-        await LoadSessionAsync(owner, cancellationToken);
+        try
+        {
+            await LoadSessionAsync(owner, cancellationToken);
+        }
+        catch (Exception ex) when (IsRecoverable(ex, cancellationToken))
+        {
+            // A network or owner-token failure never leaves the panel "Resuming".
+            logger.LogWarning(ex, "Sam could not resume the conversation checkpoint.");
+            if (IsCurrent(owner))
+                Publish(_state with { Status = StatusFor(ex) });
+            return;
+        }
         if (!IsCurrent(owner) || _state.ConversationId != conversationId)
             return;
         await LoadTranscriptAsync(owner, conversationId, cancellationToken);
@@ -525,6 +536,13 @@ public sealed partial class NativeSamPresenter(
             ApprovedResourceId = null,
             NoticeKey = "Coach_ConversationGone",
             Status = NativeSamStatus.Ready,
+            // A turn or decision in flight for the dropped thread ends here, so
+            // New conversation stays reachable.
+            Busy = false,
+            StillWorking = false,
+            CanStop = false,
+            CanRetry = false,
+            CanRecover = false,
             Conversations = _state.SafeConversations
                 .Where(row => row.Id != conversationId).ToImmutableArray()
         });
