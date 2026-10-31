@@ -61,7 +61,10 @@ public sealed class NativeAccountRequestTests
         // seeds default languages on the new profile.
         Assert.Equal(NativeDestination.Onboarding, result.AuthState.Destination);
         Assert.Equal(NativeDestination.Onboarding, presenter.State.Destination);
-        Assert.False(fixture.Preferences.Get("is_onboarded", true));
+        Assert.True(fixture.Preferences.Get(
+            $"onboarding_pending:{NativeSliceFixture.UserA}", false));
+        Assert.False(fixture.Preferences.Get(
+            $"onboarding_pending:{NativeSliceFixture.UserB}", false));
         Assert.Equal(NativeSliceFixture.UserA, presenter.State.UserId);
         Assert.Equal([NativeSliceFixture.UserA], fixture.Sync.RequestedOwners);
         Assert.Equal(token,
@@ -73,6 +76,36 @@ public sealed class NativeAccountRequestTests
         Assert.Equal(NativeOnboardingOutcome.Success,
             (await presenter.FinishOnboardingAsync(createStarter: false)).Outcome);
         Assert.Equal(NativeDestination.Dashboard, presenter.State.Destination);
+        Assert.False(fixture.Preferences.Get(
+            $"onboarding_pending:{NativeSliceFixture.UserA}", true));
+    }
+
+    [Fact]
+    public async Task InterruptedRegistrationOnboardingResumesForThatOwnerOnly()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.SetRegistrationResponder((_, _) => Task.FromResult(Response(
+            HttpStatusCode.OK, new {
+                token = TokenFor(NativeSliceFixture.UserA),
+                refreshToken = "fixture-refresh",
+                expiresAt = DateTime.UtcNow.AddHours(1),
+                userName = "Learner", userProfileId = NativeSliceFixture.UserA
+            })));
+        var presenter = fixture.Auth;
+        await presenter.RegisterAsync(
+            NativeSliceFixture.EmailA, "fixture-password", "Learner");
+        Assert.Equal(NativeDestination.Onboarding, presenter.State.Destination);
+
+        // App killed mid-onboarding: the next session resolves readiness again
+        // for the same owner and must resume onboarding, not the dashboard.
+        var restored = await presenter.SignInAsync(
+            NativeSliceFixture.EmailA, "fixture-password");
+        Assert.Equal(NativeDestination.Onboarding, restored.Destination);
+
+        // A legacy global flag never frees or traps another owner.
+        fixture.Preferences.Set("is_onboarded", true);
+        Assert.False(fixture.Preferences.Get(
+            $"onboarding_pending:{NativeSliceFixture.UserB}", false));
     }
 
     [Fact]

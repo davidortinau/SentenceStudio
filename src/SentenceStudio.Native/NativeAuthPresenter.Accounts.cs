@@ -60,7 +60,7 @@ public sealed partial class NativeAuthPresenter
                 if (state is { Phase: NativePhase.Ready,
                         Destination: NativeDestination.Dashboard, UserId: not null })
                 {
-                    preferences.Set("is_onboarded", false);
+                    SetOnboardingPending(state.UserId, true);
                     state = SetState(state with { Destination = NativeDestination.Onboarding });
                 }
                 return state.Phase is NativePhase.Ready or NativePhase.PendingSync

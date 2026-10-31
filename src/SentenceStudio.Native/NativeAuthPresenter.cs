@@ -348,6 +348,7 @@ public sealed partial class NativeAuthPresenter(
                 else
                 {
                     destination = route.Path == "/onboarding"
+                        || IsOnboardingPending(owner)
                         ? NativeDestination.Onboarding
                         : NativeDestination.Dashboard;
                     if (route.Path is not ("/" or "/onboarding")
@@ -358,7 +359,8 @@ public sealed partial class NativeAuthPresenter(
                     if (!lease.IsCurrent || !HasAuthenticatedOwner(owner)
                         || !await HasCurrentTokenOwnerAsync(owner, cancellationToken))
                         return RefuseChangedOwner();
-                    shouldMarkOnboarded = route.ShouldMarkOnboarded;
+                    shouldMarkOnboarded = route.ShouldMarkOnboarded
+                        && destination == NativeDestination.Dashboard;
                 }
             }
         }
@@ -388,6 +390,23 @@ public sealed partial class NativeAuthPresenter(
         return SetState(new(NativePhase.Ready, readyDestination, owner,
             HasPendingSync: outcome != NativeSyncOutcome.Confirmed
                 || pendingWrites.IsPending(owner)));
+    }
+
+    /// <summary>
+    /// A registration seeds default languages, so the profile alone cannot tell an
+    /// interrupted first-run from a finished one. The marker is per owner: a killed
+    /// app resumes onboarding for that owner only, and an absent owner is never pending.
+    /// </summary>
+    private static string OnboardingPendingKey(string owner) => $"onboarding_pending:{owner}";
+
+    private bool IsOnboardingPending(string owner) =>
+        !string.IsNullOrWhiteSpace(owner)
+        && preferences.Get(OnboardingPendingKey(owner), false);
+
+    private void SetOnboardingPending(string owner, bool pending)
+    {
+        if (!string.IsNullOrWhiteSpace(owner))
+            preferences.Set(OnboardingPendingKey(owner), pending);
     }
 
     private bool HasAuthenticatedOwner(string userId) =>

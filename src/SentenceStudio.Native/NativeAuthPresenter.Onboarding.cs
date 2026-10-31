@@ -126,6 +126,7 @@ public sealed partial class NativeAuthPresenter
                 return new(NativeOnboardingOutcome.Blocked,
                     NativeText.InvalidCredentials, steps);
             preferences.Set("is_onboarded", true);
+            SetOnboardingPending(owner, false);
             SetState(new(NativePhase.Ready, NativeDestination.Dashboard, owner,
                 HasPendingSync: pendingWrites.IsPending(owner)));
             return new(NativeOnboardingOutcome.Success, ContentStepsDone: steps);

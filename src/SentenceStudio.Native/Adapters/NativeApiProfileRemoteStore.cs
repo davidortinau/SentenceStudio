@@ -47,6 +47,9 @@ public sealed class NativeApiProfileRemoteStore(
                 logger.LogWarning("Onboarding profile read returned {Status}.", current.StatusCode);
                 return NativeProfileRemoteOutcome.Rejected;
             }
+            // Known race: the OpenAI/ElevenLabs keys are read here and written back
+            // by the PUT below; a key changed on another client between the two
+            // calls would be overwritten. The API has no partial update.
             var existing = await current.Content.ReadFromJsonAsync<RemoteProfile>(
                 cancellationToken);
             if (existing is null || !string.Equals(existing.Id, owner, StringComparison.Ordinal))
@@ -84,6 +87,12 @@ public sealed class NativeApiProfileRemoteStore(
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
+        }
+        catch (System.Text.Json.JsonException ex)
+        {
+            logger.LogWarning("Onboarding profile read returned an unreadable body ({FailureType}).",
+                ex.GetType().Name);
+            return NativeProfileRemoteOutcome.Rejected;
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
