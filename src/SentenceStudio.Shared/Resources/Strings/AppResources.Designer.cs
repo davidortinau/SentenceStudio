@@ -10039,6 +10039,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Reconnect saved session.
+        /// </summary>
+        internal static string NativeAuth_RestoreSessionRetry {
+            get {
+                return ResourceManager.GetString("NativeAuth_RestoreSessionRetry", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to This activity is not available yet..
         /// </summary>
         internal static string NativeDashboard_ActivityNotAvailable {

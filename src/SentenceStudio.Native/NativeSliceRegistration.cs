@@ -39,6 +39,12 @@ public static class NativeSliceRegistration
         services.AddTransient<NativeQuizLaunchService>();
         services.TryAddScoped<IPlanCopyProvider, EnglishPlanCopyProvider>();
         services.AddSingleton<NativePlanLeaseFactory>();
+        services.TryAddSingleton<INativeProfileRemoteStore>(sp =>
+            sp.GetService<IHttpClientFactory>() is { } clients
+            && sp.GetService<IAuthService>() is { } profileAuth
+                ? new NativeApiProfileRemoteStore(clients, profileAuth,
+                    sp.GetRequiredService<ILogger<NativeApiProfileRemoteStore>>())
+                : new UnavailableNativeProfileRemoteStore());
         services.AddTransient<NativeAuthPresenter>();
         services.AddTransient<NativeDashboardPresenter>();
         services.AddTransient<NativeQuizPresenter>();

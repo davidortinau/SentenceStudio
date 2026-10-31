@@ -24,6 +24,23 @@ public sealed partial class NativeAuthPresenter
                 return new(NativeOnboardingOutcome.Blocked,
                     NativeText.InvalidCredentials);
 
+            // Native profile sync is download-only: the server must accept the
+            // choice first or the next profile download would silently revert it.
+            var remote = profileRemote is null
+                ? NativeProfileRemoteOutcome.Unavailable
+                : await profileRemote.SaveOnboardingAsync(owner, draft, cancellationToken);
+            if (remote != NativeProfileRemoteOutcome.Saved)
+            {
+                logger.LogWarning("Native onboarding profile was not accepted remotely ({Outcome}).",
+                    remote);
+                return new(NativeOnboardingOutcome.Failed,
+                    remote == NativeProfileRemoteOutcome.TransportFailure
+                        ? NativeText.ConnectionError : "NativeOnboarding_SaveFailed");
+            }
+            if (!TryOnboardingOwner(out var remoteOwner) || remoteOwner != owner)
+                return new(NativeOnboardingOutcome.Blocked,
+                    NativeText.InvalidCredentials);
+
             var changed = await profiles.SaveOnboardingProfileForOwnerAsync(
                 owner, draft.Name, draft.NativeLanguage, draft.TargetLanguage,
                 draft.PreferredSessionMinutes, draft.TargetCefrLevel, auth.UserName,

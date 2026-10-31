@@ -295,3 +295,22 @@ internal sealed class UnavailableNativeQuizMedia : INativeQuizMedia
     public Task<bool> CanShowPhotoAsync(string photoUri, CancellationToken cancellationToken)
         => Task.FromResult(false);
 }
+
+public enum NativeProfileRemoteOutcome { Saved, Rejected, TransportFailure, Unavailable }
+
+/// <summary>
+/// Native UserProfile sync is download-only. Onboarding choices must reach the
+/// server through the owner-checked profile API before they are kept locally.
+/// </summary>
+public interface INativeProfileRemoteStore
+{
+    Task<NativeProfileRemoteOutcome> SaveOnboardingAsync(
+        string owner, NativeOnboardingDraft draft, CancellationToken cancellationToken);
+}
+
+internal sealed class UnavailableNativeProfileRemoteStore : INativeProfileRemoteStore
+{
+    public Task<NativeProfileRemoteOutcome> SaveOnboardingAsync(
+        string owner, NativeOnboardingDraft draft, CancellationToken cancellationToken) =>
+        Task.FromResult(NativeProfileRemoteOutcome.Unavailable);
+}

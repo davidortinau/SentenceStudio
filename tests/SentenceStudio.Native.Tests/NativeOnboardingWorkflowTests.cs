@@ -147,4 +147,55 @@ public sealed class NativeOnboardingWorkflowTests
                 (await db.UserProfiles.SingleAsync()).Id);
         }
     }
+
+    [Fact]
+    public async Task OnboardingProfileWritesThroughOwnerApiBeforeLocalSaveAndFailsClosed()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedProfileAsync(NativeSliceFixture.UserA);
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            (await db.UserProfiles.SingleAsync(profile =>
+                profile.Id == NativeSliceFixture.UserA)).TargetLanguage = "";
+            await db.SaveChangesAsync();
+        }
+        var auth = fixture.Auth;
+        Assert.Equal(NativeDestination.Onboarding,
+            (await auth.SignInAsync(
+                NativeSliceFixture.EmailA, "fixture-password")).Destination);
+
+        fixture.SetRemoteProfileStatus(System.Net.HttpStatusCode.InternalServerError);
+        var rejected = await auth.SaveOnboardingProfileAsync(
+            new NativeOnboardingDraft("Server Down", "English", "Spanish"));
+        Assert.Equal(NativeOnboardingOutcome.Failed, rejected.Outcome);
+        Assert.Equal("NativeOnboarding_SaveFailed", rejected.ErrorKey);
+        fixture.SetRemoteProfileStatus(null);
+        fixture.SetAuthOffline(true);
+        var offline = await auth.SaveOnboardingProfileAsync(
+            new NativeOnboardingDraft("Offline", "English", "Spanish"));
+        Assert.Equal(NativeOnboardingOutcome.Failed, offline.Outcome);
+        Assert.Equal(NativeText.ConnectionError, offline.ErrorKey);
+        fixture.SetAuthOffline(false);
+        Assert.Empty(fixture.RemoteProfileWrites);
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            Assert.Equal("", (await db.UserProfiles.AsNoTracking().SingleAsync(profile =>
+                profile.Id == NativeSliceFixture.UserA)).TargetLanguage);
+        }
+        Assert.Equal(NativeDestination.Onboarding, auth.State.Destination);
+        Assert.False(fixture.Preferences.Get("is_onboarded", false));
+
+        Assert.Equal(NativeOnboardingOutcome.Success,
+            (await auth.SaveOnboardingProfileAsync(
+                new NativeOnboardingDraft("Chosen", "English", "Spanish", 20, "B1")))
+                .Outcome);
+        var write = Assert.Single(fixture.RemoteProfileWrites);
+        using var body = System.Text.Json.JsonDocument.Parse(write);
+        Assert.Equal("Chosen", body.RootElement.GetProperty("displayName").GetString());
+        Assert.Equal("Spanish", body.RootElement.GetProperty("targetLanguage").GetString());
+        Assert.Equal(20, body.RootElement.GetProperty("preferredSessionMinutes").GetInt32());
+        Assert.Equal("B1", body.RootElement.GetProperty("targetCefrLevel").GetString());
+    }
 }

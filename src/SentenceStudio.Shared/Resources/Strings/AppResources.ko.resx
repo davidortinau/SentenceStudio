@@ -5595,6 +5595,9 @@
   <data name="NativeAuth_RecoveryFailed" xml:space="preserve">
     <value>비밀번호 재설정을 요청할 수 없습니다. 이메일 주소를 확인하고 다시 시도하세요.</value>
   </data>
+  <data name="NativeAuth_RestoreSessionRetry" xml:space="preserve">
+    <value>저장된 세션 다시 연결</value>
+  </data>
   <data name="ForgotPassword_Title" xml:space="preserve">
     <value>비밀번호 찾기</value>
     <comment>Forgot password page title</comment>

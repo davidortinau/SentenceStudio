@@ -54,6 +54,15 @@ public sealed partial class NativeAuthPresenter
                 }
                 var state = await EnterAuthenticatedAsync(
                     response.Session, cancellationToken);
+                // Source RegisterPage always continues to /onboarding: the API
+                // seeds default languages, so the post-login router alone would
+                // skip the first-run journey for a brand-new account.
+                if (state is { Phase: NativePhase.Ready,
+                        Destination: NativeDestination.Dashboard, UserId: not null })
+                {
+                    preferences.Set("is_onboarded", false);
+                    state = SetState(state with { Destination = NativeDestination.Onboarding });
+                }
                 return state.Phase is NativePhase.Ready or NativePhase.PendingSync
                     && state.UserId is not null
                     ? new(NativeRegistrationOutcome.SignedIn, AuthState: state)

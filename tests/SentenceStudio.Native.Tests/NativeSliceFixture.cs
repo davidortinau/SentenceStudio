@@ -103,6 +103,7 @@ internal sealed class NativeSliceFixture : IDisposable
     public ScratchSecureStorage SecureStorage => _secureStorage;
     public DeviceUserScopeProvider UserScope => _userScope;
     public int RemoteProfileRequests => _authHandler.ProfileRequests;
+    public IReadOnlyList<string> RemoteProfileWrites => _authHandler.ProfileWrites;
     public bool? LastPlanGenerationAllowedWrites => _generator.LastAllowWrites;
     public VocabularyQuizPreferences QuizPreferences => _provider
         .GetRequiredService<VocabularyQuizPreferences>();
@@ -538,6 +539,7 @@ internal sealed class NativeSliceFixture : IDisposable
         public Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>>?
             RecoveryResponseAsync { get; set; }
         public int ProfileRequests { get; private set; }
+        public List<string> ProfileWrites { get; } = [];
         public bool Offline { get; set; }
         public void Register(string email, string userId) => _users[email] = userId;
 
@@ -554,6 +556,8 @@ internal sealed class NativeSliceFixture : IDisposable
                     request.RequestUri.AbsolutePath["/api/v1/profile/".Length..]);
                 if (ProfileStatus is { } profileStatus)
                     return new HttpResponseMessage(profileStatus);
+                if (request.Method == HttpMethod.Put && request.Content is { } body)
+                    ProfileWrites.Add(await body.ReadAsStringAsync(cancellationToken));
                 var tokenOwner = request.Headers.Authorization?.Parameter is { } bearer
                     ? new JwtSecurityTokenHandler().ReadJwtToken(bearer).Claims
                         .SingleOrDefault(claim => claim.Type == AuthClaimTypes.UserProfileId)?.Value

@@ -5843,6 +5843,9 @@ For example: {0} ...</value>
   <data name="NativeAuth_RecoveryFailed" xml:space="preserve">
     <value>Could not request password recovery. Check your address and try again.</value>
   </data>
+  <data name="NativeAuth_RestoreSessionRetry" xml:space="preserve">
+    <value>Reconnect saved session</value>
+  </data>
   <data name="ForgotPassword_Title" xml:space="preserve">
     <value>Forgot Password</value>
     <comment>Forgot password page title</comment>

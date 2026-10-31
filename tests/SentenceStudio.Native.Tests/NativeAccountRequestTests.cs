@@ -57,12 +57,22 @@ public sealed class NativeAccountRequestTests
         Assert.Equal(NativeRegistrationOutcome.SignedIn, result.Outcome);
         Assert.Equal(NativePhase.Ready, result.AuthState!.Phase);
         Assert.Equal(NativeSliceFixture.UserA, result.AuthState.UserId);
-        Assert.Equal(NativeDestination.Dashboard, result.AuthState.Destination);
+        // Source RegisterPage continues to /onboarding even though the API
+        // seeds default languages on the new profile.
+        Assert.Equal(NativeDestination.Onboarding, result.AuthState.Destination);
+        Assert.Equal(NativeDestination.Onboarding, presenter.State.Destination);
+        Assert.False(fixture.Preferences.Get("is_onboarded", true));
         Assert.Equal(NativeSliceFixture.UserA, presenter.State.UserId);
         Assert.Equal([NativeSliceFixture.UserA], fixture.Sync.RequestedOwners);
         Assert.Equal(token,
             await fixture.Provider.GetRequiredService<IAuthService>()
                 .GetAccessTokenAsync([]));
+        Assert.Equal(NativeOnboardingOutcome.Success,
+            (await presenter.SaveOnboardingProfileAsync(
+                new NativeOnboardingDraft("Learner", "English", "Korean"))).Outcome);
+        Assert.Equal(NativeOnboardingOutcome.Success,
+            (await presenter.FinishOnboardingAsync(createStarter: false)).Outcome);
+        Assert.Equal(NativeDestination.Dashboard, presenter.State.Destination);
     }
 
     [Fact]
