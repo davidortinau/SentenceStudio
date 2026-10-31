@@ -88,7 +88,8 @@ public sealed class NativeApiProfileRemoteStore(
         {
             throw;
         }
-        catch (System.Text.Json.JsonException ex)
+        // ReadFromJsonAsync throws NotSupportedException for a non-JSON content type.
+        catch (Exception ex) when (ex is System.Text.Json.JsonException or NotSupportedException)
         {
             logger.LogWarning("Onboarding profile read returned an unreadable body ({FailureType}).",
                 ex.GetType().Name);

@@ -13,11 +13,13 @@ namespace SentenceStudio.Native.Tests;
 public sealed class NativeApiProfileRemoteStoreTests
 {
     [Theory]
-    [InlineData("not json")]
-    [InlineData("{\"id\": 5}")]
-    public async Task MalformedProfileReadIsAnHonestRejectionWithoutAWrite(string body)
+    [InlineData("not json", "application/json")]
+    [InlineData("{\"id\": 5}", "application/json")]
+    [InlineData("<html>gateway</html>", "text/html")]
+    public async Task MalformedProfileReadIsAnHonestRejectionWithoutAWrite(
+        string body, string mediaType)
     {
-        var handler = new Handler(body);
+        var handler = new Handler(body, mediaType);
         var store = new NativeApiProfileRemoteStore(
             new Factory(handler), new Auth(TokenFor("owner-a")),
             NullLogger<NativeApiProfileRemoteStore>.Instance);
@@ -35,7 +37,7 @@ public sealed class NativeApiProfileRemoteStoreTests
             claims: [new Claim(AuthClaimTypes.UserProfileId, owner)],
             expires: DateTime.UtcNow.AddHours(1)));
 
-    private sealed class Handler(string body) : HttpMessageHandler
+    private sealed class Handler(string body, string mediaType) : HttpMessageHandler
     {
         public int Calls { get; private set; }
         protected override Task<HttpResponseMessage> SendAsync(
@@ -44,7 +46,7 @@ public sealed class NativeApiProfileRemoteStoreTests
             Calls++;
             return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = new StringContent(body, Encoding.UTF8, "application/json")
+                Content = new StringContent(body, Encoding.UTF8, mediaType)
             });
         }
     }
