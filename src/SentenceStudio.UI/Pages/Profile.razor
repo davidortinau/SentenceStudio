@@ -112,6 +112,19 @@ else
             <label class="form-label ss-body2 text-secondary-ss">@Localize["Profile_NewPassword"]</label>
             <input type="password" class="form-control form-control-ss" @bind="newPassword"
                    @bind:event="oninput" placeholder="@Localize["Profile_NewPasswordPlaceholder"]" />
+            @if (!string.IsNullOrEmpty(newPassword))
+            {
+                <div class="mt-1">
+                    @foreach (var rule in SentenceStudio.Contracts.Auth.PasswordPolicy.Rules)
+                    {
+                        var met = SentenceStudio.Contracts.Auth.PasswordPolicy.IsMet(rule, newPassword);
+                        <small class="@(met ? "text-success" : "text-danger") d-block">
+                            <i class="bi @(met ? "bi-check-circle" : "bi-x-circle")"></i>
+                            @Localize[SentenceStudio.Contracts.Auth.PasswordPolicy.LabelKey(rule)]
+                        </small>
+                    }
+                </div>
+            }
         </div>
 
         <div class="mb-3">
@@ -198,7 +211,7 @@ else
 
     private bool CanChangePassword =>
         !string.IsNullOrWhiteSpace(currentPassword)
-        && !string.IsNullOrWhiteSpace(newPassword)
+        && SentenceStudio.Contracts.Auth.PasswordPolicy.IsSatisfied(newPassword)
         && !string.IsNullOrWhiteSpace(confirmNewPassword);
 
     private readonly string[] languages = { "English", "Korean", "French", "German", "Spanish", "Japanese", "Chinese" };
@@ -317,9 +330,9 @@ else
             return;
         }
 
-        if (newPassword.Length < 8)
+        if (!SentenceStudio.Contracts.Auth.PasswordPolicy.IsSatisfied(newPassword))
         {
-            Toast.ShowError(Localize["Profile_PasswordTooShort"]);
+            Toast.ShowError(Localize["PasswordPolicy_Error_Generic"]);
             return;
         }
 

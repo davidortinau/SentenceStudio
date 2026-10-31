@@ -84,9 +84,13 @@ builder.Services.AddOpenApi();
 builder.Services.AddIdentityCore<ApplicationUser>(options =>
     {
         options.SignIn.RequireConfirmedEmail = true;
-        options.Password.RequireDigit = true;
-        options.Password.RequireUppercase = true;
-        options.Password.RequiredLength = 8;
+        // Single source of truth shared with every client's password checklist.
+        options.Password.RequireDigit = SentenceStudio.Contracts.Auth.PasswordPolicy.RequireDigit;
+        options.Password.RequireUppercase = SentenceStudio.Contracts.Auth.PasswordPolicy.RequireUppercase;
+        options.Password.RequireLowercase = SentenceStudio.Contracts.Auth.PasswordPolicy.RequireLowercase;
+        options.Password.RequireNonAlphanumeric = SentenceStudio.Contracts.Auth.PasswordPolicy.RequireSymbol;
+        options.Password.RequiredLength = SentenceStudio.Contracts.Auth.PasswordPolicy.MinimumLength;
+        options.Password.RequiredUniqueChars = SentenceStudio.Contracts.Auth.PasswordPolicy.RequiredUniqueChars;
     })
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddDefaultTokenProviders();

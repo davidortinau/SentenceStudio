@@ -11776,6 +11776,60 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to The server rejected that password: it needs a number..
+        /// </summary>
+        internal static string PasswordPolicy_Error_Digit {
+            get {
+                return ResourceManager.GetString("PasswordPolicy_Error_Digit", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to That password does not meet the requirements. Use at least 8 characters with an uppercase letter, a lowercase letter, a number and a symbol..
+        /// </summary>
+        internal static string PasswordPolicy_Error_Generic {
+            get {
+                return ResourceManager.GetString("PasswordPolicy_Error_Generic", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The server rejected that password: it must be at least 8 characters..
+        /// </summary>
+        internal static string PasswordPolicy_Error_Length {
+            get {
+                return ResourceManager.GetString("PasswordPolicy_Error_Length", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The server rejected that password: it needs a lowercase letter..
+        /// </summary>
+        internal static string PasswordPolicy_Error_Lowercase {
+            get {
+                return ResourceManager.GetString("PasswordPolicy_Error_Lowercase", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The server rejected that password: it needs a symbol such as ! @ # $ %..
+        /// </summary>
+        internal static string PasswordPolicy_Error_Symbol {
+            get {
+                return ResourceManager.GetString("PasswordPolicy_Error_Symbol", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The server rejected that password: it needs an uppercase letter..
+        /// </summary>
+        internal static string PasswordPolicy_Error_Uppercase {
+            get {
+                return ResourceManager.GetString("PasswordPolicy_Error_Uppercase", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Application Phase.
         /// </summary>
         internal static string PhaseApplication {
@@ -13189,11 +13243,29 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to One lowercase letter.
+        /// </summary>
+        internal static string Register_OneLowercase {
+            get {
+                return ResourceManager.GetString("Register_OneLowercase", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to One number.
         /// </summary>
         internal static string Register_OneNumber {
             get {
                 return ResourceManager.GetString("Register_OneNumber", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to One symbol (such as ! @ # $ %).
+        /// </summary>
+        internal static string Register_OneSymbol {
+            get {
+                return ResourceManager.GetString("Register_OneSymbol", resourceCulture);
             }
         }
 

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace SentenceStudio.Services;
 
@@ -17,7 +18,8 @@ public enum AuthRegistrationOutcome
 }
 
 public sealed record AuthRegistrationResult(
-    AuthRegistrationOutcome Outcome, AuthResult? Session = null);
+    AuthRegistrationOutcome Outcome, AuthResult? Session = null,
+    IReadOnlyList<string>? ErrorCodes = null);
 
 public enum AuthPasswordRecoveryOutcome
 {

@@ -37,14 +37,15 @@ public sealed class NativeAccountRoutesContractTests
         foreach (var key in new[]
         {
             "Register_CreateAccount", "Register_DisplayName", "Register_YourName",
-            "Register_AtLeast8Chars", "Register_OneUppercase", "Register_OneNumber",
             "Register_ConfirmPassword", "Register_PasswordsDoNotMatch",
             "Register_CreatingAccount", "Register_AlreadyHaveAccount",
             "Register_CheckYourEmail", "Register_VerificationSent", "Register_GoToSignIn"
         })
             Assert.Contains($"\"{key}\"", views);
-        Assert.Contains("password.Length >= 8 && password.Any(char.IsUpper) && password.Any(char.IsDigit)",
-            views);
+        // Rules come from the shared policy that also configures the server.
+        Assert.Contains("PasswordPolicy.IsSatisfied(password)", views);
+        Assert.Contains("PasswordPolicy.Rules", views);
+        Assert.Contains("PasswordPolicy.LabelKey(rule)", views);
         Assert.Contains("inputs.Password == inputs.ConfirmPassword", views);
         Assert.Contains("_auth.RegisterAsync(", account);
         Assert.Contains("NativeRegistrationOutcome.ConfirmationRequired", account);

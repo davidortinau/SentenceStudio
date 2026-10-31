@@ -181,15 +181,11 @@ internal sealed partial class AndroidSliceShell
             "native.auth.register.password", passwordKeyboard, canEdit));
         if (!string.IsNullOrEmpty(Password.Value))
         {
-            if (Password.Value.Length < 8)
-                contents.Add(Body(Localize("Register_AtLeast8Chars"),
-                    palette, secondary: true));
-            if (!Password.Value.Any(char.IsUpper))
-                contents.Add(Body(Localize("Register_OneUppercase"),
-                    palette, secondary: true));
-            if (!Password.Value.Any(char.IsDigit))
-                contents.Add(Body(Localize("Register_OneNumber"),
-                    palette, secondary: true));
+            foreach (var rule in SentenceStudio.Contracts.Auth.PasswordPolicy.Rules)
+                if (!SentenceStudio.Contracts.Auth.PasswordPolicy.IsMet(rule, Password.Value))
+                    contents.Add(Body(
+                        Localize(SentenceStudio.Contracts.Auth.PasswordPolicy.LabelKey(rule)),
+                        palette, secondary: true));
         }
         contents.Add(PasswordEntry(
             ConfirmPassword, ShowConfirmPassword,

@@ -27,7 +27,7 @@ public sealed class NativeAccountRequestTests
 
         var presenter = fixture.Auth;
         var result = await presenter.RegisterAsync(
-            "new@example.invalid", "fixture-password", "Learner");
+            "new@example.invalid", "Fixture-pass1", "Learner");
         Assert.Equal(NativeRegistrationOutcome.ConfirmationRequired, result.Outcome);
         Assert.Equal("NativeAuth_RegistrationAccepted", result.ErrorKey);
         Assert.Null(result.AuthState);
@@ -53,7 +53,7 @@ public sealed class NativeAccountRequestTests
 
         var presenter = fixture.Auth;
         var result = await presenter.RegisterAsync(
-            NativeSliceFixture.EmailA, "fixture-password", "Learner");
+            NativeSliceFixture.EmailA, "Fixture-pass1", "Learner");
         Assert.Equal(NativeRegistrationOutcome.SignedIn, result.Outcome);
         Assert.Equal(NativePhase.Ready, result.AuthState!.Phase);
         Assert.Equal(NativeSliceFixture.UserA, result.AuthState.UserId);
@@ -93,7 +93,7 @@ public sealed class NativeAccountRequestTests
             })));
         var presenter = fixture.Auth;
         await presenter.RegisterAsync(
-            NativeSliceFixture.EmailA, "fixture-password", "Learner");
+            NativeSliceFixture.EmailA, "Fixture-pass1", "Learner");
         Assert.Equal(NativeDestination.Onboarding, presenter.State.Destination);
 
         // App killed mid-onboarding: the next session resolves readiness again
@@ -122,7 +122,7 @@ public sealed class NativeAccountRequestTests
         var presenter = fixture.Auth;
         Assert.Equal(NativeRegistrationOutcome.Rejected,
             (await presenter.RegisterAsync(
-                NativeSliceFixture.EmailA, "fixture-password", "Learner")).Outcome);
+                NativeSliceFixture.EmailA, "Fixture-pass1", "Learner")).Outcome);
         Assert.False(await fixture.Provider.GetRequiredService<IAuthService>()
             .HasStoredSessionAsync());
         Assert.Empty(fixture.Sync.RequestedOwners);
@@ -131,7 +131,7 @@ public sealed class NativeAccountRequestTests
             HttpStatusCode.OK, new { arbitrary = "not an accepted response" })));
         Assert.Equal(NativeRegistrationOutcome.Rejected,
             (await presenter.RegisterAsync(
-                NativeSliceFixture.EmailA, "fixture-password", "Learner")).Outcome);
+                NativeSliceFixture.EmailA, "Fixture-pass1", "Learner")).Outcome);
         Assert.False(fixture.Provider.GetRequiredService<IAuthService>().IsSignedIn);
     }
 
@@ -151,7 +151,7 @@ public sealed class NativeAccountRequestTests
 
         var presenter = fixture.Auth;
         var result = await presenter.RegisterAsync(
-            NativeSliceFixture.EmailA, "fixture-password", "Learner");
+            NativeSliceFixture.EmailA, "Fixture-pass1", "Learner");
         Assert.Equal(NativeRegistrationOutcome.Failed, result.Outcome);
         Assert.NotEqual(NativeRegistrationOutcome.ConfirmationRequired, result.Outcome);
         Assert.Equal(NativeText.UnexpectedError, result.ErrorKey);
@@ -171,11 +171,11 @@ public sealed class NativeAccountRequestTests
         var presenter = fixture.Auth;
         Assert.Equal(NativeRegistrationOutcome.Rejected,
             (await presenter.RegisterAsync(
-                NativeSliceFixture.EmailA, "fixture-password", "Learner")).Outcome);
+                NativeSliceFixture.EmailA, "Fixture-pass1", "Learner")).Outcome);
         fixture.SetAuthOffline(true);
         Assert.Equal(NativeRegistrationOutcome.TransportFailure,
             (await presenter.RegisterAsync(
-                NativeSliceFixture.EmailA, "fixture-password", "Learner")).Outcome);
+                NativeSliceFixture.EmailA, "Fixture-pass1", "Learner")).Outcome);
         fixture.SetAuthOffline(false);
 
         fixture.SetRecoveryResponder((_, _) => Task.FromResult(Response(
@@ -214,7 +214,7 @@ public sealed class NativeAccountRequestTests
         var presenter = fixture.Auth;
         using var cancellation = new CancellationTokenSource();
         var pending = presenter.RegisterAsync(
-            NativeSliceFixture.EmailA, "fixture-password", "Learner",
+            NativeSliceFixture.EmailA, "Fixture-pass1", "Learner",
             cancellation.Token);
         await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
         cancellation.Cancel();
@@ -224,6 +224,61 @@ public sealed class NativeAccountRequestTests
         Assert.Equal(NativeDestination.SignIn, presenter.State.Destination);
         Assert.Null(presenter.State.UserId);
         Assert.False(fixture.Provider.GetRequiredService<IAuthService>().IsSignedIn);
+    }
+
+    [Fact]
+    public async Task PasswordWithoutSymbolIsBlockedBeforeAnyRequest()
+    {
+        using var fixture = new NativeSliceFixture();
+        var calls = 0;
+        fixture.SetRegistrationResponder((_, _) =>
+        {
+            calls++;
+            return Task.FromResult(Response(HttpStatusCode.OK, new { message = "Check your email" }));
+        });
+
+        var result = await fixture.Auth.RegisterAsync(
+            "pw@example.invalid", "Throwaway9Pass", "Learner");
+
+        Assert.Equal(NativeRegistrationOutcome.Rejected, result.Outcome);
+        Assert.Equal("PasswordPolicy_Error_Generic", result.ErrorKey);
+        Assert.Equal(0, calls);
+    }
+
+    [Theory]
+    [InlineData("PasswordRequiresNonAlphanumeric", "PasswordPolicy_Error_Symbol")]
+    [InlineData("PasswordRequiresLower", "PasswordPolicy_Error_Lowercase")]
+    [InlineData("PasswordRequiresUpper", "PasswordPolicy_Error_Uppercase")]
+    [InlineData("PasswordRequiresDigit", "PasswordPolicy_Error_Digit")]
+    [InlineData("PasswordTooShort", "PasswordPolicy_Error_Length")]
+    [InlineData("PasswordRequiresUniqueChars", "PasswordPolicy_Error_Generic")]
+    public async Task ServerPasswordRejectionMapsIdentityCodeToLocalizedKey(
+        string code, string expectedKey)
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.SetRegistrationResponder((_, _) => Task.FromResult(Response(
+            HttpStatusCode.BadRequest,
+            new { errors = new[] { "server text" }, errorCodes = new[] { code } })));
+
+        var result = await fixture.Auth.RegisterAsync(
+            "pw@example.invalid", "Fixture-pass1", "Learner");
+
+        Assert.Equal(NativeRegistrationOutcome.Rejected, result.Outcome);
+        Assert.Equal(expectedKey, result.ErrorKey);
+    }
+
+    [Fact]
+    public async Task ServerRejectionWithoutPasswordCodeKeepsGenericFailure()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.SetRegistrationResponder((_, _) => Task.FromResult(Response(
+            HttpStatusCode.BadRequest,
+            new { errors = new[] { "x" }, errorCodes = new[] { "InvalidEmail" } })));
+
+        var result = await fixture.Auth.RegisterAsync(
+            "pw@example.invalid", "Fixture-pass1", "Learner");
+
+        Assert.Equal("Register_Failed", result.ErrorKey);
     }
 
     private static HttpResponseMessage Response(HttpStatusCode status, object body) =>

@@ -117,6 +117,38 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
+  <data name="PasswordPolicy_Error_Digit" xml:space="preserve">
+    <value>The server rejected that password: it needs a number.</value>
+    <comment>Password requirement</comment>
+  </data>
+  <data name="PasswordPolicy_Error_Generic" xml:space="preserve">
+    <value>That password does not meet the requirements. Use at least 8 characters with an uppercase letter, a lowercase letter, a number and a symbol.</value>
+    <comment>Password requirement</comment>
+  </data>
+  <data name="PasswordPolicy_Error_Length" xml:space="preserve">
+    <value>The server rejected that password: it must be at least 8 characters.</value>
+    <comment>Password requirement</comment>
+  </data>
+  <data name="PasswordPolicy_Error_Lowercase" xml:space="preserve">
+    <value>The server rejected that password: it needs a lowercase letter.</value>
+    <comment>Password requirement</comment>
+  </data>
+  <data name="PasswordPolicy_Error_Symbol" xml:space="preserve">
+    <value>The server rejected that password: it needs a symbol such as ! @ # $ %.</value>
+    <comment>Password requirement</comment>
+  </data>
+  <data name="PasswordPolicy_Error_Uppercase" xml:space="preserve">
+    <value>The server rejected that password: it needs an uppercase letter.</value>
+    <comment>Password requirement</comment>
+  </data>
+  <data name="Register_OneLowercase" xml:space="preserve">
+    <value>One lowercase letter</value>
+    <comment>Password requirement</comment>
+  </data>
+  <data name="Register_OneSymbol" xml:space="preserve">
+    <value>One symbol (such as ! @ # $ %)</value>
+    <comment>Password requirement</comment>
+  </data>
   <data name="TitleDashboard" xml:space="preserve">
     <value>Dashboard</value>
     <comment>the title of the main page</comment>

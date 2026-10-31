@@ -66,7 +66,7 @@ public static class AuthEndpoints
                 return Results.Ok(new { message = "Check your email to confirm your account." });
             }
 
-            return Results.BadRequest(new { errors = nonDuplicateErrors.Select(e => e.Description) });
+            return Results.BadRequest(new { errors = nonDuplicateErrors.Select(e => e.Description), errorCodes = nonDuplicateErrors.Select(e => e.Code) });
         }
 
         // Create a linked UserProfile
@@ -411,7 +411,7 @@ public static class AuthEndpoints
 
             if (nonTokenErrors.Count > 0)
             {
-                return Results.BadRequest(new { errors = nonTokenErrors.Select(e => e.Description) });
+                return Results.BadRequest(new { errors = nonTokenErrors.Select(e => e.Description), errorCodes = nonTokenErrors.Select(e => e.Code) });
             }
 
             return Results.BadRequest(new { error = "Invalid or expired reset link." });
@@ -548,7 +548,7 @@ public static class AuthEndpoints
 
         var result = await userManager.ChangePasswordAsync(user, request.CurrentPassword, request.NewPassword);
         if (!result.Succeeded)
-            return Results.BadRequest(new { errors = result.Errors.Select(e => e.Description) });
+            return Results.BadRequest(new { errors = result.Errors.Select(e => e.Description), errorCodes = result.Errors.Select(e => e.Code) });
 
         return Results.Ok(new { message = "Password changed successfully." });
     }

@@ -58,18 +58,15 @@
                 @if (!string.IsNullOrEmpty(password))
                 {
                     <div class="mt-1">
-                        <small class="@(password.Length >= 8 ? "text-success" : "text-danger")">
-                            <i class="bi @(password.Length >= 8 ? "bi-check-circle" : "bi-x-circle")"></i>
-                            @Localize["Register_AtLeast8Chars"]
-                        </small><br/>
-                        <small class="@(password.Any(char.IsUpper) ? "text-success" : "text-danger")">
-                            <i class="bi @(password.Any(char.IsUpper) ? "bi-check-circle" : "bi-x-circle")"></i>
-                            @Localize["Register_OneUppercase"]
-                        </small><br/>
-                        <small class="@(password.Any(char.IsDigit) ? "text-success" : "text-danger")">
-                            <i class="bi @(password.Any(char.IsDigit) ? "bi-check-circle" : "bi-x-circle")"></i>
-                            @Localize["Register_OneNumber"]
-                        </small>
+                        @foreach (var rule in SentenceStudio.Contracts.Auth.PasswordPolicy.Rules)
+                        {
+                            var met = SentenceStudio.Contracts.Auth.PasswordPolicy.IsMet(rule, password);
+                            <small class="@(met ? "text-success" : "text-danger") d-block"
+                                   data-testid="@($"register-rule-{SentenceStudio.Contracts.Auth.PasswordPolicy.AutomationSuffix(rule)}")">
+                                <i class="bi @(met ? "bi-check-circle" : "bi-x-circle")"></i>
+                                @Localize[SentenceStudio.Contracts.Auth.PasswordPolicy.LabelKey(rule)]
+                            </small>
+                        }
                     </div>
                 }
             </div>
@@ -143,10 +140,7 @@
     private void OnCultureChanged() => InvokeAsync(StateHasChanged);
 
     private bool IsPasswordValid =>
-        !string.IsNullOrEmpty(password)
-        && password.Length >= 8
-        && password.Any(char.IsUpper)
-        && password.Any(char.IsDigit);
+        SentenceStudio.Contracts.Auth.PasswordPolicy.IsSatisfied(password);
 
     private bool CanSubmit => !isBusy
         && !string.IsNullOrWhiteSpace(displayName)

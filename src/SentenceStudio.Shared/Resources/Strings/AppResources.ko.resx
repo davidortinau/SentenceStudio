@@ -117,6 +117,38 @@
   <resheader name="writer">
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
+  <data name="PasswordPolicy_Error_Digit" xml:space="preserve">
+    <value>서버가 비밀번호를 거부했습니다. 숫자가 필요합니다.</value>
+    <comment>Password requirement</comment>
+  </data>
+  <data name="PasswordPolicy_Error_Generic" xml:space="preserve">
+    <value>비밀번호가 요구 사항을 충족하지 않습니다. 8자 이상, 대문자, 소문자, 숫자, 특수문자를 각각 1개 이상 사용하세요.</value>
+    <comment>Password requirement</comment>
+  </data>
+  <data name="PasswordPolicy_Error_Length" xml:space="preserve">
+    <value>서버가 비밀번호를 거부했습니다. 8자 이상이어야 합니다.</value>
+    <comment>Password requirement</comment>
+  </data>
+  <data name="PasswordPolicy_Error_Lowercase" xml:space="preserve">
+    <value>서버가 비밀번호를 거부했습니다. 영문 소문자가 필요합니다.</value>
+    <comment>Password requirement</comment>
+  </data>
+  <data name="PasswordPolicy_Error_Symbol" xml:space="preserve">
+    <value>서버가 비밀번호를 거부했습니다. 특수문자(예: ! @ # $ %)가 필요합니다.</value>
+    <comment>Password requirement</comment>
+  </data>
+  <data name="PasswordPolicy_Error_Uppercase" xml:space="preserve">
+    <value>서버가 비밀번호를 거부했습니다. 영문 대문자가 필요합니다.</value>
+    <comment>Password requirement</comment>
+  </data>
+  <data name="Register_OneLowercase" xml:space="preserve">
+    <value>영문 소문자 1개 이상</value>
+    <comment>Password requirement</comment>
+  </data>
+  <data name="Register_OneSymbol" xml:space="preserve">
+    <value>특수문자 1개 이상 (예: ! @ # $ %)</value>
+    <comment>Password requirement</comment>
+  </data>
   <data name="TitleDashboard" xml:space="preserve">
     <value>홈</value>
     <comment>the title of the main page</comment>

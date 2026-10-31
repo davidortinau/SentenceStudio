@@ -291,7 +291,8 @@ public sealed class IdentityAuthService : IAuthService
             if (!response.IsSuccessStatusCode)
             {
                 _logger.LogWarning("Registration failed with status {Status}", response.StatusCode);
-                return new(AuthRegistrationOutcome.Rejected);
+                return new(AuthRegistrationOutcome.Rejected,
+                    ErrorCodes: await ReadIdentityErrorCodesAsync(response, cancellationToken));
             }
 
             await using var body = await response.Content.ReadAsStreamAsync(cancellationToken);
@@ -340,6 +341,30 @@ public sealed class IdentityAuthService : IAuthService
             _logger.LogWarning("Registration response was not usable ({FailureType}).",
                 ex.GetType().Name);
             return new(AuthRegistrationOutcome.Rejected);
+        }
+    }
+
+    // The API's 400 body carries Identity error codes (errorCodes); older servers do not.
+    private static async Task<IReadOnlyList<string>?> ReadIdentityErrorCodesAsync(
+        HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await using var body = await response.Content.ReadAsStreamAsync(cancellationToken);
+            using var document = await JsonDocument.ParseAsync(
+                body, cancellationToken: cancellationToken);
+            if (document.RootElement.ValueKind != JsonValueKind.Object
+                || !document.RootElement.TryGetProperty("errorCodes", out var codes)
+                || codes.ValueKind != JsonValueKind.Array)
+                return null;
+            return codes.EnumerateArray()
+                .Where(c => c.ValueKind == JsonValueKind.String)
+                .Select(c => c.GetString()!)
+                .ToList();
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+        {
+            return null;
         }
     }
 

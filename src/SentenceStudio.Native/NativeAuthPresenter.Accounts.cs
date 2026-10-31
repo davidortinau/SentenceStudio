@@ -18,6 +18,10 @@ public sealed partial class NativeAuthPresenter
                 || string.IsNullOrWhiteSpace(password)
                 || string.IsNullOrWhiteSpace(displayName))
                 return new(NativeRegistrationOutcome.Rejected, "Register_Failed");
+            // Never send a password the shared policy already rejects.
+            if (!SentenceStudio.Contracts.Auth.PasswordPolicy.IsSatisfied(password))
+                return new(NativeRegistrationOutcome.Rejected,
+                    SentenceStudio.Contracts.Auth.PasswordPolicy.GenericServerErrorKey);
             if (!BeginAuthentication())
             {
                 var blocked = RefuseChangedOwner();
@@ -82,7 +86,9 @@ public sealed partial class NativeAuthPresenter
                 AuthRegistrationOutcome.Unavailable =>
                     new(NativeRegistrationOutcome.Unavailable,
                         "Register_NotAvailable"),
-                _ => new(NativeRegistrationOutcome.Rejected, "Register_Failed")
+                _ => new(NativeRegistrationOutcome.Rejected,
+                    SentenceStudio.Contracts.Auth.PasswordPolicy.ServerErrorKeyFor(
+                        response.ErrorCodes) ?? "Register_Failed")
             };
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

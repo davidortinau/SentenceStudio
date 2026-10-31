@@ -6,8 +6,6 @@ internal static class AndroidRegistrationPolicy
         string? password, string? confirmation) =>
         !string.IsNullOrWhiteSpace(name)
         && !string.IsNullOrWhiteSpace(email)
-        && password is { Length: >= 8 }
-        && password.Any(char.IsUpper)
-        && password.Any(char.IsDigit)
+        && SentenceStudio.Contracts.Auth.PasswordPolicy.IsSatisfied(password)
         && password == confirmation;
 }

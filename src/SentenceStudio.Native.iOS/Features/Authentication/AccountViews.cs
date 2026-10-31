@@ -24,7 +24,7 @@ internal sealed record RegisterActions(
 internal static class AccountViews
 {
     internal static bool IsPasswordValid(string password) =>
-        password.Length >= 8 && password.Any(char.IsUpper) && password.Any(char.IsDigit);
+        SentenceStudio.Contracts.Auth.PasswordPolicy.IsSatisfied(password);
 
     internal static bool CanRegister(RegisterInputs inputs, bool busy) =>
         !busy && !string.IsNullOrWhiteSpace(inputs.DisplayName)
@@ -130,12 +130,12 @@ internal static class AccountViews
         hints.Clear();
         if (string.IsNullOrEmpty(password))
             return;
-        hints.Add(Rule(style, password.Length >= 8, text("Register_AtLeast8Chars"),
-            "native.register.rule.length"));
-        hints.Add(Rule(style, password.Any(char.IsUpper), text("Register_OneUppercase"),
-            "native.register.rule.uppercase"));
-        hints.Add(Rule(style, password.Any(char.IsDigit), text("Register_OneNumber"),
-            "native.register.rule.number"));
+        foreach (var rule in SentenceStudio.Contracts.Auth.PasswordPolicy.Rules)
+            hints.Add(Rule(style,
+                SentenceStudio.Contracts.Auth.PasswordPolicy.IsMet(rule, password),
+                text(SentenceStudio.Contracts.Auth.PasswordPolicy.LabelKey(rule)),
+                "native.register.rule."
+                + SentenceStudio.Contracts.Auth.PasswordPolicy.AutomationSuffix(rule)));
     }
 
     private static void FillMismatch(

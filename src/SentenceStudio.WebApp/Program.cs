@@ -103,10 +103,13 @@ builder.Services.AddHttpContextAccessor();
 // Identity cookie auth — ApplicationDbContext is registered below via AddDataServices.
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 {
-    options.Password.RequiredLength = 8;
-    options.Password.RequireUppercase = true;
-    options.Password.RequireDigit = true;
-    options.Password.RequireNonAlphanumeric = false;
+    // Single source of truth shared with the API and every client checklist.
+    options.Password.RequiredLength = SentenceStudio.Contracts.Auth.PasswordPolicy.MinimumLength;
+    options.Password.RequireUppercase = SentenceStudio.Contracts.Auth.PasswordPolicy.RequireUppercase;
+    options.Password.RequireLowercase = SentenceStudio.Contracts.Auth.PasswordPolicy.RequireLowercase;
+    options.Password.RequireDigit = SentenceStudio.Contracts.Auth.PasswordPolicy.RequireDigit;
+    options.Password.RequireNonAlphanumeric = SentenceStudio.Contracts.Auth.PasswordPolicy.RequireSymbol;
+    options.Password.RequiredUniqueChars = SentenceStudio.Contracts.Auth.PasswordPolicy.RequiredUniqueChars;
     options.SignIn.RequireConfirmedEmail = false;
     options.User.RequireUniqueEmail = true;
 })
