@@ -110,6 +110,49 @@ cursor takes the normal owner-filtered snapshot.
 The binding survives API restarts without an EF migration. Headerless legacy
 clients continue to use their raw store IDs.
 
+### Account switching on one device (per-owner local stores)
+
+Because the API binds a native store ID to its first owner, one device file
+cannot serve two accounts. Both native heads previously kept a single SQLite
+file: after A signed out, B's iOS profile bootstrap wrote B's `UserProfile`
+into A's file and B's uploads used A's store ID, so the binding refused them
+(`403`, "Sync is pending"; reproduced 2026-10-31 on a simulator). The original
+MAUI head shared one `sstudio.db3` across accounts and synced headerless,
+which is exactly what the native owner filter exists to refuse, so the native
+design deliberately differs. The server rule is unchanged.
+
+`NativeOwnerStores` (`src/SentenceStudio.Native/Adapters/NativeOwnerStores.cs`)
+gives every owner its own file, and therefore its own CoreSync store ID:
+`<data>/owners/<profile-guid-N>/<db-name>`. The presenter activates the
+token-verified owner's file before readiness (iOS also before its profile
+bootstrap) and migrates it with the existing verified pre-migration backup;
+sign-out, a refused sign-in, or a changed owner deactivates it.
+`ApplicationDbContext` opens only the active owner's file; with no active
+owner, a revoked readiness lease, or a scope owner other than the active one
+it throws. An EF save of an owned row naming another owner is refused.
+CoreSync routes every call to the database of the readiness lease running it,
+so a revoked or foreign lease reaches no file. Local-only state (unsynced
+rows, `__CORE_SYNC_*` tracking and anchors, WAL/SHM) stays in each owner's
+file across switches; signing back in resumes and uploads it as that owner.
+
+The pre-existing file (`sentencestudio.sqlite` on iOS,
+`sentence-studio-native.sqlite` on Android) is never moved, copied over, or
+rewritten to change hands. On the first activation after upgrade it is opened
+read-only and assigned to the single owner named by its owned rows (or, with
+no owned rows, its single profile); the decision is written once to
+`<db-name>.owner`. A file with rows of two owners, or with no provable owner,
+is marked `unassigned`: it stays on disk untouched and every owner gets a new
+file; recovering its contents needs Captain's decision. A stray `UserProfile`
+of another account (the earlier bootstrap defect) does not change ownership,
+and the download-only profile table never uploads it.
+
+Preferences: the credential triple and `active_profile_id` describe the one
+signed-in session and are replaced or cleared by sign-in/sign-out. Onboarding
+resume, dashboard mode, and vocabulary view/sort keys are already per owner;
+`remember_me`/`remember_email` are device-level as in the source app.
+`is_onboarded` remains a global write-only marker that native routing does not
+read.
+
 The API's legacy Npgsql timestamp setting materializes `timestamptz` as
 `DateTimeKind.Local`. Native-only downloads convert those values back to UTC
 before JSON or MessagePack transfer; date-only and timezone-unspecified

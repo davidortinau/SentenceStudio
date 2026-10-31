@@ -143,6 +143,29 @@ public sealed class NativeOwnerStoresTests
     }
 
     [Fact]
+    public void OwnerRoutedHead_ResolvesCoreSyncThroughTheOwnerRouter()
+    {
+        var services = new ServiceCollection();
+        services.AddLogging();
+        services.AddSingleton(new DeviceUserScopeProvider());
+        services.AddSingleton<SentenceStudio.Abstractions.IPreferencesService>(
+            new NativeSliceFixture.ScratchPreferences());
+        services.AddNativeOwnerSqlite(sp => new NativeOwnerStores(
+            Path.GetTempPath(), $"unused-{Guid.NewGuid():N}.sqlite",
+            sp.GetRequiredService<DeviceUserScopeProvider>(),
+            NullLogger<NativeOwnerStores>.Instance));
+        services.AddSyncServices($"unused-{Guid.NewGuid():N}.sqlite",
+            new Uri("https://api.example.invalid/"), downloadOnlyProfile: true);
+        services.AddOwnerBoundNativeSyncReadiness();
+        using var provider = services.BuildServiceProvider();
+
+        Assert.IsType<NativeOwnerSyncProviderRouter>(provider.GetRequiredService<ISyncProvider>());
+        using var scope = provider.CreateScope();
+        Assert.Throws<UnauthorizedAccessException>(
+            () => scope.ServiceProvider.GetRequiredService<ApplicationDbContext>());
+    }
+
+    [Fact]
     public async Task ExistingDatabaseWithTwoOwnersRowsStaysUnassignedAndUntouched()
     {
         var root = Path.Combine(Path.GetTempPath(), "sentencestudio-native-tests",
