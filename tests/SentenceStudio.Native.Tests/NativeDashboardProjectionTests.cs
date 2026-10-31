@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using SentenceStudio.Abstractions;
 using SentenceStudio.Data;
 using SentenceStudio.Contracts.Plans;
 using SentenceStudio.Native;
@@ -288,7 +290,57 @@ public sealed class NativeDashboardProjectionTests
                 user.Id == NativeSliceFixture.UserA)).TargetLanguage = "Spanish";
             await db.SaveChangesAsync();
         }
-        Assert.Empty((await dashboard.LoadAsync()).NumberContexts);
+        var spanish = await dashboard.LoadAsync();
+        Assert.Empty(spanish.NumberContexts);
+        Assert.False(spanish.NumbersApplicable);
+    }
+
+    [Fact]
+    public async Task NumbersSectionIsApplicableOnlyForKoreanLearners()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA);
+        fixture.Activate(NativeSliceFixture.UserA);
+        var korean = await fixture.Dashboard.LoadAsync();
+        Assert.True(korean.NumbersApplicable);
+        Assert.Empty(korean.NumberContexts);
+    }
+
+    [Fact]
+    public async Task VocabularyStatisticsSurviveAPlanGenerationFailure()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA);
+        fixture.Activate(NativeSliceFixture.UserA);
+        using var scope = fixture.Scope();
+        var services = scope.ServiceProvider;
+        var dashboard = new NativeDashboardPresenter(
+            services.GetRequiredService<NativePlanLeaseFactory>(),
+            services.GetRequiredService<DeviceUserScopeProvider>(),
+            services.GetRequiredService<IPreferencesService>(),
+            services.GetRequiredService<INativeSyncReadiness>(),
+            new FailingPlanCreation(),
+            services.GetRequiredService<IActivitySessionService>(),
+            services.GetRequiredService<NativePendingWrites>(),
+            services.GetRequiredService<VocabularyProgressRepository>(),
+            services.GetRequiredService<LearningResourceRepository>(),
+            services.GetRequiredService<SkillProfileRepository>(),
+            services.GetRequiredService<ILogger<NativeDashboardPresenter>>());
+
+        var state = await dashboard.LoadAsync();
+
+        Assert.Equal(NativePhase.Error, state.Phase);
+        Assert.Equal(NativeText.PlanGenerationError, state.ErrorKey);
+        Assert.NotNull(state.VocabSummary);
+        Assert.Null(state.VocabErrorKey);
+        Assert.True(state.NumbersApplicable);
+    }
+
+    private sealed class FailingPlanCreation : INativePlanCreation
+    {
+        public Task<NativePlanCreateResult> CreateIfAbsentAsync(
+            string userId, DateOnly localDate, CancellationToken cancellationToken) =>
+            throw new InvalidOperationException("No feasible plan.");
     }
 
     [Fact]

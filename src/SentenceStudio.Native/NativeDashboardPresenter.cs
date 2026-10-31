@@ -34,6 +34,9 @@ public sealed partial class NativeDashboardPresenter(
     private NativeDashboardMode _mode = NativeDashboardMode.TodaysPlan;
     private ImmutableArray<NativeNumberContextStat> _numberContexts = [];
     private string? _numberErrorKey;
+    private bool _numbersApplicable;
+    private VocabProgressSummary? _vocabSummary;
+    private string? _vocabErrorKey;
     private NativeChooseOwnState? _chooseOwn;
     private long _chooseOwnGeneration;
 
@@ -82,7 +85,8 @@ public sealed partial class NativeDashboardPresenter(
             if (!lease.Database.Database.IsSqlite())
                 throw new NotSupportedException("Native plan regeneration requires SQLite.");
 
-            var vocabSummary = await LoadVocabSummaryAsync(owner, cancellationToken);
+            await LoadVocabStateAsync(owner, cancellationToken);
+            var vocabSummary = _vocabSummary;
             if (!TryCurrentUser(out var currentOwner) || currentOwner != owner)
                 return SetState(new(NativePhase.Blocked, ErrorKey: NativeText.PlanError));
             await LoadNumberContextsAsync(lease.Database, owner, cancellationToken);
@@ -242,6 +246,11 @@ public sealed partial class NativeDashboardPresenter(
                         IsNewUser = true
                     }, owner);
             }
+            // Source order: vocabulary and number statistics load before, and
+            // independently of, the plan so a plan failure cannot hide them.
+            await LoadVocabStateAsync(owner, cancellationToken);
+            if (!TryCurrentUser(out current) || current != owner)
+                return SetState(new(NativePhase.Blocked, ErrorKey: NativeText.PlanError));
             await LoadNumberContextsAsync(lease.Database, owner, cancellationToken);
             if (_mode == NativeDashboardMode.ChooseOwn)
                 await LoadChooseOwnDataAsync(owner, cancellationToken);
@@ -284,10 +293,7 @@ public sealed partial class NativeDashboardPresenter(
                     return SetState(new(NativePhase.Blocked, ErrorKey: NativeText.PlanError));
             }
 
-            var vocabSummary = await LoadVocabSummaryAsync(owner, cancellationToken);
-            if (!TryCurrentUser(out current) || current != owner)
-                return SetState(new(NativePhase.Blocked, ErrorKey: NativeText.PlanError));
-
+            var vocabSummary = _vocabSummary;
             if (plan is null)
                 return SetState(new(NativePhase.Empty,
                     ErrorKey: NativeText.NoPlan,
@@ -413,6 +419,31 @@ public sealed partial class NativeDashboardPresenter(
         return new(newCount, learning, familiar, review, known, accuracy);
     }
 
+    private async Task LoadVocabStateAsync(
+        string owner, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var summary = await LoadVocabSummaryAsync(owner, cancellationToken);
+            if (!TryCurrentUser(out var current) || current != owner)
+                return;
+            _vocabSummary = summary;
+            _vocabErrorKey = null;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Native dashboard vocabulary statistics could not be loaded.");
+            if (!TryCurrentUser(out var current) || current != owner)
+                return;
+            _vocabSummary = null;
+            _vocabErrorKey = NativeText.VocabInsightError;
+        }
+    }
+
     private async Task LoadNumberContextsAsync(
         ApplicationDbContext db, string owner, CancellationToken cancellationToken)
     {
@@ -424,7 +455,9 @@ public sealed partial class NativeDashboardPresenter(
                 .Where(profile => profile.Id == owner)
                 .Select(profile => profile.TargetLanguage)
                 .SingleOrDefaultAsync(cancellationToken);
-            if (!string.Equals(targetLanguage, "Korean", StringComparison.OrdinalIgnoreCase))
+            _numbersApplicable = string.Equals(
+                targetLanguage, "Korean", StringComparison.OrdinalIgnoreCase);
+            if (!_numbersApplicable)
                 return;
             var rows = await db.NumberMasteryProgresses.AsNoTracking()
                 .Where(progress => progress.UserProfileId == owner
@@ -505,6 +538,9 @@ public sealed partial class NativeDashboardPresenter(
                 Mode = _mode,
                 NumberContexts = _numberContexts,
                 NumberErrorKey = _numberErrorKey,
+                NumbersApplicable = _numbersApplicable,
+                VocabSummary = value.VocabSummary ?? _vocabSummary,
+                VocabErrorKey = value.VocabSummary is null ? _vocabErrorKey : null,
                 ChooseOwn = _chooseOwn
             };
         }
@@ -521,6 +557,9 @@ public sealed partial class NativeDashboardPresenter(
         _modeOwner = owner;
         _numberContexts = [];
         _numberErrorKey = null;
+        _numbersApplicable = false;
+        _vocabSummary = null;
+        _vocabErrorKey = null;
         _chooseOwn = null;
         _chooseOwnGeneration++;
         _mode = preferences.Get(ModeKeyPrefix + owner, "TodaysPlan") == "ChooseOwn"

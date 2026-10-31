@@ -45,6 +45,7 @@ public static class NativeText
     public const string PlanGenerationError = "Dashboard_UnableToGeneratePlan";
     public const string PlanNetworkError = "Dashboard_NetworkErrorTryAgain";
     public const string NumberInsightError = "NativeDashboard_NumbersUnavailable";
+    public const string VocabInsightError = "NativeDashboard_VocabUnavailable";
     public const string Regenerate = "Dashboard_RegeneratePlan";
     public const string Quiz = "Activity_VocabQuiz";
     public const string QuizEmpty = "VocabQuiz_NoVocab";
@@ -205,6 +206,10 @@ public sealed record NativeDashboardState(
     public bool IsNewUser { get; init; }
     public ImmutableArray<NativeNumberContextStat> NumberContexts { get; init; }
     public string? NumberErrorKey { get; init; }
+    /// <summary>Number mastery exists only for Korean learners; other target languages omit the section.</summary>
+    public bool NumbersApplicable { get; init; }
+    /// <summary>Vocabulary statistics load independently of the plan, as in the source dashboard.</summary>
+    public string? VocabErrorKey { get; init; }
     public NativeChooseOwnState? ChooseOwn { get; init; }
 
     public ImmutableArray<TagInsightDto> StrugglingCategories =>

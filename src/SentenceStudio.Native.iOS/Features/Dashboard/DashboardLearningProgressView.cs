@@ -37,6 +37,12 @@ internal static class DashboardLearningProgressView
         }
         else if (state.VocabSummary is { } summary)
             AddVocabularySummary(items, summary, style, text);
+        else if (state.VocabErrorKey is { } vocabError)
+            items.Add(style.BorderedCard(
+                    style.Text(Views.Text(text(vocabError)),
+                            SourceTextRole.Body1, SourceTextTone.Danger)
+                        .WithPadding(SourceUiLayout.CardInset))
+                .WithAccessibilityIdentifier("native.dashboard.vocab.error"));
         else if (state.Phase is (NativePhase.Error or NativePhase.Blocked))
             items.Add(style.BorderedCard(
                     style.Text(Views.Text(text(state.ErrorKey
@@ -51,6 +57,10 @@ internal static class DashboardLearningProgressView
                         .WithPadding(SourceUiLayout.LargeCardInset))
                 .WithAccessibilityIdentifier("native.dashboard.vocab.empty"));
 
+        // Number mastery is Korean-only in the source; omit it for other
+        // target languages rather than implying Korean progress.
+        if (!state.NumbersApplicable && state.NumberErrorKey is null)
+            return;
         items.Add(Views.HStack(
                 Views.Image("number"),
                 style.Text(Views.Text(text("NativeDashboard_NumbersMastery")),
