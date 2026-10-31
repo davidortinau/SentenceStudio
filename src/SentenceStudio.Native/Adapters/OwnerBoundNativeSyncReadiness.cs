@@ -27,7 +27,8 @@ public sealed class OwnerBoundNativeSyncReadiness(
     IConnectivityService connectivity,
     IRemoteSyncCompletion sync,
     IHttpClientFactory clients,
-    ILogger<OwnerBoundNativeSyncReadiness> logger) : INativeSyncReadiness
+    ILogger<OwnerBoundNativeSyncReadiness> logger,
+    NativeServerReachability? reachability = null) : INativeSyncReadiness
 {
     public async Task<NativeSyncOutcome> SynchronizeAsync(
         string userId, CancellationToken cancellationToken)
@@ -55,6 +56,17 @@ public sealed class OwnerBoundNativeSyncReadiness(
                 return NativeSyncOutcome.Unconfirmed;
             if (!connectivity.IsInternetAvailable)
                 return NativeSyncOutcome.Offline;
+            // The server just failed to answer another step (for example the sign-in
+            // restore right before this Dashboard load): report the same honest
+            // unconfirmed state now instead of waiting out another timeout. Local writes
+            // stay pending; background triggers keep retrying and clear this on a response.
+            if (reachability?.IsRecentlyUnreachable == true)
+            {
+                logger.LogInformation(
+                    "Native sync readiness remains unconfirmed: the server did not answer within the last {WindowSeconds} seconds.",
+                    reachability.Window.TotalSeconds);
+                return NativeSyncOutcome.Unconfirmed;
+            }
 
             // The shared operation waits on the same semaphore as TriggerSyncAsync,
             // actually awaits CoreSync, and propagates provider failures.
@@ -226,7 +238,8 @@ public static class OwnerBoundNativeSyncReadinessRegistration
                             provider.GetRequiredService<IAuthService>(),
                             provider.GetRequiredService<IPreferencesService>(),
                             provider.GetRequiredService<DeviceUserScopeProvider>(),
-                            provider.GetRequiredService<ILogger<OwnerBoundNativeSyncTrigger>>())
+                            provider.GetRequiredService<ILogger<OwnerBoundNativeSyncTrigger>>(),
+                            provider.GetService<NativeServerReachability>())
                         : inner;
                 });
         }
@@ -234,11 +247,16 @@ public static class OwnerBoundNativeSyncReadinessRegistration
         services.TryAddTransient<AuthenticatedHttpMessageHandler>();
         services.TryAddTransient<OwnerBoundNativeSyncBearerHandler>();
         services.TryAddSingleton(NativeSyncTimeouts.Default);
+        services.TryAddSingleton<NativeServerReachability>();
         services.TryAddTransient<NativeSyncResponseTimeoutHandler>();
+        services.TryAddTransient<NativeServerReachabilityHandler>();
         // Innermost: only the wait for the server's answer is bounded, after the owner checks.
         services.AddHttpClient("HttpClientToServer")
             .AddHttpMessageHandler<OwnerBoundNativeSyncBearerHandler>()
             .AddHttpMessageHandler<NativeSyncResponseTimeoutHandler>();
+        // A sign-in or profile response proves the server answers again.
+        services.AddHttpClient("AuthClient")
+            .AddHttpMessageHandler<NativeServerReachabilityHandler>();
         services.TryAddSingleton<IRemoteSyncCompletion>(serviceProvider =>
             serviceProvider.GetRequiredService<ISyncService>() switch
             {

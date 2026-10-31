@@ -129,6 +129,152 @@ public sealed class NativeSyncTimeoutTests
         Assert.True(timer.Elapsed < TimeSpan.FromSeconds(10), $"Audio waited {timer.Elapsed}.");
     }
 
+    [Fact]
+    public async Task AfterATimeout_NextBlockingReadinessFailsFast_WritesStayPending_AndBackgroundRetries()
+    {
+        var reachability = new NativeServerReachability(TimeProvider.System, TimeSpan.FromMinutes(5));
+        await using var scenario = await Scenario.CreateAsync(reachability: reachability);
+        await scenario.AddPendingLocalWriteAsync();
+        var pendingBefore = await scenario.PendingUploadCountAsync();
+
+        // Sign-in restore: waits its probe budget once and remembers the failure.
+        Assert.Equal(NativeSyncOutcome.Unconfirmed,
+            await scenario.Readiness.SynchronizeAsync(Owner, CancellationToken.None));
+        Assert.True(reachability.IsRecentlyUnreachable);
+        Assert.Equal(1, scenario.Server.Calls);
+
+        // Dashboard readiness right after: the same honest outcome without another wait.
+        var timer = Stopwatch.StartNew();
+        Assert.Equal(NativeSyncOutcome.Unconfirmed,
+            await scenario.Readiness.SynchronizeAsync(Owner, CancellationToken.None));
+        timer.Stop();
+        Assert.Equal(1, scenario.Server.Calls);
+        Assert.True(timer.Elapsed < Short.Probe, $"Readiness waited {timer.Elapsed}.");
+        Assert.Equal(pendingBefore, await scenario.PendingUploadCountAsync());
+        Assert.Equal(0, await scenario.SavedAnchorCountAsync());
+
+        // An awaited source trigger (ProgressService) returns at once but still retries.
+        var trigger = scenario.Services.GetRequiredService<ISyncService>().TriggerSyncAsync();
+        Assert.True(trigger.IsCompleted);
+        var deadline = Stopwatch.StartNew();
+        while (Volatile.Read(ref scenario.Server.Calls) < 2 && deadline.Elapsed < TimeSpan.FromSeconds(5))
+            await Task.Delay(20);
+        Assert.Equal(2, Volatile.Read(ref scenario.Server.Calls));
+        Assert.Equal(pendingBefore, await scenario.PendingUploadCountAsync());
+    }
+
+    [Fact]
+    public async Task WithoutARecentFailure_ReadinessAndTriggerStillWaitForTheServer()
+    {
+        var reachability = new NativeServerReachability(
+            TimeProvider.System, TimeSpan.FromMilliseconds(1));
+        await using var scenario = await Scenario.CreateAsync(reachability: reachability);
+        await scenario.Readiness.SynchronizeAsync(Owner, CancellationToken.None);
+        await Task.Delay(20);
+        Assert.False(reachability.IsRecentlyUnreachable);
+
+        // The window ended: the next readiness tries the server again.
+        await scenario.Readiness.SynchronizeAsync(Owner, CancellationToken.None);
+        Assert.Equal(2, scenario.Server.Calls);
+        await Task.Delay(20);
+        var timer = Stopwatch.StartNew();
+        await scenario.Services.GetRequiredService<ISyncService>().TriggerSyncAsync();
+        Assert.True(timer.Elapsed >= Short.Probe - TimeSpan.FromMilliseconds(50),
+            $"Trigger returned after {timer.Elapsed}.");
+        Assert.Equal(3, scenario.Server.Calls);
+    }
+
+    [Fact]
+    public async Task AnyServerResponse_ClearsTheRecentFailure()
+    {
+        var reachability = new NativeServerReachability();
+        reachability.RecordFailure();
+        using var sync = new HttpClient(new NativeSyncResponseTimeoutHandler(Short, reachability)
+        {
+            InnerHandler = new StatusServer(HttpStatusCode.Unauthorized)
+        }) { BaseAddress = new Uri("https://api.example.invalid/") };
+        using (await sync.GetAsync("api/sync-agent/store-id"))
+            Assert.False(reachability.IsRecentlyUnreachable);
+
+        reachability.RecordFailure();
+        using var auth = new HttpClient(new NativeServerReachabilityHandler(reachability)
+        {
+            InnerHandler = new StatusServer(HttpStatusCode.OK)
+        }) { BaseAddress = new Uri("https://api.example.invalid/") };
+        using (await auth.GetAsync("api/v1/profile/x"))
+            Assert.False(reachability.IsRecentlyUnreachable);
+
+        // A refused connection opens the window just like a timeout.
+        using var refused = new HttpClient(new NativeServerReachabilityHandler(reachability)
+        {
+            InnerHandler = new RefusingServer()
+        }) { BaseAddress = new Uri("https://api.example.invalid/") };
+        await Assert.ThrowsAsync<HttpRequestException>(() => refused.GetAsync("api/v1/x"));
+        Assert.True(reachability.IsRecentlyUnreachable);
+    }
+
+    [Fact]
+    public async Task PromptAudio_AfterARecentFailure_FallsBackAtOnce_WithoutCallingTheServer()
+    {
+        var reachability = new NativeServerReachability();
+        var (speech, handlers) = SpeechFor(reachability, TimeSpan.FromSeconds(30));
+        reachability.RecordFailure();
+
+        var timer = Stopwatch.StartNew();
+        // HttpRequestException is the quiz's existing "audio unavailable" path.
+        await Assert.ThrowsAsync<HttpRequestException>(() =>
+            speech.SynthesizeAsync(Owner, "반찬", "voice", CancellationToken.None));
+        await Assert.ThrowsAsync<HttpRequestException>(() =>
+            speech.GetVoicesAsync(Owner, "Korean", CancellationToken.None));
+        Assert.True(timer.Elapsed < TimeSpan.FromSeconds(5), $"Audio waited {timer.Elapsed}.");
+        Assert.Equal(0, handlers.Created);
+    }
+
+    [Fact]
+    public async Task PromptAudio_Timeout_OpensTheWindow_ButOwnerChecksStillComeFirst()
+    {
+        var reachability = new NativeServerReachability();
+        var (speech, _) = SpeechFor(reachability, TimeSpan.FromMilliseconds(300));
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            speech.SynthesizeAsync(Owner, "반찬", "voice", CancellationToken.None));
+        Assert.True(reachability.IsRecentlyUnreachable);
+
+        // A foreign owner is refused as before, not reported as a connection failure.
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            speech.SynthesizeAsync("bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", "반찬", "voice",
+                CancellationToken.None));
+    }
+
+    private static (NativeQuizSpeechSource Speech, HangingHandlers Handlers) SpeechFor(
+        NativeServerReachability reachability, TimeSpan timeout)
+    {
+        var scope = new DeviceUserScopeProvider();
+        Assert.True(scope.TryBeginAuthentication(null, out var transition));
+        Assert.True(scope.TryPublishAuthenticatedUser(
+            Owner, transition, CancellationToken.None, out _));
+        var preferences = new Preferences();
+        preferences.Set(UserProfileRepository.ActiveProfileIdKey, Owner);
+        var handlers = new HangingHandlers();
+        return (new NativeQuizSpeechSource(
+            new FakeAuth(), preferences, scope, handlers,
+            NullLogger<SpeechGatewayClient>.Instance,
+            new Uri("https://api.example.invalid/"), timeout, reachability), handlers);
+    }
+
+    private sealed class StatusServer(HttpStatusCode status) : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken) =>
+            Task.FromResult(new HttpResponseMessage(status));
+    }
+
+    private sealed class RefusingServer : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(
+            HttpRequestMessage request, CancellationToken cancellationToken) =>
+            throw new HttpRequestException("Connection refused.");
+    }
+
     private static string TokenFor(string owner) =>
         new JwtSecurityTokenHandler().WriteToken(new JwtSecurityToken(
             claims: [new Claim(AuthClaimTypes.UserProfileId, owner)],
@@ -150,7 +296,8 @@ public sealed class NativeSyncTimeoutTests
         public IServiceProvider Services => _services;
         public INativeSyncReadiness Readiness => _services.GetRequiredService<INativeSyncReadiness>();
 
-        public static async Task<Scenario> CreateAsync(NativeSyncTimeouts? timeouts = null)
+        public static async Task<Scenario> CreateAsync(
+            NativeSyncTimeouts? timeouts = null, NativeServerReachability? reachability = null)
         {
             var database = Path.Combine(Path.GetTempPath(), $"native-timeout-{Guid.NewGuid():N}.sqlite");
             await using (var db = new ApplicationDbContext(
@@ -174,6 +321,8 @@ public sealed class NativeSyncTimeoutTests
             services.AddSingleton<IUserScopeProvider>(_ => scope);
             services.AddSingleton<IConnectivityService>(new OnlineConnectivity());
             services.AddSingleton(timeouts ?? Short);
+            if (reachability is not null)
+                services.AddSingleton(reachability);
             services.AddSyncServices($"{database};Pooling=False",
                 new Uri("https://api.example.invalid/"), downloadOnlyProfile: true);
             services.AddSingleton<ISyncService, SyncService>();
@@ -285,7 +434,12 @@ public sealed class NativeSyncTimeoutTests
 
     private sealed class HangingHandlers : IHttpMessageHandlerFactory
     {
-        public HttpMessageHandler CreateHandler(string name) => new HangingServer();
+        public int Created;
+        public HttpMessageHandler CreateHandler(string name)
+        {
+            Interlocked.Increment(ref Created);
+            return new HangingServer();
+        }
     }
 
     private sealed class FakeAuth : IAuthService

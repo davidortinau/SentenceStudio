@@ -19,7 +19,8 @@ public sealed class OwnerBoundNativeSyncTrigger(
     IAuthService auth,
     IPreferencesService preferences,
     DeviceUserScopeProvider scope,
-    ILogger<OwnerBoundNativeSyncTrigger> logger) : ISyncService
+    ILogger<OwnerBoundNativeSyncTrigger> logger,
+    NativeServerReachability? reachability = null) : ISyncService
 {
     internal ISyncService Inner => inner;
 
@@ -35,7 +36,22 @@ public sealed class OwnerBoundNativeSyncTrigger(
 
     public void BeginInitialSync() => inner.BeginInitialSync();
 
-    public async Task TriggerSyncAsync()
+    public Task TriggerSyncAsync()
+    {
+        // Some source callers (ProgressService session starts) await this trigger. While
+        // the server has just failed to answer, retry in the background instead of
+        // holding that caller for another full timeout; the owner lease and bearer checks
+        // still apply inside the background run.
+        if (reachability?.IsRecentlyUnreachable == true)
+        {
+            logger.LogInformation("Sync trigger continues in the background: the server recently did not answer.");
+            _ = Task.Run(TriggerLoggedAsync);
+            return Task.CompletedTask;
+        }
+        return TriggerLoggedAsync();
+    }
+
+    private async Task TriggerLoggedAsync()
     {
         // Callers fire this without awaiting it (as the source repositories do),
         // so log here instead of leaving a faulted task unobserved.

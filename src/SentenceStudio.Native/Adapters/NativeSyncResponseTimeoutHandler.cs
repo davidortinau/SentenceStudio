@@ -16,7 +16,8 @@ namespace SentenceStudio.Native.Adapters;
 /// A timed-out run is an ordinary failed sync: CoreSync saves no anchor, so every pending
 /// local write stays pending and is sent again on the next run.
 /// </remarks>
-public sealed class NativeSyncResponseTimeoutHandler(NativeSyncTimeouts timeouts) : DelegatingHandler
+public sealed class NativeSyncResponseTimeoutHandler(
+    NativeSyncTimeouts timeouts, NativeServerReachability? reachability = null) : DelegatingHandler
 {
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request, CancellationToken cancellationToken)
@@ -27,14 +28,23 @@ public sealed class NativeSyncResponseTimeoutHandler(NativeSyncTimeouts timeouts
         deadline.CancelAfter(budget);
         try
         {
-            return await base.SendAsync(request, deadline.Token);
+            var response = await base.SendAsync(request, deadline.Token);
+            reachability?.RecordResponse();
+            return response;
         }
         catch (OperationCanceledException ex)
             when (!cancellationToken.IsCancellationRequested && deadline.IsCancellationRequested)
         {
+            // Remembered briefly so the next blocking step does not wait out its own timeout.
+            reachability?.RecordFailure();
             throw new HttpRequestException(
                 $"The sync server did not respond within {budget.TotalSeconds:0} seconds.",
                 new TimeoutException(ex.Message, ex));
+        }
+        catch (HttpRequestException ex) when (ex.StatusCode is null)
+        {
+            reachability?.RecordFailure();
+            throw;
         }
     }
 

@@ -28,7 +28,8 @@ public sealed class NativeQuizSpeechSource(
     IHttpMessageHandlerFactory handlers,
     ILogger<SpeechGatewayClient> logger,
     Uri apiRoot,
-    TimeSpan? timeout = null) : INativeQuizSpeechSource
+    TimeSpan? timeout = null,
+    NativeServerReachability? reachability = null) : INativeQuizSpeechSource
 {
     /// <summary>Bounded wait for synthesized prompt audio or the voice list.</summary>
     public static TimeSpan DefaultTimeout { get; } = TimeSpan.FromSeconds(10);
@@ -55,10 +56,11 @@ public sealed class NativeQuizSpeechSource(
             || string.IsNullOrWhiteSpace(voiceId))
             throw new UnauthorizedAccessException("Quiz speech needs an authenticated owner and a prompt.");
 
+        FailFastWhenRecentlyUnreachable();
         using var client = CreateClient(owner, HasOwner);
         var gateway = new SpeechGatewayClient(new SpeechApiClient(client), logger);
-        var audio = await gateway.SynthesizeAsync(
-            promptText, voiceId, cancellationToken: cancellationToken);
+        var audio = await ObserveAsync(() => gateway.SynthesizeAsync(
+            promptText, voiceId, cancellationToken: cancellationToken), cancellationToken);
         if (!HasOwner())
         {
             audio?.Dispose();
@@ -83,12 +85,51 @@ public sealed class NativeQuizSpeechSource(
         if (!HasOwner())
             throw new UnauthorizedAccessException("Voice discovery requires the active owner.");
 
+        FailFastWhenRecentlyUnreachable();
         using var client = CreateClient(owner, HasOwner);
-        var response = await client.GetFromJsonAsync<NativeQuizVoiceResponse>(
-            "/api/v1/speech/voices?language=" + language, cancellationToken);
+        var response = await ObserveAsync(() => client.GetFromJsonAsync<NativeQuizVoiceResponse>(
+            "/api/v1/speech/voices?language=" + language, cancellationToken), cancellationToken);
         if (!HasOwner())
             throw new UnauthorizedAccessException("Voice discovery owner changed.");
         return response?.Voices ?? [];
+    }
+
+    /// <summary>
+    /// Right after the server failed to answer (for example the pre-quiz sync timed out),
+    /// take the existing no-audio / connection-error fallback now rather than after
+    /// another full speech timeout.
+    /// </summary>
+    private void FailFastWhenRecentlyUnreachable()
+    {
+        if (reachability?.IsRecentlyUnreachable == true)
+            throw new HttpRequestException(
+                "Speech skipped: the server did not answer a recent request.",
+                new TimeoutException());
+    }
+
+    private async Task<T> ObserveAsync<T>(Func<Task<T>> send, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var result = await send();
+            reachability?.RecordResponse();
+            return result;
+        }
+        catch (HttpRequestException ex)
+        {
+            // A status code is an answer; only a connection failure opens the window.
+            if (ex.StatusCode is null)
+                reachability?.RecordFailure();
+            else
+                reachability?.RecordResponse();
+            throw;
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // The HttpClient timeout elapsed: the server did not answer in time.
+            reachability?.RecordFailure();
+            throw;
+        }
     }
 
     private HttpClient CreateClient(string owner, Func<bool> hasOwner)
@@ -125,7 +166,9 @@ public static class NativeQuizSpeechRegistration
                 sp.GetRequiredService<DeviceUserScopeProvider>(),
                 sp.GetRequiredService<IHttpMessageHandlerFactory>(),
                 sp.GetRequiredService<ILogger<SpeechGatewayClient>>(),
-                apiRoot));
+                apiRoot,
+                reachability: sp.GetRequiredService<NativeServerReachability>()));
+        services.TryAddSingleton<NativeServerReachability>();
         return services;
     }
 }
