@@ -34,7 +34,14 @@ the native slice's fail-closed `UnconfirmedNativeSyncReadiness`. The iOS
 opt-in adds a final `OwnerBoundNativeSyncBearerHandler` to that same named
 CoreSync client. The handler requires a current revocable readiness lease,
 matching profile preference, and matching authenticated token at each send;
-a published device owner without a lease cannot authorize CoreSync. The
+a published device owner without a lease cannot authorize CoreSync.
+`OwnerBoundNativeSyncTrigger` decorates the real `SyncService` so the source
+app's fire-and-forget repository triggers (and the quiz attempt committer's
+post-commit trigger) run inside their own lease for the published, signed-in
+owner whose profile pointer matches; with no such owner the trigger sends
+nothing, and a sign-out or owner switch mid-run still revokes the lease. The
+quiz caption only says local progress finishes syncing on return; connection
+failures surface through the quiz error text. The
 separate `AddSentenceStudioNativeProductionAdapters()` extension wires the
 five plan/quiz ports and does not enable readiness by itself.
 

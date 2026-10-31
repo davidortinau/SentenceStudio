@@ -209,15 +209,43 @@ public static class OwnerBoundNativeSyncReadinessRegistration
             });
         }
 
+        // Repository mutations fire TriggerSyncAsync as in the source app. Run
+        // those under a lease for the published verified owner; the bearer
+        // handler would otherwise refuse every activity-time sync.
+        var syncRegistration = services.LastOrDefault(
+            descriptor => descriptor.ServiceType == typeof(ISyncService));
+        if (syncRegistration is { Lifetime: ServiceLifetime.Singleton, IsKeyedService: false })
+        {
+            services[services.IndexOf(syncRegistration)] =
+                ServiceDescriptor.Singleton<ISyncService>(provider =>
+                {
+                    var inner = (ISyncService)(syncRegistration.ImplementationInstance
+                        ?? syncRegistration.ImplementationFactory?.Invoke(provider)
+                        ?? ActivatorUtilities.CreateInstance(
+                            provider, syncRegistration.ImplementationType!));
+                    return inner is SyncService
+                        ? new OwnerBoundNativeSyncTrigger(
+                            inner,
+                            provider.GetRequiredService<IAuthService>(),
+                            provider.GetRequiredService<IPreferencesService>(),
+                            provider.GetRequiredService<DeviceUserScopeProvider>(),
+                            provider.GetRequiredService<ILogger<OwnerBoundNativeSyncTrigger>>())
+                        : inner;
+                });
+        }
+
         services.TryAddTransient<AuthenticatedHttpMessageHandler>();
         services.TryAddTransient<OwnerBoundNativeSyncBearerHandler>();
         services.AddHttpClient("HttpClientToServer")
             .AddHttpMessageHandler<OwnerBoundNativeSyncBearerHandler>();
         services.TryAddSingleton<IRemoteSyncCompletion>(serviceProvider =>
-            serviceProvider.GetRequiredService<ISyncService>() is SyncService realSync
-                ? realSync
-                : throw new NotSupportedException(
-                    "Owner-bound sync readiness requires the real Shared CoreSync SyncService."));
+            serviceProvider.GetRequiredService<ISyncService>() switch
+            {
+                OwnerBoundNativeSyncTrigger { Inner: SyncService realSync } => realSync,
+                SyncService realSync => realSync,
+                _ => throw new NotSupportedException(
+                    "Owner-bound sync readiness requires the real Shared CoreSync SyncService."),
+            });
         services.Replace(ServiceDescriptor.Singleton<
             INativeSyncReadiness, OwnerBoundNativeSyncReadiness>());
         return services;

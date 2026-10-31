@@ -51,9 +51,11 @@ internal static class QuizView
         var cancelSentence = actions.CancelSentence;
         var continueAfterSentence = actions.ContinueAfterSentence;
         var items = new List<SwiftView>();
+        // The quiz confirms its writes on return; connection failures are
+        // reported separately through ErrorKey, not by this caption.
         if (state.HasPendingSync)
             items.Add(style.Text(Views.Text(
-                    text("Native_SyncPending")),
+                    text("NativeVocabQuiz_SyncPending")),
                     SourceTextRole.Caption1, SourceTextTone.Secondary)
                 .WithAccessibilityIdentifier("native.quiz.pending"));
         if (state.Phase == NativePhase.Loading && state.Sentence is null)

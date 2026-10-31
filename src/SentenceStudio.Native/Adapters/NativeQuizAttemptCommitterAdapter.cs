@@ -189,6 +189,10 @@ public sealed class NativeQuizAttemptCommitterAdapter(
                 "The committed quiz attempt receipt could not be verified.");
         NativeQuizOwnerGuard.RequireActiveOwner(
             userId, userScope, preferences, cancellationToken);
+        // Source parity: the shared progress repository fires a best-effort
+        // sync after each saved attempt. Only after the durable commit; the
+        // native trigger runs it under the verified owner's lease.
+        _ = services.GetService<ISyncService>()?.TriggerSyncAsync();
         return verified;
     }
 

@@ -55,7 +55,9 @@ public sealed class NativeCoreSyncAuthCompositionTests
             scenario.Services.GetRequiredService<ISyncProvider>());
         Assert.IsType<OwnerBoundNativeSyncReadiness>(
             scenario.Services.GetRequiredService<INativeSyncReadiness>());
-        Assert.Same(scenario.Services.GetRequiredService<ISyncService>(),
+        var trigger = Assert.IsType<OwnerBoundNativeSyncTrigger>(
+            scenario.Services.GetRequiredService<ISyncService>());
+        Assert.Same(trigger.Inner,
             scenario.Services.GetRequiredService<IRemoteSyncCompletion>());
         Assert.IsType<SyncService>(
             scenario.Services.GetRequiredService<IRemoteSyncCompletion>());
@@ -196,6 +198,114 @@ public sealed class NativeCoreSyncAuthCompositionTests
         Assert.Equal(0, scenario.Server.Calls);
     }
 
+    [Fact]
+    public async Task RepositoryTrigger_ForPublishedOwner_SendsOwnerBearerInsideOwnLease()
+    {
+        using var scenario = new Scenario();
+        var inner = new SendingSync(scenario);
+
+        await scenario.Trigger(inner).TriggerSyncAsync();
+
+        Assert.Equal(1, inner.Calls);
+        Assert.Null(inner.Failure);
+        Assert.Equal(1, scenario.Server.Calls);
+        Assert.Equal(scenario.Auth.Token, scenario.Server.AuthorizationToken);
+        Assert.Equal(Owner, scenario.Server.NativeOwnerHeader);
+        // The lease ends with the trigger; the caller's flow gains no owner.
+        Assert.False(scenario.Scope.TryGetLeasedReadinessOwner(out _));
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(scenario.SendAsync);
+        Assert.Equal(1, scenario.Server.Calls);
+    }
+
+    [Theory]
+    [InlineData("unpublished")]
+    [InlineData("signed-out")]
+    [InlineData("foreign-pointer")]
+    [InlineData("cleared-owner")]
+    public async Task RepositoryTrigger_WithoutVerifiedPublishedOwner_SendsNothing(string state)
+    {
+        using var scenario = new Scenario(publishOwner: state != "unpublished");
+        switch (state)
+        {
+            case "signed-out":
+                scenario.Auth.IsSignedIn = false;
+                break;
+            case "foreign-pointer":
+                scenario.Preferences.Set(UserProfileRepository.ActiveProfileIdKey, OtherOwner);
+                break;
+            case "cleared-owner":
+                scenario.Scope.SetActiveUser(null);
+                break;
+        }
+        var inner = new SendingSync(scenario);
+
+        await scenario.Trigger(inner).TriggerSyncAsync();
+
+        Assert.Equal(0, inner.Calls);
+        Assert.Equal(0, scenario.Server.Calls);
+    }
+
+    [Fact]
+    public async Task RepositoryTrigger_ForeignJwtOwner_IsRefusedByBearerHandler()
+    {
+        using var scenario = new Scenario();
+        scenario.Auth.Token = TokenFor(OtherOwner);
+        var inner = new SendingSync(scenario);
+
+        await scenario.Trigger(inner).TriggerSyncAsync();
+
+        Assert.Equal(1, inner.Calls);
+        Assert.IsType<UnauthorizedAccessException>(inner.Failure);
+        Assert.Equal(0, scenario.Server.Calls);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RepositoryTrigger_SignOutOrOwnerSwitchDuringRun_StopsFurtherSends(
+        bool switchOwner)
+    {
+        using var scenario = new Scenario();
+        var inner = new SendingSync(scenario, sends: 2)
+        {
+            BetweenSends = () =>
+            {
+                if (switchOwner)
+                {
+                    scenario.Preferences.Set(
+                        UserProfileRepository.ActiveProfileIdKey, OtherOwner);
+                    scenario.Auth.Token = TokenFor(OtherOwner);
+                    scenario.Scope.SetActiveUser(OtherOwner);
+                }
+                else
+                {
+                    scenario.Scope.SetActiveUser(null);
+                }
+            }
+        };
+
+        await scenario.Trigger(inner).TriggerSyncAsync();
+
+        Assert.Equal(1, scenario.Server.Calls);
+        Assert.Equal(Owner, scenario.Server.NativeOwnerHeader);
+        Assert.IsType<UnauthorizedAccessException>(inner.Failure);
+    }
+
+    [Fact]
+    public async Task RepositoryTrigger_InsideReadinessLease_ReusesThatLease()
+    {
+        using var scenario = new Scenario(publishOwner: false);
+        var inner = new SendingSync(scenario);
+
+        using (scenario.EnterReadiness())
+            await scenario.Trigger(inner).TriggerSyncAsync();
+
+        Assert.Equal(1, inner.Calls);
+        Assert.Null(inner.Failure);
+        Assert.Equal(1, scenario.Server.Calls);
+        Assert.Equal(Owner, scenario.Server.NativeOwnerHeader);
+    }
+
     private static string TokenFor(string? owner)
     {
         Claim[] claims = owner is null
@@ -257,6 +367,10 @@ public sealed class NativeCoreSyncAuthCompositionTests
             Scope.TryBeginReadiness(Owner, _readinessStamp)
             ?? throw new InvalidOperationException("The owner readiness lease was refused.");
 
+        public OwnerBoundNativeSyncTrigger Trigger(ISyncService inner) => new(
+            inner, Auth, Preferences, Scope,
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<OwnerBoundNativeSyncTrigger>.Instance);
+
         public async Task SendAsync()
         {
             using var request = new HttpRequestMessage(HttpMethod.Post, "/api/sync");
@@ -271,11 +385,41 @@ public sealed class NativeCoreSyncAuthCompositionTests
         }
     }
 
+    /// <summary>Stands in for SyncService's CoreSync run, which logs and swallows failures.</summary>
+    private sealed class SendingSync(Scenario scenario, int sends = 1) : ISyncService
+    {
+        public int Calls { get; private set; }
+        public Exception? Failure { get; private set; }
+        public Action? BetweenSends { get; set; }
+        public bool IsInitialSyncInProgress => false;
+        public event Action? InitialSyncCompleted { add { } remove { } }
+        public Task InitializeDatabaseAsync() => Task.CompletedTask;
+        public void BeginInitialSync() { }
+
+        public async Task TriggerSyncAsync()
+        {
+            Calls++;
+            try
+            {
+                for (var send = 0; send < sends; send++)
+                {
+                    if (send > 0)
+                        BetweenSends?.Invoke();
+                    await scenario.SendAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                Failure = ex;
+            }
+        }
+    }
+
     private sealed class FakeAuth : IAuthService
     {
         public string? Token { get; set; }
         public Func<Task<string?>>? Acquire { get; set; }
-        public bool IsSignedIn => true;
+        public bool IsSignedIn { get; set; } = true;
         public string? UserName => null;
         public Task<string?> GetAccessTokenAsync(string[] scopes) =>
             Acquire?.Invoke() ?? Task.FromResult(Token);
