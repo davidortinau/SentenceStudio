@@ -8,7 +8,9 @@ namespace SentenceStudio.Native.Adapters;
 /// <summary>
 /// Coalesces native mapping inserts undone before the server saw them. All other
 /// CoreSync changes, including deletes of previously uploaded mappings, retain
-/// their normal fail-closed server behavior.
+/// their normal fail-closed server behavior. Downloads first reconcile the active
+/// owner's VocabularyProgress rows created concurrently on another device
+/// (see <see cref="NativeProgressIdentityReconciler"/>).
 /// </summary>
 internal sealed class NativeLocalOnlyMappingExportProvider(
     SqliteSyncProvider local,
@@ -28,10 +30,34 @@ internal sealed class NativeLocalOnlyMappingExportProvider(
         Guid otherStoreId, long version, CancellationToken cancellationToken = default) =>
         local.SaveVersionForStoreAsync(otherStoreId, version, cancellationToken);
 
-    public Task<SyncAnchor> ApplyChangesAsync(
+    public async Task<SyncAnchor> ApplyChangesAsync(
         SyncChangeSet changeSet, Func<SyncItem, ConflictResolution>? onConflictFunc = null,
-        CancellationToken cancellationToken = default) =>
-        local.ApplyChangesAsync(changeSet, onConflictFunc, cancellationToken);
+        CancellationToken cancellationToken = default)
+    {
+        if (activeOwner() is not { Length: > 0 } owner
+            || !Guid.TryParse(owner, out var ownerId) || ownerId == Guid.Empty)
+            return await local.ApplyChangesAsync(changeSet, onConflictFunc, cancellationToken);
+
+        var reconciler = new NativeProgressIdentityReconciler(
+            local.Configuration.ConnectionString, logger);
+        var adoptions = await reconciler.AdoptRemoteIdsAsync(changeSet, owner, cancellationToken);
+        if (adoptions.Count == 0)
+            return await local.ApplyChangesAsync(changeSet, onConflictFunc, cancellationToken);
+
+        // The adopted row now has a local change, so the server row arrives as a
+        // conflict. Take the server values; FoldAsync then restores the local history.
+        var adopted = adoptions.Select(adoption => adoption.Remote.Id)
+            .ToHashSet(StringComparer.Ordinal);
+        var anchor = await local.ApplyChangesAsync(changeSet, item =>
+            item.TableName == NativeProgressIdentityReconciler.ProgressTable
+                && item.Values.TryGetValue("Id", out var id)
+                && id?.Value is string value && adopted.Contains(value)
+                ? ConflictResolution.ForceWrite
+                : onConflictFunc?.Invoke(item) ?? ConflictResolution.Skip,
+            cancellationToken);
+        await reconciler.FoldAsync(adoptions, owner, cancellationToken);
+        return anchor;
+    }
 
     public Task ApplyProvisionAsync(CancellationToken cancellationToken = default) =>
         local.ApplyProvisionAsync(cancellationToken);

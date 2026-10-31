@@ -218,6 +218,100 @@ public sealed class NativeLocalOnlyMappingExportProviderTests
             Assert.False(await db.LearningResources.AnyAsync(row => row.Id == newResource));
     }
 
+    [Fact]
+    public async Task ConcurrentFirstProgress_AdoptsServerId_AndKeepsBothDevicesHistory()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var serverProgress = Guid.NewGuid().ToString();
+        var serverContext = Guid.NewGuid().ToString();
+        var localProgress = Guid.NewGuid().ToString();
+        var localContext = Guid.NewGuid().ToString();
+        var t0 = new DateTime(2026, 10, 31, 14, 53, 35);
+        await using (var db = fixture.Remote.OpenContext())
+        {
+            db.VocabularyProgresses.Add(Progress(serverProgress, Owner, t0));
+            db.VocabularyLearningContexts.Add(Attempt(serverContext, serverProgress, t0));
+            await db.SaveChangesAsync();
+        }
+        await using (var db = fixture.Local.OpenContext())
+        {
+            db.VocabularyProgresses.Add(Progress(localProgress, Owner, t0.AddMinutes(2)));
+            db.VocabularyLearningContexts.Add(Attempt(localContext, localProgress, t0.AddMinutes(2)));
+            await db.SaveChangesAsync();
+        }
+
+        // Upload: the server already holds (word, owner), so it drops the device row.
+        await fixture.SynchronizeLikeAppAsync();
+        await using (var db = fixture.Local.OpenContext())
+        {
+            var row = await db.VocabularyProgresses.SingleAsync();
+            Assert.Equal(serverProgress, row.Id);
+            Assert.Equal(2, row.TotalAttempts);
+            Assert.Equal(2, row.QuizRecognitionDemonstrations);
+            Assert.Equal(t0, row.FirstSeenAt);
+            Assert.Equal(
+                new[] { localContext, serverContext }.Order(),
+                (await db.VocabularyLearningContexts
+                    .Where(context => context.VocabularyProgressId == serverProgress)
+                    .Select(context => context.Id).ToListAsync()).Order());
+        }
+
+        await fixture.SynchronizeLikeAppAsync();
+        await using (var db = fixture.Remote.OpenContext())
+        {
+            var row = await db.VocabularyProgresses.SingleAsync();
+            Assert.Equal(serverProgress, row.Id);
+            Assert.Equal(2, row.TotalAttempts);
+            Assert.Equal(2, await db.VocabularyLearningContexts
+                .CountAsync(context => context.VocabularyProgressId == serverProgress));
+        }
+    }
+
+    [Fact]
+    public async Task OtherOwnersProgress_IsNeverAdopted()
+    {
+        await using var fixture = await Fixture.CreateAsync();
+        var localProgress = Guid.NewGuid().ToString();
+        var t0 = new DateTime(2026, 10, 31, 14, 53, 35);
+        await using (var db = fixture.Remote.OpenContext())
+        {
+            db.UserProfiles.Add(new UserProfile { Id = OtherOwner, Email = "other@example.test" });
+            db.VocabularyProgresses.Add(Progress(Guid.NewGuid().ToString(), OtherOwner, t0));
+            await db.SaveChangesAsync();
+        }
+        await using (var db = fixture.Local.OpenContext())
+        {
+            db.VocabularyProgresses.Add(Progress(localProgress, Owner, t0));
+            await db.SaveChangesAsync();
+        }
+
+        await fixture.SynchronizeLikeAppAsync();
+        await using (var db = fixture.Local.OpenContext())
+        {
+            var mine = await db.VocabularyProgresses.SingleAsync(row => row.UserId == Owner);
+            Assert.Equal(localProgress, mine.Id);
+            Assert.Equal(1, mine.TotalAttempts);
+        }
+    }
+
+    private static VocabularyProgress Progress(string id, string owner, DateTime at) => new()
+    {
+        Id = id, UserId = owner, VocabularyWordId = Word, TotalAttempts = 1,
+        CorrectAttempts = 1, RecognitionAttempts = 1, RecognitionCorrect = 1,
+        MultipleChoiceCorrect = 1, QuizRecognitionDemonstrations = 1, CurrentStreak = 1,
+        MasteryScore = 0.083333336f, FirstSeenAt = at, LastPracticedAt = at,
+        CreatedAt = at, UpdatedAt = at, NextReviewDate = at.AddDays(6), ReviewInterval = 6
+    };
+
+    private static VocabularyLearningContext Attempt(string id, string progressId, DateTime at) => new()
+    {
+        Id = id, VocabularyProgressId = progressId, Activity = "VocabularyQuiz",
+        InputMode = "MultipleChoice", ContextType = "Isolated", WasCorrect = true,
+        DifficultyScore = 1, ResponseTimeMs = 1510, UserInput = "most",
+        ExpectedAnswer = "most", CorrectAnswersInContext = 1,
+        LearnedAt = at, CreatedAt = at, UpdatedAt = at
+    };
+
     private static bool IsMappingDelete(SyncItem item) =>
         item.TableName == "ResourceVocabularyMapping"
         && item.ChangeType == ChangeType.Delete;
@@ -266,6 +360,14 @@ public sealed class NativeLocalOnlyMappingExportProviderTests
             await new SyncAgent(local.Provider, fixture.Server).SynchronizeAsync();
             return fixture;
         }
+
+        // Mirrors SyncService: skip insert conflicts, force updates and deletes.
+        public Task SynchronizeLikeAppAsync() =>
+            new SyncAgent(Native, Server).SynchronizeAsync(
+                remoteConflictResolutionFunc: item => item.ChangeType == ChangeType.Insert
+                    ? ConflictResolution.Skip : ConflictResolution.ForceWrite,
+                localConflictResolutionFunc: item => item.ChangeType == ChangeType.Insert
+                    ? ConflictResolution.Skip : ConflictResolution.ForceWrite);
 
         public async Task<long> LocalAnchorAsync()
         {

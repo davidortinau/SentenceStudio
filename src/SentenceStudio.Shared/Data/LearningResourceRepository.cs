@@ -2446,42 +2446,6 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
                 .SelectMany(p => contextsByProgress.TryGetValue(p.Id, out var list) ? list : Enumerable.Empty<VocabularyLearningContext>())
                 .ToList();
 
-            // Pre-merge aggregates — used to reconcile so counts/dates never regress, even for ancient
-            // history that predates per-attempt context tracking (where replay alone would undercount).
-            int summedTotal = userProgresses.Sum(p => p.TotalAttempts);
-            int summedCorrect = userProgresses.Sum(p => p.CorrectAttempts);
-            int summedExposure = userProgresses.Sum(p => p.ExposureCount);
-            int summedQuizRecognitionDemonstrations = userProgresses.Sum(p => p.QuizRecognitionDemonstrations);
-            int summedQuizProductionDemonstrations = userProgresses.Sum(p => p.QuizProductionDemonstrations);
-            // Best mastery/streak across sources — used only to prevent regression when source history
-            // predates per-attempt context tracking (so replay cannot fully reconstruct it).
-            float maxSourceMastery = userProgresses.Max(p => p.MasteryScore);
-            float maxSourceStreak = userProgresses.Max(p => p.CurrentStreak);
-            int maxSourceProductionInStreak = userProgresses.Max(p => p.ProductionInStreak);
-            DateTime minFirstSeen = userProgresses.Min(p => p.FirstSeenAt);
-            DateTime minCreated = userProgresses.Min(p => p.CreatedAt);
-            DateTime maxLastPracticed = userProgresses.Max(p => p.LastPracticedAt);
-            DateTime? maxLastExposed = userProgresses
-                .Where(p => p.LastExposedAt.HasValue)
-                .Select(p => (DateTime?)p.LastExposedAt!.Value)
-                .Max();
-            DateTime? earliestMastered = userProgresses
-                .Where(p => p.MasteredAt.HasValue)
-                .Select(p => (DateTime?)p.MasteredAt!.Value)
-                .Min();
-            var declared = userProgresses
-                .Where(p => p.IsUserDeclared)
-                .OrderByDescending(p => p.UserDeclaredAt ?? DateTime.MinValue)
-                .FirstOrDefault();
-            // Most-recently-practiced source's spaced-repetition schedule. Used only to restore the SR
-            // cadence when replay cannot reconstruct it (aggregate-only legacy history with no contexts),
-            // so a merged word still resurfaces for review on time instead of going dormant.
-            var scheduleSource = userProgresses
-                .Where(p => p.NextReviewDate.HasValue)
-                .OrderByDescending(p => p.LastPracticedAt)
-                .FirstOrDefault()
-                ?? userProgresses.OrderByDescending(p => p.LastPracticedAt).First();
-
             bool createdKeeper = keeperProg == null;
             if (createdKeeper)
             {
@@ -2494,63 +2458,7 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
                 db.VocabularyProgresses.Add(keeperProg);
             }
 
-            // Recalculate mastery as if all of this user's contexts had always belonged to the keeper.
-            VocabularyMasteryCalculator.RecalculateInto(keeperProg!, userContexts, out _);
-
-            // Number of active attempts the replay actually reconstructed (= keeper.TotalAttempts before
-            // count reconciliation). When this is less than the summed aggregate, source history predates
-            // per-attempt context tracking and replay is incomplete.
-            int replayedActiveAttempts = keeperProg!.TotalAttempts;
-            bool hasPreContextHistory = summedTotal > replayedActiveAttempts;
-
-            // Reconcile so the merge is monotonic — never lose attempts, exposures, or historical dates.
-            keeperProg.TotalAttempts = Math.Max(keeperProg.TotalAttempts, summedTotal);
-            keeperProg.CorrectAttempts = Math.Min(keeperProg.TotalAttempts, Math.Max(keeperProg.CorrectAttempts, summedCorrect));
-            keeperProg.ExposureCount = Math.Max(keeperProg.ExposureCount, summedExposure);
-            keeperProg.QuizRecognitionDemonstrations = Math.Max(keeperProg.QuizRecognitionDemonstrations, summedQuizRecognitionDemonstrations);
-            keeperProg.QuizProductionDemonstrations = Math.Max(keeperProg.QuizProductionDemonstrations, summedQuizProductionDemonstrations);
-
-            // For fully context-backed (modern) data the replay is exact and authoritative, so the wrong
-            // answers it replays are allowed to lower mastery — that's the faithful "as if one word" result.
-            // Only when there's a pre-context gap do we protect against regressing below the best source,
-            // otherwise ancient words (aggregate-only, no contexts) would be wrongly reset toward Unknown.
-            if (hasPreContextHistory)
-            {
-                keeperProg.MasteryScore = Math.Max(keeperProg.MasteryScore, maxSourceMastery);
-                keeperProg.CurrentStreak = Math.Max(keeperProg.CurrentStreak, maxSourceStreak);
-                keeperProg.ProductionInStreak = Math.Max(keeperProg.ProductionInStreak, maxSourceProductionInStreak);
-            }
-
-            // Replay resets the SR schedule to defaults (NextReviewDate=null, Interval=1, Ease=2.5). When it
-            // reconstructed at least one active attempt, that replayed schedule reflects the most recent
-            // context-backed attempt and is authoritative — leave it. When replay produced no active attempts
-            // (aggregate-only legacy data, or a user-declared "Familiar" duplicate that was never quizzed) the
-            // replayed schedule is still the default, so carry a real source schedule forward — otherwise the
-            // merged word would have NextReviewDate=null and never become due (IsDueForReview) again.
-            if (replayedActiveAttempts == 0 && scheduleSource.NextReviewDate.HasValue)
-            {
-                keeperProg.NextReviewDate = scheduleSource.NextReviewDate;
-                keeperProg.ReviewInterval = scheduleSource.ReviewInterval;
-                keeperProg.EaseFactor = scheduleSource.EaseFactor;
-            }
-
-            keeperProg.FirstSeenAt = minFirstSeen;
-            keeperProg.CreatedAt = minCreated;
-            if (maxLastPracticed > keeperProg.LastPracticedAt)
-                keeperProg.LastPracticedAt = maxLastPracticed;
-            if (maxLastExposed.HasValue && (!keeperProg.LastExposedAt.HasValue || maxLastExposed > keeperProg.LastExposedAt))
-                keeperProg.LastExposedAt = maxLastExposed;
-            // MasteredAt is a historical "first reached mastery" fact; keep the earliest known date.
-            if (earliestMastered.HasValue && (!keeperProg.MasteredAt.HasValue || earliestMastered < keeperProg.MasteredAt))
-                keeperProg.MasteredAt = earliestMastered;
-            // Carry an explicit user declaration ("I know this word") — strong signal we must not drop.
-            if (declared != null)
-            {
-                keeperProg.IsUserDeclared = true;
-                keeperProg.UserDeclaredAt = declared.UserDeclaredAt;
-                keeperProg.VerificationState = declared.VerificationState;
-            }
-            keeperProg.UpdatedAt = DateTime.Now;
+            VocabularyProgressFold.FoldInto(keeperProg!, userProgresses, userContexts);
 
             // Re-parent every duplicate context onto the keeper BEFORE the duplicate progress rows are
             // removed, so the database cascade has no children left to delete.
