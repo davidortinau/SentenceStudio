@@ -438,20 +438,10 @@ internal sealed partial class ApplicationScene : IDisposable
                     optionIndex++)
                 {
                     var option = menu.Children[optionIndex];
-                    var nextOption = nextMenu.Children[optionIndex];
                     var selected = option.Text == nextMenu.Text;
                     option.WithAccessibilitySelected(selected);
-                    // iOS menu rows drop image opacity, so only the selected row
-                    // carries a checkmark; move the rebuilt label into place.
-                    if (option.Children[0].Kind != nextOption.Children[0].Kind)
-                    {
-                        var label = nextOption.Children[0];
-                        nextOption.RemoveAt(0);
-                        var previous = option.Children[0];
-                        option.RemoveAt(0);
-                        previous.Dispose();
-                        option.Add(label);
-                    }
+                    // A moved checkmark fails SameBrowserControls and rebuilds the
+                    // page: button labels cannot be re-parented in place.
                 }
             }
         }
@@ -569,6 +559,10 @@ internal sealed partial class ApplicationScene : IDisposable
                     || nextMenu.Children[option].Children.Count != 1
                     || !IsFilterOptionLabel(menu.Children[option].Children[0])
                     || !IsFilterOptionLabel(nextMenu.Children[option].Children[0])
+                    // A moved checkmark changes the row label's shape; buttons are
+                    // not bridge containers, so rebuild instead of re-parenting.
+                    || menu.Children[option].Children[0].Kind
+                        != nextMenu.Children[option].Children[0].Kind
                     || menu.Children[option].Text != nextMenu.Children[option].Text)
                     return false;
         }

@@ -31,7 +31,11 @@ public sealed class NativeSwiftUIResourceSceneContractTests
             update);
         Assert.Contains("option.WithAccessibilitySelected(selected);", update);
         Assert.DoesNotContain("WithOpacity(selected", update);
-        Assert.Contains("option.Add(label);", update);
+        // Bridge buttons are not containers: RemoveAt/Add on a menu option
+        // threw "Expected a container node, not button" on every filter pick.
+        Assert.DoesNotContain("option.Add(", update);
+        Assert.DoesNotContain("option.RemoveAt(", update);
+        Assert.DoesNotContain("nextOption.RemoveAt(", update);
         Assert.Contains("menu.Text = nextMenu.Text;", update);
         Assert.DoesNotContain("picker.SelectedIndex", update);
         Assert.Contains("var modes = controls.Children[1];", update);
@@ -82,6 +86,10 @@ public sealed class NativeSwiftUIResourceSceneContractTests
         Assert.Contains("menu.Children[option].Text != nextMenu.Children[option].Text",
             scene);
         Assert.Contains("menu.Children[0].Children[0].Kind != \"text\"", scene);
+        // A moved checkmark changes the option label kind and forces a rebuild.
+        Assert.Contains("menu.Children[option].Children[0].Kind\n"
+            + "                        != nextMenu.Children[option].Children[0].Kind",
+            scene);
         Assert.Contains("!IsFilterOptionLabel(menu.Children[option].Children[0])",
             scene);
     }
