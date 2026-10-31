@@ -1,4 +1,3 @@
-using System.Net;
 using AVFoundation;
 using Foundation;
 using SentenceStudio.Abstractions;
@@ -25,10 +24,9 @@ public sealed class NativeQuizMedia(
     private const int MaxPhotoBytes = 8 * 1024 * 1024;
     private readonly object _audioGate = new();
     private readonly SemaphoreSlim _photoGate = new(1, 1);
-    private readonly HttpClient _photos = new(new HttpClientHandler
-    {
-        AllowAutoRedirect = false
-    }) { Timeout = TimeSpan.FromSeconds(20) };
+    // Credential-free and redirect-bounded; never the owner-bound API client.
+    private readonly NativeRemotePhotoLoader _photos = new(
+        MaxPhotoBytes, apiRoot, TimeSpan.FromSeconds(20));
     private AVAudioPlayer? _player;
     private NSData? _audioData;
     private TaskCompletionSource<bool>? _playbackCompletion;
@@ -284,20 +282,9 @@ public sealed class NativeQuizMedia(
             }
             else
             {
-                if (!Uri.TryCreate(photoUri, UriKind.Absolute, out var uri)
-                    || uri.Scheme != Uri.UriSchemeHttps
-                        && !(uri.Scheme == Uri.UriSchemeHttp
-                            && apiRoot is not null && apiRoot.IsBaseOf(uri)))
+                if (!Uri.TryCreate(photoUri, UriKind.Absolute, out var uri))
                     return null;
-
-                using var request = new HttpRequestMessage(HttpMethod.Get, uri);
-                using var response = await _photos.SendAsync(
-                    request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-                if (response.StatusCode != HttpStatusCode.OK
-                    || response.Content.Headers.ContentLength > MaxPhotoBytes)
-                    return null;
-                using var stream = await response.Content.ReadAsStreamAsync(cancellationToken);
-                bytes = await ReadLimitedAsync(stream, MaxPhotoBytes, cancellationToken);
+                bytes = await _photos.LoadAsync(uri, cancellationToken);
             }
             if (!TryOwner(out var active) || active != owner
                 || bytes is not { Length: > 0 }

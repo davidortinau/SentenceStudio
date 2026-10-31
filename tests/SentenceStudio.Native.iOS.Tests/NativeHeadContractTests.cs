@@ -234,6 +234,65 @@ public sealed class NativeHeadContractTests
     }
 
     [Fact]
+    public void QuizPhotos_UseTheCredentialFreeRedirectBoundedLoader()
+    {
+        var media = File.ReadAllText(Path.Combine(
+            HeadPath, "Platform/NativeQuizMedia.cs"));
+
+        // Third-party photo URLs redirect; the shared loader follows HTTPS-only
+        // hops with its own plain handler, never the owner-bound API client.
+        Assert.Contains("private readonly NativeRemotePhotoLoader _photos = new(", media);
+        Assert.Contains("await _photos.LoadAsync(uri, cancellationToken)", media);
+        Assert.DoesNotContain("HttpClient", media);
+        Assert.DoesNotContain("Authorization", media);
+        Assert.DoesNotContain("OwnerBound", media);
+    }
+
+    [Fact]
+    public void TypedAnswer_IsClearedForEveryNewTurnOnManualNextAndAutoAdvance()
+    {
+        var source = File.ReadAllText(Path.Combine(
+            HeadPath, "App/ApplicationController.Quiz.cs"));
+        static string Slice(string text, string from, string to)
+        {
+            var start = text.IndexOf(from, StringComparison.Ordinal);
+            Assert.True(start >= 0, from);
+            var end = text.IndexOf(to, start, StringComparison.Ordinal);
+            Assert.True(end > start, to);
+            return text[start..end];
+        }
+
+        // The answer is scoped to the Ready turn it was typed for: a new turn
+        // id clears the text, focus, and correction flag so Submit is disabled.
+        var clear = Slice(source, "private void ClearQuizAnswerForNewTurn()",
+            "private void AdvanceQuiz()");
+        Assert.Contains("Phase: NativePhase.Ready, TurnId: { } turnId", clear);
+        Assert.Contains("string.Equals(_quizAnswerTurnId, turnId", clear);
+        Assert.Contains("_answer = string.Empty;", clear);
+        Assert.Contains("_quizInputFocused = false;", clear);
+        Assert.Contains("_quizCorrectionCompleted = false;", clear);
+
+        // Auto-advance (the reported carry-over) clears before publishing.
+        var auto = Slice(source, "private async Task RunAutoAdvanceAsync(",
+            "private void CancelAutoAdvance()");
+        var assigned = auto.LastIndexOf("_quizState = state;", StringComparison.Ordinal);
+        var cleared = auto.IndexOf("ClearQuizAnswerForNewTurn();", assigned,
+            StringComparison.Ordinal);
+        Assert.True(assigned >= 0 && cleared > assigned);
+        Assert.True(cleared < auto.IndexOf("Publish();", assigned, StringComparison.Ordinal));
+
+        var manual = Slice(source, "private async Task AdvanceQuizAsync()",
+            "private void PlayQuizAudio(");
+        Assert.Contains("ClearQuizAnswerForNewTurn();", manual);
+
+        // Every render re-checks, so resume/retry/continue paths cannot carry
+        // a previous answer into a new turn either.
+        var render = Slice(source, "internal SwiftView RenderQuiz(SourceUiStyle style)",
+            "new QuizViewInputs(_answer");
+        Assert.Contains("ClearQuizAnswerForNewTurn();", render);
+    }
+
+    [Fact]
     public void ResumeChoiceBack_UsesOwnerCheckedPresenterWithoutUnopenedRoundSnapshot()
     {
         var source = File.ReadAllText(Path.Combine(
