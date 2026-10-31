@@ -248,6 +248,7 @@ internal sealed partial class ApplicationController : IDisposable
                 if (_dashboardState is { Phase: NativePhase.Ready, HasPendingSync: true })
                     _dashboardState = await _dashboard.RefreshAsync(_lifetime.Token);
             }
+            RefreshSamAvailability();
         }
         else if (_authState.Destination == NativeDestination.Onboarding)
         {
@@ -501,7 +502,7 @@ internal sealed partial class ApplicationController : IDisposable
             isTablet: style.ViewportWidth >= 768);
 
     internal SwiftView RenderDashboardContent(SourceUiStyle style) =>
-        DashboardView.WithToolbar(RenderDashboard(style), style, Text,
+        DashboardView.WithToolbar(WithSamEntry(RenderDashboard(style), style), style, Text,
             _dashboardState.IsNewUser, _busy, _dashboardRefreshing,
             CanRegeneratePlan, SignOutTitle,
             new DashboardToolbarActions(RefreshDashboard, RegeneratePlan,
@@ -945,6 +946,7 @@ internal sealed partial class ApplicationController : IDisposable
     private async Task SignOutAsync()
     {
         CancelAutoAdvance();
+        ClearSamForAccountBoundary();
         if (_preview)
         {
 #if DEBUG

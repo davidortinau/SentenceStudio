@@ -128,6 +128,7 @@ public sealed class NativeServices : IDisposable
             services.AddOwnerBoundNativeAiGateway(endpoint);
             services.AddOwnerBoundNativeQuizSpeech(endpoint);
             services.AddOwnerBoundNativeSentenceGrader(endpoint);
+            services.AddOwnerBoundNativeSam(endpoint);
         }
 
         services.AddSentenceStudioNativeSlice();

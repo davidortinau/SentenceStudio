@@ -196,6 +196,9 @@ internal sealed partial class ApplicationScene : IDisposable
         UpdateActivityLog(themeChanged || modeChanged || fontScaleChanged);
         UpdateSkills(themeChanged || modeChanged || fontScaleChanged);
         UpdateVocabulary(themeChanged || modeChanged || fontScaleChanged);
+        if (themeChanged || modeChanged || fontScaleChanged)
+            _renderedSamPanel = null;
+        UpdateSam();
     }
 
     private void InstallTabs()
@@ -285,7 +288,7 @@ internal sealed partial class ApplicationScene : IDisposable
             Views.Tab(localize("Resources_Title"), "books.vertical",
                     _resourcesStack));
         _starterOverlay = Views.StarterBlockingOverlay(
-                _tabs, _app.StarterBusyTitle)
+                WrapWithSam(_tabs), _app.StarterBusyTitle)
             .WithAccessibilityIdentifier("native.starter.blocking-overlay");
         _starterOverlay.IsPresented = _app.IsStarterBusy;
         Install(_starterOverlay, RootKind.Tabs);
@@ -1077,6 +1080,7 @@ internal sealed partial class ApplicationScene : IDisposable
         _onboardingSlot = null;
         if (kind != RootKind.Tabs)
         {
+            DropSamReferences();
             _tabs = null;
             _starterOverlay = null;
             _dashboardSlot = null;
