@@ -42,23 +42,30 @@ internal sealed class NativeLocalOnlyMappingExportProvider(
             return await ApplyLocalAsync(changeSet, onConflictFunc, cancellationToken);
 
         // Committed before the apply: the adopted rows already hold the merged history.
-        var adopted = await new NativeProgressIdentityReconciler(
+        await new NativeProgressIdentityReconciler(
                 local.Configuration.ConnectionString, logger)
             .ReconcileAsync(changeSet, owner, cancellationToken);
-        if (adopted.Count == 0)
-            return await ApplyLocalAsync(changeSet, onConflictFunc, cancellationToken);
 
-        // The merged row has newer local changes, so the server row arrives as a conflict.
-        // Keep the merged row (it already folds the server values in) and let the server's
-        // contexts insert under it; it uploads as an ordinary update on the next sync.
+        // A downloaded progress row conflicts only when this device changed the same row
+        // after its last upload: an adopted merge above, or an attempt recorded while this
+        // sync ran. Force-writing it would drop that attempt's counts while its context
+        // survives. Keep the local row pending instead: the server merges its next upload
+        // with the stored row (VocabularyProgressConcurrentMerge), and the server's contexts
+        // still insert under it.
         return await ApplyLocalAsync(changeSet, item =>
             item.TableName == NativeProgressIdentityReconciler.ProgressTable
                 && item.ChangeType != ChangeType.Delete
-                && item.Values.TryGetValue("Id", out var id)
-                && id?.Value is string value && adopted.Contains(value)
-                ? ConflictResolution.Skip
+                ? KeepLocalProgress(item)
                 : onConflictFunc?.Invoke(item) ?? ConflictResolution.Skip,
             cancellationToken);
+    }
+
+    private ConflictResolution KeepLocalProgress(SyncItem item)
+    {
+        logger.LogInformation(
+            "Native sync kept local VocabularyProgress {Id} pending; its next upload merges the server row.",
+            item.Values.TryGetValue("Id", out var id) ? id?.Value : null);
+        return ConflictResolution.Skip;
     }
 
     private Task<SyncAnchor> ApplyLocalAsync(

@@ -154,8 +154,10 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
             new SyncItem("VocabularyProgress", ChangeType.Update,
                 new Dictionary<string, object?>
                 {
+                    // A client row counts the attempt whose context it uploads.
                     ["Id"] = progressId, ["UserId"] = owner,
-                    ["VocabularyWordId"] = wordId, ["MasteryScore"] = 0.6f
+                    ["VocabularyWordId"] = wordId, ["MasteryScore"] = 0.6f,
+                    ["TotalAttempts"] = 1, ["CorrectAttempts"] = 1
                 }),
             new SyncItem("VocabularyLearningContext", ChangeType.Insert,
                 new Dictionary<string, object?>
@@ -1407,8 +1409,9 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
         using var response = await _fixture.UploadAsync(owner,
             new SyncItem("VocabularyProgress", ChangeType.Update, new Dictionary<string, object?>
             {
+                // A client row counts the attempt whose context it uploads.
                 ["Id"] = progressId, ["VocabularyWordId"] = wordId, ["UserId"] = owner,
-                ["MasteryScore"] = 0.4f
+                ["MasteryScore"] = 0.4f, ["TotalAttempts"] = 1, ["CorrectAttempts"] = 1
             }),
             Context(contextId, progressId, resourceId),
             inserted, updated);

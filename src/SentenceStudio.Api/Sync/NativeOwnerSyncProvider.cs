@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using SentenceStudio.Contracts;
 using SentenceStudio.Data;
+using SentenceStudio.Services;
 using SentenceStudio.Shared.Models;
 
 namespace SentenceStudio.Api.Sync;
@@ -112,6 +113,7 @@ internal sealed class NativeOwnerSyncProvider(
         // then updated before one sync arrives twice with identical current values.
         var items = owner is null ? changes.Items : CollapseRepeatedRows(changes.Items);
 
+        IReadOnlySet<string> mergedProgress = new HashSet<string>();
         if (owner is not null && items.Count > 0)
         {
             await using var scope = scopes.CreateAsyncScope();
@@ -125,12 +127,34 @@ internal sealed class NativeOwnerSyncProvider(
                     "Native sync refused a row outside the authenticated owner.",
                     StatusCodes.Status403Forbidden);
             }
+
+            // Last-writer-wins would drop attempts another device or the web app counted
+            // since this device's copy. Merge them while the upload lock is held; the merged
+            // values are force-written in CoreSync's transaction with this upload's contexts.
+            mergedProgress = await VocabularyProgressConcurrentMerge.PrepareUploadAsync(
+                db, items, owner, logger, ct);
         }
 
         var applied = owner is null ? changes : new SyncChangeSet(
             new SyncAnchor(scopedStoreId, changes.SourceAnchor.Version),
             changes.TargetAnchor, OrderNativeItems(items));
-        var anchor = await provider.ApplyChangesAsync(applied, onConflict, ct);
+        var resolve = mergedProgress.Count == 0 ? onConflict : item =>
+            item.TableName == VocabularyProgressConcurrentMerge.ProgressTable
+                && item.ChangeType != ChangeType.Delete
+                && Value(item, "Id") is { } id && mergedProgress.Contains(id)
+                ? ConflictResolution.ForceWrite
+                : onConflict?.Invoke(item) ?? ConflictResolution.Skip;
+        var anchor = await provider.ApplyChangesAsync(applied, resolve, ct);
+
+        if (mergedProgress.Count > 0)
+        {
+            // CoreSync attributes the merged write to the uploading store, which would never
+            // download it; a server-origin touch sends the merged row back in this same sync.
+            await using var scope = scopes.CreateAsyncScope();
+            await VocabularyProgressConcurrentMerge.TouchMergedAsync(
+                scope.ServiceProvider.GetRequiredService<ApplicationDbContext>(),
+                items, mergedProgress, owner!, ct);
+        }
 
         // CoreSync writes rows directly, bypassing ApplicationDbContext's owner stamping.
         // Older clients never send VocabularyWord.UserProfileId, so stamp it here while
