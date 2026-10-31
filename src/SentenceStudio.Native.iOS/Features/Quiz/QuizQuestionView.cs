@@ -64,7 +64,7 @@ internal static class QuizQuestionView
                     "info.circle", openDetails, text("VocabQuiz_LearningDetails"),
                     NativeAccess.QuizDetails));
             if (prompt.Photo is not null &&
-                (prompt.PhotoRequested || prompt.ShowPhoto))
+                (prompt.PhotoRequested || prompt.ShowPhoto || prompt.CanTogglePhoto))
             {
                 var photoButton = style.QuizPromptIconButton(
                     prompt.ShowPhoto ? "eye.slash" : "photo", togglePhotoVisible,

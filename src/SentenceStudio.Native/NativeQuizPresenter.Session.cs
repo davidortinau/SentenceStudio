@@ -338,6 +338,7 @@ public sealed partial class NativeQuizPresenter
             Photo = _photoAsset,
             PhotoRequested = _photoAsset is not null
                 && (_photoDesired || correctFeedback && quizPreferences.ShowMnemonicImage),
+            CanTogglePhoto = _photoAsset is not null && quizPreferences.UsePhotoPrompt,
             CanTogglePhotoText = VocabQuizPhotoTextPolicy.IsTextToggleEligible(
                 _photoAsset is not null, quizPreferences.UsePhotoPrompt, _promptUsesNative),
             ShowTextWithPhoto = _profile.VocabQuizShowTextWithPhoto

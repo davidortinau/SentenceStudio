@@ -61,6 +61,48 @@ public sealed class NativeQuizSourceMediaTests
     }
 
     [Fact]
+    public async Task HiddenPhoto_KeepsItsToggleSoTheLearnerCanShowItAgain()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA);
+        fixture.QuizPreferences.UsePhotoPrompt = true;
+        fixture.Media.PhotoAvailable = true;
+        var itemId = await fixture.GenerateQuizPlanAsync(NativeSliceFixture.UserA);
+        using var quiz = fixture.Quiz;
+        var launch = await fixture.Dashboard.SelectAssignedQuizAsync(itemId);
+        var opened = await quiz.OpenAsync(launch!);
+        var shown = await quiz.PhotoRenderedAsync(opened.TurnId!);
+        Assert.True(shown.Prompt!.ShowPhoto);
+        Assert.True(shown.Prompt.CanTogglePhoto);
+
+        var hidden = await quiz.SetPhotoVisibleAsync(false, shown.TurnId!);
+        Assert.False(hidden.Prompt!.ShowPhoto);
+        Assert.False(hidden.Prompt.PhotoRequested);
+        Assert.True(hidden.Prompt.CanTogglePhoto);
+
+        var requested = await quiz.SetPhotoVisibleAsync(true, hidden.TurnId!);
+        Assert.True(requested.Prompt!.PhotoRequested);
+        var again = await quiz.PhotoRenderedAsync(requested.TurnId!);
+        Assert.True(again.Prompt!.ShowPhoto);
+    }
+
+    [Fact]
+    public async Task PhotoToggle_IsUnavailableWhenThePhotoModalityIsOff()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA);
+        fixture.QuizPreferences.UsePhotoPrompt = false;
+        fixture.QuizPreferences.ShowMnemonicImage = true;
+        fixture.Media.PhotoAvailable = true;
+        var itemId = await fixture.GenerateQuizPlanAsync(NativeSliceFixture.UserA);
+        using var quiz = fixture.Quiz;
+        var launch = await fixture.Dashboard.SelectAssignedQuizAsync(itemId);
+        var opened = await quiz.OpenAsync(launch!);
+
+        Assert.False(opened.Prompt!.CanTogglePhoto);
+    }
+
+    [Fact]
     public async Task NativePhotoPrompt_OnlyOwnedTogglePersistsAndAnswerAudioDoesNotSelect()
     {
         using var fixture = new NativeSliceFixture();

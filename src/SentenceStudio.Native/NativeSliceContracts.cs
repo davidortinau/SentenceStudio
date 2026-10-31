@@ -278,6 +278,10 @@ public sealed record NativeQuizPrompt(
 {
     public NativeQuizPhotoAsset? Photo { get; init; }
     public bool PhotoRequested { get; init; }
+    /// <summary>Source shows the photo prompt control whenever the turn has a
+    /// prompt image and the photo modality is on, including after the learner
+    /// hid the image, so it can be shown again.</summary>
+    public bool CanTogglePhoto { get; init; }
     public bool CanTogglePhotoText { get; init; }
     public bool ShowTextWithPhoto { get; init; }
 }
