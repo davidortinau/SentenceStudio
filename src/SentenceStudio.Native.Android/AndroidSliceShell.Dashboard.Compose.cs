@@ -90,6 +90,27 @@ internal sealed partial class AndroidSliceShell
             .Take(visibleCount))
         {
             var activityName = Localize(activity.LabelKey);
+            if (activity.Route == "vocab-quiz")
+            {
+                var launchModifier = Modifier.FillMaxWidth()
+                    .HeightIn(min: AndroidVisualTheme.ControlHeight)
+                    .TestTag($"native.dashboard.choose.activity.{activity.Route}");
+                launchModifier = canSelect
+                    ? launchModifier.Clickable(OpenChooseOwnQuiz)
+                        .Semantics(semantics =>
+                        {
+                            semantics.ContentDescription(activityName);
+                            semantics.Role(SemanticsRole.Button);
+                        })
+                    : launchModifier.Semantics(semantics =>
+                        semantics.ContentDescription(activityName));
+                section.Add(new Column(Arrangement.SpacedBy(2))
+                {
+                    launchModifier.Padding(vertical: 4),
+                    Heading(activityName, palette, 16)
+                });
+                continue;
+            }
             var unavailable = Localize("NativeResources_Unavailable");
             section.Add(new Column(Arrangement.SpacedBy(2))
             {

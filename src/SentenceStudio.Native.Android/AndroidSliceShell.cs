@@ -351,6 +351,34 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
             ShowError(Localize(NativeText.QuizUnavailable));
             return;
         }
+        await StartQuizAsync(launch, cancellationToken);
+    });
+
+    public void OpenChooseOwnQuiz() => Execute(async cancellationToken =>
+    {
+        if (_dashboard is null || _scope is null
+            || Dashboard.Mode != NativeDashboardMode.ChooseOwn)
+            return;
+        var selection = await _dashboard.SelectChooseOwnQuizAsync(cancellationToken);
+        if (selection is null)
+            return;
+        var launch = await _scope.ServiceProvider
+            .GetRequiredService<NativeQuizLaunchService>()
+            .CreateChooseOwnAsync(selection.UserId, selection.ResourceIds,
+                selection.SkillId, selection.DueOnly,
+                selection.FocusVocabularyIds, cancellationToken);
+        if (launch is null)
+        {
+            ShowError(Localize("NativeDashboard_SelectionUnavailable"));
+            return;
+        }
+        await StartQuizAsync(launch, cancellationToken);
+    });
+
+    private async Task StartQuizAsync(NativeQuizLaunch launch, CancellationToken cancellationToken)
+    {
+        if (_scope is null)
+            throw new InvalidOperationException("The quiz services are not available.");
         if (_quiz is null)
         {
             _quiz = _scope.ServiceProvider.GetRequiredService<NativeQuizPresenter>();
@@ -364,7 +392,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
             Destination = NativeDestination.VocabularyQuiz;
         });
         await ApplyQuizStateAsync(await _quiz.OpenAsync(launch, cancellationToken), cancellationToken);
-    });
+    }
 
     public void ResumeQuiz() => Execute(async cancellationToken =>
         await ApplyQuizStateAsync(
