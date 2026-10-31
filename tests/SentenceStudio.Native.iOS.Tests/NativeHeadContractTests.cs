@@ -196,6 +196,44 @@ public sealed class NativeHeadContractTests
     }
 
     [Fact]
+    public void QuizNextResults_AreDroppedWhenTheLearnerLeftTheQuizDuringTheAdvance()
+    {
+        var source = File.ReadAllText(Path.Combine(
+            HeadPath, "App/ApplicationController.Quiz.cs"));
+        static string Slice(string text, string from, string to)
+        {
+            var start = text.IndexOf(from, StringComparison.Ordinal);
+            Assert.True(start >= 0, from);
+            var end = text.IndexOf(to, start, StringComparison.Ordinal);
+            Assert.True(end > start, to);
+            return text[start..end];
+        }
+
+        // Committed advances run on the presenter lifetime, so NextAsync can
+        // return normally after a cancel; the head must re-check afterwards.
+        var auto = Slice(source, "private async Task RunAutoAdvanceAsync(",
+            "private void CancelAutoAdvance()");
+        var next = auto.IndexOf("await quiz.NextAsync(expectedTurnId", StringComparison.Ordinal);
+        Assert.True(next >= 0);
+        var guard = auto.IndexOf("if (_disposed || cancellation.IsCancellationRequested",
+            next, StringComparison.Ordinal);
+        Assert.True(guard > next);
+        Assert.True(guard < auto.IndexOf("_quizState = state;", StringComparison.Ordinal));
+        Assert.Contains("!ReferenceEquals(_quiz, quiz)", auto[guard..]);
+
+        var manual = Slice(source, "private async Task AdvanceQuizAsync()",
+            "private void PlayQuizAudio(");
+        var awaited = manual.LastIndexOf("await quiz.NextAsync(", StringComparison.Ordinal);
+        var manualGuard = manual.IndexOf(
+            "if (_disposed || !IsQuizOpen || !ReferenceEquals(_quiz, quiz))",
+            StringComparison.Ordinal);
+        Assert.True(awaited >= 0 && manualGuard > awaited);
+        Assert.True(manualGuard < manual.IndexOf("_quizState = state;", StringComparison.Ordinal));
+        Assert.True(manualGuard < manual.IndexOf("_destination = NativeDestination.QuizSummary",
+            StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void ResumeChoiceBack_UsesOwnerCheckedPresenterWithoutUnopenedRoundSnapshot()
     {
         var source = File.ReadAllText(Path.Combine(

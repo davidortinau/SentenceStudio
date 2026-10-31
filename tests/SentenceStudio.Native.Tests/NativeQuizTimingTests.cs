@@ -170,4 +170,52 @@ public sealed class NativeQuizTimingTests
         Assert.True(next.Phase is NativePhase.Ready or NativePhase.Summary);
         Assert.Equal(2, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
     }
+
+    // Review finding (2026-10-31): the resume replay of a committed receipt
+    // used the caller token, so cancelling Resume while it presented the next
+    // turn could abandon a half-applied advance.
+    [Fact]
+    public async Task CancelledResumeWhileReplayingCommittedReceipt_StillCompletesTheAdvance()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA);
+        var planItemId = await fixture.GenerateQuizPlanAsync(NativeSliceFixture.UserA);
+        var launch = (await fixture.Dashboard.SelectAssignedQuizAsync(planItemId))!;
+        using (var first = fixture.Quiz)
+        {
+            var question = await first.OpenAsync(launch);
+            await first.AnswerAsync(question.Choices[0].Text);
+            fixture.FaultSessions.FailNextSnapshot = true;
+            Assert.Equal(NativePhase.Error, (await first.NextAsync()).Phase);
+            Assert.Equal(1, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
+        }
+
+        fixture.Restart();
+        fixture.Activate(NativeSliceFixture.UserA);
+        fixture.QuizPreferences.UseAudioPrompt = true;
+        fixture.QuizPreferences.AutoPlayVocabAudio = true;
+        fixture.Media.AudioAvailable = true;
+        using var quiz = fixture.Quiz;
+        Assert.Equal(NativePhase.ResumeChoice, (await quiz.OpenAsync(launch)).Phase);
+
+        fixture.Media.HoldPlaybackCompletion = true;
+        using var caller = new CancellationTokenSource();
+        var resuming = quiz.ResumeAsync(caller.Token);
+        await fixture.Media.PlaybackStarted.WaitAsync(TimeSpan.FromSeconds(10));
+        caller.Cancel();
+        Assert.True(fixture.Media.FinishPlayback(true));
+        var resumed = await resuming.WaitAsync(TimeSpan.FromSeconds(10));
+        fixture.Media.HoldPlaybackCompletion = false;
+
+        Assert.Equal(NativePhase.Ready, resumed.Phase);
+        Assert.Equal(2, resumed.CurrentTurn);
+        Assert.Null(resumed.ErrorKey);
+        Assert.Equal(1, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
+        var answered = await quiz.AnswerAsync(resumed.Choices[0].Text);
+        Assert.Equal(NativePhase.Feedback, answered.Phase);
+        var next = await quiz.NextAsync(answered.TurnId!);
+        Assert.True(next.Phase is NativePhase.Ready or NativePhase.Summary);
+        Assert.Null(next.ErrorKey);
+        Assert.Equal(2, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
+    }
 }

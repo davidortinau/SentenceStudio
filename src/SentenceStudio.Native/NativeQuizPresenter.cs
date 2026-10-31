@@ -433,7 +433,9 @@ public sealed partial class NativeQuizPresenter(
                     // authoritative even if an earlier sync had been confirmed.
                     if (!pendingWrites.IsPending(_launch.UserId))
                         pendingWrites.MarkPending(_launch.UserId);
-                    return await AdvanceCommittedAsync(receipt, cancellationToken);
+                    // The receipt is durable; a caller cancellation must not
+                    // abandon the advance after it cleared the pending turn.
+                    return await AdvanceCommittedAsync(receipt, _lifetime.Token);
                 }
 
                 var feedback = await PresentQuestionAsync(

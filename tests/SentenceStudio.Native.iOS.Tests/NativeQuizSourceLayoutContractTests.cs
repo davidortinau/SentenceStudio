@@ -197,7 +197,7 @@ public sealed class NativeQuizSourceLayoutContractTests
         Assert.Contains("if (QueueQuizAudioNavigation(QuizAudioNavigation.Back))", app);
         // Manual Next is scoped to the displayed feedback turn so a tap racing
         // the auto-advance is ignored rather than refused against the next turn.
-        Assert.Contains("? await _quiz.NextAsync(displayedTurn, _lifetime.Token)", app);
+        Assert.Contains("? await quiz.NextAsync(displayedTurn, _lifetime.Token)", app);
         Assert.Contains("_quizState = await _quiz.BackAsync(_lifetime.Token);", app);
         Assert.Contains("_quizAudioCancellation?.Cancel();", app);
         Assert.Contains("if (!_busy || _quizAudioCancellation is null)\n"

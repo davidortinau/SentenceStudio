@@ -359,13 +359,17 @@ internal sealed partial class ApplicationController
 
     private async Task AdvanceQuizAsync()
     {
-        if (_quiz is null || !IsQuizOpen)
+        if (_quiz is not { } quiz || !IsQuizOpen)
             return;
         // Scope Next to the displayed feedback turn so a tap that races the
         // auto-advance is ignored instead of refused against the next turn.
-        _quizState = _quizState.TurnId is { } displayedTurn
-            ? await _quiz.NextAsync(displayedTurn, _lifetime.Token)
-            : await _quiz.NextAsync(_lifetime.Token);
+        var state = _quizState.TurnId is { } displayedTurn
+            ? await quiz.NextAsync(displayedTurn, _lifetime.Token)
+            : await quiz.NextAsync(_lifetime.Token);
+        // Leaving the quiz while Next completes must not reopen its summary.
+        if (_disposed || !IsQuizOpen || !ReferenceEquals(_quiz, quiz))
+            return;
+        _quizState = state;
         _answer = string.Empty;
         _quizInputFocused = false;
         _quizCorrectionCompleted = false;
@@ -629,6 +633,11 @@ internal sealed partial class ApplicationController
                 state = current is {
                     Phase: NativePhase.Feedback, Overlay: NativeQuizOverlay.None }
                     ? await quiz.NextAsync(expectedTurnId, cancellation.Token) : current;
+                // The committed advance runs on the presenter lifetime, so Next
+                // can return normally after the learner left the quiz.
+                if (_disposed || cancellation.IsCancellationRequested
+                    || !ReferenceEquals(_quiz, quiz))
+                    return;
             }
             _quizState = state;
             if (state.Phase == NativePhase.Summary)
