@@ -153,6 +153,15 @@ exercise foreign and ownerless parents, updates/reparenting, reversed
 same-upload parent ordering, both upload formats/completions, cursor persistence
 across API instances, and unchanged headerless routes.
 
+CoreSync SQLite selects `DISTINCT` row values plus the tracked operation, so a
+row inserted and then updated before one sync (for example a plan item created
+and completed during a Vocabulary Quiz) is uploaded twice with the same `Id`.
+The native upload folds repeated Insert/Update copies with identical values
+into one item (preferring Insert) before ownership validation; repetitions with
+different values or a delete remain and still refuse the whole upload. Before
+this, the duplicate-`Id` check refused every pending row of an otherwise
+eligible upload (observed on Android, 2026-10-31).
+
 The existing AppLib bearer handler still obtains the global token on each
 request and can swallow token failures; the final native handler enforces the
 lease and refuses anonymous or changed-owner sends. In Development,

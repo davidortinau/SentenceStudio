@@ -1365,6 +1365,106 @@ public sealed class NativeOwnerSyncPostgresTests : IClassFixture<NativeOwnerSync
     }
 
     [ApplicationOperationPostgresFact]
+    public async Task InsertThenUpdateOfSameNewRow_IsAppliedOnceWithEligibleSiblings()
+    {
+        // CoreSync SQLite selects DISTINCT (row, CT.OP), so a plan item inserted and then
+        // completed before the next sync is uploaded twice: once as I and once as U.
+        var (owner, foreign) = await _fixture.SeedOwnersAsync();
+        var resourceId = Guid.NewGuid().ToString();
+        var foreignResourceId = Guid.NewGuid().ToString();
+        var wordId = Guid.NewGuid().ToString();
+        var completionId = Guid.NewGuid().ToString();
+        var progressId = Guid.NewGuid().ToString();
+        var contextId = Guid.NewGuid().ToString();
+        await using (var db = _fixture.NewContext())
+        {
+            // The quizzed word is ownerless and shared with another owner's resource.
+            db.LearningResources.AddRange(
+                new LearningResource { Id = resourceId, UserProfileId = owner },
+                new LearningResource { Id = foreignResourceId, UserProfileId = foreign });
+            db.VocabularyWords.Add(new VocabularyWord { Id = wordId, TargetLanguageTerm = "word" });
+            db.ResourceVocabularyMappings.AddRange(
+                new ResourceVocabularyMapping
+                {
+                    Id = Guid.NewGuid().ToString(), ResourceId = resourceId, VocabularyWordId = wordId
+                },
+                new ResourceVocabularyMapping
+                {
+                    Id = Guid.NewGuid().ToString(), ResourceId = foreignResourceId,
+                    VocabularyWordId = wordId
+                });
+            db.VocabularyProgresses.Add(new VocabularyProgress
+            {
+                Id = progressId, UserId = owner, VocabularyWordId = wordId
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var inserted = Completion(completionId, owner, resourceId);
+        inserted.Values["IsCompleted"].Value = true;
+        var updated = new SyncItem("DailyPlanCompletion", ChangeType.Update,
+            inserted.Values.ToDictionary(pair => pair.Key, pair => pair.Value.Value));
+        using var response = await _fixture.UploadAsync(owner,
+            new SyncItem("VocabularyProgress", ChangeType.Update, new Dictionary<string, object?>
+            {
+                ["Id"] = progressId, ["VocabularyWordId"] = wordId, ["UserId"] = owner,
+                ["MasteryScore"] = 0.4f
+            }),
+            Context(contextId, progressId, resourceId),
+            inserted, updated);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        await using var verified = _fixture.NewContext();
+        var completion = await verified.DailyPlanCompletions.AsNoTracking()
+            .SingleAsync(row => row.Id == completionId);
+        Assert.True(completion.IsCompleted);
+        Assert.Equal(owner, completion.UserProfileId);
+        Assert.Equal(0.4f, (await verified.VocabularyProgresses.AsNoTracking()
+            .SingleAsync(row => row.Id == progressId && row.UserId == owner)).MasteryScore);
+        Assert.True(await verified.VocabularyLearningContexts.AsNoTracking()
+            .AnyAsync(row => row.Id == contextId));
+        Assert.Null((await verified.VocabularyWords.AsNoTracking()
+            .SingleAsync(row => row.Id == wordId)).UserProfileId);
+    }
+
+    [ApplicationOperationPostgresFact]
+    public async Task RepeatedRowIds_WithDifferentValuesOrForeignOwner_StillFailClosed()
+    {
+        var (owner, foreign) = await _fixture.SeedOwnersAsync();
+        var foreignCompletion = Guid.NewGuid().ToString();
+        await using (var db = _fixture.NewContext())
+        {
+            db.DailyPlanCompletions.Add(new DailyPlanCompletion
+            {
+                Id = foreignCompletion, UserProfileId = foreign, PlanItemId = "foreign",
+                ActivityType = "VocabularyReview", Date = DateTime.UtcNow.Date,
+                CreatedAt = DateTime.UtcNow, UpdatedAt = DateTime.UtcNow
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var conflictingId = Guid.NewGuid().ToString();
+        var first = Completion(conflictingId, owner);
+        var second = new SyncItem("DailyPlanCompletion", ChangeType.Update,
+            first.Values.ToDictionary(pair => pair.Key, pair => pair.Value.Value));
+        second.Values["MinutesSpent"].Value = 9;
+        using (var response = await _fixture.UploadAsync(owner, first, second))
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+
+        var foreignInsert = Completion(foreignCompletion, owner);
+        var foreignUpdate = new SyncItem("DailyPlanCompletion", ChangeType.Update,
+            foreignInsert.Values.ToDictionary(pair => pair.Key, pair => pair.Value.Value));
+        using (var response = await _fixture.UploadAsync(owner, foreignInsert, foreignUpdate))
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+
+        await using var verified = _fixture.NewContext();
+        Assert.False(await verified.DailyPlanCompletions.AsNoTracking()
+            .AnyAsync(row => row.Id == conflictingId));
+        Assert.Equal(foreign, (await verified.DailyPlanCompletions.AsNoTracking()
+            .SingleAsync(row => row.Id == foreignCompletion)).UserProfileId);
+    }
+
+    [ApplicationOperationPostgresFact]
     public async Task OwnedChunk_WithPersistedConversation_IsInserted()
     {
         var (owner, _) = await _fixture.SeedOwnersAsync();

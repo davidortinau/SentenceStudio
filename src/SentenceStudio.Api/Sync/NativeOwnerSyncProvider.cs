@@ -108,13 +108,17 @@ internal sealed class NativeOwnerSyncProvider(
         // or claim a word it cannot see is shared. Owners are stamped after apply.
         IgnoreClientWordOwners(changes.Items);
 
-        if (owner is not null && changes.Items.Count > 0)
+        // CoreSync SQLite reports one item per (row, operation), so a row inserted and
+        // then updated before one sync arrives twice with identical current values.
+        var items = owner is null ? changes.Items : CollapseRepeatedRows(changes.Items);
+
+        if (owner is not null && items.Count > 0)
         {
             await using var scope = scopes.CreateAsyncScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var visible = await GetVisibleKeysAsync(db, owner, ct);
-            if (!await ExistingRowsBelongToOwnerAsync(db, changes.Items, owner, visible, ct)
-                || !await OwnerLinkedReferencesMatchAsync(db, changes.Items, owner, visible, ct))
+            if (!await ExistingRowsBelongToOwnerAsync(db, items, owner, visible, ct)
+                || !await OwnerLinkedReferencesMatchAsync(db, items, owner, visible, ct))
             {
                 logger.LogWarning("Native CoreSync upload refused an existing row or parent outside the authenticated owner.");
                 throw new BadHttpRequestException(
@@ -125,13 +129,13 @@ internal sealed class NativeOwnerSyncProvider(
 
         var applied = owner is null ? changes : new SyncChangeSet(
             new SyncAnchor(scopedStoreId, changes.SourceAnchor.Version),
-            changes.TargetAnchor, OrderNativeItems(changes.Items));
+            changes.TargetAnchor, OrderNativeItems(items));
         var anchor = await provider.ApplyChangesAsync(applied, onConflict, ct);
 
         // CoreSync writes rows directly, bypassing ApplicationDbContext's owner stamping.
         // Older clients never send VocabularyWord.UserProfileId, so stamp it here while
         // the upload lock is still held.
-        var touchedWords = TouchedWordIds(changes.Items);
+        var touchedWords = TouchedWordIds(items);
         if (touchedWords.Count > 0)
         {
             await using var scope = scopes.CreateAsyncScope();
@@ -141,6 +145,35 @@ internal sealed class NativeOwnerSyncProvider(
         }
         return anchor;
     }
+
+    /// <summary>
+    /// Folds repeated Insert/Update items for one row into a single item when every
+    /// copy carries the same values, preferring Insert. Any other repetition (a delete,
+    /// or differing values) is left in place so ownership validation still refuses it.
+    /// </summary>
+    internal static IReadOnlyList<SyncItem> CollapseRepeatedRows(IReadOnlyList<SyncItem> items)
+    {
+        var result = new List<SyncItem>(items.Count);
+        foreach (var copies in items.GroupBy(
+            item => (item.TableName, Id: item.Values is null ? null : Value(item, "Id"))))
+        {
+            var first = copies.First();
+            if (copies.Key.Id is { Length: > 0 }
+                && copies.All(copy => copy.ChangeType is ChangeType.Insert or ChangeType.Update
+                    && SameValues(first, copy)))
+                result.Add(copies.FirstOrDefault(copy => copy.ChangeType == ChangeType.Insert)
+                    ?? first);
+            else
+                result.AddRange(copies);
+        }
+        return result;
+    }
+
+    private static bool SameValues(SyncItem first, SyncItem second) =>
+        first.Values.Count == second.Values.Count
+        && first.Values.All(pair => second.Values.TryGetValue(pair.Key, out var other)
+            && System.Text.Json.JsonSerializer.Serialize(pair.Value?.Value)
+                == System.Text.Json.JsonSerializer.Serialize(other?.Value));
 
     internal static void IgnoreClientWordOwners(IReadOnlyList<SyncItem> items)
     {
