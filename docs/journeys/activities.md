@@ -2,8 +2,8 @@
 
 Scope: every learner practice activity in the ORIGINAL Blazor/MAUI-Hybrid app.
 Source of truth: the frozen reference
-`/Users/davidortinau/.copilot/session-state/588e0b81-01aa-497b-8dca-491b234ef8b6/files/native-reference-59c72262-20261001`
-(call it `REF`). Live checkout `/Users/davidortinau/work/SentenceStudio` was diffed read-only (see "Live-only differences").
+a frozen copy of `main` at commit `59c72262` (the approved native-rebuild reference snapshot)
+(call it `REF`). Live checkout the developer's `main` checkout was diffed read-only (see "Live-only differences").
 
 Path legend for citations (all under `REF/src/`):
 - `UI/` = `SentenceStudio.UI` (so `UI/Pages/VocabQuiz.razor:827` is a line in that file)
@@ -439,7 +439,7 @@ Files: `UI/Pages/Diary.razor`, `DiaryEditor.razor`, `DiaryViewer.razor`; `DiaryE
 
 ---------------------------------------------------------------------------
 
-## 18. Live-only differences (checkout `/Users/davidortinau/work/SentenceStudio`, main with ~25 uncommitted changes)
+## 18. Live-only differences (checkout the developer's `main` checkout, main with ~25 uncommitted changes)
 
 Method: `diff -rq REF/src <live>/src` excluding bin/obj/backup/.DS_Store/appsettings/logs; plus `diff -rq` of `.claude`, `.squad/skills`, `docs`, `lib`; plus `git diff` on the changed files.
 

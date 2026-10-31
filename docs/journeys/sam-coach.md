@@ -7,10 +7,10 @@ Read-only audit. No file in any checkout was modified.
 
 | Label | Meaning | Source read |
 |---|---|---|
-| F | Frozen reference | `/Users/davidortinau/.copilot/session-state/588e0b81-01aa-497b-8dca-491b234ef8b6/files/native-reference-59c72262-20261001` |
-| M | Live main, committed | `/Users/davidortinau/work/SentenceStudio` at HEAD `59c72262` |
+| F | Frozen reference | a frozen copy of `main` at commit `59c72262` (the approved native-rebuild reference snapshot) |
+| M | Live main, committed | the developer's `main` checkout at HEAD `59c72262` |
 | MU | Live main, uncommitted | same checkout, `git status` (31 entries) |
-| T | Target branch | `/Users/davidortinau/work/SentenceStudio-native-platform-heads` at `81d2ddc4` (18 commits after `59c72262`) |
+| T | Target branch | the `native-platform-heads` branch at `81d2ddc4` (18 commits after `59c72262`) |
 
 Paths below are relative to the repo root unless prefixed. Unless a finding says otherwise it is present in F, M, and T identically, and absent from MU.
 

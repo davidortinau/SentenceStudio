@@ -37,6 +37,20 @@ public sealed class OwnerBoundNativeSyncTrigger(
 
     public async Task TriggerSyncAsync()
     {
+        // Callers fire this without awaiting it (as the source repositories do),
+        // so log here instead of leaving a faulted task unobserved.
+        try
+        {
+            await TriggerUnderOwnerLeaseAsync();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Background sync trigger failed before syncing.");
+        }
+    }
+
+    private async Task TriggerUnderOwnerLeaseAsync()
+    {
         // A trigger raised inside an in-flight readiness operation already
         // runs under that operation's lease.
         if (scope.TryGetLeasedReadinessOwner(out _))

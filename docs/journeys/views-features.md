@@ -5,8 +5,8 @@ Method: read-only source review. Nothing was built, run, edited or launched.
 
 Source roots (all file paths below are relative to `src/` unless they start with `docs/` or `.claude/`):
 
-- FR = frozen reference: `/Users/davidortinau/.copilot/session-state/588e0b81-01aa-497b-8dca-491b234ef8b6/files/native-reference-59c72262-20261001` (pinned to commit 59c72262). Every `file:line` citation is from FR.
-- LIVE = `/Users/davidortinau/work/SentenceStudio` (main, uncommitted). Compared with `diff -rq` on `src/`, `docs/`, `.claude/`. See section 17.
+- FR = frozen reference: a frozen copy of `main` at commit `59c72262` (the approved native-rebuild reference snapshot) (pinned to commit 59c72262). Every `file:line` citation is from FR.
+- LIVE = the developer's `main` checkout (main, uncommitted). Compared with `diff -rq` on `src/`, `docs/`, `.claude/`. See section 17.
 
 Terms: "Reference head" = a temporary MAUI Blazor Hybrid head (`SentenceStudio.iOS`, `.Android`, `.MacCatalyst`, `.MacOS`, `.Windows`). "Web" = `SentenceStudio.WebApp` (Blazor Web App, Interactive Server) hosting the same shared Razor from `SentenceStudio.UI`. Localization keys are shown as `Key_Name`; the English/Korean text lives in `SentenceStudio.Shared/Resources/Strings/AppResources.resx` (2179 entries) and `AppResources.ko.resx` (2117 entries).
 
