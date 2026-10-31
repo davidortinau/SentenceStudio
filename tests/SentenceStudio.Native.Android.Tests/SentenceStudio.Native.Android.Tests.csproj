@@ -33,5 +33,7 @@
              Link="AndroidQuizMediaPolicy.cs" />
     <Compile Include="../../src/SentenceStudio.Native.Android/AndroidRegistrationPolicy.cs"
              Link="AndroidRegistrationPolicy.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.Android/AndroidResourcesCoordinator.cs"
+             Link="AndroidResourcesCoordinator.cs" />
   </ItemGroup>
 </Project>

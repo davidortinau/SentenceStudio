@@ -7,15 +7,17 @@ namespace SentenceStudio.Native.Android.Tests;
 public sealed class AndroidRoutePolicyTests
 {
     [Fact]
-    public void SingleRealTopLevelDestination_DoesNotRenderBottomTabs()
+    public void DashboardAndResourcesAreTheOnlyBottomTabs()
     {
-        Assert.Equal(NativeDestination.Dashboard,
-            Assert.Single(AndroidRoutePolicy.TopLevelDestinations));
-        Assert.False(AndroidRoutePolicy.UsesBottomTabs);
-        Assert.DoesNotContain(NativeDestination.TodaysPlan,
-            AndroidRoutePolicy.TopLevelDestinations);
-        Assert.DoesNotContain(NativeDestination.VocabularyQuiz,
-            AndroidRoutePolicy.TopLevelDestinations);
+        Assert.Equal([NativeDestination.Dashboard, NativeDestination.Resources],
+            AndroidRoutePolicy.TopLevelDestinations.ToArray());
+        Assert.True(AndroidRoutePolicy.UsesBottomTabs);
+        Assert.True(AndroidRoutePolicy.IsTopLevel(NativeDestination.TodaysPlan));
+        Assert.True(AndroidRoutePolicy.IsTopLevel(NativeDestination.Resources));
+        Assert.False(AndroidRoutePolicy.IsTopLevel(NativeDestination.VocabularyQuiz));
+        Assert.False(AndroidRoutePolicy.IsTopLevel(NativeDestination.QuizSummary));
+        Assert.False(AndroidRoutePolicy.IsTopLevel(NativeDestination.SignIn));
+        Assert.False(AndroidRoutePolicy.IsTopLevel(NativeDestination.Onboarding));
     }
 
     [Fact]

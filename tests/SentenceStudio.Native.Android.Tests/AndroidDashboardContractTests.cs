@@ -69,7 +69,7 @@ public sealed class AndroidDashboardContractTests
     }
 
     [Fact]
-    public void ConfirmedNewLearnerShowsSourceEntryChoicesButNoUnsafeStarterAction()
+    public void ConfirmedNewLearnerOffersStarterAndAddThroughTheSharedResourcePath()
     {
         var compose = Source("AndroidSliceShell.Compose.cs");
         var visual = Source("AndroidSliceShell.Visual.cs");
@@ -82,7 +82,7 @@ public sealed class AndroidDashboardContractTests
             compose[start..modes]);
         Assert.Contains("return new Column", compose[start..modes]);
         var welcome = compose[compose.IndexOf(
-            "private static ComposableNode RenderNewLearner(",
+            "private ComposableNode RenderNewLearner(",
             StringComparison.Ordinal)..compose.IndexOf(
             "private static ComposableNode NumberMasteryCard(",
             StringComparison.Ordinal)];
@@ -90,10 +90,14 @@ public sealed class AndroidDashboardContractTests
         Assert.Contains("Dashboard_NewUserDescription", welcome);
         Assert.Contains("Dashboard_QuickStart", welcome);
         Assert.Contains("Dashboard_CreateYourOwn", welcome);
-        Assert.Contains("native.dashboard.starter.unavailable", welcome);
-        Assert.Contains("native.dashboard.create-own.unavailable", welcome);
+        Assert.Contains("native.dashboard.newuser.starter", welcome);
+        Assert.Contains("native.dashboard.newuser.add", welcome);
+        Assert.Contains("CreateDashboardStarter", welcome);
+        Assert.Contains("OpenResourceAddFromDashboard", welcome);
         Assert.DoesNotContain("CreateStarterAsync", welcome);
-        Assert.DoesNotContain("Action(", welcome);
+        var wiring = Source("AndroidSliceShell.Resources.cs");
+        Assert.Contains(".CreateStarterAsync(cancellationToken)", wiring);
+        Assert.Contains("HasDashboardOwner(owner)", wiring);
         Assert.Contains("Dashboard_Welcome", visual);
         Assert.Contains("if (!Dashboard.IsNewUser || _preview)", visual);
     }
@@ -136,7 +140,7 @@ public sealed class AndroidDashboardContractTests
         Assert.Contains("narrative.Story", compose);
         Assert.Contains("resource.SelectionReason", compose);
         Assert.Contains("native.plan.insight.resource.", compose);
-        Assert.Contains("resource.Id}.unavailable", compose);
+        Assert.Contains("OpenResourceFromDashboard(resourceId!)", compose);
         Assert.Contains("vocab.TotalDue", compose);
         Assert.Contains("state.StrugglingCategories", compose);
         Assert.Contains("state.NewCategories", compose);

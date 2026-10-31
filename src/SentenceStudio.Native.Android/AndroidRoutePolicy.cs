@@ -6,10 +6,16 @@ namespace SentenceStudio.Native.Android;
 internal static class AndroidRoutePolicy
 {
     // Add a bottom tab only when its top-level destination has a working native screen.
+    // Resources joined Dashboard once its native Compose browser and form shipped (AF-A01).
     public static ImmutableArray<NativeDestination> TopLevelDestinations { get; } =
-        [NativeDestination.Dashboard];
+        [NativeDestination.Dashboard, NativeDestination.Resources];
 
     public static bool UsesBottomTabs => TopLevelDestinations.Length > 1;
+
+    /// <summary>Today's Plan is the Dashboard tab's content, so it shares the Dashboard tab.</summary>
+    public static bool IsTopLevel(NativeDestination destination) =>
+        destination == NativeDestination.TodaysPlan
+        || TopLevelDestinations.Contains(destination);
 
     public static NativeDestination AfterAuth(NativeAuthState state) =>
         state.Phase == NativePhase.Ready

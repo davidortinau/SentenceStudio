@@ -24,6 +24,7 @@ internal sealed partial class AndroidSliceShell
         _quizScroll = composer.Remember(() => new ComposeScrollState());
         _detailsScroll = composer.Remember(() => new ComposeScrollState());
         _settingsScroll = composer.Remember(() => new ComposeScrollState());
+        _resourceFormScroll = composer.Remember(() => new ComposeScrollState());
         var onboardingKey = Destination == NativeDestination.Onboarding
             ? _onboardingStep + 1 : 0;
         composer.LaunchedEffect(onboardingKey, async cancellationToken =>
@@ -120,19 +121,28 @@ internal sealed partial class AndroidSliceShell
             content.Add(StatusAlert("Debug preview - isolated sample; not signed in.",
                 palette, automationId: "native.debug.preview.banner"));
 #endif
-        content.Add(Destination switch
+        var screen = Destination switch
         {
             NativeDestination.Dashboard or NativeDestination.TodaysPlan
                 when _appearanceSettingsOpen => RenderAppearanceSettings(palette),
             NativeDestination.Dashboard or NativeDestination.TodaysPlan => RenderDashboard(palette),
+            NativeDestination.Resources => RenderResources(palette),
             NativeDestination.VocabularyQuiz or NativeDestination.QuizSummary => RenderQuiz(composer, palette),
             NativeDestination.Onboarding => RenderOnboarding(palette),
             _ => RenderAuthentication(palette),
-        });
+        };
+        if (ShowsBottomTabs)
+        {
+            content.Add(new Box { Modifier.FillMaxWidth().Weight(1f), screen });
+            content.Add(NavigationTabs(palette));
+        }
+        else
+            content.Add(screen);
         if (!string.IsNullOrWhiteSpace(Error.Value)
             && _accountEntry == AccountEntry.SignIn
             && Destination is not (NativeDestination.Dashboard
-                or NativeDestination.TodaysPlan or NativeDestination.Onboarding))
+                or NativeDestination.TodaysPlan or NativeDestination.Onboarding
+                or NativeDestination.Resources))
             content.Add(StatusAlert(Error.Value, palette, error: true,
                 automationId: "native.shell.error"));
         var surface = new Surface
@@ -435,26 +445,35 @@ internal sealed partial class AndroidSliceShell
         return page;
     }
 
-    private static ComposableNode RenderNewLearner(AndroidVisualPalette palette) =>
-        new Column(Arrangement.SpacedBy(12))
+    private ComposableNode RenderNewLearner(AndroidVisualPalette palette)
+    {
+        var available = !Busy.Value && !_dashboardStarterBusy
+            && HasDashboardOwner(Auth.UserId);
+        var column = new Column(Arrangement.SpacedBy(12))
         {
             Modifier.FillMaxWidth().TestTag("native.dashboard.new-user"),
             Heading(Localize("Dashboard_NewUserTitle"), palette, 24),
             Body(Localize("Dashboard_NewUserDescription"), palette,
                 secondary: true),
-            Card(palette, "native.dashboard.new-user.quick-start",
-                Heading(Localize("Dashboard_QuickStart"), palette, 18),
-                Body(Localize("Dashboard_QuickStartDescription"), palette,
-                    secondary: true),
-                StatusAlert(Localize("NativeResources_Unavailable"), palette,
-                    error: true, automationId: "native.dashboard.starter.unavailable")),
-            Card(palette, "native.dashboard.new-user.create-own",
-                Heading(Localize("Dashboard_CreateYourOwn"), palette, 18),
-                Body(Localize("Dashboard_CreateYourOwnDescription"), palette,
-                    secondary: true),
-                StatusAlert(Localize("NativeResources_Unavailable"), palette,
-                    error: true, automationId: "native.dashboard.create-own.unavailable"))
         };
+        if (_dashboardStarterErrorKey is { } starterError)
+            column.Add(StatusAlert(Localize(starterError), palette, error: true,
+                automationId: "native.dashboard.newuser.error"));
+        column.Add(Card(palette, "native.dashboard.new-user.quick-start",
+            Heading(Localize("Dashboard_QuickStart"), palette, 18),
+            Body(Localize("NativeDashboard_QuickStartDescription"), palette,
+                secondary: true),
+            Action(Localize(_dashboardStarterBusy
+                    ? "Dashboard_SettingUp" : "Dashboard_CreateStarterResource"),
+                "native.dashboard.newuser.starter", CreateDashboardStarter, available)));
+        column.Add(Card(palette, "native.dashboard.new-user.create-own",
+            Heading(Localize("Dashboard_CreateYourOwn"), palette, 18),
+            Body(Localize("Dashboard_CreateYourOwnDescription"), palette,
+                secondary: true),
+            Action(Localize("Dashboard_AddAResource"), "native.dashboard.newuser.add",
+                OpenResourceAddFromDashboard, available, primary: false)));
+        return column;
+    }
 
     private static ComposableNode NumberMasteryCard(
         NativeNumberContextStat number, AndroidVisualPalette palette)
@@ -584,11 +603,24 @@ internal sealed partial class AndroidSliceShell
                     },
                     Heading(resource.Title, palette, 16),
                 };
-                content.Add(resourceHeading);
-                content.Add(Body(Localize("NativeResources_Unavailable"),
-                    palette, secondary: true,
-                    modifier: Modifier.TestTag(
-                        $"native.plan.insight.resource.{resource.Id}.unavailable")));
+                var resourceId = resource.Id;
+                var linkLabel = resource.Title;
+                var canOpenResource = !_preview && !Busy.Value
+                    && !string.IsNullOrWhiteSpace(resourceId)
+                    && HasDashboardOwner(Auth.UserId);
+                var linkModifier = Modifier.FillMaxWidth()
+                    .HeightIn(min: AndroidVisualTheme.ControlHeight)
+                    .TestTag($"native.plan.insight.resource.{Uri.EscapeDataString(resourceId ?? string.Empty)}");
+                linkModifier = canOpenResource
+                    ? linkModifier.Clickable(() => OpenResourceFromDashboard(resourceId!))
+                        .Semantics(semantics =>
+                        {
+                            semantics.ContentDescription(linkLabel);
+                            semantics.Role(SemanticsRole.Button);
+                        })
+                    : linkModifier.Semantics(semantics =>
+                        semantics.ContentDescription(linkLabel));
+                content.Add(new Box { linkModifier, resourceHeading });
                 if (!string.IsNullOrWhiteSpace(resource.SelectionReason))
                     content.Add(Body(resource.SelectionReason, palette, secondary: true));
             }

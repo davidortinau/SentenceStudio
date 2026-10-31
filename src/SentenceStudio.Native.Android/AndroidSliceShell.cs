@@ -145,6 +145,8 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
             DismissOverlay();
             return true;
         }
+        if (HandleResourcesBack())
+            return true;
         if (Destination == NativeDestination.Onboarding
             && _onboardingStep > 0)
         {
@@ -249,6 +251,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
             _dashboardMenuOpen = false;
             _appearanceSettingsOpen = false;
             _chooseSelector.Value = (int)ChooseSelector.None;
+            ResetResources();
         });
 #if DEBUG
         if (_preview)
@@ -294,6 +297,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
             _quiz.Dispose();
             _quiz = null;
         }
+        Post(ResetResources);
         _scope?.Dispose();
         _host?.Dispose();
         _auth = null;
@@ -617,6 +621,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
                 _insightExpanded = false;
                 _appearanceSettingsOpen = false;
                 _chooseSelector.Value = (int)ChooseSelector.None;
+                ResetResources();
             }
             Auth = state;
             Destination = AndroidRoutePolicy.AfterAuth(state);
@@ -673,6 +678,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
             _insightExpanded = false;
             _appearanceSettingsOpen = false;
             _chooseSelector.Value = (int)ChooseSelector.None;
+            ResetResources();
         }
         Auth = state;
     });
@@ -769,18 +775,25 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
     private void Publish(Action update) => Post(() =>
     {
         update();
+        ApplyPublishedState();
+    });
+
+    private void ApplyPublishedState()
+    {
         if (_photoDialog is not null
             && Destination != NativeDestination.VocabularyQuiz)
             ClosePhotoDialogWithoutRestore();
         activity.UpdateBackHandling(_appearanceSettingsOpen
             || AndroidRoutePolicy.HandlesBack(Destination)
             || _photoDialog is not null
+            || IsResourceFormOpen
+            || Destination == NativeDestination.Resources
             || Destination == NativeDestination.Onboarding
                 && _onboardingStep > 0
             || Destination == NativeDestination.SignIn
                 && _accountEntry != AccountEntry.SignIn);
         _revision.Value = unchecked(_revision.Value + 1);
-    });
+    }
 
     private void Post(Action update)
     {
@@ -808,6 +821,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
             _quiz.Dispose();
         }
         ClosePhotoDialogWithoutRestore();
+        ResetResources();
         _scope?.Dispose();
         _host?.Dispose();
         _lifetime.Dispose();
