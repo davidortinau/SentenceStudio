@@ -17,6 +17,10 @@ internal sealed partial class ApplicationController
 
     private CancellationTokenSource? _quizAudioCancellation;
     private QuizAudioNavigation _quizNavigationAfterAudio;
+    // The typed answer belongs to one turn. Every path that reaches a new
+    // Ready turn (manual Next, auto-advance, resume, retry, continue round)
+    // must start with an empty field and a disabled Submit.
+    private string? _quizAnswerTurnId;
 
     internal bool CanNavigateBackDuringQuizAudio =>
         IsQuizOpen && _quizAudioCancellation is not null;
@@ -116,6 +120,7 @@ internal sealed partial class ApplicationController
     {
         if (_quiz is null)
             return Views.Text(Text(NativeText.QuizUnavailable));
+        ClearQuizAnswerForNewTurn();
         if (_quizState.Sentence is not null
             && _sentenceDraftRestoredTurn != _quizState.TurnId)
         {
@@ -349,6 +354,17 @@ internal sealed partial class ApplicationController
         Run(BackFromQuizAsync);
     }
 
+    private void ClearQuizAnswerForNewTurn()
+    {
+        if (_quizState is not { Phase: NativePhase.Ready, TurnId: { } turnId }
+            || string.Equals(_quizAnswerTurnId, turnId, StringComparison.Ordinal))
+            return;
+        _quizAnswerTurnId = turnId;
+        _answer = string.Empty;
+        _quizInputFocused = false;
+        _quizCorrectionCompleted = false;
+    }
+
     private void AdvanceQuiz()
     {
         CancelAutoAdvance();
@@ -373,6 +389,7 @@ internal sealed partial class ApplicationController
         _answer = string.Empty;
         _quizInputFocused = false;
         _quizCorrectionCompleted = false;
+        ClearQuizAnswerForNewTurn();
         if (_quizState.Phase == NativePhase.Summary)
             _destination = NativeDestination.QuizSummary;
     }
@@ -505,6 +522,7 @@ internal sealed partial class ApplicationController
         _quiz = _services.Provider.GetRequiredService<NativeQuizPresenter>();
         _quizLaunch = launch;
         _answer = string.Empty;
+        _quizAnswerTurnId = null;
         _quizInputFocused = false;
         _quizCorrectionCompleted = false;
         _sentenceInput = string.Empty;
@@ -586,6 +604,7 @@ internal sealed partial class ApplicationController
         _quiz = null;
         _quizLaunch = null;
         _answer = string.Empty;
+        _quizAnswerTurnId = null;
         _quizInputFocused = false;
         _quizCorrectionCompleted = false;
         _sentenceInput = string.Empty;
@@ -640,6 +659,7 @@ internal sealed partial class ApplicationController
                     return;
             }
             _quizState = state;
+            ClearQuizAnswerForNewTurn();
             if (state.Phase == NativePhase.Summary)
                 _destination = NativeDestination.QuizSummary;
             Publish();
