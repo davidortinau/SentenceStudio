@@ -72,8 +72,18 @@ public static class VocabularyProgressConcurrentMerge
             && incoming.CorrectAttempts >= candidate.CorrectAttempts
             && incoming.ExposureCount >= candidate.ExposureCount)
         {
-            merged = incoming;
-            return false;
+            // The counts already include the stored row, but flags set elsewhere (for
+            // example a declaration or completion made on the web) must not be erased.
+            var flagged = Copy(incoming);
+            MergeFlags(flagged, stored, incoming);
+            if (SameFlags(flagged, incoming))
+            {
+                merged = incoming;
+                return false;
+            }
+            flagged.UpdatedAt = Max(Max(stored.UpdatedAt, incoming.UpdatedAt), utcNow);
+            merged = flagged;
+            return true;
         }
 
         // With every counted attempt backed by a context, a chronological replay gives the
@@ -127,21 +137,44 @@ public static class VocabularyProgressConcurrentMerge
         candidate.LastExposedAt = MaxOf(candidate.LastExposedAt, stored.LastExposedAt, incoming.LastExposedAt);
         candidate.MasteredAt = MinOf(candidate.MasteredAt, stored.MasteredAt, incoming.MasteredAt);
 
-        // The most recent explicit declaration wins; an undeclared side never erases one.
-        var declared = new[] { stored, incoming }
-            .Where(row => row.IsUserDeclared)
-            .OrderByDescending(row => row.UserDeclaredAt ?? DateTime.MinValue)
-            .FirstOrDefault();
-        if (declared is not null)
-        {
-            candidate.IsUserDeclared = true;
-            candidate.UserDeclaredAt = declared.UserDeclaredAt;
-            candidate.VerificationState = declared.VerificationState;
-        }
+        MergeDeclaration(candidate, stored, incoming);
         candidate.UpdatedAt = Max(Max(stored.UpdatedAt, incoming.UpdatedAt), utcNow);
         merged = candidate;
         return true;
     }
+
+    /// <summary>The most recent explicit declaration wins; an undeclared side never erases one.</summary>
+    private static void MergeDeclaration(
+        VocabularyProgress target, VocabularyProgress stored, VocabularyProgress incoming)
+    {
+        var declared = new[] { stored, incoming }
+            .Where(row => row.IsUserDeclared)
+            .OrderByDescending(row => row.UserDeclaredAt ?? DateTime.MinValue)
+            .FirstOrDefault();
+        if (declared is null)
+            return;
+        target.IsUserDeclared = true;
+        target.UserDeclaredAt = declared.UserDeclaredAt;
+        target.VerificationState = declared.VerificationState;
+    }
+
+    /// <summary>Flags either side may have set independently of attempt counts.</summary>
+    private static void MergeFlags(
+        VocabularyProgress target, VocabularyProgress stored, VocabularyProgress incoming)
+    {
+        MergeDeclaration(target, stored, incoming);
+        target.IsCompleted = stored.IsCompleted || incoming.IsCompleted;
+        target.IsPromoted = stored.IsPromoted || incoming.IsPromoted;
+        target.MasteredAt = MinOf(stored.MasteredAt, incoming.MasteredAt);
+    }
+
+    private static bool SameFlags(VocabularyProgress left, VocabularyProgress right) =>
+        left.IsUserDeclared == right.IsUserDeclared
+        && left.UserDeclaredAt == right.UserDeclaredAt
+        && left.VerificationState == right.VerificationState
+        && left.IsCompleted == right.IsCompleted
+        && left.IsPromoted == right.IsPromoted
+        && left.MasteredAt == right.MasteredAt;
 
     private static void Apply(VocabularyProgress progress, VocabularyLearningContext context)
     {
