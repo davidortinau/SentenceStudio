@@ -218,6 +218,36 @@ public sealed class NativeSwiftUIDashboardContractTests
     }
 
     [Fact]
+    public void InsightResourcesLinkToOwnedDetailAndReturnToDashboard()
+    {
+        var feature = Source("Features/Dashboard/PlanInsightView.cs");
+        var app = Source("App/ApplicationController.cs");
+        var resources = Source("Features/LearningResources/LearningResourcesCoordinator.cs");
+        Assert.Contains("openResource(resourceId);", feature);
+        Assert.Contains("native.plan.insight.resource.{Uri.EscapeDataString(resourceId)}",
+            feature);
+        Assert.Contains("OpenResource: OpenResourceFromDashboard", app);
+        Assert.Contains("_dashboardState.Narrative?.Resources.Any(resource =>", app);
+        Assert.Contains("_resources.Open(resourceId);", app);
+        Assert.Contains("ReturnToDashboardAfterResourceForm();", app);
+        Assert.Contains("internal void Open(string id)", resources);
+
+        Assert.Contains("vocab.PreviewWords.Count > 0", feature);
+        Assert.Contains("text(\"Dashboard_PreviewPlanVocabulary\")", feature);
+        Assert.Contains("preview.IsEnabled = false;", feature);
+    }
+
+    [Fact]
+    public void VocabularyAndNumbersSectionsHaveIndependentStates()
+    {
+        var progress = Source("Features/Dashboard/DashboardLearningProgressView.cs");
+        Assert.Contains("state.VocabErrorKey is { } vocabError", progress);
+        Assert.Contains("if (!state.NumbersApplicable && state.NumberErrorKey is null)",
+            progress);
+        Assert.Contains("\"native.dashboard.vocab.empty\"", progress);
+    }
+
+    [Fact]
     public void InsightProjectsAllThreeSourceCategoryTiersWithoutColorAlone()
     {
         var feature = Source("Features/Dashboard/PlanInsightView.cs");
@@ -248,7 +278,9 @@ public sealed class NativeSwiftUIDashboardContractTests
             "NativeDashboard_NumbersEmptyDescription",
             "NativeDashboard_NumbersDue",
             "NativeDashboard_NumbersCorrect",
-            "NativeResources_SetTargetLanguage"
+            "NativeResources_SetTargetLanguage",
+            "NativeDashboard_VocabUnavailable",
+            "Dashboard_PreviewPlanVocabulary"
         })
             Assert.Contains(key, keys);
     }

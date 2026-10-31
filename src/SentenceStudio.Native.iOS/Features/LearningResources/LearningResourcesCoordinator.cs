@@ -323,6 +323,14 @@ internal sealed class LearningResourcesCoordinator : IDisposable
 
     internal void OnBrowserAppeared() => Run(LoadListAsync);
 
+    /// <summary>Opens an owned resource detail from outside the browser (Dashboard insight links).</summary>
+    internal void Open(string id)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+            return;
+        Run(() => OpenAsync(id));
+    }
+
     internal void OpenCreate()
     {
         if (_disposed || _formOpen || IsNavigationBlocked)

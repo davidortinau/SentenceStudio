@@ -59,6 +59,7 @@ internal sealed partial class ApplicationController : IDisposable
     private bool _rememberMe;
     private bool _showPassword;
     private bool _insightExpanded;
+    private bool _resourceFormFromDashboard;
     private bool _settingsOpen;
     private bool _refreshChooseOwnAfterSkills;
     private bool _dashboardStarterBusy;
@@ -297,7 +298,12 @@ internal sealed partial class ApplicationController : IDisposable
                 .GetRequiredService<ILogger<LearningResourcesCoordinator>>(),
             Text, OpenSkills, OpenVocabulary);
         _resources.Changed += Publish;
-        _resources.FormOpenChanged += _ => Publish();
+        _resources.FormOpenChanged += open =>
+        {
+            if (!open)
+                ReturnToDashboardAfterResourceForm();
+            Publish();
+        };
         _resources.FileImporterChanged += _ => Publish();
         _resources.FormTitleChanged += title => ResourceFormTitleChanged?.Invoke(title);
     }
@@ -502,7 +508,8 @@ internal sealed partial class ApplicationController : IDisposable
                     Run(OpenChooseOwnQuizAsync);
             },
             AddResource: OpenResourceAddFromDashboard,
-            OpenQuiz: id => Run(() => OpenAssignedQuizAsync(id))),
+            OpenQuiz: id => Run(() => OpenAssignedQuizAsync(id)),
+            OpenResource: OpenResourceFromDashboard),
             isTablet: style.ViewportWidth >= 768);
 
     internal SwiftView RenderDashboardContent(SourceUiStyle style) =>
@@ -819,7 +826,48 @@ internal sealed partial class ApplicationController : IDisposable
             await _dashboard.LoadChooseOwnAsync(_lifetime.Token));
     }
 
-    internal void OnResourcesFormPopped() => _resources?.OnFormPopped();
+    internal void OnResourcesFormPopped()
+    {
+        _resources?.OnFormPopped();
+        ReturnToDashboardAfterResourceForm();
+    }
+
+    // Source Today's Insight resource titles link to /resources/{id}; Back from
+    // that detail returns to the plan, so a detail opened from the Dashboard
+    // returns to the Dashboard tab when it closes.
+    private void OpenResourceFromDashboard(string resourceId)
+    {
+        if (_destination != NativeDestination.Dashboard || NavigationBlocked
+            || string.IsNullOrWhiteSpace(resourceId) || IsResourcesFormOpen
+            || IsQuizOpen || _settingsOpen || IsSkillsOpen || IsProfileOpen
+            || IsVocabularyOpen || IsActivityLogOpen
+            || _dashboardState.Phase != NativePhase.Ready
+            || _dashboardState.Narrative?.Resources.Any(resource =>
+                resource.Id == resourceId) != true)
+            return;
+        EnsureResources();
+        if (_resources is null)
+            return;
+        _resourceFormFromDashboard = true;
+        _selectedTab = 1;
+        _resources.OnBrowserAppeared();
+        _resources.Open(resourceId);
+        if (!IsResourcesFormOpen)
+        {
+            _resourceFormFromDashboard = false;
+            _selectedTab = 0;
+        }
+        Publish();
+    }
+
+    private void ReturnToDashboardAfterResourceForm()
+    {
+        if (!_resourceFormFromDashboard || IsResourcesFormOpen)
+            return;
+        _resourceFormFromDashboard = false;
+        _selectedTab = 0;
+        Publish();
+    }
 
     internal void OnResourcesAppeared() => _resources?.OnBrowserAppeared();
 

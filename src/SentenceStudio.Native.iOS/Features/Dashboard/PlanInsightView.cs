@@ -15,7 +15,7 @@ internal static class PlanInsightView
     internal static void Add(
         List<SwiftView> items, NativeDashboardState state,
         bool insightExpanded, Action toggleInsight, SourceUiStyle style,
-        Func<string, string> text)
+        Func<string, string> text, Action<string>? openResource = null)
     {
         if (state.Narrative is { } narrative)
         {
@@ -59,11 +59,23 @@ internal static class PlanInsightView
                                     style.Appearance.Primary.Dark),
                             style.Text(Views.Text(resource.Title),
                                 SourceTextRole.Body2Strong,
-                                SourceTextTone.Primary))
-                        .WithAccessibilityIdentifier(
-                            "native.plan.insight.resource.title");
+                                SourceTextTone.Primary));
                     title.Spacing = SourceUiLayout.ItemGap;
-                    insight.Add(title);
+                    var resourceId = resource.Id;
+                    var link = Views.Button(title, () =>
+                        {
+                            if (openResource is not null
+                                && !string.IsNullOrWhiteSpace(resourceId))
+                                openResource(resourceId);
+                        })
+                        .WithButtonStyle(SwiftButtonStyle.Plain)
+                        .WithMinimumHeight(SourceUiLayout.MinimumTouchHeight)
+                        .WithAccessibilityLabel(resource.Title)
+                        .WithAccessibilityIdentifier(
+                            $"native.plan.insight.resource.{Uri.EscapeDataString(resourceId)}");
+                    link.IsEnabled = openResource is not null
+                        && !string.IsNullOrWhiteSpace(resourceId);
+                    insight.Add(link);
                     if (!string.IsNullOrWhiteSpace(resource.SelectionReason))
                         insight.Add(style.Text(Views.Text(resource.SelectionReason),
                                 SourceTextRole.Small, SourceTextTone.Secondary)
@@ -86,6 +98,23 @@ internal static class PlanInsightView
                             (vocab.AverageMastery * 100).ToString("F0",
                                 CultureInfo.CurrentCulture))),
                             SourceTextRole.Small, SourceTextTone.Secondary));
+                    if (vocab.PreviewWords.Count > 0)
+                    {
+                        // Source opens FlashcardActivity for the plan date. That
+                        // native destination is not created yet; keep the source
+                        // action visible as outstanding rather than silently absent.
+                        var preview = style.OutlineButton(
+                                Views.HStack(Views.Image("square.stack"),
+                                    Views.Text(text("Dashboard_PreviewPlanVocabulary"))),
+                                () => { })
+                            .WithAccessibilityLabel(
+                                text("Dashboard_PreviewPlanVocabulary") + ", "
+                                + text("NativeDashboard_ActivityNotAvailable"))
+                            .WithAccessibilityIdentifier(
+                                "native.plan.insight.preview");
+                        preview.IsEnabled = false;
+                        insight.Add(preview);
+                    }
                     if (!state.StrugglingCategories.IsEmpty)
                         insight.Add(CategoryRow(
                             state.StrugglingCategories,

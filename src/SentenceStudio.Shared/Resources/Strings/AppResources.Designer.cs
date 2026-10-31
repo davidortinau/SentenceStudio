@@ -6034,6 +6034,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Preview plan vocabulary.
+        /// </summary>
+        internal static string Dashboard_PreviewPlanVocabulary {
+            get {
+                return ResourceManager.GetString("Dashboard_PreviewPlanVocabulary", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to {0} / {1} activities · {2} / {3} min.
         /// </summary>
         internal static string Dashboard_ProgressCounts {
@@ -10116,6 +10125,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string NativeDashboard_SelectionUnavailable {
             get {
                 return ResourceManager.GetString("NativeDashboard_SelectionUnavailable", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Vocabulary statistics could not be loaded. Try refreshing..
+        /// </summary>
+        internal static string NativeDashboard_VocabUnavailable {
+            get {
+                return ResourceManager.GetString("NativeDashboard_VocabUnavailable", resourceCulture);
             }
         }
 
