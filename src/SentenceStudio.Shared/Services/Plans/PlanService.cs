@@ -863,8 +863,13 @@ public sealed class PlanService : IPlanService
     private Task<List<DailyPlanCompletion>> LoadCompletionsAsync(
         string userId, DateTime dateKey, bool tracked, CancellationToken ct)
     {
+        // Ad-hoc ("Choose My Own") sessions share this table but are not plan
+        // items: they must not appear as cards, inflate plan totals, or be
+        // archived when the plan is regenerated/revised. They still count for
+        // streak/activity history, which query the table directly.
         var query = _db.DailyPlanCompletions.Where(c =>
-            c.UserProfileId == userId && c.Date == dateKey && !c.IsArchived);
+            c.UserProfileId == userId && c.Date == dateKey && !c.IsArchived
+            && !c.PlanItemId.StartsWith("adhoc-"));
         if (!tracked)
         {
             query = query.AsNoTracking();

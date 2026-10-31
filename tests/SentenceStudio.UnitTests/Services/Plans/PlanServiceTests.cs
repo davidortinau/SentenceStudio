@@ -305,6 +305,68 @@ public sealed class PlanServiceTests : IDisposable
         Assert.Equal(12, reloaded!.Items.Single().MinutesSpent);
     }
 
+    [Fact]
+    public async Task AdHocCompletionRows_AreNotPlanItems_AndSurviveRegeneration()
+    {
+        _generator.SetActivities(
+            ("Reading", "resource-1", null, 15, 1),
+            ("VocabularyReview", null, null, 10, 2));
+        var service = NewService();
+        await service.GenerateTodayAsync(new GenerateTodaysPlanRequest());
+
+        var today = new DateTime(2026, 5, 16, 0, 0, 0, DateTimeKind.Utc);
+        string AddAdHoc(string userId, string id)
+        {
+            using var scope = _provider.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.DailyPlanCompletions.Add(new SentenceStudio.Shared.Models.DailyPlanCompletion
+            {
+                Id = Guid.NewGuid().ToString("N"),
+                UserProfileId = userId,
+                Date = today,
+                PlanItemId = id,
+                ActivityType = "VocabularyReview",
+                IsCompleted = true,
+                MinutesSpent = 1,
+                EstimatedMinutes = 10,
+                Priority = 1,
+                TitleKey = string.Empty,
+                DescriptionKey = string.Empty,
+                CreatedAt = today,
+                UpdatedAt = today,
+            });
+            db.SaveChanges();
+            return id;
+        }
+
+        AddAdHoc(UserA, "adhoc-" + Guid.NewGuid());
+        AddAdHoc(UserB, "adhoc-" + Guid.NewGuid());
+
+        var plan = await service.GetTodayAsync();
+        Assert.NotNull(plan);
+        Assert.Equal(2, plan!.Items.Count);
+        Assert.DoesNotContain(plan.Items, i => i.Id.StartsWith("adhoc-", StringComparison.Ordinal));
+        Assert.Equal(0, plan.CompletedCount);
+        Assert.Equal(25, plan.EstimatedTotalMinutes);
+
+        // Regeneration must not archive the ad hoc rows (they are not plan items).
+        var regenerated = await service.GenerateTodayAsync(new GenerateTodaysPlanRequest());
+        Assert.Equal(2, regenerated.Items.Count);
+        var snapshot = await service.GetTodaySnapshotAsync();
+        Assert.DoesNotContain(snapshot.Items, i => i.PlanItemId.StartsWith("adhoc-", StringComparison.Ordinal));
+
+        using var verify = _provider.CreateScope();
+        var vdb = verify.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var adHocRows = await vdb.DailyPlanCompletions.AsNoTracking()
+            .Where(c => c.PlanItemId.StartsWith("adhoc-")).ToListAsync();
+        Assert.Equal(2, adHocRows.Count);
+        Assert.All(adHocRows, r => Assert.False(r.IsArchived));
+
+        // Empty owner fails closed.
+        _scope.SetUser("");
+        Assert.Null(await NewService().GetTodayAsync());
+    }
+
     public void Dispose()
     {
         _provider.Dispose();
