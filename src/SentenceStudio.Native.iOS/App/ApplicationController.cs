@@ -204,6 +204,7 @@ internal sealed partial class ApplicationController : IDisposable
         catch (Exception ex)
         {
             _logger?.LogError(ex, "Native iOS SwiftUI startup failed.");
+            ClearSamForAccountBoundary();
             _destination = NativeDestination.SignIn;
             _preview = false;
             _authenticatedSample = false;
@@ -258,6 +259,7 @@ internal sealed partial class ApplicationController : IDisposable
                     Phase = NativePhase.Blocked,
                     ErrorKey = NativeText.InvalidCredentials
                 };
+                ClearSamForAccountBoundary();
                 _destination = NativeDestination.SignIn;
                 return;
             }
@@ -273,6 +275,7 @@ internal sealed partial class ApplicationController : IDisposable
                 UserId: { } currentOwner } || currentOwner != owner)
             {
                 _authState = _auth?.State ?? _authState;
+                ClearSamForAccountBoundary();
                 _destination = NativeDestination.SignIn;
                 return;
             }
@@ -457,6 +460,7 @@ internal sealed partial class ApplicationController : IDisposable
         {
             _authState = new(NativePhase.Blocked, NativeDestination.SignIn,
                 ErrorKey: result.ErrorKey ?? NativeText.InvalidCredentials);
+            ClearSamForAccountBoundary();
             _destination = NativeDestination.SignIn;
             return;
         }

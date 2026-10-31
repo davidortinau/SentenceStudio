@@ -708,6 +708,7 @@ internal sealed partial class ApplicationController
         if (fixture.Surface is "signin-loading" or "signin-error")
         {
             _preview = true;
+            ClearSamForAccountBoundary();
             _destination = NativeDestination.SignIn;
             _auth = provider.GetRequiredService<NativeAuthPresenter>();
             _authState = fixture.Surface == "signin-loading"

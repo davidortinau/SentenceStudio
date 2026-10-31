@@ -109,6 +109,39 @@ public sealed class NativeSamContractTests
         }
     }
 
+    /// <summary>
+    /// Every path whose destination becomes Sign In drops Sam (cancels the run,
+    /// clears the transcript) inside the same method, so nothing of the previous
+    /// owner survives behind the sign-in screen.
+    /// </summary>
+    [Theory]
+    [InlineData("App/ApplicationController.cs")]
+    [InlineData("App/ApplicationController.Quiz.cs")]
+    public void EveryRouteToSignInClearsSam(string file)
+    {
+        var lines = Source(file).Split('\n');
+        var checkedRoutes = 0;
+        for (var i = 0; i < lines.Length; i++)
+        {
+            if (!Regex.IsMatch(lines[i], @"^\s+_destination = NativeDestination\.SignIn;"))
+                continue;
+            checkedRoutes++;
+            var cleared = false;
+            for (var j = i - 1; j >= 0; j--)
+            {
+                if (lines[j].Contains("ClearSamForAccountBoundary();", StringComparison.Ordinal))
+                {
+                    cleared = true;
+                    break;
+                }
+                if (Regex.IsMatch(lines[j], @"^    (private|internal|public)\b"))
+                    break;
+            }
+            Assert.True(cleared, $"{file}:{i + 1} routes to Sign In without clearing Sam.");
+        }
+        Assert.True(checkedRoutes > 0);
+    }
+
     private static string Source(string relative) => File.ReadAllText(Path.Combine(HeadPath, relative));
 
     private static string HeadPath => Path.GetFullPath(Path.Combine(
