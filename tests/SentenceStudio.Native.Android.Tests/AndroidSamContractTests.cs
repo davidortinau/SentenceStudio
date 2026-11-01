@@ -20,6 +20,26 @@ public sealed class AndroidSamContractTests
     ];
 
     [Fact]
+    public void SendPushesTheLatestTypedTextAndAccountChangeClearsTheDraft()
+    {
+        var shell = File.ReadAllText(Path.Combine(Root, "AndroidSliceShell.Sam.cs"));
+        var send = Between(shell, "private void SendSam()", "\n    }");
+        Assert.True(send.IndexOf("_sam?.SetDraft(typed)", StringComparison.Ordinal)
+            < send.IndexOf("SamState.CanSend", StringComparison.Ordinal));
+        var clear = Between(shell, "private void ClearSamForAccountBoundary()", "\n    }");
+        Assert.Contains("_samDraftSynced = string.Empty;", clear);
+        Assert.Contains("NewTextFieldValue(string.Empty)", clear);
+    }
+
+    private static string Between(string text, string start, string end)
+    {
+        var from = text.IndexOf(start, StringComparison.Ordinal);
+        Assert.True(from >= 0, start);
+        var to = text.IndexOf(end, from, StringComparison.Ordinal);
+        return text[from..to];
+    }
+
+    [Fact]
     public void SamIsComposeOnlyAndBindsTheSharedPresenter()
     {
         foreach (var file in SamFiles)

@@ -52,6 +52,9 @@ internal sealed partial class AndroidSliceShell
         _samListOwner = null;
         _samLastKey = null;
         _samLastConversation = null;
+        // Unsynced keystrokes must never reach the next owner's presenter.
+        _samDraftSynced = string.Empty;
+        _samDraft.Value = AndroidX.Compose.ComposeExtensions.NewTextFieldValue(string.Empty);
         _sam?.ClearForAccountBoundary();
     }
 
@@ -147,6 +150,14 @@ internal sealed partial class AndroidSliceShell
 
     private void SendSam()
     {
+        // Push the field's latest text first: the composer syncs the draft after
+        // composition, so a keystroke and Send in one frame would send stale text.
+        var typed = _samDraft.Value.Text ?? string.Empty;
+        if (!string.Equals(typed, _samDraftSynced, StringComparison.Ordinal))
+        {
+            _samDraftSynced = typed;
+            _sam?.SetDraft(typed);
+        }
         if (SamState.CanSend)
             RunSam(sam => sam.SendAsync(_lifetime.Token));
     }
