@@ -171,12 +171,12 @@ internal sealed partial class AndroidSliceShell
             var link = new TextButton(() => ShadowingCommand(
                 (presenter, token) => presenter.ToggleTranslationAsync(token)))
             {
-                Modifier = Modifier.Align(Alignment.Horizontal.CenterHorizontally)
-                    .TestTag(NativeShadowingAccess.TranslationToggle)
+                Modifier = Modifier.TestTag(NativeShadowingAccess.TranslationToggle)
                     .Semantics(semantics => semantics.ContentDescription(label)),
             };
             link.Add(new Text(label) { Color = palette.SecondaryText, FontSize = new Sp(13) });
-            children.Add(link);
+            // Centered without a scope-specific align modifier (no new R8 keep rule).
+            children.Add(new Row(Arrangement.Center) { Modifier.FillMaxWidth(), link });
         }
         return Card(palette, NativeShadowingAccess.Card, [.. children]);
     }
@@ -246,13 +246,11 @@ internal sealed partial class AndroidSliceShell
                 {
                     Modifier = modifier,
                     Shape = Shape.RoundedCorners(AndroidVisualTheme.ControlRadius),
-                    ContentPadding = new PaddingValues(horizontal: 10, vertical: 6),
                 }
                 : new OutlinedButton(onClick: command, enabled: enabled)
                 {
                     Modifier = modifier,
                     Shape = Shape.RoundedCorners(AndroidVisualTheme.ControlRadius),
-                    ContentPadding = new PaddingValues(horizontal: 10, vertical: 6),
                 };
             ((ComposableContainer)button).Add(new Text(label) { MaxLines = 1 });
             return button;
@@ -274,8 +272,8 @@ internal sealed partial class AndroidSliceShell
             // Material core icons have no Pause glyph: two bars.
             play.Add(new Row(Arrangement.SpacedBy(4), Alignment.Vertical.CenterVertically)
             {
-                new Box { Modifier = Modifier.Size(width: 5, height: 18).Background(palette.OnPrimary) },
-                new Box { Modifier = Modifier.Size(width: 5, height: 18).Background(palette.OnPrimary) },
+                new Box { Modifier = Modifier.Width(5).Height(18).Background(palette.OnPrimary) },
+                new Box { Modifier = Modifier.Width(5).Height(18).Background(palette.OnPrimary) },
             });
         else
             play.Add(new Icon(Icons.Default.PlayArrow, null)
