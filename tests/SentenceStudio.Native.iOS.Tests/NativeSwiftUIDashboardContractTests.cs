@@ -188,8 +188,10 @@ public sealed class NativeSwiftUIDashboardContractTests
         Assert.Contains("NativeDashboardCardAccessibility.Label(", feature);
         Assert.Contains("Views.Button(content,", feature);
         Assert.Contains("openQuiz!(card.Id);", feature);
-        Assert.Contains("var canOpen = card.Activity == PlanActivityType.VocabularyReview",
+        Assert.Contains("var canOpen = (card.Activity == PlanActivityType.VocabularyReview",
             feature);
+        // Other plan types open only when registered in NativeActivityCatalog.
+        Assert.Contains("|| NativeActivityCatalog.IsImplemented(card.Activity))", feature);
         Assert.DoesNotContain("!card.IsCompleted && openQuiz", feature);
         Assert.Contains(".WithAccessibilityLabel(accessibility)", feature);
         Assert.Contains("_dashboardState.Cards.FirstOrDefault(card => card.Id == cardId)",

@@ -186,7 +186,7 @@ public sealed class NativeHeadContractTests
         Assert.Contains("Views.NavigationStack(_selectorSheet", scene);
         Assert.Contains("_dashboardStack.Push(\"quiz\", _quizSheet)", scene);
         Assert.Contains("_app.OnQuizPopped()", scene);
-        Assert.Contains("if (routes.Count != 0)", scene);
+        Assert.Contains("OnActivityRoutesChanged(routes.Count) || routes.Count != 0", scene);
         Assert.Contains("if (_app.IsQuizOpen)", scene);
         Assert.Contains("if (_handlingNativePop || !_nativePopPending)", controller);
         Assert.Contains("await BackFromQuizAsync()", controller);
