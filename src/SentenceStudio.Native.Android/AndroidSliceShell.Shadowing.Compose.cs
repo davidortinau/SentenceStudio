@@ -18,14 +18,19 @@ internal sealed partial class AndroidSliceShell
 
     private async Task OpenShadowingAsync(NativeActivityLaunch launch, CancellationToken cancellationToken)
     {
-        if (_scope is null)
+        if (ActivityServices is not { } services)
             return;
-        var presenter = _scope.ServiceProvider.GetRequiredService<NativeShadowingPresenter>();
+        var presenter = services.GetRequiredService<NativeShadowingPresenter>();
         presenter.StateChanged += OnShadowingChanged;
         _shadowing = presenter;
         Publish(() => Shadowing = new(NativePhase.Loading));
-        var state = await presenter.OpenAsync(launch, cancellationToken);
-        Publish(() => Shadowing = state);
+        await presenter.OpenAsync(launch, cancellationToken);
+        // Audio preparation continues in the background: show the latest state, not the returned snapshot.
+        Publish(() =>
+        {
+            if (ReferenceEquals(_shadowing, presenter))
+                Shadowing = presenter.State;
+        });
     }
 
     private async Task ExitShadowingAsync(CancellationToken cancellationToken)
@@ -61,11 +66,11 @@ internal sealed partial class AndroidSliceShell
     {
         try
         {
-            var state = await command(presenter, _lifetime.Token);
+            await command(presenter, _lifetime.Token);
             Publish(() =>
             {
                 if (ReferenceEquals(_shadowing, presenter))
-                    Shadowing = state;
+                    Shadowing = presenter.State;
             });
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)

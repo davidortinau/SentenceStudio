@@ -23,14 +23,18 @@ internal sealed partial class AndroidSliceShell
 
     private async Task OpenReadingAsync(NativeActivityLaunch launch, CancellationToken cancellationToken)
     {
-        if (_scope is null)
+        if (ActivityServices is not { } services)
             return;
-        var presenter = _scope.ServiceProvider.GetRequiredService<NativeReadingPresenter>();
+        var presenter = services.GetRequiredService<NativeReadingPresenter>();
         presenter.StateChanged += OnReadingChanged;
         _reading = presenter;
         Publish(() => Reading = new(NativePhase.Loading));
         var state = await presenter.OpenAsync(launch, cancellationToken);
-        Publish(() => Reading = state);
+        Publish(() =>
+        {
+            if (ReferenceEquals(_reading, presenter))
+                Reading = state;
+        });
     }
 
     private async Task ExitReadingAsync(CancellationToken cancellationToken)

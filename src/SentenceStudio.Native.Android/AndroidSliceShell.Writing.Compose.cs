@@ -27,14 +27,18 @@ internal sealed partial class AndroidSliceShell
 
     private async Task OpenWritingAsync(NativeActivityLaunch launch, CancellationToken cancellationToken)
     {
-        if (_scope is null)
+        if (ActivityServices is not { } services)
             return;
-        var presenter = _scope.ServiceProvider.GetRequiredService<NativeWritingPresenter>();
+        var presenter = services.GetRequiredService<NativeWritingPresenter>();
         presenter.StateChanged += OnWritingChanged;
         _writing = presenter;
         Publish(() => Writing = new(NativePhase.Loading));
         var state = await presenter.OpenAsync(launch, cancellationToken);
-        Publish(() => ApplyWriting(state));
+        Publish(() =>
+        {
+            if (ReferenceEquals(_writing, presenter))
+                ApplyWriting(state);
+        });
     }
 
     private async Task ExitWritingAsync(CancellationToken cancellationToken)
