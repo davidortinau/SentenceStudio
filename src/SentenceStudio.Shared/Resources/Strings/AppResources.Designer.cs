@@ -20847,20 +20847,20 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
-        ///   Looks up a localized string similar to Error grading your sentence. Please try again..
-        /// </summary>
-        internal static string Writing_GradeFailed {
-            get {
-                return ResourceManager.GetString("Writing_GradeFailed", resourceCulture);
-            }
-        }
-
-        /// <summary>
         ///   Looks up a localized string similar to Graded! Accuracy: {0}%.
         /// </summary>
         internal static string Writing_GradedAccuracy {
             get {
                 return ResourceManager.GetString("Writing_GradedAccuracy", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Error grading your sentence. Please try again..
+        /// </summary>
+        internal static string Writing_GradeFailed {
+            get {
+                return ResourceManager.GetString("Writing_GradeFailed", resourceCulture);
             }
         }
 
