@@ -46,6 +46,8 @@ public class CoachMessageFooterAccessibilityTests
         try
         {
             var services = new ServiceCollection();
+            // CoachChatPane always renders CoachVocabularySetCard, which injects NavigationManager.
+            services.AddScoped<Microsoft.AspNetCore.Components.NavigationManager, SentenceStudio.UI.Tests.Coach.TestNavigationManager>();
             services.AddLogging();
             services.AddScoped<BlazorLocalizationService>();
             services.AddScoped<CoachPersona>();
@@ -84,6 +86,8 @@ public class CoachMessageFooterAccessibilityTests
     private static async Task<(InteractiveTestRenderer Renderer, int Id)> MountAsync(CoachWorkspaceState state)
     {
         var services = new ServiceCollection();
+        // CoachChatPane always renders CoachVocabularySetCard, which injects NavigationManager.
+        services.AddScoped<Microsoft.AspNetCore.Components.NavigationManager, SentenceStudio.UI.Tests.Coach.TestNavigationManager>();
         services.AddLogging();
         services.AddScoped<BlazorLocalizationService>();
         services.AddScoped<CoachPersona>();

@@ -42,6 +42,8 @@ public class CoachReportEscapeAndLayoutTests
         await state.OpenAsync(CoachPresentation.Overlay, "c-1");
 
         var services = new ServiceCollection();
+        // CoachChatPane always renders CoachVocabularySetCard, which injects NavigationManager.
+        services.AddScoped<Microsoft.AspNetCore.Components.NavigationManager, SentenceStudio.UI.Tests.Coach.TestNavigationManager>();
         services.AddLogging();
         services.AddScoped<BlazorLocalizationService>();
         services.AddScoped<CoachPersona>();
@@ -290,6 +292,8 @@ public class CoachReportEscapeAndLayoutTests
         await state.OpenAsync(CoachPresentation.Overlay, "c-1");
 
         var services = new ServiceCollection();
+        // CoachChatPane always renders CoachVocabularySetCard, which injects NavigationManager.
+        services.AddScoped<Microsoft.AspNetCore.Components.NavigationManager, SentenceStudio.UI.Tests.Coach.TestNavigationManager>();
         services.AddLogging();
         services.AddScoped<BlazorLocalizationService>();
         services.AddScoped<CoachPersona>();

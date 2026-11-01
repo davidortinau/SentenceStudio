@@ -19,6 +19,8 @@ public class CoachLearnerMessageRenderTests
     private static async Task<string> RenderAsync(CoachWorkspaceState state, bool decode = true)
     {
         var services = new ServiceCollection();
+        // CoachChatPane always renders CoachVocabularySetCard, which injects NavigationManager.
+        services.AddScoped<Microsoft.AspNetCore.Components.NavigationManager, SentenceStudio.UI.Tests.Coach.TestNavigationManager>();
         services.AddLogging();
         services.AddScoped<BlazorLocalizationService>();
         // The coach's name comes from the learner's study language, so every component that

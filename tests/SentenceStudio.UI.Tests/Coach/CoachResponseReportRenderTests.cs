@@ -35,6 +35,8 @@ public class CoachResponseReportRenderTests
         try
         {
             var services = new ServiceCollection();
+            // CoachChatPane always renders CoachVocabularySetCard, which injects NavigationManager.
+            services.AddScoped<Microsoft.AspNetCore.Components.NavigationManager, SentenceStudio.UI.Tests.Coach.TestNavigationManager>();
             services.AddLogging();
             services.AddScoped<BlazorLocalizationService>();
             services.AddScoped<CoachPersona>();

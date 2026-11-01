@@ -62,6 +62,8 @@ public class CoachAccountBoundaryTests
             Client = new FakeCoachApiClient { DurableHistoryAvailable = true };
 
             var services = new ServiceCollection();
+            // CoachChatPane always renders CoachVocabularySetCard, which injects NavigationManager.
+            services.AddScoped<Microsoft.AspNetCore.Components.NavigationManager, SentenceStudio.UI.Tests.Coach.TestNavigationManager>();
             services.AddLogging();
             services.AddSingleton<ICoachApiClient>(Client);
             services.AddScoped<BlazorLocalizationService>();

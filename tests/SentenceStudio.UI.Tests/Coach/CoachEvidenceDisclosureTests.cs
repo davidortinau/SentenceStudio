@@ -29,6 +29,8 @@ public class CoachEvidenceDisclosureTests
     private static (InteractiveTestRenderer Renderer, IServiceProvider Provider) Interactive()
     {
         var services = new ServiceCollection();
+        // CoachChatPane always renders CoachVocabularySetCard, which injects NavigationManager.
+        services.AddScoped<Microsoft.AspNetCore.Components.NavigationManager, SentenceStudio.UI.Tests.Coach.TestNavigationManager>();
         services.AddLogging();
         services.AddScoped<BlazorLocalizationService>();
         services.AddScoped<CoachPersona>();
@@ -62,6 +64,8 @@ public class CoachEvidenceDisclosureTests
         try
         {
             var services = new ServiceCollection();
+            // CoachChatPane always renders CoachVocabularySetCard, which injects NavigationManager.
+            services.AddScoped<Microsoft.AspNetCore.Components.NavigationManager, SentenceStudio.UI.Tests.Coach.TestNavigationManager>();
             services.AddLogging();
             services.AddScoped<BlazorLocalizationService>();
             services.AddScoped<CoachPersona>();
