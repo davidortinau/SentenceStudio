@@ -80,6 +80,8 @@ internal sealed partial class AndroidSliceShell
             return;
         _resourceFormFromDashboard = false;
         Destination = NativeDestination.Dashboard;
+        // The resource may have been renamed or deleted; refresh the insight links.
+        ReloadDashboardAfterResources();
     }
 
     public void SelectTopLevel(NativeDestination destination) => Publish(() =>

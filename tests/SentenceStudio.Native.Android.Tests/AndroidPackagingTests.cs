@@ -325,6 +325,19 @@ public sealed class AndroidPackagingTests
     }
 
     [Fact]
+    public void ClosingAResourceOpenedFromTheDashboardReloadsTheDashboard()
+    {
+        var resources = File.ReadAllText(Path.Combine(HeadRoot, "AndroidSliceShell.Resources.cs"));
+        var start = resources.IndexOf("private void OnResourceFormOpenChanged", StringComparison.Ordinal);
+        Assert.True(start >= 0);
+        var end = resources.IndexOf("\n    }", start, StringComparison.Ordinal);
+        var body = resources[start..end];
+        // A renamed or deleted resource must not leave stale Today's Insight links.
+        Assert.Contains("Destination = NativeDestination.Dashboard;", body);
+        Assert.Contains("ReloadDashboardAfterResources();", body);
+    }
+
+    [Fact]
     public void GradedFeedbackPhotoRequiresDecodedImageButCannotOpenThePromptViewer()
     {
         var composition = File.ReadAllText(Path.Combine(
