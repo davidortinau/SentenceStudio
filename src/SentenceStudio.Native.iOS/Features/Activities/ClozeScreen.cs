@@ -246,12 +246,15 @@ internal sealed class ClozeScreen : IActivityScreen
                 Views.HStack(
                     Views.Image("checklist"),
                     style.Text(Views.Text(text(NativeClozeText.SessionComplete)),
-                        SourceTextRole.Title1, sourceHeading: true)),
+                        SourceTextRole.Title1, sourceHeading: true))
+                    .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center),
                 style.Card(stats.WithPadding(SourceUiLayout.CardInset), maxWidth: 340),
                 style.PrimaryButton(text(NativeClozeText.ContinuePractice),
                         () => Fire(_presenter.ContinuePracticeAsync))
+                    .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
                     .WithAccessibilityIdentifier(NativeClozeAccess.ContinuePractice),
                 style.SecondaryButton(text(NativeClozeText.Done), _host.Exit)
+                    .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
                     .WithAccessibilityIdentifier(NativeClozeAccess.Done))
             .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
             .WithAccessibilityIdentifier(NativeClozeAccess.Summary);
