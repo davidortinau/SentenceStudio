@@ -22,13 +22,13 @@ internal static class NativeResourceDateFormatter
     private static string Format(DateTime timestamp, string format,
         bool isSmartCreatedAt, TimeZoneInfo deviceTimeZone, CultureInfo culture)
     {
-        // SmartResourceService writes CreatedAt with DateTime.Now; SaveResourceAsync
-        // preserves it but overwrites UpdatedAt with UTC. SQLite loses Kind, so
-        // smart CreatedAt must stay local until old and new rows can be distinguished.
+        // Stored timestamps are UTC instants (SmartResourceService also writes UtcNow
+        // now). Smart rows written before that hold a local wall clock and display
+        // shifted by the device's UTC offset; SQLite keeps no provenance to tell them apart.
+        _ = isSmartCreatedAt;
         var local = timestamp.Kind switch
         {
             DateTimeKind.Local => timestamp,
-            DateTimeKind.Unspecified when isSmartCreatedAt => timestamp,
             DateTimeKind.Utc or DateTimeKind.Unspecified =>
                 TimeZoneInfo.ConvertTimeFromUtc(timestamp, deviceTimeZone),
             _ => throw new ArgumentOutOfRangeException(nameof(timestamp))

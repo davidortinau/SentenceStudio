@@ -63,9 +63,9 @@ public class SmartResourceService
                     .Select(r => r.SmartResourceType!),
                 StringComparer.Ordinal);
 
-            // Keep CreatedAt as a local wall clock for legacy smart rows. SQLite
-            // loses DateTime.Kind, so UTC writes would need persisted provenance
-            // to be distinguishable from those rows. Order preserved.
+            // CreatedAt is a UTC instant like every other persisted timestamp. Smart
+            // rows created before the UTC change hold a local wall clock (display-only
+            // skew; see docs/native-auth-readiness.md). Order preserved.
             var definitions = new[]
             {
                 new LearningResource
@@ -260,14 +260,9 @@ public class SmartResourceService
     /// </summary>
     private async Task<List<string>> GetDailyReviewVocabularyIdsAsync(string userId = "")
     {
-        // Resolve "today" via IPlanDateContext (user-local date) so this cutoff
-        // matches DeterministicPlanBuilder.BuildPlanAsync, ProgressService.
-        // ResolveTodayKey, and PlanService.ToDateKey — all of which stamp the
-        // user-local date as a UTC-kinded byte sequence (NOT a true UTC
-        // instant) so on-disk parity with DailyPlan.Date / DailyPlanCompletion
-        // .Date / VocabularyProgress.NextReviewDate is preserved. Calling
-        // ToUtcMidnight here would do a real TZ conversion and drift from
-        // those values by the user's UTC offset.
+        // Resolve "today" via IPlanDateContext (user-local date). NextReviewDate is a
+        // UTC instant, so the cutoff is the instant that opens the learner's local day
+        // (DueCutoffUtc), matching DeterministicPlanBuilder and ProgressService.
         //
         // SmartResourceService is a singleton, so IPlanDateContext (transient
         // on mobile, scoped on server) must be resolved per-call via the

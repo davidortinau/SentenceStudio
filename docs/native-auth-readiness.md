@@ -192,6 +192,14 @@ an old `NextReviewDate` can make a word due up to the device's UTC offset
 early or late once, until its next attempt rewrites the schedule; an old
 `LearnedAt` can order one historic context against a new one by up to that
 offset during a merge replay. Counts are never lost by that ordering.
+Two display-only effects of the same historic values: streaks now count the
+learner's local days from `UserActivity.CreatedAt` read as UTC, so old activity
+recorded near midnight can move to the neighbouring day (an old streak can
+lengthen or break once); and smart resources created before this change show
+their creation time shifted by the device's UTC offset, because their
+`CreatedAt` held a local wall clock and is now displayed as a UTC instant.
+On days when a daylight-saving change skips local midnight (for example
+America/Santiago), the learner's day starts at the first valid local minute.
 
 ### Concurrent attempts on one progress row
 

@@ -20,14 +20,16 @@ public sealed class NativeResourceDateFormatterTests
     [Theory]
     [InlineData("en-US")]
     [InlineData("ko-KR")]
-    public void LegacySmartUnspecified_KeepsLocalWallClockInListAndDetail(string locale)
+    public void SmartUnspecified_IsAUtcInstantLikeEveryOtherResource(string locale)
     {
+        // SmartResourceService writes CreatedAt with UtcNow (the UTC timestamp contract);
+        // smart rows convert to the device's local date exactly like normal rows.
         var culture = CultureInfo.GetCultureInfo(locale);
         var early = new DateTime(2026, 10, 1, 1, 30, 0, DateTimeKind.Unspecified);
         var late = new DateTime(2026, 10, 1, 23, 30, 0, DateTimeKind.Unspecified);
 
-        AssertCreatedDate(early, early, true, West, culture);
-        AssertCreatedDate(late, late, true, East, culture);
+        AssertCreatedDate(early, new DateTime(2026, 9, 30, 18, 30, 0), true, West, culture);
+        AssertCreatedDate(late, new DateTime(2026, 10, 2, 8, 30, 0), true, East, culture);
     }
 
     [Theory]
@@ -48,12 +50,12 @@ public sealed class NativeResourceDateFormatterTests
     [Theory]
     [InlineData("en-US")]
     [InlineData("ko-KR")]
-    public void SmartUpdatedAtUnspecified_IsUtcEvenThoughCreatedAtIsLocal(string locale)
+    public void SmartCreatedAndUpdatedUnspecified_AreBothUtc(string locale)
     {
         var culture = CultureInfo.GetCultureInfo(locale);
         var stored = new DateTime(2026, 10, 1, 1, 30, 0, DateTimeKind.Unspecified);
 
-        Assert.Equal(stored.ToString("g", culture),
+        Assert.Equal(new DateTime(2026, 9, 30, 18, 30, 0).ToString("g", culture),
             NativeResourceDateFormatter.DetailCreatedDate(stored, true, West, culture));
         Assert.Equal(new DateTime(2026, 9, 30, 18, 30, 0).ToString("g", culture),
             NativeResourceDateFormatter.DetailUpdatedDate(stored, West, culture));
@@ -98,11 +100,11 @@ public sealed class NativeResourceDateFormatterTests
     }
 
     [Fact]
-    public async Task SqliteSmartRow_PreservesWallClockAndProvenanceInListAndDetail()
+    public async Task SqliteSmartRow_RoundTripsAndDisplaysAsUtcInListAndDetail()
     {
         using var fixture = new NativeSliceFixture();
         await fixture.SeedProfileAsync(NativeSliceFixture.UserA);
-        var createdAt = new DateTime(2026, 10, 1, 1, 30, 0, DateTimeKind.Local);
+        var createdAt = new DateTime(2026, 10, 1, 1, 30, 0, DateTimeKind.Utc);
         var updatedAt = new DateTime(2026, 10, 1, 1, 30, 0, DateTimeKind.Utc);
         using (var scope = fixture.Scope())
         {
@@ -134,10 +136,11 @@ public sealed class NativeResourceDateFormatterTests
 
         foreach (var culture in new[] { English, Korean })
         {
-            Assert.Equal(createdAt.ToString("d", culture),
+            var createdLocal = new DateTime(2026, 9, 30, 18, 30, 0);
+            Assert.Equal(createdLocal.ToString("d", culture),
                 NativeResourceDateFormatter.ListDate(
                     item.CreatedAt, item.IsSmartResource, West, culture));
-            Assert.Equal(createdAt.ToString("g", culture),
+            Assert.Equal(createdLocal.ToString("g", culture),
                 NativeResourceDateFormatter.DetailCreatedDate(
                     detail.CreatedAt, detail.IsSmartResource, West, culture));
             Assert.Equal(new DateTime(2026, 9, 30, 18, 30, 0).ToString("g", culture),

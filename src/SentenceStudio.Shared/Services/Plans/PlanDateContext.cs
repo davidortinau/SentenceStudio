@@ -34,7 +34,12 @@ public sealed class PlanDateContext : IPlanDateContext
 
     public DateTime ToUtcMidnight(DateOnly userLocal)
     {
-        var localMidnight = userLocal.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
-        return TimeZoneInfo.ConvertTimeToUtc(localMidnight, TimeZone);
+        var localStart = userLocal.ToDateTime(TimeOnly.MinValue, DateTimeKind.Unspecified);
+        // Where a daylight-saving change skips midnight (for example America/Santiago),
+        // the day starts at the first valid local minute; ConvertTimeToUtc would throw.
+        var guard = 0;
+        while (TimeZone.IsInvalidTime(localStart) && guard++ < 24 * 60)
+            localStart = localStart.AddMinutes(1);
+        return TimeZoneInfo.ConvertTimeToUtc(localStart, TimeZone);
     }
 }
