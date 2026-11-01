@@ -44,6 +44,7 @@ public sealed class NativeMatchingPresenter(
     private string? _errorKey;
     private bool _usedFocus;
     private bool _disposed;
+    private bool _exited;
 
     /// <summary>Source CheckMatchWithDelay waits 600 ms before checking a pair.</summary>
     public TimeSpan CheckDelay { get; set; } = TimeSpan.FromMilliseconds(600);
@@ -88,6 +89,8 @@ public sealed class NativeMatchingPresenter(
         {
             if (_launch is null || !owner.IsActive(_launch.UserId))
                 return Refuse();
+            if (_exited)
+                return State;
             var tile = _tiles.FirstOrDefault(item => item.Id == tileId);
             if (_state.Phase != NativePhase.Ready || tile is null
                 || tile.IsMatched || !tile.IsVisible)
@@ -130,14 +133,36 @@ public sealed class NativeMatchingPresenter(
                 await Task.Delay(CheckDelay, linked.Token);
             await _gate.WaitAsync(linked.Token);
         }
-        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        catch (OperationCanceledException)
         {
-            return _state;
+            // Disposal or a cancelled caller abandons the pending check; clear the
+            // selection so the board is not left locked with two tiles picked.
+            if (_lifetime.IsCancellationRequested)
+                return _state;
+            await _gate.WaitAsync(CancellationToken.None);
+            try
+            {
+                if (check == _selection && !_exited)
+                {
+                    foreach (var tile in _selected)
+                        tile.IsSelected = false;
+                    _selected.Clear();
+                    _selection++;
+                    if (_hide)
+                        SetNativeVisibility(false);
+                    return PublishGame();
+                }
+                return State;
+            }
+            finally
+            {
+                _gate.Release();
+            }
         }
         try
         {
             // A deselect, restart, or exit during the delay supersedes the check.
-            if (check != _selection || _selected.Count != 2)
+            if (_exited || check != _selection || _selected.Count != 2)
                 return State;
             return await CheckCoreAsync(linked.Token);
         }
@@ -155,6 +180,8 @@ public sealed class NativeMatchingPresenter(
         {
             if (_launch is null || !owner.IsActive(_launch.UserId))
                 return Refuse();
+            if (_exited)
+                return State;
             _hide = !_hide;
             if (_hide)
             {
@@ -167,8 +194,9 @@ public sealed class NativeMatchingPresenter(
                 foreach (var tile in _tiles.Where(tile => !tile.IsTarget))
                     tile.IsVisible = true;
             }
+            // A pending pair check keeps the board locked.
             return _state.Phase == NativePhase.Ready
-                ? PublishGame()
+                ? PublishGame(checking: _state.IsChecking)
                 : Publish(_state with { HideNativeWords = _hide });
         }
         finally
@@ -186,7 +214,7 @@ public sealed class NativeMatchingPresenter(
         {
             if (_launch is null || !owner.IsActive(_launch.UserId))
                 return Refuse();
-            if (_state.Phase is NativePhase.Loading or NativePhase.Blocked
+            if (_exited || _state.Phase is NativePhase.Loading or NativePhase.Blocked
                 || _state.Destination != NativeDestination.Activity)
                 return State;
             _selection++;
@@ -207,10 +235,12 @@ public sealed class NativeMatchingPresenter(
         try
         {
             _selection++;
+            _exited = true;
             string? errorKey = null;
             try
             {
-                await timer.StopAsync(cancellationToken);
+                if (await timer.StopAsync(cancellationToken) == NativeActivityStop.Failed)
+                    errorKey = NativeText.SaveFailed;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

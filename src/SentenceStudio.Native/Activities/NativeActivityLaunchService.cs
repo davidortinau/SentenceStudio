@@ -48,7 +48,8 @@ public sealed class NativeActivityLaunchService(
             FocusVocabularySelection.NormalizeFocusVocabularyIds(item.FocusVocabularyIds)
                 .ToImmutableArray(),
             DueOnly: vocabularyDriven,
-            TimerResourceId: item.ResourceId);
+            TimerResourceId: item.ResourceId,
+            ActivityType: type);
     }
 
     /// <summary>
@@ -61,7 +62,7 @@ public sealed class NativeActivityLaunchService(
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(selection);
-        if (NativeActivityCatalog.ForRoute(route) is null
+        if (NativeActivityCatalog.ForRoute(route) is not { } definition
             || !owner.IsActive(selection.UserId))
             return null;
         var requested = selection.ResourceIds.IsDefault ? [] : selection.ResourceIds.ToArray();
@@ -86,6 +87,7 @@ public sealed class NativeActivityLaunchService(
         return new NativeActivityLaunch(
             route, selection.UserId, lease.LocalDate, PlanItemId: null,
             resources, validated.Skill?.Id, [], DueOnly: false,
-            TimerResourceId: resources.FirstOrDefault());
+            TimerResourceId: resources.FirstOrDefault(),
+            ActivityType: definition.TimerType);
     }
 }

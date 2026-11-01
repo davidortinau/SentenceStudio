@@ -17,6 +17,7 @@ namespace SentenceStudio.Native.iOS.App;
 internal sealed partial class ApplicationController
 {
     private IActivityScreen? _activity;
+    private IServiceScope? _activityScope;
     private bool _activityPopPending;
 
     internal bool IsActivityOpen =>
@@ -81,11 +82,17 @@ internal sealed partial class ApplicationController
     {
         if (_services is null)
             return;
-        _activity?.Dispose();
+        ReleaseActivity();
+        // One DI scope per activity screen, disposed with it, so its presenter,
+        // timer and tiles do not live in the root container until app exit.
+        _activityScope = _services.Provider.CreateScope();
         _activity = ActivityScreens.Create(launch.Route, new ActivityScreenHost(
-            _services.Provider, Text, Publish, Run, ExitActivity, _logger, _lifetime.Token));
+            _activityScope.ServiceProvider, Text, Publish, Run, ExitActivity, _logger, _lifetime.Token));
         if (_activity is null)
+        {
+            ReleaseActivity();
             return;
+        }
         _activityPopPending = false;
         _destination = NativeDestination.Activity;
         Publish();
@@ -99,10 +106,15 @@ internal sealed partial class ApplicationController
         if (_activity is not { } screen)
             return;
         _logger?.LogInformation("Native iOS activity {Title} exit requested.", screen.TitleKey);
-        await screen.ExitAsync(_lifetime.Token);
-        _activity = null;
+        try
+        {
+            await screen.ExitAsync(_lifetime.Token);
+        }
+        finally
+        {
+            ReleaseActivity();
+        }
         await ReturnToDashboardAsync();
-        screen.Dispose();
     }
 
     /// <summary>The NavigationStack popped the activity (system Back or swipe).</summary>
@@ -136,6 +148,8 @@ internal sealed partial class ApplicationController
     {
         _activity?.Dispose();
         _activity = null;
+        _activityScope?.Dispose();
+        _activityScope = null;
         _activityPopPending = false;
     }
 }

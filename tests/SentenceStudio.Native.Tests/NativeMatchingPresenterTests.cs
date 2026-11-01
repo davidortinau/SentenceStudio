@@ -49,6 +49,8 @@ public sealed class NativeMatchingPresenterTests
         Assert.True(launch.DueOnly);
         Assert.Equal(fixture.ResourceId(NativeSliceFixture.UserA), launch.TimerResourceId);
         Assert.Equal(game.FocusVocabularyIds.ToArray(), launch.FocusVocabularyIds.ToArray());
+        // The card's own plan type drives the owner-validated timer (one route can serve several types).
+        Assert.Equal(PlanActivityType.VocabularyGame, launch.ActivityType);
         Assert.Null(await launches.FromPlanCardAsync(
             cards.Single(card => card.Activity == PlanActivityType.Translation).Id));
         Assert.Null(await launches.FromPlanCardAsync("not-a-card"));
@@ -201,6 +203,8 @@ public sealed class NativeMatchingPresenterTests
         Assert.Equal(NativeSliceFixture.UserA, row.UserProfileId);
         Assert.Equal(nameof(PlanActivityType.VocabularyGame), row.ActivityType);
         Assert.Equal(fixture.ResourceId(NativeSliceFixture.UserA), row.ResourceId);
+        // Source VocabMatching starts its timer without the skill.
+        Assert.Null(row.SkillId);
         Assert.Equal(10, row.EstimatedMinutes);
         Assert.Equal(0, await fixture.AttemptCountAsync(NativeSliceFixture.UserB));
         Assert.Equal(3, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
@@ -337,6 +341,46 @@ public sealed class NativeMatchingPresenterTests
         Assert.False(checkedState.IsChecking);
         Assert.Equal(1, checkedState.MatchedPairs);
         Assert.Equal(1, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
+    }
+
+    [Fact]
+    public async Task Timer_RefusesAPlanTypeTheRouteDoesNotServe()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA, wordCount: 3);
+        await SignInAsync(fixture, NativeSliceFixture.EmailA);
+        using var matching = Presenter(fixture);
+
+        var state = await matching.OpenAsync(ChooseOwnLaunch(fixture, NativeSliceFixture.UserA)
+            with { ActivityType = PlanActivityType.Translation });
+
+        Assert.Equal(NativePhase.Blocked, state.Phase);
+        using var scope = fixture.Scope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        Assert.Empty(await db.DailyPlanCompletions.AsNoTracking()
+            .Where(row => row.PlanItemId.StartsWith("adhoc-")).ToListAsync());
+    }
+
+    [Fact]
+    public async Task AfterExit_TapsToggleAndRestartChangeNothing()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA, wordCount: 3);
+        await SignInAsync(fixture, NativeSliceFixture.EmailA);
+        using var matching = Presenter(fixture);
+        var state = await matching.OpenAsync(ChooseOwnLaunch(fixture, NativeSliceFixture.UserA));
+        var target = state.Tiles.First(tile => tile.IsTarget);
+        var native = state.Tiles.Single(tile => !tile.IsTarget && tile.WordId == target.WordId);
+        await matching.TapAsync(target.Id);
+
+        var exited = await matching.ExitAsync();
+        await matching.TapAsync(native.Id);
+        await matching.ToggleHideNativeAsync();
+        await matching.RestartAsync();
+
+        Assert.Equal(NativeDestination.TodaysPlan, matching.State.Destination);
+        Assert.Equal(exited, matching.State);
+        Assert.Equal(0, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
     }
 
     private static NativeMatchingPresenter Presenter(NativeSliceFixture fixture)

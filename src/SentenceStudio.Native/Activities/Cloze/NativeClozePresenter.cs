@@ -53,6 +53,7 @@ public sealed class NativeClozePresenter(
     private bool? _noticeSuccess;
     private string? _errorKey;
     private bool _disposed;
+    private bool _exited;
 
     /// <summary>Source GradeAnswer waits 1200 ms after a correct answer before advancing.</summary>
     public TimeSpan AdvanceDelay { get; set; } = TimeSpan.FromMilliseconds(1200);
@@ -134,7 +135,7 @@ public sealed class NativeClozePresenter(
         {
             if (_launch is null || !owner.IsActive(_launch.UserId))
                 return Refuse();
-            if (_state.Phase != NativePhase.Summary
+            if (_exited || _state.Phase != NativePhase.Summary
                 || _state.Destination != NativeDestination.Activity)
                 return State;
             _correct = 0;
@@ -154,10 +155,12 @@ public sealed class NativeClozePresenter(
         try
         {
             _generation++;
+            _exited = true;
             string? errorKey = null;
             try
             {
-                await timer.StopAsync(cancellationToken);
+                if (await timer.StopAsync(cancellationToken) == NativeActivityStop.Failed)
+                    errorKey = NativeText.SaveFailed;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -182,7 +185,7 @@ public sealed class NativeClozePresenter(
         {
             if (_launch is null || !owner.IsActive(_launch.UserId))
                 return Refuse();
-            if (_state.Phase != NativePhase.Ready
+            if (_exited || _state.Phase != NativePhase.Ready
                 || _state.Destination != NativeDestination.Activity
                 || _sentences.Count == 0)
                 return State;
@@ -235,7 +238,7 @@ public sealed class NativeClozePresenter(
         {
             if (_launch is null || !owner.IsActive(_launch.UserId))
                 return Refuse();
-            if (_state.Phase != NativePhase.Ready || _graded || _sentences.Count == 0
+            if (_exited || _state.Phase != NativePhase.Ready || _graded || _sentences.Count == 0
                 || _state.Destination != NativeDestination.Activity)
                 return State;
             if (chosen is not null)
@@ -248,7 +251,7 @@ public sealed class NativeClozePresenter(
             if (string.IsNullOrWhiteSpace(answer))
                 return State;
             var correct = await GradeCoreAsync(_sentences[_index], answer, cancellationToken);
-            if (_state.Destination != NativeDestination.Activity
+            if (_exited || _state.Destination != NativeDestination.Activity
                 || _state.Phase == NativePhase.Blocked)
                 return State;
             if (!correct)
@@ -268,14 +271,16 @@ public sealed class NativeClozePresenter(
                 await Task.Delay(AdvanceDelay, linked.Token);
             await _gate.WaitAsync(linked.Token);
         }
-        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        catch (OperationCanceledException)
         {
-            return _state;
+            // Disposal or a cancelled caller abandons only the auto-advance; the
+            // graded sentence keeps its enabled chevrons, so nothing stays locked.
+            return State;
         }
         try
         {
             // A manual next/previous, reload, or exit during the delay supersedes the advance.
-            if (advance != _generation || _state.Phase != NativePhase.Ready
+            if (_exited || advance != _generation || _state.Phase != NativePhase.Ready
                 || _state.Destination != NativeDestination.Activity)
                 return State;
             if (_launch is null || !owner.IsActive(_launch.UserId))
