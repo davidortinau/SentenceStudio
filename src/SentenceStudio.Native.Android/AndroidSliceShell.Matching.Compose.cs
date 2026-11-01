@@ -262,19 +262,18 @@ internal sealed partial class AndroidSliceShell
             Color = tile.IsSelected ? palette.Primary : palette.Background,
         };
         // Surface is not a Box scope in the facade: center the label in a Box.
-        surface.Add(new Box
+        var text = new Text(tile.Text)
         {
-            Modifier.FillMaxWidth().HeightIn(min: 56),
-            new Text(tile.Text)
-            {
-                Modifier = Modifier.Align(Alignment.Center).FillMaxWidth().Padding(8),
-                Color = tile.IsSelected ? palette.OnPrimary
-                    : tile.IsMatched ? palette.SecondaryText : palette.Text,
-                FontSize = new Sp(16),
-                FontWeight = tile.IsTarget ? FontWeight.SemiBold : FontWeight.Normal,
-                Align = TextAlign.Center,
-            },
-        });
+            Modifier = Modifier.Align(Alignment.Center).FillMaxWidth().Padding(8),
+            Color = tile.IsSelected ? palette.OnPrimary
+                : tile.IsMatched ? palette.SecondaryText : palette.Text,
+            FontSize = new Sp(16),
+            Align = TextAlign.Center,
+        };
+        // Only SemiBold/Bold have R8 keep rules (proguard-compose-jni.cfg).
+        if (tile.IsTarget)
+            text.FontWeight = FontWeight.SemiBold;
+        surface.Add(new Box { Modifier.FillMaxWidth().HeightIn(min: 56), text });
         return surface;
     }
 
