@@ -65,6 +65,10 @@ public static class NativeSliceRegistration
         services.TryAddTransient<INativeShadowingPlayer, UnavailableNativeShadowingPlayer>();
         services.AddTransient<NativeShadowingPresenter>();
         services.AddTransient<NativeHowDoYouSayPresenter>();
+        services.TryAddSingleton<INativeWordAssociationAi>(sp => new NativeWordAssociationAi(
+            sp.GetService<IOwnerBoundNativeReasoningAiGateway>()));
+        services.AddTransient<NativeWordAssociationScores>();
+        services.AddTransient<NativeWordAssociationPresenter>();
         services.TryAddScoped<IPlanCopyProvider, EnglishPlanCopyProvider>();
         services.AddSingleton<NativePlanLeaseFactory>();
         services.TryAddSingleton<INativeProfileRemoteStore>(sp =>

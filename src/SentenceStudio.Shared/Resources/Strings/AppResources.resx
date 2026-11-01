@@ -9497,4 +9497,28 @@ For example: {0} ...</value>
   <data name="NativeHowDoYouSay_SelectVoice" xml:space="preserve">
     <value>Please select a voice first.</value>
   </data>
+  <data name="WordAssoc_NoResourceVocab" xml:space="preserve">
+    <value>No vocabulary found in selected resources.</value>
+  </data>
+  <data name="WordAssoc_LoadFailed" xml:space="preserve">
+    <value>Error loading vocabulary.</value>
+  </data>
+  <data name="WordAssoc_GradeFailed" xml:space="preserve">
+    <value>Error grading clues. Please try again.</value>
+  </data>
+  <data name="WordAssoc_Corrected" xml:space="preserve">
+    <value>(Corrected: {0})</value>
+  </data>
+  <data name="WordAssoc_AddClue" xml:space="preserve">
+    <value>Add clue</value>
+  </data>
+  <data name="WordAssoc_RemoveClue" xml:space="preserve">
+    <value>Remove clue</value>
+  </data>
+  <data name="WordAssoc_Pending" xml:space="preserve">
+    <value>Not graded yet</value>
+  </data>
+  <data name="WordAssoc_DoublePoints" xml:space="preserve">
+    <value>Full sentence: 2 points</value>
+  </data>
 </root>

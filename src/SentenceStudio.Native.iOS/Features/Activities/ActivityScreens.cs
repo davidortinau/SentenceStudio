@@ -59,6 +59,7 @@ internal static class ActivityScreens
         NativeActivityCatalog.Reading => new ReadingScreen(host),
         NativeActivityCatalog.Shadowing => new ShadowingScreen(host),
         NativeActivityCatalog.HowDoYouSay => new HowDoYouSayScreen(host),
+        NativeActivityCatalog.WordAssociation => new WordAssociationScreen(host),
         _ => null
     };
 }
