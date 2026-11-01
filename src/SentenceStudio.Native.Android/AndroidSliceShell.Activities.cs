@@ -80,12 +80,16 @@ internal sealed partial class AndroidSliceShell
             case NativeActivityCatalog.VocabularyMatching:
                 await OpenMatchingAsync(launch, cancellationToken);
                 break;
+            case NativeActivityCatalog.NumberDrill:
+                await OpenNumberDrillAsync(launch, cancellationToken);
+                break;
         }
     }
 
     private ComposableNode RenderActivity(AndroidVisualPalette palette) => _activityRoute switch
     {
         NativeActivityCatalog.VocabularyMatching => RenderMatching(palette),
+        NativeActivityCatalog.NumberDrill => RenderNumberDrill(palette),
         _ => Body(Localize(NativeMatchingText.Unavailable), palette),
     };
 
@@ -95,6 +99,9 @@ internal sealed partial class AndroidSliceShell
         {
             case NativeActivityCatalog.VocabularyMatching:
                 await ExitMatchingAsync(cancellationToken);
+                break;
+            case NativeActivityCatalog.NumberDrill:
+                await ExitNumberDrillAsync(cancellationToken);
                 break;
         }
         ReleaseActivity();
@@ -106,6 +113,7 @@ internal sealed partial class AndroidSliceShell
     private void ReleaseActivity()
     {
         ReleaseMatching();
+        ReleaseNumberDrill();
         _activityRoute = null;
     }
 }
