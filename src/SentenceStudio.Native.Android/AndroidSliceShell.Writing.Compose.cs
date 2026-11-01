@@ -439,7 +439,8 @@ internal sealed partial class AndroidSliceShell
                     palette.Accent, NativeWritingAccess.SummaryFluency),
             },
             Action(Localize(NativeWritingText.ContinuePractice), NativeWritingAccess.Continue,
-                () => WritingCommand((presenter, token) => presenter.ContinueAsync(token)), !Busy.Value),
+                () => WritingCommand((presenter, token) => presenter.ContinueAsync(token)),
+                !Busy.Value && state.CanContinue),
             Action(Localize(NativeWritingText.Done), NativeWritingAccess.Done,
                 ExitActivity, !Busy.Value, primary: false));
     }

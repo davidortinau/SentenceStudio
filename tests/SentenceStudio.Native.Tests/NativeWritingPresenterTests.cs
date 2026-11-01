@@ -171,6 +171,114 @@ public sealed class NativeWritingPresenterTests
     }
 
     [Fact]
+    public async Task EndSessionDuringGrading_KeepsTheSummaryAndCountsTheLateGrade()
+    {
+        using var fixture = new NativeSliceFixture();
+        var owner = NativeSliceFixture.UserA;
+        await SeedWordsAsync(fixture, owner, 6);
+        await SignInAsync(fixture, NativeSliceFixture.EmailA);
+        var ai = new FakeWritingAi();
+        using var writing = Presenter(fixture, ai);
+        await writing.OpenAsync(ChooseOwnLaunch(fixture, owner));
+        for (var i = 0; i < 3; i++)
+        {
+            writing.SetDraft($"sentence {i}");
+            await writing.GradeAsync();
+        }
+        Assert.True(writing.State.CanEndSession);
+
+        var gate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        ai.GradeGate = gate;
+        writing.SetDraft("sentence 3");
+        var pending = writing.GradeAsync();
+        Assert.True(writing.State.IsGrading);
+        // Source keeps End session available while grading.
+        Assert.True(writing.State.CanEndSession);
+        var summary = await writing.EndSessionAsync();
+        Assert.Equal(NativePhase.Summary, summary.Phase);
+        Assert.True(summary.IsGrading);
+        Assert.False(summary.CanContinue);
+        // Continue waits for the in-flight grade.
+        Assert.Equal(NativePhase.Summary, (await writing.ContinueAsync()).Phase);
+
+        gate.SetResult(true);
+        var landed = await pending;
+
+        // The late grade updates the summary instead of reopening the input.
+        Assert.Equal(NativePhase.Summary, landed.Phase);
+        Assert.Equal(NativePhase.Summary, writing.State.Phase);
+        Assert.False(landed.IsGrading);
+        Assert.True(landed.CanContinue);
+        Assert.Equal(4, landed.GradedCount);
+        using (var scope = fixture.Scope())
+        {
+            var rows = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
+                .UserActivities.AsNoTracking()
+                .Where(row => row.UserProfileId == owner && row.Activity == nameof(Activity.Writer))
+                .Select(row => row.Input).ToListAsync();
+            Assert.Equal(4, rows.Count);
+            Assert.Contains("sentence 3", rows);
+        }
+
+        var next = await writing.ContinueAsync();
+        Assert.Equal(NativePhase.Ready, next.Phase);
+        Assert.False(next.IsGrading);
+        Assert.Equal(0, next.GradedCount);
+        Assert.Empty(next.Sentences);
+        Assert.Equal(NativeDestination.TodaysPlan, (await writing.ExitAsync()).Destination);
+    }
+
+    [Fact]
+    public async Task ExitDuringGrading_RecordsNothingAndStopsTheTimer()
+    {
+        using var fixture = new NativeSliceFixture();
+        var owner = NativeSliceFixture.UserA;
+        await SeedWordsAsync(fixture, owner, 6);
+        await SignInAsync(fixture, NativeSliceFixture.EmailA);
+        var gate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var ai = new FakeWritingAi { GradeGate = gate };
+        using var writing = Presenter(fixture, ai);
+        await writing.OpenAsync(ChooseOwnLaunch(fixture, owner));
+        writing.SetDraft("sentence");
+        var pending = writing.GradeAsync();
+
+        var exit = await writing.ExitAsync();
+        gate.SetResult(true);
+        await pending;
+
+        Assert.Equal(NativeDestination.TodaysPlan, exit.Destination);
+        Assert.Null(exit.ErrorKey);
+        Assert.Equal(NativeDestination.TodaysPlan, writing.State.Destination);
+        using var scope = fixture.Scope();
+        Assert.False(await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
+            .UserActivities.AnyAsync(row => row.UserProfileId == owner));
+    }
+
+    [Fact]
+    public async Task DraftTypedDuringGrading_IsClearedAsTheSourceDoes()
+    {
+        using var fixture = new NativeSliceFixture();
+        await SeedWordsAsync(fixture, NativeSliceFixture.UserA, 6);
+        await SignInAsync(fixture, NativeSliceFixture.EmailA);
+        var gate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var ai = new FakeWritingAi { GradeGate = gate };
+        using var writing = Presenter(fixture, ai);
+        await writing.OpenAsync(ChooseOwnLaunch(fixture, NativeSliceFixture.UserA));
+        writing.SetDraft("first sentence");
+        var pending = writing.GradeAsync();
+        // Source Writing.razor leaves the field enabled while grading and its
+        // GradeMe sets userInput = "" after the grade, whatever was typed since.
+        writing.SetDraft("typed while grading");
+        gate.SetResult(true);
+        var state = await pending;
+
+        Assert.Equal(string.Empty, state.Draft);
+        Assert.False(state.CanGrade);
+        Assert.Equal("first sentence", Assert.Single(state.Sentences).Answer);
+        Assert.Equal("first sentence", Assert.Single(ai.Graded).Sentence);
+    }
+
+    [Fact]
     public async Task FocusVocabulary_KeepsTheFirstFourBlocksOnShuffle()
     {
         using var fixture = new NativeSliceFixture();
@@ -386,15 +494,22 @@ public sealed class NativeWritingPresenterTests
         public double Fluency { get; set; } = 64;
         public List<VocabularyAnalysis>? Analysis { get; set; }
         public Action? OnGrade { get; set; }
+        /// <summary>When set, the next grade waits for it.</summary>
+        public TaskCompletionSource<bool>? GradeGate { get; set; }
 
-        public Task<GradeResponse?> GradeAsync(string owner, string sentence,
+        public async Task<GradeResponse?> GradeAsync(string owner, string sentence,
             string targetLanguage, string nativeLanguage, CancellationToken cancellationToken)
         {
             if (Fail)
                 throw new HttpRequestException("Synthetic grader offline.");
             Graded.Add((owner, sentence, targetLanguage, nativeLanguage));
             OnGrade?.Invoke();
-            return Task.FromResult(ReturnNull ? null : new GradeResponse
+            if (GradeGate is { } gate)
+            {
+                GradeGate = null;
+                await gate.Task.WaitAsync(cancellationToken);
+            }
+            return ReturnNull ? null : new GradeResponse
             {
                 Accuracy = Accuracy,
                 Fluency = Fluency,
@@ -406,7 +521,7 @@ public sealed class NativeWritingPresenterTests
                     Explanation = "Grammar note"
                 },
                 VocabularyAnalysis = Analysis
-            });
+            };
         }
 
         public Task<string?> TranslateAsync(string owner, string text, CancellationToken cancellationToken)

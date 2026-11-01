@@ -136,9 +136,18 @@ public sealed record NativeWritingState(
     public bool CanTranslate => Phase == NativePhase.Ready && !IsTranslating
         && !string.IsNullOrWhiteSpace(Draft);
 
-    /// <summary>Source shows "End session" after three graded sentences.</summary>
+    /// <summary>
+    /// Source shows "End session" after three graded sentences, also while a
+    /// grade is in flight; that grade still lands in the summary's counts.
+    /// </summary>
     public bool CanEndSession => Phase == NativePhase.Ready
         && !Sentences.IsDefault && Sentences.Length >= EndSessionThreshold;
+
+    /// <summary>
+    /// Summary "Continue practice" waits for an in-flight grade, so the grade is
+    /// recorded and counted in the session it was submitted in, not the next.
+    /// </summary>
+    public bool CanContinue => Phase == NativePhase.Summary && !IsGrading;
 }
 
 /// <summary>
