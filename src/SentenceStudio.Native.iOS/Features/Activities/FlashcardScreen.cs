@@ -8,17 +8,25 @@ using Views = Microsoft.SwiftUI.SwiftUI;
 namespace SentenceStudio.Native.iOS.Features.Activities;
 
 /// <summary>
-/// SwiftUI Flashcard Preview (source FlashcardActivity.razor). Tapping the card
-/// flips it; Incorrect/Correct answer it. The installed SwiftUI facade has no
-/// drag gesture or offset modifier, so the source horizontal swipe is reached
-/// through the buttons only (reported bridge gap); the 160 ms throw still
-/// disables both buttons.
+/// SwiftUI Flashcard Preview (source FlashcardActivity.razor), matching the
+/// Android Compose screen. Tapping the card flips it. A horizontal drag moves
+/// and tilts the card with the finger (bridge OnHorizontalDrag/WithTransform,
+/// updated on the mounted node without a re-render); a release at least 110 pt
+/// away answers through the presenter (right = Correct, left = Incorrect), a
+/// release within 12 pt flips, anything between springs back. The 160 ms throw
+/// animates the same card off screen and disables it and both buttons, which
+/// stay the VoiceOver and keyboard path.
 /// </summary>
 internal sealed class FlashcardScreen : IActivityScreen
 {
     private readonly ActivityScreenHost _host;
     private readonly NativeFlashcardPresenter _presenter;
     private NativeFlashcardState _state = new(NativePhase.Loading);
+    private SwiftView? _card;
+    private SwiftView? _incorrect;
+    private SwiftView? _correct;
+    private NativeFlashcardState? _renderedState;
+    private SourceUiStyle? _renderedStyle;
 
     public FlashcardScreen(ActivityScreenHost host)
     {
@@ -64,10 +72,81 @@ internal sealed class FlashcardScreen : IActivityScreen
         _host.Publish();
     }
 
+    /// <summary>
+    /// Keeps the mounted card while nothing changed (so an unrelated publish
+    /// cannot interrupt a drag) and starts the throw on that same card, so the
+    /// move off screen animates; every other change re-renders.
+    /// </summary>
+    public bool TryUpdateInPlace(SourceUiStyle style)
+    {
+        var state = _state;
+        var rendered = _renderedState;
+        if (rendered is null || _card is null || !ReferenceEquals(style, _renderedStyle))
+            return false;
+        if (ReferenceEquals(state, rendered))
+            return true;
+        if (state.PendingAnswer is not { } pending || rendered.IsAnimating
+            || state.Phase != NativePhase.Ready || rendered.Phase != NativePhase.Ready
+            || state.CurrentIndex != rendered.CurrentIndex || state.IsFlipped != rendered.IsFlipped
+            || !state.Results.Equals(rendered.Results))
+            return false;
+        ThrowCard(_card, pending, animated: true);
+        _card.IsEnabled = false;
+        if (_incorrect is not null) _incorrect.IsEnabled = false;
+        if (_correct is not null) _correct.IsEnabled = false;
+        _renderedState = state;
+        return true;
+    }
+
+    private static void ThrowCard(SwiftView card, bool correct, bool animated)
+    {
+        var offset = correct ? NativeFlashcardGesture.ThrowDistance : -NativeFlashcardGesture.ThrowDistance;
+        card.WithTransform(offset, 0, NativeFlashcardGesture.RotationDegrees(offset), animated)
+            .WithOpacity(0.4);
+    }
+
+    private void OnCardDragChanged(SwiftView card, double translationX)
+    {
+        if (!ReferenceEquals(card, _card) || _state.IsAnimating)
+            return;
+        card.WithTransform(translationX, 0, NativeFlashcardGesture.RotationDegrees(translationX));
+    }
+
+    private void OnCardDragEnded(SwiftView card, double translationX)
+    {
+        if (!ReferenceEquals(card, _card) || _state.IsAnimating)
+            return;
+        switch (NativeFlashcardGesture.Classify(translationX))
+        {
+            case NativeFlashcardRelease.Correct:
+                Fire(token => _presenter.AnswerAsync(true, token));
+                break;
+            case NativeFlashcardRelease.Incorrect:
+                Fire(token => _presenter.AnswerAsync(false, token));
+                break;
+            case NativeFlashcardRelease.Flip:
+                card.WithTransform(0, animated: true);
+                Fire(_presenter.FlipAsync);
+                break;
+            default:
+                card.WithTransform(0, animated: true);
+                break;
+        }
+    }
+
+    private void OnCardDragCancelled(SwiftView card)
+    {
+        if (ReferenceEquals(card, _card) && !_state.IsAnimating)
+            card.WithTransform(0, animated: true);
+    }
+
     public SwiftView Render(SourceUiStyle style)
     {
         var text = _host.Text;
         var state = _state;
+        _card = _incorrect = _correct = null;
+        _renderedState = state;
+        _renderedStyle = style;
         var items = new List<SwiftView>();
         switch (state.Phase)
         {
@@ -151,8 +230,18 @@ internal sealed class FlashcardScreen : IActivityScreen
             .WithAccessibilityLabel(term)
             .WithSpeechLanguage(state.IsFlipped ? null : NativeFlashcardText.TargetSpeechLanguage)
             .WithAccessibilityIdentifier(NativeFlashcardAccess.Card)
-            .WithOpacity(state.IsAnimating ? 0.4 : 1);
+            .WithOpacity(1);
+        // The drag starts after 10 pt, so a tap still flips through the Button.
+        button.OnHorizontalDrag(
+            translationX => OnCardDragChanged(button, translationX),
+            (translationX, _) => OnCardDragEnded(button, translationX),
+            () => OnCardDragCancelled(button));
+        if (state.PendingAnswer is { } pending)
+            ThrowCard(button, pending, animated: false);
+        else
+            button.WithTransform(0);
         button.IsEnabled = !state.IsAnimating;
+        _card = button;
         return button;
     }
 
@@ -169,6 +258,7 @@ internal sealed class FlashcardScreen : IActivityScreen
             .WithAccessibilityLabel(text(NativeFlashcardText.Incorrect))
             .WithAccessibilityIdentifier(NativeFlashcardAccess.Incorrect);
         incorrect.IsEnabled = !state.IsAnimating;
+        _incorrect = incorrect;
         var correctLabel = Views.HStack(Views.Text(text(NativeFlashcardText.Correct)),
                 Views.Image("arrow.right"))
             .WithForegroundColor(appearance.Success.Light, appearance.Success.Dark);
@@ -177,6 +267,7 @@ internal sealed class FlashcardScreen : IActivityScreen
             .WithAccessibilityLabel(text(NativeFlashcardText.Correct))
             .WithAccessibilityIdentifier(NativeFlashcardAccess.Correct);
         correct.IsEnabled = !state.IsAnimating;
+        _correct = correct;
         var row = Views.HStack(incorrect, correct).WithFlexibleWidth();
         row.Spacing = SourceUiLayout.ItemGap;
         return row;
@@ -249,6 +340,7 @@ internal sealed class FlashcardScreen : IActivityScreen
 
     public void Dispose()
     {
+        _card = _incorrect = _correct = null;
         _presenter.StateChanged -= OnStateChanged;
         _presenter.Dispose();
     }
