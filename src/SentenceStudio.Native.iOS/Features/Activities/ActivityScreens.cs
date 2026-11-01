@@ -87,6 +87,7 @@ internal static class ActivityScreens
         NativeActivityCatalog.WordAssociation => new WordAssociationScreen(host),
         NativeActivityCatalog.Conversation => new ConversationScreen(host),
         NativeActivityCatalog.Diary => new DiaryScreen(host),
+        NativeActivityCatalog.Scene => new SceneScreen(host),
         _ => null
     };
 }
