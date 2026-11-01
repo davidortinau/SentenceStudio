@@ -33,6 +33,11 @@ public static class CoachLatestStudyClassifier
     /// <summary>A successful classification result.</summary>
     public sealed record LatestStudyMatch(LatestStudyMatchKind Kind);
 
+    // The patterns are short and linear; the timeout is only a ReDoS backstop. 50 ms was tight
+    // enough that a cold compiled-regex first match (JIT) on a loaded machine could exceed it and
+    // silently degrade a valid Korean query to the model path, which made the classifier tests flaky.
+    private static readonly TimeSpan MatchTimeout = TimeSpan.FromMilliseconds(500);
+
     // ── English patterns ────────────────────────────────────────────────
 
     // "when did I last study/practice", "last time I studied/practiced",
@@ -46,7 +51,7 @@ public static class CoachLatestStudyClassifier
         @"|(?:(?:my\s+)?last\s+(?:study|practice)\s+(?:date|session|time))" +
         @"|(?:how\s+long\s+(?:since|ago)\s+(?:I\s+)?(?:last\s+)?(?:stud(?:y|ied)|practic(?:e|ed)))",
         RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant,
-        TimeSpan.FromMilliseconds(50));
+        MatchTimeout);
 
     // Challenge follow-ups that reference practice dates or correctness
     // "that's wrong, I practiced yesterday", "no, I studied on Monday",
@@ -56,7 +61,7 @@ public static class CoachLatestStudyClassifier
         @"|(?:no\s*,?\s+I\s+(?:stud(?:y|ied)|practic(?:e|ed))))" +
         @".*?(?:stud(?:y|ied)|practic(?:e|ed)|yesterday|last\s+(?:night|week)|(?:on\s+)?(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))",
         RegexOptions.IgnoreCase | RegexOptions.Compiled | RegexOptions.CultureInvariant,
-        TimeSpan.FromMilliseconds(50));
+        MatchTimeout);
 
     // ── Korean patterns ─────────────────────────────────────────────────
 
@@ -70,14 +75,14 @@ public static class CoachLatestStudyClassifier
         @"|(?:(?:공부|연습|학습|복습)\s*(?:언제\s*)?(?:마지막|최근))" +
         @"|(?:얼마\s*(?:만에|전에)\s*(?:공부|연습|학습|복습))",
         RegexOptions.Compiled | RegexOptions.CultureInvariant,
-        TimeSpan.FromMilliseconds(50));
+        MatchTimeout);
 
     // Korean correction follow-ups
     private static readonly Regex KoCorrection = new(
         @"(?:(?:아니|틀렸|잘못).*?(?:공부|연습|학습|복습))" +
         @"|(?:(?:공부|연습|학습|복습).*?(?:했는데|했어|했거든|했다고).*?(?:아니|틀렸|잘못|왜))",
         RegexOptions.Compiled | RegexOptions.CultureInvariant,
-        TimeSpan.FromMilliseconds(50));
+        MatchTimeout);
 
     /// <summary>
     /// Classify the learner's input. Returns <c>null</c> when the input does not match

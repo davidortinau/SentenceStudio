@@ -106,6 +106,7 @@ public sealed class ApplicationOperationCoordinator(
         }
 
         ApplicationOperationStatus target;
+        var decisionNotApplicable = false;
         if (operation.Status == ApplicationOperationStatus.AwaitingProtectedConfirmation
             && command.Decision == ApplicationOperationDecision.Accept
             && operation.Confirmation == ApplicationConfirmationPolicy.ProtectedConfirmation)
@@ -122,11 +123,26 @@ public sealed class ApplicationOperationCoordinator(
         catch (ApplicationOperationConflictException)
         {
             target = operation.Status;
+            decisionNotApplicable = true;
         }
 
-        var lease = target == ApplicationOperationStatus.Executing
-            ? CreateLease(command)
-            : null;
+        ApplicationOperationLeaseRequest? lease = null;
+        if (target == ApplicationOperationStatus.Executing)
+        {
+            try
+            {
+                lease = CreateLease(command);
+            }
+            catch (ApplicationOperationValidationException exception) when (decisionNotApplicable)
+            {
+                // A concurrent decision already moved the operation to Executing, and this caller's
+                // decision (for example Reject) never carried a lease. The caller lost the race; that
+                // is a conflict, not a malformed request.
+                throw new ApplicationOperationConflictException(
+                    "The operation was already decided differently.",
+                    exception);
+            }
+        }
 
         ApplicationOperationConfirmationIssue? confirmationIssue = null;
         ApplicationOperationConfirmationUse? confirmationUse = null;

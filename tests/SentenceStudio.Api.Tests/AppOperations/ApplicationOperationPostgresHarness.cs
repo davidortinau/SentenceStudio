@@ -159,10 +159,23 @@ internal sealed class ApplicationOperationPostgresHarness : IAsyncDisposable
         return harness;
     }
 
+    /// <summary>
+    /// Mirrors the API composition root (<c>Api/Program.cs</c> AddNpgsqlDbContext), which ignores
+    /// <c>PendingModelChangesWarning</c>: the API process runs with
+    /// <c>Npgsql.EnableLegacyTimestampBehavior</c>, so its runtime model maps DateTime columns as
+    /// "timestamp without time zone" while the shipped migrations and snapshot (scaffolded without
+    /// the switch) say timestamptz. Production columns stay timestamptz; this is a known,
+    /// type-mapping-only difference. <c>ApplicationOperationLegacyTimestampDriftTests</c> pins that
+    /// the drift contains nothing else, so a real model change still fails the build.
+    /// </summary>
+    internal static void IgnoreKnownLegacyTimestampDrift(Microsoft.EntityFrameworkCore.Diagnostics.WarningsConfigurationBuilder warnings) =>
+        warnings.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.RelationalEventId.PendingModelChangesWarning);
+
     internal ApplicationDbContext NewContext(params IInterceptor[] interceptors) =>
         new(
             new DbContextOptionsBuilder<ApplicationDbContext>()
                 .UseNpgsql(ConnectionString)
+                .ConfigureWarnings(IgnoreKnownLegacyTimestampDrift)
                 .AddInterceptors(interceptors)
                 .Options);
 
@@ -175,6 +188,7 @@ internal sealed class ApplicationOperationPostgresHarness : IAsyncDisposable
                         maxRetryCount: 1,
                         maxRetryDelay: TimeSpan.FromMilliseconds(1),
                         errorCodesToAdd: null))
+                .ConfigureWarnings(IgnoreKnownLegacyTimestampDrift)
                 .AddInterceptors(interceptors)
                 .Options);
 

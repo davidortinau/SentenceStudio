@@ -670,8 +670,9 @@ public sealed class ApplicationOperationPostgresTests
 
     private static void AssertSingleWinner(IReadOnlyCollection<Exception?> outcomes)
     {
-        outcomes.Count(exception => exception is null).Should().Be(1);
-        outcomes.Count(exception => exception is ApplicationOperationConflictException).Should().Be(1);
+        var because = string.Join(" | ", outcomes.Select(exception => exception?.ToString() ?? "success"));
+        outcomes.Count(exception => exception is null).Should().Be(1, because);
+        outcomes.Count(exception => exception is ApplicationOperationConflictException).Should().Be(1, because);
     }
 
     private static async Task<string[]> NamesAsync(NpgsqlConnection connection, string sql)

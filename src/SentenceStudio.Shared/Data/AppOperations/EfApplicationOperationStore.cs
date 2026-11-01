@@ -393,7 +393,7 @@ public sealed class EfApplicationOperationStore(
         {
             await SaveAndCommitAsync(transaction, cancellationToken).ConfigureAwait(false);
         }
-        catch (DbUpdateConcurrencyException exception)
+        catch (DbUpdateException exception) when (IsConcurrentTransition(exception))
         {
             throw new ApplicationOperationConflictException(
                 "The operation changed while the transition was being settled.",
@@ -565,7 +565,7 @@ public sealed class EfApplicationOperationStore(
         {
             await SaveAndCommitAsync(transaction, cancellationToken).ConfigureAwait(false);
         }
-        catch (DbUpdateConcurrencyException exception)
+        catch (DbUpdateException exception) when (IsConcurrentTransition(exception))
         {
             throw new ApplicationOperationConflictException(
                 "The operation changed while the effect was being settled.",
@@ -713,7 +713,7 @@ public sealed class EfApplicationOperationStore(
         {
             await SaveAndCommitAsync(transaction, cancellationToken).ConfigureAwait(false);
         }
-        catch (DbUpdateConcurrencyException exception)
+        catch (DbUpdateException exception) when (IsConcurrentTransition(exception))
         {
             throw new ApplicationOperationConflictException(
                 "The continuation changed while it was being resumed.",
@@ -1870,6 +1870,32 @@ public sealed class EfApplicationOperationStore(
         {
             throw new ApplicationOperationProtectionException("Protected operation content is invalid.");
         }
+    }
+
+    /// <summary>
+    /// A losing racer reports either a row-version miss on the operation or, when its event insert
+    /// reaches the database first, a unique violation on (OperationId, Sequence): the winner already
+    /// appended that sequence. Both mean the operation changed underneath the caller and map to a
+    /// conflict. Matched by message so the Shared project needs no provider-specific exception types
+    /// (Npgsql is server-only, Sqlite is mobile-only).
+    /// </summary>
+    private static bool IsConcurrentTransition(DbUpdateException exception)
+    {
+        if (exception is DbUpdateConcurrencyException)
+        {
+            return true;
+        }
+
+        for (var inner = exception.InnerException; inner is not null; inner = inner.InnerException)
+        {
+            if (inner.Message.Contains("IX_ApplicationOperationEvent_OperationId_Sequence", StringComparison.Ordinal)
+                || inner.Message.Contains("ApplicationOperationEvent.OperationId, ApplicationOperationEvent.Sequence", StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static ApplicationOperationConflictException Conflict() =>

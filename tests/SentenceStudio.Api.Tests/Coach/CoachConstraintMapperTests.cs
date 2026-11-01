@@ -34,7 +34,12 @@ public class CoachConstraintMapperTests
         // wording — "active verbs" — not a selector: a controlled registry decides what it may
         // mean, and the server runs the query. The model still cannot name a word, an id, a
         // count, or a tag, which is what this guard exists to prevent.
-        var exempt = new[] { "VocabularyFocusDescription", "ClearVocabularyFocus" };
+        //
+        // VocabularySet is the second documented exemption: the routing marker for an explicit
+        // topical review request. It carries a single bounded Topic string (validated by
+        // CoachIntentValidator.CheckVocabularySet, NoChange only); the server generates the terms
+        // and nothing persists until a separate authenticated approval gesture.
+        var exempt = new[] { "VocabularyFocusDescription", "ClearVocabularyFocus", "VocabularySet" };
 
         names.Where(n => !exempt.Contains(n, StringComparer.Ordinal))
             .Should().NotContain(n => forbidden.Any(f => n.Contains(f, StringComparison.OrdinalIgnoreCase)));
@@ -42,6 +47,11 @@ public class CoachConstraintMapperTests
         // The exemption stays a bounded description and never becomes a set of identifiers.
         typeof(CoachConstraintDeltaIntent).GetProperty("VocabularyFocusDescription")!
             .PropertyType.Should().Be<string>();
+
+        // Likewise the vocabulary-set marker may carry only a topic, never ids, words, or counts.
+        typeof(CoachVocabularySetIntent).GetProperties(BindingFlags.Public | BindingFlags.Instance)
+            .Select(p => (p.Name, p.PropertyType))
+            .Should().Equal(("Topic", typeof(string)));
     }
 
     [Theory]
