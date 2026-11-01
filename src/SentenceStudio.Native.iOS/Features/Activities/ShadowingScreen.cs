@@ -36,8 +36,12 @@ internal sealed class ShadowingScreen : IActivityScreen
 
     public bool HasExited => _state.Destination == NativeDestination.TodaysPlan;
 
-    public async Task OpenAsync(NativeActivityLaunch launch, CancellationToken cancellationToken) =>
-        _state = await _presenter.OpenAsync(launch, cancellationToken);
+    /// <summary>Audio preparation continues after a command returns, so the screen keeps the presenter's latest state.</summary>
+    public async Task OpenAsync(NativeActivityLaunch launch, CancellationToken cancellationToken)
+    {
+        await _presenter.OpenAsync(launch, cancellationToken);
+        _state = _presenter.State;
+    }
 
     public async Task ExitAsync(CancellationToken cancellationToken) =>
         _state = await _presenter.ExitAsync(cancellationToken);
@@ -91,7 +95,8 @@ internal sealed class ShadowingScreen : IActivityScreen
     {
         try
         {
-            _state = await action(_host.Lifetime);
+            await action(_host.Lifetime);
+            _state = _presenter.State;
         }
         catch (OperationCanceledException) when (_host.Lifetime.IsCancellationRequested)
         {

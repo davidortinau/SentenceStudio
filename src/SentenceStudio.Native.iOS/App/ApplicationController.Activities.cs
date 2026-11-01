@@ -60,7 +60,7 @@ internal sealed partial class ApplicationController
                 Phase = NativePhase.Error, ErrorKey = NativeMatchingText.Unavailable };
             return;
         }
-        await StartActivityAsync(launch);
+        StartActivity(launch);
     }
 
     private async Task OpenChooseOwnActivityAsync(string route)
@@ -86,10 +86,10 @@ internal sealed partial class ApplicationController
             };
             return;
         }
-        await StartActivityAsync(launch);
+        StartActivity(launch);
     }
 
-    private async Task StartActivityAsync(NativeActivityLaunch launch)
+    private void StartActivity(NativeActivityLaunch launch)
     {
         if (_services is null)
             return;
@@ -107,7 +107,34 @@ internal sealed partial class ApplicationController
         _activityPopPending = false;
         _destination = NativeDestination.Activity;
         Publish();
-        await _activity.OpenAsync(launch, _lifetime.Token);
+        // The presenter opens outside the Run busy gate, so in-page Back and the
+        // NavigationStack back stay available and stop the activity at once
+        // while its content (often an AI call) is still loading.
+        _ = OpenActivityOutsideBusyAsync(_activity, launch);
+    }
+
+    private async Task OpenActivityOutsideBusyAsync(IActivityScreen screen, NativeActivityLaunch launch)
+    {
+        try
+        {
+            await screen.OpenAsync(launch, _lifetime.Token);
+        }
+        catch (OperationCanceledException) when (_disposed || _lifetime.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception ex) when (!ReferenceEquals(_activity, screen))
+        {
+            // Back released this screen while it was opening.
+            _logger?.LogInformation("A released activity's open ended with {Failure}.", ex.GetType().Name);
+            return;
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Native iOS activity open failed.");
+        }
+        if (ReferenceEquals(_activity, screen) && !_disposed)
+            Publish();
     }
 
     internal void ExitActivity() => Run(ExitActivityAsync);
