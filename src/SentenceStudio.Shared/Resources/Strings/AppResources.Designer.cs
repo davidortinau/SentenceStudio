@@ -16643,6 +16643,24 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Graded! Accuracy: {0}%.
+        /// </summary>
+        internal static string Translation_GradedAccuracy {
+            get {
+                return ResourceManager.GetString("Translation_GradedAccuracy", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Error grading your translation. Please try again..
+        /// </summary>
+        internal static string Translation_GradeFailed {
+            get {
+                return ResourceManager.GetString("Translation_GradeFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Grammar focus.
         /// </summary>
         internal static string Translation_Intro_GrammarFocus {
@@ -16702,6 +16720,24 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Translation_NoSentences {
             get {
                 return ResourceManager.GetString("Translation_NoSentences", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No sentences returned from the translation service..
+        /// </summary>
+        internal static string Translation_NoSentencesReturned {
+            get {
+                return ResourceManager.GetString("Translation_NoSentencesReturned", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Your translation was graded, but the result could not be saved..
+        /// </summary>
+        internal static string Translation_SaveFailed {
+            get {
+                return ResourceManager.GetString("Translation_SaveFailed", resourceCulture);
             }
         }
 

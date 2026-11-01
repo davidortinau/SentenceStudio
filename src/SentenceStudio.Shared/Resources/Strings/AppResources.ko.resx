@@ -2856,6 +2856,22 @@
     <value>시작</value>
     <comment>Intro card start button</comment>
   </data>
+  <data name="Translation_NoSentencesReturned" xml:space="preserve">
+    <value>번역 서비스에서 문장을 받지 못했습니다.</value>
+    <comment>Notice when generation returns nothing</comment>
+  </data>
+  <data name="Translation_GradedAccuracy" xml:space="preserve">
+    <value>채점 완료! 정확도: {0}%</value>
+    <comment>Notice after grading (arg0 = accuracy percent)</comment>
+  </data>
+  <data name="Translation_GradeFailed" xml:space="preserve">
+    <value>번역을 채점하는 중 오류가 발생했습니다. 다시 시도해 주세요.</value>
+    <comment>Notice when AI grading fails</comment>
+  </data>
+  <data name="Translation_SaveFailed" xml:space="preserve">
+    <value>번역은 채점되었지만 결과를 저장하지 못했습니다.</value>
+    <comment>Notice when the graded result could not be recorded</comment>
+  </data>
   <data name="WordAssoc_RoundComplete" xml:space="preserve">
     <value>라운드 완료!</value>
     <comment>Summary header</comment>
