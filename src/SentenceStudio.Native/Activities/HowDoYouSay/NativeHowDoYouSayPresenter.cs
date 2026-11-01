@@ -452,28 +452,8 @@ public sealed class NativeHowDoYouSayPresenter(
     /// installs, so a stored absolute path is resolved by file name; nothing
     /// outside that directory is read or removed.
     /// </summary>
-    private string? CachedAudioPath(string? stored)
-    {
-        if (string.IsNullOrWhiteSpace(stored))
-            return null;
-        try
-        {
-            var directory = Path.GetFullPath(Path.Combine(files.AppDataDirectory, "AudioCache"));
-            var name = Path.GetFileName(stored);
-            if (string.IsNullOrWhiteSpace(name))
-                return null;
-            var path = Path.GetFullPath(Path.Combine(directory, name));
-            return path.StartsWith(directory + Path.DirectorySeparatorChar, StringComparison.Ordinal)
-                && File.Exists(path)
-                && new FileInfo(path).Length is > 0 and <= MaxAudioBytes
-                    ? path : null;
-        }
-        catch (Exception ex) when (ex is ArgumentException or IOException
-            or UnauthorizedAccessException)
-        {
-            return null;
-        }
-    }
+    private string? CachedAudioPath(string? stored) =>
+        NativeAudioCache.Resolve(files.AppDataDirectory, stored, MaxAudioBytes);
 
     private static async Task<byte[]?> ReadLimitedAsync(string path, CancellationToken cancellationToken)
     {
