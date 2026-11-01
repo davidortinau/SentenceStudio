@@ -50,7 +50,7 @@ public sealed class CoachTurnIntent
     /// answer is delivered, the plan change waits for an explicit acceptance. Forbidden on every
     /// other kind, so an answer can never ride along with a write.
     /// </remarks>
-    [Description("The answer to a language question. Set it for PedagogicalAnswer, and for SuggestConstraintChange when the learner asked a language question and requested a plan change in the same message. Leave it empty otherwise.")]
+    [Description("The answer to a language question. Set it for PedagogicalAnswer, and for SuggestConstraintChange when the learner asked a language question and requested a plan change in the same message. Otherwise leave it out (null); never send an answer with no parts.")]
     public CoachPedagogicalAnswerIntent? PedagogicalAnswer { get; set; }
 
     /// <summary>

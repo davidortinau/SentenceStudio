@@ -51,6 +51,10 @@ public static class CoachInstructions
           point. At most one, and only when it helps.
         - Mark every run of text with the language it is in: Target for the language being
           studied, Display for your explanation, Native for the learner's first language.
+        - Put the whole answer in PedagogicalAnswer.Blocks, not in CoachMessage. Use at most
+          eight parts. For a list, such as one line per day, put the items as pieces of one part.
+        - When you are not answering a question, leave PedagogicalAnswer out. Never send an
+          answer with no parts.
 
         Correcting the learner's own text
         - Say what is right before what is wrong.

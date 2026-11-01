@@ -391,7 +391,7 @@ public class CoachPedagogicalAnswerTests
     }
 
     [Fact]
-    public async Task TooManyBlocks_AreRefused()
+    public async Task TooManyBlocks_AreFoldedIntoTheLastAllowedPart()
     {
         using var harness = new CoachApplicationHarness();
         var sessionId = await harness.StartSessionAsync();
@@ -403,6 +403,37 @@ public class CoachPedagogicalAnswerTests
             {
                 Kind = CoachAnswerBlockKind.Note,
                 Spans = [new CoachAnswerSpanIntent { Text = "note", Language = CoachLanguageRole.Display }]
+            });
+        }
+
+        harness.Coach.NextResult = AnswerResult(answer);
+
+        var shown = (await AskAsync(harness, sessionId, "What does \uC88B\uB2E4 mean?")).Value!.Answer;
+        shown.Should().NotBeNull("overflow parts are folded, not refused");
+        shown!.Blocks.Should().HaveCount(CoachAnswerLimits.MaxBlocks);
+    }
+
+    [Fact]
+    public async Task TooManyBlocks_ThatCannotBeFolded_AreStillRefused()
+    {
+        using var harness = new CoachApplicationHarness();
+        var sessionId = await harness.StartSessionAsync();
+
+        // Alternating languages cannot be joined, so the folded part overruns its piece limit.
+        var answer = KoreanContrastAnswer();
+        for (var i = 0; answer.Blocks.Count <= CoachAnswerLimits.MaxBlocks + 6; i++)
+        {
+            answer.Blocks.Add(new CoachAnswerBlockIntent
+            {
+                Kind = CoachAnswerBlockKind.Note,
+                Spans =
+                [
+                    new CoachAnswerSpanIntent
+                    {
+                        Text = "note",
+                        Language = i % 2 == 0 ? CoachLanguageRole.Display : CoachLanguageRole.Native
+                    }
+                ]
             });
         }
 

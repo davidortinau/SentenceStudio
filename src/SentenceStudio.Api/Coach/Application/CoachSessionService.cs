@@ -884,6 +884,20 @@ public sealed class CoachSessionService : ICoachSessionService
         var modelIntentWasReplaced = false;
         if (agentResult.Outcome == CoachAgentOutcome.Completed && agentResult.Intent is { } modelIntent)
         {
+            // Packaging slips (an empty placeholder answer, one part per list item) are repaired
+            // before any gate reads the intent; every bound is still enforced afterwards.
+            var repair = CoachAnswerShapeRepair.Repair(modelIntent);
+            if (repair.Changed)
+            {
+                _logger.LogInformation(
+                    "[Coach] Session {SessionId}: repaired the answer shape. Kind={IntentKind} "
+                    + "DroppedEmptySpans={DroppedEmptySpans} DroppedEmptyBlocks={DroppedEmptyBlocks} "
+                    + "FoldedBlocks={FoldedBlocks} DroppedEmptyAnswer={DroppedEmptyAnswer} "
+                    + "AnswerFromMessage={AnswerFromMessage}",
+                    session.Id, modelIntent.Kind, repair.DroppedEmptySpans, repair.DroppedEmptyBlocks,
+                    repair.FoldedBlocks, repair.DroppedEmptyAnswer, repair.AnswerFromMessage);
+            }
+
             var effectiveIntent = NormalizeExplicitVocabularyReview(request, modelIntent);
             modelIntentWasReplaced = !ReferenceEquals(effectiveIntent, modelIntent);
             if (modelIntentWasReplaced)
