@@ -17678,11 +17678,29 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Video.
+        /// </summary>
+        internal static string VideoWatching_DefaultTitle {
+            get {
+                return ResourceManager.GetString("VideoWatching_DefaultTitle", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Hide ▲.
         /// </summary>
         internal static string VideoWatching_Hide {
             get {
                 return ResourceManager.GetString("VideoWatching_Hide", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Error loading video: {0}.
+        /// </summary>
+        internal static string VideoWatching_LoadError {
+            get {
+                return ResourceManager.GetString("VideoWatching_LoadError", resourceCulture);
             }
         }
 
@@ -17696,11 +17714,29 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to No resource specified..
+        /// </summary>
+        internal static string VideoWatching_NoResource {
+            get {
+                return ResourceManager.GetString("VideoWatching_NoResource", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to No video resource found..
         /// </summary>
         internal static string VideoWatching_NoVideo {
             get {
                 return ResourceManager.GetString("VideoWatching_NoVideo", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Could not extract YouTube video ID from this resource..
+        /// </summary>
+        internal static string VideoWatching_NoVideoId {
+            get {
+                return ResourceManager.GetString("VideoWatching_NoVideoId", resourceCulture);
             }
         }
 

@@ -19,13 +19,16 @@ public sealed class NativeMatchingPresenterTests
     {
         Assert.True(NativeActivityCatalog.IsImplemented(Matching));
         Assert.True(NativeActivityCatalog.IsImplemented(PlanActivityType.VocabularyGame));
-        Assert.False(NativeActivityCatalog.IsImplemented(PlanActivityType.VideoWatching));
-        Assert.False(NativeActivityCatalog.IsImplemented("video-watching"));
+        // Unregistered routes and plan types stay disabled.
+        Assert.False(NativeActivityCatalog.IsImplemented((PlanActivityType)999));
+        Assert.False(NativeActivityCatalog.IsImplemented("not-an-activity"));
+        Assert.False(NativeActivityCatalog.IsImplemented("flashcard-activity"));
         // The quiz keeps its dedicated launch path.
         Assert.False(NativeActivityCatalog.IsImplemented(PlanActivityType.VocabularyReview));
         Assert.Equal(PlanActivityType.VocabularyGame,
             NativeActivityCatalog.ForRoute(Matching)!.TimerType);
-        Assert.All(NativeActivityCatalog.Implemented, definition =>
+        // Every activity except plan-card-only pages (Video Watching) is a Choose My Own tile.
+        Assert.All(NativeActivityCatalog.Implemented.Where(definition => !definition.PlanOnly), definition =>
             Assert.Contains(NativeDashboardPresenter.ChooseOwnActivities,
                 tile => tile.Route == definition.Route));
     }
@@ -183,7 +186,9 @@ public sealed class NativeMatchingPresenterTests
         Assert.Null(launch.PlanItemId);
         Assert.Equal([fixture.ResourceId(NativeSliceFixture.UserA)], launch.ResourceIds.ToArray());
         Assert.False(launch.DueOnly);
-        Assert.Null(await launches.FromChooseOwnAsync(selection!, "video-watching"));
+        Assert.Null(await launches.FromChooseOwnAsync(selection!, "not-an-activity"));
+        // Plan-card-only Video Watching has no Choose My Own tile.
+        Assert.Null(await launches.FromChooseOwnAsync(selection!, NativeActivityCatalog.VideoWatching));
         // A foreign resource is refused even if a stale selection carries it.
         Assert.Null(await launches.FromChooseOwnAsync(selection! with {
             ResourceIds = [fixture.ResourceId(NativeSliceFixture.UserB)] }, Matching));
