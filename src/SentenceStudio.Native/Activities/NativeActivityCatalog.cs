@@ -33,6 +33,7 @@ public static class NativeActivityCatalog
     public const string Writing = "writing";
     public const string Reading = "reading";
     public const string Shadowing = "shadowing";
+    public const string Diary = "diary";
 
     public static ImmutableArray<NativeActivityDefinition> Implemented { get; } =
     [
@@ -44,6 +45,8 @@ public static class NativeActivityCatalog
         new(Reading, [PlanActivityType.Reading]),
         // No dedicated Listening page: plan type Listening shares the Shadowing UI.
         new(Shadowing, [PlanActivityType.Shadowing, PlanActivityType.Listening]),
+        // Diary is a Choose My Own tile only: no plan type and no timer (activities.md 17).
+        new(Diary, [], TimerRecordsSkill: false),
     ];
 
     public static NativeActivityDefinition? ForRoute(string? route) =>

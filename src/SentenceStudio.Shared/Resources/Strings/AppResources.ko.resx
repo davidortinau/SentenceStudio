@@ -2580,6 +2580,15 @@
   <data name="Diary_HasFeedback" xml:space="preserve">
     <value>AI 피드백 있음</value>
   </data>
+  <data name="Diary_DecreaseFontSize" xml:space="preserve">
+    <value>글꼴 크기 줄이기</value>
+  </data>
+  <data name="Diary_IncreaseFontSize" xml:space="preserve">
+    <value>글꼴 크기 키우기</value>
+  </data>
+  <data name="Diary_StarsLabel" xml:space="preserve">
+    <value>별 3개 중 {0}개</value>
+  </data>
   <data name="Activity_Reading" xml:space="preserve">
     <value>읽기</value>
     <comment>Activity label: Reading</comment>

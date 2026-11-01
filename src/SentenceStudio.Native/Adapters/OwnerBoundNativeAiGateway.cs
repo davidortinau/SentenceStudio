@@ -19,8 +19,12 @@ public sealed class OwnerBoundNativeAiGateway(
 {
     internal const string ClientName = "NativeOwnerAiClient";
 
+    public Task<T?> SendPromptAsync<T>(
+        string owner, string prompt, CancellationToken cancellationToken) =>
+        SendPromptAsync<T>(owner, prompt, AiTier.Fast, cancellationToken);
+
     public async Task<T?> SendPromptAsync<T>(
-        string owner, string prompt, CancellationToken cancellationToken)
+        string owner, string prompt, AiTier tier, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var stamp = scope.CaptureStamp();
@@ -51,7 +55,7 @@ public sealed class OwnerBoundNativeAiGateway(
         };
         var gateway = new AiGatewayClient(new AiApiClient(client), aiLogger);
         var response = await gateway.SendPromptAsync<T>(
-            prompt, cancellationToken: cancellationToken);
+            prompt, tier, cancellationToken: cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         if (!HasOwner())
             throw new UnauthorizedAccessException(
