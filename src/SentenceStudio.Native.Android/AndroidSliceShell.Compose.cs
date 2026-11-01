@@ -649,6 +649,12 @@ internal sealed partial class AndroidSliceShell
                         Localize("Dashboard_InsightMastery"),
                         (vocab.AverageMastery * 100).ToString("F0",
                             CultureInfo.CurrentCulture)), palette));
+                // Source OpenFlashcardActivity: Flashcard Preview for the plan date.
+                if (vocab.PreviewWords.Count > 0)
+                    content.Add(Action(Localize("Dashboard_PreviewPlanVocabulary"),
+                        "native.plan.insight.preview", OpenFlashcardPreview,
+                        !_preview && !Busy.Value && HasDashboardOwner(Auth.UserId),
+                        primary: false));
                 if (!state.StrugglingCategories.IsDefaultOrEmpty)
                     content.Add(CategoryInsight(
                         Localize("Dashboard_StrugglingWith"),

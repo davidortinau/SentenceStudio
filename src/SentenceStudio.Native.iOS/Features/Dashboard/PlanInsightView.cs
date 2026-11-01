@@ -15,7 +15,8 @@ internal static class PlanInsightView
     internal static void Add(
         List<SwiftView> items, NativeDashboardState state,
         bool insightExpanded, Action toggleInsight, SourceUiStyle style,
-        Func<string, string> text, Action<string>? openResource = null)
+        Func<string, string> text, Action<string>? openResource = null,
+        Action? previewPlanVocabulary = null)
     {
         if (state.Narrative is { } narrative)
         {
@@ -100,19 +101,15 @@ internal static class PlanInsightView
                             SourceTextRole.Small, SourceTextTone.Secondary));
                     if (vocab.PreviewWords.Count > 0)
                     {
-                        // Source opens FlashcardActivity for the plan date. That
-                        // native destination is not created yet; keep the source
-                        // action visible as outstanding rather than silently absent.
+                        // Source OpenFlashcardActivity: Flashcard Preview for the plan date.
                         var preview = style.OutlineButton(
                                 Views.HStack(Views.Image("square.stack"),
                                     Views.Text(text("Dashboard_PreviewPlanVocabulary"))),
-                                () => { })
-                            .WithAccessibilityLabel(
-                                text("Dashboard_PreviewPlanVocabulary") + ", "
-                                + text("NativeDashboard_ActivityNotAvailable"))
+                                () => previewPlanVocabulary?.Invoke())
+                            .WithAccessibilityLabel(text("Dashboard_PreviewPlanVocabulary"))
                             .WithAccessibilityIdentifier(
                                 "native.plan.insight.preview");
-                        preview.IsEnabled = false;
+                        preview.IsEnabled = previewPlanVocabulary is not null;
                         insight.Add(preview);
                     }
                     if (!state.StrugglingCategories.IsEmpty)

@@ -79,6 +79,7 @@ public static class NativeSliceRegistration
         // (transient: it resolves the scoped repositories of the activity scope).
         services.TryAddTransient<VideoWatchingService>();
         services.AddTransient<NativeVideoWatchingPresenter>();
+        services.AddTransient<NativeFlashcardPresenter>();
         services.TryAddScoped<IPlanCopyProvider, EnglishPlanCopyProvider>();
         services.AddSingleton<NativePlanLeaseFactory>();
         services.TryAddSingleton<INativeProfileRemoteStore>(sp =>

@@ -12,7 +12,8 @@ internal sealed record DashboardActions(
     Action<string>? LaunchChooseOwnActivity,
     Action AddResource,
     Action<string>? OpenQuiz,
-    Action<string>? OpenResource = null);
+    Action<string>? OpenResource = null,
+    Action? PreviewPlanVocabulary = null);
 
 internal sealed record DashboardToolbarActions(
     Action Refresh,

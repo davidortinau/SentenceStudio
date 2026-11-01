@@ -7681,6 +7681,51 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Card {0} / {1}.
+        /// </summary>
+        internal static string Flashcard_CardCounter {
+            get {
+                return ResourceManager.GetString("Flashcard_CardCounter", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Tap to flip the card.
+        /// </summary>
+        internal static string Flashcard_FlipCard {
+            get {
+                return ResourceManager.GetString("Flashcard_FlipCard", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No flashcard preview vocabulary is available for this daily plan..
+        /// </summary>
+        internal static string Flashcard_NoPreviewVocabulary {
+            get {
+                return ResourceManager.GetString("Flashcard_NoPreviewVocabulary", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Flashcard summary.
+        /// </summary>
+        internal static string Flashcard_Summary {
+            get {
+                return ResourceManager.GetString("Flashcard_Summary", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Flashcard Preview.
+        /// </summary>
+        internal static string Flashcard_Title {
+            get {
+                return ResourceManager.GetString("Flashcard_Title", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Fluency.
         /// </summary>
         internal static string Fluency {

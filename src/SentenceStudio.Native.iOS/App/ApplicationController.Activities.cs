@@ -103,6 +103,30 @@ internal sealed partial class ApplicationController
         StartActivity(launch);
     }
 
+    /// <summary>
+    /// Dashboard insight "Preview plan vocabulary" (source OpenFlashcardActivity):
+    /// Flashcard Preview for the shown plan's date. In memory only, no timer.
+    /// </summary>
+    private void OpenFlashcardPreview()
+    {
+        if (_services is null || _settingsOpen || IsActivityOpen || NavigationBlocked
+            || _destination != NativeDestination.Dashboard
+            || _dashboardState.Phase != NativePhase.Ready
+            || _dashboardState.PlanDate is not { } planDate
+            || _dashboardState.Narrative?.VocabInsight?.PreviewWords is not { Count: > 0 })
+            return;
+        var launch = _services.Provider.GetRequiredService<NativeActivityLaunchService>()
+            .FromPlanPreview(planDate);
+        if (launch is null)
+        {
+            _dashboardState = _dashboardState with {
+                Phase = NativePhase.Error, ErrorKey = NativeMatchingText.Unavailable };
+            Publish();
+            return;
+        }
+        StartActivity(launch);
+    }
+
     private void StartActivity(NativeActivityLaunch launch)
     {
         if (_services is null)

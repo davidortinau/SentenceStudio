@@ -53,6 +53,24 @@ public sealed class NativeActivityLaunchService(
     }
 
     /// <summary>
+    /// Dashboard insight "Preview plan vocabulary" (source Index.razor
+    /// OpenFlashcardActivity): Flashcard Preview for the shown plan's date. It
+    /// carries no plan item, resource or skill and starts no timer; the
+    /// presenter reads that owner's plan for the date. Null without an owner.
+    /// </summary>
+    public NativeActivityLaunch? FromPlanPreview(DateOnly planDate)
+    {
+        if (!owner.TryCurrent(out var userId))
+        {
+            logger.LogWarning("Native flashcard preview launch refused an absent owner.");
+            return null;
+        }
+        return new NativeActivityLaunch(
+            NativeActivityCatalog.FlashcardPreview, userId, planDate, PlanItemId: null,
+            [], SkillId: null, [], DueOnly: false, TimerResourceId: null);
+    }
+
+    /// <summary>
     /// <paramref name="selection"/> is the dashboard's re-validated Choose My
     /// Own selection; every resource and the skill are validated again against
     /// the same owner, and the launch is refused if any is rejected.
