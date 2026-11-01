@@ -5,13 +5,16 @@ using Views = Microsoft.SwiftUI.SwiftUI;
 namespace SentenceStudio.Native.iOS.App;
 
 /// <summary>
-/// Sam's SwiftUI presentation: one sheet over the tab shell holding a
-/// NavigationStack (chat, then the pushed conversation shelf). The composer
-/// nodes stay mounted while the stream re-renders, so typing keeps focus.
+/// Sam's SwiftUI presentation: one inspector beside the tab shell holding a
+/// NavigationStack (chat, then the pushed conversation shelf). In a regular
+/// width (iPad) it is a trailing side panel that leaves the page usable, as the
+/// source's non-modal overlay is; in a compact width (iPhone) SwiftUI presents
+/// it as a sheet. The composer nodes stay mounted while the stream re-renders,
+/// so typing keeps focus.
 /// </summary>
 internal sealed partial class ApplicationScene
 {
-    private SwiftView? _samSheet;
+    private SwiftView? _samPanelHost;
     private SwiftView? _samStack;
     private SwiftView? _samPanelSlot;
     private SwiftView? _samStreamSlot;
@@ -22,10 +25,10 @@ internal sealed partial class ApplicationScene
     private SwiftView[] _samHeader = [];
     private long _renderedSamVersion = -1;
     private long _renderedSamConversationsVersion = -1;
-    private (NativeSamPanelSize Size, string Persona, bool Resizable)? _renderedSamPanel;
-    private double _samDetent;
+    private (NativeSamPanelSize Size, string Persona)? _renderedSamPanel;
+    private NativeSamPanelSize? _renderedSamSize;
 
-    /// <summary>Wraps the tab shell in the Sam sheet. Called once per tab install.</summary>
+    /// <summary>Wraps the tab shell in the Sam inspector. Called once per tab install.</summary>
     private SwiftView WrapWithSam(SwiftView tabs)
     {
         _samPanelSlot = Views.VStack(Views.Text(_app.Localize("Common_Loading")));
@@ -39,41 +42,44 @@ internal sealed partial class ApplicationScene
                     _app.SamActions.ToggleConversations();
             }
         }).WithAccessibilityIdentifier("native.sam.panel");
-        _samDetent = SamDetent();
-        _samSheet = Views.Sheet(tabs, _samStack, _app.DismissSam)
-            .WithSheetDetentFraction(_samDetent);
+        _samPanelHost = Views.Inspector(tabs, _samStack, _app.DismissSam);
+        ApplySamSize(_app.SamState.Size);
         _renderedSamVersion = -1;
         _renderedSamPanel = null;
-        return _samSheet;
+        return _samPanelHost;
     }
 
-    private bool SamResizable => _style.ViewportWidth < 768;
-
-    private double SamDetent() =>
-        SamResizable && _app.SamState.Size == NativeSamPanelSize.Compact ? 0.6 : 1.0;
+    /// <summary>
+    /// Source panel sizes: compact 360 pt / expanded 520 pt wide beside the page
+    /// (app.css .sam-panel--compact/--expanded); as a phone sheet, compact is 60%
+    /// of the screen and expanded the full height.
+    /// </summary>
+    private void ApplySamSize(NativeSamPanelSize size)
+    {
+        var width = size == NativeSamPanelSize.Compact ? 360 : 520;
+        _samPanelHost!.WithInspectorColumnWidth(width, min: width, max: width)
+            .WithSheetDetentFraction(size == NativeSamPanelSize.Compact ? 0.6 : 1.0);
+        _renderedSamSize = size;
+    }
 
     private void UpdateSam()
     {
-        if (_samSheet is null || _samPanelSlot is null || _samStack is null)
+        if (_samPanelHost is null || _samPanelSlot is null || _samStack is null)
             return;
         _app.SetSamViewport(_style.ViewportWidth);
         var state = _app.SamState;
         var presented = _app.IsSamPresented;
-        var detent = SamDetent();
-        if (Math.Abs(_samDetent - detent) > 0.001)
-        {
-            _samDetent = detent;
-            _samSheet.WithSheetDetentFraction(detent);
-        }
+        if (_renderedSamSize != state.Size)
+            ApplySamSize(state.Size);
         if (!presented)
         {
-            if (_samSheet.IsPresented)
-                _samSheet.IsPresented = false;
+            if (_samPanelHost.IsPresented)
+                _samPanelHost.IsPresented = false;
             return;
         }
 
         var persona = SamView.Persona(state);
-        var panelKey = (state.Size, persona, SamResizable);
+        var panelKey = (state.Size, persona);
         if (_renderedSamPanel != panelKey || _samField is null)
         {
             Replace(_samPanelSlot, BuildSamPanel(state, persona));
@@ -116,8 +122,8 @@ internal sealed partial class ApplicationScene
             _renderedSamConversationsVersion = state.Version;
         }
 
-        if (!_samSheet.IsPresented)
-            _samSheet.IsPresented = true;
+        if (!_samPanelHost.IsPresented)
+            _samPanelHost.IsPresented = true;
     }
 
     private SwiftView BuildSamPanel(NativeSamState state, string persona)
@@ -128,7 +134,7 @@ internal sealed partial class ApplicationScene
         _samField = field;
         _samSend = send;
         _samCounter = counter;
-        _samHeader = SamView.HeaderActions(state, _app.Localize, _app.SamActions, SamResizable);
+        _samHeader = SamView.HeaderActions(state, _app.Localize, _app.SamActions);
         var body = Views.BottomInset(_style.Page(Views.Scroll(_samStreamSlot).WithScrollAnchoredToBottom()),
             composer);
         return Views.Toolbar(_style.Page(body), _samHeader)
@@ -138,7 +144,7 @@ internal sealed partial class ApplicationScene
 
     private void DropSamReferences()
     {
-        _samSheet = null;
+        _samPanelHost = null;
         _samStack = null;
         _samPanelSlot = null;
         _samStreamSlot = null;
@@ -148,6 +154,7 @@ internal sealed partial class ApplicationScene
         _samCounter = null;
         _samHeader = [];
         _renderedSamPanel = null;
+        _renderedSamSize = null;
         _renderedSamVersion = -1;
         _renderedSamConversationsVersion = -1;
     }

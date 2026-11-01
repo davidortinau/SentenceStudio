@@ -138,8 +138,8 @@ internal sealed partial class ApplicationController
 
     private bool _samCompactDefault = true;
 
-    /// <summary>Phones open compact; iPad (regular width) opens expanded (source: below 992 px compact).</summary>
-    internal void SetSamViewport(double width) => _samCompactDefault = width < 768;
+    /// <summary>The panel opens compact below 992 pt and expanded at or above it (source J1).</summary>
+    internal void SetSamViewport(double width) => _samCompactDefault = width < 992;
 
     internal void DismissSam() => _sam?.Close();
 

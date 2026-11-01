@@ -30,7 +30,17 @@ public sealed class NativeSamContractTests
             Assert.DoesNotMatch(@"\bUIKit\b|\bUIView\b|\bUIViewController\b|\bUIPasteboard\b|\bUILabel\b", source);
             Assert.DoesNotContain("Microsoft.Maui", source);
         }
-        Assert.Contains("Views.Sheet(tabs, _samStack", Source("App/ApplicationScene.Sam.cs"));
+        // iPad: a side panel beside the page (source non-modal overlay); iPhone: SwiftUI's
+        // compact presentation of the same inspector is a sheet.
+        var scene = Source("App/ApplicationScene.Sam.cs");
+        Assert.Contains("Views.Inspector(tabs, _samStack, _app.DismissSam)", scene);
+        Assert.DoesNotContain("Views.Sheet(", scene);
+        // Source widths (app.css .sam-panel--compact 360px / --expanded 520px) and phone detents.
+        Assert.Contains("size == NativeSamPanelSize.Compact ? 360 : 520", scene);
+        Assert.Contains(".WithInspectorColumnWidth(width, min: width, max: width)", scene);
+        Assert.Contains(".WithSheetDetentFraction(size == NativeSamPanelSize.Compact ? 0.6 : 1.0)", scene);
+        // Source J1: compact below 992, expanded at or above it.
+        Assert.Contains("_samCompactDefault = width < 992", Source("App/ApplicationController.Sam.cs"));
         Assert.Contains("Views.NavigationStack(_samPanelSlot", Source("App/ApplicationScene.Sam.cs"));
         // The chat transcript opens at, and follows, the newest message.
         Assert.Contains("Views.Scroll(_samStreamSlot).WithScrollAnchoredToBottom()",

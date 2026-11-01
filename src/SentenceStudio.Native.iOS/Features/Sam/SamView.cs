@@ -108,7 +108,7 @@ internal static class SamView
 
     /// <summary>Header actions: conversations, compact/expand, close (source SamPanel header).</summary>
     internal static SwiftView[] HeaderActions(NativeSamState state, Func<string, string> text,
-        SamActions actions, bool canResize)
+        SamActions actions)
     {
         var items = new List<SwiftView>
         {
@@ -119,8 +119,8 @@ internal static class SamView
                 .WithAccessibilityLabel(text("Coach_NewConversation"))
                 .WithAccessibilityIdentifier("native.sam.new"),
         };
-        if (canResize)
-            items.Add(Views.Button(Views.Image(state.Size == NativeSamPanelSize.Compact
+        // Both presentations resize: the iPad side panel's width, the phone sheet's height.
+        items.Add(Views.Button(Views.Image(state.Size == NativeSamPanelSize.Compact
                         ? "arrow.up.left.and.arrow.down.right" : "arrow.down.right.and.arrow.up.left"),
                     actions.ToggleSize)
                 .WithAccessibilityLabel(text(state.Size == NativeSamPanelSize.Compact
