@@ -10696,6 +10696,42 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Audio could not be played. Tap play to try again..
+        /// </summary>
+        internal static string NativeShadowing_AudioFailed {
+            get {
+                return ResourceManager.GetString("NativeShadowing_AudioFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Pause.
+        /// </summary>
+        internal static string NativeShadowing_Pause {
+            get {
+                return ResourceManager.GetString("NativeShadowing_Pause", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Play.
+        /// </summary>
+        internal static string NativeShadowing_Play {
+            get {
+                return ResourceManager.GetString("NativeShadowing_Play", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Playback position.
+        /// </summary>
+        internal static string NativeShadowing_PlaybackPosition {
+            get {
+                return ResourceManager.GetString("NativeShadowing_PlaybackPosition", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Choose option {0}.
         /// </summary>
         internal static string NativeVocabQuiz_ChooseChoice {

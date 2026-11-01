@@ -27,10 +27,13 @@ public sealed record NativeActivityDefinition(
 public static class NativeActivityCatalog
 {
     public const string VocabularyMatching = "vocab-matching";
+    public const string Shadowing = "shadowing";
 
     public static ImmutableArray<NativeActivityDefinition> Implemented { get; } =
     [
         new(VocabularyMatching, [PlanActivityType.VocabularyGame], TimerRecordsSkill: false),
+        // No dedicated Listening page: plan type Listening shares the Shadowing UI.
+        new(Shadowing, [PlanActivityType.Shadowing, PlanActivityType.Listening]),
     ];
 
     public static NativeActivityDefinition? ForRoute(string? route) =>
