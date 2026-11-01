@@ -170,6 +170,9 @@ internal static class SamView
         // Its own card after any plan suggestion: being remembered is a separate consent.
         if (state.MemoryCandidate is { } candidate)
             items.Add(MemoryCandidate(style, state, candidate, text, actions.Memory));
+        else if (state.MemoryCandidateNoticeKey is { } memoryNotice)
+            items.Add(style.Text(Views.Text(text(memoryNotice)), SourceTextRole.Caption1, SourceTextTone.Secondary)
+                .WithAccessibilityIdentifier("native.sam.memory.notice"));
         if (state.NoticeKey is "Coach_Rejected" or "Coach_Stopped")
             items.Add(style.Text(Views.Text(text(state.NoticeKey)), SourceTextRole.Caption1,
                     SourceTextTone.Secondary)
@@ -318,7 +321,6 @@ internal static class SamView
         var stack = Views.VStack(rows.ToArray()).WithFlexibleWidth();
         stack.Spacing = 4;
         return style.InfoAlert(stack, compact: true)
-            .WithAccessibilityLabel(text("Coach_Dispute_StatusLabel"))
             .WithAccessibilityIdentifier("native.sam.dispute");
     }
 
@@ -403,7 +405,6 @@ internal static class SamView
         var stack = Views.VStack(rows.ToArray()).WithFlexibleWidth();
         stack.Spacing = 6;
         return style.BorderedCard(stack.WithPadding(8, 10, 8, 10), radius: 8)
-            .WithAccessibilityLabel(text("Coach_ReportReasonLegend"))
             .WithAccessibilityIdentifier("native.sam.report.panel");
     }
 
@@ -522,10 +523,8 @@ internal static class SamView
         var card = stage is NativeSamWriteStage.Applied
             ? style.Alert(stack.WithPadding(4), success: true, compact: true)
             : style.Card(stack.WithPadding(12), radius: 12);
-        return card
-            .WithAccessibilityLabel($"{text(NativeSamWritePresentation.HeadingKey(write.ChangeKind))}, "
-                + text(NativeSamWritePresentation.StateKey(stage)))
-            .WithAccessibilityIdentifier(prefix);
+        // No container label: it would replace every control's own accessible name.
+        return card.WithAccessibilityIdentifier(prefix);
     }
 
     private static string WriteIcon(NativeSamWriteStage stage) => stage switch

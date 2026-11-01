@@ -96,17 +96,22 @@ internal static class SamSettingsView
             style.Text(Views.Text(text("Coach_MemoryExplainer")), SourceTextRole.Body2, SourceTextTone.Secondary),
             style.Text(Views.Text(text("Coach_MemoryVsSettings")), SourceTextRole.Caption1, SourceTextTone.Secondary),
         };
-        var activeTab = Views.Button(string.Format(CultureInfo.CurrentCulture, text("Coach_MemoryTabActive"),
-                memory.SafeActive.Length), () => actions.SelectTab(NativeSamMemoryTab.Active))
-            .WithAccessibilitySelected(memory.Tab == NativeSamMemoryTab.Active)
-            .WithAccessibilityIdentifier("native.sam.memory.tab.active");
-        var candidateTab = Views.Button(string.Format(CultureInfo.CurrentCulture, text("Coach_MemoryTabCandidates"),
-                memory.SafeCandidates.Length), () => actions.SelectTab(NativeSamMemoryTab.Candidates))
-            .WithAccessibilitySelected(memory.Tab == NativeSamMemoryTab.Candidates)
-            .WithAccessibilityIdentifier("native.sam.memory.tab.candidates");
-        rows.Add(Views.ButtonGroup([activeTab, candidateTab],
-                selectedIndex: memory.Tab == NativeSamMemoryTab.Active ? 0 : 1)
-            .WithAccessibilityLabel(text("Coach_MemoryTabsLabel")));
+        // Two tabs (source role=tablist): the selected one is the filled button.
+        SwiftView Tab(NativeSamMemoryTab tab, string key, int count, string id)
+        {
+            var title = string.Format(CultureInfo.CurrentCulture, text(key), count);
+            var selected = memory.Tab == tab;
+            return (selected ? style.PrimaryButton(title, () => actions.SelectTab(tab))
+                    : style.SecondaryButton(title, () => actions.SelectTab(tab)))
+                .WithAccessibilityLabel(title)
+                .WithAccessibilitySelected(selected)
+                .WithAccessibilityIdentifier(id);
+        }
+        rows.Add(Row(
+            Tab(NativeSamMemoryTab.Active, "Coach_MemoryTabActive", memory.SafeActive.Length,
+                "native.sam.memory.tab.active"),
+            Tab(NativeSamMemoryTab.Candidates, "Coach_MemoryTabCandidates", memory.SafeCandidates.Length,
+                "native.sam.memory.tab.candidates")));
         if (memory.NoticeKey is { } notice)
             rows.Add(style.Text(Views.Text(text(notice)), SourceTextRole.Caption1, SourceTextTone.Secondary)
                 .WithAccessibilityIdentifier("native.sam.memory.panel.notice"));
