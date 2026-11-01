@@ -9237,6 +9237,9 @@ For example: {0} ...</value>
   <data name="NativeActivity_LoadFailed" xml:space="preserve">
     <value>This activity could not be loaded. Go back and try again.</value>
   </data>
+  <data name="NativeCommon_SaveFailed" xml:space="preserve">
+    <value>Could not save. Try again.</value>
+  </data>
   <data name="NativeCloze_Blank" xml:space="preserve">
     <value>blank</value>
   </data>

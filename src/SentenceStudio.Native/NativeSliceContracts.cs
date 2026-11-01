@@ -36,7 +36,8 @@ public static class NativeText
     public const string ShowPasswordShort = "Login_ShowPasswordShort";
     public const string HidePasswordShort = "Login_HidePasswordShort";
     public const string Retry = "Common_Retry";
-    public const string SaveFailed = "Common_SaveFailed";
+    // Common_SaveFailed carries a {0} placeholder the native heads never fill.
+    public const string SaveFailed = "NativeCommon_SaveFailed";
     public const string AnswerRequired = "VocabQuiz_TypeAnswer";
     public const string CorrectionRequired = "VocabQuiz_TypeCorrect";
     public const string Today = "Dashboard_TodaysPlan";

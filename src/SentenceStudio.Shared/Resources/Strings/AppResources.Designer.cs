@@ -10102,6 +10102,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Could not save. Try again..
+        /// </summary>
+        internal static string NativeCommon_SaveFailed {
+            get {
+                return ResourceManager.GetString("NativeCommon_SaveFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to This activity is not available yet..
         /// </summary>
         internal static string NativeDashboard_ActivityNotAvailable {
