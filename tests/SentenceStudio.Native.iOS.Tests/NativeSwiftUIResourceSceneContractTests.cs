@@ -21,7 +21,8 @@ public sealed class NativeSwiftUIResourceSceneContractTests
         Assert.Contains("page.IsEnabled = nextPage.IsEnabled;", update);
         Assert.Contains("search.IsEnabled = nextSearch.IsEnabled;", update);
         Assert.Contains("Replace(_resourcesSlot, next);", update);
-        Assert.Contains("!SameBrowserControls(current.Children[0], next.Children[0])",
+        // The Sam entry bottom inset is unwrapped so the search field stays mounted.
+        Assert.Contains("!SameBrowserControls(WithoutSamInset(current.Children[0]), WithoutSamInset(next.Children[0]))",
             update);
         Assert.Contains("var controls = content.Children[1];", update);
         Assert.Contains("var filters = controls.Children[0];", update);

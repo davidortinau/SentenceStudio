@@ -172,6 +172,7 @@ public sealed record NativeSamState(
     string? ApprovedResourceId = null,
     ImmutableHashSet<string>? ExpandedEvidence = null,
     string? NoticeKey = null,
+    string? FailureKey = null,
     bool StillWorking = false,
     bool CanStop = false,
     bool CanRetry = false,

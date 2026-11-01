@@ -10534,6 +10534,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to {0} could not answer that. Nothing changed. Try again..
+        /// </summary>
+        internal static string NativeSam_AnswerFailed {
+            get {
+                return ResourceManager.GetString("NativeSam_AnswerFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Coach history could not be deleted. Nothing was removed..
         /// </summary>
         internal static string NativeSam_CoachHistoryDeleteFailed {

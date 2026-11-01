@@ -885,7 +885,11 @@ internal static class SamView
                     });
                 break;
             case NativeSamStatus.Offline: message = text("Coach_Offline"); break;
-            case NativeSamStatus.Failed: message = text("Coach_Failed"); danger = true; break;
+            case NativeSamStatus.Failed:
+                message = state.FailureKey is { } failure
+                    ? string.Format(CultureInfo.CurrentCulture, text(failure), persona) : text("Coach_Failed");
+                danger = true;
+                break;
             case NativeSamStatus.Incomplete: message = text("Coach_Incomplete"); break;
             case NativeSamStatus.Limited:
                 message = string.Format(CultureInfo.CurrentCulture, text("Coach_Limited"),

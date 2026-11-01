@@ -9212,4 +9212,7 @@ For example: {0} ...</value>
   <data name="NativeSam_CoachHistoryNothingToDelete" xml:space="preserve">
     <value>There is no coach history to delete.</value>
   </data>
+  <data name="NativeSam_AnswerFailed" xml:space="preserve">
+    <value>{0} could not answer that. Nothing changed. Try again.</value>
+  </data>
 </root>

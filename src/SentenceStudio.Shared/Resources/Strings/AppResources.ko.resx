@@ -8567,4 +8567,7 @@
   <data name="NativeSam_CoachHistoryNothingToDelete" xml:space="preserve">
     <value>삭제할 코치 기록이 없어요.</value>
   </data>
+  <data name="NativeSam_AnswerFailed" xml:space="preserve">
+    <value>{0}의 답변을 받지 못했어요. 아무것도 바뀌지 않았어요. 다시 시도해 보세요.</value>
+  </data>
 </root>

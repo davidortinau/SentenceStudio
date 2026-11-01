@@ -967,6 +967,7 @@ public sealed class NativeSamPresenterTests
         await sam.SendAsync();
 
         Assert.Equal(NativeSamStatus.Failed, sam.State.Status);
+        Assert.Equal("NativeSam_AnswerFailed", sam.State.FailureKey);
         Assert.True(sam.State.CanRetry);
         Assert.False(sam.State.Busy);
 

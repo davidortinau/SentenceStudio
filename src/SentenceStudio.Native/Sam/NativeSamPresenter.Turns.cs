@@ -133,7 +133,8 @@ public sealed partial class NativeSamPresenter
         }
 
         Publish(_state with { Busy = true, Status = applying ? NativeSamStatus.Applying : NativeSamStatus.Running,
-            CanRetry = false, CanRecover = false, NoticeKey = null, StillWorking = false, CanStop = false });
+            CanRetry = false, CanRecover = false, NoticeKey = null, FailureKey = null, StillWorking = false,
+            CanStop = false });
         try
         {
             await RunTurnCoreAsync(owner, conversationId, request, learnerText, cancellationToken, retry);
@@ -417,6 +418,9 @@ public sealed partial class NativeSamPresenter
             StillWorking = false,
             CanStop = false,
             CanRetry = status is NativeSamStatus.Failed or NativeSamStatus.Incomplete,
+            // A failed question is not a failed plan edit: say so honestly.
+            FailureKey = status == NativeSamStatus.Failed && conversational && receipt is null
+                && _lastRequest?.InputKind == CoachTurnInputKind.Text ? "NativeSam_AnswerFailed" : null,
             // Replaced wholesale from every turn, null included: a closed dispute must
             // stop being shown (source CoachWorkspaceState.Dispute).
             Dispute = conversational ? result.Dispute : _state.Dispute,

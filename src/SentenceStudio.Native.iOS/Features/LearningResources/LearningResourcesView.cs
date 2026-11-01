@@ -166,7 +166,11 @@ internal static class LearningResourcesView
         page.IsEnabled = !state.StarterBusy;
         // Source MainLayout mounts the Sam entry on every authenticated page; it floats
         // as a bottom inset so the search field and its incremental updates are untouched.
-        return Views.Toolbar(samEntry is null ? style.Page(page) : Views.BottomInset(style.Page(page), samEntry),
+        if (samEntry is not null)
+            return Views.Toolbar(Views.BottomInset(style.Page(page), samEntry),
+                BrowserHeader(state, style, text, actions.Add, actions.OpenSkills,
+                    openVocabulary));
+        return Views.Toolbar(style.Page(page),
             BrowserHeader(state, style, text, actions.Add, actions.OpenSkills,
                 openVocabulary));
     }
