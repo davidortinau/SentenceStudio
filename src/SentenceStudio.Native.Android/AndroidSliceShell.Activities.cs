@@ -146,6 +146,9 @@ internal sealed partial class AndroidSliceShell
             case NativeActivityCatalog.Diary:
                 await OpenDiaryAsync(launch, cancellationToken);
                 break;
+            case NativeActivityCatalog.MinimalPairs:
+                await OpenMinimalPairsAsync(launch, cancellationToken);
+                break;
         }
     }
 
@@ -162,6 +165,7 @@ internal sealed partial class AndroidSliceShell
         NativeActivityCatalog.WordAssociation => RenderWordAssociation(palette),
         NativeActivityCatalog.Conversation => RenderConversation(palette),
         NativeActivityCatalog.Diary => RenderDiary(palette),
+        NativeActivityCatalog.MinimalPairs => RenderMinimalPairs(palette),
         _ => Body(Localize(NativeMatchingText.Unavailable), palette),
     };
 
@@ -169,6 +173,9 @@ internal sealed partial class AndroidSliceShell
     {
         // Diary editor/viewer Back returns to the Diary list (source /diary).
         if (_activityRoute == NativeActivityCatalog.Diary && DiaryBack())
+            return;
+        // Minimal Pairs create/session Back returns to the pair list (source /minimal-pairs).
+        if (_activityRoute == NativeActivityCatalog.MinimalPairs && MinimalPairsBack())
             return;
         ExitActivityToDashboard();
     }
@@ -210,6 +217,9 @@ internal sealed partial class AndroidSliceShell
             case NativeActivityCatalog.Diary:
                 await ExitDiaryAsync(cancellationToken);
                 break;
+            case NativeActivityCatalog.MinimalPairs:
+                await ExitMinimalPairsAsync(cancellationToken);
+                break;
         }
         ReleaseActivity();
         Publish(() => Destination = NativeDestination.Dashboard);
@@ -230,6 +240,7 @@ internal sealed partial class AndroidSliceShell
         ReleaseWordAssociation();
         ReleaseConversation();
         ReleaseDiary();
+        ReleaseMinimalPairs();
         _activityScope?.Dispose();
         _activityScope = null;
         _activityRoute = null;
