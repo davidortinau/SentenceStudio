@@ -148,6 +148,23 @@ public static class NativeQuizSentenceGraderRegistration
             throw new ArgumentException("Sentence grading needs the configured API origin.",
                 nameof(apiRoot));
 
+        services.AddOwnerBoundNativeSentenceGateway(apiRoot);
+        services.Replace(ServiceDescriptor.Singleton<INativeQuizSentenceGrader,
+            NativeQuizSentenceGrader>());
+        return services;
+    }
+
+    /// <summary>
+    /// Only the owner-bound GradeSentence gateway (Reasoning tier), without
+    /// replacing the quiz sentence grader. Writing grades through it.
+    /// </summary>
+    public static IServiceCollection AddOwnerBoundNativeSentenceGateway(
+        this IServiceCollection services, Uri apiRoot)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+        if (!apiRoot.IsAbsoluteUri || apiRoot.Scheme is not ("http" or "https"))
+            throw new ArgumentException("Sentence grading needs the configured API origin.",
+                nameof(apiRoot));
         services.TryAddSingleton<IOwnerBoundNativeSentenceGateway>(sp =>
             new OwnerBoundNativeSentenceGateway(
                 sp.GetRequiredService<IAuthService>(),
@@ -155,8 +172,6 @@ public static class NativeQuizSentenceGraderRegistration
                 sp.GetRequiredService<DeviceUserScopeProvider>(),
                 sp.GetRequiredService<IHttpMessageHandlerFactory>(),
                 apiRoot));
-        services.Replace(ServiceDescriptor.Singleton<INativeQuizSentenceGrader,
-            NativeQuizSentenceGrader>());
         return services;
     }
 }

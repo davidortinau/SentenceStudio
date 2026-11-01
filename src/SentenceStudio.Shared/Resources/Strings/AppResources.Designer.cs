@@ -20811,6 +20811,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Dismiss.
+        /// </summary>
+        internal static string Writing_DismissNotices {
+            get {
+                return ResourceManager.GetString("Writing_DismissNotices", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to End Session.
         /// </summary>
         internal static string Writing_EndSession {
@@ -20838,11 +20847,47 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Error grading your sentence. Please try again..
+        /// </summary>
+        internal static string Writing_GradeFailed {
+            get {
+                return ResourceManager.GetString("Writing_GradeFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Graded! Accuracy: {0}%.
+        /// </summary>
+        internal static string Writing_GradedAccuracy {
+            get {
+                return ResourceManager.GetString("Writing_GradedAccuracy", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Error loading vocabulary..
+        /// </summary>
+        internal static string Writing_LoadFailed {
+            get {
+                return ResourceManager.GetString("Writing_LoadFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Loading vocabulary....
         /// </summary>
         internal static string Writing_LoadingVocab {
             get {
                 return ResourceManager.GetString("Writing_LoadingVocab", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No vocabulary found in the selected resource..
+        /// </summary>
+        internal static string Writing_NoResourceVocab {
+            get {
+                return ResourceManager.GetString("Writing_NoResourceVocab", resourceCulture);
             }
         }
 
@@ -20865,6 +20910,33 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Confirmed! This one is solid..
+        /// </summary>
+        internal static string Writing_ProbeConfirmed {
+            get {
+                return ResourceManager.GetString("Writing_ProbeConfirmed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to This one is tricky in context. A few more reps will help..
+        /// </summary>
+        internal static string Writing_ProbeTricky {
+            get {
+                return ResourceManager.GetString("Writing_ProbeTricky", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Please select a resource to practice writing..
+        /// </summary>
+        internal static string Writing_SelectResource {
+            get {
+                return ResourceManager.GetString("Writing_SelectResource", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to {0} sentence(s) written.
         /// </summary>
         internal static string Writing_SentencesWritten {
@@ -20879,6 +20951,33 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Writing_ShowDetails {
             get {
                 return ResourceManager.GetString("Writing_ShowDetails", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Shuffle vocabulary.
+        /// </summary>
+        internal static string Writing_Shuffle {
+            get {
+                return ResourceManager.GetString("Writing_Shuffle", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Translate.
+        /// </summary>
+        internal static string Writing_Translate {
+            get {
+                return ResourceManager.GetString("Writing_Translate", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Translation failed..
+        /// </summary>
+        internal static string Writing_TranslateFailed {
+            get {
+                return ResourceManager.GetString("Writing_TranslateFailed", resourceCulture);
             }
         }
 
