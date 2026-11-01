@@ -42,6 +42,7 @@ internal static class ActivityScreens
         NativeActivityCatalog.VocabularyMatching => new VocabularyMatchingScreen(host),
         NativeActivityCatalog.Cloze => new ClozeScreen(host),
         NativeActivityCatalog.Translation => new TranslationScreen(host),
+        NativeActivityCatalog.NumberDrill => new NumberDrillScreen(host),
         _ => null
     };
 }

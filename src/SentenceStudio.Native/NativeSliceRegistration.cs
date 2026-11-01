@@ -47,6 +47,14 @@ public static class NativeSliceRegistration
             sp.GetService<IOwnerBoundNativeAiGateway>(),
             sp.GetService<IOwnerBoundNativeSentenceGateway>()));
         services.AddTransient<NativeTranslationPresenter>();
+        // Number Drill: the shared Numbers services the MAUI heads register in CoreServiceExtensions.
+        services.TryAddSingleton<SentenceStudio.Services.Numbers.INumberItemGenerator,
+            SentenceStudio.Services.Numbers.KoreanNumberItemGenerator>();
+        services.TryAddSingleton<SentenceStudio.Services.Numbers.INumberAnswerGrader,
+            SentenceStudio.Services.Numbers.KoreanNumberAnswerGrader>();
+        services.TryAddScoped<SentenceStudio.Services.Numbers.NumberContentSeeder>();
+        services.TryAddScoped<SentenceStudio.Services.Numbers.NumberSessionService>();
+        services.AddTransient<NativeNumberDrillPresenter>();
         services.TryAddScoped<IPlanCopyProvider, EnglishPlanCopyProvider>();
         services.AddSingleton<NativePlanLeaseFactory>();
         services.TryAddSingleton<INativeProfileRemoteStore>(sp =>

@@ -84,6 +84,8 @@ internal sealed partial class AndroidSliceShell
                 await OpenClozeAsync(launch, cancellationToken);
             case NativeActivityCatalog.Translation:
                 await OpenTranslationAsync(launch, cancellationToken);
+            case NativeActivityCatalog.NumberDrill:
+                await OpenNumberDrillAsync(launch, cancellationToken);
                 break;
         }
     }
@@ -93,6 +95,7 @@ internal sealed partial class AndroidSliceShell
         NativeActivityCatalog.VocabularyMatching => RenderMatching(palette),
         NativeActivityCatalog.Cloze => RenderCloze(palette),
         NativeActivityCatalog.Translation => RenderTranslation(palette),
+        NativeActivityCatalog.NumberDrill => RenderNumberDrill(palette),
         _ => Body(Localize(NativeMatchingText.Unavailable), palette),
     };
 
@@ -107,6 +110,8 @@ internal sealed partial class AndroidSliceShell
                 await ExitClozeAsync(cancellationToken);
             case NativeActivityCatalog.Translation:
                 await ExitTranslationAsync(cancellationToken);
+            case NativeActivityCatalog.NumberDrill:
+                await ExitNumberDrillAsync(cancellationToken);
                 break;
         }
         ReleaseActivity();
@@ -120,6 +125,7 @@ internal sealed partial class AndroidSliceShell
         ReleaseMatching();
         ReleaseCloze();
         ReleaseTranslation();
+        ReleaseNumberDrill();
         _activityRoute = null;
     }
 }
