@@ -9479,4 +9479,22 @@ For example: {0} ...</value>
   <data name="NativeShadowing_AudioFailed" xml:space="preserve">
     <value>Audio could not be played. Tap play to try again.</value>
   </data>
+  <data name="NativeHowDoYouSay_DeleteFailed" xml:space="preserve">
+    <value>Error deleting item.</value>
+  </data>
+  <data name="NativeHowDoYouSay_FileNotFound" xml:space="preserve">
+    <value>Audio file not found.</value>
+  </data>
+  <data name="NativeHowDoYouSay_GenerateFailed" xml:space="preserve">
+    <value>Audio could not be generated. Please try again.</value>
+  </data>
+  <data name="NativeHowDoYouSay_Generated" xml:space="preserve">
+    <value>Audio generated!</value>
+  </data>
+  <data name="NativeHowDoYouSay_PlaybackError" xml:space="preserve">
+    <value>Playback error.</value>
+  </data>
+  <data name="NativeHowDoYouSay_SelectVoice" xml:space="preserve">
+    <value>Please select a voice first.</value>
+  </data>
 </root>

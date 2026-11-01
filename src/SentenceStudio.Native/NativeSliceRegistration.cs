@@ -64,6 +64,7 @@ public static class NativeSliceRegistration
         services.TryAddTransient<INativeShadowingSpeech, NativeShadowingSpeech>();
         services.TryAddTransient<INativeShadowingPlayer, UnavailableNativeShadowingPlayer>();
         services.AddTransient<NativeShadowingPresenter>();
+        services.AddTransient<NativeHowDoYouSayPresenter>();
         services.TryAddScoped<IPlanCopyProvider, EnglishPlanCopyProvider>();
         services.AddSingleton<NativePlanLeaseFactory>();
         services.TryAddSingleton<INativeProfileRemoteStore>(sp =>

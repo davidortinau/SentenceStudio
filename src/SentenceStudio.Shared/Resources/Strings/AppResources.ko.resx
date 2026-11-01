@@ -8834,4 +8834,22 @@
   <data name="NativeShadowing_AudioFailed" xml:space="preserve">
     <value>오디오를 재생하지 못했어요. 재생을 눌러 다시 시도하세요.</value>
   </data>
+  <data name="NativeHowDoYouSay_DeleteFailed" xml:space="preserve">
+    <value>항목을 삭제하지 못했어요.</value>
+  </data>
+  <data name="NativeHowDoYouSay_FileNotFound" xml:space="preserve">
+    <value>오디오 파일을 찾을 수 없어요.</value>
+  </data>
+  <data name="NativeHowDoYouSay_GenerateFailed" xml:space="preserve">
+    <value>오디오를 생성하지 못했어요. 다시 시도해 주세요.</value>
+  </data>
+  <data name="NativeHowDoYouSay_Generated" xml:space="preserve">
+    <value>오디오가 생성되었어요!</value>
+  </data>
+  <data name="NativeHowDoYouSay_PlaybackError" xml:space="preserve">
+    <value>재생 오류가 발생했어요.</value>
+  </data>
+  <data name="NativeHowDoYouSay_SelectVoice" xml:space="preserve">
+    <value>먼저 음성을 선택해 주세요.</value>
+  </data>
 </root>

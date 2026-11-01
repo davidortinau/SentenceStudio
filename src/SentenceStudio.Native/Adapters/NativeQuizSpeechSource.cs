@@ -17,7 +17,8 @@ public interface INativeQuizSpeechSource
         string owner, string language, CancellationToken cancellationToken);
 }
 
-public sealed record NativeQuizVoice(string Id, string Name, string Language);
+/// <summary>An API voice (/api/v1/speech/voices). Gender is optional; How Do You Say shows it after the name.</summary>
+public sealed record NativeQuizVoice(string Id, string Name, string Language, string? Gender = null);
 
 internal sealed record NativeQuizVoiceResponse(IReadOnlyList<NativeQuizVoice> Voices);
 
