@@ -63,6 +63,7 @@ public sealed class NativeActivityLaunchService(
     {
         ArgumentNullException.ThrowIfNull(selection);
         if (NativeActivityCatalog.ForRoute(route) is not { } definition
+            || definition.PlanOnly
             || !owner.IsActive(selection.UserId))
             return null;
         var requested = selection.ResourceIds.IsDefault ? [] : selection.ResourceIds.ToArray();

@@ -75,6 +75,10 @@ public static class NativeSliceRegistration
         services.TryAddSingleton<INativeDiaryAi, NativeDiaryAi>();
         services.AddTransient<NativeDiaryStore>();
         services.AddTransient<NativeDiaryPresenter>();
+        // Video Watching: the shared YouTube id extraction the source page uses
+        // (transient: it resolves the scoped repositories of the activity scope).
+        services.TryAddTransient<VideoWatchingService>();
+        services.AddTransient<NativeVideoWatchingPresenter>();
         services.TryAddScoped<IPlanCopyProvider, EnglishPlanCopyProvider>();
         services.AddSingleton<NativePlanLeaseFactory>();
         services.TryAddSingleton<INativeProfileRemoteStore>(sp =>

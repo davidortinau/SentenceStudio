@@ -9554,4 +9554,16 @@ For example: {0} ...</value>
   <data name="NativeConversation_DismissNotices" xml:space="preserve">
     <value>Dismiss</value>
   </data>
+  <data name="VideoWatching_NoResource" xml:space="preserve">
+    <value>No resource specified.</value>
+  </data>
+  <data name="VideoWatching_NoVideoId" xml:space="preserve">
+    <value>Could not extract YouTube video ID from this resource.</value>
+  </data>
+  <data name="VideoWatching_LoadError" xml:space="preserve">
+    <value>Error loading video: {0}</value>
+  </data>
+  <data name="VideoWatching_DefaultTitle" xml:space="preserve">
+    <value>Video</value>
+  </data>
 </root>

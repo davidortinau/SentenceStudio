@@ -11,10 +11,13 @@ namespace SentenceStudio.Native;
 /// timer/ad-hoc row type; an empty list (Word Association) means a Choose My
 /// Own-only page that starts no timer. <see cref="TimerRecordsSkill"/> mirrors whether the
 /// source page passes its skill to ActivityTimer.StartSession (Matching,
-/// NumberDrill and VideoWatching pass null).
+/// NumberDrill and VideoWatching pass null). <see cref="PlanOnly"/> marks a
+/// page reachable only from a plan card (Video Watching has no Choose My Own
+/// tile), so a Choose My Own launch of it is refused.
 /// </summary>
 public sealed record NativeActivityDefinition(
-    string Route, ImmutableArray<PlanActivityType> PlanTypes, bool TimerRecordsSkill = true)
+    string Route, ImmutableArray<PlanActivityType> PlanTypes, bool TimerRecordsSkill = true,
+    bool PlanOnly = false)
 {
     public PlanActivityType? TimerType => PlanTypes.IsDefaultOrEmpty ? null : PlanTypes[0];
 }
@@ -58,6 +61,7 @@ public static class NativeActivityCatalog
     public const string WordAssociation = "word-association";
     public const string Conversation = "conversation";
     public const string Diary = "diary";
+    public const string VideoWatching = "video-watching";
 
     public static ImmutableArray<NativeActivityDefinition> Implemented { get; } =
     [
@@ -76,6 +80,8 @@ public static class NativeActivityCatalog
         new(Conversation, [PlanActivityType.Conversation]),
         // Diary is a Choose My Own tile only: no plan type and no timer (activities.md 17).
         new(Diary, [], TimerRecordsSkill: false),
+        // Plan card only (activities.md 11): not a Choose My Own tile; the source passes no skill.
+        new(VideoWatching, [PlanActivityType.VideoWatching], TimerRecordsSkill: false, PlanOnly: true),
     ];
 
     public static NativeActivityDefinition? ForRoute(string? route) =>
