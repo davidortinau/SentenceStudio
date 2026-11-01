@@ -13621,6 +13621,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Play from this sentence.
+        /// </summary>
+        internal static string Reading_PlayFromSentence {
+            get {
+                return ResourceManager.GetString("Reading_PlayFromSentence", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Previous sentence.
         /// </summary>
         internal static string Reading_PreviousSentence {

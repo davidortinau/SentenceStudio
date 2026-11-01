@@ -8801,6 +8801,9 @@
   <data name="Reading_JumpHint" xml:space="preserve">
     <value>문장을 두 번 탭하면 그 문장으로 이동합니다!</value>
   </data>
+  <data name="Reading_PlayFromSentence" xml:space="preserve">
+    <value>이 문장부터 재생</value>
+  </data>
   <data name="Reading_WordSaved" xml:space="preserve">
     <value>'{0}'을(를) 어휘에 저장했습니다!</value>
   </data>

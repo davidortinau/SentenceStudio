@@ -41,6 +41,28 @@ public sealed class NativeReadingPresenterTests
         Assert.Equal("0:00", NativeReadingPresenter.FormatTime(double.NaN));
     }
 
+    [Theory]
+    [InlineData("Korean", "ko-KR")]
+    [InlineData(" Korean ", "ko-KR")]
+    [InlineData("English", "en-US")]
+    [InlineData("Japanese", "ja-JP")]
+    [InlineData("Klingon", null)]
+    [InlineData("", null)]
+    [InlineData(null, null)]
+    public void SpeechLanguageTag_MapsTheResourceLanguageOrKeepsTheSystemVoice(string? language, string? expected) =>
+        Assert.Equal(expected, NativeReadingPresenter.SpeechLanguageTag(language));
+
+    [Theory]
+    [InlineData("Korean", "오늘은 날씨가 좋아요.", "ko-KR")]
+    [InlineData("English", "오늘은 날씨가 좋아요.", "ko-KR")]
+    [InlineData(null, "공원에 갔어요.", "ko-KR")]
+    [InlineData("English", "The weather is nice today.", "en-US")]
+    [InlineData("Spanish", "Hace buen tiempo.", "es-ES")]
+    [InlineData(null, "No language.", null)]
+    public void PassageLanguageTag_HangulIsKoreanOtherwiseTheResourceLanguage(
+        string? language, string passage, string? expected) =>
+        Assert.Equal(expected, NativeReadingPresenter.PassageLanguageTag(language, passage));
+
     [Fact]
     public async Task ChooseOwn_ReadsTranscriptPlaysAlongAndBackRecordsTheSession()
     {
@@ -62,6 +84,8 @@ public sealed class NativeReadingPresenterTests
         Assert.Equal("날씨가", vocabulary.Text);
         Assert.False(vocabulary.IsFocusVocabulary);
         Assert.Equal("— / 3", state.SentenceCounter);
+        Assert.Equal("ko-KR", state.PassageLanguageTag);
+        Assert.Null(state.CurrentSentenceAnchorId);
 
         await reading.AudioTask;
         state = reading.State;
@@ -84,6 +108,8 @@ public sealed class NativeReadingPresenterTests
 
         state = await reading.JumpToSentenceAsync(2);
         Assert.Equal(2, state.CurrentSentenceIndex);
+        Assert.Equal(state.Sentences[2].Tokens.First(token => token.IsWord).AccessibilityId,
+            state.CurrentSentenceAnchorId);
         Assert.True(state.IsPlaying);
         Assert.Equal(NativeReadingText.JumpHint, state.Notice?.Key);
         Assert.True(fixture.Preferences.Get(NativeReadingPresenter.JumpHintKey, false));

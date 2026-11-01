@@ -61,6 +61,8 @@ public static class NativeReadingText
     public const string AudioStillLoading = "Reading_AudioStillLoading";
     public const string NoAudio = "Reading_NoAudio";
     public const string JumpHint = "Reading_JumpHint";
+    /// <summary>Accessibility action on each passage word: double tap jumps playback to its sentence.</summary>
+    public const string PlayFromSentence = "Reading_PlayFromSentence";
     /// <summary>Format: {0} is the saved word.</summary>
     public const string WordSaved = "Reading_WordSaved";
     public const string CouldNotSaveWord = "Reading_CouldNotSaveWord";
@@ -131,7 +133,8 @@ public sealed record NativeReadingState(
     NativeReadingWordPanel? WordPanel = null,
     NativeReadingNotice? Notice = null,
     string? ErrorKey = null,
-    bool HasPendingSync = false)
+    bool HasPendingSync = false,
+    string? PassageLanguageTag = null)
 {
     public int SentenceCount => Sentences.IsDefault ? 0 : Sentences.Length;
 
@@ -144,6 +147,15 @@ public sealed record NativeReadingState(
     public string SentenceCounter => CurrentSentenceIndex >= 0
         ? $"{CurrentSentenceIndex + 1} / {SentenceCount}"
         : $"— / {SentenceCount}";
+
+    /// <summary>
+    /// The first word of the current sentence: auto-scroll keeps it centered
+    /// (source scrollIntoView block:center on .sentence--selected).
+    /// </summary>
+    public string? CurrentSentenceAnchorId =>
+        CurrentSentenceIndex >= 0 && CurrentSentenceIndex < SentenceCount
+            ? Sentences[CurrentSentenceIndex].Tokens.FirstOrDefault(token => token.IsWord)?.AccessibilityId
+            : null;
 
     public string TimeDisplay =>
         $"{NativeReadingPresenter.FormatTime(CurrentTime)} / {NativeReadingPresenter.FormatTime(Duration)}";

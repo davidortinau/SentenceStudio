@@ -813,6 +813,35 @@ public sealed class NativeReadingPresenter(
         return tokens;
     }
 
+    /// <summary>
+    /// BCP 47 tag the passage is spoken in by VoiceOver, from the resource's
+    /// language name; null keeps the system language.
+    /// </summary>
+    public static string? SpeechLanguageTag(string? language) => language?.Trim() switch
+    {
+        "English" => "en-US",
+        "Korean" => "ko-KR",
+        "French" => "fr-FR",
+        "German" => "de-DE",
+        "Spanish" => "es-ES",
+        "Japanese" => "ja-JP",
+        "Chinese" => "zh-CN",
+        _ => null
+    };
+
+    /// <summary>
+    /// The language VoiceOver speaks the passage in. Hangul is written only in
+    /// Korean, so a Hangul passage is Korean even when its resource language
+    /// is mislabeled (the Reading audio voice is Korean as well); otherwise the
+    /// resource language decides.
+    /// </summary>
+    public static string? PassageLanguageTag(string? resourceLanguage, string? passage)
+    {
+        if (!string.IsNullOrEmpty(passage) && passage.Any(character => character is >= '\uAC00' and <= '\uD7A3'))
+            return "ko-KR";
+        return SpeechLanguageTag(resourceLanguage);
+    }
+
     public static string FormatTime(double seconds)
     {
         if (seconds < 0 || double.IsNaN(seconds) || double.IsInfinity(seconds))
@@ -861,7 +890,8 @@ public sealed class NativeReadingPresenter(
                 _generating, _audioStatusKey, _audioStatusDetail, _audioProgress,
                 _audioLoaded, _playing, _time, _duration, _fontSize, _speed,
                 _panel, _notice, _errorKey,
-                _launch is not null && pendingWrites.IsPending(_launch.UserId));
+                _launch is not null && pendingWrites.IsPending(_launch.UserId),
+                PassageLanguageTag(_resource?.Language, _resource?.Transcript));
             state = State;
         }
         StateChanged?.Invoke(state);
