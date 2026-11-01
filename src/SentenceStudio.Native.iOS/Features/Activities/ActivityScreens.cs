@@ -32,6 +32,18 @@ internal interface IActivityScreen : IDisposable
     Task ExitAsync(CancellationToken cancellationToken);
 
     SwiftView Render(SourceUiStyle style);
+
+    /// <summary>True for a screen with a SwiftUI sheet (for example Reading's word lookup); the scene keeps one stable sheet node for it.</summary>
+    bool HasSheet => false;
+
+    bool IsSheetPresented => false;
+
+    double SheetDetentFraction => 0.45;
+
+    SwiftView RenderSheet(SourceUiStyle style) => Microsoft.SwiftUI.SwiftUI.VStack();
+
+    /// <summary>The person swiped the sheet away.</summary>
+    void OnSheetDismissed() { }
 }
 
 internal static class ActivityScreens
@@ -44,6 +56,7 @@ internal static class ActivityScreens
         NativeActivityCatalog.Translation => new TranslationScreen(host),
         NativeActivityCatalog.NumberDrill => new NumberDrillScreen(host),
         NativeActivityCatalog.Writing => new WritingScreen(host),
+        NativeActivityCatalog.Reading => new ReadingScreen(host),
         _ => null
     };
 }

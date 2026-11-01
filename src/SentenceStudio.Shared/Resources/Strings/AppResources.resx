@@ -9404,4 +9404,67 @@ For example: {0} ...</value>
   <data name="NumberDrill_AudioFailed" xml:space="preserve">
     <value>Failed to play audio.</value>
   </data>
+  <data name="Reading_ResourceNotFound" xml:space="preserve">
+    <value>Resource not found.</value>
+  </data>
+  <data name="Reading_NoTranscript" xml:space="preserve">
+    <value>Resource has no transcript.</value>
+  </data>
+  <data name="Reading_AudioInitializing" xml:space="preserve">
+    <value>Initializing audio...</value>
+  </data>
+  <data name="Reading_AudioGenerating" xml:space="preserve">
+    <value>Generating timestamped audio...</value>
+  </data>
+  <data name="Reading_AudioProcessing" xml:space="preserve">
+    <value>Processing timestamps...</value>
+  </data>
+  <data name="Reading_AudioLoading" xml:space="preserve">
+    <value>Loading audio...</value>
+  </data>
+  <data name="Reading_AudioFailed" xml:space="preserve">
+    <value>Audio generation failed - reading without audio.</value>
+  </data>
+  <data name="Reading_AudioError" xml:space="preserve">
+    <value>Audio error: {0}</value>
+  </data>
+  <data name="Reading_AudioStillLoading" xml:space="preserve">
+    <value>Audio is still loading...</value>
+  </data>
+  <data name="Reading_NoAudio" xml:space="preserve">
+    <value>No audio available.</value>
+  </data>
+  <data name="Reading_JumpHint" xml:space="preserve">
+    <value>Double-tap a sentence to jump to it!</value>
+  </data>
+  <data name="Reading_WordSaved" xml:space="preserve">
+    <value>'{0}' saved to vocabulary!</value>
+  </data>
+  <data name="Reading_CouldNotSaveWord" xml:space="preserve">
+    <value>Could not save word.</value>
+  </data>
+  <data name="Reading_ErrorSavingWord" xml:space="preserve">
+    <value>Error saving word.</value>
+  </data>
+  <data name="Reading_TranslationUnavailable" xml:space="preserve">
+    <value>(translation unavailable)</value>
+  </data>
+  <data name="Reading_Play" xml:space="preserve">
+    <value>Play</value>
+  </data>
+  <data name="Reading_Pause" xml:space="preserve">
+    <value>Pause</value>
+  </data>
+  <data name="Reading_PreviousSentence" xml:space="preserve">
+    <value>Previous sentence</value>
+  </data>
+  <data name="Reading_NextSentence" xml:space="preserve">
+    <value>Next sentence</value>
+  </data>
+  <data name="Reading_PlaybackSpeed" xml:space="preserve">
+    <value>Playback speed</value>
+  </data>
+  <data name="Reading_FontSize" xml:space="preserve">
+    <value>Font size</value>
+  </data>
 </root>

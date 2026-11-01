@@ -57,6 +57,9 @@ public static class NativeSliceRegistration
         services.AddTransient<NativeNumberDrillPresenter>();
         services.TryAddSingleton<INativeWritingAi, NativeWritingAi>();
         services.AddTransient<NativeWritingPresenter>();
+        services.TryAddSingleton<INativeReadingAudioSource, UnavailableNativeReadingAudioSource>();
+        services.TryAddSingleton<IAudioPlayerFactory, UnavailableNativeAudioPlayerFactory>();
+        services.AddTransient<NativeReadingPresenter>();
         services.TryAddScoped<IPlanCopyProvider, EnglishPlanCopyProvider>();
         services.AddSingleton<NativePlanLeaseFactory>();
         services.TryAddSingleton<INativeProfileRemoteStore>(sp =>

@@ -28,6 +28,17 @@ internal sealed partial class ApplicationController
     internal SwiftView RenderActivity(SourceUiStyle style) =>
         _activity?.Render(style) ?? Views.VStack();
 
+    internal bool ActivityHasSheet => _activity?.HasSheet == true;
+
+    internal bool IsActivitySheetPresented => _activity?.IsSheetPresented == true;
+
+    internal double ActivitySheetDetent => _activity?.SheetDetentFraction ?? 0.45;
+
+    internal SwiftView RenderActivitySheet(SourceUiStyle style) =>
+        _activity?.RenderSheet(style) ?? Views.VStack();
+
+    internal void DismissActivitySheet() => _activity?.OnSheetDismissed();
+
     private async Task OpenPlanCardAsync(string cardId)
     {
         var card = _dashboardState.Cards.IsDefaultOrEmpty ? null

@@ -8759,4 +8759,67 @@
   <data name="NumberDrill_AudioFailed" xml:space="preserve">
     <value>오디오를 재생하지 못했습니다.</value>
   </data>
+  <data name="Reading_ResourceNotFound" xml:space="preserve">
+    <value>리소스를 찾을 수 없습니다.</value>
+  </data>
+  <data name="Reading_NoTranscript" xml:space="preserve">
+    <value>리소스에 대본이 없습니다.</value>
+  </data>
+  <data name="Reading_AudioInitializing" xml:space="preserve">
+    <value>오디오 준비 중...</value>
+  </data>
+  <data name="Reading_AudioGenerating" xml:space="preserve">
+    <value>타임스탬프 오디오 생성 중...</value>
+  </data>
+  <data name="Reading_AudioProcessing" xml:space="preserve">
+    <value>타임스탬프 처리 중...</value>
+  </data>
+  <data name="Reading_AudioLoading" xml:space="preserve">
+    <value>오디오 불러오는 중...</value>
+  </data>
+  <data name="Reading_AudioFailed" xml:space="preserve">
+    <value>오디오 생성에 실패했습니다. 오디오 없이 읽습니다.</value>
+  </data>
+  <data name="Reading_AudioError" xml:space="preserve">
+    <value>오디오 오류: {0}</value>
+  </data>
+  <data name="Reading_AudioStillLoading" xml:space="preserve">
+    <value>오디오를 아직 불러오는 중입니다...</value>
+  </data>
+  <data name="Reading_NoAudio" xml:space="preserve">
+    <value>사용할 수 있는 오디오가 없습니다.</value>
+  </data>
+  <data name="Reading_JumpHint" xml:space="preserve">
+    <value>문장을 두 번 탭하면 그 문장으로 이동합니다!</value>
+  </data>
+  <data name="Reading_WordSaved" xml:space="preserve">
+    <value>'{0}'을(를) 어휘에 저장했습니다!</value>
+  </data>
+  <data name="Reading_CouldNotSaveWord" xml:space="preserve">
+    <value>단어를 저장할 수 없습니다.</value>
+  </data>
+  <data name="Reading_ErrorSavingWord" xml:space="preserve">
+    <value>단어 저장 중 오류가 발생했습니다.</value>
+  </data>
+  <data name="Reading_TranslationUnavailable" xml:space="preserve">
+    <value>(번역을 사용할 수 없음)</value>
+  </data>
+  <data name="Reading_Play" xml:space="preserve">
+    <value>재생</value>
+  </data>
+  <data name="Reading_Pause" xml:space="preserve">
+    <value>일시 정지</value>
+  </data>
+  <data name="Reading_PreviousSentence" xml:space="preserve">
+    <value>이전 문장</value>
+  </data>
+  <data name="Reading_NextSentence" xml:space="preserve">
+    <value>다음 문장</value>
+  </data>
+  <data name="Reading_PlaybackSpeed" xml:space="preserve">
+    <value>재생 속도</value>
+  </data>
+  <data name="Reading_FontSize" xml:space="preserve">
+    <value>글꼴 크기</value>
+  </data>
 </root>
