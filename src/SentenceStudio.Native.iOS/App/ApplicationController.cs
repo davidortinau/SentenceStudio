@@ -505,7 +505,8 @@ internal sealed partial class ApplicationController : IDisposable
             },
             AddResource: OpenResourceAddFromDashboard,
             OpenQuiz: id => Run(() => OpenPlanCardAsync(id)),
-            OpenResource: OpenResourceFromDashboard),
+            OpenResource: OpenResourceFromDashboard,
+            PreviewPlanVocabulary: OpenFlashcardPreview),
             isTablet: style.ViewportWidth >= 768);
 
     internal SwiftView RenderDashboardContent(SourceUiStyle style) =>

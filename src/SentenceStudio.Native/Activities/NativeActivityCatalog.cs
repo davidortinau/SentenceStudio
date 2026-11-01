@@ -59,6 +59,15 @@ public static class NativeActivityCatalog
     public const string Conversation = "conversation";
     public const string Diary = "diary";
 
+    /// <summary>
+    /// Flashcard Preview (/flashcard-activity, activities.md 16) opens only from
+    /// the Dashboard insight "Preview plan vocabulary"
+    /// (<see cref="NativeActivityLaunchService.FromPlanPreview"/>). It is not a
+    /// plan type or a Choose My Own tile and starts no timer, so it is
+    /// deliberately not listed in <see cref="Implemented"/>.
+    /// </summary>
+    public const string FlashcardPreview = "flashcard-activity";
+
     public static ImmutableArray<NativeActivityDefinition> Implemented { get; } =
     [
         new(VocabularyMatching, [PlanActivityType.VocabularyGame], TimerRecordsSkill: false),

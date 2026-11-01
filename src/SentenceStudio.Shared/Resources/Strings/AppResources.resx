@@ -9554,4 +9554,19 @@ For example: {0} ...</value>
   <data name="NativeConversation_DismissNotices" xml:space="preserve">
     <value>Dismiss</value>
   </data>
+  <data name="Flashcard_Title" xml:space="preserve">
+    <value>Flashcard Preview</value>
+  </data>
+  <data name="Flashcard_Summary" xml:space="preserve">
+    <value>Flashcard summary</value>
+  </data>
+  <data name="Flashcard_NoPreviewVocabulary" xml:space="preserve">
+    <value>No flashcard preview vocabulary is available for this daily plan.</value>
+  </data>
+  <data name="Flashcard_CardCounter" xml:space="preserve">
+    <value>Card {0} / {1}</value>
+  </data>
+  <data name="Flashcard_FlipCard" xml:space="preserve">
+    <value>Tap to flip the card</value>
+  </data>
 </root>

@@ -246,7 +246,14 @@ public sealed class NativeSwiftUIDashboardContractTests
 
         Assert.Contains("vocab.PreviewWords.Count > 0", feature);
         Assert.Contains("text(\"Dashboard_PreviewPlanVocabulary\")", feature);
-        Assert.Contains("preview.IsEnabled = false;", feature);
+        // D07: the button opens Flashcard Preview for the shown plan date.
+        Assert.Contains("() => previewPlanVocabulary?.Invoke())", feature);
+        Assert.Contains("preview.IsEnabled = previewPlanVocabulary is not null;", feature);
+        Assert.Contains("PreviewPlanVocabulary: OpenFlashcardPreview", app);
+        var activities = Source("App/ApplicationController.Activities.cs");
+        Assert.Contains(".FromPlanPreview(planDate);", activities);
+        Assert.Contains("NativeActivityCatalog.FlashcardPreview => new FlashcardScreen(host)",
+            Source("Features/Activities/ActivityScreens.cs"));
     }
 
     [Fact]

@@ -146,6 +146,9 @@ internal sealed partial class AndroidSliceShell
             case NativeActivityCatalog.Diary:
                 await OpenDiaryAsync(launch, cancellationToken);
                 break;
+            case NativeActivityCatalog.FlashcardPreview:
+                await OpenFlashcardsAsync(launch, cancellationToken);
+                break;
         }
     }
 
@@ -162,6 +165,7 @@ internal sealed partial class AndroidSliceShell
         NativeActivityCatalog.WordAssociation => RenderWordAssociation(palette),
         NativeActivityCatalog.Conversation => RenderConversation(palette),
         NativeActivityCatalog.Diary => RenderDiary(palette),
+        NativeActivityCatalog.FlashcardPreview => RenderFlashcards(palette),
         _ => Body(Localize(NativeMatchingText.Unavailable), palette),
     };
 
@@ -210,6 +214,9 @@ internal sealed partial class AndroidSliceShell
             case NativeActivityCatalog.Diary:
                 await ExitDiaryAsync(cancellationToken);
                 break;
+            case NativeActivityCatalog.FlashcardPreview:
+                await ExitFlashcardsAsync(cancellationToken);
+                break;
         }
         ReleaseActivity();
         Publish(() => Destination = NativeDestination.Dashboard);
@@ -230,6 +237,7 @@ internal sealed partial class AndroidSliceShell
         ReleaseWordAssociation();
         ReleaseConversation();
         ReleaseDiary();
+        ReleaseFlashcards();
         _activityScope?.Dispose();
         _activityScope = null;
         _activityRoute = null;

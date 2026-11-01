@@ -67,7 +67,8 @@ internal static class DashboardView
                 actions.ExpandActivities, actions.LaunchChooseOwnActivity, isTablet);
         else if (TodaysPlanView.AddPhaseContent(items, state, busy,
             style, text, actions.Generate, actions.RetryChooseOwn, insightExpanded,
-            actions.ToggleInsight, actions.OpenQuiz, actions.OpenResource))
+            actions.ToggleInsight, actions.OpenQuiz, actions.OpenResource,
+            actions.PreviewPlanVocabulary))
             return DashboardPage(items, style);
         DashboardLearningProgressView.AddSections(items, state, style, text);
         if (busy)

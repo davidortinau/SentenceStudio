@@ -16,7 +16,8 @@ internal static class TodaysPlanView
         List<SwiftView> items, NativeDashboardState state, bool busy,
         SourceUiStyle style, Func<string, string> text, Action generate,
         Action retryChooseOwn, bool insightExpanded, Action toggleInsight,
-        Action<string>? openQuiz, Action<string>? openResource = null)
+        Action<string>? openQuiz, Action<string>? openResource = null,
+        Action? previewPlanVocabulary = null)
     {
         switch (state.Phase)
         {
@@ -100,7 +101,8 @@ internal static class TodaysPlanView
                 items.Add(style.Card(progressCard)
                     .WithAccessibilityIdentifier("native.plan.progress"));
                 PlanInsightView.Add(items, state, insightExpanded,
-                    toggleInsight, style, text, openResource);
+                    toggleInsight, style, text, openResource,
+                    previewPlanVocabulary);
 
                 foreach (var card in state.Cards)
                     items.Add(PlanCardView.Create(card, style, text, openQuiz));
