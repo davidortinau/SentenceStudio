@@ -69,7 +69,7 @@ public class VocabularyLearningContextRepository
         
         try
         {
-            item.UpdatedAt = DateTime.Now;
+            item.UpdatedAt = DateTime.UtcNow;
             
             var existsInDb = await db.VocabularyLearningContexts.AnyAsync(x => x.Id == item.Id);
 
@@ -92,7 +92,7 @@ public class VocabularyLearningContextRepository
             }
             else
             {
-                item.CreatedAt = DateTime.Now;
+                item.CreatedAt = DateTime.UtcNow;
                 db.VocabularyLearningContexts.Add(item);
             }
             

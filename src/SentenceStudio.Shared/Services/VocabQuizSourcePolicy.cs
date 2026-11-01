@@ -18,7 +18,7 @@ public static class VocabQuizSourcePolicy
 
     public static VocabQuizBatchSelection SelectNonFocusBatch(
         string userId, bool dueOnly, IReadOnlyList<VocabularyQuizItem> candidates,
-        DateTime localNow)
+        DateTime utcNow)
     {
         if (string.IsNullOrWhiteSpace(userId))
             throw new UnauthorizedAccessException("Quiz selection requires an active owner.");
@@ -45,12 +45,11 @@ public static class VocabQuizSourcePolicy
 
         if (dueOnly)
         {
-            // NextReviewDate is stored in the same local frame as DateTime.Now
-            // (VocabularyProgress.IsDueForReview and the source Razor quiz).
+            // NextReviewDate is a UTC instant (VocabularyProgress.IsDueForReview).
             eligible = eligible.Where(item =>
                 (item.Progress?.TotalAttempts ?? 0) == 0
                 || item.Progress?.NextReviewDate is { } nextReview
-                    && nextReview <= localNow);
+                    && nextReview <= utcNow);
         }
 
         return new VocabQuizBatchSelection(

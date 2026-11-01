@@ -334,7 +334,7 @@ else
                                 <div>
                                     <div class="ss-body2">@ActivityLabel(ctx)</div>
                                     <small class="text-secondary-ss">
-                                        @ctx.LearnedAt.ToString("MMM d, yyyy · h:mm tt")
+                                        @ctx.LearnedAt.ToLocalTime().ToString("MMM d, yyyy · h:mm tt")
                                         @if (ctx.LearningResource != null && !string.IsNullOrWhiteSpace(ctx.LearningResource.Title))
                                         {
                                             <span> · @ctx.LearningResource.Title</span>
@@ -649,7 +649,7 @@ else
         else
         {
             var now = DateTime.Now.Date;
-            var reviewDate = progress.NextReviewDate.Value.Date;
+            var reviewDate = progress.NextReviewDate.Value.ToLocalTime().Date;
             reviewDateText = reviewDate <= now ? "Due now"
                 : reviewDate == now.AddDays(1) ? "Tomorrow"
                 : reviewDate <= now.AddDays(7) ? $"{(reviewDate - now).Days} days away"
@@ -712,7 +712,7 @@ else
             int pct = (int)Math.Round(Math.Clamp(clone.MasteryScore, 0f, 1f) * 100);
             masteryAfterByContextId[ctx.Id] = clone.MasteryScore;
             string outcome = ctx.WasCorrect ? correctText : incorrectText;
-            activePoints.Add((pct, ctx.WasCorrect, $"{pct}% · {outcome} · {ctx.LearnedAt:MMM d, yyyy}"));
+            activePoints.Add((pct, ctx.WasCorrect, $"{pct}% · {outcome} · {ctx.LearnedAt.ToLocalTime():MMM d, yyyy}"));
         }
 
         BuildChartGeometry(activePoints);

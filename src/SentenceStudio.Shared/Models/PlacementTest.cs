@@ -16,7 +16,7 @@ public class PlacementTest
     public PlacementTestType TestType { get; set; }
     public PlacementTestStatus Status { get; set; } = PlacementTestStatus.NotStarted;
     
-    public DateTime CreatedAt { get; set; } = DateTime.Now;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? StartedAt { get; set; }
     public DateTime? CompletedAt { get; set; }
     

@@ -72,7 +72,7 @@ internal static class QuizLearningDetailsView
                 SourceTextRole.Body2Strong),
             Views.LazyVGrid(2,
                 Value("VocabWordEdit_NextReviewLabel",
-                details.NextReviewDate?.ToString("d", CultureInfo.CurrentCulture)
+                details.NextReviewDate?.ToLocalTime().ToString("d", CultureInfo.CurrentCulture)
                     ?? text("NotScheduled"),
                 "native.quiz.details.next-review", style, text),
                 Value("NativeVocabQuiz_Details_ReviewInterval",

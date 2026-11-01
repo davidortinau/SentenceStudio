@@ -35,8 +35,8 @@ public class WordAssociationScore
     public string? WordIds { get; set; }
 
     [JsonIgnore]
-    public DateTime CreatedAt { get; set; } = DateTime.Now;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     [JsonIgnore]
-    public DateTime UpdatedAt { get; set; } = DateTime.Now;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

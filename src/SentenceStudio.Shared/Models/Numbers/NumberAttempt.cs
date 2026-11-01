@@ -19,5 +19,5 @@ public class NumberAttempt
     public bool IsCorrect { get; set; }
     public string? ErrorClass { get; set; }
     public int LatencyMs { get; set; }
-    public DateTime AttemptedAt { get; set; } = DateTime.Now;
+    public DateTime AttemptedAt { get; set; } = DateTime.UtcNow;
 }

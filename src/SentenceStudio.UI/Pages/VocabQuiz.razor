@@ -544,7 +544,7 @@ else
             <div class="row g-2 mb-3">
                 <div class="col-6">
                     <small class="text-secondary-ss d-block">NextReviewDate</small>
-                    <span class="ss-body2 fw-bold">@(p?.NextReviewDate?.ToString("MMM d, yyyy") ?? "Not scheduled")</span>
+                    <span class="ss-body2 fw-bold">@(p?.NextReviewDate?.ToLocalTime().ToString("MMM d, yyyy") ?? "Not scheduled")</span>
                 </div>
                 <div class="col-6">
                     <small class="text-secondary-ss d-block">ReviewInterval</small>
@@ -1009,7 +1009,7 @@ else
                 ? null
                 : VocabQuizSourcePolicy.SelectNonFocusBatch(
                     currentUserId, DueOnly, quizCandidates,
-                    DateTime.Now); // allow:srs-local-frame — match NextReviewDate writers
+                    DateTime.UtcNow); // NextReviewDate is a UTC instant
 
             batchPool = usingFocusVocabularyIds
                 ? quizCandidates.Take(BatchSize).ToList()
@@ -2341,7 +2341,7 @@ else
                 if (currentItem.LostKnownThisSession && updatedProgress.IsKnown)
                 {
                     updatedProgress.ReviewInterval = 14;
-                    updatedProgress.NextReviewDate = DateTime.Now.AddDays(14); // allow:srs-local-frame — match NextReviewDate writers + IsDueForReview
+                    updatedProgress.NextReviewDate = DateTime.UtcNow.AddDays(14);
                     // Persist the shorter interval
                     await ProgressService.UpdateProgressAsync(updatedProgress);
                 }

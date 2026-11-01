@@ -1251,7 +1251,7 @@ internal sealed partial class AndroidSliceShell
             palette, "mastery"));
         content.Add(Heading(Localize("NativeVocabQuiz_Details_SrsSchedule"), palette, 16));
         content.Add(DetailField(Localize("VocabWordEdit_NextReviewLabel"),
-            details.NextReviewDate?.ToString("MMM d, yyyy",
+            details.NextReviewDate?.ToLocalTime().ToString("MMM d, yyyy",
                 CultureInfo.CurrentCulture) ?? Localize("NotScheduled"),
             palette, "next-review"));
         content.Add(DetailField(Localize("NativeVocabQuiz_Details_ReviewInterval"),

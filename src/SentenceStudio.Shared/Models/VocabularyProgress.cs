@@ -72,8 +72,8 @@ public class VocabularyProgress
     public VerificationStatus VerificationState { get; set; } = VerificationStatus.None;
 
     // Learning metadata
-    public DateTime FirstSeenAt { get; set; } = DateTime.Now;
-    public DateTime LastPracticedAt { get; set; } = DateTime.Now;
+    public DateTime FirstSeenAt { get; set; } = DateTime.UtcNow;
+    public DateTime LastPracticedAt { get; set; } = DateTime.UtcNow;
     public DateTime? MasteredAt { get; set; } // When reached mastery threshold
 
     // Passive exposure tracking (Reading word lookups)
@@ -81,10 +81,10 @@ public class VocabularyProgress
     public int ExposureCount { get; set; } = 0;
 
     [JsonIgnore]
-    public DateTime CreatedAt { get; set; } = DateTime.Now;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     [JsonIgnore]
-    public DateTime UpdatedAt { get; set; } = DateTime.Now;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     // Navigation properties
     [JsonIgnore]
@@ -143,14 +143,14 @@ public class VocabularyProgress
         (float)ApplicationCorrect / ApplicationAttempts : 0;
 
     [NotMapped]
-    public bool IsDueForReview => NextReviewDate.HasValue && NextReviewDate.Value <= DateTime.Now;
+    public bool IsDueForReview => NextReviewDate.HasValue && NextReviewDate.Value <= DateTime.UtcNow;
 
     [NotMapped]
     public bool IsFamiliar => IsUserDeclared && VerificationState == VerificationStatus.Pending;
 
     [NotMapped]
     public bool IsInGracePeriod => IsFamiliar && UserDeclaredAt.HasValue
-        && (DateTime.Now - UserDeclaredAt.Value).TotalDays < 14;
+        && (DateTime.UtcNow - UserDeclaredAt.Value).TotalDays < 14;
 
     // LEGACY: computed properties for backward compatibility
     [NotMapped]

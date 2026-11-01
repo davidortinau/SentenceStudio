@@ -25,7 +25,7 @@ public sealed class NativeQuizEligibilityAdapter(
             scope, preferences, resources, cancellationToken);
 
         var selected = VocabQuizSourcePolicy.SelectNonFocusBatch(
-            userId, dueOnly, candidates, DateTime.Now);
+            userId, dueOnly, candidates, DateTime.UtcNow);
         NativeQuizOwnerGuard.RequireActiveOwner(userId, scope, preferences, cancellationToken);
         return new NativeQuizEligibilityResult(selected.Batch, selected.AllMastered);
     }

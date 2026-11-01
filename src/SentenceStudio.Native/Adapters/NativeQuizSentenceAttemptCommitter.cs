@@ -111,7 +111,7 @@ public sealed class NativeQuizSentenceAttemptCommitter(
                 ExpectedAnswer = word.TargetLanguageTerm,
                 ResponseTimeMs = 0
             };
-            var now = DateTime.Now;
+            var now = DateTime.UtcNow;
             VocabularyProgressService.ApplyAttemptScoring(progress, attempt, now);
             if (progress.IsFamiliar)
             {

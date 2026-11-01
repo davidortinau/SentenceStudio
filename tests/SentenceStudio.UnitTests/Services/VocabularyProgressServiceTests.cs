@@ -187,9 +187,9 @@ public class VocabularyProgressServiceTests
         var userId = "user-1";
         var allProgress = new List<VocabularyProgress>
         {
-            new() { UserId = userId, NextReviewDate = DateTime.Now.AddDays(-1), MasteryScore = 0.5f }, // Due
-            new() { UserId = userId, NextReviewDate = DateTime.Now.AddDays(1), MasteryScore = 0.6f },  // Not due
-            new() { UserId = userId, NextReviewDate = DateTime.Now.AddDays(-2), MasteryScore = 0.9f, ProductionInStreak = 2 }, // Known (excluded)
+            new() { UserId = userId, NextReviewDate = DateTime.UtcNow.AddDays(-1), MasteryScore = 0.5f }, // Due
+            new() { UserId = userId, NextReviewDate = DateTime.UtcNow.AddDays(1), MasteryScore = 0.6f },  // Not due
+            new() { UserId = userId, NextReviewDate = DateTime.UtcNow.AddDays(-2), MasteryScore = 0.9f, ProductionInStreak = 2 }, // Known (excluded)
         };
 
         _mockProgressRepo
@@ -201,7 +201,7 @@ public class VocabularyProgressServiceTests
 
         // Assert
         result.Should().HaveCount(1, "should only return words that are due and not yet known");
-        result[0].NextReviewDate.Should().BeBefore(DateTime.Now);
+        result[0].NextReviewDate.Should().BeBefore(DateTime.UtcNow);
     }
 
     [Fact]

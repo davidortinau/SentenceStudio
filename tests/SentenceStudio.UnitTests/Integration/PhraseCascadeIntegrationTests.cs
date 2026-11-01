@@ -123,11 +123,11 @@ public class PhraseCascadeIntegrationTests : IClassFixture<PlanGenerationTestFix
         var after2 = await _progressRepo.GetByWordIdAndUserIdAsync(constituent2Id, PlanGenerationTestFixture.TestUserId);
 
         after1!.ExposureCount.Should().Be(before1!.ExposureCount + 1, "constituent1 exposure count incremented");
-        after1.LastExposedAt.Should().BeCloseTo(DateTime.Now, TimeSpan.FromSeconds(5),
+        after1.LastExposedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(5),
             "constituent1 LastExposedAt updated to recent timestamp");
 
         after2!.ExposureCount.Should().Be(before2!.ExposureCount + 1, "constituent2 exposure count incremented");
-        after2.LastExposedAt.Should().BeCloseTo(DateTime.Now, TimeSpan.FromSeconds(5),
+        after2.LastExposedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(5),
             "constituent2 LastExposedAt updated");
 
         // Mastery/Streak unchanged (already verified in scenario 1, but double-check)
@@ -346,7 +346,7 @@ public class PhraseCascadeIntegrationTests : IClassFixture<PlanGenerationTestFix
         afterConstituent.MasteryScore.Should().Be(0, "new progress starts with zero mastery");
         afterConstituent.CurrentStreak.Should().Be(0, "new progress starts with zero streak");
         afterConstituent.IsKnown.Should().BeFalse();
-        afterConstituent.LastExposedAt.Should().BeCloseTo(DateTime.Now, TimeSpan.FromSeconds(5));
+        afterConstituent.LastExposedAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromSeconds(5));
     }
 
     #endregion

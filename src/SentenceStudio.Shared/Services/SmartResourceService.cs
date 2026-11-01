@@ -77,8 +77,8 @@ public class SmartResourceService
                     Tags = "system-generated,dynamic,srs",
                     IsSmartResource = true,
                     SmartResourceType = SmartResourceType_DailyReview,
-                    CreatedAt = DateTime.Now,
-                    UpdatedAt = DateTime.Now
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
                 },
                 new LearningResource
                 {
@@ -89,8 +89,8 @@ public class SmartResourceService
                     Tags = "system-generated,dynamic,new",
                     IsSmartResource = true,
                     SmartResourceType = SmartResourceType_NewWords,
-                    CreatedAt = DateTime.Now,
-                    UpdatedAt = DateTime.Now
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
                 },
                 new LearningResource
                 {
@@ -101,8 +101,8 @@ public class SmartResourceService
                     Tags = "system-generated,dynamic,review",
                     IsSmartResource = true,
                     SmartResourceType = SmartResourceType_Struggling,
-                    CreatedAt = DateTime.Now,
-                    UpdatedAt = DateTime.Now
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
                 },
                 new LearningResource
                 {
@@ -113,8 +113,8 @@ public class SmartResourceService
                     Tags = "system-generated,dynamic,phrases",
                     IsSmartResource = true,
                     SmartResourceType = SmartResourceType_Phrases,
-                    CreatedAt = DateTime.Now,
-                    UpdatedAt = DateTime.Now
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
                 },
                 new LearningResource
                 {
@@ -125,8 +125,8 @@ public class SmartResourceService
                     Tags = "system-generated,dynamic,sentences",
                     IsSmartResource = true,
                     SmartResourceType = SmartResourceType_Sentences,
-                    CreatedAt = DateTime.Now,
-                    UpdatedAt = DateTime.Now
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
                 }
             };
 
@@ -274,9 +274,11 @@ public class SmartResourceService
         // service provider.
         using var scope = _serviceProvider.CreateScope();
         var dateContext = scope.ServiceProvider.GetRequiredService<Plans.IPlanDateContext>();
-        var today = dateContext.UserLocalDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        // NextReviewDate is a UTC instant: "due today" means due by the instant that
+        // opens the learner's local day (not the UTC-labeled day key).
+        var dueCutoffUtc = Plans.PlanDateContextExtensions.DueCutoffUtc(dateContext);
 
-        var dueWords = await _progressRepo.GetDueVocabularyAsync(today, userId);
+        var dueWords = await _progressRepo.GetDueVocabularyAsync(dueCutoffUtc, userId);
 
         var wordIds = dueWords
             .Where(vp => vp.MasteryScore < MASTERY_THRESHOLD) // Not graduated

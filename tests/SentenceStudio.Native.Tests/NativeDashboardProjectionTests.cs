@@ -482,8 +482,8 @@ public sealed class NativeDashboardProjectionTests
                     VocabularyWordId = fixture.WordId(NativeSliceFixture.UserA, 0),
                     TotalAttempts = 4,
                     CorrectAttempts = 3,
-                    LastPracticedAt = DateTime.Now.AddDays(-1),
-                    NextReviewDate = DateTime.Now.AddDays(1),
+                    LastPracticedAt = DateTime.UtcNow.AddDays(-1),
+                    NextReviewDate = DateTime.UtcNow.AddDays(1),
                 },
                 new VocabularyProgress
                 {
@@ -492,7 +492,7 @@ public sealed class NativeDashboardProjectionTests
                     VocabularyWordId = fixture.WordId(NativeSliceFixture.UserB, 0),
                     TotalAttempts = 4,
                     CorrectAttempts = 4,
-                    LastPracticedAt = DateTime.Now.AddDays(-1),
+                    LastPracticedAt = DateTime.UtcNow.AddDays(-1),
                 });
             await db.SaveChangesAsync();
         }

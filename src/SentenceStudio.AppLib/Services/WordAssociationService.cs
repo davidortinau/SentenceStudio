@@ -149,8 +149,8 @@ public class WordAssociationService
                 TotalClues = totalClues,
                 WordCount = wordIds.Count,
                 WordIds = string.Join(",", wordIds),
-                CreatedAt = DateTime.Now,
-                UpdatedAt = DateTime.Now
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
             };
 
             db.WordAssociationScores.Add(score);
@@ -197,9 +197,12 @@ public class WordAssociationService
             using var scope = _serviceProvider.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
+            // The week is the learner's local Monday-Sunday; CreatedAt is a UTC instant,
+            // so compare against the instant that opens the local Monday.
             var today = DateTime.Now.Date;
             var daysSinceMonday = ((int)today.DayOfWeek + 6) % 7;
-            var weekStart = today.AddDays(-daysSinceMonday);
+            var weekStart = DateTime.SpecifyKind(today.AddDays(-daysSinceMonday), DateTimeKind.Local)
+                .ToUniversalTime();
 
             return await db.WordAssociationScores
                 .Where(s => s.UserProfileId == userId && s.CreatedAt >= weekStart)

@@ -20,7 +20,7 @@ public partial class Conversation : ObservableObject
     public string? UserProfileId { get; set; }
 
     // Original properties
-    public DateTime CreatedAt { get; set; } = DateTime.Now;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     /// <summary>
     /// The target language for this conversation.

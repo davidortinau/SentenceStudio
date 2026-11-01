@@ -81,7 +81,7 @@ public class VocabularyProgressService : IVocabularyProgressService
 
         // The native transactional writer uses this same operation, including the
         // legacy fields and quiz demonstration counters, rather than copying policy.
-        ApplyAttemptScoring(progress, attempt, DateTime.Now);
+        ApplyAttemptScoring(progress, attempt, DateTime.UtcNow);
 
         if (!wasMasteredBefore && progress.MasteredAt.HasValue)
         {
@@ -409,7 +409,7 @@ public class VocabularyProgressService : IVocabularyProgressService
 
     private Task RecordLearningContextAsync(string vocabularyProgressId, VocabularyAttempt attempt) =>
         _contextRepo.SaveAsync(CreateLearningContext(
-            vocabularyProgressId, attempt, DateTime.Now));
+            vocabularyProgressId, attempt, DateTime.UtcNow));
 
     private async Task<VocabularyProgress> GetOrCreateProgressAsync(string vocabularyWordId, string userId)
     {
@@ -423,10 +423,10 @@ public class VocabularyProgressService : IVocabularyProgressService
         {
             VocabularyWordId = vocabularyWordId,
             UserId = userId,
-            FirstSeenAt = DateTime.Now,
-            LastPracticedAt = DateTime.Now,
-            CreatedAt = DateTime.Now,
-            UpdatedAt = DateTime.Now,
+            FirstSeenAt = DateTime.UtcNow,
+            LastPracticedAt = DateTime.UtcNow,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
             CurrentPhase = LearningPhase.Recognition,
             ReviewInterval = 1,
             EaseFactor = 2.5f
@@ -450,10 +450,10 @@ public class VocabularyProgressService : IVocabularyProgressService
         if (declaredStatus == LearningStatus.Familiar)
         {
             progress.IsUserDeclared = true;
-            progress.UserDeclaredAt = DateTime.Now;
+            progress.UserDeclaredAt = DateTime.UtcNow;
             progress.VerificationState = VerificationStatus.Pending;
             // Set review date to end of grace period (14 days)
-            progress.NextReviewDate = DateTime.Now.AddDays(14);
+            progress.NextReviewDate = DateTime.UtcNow.AddDays(14);
             progress.ReviewInterval = 30; // After grace period, review every 30 days
 
             _logger.LogInformation("Word {WordId} marked as Familiar by user {UserId}. Grace period until {GraceEnd:d}.",
@@ -463,7 +463,7 @@ public class VocabularyProgressService : IVocabularyProgressService
         {
             // Learning or Unknown: reset to algorithmic tracking
             progress.IsUserDeclared = true;
-            progress.UserDeclaredAt = DateTime.Now;
+            progress.UserDeclaredAt = DateTime.UtcNow;
             progress.VerificationState = VerificationStatus.None;
 
             if (declaredStatus == LearningStatus.Unknown)
@@ -483,7 +483,7 @@ public class VocabularyProgressService : IVocabularyProgressService
                 vocabularyWordId, declaredStatus, userId);
         }
 
-        progress.UpdatedAt = DateTime.Now;
+        progress.UpdatedAt = DateTime.UtcNow;
         return await _progressRepo.SaveAsync(progress);
     }
 
@@ -507,10 +507,10 @@ public class VocabularyProgressService : IVocabularyProgressService
             progress.MasteryScore = 1.0f;
             progress.CurrentStreak = 7f;
             progress.ProductionInStreak = MIN_PRODUCTION_FOR_KNOWN;
-            progress.MasteredAt = DateTime.Now;
+            progress.MasteredAt = DateTime.UtcNow;
             progress.ReviewInterval = 60;
             progress.EaseFactor = 2.5f;
-            progress.NextReviewDate = DateTime.Now.AddDays(60);
+            progress.NextReviewDate = DateTime.UtcNow.AddDays(60);
 
             _logger.LogInformation("Word {WordId} verified and promoted to Known for user {UserId}.",
                 vocabularyWordId, userId);
@@ -524,14 +524,14 @@ public class VocabularyProgressService : IVocabularyProgressService
             progress.CurrentStreak = 0f;
             progress.ProductionInStreak = 0;
             progress.ReviewInterval = 1;
-            progress.NextReviewDate = DateTime.Now.AddDays(1);
+            progress.NextReviewDate = DateTime.UtcNow.AddDays(1);
 
             _logger.LogInformation("Word {WordId} failed verification, moved to Learning for user {UserId}.",
                 vocabularyWordId, userId);
         }
 
-        progress.LastPracticedAt = DateTime.Now;
-        progress.UpdatedAt = DateTime.Now;
+        progress.LastPracticedAt = DateTime.UtcNow;
+        progress.UpdatedAt = DateTime.UtcNow;
         return await _progressRepo.SaveAsync(progress);
     }
 
@@ -627,7 +627,7 @@ public class VocabularyProgressService : IVocabularyProgressService
     /// </summary>
     public async Task UpdateProgressAsync(VocabularyProgress progress)
     {
-        progress.UpdatedAt = DateTime.Now;
+        progress.UpdatedAt = DateTime.UtcNow;
         await _progressRepo.SaveAsync(progress);
     }
 
@@ -720,11 +720,11 @@ public class VocabularyProgressService : IVocabularyProgressService
     {
         var progress = await GetOrCreateProgressAsync(vocabularyWordId, userId);
 
-        var context = CreatePassiveExposureContext(progress.Id, activity, DateTime.Now);
+        var context = CreatePassiveExposureContext(progress.Id, activity, DateTime.UtcNow);
         await _contextRepo.SaveAsync(context);
 
         // Update passive exposure tracking — NOT LastPracticedAt (SRS uses that)
-        ApplyPassiveExposure(progress, DateTime.Now);
+        ApplyPassiveExposure(progress, DateTime.UtcNow);
         await _progressRepo.SaveAsync(progress);
 
         _logger.LogDebug("Passive exposure recorded: Word {WordId}, User {UserId}, Activity {Activity}, ExposureCount {Count}",

@@ -23,7 +23,7 @@ namespace SentenceStudio.UnitTests.Services.Progress;
 ///   - coordinator-captain-prod-confirmation-and-scope.md (three defects)
 ///   - wash-impl-per-user-timezone-plan-dates.md (implementation)
 /// </summary>
-public class Concern2TimezoneRegressionTests
+public partial class Concern2TimezoneRegressionTests
 {
     // ========================================================================
     // 1. PlanDateContext resolves user timezone (not UTC) near midnight
@@ -322,12 +322,28 @@ public class Concern2TimezoneRegressionTests
 
     private const string AllowMarker = "// allow:plan-date";
 
-    // SRS due-date (NextReviewDate) comparisons legitimately use DateTime.Now to stay
-    // consistent with the writers (VocabularyProgressService.cs) and the canonical reader
-    // (VocabularyProgress.IsDueForReview). That is a DIFFERENT concern from the plan-row
-    // timestamp columns (CreatedAt/Date/GeneratedAtUtc) this guard protects, so lines
-    // carrying this marker are exempt. Removing the marker MUST still flag plan-timestamp misuse.
-    private const string SrsLocalFrameMarker = "// allow:srs-local-frame";
+    // There is no SRS "local frame" exemption any more: NextReviewDate and every other
+    // progress timestamp is a UTC instant on every store (see UtcInstantModelConfiguration).
+    // Learning-progress writers and readers outside Services/Progress are guarded too.
+    private static readonly string[] ProgressTimestampFiles =
+    {
+        Path.Combine("src", "SentenceStudio.Shared", "Models", "VocabularyProgress.cs"),
+        Path.Combine("src", "SentenceStudio.Shared", "Models", "VocabularyLearningContext.cs"),
+        Path.Combine("src", "SentenceStudio.Shared", "Models", "WordAssociationScore.cs"),
+        Path.Combine("src", "SentenceStudio.Shared", "Models", "Numbers", "NumberAttempt.cs"),
+        Path.Combine("src", "SentenceStudio.Shared", "Models", "Numbers", "NumberMasteryProgress.cs"),
+        Path.Combine("src", "SentenceStudio.Shared", "Data", "VocabularyProgressRepository.cs"),
+        Path.Combine("src", "SentenceStudio.Shared", "Data", "VocabularyProgressRepository.Queries.cs"),
+        Path.Combine("src", "SentenceStudio.Shared", "Data", "VocabularyLearningContextRepository.cs"),
+        Path.Combine("src", "SentenceStudio.Shared", "Services", "VocabularyProgressService.cs"),
+        Path.Combine("src", "SentenceStudio.Shared", "Services", "VocabularyProgressFold.cs"),
+        Path.Combine("src", "SentenceStudio.Shared", "Services", "VocabularyMasteryCalculator.cs"),
+        Path.Combine("src", "SentenceStudio.Shared", "Services", "VocabQuizSourcePolicy.cs"),
+        Path.Combine("src", "SentenceStudio.Shared", "Services", "SmartResourceService.cs"),
+        Path.Combine("src", "SentenceStudio.Native", "Adapters", "NativeQuizAttemptCommitterAdapter.cs"),
+        Path.Combine("src", "SentenceStudio.Native", "Adapters", "NativeQuizSentenceAttemptCommitter.cs"),
+        Path.Combine("src", "SentenceStudio.Native", "Adapters", "NativeQuizEligibilityAdapter.cs"),
+    };
 
     [Fact]
     public void ProgressServiceCode_DoesNotCallDateTimeNow()
@@ -342,20 +358,23 @@ public class Concern2TimezoneRegressionTests
         var repoRoot = FindRepoRoot();
         var offenders = new List<string>();
 
-        foreach (var rel in ProgressGatedPaths)
-        {
-            var dir = Path.Combine(repoRoot, rel);
-            if (!Directory.Exists(dir))
-                continue;
+        var files = ProgressGatedPaths
+            .Select(rel => Path.Combine(repoRoot, rel))
+            .Where(Directory.Exists)
+            .SelectMany(dir => Directory.EnumerateFiles(dir, "*.cs", SearchOption.AllDirectories))
+            .Concat(ProgressTimestampFiles.Select(rel => Path.Combine(repoRoot, rel)))
+            .ToList();
+        foreach (var listed in ProgressTimestampFiles)
+            File.Exists(Path.Combine(repoRoot, listed)).Should().BeTrue($"{listed} is guarded");
 
-            foreach (var file in Directory.EnumerateFiles(dir, "*.cs", SearchOption.AllDirectories))
+        {
+            foreach (var file in files)
             {
                 var lines = File.ReadAllLines(file);
                 for (int i = 0; i < lines.Length; i++)
                 {
                     var line = lines[i];
-                    if (line.Contains(AllowMarker, StringComparison.Ordinal)
-                        || line.Contains(SrsLocalFrameMarker, StringComparison.Ordinal))
+                    if (line.Contains(AllowMarker, StringComparison.Ordinal))
                         continue;
                     if (line.TrimStart().StartsWith("//") || line.TrimStart().StartsWith("///"))
                         continue;
@@ -406,8 +425,7 @@ public class Concern2TimezoneRegressionTests
         for (int i = 0; i < lines.Length; i++)
         {
             var line = lines[i];
-            if (line.Contains(AllowMarker, StringComparison.Ordinal)
-                || line.Contains(SrsLocalFrameMarker, StringComparison.Ordinal))
+            if (line.Contains(AllowMarker, StringComparison.Ordinal))
                 continue;
             if (line.TrimStart().StartsWith("//") || line.TrimStart().StartsWith("///")
                 || line.TrimStart().StartsWith("*") || line.TrimStart().StartsWith("@*"))

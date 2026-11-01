@@ -831,8 +831,8 @@ public sealed class NativeProductionAttemptTests
         await SetConstituentsAsync(fixture, 1, LexicalUnitType.Phrase, 3);
         fixture.SetPlanFocus(NativeSliceFixture.UserA,
             fixture.WordId(NativeSliceFixture.UserA, 0));
-        var lastPracticed = DateTime.Now.AddDays(-3);
-        var lastExposed = DateTime.Now.AddDays(-2);
+        var lastPracticed = DateTime.UtcNow.AddDays(-3);
+        var lastExposed = DateTime.UtcNow.AddDays(-2);
         using (var scope = fixture.Scope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();

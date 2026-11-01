@@ -151,7 +151,7 @@ public class ClozureService
     {
         var wordIds = allWords.Select(w => w.Id).ToList();
         var progressDict = await _progressService.GetProgressForWordsAsync(wordIds, ActiveUserId);
-        var now = DateTime.Now;
+        var now = DateTime.UtcNow; // NextReviewDate is a UTC instant
 
         return allWords.Where(w =>
         {
@@ -191,7 +191,7 @@ public class ClozureService
         var progressDict = await _progressService.GetProgressForWordsAsync(wordIds, ActiveUserId);
 
         // Filter to due words (same logic as VocabQuiz)
-        var now = DateTime.Now;
+        var now = DateTime.UtcNow; // NextReviewDate is a UTC instant
         var dueWords = allWords.Where(w =>
         {
             if (!progressDict.TryGetValue(w.Id, out var progress))

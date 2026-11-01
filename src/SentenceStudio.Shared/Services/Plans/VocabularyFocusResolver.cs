@@ -67,7 +67,8 @@ public sealed class VocabularyFocusResolver : IVocabularyFocusResolver
             return Empty(request, VocabularyFocusOutcome.NoMatches);
         }
 
-        var today = _dateContext.UserLocalDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        // NextReviewDate is a UTC instant; due means due by the start of the learner's local day.
+        var dueCutoffUtc = _dateContext.DueCutoffUtc();
 
         // Ownership, both derivations, filtered by the trusted scope.
         var progressOwned = _db.VocabularyProgresses
@@ -134,7 +135,7 @@ public sealed class VocabularyFocusResolver : IVocabularyFocusResolver
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
 
         var ranked = matches
-            .Select(w => Rank(w, progressLookup.GetValueOrDefault(w.Id), today))
+            .Select(w => Rank(w, progressLookup.GetValueOrDefault(w.Id), dueCutoffUtc))
             .OrderBy(r => (int)r.Tier)
             .ThenBy(r => r.SecondarySort)
             .ThenBy(r => r.Word.Id, StringComparer.Ordinal)
@@ -217,7 +218,7 @@ public sealed class VocabularyFocusResolver : IVocabularyFocusResolver
             .ToHashSet(StringComparer.Ordinal);
     }
 
-    private static RankedWord Rank(WordRow word, ProgressRow? progress, DateTime today)
+    private static RankedWord Rank(WordRow word, ProgressRow? progress, DateTime dueCutoffUtc)
     {
         if (progress is null || progress.TotalAttempts == 0)
         {
@@ -226,7 +227,7 @@ public sealed class VocabularyFocusResolver : IVocabularyFocusResolver
             return new RankedWord(word, RankTier.NeverPracticed, 0d, VocabularyFocusMatchReason.NeverPracticed);
         }
 
-        if (progress.NextReviewDate is { } due && due <= today)
+        if (progress.NextReviewDate is { } due && due <= dueCutoffUtc)
         {
             return new RankedWord(word, RankTier.DueOrWeak, progress.MasteryScore, VocabularyFocusMatchReason.DueForReview);
         }

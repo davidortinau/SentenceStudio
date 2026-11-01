@@ -218,7 +218,7 @@ public class VocabularyProgressEdgeCaseTests
         {
             IsUserDeclared = true,
             VerificationState = VerificationStatus.Pending,
-            UserDeclaredAt = DateTime.Now.AddDays(-7)
+            UserDeclaredAt = DateTime.UtcNow.AddDays(-7)
         };
         p.IsInGracePeriod.Should().BeTrue("declared 7 days ago, within 14-day grace");
     }
@@ -230,7 +230,7 @@ public class VocabularyProgressEdgeCaseTests
         {
             IsUserDeclared = true,
             VerificationState = VerificationStatus.Pending,
-            UserDeclaredAt = DateTime.Now.AddDays(-15)
+            UserDeclaredAt = DateTime.UtcNow.AddDays(-15)
         };
         p.IsInGracePeriod.Should().BeFalse("declared 15 days ago, past 14-day grace");
     }
@@ -243,14 +243,14 @@ public class VocabularyProgressEdgeCaseTests
     public void IsDueForReview_ExactlyNow_IsDue()
     {
         // NextReviewDate set to "now" — should be due (<=)
-        var p = new VocabularyProgress { NextReviewDate = DateTime.Now };
+        var p = new VocabularyProgress { NextReviewDate = DateTime.UtcNow };
         p.IsDueForReview.Should().BeTrue("review at exactly now should be due");
     }
 
     [Fact]
     public void IsDueForReview_OneSecondInFuture_NotDue()
     {
-        var p = new VocabularyProgress { NextReviewDate = DateTime.Now.AddSeconds(30) };
+        var p = new VocabularyProgress { NextReviewDate = DateTime.UtcNow.AddSeconds(30) };
         p.IsDueForReview.Should().BeFalse("30 seconds in future is not yet due");
     }
 

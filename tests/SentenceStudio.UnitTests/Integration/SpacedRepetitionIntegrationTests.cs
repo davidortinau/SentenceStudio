@@ -59,7 +59,7 @@ public class SpacedRepetitionIntegrationTests : IClassFixture<PlanGenerationTest
 
         // Assert: SM-2: first correct → interval = 6
         result.ReviewInterval.Should().Be(6);
-        result.NextReviewDate.Should().BeCloseTo(DateTime.Now.AddDays(6), TimeSpan.FromMinutes(5));
+        result.NextReviewDate.Should().BeCloseTo(DateTime.UtcNow.AddDays(6), TimeSpan.FromMinutes(5));
     }
 
     [Fact]
@@ -103,7 +103,7 @@ public class SpacedRepetitionIntegrationTests : IClassFixture<PlanGenerationTest
         // rather than flood the due pool back to "due tomorrow". Repeated failures still
         // compound down toward 1.
         result.ReviewInterval.Should().Be(3, "incorrect answer softens interval to round(15 * 0.2) = 3, not reset to 1");
-        result.NextReviewDate.Should().BeCloseTo(DateTime.Now.AddDays(3), TimeSpan.FromMinutes(5));
+        result.NextReviewDate.Should().BeCloseTo(DateTime.UtcNow.AddDays(3), TimeSpan.FromMinutes(5));
     }
 
     [Fact]
@@ -337,7 +337,7 @@ public class SpacedRepetitionIntegrationTests : IClassFixture<PlanGenerationTest
 
         // Assert: after wrong answer, review is tomorrow (interval = 1)
         result.ReviewInterval.Should().Be(1);
-        result.NextReviewDate.Should().BeCloseTo(DateTime.Now.AddDays(1), TimeSpan.FromMinutes(5));
+        result.NextReviewDate.Should().BeCloseTo(DateTime.UtcNow.AddDays(1), TimeSpan.FromMinutes(5));
     }
 
     #endregion

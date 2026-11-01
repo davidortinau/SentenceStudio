@@ -108,6 +108,59 @@ public sealed class NativeProgressMergePostgresTests : IClassFixture<NativeOwner
         await AssertServerAsync(seeded.ProgressId, 3, 3, 3);
     }
 
+    [ApplicationOperationPostgresFact]
+    public async Task ProgressTimestamps_RoundTripAsUtcInstants_OnTimestampTz()
+    {
+        // Under the API's legacy Npgsql switch timestamptz reads back as Kind=Local; the shared
+        // UTC converter returns the same instant as Kind=Utc, and a Local-kind write stores the
+        // true instant, so server code compares instants with DateTime.UtcNow consistently.
+        var (owner, _) = await _fixture.SeedOwnersAsync();
+        var seeded = await SeedPracticedWordAsync(owner, legacyAttempts: 0);
+        var due = new DateTime(2026, 11, 2, 15, 0, 0, DateTimeKind.Utc);
+        var practiced = new DateTime(2026, 10, 31, 16, 0, 0, DateTimeKind.Utc);
+        await using (var db = _fixture.NewContext())
+        {
+            var row = await db.VocabularyProgresses.SingleAsync(item => item.Id == seeded.ProgressId);
+            row.NextReviewDate = due;
+            row.LastPracticedAt = practiced.ToLocalTime();
+            await db.SaveChangesAsync();
+        }
+
+        await using (var db = _fixture.NewContext())
+        {
+            var connection = db.Database.GetDbConnection();
+            await connection.OpenAsync();
+            await using var command = connection.CreateCommand();
+            command.CommandText =
+                "SELECT to_char(\"NextReviewDate\" AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS'), "
+                + "to_char(\"LastPracticedAt\" AT TIME ZONE 'UTC', 'YYYY-MM-DD HH24:MI:SS') "
+                + "FROM \"VocabularyProgress\" WHERE \"Id\" = @id";
+            var parameter = command.CreateParameter();
+            parameter.ParameterName = "id";
+            parameter.Value = seeded.ProgressId;
+            command.Parameters.Add(parameter);
+            await using var reader = await command.ExecuteReaderAsync();
+            Assert.True(await reader.ReadAsync());
+            Assert.Equal("2026-11-02 15:00:00", reader.GetString(0));
+            Assert.Equal("2026-10-31 16:00:00", reader.GetString(1));
+        }
+
+        await using (var db = _fixture.NewContext())
+        {
+            var read = await db.VocabularyProgresses.AsNoTracking()
+                .SingleAsync(item => item.Id == seeded.ProgressId);
+            Assert.Equal(DateTimeKind.Utc, read.NextReviewDate!.Value.Kind);
+            Assert.Equal(due, read.NextReviewDate.Value);
+            Assert.Equal(DateTimeKind.Utc, read.LastPracticedAt.Kind);
+            Assert.Equal(practiced, read.LastPracticedAt);
+            Assert.Equal(1, await db.VocabularyProgresses.AsNoTracking()
+                .CountAsync(item => item.Id == seeded.ProgressId && item.NextReviewDate <= due));
+            Assert.Equal(0, await db.VocabularyProgresses.AsNoTracking()
+                .CountAsync(item => item.Id == seeded.ProgressId
+                    && item.NextReviewDate <= due.AddSeconds(-1)));
+        }
+    }
+
     private async Task AssertServerAsync(string progressId, int total, int correct, int contexts)
     {
         await using var db = _fixture.NewContext();

@@ -199,7 +199,7 @@ public class VocabularyProgressTests
         // Arrange
         var progress = new VocabularyProgress
         {
-            NextReviewDate = DateTime.Now.AddDays(-1)
+            NextReviewDate = DateTime.UtcNow.AddDays(-1)
         };
 
         // Act
@@ -215,7 +215,7 @@ public class VocabularyProgressTests
         // Arrange
         var progress = new VocabularyProgress
         {
-            NextReviewDate = DateTime.Now.AddDays(1)
+            NextReviewDate = DateTime.UtcNow.AddDays(1)
         };
 
         // Act

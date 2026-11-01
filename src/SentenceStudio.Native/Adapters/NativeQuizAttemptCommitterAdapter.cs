@@ -120,9 +120,9 @@ public sealed class NativeQuizAttemptCommitterAdapter(
         }
 
         VocabularyProgressService.ApplyAttemptScoring(
-            progress, frozenAttempt, DateTime.Now);
+            progress, frozenAttempt, DateTime.UtcNow);
         // VocabularyProgressRepository.SaveAsync also refreshes UpdatedAt.
-        progress.UpdatedAt = DateTime.Now;
+        progress.UpdatedAt = DateTime.UtcNow;
         NativeQuizOwnerGuard.RequireActiveOwner(
             userId, userScope, preferences, cancellationToken);
         await db.SaveChangesAsync(cancellationToken);
@@ -130,10 +130,10 @@ public sealed class NativeQuizAttemptCommitterAdapter(
         await RecordDirectConstituentExposuresAsync(
             db, userId, approved.Word, frozenAttempt, cancellationToken);
         var context = VocabularyProgressService.CreateLearningContext(
-            progress.Id, frozenAttempt, DateTime.Now);
+            progress.Id, frozenAttempt, DateTime.UtcNow);
         // Match the source repository's new-context timestamp treatment.
-        context.UpdatedAt = DateTime.Now;
-        context.CreatedAt = DateTime.Now;
+        context.UpdatedAt = DateTime.UtcNow;
+        context.CreatedAt = DateTime.UtcNow;
         db.VocabularyLearningContexts.Add(context);
         var nowUtc = DateTime.UtcNow;
         var journal = new StoredAttemptReceipt
@@ -551,7 +551,7 @@ public sealed class NativeQuizAttemptCommitterAdapter(
                 db.VocabularyProgresses.Add(child);
             }
 
-            var exposedAt = DateTime.Now;
+            var exposedAt = DateTime.UtcNow;
             var context = VocabularyProgressService.CreatePassiveExposureContext(
                 child.Id, activity, exposedAt);
             context.CreatedAt = exposedAt;
@@ -563,7 +563,7 @@ public sealed class NativeQuizAttemptCommitterAdapter(
 
     internal static VocabularyProgress CreateNewProgress(string userId, string wordId)
     {
-        var now = DateTime.Now;
+        var now = DateTime.UtcNow;
         return new VocabularyProgress
         {
             UserId = userId,

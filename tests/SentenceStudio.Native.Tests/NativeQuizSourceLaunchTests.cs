@@ -65,7 +65,7 @@ public sealed class NativeQuizSourceLaunchTests
                     VocabularyWordId = word.Id,
                     TotalAttempts = 2, CorrectAttempts = 1,
                     MasteryScore = 0.1f,
-                    NextReviewDate = DateTime.Now.AddDays(
+                    NextReviewDate = DateTime.UtcNow.AddDays(
                         word.Id == fixture.WordId(NativeSliceFixture.UserA, 0) ? -1 : 5)
                 });
             }

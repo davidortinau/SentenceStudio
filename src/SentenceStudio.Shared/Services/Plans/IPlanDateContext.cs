@@ -31,3 +31,18 @@ public interface IPlanDateContext
     /// </summary>
     DateTime ToUtcMidnight(DateOnly userLocal);
 }
+
+public static class PlanDateContextExtensions
+{
+    /// <summary>
+    /// The UTC instant that opens the learner's local today. A word is "due today" for a plan
+    /// when its <c>NextReviewDate</c> (a UTC instant) is at or before this cutoff. Compare
+    /// instants with this value, never with the <c>DailyPlan.Date</c>-style day key
+    /// (<c>UserLocalDate</c> labeled UTC), which is a calendar-day key and not an instant.
+    /// </summary>
+    public static DateTime DueCutoffUtc(this IPlanDateContext context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        return DateTime.SpecifyKind(context.ToUtcMidnight(context.UserLocalDate), DateTimeKind.Utc);
+    }
+}

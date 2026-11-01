@@ -100,11 +100,11 @@ public class VocabQuizFilteringTests
         var progress = new VocabularyProgress
         {
             MasteryScore = 0.40f,
-            NextReviewDate = DateTime.Now.AddDays(-1), // Due yesterday
+            NextReviewDate = DateTime.UtcNow.AddDays(-1), // Due yesterday
             TotalAttempts = 5
         };
 
-        var isDue = progress.NextReviewDate != null && progress.NextReviewDate <= DateTime.Now;
+        var isDue = progress.NextReviewDate != null && progress.NextReviewDate <= DateTime.UtcNow;
         isDue.Should().BeTrue("word with past NextReviewDate is due for review");
     }
 
@@ -114,11 +114,11 @@ public class VocabQuizFilteringTests
         var progress = new VocabularyProgress
         {
             MasteryScore = 0.40f,
-            NextReviewDate = DateTime.Now.AddDays(3), // Due in 3 days
+            NextReviewDate = DateTime.UtcNow.AddDays(3), // Due in 3 days
             TotalAttempts = 5
         };
 
-        var isDue = progress.NextReviewDate != null && progress.NextReviewDate <= DateTime.Now;
+        var isDue = progress.NextReviewDate != null && progress.NextReviewDate <= DateTime.UtcNow;
         isDue.Should().BeFalse("word with future NextReviewDate should not appear in DueOnly quiz");
     }
 
@@ -133,7 +133,7 @@ public class VocabQuizFilteringTests
             TotalAttempts = 0
         };
 
-        var isDueOrUnseen = (progress.NextReviewDate != null && progress.NextReviewDate <= DateTime.Now)
+        var isDueOrUnseen = (progress.NextReviewDate != null && progress.NextReviewDate <= DateTime.UtcNow)
             || progress.TotalAttempts == 0;
         isDueOrUnseen.Should().BeTrue("unseen words should be included even in DueOnly mode");
     }
@@ -141,8 +141,8 @@ public class VocabQuizFilteringTests
     [Fact]
     public void IsDueForReview_ComputedProperty_MatchesManualCheck()
     {
-        var duePast = new VocabularyProgress { NextReviewDate = DateTime.Now.AddHours(-1) };
-        var dueFuture = new VocabularyProgress { NextReviewDate = DateTime.Now.AddDays(2) };
+        var duePast = new VocabularyProgress { NextReviewDate = DateTime.UtcNow.AddHours(-1) };
+        var dueFuture = new VocabularyProgress { NextReviewDate = DateTime.UtcNow.AddDays(2) };
         var noDate = new VocabularyProgress { NextReviewDate = null };
 
         duePast.IsDueForReview.Should().BeTrue();

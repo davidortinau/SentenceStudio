@@ -2465,7 +2465,7 @@ public partial class LearningResourceRepository : SentenceStudio.Application.Res
             foreach (var ctx in userContexts.Where(c => c.VocabularyProgressId != keeperProg.Id))
             {
                 ctx.VocabularyProgressId = keeperProg.Id;
-                ctx.UpdatedAt = DateTime.Now;
+                ctx.UpdatedAt = DateTime.UtcNow;
                 contextsReparented++;
             }
 

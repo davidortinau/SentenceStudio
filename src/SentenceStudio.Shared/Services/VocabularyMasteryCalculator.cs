@@ -46,7 +46,7 @@ public static class VocabularyMasteryCalculator
     /// persistence remain the caller's responsibility).
     /// </summary>
     /// <param name="attemptTime">
-    /// Timestamp to attribute to this attempt. The live path passes <c>DateTime.Now</c>; replay passes
+    /// Timestamp to attribute to this attempt. The live path passes <c>DateTime.UtcNow</c> (a UTC instant); replay passes
     /// the historical <see cref="VocabularyLearningContext.LearnedAt"/> so reconstructed schedules and
     /// mastery timestamps reflect when the practice actually happened.
     /// </param>

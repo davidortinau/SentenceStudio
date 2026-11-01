@@ -265,8 +265,8 @@ namespace SentenceStudio.Services
                 {
                     NativeLanguageTerm = text,
                     TargetLanguageTerm = translation,
-                    CreatedAt = DateTime.Now,
-                    UpdatedAt = DateTime.Now
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
                 };
                 await _resourceRepo.SaveWordAsync(vocabWord);
 

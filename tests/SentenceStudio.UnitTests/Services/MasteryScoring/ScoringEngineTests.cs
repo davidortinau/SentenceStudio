@@ -134,11 +134,11 @@ public class ScoringEngineTests : IDisposable
             CurrentStreak = currentStreak,
             ProductionInStreak = productionInStreak,
             MasteryScore = masteryScore,
-            FirstSeenAt = DateTime.Now.AddDays(-30),
-            LastPracticedAt = DateTime.Now.AddDays(-1),
-            NextReviewDate = DateTime.Now.AddDays(-1),
-            CreatedAt = DateTime.Now,
-            UpdatedAt = DateTime.Now
+            FirstSeenAt = DateTime.UtcNow.AddDays(-30),
+            LastPracticedAt = DateTime.UtcNow.AddDays(-1),
+            NextReviewDate = DateTime.UtcNow.AddDays(-1),
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
         });
         db.SaveChanges();
     }

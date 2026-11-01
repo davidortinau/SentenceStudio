@@ -312,8 +312,8 @@ else
                 Activity = SentenceStudio.Shared.Models.Activity.Clozure.ToString(),
                 Input = answer,
                 Accuracy = isCorrect ? 100 : 0,
-                CreatedAt = DateTime.Now,
-                UpdatedAt = DateTime.Now
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
             };
             current.UserActivity = activity;
             await ActivityRepo.SaveAsync(activity);

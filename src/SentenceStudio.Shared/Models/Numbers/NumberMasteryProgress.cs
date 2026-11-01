@@ -18,6 +18,6 @@ public class NumberMasteryProgress
     public double EaseFactor { get; set; } = 2.5;
     public int Interval { get; set; }
     public int Repetitions { get; set; }
-    public DateTime DueDate { get; set; } = DateTime.Now;
+    public DateTime DueDate { get; set; } = DateTime.UtcNow;
     public DateTime? LastReviewed { get; set; }
 }

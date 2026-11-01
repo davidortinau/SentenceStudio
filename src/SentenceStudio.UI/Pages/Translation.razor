@@ -451,8 +451,8 @@ else
                 Input = userInput,
                 Accuracy = feedback.Accuracy,
                 Fluency = feedback.Fluency,
-                CreatedAt = DateTime.Now,
-                UpdatedAt = DateTime.Now
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
             });
 
             // Record vocabulary progress via shared extraction pipeline

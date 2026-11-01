@@ -25,16 +25,16 @@ public class VocabularyLearningContext
     public string? UserInput { get; set; }
     public string? ExpectedAnswer { get; set; }
     
-    public DateTime LearnedAt { get; set; } = DateTime.Now;
+    public DateTime LearnedAt { get; set; } = DateTime.UtcNow;
     
     // Legacy field for backward compatibility
     public int CorrectAnswersInContext { get; set; } = 0; // How many correct in this specific context
     
     [JsonIgnore]
-    public DateTime CreatedAt { get; set; } = DateTime.Now;
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     
     [JsonIgnore]
-    public DateTime UpdatedAt { get; set; } = DateTime.Now;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     
     // Navigation properties
     [JsonIgnore]

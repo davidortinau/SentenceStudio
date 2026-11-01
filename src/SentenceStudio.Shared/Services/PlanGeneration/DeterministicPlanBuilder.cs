@@ -145,7 +145,7 @@ public class DeterministicPlanBuilder
         var today = userLocalDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
 
         // Step 1: Determine vocabulary review needs (SRS algorithm)
-        var vocabReview = await DetermineVocabularyReviewAsync(today, scopedUserId, ct);
+        var vocabReview = await DetermineVocabularyReviewAsync(dateContext.DueCutoffUtc(), scopedUserId, ct);
 
         // Step 1b: A trusted, pre-resolved vocabulary focus replaces the focus
         // set the SRS pass derived, so every vocabulary-driven activity carries
@@ -273,11 +273,11 @@ public class DeterministicPlanBuilder
     /// Uses SRS algorithm - purely deterministic.
     /// </summary>
     private async Task<VocabularyReviewBlock?> DetermineVocabularyReviewAsync(
-        DateTime today,
+        DateTime dueCutoffUtc,
         string userProfileId,
         CancellationToken ct)
     {
-        var dueWords = await _vocabProgressRepo.GetDueVocabularyAsync(today, userProfileId);
+        var dueWords = await _vocabProgressRepo.GetDueVocabularyAsync(dueCutoffUtc, userProfileId);
         var useBootstrap = false;
         var unseenWords = new List<VocabularyProgress>();
 

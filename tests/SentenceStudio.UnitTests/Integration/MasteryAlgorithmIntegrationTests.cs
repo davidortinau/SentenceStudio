@@ -215,7 +215,7 @@ public class MasteryAlgorithmIntegrationTests : IClassFixture<PlanGenerationTest
         // Assert: Known words always get 60 day review interval
         result.IsKnown.Should().BeTrue();
         result.ReviewInterval.Should().Be(60, "known words get pushed to 60-day review");
-        result.NextReviewDate.Should().BeCloseTo(DateTime.Now.AddDays(60), TimeSpan.FromMinutes(5));
+        result.NextReviewDate.Should().BeCloseTo(DateTime.UtcNow.AddDays(60), TimeSpan.FromMinutes(5));
     }
 
     [Fact]
@@ -379,7 +379,7 @@ public class MasteryAlgorithmIntegrationTests : IClassFixture<PlanGenerationTest
         result.VocabularyWordId.Should().Be(wordId);
         result.UserId.Should().Be(PlanGenerationTestFixture.TestUserId);
         result.TotalAttempts.Should().Be(1);
-        result.FirstSeenAt.Should().BeCloseTo(DateTime.Now, TimeSpan.FromMinutes(1));
+        result.FirstSeenAt.Should().BeCloseTo(DateTime.UtcNow, TimeSpan.FromMinutes(1));
     }
 
     #endregion

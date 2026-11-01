@@ -179,10 +179,10 @@ public partial class VocabularyProgressRepository : SentenceStudio.Application.V
         var newProgress = new VocabularyProgress
         {
             VocabularyWordId = vocabularyWordId,
-            FirstSeenAt = DateTime.Now,
-            LastPracticedAt = DateTime.Now,
-            CreatedAt = DateTime.Now,
-            UpdatedAt = DateTime.Now
+            FirstSeenAt = DateTime.UtcNow,
+            LastPracticedAt = DateTime.UtcNow,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
         };
 
         return await SaveAsync(newProgress);
@@ -195,7 +195,7 @@ public partial class VocabularyProgressRepository : SentenceStudio.Application.V
 
         try
         {
-            item.UpdatedAt = DateTime.Now;
+            item.UpdatedAt = DateTime.UtcNow;
 
             // Auto-set UserId for new items if not already set
             if (string.IsNullOrEmpty(item.UserId) && !string.IsNullOrEmpty(ActiveUserId))
@@ -310,7 +310,7 @@ public partial class VocabularyProgressRepository : SentenceStudio.Application.V
             })
             .ToListAsync();
 
-        var now = DateTime.Now;
+        var now = DateTime.UtcNow;
 
         // Familiar = user-declared but not yet verified through practice
         var familiar = allProgress.Count(p => p.IsUserDeclared && p.VerificationState == VerificationStatus.Pending);
@@ -344,7 +344,7 @@ public partial class VocabularyProgressRepository : SentenceStudio.Application.V
         using var scope = _serviceProvider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        var sevenDaysAgo = DateTime.Now.AddDays(-7);
+        var sevenDaysAgo = DateTime.UtcNow.AddDays(-7);
         var recent = await db.VocabularyProgresses
             .Where(vp => vp.UserId == userId && vp.LastPracticedAt >= sevenDaysAgo)
             .GroupBy(vp => 1)

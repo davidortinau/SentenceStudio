@@ -107,11 +107,11 @@ public class VocabularyProgressServiceUserIdTests : IDisposable
                 TotalAttempts = 5,
                 CorrectAttempts = 3,
                 MasteryScore = 0.5f,
-                NextReviewDate = DateTime.Now.AddDays(-1),
-                FirstSeenAt = DateTime.Now.AddDays(-10),
-                LastPracticedAt = DateTime.Now.AddDays(-1),
-                CreatedAt = DateTime.Now,
-                UpdatedAt = DateTime.Now
+                NextReviewDate = DateTime.UtcNow.AddDays(-1),
+                FirstSeenAt = DateTime.UtcNow.AddDays(-10),
+                LastPracticedAt = DateTime.UtcNow.AddDays(-1),
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
             });
         }
 

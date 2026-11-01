@@ -1037,9 +1037,16 @@ public class ProgressService : IProgressService
         }
     }
 
-    private Task<int> GetVocabDueCountAsync(DateTime date, CancellationToken ct)
+    private Task<int> GetVocabDueCountAsync(DateTime todayKey, CancellationToken ct)
     {
-        return _progressRepo.GetDueVocabCountAsync(date);
+        // todayKey is the plan's calendar-day key (local date labeled UTC). NextReviewDate is a
+        // UTC instant, so count words due by the instant that opens that local day.
+        var dateContext = _serviceProvider.GetService(typeof(IPlanDateContext)) as IPlanDateContext;
+        var cutoff = dateContext is null
+            ? DateTime.SpecifyKind(todayKey.Date, DateTimeKind.Utc)
+            : DateTime.SpecifyKind(
+                dateContext.ToUtcMidnight(DateOnly.FromDateTime(todayKey)), DateTimeKind.Utc);
+        return _progressRepo.GetDueVocabCountAsync(cutoff);
     }
 
     public Task<string> StartAdHocSessionAsync(
@@ -1377,13 +1384,9 @@ public class ProgressService : IProgressService
             .GroupBy(p => p.VocabularyWordId)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
 
-        // Compare against DateTime.Now (local), NOT UtcNow: NextReviewDate is
-        // WRITTEN with DateTime.Now (VocabularyProgressService) and read with
-        // DateTime.Now (VocabularyProgress.IsDueForReview). On the webapp/API the
-        // server runs in UTC so Now == UtcNow; on a non-UTC MAUI device this keeps
-        // the comparison in the same local frame the value was stored in. Using
-        // UtcNow here would skew due-ness by the device's UTC offset.
-        var now = DateTime.Now; // allow:srs-local-frame — match NextReviewDate writers + IsDueForReview
+        // NextReviewDate is a UTC instant on every store (VocabularyProgressService
+        // writes DateTime.UtcNow; VocabularyProgress.IsDueForReview reads UtcNow).
+        var now = DateTime.UtcNow;
         var freshIds = new List<string>(allFocusIds.Count);
 
         foreach (var wordId in allFocusIds)
@@ -1574,15 +1577,31 @@ public class ProgressService : IProgressService
             return new StreakInfo(0, 0, null);
         }
 
-        var sortedDates = activities
-            .Select(a => a.CreatedAt.Date)
+        var dateContext = _serviceProvider.GetService(typeof(IPlanDateContext)) as IPlanDateContext
+            ?? new PlanDateContext(TimeZoneInfo.Utc);
+        return ComputeStreak(activities.Select(a => a.CreatedAt), dateContext);
+    }
+
+    /// <summary>
+    /// A streak counts the learner's LOCAL calendar days ending today (or yesterday).
+    /// <see cref="UserActivity.CreatedAt"/> is a UTC instant, so each instant is converted to the
+    /// learner's local day before grouping; grouping by the UTC date would split or merge days
+    /// by the learner's offset (an evening in US Central or a morning in Korea).
+    /// </summary>
+    internal static StreakInfo ComputeStreak(
+        IEnumerable<DateTime> activityInstantsUtc, IPlanDateContext dateContext)
+    {
+        var sortedDates = activityInstantsUtc
+            .Select(instant => dateContext.ToUserLocal(instant).ToDateTime(TimeOnly.MinValue))
             .Distinct()
             .OrderByDescending(d => d)
             .ToList();
+        if (sortedDates.Count == 0)
+            return new StreakInfo(0, 0, null);
 
         var currentStreak = 0;
         var longestStreak = 0;
-        var lastDate = DateTime.UtcNow.Date;
+        var lastDate = dateContext.UserLocalDate.ToDateTime(TimeOnly.MinValue);
 
         foreach (var date in sortedDates)
         {

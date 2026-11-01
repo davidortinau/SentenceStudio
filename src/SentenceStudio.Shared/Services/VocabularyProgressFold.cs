@@ -110,6 +110,6 @@ public static class VocabularyProgressFold
             keeper.UserDeclaredAt = declared.UserDeclaredAt;
             keeper.VerificationState = declared.VerificationState;
         }
-        keeper.UpdatedAt = DateTime.Now;
+        keeper.UpdatedAt = DateTime.UtcNow;
     }
 }

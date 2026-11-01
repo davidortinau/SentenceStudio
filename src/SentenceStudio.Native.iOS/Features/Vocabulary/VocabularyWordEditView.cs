@@ -300,7 +300,8 @@ internal static class VocabularyWordEditView
             LearningStatus.Learning => "VocabWordEdit_Learning",
             _ => "VocabWordEdit_Unknown"
         });
-        var next = progress?.NextReviewDate is not { } review
+        // NextReviewDate is a UTC instant; "due now / tomorrow" is the learner's local day.
+        var next = progress?.NextReviewDate?.ToLocalTime() is not { } review
             ? text("VocabWordEdit_NotScheduled")
             : review.Date <= DateTime.Now.Date
                 ? text("VocabWordEdit_DueNow")
@@ -356,7 +357,7 @@ internal static class VocabularyWordEditView
                             : "VocabWordEdit_HistoryIncorrect")} · "
                     + $"{(item.Activity.Length == 0
                         ? text("VocabWordEdit_HistoryPractice") : item.Activity)} "
-                    + $"· {item.LearnedAt.ToString("MMM d, yyyy", CultureInfo.CurrentCulture)}"
+                    + $"· {item.LearnedAt.ToLocalTime().ToString("MMM d, yyyy", CultureInfo.CurrentCulture)}"
                     + (string.IsNullOrWhiteSpace(item.ResourceTitle)
                         ? string.Empty : $" · {item.ResourceTitle}")),
                     SourceTextRole.Body2,

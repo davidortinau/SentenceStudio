@@ -10,7 +10,7 @@ public sealed class NativeQuizSourceParityTests
     [Fact]
     public void NonFocusDueSelection_ExcludesKnownGraceFutureAndAttemptedWithoutDate()
     {
-        var now = DateTime.Now;
+        var now = DateTime.UtcNow;
         var neverAttempted = Item("new", review: now.AddDays(3));
         var expiredGrace = Item("expired-grace", mastery: 0.1f, grace: true);
         expiredGrace.Progress!.UserDeclaredAt = now.AddDays(-15);
@@ -41,7 +41,7 @@ public sealed class NativeQuizSourceParityTests
     [Fact]
     public void KnownBatchIsMastered_ButGraceOrNotDueAloneIsNot()
     {
-        var now = DateTime.Now;
+        var now = DateTime.UtcNow;
         var mastered = VocabQuizSourcePolicy.SelectNonFocusBatch(
             Owner, false, [Item("known", mastery: 0.9f, known: true)], now);
         Assert.True(mastered.AllMastered);
@@ -75,7 +75,7 @@ public sealed class NativeQuizSourceParityTests
         Assert.Equal(new[] { "grace", "known", "new" }, focused.Select(word => word.Id));
         Assert.Equal(new[] { "new" },
             VocabQuizSourcePolicy.SelectNonFocusBatch(
-                Owner, false, [grace, known, newWord], DateTime.Now)
+                Owner, false, [grace, known, newWord], DateTime.UtcNow)
                 .Batch.Select(item => item.Word.Id));
         Assert.Single(FocusVocabularySelection.SelectFocusWords(reachable, ["new", "other-owner"]));
     }
@@ -89,7 +89,7 @@ public sealed class NativeQuizSourceParityTests
             .ToArray();
 
         var selected = VocabQuizSourcePolicy.SelectNonFocusBatch(
-            Owner, false, candidates, DateTime.Now);
+            Owner, false, candidates, DateTime.UtcNow);
         Assert.Equal(VocabQuizSourcePolicy.BatchSize, selected.Batch.Count);
         Assert.Equal("word-00", selected.Batch[0].Word.Id);
         Assert.Equal("word-19", selected.Batch[^1].Word.Id);
@@ -103,19 +103,19 @@ public sealed class NativeQuizSourceParityTests
         foreign.Progress!.UserId = "other-owner";
         Assert.Throws<NotSupportedException>(() =>
             VocabQuizSourcePolicy.SelectNonFocusBatch(
-                Owner, false, [valid, foreign], DateTime.Now));
+                Owner, false, [valid, foreign], DateTime.UtcNow));
 
         foreign.Progress.UserId = Owner;
         foreign.Progress.VocabularyWordId = "another-word";
         Assert.Throws<NotSupportedException>(() =>
             VocabQuizSourcePolicy.SelectNonFocusBatch(
-                Owner, false, [foreign], DateTime.Now));
+                Owner, false, [foreign], DateTime.UtcNow));
         Assert.Throws<NotSupportedException>(() =>
             VocabQuizSourcePolicy.SelectNonFocusBatch(
-                Owner, false, [valid, valid], DateTime.Now));
+                Owner, false, [valid, valid], DateTime.UtcNow));
         Assert.Throws<UnauthorizedAccessException>(() =>
             VocabQuizSourcePolicy.SelectNonFocusBatch(
-                "", false, [valid], DateTime.Now));
+                "", false, [valid], DateTime.UtcNow));
     }
 
     [Fact]
@@ -201,7 +201,7 @@ public sealed class NativeQuizSourceParityTests
             ProductionInStreak = known ? 2 : 0,
             NextReviewDate = review,
             IsUserDeclared = grace,
-            UserDeclaredAt = grace ? DateTime.Now.AddDays(-1) : null,
+            UserDeclaredAt = grace ? DateTime.UtcNow.AddDays(-1) : null,
             VerificationState = grace ? VerificationStatus.Pending : VerificationStatus.None
         }
     };

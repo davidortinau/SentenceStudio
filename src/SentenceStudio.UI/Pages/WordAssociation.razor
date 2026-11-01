@@ -346,8 +346,8 @@ else
                 Accuracy = currentClues.Count(c => c.Graded) > 0
                     ? (double)currentClues.Count(c => c.Graded && c.Related) / currentClues.Count(c => c.Graded) * 100
                     : 0,
-                CreatedAt = DateTime.Now,
-                UpdatedAt = DateTime.Now
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow
             };
             await ActivityRepo.SaveAsync(activity);
         }

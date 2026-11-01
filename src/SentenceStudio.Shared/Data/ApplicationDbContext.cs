@@ -449,6 +449,7 @@ public partial class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         modelBuilder.Ignore<Lesson>();
 
         modelBuilder.ConfigureApplicationOperations();
+        modelBuilder.ConfigureUtcInstants();
 
         base.OnModelCreating(modelBuilder);
     }

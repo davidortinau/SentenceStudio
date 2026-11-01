@@ -29,8 +29,8 @@ public sealed class VocabularyPassiveExposurePolicyTests
     [Fact]
     public void PassiveExposureHelpers_ChangeOnlyExposureAndCreatePassiveContext()
     {
-        var practicedAt = DateTime.Now.AddDays(-4);
-        var exposedAt = DateTime.Now;
+        var practicedAt = DateTime.UtcNow.AddDays(-4);
+        var exposedAt = DateTime.UtcNow;
         var progress = new VocabularyProgress
         {
             Id = "owned-progress",
