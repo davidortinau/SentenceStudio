@@ -39,6 +39,18 @@ internal sealed partial class ApplicationController
 
     internal void DismissActivitySheet() => _activity?.OnSheetDismissed();
 
+    internal bool ActivityHasChildPage => IsActivityOpen && _activity?.HasChildPage == true;
+
+    internal string ActivityChildTitle => _activity?.ChildTitle ?? string.Empty;
+
+    internal long ActivityChildVersion => _activity?.ChildVersion ?? 0;
+
+    internal SwiftView RenderActivityChild(SourceUiStyle style) =>
+        _activity?.RenderChild(style) ?? Views.VStack();
+
+    /// <summary>The NavigationStack popped the activity's child page.</summary>
+    internal void OnActivityChildPopped() => _activity?.OnChildPopped();
+
     private async Task OpenPlanCardAsync(string cardId)
     {
         var card = _dashboardState.Cards.IsDefaultOrEmpty ? null

@@ -98,6 +98,9 @@ internal sealed partial class AndroidSliceShell
             case NativeActivityCatalog.Shadowing:
                 await OpenShadowingAsync(launch, cancellationToken);
                 break;
+            case NativeActivityCatalog.Diary:
+                await OpenDiaryAsync(launch, cancellationToken);
+                break;
         }
     }
 
@@ -110,10 +113,19 @@ internal sealed partial class AndroidSliceShell
         NativeActivityCatalog.Writing => RenderWriting(palette),
         NativeActivityCatalog.Reading => RenderReading(palette),
         NativeActivityCatalog.Shadowing => RenderShadowing(palette),
+        NativeActivityCatalog.Diary => RenderDiary(palette),
         _ => Body(Localize(NativeMatchingText.Unavailable), palette),
     };
 
-    private void ExitActivity() => Execute(async cancellationToken =>
+    private void ExitActivity()
+    {
+        // Diary editor/viewer Back returns to the Diary list (source /diary).
+        if (_activityRoute == NativeActivityCatalog.Diary && DiaryBack())
+            return;
+        ExitActivityToDashboard();
+    }
+
+    private void ExitActivityToDashboard() => Execute(async cancellationToken =>
     {
         switch (_activityRoute)
         {
@@ -138,6 +150,9 @@ internal sealed partial class AndroidSliceShell
             case NativeActivityCatalog.Shadowing:
                 await ExitShadowingAsync(cancellationToken);
                 break;
+            case NativeActivityCatalog.Diary:
+                await ExitDiaryAsync(cancellationToken);
+                break;
         }
         ReleaseActivity();
         Publish(() => Destination = NativeDestination.Dashboard);
@@ -154,6 +169,7 @@ internal sealed partial class AndroidSliceShell
         ReleaseWriting();
         ReleaseReading();
         ReleaseShadowing();
+        ReleaseDiary();
         _activityRoute = null;
     }
 }
