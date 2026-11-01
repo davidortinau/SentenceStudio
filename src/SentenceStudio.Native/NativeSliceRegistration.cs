@@ -55,6 +55,8 @@ public static class NativeSliceRegistration
         services.TryAddScoped<SentenceStudio.Services.Numbers.NumberContentSeeder>();
         services.TryAddScoped<SentenceStudio.Services.Numbers.NumberSessionService>();
         services.AddTransient<NativeNumberDrillPresenter>();
+        services.TryAddSingleton<INativeWritingAi, NativeWritingAi>();
+        services.AddTransient<NativeWritingPresenter>();
         services.TryAddScoped<IPlanCopyProvider, EnglishPlanCopyProvider>();
         services.AddSingleton<NativePlanLeaseFactory>();
         services.TryAddSingleton<INativeProfileRemoteStore>(sp =>

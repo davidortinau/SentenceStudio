@@ -183,7 +183,7 @@ public sealed class NativeMatchingPresenterTests
         Assert.Null(launch.PlanItemId);
         Assert.Equal([fixture.ResourceId(NativeSliceFixture.UserA)], launch.ResourceIds.ToArray());
         Assert.False(launch.DueOnly);
-        Assert.Null(await launches.FromChooseOwnAsync(selection!, "writing"));
+        Assert.Null(await launches.FromChooseOwnAsync(selection!, "video-watching"));
         // A foreign resource is refused even if a stale selection carries it.
         Assert.Null(await launches.FromChooseOwnAsync(selection! with {
             ResourceIds = [fixture.ResourceId(NativeSliceFixture.UserB)] }, Matching));

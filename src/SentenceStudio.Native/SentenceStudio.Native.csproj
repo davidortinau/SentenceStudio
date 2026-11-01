@@ -33,5 +33,7 @@
                       LogicalName="SentenceStudio.Native.Prompts.GetTranslations.scriban-txt" />
     <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/GradeTranslation.scriban-txt"
                       LogicalName="SentenceStudio.Native.Prompts.GradeTranslation.scriban-txt" />
+    <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/Translate.scriban-txt"
+                      LogicalName="SentenceStudio.Native.Prompts.Translate.scriban-txt" />
   </ItemGroup>
 </Project>

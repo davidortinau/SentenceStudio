@@ -2812,6 +2812,50 @@
     <value>사용 가능한 어휘가 없습니다. 먼저 어휘가 포함된 리소스를 선택하세요.</value>
     <comment>Empty state</comment>
   </data>
+  <data name="Writing_SelectResource" xml:space="preserve">
+    <value>글쓰기를 연습할 리소스를 선택하세요.</value>
+    <comment>Toast when no resource is selected</comment>
+  </data>
+  <data name="Writing_NoResourceVocab" xml:space="preserve">
+    <value>선택한 리소스에 어휘가 없습니다.</value>
+    <comment>Toast when the resource has no vocabulary</comment>
+  </data>
+  <data name="Writing_LoadFailed" xml:space="preserve">
+    <value>어휘를 불러오는 중 오류가 발생했습니다.</value>
+    <comment>Load error</comment>
+  </data>
+  <data name="Writing_GradeFailed" xml:space="preserve">
+    <value>문장을 채점하는 중 오류가 발생했습니다. 다시 시도하세요.</value>
+    <comment>Grading error</comment>
+  </data>
+  <data name="Writing_GradedAccuracy" xml:space="preserve">
+    <value>채점 완료! 정확도: {0}%</value>
+    <comment>{0} = accuracy percent</comment>
+  </data>
+  <data name="Writing_ProbeConfirmed" xml:space="preserve">
+    <value>확인했어요! 이 단어는 확실히 알고 있어요.</value>
+    <comment>Familiar word verification passed</comment>
+  </data>
+  <data name="Writing_ProbeTricky" xml:space="preserve">
+    <value>이 단어는 문맥에서 까다로워요. 몇 번 더 연습하면 도움이 될 거예요.</value>
+    <comment>Familiar word verification missed</comment>
+  </data>
+  <data name="Writing_TranslateFailed" xml:space="preserve">
+    <value>번역에 실패했습니다.</value>
+    <comment>Translate helper error</comment>
+  </data>
+  <data name="Writing_Translate" xml:space="preserve">
+    <value>번역</value>
+    <comment>Translate helper button label</comment>
+  </data>
+  <data name="Writing_Shuffle" xml:space="preserve">
+    <value>어휘 섞기</value>
+    <comment>Shuffle button label</comment>
+  </data>
+  <data name="Writing_DismissNotices" xml:space="preserve">
+    <value>닫기</value>
+    <comment>Dismiss notices button label</comment>
+  </data>
   <data name="Translation_LoadingSentences" xml:space="preserve">
     <value>문장을 불러오는 중...</value>
     <comment>Loading spinner</comment>

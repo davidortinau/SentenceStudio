@@ -91,14 +91,8 @@ internal sealed class AndroidServiceHost : IDisposable
             services.AddSyncServices(databasePath, apiUri, downloadOnlyProfile: true);
             services.AddSingleton<ISyncService, SyncService>();
             services.AddOwnerBoundNativeAiGateway(apiUri);
-            // Translation grading (Reasoning tier); the quiz sentence grader stays unregistered here.
-            services.TryAddSingleton<IOwnerBoundNativeSentenceGateway>(sp =>
-                new OwnerBoundNativeSentenceGateway(
-                    sp.GetRequiredService<IAuthService>(),
-                    sp.GetRequiredService<IPreferencesService>(),
-                    sp.GetRequiredService<DeviceUserScopeProvider>(),
-                    sp.GetRequiredService<IHttpMessageHandlerFactory>(),
-                    apiUri));
+            // Owner-bound sentence grading (Reasoning tier) for Translation and Writing.
+            services.AddOwnerBoundNativeSentenceGateway(apiUri);
             services.AddOwnerBoundNativeSam(apiUri);
         }
 

@@ -30,6 +30,7 @@ public static class NativeActivityCatalog
     public const string Cloze = "cloze";
     public const string Translation = "translation";
     public const string NumberDrill = "numberdrill";
+    public const string Writing = "writing";
 
     public static ImmutableArray<NativeActivityDefinition> Implemented { get; } =
     [
@@ -37,6 +38,7 @@ public static class NativeActivityCatalog
         new(Cloze, [PlanActivityType.Cloze]),
         new(Translation, [PlanActivityType.Translation]),
         new(NumberDrill, [PlanActivityType.NumberDrill], TimerRecordsSkill: false),
+        new(Writing, [PlanActivityType.Writing]),
     ];
 
     public static NativeActivityDefinition? ForRoute(string? route) =>

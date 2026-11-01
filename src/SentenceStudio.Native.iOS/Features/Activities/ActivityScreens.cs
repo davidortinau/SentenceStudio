@@ -43,6 +43,7 @@ internal static class ActivityScreens
         NativeActivityCatalog.Cloze => new ClozeScreen(host),
         NativeActivityCatalog.Translation => new TranslationScreen(host),
         NativeActivityCatalog.NumberDrill => new NumberDrillScreen(host),
+        NativeActivityCatalog.Writing => new WritingScreen(host),
         _ => null
     };
 }

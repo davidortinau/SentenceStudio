@@ -3060,6 +3060,50 @@ Ready to practice? Say "yes" to start, or tell me what you'd like to change.</va
     <value>No vocabulary available. Select a resource with vocabulary first.</value>
     <comment>Empty state</comment>
   </data>
+  <data name="Writing_SelectResource" xml:space="preserve">
+    <value>Please select a resource to practice writing.</value>
+    <comment>Toast when no resource is selected</comment>
+  </data>
+  <data name="Writing_NoResourceVocab" xml:space="preserve">
+    <value>No vocabulary found in the selected resource.</value>
+    <comment>Toast when the resource has no vocabulary</comment>
+  </data>
+  <data name="Writing_LoadFailed" xml:space="preserve">
+    <value>Error loading vocabulary.</value>
+    <comment>Load error</comment>
+  </data>
+  <data name="Writing_GradeFailed" xml:space="preserve">
+    <value>Error grading your sentence. Please try again.</value>
+    <comment>Grading error</comment>
+  </data>
+  <data name="Writing_GradedAccuracy" xml:space="preserve">
+    <value>Graded! Accuracy: {0}%</value>
+    <comment>{0} = accuracy percent</comment>
+  </data>
+  <data name="Writing_ProbeConfirmed" xml:space="preserve">
+    <value>Confirmed! This one is solid.</value>
+    <comment>Familiar word verification passed</comment>
+  </data>
+  <data name="Writing_ProbeTricky" xml:space="preserve">
+    <value>This one is tricky in context. A few more reps will help.</value>
+    <comment>Familiar word verification missed</comment>
+  </data>
+  <data name="Writing_TranslateFailed" xml:space="preserve">
+    <value>Translation failed.</value>
+    <comment>Translate helper error</comment>
+  </data>
+  <data name="Writing_Translate" xml:space="preserve">
+    <value>Translate</value>
+    <comment>Translate helper button label</comment>
+  </data>
+  <data name="Writing_Shuffle" xml:space="preserve">
+    <value>Shuffle vocabulary</value>
+    <comment>Shuffle button label</comment>
+  </data>
+  <data name="Writing_DismissNotices" xml:space="preserve">
+    <value>Dismiss</value>
+    <comment>Dismiss notices button label</comment>
+  </data>
   <data name="Translation_LoadingSentences" xml:space="preserve">
     <value>Loading sentences...</value>
     <comment>Loading spinner</comment>
