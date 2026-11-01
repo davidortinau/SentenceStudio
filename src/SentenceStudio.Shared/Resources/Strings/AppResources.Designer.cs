@@ -11569,6 +11569,330 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Another round.
+        /// </summary>
+        internal static string NumberDrill_AnotherRound {
+            get {
+                return ResourceManager.GetString("NumberDrill_AnotherRound", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Any.
+        /// </summary>
+        internal static string NumberDrill_AnyContext {
+            get {
+                return ResourceManager.GetString("NumberDrill_AnyContext", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to play audio..
+        /// </summary>
+        internal static string NumberDrill_AudioFailed {
+            get {
+                return ResourceManager.GetString("NumberDrill_AudioFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Audio unavailable offline..
+        /// </summary>
+        internal static string NumberDrill_AudioOffline {
+            get {
+                return ResourceManager.GetString("NumberDrill_AudioOffline", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Choose your drill.
+        /// </summary>
+        internal static string NumberDrill_ChooseDrill {
+            get {
+                return ResourceManager.GetString("NumberDrill_ChooseDrill", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Context.
+        /// </summary>
+        internal static string NumberDrill_Context {
+            get {
+                return ResourceManager.GetString("NumberDrill_Context", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} correct.
+        /// </summary>
+        internal static string NumberDrill_CorrectCount {
+            get {
+                return ResourceManager.GetString("NumberDrill_CorrectCount", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Review the hint for each prompt to understand which system applies..
+        /// </summary>
+        internal static string NumberDrill_DisambiguateTip {
+            get {
+                return ResourceManager.GetString("NumberDrill_DisambiguateTip", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Due items only.
+        /// </summary>
+        internal static string NumberDrill_DueOnly {
+            get {
+                return ResourceManager.GetString("NumberDrill_DueOnly", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The session could not be finished. Try again..
+        /// </summary>
+        internal static string NumberDrill_EndFailed {
+            get {
+                return ResourceManager.GetString("NumberDrill_EndFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Example pattern: {0}.
+        /// </summary>
+        internal static string NumberDrill_ExamplePattern {
+            get {
+                return ResourceManager.GetString("NumberDrill_ExamplePattern", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Fewer items.
+        /// </summary>
+        internal static string NumberDrill_FewerItems {
+            get {
+                return ResourceManager.GetString("NumberDrill_FewerItems", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Finish.
+        /// </summary>
+        internal static string NumberDrill_Finish {
+            get {
+                return ResourceManager.GetString("NumberDrill_Finish", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Items: {0}.
+        /// </summary>
+        internal static string NumberDrill_Items {
+            get {
+                return ResourceManager.GetString("NumberDrill_Items", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to I was correct.
+        /// </summary>
+        internal static string NumberDrill_IWasCorrect {
+            get {
+                return ResourceManager.GetString("NumberDrill_IWasCorrect", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Korean:.
+        /// </summary>
+        internal static string NumberDrill_Korean {
+            get {
+                return ResourceManager.GetString("NumberDrill_Korean", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Number Drill practices Korean numbers. Set your target language to Korean to use it..
+        /// </summary>
+        internal static string NumberDrill_KoreanOnly {
+            get {
+                return ResourceManager.GetString("NumberDrill_KoreanOnly", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Number Drill could not be loaded. Go back and try again..
+        /// </summary>
+        internal static string NumberDrill_LoadFailed {
+            get {
+                return ResourceManager.GetString("NumberDrill_LoadFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Progress: {0}/{1} correct · Next review: {2}.
+        /// </summary>
+        internal static string NumberDrill_MasteryProgress {
+            get {
+                return ResourceManager.GetString("NumberDrill_MasteryProgress", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Median Time.
+        /// </summary>
+        internal static string NumberDrill_MedianTime {
+            get {
+                return ResourceManager.GetString("NumberDrill_MedianTime", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} ms.
+        /// </summary>
+        internal static string NumberDrill_Milliseconds {
+            get {
+                return ResourceManager.GetString("NumberDrill_Milliseconds", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Mode.
+        /// </summary>
+        internal static string NumberDrill_Mode {
+            get {
+                return ResourceManager.GetString("NumberDrill_Mode", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to More items.
+        /// </summary>
+        internal static string NumberDrill_MoreItems {
+            get {
+                return ResourceManager.GetString("NumberDrill_MoreItems", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No items available. Try different settings or create some vocabulary first..
+        /// </summary>
+        internal static string NumberDrill_NoItems {
+            get {
+                return ResourceManager.GetString("NumberDrill_NoItems", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Number:.
+        /// </summary>
+        internal static string NumberDrill_Number {
+            get {
+                return ResourceManager.GetString("NumberDrill_Number", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to 정확해요! (Overridden).
+        /// </summary>
+        internal static string NumberDrill_OverriddenVerdict {
+            get {
+                return ResourceManager.GetString("NumberDrill_OverriddenVerdict", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Patterns to Review.
+        /// </summary>
+        internal static string NumberDrill_PatternsToReview {
+            get {
+                return ResourceManager.GetString("NumberDrill_PatternsToReview", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Play.
+        /// </summary>
+        internal static string NumberDrill_Play {
+            get {
+                return ResourceManager.GetString("NumberDrill_Play", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Prompt A:.
+        /// </summary>
+        internal static string NumberDrill_PromptA {
+            get {
+                return ResourceManager.GetString("NumberDrill_PromptA", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Prompt B:.
+        /// </summary>
+        internal static string NumberDrill_PromptB {
+            get {
+                return ResourceManager.GetString("NumberDrill_PromptB", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Session Complete!.
+        /// </summary>
+        internal static string NumberDrill_SessionComplete {
+            get {
+                return ResourceManager.GetString("NumberDrill_SessionComplete", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Show hint.
+        /// </summary>
+        internal static string NumberDrill_ShowHint {
+            get {
+                return ResourceManager.GetString("NumberDrill_ShowHint", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The session could not be started. Try again..
+        /// </summary>
+        internal static string NumberDrill_StartFailed {
+            get {
+                return ResourceManager.GetString("NumberDrill_StartFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Start Session.
+        /// </summary>
+        internal static string NumberDrill_StartSession {
+            get {
+                return ResourceManager.GetString("NumberDrill_StartSession", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Your answer could not be saved. Try again..
+        /// </summary>
+        internal static string NumberDrill_SubmitFailed {
+            get {
+                return ResourceManager.GetString("NumberDrill_SubmitFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to You typed:.
+        /// </summary>
+        internal static string NumberDrill_YouTyped {
+            get {
+                return ResourceManager.GetString("NumberDrill_YouTyped", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Both correct!.
         /// </summary>
         internal static string NumberDrillBothCorrect {

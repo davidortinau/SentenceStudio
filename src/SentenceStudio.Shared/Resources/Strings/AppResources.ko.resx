@@ -8576,4 +8576,112 @@
   <data name="NativeActivity_LoadFailed" xml:space="preserve">
     <value>이 활동을 불러오지 못했습니다. 돌아가서 다시 시도하세요.</value>
   </data>
+  <data name="NumberDrill_ChooseDrill" xml:space="preserve">
+    <value>연습 선택</value>
+  </data>
+  <data name="NumberDrill_Context" xml:space="preserve">
+    <value>상황</value>
+  </data>
+  <data name="NumberDrill_Mode" xml:space="preserve">
+    <value>모드</value>
+  </data>
+  <data name="NumberDrill_AnyContext" xml:space="preserve">
+    <value>전체</value>
+  </data>
+  <data name="NumberDrill_Items" xml:space="preserve">
+    <value>문항 수: {0}</value>
+  </data>
+  <data name="NumberDrill_FewerItems" xml:space="preserve">
+    <value>문항 줄이기</value>
+  </data>
+  <data name="NumberDrill_MoreItems" xml:space="preserve">
+    <value>문항 늘리기</value>
+  </data>
+  <data name="NumberDrill_DueOnly" xml:space="preserve">
+    <value>복습할 항목만</value>
+  </data>
+  <data name="NumberDrill_StartSession" xml:space="preserve">
+    <value>연습 시작</value>
+  </data>
+  <data name="NumberDrill_Play" xml:space="preserve">
+    <value>재생</value>
+  </data>
+  <data name="NumberDrill_PromptA" xml:space="preserve">
+    <value>문제 A:</value>
+  </data>
+  <data name="NumberDrill_PromptB" xml:space="preserve">
+    <value>문제 B:</value>
+  </data>
+  <data name="NumberDrill_ShowHint" xml:space="preserve">
+    <value>힌트 보기</value>
+  </data>
+  <data name="NumberDrill_ExamplePattern" xml:space="preserve">
+    <value>예시 형식: {0}</value>
+  </data>
+  <data name="NumberDrill_YouTyped" xml:space="preserve">
+    <value>입력한 답:</value>
+  </data>
+  <data name="NumberDrill_Number" xml:space="preserve">
+    <value>숫자:</value>
+  </data>
+  <data name="NumberDrill_Korean" xml:space="preserve">
+    <value>한국어:</value>
+  </data>
+  <data name="NumberDrill_MasteryProgress" xml:space="preserve">
+    <value>진행: {0}/{1} 정답 · 다음 복습: {2}</value>
+  </data>
+  <data name="NumberDrill_IWasCorrect" xml:space="preserve">
+    <value>제 답이 맞아요</value>
+  </data>
+  <data name="NumberDrill_OverriddenVerdict" xml:space="preserve">
+    <value>정확해요! (정답 처리됨)</value>
+  </data>
+  <data name="NumberDrill_DisambiguateTip" xml:space="preserve">
+    <value>각 문제의 힌트를 보고 어떤 숫자 체계가 맞는지 확인하세요.</value>
+  </data>
+  <data name="NumberDrill_Finish" xml:space="preserve">
+    <value>마치기</value>
+  </data>
+  <data name="NumberDrill_CorrectCount" xml:space="preserve">
+    <value>{0}개 정답</value>
+  </data>
+  <data name="NumberDrill_SessionComplete" xml:space="preserve">
+    <value>연습 완료!</value>
+  </data>
+  <data name="NumberDrill_MedianTime" xml:space="preserve">
+    <value>중간 응답 시간</value>
+  </data>
+  <data name="NumberDrill_Milliseconds" xml:space="preserve">
+    <value>{0} ms</value>
+  </data>
+  <data name="NumberDrill_PatternsToReview" xml:space="preserve">
+    <value>복습할 패턴</value>
+  </data>
+  <data name="NumberDrill_AnotherRound" xml:space="preserve">
+    <value>한 번 더</value>
+  </data>
+  <data name="NumberDrill_KoreanOnly" xml:space="preserve">
+    <value>숫자 연습은 한국어 숫자를 연습합니다. 사용하려면 학습 언어를 한국어로 설정하세요.</value>
+  </data>
+  <data name="NumberDrill_NoItems" xml:space="preserve">
+    <value>연습할 항목이 없습니다. 다른 설정을 선택하거나 먼저 어휘를 추가하세요.</value>
+  </data>
+  <data name="NumberDrill_LoadFailed" xml:space="preserve">
+    <value>숫자 연습을 불러오지 못했습니다. 돌아가서 다시 시도하세요.</value>
+  </data>
+  <data name="NumberDrill_StartFailed" xml:space="preserve">
+    <value>연습을 시작하지 못했습니다. 다시 시도하세요.</value>
+  </data>
+  <data name="NumberDrill_SubmitFailed" xml:space="preserve">
+    <value>답을 저장하지 못했습니다. 다시 시도하세요.</value>
+  </data>
+  <data name="NumberDrill_EndFailed" xml:space="preserve">
+    <value>연습을 마치지 못했습니다. 다시 시도하세요.</value>
+  </data>
+  <data name="NumberDrill_AudioOffline" xml:space="preserve">
+    <value>오프라인에서는 오디오를 사용할 수 없습니다.</value>
+  </data>
+  <data name="NumberDrill_AudioFailed" xml:space="preserve">
+    <value>오디오를 재생하지 못했습니다.</value>
+  </data>
 </root>

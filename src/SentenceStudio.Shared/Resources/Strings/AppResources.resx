@@ -9221,4 +9221,112 @@ For example: {0} ...</value>
   <data name="NativeActivity_LoadFailed" xml:space="preserve">
     <value>This activity could not be loaded. Go back and try again.</value>
   </data>
+  <data name="NumberDrill_ChooseDrill" xml:space="preserve">
+    <value>Choose your drill</value>
+  </data>
+  <data name="NumberDrill_Context" xml:space="preserve">
+    <value>Context</value>
+  </data>
+  <data name="NumberDrill_Mode" xml:space="preserve">
+    <value>Mode</value>
+  </data>
+  <data name="NumberDrill_AnyContext" xml:space="preserve">
+    <value>Any</value>
+  </data>
+  <data name="NumberDrill_Items" xml:space="preserve">
+    <value>Items: {0}</value>
+  </data>
+  <data name="NumberDrill_FewerItems" xml:space="preserve">
+    <value>Fewer items</value>
+  </data>
+  <data name="NumberDrill_MoreItems" xml:space="preserve">
+    <value>More items</value>
+  </data>
+  <data name="NumberDrill_DueOnly" xml:space="preserve">
+    <value>Due items only</value>
+  </data>
+  <data name="NumberDrill_StartSession" xml:space="preserve">
+    <value>Start Session</value>
+  </data>
+  <data name="NumberDrill_Play" xml:space="preserve">
+    <value>Play</value>
+  </data>
+  <data name="NumberDrill_PromptA" xml:space="preserve">
+    <value>Prompt A:</value>
+  </data>
+  <data name="NumberDrill_PromptB" xml:space="preserve">
+    <value>Prompt B:</value>
+  </data>
+  <data name="NumberDrill_ShowHint" xml:space="preserve">
+    <value>Show hint</value>
+  </data>
+  <data name="NumberDrill_ExamplePattern" xml:space="preserve">
+    <value>Example pattern: {0}</value>
+  </data>
+  <data name="NumberDrill_YouTyped" xml:space="preserve">
+    <value>You typed:</value>
+  </data>
+  <data name="NumberDrill_Number" xml:space="preserve">
+    <value>Number:</value>
+  </data>
+  <data name="NumberDrill_Korean" xml:space="preserve">
+    <value>Korean:</value>
+  </data>
+  <data name="NumberDrill_MasteryProgress" xml:space="preserve">
+    <value>Progress: {0}/{1} correct · Next review: {2}</value>
+  </data>
+  <data name="NumberDrill_IWasCorrect" xml:space="preserve">
+    <value>I was correct</value>
+  </data>
+  <data name="NumberDrill_OverriddenVerdict" xml:space="preserve">
+    <value>정확해요! (Overridden)</value>
+  </data>
+  <data name="NumberDrill_DisambiguateTip" xml:space="preserve">
+    <value>Review the hint for each prompt to understand which system applies.</value>
+  </data>
+  <data name="NumberDrill_Finish" xml:space="preserve">
+    <value>Finish</value>
+  </data>
+  <data name="NumberDrill_CorrectCount" xml:space="preserve">
+    <value>{0} correct</value>
+  </data>
+  <data name="NumberDrill_SessionComplete" xml:space="preserve">
+    <value>Session Complete!</value>
+  </data>
+  <data name="NumberDrill_MedianTime" xml:space="preserve">
+    <value>Median Time</value>
+  </data>
+  <data name="NumberDrill_Milliseconds" xml:space="preserve">
+    <value>{0} ms</value>
+  </data>
+  <data name="NumberDrill_PatternsToReview" xml:space="preserve">
+    <value>Patterns to Review</value>
+  </data>
+  <data name="NumberDrill_AnotherRound" xml:space="preserve">
+    <value>Another round</value>
+  </data>
+  <data name="NumberDrill_KoreanOnly" xml:space="preserve">
+    <value>Number Drill practices Korean numbers. Set your target language to Korean to use it.</value>
+  </data>
+  <data name="NumberDrill_NoItems" xml:space="preserve">
+    <value>No items available. Try different settings or create some vocabulary first.</value>
+  </data>
+  <data name="NumberDrill_LoadFailed" xml:space="preserve">
+    <value>Number Drill could not be loaded. Go back and try again.</value>
+  </data>
+  <data name="NumberDrill_StartFailed" xml:space="preserve">
+    <value>The session could not be started. Try again.</value>
+  </data>
+  <data name="NumberDrill_SubmitFailed" xml:space="preserve">
+    <value>Your answer could not be saved. Try again.</value>
+  </data>
+  <data name="NumberDrill_EndFailed" xml:space="preserve">
+    <value>The session could not be finished. Try again.</value>
+  </data>
+  <data name="NumberDrill_AudioOffline" xml:space="preserve">
+    <value>Audio unavailable offline.</value>
+  </data>
+  <data name="NumberDrill_AudioFailed" xml:space="preserve">
+    <value>Failed to play audio.</value>
+  </data>
 </root>
