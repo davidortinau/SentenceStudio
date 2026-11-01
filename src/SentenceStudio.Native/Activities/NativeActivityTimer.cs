@@ -39,18 +39,26 @@ public sealed class NativeActivityTimer(
         if (_lease is not null)
             return owner.IsActive(_lease.UserId) && _lease.UserId == launch.UserId;
         if (!owner.IsActive(launch.UserId)
-            || NativeActivityCatalog.ForRoute(launch.Route)?.TimerType is not { } type)
+            || NativeActivityCatalog.ForRoute(launch.Route) is not { } definition
+            || (launch.ActivityType ?? definition.TimerType) is not { } type
+            || !definition.PlanTypes.Contains(type))
             return false;
 
         // Vocabulary is not part of the timer context: activities choose their
         // words after start, as the source pages do.
         var lease = await _timer.StartValidatedSessionAsync(new ActivityTimerStartRequest(
             launch.UserId, type, launch.PlanItemId, launch.TimerResourceId,
-            launch.SkillId, VocabularyWordIds: null), cancellationToken);
-        if (lease?.ActivityId is null || !owner.IsActive(launch.UserId))
+            definition.TimerRecordsSkill ? launch.SkillId : null,
+            VocabularyWordIds: null), cancellationToken);
+        if (lease?.ActivityId is null || _disposed || !owner.IsActive(launch.UserId))
         {
             if (lease is not null)
+            {
                 _timer.CancelSession(lease);
+                // A refused Choose My Own start must not leave an empty Freeform row behind.
+                if (!launch.IsPlanItem && lease.ActivityId is { } adHocId)
+                    await DiscardAdHocAsync(launch.UserId, adHocId);
+            }
             logger.LogWarning("Native activity timer refused an unowned or stale launch.");
             return false;
         }
@@ -60,24 +68,43 @@ public sealed class NativeActivityTimer(
         return true;
     }
 
-    /// <summary>Stops the timer and saves its whole minutes. Returns the saved minutes, or null when nothing was saved.</summary>
-    public async Task<int?> StopAsync(CancellationToken cancellationToken = default)
+    /// <summary>
+    /// Stops the timer and saves its whole minutes. <see cref="NativeActivityStop.Failed"/>
+    /// means a running session's minutes could not be saved (row gone, day changed,
+    /// or owner changed), so the screen can say so instead of losing them silently.
+    /// </summary>
+    public async Task<NativeActivityStop> StopAsync(CancellationToken cancellationToken = default)
     {
         var lease = _lease;
         _lease = null;
         if (lease?.ActivityId is null)
-            return null;
+            return NativeActivityStop.NotRunning;
         var minutes = (int)Math.Floor(_timer.StopSession(lease).TotalMinutes);
         if (!owner.IsActive(lease.UserId))
         {
             logger.LogWarning("Native activity timer did not save minutes after the owner changed.");
-            return null;
+            return NativeActivityStop.Failed;
         }
         if (!await progress.UpdatePlanItemProgressAsync(
                 lease.UserId, lease.ActivityId, minutes, cancellationToken))
-            return null;
+        {
+            logger.LogWarning("Native activity timer minutes were refused by the plan row.");
+            return NativeActivityStop.Failed;
+        }
         pendingWrites.MarkPending(lease.UserId);
-        return minutes;
+        return NativeActivityStop.Saved;
+    }
+
+    private async Task DiscardAdHocAsync(string userId, string adHocId)
+    {
+        try
+        {
+            await progress.DiscardAdHocSessionAsync(userId, adHocId);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Native activity timer could not discard a refused ad-hoc row.");
+        }
     }
 
     public void Dispose()
@@ -93,3 +120,5 @@ public sealed class NativeActivityTimer(
         _timer.Dispose();
     }
 }
+
+public enum NativeActivityStop { NotRunning, Saved, Failed }
