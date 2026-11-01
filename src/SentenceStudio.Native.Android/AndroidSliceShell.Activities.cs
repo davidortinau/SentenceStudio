@@ -82,14 +82,19 @@ internal sealed partial class AndroidSliceShell
                 break;
             case NativeActivityCatalog.Cloze:
                 await OpenClozeAsync(launch, cancellationToken);
+                break;
             case NativeActivityCatalog.Translation:
                 await OpenTranslationAsync(launch, cancellationToken);
+                break;
             case NativeActivityCatalog.NumberDrill:
                 await OpenNumberDrillAsync(launch, cancellationToken);
+                break;
             case NativeActivityCatalog.Writing:
                 await OpenWritingAsync(launch, cancellationToken);
+                break;
             case NativeActivityCatalog.Reading:
                 await OpenReadingAsync(launch, cancellationToken);
+                break;
             case NativeActivityCatalog.Shadowing:
                 await OpenShadowingAsync(launch, cancellationToken);
                 break;
@@ -117,14 +122,19 @@ internal sealed partial class AndroidSliceShell
                 break;
             case NativeActivityCatalog.Cloze:
                 await ExitClozeAsync(cancellationToken);
+                break;
             case NativeActivityCatalog.Translation:
                 await ExitTranslationAsync(cancellationToken);
+                break;
             case NativeActivityCatalog.NumberDrill:
                 await ExitNumberDrillAsync(cancellationToken);
+                break;
             case NativeActivityCatalog.Writing:
                 await ExitWritingAsync(cancellationToken);
+                break;
             case NativeActivityCatalog.Reading:
                 await ExitReadingAsync(cancellationToken);
+                break;
             case NativeActivityCatalog.Shadowing:
                 await ExitShadowingAsync(cancellationToken);
                 break;
