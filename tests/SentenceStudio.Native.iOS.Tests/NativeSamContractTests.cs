@@ -30,15 +30,22 @@ public sealed class NativeSamContractTests
             Assert.DoesNotMatch(@"\bUIKit\b|\bUIView\b|\bUIViewController\b|\bUIPasteboard\b|\bUILabel\b", source);
             Assert.DoesNotContain("Microsoft.Maui", source);
         }
-        // iPad: a side panel beside the page (source non-modal overlay); iPhone: SwiftUI's
-        // compact presentation of the same inspector is a sheet.
+        // Phone / narrow: a sheet over the tabs whose detent follows the size (60% or full
+        // height). iPad: a side panel beside the page (source non-modal overlay). The SwiftUI
+        // inspector's own compact sheet is never used: it does not follow a detent change.
         var scene = Source("App/ApplicationScene.Sam.cs");
-        Assert.Contains("Views.Inspector(tabs, _samStack, _app.DismissSam)", scene);
-        Assert.DoesNotContain("Views.Sheet(", scene);
-        // Source widths (app.css .sam-panel--compact 360px / --expanded 520px) and phone detents.
+        Assert.Contains("Views.Sheet(tabs, _samSheetHolder, OnSamSheetDismissed)", scene);
+        Assert.Contains("Views.Inspector(_samSheet, _samInspectorHolder, _app.DismissSam)", scene);
+        Assert.Contains("NativeDeviceIdiom.IsPhone || _style.ViewportWidth < 768", scene);
+        Assert.Contains("size == NativeSamPanelSize.Compact ? 0.6 : 1.0", scene);
+        Assert.Contains("_samSheet!.WithSheetDetentFraction(detent)", scene);
+        // Crossing the breakpoint moves the same stack (chat, draft, focus) between hosts.
+        Assert.Contains("(useSheet ? _samSheetHolder! : _samInspectorHolder!).Add(_samStack!)", scene);
+        Assert.Contains("field.FocusRequested = true", scene);
+        Assert.Contains("UpdateSam();", Source("App/ApplicationScene.cs"));
+        // Source widths (app.css .sam-panel--compact 360px / --expanded 520px).
         Assert.Contains("size == NativeSamPanelSize.Compact ? 360 : 520", scene);
         Assert.Contains(".WithInspectorColumnWidth(width, min: width, max: width)", scene);
-        Assert.Contains(".WithSheetDetentFraction(size == NativeSamPanelSize.Compact ? 0.6 : 1.0)", scene);
         // Source J1: compact below 992, expanded at or above it.
         Assert.Contains("_samCompactDefault = width < 992", Source("App/ApplicationController.Sam.cs"));
         Assert.Contains("Views.NavigationStack(_samPanelSlot", Source("App/ApplicationScene.Sam.cs"));

@@ -1018,6 +1018,11 @@ internal sealed partial class ApplicationScene : IDisposable
                 UpdateVocabularyList(replaceAll: true);
             if (_vocabularyWordSlot is not null && _app.IsVocabularyWordOpen)
                 UpdateVocabularyWord();
+            // Sam moves between the sheet and the side panel at this breakpoint.
+            if (_updating)
+                _updateRequested = true;
+            else
+                UpdateSam();
         }
     }
 
