@@ -9437,6 +9437,9 @@ For example: {0} ...</value>
   <data name="Reading_JumpHint" xml:space="preserve">
     <value>Double-tap a sentence to jump to it!</value>
   </data>
+  <data name="Reading_PlayFromSentence" xml:space="preserve">
+    <value>Play from this sentence</value>
+  </data>
   <data name="Reading_WordSaved" xml:space="preserve">
     <value>'{0}' saved to vocabulary!</value>
   </data>

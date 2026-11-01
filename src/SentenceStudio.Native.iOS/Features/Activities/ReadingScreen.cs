@@ -149,6 +149,10 @@ internal sealed class ReadingScreen : IActivityScreen
             .WithAccessibilityIdentifier("native.reading.content");
         content.Spacing = SourceUiLayout.PageGap;
         var scroll = Views.Scroll(content).WithAccessibilityIdentifier(NativeReadingAccess.Screen);
+        // Source: the current sentence scrolls into view (block: center). Each
+        // publish mounts a new scroll, so this also keeps the reader's place.
+        if (state.Phase == NativePhase.Ready && state.CurrentSentenceAnchorId is { } anchor)
+            scroll.ScrollTo(anchor, SwiftScrollAnchor.Center, animated: true);
         if (state.Phase != NativePhase.Ready || state.SentenceCount == 0)
             return style.Page(scroll);
         return style.Page(Views.BottomInset(scroll, Footer(state, style, text)));
@@ -203,6 +207,9 @@ internal sealed class ReadingScreen : IActivityScreen
         var appearance = style.Appearance;
         var size = (double)state.FontSize;
         var selected = Mix(appearance.Primary, appearance.BodyBackground, 0.1);
+        // VoiceOver speaks passage words in the passage language, not the UI language.
+        var speech = state.PassageLanguageTag;
+        var jumpAction = text(NativeReadingText.PlayFromSentence);
         var buttons = new List<SwiftView>();
         var pendingLead = string.Empty;
         var chunks = new List<(NativeReadingToken? Word, string Text, bool Space)>();
@@ -244,7 +251,8 @@ internal sealed class ReadingScreen : IActivityScreen
             var labelView = Views.Text(label)
                 .WithTypography(size, word?.IsVocabulary == true ? 600 : 400, 1.0,
                     appearance.FontPostScriptName(word?.IsVocabulary == true ? 600 : 400, false, false))
-                .WithPadding(size * 0.25, 2, size * 0.25, 2);
+                .WithPadding(size * 0.25, 2, size * 0.25, 2)
+                .WithSpeechLanguage(word is null ? null : speech);
             if (word?.IsVocabulary == true)
                 labelView.WithForegroundColor(appearance.Primary.Light, appearance.Primary.Dark)
                     .WithUnderline();
@@ -262,13 +270,20 @@ internal sealed class ReadingScreen : IActivityScreen
                 continue;
             }
             var tokenId = word.Id;
+            var sentenceIndex = word.SentenceIndex;
             var accessibility = word.IsVocabulary
                 ? $"{word.Text}, {text(NativeReadingText.InYourVocab)}" : word.Text;
-            buttons.Add(Views.Button(wrapper, () => Fire(token => _presenter.TapWordAsync(tokenId, token)))
+            var button = Views.Button(wrapper, () => Fire(token => _presenter.TapWordAsync(tokenId, token)))
                 .WithButtonStyle(SwiftButtonStyle.Plain)
                 .WithAccessibilityLabel(accessibility)
+                .WithSpeechLanguage(speech)
                 .WithAccessibilitySelected(current)
-                .WithAccessibilityIdentifier(word.AccessibilityId));
+                .WithAccessibilityIdentifier(word.AccessibilityId);
+            // Source InteractiveText: double-clicking a sentence plays from it (needs loaded audio).
+            if (state.CanNavigate)
+                button.OnDoubleTap(() => Fire(token => _presenter.JumpToSentenceAsync(sentenceIndex, token)),
+                    jumpAction);
+            buttons.Add(button);
         }
         if (buttons.Count == 0)
             return style.Text(Views.Text(text(NativeReadingText.NoContent)), SourceTextRole.Body1);
