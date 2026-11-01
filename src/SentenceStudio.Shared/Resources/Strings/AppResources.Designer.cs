@@ -10534,6 +10534,24 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Coach history could not be deleted. Nothing was removed..
+        /// </summary>
+        internal static string NativeSam_CoachHistoryDeleteFailed {
+            get {
+                return ResourceManager.GetString("NativeSam_CoachHistoryDeleteFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to There is no coach history to delete..
+        /// </summary>
+        internal static string NativeSam_CoachHistoryNothingToDelete {
+            get {
+                return ResourceManager.GetString("NativeSam_CoachHistoryNothingToDelete", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Your latest practice has to sync before {0} can help. Nothing changed. Try again when sync completes..
         /// </summary>
         internal static string NativeSam_SyncRequired {

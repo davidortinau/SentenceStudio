@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 using SentenceStudio.Abstractions;
 using SentenceStudio.Contracts.AppOperation;
 using SentenceStudio.Contracts.Coach;
+using SentenceStudio.Contracts.LearnerMemory;
 using SentenceStudio.Data;
 using SentenceStudio.Services.Api;
 
@@ -598,6 +599,439 @@ public sealed class NativeSamPresenterTests
         Assert.Null(api.LastApproval);
     }
 
+    // ------------------------------------------------------------------ writes, memory, reports, management
+
+    [Fact]
+    public async Task SoftWriteAppliesOnlyOnAcceptAndOffersTheReceiptUndo()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var api = WriteEnabled();
+        api.TurnResult = (_, conversation) => Turn(write: Write("w-1", conversation, hard: false));
+        var sam = await OpenAsync(fixture, api);
+
+        sam.SetDraft("add 사과 to my words");
+        await sam.SendAsync();
+
+        var entry = Assert.Single(sam.State.SafeEntries, item => item.Write is not null);
+        Assert.Equal("w-1", sam.State.ActiveWriteId);
+        var stage = NativeSamWritePresentation.Stage(entry.Write, true, false, DateTime.UtcNow);
+        Assert.Equal(NativeSamWriteStage.Proposed, stage);
+        Assert.True(NativeSamWritePresentation.ShowsAccept(entry.Write!, stage));
+        Assert.Equal(0, api.CallCount(nameof(ICoachApiClient.AcceptWriteAsync)));
+
+        await sam.AcceptWriteAsync("w-1");
+
+        var applied = Assert.Single(sam.State.SafeEntries, item => item.Write is not null).Write!;
+        Assert.Equal(CoachWriteStatus.Executed, applied.Status);
+        Assert.Null(sam.State.ActiveWriteId);
+        Assert.True(NativeSamWritePresentation.ShowsUndo(applied,
+            NativeSamWritePresentation.Stage(applied, false, false, DateTime.UtcNow), DateTime.UtcNow));
+
+        await sam.UndoWriteAsync("w-1");
+
+        Assert.Equal(CoachWriteStatus.Undone,
+            Assert.Single(sam.State.SafeEntries, item => item.Write is not null).Write!.Status);
+        Assert.All(api.Owners, owner => Assert.Equal(NativeSliceFixture.UserA, owner));
+    }
+
+    [Fact]
+    public async Task HardWriteNeedsTheConfirmStepAndNeverPublishesTheOneUseValue()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var api = WriteEnabled();
+        api.TurnResult = (_, conversation) => Turn(write: Write("w-hard", conversation, hard: true));
+        var sam = await OpenAsync(fixture, api);
+        sam.SetDraft("remove 사과");
+        await sam.SendAsync();
+
+        // The ordinary acceptance channel is refused for a protected change: nothing is sent.
+        await sam.AcceptWriteAsync("w-hard");
+        Assert.Equal(0, api.CallCount(nameof(ICoachApiClient.AcceptWriteAsync)));
+
+        await sam.BeginWriteConfirmationAsync("w-hard");
+        Assert.Equal("w-hard", sam.State.ConfirmingWriteId);
+        Assert.NotNull(sam.State.ConfirmationExpiresAtUtc);
+        Assert.DoesNotContain("one-use-secret-value", sam.State.ToString(), StringComparison.Ordinal);
+
+        sam.CancelWriteConfirmation();
+        Assert.Null(sam.State.ConfirmingWriteId);
+        await sam.ConfirmWriteAsync();
+        Assert.Equal(0, api.CallCount(nameof(ICoachApiClient.ConfirmWriteAsync)));
+
+        await sam.BeginWriteConfirmationAsync("w-hard");
+        await sam.ConfirmWriteAsync();
+
+        var confirm = Assert.Single(api.Calls, call => call.Name == nameof(ICoachApiClient.ConfirmWriteAsync));
+        Assert.Equal("one-use-secret-value", ((CoachWriteConfirmation)confirm.Args[2]!).Value);
+        Assert.Null(sam.State.ConfirmingWriteId);
+        Assert.Equal(CoachWriteStatus.Executed,
+            Assert.Single(sam.State.SafeEntries, item => item.Write is not null).Write!.Status);
+    }
+
+    [Fact]
+    public async Task AWriteTheServerNoLongerKnowsBecomesUnavailableWithoutGuessingAVerdict()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var api = WriteEnabled();
+        api.TurnResult = (_, conversation) => Turn(write: Write("w-gone", conversation, hard: false));
+        var sam = await OpenAsync(fixture, api);
+        sam.SetDraft("add a word");
+        await sam.SendAsync();
+        api.Writes.Remove("w-gone");
+
+        await sam.AcceptWriteAsync("w-gone");
+
+        Assert.True(sam.State.IsWriteUnavailable("w-gone"));
+        Assert.Equal("Coach_WriteUnavailable", sam.State.WriteErrorKey);
+        Assert.Null(sam.State.ActiveWriteId);
+        var write = Assert.Single(sam.State.SafeEntries, item => item.Write is not null).Write;
+        Assert.Equal(NativeSamWriteStage.Unavailable,
+            NativeSamWritePresentation.Stage(write, false, false, DateTime.UtcNow, isUnavailable: true));
+    }
+
+    [Fact]
+    public async Task WritesStayHiddenWhenTheServerHasNoWriteTools()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var api = new FakeSam();
+        api.Conversations.Add(Conversation("t"));
+        api.TurnResult = (_, conversation) => Turn(write: Write("w-off", conversation, hard: false));
+        var sam = Create(fixture, api);
+        await sam.RefreshAvailabilityAsync();
+        await sam.OpenAsync(NativeSamPanelSize.Compact);
+        sam.SetDraft("add a word");
+        await sam.SendAsync();
+
+        Assert.False(sam.State.WriteSurfaceEnabled);
+        await sam.AcceptWriteAsync("w-off");
+        Assert.Equal(0, api.CallCount(nameof(ICoachApiClient.AcceptWriteAsync)));
+    }
+
+    [Fact]
+    public async Task MemoryCandidateIsStoredOnlyOnSaveAndEditApprovesInOneCall()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var api = WriteEnabled();
+        var candidate = Memory("m-1", "Pass TOPIK II");
+        api.CandidateMemories.Add(candidate);
+        api.TurnResult = (_, _) => Turn(memory: candidate);
+        var sam = await OpenAsync(fixture, api);
+        sam.SetDraft("remember my goal is TOPIK II");
+        await sam.SendAsync();
+
+        Assert.Equal("m-1", sam.State.MemoryCandidate?.Id);
+        Assert.Equal(0, api.CallCount(nameof(ICoachApiClient.ApproveMemoryAsync)));
+
+        sam.BeginMemoryCandidateEdit();
+        Assert.Equal("Pass TOPIK II", sam.State.MemoryCandidateEdit);
+        sam.SetMemoryCandidateEdit("Pass TOPIK II by June");
+        await sam.SaveEditedMemoryCandidateAsync();
+
+        var approve = Assert.Single(api.Calls, call => call.Name == nameof(ICoachApiClient.ApproveMemoryAsync));
+        var request = (Contracts.LearnerMemory.CoachMemoryApproveRequest)approve.Args[1]!;
+        Assert.Equal(candidate.Version, request.ExpectedVersion);
+        Assert.Equal("Pass TOPIK II by June", request.EditedValue?.StudyGoalText);
+        Assert.Null(sam.State.MemoryCandidate);
+        Assert.Equal("Coach_MemorySaved", sam.State.MemoryCandidateNoticeKey);
+    }
+
+    [Fact]
+    public async Task NotNowOnAMemoryCandidateRemembersNothing()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var api = WriteEnabled();
+        var candidate = Memory("m-2", "Casual examples");
+        api.TurnResult = (_, _) => Turn(memory: candidate);
+        var sam = await OpenAsync(fixture, api);
+        sam.SetDraft("use casual examples");
+        await sam.SendAsync();
+
+        await sam.DeclineMemoryCandidateAsync();
+
+        Assert.Single(api.Calls, call => call.Name == nameof(ICoachApiClient.RejectMemoryAsync));
+        Assert.Equal(0, api.CallCount(nameof(ICoachApiClient.ApproveMemoryAsync)));
+        Assert.Null(sam.State.MemoryCandidate);
+    }
+
+    [Fact]
+    public async Task ReportGoesOnlyToASettledSamResponseAndSurvivesReload()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var api = WriteEnabled();
+        api.Conversations.Add(Conversation("t"));
+        api.Messages["t"] = [History("l1", CoachMessageRole.Learner, "hi", 1),
+            History("c1", CoachMessageRole.Coach, "answer", 2)];
+        var sam = Create(fixture, api);
+        await sam.RefreshAvailabilityAsync();
+        await sam.OpenAsync(NativeSamPanelSize.Compact);
+        Assert.True(sam.State.ReportingAvailable);
+
+        sam.OpenReport("l1");
+        Assert.Null(sam.State.ReportingMessageId);
+        sam.OpenReport("c1");
+        Assert.Equal("c1", sam.State.ReportingMessageId);
+        await sam.SubmitReportAsync();
+        Assert.Equal(0, api.CallCount(nameof(ICoachApiClient.ReportResponseAsync)));
+        sam.SelectReportReason(CoachResponseReportReason.Confusing);
+        await sam.SubmitReportAsync();
+
+        var report = Assert.Single(api.Calls, call => call.Name == nameof(ICoachApiClient.ReportResponseAsync));
+        Assert.Equal(CoachResponseReportReason.Confusing, ((CoachResponseReportRequest)report.Args[2]!).Reason);
+        Assert.True(sam.State.IsReported("c1"));
+        Assert.Null(sam.State.ReportingMessageId);
+
+        sam.Close();
+        await sam.OpenAsync(NativeSamPanelSize.Compact);
+        Assert.True(sam.State.IsReported("c1"));
+        sam.OpenReport("c1");
+        Assert.Null(sam.State.ReportingMessageId);
+    }
+
+    [Fact]
+    public async Task ReportingSwitchedOffOffersNoControl()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var api = WriteEnabled();
+        api.ReportsEnabled = false;
+        api.Conversations.Add(Conversation("t"));
+        api.Messages["t"] = [History("c1", CoachMessageRole.Coach, "answer", 1)];
+        var sam = Create(fixture, api);
+        await sam.RefreshAvailabilityAsync();
+        await sam.OpenAsync(NativeSamPanelSize.Compact);
+
+        Assert.False(sam.State.ReportingAvailable);
+        sam.OpenReport("c1");
+        Assert.Null(sam.State.ReportingMessageId);
+    }
+
+    [Fact]
+    public async Task DeleteHistoryDeletesTheCurrentSessionOnlyAndClaimsNothingOnFailure()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var api = WriteEnabled();
+        api.Conversations.Add(Conversation("session-1"));
+        api.Conversations.Add(Conversation("other", minutesAgo: 30));
+        var sam = await OpenAsync(fixture, api, addConversation: false);
+        Assert.Equal("session-1", sam.State.ConversationId);
+
+        sam.AskDeleteHistory();
+        Assert.True(sam.State.SafeSettings.ConfirmingDelete);
+        await sam.ConfirmDeleteHistoryAsync();
+
+        var delete = Assert.Single(api.Calls, call => call.Name == nameof(ICoachApiClient.DeleteSessionAsync));
+        Assert.Equal("session-1", delete.Args[0]);
+        Assert.Equal("Coach_SettingsDeleted", sam.State.SafeSettings.NoticeKey);
+        Assert.Null(sam.State.ConversationId);
+        Assert.Equal(["other"], sam.State.SafeConversations.Select(row => row.Id));
+
+        api.Overrides[nameof(ICoachApiClient.DeleteSessionAsync)] = _ =>
+            Task.FromException(new CoachApiException(HttpStatusCode.InternalServerError, null, null, null));
+        sam.AskDeleteHistory();
+        await sam.ConfirmDeleteHistoryAsync();
+        Assert.Equal("NativeSam_CoachHistoryDeleteFailed", sam.State.SafeSettings.NoticeKey);
+    }
+
+    [Fact]
+    public async Task RenameCloseAndDeleteSendTheConcurrencyTokenAndDeleteDropsTheOpenThread()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var api = WriteEnabled();
+        api.Conversations.Add(Conversation("t"));
+        api.Messages["t"] = [History("c1", CoachMessageRole.Coach, "secret answer", 1)];
+        var sam = await OpenAsync(fixture, api, addConversation: false);
+
+        sam.BeginConversationDialog(NativeSamConversationDialogKind.Rename, "t");
+        sam.SetRenameText("  Particles  ");
+        await sam.ConfirmConversationDialogAsync();
+        var rename = (UpdateCoachConversationRequest)Assert.Single(api.Calls,
+            call => call.Name == nameof(ICoachApiClient.UpdateConversationAsync)).Args[1]!;
+        Assert.Equal(1, rename.ExpectedStateVersion);
+        Assert.Equal("Particles", rename.Title);
+        Assert.Equal("Particles", sam.State.SafeConversations.Single().Title);
+        Assert.Equal("Coach_ConversationRenamed", sam.State.ConversationActionKey);
+
+        sam.BeginConversationDialog(NativeSamConversationDialogKind.Close, "t");
+        await sam.ConfirmConversationDialogAsync();
+        Assert.True(sam.State.ConversationClosed);
+        Assert.False(sam.State.CanSend);
+        await sam.ReopenConversationAsync("t");
+        Assert.False(sam.State.ConversationClosed);
+
+        sam.BeginConversationDialog(NativeSamConversationDialogKind.Delete, "t");
+        Assert.Equal(0, api.CallCount(nameof(ICoachApiClient.DeleteConversationAsync)));
+        await sam.ConfirmConversationDialogAsync();
+        Assert.Single(api.Calls, call => call.Name == nameof(ICoachApiClient.DeleteConversationAsync));
+        Assert.Null(sam.State.ConversationId);
+        Assert.Empty(sam.State.SafeEntries);
+        Assert.Empty(sam.State.SafeConversations);
+    }
+
+    [Fact]
+    public async Task MemoryPanelHidesWhenUnavailableAndForgetAllRefreshes()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var api = WriteEnabled();
+        api.ActiveMemories.Add(Memory("a-1", "Detailed explanations") with
+            { Status = Contracts.LearnerMemory.CoachMemoryStatus.Active });
+        var sam = Create(fixture, api);
+
+        await sam.LoadMemoryAsync();
+        Assert.Equal(NativeSamMemoryAvailability.Available, sam.State.SafeMemory.Availability);
+        Assert.Single(sam.State.SafeMemory.SafeActive);
+
+        sam.AskForgetAllMemories();
+        await sam.ForgetAllMemoriesAsync();
+        Assert.Single(api.Calls, call => call.Name == nameof(ICoachApiClient.ForgetAllMemoriesAsync));
+        Assert.True(sam.State.SafeMemory.IsPaused);
+        Assert.Equal("Coach_MemorySaved", sam.State.SafeMemory.NoticeKey);
+
+        api.Availability = new CoachAvailabilityResponse
+        {
+            IsAvailable = true, State = CoachAvailabilityState.Available, IsSamOverlayAvailable = true,
+            IsDurableHistoryAvailable = true, IsMemoryAvailable = false
+        };
+        await sam.RefreshAvailabilityAsync();
+        await sam.LoadMemoryAsync();
+        Assert.Equal(NativeSamMemoryAvailability.Unavailable, sam.State.SafeMemory.Availability);
+    }
+
+    [Fact]
+    public async Task OwnerChangeClearsWritesMemoryReportsAndSettings()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var api = WriteEnabled();
+        api.ActiveMemories.Add(Memory("a-1", "owner A goal"));
+        api.TurnResult = (_, conversation) => Turn(write: Write("w-a", conversation, hard: false),
+            memory: Memory("m-a", "owner A candidate"));
+        var sam = await OpenAsync(fixture, api);
+        sam.SetDraft("add a word");
+        await sam.SendAsync();
+        await sam.LoadMemoryAsync();
+        Assert.NotNull(sam.State.MemoryCandidate);
+        Assert.NotEmpty(sam.State.SafeMemory.SafeActive);
+
+        fixture.Activate(NativeSliceFixture.UserB);
+        api.Owners.Clear();
+        await sam.AcceptWriteAsync("w-a");
+
+        Assert.Equal(0, api.CallCount(nameof(ICoachApiClient.AcceptWriteAsync)));
+        Assert.Null(sam.State.MemoryCandidate);
+        Assert.Null(sam.State.ActiveWriteId);
+        Assert.Empty(sam.State.SafeMemory.SafeActive);
+        Assert.Null(sam.State.Reported);
+        Assert.False(sam.State.SafeSettings.IsAvailable);
+        Assert.Empty(api.Owners);
+    }
+
+    [Fact]
+    public async Task RepairNoteAttachesToTheAnswerButNeverBesideARefusal()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var api = WriteEnabled();
+        api.TurnResult = (_, _) => Turn(repair: CoachRepairDisclosure.AnswerAltered);
+        var sam = await OpenAsync(fixture, api);
+        sam.SetDraft("how much did I practice this week?");
+        await sam.SendAsync();
+        Assert.Equal(CoachRepairDisclosure.AnswerAltered,
+            sam.State.SafeEntries.Last(entry => entry.Kind == NativeSamEntryKind.Sam).Repair);
+
+        api.TurnResult = (_, _) => Turn(repair: CoachRepairDisclosure.AnswerAltered,
+            limitation: new CoachLimitationDto { Code = CoachLimitationCode.UnverifiedClaimWithheld });
+        sam.SetDraft("and last week?");
+        await sam.SendAsync();
+        Assert.Null(sam.State.SafeEntries.Last(entry => entry.Kind == NativeSamEntryKind.Sam).Repair);
+    }
+
+    [Fact]
+    public async Task ARejectedAnswerShapeShowsAFailureWithTryAgainUnderNewKeys()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var api = WriteEnabled();
+        api.TurnResult = (_, _) => Turn(CoachTurnStatus.Rejected, CoachStopReason.ValidationFailed);
+        var sam = await OpenAsync(fixture, api);
+        sam.SetDraft("What does 좋아하다 mean?");
+        await sam.SendAsync();
+
+        Assert.Equal(NativeSamStatus.Failed, sam.State.Status);
+        Assert.True(sam.State.CanRetry);
+        Assert.False(sam.State.Busy);
+
+        api.TurnResult = (_, _) => Turn();
+        await sam.RetryAsync();
+
+        Assert.Equal(2, api.Submitted.Count);
+        Assert.NotEqual(api.Submitted[0].OperationId, api.Submitted[1].OperationId);
+        Assert.NotEqual(api.Submitted[0].IdempotencyKey, api.Submitted[1].IdempotencyKey);
+        Assert.NotEqual(api.Submitted[0].Turn.ClientTurnId, api.Submitted[1].Turn.ClientTurnId);
+        Assert.Equal(NativeSamStatus.Ready, sam.State.Status);
+    }
+
+    [Fact]
+    public void ACompletedTurnThatStoppedEarlyWithNothingToShowIsIncomplete()
+    {
+        Assert.Equal(NativeSamStatus.Incomplete,
+            NativeSamPresenter.FromTurn(Turn(stop: CoachStopReason.ToolFailure)));
+        Assert.Equal(NativeSamStatus.Ready, NativeSamPresenter.FromTurn(Turn()));
+        Assert.Equal(NativeSamStatus.Ready, NativeSamPresenter.FromTurn(Turn(CoachTurnStatus.Rejected,
+            CoachStopReason.ValidationFailed,
+            limitation: new CoachLimitationDto { Code = CoachLimitationCode.RefusedByDesign })));
+    }
+
+    private static FakeSam WriteEnabled() => new()
+    {
+        Availability = new CoachAvailabilityResponse
+        {
+            IsAvailable = true, State = CoachAvailabilityState.Available, CanEditPlan = true,
+            IsDurableHistoryAvailable = true, IsSamOverlayAvailable = true, IsSamWriteAvailable = true,
+            IsMemoryAvailable = true
+        }
+    };
+
+    private static async Task<NativeSamPresenter> OpenAsync(NativeSliceFixture fixture, FakeSam api,
+        bool addConversation = true)
+    {
+        if (addConversation)
+            api.Conversations.Add(Conversation("t"));
+        var sam = Create(fixture, api);
+        await sam.RefreshAvailabilityAsync();
+        await sam.OpenAsync(NativeSamPanelSize.Compact);
+        return sam;
+    }
+
+    private static CoachWriteOperationDto Write(string id, string conversation, bool hard) => new()
+    {
+        OperationId = id, ConversationId = conversation,
+        ChangeKind = hard ? CoachWriteChangeKind.VocabularyRemove : CoachWriteChangeKind.VocabularyAdd,
+        RiskClass = hard ? CoachWriteRiskClass.WriteHard : CoachWriteRiskClass.WriteSoft,
+        Status = CoachWriteStatus.Proposed, ApprovalMode = hard ? "confirm" : "accept",
+        Summary = hard ? "Remove 사과" : "Add 사과", ExpiresAtUtc = DateTime.UtcNow.AddMinutes(10),
+        RequiresConfirmation = hard, IsReversible = !hard
+    };
+
+    private static Contracts.LearnerMemory.CoachMemoryFactDto Memory(string id, string text) => new(
+        id, Contracts.LearnerMemory.CoachMemoryKind.PersistentStudyGoal,
+        Contracts.LearnerMemory.CoachMemoryStatus.Candidate, Contracts.LearnerMemory.CoachMemoryScope.TargetLanguage,
+        "ko", new Contracts.LearnerMemory.CoachMemoryValueDto
+        {
+            Kind = Contracts.LearnerMemory.CoachMemoryKind.PersistentStudyGoal, StudyGoalText = text
+        },
+        text, Contracts.LearnerMemory.CoachMemoryProvenance.UserExplicit, 1, DateTime.UtcNow, DateTime.UtcNow,
+        null, null, null, null, 3);
+
     // ------------------------------------------------------------------ helpers
 
     private static Task<T> Fail<T>(Exception ex) => Task.FromException<T>(ex);
@@ -679,13 +1113,17 @@ public sealed class NativeSamPresenterTests
         PendingCoachSuggestionDto? suggestion = null,
         CoachLimitationDto? limitation = null,
         IReadOnlyList<CoachEvidenceDto>? evidence = null,
-        CoachVocabularySetProposal? vocabularySet = null) => new()
+        CoachVocabularySetProposal? vocabularySet = null,
+        CoachWriteOperationDto? write = null,
+        Contracts.LearnerMemory.CoachMemoryFactDto? memory = null,
+        CoachRepairDisclosure? repair = null) => new()
     {
         SessionId = "session-1", TurnId = Guid.NewGuid().ToString("N"), Status = status, StopReason = stop,
         SessionStatus = CoachSessionStatus.Active, ActiveConstraints = Constraints(), PlanState = Plan(),
         ChangeReceipt = receipt, PendingSuggestion = suggestion, Limitation = limitation,
         Evidence = evidence ?? [], ExpiresAtUtc = DateTime.UtcNow.AddHours(1),
-        VocabularySetProposal = vocabularySet
+        VocabularySetProposal = vocabularySet, WriteOperation = write, MemoryCandidate = memory,
+        RepairDisclosure = repair
     };
 
     /// <summary>Fake owner-bound client over a dispatch-proxied ICoachApiClient.</summary>
@@ -774,7 +1212,13 @@ public sealed class NativeSamPresenterTests
                     var list = Messages.TryGetValue(conversation, out var existing) ? existing : Messages[conversation] = [];
                     if (request.Turn.Text is { } text)
                         list.Add(History("l" + _sequence, CoachMessageRole.Learner, text, ++_sequence));
-                    var answer = History("a" + _sequence, CoachMessageRole.Coach, "answer", ++_sequence);
+                    var plain = History("a" + _sequence, CoachMessageRole.Coach, "answer", ++_sequence);
+                    var answer = result.WriteOperation is null ? plain : new CoachHistoryMessageDto
+                    {
+                        Message = plain.Message, Sequence = plain.Sequence, WriteOperation = result.WriteOperation
+                    };
+                    if (result.WriteOperation is { } proposed)
+                        Writes[proposed.OperationId] = proposed;
                     list.Add(answer);
                     return Task.FromResult(new CoachTurnOperationDto
                     {
@@ -796,10 +1240,132 @@ public sealed class NativeSamPresenterTests
                     LastApproval = (ApproveCoachVocabularySetRequest)args[0]!;
                     _pendingSet = null;
                     return Task.FromResult(ApprovalResult!(LastApproval));
+                case nameof(ICoachApiClient.GetReportedResponsesAsync):
+                    Calls.Add((name, args));
+                    return Task.FromResult(ReportsEnabled
+                        ? new CoachReportedResponsesDto { MessageIds = Reported.ToList() } : null);
+                case nameof(ICoachApiClient.ReportResponseAsync):
+                    Calls.Add((name, args));
+                    Reported.Add((string)args[1]!);
+                    return Task.FromResult<CoachResponseReportResponse?>(new CoachResponseReportResponse
+                    {
+                        MessageId = (string)args[1]!, Reason = ((CoachResponseReportRequest)args[2]!).Reason,
+                        State = CoachResponseReportState.Recorded, ReportedAtUtc = DateTime.UtcNow
+                    });
+                case nameof(ICoachApiClient.GetWriteOperationAsync):
+                case nameof(ICoachApiClient.AcceptWriteAsync):
+                case nameof(ICoachApiClient.RejectWriteAsync):
+                case nameof(ICoachApiClient.UndoWriteAsync):
+                case nameof(ICoachApiClient.ConfirmWriteAsync):
+                {
+                    Calls.Add((name, args));
+                    var operationId = (string)args[1]!;
+                    if (!Writes.TryGetValue(operationId, out var current))
+                        return Task.FromResult<CoachWriteOperationDto?>(null);
+                    var next = name switch
+                    {
+                        nameof(ICoachApiClient.AcceptWriteAsync) or nameof(ICoachApiClient.ConfirmWriteAsync)
+                            => Settle(current, CoachWriteStatus.Executed),
+                        nameof(ICoachApiClient.RejectWriteAsync) => Settle(current, CoachWriteStatus.Rejected),
+                        nameof(ICoachApiClient.UndoWriteAsync) => Settle(current, CoachWriteStatus.Undone),
+                        _ => current,
+                    };
+                    Writes[operationId] = next;
+                    return Task.FromResult<CoachWriteOperationDto?>(next);
+                }
+                case nameof(ICoachApiClient.RequestWriteConfirmationAsync):
+                    Calls.Add((name, args));
+                    return Task.FromResult<CoachWriteConfirmation?>(new CoachWriteConfirmation
+                    {
+                        OperationId = (string)args[1]!, Value = "one-use-secret-value",
+                        ExpiresAtUtc = DateTime.UtcNow.AddMinutes(5)
+                    });
+                case nameof(ICoachApiClient.ListActiveMemoriesAsync):
+                    return Task.FromResult<CoachMemoryPageDto?>(MemoryEnabled
+                        ? new CoachMemoryPageDto(ActiveMemories.ToList(), null) : null);
+                case nameof(ICoachApiClient.ListMemoryCandidatesAsync):
+                    return Task.FromResult<CoachMemoryPageDto?>(MemoryEnabled
+                        ? new CoachMemoryPageDto(CandidateMemories.ToList(), null) : null);
+                case nameof(ICoachApiClient.ApproveMemoryAsync):
+                {
+                    Calls.Add((name, args));
+                    var factId = (string)args[0]!;
+                    var fact = CandidateMemories.Concat(ActiveMemories).FirstOrDefault(item => item.Id == factId);
+                    CandidateMemories.RemoveAll(item => item.Id == factId);
+                    if (fact is not null)
+                        ActiveMemories.Add(fact with { Status = Contracts.LearnerMemory.CoachMemoryStatus.Active });
+                    return Task.FromResult(fact);
+                }
+                case nameof(ICoachApiClient.RejectMemoryAsync):
+                    Calls.Add((name, args));
+                    CandidateMemories.RemoveAll(item => item.Id == (string)args[0]!);
+                    return Task.CompletedTask;
+                case nameof(ICoachApiClient.ForgetMemoryAsync):
+                    Calls.Add((name, args));
+                    ActiveMemories.RemoveAll(item => item.Id == (string)args[0]!);
+                    return Task.CompletedTask;
+                case nameof(ICoachApiClient.ForgetAllMemoriesAsync):
+                {
+                    Calls.Add((name, args));
+                    var count = ActiveMemories.Count;
+                    ActiveMemories.Clear();
+                    return Task.FromResult<Contracts.LearnerMemory.CoachMemoryForgetAllResponse?>(new(count));
+                }
+                case nameof(ICoachApiClient.DeleteSessionAsync):
+                    Calls.Add((name, args));
+                    Conversations.RemoveAll(item => item.ConversationId == (string)args[0]!);
+                    return Task.CompletedTask;
+                case nameof(ICoachApiClient.DeleteConversationAsync):
+                    Calls.Add((name, args));
+                    Conversations.RemoveAll(item => item.ConversationId == (string)args[0]!);
+                    return Task.CompletedTask;
+                case nameof(ICoachApiClient.UpdateConversationAsync):
+                {
+                    Calls.Add((name, args));
+                    var conversationKey = (string)args[0]!;
+                    var request = (UpdateCoachConversationRequest)args[1]!;
+                    var index = Conversations.FindIndex(item => item.ConversationId == conversationKey);
+                    var existing = Conversations[index];
+                    var updated = new CoachConversationDto
+                    {
+                        ConversationId = conversationKey, Title = request.Title ?? existing.Title,
+                        TitleOrigin = request.Title is null ? existing.TitleOrigin : CoachConversationTitleOrigin.Learner,
+                        CreatedAtUtc = existing.CreatedAtUtc, UpdatedAtUtc = DateTime.UtcNow,
+                        HistoryStartsAtUtc = existing.HistoryStartsAtUtc, MessageCount = existing.MessageCount,
+                        StateVersion = existing.StateVersion + 1, HasActiveCheckpoint = existing.HasActiveCheckpoint,
+                        IsClosed = request.Close ?? existing.IsClosed
+                    };
+                    Conversations[index] = updated;
+                    return Task.FromResult(updated);
+                }
                 default:
                     throw new NotSupportedException(name);
             }
         }
+
+        public List<(string Name, object?[] Args)> Calls { get; } = [];
+        public Dictionary<string, CoachWriteOperationDto> Writes { get; } = new();
+        public bool ReportsEnabled { get; set; } = true;
+        public List<string> Reported { get; } = [];
+        public bool MemoryEnabled { get; set; } = true;
+        public List<Contracts.LearnerMemory.CoachMemoryFactDto> ActiveMemories { get; } = [];
+        public List<Contracts.LearnerMemory.CoachMemoryFactDto> CandidateMemories { get; } = [];
+        public int CallCount(string name) => Calls.Count(call => call.Name == name);
+
+        private static CoachWriteOperationDto Settle(CoachWriteOperationDto current, CoachWriteStatus status) => new()
+        {
+            OperationId = current.OperationId, ConversationId = current.ConversationId,
+            MessageId = current.MessageId, ChangeKind = current.ChangeKind, RiskClass = current.RiskClass,
+            Status = status, ApprovalMode = current.ApprovalMode, Summary = current.Summary,
+            Lines = current.Lines, ExpiresAtUtc = current.ExpiresAtUtc,
+            RequiresConfirmation = current.RequiresConfirmation, IsReversible = current.IsReversible,
+            Receipt = status == CoachWriteStatus.Executed ? new CoachWriteReceiptDto
+            {
+                OperationId = current.OperationId, ChangeKind = current.ChangeKind, RiskClass = current.RiskClass,
+                Status = status, Summary = "Added 사과", ExecutedAtUtc = DateTime.UtcNow,
+                CanUndo = current.IsReversible, UndoExpiresAtUtc = DateTime.UtcNow.AddMinutes(5)
+            } : current.Receipt
+        };
 
         public HashSet<string> Gone { get; } = [];
 

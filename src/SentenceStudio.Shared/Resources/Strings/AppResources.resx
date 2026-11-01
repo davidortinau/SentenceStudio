@@ -9206,4 +9206,10 @@ For example: {0} ...</value>
   <data name="NativeSam_VocabularyReviewNotReady" xml:space="preserve">
     <value>This vocabulary set has not reached this device yet. Try again after sync completes.</value>
   </data>
+  <data name="NativeSam_CoachHistoryDeleteFailed" xml:space="preserve">
+    <value>Coach history could not be deleted. Nothing was removed.</value>
+  </data>
+  <data name="NativeSam_CoachHistoryNothingToDelete" xml:space="preserve">
+    <value>There is no coach history to delete.</value>
+  </data>
 </root>

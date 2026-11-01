@@ -49,6 +49,8 @@ public sealed partial class NativeSamPresenter(
     private CoachConstraintSetDto? _constraints;
     private readonly Dictionary<string, ImmutableArray<CoachEvidenceDto>> _evidence = new(StringComparer.Ordinal);
     private readonly Dictionary<string, CoachLimitationDto> _limitations = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, (CoachRepairDisclosure Disclosure, bool EvidenceOnScreen)> _repairs =
+        new(StringComparer.Ordinal);
     private ImmutableArray<NativeSamEntry> _localEntries = [];
     private CoachTurnRequest? _lastRequest;
     private string? _pendingOperationId;
@@ -102,6 +104,9 @@ public sealed partial class NativeSamPresenter(
             Publish(_state with
             {
                 IsVisible = visible,
+                IsDurableHistoryAvailable = availability.IsDurableHistoryAvailable,
+                SamWriteAvailable = availability.IsSamWriteAvailable,
+                Settings = _state.SafeSettings with { IsAvailable = availability.IsAvailable },
                 IsOpen = visible && _state.IsOpen,
                 PersonaCulture = persona,
                 CanEditPlan = availability.CanEditPlan,
@@ -121,7 +126,12 @@ public sealed partial class NativeSamPresenter(
             if (!IsCurrent(owner))
                 return;
             _availability = null;
-            Publish(_state with { IsVisible = false, IsOpen = false, Status = NativeSamStatus.Closed });
+            Publish(_state with
+            {
+                IsVisible = false, IsOpen = false, Status = NativeSamStatus.Closed,
+                SamWriteAvailable = false,
+                Settings = _state.SafeSettings with { IsAvailable = false },
+            });
         }
     }
 
@@ -278,7 +288,7 @@ public sealed partial class NativeSamPresenter(
                 item.TitleOrigin == CoachConversationTitleOrigin.Unreadable
                     || string.IsNullOrWhiteSpace(item.Title),
                 item.UpdatedAtUtc, item.MessageCount, item.IsClosed,
-                item.ConversationId == _state.ConversationId))
+                item.ConversationId == _state.ConversationId, item.StateVersion))
             .ToImmutableArray();
 
     private async Task ResumeMostRecentAsync(string owner, CancellationToken cancellationToken,
@@ -347,7 +357,7 @@ public sealed partial class NativeSamPresenter(
                                 : CoachConversationTitleOrigin.Generated,
                             CreatedAtUtc = row.UpdatedAtUtc, UpdatedAtUtc = row.UpdatedAtUtc,
                             HistoryStartsAtUtc = row.UpdatedAtUtc,
-                            MessageCount = row.MessageCount, StateVersion = 0,
+                            MessageCount = row.MessageCount, StateVersion = row.StateVersion,
                             HasActiveCheckpoint = false, IsClosed = row.IsClosed
                         })))
             });
@@ -371,6 +381,8 @@ public sealed partial class NativeSamPresenter(
         {
             _evidence.Clear();
             _limitations.Clear();
+            _repairs.Clear();
+            DiscardConfirmation();
             _localEntries = [];
             _lastRequest = null;
             _pendingOperationId = null;
@@ -394,6 +406,24 @@ public sealed partial class NativeSamPresenter(
             CanRetry = false,
             CanRecover = false,
             NoticeKey = null,
+            ActiveWriteId = switching ? null : _state.ActiveWriteId,
+            ConfirmingWriteId = switching ? null : _state.ConfirmingWriteId,
+            ConfirmationExpiresAtUtc = switching ? null : _state.ConfirmationExpiresAtUtc,
+            WriteBusyId = switching ? null : _state.WriteBusyId,
+            WriteErrorId = switching ? null : _state.WriteErrorId,
+            WriteErrorKey = switching ? null : _state.WriteErrorKey,
+            UnavailableWrites = switching ? null : _state.UnavailableWrites,
+            MemoryCandidate = switching ? null : _state.MemoryCandidate,
+            MemoryCandidateEdit = switching ? null : _state.MemoryCandidateEdit,
+            MemoryCandidateNoticeKey = switching ? null : _state.MemoryCandidateNoticeKey,
+            Dispute = switching ? null : _state.Dispute,
+            ReportingAvailable = switching ? false : _state.ReportingAvailable,
+            Reported = switching ? null : _state.Reported,
+            ReportingMessageId = switching ? null : _state.ReportingMessageId,
+            ReportReason = switching ? null : _state.ReportReason,
+            ReportFailedId = switching ? null : _state.ReportFailedId,
+            CopiedMessageId = null,
+            CopyFailedMessageId = null,
             Conversations = _state.SafeConversations
                 .Select(row => row with { IsSelected = row.Id == conversationId })
                 .ToImmutableArray()
@@ -426,6 +456,9 @@ public sealed partial class NativeSamPresenter(
         if (!IsCurrent(owner) || _state.ConversationId != conversationId)
             return;
         await LoadVocabularyStateAsync(owner, conversationId, cancellationToken);
+        if (!IsCurrent(owner) || _state.ConversationId != conversationId)
+            return;
+        await LoadReportedResponsesAsync(owner, conversationId, cancellationToken);
         if (IsCurrent(owner) && !keepStatus
             && _state.Status is NativeSamStatus.Resuming or NativeSamStatus.Opening)
             Publish(_state with { Status = NativeSamStatus.Ready });
@@ -501,6 +534,7 @@ public sealed partial class NativeSamPresenter(
                 UnreadableCount = page.UnreadableCount,
                 HasLearnerSpoken = entries.Any(entry => entry.Kind == NativeSamEntryKind.Learner),
             });
+            RecomputeActiveWrite();
         }
         catch (CoachApiException ex) when (ex.StatusCode is HttpStatusCode.NotFound
             or HttpStatusCode.Forbidden or HttpStatusCode.Unauthorized)
@@ -525,6 +559,8 @@ public sealed partial class NativeSamPresenter(
     {
         _evidence.Clear();
         _limitations.Clear();
+        _repairs.Clear();
+        DiscardConfirmation();
         _localEntries = [];
         Publish(_state with
         {
@@ -534,6 +570,14 @@ public sealed partial class NativeSamPresenter(
             Suggestion = null,
             VocabularySet = null,
             ApprovedResourceId = null,
+            ActiveWriteId = null,
+            ConfirmingWriteId = null,
+            ConfirmationExpiresAtUtc = null,
+            WriteBusyId = null,
+            MemoryCandidate = null,
+            MemoryCandidateEdit = null,
+            Dispute = null,
+            ReportingMessageId = null,
             NoticeKey = "Coach_ConversationGone",
             Status = NativeSamStatus.Ready,
             // A turn or decision in flight for the dropped thread ends here, so
@@ -555,6 +599,13 @@ public sealed partial class NativeSamPresenter(
             return Entry(message, NativeSamEntryKind.Unreadable, string.Empty, item.Sequence);
         if (message.Role == CoachMessageRole.Learner)
             return Entry(message, NativeSamEntryKind.Learner, message.Text, item.Sequence);
+        var entry = MapCoachHistory(item, message);
+        // A proposed change renders inside the exchange that produced it (source SamWriteCard).
+        return item.WriteOperation is { } write ? entry with { Write = write } : entry;
+    }
+
+    private NativeSamEntry MapCoachHistory(CoachHistoryMessageDto item, CoachMessageDto message)
+    {
         return message.Kind switch
         {
             CoachMessageKind.Receipt => Entry(message, NativeSamEntryKind.Receipt,
@@ -583,7 +634,10 @@ public sealed partial class NativeSamPresenter(
                 .ToImmutableArray(),
             _evidence.TryGetValue(message.MessageId, out var evidence) ? evidence : [],
             _limitations.GetValueOrDefault(message.MessageId),
-            changeLines?.ToImmutableArray() ?? []);
+            changeLines?.ToImmutableArray() ?? [],
+            MessageKind: message.Kind,
+            Repair: _repairs.TryGetValue(message.MessageId, out var repair) ? repair.Disclosure : null,
+            RepairEvidenceOnScreen: _repairs.TryGetValue(message.MessageId, out var shown) && shown.EvidenceOnScreen);
 
     // ---------------------------------------------------------------- owner + plumbing
 
@@ -619,6 +673,8 @@ public sealed partial class NativeSamPresenter(
         _constraints = null;
         _evidence.Clear();
         _limitations.Clear();
+        _repairs.Clear();
+        DiscardConfirmation();
         _localEntries = [];
         _lastRequest = null;
         _pendingOperationId = null;

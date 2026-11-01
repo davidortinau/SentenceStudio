@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using SentenceStudio.Contracts.Coach;
+using SentenceStudio.Contracts.LearnerMemory;
 using SentenceStudio.Services.Api;
 
 namespace SentenceStudio.Native;
@@ -77,14 +78,70 @@ public sealed record NativeSamEntry(
     CoachLimitationDto? Limitation,
     ImmutableArray<string> ChangeLines,
     bool IsPending = false,
-    bool IsFailed = false)
+    bool IsFailed = false,
+    CoachMessageKind MessageKind = CoachMessageKind.Text,
+    CoachWriteOperationDto? Write = null,
+    CoachRepairDisclosure? Repair = null,
+    bool RepairEvidenceOnScreen = false)
 {
     public bool HasEvidence => !Evidence.IsDefaultOrEmpty;
+
+    /// <summary>A settled server message (not an optimistic or failed local echo).</summary>
+    public bool IsSettled => !IsPending && !IsFailed && !Id.StartsWith("local:", StringComparison.Ordinal);
+
+    /// <summary>
+    /// Source CoachChatPane.IsReportable: a durable, settled thing Sam said, of a
+    /// reportable kind (receipts and no-change markers are bookkeeping, not answers).
+    /// </summary>
+    public bool IsReportable =>
+        IsSettled && Kind is NativeSamEntryKind.Sam or NativeSamEntryKind.Notice
+        && CoachResponseReportability.IsReportableKind(MessageKind);
+
+    /// <summary>Source CoachTimelineEntry.ReadableText: what Copy puts on the clipboard.</summary>
+    public string ReadableText => Blocks.IsDefaultOrEmpty
+        ? Text
+        : string.Join("\n\n", Blocks.Select(block => block.Label is { Length: > 0 } label
+            ? label + "\n" + block.Text : block.Text));
 }
+
+/// <summary>A conversation-shelf action that needs a confirmation step (source CoachConversationList dialogs).</summary>
+public enum NativeSamConversationDialogKind { Rename, Close, Delete }
+
+public sealed record NativeSamConversationDialog(NativeSamConversationDialogKind Kind, string ConversationId,
+    string Title, string RenameText = "");
+
+/// <summary>Source CoachMemoryAvailability: the panel disappears unless the route group answers.</summary>
+public enum NativeSamMemoryAvailability { Unknown, Available, Unavailable }
+
+public enum NativeSamMemoryTab { Active, Candidates }
+
+/// <summary>Settings "What Sam remembers" (source CoachMemoryPanel + CoachMemoryDirectory).</summary>
+public sealed record NativeSamMemoryState(
+    NativeSamMemoryAvailability Availability = NativeSamMemoryAvailability.Unknown,
+    ImmutableArray<CoachMemoryFactDto> Active = default,
+    ImmutableArray<CoachMemoryFactDto> Candidates = default,
+    NativeSamMemoryTab Tab = NativeSamMemoryTab.Active,
+    bool Busy = false,
+    string? NoticeKey = null,
+    string? EditingId = null,
+    string EditText = "",
+    bool ConfirmingForgetAll = false)
+{
+    public ImmutableArray<CoachMemoryFactDto> SafeActive => Active.IsDefault ? [] : Active;
+    public ImmutableArray<CoachMemoryFactDto> SafeCandidates => Candidates.IsDefault ? [] : Candidates;
+    public bool IsPaused => Availability == NativeSamMemoryAvailability.Available && SafeActive.IsEmpty;
+}
+
+/// <summary>Settings "Learning Coach" section (source Settings.razor coach card).</summary>
+public sealed record NativeSamSettingsState(
+    bool IsAvailable = false,
+    bool ConfirmingDelete = false,
+    bool Deleting = false,
+    string? NoticeKey = null);
 
 public sealed record NativeSamConversationRow(
     string Id, string Title, bool TitleUnreadable, DateTime UpdatedAtUtc,
-    long MessageCount, bool IsClosed, bool IsSelected);
+    long MessageCount, bool IsClosed, bool IsSelected, long StateVersion = 0);
 
 public sealed record NativeSamState(
     bool IsVisible = false,
@@ -120,8 +177,48 @@ public sealed record NativeSamState(
     bool CanRetry = false,
     bool CanRecover = false,
     bool Busy = false,
+    bool IsDurableHistoryAvailable = false,
+    bool SamWriteAvailable = false,
+    string? ActiveWriteId = null,
+    string? ConfirmingWriteId = null,
+    DateTime? ConfirmationExpiresAtUtc = null,
+    string? WriteBusyId = null,
+    string? WriteErrorId = null,
+    string? WriteErrorKey = null,
+    ImmutableHashSet<string>? UnavailableWrites = null,
+    CoachMemoryFactDto? MemoryCandidate = null,
+    string? MemoryCandidateEdit = null,
+    bool MemoryCandidateBusy = false,
+    string? MemoryCandidateNoticeKey = null,
+    CoachDisputeDto? Dispute = null,
+    bool ReportingAvailable = false,
+    ImmutableHashSet<string>? Reported = null,
+    string? ReportingMessageId = null,
+    CoachResponseReportReason? ReportReason = null,
+    bool ReportBusy = false,
+    string? ReportFailedId = null,
+    string? CopiedMessageId = null,
+    string? CopyFailedMessageId = null,
+    NativeSamConversationDialog? ConversationDialog = null,
+    bool ConversationActionBusy = false,
+    string? ConversationActionKey = null,
+    NativeSamMemoryState? Memory = null,
+    NativeSamSettingsState? Settings = null,
     long Version = 0)
 {
+    /// <summary>Source IsWriteSurfaceEnabled: write tools on, durable history on, a thread open.</summary>
+    public bool WriteSurfaceEnabled => SamWriteAvailable && IsDurableHistoryAvailable && ConversationId is not null;
+
+    public NativeSamMemoryState SafeMemory => Memory ?? new NativeSamMemoryState();
+
+    public NativeSamSettingsState SafeSettings => Settings ?? new NativeSamSettingsState();
+
+    public bool IsWriteUnavailable(string? operationId) =>
+        operationId is not null && UnavailableWrites?.Contains(operationId) == true;
+
+    public bool IsReported(string? messageId) =>
+        messageId is { Length: > 0 } && Reported?.Contains(messageId) == true;
+
     public ImmutableArray<NativeSamEntry> SafeEntries =>
         Entries.IsDefault ? [] : Entries;
 

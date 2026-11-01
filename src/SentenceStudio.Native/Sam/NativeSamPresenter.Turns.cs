@@ -78,10 +78,16 @@ public sealed partial class NativeSamPresenter
     }
 
     /// <summary>Re-submits the last turn with the same operation id: the server replays, never re-runs.</summary>
-    public Task RetryAsync(CancellationToken cancellationToken = default) =>
-        _lastRequest is { } request && _state.CanRetry
-            ? RunTurnAsync(request, learnerText: null, applying: false, cancellationToken, retry: true)
-            : Task.CompletedTask;
+    public Task RetryAsync(CancellationToken cancellationToken = default)
+    {
+        if (_lastRequest is not { } request || !_state.CanRetry)
+            return Task.CompletedTask;
+        // After a definitive (terminal) failure the keys are already cleared and the
+        // turn must be a new one: a fresh client turn id too, so nothing replays it.
+        if (_pendingOperationId is null)
+            request = WithPlanVersion(request, NewHandle());
+        return RunTurnAsync(request, learnerText: null, applying: false, cancellationToken, retry: true);
+    }
 
     /// <summary>Stop: tells the server first (best effort), then always releases the panel (source J30).</summary>
     public async Task StopAsync(CancellationToken cancellationToken = default)
@@ -358,7 +364,7 @@ public sealed partial class NativeSamPresenter
             result.VocabularySetProposal);
     }
 
-    private void ApplyTurn(CoachTurnResponse result, string? answerId)
+    private void ApplyTurn(CoachTurnResponse result, string? answerId, bool conversational = true)
     {
         _sessionId = result.SessionId;
         _planVersion = result.PlanState.PlanVersion;
@@ -369,14 +375,31 @@ public sealed partial class NativeSamPresenter
                 _evidence[answerId] = result.Evidence.ToImmutableArray();
             if (result.Limitation is { } limitation)
                 _limitations[answerId] = limitation;
+            // A refused turn discloses nothing: there is no answer to have altered
+            // (source VisibleRepairDisclosure). The evidence pointer is this turn's only.
+            else if (result.RepairDisclosure is { } repair && repair != CoachRepairDisclosure.None)
+                _repairs[answerId] = (repair, result.Evidence.Count > 0);
         }
-        var entries = _state.SafeEntries.Select(entry => entry.Id == answerId
-                ? entry with
+        var fresh = result.WriteOperation;
+        var writeAttached = fresh is null
+            || _state.SafeEntries.Any(entry => entry.Write?.OperationId == fresh.OperationId);
+        var entries = _state.SafeEntries.Select(entry =>
+            {
+                if (fresh is not null && entry.Write?.OperationId == fresh.OperationId)
+                    entry = entry with { Write = fresh };
+                if (entry.Id != answerId)
+                    return entry;
+                return entry with
                 {
                     Evidence = _evidence.TryGetValue(entry.Id, out var evidence) ? evidence : [],
-                    Limitation = _limitations.GetValueOrDefault(entry.Id)
-                }
-                : entry)
+                    Limitation = _limitations.GetValueOrDefault(entry.Id),
+                    Repair = _repairs.TryGetValue(entry.Id, out var shown) ? shown.Disclosure : null,
+                    RepairEvidenceOnScreen = _repairs.TryGetValue(entry.Id, out var pointer)
+                        && pointer.EvidenceOnScreen,
+                    // The ledger normally carries the card; attach the turn's copy only when it does not.
+                    Write = !writeAttached ? fresh : entry.Write,
+                };
+            })
             .ToImmutableArray();
         var receipt = result.ChangeReceipt;
         var status = FromTurn(result);
@@ -394,7 +417,15 @@ public sealed partial class NativeSamPresenter
             StillWorking = false,
             CanStop = false,
             CanRetry = status is NativeSamStatus.Failed or NativeSamStatus.Incomplete,
+            // Replaced wholesale from every turn, null included: a closed dispute must
+            // stop being shown (source CoachWorkspaceState.Dispute).
+            Dispute = conversational ? result.Dispute : _state.Dispute,
+            // A separate consent from any plan change (source PendingMemoryCandidate).
+            MemoryCandidate = conversational ? result.MemoryCandidate : _state.MemoryCandidate,
+            MemoryCandidateEdit = conversational ? null : _state.MemoryCandidateEdit,
+            MemoryCandidateNoticeKey = conversational ? null : _state.MemoryCandidateNoticeKey,
         });
+        RecomputeActiveWrite();
         if (receipt is not null)
             PlanChanged?.Invoke();
     }
@@ -484,7 +515,7 @@ public sealed partial class NativeSamPresenter
             await LoadTranscriptAsync(owner, conversationId, cancellationToken);
             if (!IsCurrent(owner) || _state.ConversationId != conversationId)
                 return;
-            ApplyTurn(result, answerId: null);
+            ApplyTurn(result, answerId: null, conversational: false);
             if (rejected && result.ChangeReceipt is null)
                 Publish(_state with { NoticeKey = "Coach_Rejected" });
         }
@@ -615,6 +646,18 @@ public sealed partial class NativeSamPresenter
 
     // ---------------------------------------------------------------- helpers
 
+    private CoachTurnRequest WithPlanVersion(CoachTurnRequest request, string clientTurnId) => new()
+    {
+        InputKind = request.InputKind,
+        Text = request.Text,
+        ChipId = request.ChipId,
+        ConstraintAction = request.ConstraintAction,
+        PendingSuggestionId = request.PendingSuggestionId,
+        ExpectedPlanVersion = _planVersion,
+        ClientTurnId = clientTurnId,
+        ClientCapabilities = request.ClientCapabilities,
+    };
+
     private CoachTurnRequest WithPlanVersion(CoachTurnRequest request) => new()
     {
         InputKind = request.InputKind,
@@ -665,10 +708,13 @@ public sealed partial class NativeSamPresenter
             return NativeSamStatus.Expired;
         if (turn.StopReason == CoachStopReason.RateLimit)
             return NativeSamStatus.Limited;
-        // A validated refusal is a safe no-op, not a malfunction.
+        // A validated refusal that the learner can see (a typed limitation card) is a safe
+        // no-op. A rejection with nothing to show — e.g. the server refused the answer
+        // shape ("between 1 and 8 parts") — must not vanish: it is an honest failure with
+        // Try Again (the operation is terminal, so Try Again sends under new keys).
         if (turn.Status == CoachTurnStatus.Rejected && turn.StopReason == CoachStopReason.ValidationFailed
             && turn.ChangeReceipt is null && string.IsNullOrWhiteSpace(turn.ClarifyingQuestion))
-            return NativeSamStatus.Ready;
+            return turn.Limitation is not null ? NativeSamStatus.Ready : NativeSamStatus.Failed;
         if (turn.Status == CoachTurnStatus.Failed)
             return NativeSamStatus.Failed;
         var asks = turn.StopReason == CoachStopReason.ClarificationRequested
@@ -680,6 +726,12 @@ public sealed partial class NativeSamPresenter
         if (turn.Status == CoachTurnStatus.Rejected)
             return NativeSamStatus.Failed;
         if (turn.Status == CoachTurnStatus.Incomplete)
+            return NativeSamStatus.Incomplete;
+        // A "completed" turn that stopped for any other reason (tool failure, limits,
+        // timeout) without an answer to show is not a success either.
+        if (turn.StopReason is not (CoachStopReason.Completed or CoachStopReason.ClarificationRequested)
+            && turn.Answer is null && turn.Messages.Count == 0 && turn.ChangeReceipt is null
+            && turn.Limitation is null && turn.PendingSuggestion is null)
             return NativeSamStatus.Incomplete;
         return NativeSamStatus.Ready;
     }
