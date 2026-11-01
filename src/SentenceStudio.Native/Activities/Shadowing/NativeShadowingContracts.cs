@@ -102,3 +102,54 @@ public sealed record NativeShadowingState(
     /// <summary>The source shows the waveform once audio for the current sentence was prepared.</summary>
     public bool ShowsWaveform => HasAudio;
 }
+
+/// <summary>
+/// Source placeholder waveform: GeneratePlaceholderWaveform (seed 42, 200
+/// samples of 0.3..1.0) downsampled to 80 normalized bars by WaveformDisplay.
+/// It is decorative; it does not describe the clip.
+/// </summary>
+public static class NativeShadowingWaveform
+{
+    public const int BarCount = 80;
+
+    public static ImmutableArray<float> Bars { get; } = Create();
+
+    /// <summary>Source WaveformDisplay: a bar is played when its start fraction is at or before the position.</summary>
+    public static bool IsPlayed(int bar, double position) =>
+        (double)bar / BarCount <= position;
+
+    /// <summary>Source FormatTime: m:ss.f (h:mm:ss.f from one hour).</summary>
+    public static string FormatTime(double seconds)
+    {
+        if (!double.IsFinite(seconds) || seconds < 0)
+            seconds = 0;
+        var time = TimeSpan.FromSeconds(seconds);
+        return time.TotalHours >= 1
+            ? time.ToString(@"h\:mm\:ss\.f", System.Globalization.CultureInfo.InvariantCulture)
+            : time.ToString(@"m\:ss\.f", System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    private static ImmutableArray<float> Create()
+    {
+        var random = new Random(42);
+        var data = new float[200];
+        for (var i = 0; i < data.Length; i++)
+            data[i] = (float)(0.3 + random.NextDouble() * 0.7);
+        var result = new float[BarCount];
+        var perBar = (float)data.Length / BarCount;
+        for (var i = 0; i < BarCount; i++)
+        {
+            var start = (int)(i * perBar);
+            var end = Math.Min((int)((i + 1) * perBar), data.Length);
+            float sum = 0;
+            for (var j = start; j < end; j++)
+                sum += Math.Abs(data[j]);
+            result[i] = end > start ? sum / (end - start) : 0;
+        }
+        var max = result.Max();
+        if (max > 0)
+            for (var i = 0; i < result.Length; i++)
+                result[i] /= max;
+        return [.. result];
+    }
+}

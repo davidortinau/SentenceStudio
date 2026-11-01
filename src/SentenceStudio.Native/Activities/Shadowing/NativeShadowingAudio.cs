@@ -88,11 +88,11 @@ public sealed class NativeShadowingSpeech(
         var cached = await history.GetStreamHistoryByPhraseAndVoiceAsync(text, voice);
         if (!owner.IsActive(userId))
             return new(NativeSpeechClipStatus.Failed);
-        if (cached?.UserProfileId == userId && IsCachedAudio(cached.AudioFilePath))
+        if (cached?.UserProfileId == userId && CachedAudioPath(cached.AudioFilePath) is { } cachedPath)
         {
             try
             {
-                await using var stream = File.OpenRead(cached.AudioFilePath!);
+                await using var stream = File.OpenRead(cachedPath);
                 if (await ReadLimitedAsync(stream, cancellationToken) is { Length: > 0 } bytes)
                     return new(NativeSpeechClipStatus.Ready, bytes);
             }
@@ -155,22 +155,31 @@ public sealed class NativeShadowingSpeech(
         return new(NativeSpeechClipStatus.Ready, audio);
     }
 
-    private bool IsCachedAudio(string? path)
+    /// <summary>
+    /// The cached clip inside the current AudioCache directory. iOS moves the app
+    /// sandbox between installs, so a stored absolute path is resolved by its file
+    /// name under today's AppData directory; nothing outside that directory is read.
+    /// </summary>
+    private string? CachedAudioPath(string? stored)
     {
-        if (string.IsNullOrWhiteSpace(path))
-            return false;
-        var directory = Path.GetFullPath(
-            Path.Combine(files.AppDataDirectory, "AudioCache")) + Path.DirectorySeparatorChar;
+        if (string.IsNullOrWhiteSpace(stored))
+            return null;
         try
         {
-            return Path.GetFullPath(path).StartsWith(directory, StringComparison.Ordinal)
+            var directory = Path.GetFullPath(Path.Combine(files.AppDataDirectory, "AudioCache"));
+            var name = Path.GetFileName(stored);
+            if (string.IsNullOrWhiteSpace(name))
+                return null;
+            var path = Path.GetFullPath(Path.Combine(directory, name));
+            return path.StartsWith(directory + Path.DirectorySeparatorChar, StringComparison.Ordinal)
                 && File.Exists(path)
-                && new FileInfo(path).Length is > 0 and <= MaxAudioBytes;
+                && new FileInfo(path).Length is > 0 and <= MaxAudioBytes
+                    ? path : null;
         }
         catch (Exception ex) when (ex is ArgumentException or IOException
             or UnauthorizedAccessException)
         {
-            return false;
+            return null;
         }
     }
 

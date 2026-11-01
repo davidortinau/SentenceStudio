@@ -131,6 +131,7 @@ public sealed class NativeServices : IDisposable
             services.AddOwnerBoundNativeSam(endpoint);
         }
 
+        services.AddTransient<INativeShadowingPlayer, NativeShadowingPlayer>();
         services.AddSentenceStudioNativeSlice();
         if (endpoint is not null)
             services.AddOwnerBoundNativeSyncReadiness();

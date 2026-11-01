@@ -365,7 +365,8 @@ public sealed class NativeShadowingPresenterTests
             UserProfileId = NativeSliceFixture.UserA,
             Phrase = "안녕하세요 여러분",
             VoiceId = voice,
-            AudioFilePath = path,
+            // Stored under an older sandbox path: resolved by file name in today's cache.
+            AudioFilePath = Path.Combine("/old-sandbox/Documents/AudioCache", "cached.mp3"),
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow
         });
