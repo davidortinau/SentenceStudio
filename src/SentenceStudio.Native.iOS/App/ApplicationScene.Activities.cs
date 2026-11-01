@@ -49,7 +49,8 @@ internal sealed partial class ApplicationScene
             }
             else if (_activitySlot is not null)
             {
-                Replace(_activitySlot, _app.RenderActivity(_style));
+                if (!_app.TryUpdateActivityInPlace(_style))
+                    Replace(_activitySlot, _app.RenderActivity(_style));
                 if (_activitySheet is not null && _activitySheetSlot is not null)
                 {
                     if (_app.IsActivitySheetPresented)

@@ -19,8 +19,24 @@ public sealed class OwnerBoundNativeAiGateway(
 {
     internal const string ClientName = "NativeOwnerAiClient";
 
-    public async Task<T?> SendPromptAsync<T>(
-        string owner, string prompt, CancellationToken cancellationToken)
+    public Task<T?> SendPromptAsync<T>(
+        string owner, string prompt, CancellationToken cancellationToken) =>
+        SendAsync(owner, gateway => gateway.SendPromptAsync<T>(
+            prompt, cancellationToken: cancellationToken), cancellationToken);
+
+    /// <summary>
+    /// The instructions travel as the system role, not inside the user message,
+    /// so provider prompt shields do not read role-play instructions as a
+    /// jailbreak attempt (observed: Azure content_filter 400 on the combined
+    /// Conversation opening prompt).
+    /// </summary>
+    public Task<T?> SendWithInstructionsAsync<T>(
+        string owner, string instructions, string message, CancellationToken cancellationToken) =>
+        SendAsync(owner, gateway => gateway.SendMessagesAsync<T>(
+            [("user", message)], instructions, cancellationToken), cancellationToken);
+
+    private async Task<T?> SendAsync<T>(
+        string owner, Func<AiGatewayClient, Task<T?>> send, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var stamp = scope.CaptureStamp();
@@ -50,8 +66,7 @@ public sealed class OwnerBoundNativeAiGateway(
             BaseAddress = apiRoot
         };
         var gateway = new AiGatewayClient(new AiApiClient(client), aiLogger);
-        var response = await gateway.SendPromptAsync<T>(
-            prompt, cancellationToken: cancellationToken);
+        var response = await send(gateway);
         cancellationToken.ThrowIfCancellationRequested();
         if (!HasOwner())
             throw new UnauthorizedAccessException(

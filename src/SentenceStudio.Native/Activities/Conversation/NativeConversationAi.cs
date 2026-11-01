@@ -61,8 +61,12 @@ public sealed class NativeConversationAi(IServiceProvider services) : INativeCon
             userPrompt = await RenderAsync("StartConversation.scriban-txt",
                 new { target_language = targetLanguage }, cancellationToken);
         }
-        var combined = $"SYSTEM INSTRUCTIONS:\n{systemPrompt}\n\nTASK:\n{userPrompt}";
-        return await gateway.SendPromptAsync<string>(owner, combined, cancellationToken);
+        // Source sends "SYSTEM INSTRUCTIONS:\n{system}\n\nTASK:\n{task}" as one user
+        // message; Azure's prompt shield rejects that (content_filter 400, observed
+        // 2026-11-01 for every scenario and language). The same two texts go as
+        // system instructions plus the task message instead.
+        return await gateway.SendWithInstructionsAsync<string>(owner, systemPrompt, userPrompt,
+            cancellationToken);
     }
 
     public async Task<Reply?> ContinueAsync(string owner, IReadOnlyList<ConversationChunk> chunks,

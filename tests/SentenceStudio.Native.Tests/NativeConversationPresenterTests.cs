@@ -383,11 +383,13 @@ public sealed class NativeConversationPresenterTests
         };
 
         await ai.StartAsync("owner", scenario, "Korean", CancellationToken.None);
-        var start = gateway.Prompts.Single();
-        Assert.StartsWith("SYSTEM INSTRUCTIONS:\nYou are playing the role of 박지영, a friendly barista.", start);
-        Assert.Contains("This is a transactional conversation.", start);
-        Assert.Contains("뭐 드릴까요?", start);
-        Assert.Contains("TASK:\nStart the conversation", start);
+        // The source system prompt goes as system instructions, the task as the message.
+        Assert.Empty(gateway.Prompts);
+        var (instructions, start) = gateway.Instructed.Single();
+        Assert.StartsWith("You are playing the role of 박지영, a friendly barista.", instructions);
+        Assert.Contains("This is a transactional conversation.", instructions);
+        Assert.Contains("뭐 드릴까요?", instructions);
+        Assert.StartsWith("Start the conversation", start);
         Assert.Contains("naturally in Korean", start);
 
         await ai.ContinueAsync("owner",
@@ -395,7 +397,7 @@ public sealed class NativeConversationPresenterTests
             new ConversationChunk { Author = "박지영", Text = "안녕하세요" },
             new ConversationChunk { Author = "Me", Text = "커피 주세요" },
         ], scenario, "Korean", CancellationToken.None);
-        var next = gateway.Prompts[1];
+        var next = gateway.Prompts.Single();
         Assert.Contains("박지영 said \"안녕하세요\".", next);
         Assert.Contains("Me said \"커피 주세요\".", next);
         Assert.DoesNotContain("뭐 드릴까요?", next);
@@ -473,6 +475,15 @@ public sealed class NativeConversationPresenterTests
     {
         public List<string> Prompts { get; } = [];
         public List<string> Owners { get; } = [];
+        public List<(string Instructions, string Message)> Instructed { get; } = [];
+
+        public Task<T?> SendWithInstructionsAsync<T>(string owner, string instructions, string message,
+            CancellationToken cancellationToken)
+        {
+            Owners.Add(owner);
+            Instructed.Add((instructions, message));
+            return Task.FromResult((T?)(object?)"안녕하세요");
+        }
 
         public Task<T?> SendPromptAsync<T>(string owner, string prompt, CancellationToken cancellationToken)
         {
