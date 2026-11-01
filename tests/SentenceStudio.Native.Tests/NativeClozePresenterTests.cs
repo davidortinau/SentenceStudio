@@ -255,8 +255,9 @@ public sealed class NativeClozePresenterTests
         Assert.Contains(word, state.Options);
         state = await cloze.ToggleModeAsync();
         state = await cloze.ChooseAsync(word);
-        Assert.True(state.LastWasCorrect);
+        // Correct on the only sentence: the auto-advance opens the summary.
         Assert.Equal(NativePhase.Summary, state.Phase);
+        Assert.Equal(1, state.SessionCorrect);
         Assert.Equal(1, await fixture.AttemptCountAsync(owner));
     }
 
