@@ -161,9 +161,14 @@ public sealed class AndroidDashboardContractTests
         Assert.Contains("card.IsCompleted", compose);
         Assert.Contains("var canOpen = card.Activity == PlanActivityType.VocabularyReview",
             compose);
-        Assert.Contains("&& !card.IsCompleted;", compose);
+        Assert.Contains("&& !card.IsCompleted", compose);
+        // Other plan types open only when registered in NativeActivityCatalog.
+        Assert.Contains("|| NativeActivityCatalog.IsImplemented(card.Activity);", compose);
         Assert.Contains("canOpen && !Busy.Value", compose);
-        Assert.Contains("modifier.Clickable(() => OpenQuiz(card.Id))", compose);
+        Assert.Contains("modifier.Clickable(() => OpenPlanCard(card.Id))", compose);
+        var activities = Source("AndroidSliceShell.Activities.cs");
+        Assert.Contains("card?.Activity == PlanActivityType.VocabularyReview", activities);
+        Assert.Contains("OpenQuiz(planItemId);", activities);
         Assert.Contains("if (!canOpen)", compose);
         Assert.Contains("PlanSummary_Completed", compose);
         Assert.Contains("NativeResources_Unavailable", compose);
