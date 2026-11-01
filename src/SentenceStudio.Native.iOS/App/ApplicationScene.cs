@@ -129,7 +129,8 @@ internal sealed partial class ApplicationScene : IDisposable
         {
             NativeDestination.Onboarding => RootKind.Onboarding,
             NativeDestination.Dashboard or NativeDestination.VocabularyQuiz
-                or NativeDestination.QuizSummary => RootKind.Tabs,
+                or NativeDestination.QuizSummary
+                or NativeDestination.Activity => RootKind.Tabs,
             _ => RootKind.SignIn,
         };
         if (_kind != target)
@@ -190,6 +191,7 @@ internal sealed partial class ApplicationScene : IDisposable
 
         UpdateChooseOwn();
         UpdateQuiz();
+        UpdateActivity();
         UpdateResourceForm(themeChanged || modeChanged);
         UpdateSettings(themeChanged, modeChanged, fontScaleChanged);
         UpdateProfile(themeChanged || modeChanged || fontScaleChanged);
@@ -238,7 +240,7 @@ internal sealed partial class ApplicationScene : IDisposable
                     OnSkillsRoutesChanged(routes.Count);
                     return;
                 }
-                if (routes.Count != 0)
+                if (OnActivityRoutesChanged(routes.Count) || routes.Count != 0)
                     return;
                 if (_app.IsQuizOpen)
                 {

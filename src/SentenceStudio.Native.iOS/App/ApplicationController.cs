@@ -500,9 +500,11 @@ internal sealed partial class ApplicationController : IDisposable
             {
                 if (route == "vocab-quiz")
                     Run(OpenChooseOwnQuizAsync);
+                else if (NativeActivityCatalog.IsImplemented(route))
+                    Run(() => OpenChooseOwnActivityAsync(route));
             },
             AddResource: OpenResourceAddFromDashboard,
-            OpenQuiz: id => Run(() => OpenAssignedQuizAsync(id)),
+            OpenQuiz: id => Run(() => OpenPlanCardAsync(id)),
             OpenResource: OpenResourceFromDashboard),
             isTablet: style.ViewportWidth >= 768);
 
@@ -1004,6 +1006,7 @@ internal sealed partial class ApplicationController : IDisposable
         _quiz?.Dispose();
         _quiz = null;
         _quizLaunch = null;
+        ReleaseActivity();
         _feedbackAutoAdvanceCanceled = false;
         _selectedTab = 0;
         _destination = NativeDestination.SignIn;
@@ -1040,6 +1043,8 @@ internal sealed partial class ApplicationController : IDisposable
                     Phase = NativePhase.Error, ErrorKey = NativeText.QuizUnavailable };
             else if (_destination == NativeDestination.Onboarding)
                 _onboardingErrorKey = "NativeOnboarding_SaveFailed";
+            else if (_destination == NativeDestination.Activity)
+                _activityPopPending = false;
             else
                 _authState = _authState with {
                     Phase = NativePhase.Error, ErrorKey = NativeText.UnexpectedError };
@@ -1051,6 +1056,8 @@ internal sealed partial class ApplicationController : IDisposable
             _quizNavigationAfterAudio = QuizAudioNavigation.None;
             if (_nativePopPending && !_handlingNativePop && IsQuizOpen)
                 HandlePoppedQuiz();
+            else if (_activityPopPending && IsActivityOpen && !_disposed)
+                HandlePoppedActivity();
             else if (queuedNavigation != QuizAudioNavigation.None
                 && !_disposed && IsQuizOpen)
                 Run(queuedNavigation == QuizAudioNavigation.Back
@@ -1087,6 +1094,7 @@ internal sealed partial class ApplicationController : IDisposable
         CancelQuizAudioPlayback();
         _lifetime.Cancel();
         _quiz?.Dispose();
+        ReleaseActivity();
         _resources?.Dispose();
         ReleaseVocabulary();
         _skills?.Dispose();

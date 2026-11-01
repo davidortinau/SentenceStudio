@@ -78,7 +78,8 @@ internal static class PlanCardView
         var content = style.Card(
             row.WithPadding(SourceUiLayout.CardInset))
             .WithOpacity(card.IsCompleted ? 0.75 : 1);
-        var canOpen = card.Activity == PlanActivityType.VocabularyReview
+        var canOpen = (card.Activity == PlanActivityType.VocabularyReview
+                || NativeActivityCatalog.IsImplemented(card.Activity))
             && openQuiz is not null;
         var button = Views.Button(content,
                 () =>

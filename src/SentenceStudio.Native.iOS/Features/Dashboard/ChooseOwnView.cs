@@ -113,7 +113,8 @@ internal static class ChooseOwnView
                         .WithAccessibilityIdentifier(
                             "native.dashboard.chooseown.activity.title"))
                     .WithPadding(SourceUiLayout.CardInset));
-                var canLaunch = activity.Route == "vocab-quiz"
+                var canLaunch = (activity.Route == "vocab-quiz"
+                        || NativeActivityCatalog.IsImplemented(activity.Route))
                     && launchChooseOwnActivity is not null;
                 var button = Views.Button(content,
                         () =>
