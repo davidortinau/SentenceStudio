@@ -80,12 +80,16 @@ internal sealed partial class AndroidSliceShell
             case NativeActivityCatalog.VocabularyMatching:
                 await OpenMatchingAsync(launch, cancellationToken);
                 break;
+            case NativeActivityCatalog.Reading:
+                await OpenReadingAsync(launch, cancellationToken);
+                break;
         }
     }
 
     private ComposableNode RenderActivity(AndroidVisualPalette palette) => _activityRoute switch
     {
         NativeActivityCatalog.VocabularyMatching => RenderMatching(palette),
+        NativeActivityCatalog.Reading => RenderReading(palette),
         _ => Body(Localize(NativeMatchingText.Unavailable), palette),
     };
 
@@ -95,6 +99,9 @@ internal sealed partial class AndroidSliceShell
         {
             case NativeActivityCatalog.VocabularyMatching:
                 await ExitMatchingAsync(cancellationToken);
+                break;
+            case NativeActivityCatalog.Reading:
+                await ExitReadingAsync(cancellationToken);
                 break;
         }
         ReleaseActivity();
@@ -106,6 +113,7 @@ internal sealed partial class AndroidSliceShell
     private void ReleaseActivity()
     {
         ReleaseMatching();
+        ReleaseReading();
         _activityRoute = null;
     }
 }

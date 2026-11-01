@@ -92,6 +92,7 @@ internal sealed class AndroidServiceHost : IDisposable
             services.AddSingleton<ISyncService, SyncService>();
             services.AddOwnerBoundNativeAiGateway(apiUri);
             services.AddOwnerBoundNativeSam(apiUri);
+            services.AddOwnerBoundNativeReadingAudio(apiUri);
         }
 
         services.AddTransient<IPlanDateContext>(_ =>
@@ -129,6 +130,7 @@ internal sealed class AndroidServiceHost : IDisposable
         services.AddScoped<INativeQuizChoices, NativeQuizChoicesAdapter>();
         services.AddScoped<INativeQuizEligibility, NativeQuizEligibilityAdapter>();
         services.AddSingleton<INativeQuizGrader, NativeQuizGraderAdapter>();
+        services.AddSingleton<IAudioPlayerFactory>(new AndroidAudioPlayerFactory(activity));
         services.AddSentenceStudioNativeSlice();
         services.AddSentenceStudioNativeIdentityAuth();
         services.AddSingleton(sp => new AndroidQuizMedia(
