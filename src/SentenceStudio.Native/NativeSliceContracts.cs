@@ -12,7 +12,9 @@ namespace SentenceStudio.Native;
 public enum NativeDestination
 {
     SignIn, Onboarding, Dashboard, TodaysPlan, VocabularyQuiz, QuizSummary,
-    Resources, ResourceDetail, ResourceEdit
+    Resources, ResourceDetail, ResourceEdit,
+    /// <summary>A registered learning activity (NativeActivityCatalog); the launch route selects the screen.</summary>
+    Activity
 }
 
 public enum NativePhase { Idle, Loading, Ready, Empty, PendingSync, ResumeChoice, Feedback, Summary, Blocked, Error }

@@ -37,6 +37,10 @@ public static class NativeSliceRegistration
         services.TryAddScoped<ExampleSentenceRepository>();
         services.TryAddSingleton<NativeQuizSettings>();
         services.AddTransient<NativeQuizLaunchService>();
+        services.TryAddSingleton<NativeActivityOwner>();
+        services.AddTransient<NativeActivityLaunchService>();
+        services.AddTransient<NativeActivityTimer>();
+        services.AddTransient<NativeMatchingPresenter>();
         services.TryAddScoped<IPlanCopyProvider, EnglishPlanCopyProvider>();
         services.AddSingleton<NativePlanLeaseFactory>();
         services.TryAddSingleton<INativeProfileRemoteStore>(sp =>

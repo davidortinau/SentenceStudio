@@ -9985,6 +9985,24 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to This activity is no longer available for the active profile..
+        /// </summary>
+        internal static string NativeActivity_LaunchUnavailable {
+            get {
+                return ResourceManager.GetString("NativeActivity_LaunchUnavailable", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to This activity could not be loaded. Go back and try again..
+        /// </summary>
+        internal static string NativeActivity_LoadFailed {
+            get {
+                return ResourceManager.GetString("NativeActivity_LoadFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to No practice activity matches this filter..
         /// </summary>
         internal static string NativeActivityLog_FilterEmpty {
