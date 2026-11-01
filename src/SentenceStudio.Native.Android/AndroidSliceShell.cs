@@ -102,6 +102,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
         _dashboardMenuOpen = false;
         _appearanceSettingsOpen = true;
         Error.Value = string.Empty;
+        OpenSamSettings();
     });
 
     private void SelectAppearanceMode(ThemeMode mode)

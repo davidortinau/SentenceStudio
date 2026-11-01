@@ -257,6 +257,10 @@ internal sealed partial class AndroidSliceShell
     {
         var node = row.Kind switch
         {
+            AndroidSamRowKind.Dispute => SamDispute(state, palette),
+            AndroidSamRowKind.MemoryCandidate => SamMemoryCandidate(state, state.MemoryCandidate!, palette),
+            AndroidSamRowKind.MemoryNotice => Caption(Localize(state.MemoryCandidateNoticeKey!), palette,
+                "native.sam.memory.notice"),
             AndroidSamRowKind.Notice => SamNotice(Localize(state.NoticeKey!), palette,
                 "native.sam.conversation.notice"),
             AndroidSamRowKind.Unreadable => Caption(string.Format(CultureInfo.CurrentCulture,
@@ -369,6 +373,19 @@ internal sealed partial class AndroidSliceShell
         }
         if (entry.Limitation is { } limitation)
             parts.Add(SamLimitation(limitation, index, palette));
+        // Honesty notice: the answer was altered or a repair was withheld (source CoachRepairDisclosureNotice).
+        if (AndroidSamCards.RepairKey(entry) is { } repairKey)
+        {
+            var repair = Localize(repairKey);
+            var region = $"{Localize("Coach_Repair_RegionLabel")}: {repair}";
+            var notice = Body(repair, palette, secondary: true,
+                modifier: Modifier.TestTag($"native.sam.repair.{index}")
+                    .Semantics(semantics => semantics.ContentDescription(region)));
+            notice.FontSize = new Sp(AndroidVisualTheme.CaptionSize + 1);
+            parts.Add(notice);
+        }
+        if (AndroidSamCards.ShowsMessageActions(entry))
+            parts.AddRange(SamMessageActions(state, entry, index, palette));
         if (entry.HasEvidence)
         {
             var expanded = state.IsEvidenceExpanded(entry.Id);
@@ -396,7 +413,16 @@ internal sealed partial class AndroidSliceShell
             NativeSamEntryKind.Notice or NativeSamEntryKind.Receipt => SamCardStyle.Info,
             _ => SamCardStyle.Sam,
         };
-        return SamCard(palette, $"native.sam.message.{index}", style, parts);
+        var body = SamCard(palette, $"native.sam.message.{index}", style, parts);
+        // A proposed change renders inside the exchange that produced it, never as a dialog.
+        if (AndroidSamCards.Write(state, entry, DateTime.UtcNow) is { } write)
+            return new Column(Arrangement.SpacedBy(8))
+            {
+                Modifier.FillMaxWidth(),
+                body,
+                SamWriteCard(write, index, palette),
+            };
+        return body;
     }
 
     private ComposableNode SamEvidence(NativeSamEntry entry, int index, AndroidVisualPalette palette)
@@ -703,6 +729,10 @@ internal sealed partial class AndroidSliceShell
                 "native.sam.conversations.loading"));
         if (state.ConversationsErrorKey is { } error)
             header.Add(SamNotice(Localize(error), palette, "native.sam.conversations.error"));
+        if (state.ConversationActionKey is { } outcome)
+            header.Add(SamNotice(Localize(outcome), palette, "native.sam.conversations.outcome"));
+        if (state.ConversationDialog is { } dialog)
+            header.Add(SamConversationDialog(state, dialog, palette));
         var conversations = state.SafeConversations;
         if (conversations.IsEmpty && !state.ConversationsLoading && state.ConversationsErrorKey is null)
         {
@@ -736,7 +766,7 @@ internal sealed partial class AndroidSliceShell
         var modifier = Modifier.FillMaxWidth()
             .Border(row.IsSelected ? 2 : 1, row.IsSelected ? palette.Primary : palette.Border, 10)
             .TestTag($"native.sam.conversation.{index}");
-        modifier = !state.Busy
+        modifier = !state.Busy && !state.ConversationActionBusy
             ? modifier.Clickable(() => OpenSamConversation(id)).Semantics(semantics =>
             {
                 semantics.ContentDescription($"{title}, {detail}");
@@ -760,6 +790,11 @@ internal sealed partial class AndroidSliceShell
             Strong(title, palette),
             Caption(detail, palette),
         });
-        return surface;
+        return new Row(Arrangement.SpacedBy(4), Alignment.Vertical.CenterVertically)
+        {
+            Modifier.FillMaxWidth(),
+            new Box { Modifier.Weight(1f), surface },
+            SamConversationMenu(state, row, index, title, palette),
+        };
     }
 }

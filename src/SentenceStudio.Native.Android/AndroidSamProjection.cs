@@ -1,18 +1,22 @@
 using System.Collections.Immutable;
 using System.Globalization;
 using SentenceStudio.Contracts.Coach;
+using SentenceStudio.Contracts.LearnerMemory;
 using SentenceStudio.Native;
 
 namespace SentenceStudio.Native.Android;
 
 internal enum AndroidSamRowKind
 {
+    Dispute,
     Notice,
     Unreadable,
     TranscriptLoading,
     Message,
     Receipt,
     Suggestion,
+    MemoryCandidate,
+    MemoryNotice,
     Outcome,
     VocabularySet,
     VocabularySetOutcome,
@@ -84,6 +88,9 @@ internal static class AndroidSamProjection
             rows.Add(row with { Key = key });
         }
 
+        // The learner's open correction stays at the head of the log (source CoachDisputeNotice).
+        if (DisputeStatusKey(state) is not null)
+            Add(new("dispute", AndroidSamRowKind.Dispute));
         if (state.NoticeKey is { } notice && notice is not ("Coach_Rejected" or "Coach_Stopped"))
             Add(new("notice", AndroidSamRowKind.Notice));
         if (state.UnreadableCount > 0)
@@ -102,6 +109,11 @@ internal static class AndroidSamProjection
             Add(new("receipt:" + receipt.Revision.RevisionId, AndroidSamRowKind.Receipt));
         if (state.Suggestion is { } suggestion)
             Add(new("suggestion:" + suggestion.SuggestionId, AndroidSamRowKind.Suggestion));
+        // Its own card after any plan suggestion: being remembered is a separate consent.
+        if (state.MemoryCandidate is { } candidate)
+            Add(new("memory:" + candidate.Id, AndroidSamRowKind.MemoryCandidate));
+        else if (state.MemoryCandidateNoticeKey is not null)
+            Add(new("memory.notice", AndroidSamRowKind.MemoryNotice));
         if (state.NoticeKey is "Coach_Rejected" or "Coach_Stopped")
             Add(new("outcome", AndroidSamRowKind.Outcome));
         if (state.VocabularySet is { } set)
@@ -116,6 +128,18 @@ internal static class AndroidSamProjection
             Add(new("status", AndroidSamRowKind.Status));
         return rows.ToImmutable();
     }
+
+    /// <summary>Source CoachDisputeNotice: closed codes only, never the learner's words.</summary>
+    internal static string? DisputeStatusKey(NativeSamState state) =>
+        state.Dispute is not { } dispute || dispute.Status == CoachDisputeStatus.Unknown ? null
+        : dispute.Status switch
+        {
+            CoachDisputeStatus.ResolvedByReRead => "Coach_Dispute_Resolved_ReRead",
+            CoachDisputeStatus.ResolvedByCorrection => "Coach_Dispute_Resolved_Correction",
+            CoachDisputeStatus.ResolvedByLimitation => "Coach_Dispute_Resolved_Limitation",
+            CoachDisputeStatus.DismissedByLearner => "Coach_Dispute_Dismissed",
+            _ => "Coach_Dispute_Open",
+        };
 
     /// <summary>Stage rows and typed state notices (source CoachStateNotice), as on iOS.</summary>
     internal static AndroidSamStatus? Status(NativeSamState state, string persona, Func<string, string> text)
@@ -143,7 +167,11 @@ internal static class AndroidSamProjection
                     });
                 break;
             case NativeSamStatus.Offline: message = text("Coach_Offline"); break;
-            case NativeSamStatus.Failed: message = text("Coach_Failed"); danger = true; break;
+            case NativeSamStatus.Failed:
+                message = state.FailureKey is { } failure
+                    ? string.Format(CultureInfo.CurrentCulture, text(failure), persona) : text("Coach_Failed");
+                danger = true;
+                break;
             case NativeSamStatus.Incomplete: message = text("Coach_Incomplete"); break;
             case NativeSamStatus.Limited:
                 message = string.Format(CultureInfo.CurrentCulture, text("Coach_Limited"),

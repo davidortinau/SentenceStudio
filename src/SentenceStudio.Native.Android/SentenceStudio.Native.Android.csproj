@@ -30,6 +30,8 @@
     <ProguardConfiguration Include="proguard-compose-jni.cfg" />
     <PackageReference Include="Microsoft.AndroidX.Compose" />
     <PackageReference Include="Microsoft.Extensions.Http" />
+    <!-- Non-UI Essentials Clipboard for Sam Copy (no MAUI Controls in its closure). -->
+    <PackageReference Include="Microsoft.Maui.Essentials" />
     <ProjectReference Include="../SentenceStudio.Native/SentenceStudio.Native.csproj" />
     <ProjectReference Include="AilohaBinding/Ailoha.Android.Binding.csproj"
                       Condition="'$(Configuration)' == 'Debug'" />

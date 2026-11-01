@@ -61,6 +61,8 @@ internal sealed partial class AndroidSliceShell
                 .TestTag("native.settings.screen"),
         };
         viewport.Add(Card(palette, "native.settings.appearance", modes));
+        if (RenderSamSettings(palette) is { } sam)
+            viewport.Add(sam);
         if (!string.IsNullOrWhiteSpace(Error.Value))
             viewport.Add(StatusAlert(Error.Value, palette, error: true,
                 automationId: "native.settings.error"));

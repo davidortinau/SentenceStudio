@@ -16,8 +16,49 @@ public sealed class AndroidSamContractTests
     [
         "AndroidSliceShell.Sam.cs",
         "AndroidSliceShell.Sam.Compose.cs",
+        "AndroidSliceShell.Sam.Cards.Compose.cs",
+        "AndroidSliceShell.Sam.Settings.Compose.cs",
         "AndroidSamProjection.cs",
+        "AndroidSamCards.cs",
     ];
+
+    /// <summary>Copy uses the reviewed non-UI Essentials Clipboard, isolated in one file.</summary>
+    [Fact]
+    public void CopyUsesTheEssentialsClipboardAndNeverLogsTheText()
+    {
+        var clipboard = Code("AndroidSamClipboard.cs");
+        Assert.Contains("using Microsoft.Maui.ApplicationModel.DataTransfer;", clipboard);
+        Assert.Contains("Clipboard.Default.SetTextAsync(text)", clipboard);
+        Assert.DoesNotMatch(@"Android\.Widget|AndroidX\.AppCompat|Microsoft\.Maui\.Controls", clipboard);
+        var copy = Between(Code("AndroidSliceShell.Sam.cs"), "private void CopySamMessage(", "\n    });");
+        Assert.Contains("sam.ReportCopyResult(messageId, copied);", copy);
+        Assert.DoesNotMatch(@"Log\.\w+\([^)]*\btext\b", copy);
+        var project = File.ReadAllText(Path.Combine(Root, "SentenceStudio.Native.Android.csproj"));
+        Assert.Contains("<PackageReference Include=\"Microsoft.Maui.Essentials\" />", project);
+        Assert.DoesNotContain("Microsoft.Maui.Controls", project);
+    }
+
+    /// <summary>The hard-write confirm passes no value from the head: the presenter holds it.</summary>
+    [Fact]
+    public void HardWriteConfirmCarriesNoValueThroughTheHead()
+    {
+        var shell = Code("AndroidSliceShell.Sam.cs");
+        Assert.Contains("sam.ConfirmWriteAsync(_lifetime.Token)", shell);
+        Assert.DoesNotMatch(@"CoachWriteConfirmation|ConfirmationToken|ConfirmationValue",
+            string.Concat(SamFiles.Select(Code)));
+    }
+
+    /// <summary>Settings shows the Learning Coach and memory cards and loads them on open.</summary>
+    [Fact]
+    public void SettingsHostsTheSamSectionsAndLoadsThemOnOpen()
+    {
+        Assert.Contains("RenderSamSettings(palette)", Code("AndroidSliceShell.Appearance.cs"));
+        Assert.Contains("OpenSamSettings();",
+            Between(Code("AndroidSliceShell.cs"), "private void OpenAppearanceSettings()", "\n    });"));
+        var open = Between(Code("AndroidSliceShell.Sam.cs"), "private void OpenSamSettings()", "\n    }");
+        Assert.Contains("RefreshAvailabilityAsync", open);
+        Assert.Contains("LoadMemoryAsync", open);
+    }
 
     [Fact]
     public void SendPushesTheLatestTypedTextAndAccountChangeClearsTheDraft()
@@ -84,6 +125,40 @@ public sealed class AndroidSamContractTests
     [InlineData("native.sam.reloadplan")]
     [InlineData("native.sam.keepplan")]
     [InlineData("native.sam.startnew")]
+    [InlineData("native.sam.repair.")]
+    [InlineData("native.sam.write.")]
+    [InlineData("native.sam.copy.")]
+    [InlineData("native.sam.report.")]
+    [InlineData("native.sam.reported.")]
+    [InlineData("native.sam.report.panel")]
+    [InlineData("native.sam.report.reason.")]
+    [InlineData("native.sam.report.submit")]
+    [InlineData("native.sam.report.cancel")]
+    [InlineData("native.sam.memory.candidate")]
+    [InlineData("native.sam.memory.save")]
+    [InlineData("native.sam.memory.edit")]
+    [InlineData("native.sam.memory.onlythischat")]
+    [InlineData("native.sam.memory.notnow")]
+    [InlineData("native.sam.memory.editfield")]
+    [InlineData("native.sam.memory.saveedited")]
+    [InlineData("native.sam.memory.notice")]
+    [InlineData("native.sam.dispute")]
+    [InlineData("native.sam.dispute.state")]
+    [InlineData("native.sam.conversations.outcome")]
+    [InlineData("native.sam.conversations.dialog")]
+    [InlineData("native.sam.conversations.dialog.confirm")]
+    [InlineData("native.sam.conversations.dialog.cancel")]
+    [InlineData("native.sam.conversations.rename.field")]
+    [InlineData("native.sam.settings")]
+    [InlineData("native.sam.settings.coach")]
+    [InlineData("native.sam.settings.delete")]
+    [InlineData("native.sam.settings.delete.confirm")]
+    [InlineData("native.sam.settings.notice")]
+    [InlineData("native.sam.memory.panel")]
+    [InlineData("native.sam.memory.tab.active")]
+    [InlineData("native.sam.memory.tab.candidates")]
+    [InlineData("native.sam.memory.forgetall")]
+    [InlineData("native.sam.memory.paused")]
     public void EverySamSurfaceHasTheIosTestTag(string id) =>
         Assert.Contains($"\"{id}", string.Concat(SamFiles.Select(Code)));
 
