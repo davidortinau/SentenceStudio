@@ -564,4 +564,40 @@ public sealed class AndroidPackagingTests
                     == "'$(Configuration)' == 'Release'");
         }
     }
+
+    [Fact]
+    public void Release_KeepsComposeMembersTheFacadeResolvesThroughJni()
+    {
+        // R8 removed these JNI targets in Release: the TextFieldValue
+        // constructor and FontWeight.SemiBold getter crashed startup; the
+        // others are reached by the theme, ScrollToAsync, LaunchedEffect
+        // failure, image, pointer, and icon paths.
+        var project = XDocument.Load(Path.Combine(
+            HeadRoot, "SentenceStudio.Native.Android.csproj"));
+        Assert.Contains(project.Descendants("ProguardConfiguration"), item =>
+            (string?)item.Attribute("Include") == "proguard-compose-jni.cfg"
+            && item.Attribute("Condition") is null);
+        var rules = File.ReadAllText(Path.Combine(HeadRoot, "proguard-compose-jni.cfg"));
+        Assert.Contains("class androidx.compose.ui.text.input.TextFieldValue", rules);
+        Assert.Contains("<init>(java.lang.String, long, androidx.compose.ui.text.TextRange, int, "
+            + "kotlin.jvm.internal.DefaultConstructorMarker);", rules);
+        var colors = string.Join(", ", Enumerable.Repeat("long", 48));
+        foreach (var scheme in new[] { "lightColorScheme", "darkColorScheme" })
+            Assert.Contains($"{scheme}-_VG5OTI$default({colors}, int, int, java.lang.Object);",
+                rules);
+        Assert.Contains("public kotlin.coroutines.CoroutineContext getMain();", rules);
+        Assert.Contains("public static java.lang.Object createFailure(java.lang.Throwable);",
+            rules);
+        foreach (var member in new[]
+        {
+            "public androidx.compose.ui.text.font.FontWeight getSemiBold();",
+            "public androidx.compose.ui.text.font.FontWeight getBold();",
+            "public androidx.compose.ui.layout.ContentScale getFit();",
+            "public int getCenter-e0LSkKk();",
+            "public final long unbox-impl();",
+            "public static androidx.compose.material.icons.Icons$Filled INSTANCE;",
+            "public static androidx.compose.material.icons.Icons$AutoMirrored$Filled INSTANCE;",
+        })
+            Assert.Contains(member, rules);
+    }
 }

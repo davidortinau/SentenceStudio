@@ -27,6 +27,7 @@
       <_Parameter2>$(NativeAndroidApiUrl)</_Parameter2>
     </AssemblyAttribute>
     <Compile Remove="AilohaBinding/**/*.cs" />
+    <ProguardConfiguration Include="proguard-compose-jni.cfg" />
     <PackageReference Include="Microsoft.AndroidX.Compose" />
     <PackageReference Include="Microsoft.Extensions.Http" />
     <ProjectReference Include="../SentenceStudio.Native/SentenceStudio.Native.csproj" />
