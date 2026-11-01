@@ -29,5 +29,9 @@
                       LogicalName="SentenceStudio.Native.Prompts.GradeSentence.scriban-txt" />
     <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/GetClozuresV2.scriban-txt"
                       LogicalName="SentenceStudio.Native.Prompts.GetClozuresV2.scriban-txt" />
+    <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/GetTranslations.scriban-txt"
+                      LogicalName="SentenceStudio.Native.Prompts.GetTranslations.scriban-txt" />
+    <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/GradeTranslation.scriban-txt"
+                      LogicalName="SentenceStudio.Native.Prompts.GradeTranslation.scriban-txt" />
   </ItemGroup>
 </Project>

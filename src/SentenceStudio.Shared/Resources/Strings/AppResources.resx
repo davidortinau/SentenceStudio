@@ -3104,6 +3104,22 @@ Ready to practice? Say "yes" to start, or tell me what you'd like to change.</va
     <value>Start</value>
     <comment>Intro card start button</comment>
   </data>
+  <data name="Translation_NoSentencesReturned" xml:space="preserve">
+    <value>No sentences returned from the translation service.</value>
+    <comment>Notice when generation returns nothing</comment>
+  </data>
+  <data name="Translation_GradedAccuracy" xml:space="preserve">
+    <value>Graded! Accuracy: {0}%</value>
+    <comment>Notice after grading (arg0 = accuracy percent)</comment>
+  </data>
+  <data name="Translation_GradeFailed" xml:space="preserve">
+    <value>Error grading your translation. Please try again.</value>
+    <comment>Notice when AI grading fails</comment>
+  </data>
+  <data name="Translation_SaveFailed" xml:space="preserve">
+    <value>Your translation was graded, but the result could not be saved.</value>
+    <comment>Notice when the graded result could not be recorded</comment>
+  </data>
   <data name="WordAssoc_RoundComplete" xml:space="preserve">
     <value>Round Complete!</value>
     <comment>Summary header</comment>

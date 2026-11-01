@@ -43,6 +43,10 @@ public static class NativeSliceRegistration
         services.AddTransient<NativeMatchingPresenter>();
         services.AddTransient<NativeClozeSentenceSource>();
         services.AddTransient<NativeClozePresenter>();
+        services.TryAddSingleton<INativeTranslationAi>(sp => new OwnerBoundNativeTranslationAi(
+            sp.GetService<IOwnerBoundNativeAiGateway>(),
+            sp.GetService<IOwnerBoundNativeSentenceGateway>()));
+        services.AddTransient<NativeTranslationPresenter>();
         services.TryAddScoped<IPlanCopyProvider, EnglishPlanCopyProvider>();
         services.AddSingleton<NativePlanLeaseFactory>();
         services.TryAddSingleton<INativeProfileRemoteStore>(sp =>

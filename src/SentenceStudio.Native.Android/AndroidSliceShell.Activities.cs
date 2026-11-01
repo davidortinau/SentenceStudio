@@ -82,6 +82,8 @@ internal sealed partial class AndroidSliceShell
                 break;
             case NativeActivityCatalog.Cloze:
                 await OpenClozeAsync(launch, cancellationToken);
+            case NativeActivityCatalog.Translation:
+                await OpenTranslationAsync(launch, cancellationToken);
                 break;
         }
     }
@@ -90,6 +92,7 @@ internal sealed partial class AndroidSliceShell
     {
         NativeActivityCatalog.VocabularyMatching => RenderMatching(palette),
         NativeActivityCatalog.Cloze => RenderCloze(palette),
+        NativeActivityCatalog.Translation => RenderTranslation(palette),
         _ => Body(Localize(NativeMatchingText.Unavailable), palette),
     };
 
@@ -102,6 +105,8 @@ internal sealed partial class AndroidSliceShell
                 break;
             case NativeActivityCatalog.Cloze:
                 await ExitClozeAsync(cancellationToken);
+            case NativeActivityCatalog.Translation:
+                await ExitTranslationAsync(cancellationToken);
                 break;
         }
         ReleaseActivity();
@@ -114,6 +119,7 @@ internal sealed partial class AndroidSliceShell
     {
         ReleaseMatching();
         ReleaseCloze();
+        ReleaseTranslation();
         _activityRoute = null;
     }
 }

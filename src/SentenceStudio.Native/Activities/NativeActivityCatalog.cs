@@ -28,11 +28,13 @@ public static class NativeActivityCatalog
 {
     public const string VocabularyMatching = "vocab-matching";
     public const string Cloze = "cloze";
+    public const string Translation = "translation";
 
     public static ImmutableArray<NativeActivityDefinition> Implemented { get; } =
     [
         new(VocabularyMatching, [PlanActivityType.VocabularyGame], TimerRecordsSkill: false),
         new(Cloze, [PlanActivityType.Cloze]),
+        new(Translation, [PlanActivityType.Translation]),
     ];
 
     public static NativeActivityDefinition? ForRoute(string? route) =>
