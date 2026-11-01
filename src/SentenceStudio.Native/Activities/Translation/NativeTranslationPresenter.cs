@@ -57,6 +57,7 @@ public sealed class NativeTranslationPresenter(
     private double _accuracySum;
     private double _fluencySum;
     private bool _disposed;
+    private bool _exited;
 
     public NativeTranslationState State =>
         _launch is not null && !owner.IsActive(_launch.UserId)
@@ -73,7 +74,7 @@ public sealed class NativeTranslationPresenter(
         await _gate.WaitAsync(cancellationToken);
         try
         {
-            if (_launch is not null)
+            if (_launch is not null || _exited)
                 return State;
             _launch = launch;
             Publish(new(NativePhase.Loading));
@@ -100,7 +101,7 @@ public sealed class NativeTranslationPresenter(
     /// </summary>
     public void SetInput(string? text)
     {
-        if (IsActive(_state))
+        if (!_exited && IsActive(_state))
             _state = _state with { Input = text ?? string.Empty };
     }
 
@@ -162,7 +163,7 @@ public sealed class NativeTranslationPresenter(
             if (_launch is null || !owner.IsActive(_launch.UserId))
                 return Refuse();
             var state = _state;
-            if (!IsActive(state) || !state.CanGrade)
+            if (_exited || !IsActive(state) || !state.CanGrade)
                 return State;
             userId = _launch.UserId;
             index = state.Index;
@@ -217,7 +218,7 @@ public sealed class NativeTranslationPresenter(
             if (ReferenceEquals(_grading, grading))
                 _grading = null;
             grading.Dispose();
-            if (_state.Destination != NativeDestination.Activity || _launch is null)
+            if (_exited || _state.Destination != NativeDestination.Activity || _launch is null)
                 return State;
             if (!owner.IsActive(userId))
                 return Refuse();
@@ -251,7 +252,7 @@ public sealed class NativeTranslationPresenter(
         {
             if (_launch is null || !owner.IsActive(_launch.UserId))
                 return Refuse();
-            if (_state.Phase != NativePhase.Summary
+            if (_exited || _state.Phase != NativePhase.Summary
                 || _state.Destination != NativeDestination.Activity)
                 return State;
             _gradedCount = 0;
@@ -273,10 +274,12 @@ public sealed class NativeTranslationPresenter(
         await _gate.WaitAsync(cancellationToken);
         try
         {
+            _exited = true;
             string? errorKey = null;
             try
             {
-                await timer.StopAsync(cancellationToken);
+                if (await timer.StopAsync(cancellationToken) == NativeActivityStop.Failed)
+                    errorKey = NativeText.SaveFailed;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -369,7 +372,7 @@ public sealed class NativeTranslationPresenter(
                 return Refuse();
             if (words.Count == 0)
                 return Publish(new(NativePhase.Empty, ErrorKey: NativeTranslationText.NoSentences,
-                    Notice: new(NativeTranslationText.NoSentencesReturned, IsError: false)));
+                    Notice: new(NativeTranslationText.NoSentencesReturned, IsError: false, IsWarning: true)));
 
             var required = _focusWords.Where(FocusVocabularySelection.IsUsableVocabularyWord).ToList();
             var requiredIds = required.Select(word => word.Id).ToHashSet(StringComparer.Ordinal);
@@ -391,7 +394,7 @@ public sealed class NativeTranslationPresenter(
                 return Refuse();
             if (reply?.Sentences is not { Count: > 0 } generated)
                 return Publish(new(NativePhase.Empty, ErrorKey: NativeTranslationText.NoSentences,
-                    Notice: new(NativeTranslationText.NoSentencesReturned, IsError: false)));
+                    Notice: new(NativeTranslationText.NoSentencesReturned, IsError: false, IsWarning: true)));
 
             var byTerm = words.Where(FocusVocabularySelection.IsUsableVocabularyWord)
                 .GroupBy(word => word.TargetLanguageTerm!, StringComparer.OrdinalIgnoreCase)
@@ -599,7 +602,7 @@ public sealed class NativeTranslationPresenter(
         {
             if (_launch is null || !owner.IsActive(_launch.UserId))
                 return Refuse();
-            if (_state.Destination != NativeDestination.Activity)
+            if (_exited || _state.Destination != NativeDestination.Activity)
                 return State;
             var next = change(_state);
             return ReferenceEquals(next, _state) ? State : Publish(next);

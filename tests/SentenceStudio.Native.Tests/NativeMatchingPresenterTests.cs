@@ -19,7 +19,7 @@ public sealed class NativeMatchingPresenterTests
     {
         Assert.True(NativeActivityCatalog.IsImplemented(Matching));
         Assert.True(NativeActivityCatalog.IsImplemented(PlanActivityType.VocabularyGame));
-        Assert.False(NativeActivityCatalog.IsImplemented(PlanActivityType.Translation));
+        Assert.False(NativeActivityCatalog.IsImplemented(PlanActivityType.Writing));
         Assert.False(NativeActivityCatalog.IsImplemented("cloze"));
         // The quiz keeps its dedicated launch path.
         Assert.False(NativeActivityCatalog.IsImplemented(PlanActivityType.VocabularyReview));
@@ -51,8 +51,9 @@ public sealed class NativeMatchingPresenterTests
         Assert.Equal(game.FocusVocabularyIds.ToArray(), launch.FocusVocabularyIds.ToArray());
         // The card's own plan type drives the owner-validated timer (one route can serve several types).
         Assert.Equal(PlanActivityType.VocabularyGame, launch.ActivityType);
-        Assert.Null(await launches.FromPlanCardAsync(
-            cards.Single(card => card.Activity == PlanActivityType.Translation).Id));
+        // Another implemented activity's card opens its own route, not Matching.
+        Assert.Equal(NativeActivityCatalog.Translation, (await launches.FromPlanCardAsync(
+            cards.Single(card => card.Activity == PlanActivityType.Translation).Id))?.Route);
         Assert.Null(await launches.FromPlanCardAsync("not-a-card"));
 
         fixture.LoseOwner();

@@ -40,6 +40,7 @@ internal static class ActivityScreens
     internal static IActivityScreen? Create(string route, ActivityScreenHost host) => route switch
     {
         NativeActivityCatalog.VocabularyMatching => new VocabularyMatchingScreen(host),
+        NativeActivityCatalog.Translation => new TranslationScreen(host),
         _ => null
     };
 }
