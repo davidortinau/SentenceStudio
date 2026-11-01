@@ -96,6 +96,7 @@ public sealed class NativeServices : IDisposable
         services.AddSingleton<INativeQuizChoices, NativeQuizChoicesAdapter>();
         services.AddSingleton<INativeQuizEligibility, NativeQuizEligibilityAdapter>();
         services.AddSingleton<INativeQuizGrader, NativeQuizGraderAdapter>();
+        services.AddSingleton<IAudioPlayerFactory, NativeAudioPlayerFactory>();
         services.AddSingleton<INativeQuizMedia>(sp =>
             new NativeQuizMedia(
                 sp.GetRequiredService<DeviceUserScopeProvider>(),
@@ -127,6 +128,7 @@ public sealed class NativeServices : IDisposable
             services.AddSingleton<IAuthService, NativeProfileAuthService>();
             services.AddOwnerBoundNativeAiGateway(endpoint);
             services.AddOwnerBoundNativeQuizSpeech(endpoint);
+            services.AddOwnerBoundNativeReadingAudio(endpoint);
             services.AddOwnerBoundNativeSentenceGrader(endpoint);
             services.AddOwnerBoundNativeSam(endpoint);
         }
