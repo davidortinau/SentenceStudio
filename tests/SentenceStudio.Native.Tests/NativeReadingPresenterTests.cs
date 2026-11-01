@@ -361,6 +361,49 @@ public sealed class NativeReadingPresenterTests
         await db.SaveChangesAsync();
     }
 
+    [Fact]
+    public async Task SupersededOrExitedLookup_IsNeitherShownNorRecorded()
+    {
+        using var fixture = new NativeSliceFixture();
+        var owner = NativeSliceFixture.UserA;
+        await SeedReadingAsync(fixture, owner);
+        await SignInAsync(fixture, NativeSliceFixture.EmailA);
+        var ai = new ScratchTranslator("park");
+        using var reading = Presenter(fixture, new ScratchAudioSource(), new ScratchPlayerFactory(), ai);
+        var state = await reading.OpenAsync(ChooseOwnLaunch(fixture, owner));
+        await reading.AudioTask;
+        var tokens = state.Sentences.SelectMany(sentence => sentence.Tokens).ToList();
+        var first = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var second = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        ai.Gates.Enqueue(first);
+        ai.Gates.Enqueue(second);
+
+        // A later tap supersedes the first lookup.
+        var superseded = reading.TapWordAsync(tokens.Single(token => token.Text == "공원에").Id);
+        var current = reading.TapWordAsync(tokens.Single(token => token.Text == "친구를").Id);
+        first.SetResult(true);
+        await superseded;
+        second.SetResult(true);
+        state = await current;
+        Assert.Equal("친구를", state.WordPanel!.Word);
+        Assert.Equal("park", state.WordPanel.Definition);
+
+        // Exit while a lookup is in flight: nothing is recorded for it.
+        var gate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        ai.Gates.Enqueue(gate);
+        var exited = reading.TapWordAsync(tokens.Single(token => token.Text == "오늘은").Id);
+        Assert.Equal(NativeDestination.TodaysPlan, (await reading.ExitAsync()).Destination);
+        gate.SetResult(true);
+        await exited;
+
+        using var scope = fixture.Scope();
+        var inputs = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
+            .UserActivities.AsNoTracking()
+            .Where(row => row.UserProfileId == owner && row.Input!.StartsWith("Dictionary lookup"))
+            .Select(row => row.Input).ToListAsync();
+        Assert.Equal(["Dictionary lookup: 친구를"], inputs);
+    }
+
     private static NativeReadingPresenter Presenter(NativeSliceFixture fixture,
         INativeReadingAudioSource audio, IAudioPlayerFactory players,
         IOwnerBoundNativeAiGateway? ai = null) =>
@@ -383,12 +426,17 @@ public sealed class NativeReadingPresenterTests
         public string LastPrompt { get; private set; } = string.Empty;
         public string? Owner { get; private set; }
 
-        public Task<T?> SendPromptAsync<T>(string owner, string prompt, CancellationToken cancellationToken)
+        /// <summary>When set, lookups wait for it (one gate per lookup, in order).</summary>
+        public Queue<TaskCompletionSource<bool>> Gates { get; } = new();
+
+        public async Task<T?> SendPromptAsync<T>(string owner, string prompt, CancellationToken cancellationToken)
         {
             Calls++;
             Owner = owner;
             LastPrompt = prompt;
-            return Task.FromResult((T?)(object)Reply);
+            if (Gates.TryDequeue(out var gate))
+                await gate.Task;
+            return (T?)(object)Reply;
         }
     }
 
