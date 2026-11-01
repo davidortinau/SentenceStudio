@@ -27,10 +27,12 @@ public sealed record NativeActivityDefinition(
 public static class NativeActivityCatalog
 {
     public const string VocabularyMatching = "vocab-matching";
+    public const string Reading = "reading";
 
     public static ImmutableArray<NativeActivityDefinition> Implemented { get; } =
     [
         new(VocabularyMatching, [PlanActivityType.VocabularyGame], TimerRecordsSkill: false),
+        new(Reading, [PlanActivityType.Reading]),
     ];
 
     public static NativeActivityDefinition? ForRoute(string? route) =>

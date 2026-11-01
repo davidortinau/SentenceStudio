@@ -41,6 +41,9 @@ public static class NativeSliceRegistration
         services.AddTransient<NativeActivityLaunchService>();
         services.AddTransient<NativeActivityTimer>();
         services.AddTransient<NativeMatchingPresenter>();
+        services.TryAddSingleton<INativeReadingAudioSource, UnavailableNativeReadingAudioSource>();
+        services.TryAddSingleton<IAudioPlayerFactory, UnavailableNativeAudioPlayerFactory>();
+        services.AddTransient<NativeReadingPresenter>();
         services.TryAddScoped<IPlanCopyProvider, EnglishPlanCopyProvider>();
         services.AddSingleton<NativePlanLeaseFactory>();
         services.TryAddSingleton<INativeProfileRemoteStore>(sp =>

@@ -12883,11 +12883,110 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Audio error: {0}.
+        /// </summary>
+        internal static string Reading_AudioError {
+            get {
+                return ResourceManager.GetString("Reading_AudioError", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Audio generation failed - reading without audio..
+        /// </summary>
+        internal static string Reading_AudioFailed {
+            get {
+                return ResourceManager.GetString("Reading_AudioFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Generating timestamped audio....
+        /// </summary>
+        internal static string Reading_AudioGenerating {
+            get {
+                return ResourceManager.GetString("Reading_AudioGenerating", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Initializing audio....
+        /// </summary>
+        internal static string Reading_AudioInitializing {
+            get {
+                return ResourceManager.GetString("Reading_AudioInitializing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Loading audio....
+        /// </summary>
+        internal static string Reading_AudioLoading {
+            get {
+                return ResourceManager.GetString("Reading_AudioLoading", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Processing timestamps....
+        /// </summary>
+        internal static string Reading_AudioProcessing {
+            get {
+                return ResourceManager.GetString("Reading_AudioProcessing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Audio is still loading....
+        /// </summary>
+        internal static string Reading_AudioStillLoading {
+            get {
+                return ResourceManager.GetString("Reading_AudioStillLoading", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Could not save word..
+        /// </summary>
+        internal static string Reading_CouldNotSaveWord {
+            get {
+                return ResourceManager.GetString("Reading_CouldNotSaveWord", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Error saving word..
+        /// </summary>
+        internal static string Reading_ErrorSavingWord {
+            get {
+                return ResourceManager.GetString("Reading_ErrorSavingWord", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Font size.
+        /// </summary>
+        internal static string Reading_FontSize {
+            get {
+                return ResourceManager.GetString("Reading_FontSize", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to In your vocabulary.
         /// </summary>
         internal static string Reading_InYourVocab {
             get {
                 return ResourceManager.GetString("Reading_InYourVocab", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Double-tap a sentence to jump to it!.
+        /// </summary>
+        internal static string Reading_JumpHint {
+            get {
+                return ResourceManager.GetString("Reading_JumpHint", resourceCulture);
             }
         }
 
@@ -12910,11 +13009,74 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Next sentence.
+        /// </summary>
+        internal static string Reading_NextSentence {
+            get {
+                return ResourceManager.GetString("Reading_NextSentence", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No audio available..
+        /// </summary>
+        internal static string Reading_NoAudio {
+            get {
+                return ResourceManager.GetString("Reading_NoAudio", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to No reading content available..
         /// </summary>
         internal static string Reading_NoContent {
             get {
                 return ResourceManager.GetString("Reading_NoContent", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Resource has no transcript..
+        /// </summary>
+        internal static string Reading_NoTranscript {
+            get {
+                return ResourceManager.GetString("Reading_NoTranscript", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Pause.
+        /// </summary>
+        internal static string Reading_Pause {
+            get {
+                return ResourceManager.GetString("Reading_Pause", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Play.
+        /// </summary>
+        internal static string Reading_Play {
+            get {
+                return ResourceManager.GetString("Reading_Play", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Playback speed.
+        /// </summary>
+        internal static string Reading_PlaybackSpeed {
+            get {
+                return ResourceManager.GetString("Reading_PlaybackSpeed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Previous sentence.
+        /// </summary>
+        internal static string Reading_PreviousSentence {
+            get {
+                return ResourceManager.GetString("Reading_PreviousSentence", resourceCulture);
             }
         }
 
@@ -12928,11 +13090,38 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Resource not found..
+        /// </summary>
+        internal static string Reading_ResourceNotFound {
+            get {
+                return ResourceManager.GetString("Reading_ResourceNotFound", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Saving....
         /// </summary>
         internal static string Reading_Saving {
             get {
                 return ResourceManager.GetString("Reading_Saving", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to (translation unavailable).
+        /// </summary>
+        internal static string Reading_TranslationUnavailable {
+            get {
+                return ResourceManager.GetString("Reading_TranslationUnavailable", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to &apos;{0}&apos; saved to vocabulary!.
+        /// </summary>
+        internal static string Reading_WordSaved {
+            get {
+                return ResourceManager.GetString("Reading_WordSaved", resourceCulture);
             }
         }
 
