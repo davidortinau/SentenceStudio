@@ -10210,6 +10210,60 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Error deleting item..
+        /// </summary>
+        internal static string NativeHowDoYouSay_DeleteFailed {
+            get {
+                return ResourceManager.GetString("NativeHowDoYouSay_DeleteFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Audio file not found..
+        /// </summary>
+        internal static string NativeHowDoYouSay_FileNotFound {
+            get {
+                return ResourceManager.GetString("NativeHowDoYouSay_FileNotFound", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Audio generated!.
+        /// </summary>
+        internal static string NativeHowDoYouSay_Generated {
+            get {
+                return ResourceManager.GetString("NativeHowDoYouSay_Generated", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Audio could not be generated. Please try again..
+        /// </summary>
+        internal static string NativeHowDoYouSay_GenerateFailed {
+            get {
+                return ResourceManager.GetString("NativeHowDoYouSay_GenerateFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Playback error..
+        /// </summary>
+        internal static string NativeHowDoYouSay_PlaybackError {
+            get {
+                return ResourceManager.GetString("NativeHowDoYouSay_PlaybackError", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Please select a voice first..
+        /// </summary>
+        internal static string NativeHowDoYouSay_SelectVoice {
+            get {
+                return ResourceManager.GetString("NativeHowDoYouSay_SelectVoice", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Native Language.
         /// </summary>
         internal static string NativeLanguage {
