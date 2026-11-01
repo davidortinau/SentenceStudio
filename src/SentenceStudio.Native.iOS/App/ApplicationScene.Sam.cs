@@ -129,7 +129,8 @@ internal sealed partial class ApplicationScene
         _samSend = send;
         _samCounter = counter;
         _samHeader = SamView.HeaderActions(state, _app.Localize, _app.SamActions, SamResizable);
-        var body = Views.BottomInset(_style.Page(Views.Scroll(_samStreamSlot)), composer);
+        var body = Views.BottomInset(_style.Page(Views.Scroll(_samStreamSlot).WithScrollAnchoredToBottom()),
+            composer);
         return Views.Toolbar(_style.Page(body), _samHeader)
             .WithNavigationTitle(SamView.Title(state, _app.Localize))
             .WithInlineNavigationTitle();

@@ -31,6 +31,9 @@ public sealed class NativeSamContractTests
         }
         Assert.Contains("Views.Sheet(tabs, _samStack", Source("App/ApplicationScene.Sam.cs"));
         Assert.Contains("Views.NavigationStack(_samPanelSlot", Source("App/ApplicationScene.Sam.cs"));
+        // The chat transcript opens at, and follows, the newest message.
+        Assert.Contains("Views.Scroll(_samStreamSlot).WithScrollAnchoredToBottom()",
+            Source("App/ApplicationScene.Sam.cs"));
     }
 
     [Theory]
