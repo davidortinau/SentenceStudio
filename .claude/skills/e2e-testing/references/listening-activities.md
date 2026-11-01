@@ -16,6 +16,36 @@
 
 **Verify:** No stray characters in footer. No console errors on audio playback.
 
+### Native heads (iOS SwiftUI / Android Compose)
+
+Entry: Today's Plan card of type Shadowing **or Listening** (both open this
+screen), or the Choose My Own `shadowing` tile with a resource selected.
+Automation IDs: `native.shadowing.*` (target, translation, translation-toggle,
+pronunciation, waveform, elapsed, duration, previous, slow, play, normal, next,
+counter, audio-status, empty, empty.back, error).
+
+Learning Value Gate matrix (objective: hear and repeat target-language
+sentences with the written target form always visible):
+
+| Content | Translation | Audio | Speed | On screen | Verdict |
+|---|---|---|---|---|---|
+| vocabulary (AI / as-is) | hidden (default) | target TTS | Normal (default) | target text + target audio | ship |
+| vocabulary | shown | target TTS | Slow / Normal | target text + native gloss + target audio | ship |
+| transcript | none exists (toggle absent) | target TTS | Slow / Normal | target text + target audio | ship |
+| any | any | offline uncached / failed | any | target text + audio alert; Play retries | ship (text-only exposure) |
+
+No toggle hides the target text; audio is always the target sentence.
+
+| Step | Action | Verify |
+|------|--------|--------|
+| N1 | Open a Listening plan card | `native.shadowing.target` shows Korean; timer row ActivityType = Listening |
+| N2 | Wait for audio | waveform + `0:00.0 / m:ss.f`; Play enabled; no autoplay |
+| N3 | Tap Play | Pause shown; elapsed advances; ends on Play with elapsed = duration |
+| N4 | Tap Slow | Slow selected; audio reloads and autoplays at 0.6x |
+| N5 | Show translation, then Next | translation hidden again; counter `2 / n`; Prev enabled |
+| N6 | Back | Dashboard; plan card minutes saved; no VocabularyProgress or UserActivity rows written |
+| N7 | Restart, reopen | cached clip plays without a synthesize request |
+
 ## 2. Minimal Pairs (`/minimal-pairs/session/{id}`)
 
 **Prereqs:** MinimalPair records in DB  
