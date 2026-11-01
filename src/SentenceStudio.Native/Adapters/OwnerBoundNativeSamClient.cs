@@ -80,11 +80,17 @@ public static class OwnerBoundNativeSamClientRegistration
                 && apiRoot.Scheme != Uri.UriSchemeHttps)
             throw new ArgumentException("A valid native API origin is required.", nameof(apiRoot));
 
+        // Sam reads Today's Plan, progress, and practice windows for the learner's local day. The
+        // API builds that day from X-Timezone and falls back to UTC without it, so after UTC
+        // midnight a device plan dated today looked absent ("no plan for today yet"). The handler
+        // resolves the device IPlanDateContext per request; it never overrides an explicit header.
+        services.TryAddTransient<PlanTimeZoneHeaderHandler>();
         services.AddHttpClient(OwnerBoundNativeSamClient.ClientName)
             .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
             {
                 AllowAutoRedirect = false
-            });
+            })
+            .AddHttpMessageHandler<PlanTimeZoneHeaderHandler>();
         services.TryAddSingleton<INativeSamClient>(provider =>
             new OwnerBoundNativeSamClient(
                 provider.GetRequiredService<IAuthService>(),
