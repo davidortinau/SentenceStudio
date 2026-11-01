@@ -49,11 +49,11 @@ art**, then extend the existing bridge only as narrowly as the blocked feature
 requires. Do not change external repositories without Captain's permission,
 except under the narrow standing approval below.
 
-**Local SwiftUI bridge standing approval (Captain, 2026-10-07):** For an
-approved native feature or correction blocked by the installed facade, small,
-additive, parameterized convenience modifiers in the existing local
-`Microsoft.SwiftUI` bridge and a distinct matching local package build do not
-need another permission request. Preserve defaults for existing callers; read
+**Local SwiftUI bridge standing approval (Captain, 2026-10-07; widened
+2026-11-01):** For an approved native feature or correction blocked by the
+installed facade, additions to the existing local `Microsoft.SwiftUI` bridge
+(modifiers or new SwiftUI view kinds, such as `PhotosPicker`) and a distinct
+matching local package build do not need another permission request. Preserve defaults for existing callers; read
 the framework/source and prior art, add guards and tests, and retain build,
 review, and running-app verification gates. This does **not** authorize a
 general Frame/layout framework, new dependencies, architecture changes,
