@@ -1,7 +1,6 @@
 using AndroidX.Compose;
 using Microsoft.Extensions.DependencyInjection;
 using SentenceStudio.Native;
-using ComposeButton = AndroidX.Compose.Button;
 
 namespace SentenceStudio.Native.Android;
 
@@ -232,55 +231,70 @@ internal sealed partial class AndroidSliceShell
 
     private ComposableNode ShadowingFooter(NativeShadowingState state, AndroidVisualPalette palette)
     {
-        ComposableNode Small(string label, string tag, bool primary, bool enabled, Action command)
+        // Source .btn-sm: compact tiles built from the same kept members as the
+        // Matching tiles (Surface, Border, Clickable, Semantics), because the
+        // Material Button's 24 dp content padding clips five labels on a phone.
+        ComposableNode Tile(ComposableNode content, string tag, string label, bool primary,
+            bool enabled, Action command, bool selectable)
         {
             var modifier = Modifier.Padding(horizontal: 3).HeightIn(min: AndroidVisualTheme.ControlHeight)
-                .TestTag(tag)
-                .Semantics(semantics =>
+                .Alpha(enabled ? 1f : 0.38f)
+                .Border(1, primary ? palette.Primary : palette.Border, AndroidVisualTheme.ControlRadius)
+                .TestTag(tag);
+            modifier = enabled
+                ? modifier.Clickable(command).Semantics(semantics =>
                 {
                     semantics.ContentDescription(label);
-                    semantics.Selected(primary);
+                    semantics.Role(SemanticsRole.Button);
+                    if (selectable)
+                        semantics.Selected(primary);
+                })
+                : modifier.Semantics(semantics =>
+                {
+                    semantics.ContentDescription(label);
+                    if (selectable)
+                        semantics.Selected(primary);
                 });
-            ComposableNode button = primary
-                ? new ComposeButton(onClick: command, enabled: enabled)
-                {
-                    Modifier = modifier,
-                    Shape = Shape.RoundedCorners(AndroidVisualTheme.ControlRadius),
-                }
-                : new OutlinedButton(onClick: command, enabled: enabled)
-                {
-                    Modifier = modifier,
-                    Shape = Shape.RoundedCorners(AndroidVisualTheme.ControlRadius),
-                };
-            ((ComposableContainer)button).Add(new Text(label) { MaxLines = 1 });
-            return button;
+            var surface = new Surface
+            {
+                Modifier = modifier,
+                Shape = Shape.RoundedCorners(AndroidVisualTheme.ControlRadius),
+                Color = primary ? palette.Primary : palette.Background,
+            };
+            surface.Add(new Box { Modifier.HeightIn(min: AndroidVisualTheme.ControlHeight).Padding(horizontal: 12), content });
+            return surface;
         }
 
+        ComposableNode Small(string label, string tag, bool primary, bool enabled, Action command,
+            bool selectable = false) =>
+            Tile(new Text(label)
+            {
+                Modifier = Modifier.Align(Alignment.Center),
+                Color = primary ? palette.OnPrimary : palette.Text,
+                FontSize = new Sp(14),
+                MaxLines = 1,
+            }, tag, label, primary, enabled, command, selectable);
+
         var playLabel = Localize(state.IsPlaying ? NativeShadowingText.Pause : NativeShadowingText.Play);
-        var play = new ComposeButton(
-            onClick: () => ShadowingCommand((presenter, token) => presenter.TogglePlaybackAsync(token)),
-            enabled: !state.IsBuffering)
-        {
-            Modifier = Modifier.Padding(horizontal: 3).HeightIn(min: AndroidVisualTheme.ControlHeight)
-                .TestTag(NativeShadowingAccess.Play)
-                .Semantics(semantics => semantics.ContentDescription(playLabel)),
-            Shape = Shape.RoundedCorners(AndroidVisualTheme.ControlRadius),
-        };
-        if (state.IsBuffering)
-            play.Add(new CircularProgressIndicator { Modifier = Modifier.Size(20) });
-        else if (state.IsPlaying)
-            // Material core icons have no Pause glyph: two bars.
-            play.Add(new Row(Arrangement.SpacedBy(4), Alignment.Vertical.CenterVertically)
-            {
-                new Box { Modifier = Modifier.Width(5).Height(18).Background(palette.OnPrimary) },
-                new Box { Modifier = Modifier.Width(5).Height(18).Background(palette.OnPrimary) },
-            });
-        else
-            play.Add(new Icon(Icons.Default.PlayArrow, null)
-            {
-                Modifier = Modifier.Size(24),
-                Tint = palette.OnPrimary,
-            });
+        ComposableNode playContent = state.IsBuffering
+            ? new CircularProgressIndicator { Modifier = Modifier.Size(20).Align(Alignment.Center) }
+            : state.IsPlaying
+                // Material core icons have no Pause glyph: two bars.
+                ? new Row(Arrangement.SpacedBy(4), Alignment.Vertical.CenterVertically)
+                {
+                    Modifier.Align(Alignment.Center),
+                    new Box { Modifier = Modifier.Width(5).Height(18).Background(palette.OnPrimary) },
+                    new Box { Modifier = Modifier.Width(5).Height(18).Background(palette.OnPrimary) },
+                }
+                : new Icon(Icons.Default.PlayArrow, null)
+                {
+                    Modifier = Modifier.Size(24).Align(Alignment.Center),
+                    Tint = palette.OnPrimary,
+                };
+        var play = Tile(playContent, NativeShadowingAccess.Play, playLabel, true,
+            !state.IsBuffering,
+            () => ShadowingCommand((presenter, token) => presenter.TogglePlaybackAsync(token)),
+            selectable: false);
 
         var row = new Row(Arrangement.Center,
             Alignment.Vertical.CenterVertically)
@@ -290,11 +304,11 @@ internal sealed partial class AndroidSliceShell
                 state.CanGoPrevious, () => ShadowingCommand((p, t) => p.PreviousAsync(t))),
             Small(Localize(NativeShadowingText.Slow), NativeShadowingAccess.Slow,
                 state.Speed == NativeShadowingSpeed.Slow, !state.IsBuffering,
-                () => ShadowingCommand((p, t) => p.SetSpeedAsync(NativeShadowingSpeed.Slow, t))),
+                () => ShadowingCommand((p, t) => p.SetSpeedAsync(NativeShadowingSpeed.Slow, t)), true),
             play,
             Small(Localize(NativeShadowingText.Normal), NativeShadowingAccess.Normal,
                 state.Speed == NativeShadowingSpeed.Normal, !state.IsBuffering,
-                () => ShadowingCommand((p, t) => p.SetSpeedAsync(NativeShadowingSpeed.Normal, t))),
+                () => ShadowingCommand((p, t) => p.SetSpeedAsync(NativeShadowingSpeed.Normal, t)), true),
             Small(Localize(NativeShadowingText.Next), NativeShadowingAccess.Next, false,
                 state.CanGoNext, () => ShadowingCommand((p, t) => p.NextAsync(t))),
         };
