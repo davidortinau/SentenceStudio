@@ -38,6 +38,8 @@ public sealed class NativeShadowingPresenter(
     private NativeShadowingAudioIssue _issue;
     private long _audioVersion;
     private CancellationTokenSource? _audioLoad;
+    private Task? _audioTask;
+    private readonly NativeActivityLoad _load = new();
     private CancellationTokenSource? _ticker;
     private bool _subscribed;
     private bool _exited;
@@ -58,10 +60,11 @@ public sealed class NativeShadowingPresenter(
         NativeActivityLaunch launch, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(launch);
+        NativeActivityLoadTicket ticket;
         await _gate.WaitAsync(cancellationToken);
         try
         {
-            if (_launch is not null)
+            if (_launch is not null || _exited)
                 return State;
             _launch = launch;
             Publish(new(NativePhase.Loading));
@@ -74,17 +77,39 @@ public sealed class NativeShadowingPresenter(
                 player.Ended += OnPlayerEnded;
                 _subscribed = true;
             }
+            ticket = _load.Begin(cancellationToken);
+        }
+        finally
+        {
+            _gate.Release();
+        }
 
-            NativeShadowingContentResult result;
-            try
+        // The AI sentence load runs off the gate so Back can stop and save at once.
+        NativeShadowingContentResult? result = null;
+        Exception? failure = null;
+        try
+        {
+            result = await content.LoadAsync(launch.UserId,
+                launch.ResourceIds.IsDefaultOrEmpty ? null : launch.ResourceIds[0],
+                ticket.Token);
+        }
+        catch (OperationCanceledException) when (ticket.Token.IsCancellationRequested)
+        {
+            return State;
+        }
+        catch (Exception ex)
+        {
+            failure = ex;
+        }
+
+        await _gate.WaitAsync(CancellationToken.None);
+        try
+        {
+            if (_exited || !_load.IsCurrent(ticket))
+                return State;
+            if (failure is not null || result is null)
             {
-                result = await content.LoadAsync(launch.UserId,
-                    launch.ResourceIds.IsDefaultOrEmpty ? null : launch.ResourceIds[0],
-                    cancellationToken);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                logger.LogError(ex, "Shadowing could not load its sentences.");
+                logger.LogError(failure, "Shadowing could not load its sentences.");
                 return Publish(new(NativePhase.Error, ErrorKey: NativeShadowingText.LoadFailed));
             }
             switch (result.Status)
@@ -103,14 +128,18 @@ public sealed class NativeShadowingPresenter(
             _index = 0;
             ResetSentenceCore();
             PublishReady();
+            // Source: the first sentence's audio is prepared right after loading,
+            // without autoplay; navigation and Back stay available meanwhile.
+            return StartAudioCore(autoplay: false);
         }
         finally
         {
             _gate.Release();
         }
-        // Source: the first sentence's audio is prepared right after loading, without autoplay.
-        return await PrepareAudioAsync(autoplay: false, cancellationToken);
     }
+
+    /// <summary>The current audio preparation (completed when none is running); tests await it.</summary>
+    public Task AudioTask => _audioTask ?? Task.CompletedTask;
 
     /// <summary>Play / pause. Without prepared audio this prepares it and plays; a finished clip replays from the start.</summary>
     public async Task<NativeShadowingState> TogglePlaybackAsync(
@@ -143,12 +172,12 @@ public sealed class NativeShadowingPresenter(
                 }
                 return PublishReady();
             }
+            return StartAudioCore(autoplay: true);
         }
         finally
         {
             _gate.Release();
         }
-        return await PrepareAudioAsync(autoplay: true, cancellationToken);
     }
 
     /// <summary>Source SetPlaybackSpeed: stop, prepare the sentence again at the new speed, then play.</summary>
@@ -167,12 +196,12 @@ public sealed class NativeShadowingPresenter(
             _speed = speed;
             StopAudioCore();
             _position = 0;
+            return StartAudioCore(autoplay: true);
         }
         finally
         {
             _gate.Release();
         }
-        return await PrepareAudioAsync(autoplay: true, cancellationToken);
     }
 
     /// <summary>Source waveform seek (native player only).</summary>
@@ -223,9 +252,12 @@ public sealed class NativeShadowingPresenter(
     /// <summary>Back / Go Back: stop audio, stop and save the timer, then return to the Dashboard.</summary>
     public async Task<NativeShadowingState> ExitAsync(CancellationToken cancellationToken = default)
     {
+        // A sentence load in flight never holds the gate; cancel it so Back works at once.
+        _load.Cancel();
         await _gate.WaitAsync(cancellationToken);
         try
         {
+            _load.Cancel();
             _exited = true;
             StopAudioCore();
             string? errorKey = null;
@@ -264,54 +296,65 @@ public sealed class NativeShadowingPresenter(
             _index = next;
             ResetSentenceCore();
             PublishReady();
+            return StartAudioCore(autoplay: false);
         }
         finally
         {
             _gate.Release();
         }
-        return await PrepareAudioAsync(autoplay: false, cancellationToken);
     }
 
     /// <summary>
     /// Source GenerateAudioForCurrent: buffering disables Slow/Play/Normal while
-    /// the owner's cached clip or a synthesized clip is fetched. A newer sentence,
-    /// speed change or exit supersedes an older fetch.
+    /// the owner's cached clip or a synthesized clip is fetched. Called under the
+    /// gate; the fetch runs in the background (<see cref="AudioTask"/>) so the
+    /// command returns at once and Next/Previous/Back are never held by it. A
+    /// newer sentence, speed change or exit supersedes an older fetch.
     /// </summary>
-    private async Task<NativeShadowingState> PrepareAudioAsync(
-        bool autoplay, CancellationToken cancellationToken)
+    private NativeShadowingState StartAudioCore(bool autoplay)
     {
-        long version;
-        string userId;
-        string text;
-        CancellationTokenSource load;
-        await _gate.WaitAsync(cancellationToken);
+        if (!CanCommand(out var refused))
+            return refused;
+        _audioLoad?.Cancel();
+        _audioLoad?.Dispose();
+        // Only the presenter lifetime: a command's caller token must not abandon
+        // the fetch half way and leave the controls buffering.
+        var load = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        _audioLoad = load;
+        var version = ++_audioVersion;
+        var userId = _launch!.UserId;
+        var text = _sentences[_index].TargetText;
+        _buffering = true;
+        _issue = NativeShadowingAudioIssue.None;
+        var state = PublishReady();
+        _audioTask = FinishAudioAsync(autoplay, version, userId, text, load.Token);
+        return state;
+    }
+
+    private async Task FinishAudioAsync(
+        bool autoplay, long version, string userId, string text, CancellationToken token)
+    {
         try
         {
-            if (!CanCommand(out var refused))
-                return refused;
-            _audioLoad?.Cancel();
-            _audioLoad?.Dispose();
-            load = CancellationTokenSource.CreateLinkedTokenSource(
-                cancellationToken, _lifetime.Token);
-            _audioLoad = load;
-            version = ++_audioVersion;
-            userId = _launch!.UserId;
-            text = _sentences[_index].TargetText;
-            _buffering = true;
-            _issue = NativeShadowingAudioIssue.None;
-            PublishReady();
+            await PrepareAudioAsync(autoplay, version, userId, text, token);
         }
-        finally
+        catch (Exception ex)
         {
-            _gate.Release();
+            logger.LogError(ex, "Shadowing audio preparation failed unexpectedly.");
         }
+    }
 
+    private async Task<NativeShadowingState> PrepareAudioAsync(
+        bool autoplay, long version, string userId, string text, CancellationToken token)
+    {
+        // Leave the gate held by StartAudioCore before fetching.
+        await Task.Yield();
         NativeSpeechClip clip;
         try
         {
-            clip = await speech.GetAsync(userId, text, _language, load.Token);
+            clip = await speech.GetAsync(userId, text, _language, token);
         }
-        catch (OperationCanceledException) when (load.IsCancellationRequested)
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
             return State;
         }
@@ -321,7 +364,8 @@ public sealed class NativeShadowingPresenter(
             clip = new(NativeSpeechClipStatus.Failed);
         }
 
-        await _gate.WaitAsync(cancellationToken);
+        // Never the caller's token: an abandoned wait would leave the controls buffering.
+        await _gate.WaitAsync(CancellationToken.None);
         try
         {
             if (version != _audioVersion || _state.Destination != NativeDestination.Activity
@@ -525,6 +569,7 @@ public sealed class NativeShadowingPresenter(
             return;
         _disposed = true;
         _lifetime.Cancel();
+        _load.Dispose();
         if (_subscribed)
             player.Ended -= OnPlayerEnded;
         StopTicker();
