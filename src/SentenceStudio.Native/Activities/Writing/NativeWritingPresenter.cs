@@ -243,8 +243,11 @@ public sealed class NativeWritingPresenter(
 
     /// <summary>
     /// Source TranslationService.TranslateAsync: the owner's own vocabulary
-    /// first (target then native term), else the AI Translate prompt, whose
-    /// result the source saves as a new word for the active owner.
+    /// first (target then native term), else the AI Translate prompt. The
+    /// source also saves the AI result as a new resource-less VocabularyWord;
+    /// native does not, because owner-scoped CoreSync refuses a word no owned
+    /// resource maps, and that refusal blocks every other pending upload
+    /// (observed 403 on 2026-11-01). Captain decision pending.
     /// </summary>
     public async Task<NativeWritingState> TranslateAsync(
         CancellationToken cancellationToken = default)
@@ -276,18 +279,17 @@ public sealed class NativeWritingPresenter(
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(
             cancellationToken, _lifetime.Token);
         string? translation = null;
-        var cached = false;
         Exception? failure = null;
         try
         {
             var existing = await resources.GetWordByTargetTermAsync(text, userId);
             if (!string.IsNullOrEmpty(existing?.NativeLanguageTerm))
-                (translation, cached) = (existing.NativeLanguageTerm, true);
+                translation = existing.NativeLanguageTerm;
             else
             {
                 existing = await resources.GetWordByNativeTermAsync(text, userId);
                 if (!string.IsNullOrEmpty(existing?.TargetLanguageTerm))
-                    (translation, cached) = (existing.TargetLanguageTerm, true);
+                    translation = existing.TargetLanguageTerm;
                 else if (owner.IsActive(userId))
                     translation = await ai.TranslateAsync(userId, text, linked.Token);
             }
@@ -324,8 +326,6 @@ public sealed class NativeWritingPresenter(
                 _notices = [new(NativeWritingNoticeKind.Error, NativeWritingText.TranslateFailed)];
                 return PublishReady();
             }
-            if (!cached)
-                await SaveTranslationAsync(userId, text, translation);
             _notices = [new(NativeWritingNoticeKind.Info, null, translation)];
             return PublishReady();
         }
@@ -492,31 +492,6 @@ public sealed class NativeWritingPresenter(
             ((int)grade.Accuracy).ToString(System.Globalization.CultureInfo.InvariantCulture)));
         _notices = [.. notices];
         return PublishReady();
-    }
-
-    private async Task SaveTranslationAsync(string userId, string text, string translation)
-    {
-        try
-        {
-            var now = DateTime.UtcNow;
-            var saved = await resources.SaveWordAsync(new VocabularyWord
-            {
-                NativeLanguageTerm = text,
-                TargetLanguageTerm = translation,
-                UserProfileId = userId,
-                CreatedAt = now,
-                UpdatedAt = now
-            }, userId);
-            if (saved < 0)
-                logger.LogError("Writing could not save the translated word.");
-            else
-                pendingWrites.MarkPending(userId);
-        }
-        catch (Exception ex)
-        {
-            // The source returns the translation even when its save fails.
-            logger.LogError(ex, "Writing could not save the translated word.");
-        }
     }
 
     private async Task<(string Target, string Native)> LanguagesAsync(string userId)

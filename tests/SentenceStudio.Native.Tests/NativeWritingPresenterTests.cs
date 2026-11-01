@@ -244,7 +244,7 @@ public sealed class NativeWritingPresenterTests
     }
 
     [Fact]
-    public async Task Translate_UsesOwnedVocabularyFirstThenAiAndSavesForTheOwner()
+    public async Task Translate_UsesOwnedVocabularyFirstThenAiWithoutAnUnsyncableWord()
     {
         using var fixture = new NativeSliceFixture();
         await SeedWordsAsync(fixture, NativeSliceFixture.UserA, 4);
@@ -268,12 +268,10 @@ public sealed class NativeWritingPresenterTests
         Assert.Equal([(NativeSliceFixture.UserA, "새 문장")], ai.Translated);
         // The draft stays for grading.
         Assert.Equal("새 문장", state.Draft);
+        // No resource-less word is written: owner-scoped sync would refuse it.
         using var scope = fixture.Scope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var saved = await db.VocabularyWords.AsNoTracking()
-            .SingleAsync(word => word.NativeLanguageTerm == "새 문장");
-        Assert.Equal(NativeSliceFixture.UserA, saved.UserProfileId);
-        Assert.Equal("translated: 새 문장", saved.TargetLanguageTerm);
+        Assert.False(await db.VocabularyWords.AnyAsync(word => word.NativeLanguageTerm == "새 문장"));
     }
 
     [Fact]
