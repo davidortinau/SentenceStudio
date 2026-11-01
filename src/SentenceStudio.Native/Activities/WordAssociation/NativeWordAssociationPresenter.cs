@@ -53,6 +53,8 @@ public sealed class NativeWordAssociationPresenter(
     private long _generation;
     private bool _disposed;
     private bool _exited;
+    private readonly TaskCompletionSource _exitSettled =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     public NativeWordAssociationState State =>
         _launch is not null && !owner.IsActive(_launch.UserId)
@@ -213,30 +215,38 @@ public sealed class NativeWordAssociationPresenter(
         try
         {
             _grading = false;
-            if (generation != _generation || Exited)
-                return State;
-            if (!Active())
-                return Refuse();
-            if (linked.IsCancellationRequested)
-                return PublishReady();
-            var entries = response?.Entries ?? [];
-            if (failure is not null || entries.Count == 0)
+            // Back marks the exit before it takes the gate. If this continuation got
+            // the gate first, fall through and return the state Back settles below,
+            // not the pre-Back one.
+            if (!Exited || _state.Destination == NativeDestination.TodaysPlan)
             {
-                if (failure is not null)
-                    logger.LogError(failure, "Word Association could not grade clues.");
-                else
-                    logger.LogWarning("Word Association grading returned no verdicts.");
-                _notices = [new(NativeWordAssociationNoticeKind.Error, NativeWordAssociationText.GradeFailed)];
-                return PublishReady();
+                if (generation != _generation || Exited)
+                    return State;
+                if (!Active())
+                    return Refuse();
+                if (linked.IsCancellationRequested)
+                    return PublishReady();
+                var entries = response?.Entries ?? [];
+                if (failure is not null || entries.Count == 0)
+                {
+                    if (failure is not null)
+                        logger.LogError(failure, "Word Association could not grade clues.");
+                    else
+                        logger.LogWarning("Word Association grading returned no verdicts.");
+                    _notices = [new(NativeWordAssociationNoticeKind.Error, NativeWordAssociationText.GradeFailed)];
+                    return PublishReady();
+                }
+                for (var i = 0; i < pending.Count && i < entries.Count; i++)
+                    pending[i].Apply(entries[i]);
+                return await RecordAsync(userId, word, texts);
             }
-            for (var i = 0; i < pending.Count && i < entries.Count; i++)
-                pending[i].Apply(entries[i]);
-            return await RecordAsync(userId, word, texts);
         }
         finally
         {
             _gate.Release();
         }
+        await _exitSettled.Task;
+        return State;
     }
 
     /// <summary>
@@ -330,6 +340,7 @@ public sealed class NativeWordAssociationPresenter(
         finally
         {
             _gate.Release();
+            _exitSettled.TrySetResult();
         }
     }
 
