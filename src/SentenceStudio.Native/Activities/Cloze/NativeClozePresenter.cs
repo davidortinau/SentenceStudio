@@ -35,6 +35,7 @@ public sealed class NativeClozePresenter(
 
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly CancellationTokenSource _lifetime = new();
+    private readonly NativeActivityLoad _load = new();
     private List<NativeClozeChallenge> _sentences = [];
     private NativeActivityLaunch? _launch;
     private NativeClozeState _state = new(NativePhase.Idle);
@@ -70,10 +71,11 @@ public sealed class NativeClozePresenter(
         NativeActivityLaunch launch, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(launch);
+        NativeActivityLoadTicket ticket;
         await _gate.WaitAsync(cancellationToken);
         try
         {
-            if (_launch is not null)
+            if (_launch is not null || _exited)
                 return State;
             _launch = launch;
             Publish(new(NativePhase.Loading));
@@ -81,12 +83,13 @@ public sealed class NativeClozePresenter(
                 || !owner.IsActive(launch.UserId)
                 || !await timer.StartAsync(launch, cancellationToken))
                 return Refuse();
-            return await LoadCoreAsync(cancellationToken);
+            ticket = BeginLoadCore(cancellationToken);
         }
         finally
         {
             _gate.Release();
         }
+        return await CompleteLoadAsync(ticket);
     }
 
     /// <summary>Typing does not publish; the value is kept for Go and cleared when the sentence changes.</summary>
@@ -130,6 +133,7 @@ public sealed class NativeClozePresenter(
     public async Task<NativeClozeState> ContinuePracticeAsync(
         CancellationToken cancellationToken = default)
     {
+        NativeActivityLoadTicket ticket;
         await _gate.WaitAsync(cancellationToken);
         try
         {
@@ -140,20 +144,27 @@ public sealed class NativeClozePresenter(
                 return State;
             _correct = 0;
             _total = 0;
-            return await LoadCoreAsync(cancellationToken);
+            ticket = BeginLoadCore(cancellationToken);
         }
         finally
         {
             _gate.Release();
         }
+        return await CompleteLoadAsync(ticket);
     }
 
-    /// <summary>Back / Done / Go Back: stop and save the timer, then return to the Dashboard.</summary>
+    /// <summary>
+    /// Back / Done / Go Back: stop and save the timer, then return to the
+    /// Dashboard. A sentence load in flight is cancelled first and never holds
+    /// the gate, so Back works at once even while the AI is slow or hung.
+    /// </summary>
     public async Task<NativeClozeState> ExitAsync(CancellationToken cancellationToken = default)
     {
+        _load.Cancel();
         await _gate.WaitAsync(cancellationToken);
         try
         {
+            _load.Cancel();
             _generation++;
             _exited = true;
             string? errorKey = null;
@@ -197,19 +208,55 @@ public sealed class NativeClozePresenter(
         }
     }
 
-    private async Task<NativeClozeState> LoadCoreAsync(CancellationToken cancellationToken)
+    /// <summary>Under the gate: clear the round, publish Loading and start a cancellable load.</summary>
+    private NativeActivityLoadTicket BeginLoadCore(CancellationToken cancellationToken)
     {
-        var launch = _launch!;
         _generation++;
         _sentences = [];
         _index = 0;
         _errorKey = null;
         Publish(new(NativePhase.Loading, InputMode: _mode, Generation: _generation));
+        return _load.Begin(cancellationToken);
+    }
+
+    /// <summary>Outside the gate: generate the sentences, then apply them only while the load is current.</summary>
+    private async Task<NativeClozeState> CompleteLoadAsync(NativeActivityLoadTicket ticket)
+    {
+        var launch = _launch!;
+        IReadOnlyList<NativeClozeChallenge> loaded = [];
+        var refused = false;
+        Exception? failure = null;
         try
         {
-            var loaded = await sentences.GetSentencesAsync(launch, SentenceCount, cancellationToken);
-            if (!owner.IsActive(launch.UserId))
+            loaded = await sentences.GetSentencesAsync(launch, SentenceCount, ticket.Token);
+        }
+        catch (OperationCanceledException) when (ticket.Token.IsCancellationRequested)
+        {
+            // Exit, disposal or a newer load superseded this one.
+            return State;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            refused = true;
+        }
+        catch (Exception ex)
+        {
+            failure = ex;
+        }
+
+        await _gate.WaitAsync(CancellationToken.None);
+        try
+        {
+            if (_exited || !_load.IsCurrent(ticket))
+                return State;
+            if (refused || !owner.IsActive(launch.UserId))
                 return Refuse();
+            if (failure is not null)
+            {
+                logger.LogError(failure, "Cloze could not generate sentences.");
+                return Publish(new(NativePhase.Error, InputMode: _mode,
+                    ErrorKey: NativeClozeText.GenerationFailed, Generation: _generation));
+            }
             if (loaded.Count == 0)
                 return Publish(new(NativePhase.Empty, InputMode: _mode,
                     ErrorKey: NativeClozeText.NoSentences, Generation: _generation));
@@ -217,15 +264,9 @@ public sealed class NativeClozePresenter(
             JumpTo(0);
             return PublishGame();
         }
-        catch (UnauthorizedAccessException)
+        finally
         {
-            return Refuse();
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            logger.LogError(ex, "Cloze could not generate sentences.");
-            return Publish(new(NativePhase.Error, InputMode: _mode,
-                ErrorKey: NativeClozeText.GenerationFailed, Generation: _generation));
+            _gate.Release();
         }
     }
 
@@ -439,6 +480,7 @@ public sealed class NativeClozePresenter(
             return;
         _disposed = true;
         _lifetime.Cancel();
+        _load.Dispose();
         timer.Dispose();
     }
 }
