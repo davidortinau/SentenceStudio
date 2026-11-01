@@ -91,6 +91,7 @@ internal sealed class AndroidServiceHost : IDisposable
             services.AddSyncServices(databasePath, apiUri, downloadOnlyProfile: true);
             services.AddSingleton<ISyncService, SyncService>();
             services.AddOwnerBoundNativeAiGateway(apiUri);
+            services.AddOwnerBoundNativeSam(apiUri);
         }
 
         services.AddTransient<IPlanDateContext>(_ =>

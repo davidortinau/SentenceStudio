@@ -25,6 +25,7 @@ internal sealed partial class AndroidSliceShell
         _detailsScroll = composer.Remember(() => new ComposeScrollState());
         _settingsScroll = composer.Remember(() => new ComposeScrollState());
         _resourceFormScroll = composer.Remember(() => new ComposeScrollState());
+        RememberSam(composer);
         var onboardingKey = Destination == NativeDestination.Onboarding
             ? _onboardingStep + 1 : 0;
         composer.LaunchedEffect(onboardingKey, async cancellationToken =>
@@ -131,6 +132,16 @@ internal sealed partial class AndroidSliceShell
             NativeDestination.Onboarding => RenderOnboarding(palette),
             _ => RenderAuthentication(palette),
         };
+        if (Destination is NativeDestination.Dashboard or NativeDestination.TodaysPlan
+            && !_appearanceSettingsOpen)
+        {
+            var dashboard = new Box { Modifier.FillMaxSize(), screen };
+            if (IsSamEntryVisible)
+                dashboard.Add(RenderSamFab(palette));
+            if (IsSamPresented)
+                dashboard.Add(RenderSamSheet(palette));
+            screen = dashboard;
+        }
         if (ShowsBottomTabs)
         {
             content.Add(new Box { Modifier.FillMaxWidth().Weight(1f), screen });

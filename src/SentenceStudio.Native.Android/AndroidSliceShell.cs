@@ -252,6 +252,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
             _appearanceSettingsOpen = false;
             _chooseSelector.Value = (int)ChooseSelector.None;
             ResetResources();
+            ClearSamForAccountBoundary();
         });
 #if DEBUG
         if (_preview)
@@ -298,6 +299,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
             _quiz = null;
         }
         Post(ResetResources);
+        Post(DetachSam);
         _scope?.Dispose();
         _host?.Dispose();
         _auth = null;
@@ -622,6 +624,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
                 _appearanceSettingsOpen = false;
                 _chooseSelector.Value = (int)ChooseSelector.None;
                 ResetResources();
+                ClearSamForAccountBoundary();
             }
             Auth = state;
             Destination = AndroidRoutePolicy.AfterAuth(state);
@@ -637,6 +640,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
         {
             if (_dashboard is not null)
                 await _dashboard.LoadAsync(cancellationToken);
+            Post(RefreshSamAvailability);
         }
         else if (state.Phase == NativePhase.Ready
             && state.Destination == NativeDestination.Onboarding)
@@ -679,6 +683,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
             _appearanceSettingsOpen = false;
             _chooseSelector.Value = (int)ChooseSelector.None;
             ResetResources();
+            ClearSamForAccountBoundary();
         }
         Auth = state;
     });
@@ -822,6 +827,7 @@ internal sealed partial class AndroidSliceShell(MainActivity activity) : IDispos
         }
         ClosePhotoDialogWithoutRestore();
         ResetResources();
+        DetachSam();
         _scope?.Dispose();
         _host?.Dispose();
         _lifetime.Dispose();
