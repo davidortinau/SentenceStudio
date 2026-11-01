@@ -60,6 +60,10 @@ public static class NativeSliceRegistration
         services.TryAddSingleton<INativeReadingAudioSource, UnavailableNativeReadingAudioSource>();
         services.TryAddSingleton<IAudioPlayerFactory, UnavailableNativeAudioPlayerFactory>();
         services.AddTransient<NativeReadingPresenter>();
+        services.AddTransient<NativeShadowingContent>();
+        services.TryAddTransient<INativeShadowingSpeech, NativeShadowingSpeech>();
+        services.TryAddTransient<INativeShadowingPlayer, UnavailableNativeShadowingPlayer>();
+        services.AddTransient<NativeShadowingPresenter>();
         services.TryAddScoped<IPlanCopyProvider, EnglishPlanCopyProvider>();
         services.AddSingleton<NativePlanLeaseFactory>();
         services.TryAddSingleton<INativeProfileRemoteStore>(sp =>

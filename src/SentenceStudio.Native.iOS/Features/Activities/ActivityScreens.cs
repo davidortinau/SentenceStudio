@@ -57,6 +57,7 @@ internal static class ActivityScreens
         NativeActivityCatalog.NumberDrill => new NumberDrillScreen(host),
         NativeActivityCatalog.Writing => new WritingScreen(host),
         NativeActivityCatalog.Reading => new ReadingScreen(host),
+        NativeActivityCatalog.Shadowing => new ShadowingScreen(host),
         _ => null
     };
 }

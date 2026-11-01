@@ -32,6 +32,7 @@ public static class NativeActivityCatalog
     public const string NumberDrill = "numberdrill";
     public const string Writing = "writing";
     public const string Reading = "reading";
+    public const string Shadowing = "shadowing";
 
     public static ImmutableArray<NativeActivityDefinition> Implemented { get; } =
     [
@@ -41,6 +42,8 @@ public static class NativeActivityCatalog
         new(NumberDrill, [PlanActivityType.NumberDrill], TimerRecordsSkill: false),
         new(Writing, [PlanActivityType.Writing]),
         new(Reading, [PlanActivityType.Reading]),
+        // No dedicated Listening page: plan type Listening shares the Shadowing UI.
+        new(Shadowing, [PlanActivityType.Shadowing, PlanActivityType.Listening]),
     ];
 
     public static NativeActivityDefinition? ForRoute(string? route) =>

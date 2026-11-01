@@ -95,6 +95,8 @@ internal sealed class AndroidServiceHost : IDisposable
             services.AddOwnerBoundNativeSentenceGateway(apiUri);
             services.AddOwnerBoundNativeSam(apiUri);
             services.AddOwnerBoundNativeReadingAudio(apiUri);
+            // Shadowing audio: the owner-bound /api/v1/speech/synthesize path.
+            services.AddOwnerBoundNativeQuizSpeech(apiUri);
         }
 
         services.AddTransient<IPlanDateContext>(_ =>
@@ -113,6 +115,9 @@ internal sealed class AndroidServiceHost : IDisposable
         }
         AndroidPlanServiceRegistrations.AddCommon(services);
         services.AddScoped<UserActivityRepository>();
+        services.AddScoped<StreamHistoryRepository>();
+        services.AddTransient<INativeShadowingPlayer>(_ => new AndroidShadowingPlayer(
+            Path.Combine(context.CacheDir?.AbsolutePath ?? dataRoot, "shadowing")));
         services.AddScoped<VocabularyLearningContextRepository>();
         services.AddScoped<VocabularyProgressService>();
         services.AddScoped<IVocabularyProgressService>(sp =>

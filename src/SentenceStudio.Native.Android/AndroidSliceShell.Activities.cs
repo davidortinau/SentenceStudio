@@ -90,6 +90,8 @@ internal sealed partial class AndroidSliceShell
                 await OpenWritingAsync(launch, cancellationToken);
             case NativeActivityCatalog.Reading:
                 await OpenReadingAsync(launch, cancellationToken);
+            case NativeActivityCatalog.Shadowing:
+                await OpenShadowingAsync(launch, cancellationToken);
                 break;
         }
     }
@@ -102,6 +104,7 @@ internal sealed partial class AndroidSliceShell
         NativeActivityCatalog.NumberDrill => RenderNumberDrill(palette),
         NativeActivityCatalog.Writing => RenderWriting(palette),
         NativeActivityCatalog.Reading => RenderReading(palette),
+        NativeActivityCatalog.Shadowing => RenderShadowing(palette),
         _ => Body(Localize(NativeMatchingText.Unavailable), palette),
     };
 
@@ -122,6 +125,8 @@ internal sealed partial class AndroidSliceShell
                 await ExitWritingAsync(cancellationToken);
             case NativeActivityCatalog.Reading:
                 await ExitReadingAsync(cancellationToken);
+            case NativeActivityCatalog.Shadowing:
+                await ExitShadowingAsync(cancellationToken);
                 break;
         }
         ReleaseActivity();
@@ -138,6 +143,7 @@ internal sealed partial class AndroidSliceShell
         ReleaseNumberDrill();
         ReleaseWriting();
         ReleaseReading();
+        ReleaseShadowing();
         _activityRoute = null;
     }
 }

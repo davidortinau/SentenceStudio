@@ -8822,4 +8822,16 @@
   <data name="Reading_FontSize" xml:space="preserve">
     <value>글꼴 크기</value>
   </data>
+  <data name="NativeShadowing_Play" xml:space="preserve">
+    <value>재생</value>
+  </data>
+  <data name="NativeShadowing_Pause" xml:space="preserve">
+    <value>일시 정지</value>
+  </data>
+  <data name="NativeShadowing_PlaybackPosition" xml:space="preserve">
+    <value>재생 위치</value>
+  </data>
+  <data name="NativeShadowing_AudioFailed" xml:space="preserve">
+    <value>오디오를 재생하지 못했어요. 재생을 눌러 다시 시도하세요.</value>
+  </data>
 </root>

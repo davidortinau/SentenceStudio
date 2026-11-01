@@ -9467,4 +9467,16 @@ For example: {0} ...</value>
   <data name="Reading_FontSize" xml:space="preserve">
     <value>Font size</value>
   </data>
+  <data name="NativeShadowing_Play" xml:space="preserve">
+    <value>Play</value>
+  </data>
+  <data name="NativeShadowing_Pause" xml:space="preserve">
+    <value>Pause</value>
+  </data>
+  <data name="NativeShadowing_PlaybackPosition" xml:space="preserve">
+    <value>Playback position</value>
+  </data>
+  <data name="NativeShadowing_AudioFailed" xml:space="preserve">
+    <value>Audio could not be played. Tap play to try again.</value>
+  </data>
 </root>
