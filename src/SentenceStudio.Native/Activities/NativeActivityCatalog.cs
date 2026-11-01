@@ -8,10 +8,12 @@ namespace SentenceStudio.Native;
 /// Choose My Own tile id (Index.razor tile list) and the stable key heads use
 /// to pick a screen; <see cref="PlanTypes"/> are the Today's Plan types that
 /// open it (PlanActivityPresentation.Route()). The first plan type is the
-/// timer/ad-hoc row type.
+/// timer/ad-hoc row type. <see cref="TimerRecordsSkill"/> mirrors whether the
+/// source page passes its skill to ActivityTimer.StartSession (Matching,
+/// NumberDrill and VideoWatching pass null).
 /// </summary>
 public sealed record NativeActivityDefinition(
-    string Route, ImmutableArray<PlanActivityType> PlanTypes)
+    string Route, ImmutableArray<PlanActivityType> PlanTypes, bool TimerRecordsSkill = true)
 {
     public PlanActivityType? TimerType => PlanTypes.IsDefaultOrEmpty ? null : PlanTypes[0];
 }
@@ -29,7 +31,7 @@ public static class NativeActivityCatalog
 
     public static ImmutableArray<NativeActivityDefinition> Implemented { get; } =
     [
-        new(VocabularyMatching, [PlanActivityType.VocabularyGame]),
+        new(VocabularyMatching, [PlanActivityType.VocabularyGame], TimerRecordsSkill: false),
         new(Writing, [PlanActivityType.Writing]),
     ];
 
@@ -66,7 +68,9 @@ public static class NativeActivityCatalog
 /// ad-hoc DailyPlanCompletion row. TimerResourceId is what the owner-validated
 /// timer checks against the plan row (or stores on the ad-hoc row); it can
 /// differ from ResourceIds because vocabulary-driven plan launches omit the
-/// resource for content selection.
+/// resource for content selection. ActivityType is the plan card's own type
+/// (one route can serve several plan types, e.g. Shadowing and Listening); the
+/// owner-validated timer must start with it or the plan row is refused.
 /// </summary>
 public sealed record NativeActivityLaunch(
     string Route,
@@ -77,7 +81,8 @@ public sealed record NativeActivityLaunch(
     string? SkillId,
     ImmutableArray<string> FocusVocabularyIds,
     bool DueOnly,
-    string? TimerResourceId)
+    string? TimerResourceId,
+    PlanActivityType? ActivityType = null)
 {
     public bool IsPlanItem => !string.IsNullOrWhiteSpace(PlanItemId);
 }

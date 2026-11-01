@@ -49,6 +49,7 @@ public sealed class NativeWritingPresenter(
     private double _fluencySum;
     private long _generation;
     private bool _disposed;
+    private bool _exited;
 
     public NativeWritingState State =>
         _launch is not null && !owner.IsActive(_launch.UserId)
@@ -390,10 +391,12 @@ public sealed class NativeWritingPresenter(
         try
         {
             _generation++;
+            _exited = true;
             string? errorKey = null;
             try
             {
-                await timer.StopAsync(cancellationToken);
+                if (await timer.StopAsync(cancellationToken) == NativeActivityStop.Failed)
+                    errorKey = NativeText.SaveFailed;
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
@@ -592,7 +595,7 @@ public sealed class NativeWritingPresenter(
             ? _vocabulary.Take(BlockCount).ToList()
             : _vocabulary.OrderBy(_ => Random.Shared.Next()).Take(BlockCount).ToList();
 
-    private bool Exited => _state.Destination != NativeDestination.Activity;
+    private bool Exited => _exited || _state.Destination != NativeDestination.Activity;
 
     private bool Active() => _launch is not null && owner.IsActive(_launch.UserId);
 
@@ -623,6 +626,8 @@ public sealed class NativeWritingPresenter(
     private NativeWritingState Refuse()
     {
         _generation++;
+        if (_exited)
+            return State;
         return Publish(new(NativePhase.Blocked, ErrorKey: NativeWritingText.Unavailable));
     }
 
