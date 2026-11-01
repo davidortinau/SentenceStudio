@@ -161,6 +161,38 @@ format. The derived cursor's version must not change casually: replacing an
 in-use alias without copying its versions would replay existing rows and
 rewrite mixed local/UTC SQLite timestamps.
 
+### Learning-progress timestamps are UTC instants
+
+`VocabularyProgress`, `VocabularyLearningContext`, `UserActivity`,
+`WordAssociationScore`, `NumberAttempt`, and `NumberMasteryProgress`
+timestamps are written with `DateTime.UtcNow` on every client and the server.
+`UtcInstantModelConfiguration` (shared `ApplicationDbContext`, both
+providers) stores a `Local` value as its instant, treats `Unspecified` as UTC,
+and reads every value back as `DateTimeKind.Utc` (including the legacy-Npgsql
+`Local` read of `timestamptz`). Column types and the zone-less SQLite text
+format are unchanged, so there is no migration and CoreSync still uploads
+text that PostgreSQL reads as UTC. Calendar-day keys (`DailyPlan.Date`,
+`DailyPlanCompletion.Date`, `DiaryEntry.EntryDate`) stay user-local days.
+
+Instants compare with `DateTime.UtcNow` (`IsDueForReview`, quiz due filter,
+plan freshness). Where the product means "today", code uses the learner's
+local day as an instant: plan due-review queries use
+`IPlanDateContext.DueCutoffUtc()` (the UTC instant opening the local day) and
+streaks group activity instants by `IPlanDateContext.ToUserLocal`. UI converts
+to local time only for display.
+
+Before this change, device code wrote local wall clock (`DateTime.Now`), so
+pre-existing device rows are "local labeled UTC" (US Central 5 h early, Korea
+9 h late). They are deliberately **not rewritten**: device SQLite mixes
+locally written rows with downloaded UTC rows in the same text format, a
+row's columns may come from both, and many rows have already synced, so the
+offset is not knowable per value; a device-side rewrite would also upload
+and overwrite server data. The residual skew is bounded to historic values:
+an old `NextReviewDate` can make a word due up to the device's UTC offset
+early or late once, until its next attempt rewrites the schedule; an old
+`LearnedAt` can order one historic context against a new one by up to that
+offset during a merge replay. Counts are never lost by that ordering.
+
 ### Concurrent attempts on one progress row
 
 Two devices (or a device and the WebApp) that practice a word both already
