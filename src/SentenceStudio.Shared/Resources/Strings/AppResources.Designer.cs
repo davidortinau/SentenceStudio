@@ -10858,6 +10858,204 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Choose Photo.
+        /// </summary>
+        internal static string NativeScene_ChoosePhoto {
+            get {
+                return ResourceManager.GetString("NativeScene_ChoosePhoto", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Deleted {0} image(s)..
+        /// </summary>
+        internal static string NativeScene_Deleted {
+            get {
+                return ResourceManager.GetString("NativeScene_Deleted", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Could not delete images..
+        /// </summary>
+        internal static string NativeScene_DeleteFailed {
+            get {
+                return ResourceManager.GetString("NativeScene_DeleteFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Dismiss.
+        /// </summary>
+        internal static string NativeScene_DismissNotices {
+            get {
+                return ResourceManager.GetString("NativeScene_DismissNotices", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No cached images yet. Paste a URL above or choose a photo to add one..
+        /// </summary>
+        internal static string NativeScene_GalleryEmpty {
+            get {
+                return ResourceManager.GetString("NativeScene_GalleryEmpty", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Could not load gallery..
+        /// </summary>
+        internal static string NativeScene_GalleryLoadFailed {
+            get {
+                return ResourceManager.GetString("NativeScene_GalleryLoadFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Excellent - Accuracy: {0}%.
+        /// </summary>
+        internal static string NativeScene_GradeExcellent {
+            get {
+                return ResourceManager.GetString("NativeScene_GradeExcellent", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Could not grade your description. Please try again..
+        /// </summary>
+        internal static string NativeScene_GradeFailed {
+            get {
+                return ResourceManager.GetString("NativeScene_GradeFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Good effort - Accuracy: {0}%.
+        /// </summary>
+        internal static string NativeScene_GradeGood {
+            get {
+                return ResourceManager.GetString("NativeScene_GradeGood", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Keep practicing - Accuracy: {0}%.
+        /// </summary>
+        internal static string NativeScene_GradeKeepPracticing {
+            get {
+                return ResourceManager.GetString("NativeScene_GradeKeepPracticing", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Image added to gallery..
+        /// </summary>
+        internal static string NativeScene_ImageAdded {
+            get {
+                return ResourceManager.GetString("NativeScene_ImageAdded", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The image could not be loaded..
+        /// </summary>
+        internal static string NativeScene_ImageFailed {
+            get {
+                return ResourceManager.GetString("NativeScene_ImageFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Could not save image..
+        /// </summary>
+        internal static string NativeScene_ImageSaveFailed {
+            get {
+                return ResourceManager.GetString("NativeScene_ImageSaveFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Enter an https:// image URL..
+        /// </summary>
+        internal static string NativeScene_InvalidUrl {
+            get {
+                return ResourceManager.GetString("NativeScene_InvalidUrl", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Less.
+        /// </summary>
+        internal static string NativeScene_Less {
+            get {
+                return ResourceManager.GetString("NativeScene_Less", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Error loading scene image..
+        /// </summary>
+        internal static string NativeScene_LoadFailed {
+            get {
+                return ResourceManager.GetString("NativeScene_LoadFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to More.
+        /// </summary>
+        internal static string NativeScene_More {
+            get {
+                return ResourceManager.GetString("NativeScene_More", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No scene images found. Please add some first..
+        /// </summary>
+        internal static string NativeScene_NoImagesFound {
+            get {
+                return ResourceManager.GetString("NativeScene_NoImagesFound", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Could not load the selected photo..
+        /// </summary>
+        internal static string NativeScene_PhotoFailed {
+            get {
+                return ResourceManager.GetString("NativeScene_PhotoFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The selected photo is too large..
+        /// </summary>
+        internal static string NativeScene_PhotoTooLarge {
+            get {
+                return ResourceManager.GetString("NativeScene_PhotoTooLarge", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Scene.
+        /// </summary>
+        internal static string NativeScene_SceneImage {
+            get {
+                return ResourceManager.GetString("NativeScene_SceneImage", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Select multiple.
+        /// </summary>
+        internal static string NativeScene_SelectMultiple {
+            get {
+                return ResourceManager.GetString("NativeScene_SelectMultiple", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Current voice.
         /// </summary>
         internal static string NativeSettings_CurrentVoice {

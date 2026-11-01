@@ -9554,4 +9554,70 @@ For example: {0} ...</value>
   <data name="NativeConversation_DismissNotices" xml:space="preserve">
     <value>Dismiss</value>
   </data>
+  <data name="NativeScene_More" xml:space="preserve">
+    <value>More</value>
+  </data>
+  <data name="NativeScene_Less" xml:space="preserve">
+    <value>Less</value>
+  </data>
+  <data name="NativeScene_SelectMultiple" xml:space="preserve">
+    <value>Select multiple</value>
+  </data>
+  <data name="NativeScene_GalleryEmpty" xml:space="preserve">
+    <value>No cached images yet. Paste a URL above or choose a photo to add one.</value>
+  </data>
+  <data name="NativeScene_ChoosePhoto" xml:space="preserve">
+    <value>Choose Photo</value>
+  </data>
+  <data name="NativeScene_SceneImage" xml:space="preserve">
+    <value>Scene</value>
+  </data>
+  <data name="NativeScene_ImageFailed" xml:space="preserve">
+    <value>The image could not be loaded.</value>
+  </data>
+  <data name="NativeScene_DismissNotices" xml:space="preserve">
+    <value>Dismiss</value>
+  </data>
+  <data name="NativeScene_NoImagesFound" xml:space="preserve">
+    <value>No scene images found. Please add some first.</value>
+  </data>
+  <data name="NativeScene_LoadFailed" xml:space="preserve">
+    <value>Error loading scene image.</value>
+  </data>
+  <data name="NativeScene_GradeFailed" xml:space="preserve">
+    <value>Could not grade your description. Please try again.</value>
+  </data>
+  <data name="NativeScene_GradeExcellent" xml:space="preserve">
+    <value>Excellent - Accuracy: {0}%</value>
+  </data>
+  <data name="NativeScene_GradeGood" xml:space="preserve">
+    <value>Good effort - Accuracy: {0}%</value>
+  </data>
+  <data name="NativeScene_GradeKeepPracticing" xml:space="preserve">
+    <value>Keep practicing - Accuracy: {0}%</value>
+  </data>
+  <data name="NativeScene_GalleryLoadFailed" xml:space="preserve">
+    <value>Could not load gallery.</value>
+  </data>
+  <data name="NativeScene_ImageAdded" xml:space="preserve">
+    <value>Image added to gallery.</value>
+  </data>
+  <data name="NativeScene_ImageSaveFailed" xml:space="preserve">
+    <value>Could not save image.</value>
+  </data>
+  <data name="NativeScene_InvalidUrl" xml:space="preserve">
+    <value>Enter an https:// image URL.</value>
+  </data>
+  <data name="NativeScene_Deleted" xml:space="preserve">
+    <value>Deleted {0} image(s).</value>
+  </data>
+  <data name="NativeScene_DeleteFailed" xml:space="preserve">
+    <value>Could not delete images.</value>
+  </data>
+  <data name="NativeScene_PhotoFailed" xml:space="preserve">
+    <value>Could not load the selected photo.</value>
+  </data>
+  <data name="NativeScene_PhotoTooLarge" xml:space="preserve">
+    <value>The selected photo is too large.</value>
+  </data>
 </root>
