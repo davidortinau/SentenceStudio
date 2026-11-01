@@ -51,5 +51,9 @@
                       LogicalName="SentenceStudio.Native.Prompts.ContinueConversation.scriban-txt" />
     <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/ContinueConversation.scenario.scriban-txt"
                       LogicalName="SentenceStudio.Native.Prompts.ContinueConversation.scenario.scriban-txt" />
+    <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/GenerateDiaryPrompt.scriban-txt"
+                      LogicalName="SentenceStudio.Native.Prompts.GenerateDiaryPrompt.scriban-txt" />
+    <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/GradeDiaryEntry.scriban-txt"
+                      LogicalName="SentenceStudio.Native.Prompts.GradeDiaryEntry.scriban-txt" />
   </ItemGroup>
 </Project>

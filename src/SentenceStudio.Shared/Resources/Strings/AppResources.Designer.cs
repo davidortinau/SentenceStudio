@@ -6736,6 +6736,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Decrease font size.
+        /// </summary>
+        internal static string Diary_DecreaseFontSize {
+            get {
+                return ResourceManager.GetString("Diary_DecreaseFontSize", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Start writing your entry….
         /// </summary>
         internal static string Diary_EditorPlaceholder {
@@ -6786,6 +6795,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Diary_HasFeedback {
             get {
                 return ResourceManager.GetString("Diary_HasFeedback", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Increase font size.
+        /// </summary>
+        internal static string Diary_IncreaseFontSize {
+            get {
+                return ResourceManager.GetString("Diary_IncreaseFontSize", resourceCulture);
             }
         }
 
@@ -6912,6 +6930,15 @@ namespace SentenceStudio.Resources.Strings {
         internal static string Diary_Stars {
             get {
                 return ResourceManager.GetString("Diary_Stars", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0} of 3 stars.
+        /// </summary>
+        internal static string Diary_StarsLabel {
+            get {
+                return ResourceManager.GetString("Diary_StarsLabel", resourceCulture);
             }
         }
 

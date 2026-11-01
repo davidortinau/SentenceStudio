@@ -50,6 +50,25 @@ internal interface IActivityScreen : IDisposable
     /// (keeps a focused text field and its IME composition). False re-renders.
     /// </summary>
     bool TryUpdateInPlace(SourceUiStyle style) => false;
+    /// True while the activity shows a second-level page (for example a Diary
+    /// entry) that the scene pushes on the same NavigationStack above the
+    /// activity page; system Back pops it to the activity page.
+    /// </summary>
+    bool HasChildPage => false;
+
+    string ChildTitle => string.Empty;
+
+    /// <summary>
+    /// The scene re-renders the mounted child page only when this changes (or
+    /// the appearance changes), so a screen can update a focused text editor's
+    /// surroundings in place without interrupting IME composition.
+    /// </summary>
+    long ChildVersion => 0;
+
+    SwiftView RenderChild(SourceUiStyle style) => Microsoft.SwiftUI.SwiftUI.VStack();
+
+    /// <summary>The NavigationStack popped the child page (system Back or swipe).</summary>
+    void OnChildPopped() { }
 }
 
 internal static class ActivityScreens
@@ -67,6 +86,7 @@ internal static class ActivityScreens
         NativeActivityCatalog.HowDoYouSay => new HowDoYouSayScreen(host),
         NativeActivityCatalog.WordAssociation => new WordAssociationScreen(host),
         NativeActivityCatalog.Conversation => new ConversationScreen(host),
+        NativeActivityCatalog.Diary => new DiaryScreen(host),
         _ => null
     };
 }

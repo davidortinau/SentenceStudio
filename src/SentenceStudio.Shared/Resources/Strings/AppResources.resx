@@ -2828,6 +2828,15 @@ Ready to practice? Say "yes" to start, or tell me what you'd like to change.</va
   <data name="Diary_HasFeedback" xml:space="preserve">
     <value>Has AI feedback</value>
   </data>
+  <data name="Diary_DecreaseFontSize" xml:space="preserve">
+    <value>Decrease font size</value>
+  </data>
+  <data name="Diary_IncreaseFontSize" xml:space="preserve">
+    <value>Increase font size</value>
+  </data>
+  <data name="Diary_StarsLabel" xml:space="preserve">
+    <value>{0} of 3 stars</value>
+  </data>
   <data name="Activity_Reading" xml:space="preserve">
     <value>Reading</value>
     <comment>Activity label: Reading</comment>

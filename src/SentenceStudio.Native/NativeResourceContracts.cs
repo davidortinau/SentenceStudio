@@ -58,6 +58,15 @@ public interface IOwnerBoundNativeAiGateway
         string owner, string instructions, string message, CancellationToken cancellationToken) =>
         SendPromptAsync<T>(owner, $"SYSTEM INSTRUCTIONS:\n{instructions}\n\nTASK:\n{message}",
             cancellationToken);
+
+    /// <summary>
+    /// Sends on a source AI tier (for example Reasoning for graders). The
+    /// production gateway forwards the tier; ports without tier support
+    /// (test fakes) keep their default-tier behaviour.
+    /// </summary>
+    Task<T?> SendPromptAsync<T>(string owner, string prompt,
+        SentenceStudio.Services.AiTier tier, CancellationToken cancellationToken) =>
+        SendPromptAsync<T>(owner, prompt, cancellationToken);
 }
 
 public sealed record NativeResourceCreateResult(

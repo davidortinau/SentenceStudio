@@ -24,6 +24,12 @@ public sealed class OwnerBoundNativeAiGateway(
         SendAsync(owner, gateway => gateway.SendPromptAsync<T>(
             prompt, AiTier.Fast, cancellationToken: cancellationToken), cancellationToken);
 
+    /// <summary>Sends on a chosen source AI tier (for example Reasoning for graders).</summary>
+    public Task<T?> SendPromptAsync<T>(
+        string owner, string prompt, AiTier tier, CancellationToken cancellationToken) =>
+        SendAsync(owner, gateway => gateway.SendPromptAsync<T>(
+            prompt, tier, cancellationToken: cancellationToken), cancellationToken);
+
     /// <summary>Reasoning tier with the server's default effort (source AiService.SendPrompt(prompt, AiTier.Reasoning)).</summary>
     public Task<T?> SendReasoningPromptAsync<T>(
         string owner, string prompt, CancellationToken cancellationToken) =>

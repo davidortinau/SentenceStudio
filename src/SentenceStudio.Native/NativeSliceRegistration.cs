@@ -72,6 +72,9 @@ public static class NativeSliceRegistration
         services.TryAddSingleton<INativeConversationAi, NativeConversationAi>();
         services.TryAddTransient<INativeConversationScenarios, NativeConversationScenarios>();
         services.AddTransient<NativeConversationPresenter>();
+        services.TryAddSingleton<INativeDiaryAi, NativeDiaryAi>();
+        services.AddTransient<NativeDiaryStore>();
+        services.AddTransient<NativeDiaryPresenter>();
         services.TryAddScoped<IPlanCopyProvider, EnglishPlanCopyProvider>();
         services.AddSingleton<NativePlanLeaseFactory>();
         services.TryAddSingleton<INativeProfileRemoteStore>(sp =>

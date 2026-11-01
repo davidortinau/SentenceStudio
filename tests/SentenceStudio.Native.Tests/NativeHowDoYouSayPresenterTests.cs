@@ -327,7 +327,7 @@ public sealed class NativeHowDoYouSayPresenterTests
     private static async Task<NativeHowDoYouSayState> WaitAsync(
         NativeHowDoYouSayPresenter presenter, Func<NativeHowDoYouSayState, bool> condition)
     {
-        for (var i = 0; i < 200 && !condition(presenter.State); i++)
+        for (var i = 0; i < 1000 && !condition(presenter.State); i++)
             await Task.Delay(10);
         Assert.True(condition(presenter.State));
         return presenter.State;

@@ -37,6 +37,7 @@ public static class NativeActivityCatalog
     public const string HowDoYouSay = "how-do-you-say";
     public const string WordAssociation = "word-association";
     public const string Conversation = "conversation";
+    public const string Diary = "diary";
 
     public static ImmutableArray<NativeActivityDefinition> Implemented { get; } =
     [
@@ -53,6 +54,8 @@ public static class NativeActivityCatalog
         // Choose My Own tile only: no plan type, and the source starts no timer.
         new(WordAssociation, []),
         new(Conversation, [PlanActivityType.Conversation]),
+        // Diary is a Choose My Own tile only: no plan type and no timer (activities.md 17).
+        new(Diary, [], TimerRecordsSkill: false),
     ];
 
     public static NativeActivityDefinition? ForRoute(string? route) =>
