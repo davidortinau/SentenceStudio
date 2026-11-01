@@ -19,6 +19,8 @@
              Link="AndroidPlanServiceRegistrations.cs" />
     <Compile Include="../../src/SentenceStudio.Native.Android/AndroidRoutePolicy.cs"
              Link="AndroidRoutePolicy.cs" />
+    <Compile Include="../../src/SentenceStudio.Native.Android/AndroidYouTubeEmbedPolicy.cs"
+             Link="AndroidYouTubeEmbedPolicy.cs" />
     <Compile Include="../../src/SentenceStudio.Native.Android/AndroidReplacementGuard.cs"
              Link="AndroidReplacementGuard.cs" />
     <Compile Include="../../src/SentenceStudio.Native.Android/AndroidQuizInputPolicy.cs"
