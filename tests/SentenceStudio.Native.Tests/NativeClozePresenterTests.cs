@@ -41,6 +41,7 @@ public sealed class NativeClozePresenterTests
         Assert.Empty(launch.ResourceIds);
         Assert.True(launch.DueOnly);
         using var cloze = Presenter(fixture);
+        var startedUtc = DateTime.UtcNow.AddSeconds(-5);
 
         var state = await cloze.OpenAsync(launch);
 
@@ -116,6 +117,8 @@ public sealed class NativeClozePresenterTests
                 .Where(row => row.Activity == nameof(Activity.Clozure)).ToListAsync();
             Assert.Equal(4, activity.Count);
             Assert.All(activity, row => Assert.Equal(owner, row.UserProfileId));
+            // UTC instants (ComputeStreak), not the device-local wall clock.
+            Assert.All(activity, row => Assert.InRange(row.CreatedAt, startedUtc, DateTime.UtcNow.AddSeconds(5)));
             Assert.Equal(2, activity.Count(row => row.Accuracy == 100));
             var contexts = await db.VocabularyLearningContexts.AsNoTracking()
                 .Where(row => row.Activity == NativeClozePresenter.AttemptActivity)

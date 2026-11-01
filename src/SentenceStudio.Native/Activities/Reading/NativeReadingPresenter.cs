@@ -695,16 +695,8 @@ public sealed class NativeReadingPresenter(
     {
         if (!owner.IsActive(userId))
             return false;
-        var saved = await activities.SaveAsync(new UserActivity
-        {
-            UserProfileId = userId,
-            Activity = Activity.Reading.ToString(),
-            Input = input,
-            Accuracy = 100,
-            Fluency = 100,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        });
+        var saved = await activities.SaveAsync(NativeUserActivity.Create(
+            userId, Activity.Reading, input, accuracy: 100, fluency: 100));
         if (saved > 0)
         {
             pendingWrites.MarkPending(userId);

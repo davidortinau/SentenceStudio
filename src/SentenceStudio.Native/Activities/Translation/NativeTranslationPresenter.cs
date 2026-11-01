@@ -313,17 +313,8 @@ public sealed class NativeTranslationPresenter(
         {
             using var scope = scopes.CreateScope();
             var activities = scope.ServiceProvider.GetRequiredService<UserActivityRepository>();
-            var now = DateTime.Now;
-            var saved = await activities.SaveAsync(new UserActivity
-            {
-                Activity = Activity.Translation.ToString(),
-                Input = input,
-                Accuracy = feedback.Accuracy,
-                Fluency = feedback.Fluency,
-                UserProfileId = userId,
-                CreatedAt = now,
-                UpdatedAt = now
-            });
+            var saved = await activities.SaveAsync(NativeUserActivity.Create(
+                userId, Activity.Translation, input, feedback.Accuracy, feedback.Fluency));
             if (saved < 0)
                 throw new InvalidOperationException("The translation activity row was not saved.");
             pendingWrites.MarkPending(userId);

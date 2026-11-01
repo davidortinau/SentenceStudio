@@ -315,16 +315,8 @@ public sealed class NativeClozePresenter(
 
         try
         {
-            var now = DateTime.Now;
-            var saved = await activities.SaveAsync(new UserActivity
-            {
-                Activity = Activity.Clozure.ToString(),
-                Input = answer,
-                Accuracy = correct ? 100 : 0,
-                UserProfileId = userId,
-                CreatedAt = now,
-                UpdatedAt = now
-            });
+            var saved = await activities.SaveAsync(NativeUserActivity.Create(
+                userId, Activity.Clozure, answer, correct ? 100 : 0));
             if (saved < 0)
                 _errorKey = NativeText.SaveFailed;
             else

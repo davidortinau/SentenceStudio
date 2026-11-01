@@ -432,18 +432,8 @@ public sealed class NativeWritingPresenter(
             try
             {
                 var activities = scope.ServiceProvider.GetRequiredService<UserActivityRepository>();
-                var now = DateTime.UtcNow;
-                // UserActivity.CreatedAt is a UTC instant (ProgressService.ComputeStreak).
-                var saved = await activities.SaveAsync(new UserActivity
-                {
-                    Activity = Activity.Writer.ToString(),
-                    Input = sentence,
-                    Accuracy = grade.Accuracy,
-                    Fluency = grade.Fluency,
-                    UserProfileId = userId,
-                    CreatedAt = now,
-                    UpdatedAt = now
-                });
+                var saved = await activities.SaveAsync(NativeUserActivity.Create(
+                    userId, Activity.Writer, sentence, grade.Accuracy, grade.Fluency));
                 if (saved < 0)
                 {
                     logger.LogError("Writing could not save its UserActivity row.");
