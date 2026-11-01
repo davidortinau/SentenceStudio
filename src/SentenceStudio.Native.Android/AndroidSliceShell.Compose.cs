@@ -129,6 +129,7 @@ internal sealed partial class AndroidSliceShell
             NativeDestination.Dashboard or NativeDestination.TodaysPlan => RenderDashboard(palette),
             NativeDestination.Resources => RenderResources(palette),
             NativeDestination.VocabularyQuiz or NativeDestination.QuizSummary => RenderQuiz(composer, palette),
+            NativeDestination.Activity => RenderActivity(palette),
             NativeDestination.Onboarding => RenderOnboarding(palette),
             _ => RenderAuthentication(palette),
         };
@@ -808,13 +809,14 @@ internal sealed partial class AndroidSliceShell
             ? $"{title}. {Localize("PlanSummary_Completed")}. {metadata}"
             : $"{title}. {metadata}";
         var canOpen = card.Activity == PlanActivityType.VocabularyReview
-            && !card.IsCompleted;
+                && !card.IsCompleted
+            || NativeActivityCatalog.IsImplemented(card.Activity);
         if (!canOpen)
             label += $". {Localize("NativeResources_Unavailable")}";
         var modifier = Modifier.FillMaxWidth().Padding(bottom: 8)
             .TestTag($"{card.AccessibilityId}.{card.Id}");
         if (canOpen && !Busy.Value)
-            modifier = modifier.Clickable(() => OpenQuiz(card.Id))
+            modifier = modifier.Clickable(() => OpenPlanCard(card.Id))
                 .Semantics(semantics =>
                 {
                     semantics.ContentDescription(label);

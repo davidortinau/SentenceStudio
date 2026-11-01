@@ -90,13 +90,16 @@ internal sealed partial class AndroidSliceShell
             .Take(visibleCount))
         {
             var activityName = Localize(activity.LabelKey);
-            if (activity.Route == "vocab-quiz")
+            if (activity.Route == "vocab-quiz"
+                || NativeActivityCatalog.IsImplemented(activity.Route))
             {
+                var route = activity.Route;
                 var launchModifier = Modifier.FillMaxWidth()
                     .HeightIn(min: AndroidVisualTheme.ControlHeight)
                     .TestTag($"native.dashboard.choose.activity.{activity.Route}");
                 launchModifier = canSelect
-                    ? launchModifier.Clickable(OpenChooseOwnQuiz)
+                    ? launchModifier.Clickable(route == "vocab-quiz"
+                        ? OpenChooseOwnQuiz : () => OpenChooseOwnActivity(route))
                         .Semantics(semantics =>
                         {
                             semantics.ContentDescription(activityName);
