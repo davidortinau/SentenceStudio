@@ -58,6 +58,7 @@ public static class NativeActivityCatalog
     public const string WordAssociation = "word-association";
     public const string Conversation = "conversation";
     public const string Diary = "diary";
+    public const string MinimalPairs = "minimal-pairs";
 
     public static ImmutableArray<NativeActivityDefinition> Implemented { get; } =
     [
@@ -76,6 +77,9 @@ public static class NativeActivityCatalog
         new(Conversation, [PlanActivityType.Conversation]),
         // Diary is a Choose My Own tile only: no plan type and no timer (activities.md 17).
         new(Diary, [], TimerRecordsSkill: false),
+        // Minimal Pairs: Choose My Own tile (the source sidebar item has no native
+        // counterpart); no plan type, timer or progress (activities.md 15).
+        new(MinimalPairs, [], TimerRecordsSkill: false),
     ];
 
     public static NativeActivityDefinition? ForRoute(string? route) =>

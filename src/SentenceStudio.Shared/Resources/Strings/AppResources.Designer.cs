@@ -10372,6 +10372,105 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Pair deleted..
+        /// </summary>
+        internal static string NativeMinimalPairs_Deleted {
+            get {
+                return ResourceManager.GetString("NativeMinimalPairs_Deleted", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to delete pair..
+        /// </summary>
+        internal static string NativeMinimalPairs_DeleteFailed {
+            get {
+                return ResourceManager.GetString("NativeMinimalPairs_DeleteFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Delete {0} vs {1}?.
+        /// </summary>
+        internal static string NativeMinimalPairs_DeleteMessage {
+            get {
+                return ResourceManager.GetString("NativeMinimalPairs_DeleteMessage", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to {0:F1} min.
+        /// </summary>
+        internal static string NativeMinimalPairs_DurationValue {
+            get {
+                return ResourceManager.GetString("NativeMinimalPairs_DurationValue", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to load minimal pairs..
+        /// </summary>
+        internal static string NativeMinimalPairs_LoadFailed {
+            get {
+                return ResourceManager.GetString("NativeMinimalPairs_LoadFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to No pairs available to start a session..
+        /// </summary>
+        internal static string NativeMinimalPairs_NoPairsToStart {
+            get {
+                return ResourceManager.GetString("NativeMinimalPairs_NoPairsToStart", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Audio playback error..
+        /// </summary>
+        internal static string NativeMinimalPairs_PlaybackError {
+            get {
+                return ResourceManager.GetString("NativeMinimalPairs_PlaybackError", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Showing {0} of {1} words. Search to narrow the list..
+        /// </summary>
+        internal static string NativeMinimalPairs_RefineSearch {
+            get {
+                return ResourceManager.GetString("NativeMinimalPairs_RefineSearch", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Please select a pair to practice in Focus mode..
+        /// </summary>
+        internal static string NativeMinimalPairs_SelectPairFirst {
+            get {
+                return ResourceManager.GetString("NativeMinimalPairs_SelectPairFirst", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Start Session ({0} pairs).
+        /// </summary>
+        internal static string NativeMinimalPairs_StartSessionCount {
+            get {
+                return ResourceManager.GetString("NativeMinimalPairs_StartSessionCount", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Failed to load vocabulary..
+        /// </summary>
+        internal static string NativeMinimalPairs_VocabularyLoadFailed {
+            get {
+                return ResourceManager.GetString("NativeMinimalPairs_VocabularyLoadFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Complete your name, languages, and learning preferences first..
         /// </summary>
         internal static string NativeOnboarding_Incomplete {

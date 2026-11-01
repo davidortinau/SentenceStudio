@@ -9554,4 +9554,37 @@ For example: {0} ...</value>
   <data name="NativeConversation_DismissNotices" xml:space="preserve">
     <value>Dismiss</value>
   </data>
+  <data name="NativeMinimalPairs_DeleteFailed" xml:space="preserve">
+    <value>Failed to delete pair.</value>
+  </data>
+  <data name="NativeMinimalPairs_Deleted" xml:space="preserve">
+    <value>Pair deleted.</value>
+  </data>
+  <data name="NativeMinimalPairs_DeleteMessage" xml:space="preserve">
+    <value>Delete {0} vs {1}?</value>
+  </data>
+  <data name="NativeMinimalPairs_DurationValue" xml:space="preserve">
+    <value>{0:F1} min</value>
+  </data>
+  <data name="NativeMinimalPairs_LoadFailed" xml:space="preserve">
+    <value>Failed to load minimal pairs.</value>
+  </data>
+  <data name="NativeMinimalPairs_NoPairsToStart" xml:space="preserve">
+    <value>No pairs available to start a session.</value>
+  </data>
+  <data name="NativeMinimalPairs_PlaybackError" xml:space="preserve">
+    <value>Audio playback error.</value>
+  </data>
+  <data name="NativeMinimalPairs_RefineSearch" xml:space="preserve">
+    <value>Showing {0} of {1} words. Search to narrow the list.</value>
+  </data>
+  <data name="NativeMinimalPairs_SelectPairFirst" xml:space="preserve">
+    <value>Please select a pair to practice in Focus mode.</value>
+  </data>
+  <data name="NativeMinimalPairs_StartSessionCount" xml:space="preserve">
+    <value>Start Session ({0} pairs)</value>
+  </data>
+  <data name="NativeMinimalPairs_VocabularyLoadFailed" xml:space="preserve">
+    <value>Failed to load vocabulary.</value>
+  </data>
 </root>

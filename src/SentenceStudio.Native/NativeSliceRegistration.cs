@@ -75,6 +75,8 @@ public static class NativeSliceRegistration
         services.TryAddSingleton<INativeDiaryAi, NativeDiaryAi>();
         services.AddTransient<NativeDiaryStore>();
         services.AddTransient<NativeDiaryPresenter>();
+        services.AddTransient<NativeMinimalPairStore>();
+        services.AddTransient<NativeMinimalPairsPresenter>();
         services.TryAddScoped<IPlanCopyProvider, EnglishPlanCopyProvider>();
         services.AddSingleton<NativePlanLeaseFactory>();
         services.TryAddSingleton<INativeProfileRemoteStore>(sp =>
