@@ -795,6 +795,20 @@ public sealed class NativeSamPresenterTests
     }
 
     [Fact]
+    public async Task ANewConversationOffersReporting()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var api = WriteEnabled();
+        var sam = Create(fixture, api);
+        await sam.RefreshAvailabilityAsync();
+        await sam.OpenAsync(NativeSamPanelSize.Compact);
+
+        Assert.Equal("created-1", sam.State.ConversationId);
+        Assert.True(sam.State.ReportingAvailable);
+    }
+
+    [Fact]
     public async Task ReportingSwitchedOffOffersNoControl()
     {
         using var fixture = new NativeSliceFixture();

@@ -343,6 +343,10 @@ public sealed partial class NativeSamPresenter(
             await LoadSessionAsync(owner, cancellationToken);
             if (!IsCurrent(owner))
                 return;
+            // A new thread offers the report flag too (feature probe, empty list).
+            await LoadReportedResponsesAsync(owner, conversation.ConversationId, cancellationToken);
+            if (!IsCurrent(owner))
+                return;
             Publish(_state with
             {
                 Status = NativeSamStatus.Ready,
