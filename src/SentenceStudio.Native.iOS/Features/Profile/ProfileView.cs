@@ -258,16 +258,18 @@ internal static class ProfileView
         SourceUiStyle style, Func<string, string> text, Action requestDelete)
     {
         var danger = style.Appearance.Danger;
+        var dangerFill = style.Appearance.DangerButtonFill;
+        var onDanger = style.Appearance.DangerButtonText;
         var label = style.Text(Views.Text(text("Profile_DeleteMyAccount")),
                 SourceTextRole.Button)
-            .WithForegroundColor("#FFFFFF", "#FFFFFF")
+            .WithForegroundColor(onDanger.Light, onDanger.Dark)
             .WithPadding(10, 16, 10, 16)
             .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
             .WithMinimumHeight(SourceUiLayout.MinimumTouchHeight);
         var delete = Views.Button(label, requestDelete)
             .WithButtonStyle(SwiftButtonStyle.Plain)
-            .WithButtonAppearance(danger.Light, danger.Dark,
-                danger.Light, danger.Dark, style.Appearance.BootstrapRadius)
+            .WithButtonAppearance(dangerFill.Light, dangerFill.Dark,
+                dangerFill.Light, dangerFill.Dark, style.Appearance.BootstrapRadius)
             .WithMinimumHeight(SourceUiLayout.MinimumTouchHeight)
             .WithFlexibleWidth()
             .WithAccessibilityIdentifier("native.profile.delete.request");

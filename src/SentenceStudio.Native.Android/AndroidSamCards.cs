@@ -44,6 +44,18 @@ internal sealed record AndroidSamWriteCard(
 /// </summary>
 internal static class AndroidSamCards
 {
+    /// <summary>
+    /// Destructive button pair, used in both themes. The brand danger red (#E13B30, kept for text
+    /// and outlines) is only 4.31:1 against white; #B3261E with white is 6.54:1 (WCAG AA 4.5:1).
+    /// </summary>
+    internal const string DangerContainerHex = "#B3261E";
+    internal const string OnDangerHex = "#FFFFFF";
+
+    /// <summary>A copy result applies only to the owner that started the copy and the live presenter.</summary>
+    internal static bool ShouldApplyCopyResult(string? startOwner, string? currentOwner) =>
+        !string.IsNullOrWhiteSpace(startOwner)
+        && string.Equals(startOwner, currentOwner, StringComparison.Ordinal);
+
     /// <summary>Source CoachRepairDisclosureNotice: one closed state in, one sentence out.</summary>
     internal static string? RepairKey(NativeSamEntry entry) =>
         entry.Kind == NativeSamEntryKind.Learner || entry.Limitation is not null ? null

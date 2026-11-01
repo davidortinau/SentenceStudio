@@ -230,6 +230,7 @@ internal sealed partial class AndroidSliceShell
     {
         if (sam.CopyTextFor(messageId) is not { } text)
             return;
+        var owner = Auth.UserId;
         bool copied;
         try
         {
@@ -243,6 +244,10 @@ internal sealed partial class AndroidSliceShell
                 $"Sam message could not be copied ({ex.GetType().Name}).");
             copied = false;
         }
+        // The owner changed while the clipboard call was in flight: the result belongs to a
+        // previous account's message and must not surface in this one (fail closed).
+        if (!AndroidSamCards.ShouldApplyCopyResult(owner, Auth.UserId) || !ReferenceEquals(sam, _sam))
+            return;
         sam.ReportCopyResult(messageId, copied);
     });
 

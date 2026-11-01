@@ -18,6 +18,8 @@ internal sealed record AndroidVisualPalette(
     Color Success,
     Color Danger,
     Color DangerSurface,
+    Color DangerContainer,
+    Color OnDanger,
     Color WarningText,
     Color KnownText);
 
@@ -47,6 +49,8 @@ internal static class AndroidVisualTheme
             Color.FromHex("#12B886"),
             Color.FromHex("#E13B30"),
             Color.FromHex(dark ? "#401C27" : "#FFF0EF"),
+            Color.FromHex(AndroidSamCards.DangerContainerHex),
+            Color.FromHex(AndroidSamCards.OnDangerHex),
             Color.FromHex(dark ? "#FFD77A" : "#855900"),
             Color.FromHex(dark ? "#63DCAA" : "#136F52"));
     }

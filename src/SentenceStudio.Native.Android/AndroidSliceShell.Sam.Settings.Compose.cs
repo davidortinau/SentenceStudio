@@ -79,21 +79,22 @@ internal sealed partial class AndroidSliceShell
             Body(Localize("Coach_MemoryExplainer"), palette, secondary: true),
             Caption(Localize("Coach_MemoryVsSettings"), palette),
         };
-        ComposableNode Tab(NativeSamMemoryTab tab, string key, int count, string id)
+        Tab MemoryTab(NativeSamMemoryTab tab, string key, int count, string id)
         {
             var title = string.Format(CultureInfo.CurrentCulture, Localize(key), count);
-            var selected = memory.Tab == tab;
-            // Two tabs (source role=tablist): the selected one is the filled button, as on iOS.
-            return SamButton(title, id, () => SelectSamMemoryTab(tab), true,
-                selected ? AndroidSamButtonStyle.Primary : AndroidSamButtonStyle.Secondary, palette,
-                selected: selected);
+            // Material Tab publishes Role.Tab + selected state (source role=tablist) as one node.
+            return new Tab(memory.Tab == tab, () => SelectSamMemoryTab(tab), true)
+            {
+                Modifier = Modifier.TestTag(id),
+                Text = new Text(title),
+            };
         }
-        rows.Add(new FlowRow
+        rows.Add(new TabRow(memory.Tab == NativeSamMemoryTab.Active ? 0 : 1)
         {
             Modifier.FillMaxWidth(),
-            Tab(NativeSamMemoryTab.Active, "Coach_MemoryTabActive", memory.SafeActive.Length,
+            MemoryTab(NativeSamMemoryTab.Active, "Coach_MemoryTabActive", memory.SafeActive.Length,
                 "native.sam.memory.tab.active"),
-            Tab(NativeSamMemoryTab.Candidates, "Coach_MemoryTabCandidates", memory.SafeCandidates.Length,
+            MemoryTab(NativeSamMemoryTab.Candidates, "Coach_MemoryTabCandidates", memory.SafeCandidates.Length,
                 "native.sam.memory.tab.candidates"),
         });
         if (memory.NoticeKey is { } notice)

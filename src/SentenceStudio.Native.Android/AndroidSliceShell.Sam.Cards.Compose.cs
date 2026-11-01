@@ -50,8 +50,8 @@ internal sealed partial class AndroidSliceShell
                         Modifier = modifier,
                         Shape = Shape.RoundedCorners(AndroidVisualTheme.ControlRadius),
                         Colors = composer.ButtonColors(
-                            containerColor: palette.Danger,
-                            contentColor: palette.OnPrimary,
+                            containerColor: palette.DangerContainer,
+                            contentColor: palette.OnDanger,
                             disabledContainerColor: palette.Border,
                             disabledContentColor: palette.SecondaryText),
                     };
@@ -137,15 +137,24 @@ internal sealed partial class AndroidSliceShell
             Strong(string.Format(CultureInfo.CurrentCulture, Localize("Coach_ReportPrompt"), SamPersona(state)),
                 palette, heading: true),
         };
+        var reasons = new Column
+        {
+            Modifier.FillMaxWidth().Semantics(semantics => semantics.SelectableGroup()),
+        };
         foreach (var (reason, key, reasonId) in AndroidSamCards.ReportReasons)
         {
             var selected = state.ReportReason == reason;
             var label = Localize(key);
             var enabled = !state.ReportBusy;
             Action select = () => SelectSamReportReason(reason);
+            // One radio per reason: the row is the single selectable node (merged semantics); the
+            // inner RadioButton is only the visual indicator and its tap is the same selection.
             var option = new Row(Arrangement.SpacedBy(4), Alignment.Vertical.CenterVertically)
             {
-                (enabled ? Modifier.FillMaxWidth().Clickable(select) : Modifier.FillMaxWidth())
+                // Disabled: no selection action, but descendants still merge so the disabled radio
+                // state is announced on the single row node.
+                (enabled ? Modifier.FillMaxWidth().Selectable(selected, select)
+                    : Modifier.FillMaxWidth().Semantics(true, label, SemanticsRole.RadioButton))
                     .HeightIn(min: AndroidVisualTheme.ControlHeight)
                     .TestTag($"native.sam.report.reason.{reasonId}")
                     .Semantics(semantics =>
@@ -157,8 +166,9 @@ internal sealed partial class AndroidSliceShell
                 new AndroidX.Compose.RadioButton(selected, select, enabled),
                 Body(label, palette),
             };
-            rows.Add(option);
+            reasons.Add(option);
         }
+        rows.Add(reasons);
         if (state.ReportFailedId is { } failed && failed == state.ReportingMessageId)
             rows.Add(Caption(Localize("Coach_ReportFailed"), palette, $"native.sam.report.failed.{index}",
                 danger: true));

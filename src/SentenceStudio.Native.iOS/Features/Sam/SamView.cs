@@ -542,8 +542,10 @@ internal static class SamView
 
     internal static SwiftView DangerButton(SourceUiStyle style, string title, Action action)
     {
-        var danger = style.Appearance.Danger;
-        return Views.Button(style.Text(Views.Text(title), SourceTextRole.Button, SourceTextTone.OnPrimary)
+        var danger = style.Appearance.DangerButtonFill;
+        var onDanger = style.Appearance.DangerButtonText;
+        return Views.Button(style.Text(Views.Text(title), SourceTextRole.Button)
+                    .WithForegroundColor(onDanger.Light, onDanger.Dark)
                     .WithPadding(10, 16, 10, 16), action)
             .WithButtonAppearance(danger.Light, danger.Dark, danger.Light, danger.Dark, 8)
             .WithAccessibilityLabel(title);

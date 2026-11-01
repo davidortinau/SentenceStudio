@@ -14,6 +14,42 @@ namespace SentenceStudio.Native.Android.Tests;
 /// </summary>
 public sealed class AndroidSamCardsTests
 {
+    [Fact]
+    public void DangerButtonPair_MeetsWcagAaAndOldPairDoesNot()
+    {
+        var ratio = Contrast(AndroidSamCards.DangerContainerHex, AndroidSamCards.OnDangerHex);
+        Assert.True(ratio >= 4.5, $"destructive button contrast {ratio:0.00}:1");
+        Assert.True(Contrast("#E13B30", "#FFFFFF") < 4.5);
+        Assert.True(Contrast("#E13B30", "#081022") < 4.5);
+    }
+
+    [Fact]
+    public void CopyResult_AppliesOnlyToTheOwnerThatStartedTheCopy()
+    {
+        Assert.True(AndroidSamCards.ShouldApplyCopyResult("u1", "u1"));
+        Assert.False(AndroidSamCards.ShouldApplyCopyResult("u1", "u2"));
+        Assert.False(AndroidSamCards.ShouldApplyCopyResult("u1", null));
+        Assert.False(AndroidSamCards.ShouldApplyCopyResult(null, null));
+        Assert.False(AndroidSamCards.ShouldApplyCopyResult(" ", " "));
+    }
+
+    private static double Luminance(string hex)
+    {
+        double Channel(int offset)
+        {
+            var c = Convert.ToInt32(hex.Substring(offset, 2), 16) / 255.0;
+            return c <= 0.03928 ? c / 12.92 : Math.Pow((c + 0.055) / 1.055, 2.4);
+        }
+        return 0.2126 * Channel(1) + 0.7152 * Channel(3) + 0.0722 * Channel(5);
+    }
+
+    private static double Contrast(string a, string b)
+    {
+        var (hi, lo) = (Luminance(a), Luminance(b));
+        if (hi < lo) (hi, lo) = (lo, hi);
+        return (hi + 0.05) / (lo + 0.05);
+    }
+
     private static readonly DateTime Now = new(2026, 10, 31, 12, 0, 0, DateTimeKind.Utc);
 
     private static NativeSamEntry Sam(string id = "m1", CoachWriteOperationDto? write = null,

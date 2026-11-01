@@ -203,6 +203,9 @@ internal sealed class SourceUiAppearance
     }
     internal SourceColorPair Success => new("#12B886", "#12B886");
     internal SourceColorPair Danger => new("#E13B30", "#E13B30");
+    /// <summary>Destructive button fill/label. White on #E13B30 is 4.31:1; #B3261E with white is 6.54:1 in both themes.</summary>
+    internal SourceColorPair DangerButtonFill => new("#B3261E", "#B3261E");
+    internal SourceColorPair DangerButtonText => new("#FFFFFF", "#FFFFFF");
     internal SourceColorPair Warning => new("#FFC233", "#FFC233");
     internal SourceColorPair SuccessAlertFill =>
         new(LightAlerts.Success.Fill, DarkAlerts.Success.Fill);
