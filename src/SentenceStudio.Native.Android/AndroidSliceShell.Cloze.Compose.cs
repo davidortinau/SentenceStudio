@@ -26,14 +26,18 @@ internal sealed partial class AndroidSliceShell
 
     private async Task OpenClozeAsync(NativeActivityLaunch launch, CancellationToken cancellationToken)
     {
-        if (_scope is null)
+        if (ActivityServices is not { } services)
             return;
-        var presenter = _scope.ServiceProvider.GetRequiredService<NativeClozePresenter>();
+        var presenter = services.GetRequiredService<NativeClozePresenter>();
         presenter.StateChanged += OnClozeChanged;
         _cloze = presenter;
         Publish(() => Cloze = new(NativePhase.Loading));
         var state = await presenter.OpenAsync(launch, cancellationToken);
-        Publish(() => Cloze = state);
+        Publish(() =>
+        {
+            if (ReferenceEquals(_cloze, presenter))
+                Cloze = state;
+        });
     }
 
     private async Task ExitClozeAsync(CancellationToken cancellationToken)

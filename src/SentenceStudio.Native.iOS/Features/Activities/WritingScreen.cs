@@ -355,15 +355,20 @@ internal sealed class WritingScreen : IActivityScreen
         // Source summary is a centered column.
         static SwiftView Centered(SwiftView view) =>
             view.WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center);
+        var continueButton = style.PrimaryButton(text(NativeWritingText.ContinuePractice),
+                () => Fire(_presenter.ContinueAsync))
+            .WithAccessibilityIdentifier(NativeWritingAccess.Continue);
+        // An End session during grading shows the summary first; Continue waits for that grade.
+        if (!state.CanContinue)
+            SourceUiStyle.SetCustomButtonAvailability(continueButton, appearance,
+                SourceButtonRole.Primary, enabled: false);
         var summary = Views.VStack(
                 Centered(Views.HStack(
                     Views.Image("text.book.closed"),
                     style.Text(Views.Text(text(NativeWritingText.SessionComplete)),
                         SourceTextRole.Title1, sourceHeading: true))),
                 style.Card(stats.WithPadding(SourceUiLayout.CardInset), maxWidth: 340),
-                Centered(Views.HStack(style.PrimaryButton(text(NativeWritingText.ContinuePractice),
-                        () => Fire(_presenter.ContinueAsync))
-                    .WithAccessibilityIdentifier(NativeWritingAccess.Continue))),
+                Centered(Views.HStack(continueButton)),
                 Centered(Views.HStack(style.SecondaryButton(text(NativeWritingText.Done), _host.Exit)
                     .WithAccessibilityIdentifier(NativeWritingAccess.Done))))
             .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)

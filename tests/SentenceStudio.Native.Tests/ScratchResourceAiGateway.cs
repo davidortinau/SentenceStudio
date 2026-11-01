@@ -26,6 +26,8 @@ internal sealed class ScratchResourceAiGateway : IAiGatewayClient, IOwnerBoundNa
     public Func<string, ClozureResponse?>? ClozeResponder { get; set; }
     public Exception? ClozeFailure { get; set; }
     public TaskCompletionSource<bool>? ClozeGate { get; set; }
+    /// <summary>A hung gateway: the cloze call waits for it and ignores cancellation.</summary>
+    public TaskCompletionSource<bool>? ClozeHang { get; set; }
     public string? LastPrompt { get; private set; }
     public string? LastOwner { get; private set; }
 
@@ -58,6 +60,8 @@ internal sealed class ScratchResourceAiGateway : IAiGatewayClient, IOwnerBoundNa
         {
             if (ClozeGate is not null)
                 await ClozeGate.Task.WaitAsync(cancellationToken);
+            if (ClozeHang is not null)
+                await ClozeHang.Task;
             if (ClozeFailure is not null)
                 throw ClozeFailure;
             return (T?)(object?)ClozeResponder?.Invoke(prompt);

@@ -24,6 +24,26 @@ public sealed record NativeActivityDefinition(
 /// activity, append one definition here; plan cards and Choose My Own tiles
 /// for every other route/type keep their disabled presentation. The Vocabulary
 /// Quiz keeps its dedicated launch path and is not listed here.
+/// <para>
+/// Presenter recipe (Cloze, Translation and Shadowing are the references):
+/// Back/Exit must work at once, even while an AI call is slow or hung, and
+/// must always stop and save the timer.
+/// <list type="bullet">
+/// <item>Never await AI, speech or other network work while holding the
+/// presenter gate. Load content through <see cref="NativeActivityLoad"/>:
+/// Begin under the gate, await off the gate with the ticket token, then
+/// re-take the gate with <c>CancellationToken.None</c> and apply only while
+/// the ticket is current. ExitAsync calls Cancel before waiting on the gate.</item>
+/// <item>Background work a command starts (audio preparation, grading) uses a
+/// presenter-owned token, not the caller's, and re-takes the gate with
+/// <c>CancellationToken.None</c> so its busy flag is always cleared.</item>
+/// <item>Write UserActivity rows with <see cref="NativeUserActivity.Create"/>
+/// (UTC instants, explicit owner).</item>
+/// <item>Heads: Android resolves the presenter from the per-launch activity
+/// scope and opens it outside Execute's Busy gate; iOS opens it outside the
+/// controller's Run gate. Back stays enabled while the activity loads.</item>
+/// </list>
+/// </para>
 /// </summary>
 public static class NativeActivityCatalog
 {

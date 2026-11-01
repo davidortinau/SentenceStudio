@@ -30,9 +30,9 @@ internal sealed partial class AndroidSliceShell
 
     private async Task OpenDiaryAsync(NativeActivityLaunch launch, CancellationToken cancellationToken)
     {
-        if (_scope is null)
+        if (ActivityServices is not { } services)
             return;
-        var presenter = _scope.ServiceProvider.GetRequiredService<NativeDiaryPresenter>();
+        var presenter = services.GetRequiredService<NativeDiaryPresenter>();
         presenter.StateChanged += OnDiaryChanged;
         _diary = presenter;
         Publish(() => Diary = new(NativePhase.Loading));

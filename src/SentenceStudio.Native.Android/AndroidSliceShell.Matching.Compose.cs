@@ -19,14 +19,18 @@ internal sealed partial class AndroidSliceShell
 
     private async Task OpenMatchingAsync(NativeActivityLaunch launch, CancellationToken cancellationToken)
     {
-        if (_scope is null)
+        if (ActivityServices is not { } services)
             return;
-        var presenter = _scope.ServiceProvider.GetRequiredService<NativeMatchingPresenter>();
+        var presenter = services.GetRequiredService<NativeMatchingPresenter>();
         presenter.StateChanged += OnMatchingChanged;
         _matching = presenter;
         Publish(() => Matching = new(NativePhase.Loading));
         var state = await presenter.OpenAsync(launch, cancellationToken);
-        Publish(() => Matching = state);
+        Publish(() =>
+        {
+            if (ReferenceEquals(_matching, presenter))
+                Matching = state;
+        });
     }
 
     private async Task ExitMatchingAsync(CancellationToken cancellationToken)

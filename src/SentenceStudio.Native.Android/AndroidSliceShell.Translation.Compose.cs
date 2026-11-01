@@ -23,14 +23,18 @@ internal sealed partial class AndroidSliceShell
 
     private async Task OpenTranslationAsync(NativeActivityLaunch launch, CancellationToken cancellationToken)
     {
-        if (_scope is null)
+        if (ActivityServices is not { } services)
             return;
-        var presenter = _scope.ServiceProvider.GetRequiredService<NativeTranslationPresenter>();
+        var presenter = services.GetRequiredService<NativeTranslationPresenter>();
         presenter.StateChanged += OnTranslationChanged;
         _translation = presenter;
         Publish(() => Translation = new(NativePhase.Loading));
         var state = await presenter.OpenAsync(launch, cancellationToken);
-        Publish(() => ApplyTranslation(state));
+        Publish(() =>
+        {
+            if (ReferenceEquals(_translation, presenter))
+                ApplyTranslation(state);
+        });
     }
 
     private async Task ExitTranslationAsync(CancellationToken cancellationToken)

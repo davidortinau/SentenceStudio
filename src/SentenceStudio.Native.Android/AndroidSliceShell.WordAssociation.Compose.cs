@@ -29,9 +29,9 @@ internal sealed partial class AndroidSliceShell
 
     private async Task OpenWordAssociationAsync(NativeActivityLaunch launch, CancellationToken cancellationToken)
     {
-        if (_scope is null)
+        if (ActivityServices is not { } services)
             return;
-        var presenter = _scope.ServiceProvider.GetRequiredService<NativeWordAssociationPresenter>();
+        var presenter = services.GetRequiredService<NativeWordAssociationPresenter>();
         presenter.StateChanged += OnWordAssociationChanged;
         _wordAssociation = presenter;
         Publish(() => WordAssociation = new(NativePhase.Loading));

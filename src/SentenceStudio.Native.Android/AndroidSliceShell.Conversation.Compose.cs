@@ -31,9 +31,9 @@ internal sealed partial class AndroidSliceShell
 
     private async Task OpenConversationAsync(NativeActivityLaunch launch, CancellationToken cancellationToken)
     {
-        if (_scope is null)
+        if (ActivityServices is not { } services)
             return;
-        var presenter = _scope.ServiceProvider.GetRequiredService<NativeConversationPresenter>();
+        var presenter = services.GetRequiredService<NativeConversationPresenter>();
         presenter.StateChanged += OnConversationChanged;
         _conversation = presenter;
         Publish(() => Conversation = new(NativePhase.Loading, IsStarting: true));

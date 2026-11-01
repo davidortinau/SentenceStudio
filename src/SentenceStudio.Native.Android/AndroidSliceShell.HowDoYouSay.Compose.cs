@@ -28,9 +28,9 @@ internal sealed partial class AndroidSliceShell
 
     private Task OpenHowDoYouSayAsync(NativeActivityLaunch launch, CancellationToken cancellationToken)
     {
-        if (_scope is null)
+        if (ActivityServices is not { } services)
             return Task.CompletedTask;
-        var presenter = _scope.ServiceProvider.GetRequiredService<NativeHowDoYouSayPresenter>();
+        var presenter = services.GetRequiredService<NativeHowDoYouSayPresenter>();
         presenter.StateChanged += OnHowDoYouSayChanged;
         _howDoYouSay = presenter;
         Publish(() =>

@@ -326,6 +326,38 @@ public sealed class NativeTranslationPresenterTests
         Assert.Equal(0, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
     }
 
+    [Fact]
+    public async Task ExitDuringAHungSentenceLoad_ReturnsAtOnceAndSavesTheTimerRow()
+    {
+        using var fixture = new NativeSliceFixture();
+        await SeedSkillAsync(fixture, NativeSliceFixture.UserA, wordCount: 3);
+        await SignInAsync(fixture, NativeSliceFixture.EmailA);
+        var hang = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var ai = new ScratchTranslationAi(NativeSliceFixture.UserA) { GenerateHang = hang };
+        using var translation = Presenter(fixture, ai);
+
+        var open = translation.OpenAsync(Launch(fixture, NativeSliceFixture.UserA));
+        for (var i = 0; i < 500 && ai.GeneratePrompts.Count == 0; i++)
+            await Task.Delay(10);
+        Assert.Single(ai.GeneratePrompts);
+        Assert.Equal(NativePhase.Loading, translation.State.Phase);
+
+        var exit = await translation.ExitAsync().WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal(NativeDestination.TodaysPlan, exit.Destination);
+        Assert.Null(exit.ErrorKey);
+        // The abandoned load never reopens the activity.
+        hang.SetResult(true);
+        await open;
+        Assert.Equal(NativeDestination.TodaysPlan, translation.State.Destination);
+
+        using var scope = fixture.Scope();
+        var row = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
+            .DailyPlanCompletions.AsNoTracking()
+            .SingleAsync(item => item.UserProfileId == NativeSliceFixture.UserA);
+        Assert.StartsWith("adhoc-", row.PlanItemId);
+        Assert.Equal(nameof(PlanActivityType.Translation), row.ActivityType);
+    }
+
     private static NativeTranslationPresenter Presenter(NativeSliceFixture fixture, INativeTranslationAi ai) =>
         ActivatorUtilities.CreateInstance<NativeTranslationPresenter>(fixture.Provider, ai);
 
@@ -381,17 +413,21 @@ internal sealed class ScratchTranslationAi(string owner) : INativeTranslationAi
     public bool GradeFails { get; set; }
     public bool GradeReturnsNull { get; set; }
     public TaskCompletionSource<bool>? GradeGate { get; set; }
+    /// <summary>A hung gateway: generation waits for it and ignores cancellation.</summary>
+    public TaskCompletionSource<bool>? GenerateHang { get; set; }
 
     private string Term(int index) => $"target-{owner}-{index}";
 
-    public Task<TranslationResponse?> GenerateAsync(
+    public async Task<TranslationResponse?> GenerateAsync(
         string userId, string renderedPrompt, CancellationToken cancellationToken)
     {
         LastOwner = userId;
         GeneratePrompts.Add(renderedPrompt);
+        if (GenerateHang is { } hang)
+            await hang.Task;
         if (GenerateFails)
             throw new HttpRequestException("Synthetic generation offline.");
-        return Task.FromResult<TranslationResponse?>(new TranslationResponse
+        return new TranslationResponse
         {
             Sentences = Enumerable.Range(0, SentenceTotal).Select(i => new TranslationDto
             {
@@ -399,7 +435,7 @@ internal sealed class ScratchTranslationAi(string owner) : INativeTranslationAi
                 RecommendedTranslation = $"I want sentence {i}.",
                 TranslationVocabulary = [Term(0), Term(1), "싶다"]
             }).ToList()
-        });
+        };
     }
 
     public async Task<GradeResponse?> GradeAsync(

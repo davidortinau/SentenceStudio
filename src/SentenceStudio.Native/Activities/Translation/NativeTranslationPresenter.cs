@@ -44,6 +44,7 @@ public sealed class NativeTranslationPresenter(
 
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly CancellationTokenSource _lifetime = new();
+    private readonly NativeActivityLoad _load = new();
     private readonly List<Challenge> _sentences = [];
     private readonly HashSet<string> _ownedWordIds = new(StringComparer.Ordinal);
     private List<VocabularyWord> _focusWords = [];
@@ -71,6 +72,7 @@ public sealed class NativeTranslationPresenter(
         NativeActivityLaunch launch, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(launch);
+        NativeActivityLoadTicket ticket;
         await _gate.WaitAsync(cancellationToken);
         try
         {
@@ -82,12 +84,13 @@ public sealed class NativeTranslationPresenter(
                 || !owner.IsActive(launch.UserId)
                 || !await timer.StartAsync(launch, cancellationToken))
                 return Refuse();
-            return await LoadCoreAsync(cancellationToken);
+            ticket = _load.Begin(cancellationToken);
         }
         finally
         {
             _gate.Release();
         }
+        return await CompleteLoadAsync(launch, ticket);
     }
 
     /// <summary>Intro Start button.</summary>
@@ -247,6 +250,8 @@ public sealed class NativeTranslationPresenter(
     /// <summary>Summary "Continue practice": counters reset and a fresh set loads; the timer keeps running.</summary>
     public async Task<NativeTranslationState> ContinueAsync(CancellationToken cancellationToken = default)
     {
+        NativeActivityLaunch launch;
+        NativeActivityLoadTicket ticket;
         await _gate.WaitAsync(cancellationToken);
         try
         {
@@ -255,25 +260,33 @@ public sealed class NativeTranslationPresenter(
             if (_exited || _state.Phase != NativePhase.Summary
                 || _state.Destination != NativeDestination.Activity)
                 return State;
+            launch = _launch;
             _gradedCount = 0;
             _accuracySum = 0;
             _fluencySum = 0;
             Publish(new(NativePhase.Loading));
-            return await LoadCoreAsync(cancellationToken);
+            ticket = _load.Begin(cancellationToken);
         }
         finally
         {
             _gate.Release();
         }
+        return await CompleteLoadAsync(launch, ticket);
     }
 
-    /// <summary>Back / Done / Go Back: cancel any grade, stop and save the timer, return to the Dashboard.</summary>
+    /// <summary>
+    /// Back / Done / Go Back: cancel any grade or sentence load, stop and save
+    /// the timer, return to the Dashboard. Neither holds the gate, so Back works
+    /// at once even while the AI is slow or hung.
+    /// </summary>
     public async Task<NativeTranslationState> ExitAsync(CancellationToken cancellationToken = default)
     {
         CancelGrading();
+        _load.Cancel();
         await _gate.WaitAsync(cancellationToken);
         try
         {
+            _load.Cancel();
             _exited = true;
             string? errorKey = null;
             try
@@ -313,17 +326,8 @@ public sealed class NativeTranslationPresenter(
         {
             using var scope = scopes.CreateScope();
             var activities = scope.ServiceProvider.GetRequiredService<UserActivityRepository>();
-            var now = DateTime.Now;
-            var saved = await activities.SaveAsync(new UserActivity
-            {
-                Activity = Activity.Translation.ToString(),
-                Input = input,
-                Accuracy = feedback.Accuracy,
-                Fluency = feedback.Fluency,
-                UserProfileId = userId,
-                CreatedAt = now,
-                UpdatedAt = now
-            });
+            var saved = await activities.SaveAsync(NativeUserActivity.Create(
+                userId, Activity.Translation, input, feedback.Accuracy, feedback.Fluency));
             if (saved < 0)
                 throw new InvalidOperationException("The translation activity row was not saved.");
             pendingWrites.MarkPending(userId);
@@ -358,23 +362,82 @@ public sealed class NativeTranslationPresenter(
         });
     }
 
-    private async Task<NativeTranslationState> LoadCoreAsync(CancellationToken cancellationToken)
+    /// <summary>
+    /// Outside the gate: select vocabulary and generate the sentences into a
+    /// fresh <see cref="LoadedContent"/>, then apply it under the gate only
+    /// while the load is current (not exited, superseded or disposed).
+    /// </summary>
+    private async Task<NativeTranslationState> CompleteLoadAsync(
+        NativeActivityLaunch launch, NativeActivityLoadTicket ticket)
     {
-        var launch = _launch!;
-        var userId = launch.UserId;
-        _sentences.Clear();
-        _ownedWordIds.Clear();
-        _focusWords = [];
+        var content = new LoadedContent();
+        var outcome = LoadOutcome.Empty;
+        Exception? failure = null;
         try
         {
-            var (words, resource, skill) = await SelectVocabularyAsync(launch, cancellationToken);
-            if (!owner.IsActive(userId))
+            outcome = await LoadContentAsync(launch, content, ticket.Token);
+        }
+        catch (OperationCanceledException) when (ticket.Token.IsCancellationRequested)
+        {
+            return State;
+        }
+        catch (Exception ex)
+        {
+            failure = ex;
+        }
+
+        await _gate.WaitAsync(CancellationToken.None);
+        try
+        {
+            if (_exited || !_load.IsCurrent(ticket))
+                return State;
+            if (outcome == LoadOutcome.Refused || !owner.IsActive(launch.UserId))
                 return Refuse();
-            if (words.Count == 0)
+            if (failure is not null)
+            {
+                logger.LogError(failure, "Translation could not load sentences.");
+                return Publish(new(NativePhase.Error, ErrorKey: NativeTranslationText.LoadFailed));
+            }
+            if (outcome == LoadOutcome.Empty)
                 return Publish(new(NativePhase.Empty, ErrorKey: NativeTranslationText.NoSentences,
                     Notice: new(NativeTranslationText.NoSentencesReturned, IsError: false, IsWarning: true)));
 
-            var required = _focusWords.Where(FocusVocabularySelection.IsUsableVocabularyWord).ToList();
+            _sentences.Clear();
+            _sentences.AddRange(content.Sentences);
+            _ownedWordIds.Clear();
+            _ownedWordIds.UnionWith(content.OwnedWordIds);
+            _focusWords = content.FocusWords;
+            _nativeLanguage = content.NativeLanguage;
+            _targetLanguage = content.TargetLanguage;
+            _profileTargetLanguage = content.ProfileTargetLanguage;
+            var first = SentenceState(0);
+            return Publish(first with
+            {
+                ShowIntro = content.IntroVocabulary.Length > 0 || content.IntroGrammar.Length > 0
+                    || !string.IsNullOrEmpty(content.ResourceTitle),
+                IntroResourceTitle = content.ResourceTitle,
+                IntroVocabulary = content.IntroVocabulary,
+                IntroGrammar = content.IntroGrammar
+            });
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private async Task<LoadOutcome> LoadContentAsync(
+        NativeActivityLaunch launch, LoadedContent content, CancellationToken cancellationToken)
+    {
+        var userId = launch.UserId;
+        {
+            var (words, resource, skill) = await SelectVocabularyAsync(launch, content, cancellationToken);
+            if (!owner.IsActive(userId))
+                return LoadOutcome.Refused;
+            if (words.Count == 0)
+                return LoadOutcome.Empty;
+
+            var required = content.FocusWords.Where(FocusVocabularySelection.IsUsableVocabularyWord).ToList();
             var requiredIds = required.Select(word => word.Id).ToHashSet(StringComparer.Ordinal);
             var prompt = await RenderAsync(GenerateTemplate, new
             {
@@ -386,22 +449,21 @@ public sealed class NativeTranslationPresenter(
                 has_required_terms = required.Count > 0,
                 number_of_sentences = SentenceCount,
                 skills = skill?.Description,
-                native_language = _nativeLanguage,
-                target_language = _targetLanguage
+                native_language = content.NativeLanguage,
+                target_language = content.TargetLanguage
             }, cancellationToken);
             var reply = await ai.GenerateAsync(userId, prompt, cancellationToken);
             if (!owner.IsActive(userId))
-                return Refuse();
+                return LoadOutcome.Refused;
             if (reply?.Sentences is not { Count: > 0 } generated)
-                return Publish(new(NativePhase.Empty, ErrorKey: NativeTranslationText.NoSentences,
-                    Notice: new(NativeTranslationText.NoSentencesReturned, IsError: false, IsWarning: true)));
+                return LoadOutcome.Empty;
 
             var byTerm = words.Where(FocusVocabularySelection.IsUsableVocabularyWord)
                 .GroupBy(word => word.TargetLanguageTerm!, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(group => group.Key, group => group.First(),
                     StringComparer.OrdinalIgnoreCase);
             foreach (var dto in generated)
-                _sentences.Add(new Challenge
+                content.Sentences.Add(new Challenge
                 {
                     SentenceText = dto.SentenceText,
                     RecommendedTranslation = dto.RecommendedTranslation,
@@ -419,30 +481,33 @@ public sealed class NativeTranslationPresenter(
                     UpdatedAt = DateTime.UtcNow
                 });
 
-            var introVocabulary = FocusVocabularySelection.BuildRequiredFirstPromptVocabulary(
-                    _focusWords,
-                    _sentences.SelectMany(sentence => sentence.Vocabulary ?? []),
+            content.IntroVocabulary = FocusVocabularySelection.BuildRequiredFirstPromptVocabulary(
+                    content.FocusWords,
+                    content.Sentences.SelectMany(sentence => sentence.Vocabulary ?? []),
                     MaxIntroVocabulary)
                 .Select(word => new NativeTranslationIntroWord(
                     word.TargetLanguageTerm ?? string.Empty, word.NativeLanguageTerm ?? string.Empty))
                 .ToImmutableArray();
-            var grammar = ParseGrammarBullets(skill?.Description);
-            var resourceTitle = resource?.Title ?? string.Empty;
-            var first = SentenceState(0);
-            return Publish(first with
-            {
-                ShowIntro = introVocabulary.Length > 0 || grammar.Length > 0
-                    || !string.IsNullOrEmpty(resourceTitle),
-                IntroResourceTitle = resourceTitle,
-                IntroVocabulary = introVocabulary,
-                IntroGrammar = grammar
-            });
+            content.IntroGrammar = ParseGrammarBullets(skill?.Description);
+            content.ResourceTitle = resource?.Title ?? string.Empty;
+            return LoadOutcome.Ready;
         }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            logger.LogError(ex, "Translation could not load sentences.");
-            return Publish(new(NativePhase.Error, ErrorKey: NativeTranslationText.LoadFailed));
-        }
+    }
+
+    private enum LoadOutcome { Ready, Empty, Refused }
+
+    /// <summary>One load's result, built off the gate and applied to the presenter only if still current.</summary>
+    private sealed class LoadedContent
+    {
+        public List<Challenge> Sentences { get; } = [];
+        public HashSet<string> OwnedWordIds { get; } = new(StringComparer.Ordinal);
+        public List<VocabularyWord> FocusWords { get; set; } = [];
+        public string NativeLanguage { get; set; } = "English";
+        public string TargetLanguage { get; set; } = "Korean";
+        public string ProfileTargetLanguage { get; set; } = "Korean";
+        public string ResourceTitle { get; set; } = string.Empty;
+        public ImmutableArray<NativeTranslationIntroWord> IntroVocabulary { get; set; } = [];
+        public ImmutableArray<string> IntroGrammar { get; set; } = [];
     }
 
     /// <summary>
@@ -451,15 +516,16 @@ public sealed class NativeTranslationPresenter(
     /// words; samples at most 40. Every read is scoped to the launch owner.
     /// </summary>
     private async Task<(List<VocabularyWord> Words, LearningResource? Resource, SkillProfile? Skill)>
-        SelectVocabularyAsync(NativeActivityLaunch launch, CancellationToken cancellationToken)
+        SelectVocabularyAsync(NativeActivityLaunch launch, LoadedContent content,
+            CancellationToken cancellationToken)
     {
         var userId = launch.UserId;
         var profile = await profiles.GetByIdAsync(userId, cancellationToken);
         if (profile is not null && profile.Id != userId)
             profile = null;
-        _nativeLanguage = profile?.NativeLanguage ?? "English";
-        _profileTargetLanguage = profile?.TargetLanguage ?? "Korean";
-        _targetLanguage = _profileTargetLanguage;
+        content.NativeLanguage = profile?.NativeLanguage ?? "English";
+        content.ProfileTargetLanguage = profile?.TargetLanguage ?? "Korean";
+        content.TargetLanguage = content.ProfileTargetLanguage;
         var focusIds = FocusVocabularySelection.NormalizeFocusVocabularyIds(
             launch.FocusVocabularyIds.IsDefault ? [] : launch.FocusVocabularyIds);
         var resourceId = launch.ResourceIds.IsDefaultOrEmpty ? null : launch.ResourceIds[0];
@@ -470,7 +536,7 @@ public sealed class NativeTranslationPresenter(
             resource = await resources.GetResourceAsync(resourceId, userId);
             if (resource is not null && resource.UserProfileId != userId)
                 resource = null;
-            _targetLanguage = resource?.Language ?? _targetLanguage;
+            content.TargetLanguage = resource?.Language ?? content.TargetLanguage;
         }
         else if (focusIds.Count == 0)
         {
@@ -491,8 +557,8 @@ public sealed class NativeTranslationPresenter(
             ? await resources.GetAllVocabularyWordsWithResourcesAsync(userId)
             : [];
         cancellationToken.ThrowIfCancellationRequested();
-        _focusWords = FocusVocabularySelection.SelectFocusWords(allOwned, focusIds);
-        if (focusIds.Count > 0 && _focusWords.Count == 0)
+        content.FocusWords = FocusVocabularySelection.SelectFocusWords(allOwned, focusIds);
+        if (focusIds.Count > 0 && content.FocusWords.Count == 0)
             logger.LogWarning("Translation focus words were unavailable; using resource vocabulary.");
 
         var context = resourceVocabulary.Count > 0 ? resourceVocabulary : allOwned;
@@ -508,8 +574,8 @@ public sealed class NativeTranslationPresenter(
         }
 
         List<VocabularyWord> words;
-        if (_focusWords.Count > 0)
-            words = FocusVocabularySelection.BuildRequiredFirstPromptVocabulary(_focusWords,
+        if (content.FocusWords.Count > 0)
+            words = FocusVocabularySelection.BuildRequiredFirstPromptVocabulary(content.FocusWords,
                 context.Count > MaxVocabularySample
                     ? context.OrderBy(_ => Random.Shared.Next()).Take(MaxVocabularySample).ToList()
                     : context,
@@ -518,8 +584,8 @@ public sealed class NativeTranslationPresenter(
             words = context.Count > MaxVocabularySample
                 ? context.OrderBy(_ => Random.Shared.Next()).Take(MaxVocabularySample).ToList()
                 : context;
-        foreach (var word in words.Concat(_focusWords))
-            _ownedWordIds.Add(word.Id);
+        foreach (var word in words.Concat(content.FocusWords))
+            content.OwnedWordIds.Add(word.Id);
 
         SkillProfile? skill = null;
         if (words.Count > 0 && !string.IsNullOrEmpty(launch.SkillId))
@@ -652,6 +718,7 @@ public sealed class NativeTranslationPresenter(
             return;
         _disposed = true;
         _lifetime.Cancel();
+        _load.Dispose();
         timer.Dispose();
     }
 }

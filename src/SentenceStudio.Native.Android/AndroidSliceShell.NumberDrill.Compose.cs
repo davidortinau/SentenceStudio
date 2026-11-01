@@ -27,14 +27,18 @@ internal sealed partial class AndroidSliceShell
 
     private async Task OpenNumberDrillAsync(NativeActivityLaunch launch, CancellationToken cancellationToken)
     {
-        if (_scope is null)
+        if (ActivityServices is not { } services)
             return;
-        var presenter = _scope.ServiceProvider.GetRequiredService<NativeNumberDrillPresenter>();
+        var presenter = services.GetRequiredService<NativeNumberDrillPresenter>();
         presenter.StateChanged += OnNumberDrillChanged;
         _numberDrill = presenter;
         Publish(() => NumberDrill = new(NativePhase.Loading));
         var state = await presenter.OpenAsync(launch, cancellationToken);
-        Publish(() => SetNumberDrill(state));
+        Publish(() =>
+        {
+            if (ReferenceEquals(_numberDrill, presenter))
+                SetNumberDrill(state);
+        });
     }
 
     private async Task ExitNumberDrillAsync(CancellationToken cancellationToken)

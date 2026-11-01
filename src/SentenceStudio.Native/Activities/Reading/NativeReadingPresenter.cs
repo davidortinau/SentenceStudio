@@ -509,13 +509,13 @@ public sealed class NativeReadingPresenter(
         }
 
         string definition;
+        var translated = false;
         try
         {
             definition = await TranslateAsync(userId, cleanWord, context, cancellationToken);
+            translated = true;
             if (string.IsNullOrEmpty(definition))
                 definition = TranslationUnavailableMarker;
-            if (owner.IsActive(userId))
-                await RecordActivityAsync(userId, $"Dictionary lookup: {cleanWord}");
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested || _lifetime.IsCancellationRequested)
         {
@@ -527,9 +527,24 @@ public sealed class NativeReadingPresenter(
             definition = TranslationUnavailableMarker;
         }
 
+        // A later tap, close, exit or owner change supersedes this lookup: it
+        // is neither shown nor recorded.
+        if (!IsCurrentLookup(lookup, userId))
+            return _state;
+        if (translated)
+        {
+            try
+            {
+                await RecordActivityAsync(userId, $"Dictionary lookup: {cleanWord}");
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Reading could not record a dictionary lookup.");
+            }
+        }
+
         lock (_sync)
         {
-            // A later tap, close, exit or owner change supersedes this lookup.
             if (lookup != _lookup || _exited || !owner.IsActive(userId) || _panel is null)
                 return _state;
             _panel = _panel with { Definition = definition, IsTranslating = false };
@@ -691,20 +706,18 @@ public sealed class NativeReadingPresenter(
         }
     }
 
+    private bool IsCurrentLookup(long lookup, string userId)
+    {
+        lock (_sync)
+            return lookup == _lookup && !_exited && _panel is not null && owner.IsActive(userId);
+    }
+
     private async Task<bool> RecordActivityAsync(string userId, string input)
     {
         if (!owner.IsActive(userId))
             return false;
-        var saved = await activities.SaveAsync(new UserActivity
-        {
-            UserProfileId = userId,
-            Activity = Activity.Reading.ToString(),
-            Input = input,
-            Accuracy = 100,
-            Fluency = 100,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow
-        });
+        var saved = await activities.SaveAsync(NativeUserActivity.Create(
+            userId, Activity.Reading, input, accuracy: 100, fluency: 100));
         if (saved > 0)
         {
             pendingWrites.MarkPending(userId);

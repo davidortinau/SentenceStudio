@@ -218,12 +218,15 @@ public sealed class NativeWritingPresenter(
         try
         {
             _grading = false;
-            if (generation != _generation || Exited)
+            // Exit or an owner change superseded the grade: nothing is recorded.
+            if (Exited)
                 return State;
             if (!Active())
                 return Refuse();
+            if (generation != _generation)
+                return RepublishIdle();
             if (linked.IsCancellationRequested)
-                return PublishReady();
+                return PublishSession();
             if (failure is not null || grade is null)
             {
                 if (failure is not null)
@@ -231,7 +234,7 @@ public sealed class NativeWritingPresenter(
                 else
                     logger.LogWarning("Writing grading returned no verdict.");
                 _notices = [new(NativeWritingNoticeKind.Error, NativeWritingText.GradeFailed)];
-                return PublishReady();
+                return PublishSession();
             }
             return await ApplyGradeAsync(userId, sentence, grade);
         }
@@ -313,21 +316,24 @@ public sealed class NativeWritingPresenter(
         try
         {
             _translating = false;
-            if (generation != _generation || Exited)
+            if (Exited)
                 return State;
             if (!Active())
                 return Refuse();
+            // Continue practice superseded the translation: drop it, but clear its busy state.
+            if (generation != _generation)
+                return RepublishIdle();
             if (linked.IsCancellationRequested)
-                return PublishReady();
+                return PublishSession();
             if (failure is not null || string.IsNullOrWhiteSpace(translation))
             {
                 if (failure is not null)
                     logger.LogError(failure, "Writing could not translate the sentence.");
                 _notices = [new(NativeWritingNoticeKind.Error, NativeWritingText.TranslateFailed)];
-                return PublishReady();
+                return PublishSession();
             }
             _notices = [new(NativeWritingNoticeKind.Info, null, translation)];
-            return PublishReady();
+            return PublishSession();
         }
         finally
         {
@@ -368,7 +374,7 @@ public sealed class NativeWritingPresenter(
                 return State;
             if (!Active())
                 return Refuse();
-            if (_state.Phase != NativePhase.Summary)
+            if (!_state.CanContinue || _grading)
                 return State;
             _generation++;
             _sentences.Clear();
@@ -432,18 +438,8 @@ public sealed class NativeWritingPresenter(
             try
             {
                 var activities = scope.ServiceProvider.GetRequiredService<UserActivityRepository>();
-                var now = DateTime.UtcNow;
-                // UserActivity.CreatedAt is a UTC instant (ProgressService.ComputeStreak).
-                var saved = await activities.SaveAsync(new UserActivity
-                {
-                    Activity = Activity.Writer.ToString(),
-                    Input = sentence,
-                    Accuracy = grade.Accuracy,
-                    Fluency = grade.Fluency,
-                    UserProfileId = userId,
-                    CreatedAt = now,
-                    UpdatedAt = now
-                });
+                var saved = await activities.SaveAsync(NativeUserActivity.Create(
+                    userId, Activity.Writer, sentence, grade.Accuracy, grade.Fluency));
                 if (saved < 0)
                 {
                     logger.LogError("Writing could not save its UserActivity row.");
@@ -486,12 +482,14 @@ public sealed class NativeWritingPresenter(
             return Refuse();
         if (saveFailed)
             notices.Add(new(NativeWritingNoticeKind.Error, NativeText.SaveFailed));
+        // Source GradeMe clears userInput after every grade, including text typed
+        // while the grade was in flight (its field stays enabled while grading).
         _draft = string.Empty;
         Shuffle();
         notices.Add(new(NativeWritingNoticeKind.Success, NativeWritingText.GradedAccuracy,
             ((int)grade.Accuracy).ToString(System.Globalization.CultureInfo.InvariantCulture)));
         _notices = [.. notices];
-        return PublishReady();
+        return PublishSession();
     }
 
     private async Task<(string Target, string Native)> LanguagesAsync(string userId)
@@ -597,6 +595,14 @@ public sealed class NativeWritingPresenter(
         HasPendingSync: _launch is not null && pendingWrites.IsPending(_launch.UserId));
 
     private NativeWritingState PublishReady() => Publish(Snapshot(NativePhase.Ready));
+
+    /// <summary>Republishes the current page: a grade finishing after End session updates the summary instead of reopening the input.</summary>
+    private NativeWritingState PublishSession() =>
+        Publish(Snapshot(_state.Phase == NativePhase.Summary ? NativePhase.Summary : NativePhase.Ready));
+
+    /// <summary>A superseded grade or translation still clears its busy flag on a live page.</summary>
+    private NativeWritingState RepublishIdle() =>
+        _state.Phase is NativePhase.Ready or NativePhase.Summary ? PublishSession() : State;
 
     private NativeWritingState Refuse()
     {

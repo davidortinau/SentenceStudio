@@ -41,6 +41,7 @@ public sealed class NativeClozePresenterTests
         Assert.Empty(launch.ResourceIds);
         Assert.True(launch.DueOnly);
         using var cloze = Presenter(fixture);
+        var startedUtc = DateTime.UtcNow.AddSeconds(-5);
 
         var state = await cloze.OpenAsync(launch);
 
@@ -116,6 +117,8 @@ public sealed class NativeClozePresenterTests
                 .Where(row => row.Activity == nameof(Activity.Clozure)).ToListAsync();
             Assert.Equal(4, activity.Count);
             Assert.All(activity, row => Assert.Equal(owner, row.UserProfileId));
+            // UTC instants (ComputeStreak), not the device-local wall clock.
+            Assert.All(activity, row => Assert.InRange(row.CreatedAt, startedUtc, DateTime.UtcNow.AddSeconds(5)));
             Assert.Equal(2, activity.Count(row => row.Accuracy == 100));
             var contexts = await db.VocabularyLearningContexts.AsNoTracking()
                 .Where(row => row.Activity == NativeClozePresenter.AttemptActivity)
@@ -284,6 +287,38 @@ public sealed class NativeClozePresenterTests
         await pending;
 
         Assert.Equal(1, cloze.State.Index);
+    }
+
+    [Fact]
+    public async Task ExitDuringAHungSentenceLoad_ReturnsAtOnceAndSavesTheTimerRow()
+    {
+        using var fixture = new NativeSliceFixture(resourceAiEnabled: true);
+        var owner = NativeSliceFixture.UserA;
+        var hang = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        fixture.ResourceAi.ClozeHang = hang;
+        fixture.ResourceAi.ClozeResponder = _ => Reply(owner, 8);
+        await fixture.SeedAsync(owner, wordCount: 10);
+        await SignInAsync(fixture, NativeSliceFixture.EmailA);
+        using var cloze = Presenter(fixture);
+
+        var open = cloze.OpenAsync(ChooseOwnLaunch(fixture, owner));
+        await WaitForAsync(() => fixture.ResourceAi.LastPrompt is not null);
+        Assert.Equal(NativePhase.Loading, cloze.State.Phase);
+
+        var exit = await cloze.ExitAsync().WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal(NativeDestination.TodaysPlan, exit.Destination);
+        Assert.Null(exit.ErrorKey);
+        // The abandoned load never reopens the round.
+        hang.SetResult(true);
+        await open;
+        Assert.Equal(NativeDestination.TodaysPlan, cloze.State.Destination);
+        Assert.Equal(0, cloze.State.Total);
+
+        using var scope = fixture.Scope();
+        var row = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
+            .DailyPlanCompletions.AsNoTracking().SingleAsync(item => item.UserProfileId == owner);
+        Assert.StartsWith("adhoc-", row.PlanItemId);
+        Assert.Equal(nameof(PlanActivityType.Cloze), row.ActivityType);
     }
 
     [Fact]

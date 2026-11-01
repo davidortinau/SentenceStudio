@@ -93,7 +93,7 @@ public sealed class NativeShadowingPresenterTests
         var (presenter, speech, player) = Create(fixture, ai);
         using var _ = presenter;
 
-        var state = await presenter.OpenAsync(ChooseOwnLaunch(fixture));
+        var state = await Settled(presenter, presenter.OpenAsync(ChooseOwnLaunch(fixture)));
 
         Assert.Equal(NativePhase.Ready, state.Phase);
         Assert.Equal(3, state.Count);
@@ -137,7 +137,7 @@ public sealed class NativeShadowingPresenterTests
         var (presenter, _, _) = Create(fixture, ai);
         using var _ = presenter;
 
-        var state = await presenter.OpenAsync(ChooseOwnLaunch(fixture));
+        var state = await Settled(presenter, presenter.OpenAsync(ChooseOwnLaunch(fixture)));
 
         Assert.Equal(NativePhase.Ready, state.Phase);
         Assert.Equal(3, state.Count);
@@ -160,7 +160,7 @@ public sealed class NativeShadowingPresenterTests
         await SignInAsync(fixture);
         var (presenter, speech, player) = Create(fixture);
         using var _ = presenter;
-        var state = await presenter.OpenAsync(ChooseOwnLaunch(fixture));
+        var state = await Settled(presenter, presenter.OpenAsync(ChooseOwnLaunch(fixture)));
         Assert.False(state.CanGoPrevious);
         Assert.True(state.CanGoNext);
         Assert.False(state.ShowTranslation);
@@ -169,14 +169,14 @@ public sealed class NativeShadowingPresenterTests
         state = await presenter.ToggleTranslationAsync();
         Assert.True(state.ShowTranslation);
 
-        state = await presenter.TogglePlaybackAsync();
+        state = await Settled(presenter, presenter.TogglePlaybackAsync());
         Assert.True(state.IsPlaying);
         Assert.Equal([NativeShadowingSpeed.Normal], player.Rates);
-        state = await presenter.TogglePlaybackAsync();
+        state = await Settled(presenter, presenter.TogglePlaybackAsync());
         Assert.False(state.IsPlaying);
 
         // Speed change reloads the sentence audio and autoplays at the new rate.
-        state = await presenter.SetSpeedAsync(NativeShadowingSpeed.Slow);
+        state = await Settled(presenter, presenter.SetSpeedAsync(NativeShadowingSpeed.Slow));
         Assert.Equal(NativeShadowingSpeed.Slow, state.Speed);
         Assert.True(state.IsPlaying);
         Assert.Equal(NativeShadowingSpeed.Slow, player.Rates[^1]);
@@ -190,12 +190,12 @@ public sealed class NativeShadowingPresenterTests
         player.Finish();
         state = await WaitAsync(presenter, s => !s.IsPlaying);
         Assert.Equal(1, state.Position);
-        state = await presenter.TogglePlaybackAsync();
+        state = await Settled(presenter, presenter.TogglePlaybackAsync());
         Assert.True(state.IsPlaying);
         Assert.Equal(0, player.LastSeek);
 
         // Next stops audio, hides the translation, and prepares without autoplay; speed is kept.
-        state = await presenter.NextAsync();
+        state = await Settled(presenter, presenter.NextAsync());
         Assert.Equal(1, state.Index);
         Assert.False(state.ShowTranslation);
         Assert.False(state.IsPlaying);
@@ -203,18 +203,18 @@ public sealed class NativeShadowingPresenterTests
         Assert.Equal(0, state.Position);
         Assert.Equal(NativeShadowingSpeed.Slow, state.Speed);
         Assert.Equal(state.Sentences[1].TargetText, speech.Requests[^1].Text);
-        state = await presenter.NextAsync();
+        state = await Settled(presenter, presenter.NextAsync());
         Assert.Equal(2, state.Index);
         Assert.False(state.CanGoNext);
-        state = await presenter.NextAsync();
+        state = await Settled(presenter, presenter.NextAsync());
         Assert.Equal(2, state.Index);
-        state = await presenter.PreviousAsync();
+        state = await Settled(presenter, presenter.PreviousAsync());
         Assert.Equal(1, state.Index);
         Assert.True(state.CanGoPrevious);
 
         await presenter.ExitAsync();
         // Every command is refused after Back.
-        var after = await presenter.TogglePlaybackAsync();
+        var after = await Settled(presenter, presenter.TogglePlaybackAsync());
         Assert.Equal(NativeDestination.TodaysPlan, after.Destination);
         Assert.False(player.IsPlaying);
     }
@@ -229,7 +229,7 @@ public sealed class NativeShadowingPresenterTests
         using var _ = presenter;
         speech.Status = NativeSpeechClipStatus.Offline;
 
-        var state = await presenter.OpenAsync(ChooseOwnLaunch(fixture));
+        var state = await Settled(presenter, presenter.OpenAsync(ChooseOwnLaunch(fixture)));
         Assert.Equal(NativePhase.Ready, state.Phase);
         Assert.Equal(NativeShadowingAudioIssue.Offline, state.AudioIssue);
         Assert.False(state.HasAudio);
@@ -237,18 +237,18 @@ public sealed class NativeShadowingPresenterTests
         Assert.NotNull(state.Current);
 
         speech.Status = NativeSpeechClipStatus.Failed;
-        state = await presenter.TogglePlaybackAsync();
+        state = await Settled(presenter, presenter.TogglePlaybackAsync());
         Assert.Equal(NativeShadowingAudioIssue.Failed, state.AudioIssue);
         Assert.False(state.IsPlaying);
 
         speech.Status = NativeSpeechClipStatus.Ready;
-        state = await presenter.TogglePlaybackAsync();
+        state = await Settled(presenter, presenter.TogglePlaybackAsync());
         Assert.Equal(NativeShadowingAudioIssue.None, state.AudioIssue);
         Assert.True(state.IsPlaying);
         Assert.Equal(3, speech.Requests.Count);
 
         player.Decodes = false;
-        state = await presenter.NextAsync();
+        state = await Settled(presenter, presenter.NextAsync());
         Assert.Equal(NativeShadowingAudioIssue.Failed, state.AudioIssue);
     }
 
@@ -317,13 +317,13 @@ public sealed class NativeShadowingPresenterTests
 
         var (presenter, speech, player) = Create(fixture);
         using var _ = presenter;
-        var open = await presenter.OpenAsync(ChooseOwnLaunch(fixture));
+        var open = await Settled(presenter, presenter.OpenAsync(ChooseOwnLaunch(fixture)));
         Assert.Equal(NativePhase.Ready, open.Phase);
-        await presenter.TogglePlaybackAsync();
+        await Settled(presenter, presenter.TogglePlaybackAsync());
         Assert.True(player.IsPlaying);
         fixture.LoseOwner();
 
-        var blocked = await presenter.NextAsync();
+        var blocked = await Settled(presenter, presenter.NextAsync());
         Assert.Equal(NativePhase.Blocked, blocked.Phase);
         Assert.False(player.IsPlaying);
         Assert.Single(speech.Requests);
@@ -403,6 +403,99 @@ public sealed class NativeShadowingPresenterTests
         return (presenter, speech, player);
     }
 
+    [Fact]
+    public async Task ExitDuringAHungSentenceLoad_ReturnsAtOnceAndSavesTheTimerRow()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA, wordCount: 3);
+        await SetLexicalTypeAsync(fixture, fixture.WordId(NativeSliceFixture.UserA, 0), LexicalUnitType.Word);
+        await SignInAsync(fixture);
+        var hang = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var ai = new ScratchShadowingAi { Hang = hang };
+        var (presenter, speech, _) = Create(fixture, ai);
+        using var _ = presenter;
+
+        var open = presenter.OpenAsync(ChooseOwnLaunch(fixture));
+        await WaitAsync(presenter, _ => ai.Calls > 0);
+        Assert.Equal(NativePhase.Loading, presenter.State.Phase);
+
+        var exit = await presenter.ExitAsync().WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal(NativeDestination.TodaysPlan, exit.Destination);
+        Assert.Null(exit.ErrorKey);
+        // The abandoned load never reopens the activity or prepares audio.
+        hang.SetResult(true);
+        await open;
+        Assert.Equal(NativeDestination.TodaysPlan, presenter.State.Destination);
+        Assert.Empty(speech.Requests);
+
+        using var scope = fixture.Scope();
+        var row = await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
+            .DailyPlanCompletions.AsNoTracking()
+            .SingleAsync(item => item.UserProfileId == NativeSliceFixture.UserA);
+        Assert.StartsWith("adhoc-", row.PlanItemId);
+        Assert.Equal(nameof(PlanActivityType.Shadowing), row.ActivityType);
+    }
+
+    [Fact]
+    public async Task AudioPreparation_NeverBlocksNavigationOrBackAndAlwaysEndsBuffering()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA, wordCount: 3);
+        await SignInAsync(fixture);
+        var (presenter, speech, player) = Create(fixture);
+        using var _ = presenter;
+        var hang = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        speech.Hang = hang;
+
+        // Open returns with the first sentence while its audio is still being fetched.
+        var state = await presenter.OpenAsync(ChooseOwnLaunch(fixture)).WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal(NativePhase.Ready, state.Phase);
+        Assert.True(state.IsBuffering);
+        state = await presenter.NextAsync().WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal(1, state.Index);
+        Assert.True(state.IsBuffering);
+        hang.SetResult(true);
+        state = await Settled(presenter, Task.FromResult(state));
+        Assert.False(state.IsBuffering);
+        Assert.True(state.HasAudio);
+        Assert.Equal(state.Sentences[1].TargetText, speech.Requests[^1].Text);
+
+        // A cancelled caller token does not abandon the fetch half way.
+        speech.Hang = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using (var caller = new CancellationTokenSource())
+        {
+            state = await presenter.SetSpeedAsync(NativeShadowingSpeed.Slow, caller.Token);
+            Assert.True(state.IsBuffering);
+            caller.Cancel();
+        }
+        speech.Hang.SetResult(true);
+        state = await Settled(presenter, Task.FromResult(state));
+        Assert.False(state.IsBuffering);
+        Assert.True(state.IsPlaying);
+        Assert.Equal(NativeShadowingSpeed.Slow, player.Rates[^1]);
+
+        // Back during a hung fetch returns at once and stops the audio.
+        speech.Hang = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        state = await presenter.PreviousAsync();
+        Assert.True(state.IsBuffering);
+        var exit = await presenter.ExitAsync().WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.Equal(NativeDestination.TodaysPlan, exit.Destination);
+        Assert.Null(exit.ErrorKey);
+        speech.Hang.SetResult(true);
+        await presenter.AudioTask;
+        Assert.Equal(NativeDestination.TodaysPlan, presenter.State.Destination);
+        Assert.False(player.IsPlaying);
+    }
+
+    /// <summary>Commands return before their audio is ready; await the background preparation too.</summary>
+    private static async Task<NativeShadowingState> Settled(
+        NativeShadowingPresenter presenter, Task<NativeShadowingState> command)
+    {
+        await command;
+        await presenter.AudioTask;
+        return presenter.State;
+    }
+
     private static async Task<NativeShadowingState> WaitAsync(
         NativeShadowingPresenter presenter, Func<NativeShadowingState, bool> condition)
     {
@@ -440,14 +533,19 @@ internal sealed class ScratchShadowingAi : IOwnerBoundNativeAiGateway
     public string? LastOwner { get; private set; }
     public string? LastPrompt { get; private set; }
 
-    public Task<T?> SendPromptAsync<T>(string owner, string prompt, CancellationToken cancellationToken)
+    /// <summary>When set, a call hangs until it completes, ignoring cancellation (a hung gateway).</summary>
+    public TaskCompletionSource<bool>? Hang { get; set; }
+
+    public async Task<T?> SendPromptAsync<T>(string owner, string prompt, CancellationToken cancellationToken)
     {
         Calls++;
         LastOwner = owner;
         LastPrompt = prompt;
+        if (Hang is { } hang)
+            await hang.Task;
         if (Throws)
             throw new HttpRequestException("Scratch AI unavailable.");
-        return Task.FromResult((T?)(object?)Response);
+        return (T?)(object?)Response;
     }
 }
 
@@ -455,13 +553,17 @@ internal sealed class ScratchShadowingSpeech : INativeShadowingSpeech
 {
     public NativeSpeechClipStatus Status { get; set; } = NativeSpeechClipStatus.Ready;
     public List<(string Owner, string Text, string Language)> Requests { get; } = [];
+    /// <summary>When set, each request hangs until it completes, ignoring cancellation.</summary>
+    public TaskCompletionSource<bool>? Hang { get; set; }
 
-    public Task<NativeSpeechClip> GetAsync(
+    public async Task<NativeSpeechClip> GetAsync(
         string owner, string text, string language, CancellationToken cancellationToken)
     {
         Requests.Add((owner, text, language));
-        return Task.FromResult(new NativeSpeechClip(Status,
-            Status == NativeSpeechClipStatus.Ready ? [1, 2, 3] : null));
+        if (Hang is { } hang)
+            await hang.Task;
+        return new NativeSpeechClip(Status,
+            Status == NativeSpeechClipStatus.Ready ? [1, 2, 3] : null);
     }
 }
 
