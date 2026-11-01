@@ -60,7 +60,7 @@ public sealed class NativeQuizMedia(
         cancellationToken.ThrowIfCancellationRequested();
         if (!TryOwner(out var current) || current != owner)
             return false;
-        return IsCachedAudio(cached?.AudioFilePath)
+        return CachedAudioPath(cached) is not null
             || connectivity.IsInternetAvailable && speech is not null
                 && auth?.IsSignedIn == true;
     }
@@ -77,9 +77,9 @@ public sealed class NativeQuizMedia(
         var voice = voices.GetVoiceForLanguage(language);
         var cached = await history.GetStreamHistoryByPhraseAndVoiceAsync(text, voice);
         byte[]? bytes = null;
-        if (IsCachedAudio(cached?.AudioFilePath))
+        if (CachedAudioPath(cached) is { } cachedPath)
         {
-            using var stream = File.OpenRead(cached!.AudioFilePath!);
+            using var stream = File.OpenRead(cachedPath);
             bytes = await ReadLimitedAsync(stream, MaxAudioBytes, cancellationToken);
         }
         else if (connectivity.IsInternetAvailable && speech is not null
@@ -94,7 +94,7 @@ public sealed class NativeQuizMedia(
                 {
                     try
                     {
-                        var directory = Path.Combine(files.AppDataDirectory, "AudioCache");
+                        var directory = NativeAudioCache.DirectoryFor(files.AppDataDirectory);
                         Directory.CreateDirectory(directory);
                         var path = Path.Combine(directory, $"word_{Guid.NewGuid():N}.mp3");
                         await File.WriteAllBytesAsync(path, bytes, cancellationToken);
@@ -232,24 +232,14 @@ public sealed class NativeQuizMedia(
         completion?.TrySetResult(false);
     }
 
-    private bool IsCachedAudio(string? path)
-    {
-        if (string.IsNullOrWhiteSpace(path))
-            return false;
-        var directory = Path.GetFullPath(
-            Path.Combine(files.AppDataDirectory, "AudioCache")) + Path.DirectorySeparatorChar;
-        try
-        {
-            return Path.GetFullPath(path).StartsWith(directory, StringComparison.Ordinal)
-                && File.Exists(path)
-                && new FileInfo(path).Length is > 0 and <= MaxAudioBytes;
-        }
-        catch (Exception ex) when (ex is ArgumentException or IOException
-            or UnauthorizedAccessException)
-        {
-            return false;
-        }
-    }
+    /// <summary>
+    /// The owner's cached clip in today's AudioCache, found by file name because iOS
+    /// moves the app container between installs (the stored absolute path goes stale).
+    /// </summary>
+    private string? CachedAudioPath(StreamHistory? cached) =>
+        cached is null || !TryOwner(out var owner) || cached.UserProfileId != owner
+            ? null
+            : NativeAudioCache.Resolve(files.AppDataDirectory, cached.AudioFilePath, MaxAudioBytes);
 
     public async Task<bool> CanShowPhotoAsync(
         string photoUri, CancellationToken cancellationToken) =>

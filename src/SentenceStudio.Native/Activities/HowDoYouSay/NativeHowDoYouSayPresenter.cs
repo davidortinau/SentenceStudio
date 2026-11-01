@@ -104,7 +104,7 @@ public sealed class NativeHowDoYouSayPresenter(
         }
         catch (OperationCanceledException) when (load.IsCancellationRequested)
         {
-            return State;
+            return await SettledStateAsync();
         }
 
         await _gate.WaitAsync(cancellationToken);
@@ -202,8 +202,7 @@ public sealed class NativeHowDoYouSayPresenter(
         }
         catch (OperationCanceledException) when (request.IsCancellationRequested)
         {
-            _busy = false;
-            return State;
+            return await SettledStateAsync(clearBusy: true);
         }
         catch (Exception ex)
         {
@@ -374,6 +373,28 @@ public sealed class NativeHowDoYouSayPresenter(
         }
     }
 
+    /// <summary>
+    /// The state after a load or speech request was cancelled. Back cancels
+    /// <see cref="_lifetime"/> while it holds the gate and publishes its destination
+    /// only afterwards; the cancelled continuation can resume first (inline in
+    /// Cancel or on another thread), so it waits for the gate and returns the state
+    /// Back settled rather than the pre-Back Ready state.
+    /// </summary>
+    private async Task<NativeHowDoYouSayState> SettledStateAsync(bool clearBusy = false)
+    {
+        await _gate.WaitAsync(CancellationToken.None);
+        try
+        {
+            if (clearBusy)
+                _busy = false;
+            return State;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     private async Task<(ImmutableArray<NativeHowDoYouSayVoice>, string)> LoadVoicesAsync(
         string userId, CancellationToken cancellationToken)
     {
@@ -452,28 +473,8 @@ public sealed class NativeHowDoYouSayPresenter(
     /// installs, so a stored absolute path is resolved by file name; nothing
     /// outside that directory is read or removed.
     /// </summary>
-    private string? CachedAudioPath(string? stored)
-    {
-        if (string.IsNullOrWhiteSpace(stored))
-            return null;
-        try
-        {
-            var directory = Path.GetFullPath(Path.Combine(files.AppDataDirectory, "AudioCache"));
-            var name = Path.GetFileName(stored);
-            if (string.IsNullOrWhiteSpace(name))
-                return null;
-            var path = Path.GetFullPath(Path.Combine(directory, name));
-            return path.StartsWith(directory + Path.DirectorySeparatorChar, StringComparison.Ordinal)
-                && File.Exists(path)
-                && new FileInfo(path).Length is > 0 and <= MaxAudioBytes
-                    ? path : null;
-        }
-        catch (Exception ex) when (ex is ArgumentException or IOException
-            or UnauthorizedAccessException)
-        {
-            return null;
-        }
-    }
+    private string? CachedAudioPath(string? stored) =>
+        NativeAudioCache.Resolve(files.AppDataDirectory, stored, MaxAudioBytes);
 
     private static async Task<byte[]?> ReadLimitedAsync(string path, CancellationToken cancellationToken)
     {
