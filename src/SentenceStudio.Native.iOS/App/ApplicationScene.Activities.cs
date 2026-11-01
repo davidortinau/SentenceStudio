@@ -57,7 +57,7 @@ internal sealed partial class ApplicationScene
                     _dashboardStack.Push("activity", _activitySheet);
                 }
                 else
-                    _dashboardStack.Push("activity", _activitySlot);
+                    _dashboardStack.Push("activity", _app.PresentActivityOver(_activitySlot));
             }
             else if (_activitySlot is not null)
             {

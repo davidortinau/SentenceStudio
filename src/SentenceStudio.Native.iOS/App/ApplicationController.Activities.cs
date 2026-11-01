@@ -53,6 +53,9 @@ internal sealed partial class ApplicationController
     /// <summary>The NavigationStack popped the activity's child page.</summary>
     internal void OnActivityChildPopped() => _activity?.OnChildPopped();
 
+    /// <summary>The activity page wrapped in the screen's optional presentation (for example an alert).</summary>
+    internal SwiftView PresentActivityOver(SwiftView page) => _activity?.PresentOver(page) ?? page;
+
     private async Task OpenPlanCardAsync(string cardId)
     {
         var card = _dashboardState.Cards.IsDefaultOrEmpty ? null
