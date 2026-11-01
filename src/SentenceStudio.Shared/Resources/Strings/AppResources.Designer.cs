@@ -10066,6 +10066,42 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to blank.
+        /// </summary>
+        internal static string NativeCloze_Blank {
+            get {
+                return ResourceManager.GetString("NativeCloze_Blank", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Confirmed! This one is solid..
+        /// </summary>
+        internal static string NativeCloze_FamiliarConfirmed {
+            get {
+                return ResourceManager.GetString("NativeCloze_FamiliarConfirmed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to This one is tricky in context. A few more reps will help..
+        /// </summary>
+        internal static string NativeCloze_FamiliarTricky {
+            get {
+                return ResourceManager.GetString("NativeCloze_FamiliarTricky", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Cloze sentences could not be generated. Nothing was recorded. Go back and try again..
+        /// </summary>
+        internal static string NativeCloze_GenerationFailed {
+            get {
+                return ResourceManager.GetString("NativeCloze_GenerationFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to This activity is not available yet..
         /// </summary>
         internal static string NativeDashboard_ActivityNotAvailable {

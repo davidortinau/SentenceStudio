@@ -8576,4 +8576,16 @@
   <data name="NativeActivity_LoadFailed" xml:space="preserve">
     <value>이 활동을 불러오지 못했습니다. 돌아가서 다시 시도하세요.</value>
   </data>
+  <data name="NativeCloze_Blank" xml:space="preserve">
+    <value>빈칸</value>
+  </data>
+  <data name="NativeCloze_FamiliarConfirmed" xml:space="preserve">
+    <value>확인했어요! 이 단어는 확실히 알고 있어요.</value>
+  </data>
+  <data name="NativeCloze_FamiliarTricky" xml:space="preserve">
+    <value>문맥 속에서는 까다로운 단어예요. 몇 번 더 연습하면 도움이 될 거예요.</value>
+  </data>
+  <data name="NativeCloze_GenerationFailed" xml:space="preserve">
+    <value>빈칸 채우기 문장을 만들지 못했습니다. 기록된 내용은 없습니다. 돌아가서 다시 시도하세요.</value>
+  </data>
 </root>

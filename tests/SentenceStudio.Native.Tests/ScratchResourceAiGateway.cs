@@ -22,6 +22,10 @@ internal sealed class ScratchResourceAiGateway : IAiGatewayClient, IOwnerBoundNa
     public TaskCompletionSource<bool>? TranscriptGate { get; set; }
     public TaskCompletionSource<bool>? StarterGate { get; set; }
     public int Calls { get; private set; }
+    /// <summary>Cloze replies are built from the rendered prompt; null replies and failures stay honest.</summary>
+    public Func<string, ClozureResponse?>? ClozeResponder { get; set; }
+    public Exception? ClozeFailure { get; set; }
+    public TaskCompletionSource<bool>? ClozeGate { get; set; }
     public string? LastPrompt { get; private set; }
     public string? LastOwner { get; private set; }
 
@@ -50,7 +54,15 @@ internal sealed class ScratchResourceAiGateway : IAiGatewayClient, IOwnerBoundNa
                 await TranscriptGate.Task.WaitAsync(cancellationToken);
             return (T?)(object?)TranscriptResponse;
         }
-        throw new NotSupportedException("The isolated AI fixture supports only resource responses.");
+        if (typeof(T) == typeof(ClozureResponse))
+        {
+            if (ClozeGate is not null)
+                await ClozeGate.Task.WaitAsync(cancellationToken);
+            if (ClozeFailure is not null)
+                throw ClozeFailure;
+            return (T?)(object?)ClozeResponder?.Invoke(prompt);
+        }
+        throw new NotSupportedException("The isolated AI fixture supports only resource and cloze responses.");
     }
 
     public Task<T?> SendMessagesAsync<T>(

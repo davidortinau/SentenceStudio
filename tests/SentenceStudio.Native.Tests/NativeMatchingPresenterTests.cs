@@ -15,12 +15,12 @@ public sealed class NativeMatchingPresenterTests
     private const string Matching = NativeActivityCatalog.VocabularyMatching;
 
     [Fact]
-    public void Catalog_RegistersOnlyMatchingAndKeepsOtherActivitiesDisabled()
+    public void Catalog_RegistersMatchingAndKeepsUnportedActivitiesDisabled()
     {
         Assert.True(NativeActivityCatalog.IsImplemented(Matching));
         Assert.True(NativeActivityCatalog.IsImplemented(PlanActivityType.VocabularyGame));
         Assert.False(NativeActivityCatalog.IsImplemented(PlanActivityType.Translation));
-        Assert.False(NativeActivityCatalog.IsImplemented("cloze"));
+        Assert.False(NativeActivityCatalog.IsImplemented("writing"));
         // The quiz keeps its dedicated launch path.
         Assert.False(NativeActivityCatalog.IsImplemented(PlanActivityType.VocabularyReview));
         Assert.Equal(PlanActivityType.VocabularyGame,
@@ -180,7 +180,7 @@ public sealed class NativeMatchingPresenterTests
         Assert.Null(launch.PlanItemId);
         Assert.Equal([fixture.ResourceId(NativeSliceFixture.UserA)], launch.ResourceIds.ToArray());
         Assert.False(launch.DueOnly);
-        Assert.Null(await launches.FromChooseOwnAsync(selection!, "cloze"));
+        Assert.Null(await launches.FromChooseOwnAsync(selection!, "writing"));
         // A foreign resource is refused even if a stale selection carries it.
         Assert.Null(await launches.FromChooseOwnAsync(selection! with {
             ResourceIds = [fixture.ResourceId(NativeSliceFixture.UserB)] }, Matching));

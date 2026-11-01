@@ -9221,4 +9221,16 @@ For example: {0} ...</value>
   <data name="NativeActivity_LoadFailed" xml:space="preserve">
     <value>This activity could not be loaded. Go back and try again.</value>
   </data>
+  <data name="NativeCloze_Blank" xml:space="preserve">
+    <value>blank</value>
+  </data>
+  <data name="NativeCloze_FamiliarConfirmed" xml:space="preserve">
+    <value>Confirmed! This one is solid.</value>
+  </data>
+  <data name="NativeCloze_FamiliarTricky" xml:space="preserve">
+    <value>This one is tricky in context. A few more reps will help.</value>
+  </data>
+  <data name="NativeCloze_GenerationFailed" xml:space="preserve">
+    <value>Cloze sentences could not be generated. Nothing was recorded. Go back and try again.</value>
+  </data>
 </root>
