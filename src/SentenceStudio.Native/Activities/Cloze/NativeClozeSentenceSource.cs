@@ -28,7 +28,8 @@ public sealed class NativeClozeSentenceSource(
     SkillProfileRepository skills,
     UserProfileRepository profiles,
     IServiceScopeFactory scopes,
-    ILogger<NativeClozeSentenceSource> logger)
+    ILogger<NativeClozeSentenceSource> logger,
+    TimeProvider? clock = null)
 {
     public const int MaxVocabSample = 40;
     private const string TemplateResource =
@@ -114,13 +115,18 @@ public sealed class NativeClozeSentenceSource(
             cancellationToken);
     }
 
-    /// <summary>Source due filter: unseen, never attempted, or review date reached; grace period excluded.</summary>
+    /// <summary>
+    /// Source due filter: unseen, never attempted, or review date reached; grace period excluded.
+    /// NextReviewDate is a UTC instant (VocabularyProgress.IsDueForReview, the quiz's
+    /// VocabQuizSourcePolicy), so it is compared with the current UTC instant; the source's
+    /// device-local DateTime.Now made words due early east of UTC and late west of it.
+    /// </summary>
     private async Task<List<VocabularyWord>> DueWordsAsync(
         string userId, List<VocabularyWord> all, CancellationToken cancellationToken)
     {
         var usable = all.Where(FocusVocabularySelection.IsUsableVocabularyWord).ToList();
         var progress = await ProgressAsync(userId, usable, cancellationToken);
-        var now = DateTime.Now;
+        var nowUtc = (clock ?? TimeProvider.System).GetUtcNow().UtcDateTime;
         return usable.Where(word =>
         {
             if (!progress.TryGetValue(word.Id, out var row))
@@ -128,7 +134,8 @@ public sealed class NativeClozeSentenceSource(
             if (row.IsInGracePeriod)
                 return false;
             return row.TotalAttempts == 0
-                || row.NextReviewDate is { } next && next <= now;
+                || row.NextReviewDate is { } next
+                    && DateTime.SpecifyKind(next, DateTimeKind.Utc) <= nowUtc;
         }).ToList();
     }
 

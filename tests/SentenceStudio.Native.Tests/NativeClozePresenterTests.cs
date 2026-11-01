@@ -392,6 +392,58 @@ public sealed class NativeClozePresenterTests
         Assert.Equal(NativeDestination.TodaysPlan, (await cloze.ExitAsync()).Destination);
     }
 
+    [Theory]
+    [InlineData("Asia/Seoul")]
+    [InlineData("Pacific/Honolulu")]
+    [InlineData("UTC")]
+    public async Task DueFallback_ComparesTheUtcReviewInstant_RegardlessOfTheDeviceTimeZone(string zoneId)
+    {
+        // NextReviewDate is stored as a UTC instant. Three hours either side of "now"
+        // falls inside both the +09:00 and -10:00 offsets, so a device-local comparison
+        // would make the future word due in Seoul and the past word not due in Honolulu.
+        using var fixture = new NativeSliceFixture(resourceAiEnabled: true);
+        var owner = NativeSliceFixture.UserA;
+        var now = new DateTime(2026, 9, 28, 10, 0, 0, DateTimeKind.Utc);
+        fixture.ResourceAi.ClozeResponder = _ => Reply(owner, 2);
+        await fixture.SeedAsync(owner, wordCount: 3);
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.VocabularyProgresses.AddRange(
+                new VocabularyProgress
+                {
+                    Id = "past-due", UserId = owner, VocabularyWordId = fixture.WordId(owner, 0),
+                    TotalAttempts = 2, NextReviewDate = now.AddHours(-3)
+                },
+                new VocabularyProgress
+                {
+                    Id = "not-yet-due", UserId = owner, VocabularyWordId = fixture.WordId(owner, 1),
+                    TotalAttempts = 2, NextReviewDate = now.AddHours(3)
+                });
+            await db.SaveChangesAsync();
+        }
+        await SignInAsync(fixture, NativeSliceFixture.EmailA);
+        var source = ActivatorUtilities.CreateInstance<NativeClozeSentenceSource>(
+            fixture.Provider, (TimeProvider)new ZonedClock(now, TimeZoneInfo.FindSystemTimeZoneById(zoneId)));
+
+        await source.GetSentencesAsync(
+            new NativeActivityLaunch(Cloze, owner, new DateOnly(2026, 9, 28), null,
+                [], null, [], true, null),
+            8, CancellationToken.None);
+
+        var prompt = fixture.ResourceAi.LastPrompt;
+        Assert.Contains($"target-{owner}-0", prompt);
+        Assert.DoesNotContain($"target-{owner}-1", prompt);
+        // Never attempted: always due.
+        Assert.Contains($"target-{owner}-2", prompt);
+    }
+
+    private sealed class ZonedClock(DateTime utcNow, TimeZoneInfo zone) : TimeProvider
+    {
+        public override DateTimeOffset GetUtcNow() => new(utcNow, TimeSpan.Zero);
+        public override TimeZoneInfo LocalTimeZone => zone;
+    }
+
     private static string Answer(string owner, int index) => $"target-{owner}-{index}을";
 
     private static ClozureResponse Reply(string owner, int count) => new()
