@@ -69,6 +69,13 @@ internal interface IActivityScreen : IDisposable
 
     /// <summary>The NavigationStack popped the child page (system Back or swipe).</summary>
     void OnChildPopped() { }
+
+    /// <summary>
+    /// Optional SwiftUI presentation (for example a confirmation alert) wrapped
+    /// once around the activity page when the scene pushes it; the screen keeps
+    /// the node and updates IsPresented from its renders. Not used with HasSheet.
+    /// </summary>
+    SwiftView PresentOver(SwiftView page) => page;
 }
 
 internal static class ActivityScreens
@@ -90,6 +97,7 @@ internal static class ActivityScreens
         NativeActivityCatalog.VideoWatching => new VideoWatchingScreen(host),
         NativeActivityCatalog.FlashcardPreview => new FlashcardScreen(host),
         NativeActivityCatalog.Scene => new SceneScreen(host),
+        NativeActivityCatalog.MinimalPairs => new MinimalPairsScreen(host),
         _ => null
     };
 }

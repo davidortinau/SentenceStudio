@@ -72,6 +72,7 @@ public static class NativeActivityCatalog
     /// </summary>
     public const string FlashcardPreview = "flashcard-activity";
     public const string Scene = "scene";
+    public const string MinimalPairs = "minimal-pairs";
 
     public static ImmutableArray<NativeActivityDefinition> Implemented { get; } =
     [
@@ -93,6 +94,9 @@ public static class NativeActivityCatalog
         // Plan card only (activities.md 11): not a Choose My Own tile; the source passes no skill.
         new(VideoWatching, [PlanActivityType.VideoWatching], TimerRecordsSkill: false, PlanOnly: true),
         new(Scene, [PlanActivityType.SceneDescription]),
+        // Minimal Pairs: Choose My Own tile (the source sidebar item has no native
+        // counterpart); no plan type, timer or progress (activities.md 15).
+        new(MinimalPairs, [], TimerRecordsSkill: false),
     ];
 
     public static NativeActivityDefinition? ForRoute(string? route) =>

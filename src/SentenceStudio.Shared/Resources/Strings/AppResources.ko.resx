@@ -9002,4 +9002,37 @@
   <data name="NativeScene_PhotoTooLarge" xml:space="preserve">
     <value>선택한 사진이 너무 큽니다.</value>
   </data>
+  <data name="NativeMinimalPairs_DeleteFailed" xml:space="preserve">
+    <value>쌍을 삭제하지 못했습니다.</value>
+  </data>
+  <data name="NativeMinimalPairs_Deleted" xml:space="preserve">
+    <value>쌍이 삭제되었습니다.</value>
+  </data>
+  <data name="NativeMinimalPairs_DeleteMessage" xml:space="preserve">
+    <value>{0} 대 {1} 쌍을 삭제할까요?</value>
+  </data>
+  <data name="NativeMinimalPairs_DurationValue" xml:space="preserve">
+    <value>{0:F1}분</value>
+  </data>
+  <data name="NativeMinimalPairs_LoadFailed" xml:space="preserve">
+    <value>최소 대립쌍을 불러오지 못했습니다.</value>
+  </data>
+  <data name="NativeMinimalPairs_NoPairsToStart" xml:space="preserve">
+    <value>세션을 시작할 쌍이 없습니다.</value>
+  </data>
+  <data name="NativeMinimalPairs_PlaybackError" xml:space="preserve">
+    <value>오디오 재생 오류가 발생했습니다.</value>
+  </data>
+  <data name="NativeMinimalPairs_RefineSearch" xml:space="preserve">
+    <value>{1}개 중 {0}개 단어를 표시합니다. 검색으로 목록을 좁히세요.</value>
+  </data>
+  <data name="NativeMinimalPairs_SelectPairFirst" xml:space="preserve">
+    <value>집중 모드에서 연습할 쌍을 선택하세요.</value>
+  </data>
+  <data name="NativeMinimalPairs_StartSessionCount" xml:space="preserve">
+    <value>세션 시작 ({0}쌍)</value>
+  </data>
+  <data name="NativeMinimalPairs_VocabularyLoadFailed" xml:space="preserve">
+    <value>어휘를 불러오지 못했습니다.</value>
+  </data>
 </root>
