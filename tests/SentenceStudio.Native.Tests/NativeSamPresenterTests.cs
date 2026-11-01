@@ -795,6 +795,60 @@ public sealed class NativeSamPresenterTests
     }
 
     [Fact]
+    public async Task SwitchingConversationWhileAReportIsSendingFreesTheReportFlag()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var api = WriteEnabled();
+        api.Conversations.Add(Conversation("t"));
+        api.Conversations.Add(Conversation("other", minutesAgo: 30));
+        api.Messages["t"] = [History("l1", CoachMessageRole.Learner, "hi", 1),
+            History("c1", CoachMessageRole.Coach, "answer", 2)];
+        var sam = await OpenAsync(fixture, api, addConversation: false);
+        var pending = new TaskCompletionSource<CoachResponseReportResponse?>();
+        api.Overrides[nameof(ICoachApiClient.ReportResponseAsync)] = _ => pending.Task;
+
+        sam.OpenReport("c1");
+        sam.SelectReportReason(CoachResponseReportReason.Confusing);
+        var sending = sam.SubmitReportAsync();
+        Assert.True(sam.State.ReportBusy);
+
+        await sam.OpenConversationAsync("other");
+        pending.SetResult(new CoachResponseReportResponse
+        {
+            MessageId = "c1", Reason = CoachResponseReportReason.Confusing,
+            State = CoachResponseReportState.Recorded, ReportedAtUtc = DateTime.UtcNow,
+        });
+        await sending;
+
+        Assert.False(sam.State.ReportBusy);
+    }
+
+    [Fact]
+    public async Task OnlyTheActiveProposalCanBeAccepted()
+    {
+        using var fixture = new NativeSliceFixture();
+        fixture.Activate(NativeSliceFixture.UserA);
+        var api = WriteEnabled();
+        var next = 0;
+        api.TurnResult = (_, conversation) =>
+            Turn(write: Write($"w-{++next}", conversation, hard: false));
+        var sam = await OpenAsync(fixture, api);
+
+        sam.SetDraft("add 사과");
+        await sam.SendAsync();
+        sam.SetDraft("add 배 instead");
+        await sam.SendAsync();
+        Assert.Equal("w-2", sam.State.ActiveWriteId);
+
+        await sam.AcceptWriteAsync("w-1");
+        Assert.Equal(0, api.CallCount(nameof(ICoachApiClient.AcceptWriteAsync)));
+
+        await sam.AcceptWriteAsync("w-2");
+        Assert.Equal(1, api.CallCount(nameof(ICoachApiClient.AcceptWriteAsync)));
+    }
+
+    [Fact]
     public async Task ANewConversationOffersReporting()
     {
         using var fixture = new NativeSliceFixture();
@@ -847,6 +901,15 @@ public sealed class NativeSamPresenterTests
         Assert.Null(sam.State.ConversationId);
         Assert.Equal(["other"], sam.State.SafeConversations.Select(row => row.Id));
 
+        // With no session held, nothing is resumed or created just to be deleted.
+        var startsBefore = api.CallCount(nameof(ICoachApiClient.StartSessionAsync));
+        sam.AskDeleteHistory();
+        await sam.ConfirmDeleteHistoryAsync();
+        Assert.Equal("NativeSam_CoachHistoryNothingToDelete", sam.State.SafeSettings.NoticeKey);
+        Assert.Equal(startsBefore, api.CallCount(nameof(ICoachApiClient.StartSessionAsync)));
+        Assert.Single(api.Calls, call => call.Name == nameof(ICoachApiClient.DeleteSessionAsync));
+
+        await sam.OpenConversationAsync("other");
         api.Overrides[nameof(ICoachApiClient.DeleteSessionAsync)] = _ =>
             Task.FromException(new CoachApiException(HttpStatusCode.InternalServerError, null, null, null));
         sam.AskDeleteHistory();

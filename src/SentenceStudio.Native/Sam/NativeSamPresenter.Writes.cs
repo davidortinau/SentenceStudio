@@ -215,6 +215,11 @@ public sealed partial class NativeSamPresenter
             return false;
         // The channel matches the risk class in both directions: a control that should not
         // exist never sends a request the learner did not ask for.
+        // Only the active proposal can be accepted or confirmed; superseded cards are inert
+        // even if a stale render or automation still sends their id.
+        if (channel is WriteChannel.Accept or WriteChannel.Confirm
+            && !string.Equals(operationId, _state.ActiveWriteId, StringComparison.Ordinal))
+            return false;
         return channel switch
         {
             WriteChannel.Accept => !operation!.RequiresConfirmation,

@@ -422,6 +422,7 @@ public sealed partial class NativeSamPresenter(
             MemoryCandidateNoticeKey = switching ? null : _state.MemoryCandidateNoticeKey,
             Dispute = switching ? null : _state.Dispute,
             ReportingAvailable = switching ? false : _state.ReportingAvailable,
+            ReportBusy = switching ? false : _state.ReportBusy,
             Reported = switching ? null : _state.Reported,
             ReportingMessageId = switching ? null : _state.ReportingMessageId,
             ReportReason = switching ? null : _state.ReportReason,

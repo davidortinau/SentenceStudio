@@ -232,8 +232,8 @@ public sealed partial class NativeSamPresenter
         string? notice;
         try
         {
-            if (_sessionId is null)
-                await LoadSessionAsync(owner, cancellationToken);
+            // Never resume or start a session just to delete it: resuming creates one when
+            // the server has none, which would then be deleted and reported as history.
             if (!IsCurrent(owner))
                 return;
             if (_sessionId is not { } sessionId)
