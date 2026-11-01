@@ -258,6 +258,102 @@ public sealed class NativeHowDoYouSayPresenterTests
         Assert.Equal(0, await PlanRowCountAsync(fixture));
     }
 
+    [Fact]
+    public async Task Back_ReturnsItsDestinationToTheCancelledOpenAndSpeak_EvenWhenTheyResumeFirst()
+    {
+        // Back cancels the in-flight load/speech before it publishes TodaysPlan. The
+        // player's Stop (called by Back between the two) holds Back until the cancelled
+        // call has had the chance to finish, which forces the ordering that made the
+        // full suite flaky: the cancelled call must still report Back's destination.
+        using var fixture = new NativeSliceFixture();
+        using var audio = new ScratchAudioCache(fixture);
+        await fixture.SeedAsync(NativeSliceFixture.UserA, wordCount: 1);
+        await SignInAsync(fixture);
+
+        var voices = new ScratchHowDoYouSaySource { HangVoices = true };
+        var openPlayer = new StopHoldingPlayer();
+        using (var presenter = CreateWithPlayer(fixture, voices, openPlayer))
+        {
+            var open = presenter.OpenAsync(Launch(fixture));
+            await WaitAsync(presenter, state => state.VoicesLoading);
+            openPlayer.HoldStopUntil = open;
+            var exit = await presenter.ExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.Equal(NativeDestination.TodaysPlan, exit.Destination);
+            Assert.Equal(NativeDestination.TodaysPlan,
+                (await open.WaitAsync(TimeSpan.FromSeconds(10))).Destination);
+        }
+
+        var speech = new ScratchHowDoYouSaySource();
+        var speakPlayer = new StopHoldingPlayer();
+        using (var presenter = CreateWithPlayer(fixture, speech, speakPlayer))
+        {
+            await presenter.OpenAsync(Launch(fixture));
+            speech.HangSynthesis = true;
+            presenter.SetInput("기다려요");
+            var speak = presenter.SpeakAsync();
+            await WaitAsync(presenter, state => state.IsBusy);
+            speakPlayer.HoldStopUntil = speak;
+            var exit = await presenter.ExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.Equal(NativeDestination.TodaysPlan, exit.Destination);
+            var late = await speak.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.Equal(NativeDestination.TodaysPlan, late.Destination);
+            Assert.False(late.IsBusy);
+            Assert.Empty(speakPlayer.Inner.Rates);
+        }
+        using var scope = fixture.Scope();
+        Assert.False(await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
+            .StreamHistories.AnyAsync(row => row.Phrase == "기다려요"));
+    }
+
+    private static NativeHowDoYouSayPresenter CreateWithPlayer(
+        NativeSliceFixture fixture, ScratchHowDoYouSaySource source, INativeShadowingPlayer player)
+    {
+        var provider = fixture.Provider;
+        var owner = provider.GetRequiredService<NativeActivityOwner>();
+        var history = new StreamHistoryRepository(provider, NullLogger<StreamHistoryRepository>.Instance);
+        var speech = new NativeShadowingSpeech(owner,
+            provider.GetRequiredService<IConnectivityService>(),
+            provider.GetRequiredService<IFileSystemService>(),
+            Voices(fixture), history, NullLogger<NativeShadowingSpeech>.Instance,
+            source, new ScratchSignedIn());
+        return new NativeHowDoYouSayPresenter(owner,
+            provider.GetRequiredService<UserProfileRepository>(), history, Voices(fixture),
+            provider.GetRequiredService<IFileSystemService>(), speech, player,
+            NullLogger<NativeHowDoYouSayPresenter>.Instance, source);
+    }
+
+    /// <summary>
+    /// Delegates to the scratch player; once armed, Stop waits (bounded) for the
+    /// given cancelled call to complete before Back continues to publish.
+    /// </summary>
+    private sealed class StopHoldingPlayer : INativeShadowingPlayer
+    {
+        public ScratchShadowingPlayer Inner { get; } = new();
+        public Task? HoldStopUntil { get; set; }
+        public bool Load(byte[] audio) => Inner.Load(audio);
+        public bool Play(float rate) => Inner.Play(rate);
+        public void Pause() => Inner.Pause();
+        public void Seek(double fraction) => Inner.Seek(fraction);
+        public void Stop()
+        {
+            if (HoldStopUntil is { } pending)
+            {
+                HoldStopUntil = null;
+                // The fixed presenter cannot finish here (it waits for Back's gate), so this
+                // bounded wait elapses; before the fix the cancelled call finished first.
+                try { pending.Wait(TimeSpan.FromSeconds(1)); }
+                catch (AggregateException) { }
+            }
+            Inner.Stop();
+        }
+        public bool IsLoaded => Inner.IsLoaded;
+        public bool IsPlaying => Inner.IsPlaying;
+        public double DurationSeconds => Inner.DurationSeconds;
+        public double PositionSeconds => Inner.PositionSeconds;
+        public event Action? Ended { add => Inner.Ended += value; remove => Inner.Ended -= value; }
+        public void Dispose() => Inner.Dispose();
+    }
+
     private sealed record TestPresenter(
         NativeHowDoYouSayPresenter Presenter, ScratchHowDoYouSaySource Source, ScratchShadowingPlayer Player);
 

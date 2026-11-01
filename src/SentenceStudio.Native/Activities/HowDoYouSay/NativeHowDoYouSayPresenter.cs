@@ -104,7 +104,7 @@ public sealed class NativeHowDoYouSayPresenter(
         }
         catch (OperationCanceledException) when (load.IsCancellationRequested)
         {
-            return State;
+            return await SettledStateAsync();
         }
 
         await _gate.WaitAsync(cancellationToken);
@@ -202,8 +202,7 @@ public sealed class NativeHowDoYouSayPresenter(
         }
         catch (OperationCanceledException) when (request.IsCancellationRequested)
         {
-            _busy = false;
-            return State;
+            return await SettledStateAsync(clearBusy: true);
         }
         catch (Exception ex)
         {
@@ -367,6 +366,28 @@ public sealed class NativeHowDoYouSayPresenter(
             _lifetime.Cancel();
             StopAudioCore();
             return Publish(new(NativePhase.Ready, NativeDestination.TodaysPlan));
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// The state after a load or speech request was cancelled. Back cancels
+    /// <see cref="_lifetime"/> while it holds the gate and publishes its destination
+    /// only afterwards; the cancelled continuation can resume first (inline in
+    /// Cancel or on another thread), so it waits for the gate and returns the state
+    /// Back settled rather than the pre-Back Ready state.
+    /// </summary>
+    private async Task<NativeHowDoYouSayState> SettledStateAsync(bool clearBusy = false)
+    {
+        await _gate.WaitAsync(CancellationToken.None);
+        try
+        {
+            if (clearBusy)
+                _busy = false;
+            return State;
         }
         finally
         {
