@@ -16,6 +16,16 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <!--
+      Workaround for .NET SDK 11.0.100-rc.2.26504.105 (Microsoft.NET.Sdk.StaticWebAssets.DotNetWatch.targets):
+      in Debug the SDK adds a dotnet-watch "browser tools" build JS module to every Blazor Web project,
+      and this Web SDK test project then fails the JS-module endpoint check with "The following scoped
+      css bundles do not have matching endpoints:
+      _framework/Microsoft.NET.Sdk.BlazorWeb.DotNetWatch#[.{fingerprint}]!.lib.module.js". The tests never
+      run under dotnet-watch, so opt this project out of the hot reload browser tools. Remove once the
+      SDK fix ships.
+    -->
+    <EnableHotReloadInRuntimeConfigDevFile>false</EnableHotReloadInRuntimeConfigDevFile>
   </PropertyGroup>
 
   <ItemGroup>
