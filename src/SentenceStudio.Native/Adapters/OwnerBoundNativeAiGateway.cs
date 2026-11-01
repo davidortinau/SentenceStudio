@@ -15,12 +15,21 @@ public sealed class OwnerBoundNativeAiGateway(
     DeviceUserScopeProvider scope,
     IHttpMessageHandlerFactory handlers,
     ILogger<AiGatewayClient> aiLogger,
-    Uri apiRoot) : IOwnerBoundNativeAiGateway
+    Uri apiRoot) : IOwnerBoundNativeAiGateway, IOwnerBoundNativeReasoningAiGateway
 {
     internal const string ClientName = "NativeOwnerAiClient";
 
-    public async Task<T?> SendPromptAsync<T>(
-        string owner, string prompt, CancellationToken cancellationToken)
+    public Task<T?> SendPromptAsync<T>(
+        string owner, string prompt, CancellationToken cancellationToken) =>
+        SendCoreAsync<T>(owner, prompt, AiTier.Fast, cancellationToken);
+
+    /// <summary>Reasoning tier with the server's default effort (source AiService.SendPrompt(prompt, AiTier.Reasoning)).</summary>
+    public Task<T?> SendReasoningPromptAsync<T>(
+        string owner, string prompt, CancellationToken cancellationToken) =>
+        SendCoreAsync<T>(owner, prompt, AiTier.Reasoning, cancellationToken);
+
+    private async Task<T?> SendCoreAsync<T>(
+        string owner, string prompt, AiTier tier, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var stamp = scope.CaptureStamp();
@@ -51,7 +60,7 @@ public sealed class OwnerBoundNativeAiGateway(
         };
         var gateway = new AiGatewayClient(new AiApiClient(client), aiLogger);
         var response = await gateway.SendPromptAsync<T>(
-            prompt, cancellationToken: cancellationToken);
+            prompt, tier, cancellationToken: cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         if (!HasOwner())
             throw new UnauthorizedAccessException(
@@ -116,6 +125,14 @@ public static class OwnerBoundNativeAiGatewayRegistration
                 AllowAutoRedirect = false
             });
         services.TryAddSingleton<IOwnerBoundNativeAiGateway>(provider =>
+            new OwnerBoundNativeAiGateway(
+                provider.GetRequiredService<IAuthService>(),
+                provider.GetRequiredService<IPreferencesService>(),
+                provider.GetRequiredService<DeviceUserScopeProvider>(),
+                provider.GetRequiredService<IHttpMessageHandlerFactory>(),
+                provider.GetRequiredService<ILogger<AiGatewayClient>>(),
+                apiRoot));
+        services.TryAddSingleton<IOwnerBoundNativeReasoningAiGateway>(provider =>
             new OwnerBoundNativeAiGateway(
                 provider.GetRequiredService<IAuthService>(),
                 provider.GetRequiredService<IPreferencesService>(),

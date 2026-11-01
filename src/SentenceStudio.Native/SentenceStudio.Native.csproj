@@ -37,5 +37,7 @@
                       LogicalName="SentenceStudio.Native.Prompts.Translate.scriban-txt" />
     <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/GetShadowingSentences.scriban-txt"
                       LogicalName="SentenceStudio.Native.Prompts.GetShadowingSentences.scriban-txt" />
+    <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/GradeWordAssociation.scriban-txt"
+                      LogicalName="SentenceStudio.Native.Prompts.GradeWordAssociation.scriban-txt" />
   </ItemGroup>
 </Project>

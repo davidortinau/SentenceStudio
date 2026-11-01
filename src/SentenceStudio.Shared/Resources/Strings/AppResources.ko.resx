@@ -8834,4 +8834,28 @@
   <data name="NativeShadowing_AudioFailed" xml:space="preserve">
     <value>오디오를 재생하지 못했어요. 재생을 눌러 다시 시도하세요.</value>
   </data>
+  <data name="WordAssoc_NoResourceVocab" xml:space="preserve">
+    <value>선택한 리소스에서 어휘를 찾을 수 없습니다.</value>
+  </data>
+  <data name="WordAssoc_LoadFailed" xml:space="preserve">
+    <value>어휘를 불러오는 중 오류가 발생했습니다.</value>
+  </data>
+  <data name="WordAssoc_GradeFailed" xml:space="preserve">
+    <value>힌트를 채점하는 중 오류가 발생했습니다. 다시 시도하세요.</value>
+  </data>
+  <data name="WordAssoc_Corrected" xml:space="preserve">
+    <value>(수정: {0})</value>
+  </data>
+  <data name="WordAssoc_AddClue" xml:space="preserve">
+    <value>힌트 추가</value>
+  </data>
+  <data name="WordAssoc_RemoveClue" xml:space="preserve">
+    <value>힌트 삭제</value>
+  </data>
+  <data name="WordAssoc_Pending" xml:space="preserve">
+    <value>아직 채점되지 않음</value>
+  </data>
+  <data name="WordAssoc_DoublePoints" xml:space="preserve">
+    <value>완전한 문장: 2점</value>
+  </data>
 </root>

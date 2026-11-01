@@ -21234,6 +21234,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Add clue.
+        /// </summary>
+        internal static string WordAssoc_AddClue {
+            get {
+                return ResourceManager.GetString("WordAssoc_AddClue", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Best score this week!.
         /// </summary>
         internal static string WordAssoc_BestWeek {
@@ -21248,6 +21257,24 @@ namespace SentenceStudio.Resources.Strings {
         internal static string WordAssoc_ClueBonus {
             get {
                 return ResourceManager.GetString("WordAssoc_ClueBonus", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to (Corrected: {0}).
+        /// </summary>
+        internal static string WordAssoc_Corrected {
+            get {
+                return ResourceManager.GetString("WordAssoc_Corrected", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Full sentence: 2 points.
+        /// </summary>
+        internal static string WordAssoc_DoublePoints {
+            get {
+                return ResourceManager.GetString("WordAssoc_DoublePoints", resourceCulture);
             }
         }
 
@@ -21270,11 +21297,29 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Error grading clues. Please try again..
+        /// </summary>
+        internal static string WordAssoc_GradeFailed {
+            get {
+                return ResourceManager.GetString("WordAssoc_GradeFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Grading clues....
         /// </summary>
         internal static string WordAssoc_GradingClues {
             get {
                 return ResourceManager.GetString("WordAssoc_GradingClues", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Error loading vocabulary..
+        /// </summary>
+        internal static string WordAssoc_LoadFailed {
+            get {
+                return ResourceManager.GetString("WordAssoc_LoadFailed", resourceCulture);
             }
         }
 
@@ -21306,6 +21351,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to No vocabulary found in selected resources..
+        /// </summary>
+        internal static string WordAssoc_NoResourceVocab {
+            get {
+                return ResourceManager.GetString("WordAssoc_NoResourceVocab", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Not Related.
         /// </summary>
         internal static string WordAssoc_NotRelated {
@@ -21324,11 +21378,29 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Not graded yet.
+        /// </summary>
+        internal static string WordAssoc_Pending {
+            get {
+                return ResourceManager.GetString("WordAssoc_Pending", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Related.
         /// </summary>
         internal static string WordAssoc_Related {
             get {
                 return ResourceManager.GetString("WordAssoc_Related", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Remove clue.
+        /// </summary>
+        internal static string WordAssoc_RemoveClue {
+            get {
+                return ResourceManager.GetString("WordAssoc_RemoveClue", resourceCulture);
             }
         }
 

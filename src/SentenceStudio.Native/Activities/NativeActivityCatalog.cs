@@ -8,7 +8,8 @@ namespace SentenceStudio.Native;
 /// Choose My Own tile id (Index.razor tile list) and the stable key heads use
 /// to pick a screen; <see cref="PlanTypes"/> are the Today's Plan types that
 /// open it (PlanActivityPresentation.Route()). The first plan type is the
-/// timer/ad-hoc row type. <see cref="TimerRecordsSkill"/> mirrors whether the
+/// timer/ad-hoc row type; an empty list (Word Association) means a Choose My
+/// Own-only page that starts no timer. <see cref="TimerRecordsSkill"/> mirrors whether the
 /// source page passes its skill to ActivityTimer.StartSession (Matching,
 /// NumberDrill and VideoWatching pass null).
 /// </summary>
@@ -33,6 +34,7 @@ public static class NativeActivityCatalog
     public const string Writing = "writing";
     public const string Reading = "reading";
     public const string Shadowing = "shadowing";
+    public const string WordAssociation = "word-association";
 
     public static ImmutableArray<NativeActivityDefinition> Implemented { get; } =
     [
@@ -44,6 +46,8 @@ public static class NativeActivityCatalog
         new(Reading, [PlanActivityType.Reading]),
         // No dedicated Listening page: plan type Listening shares the Shadowing UI.
         new(Shadowing, [PlanActivityType.Shadowing, PlanActivityType.Listening]),
+        // Choose My Own tile only: no plan type, and the source starts no timer.
+        new(WordAssociation, []),
     ];
 
     public static NativeActivityDefinition? ForRoute(string? route) =>
@@ -70,7 +74,7 @@ public static class NativeActivityCatalog
     /// resource for these tiles and only the first selected resource otherwise.
     /// </summary>
     public static bool TakesResourceList(string route) => route is
-        "vocab-quiz" or VocabularyMatching or "word-association";
+        "vocab-quiz" or VocabularyMatching or WordAssociation;
 }
 
 /// <summary>
