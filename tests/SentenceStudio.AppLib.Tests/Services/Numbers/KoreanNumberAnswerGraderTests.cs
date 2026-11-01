@@ -50,8 +50,10 @@ public class KoreanNumberAnswerGraderTests
     #region Sound Change Error Tests
 
     [Fact]
-    public void Grade_SoundChangeMissed_둘Instead두()
+    public void Grade_SoundChangeMissed_둘Instead두_IsAcceptedByPermissiveGrading()
     {
+        // Permissive word-equivalence grading (da289011, Captain preference) maps 둘 and 두 to the
+        // same value, so the un-contracted form is accepted rather than flagged SoundChangeMissed.
         // Create an item that should have "두 명"
         for (int seed = 0; seed < 1000; seed++)
         {
@@ -60,9 +62,8 @@ public class KoreanNumberAnswerGraderTests
             {
                 var result = _grader.Grade(item, "둘 명", latencyMs: 1000);
 
-                Assert.False(result.IsCorrect);
-                Assert.Equal("SoundChangeMissed", result.ErrorClass);
-                Assert.Contains("둘 → 두", result.Tip);
+                Assert.True(result.IsCorrect);
+                Assert.Null(result.ErrorClass);
                 return;
             }
         }
@@ -71,8 +72,9 @@ public class KoreanNumberAnswerGraderTests
     }
 
     [Fact]
-    public void Grade_SoundChangeMissed_하나Instead한()
+    public void Grade_SoundChangeMissed_하나Instead한_IsAcceptedByPermissiveGrading()
     {
+        // See the 둘/두 test: 하나 and 한 are equivalent under permissive grading (da289011).
         for (int seed = 0; seed < 1000; seed++)
         {
             var item = _generator.GenerateItem(new NumberItemRequest("Counting", "ReadAndProduce", CounterId: "개", RandomSeed: seed));
@@ -80,9 +82,8 @@ public class KoreanNumberAnswerGraderTests
             {
                 var result = _grader.Grade(item, "하나 개", latencyMs: 1000);
 
-                Assert.False(result.IsCorrect);
-                Assert.Equal("SoundChangeMissed", result.ErrorClass);
-                Assert.Contains("하나 → 한", result.Tip);
+                Assert.True(result.IsCorrect);
+                Assert.Null(result.ErrorClass);
                 return;
             }
         }
@@ -276,19 +277,8 @@ public class KoreanNumberAnswerGraderTests
     [InlineData("다섯 원", false, "SinoNativeSwap")] // Wrong system + correct counter
     public void Grade_SinoCounter_SystemAwareMatrix(string userInput, bool shouldBeCorrect, string expectedErrorClass)
     {
-        // Find or create Money item with value 5 (오 원)
-        NumberItem item = null!;
-        for (int seed = 0; seed < 10000; seed++)
-        {
-            var candidate = _generator.GenerateItem(new NumberItemRequest("Money", "ReadAndProduce", RandomSeed: seed));
-            if (candidate.DigitValue == 5)
-            {
-                item = candidate;
-                break;
-            }
-        }
-        
-        Assert.NotNull(item);
+        // Money is generated in everyday denominations (500+), so build the 5-won fixture directly.
+        var item = NumberItemFactory.Money(5, "오 원");
         Assert.Equal(NumberSystem.Sino, item.System);
         
         var result = _grader.Grade(item, userInput, latencyMs: 1000);

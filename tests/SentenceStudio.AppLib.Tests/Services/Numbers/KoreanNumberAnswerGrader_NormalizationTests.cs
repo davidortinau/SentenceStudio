@@ -113,18 +113,8 @@ public class KoreanNumberAnswerGrader_NormalizationTests
     public void Grade_TrailingPunctuation_Counting_IsStrippedAndAccepted(string userInput, string canonical)
     {
         // Find item with value 100 counting (백 개)
-        NumberItem item = null!;
-        for (int seed = 0; seed < 10000; seed++)
-        {
-            var candidate = _generator.GenerateItem(new NumberItemRequest("Counting", "ReadAndProduce", CounterId: "개", RandomSeed: seed));
-            if (candidate.DigitValue == 100)
-            {
-                item = candidate;
-                break;
-            }
-        }
-        
-        Assert.NotNull(item);
+        // Counting is generated for 1-99 only; build the 100 fixture directly.
+        var item = NumberItemFactory.Counting("개", 100, "백 개");
         
         var result = _grader.Grade(item, userInput, latencyMs: 1000);
         
@@ -186,18 +176,10 @@ public class KoreanNumberAnswerGrader_NormalizationTests
         var category = userInput.Contains("원") ? "Money" : "Counting";
         var counterId = userInput.Contains("원") ? null : "개";
         
-        NumberItem item = null!;
-        for (int seed = 0; seed < 10000; seed++)
-        {
-            var candidate = _generator.GenerateItem(new NumberItemRequest(category, "ReadAndProduce", CounterId: counterId, RandomSeed: seed));
-            if (candidate.DigitValue == expectedValue)
-            {
-                item = candidate;
-                break;
-            }
-        }
-        
-        Assert.NotNull(item);
+        // The generator no longer emits arbitrary values (e.g. 100개, 150원), so build the fixture directly.
+        var item = category == "Money"
+            ? NumberItemFactory.Money(expectedValue, canonical)
+            : NumberItemFactory.Counting(counterId!, expectedValue, canonical);
         
         var result = _grader.Grade(item, userInput, latencyMs: 1000);
         
@@ -268,18 +250,10 @@ public class KoreanNumberAnswerGrader_NormalizationTests
         var category = userInput.Contains("원") ? "Money" : "Counting";
         var counterId = userInput.Contains("원") ? null : "개";
         
-        NumberItem item = null!;
-        for (int seed = 0; seed < 10000; seed++)
-        {
-            var candidate = _generator.GenerateItem(new NumberItemRequest(category, "ReadAndProduce", CounterId: counterId, RandomSeed: seed));
-            if (candidate.DigitValue == expectedValue)
-            {
-                item = candidate;
-                break;
-            }
-        }
-        
-        Assert.NotNull(item);
+        // The generator no longer emits arbitrary values (e.g. 100개, 150원), so build the fixture directly.
+        var item = category == "Money"
+            ? NumberItemFactory.Money(expectedValue, canonical)
+            : NumberItemFactory.Counting(counterId!, expectedValue, canonical);
         
         var result = _grader.Grade(item, userInput, latencyMs: 1000);
         

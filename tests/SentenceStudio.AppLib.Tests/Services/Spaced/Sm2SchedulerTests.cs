@@ -10,7 +10,7 @@ namespace SentenceStudio.AppLib.Tests.Services.Spaced;
 public class Sm2SchedulerTests
 {
     [Fact]
-    public void Update_IncorrectAnswer_ResetsIntervalToOne()
+    public void Update_IncorrectAnswer_SoftensIntervalToTwentyPercent()
     {
         // Arrange: Established card with interval 10 days
         double easeFactor = 2.3;
@@ -21,8 +21,9 @@ public class Sm2SchedulerTests
         // Act
         var result = Sm2Scheduler.Update(easeFactor, interval, repetitions, quality);
 
-        // Assert
-        Assert.Equal(1, result.Interval);
+        // Assert: lapse keeps ~20% (max(1, round(10 * 0.2))), per commit 21bc6c0a
+        // which replaced the hard reset to 1 so one typo does not flood the due pool.
+        Assert.Equal(2, result.Interval);
         Assert.True(result.EaseFactor >= 1.3); // Floor at 1.3
         Assert.True(result.EaseFactor < easeFactor); // Decreased
     }
@@ -158,14 +159,15 @@ public class Sm2SchedulerTests
         var result = Sm2Scheduler.Update(easeFactor, interval, repetitions, quality);
 
         // Assert
-        Assert.Equal(1, result.Interval); // Same as incorrect answer
+        Assert.Equal(2, result.Interval); // Same as incorrect answer: max(1, round(10 * 0.2))
     }
 
     [Theory]
     [InlineData(2.5, 1, 0, 5, 6)]       // First correct: 1 → 6
     [InlineData(2.5, 6, 1, 5, 15)]      // Second correct: 6 * 2.5 = 15
     [InlineData(2.5, 15, 2, 5, 37)]     // Third correct: 15 * 2.5 = 37 (rounded)
-    [InlineData(2.5, 10, 3, 1, 1)]      // Incorrect: reset to 1
+    [InlineData(2.5, 10, 3, 1, 2)]      // Incorrect: soften to ~20% (21bc6c0a)
+    [InlineData(2.5, 100, 3, 1, 20)]    // Incorrect on a long interval keeps 20%
     [InlineData(1.3, 1, 0, 0, 1)]       // Incorrect at floor: stays 1
     public void Update_KnownSequences_ProduceExpectedIntervals(
         double easeFactor, int interval, int repetitions, int quality, int expectedInterval)
