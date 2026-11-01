@@ -89,6 +89,7 @@ internal static class ActivityScreens
         NativeActivityCatalog.Diary => new DiaryScreen(host),
         NativeActivityCatalog.VideoWatching => new VideoWatchingScreen(host),
         NativeActivityCatalog.FlashcardPreview => new FlashcardScreen(host),
+        NativeActivityCatalog.Scene => new SceneScreen(host),
         _ => null
     };
 }

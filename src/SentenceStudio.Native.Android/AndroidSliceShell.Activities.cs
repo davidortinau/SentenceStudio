@@ -152,6 +152,9 @@ internal sealed partial class AndroidSliceShell
             case NativeActivityCatalog.FlashcardPreview:
                 await OpenFlashcardsAsync(launch, cancellationToken);
                 break;
+            case NativeActivityCatalog.Scene:
+                await OpenSceneAsync(launch, cancellationToken);
+                break;
         }
     }
 
@@ -170,6 +173,7 @@ internal sealed partial class AndroidSliceShell
         NativeActivityCatalog.Diary => RenderDiary(palette),
         NativeActivityCatalog.VideoWatching => RenderVideoWatching(palette),
         NativeActivityCatalog.FlashcardPreview => RenderFlashcards(palette),
+        NativeActivityCatalog.Scene => RenderScene(palette),
         _ => Body(Localize(NativeMatchingText.Unavailable), palette),
     };
 
@@ -224,6 +228,9 @@ internal sealed partial class AndroidSliceShell
             case NativeActivityCatalog.FlashcardPreview:
                 await ExitFlashcardsAsync(cancellationToken);
                 break;
+            case NativeActivityCatalog.Scene:
+                await ExitSceneAsync(cancellationToken);
+                break;
         }
         ReleaseActivity();
         Publish(() => Destination = NativeDestination.Dashboard);
@@ -246,6 +253,7 @@ internal sealed partial class AndroidSliceShell
         ReleaseDiary();
         ReleaseVideoWatching();
         ReleaseFlashcards();
+        ReleaseScene();
         _activityScope?.Dispose();
         _activityScope = null;
         _activityRoute = null;

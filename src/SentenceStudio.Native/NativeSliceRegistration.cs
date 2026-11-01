@@ -80,6 +80,9 @@ public static class NativeSliceRegistration
         services.TryAddTransient<VideoWatchingService>();
         services.AddTransient<NativeVideoWatchingPresenter>();
         services.AddTransient<NativeFlashcardPresenter>();
+        services.TryAddSingleton<INativeSceneAi, NativeSceneAi>();
+        services.TryAddSingleton<INativeSceneImageStore, NativeSceneImageStore>();
+        services.AddTransient<NativeScenePresenter>();
         services.TryAddScoped<IPlanCopyProvider, EnglishPlanCopyProvider>();
         services.AddSingleton<NativePlanLeaseFactory>();
         services.TryAddSingleton<INativeProfileRemoteStore>(sp =>

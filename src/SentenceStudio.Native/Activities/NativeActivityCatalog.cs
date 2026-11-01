@@ -71,6 +71,7 @@ public static class NativeActivityCatalog
     /// deliberately not listed in <see cref="Implemented"/>.
     /// </summary>
     public const string FlashcardPreview = "flashcard-activity";
+    public const string Scene = "scene";
 
     public static ImmutableArray<NativeActivityDefinition> Implemented { get; } =
     [
@@ -91,6 +92,7 @@ public static class NativeActivityCatalog
         new(Diary, [], TimerRecordsSkill: false),
         // Plan card only (activities.md 11): not a Choose My Own tile; the source passes no skill.
         new(VideoWatching, [PlanActivityType.VideoWatching], TimerRecordsSkill: false, PlanOnly: true),
+        new(Scene, [PlanActivityType.SceneDescription]),
     ];
 
     public static NativeActivityDefinition? ForRoute(string? route) =>

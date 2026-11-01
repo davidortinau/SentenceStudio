@@ -55,5 +55,7 @@
                       LogicalName="SentenceStudio.Native.Prompts.GenerateDiaryPrompt.scriban-txt" />
     <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/GradeDiaryEntry.scriban-txt"
                       LogicalName="SentenceStudio.Native.Prompts.GradeDiaryEntry.scriban-txt" />
+    <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/GradeMyDescription.scriban-txt"
+                      LogicalName="SentenceStudio.Native.Prompts.GradeMyDescription.scriban-txt" />
   </ItemGroup>
 </Project>
