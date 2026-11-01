@@ -131,7 +131,7 @@ internal sealed class LearningResourcesCoordinator : IDisposable
             (NativeResourceVocabularySearchPhase.Searching
                 or NativeResourceVocabularySearchPhase.Ready);
 
-    internal SwiftView RenderBrowser(SourceUiStyle style)
+    internal SwiftView RenderBrowser(SourceUiStyle style, SwiftView? samEntry = null)
     {
         var state = _presenter.List;
 #if DEBUG
@@ -160,7 +160,7 @@ internal sealed class LearningResourcesCoordinator : IDisposable
                 Add: OpenCreate,
                 CreateStarter: () => Run(CreateStarterAsync),
                 Reload: () => Run(LoadListAsync),
-                OpenSkills: _openSkills), _openVocabulary);
+                OpenSkills: _openSkills), _openVocabulary, samEntry);
     }
 
 #if DEBUG

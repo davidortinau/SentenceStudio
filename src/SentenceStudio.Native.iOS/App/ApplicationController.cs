@@ -147,7 +147,8 @@ internal sealed partial class ApplicationController : IDisposable
     internal long SkillFormVersion => _skills?.FormVersion ?? -1;
     internal string SkillFormTitle => Text(_skills?.FormState.Creating == true
         ? "SkillAdd_Title" : "SkillEdit_Title");
-    internal int SettingsProjectionVersion => _settings?.ViewVersion ?? -1;
+    internal int SettingsProjectionVersion => _settings is null ? -1
+        : HashCode.Combine(_settings.ViewVersion, SamSettingsVersion);
     internal string Localize(string key) => Text(key);
     internal string DashboardTitle => Text(_dashboardState.IsNewUser
         ? "Dashboard_Welcome" : "Dashboard_Title");
@@ -588,7 +589,7 @@ internal sealed partial class ApplicationController : IDisposable
             language => SelectSettingsVoiceLanguage(settings, language),
             changed => settings.Edit(changed),
             () => SaveQuizSettings(settings), state.FeedbackKey,
-            state.VoiceLoading, state.VoiceErrorKey);
+            state.VoiceLoading, state.VoiceErrorKey, RenderSamSettings(style));
     }
 
     internal void OpenSettings()
@@ -633,6 +634,7 @@ internal sealed partial class ApplicationController : IDisposable
         }
         _settingsOpen = true;
         Publish();
+        OpenSamSettings();
         if (_settings is not null)
             _ = LoadSettingsVoicesAsync(
                 settings, owner, settings.State.Quiz!.VoiceLanguage);
@@ -716,7 +718,7 @@ internal sealed partial class ApplicationController : IDisposable
     internal SwiftView RenderResources(SourceUiStyle style)
     {
         EnsureResources();
-        return _resources?.RenderBrowser(style)
+        return _resources?.RenderBrowser(style, ResourcesSamEntry(style))
             ?? Views.Text(Text("Common_Loading"));
     }
 

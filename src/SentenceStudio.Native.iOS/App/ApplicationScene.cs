@@ -386,15 +386,17 @@ internal sealed partial class ApplicationScene : IDisposable
             || current.Children[0].Kind != next.Children[0].Kind
             || current.Children[0].Children.Count == 0
             || next.Children[0].Children.Count == 0
-            || !SameBrowserControls(current.Children[0], next.Children[0]))
+            || !SameBrowserControls(WithoutSamInset(current.Children[0]), WithoutSamInset(next.Children[0])))
         {
             Replace(_resourcesSlot, next);
             _resourcesSearch = Find(_resourcesSlot, "native.resources.search");
             return;
         }
 
-        var page = current.Children[0];
-        var nextPage = next.Children[0];
+        // The Sam entry is a bottom inset around the page; the incremental update
+        // works on the scroll inside it so the search field keeps focus.
+        var page = WithoutSamInset(current.Children[0]);
+        var nextPage = WithoutSamInset(next.Children[0]);
         var content = page.Kind == "scroll" ? page.Children[0] : page;
         var nextContent = nextPage.Kind == "scroll"
             ? nextPage.Children[0] : nextPage;
@@ -513,6 +515,9 @@ internal sealed partial class ApplicationScene : IDisposable
         || label.Kind == "hstack" && label.Children.Count == 2
             && label.Children[0].Kind == "text"
             && label.Children[1].Kind == "image";
+
+    private static SwiftView WithoutSamInset(SwiftView page) =>
+        page.Kind == "bottomInset" && page.Children.Count == 2 ? page.Children[0] : page;
 
     private static bool SameBrowserControls(SwiftView currentPage, SwiftView nextPage)
     {

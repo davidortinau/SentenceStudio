@@ -18,7 +18,8 @@ internal static class LearningResourcesView
         SourceUiStyle style,
         Func<string, string> text,
         LearningResourcesActions actions,
-        Action? openVocabulary)
+        Action? openVocabulary,
+        SwiftView? samEntry = null)
     {
         if (state.Phase == NativeResourceListPhase.Loading)
             return Views.Toolbar(style.Page(Views.Scroll(
@@ -163,7 +164,9 @@ internal static class LearningResourcesView
         var page = Views.Scroll(scrollContent)
             .WithAccessibilityIdentifier("native.resources.scroll");
         page.IsEnabled = !state.StarterBusy;
-        return Views.Toolbar(style.Page(page),
+        // Source MainLayout mounts the Sam entry on every authenticated page; it floats
+        // as a bottom inset so the search field and its incremental updates are untouched.
+        return Views.Toolbar(samEntry is null ? style.Page(page) : Views.BottomInset(style.Page(page), samEntry),
             BrowserHeader(state, style, text, actions.Add, actions.OpenSkills,
                 openVocabulary));
     }

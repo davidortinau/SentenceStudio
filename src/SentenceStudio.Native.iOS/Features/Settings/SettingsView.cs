@@ -35,7 +35,8 @@ internal static class SettingsView
         Action saveQuiz,
         string? feedbackKey,
         bool voiceLoading,
-        string? voiceErrorKey)
+        string? voiceErrorKey,
+        SwiftView? coach = null)
     {
         var sections = new List<SwiftView>
         {
@@ -48,6 +49,9 @@ internal static class SettingsView
             sections.Add(style.Text(Views.Text(text(feedbackKey)),
                     SourceTextRole.Body2, SourceTextTone.Secondary)
                 .WithAccessibilityIdentifier("native.settings.quiz.feedback"));
+        // Source Settings.razor: the Learning Coach and memory cards follow the study settings.
+        if (coach is not null)
+            sections.Add(coach);
         var content = Views.VStack(sections.ToArray())
             .WithPadding(SourceUiLayout.PageGutter(style.ViewportWidth))
             .WithFlexibleWidth()

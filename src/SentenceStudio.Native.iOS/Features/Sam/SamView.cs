@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.SwiftUI;
 using SentenceStudio.Contracts.Coach;
+using SentenceStudio.Contracts.LearnerMemory;
 using SentenceStudio.Native.iOS.Platform;
 using SentenceStudio.Native.iOS.Styling;
 using Views = Microsoft.SwiftUI.SwiftUI;
@@ -27,7 +28,46 @@ internal sealed record SamActions(
     Action<string> ToggleEvidence,
     Action ApproveSet,
     Action DeclineSet,
-    Action StartReview);
+    Action StartReview,
+    SamWriteActions Writes,
+    SamMemoryActions Memory,
+    SamMessageActions Messages,
+    SamConversationActions ManageConversations);
+
+/// <summary>Proposed-change card controls (source SamWriteCard).</summary>
+internal sealed record SamWriteActions(
+    Action<string> Accept,
+    Action<string> Review,
+    Action Confirm,
+    Action CancelConfirm,
+    Action<string> Decline,
+    Action<string> Undo,
+    Action<string> Refresh);
+
+/// <summary>In-chat memory candidate (source CoachMemoryCandidateCard).</summary>
+internal sealed record SamMemoryActions(
+    Action Save,
+    Action BeginEdit,
+    Action<string> EditChanged,
+    Action SaveEdited,
+    Action CancelEdit,
+    Action Decline);
+
+/// <summary>Per-message Copy and report flag (source CoachCopyButton, CoachReportControl).</summary>
+internal sealed record SamMessageActions(
+    Action<string> Copy,
+    Action<string> OpenReport,
+    Action<CoachResponseReportReason> SelectReason,
+    Action SubmitReport,
+    Action CancelReport);
+
+/// <summary>Conversation shelf row actions (source CoachConversationList).</summary>
+internal sealed record SamConversationActions(
+    Action<NativeSamConversationDialogKind, string> Begin,
+    Action<string> RenameChanged,
+    Action Confirm,
+    Action Cancel,
+    Action<string> Reopen);
 
 /// <summary>
 /// SwiftUI declarations for the one Sam experience. Rendered only through the
@@ -36,12 +76,15 @@ internal sealed record SamActions(
 /// </summary>
 internal static class SamView
 {
+    /// <summary>Server title cap (CoachHistoryLimits, title max 120).</summary>
+    private const int MaxConversationTitleLength = 120;
+
     internal static string Persona(NativeSamState state) =>
         NativeLocalizedText.Get("Coach_RoleCoach", new CultureInfo(state.PersonaCulture));
 
     /// <summary>Source SamFab: the one entry, bottom trailing, labelled "Ask {name}".</summary>
     internal static SwiftView Fab(SourceUiStyle style, NativeSamState state,
-        Func<string, string> text, Action open)
+        Func<string, string> text, Action open, string id = "native.sam.fab")
     {
         var appearance = style.Appearance;
         var label = string.Format(CultureInfo.CurrentCulture, text("Coach_OpenNamed"), Persona(state));
@@ -54,7 +97,7 @@ internal static class SamView
             .WithButtonCircle(56)
             .WithShadow("#000000", "#000000", 8, 0.2, 3)
             .WithAccessibilityLabel(label)
-            .WithAccessibilityIdentifier("native.sam.fab");
+            .WithAccessibilityIdentifier(id);
         return Views.HStack(button)
             .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Trailing)
             .WithPadding(0, 16, 12, 16);
@@ -97,6 +140,9 @@ internal static class SamView
     {
         var persona = Persona(state);
         var items = new List<SwiftView>();
+        // The learner's open correction stays at the head of the log (source CoachDisputeNotice).
+        if (Dispute(style, state, text) is { } dispute)
+            items.Add(dispute);
         if (state.NoticeKey is { } noticeKey && noticeKey != "Coach_Rejected" && noticeKey != "Coach_Stopped")
             items.Add(Notice(style, text(noticeKey), "native.sam.conversation.notice"));
         if (state.UnreadableCount > 0)
@@ -121,6 +167,9 @@ internal static class SamView
             items.Add(Receipt(style, state, receipt, text, actions));
         if (state.Suggestion is { } suggestion)
             items.Add(Suggestion(style, state, suggestion, persona, text, actions));
+        // Its own card after any plan suggestion: being remembered is a separate consent.
+        if (state.MemoryCandidate is { } candidate)
+            items.Add(MemoryCandidate(style, state, candidate, text, actions.Memory));
         if (state.NoticeKey is "Coach_Rejected" or "Coach_Stopped")
             items.Add(style.Text(Views.Text(text(state.NoticeKey)), SourceTextRole.Caption1,
                     SourceTextTone.Secondary)
@@ -188,6 +237,13 @@ internal static class SamView
         }
         if (entry.Limitation is { } limitation)
             parts.Add(Limitation(style, limitation, index, text));
+        if (!learner && RepairKey(entry) is { } repairKey)
+            parts.Add(style.Text(Views.Text(text(repairKey)), SourceTextRole.Caption1, SourceTextTone.Secondary)
+                .WithAccessibilityLabel($"{text("Coach_Repair_RegionLabel")}: {text(repairKey)}")
+                .WithAccessibilityIdentifier($"native.sam.repair.{index}"));
+        if (!learner && entry.IsSettled
+            && entry.Kind is NativeSamEntryKind.Sam or NativeSamEntryKind.Notice)
+            parts.AddRange(MessageActions(style, state, entry, index, text, actions.Messages));
         if (entry.HasEvidence)
         {
             var expanded = state.IsEvidenceExpanded(entry.Id);
@@ -209,8 +265,350 @@ internal static class SamView
             style.InfoAlert(body, compact: true);
         else
             style.Card(body, radius: 12);
-        return body.WithAccessibilityIdentifier(id);
+        body.WithAccessibilityIdentifier(id);
+        // A proposed change renders inside the exchange that produced it, never as a dialog.
+        if (entry.Write is { } write && state.WriteSurfaceEnabled)
+        {
+            var exchange = Views.VStack(body, WriteCard(style, state, write, index, text, actions.Writes))
+                .WithFlexibleWidth();
+            exchange.Spacing = 8;
+            return exchange;
+        }
+        return body;
     }
+
+    /// <summary>Source CoachRepairDisclosureNotice: one closed state in, one sentence out.</summary>
+    internal static string? RepairKey(NativeSamEntry entry) => entry.Limitation is not null ? null
+        : entry.Repair switch
+        {
+            null or CoachRepairDisclosure.None => null,
+            CoachRepairDisclosure.AnswerAltered => "Coach_Repair_AnswerAltered",
+            CoachRepairDisclosure.RepairSuppressedForLanguage => entry.RepairEvidenceOnScreen
+                ? "Coach_Repair_SuppressedForLanguage" : "Coach_Repair_SuppressedForLanguage_NoEvidence",
+            _ => entry.RepairEvidenceOnScreen ? "Coach_Repair_Unknown" : "Coach_Repair_Unknown_NoEvidence",
+        };
+
+    /// <summary>Source CoachDisputeNotice: closed codes only, never the learner's words.</summary>
+    private static SwiftView? Dispute(SourceUiStyle style, NativeSamState state, Func<string, string> text)
+    {
+        if (state.Dispute is not { } dispute || dispute.Status == CoachDisputeStatus.Unknown)
+            return null;
+        var rows = new List<SwiftView>
+        {
+            style.Text(Views.Text(text("Coach_Dispute_Heading")), SourceTextRole.Caption1, SourceTextTone.Secondary),
+        };
+        var signal = dispute.Signal switch
+        {
+            CoachDisputeSignal.MeantSomethingElse => "Coach_Dispute_Signal_MeantSomethingElse",
+            CoachDisputeSignal.NotWhatIAsked => "Coach_Dispute_Signal_NotWhatIAsked",
+            CoachDisputeSignal.WrongClaim => "Coach_Dispute_Signal_WrongClaim",
+            CoachDisputeSignal.DifferentCohort => "Coach_Dispute_Signal_DifferentCohort",
+            _ => null,
+        };
+        if (signal is not null)
+            rows.Add(style.Text(Views.Text(text(signal)), SourceTextRole.Body2));
+        rows.Add(style.Text(Views.Text(text(dispute.Status switch
+        {
+            CoachDisputeStatus.ResolvedByReRead => "Coach_Dispute_Resolved_ReRead",
+            CoachDisputeStatus.ResolvedByCorrection => "Coach_Dispute_Resolved_Correction",
+            CoachDisputeStatus.ResolvedByLimitation => "Coach_Dispute_Resolved_Limitation",
+            CoachDisputeStatus.DismissedByLearner => "Coach_Dispute_Dismissed",
+            _ => "Coach_Dispute_Open",
+        })), SourceTextRole.Body2).WithAccessibilityIdentifier("native.sam.dispute.state"));
+        var stack = Views.VStack(rows.ToArray()).WithFlexibleWidth();
+        stack.Spacing = 4;
+        return style.InfoAlert(stack, compact: true)
+            .WithAccessibilityLabel(text("Coach_Dispute_StatusLabel"))
+            .WithAccessibilityIdentifier("native.sam.dispute");
+    }
+
+    /// <summary>Copy and the report flag share one row; the report panel opens below it.</summary>
+    private static IEnumerable<SwiftView> MessageActions(SourceUiStyle style, NativeSamState state,
+        NativeSamEntry entry, int index, Func<string, string> text, SamMessageActions actions)
+    {
+        var id = entry.Id;
+        var copyLabel = state.CopiedMessageId == id ? text("Coach_Copied")
+            : state.CopyFailedMessageId == id ? text("Coach_CopyFailed") : text("Coach_Copy");
+        var buttons = new List<SwiftView>
+        {
+            style.TextLinkButton(copyLabel, state.CopiedMessageId == id ? "checkmark" : "doc.on.doc",
+                () => actions.Copy(id), $"native.sam.copy.{index}")
+        };
+        var reportable = state.ReportingAvailable && entry.IsReportable;
+        if (reportable && state.IsReported(id))
+            buttons.Add(style.Text(Views.Text(text("Coach_ReportDone")), SourceTextRole.Caption1,
+                    SourceTextTone.Secondary)
+                .WithAccessibilityIdentifier($"native.sam.reported.{index}"));
+        else if (reportable && state.ReportingMessageId != id)
+        {
+            var flag = style.TextLinkButton(text("Coach_ReportResponse"), "flag", () => actions.OpenReport(id),
+                $"native.sam.report.{index}");
+            flag.IsEnabled = !state.Busy && !state.ReportBusy;
+            buttons.Add(flag);
+        }
+        var row = Views.HStack(buttons.ToArray());
+        row.Spacing = 12;
+        yield return row;
+        if (state.ReportFailedId == id && state.ReportingMessageId != id)
+            yield return style.Text(Views.Text(text("Coach_ReportFailed")), SourceTextRole.Caption1,
+                SourceTextTone.Danger).WithAccessibilityIdentifier($"native.sam.report.failed.{index}");
+        if (reportable && state.ReportingMessageId == id)
+            yield return ReportPanel(style, state, index, text, actions);
+    }
+
+    private static readonly (CoachResponseReportReason Reason, string Key, string Id)[] ReportReasons =
+    [
+        (CoachResponseReportReason.DidNotAnswer, "Coach_ReportReasonDidNotAnswer", "didnotanswer"),
+        (CoachResponseReportReason.IncorrectOrMisleading, "Coach_ReportReasonIncorrect", "incorrect"),
+        (CoachResponseReportReason.ExpectedAppAction, "Coach_ReportReasonExpectedAction", "expectedaction"),
+        (CoachResponseReportReason.Confusing, "Coach_ReportReasonConfusing", "confusing"),
+        (CoachResponseReportReason.Other, "Coach_ReportReasonOther", "other"),
+    ];
+
+    /// <summary>Source CoachReportControl: five closed reasons, no free text, Report and Cancel.</summary>
+    private static SwiftView ReportPanel(SourceUiStyle style, NativeSamState state, int index,
+        Func<string, string> text, SamMessageActions actions)
+    {
+        var rows = new List<SwiftView>
+        {
+            style.Text(Views.Text(string.Format(CultureInfo.CurrentCulture, text("Coach_ReportPrompt"),
+                Persona(state))), SourceTextRole.Body2Strong, sourceHeading: true),
+        };
+        foreach (var (reason, key, reasonId) in ReportReasons)
+        {
+            var selected = state.ReportReason == reason;
+            var option = Views.Button(Views.HStack(
+                        Views.Image(selected ? "largecircle.fill.circle" : "circle"),
+                        style.Text(Views.Text(text(key)), SourceTextRole.Body2)),
+                    () => actions.SelectReason(reason))
+                .WithAccessibilityLabel(text(key))
+                .WithAccessibilitySelected(selected)
+                .WithAccessibilityIdentifier($"native.sam.report.reason.{reasonId}");
+            option.IsEnabled = !state.ReportBusy;
+            rows.Add(option);
+        }
+        if (state.ReportFailedId == state.ReportingMessageId)
+            rows.Add(style.Text(Views.Text(text("Coach_ReportFailed")), SourceTextRole.Caption1,
+                SourceTextTone.Danger).WithAccessibilityIdentifier($"native.sam.report.failed.{index}"));
+        var submit = style.PrimaryButton(text(state.ReportBusy ? "Coach_ReportSubmitting" : "Coach_ReportSubmit"),
+                actions.SubmitReport)
+            .WithAccessibilityIdentifier("native.sam.report.submit");
+        submit.IsEnabled = state.ReportReason is not null && !state.ReportBusy;
+        var cancel = style.SecondaryButton(text("Coach_ReportCancel"), actions.CancelReport)
+            .WithAccessibilityIdentifier("native.sam.report.cancel");
+        cancel.IsEnabled = !state.ReportBusy;
+        var buttons = Views.HStack(submit, cancel);
+        buttons.Spacing = 8;
+        rows.Add(buttons);
+        var stack = Views.VStack(rows.ToArray()).WithFlexibleWidth();
+        stack.Spacing = 6;
+        return style.BorderedCard(stack.WithPadding(8, 10, 8, 10), radius: 8)
+            .WithAccessibilityLabel(text("Coach_ReportReasonLegend"))
+            .WithAccessibilityIdentifier("native.sam.report.panel");
+    }
+
+    /// <summary>Source SamWriteCard: one element that moves through its states in place.</summary>
+    private static SwiftView WriteCard(SourceUiStyle style, NativeSamState state, CoachWriteOperationDto write,
+        int index, Func<string, string> text, SamWriteActions actions)
+    {
+        var now = DateTime.UtcNow;
+        var operationId = write.OperationId;
+        var unavailable = state.IsWriteUnavailable(operationId);
+        var stage = NativeSamWritePresentation.Stage(write, state.ActiveWriteId == operationId,
+            state.ConfirmingWriteId == operationId, now, unavailable);
+        var busy = state.WriteBusyId == operationId;
+        var prefix = $"native.sam.write.{index}";
+        var heading = Views.HStack(
+            Views.Image(WriteIcon(stage)),
+            style.Text(Views.Text(text(NativeSamWritePresentation.HeadingKey(write.ChangeKind))),
+                SourceTextRole.Body1Strong, sourceHeading: true).WithFlexibleWidth(),
+            style.Text(Views.Text(text(NativeSamWritePresentation.StateKey(stage))), SourceTextRole.Caption1,
+                SourceTextTone.Secondary).WithAccessibilityIdentifier(prefix + ".state"));
+        heading.Spacing = 6;
+        var rows = new List<SwiftView>
+        {
+            heading,
+            style.Text(Views.Text(NativeSamWritePresentation.Summary(write) is { Length: > 0 } summary
+                    ? summary : text("Coach_WriteUnreadableHint")), SourceTextRole.Body2)
+                .WithAccessibilityIdentifier(prefix + ".summary"),
+        };
+        foreach (var line in NativeSamWritePresentation.Lines(write))
+            rows.Add(style.Text(Views.Text("• " + line), SourceTextRole.Caption1, SourceTextTone.Secondary));
+        void Note(string key, SourceTextTone tone = SourceTextTone.Secondary) =>
+            rows.Add(style.Text(Views.Text(text(key)), SourceTextRole.Caption1, tone));
+        string Local(DateTime utc) => DateTime.SpecifyKind(utc, DateTimeKind.Utc).ToLocalTime()
+            .ToString("t", CultureInfo.CurrentCulture);
+        switch (stage)
+        {
+            case NativeSamWriteStage.Proposed:
+                Note("Coach_WriteNothingChangedYet");
+                if (NativeSamWritePresentation.ShowsIrreversibleWarning(write, stage))
+                    Note("Coach_WriteIrreversibleNotice", SourceTextTone.Danger);
+                else if (NativeSamWritePresentation.ShowsReversibleNote(write, stage))
+                    Note("Coach_WriteReversibleNotice");
+                if (write.RequiresConfirmation)
+                    Note("Coach_WriteProtectedNotice");
+                break;
+            case NativeSamWriteStage.ConfirmationRequired:
+                var confirm = new List<SwiftView>
+                {
+                    style.Text(Views.Text(text("Coach_WriteConfirmTitle")), SourceTextRole.Body2Strong,
+                        sourceHeading: true),
+                    style.Text(Views.Text(text("Coach_WriteConfirmIntro")), SourceTextRole.Caption1),
+                };
+                if (NativeSamWritePresentation.ShowsIrreversibleWarning(write, stage))
+                    confirm.Add(style.Text(Views.Text(text("Coach_WriteIrreversibleNotice")),
+                        SourceTextRole.Caption1, SourceTextTone.Danger));
+                if (state.ConfirmationExpiresAtUtc is { } closes)
+                    confirm.Add(style.Text(Views.Text(string.Format(CultureInfo.CurrentCulture,
+                            text("Coach_WriteConfirmExpiresAt"), Local(closes))), SourceTextRole.Caption1,
+                        SourceTextTone.Secondary));
+                var step = Views.VStack(confirm.ToArray()).WithFlexibleWidth();
+                step.Spacing = 4;
+                rows.Add(style.BorderedCard(step.WithPadding(8), radius: 8)
+                    .WithAccessibilityIdentifier(prefix + ".confirmstep"));
+                break;
+            case NativeSamWriteStage.Applied:
+                if (write.Receipt is { UndoExpiresAtUtc: { } undoCloses }
+                    && NativeSamWritePresentation.ShowsUndo(write, stage, now, unavailable))
+                    rows.Add(style.Text(Views.Text(string.Format(CultureInfo.CurrentCulture,
+                        text("Coach_WriteUndoWindow"), Local(undoCloses))), SourceTextRole.Caption1,
+                        SourceTextTone.Secondary));
+                break;
+            default:
+                if (NativeSamWritePresentation.HintKey(stage) is { } hint)
+                    Note(hint);
+                break;
+        }
+        if (state.WriteErrorId == operationId && state.WriteErrorKey is { } error)
+            rows.Add(style.Text(Views.Text(text(error)), SourceTextRole.Caption1, SourceTextTone.Danger)
+                .WithAccessibilityIdentifier(prefix + ".error"));
+
+        var buttons = new List<SwiftView>();
+        SwiftView Add(SwiftView button, string suffix)
+        {
+            button.IsEnabled = !busy && state.WriteBusyId is null && !state.Busy;
+            button.WithAccessibilityIdentifier($"{prefix}.{suffix}");
+            buttons.Add(button);
+            return button;
+        }
+        if (NativeSamWritePresentation.ShowsAccept(write, stage))
+            Add(style.PrimaryButton(text(busy ? "Coach_WriteBusy" : "Coach_WriteAccept"),
+                () => actions.Accept(operationId)), "accept");
+        if (NativeSamWritePresentation.ShowsReview(write, stage))
+            Add(style.PrimaryButton(text(busy ? "Coach_WriteBusy" : "Coach_WriteReview"),
+                () => actions.Review(operationId)), "review");
+        if (stage == NativeSamWriteStage.ConfirmationRequired)
+        {
+            Add(DangerButton(style, text(busy ? "Coach_WriteBusy" : "Coach_WriteConfirm"), actions.Confirm),
+                "confirm");
+            Add(style.SecondaryButton(text("Coach_WriteCancelConfirm"), actions.CancelConfirm), "cancelconfirm");
+        }
+        if (NativeSamWritePresentation.ShowsDecline(stage) && stage != NativeSamWriteStage.ConfirmationRequired)
+            Add(style.SecondaryButton(text("Coach_WriteDecline"), () => actions.Decline(operationId)), "decline");
+        if (NativeSamWritePresentation.ShowsUndo(write, stage, now, unavailable))
+            Add(style.SecondaryButton(text(busy ? "Coach_WriteBusy" : "Coach_WriteUndo"),
+                () => actions.Undo(operationId)), "undo");
+        if (NativeSamWritePresentation.ShowsRefresh(stage))
+            Add(style.SecondaryButton(text("Coach_WriteRefreshAction"), () => actions.Refresh(operationId)),
+                "refresh");
+        if (buttons.Count > 0)
+        {
+            var group = Views.ButtonGroup(buttons.ToArray(), wraps: true);
+            rows.Add(group);
+        }
+        var stack = Views.VStack(rows.ToArray()).WithFlexibleWidth();
+        stack.Spacing = 6;
+        var card = stage is NativeSamWriteStage.Applied
+            ? style.Alert(stack.WithPadding(4), success: true, compact: true)
+            : style.Card(stack.WithPadding(12), radius: 12);
+        return card
+            .WithAccessibilityLabel($"{text(NativeSamWritePresentation.HeadingKey(write.ChangeKind))}, "
+                + text(NativeSamWritePresentation.StateKey(stage)))
+            .WithAccessibilityIdentifier(prefix);
+    }
+
+    private static string WriteIcon(NativeSamWriteStage stage) => stage switch
+    {
+        NativeSamWriteStage.Applied => "checkmark.circle",
+        NativeSamWriteStage.Undone => "arrow.counterclockwise",
+        NativeSamWriteStage.Declined => "minus.circle",
+        NativeSamWriteStage.Expired or NativeSamWriteStage.Superseded => "clock.arrow.circlepath",
+        NativeSamWriteStage.Failed => "xmark.circle",
+        NativeSamWriteStage.InDoubt => "hourglass",
+        NativeSamWriteStage.ConfirmationRequired => "exclamationmark.shield",
+        NativeSamWriteStage.Unreadable or NativeSamWriteStage.Unavailable => "questionmark.circle",
+        _ => "square.and.pencil",
+    };
+
+    internal static SwiftView DangerButton(SourceUiStyle style, string title, Action action)
+    {
+        var danger = style.Appearance.Danger;
+        return Views.Button(style.Text(Views.Text(title), SourceTextRole.Button, SourceTextTone.OnPrimary)
+                    .WithPadding(10, 16, 10, 16), action)
+            .WithButtonAppearance(danger.Light, danger.Dark, danger.Light, danger.Dark, 8)
+            .WithAccessibilityLabel(title);
+    }
+
+    /// <summary>Source CoachMemoryCandidateCard: Save, Edit, Only this chat, Not now.</summary>
+    private static SwiftView MemoryCandidate(SourceUiStyle style, NativeSamState state,
+        CoachMemoryFactDto fact, Func<string, string> text, SamMemoryActions actions)
+    {
+        var rows = new List<SwiftView>
+        {
+            style.Text(Views.Text(text("Coach_MemoryCandidateTitle")), SourceTextRole.Body1Strong,
+                sourceHeading: true),
+            style.Text(Views.Text(fact.DisplayText), SourceTextRole.Body2)
+                .WithAccessibilityIdentifier("native.sam.memory.value"),
+            style.Text(Views.Text($"{text("Coach_MemoryScopeLabel")}: {MemoryScope(fact, text)}"),
+                SourceTextRole.Caption1, SourceTextTone.Secondary),
+        };
+        var busy = state.MemoryCandidateBusy;
+        SwiftView Enable(SwiftView button, string id)
+        {
+            button.IsEnabled = !busy;
+            return button.WithAccessibilityIdentifier("native.sam.memory." + id);
+        }
+        if (state.MemoryCandidateEdit is { } editing)
+        {
+            rows.Add(style.TextInput(Views.TextField(text("Coach_MemoryEditLabel"), editing, actions.EditChanged)
+                .WithAccessibilityLabel(text("Coach_MemoryEditLabel"))
+                .WithAccessibilityIdentifier("native.sam.memory.editfield")));
+            var save = Enable(style.PrimaryButton(text("Coach_MemorySaveEdited"), actions.SaveEdited), "saveedited");
+            save.IsEnabled = !busy && !string.IsNullOrWhiteSpace(editing);
+            var buttons = Views.HStack(save,
+                Enable(style.SecondaryButton(text("Coach_Cancel"), actions.CancelEdit), "canceledit"));
+            buttons.Spacing = 8;
+            rows.Add(buttons);
+        }
+        else
+        {
+            var editable = fact.Kind == CoachMemoryKind.PersistentStudyGoal;
+            var buttons = new List<SwiftView>
+            {
+                Enable(style.PrimaryButton(text("Coach_MemorySave"), actions.Save), "save"),
+            };
+            if (editable)
+                buttons.Add(Enable(style.SecondaryButton(text("Coach_MemoryEdit"), actions.BeginEdit), "edit"));
+            buttons.Add(Enable(style.SecondaryButton(text("Coach_MemoryOnlyThisChat"), actions.Decline), "onlythischat"));
+            buttons.Add(Enable(style.SecondaryButton(text("Coach_MemoryNotNow"), actions.Decline), "notnow"));
+            rows.Add(Views.ButtonGroup(buttons.ToArray(), wraps: true));
+        }
+        if (state.MemoryCandidateNoticeKey is { } notice)
+            rows.Add(style.Text(Views.Text(text(notice)), SourceTextRole.Caption1, SourceTextTone.Secondary)
+                .WithAccessibilityIdentifier("native.sam.memory.notice"));
+        rows.Add(style.Text(Views.Text(text("Coach_MemoryCandidateExplainer")), SourceTextRole.Caption1,
+            SourceTextTone.Secondary));
+        var stack = Views.VStack(rows.ToArray()).WithFlexibleWidth();
+        stack.Spacing = 6;
+        return style.Card(stack.WithPadding(12), radius: 12)
+            .WithAccessibilityIdentifier("native.sam.memory.candidate");
+    }
+
+    internal static string MemoryScope(CoachMemoryFactDto fact, Func<string, string> text) =>
+        fact.Scope == CoachMemoryScope.Global ? text("Coach_MemoryScopeGlobal")
+        : string.IsNullOrWhiteSpace(fact.TargetLanguageCode) ? text("Coach_MemoryScopeLanguage")
+        : string.Format(CultureInfo.CurrentCulture, text("Coach_MemoryScopeLanguageNamed"), fact.TargetLanguageCode);
 
     private static SwiftView Evidence(SourceUiStyle style, NativeSamEntry entry, int index,
         Func<string, string> text)
@@ -604,6 +1002,10 @@ internal static class SamView
             rows.Add(Views.IndeterminateProgress(text("Coach_ConversationsLoading")));
         if (state.ConversationsErrorKey is { } error)
             rows.Add(Notice(style, text(error), "native.sam.conversations.error"));
+        if (state.ConversationActionKey is { } outcome)
+            rows.Add(Notice(style, text(outcome), "native.sam.conversations.outcome"));
+        if (state.ConversationDialog is { } dialog)
+            rows.Add(ConversationDialog(style, state, dialog, text, actions.ManageConversations));
         var conversations = state.SafeConversations;
         if (conversations.IsEmpty && !state.ConversationsLoading && state.ConversationsErrorKey is null)
         {
@@ -633,11 +1035,87 @@ internal static class SamView
                 .WithAccessibilityLabel($"{title}, {detail}")
                 .WithAccessibilityIdentifier($"native.sam.conversation.{index}")
                 .WithAccessibilitySelected(row.IsSelected);
-            rows.Add(style.BorderedCard(button.WithPadding(10), radius: 10));
+            button.IsEnabled = !state.ConversationActionBusy;
+            var manage = actions.ManageConversations;
+            var menuActions = new List<SwiftView>
+            {
+                Views.Button(text("Coach_ConversationRename"),
+                        () => manage.Begin(NativeSamConversationDialogKind.Rename, id))
+                    .WithAccessibilityIdentifier($"native.sam.conversation.{index}.rename"),
+                row.IsClosed
+                    ? Views.Button(text("Coach_ConversationReopen"), () => manage.Reopen(id))
+                        .WithAccessibilityIdentifier($"native.sam.conversation.{index}.reopen")
+                    : Views.Button(text("Coach_ConversationClose"),
+                            () => manage.Begin(NativeSamConversationDialogKind.Close, id))
+                        .WithAccessibilityIdentifier($"native.sam.conversation.{index}.close"),
+                Views.Button(text("Coach_ConversationDelete"),
+                        () => manage.Begin(NativeSamConversationDialogKind.Delete, id))
+                    .WithAccessibilityIdentifier($"native.sam.conversation.{index}.delete"),
+            };
+            var menu = Views.Menu(Views.Image("ellipsis.circle").WithFixedSymbolSize(20), menuActions.ToArray())
+                .WithAccessibilityLabel($"{text("Coach_ConversationActions")}, {title}")
+                .WithAccessibilityIdentifier($"native.sam.conversation.{index}.actions");
+            menu.IsEnabled = !state.ConversationActionBusy;
+            var line = Views.HStack(button.WithFlexibleWidth(), menu);
+            line.Spacing = 8;
+            rows.Add(style.BorderedCard(line.WithPadding(10), radius: 10));
         }
         var stack = Views.VStack(rows.ToArray()).WithFlexibleWidth();
         stack.Spacing = 8;
         return style.Page(Views.Scroll(stack.WithPadding(16)))
             .WithAccessibilityIdentifier("native.sam.conversations.list");
+    }
+
+    /// <summary>
+    /// The rename / close / delete confirmation, inline at the head of the shelf as the source
+    /// renders it in the list, with its promise that Today's Plan and progress are untouched.
+    /// </summary>
+    private static SwiftView ConversationDialog(SourceUiStyle style, NativeSamState state,
+        NativeSamConversationDialog dialog, Func<string, string> text, SamConversationActions actions)
+    {
+        var rows = new List<SwiftView>();
+        SwiftView confirm;
+        switch (dialog.Kind)
+        {
+            case NativeSamConversationDialogKind.Rename:
+                rows.Add(style.Text(Views.Text(text("Coach_ConversationRenameTitle")), SourceTextRole.Body1Strong,
+                    sourceHeading: true));
+                rows.Add(style.TextInput(Views.TextField(text("Coach_ConversationRenameLabel"), dialog.RenameText,
+                        actions.RenameChanged)
+                    .WithAccessibilityLabel(text("Coach_ConversationRenameLabel"))
+                    .WithAccessibilityIdentifier("native.sam.conversations.rename.field")));
+                confirm = style.PrimaryButton(text("Coach_ConversationRenameSave"), actions.Confirm);
+                confirm.IsEnabled = !state.ConversationActionBusy
+                    && !string.IsNullOrWhiteSpace(dialog.RenameText)
+                    && dialog.RenameText.Trim().Length <= MaxConversationTitleLength;
+                break;
+            case NativeSamConversationDialogKind.Close:
+                rows.Add(style.Text(Views.Text(text("Coach_ConversationCloseTitle")), SourceTextRole.Body1Strong,
+                    sourceHeading: true));
+                rows.Add(style.Text(Views.Text(text("Coach_ConversationCloseBody")), SourceTextRole.Body2));
+                confirm = style.PrimaryButton(text("Coach_ConversationClose"), actions.Confirm);
+                confirm.IsEnabled = !state.ConversationActionBusy;
+                break;
+            default:
+                rows.Add(style.Text(Views.Text(text("Coach_ConversationDeleteTitle")), SourceTextRole.Body1Strong,
+                    sourceHeading: true));
+                rows.Add(style.Text(Views.Text(text("Coach_ConversationDeleteBody")), SourceTextRole.Body2));
+                rows.Add(style.Text(Views.Text(text("Coach_ConversationDeleteImpact")), SourceTextRole.Caption1,
+                    SourceTextTone.Secondary));
+                confirm = DangerButton(style, text("Coach_ConversationDeleteConfirm"), actions.Confirm);
+                confirm.IsEnabled = !state.ConversationActionBusy;
+                break;
+        }
+        confirm.WithAccessibilityIdentifier("native.sam.conversations.dialog.confirm");
+        var cancel = style.SecondaryButton(text("Coach_Cancel"), actions.Cancel)
+            .WithAccessibilityIdentifier("native.sam.conversations.dialog.cancel");
+        cancel.IsEnabled = !state.ConversationActionBusy;
+        var buttons = Views.HStack(cancel, confirm);
+        buttons.Spacing = 8;
+        rows.Add(buttons);
+        var stack = Views.VStack(rows.ToArray()).WithFlexibleWidth();
+        stack.Spacing = 8;
+        return style.Card(stack.WithPadding(12), radius: 12)
+            .WithAccessibilityIdentifier("native.sam.conversations.dialog");
     }
 }

@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.SwiftUI;
 using SentenceStudio.Native.iOS.Features.Sam;
+using SentenceStudio.Native.iOS.Platform;
 using SentenceStudio.Native.iOS.Styling;
 
 namespace SentenceStudio.Native.iOS.App;
@@ -48,7 +49,92 @@ internal sealed partial class ApplicationController
         ToggleEvidence: id => _sam?.ToggleEvidence(id),
         ApproveSet: () => RunSam(sam => sam.ApproveVocabularySetAsync(_lifetime.Token)),
         DeclineSet: () => RunSam(sam => sam.DeclineVocabularySetAsync(_lifetime.Token)),
-        StartReview: () => _sam?.StartVocabularyReview());
+        StartReview: () => _sam?.StartVocabularyReview(),
+        Writes: new SamWriteActions(
+            Accept: id => RunSam(sam => sam.AcceptWriteAsync(id, _lifetime.Token)),
+            Review: id => RunSam(sam => sam.BeginWriteConfirmationAsync(id, _lifetime.Token)),
+            Confirm: () => RunSam(sam => sam.ConfirmWriteAsync(_lifetime.Token)),
+            CancelConfirm: () => _sam?.CancelWriteConfirmation(),
+            Decline: id => RunSam(sam => sam.DeclineWriteAsync(id, _lifetime.Token)),
+            Undo: id => RunSam(sam => sam.UndoWriteAsync(id, _lifetime.Token)),
+            Refresh: id => RunSam(sam => sam.RefreshWriteAsync(id, _lifetime.Token))),
+        Memory: new SamMemoryActions(
+            Save: () => RunSam(sam => sam.SaveMemoryCandidateAsync(_lifetime.Token)),
+            BeginEdit: () => _sam?.BeginMemoryCandidateEdit(),
+            EditChanged: text => _sam?.SetMemoryCandidateEdit(text),
+            SaveEdited: () => RunSam(sam => sam.SaveEditedMemoryCandidateAsync(_lifetime.Token)),
+            CancelEdit: () => _sam?.CancelMemoryCandidateEdit(),
+            Decline: () => RunSam(sam => sam.DeclineMemoryCandidateAsync(_lifetime.Token))),
+        Messages: new SamMessageActions(
+            Copy: id => RunSam(sam => CopySamMessageAsync(sam, id)),
+            OpenReport: id => _sam?.OpenReport(id),
+            SelectReason: reason => _sam?.SelectReportReason(reason),
+            SubmitReport: () => RunSam(sam => sam.SubmitReportAsync(_lifetime.Token)),
+            CancelReport: () => _sam?.CancelReport()),
+        ManageConversations: new SamConversationActions(
+            Begin: (kind, id) => _sam?.BeginConversationDialog(kind, id),
+            RenameChanged: text => _sam?.SetRenameText(text),
+            Confirm: () => RunSam(sam => sam.ConfirmConversationDialogAsync(_lifetime.Token)),
+            Cancel: () => _sam?.CancelConversationDialog(),
+            Reopen: id => RunSam(sam => sam.ReopenConversationAsync(id, _lifetime.Token))));
+
+    private SamSettingsActions? _samSettingsActions;
+
+    internal SamSettingsActions SamSettingsActions => _samSettingsActions ??= new SamSettingsActions(
+        AskDelete: () => EnsureSam()?.AskDeleteHistory(),
+        CancelDelete: () => _sam?.CancelDeleteHistory(),
+        ConfirmDelete: () => RunSam(sam => sam.ConfirmDeleteHistoryAsync(_lifetime.Token)),
+        SelectTab: tab => _sam?.SelectMemoryTab(tab),
+        Approve: id => RunSam(sam => sam.ApproveMemoryAsync(id, _lifetime.Token)),
+        Reject: id => RunSam(sam => sam.RejectMemoryAsync(id, _lifetime.Token)),
+        Forget: id => RunSam(sam => sam.ForgetMemoryAsync(id, _lifetime.Token)),
+        BeginEdit: id => _sam?.BeginMemoryEdit(id),
+        EditChanged: text => _sam?.SetMemoryEditText(text),
+        SaveEdit: () => RunSam(sam => sam.SaveMemoryEditAsync(_lifetime.Token)),
+        CancelEdit: () => _sam?.CancelMemoryEdit(),
+        AskForgetAll: () => _sam?.AskForgetAllMemories(),
+        CancelForgetAll: () => _sam?.CancelForgetAllMemories(),
+        ConfirmForgetAll: () => RunSam(sam => sam.ForgetAllMemoriesAsync(_lifetime.Token)));
+
+    /// <summary>
+    /// Settings re-renders on Learning Coach or memory changes only; typed edit text is
+    /// excluded so the field keeps focus while the learner types.
+    /// </summary>
+    internal int SamSettingsVersion => HashCode.Combine(SamState.SafeSettings,
+        SamState.SafeMemory with { EditText = string.Empty });
+
+    internal SwiftView? RenderSamSettings(SourceUiStyle style) =>
+        _preview || _sam is null && _services is null ? null
+            : SamSettingsView.Sections(style, SamState, Text, SamSettingsActions);
+
+    /// <summary>Opening Settings reads availability and what Sam remembers for the current owner.</summary>
+    private void OpenSamSettings()
+    {
+        if (_preview)
+            return;
+        RunSam(async sam =>
+        {
+            await sam.RefreshAvailabilityAsync(_lifetime.Token);
+            await sam.LoadMemoryAsync(_lifetime.Token);
+        });
+    }
+
+    /// <summary>Copy uses the Essentials clipboard (non-UI service); the control states the outcome.</summary>
+    private async Task CopySamMessageAsync(NativeSamPresenter sam, string messageId)
+    {
+        if (sam.CopyTextFor(messageId) is not { } text)
+            return;
+        try
+        {
+            await NativeClipboard.SetTextAsync(text);
+            sam.ReportCopyResult(messageId, copied: true);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger?.LogWarning(ex, "Sam message could not be copied.");
+            sam.ReportCopyResult(messageId, copied: false);
+        }
+    }
 
     private bool _samCompactDefault = true;
 
@@ -159,6 +245,12 @@ internal sealed partial class ApplicationController
             ? Microsoft.SwiftUI.SwiftUI.BottomInset(page,
                 SamView.Fab(style, SamState, Text, SamActions.Open))
             : page;
+
+    /// <summary>The same entry on the Resources tab (source: the FAB is on every authenticated page).</summary>
+    private SwiftView? ResourcesSamEntry(SourceUiStyle style) =>
+        IsSamEntryVisible
+            ? SamView.Fab(style, SamState, Text, SamActions.Open, "native.sam.fab.resources")
+            : null;
 
     internal SwiftView RenderSamStream(SourceUiStyle style) =>
         SamView.Stream(style, SamState, Text, SamActions);

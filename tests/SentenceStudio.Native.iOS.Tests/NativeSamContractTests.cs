@@ -17,6 +17,7 @@ public sealed class NativeSamContractTests
         "Features/Sam/SamView.cs",
         "App/ApplicationController.Sam.cs",
         "App/ApplicationScene.Sam.cs",
+        "Features/Sam/SamSettingsView.cs",
     ];
 
     [Fact]
@@ -54,6 +55,19 @@ public sealed class NativeSamContractTests
     [InlineData("native.sam.status")]
     [InlineData("native.sam.retry")]
     [InlineData("native.sam.stop")]
+    [InlineData("native.sam.fab.resources")]
+    [InlineData("native.sam.copy.")]
+    [InlineData("native.sam.report.")]
+    [InlineData("native.sam.report.submit")]
+    [InlineData("native.sam.report.cancel")]
+    [InlineData("native.sam.write.")]
+    [InlineData("native.sam.memory.candidate")]
+    [InlineData("native.sam.dispute")]
+    [InlineData("native.sam.repair.")]
+    [InlineData("native.sam.conversations.dialog.confirm")]
+    [InlineData("native.sam.settings.delete")]
+    [InlineData("native.sam.settings.delete.confirm")]
+    [InlineData("native.sam.memory.forgetall")]
     public void EveryInteractiveSamSurfaceHasAStableAccessibilityId(string id)
     {
         var all = string.Concat(SamFiles.Select(Source));
@@ -71,7 +85,10 @@ public sealed class NativeSamContractTests
             .ToHashSet(StringComparer.Ordinal);
         var source = string.Concat(SamFiles.Select(Source))
             + File.ReadAllText(Path.Combine(HeadPath, "../SentenceStudio.Native/Sam/NativeSamPresenter.cs"))
-            + File.ReadAllText(Path.Combine(HeadPath, "../SentenceStudio.Native/Sam/NativeSamPresenter.Turns.cs"));
+            + File.ReadAllText(Path.Combine(HeadPath, "../SentenceStudio.Native/Sam/NativeSamPresenter.Turns.cs"))
+            + File.ReadAllText(Path.Combine(HeadPath, "../SentenceStudio.Native/Sam/NativeSamPresenter.Writes.cs"))
+            + File.ReadAllText(Path.Combine(HeadPath, "../SentenceStudio.Native/Sam/NativeSamPresenter.Manage.cs"))
+            + File.ReadAllText(Path.Combine(HeadPath, "../SentenceStudio.Native/Sam/NativeSamWritePresentation.cs"));
         var literal = Regex.Matches(source, "\"((?:Coach|NativeSam|Common)_[A-Za-z_]+)\"")
             .Select(match => match.Groups[1].Value)
             .Where(key => !key.EndsWith('_'))
@@ -92,6 +109,34 @@ public sealed class NativeSamContractTests
                 .Select(code => "Coach_Alternative_" + code));
         var missing = literal.Concat(composed).Where(key => !names.Contains(key)).ToArray();
         Assert.Empty(missing);
+    }
+
+    /// <summary>
+    /// Copy goes through the Essentials clipboard (non-UI service), never UIPasteboard,
+    /// and the confirmation secret is never rendered or stored in published state.
+    /// </summary>
+    [Fact]
+    public void CopyUsesEssentialsAndTheConfirmationValueNeverReachesTheView()
+    {
+        var clipboard = Source("Platform/NativeClipboard.cs");
+        Assert.Contains("Microsoft.Maui.ApplicationModel.DataTransfer", clipboard);
+        Assert.DoesNotMatch(@"\bUIPasteboard\b|\bUIKit\b", clipboard);
+        Assert.Contains("NativeClipboard.SetTextAsync", Source("App/ApplicationController.Sam.cs"));
+        foreach (var file in SamFiles)
+            Assert.DoesNotContain("CoachWriteConfirmation", Source(file));
+        var contracts = File.ReadAllText(Path.Combine(HeadPath, "../SentenceStudio.Native/Sam/NativeSamContracts.cs"));
+        Assert.DoesNotContain("CoachWriteConfirmation", contracts);
+    }
+
+    /// <summary>The Resources tab entry floats as a bottom inset the search update unwraps.</summary>
+    [Fact]
+    public void ResourcesSamEntryKeepsTheIncrementalSearchUpdate()
+    {
+        var scene = Source("App/ApplicationScene.cs");
+        Assert.Contains("WithoutSamInset(current.Children[0])", scene);
+        Assert.Contains("SameBrowserControls(WithoutSamInset(", scene);
+        Assert.Contains("Views.BottomInset(style.Page(page), samEntry)",
+            Source("Features/LearningResources/LearningResourcesView.cs"));
     }
 
     [Fact]
