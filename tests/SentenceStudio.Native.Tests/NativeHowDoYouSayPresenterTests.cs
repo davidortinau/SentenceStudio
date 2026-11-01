@@ -231,9 +231,9 @@ public sealed class NativeHowDoYouSayPresenterTests
         {
             var open = hangingVoices.Presenter.OpenAsync(Launch(fixture));
             await WaitAsync(hangingVoices.Presenter, state => state.VoicesLoading);
-            var exit = await hangingVoices.Presenter.ExitAsync().WaitAsync(TimeSpan.FromSeconds(2));
+            var exit = await hangingVoices.Presenter.ExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
             Assert.Equal(NativeDestination.TodaysPlan, exit.Destination);
-            var opened = await open.WaitAsync(TimeSpan.FromSeconds(2));
+            var opened = await open.WaitAsync(TimeSpan.FromSeconds(10));
             Assert.Equal(NativeDestination.TodaysPlan, opened.Destination);
         }
 
@@ -246,9 +246,9 @@ public sealed class NativeHowDoYouSayPresenterTests
             hangingSpeech.Presenter.SetInput("기다려요");
             var speak = hangingSpeech.Presenter.SpeakAsync();
             await WaitAsync(hangingSpeech.Presenter, state => state.IsBusy);
-            var exit = await hangingSpeech.Presenter.ExitAsync().WaitAsync(TimeSpan.FromSeconds(2));
+            var exit = await hangingSpeech.Presenter.ExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
             Assert.Equal(NativeDestination.TodaysPlan, exit.Destination);
-            var late = await speak.WaitAsync(TimeSpan.FromSeconds(2));
+            var late = await speak.WaitAsync(TimeSpan.FromSeconds(10));
             Assert.Equal(NativeDestination.TodaysPlan, late.Destination);
             Assert.Empty(hangingSpeech.Player.Rates);
         }

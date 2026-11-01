@@ -44,6 +44,12 @@ internal interface IActivityScreen : IDisposable
 
     /// <summary>The person swiped the sheet away.</summary>
     void OnSheetDismissed() { }
+
+    /// <summary>
+    /// Optional: update the mounted tree in place instead of a full re-render
+    /// (keeps a focused text field and its IME composition). False re-renders.
+    /// </summary>
+    bool TryUpdateInPlace(SourceUiStyle style) => false;
 }
 
 internal static class ActivityScreens
@@ -60,6 +66,7 @@ internal static class ActivityScreens
         NativeActivityCatalog.Shadowing => new ShadowingScreen(host),
         NativeActivityCatalog.HowDoYouSay => new HowDoYouSayScreen(host),
         NativeActivityCatalog.WordAssociation => new WordAssociationScreen(host),
+        NativeActivityCatalog.Conversation => new ConversationScreen(host),
         _ => null
     };
 }

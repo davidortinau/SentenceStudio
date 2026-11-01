@@ -69,6 +69,9 @@ public static class NativeSliceRegistration
             sp.GetService<IOwnerBoundNativeReasoningAiGateway>()));
         services.AddTransient<NativeWordAssociationScores>();
         services.AddTransient<NativeWordAssociationPresenter>();
+        services.TryAddSingleton<INativeConversationAi, NativeConversationAi>();
+        services.TryAddTransient<INativeConversationScenarios, NativeConversationScenarios>();
+        services.AddTransient<NativeConversationPresenter>();
         services.TryAddScoped<IPlanCopyProvider, EnglishPlanCopyProvider>();
         services.AddSingleton<NativePlanLeaseFactory>();
         services.TryAddSingleton<INativeProfileRemoteStore>(sp =>

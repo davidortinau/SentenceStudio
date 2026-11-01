@@ -9521,4 +9521,25 @@ For example: {0} ...</value>
   <data name="WordAssoc_DoublePoints" xml:space="preserve">
     <value>Full sentence: 2 points</value>
   </data>
+  <data name="NativeConversation_LoadFailed" xml:space="preserve">
+    <value>Could not start conversation.</value>
+  </data>
+  <data name="NativeConversation_StartFailed" xml:space="preserve">
+    <value>Error starting conversation.</value>
+  </data>
+  <data name="NativeConversation_ReplyFailed" xml:space="preserve">
+    <value>Error getting response. Please try again.</value>
+  </data>
+  <data name="NativeConversation_AudioFailed" xml:space="preserve">
+    <value>Audio playback failed.</value>
+  </data>
+  <data name="NativeConversation_ChangeLanguage" xml:space="preserve">
+    <value>Change language</value>
+  </data>
+  <data name="NativeConversation_QuickPhrases" xml:space="preserve">
+    <value>Quick phrases</value>
+  </data>
+  <data name="NativeConversation_DismissNotices" xml:space="preserve">
+    <value>Dismiss</value>
+  </data>
 </root>

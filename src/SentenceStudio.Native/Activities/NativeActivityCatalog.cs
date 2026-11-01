@@ -36,6 +36,7 @@ public static class NativeActivityCatalog
     public const string Shadowing = "shadowing";
     public const string HowDoYouSay = "how-do-you-say";
     public const string WordAssociation = "word-association";
+    public const string Conversation = "conversation";
 
     public static ImmutableArray<NativeActivityDefinition> Implemented { get; } =
     [
@@ -51,6 +52,7 @@ public static class NativeActivityCatalog
         new(HowDoYouSay, [], TimerRecordsSkill: false),
         // Choose My Own tile only: no plan type, and the source starts no timer.
         new(WordAssociation, []),
+        new(Conversation, [PlanActivityType.Conversation]),
     ];
 
     public static NativeActivityDefinition? ForRoute(string? route) =>

@@ -10111,6 +10111,69 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Audio playback failed..
+        /// </summary>
+        internal static string NativeConversation_AudioFailed {
+            get {
+                return ResourceManager.GetString("NativeConversation_AudioFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Change language.
+        /// </summary>
+        internal static string NativeConversation_ChangeLanguage {
+            get {
+                return ResourceManager.GetString("NativeConversation_ChangeLanguage", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Dismiss.
+        /// </summary>
+        internal static string NativeConversation_DismissNotices {
+            get {
+                return ResourceManager.GetString("NativeConversation_DismissNotices", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Could not start conversation..
+        /// </summary>
+        internal static string NativeConversation_LoadFailed {
+            get {
+                return ResourceManager.GetString("NativeConversation_LoadFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Quick phrases.
+        /// </summary>
+        internal static string NativeConversation_QuickPhrases {
+            get {
+                return ResourceManager.GetString("NativeConversation_QuickPhrases", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Error getting response. Please try again..
+        /// </summary>
+        internal static string NativeConversation_ReplyFailed {
+            get {
+                return ResourceManager.GetString("NativeConversation_ReplyFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to Error starting conversation..
+        /// </summary>
+        internal static string NativeConversation_StartFailed {
+            get {
+                return ResourceManager.GetString("NativeConversation_StartFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to This activity is not available yet..
         /// </summary>
         internal static string NativeDashboard_ActivityNotAvailable {

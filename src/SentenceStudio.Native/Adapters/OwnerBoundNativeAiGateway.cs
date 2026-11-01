@@ -21,15 +21,28 @@ public sealed class OwnerBoundNativeAiGateway(
 
     public Task<T?> SendPromptAsync<T>(
         string owner, string prompt, CancellationToken cancellationToken) =>
-        SendCoreAsync<T>(owner, prompt, AiTier.Fast, cancellationToken);
+        SendAsync(owner, gateway => gateway.SendPromptAsync<T>(
+            prompt, AiTier.Fast, cancellationToken: cancellationToken), cancellationToken);
 
     /// <summary>Reasoning tier with the server's default effort (source AiService.SendPrompt(prompt, AiTier.Reasoning)).</summary>
     public Task<T?> SendReasoningPromptAsync<T>(
         string owner, string prompt, CancellationToken cancellationToken) =>
-        SendCoreAsync<T>(owner, prompt, AiTier.Reasoning, cancellationToken);
+        SendAsync(owner, gateway => gateway.SendPromptAsync<T>(
+            prompt, AiTier.Reasoning, cancellationToken: cancellationToken), cancellationToken);
 
-    private async Task<T?> SendCoreAsync<T>(
-        string owner, string prompt, AiTier tier, CancellationToken cancellationToken)
+    /// <summary>
+    /// The instructions travel as the system role, not inside the user message,
+    /// so provider prompt shields do not read role-play instructions as a
+    /// jailbreak attempt (observed: Azure content_filter 400 on the combined
+    /// Conversation opening prompt).
+    /// </summary>
+    public Task<T?> SendWithInstructionsAsync<T>(
+        string owner, string instructions, string message, CancellationToken cancellationToken) =>
+        SendAsync(owner, gateway => gateway.SendMessagesAsync<T>(
+            [("user", message)], instructions, cancellationToken), cancellationToken);
+
+    private async Task<T?> SendAsync<T>(
+        string owner, Func<AiGatewayClient, Task<T?>> send, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var stamp = scope.CaptureStamp();
@@ -59,8 +72,7 @@ public sealed class OwnerBoundNativeAiGateway(
             BaseAddress = apiRoot
         };
         var gateway = new AiGatewayClient(new AiApiClient(client), aiLogger);
-        var response = await gateway.SendPromptAsync<T>(
-            prompt, tier, cancellationToken: cancellationToken);
+        var response = await send(gateway);
         cancellationToken.ThrowIfCancellationRequested();
         if (!HasOwner())
             throw new UnauthorizedAccessException(

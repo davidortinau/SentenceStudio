@@ -39,5 +39,17 @@
                       LogicalName="SentenceStudio.Native.Prompts.GetShadowingSentences.scriban-txt" />
     <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/GradeWordAssociation.scriban-txt"
                       LogicalName="SentenceStudio.Native.Prompts.GradeWordAssociation.scriban-txt" />
+    <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/Conversation.system.scriban-txt"
+                      LogicalName="SentenceStudio.Native.Prompts.Conversation.system.scriban-txt" />
+    <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/Conversation.scenario.scriban-txt"
+                      LogicalName="SentenceStudio.Native.Prompts.Conversation.scenario.scriban-txt" />
+    <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/StartConversation.scriban-txt"
+                      LogicalName="SentenceStudio.Native.Prompts.StartConversation.scriban-txt" />
+    <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/StartConversation.scenario.scriban-txt"
+                      LogicalName="SentenceStudio.Native.Prompts.StartConversation.scenario.scriban-txt" />
+    <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/ContinueConversation.scriban-txt"
+                      LogicalName="SentenceStudio.Native.Prompts.ContinueConversation.scriban-txt" />
+    <EmbeddedResource Include="../SentenceStudio.AppLib/Resources/Raw/ContinueConversation.scenario.scriban-txt"
+                      LogicalName="SentenceStudio.Native.Prompts.ContinueConversation.scenario.scriban-txt" />
   </ItemGroup>
 </Project>

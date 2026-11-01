@@ -104,6 +104,9 @@ internal sealed partial class AndroidSliceShell
             case NativeActivityCatalog.WordAssociation:
                 await OpenWordAssociationAsync(launch, cancellationToken);
                 break;
+            case NativeActivityCatalog.Conversation:
+                await OpenConversationAsync(launch, cancellationToken);
+                break;
         }
     }
 
@@ -118,6 +121,7 @@ internal sealed partial class AndroidSliceShell
         NativeActivityCatalog.Shadowing => RenderShadowing(palette),
         NativeActivityCatalog.HowDoYouSay => RenderHowDoYouSay(palette),
         NativeActivityCatalog.WordAssociation => RenderWordAssociation(palette),
+        NativeActivityCatalog.Conversation => RenderConversation(palette),
         _ => Body(Localize(NativeMatchingText.Unavailable), palette),
     };
 
@@ -152,6 +156,9 @@ internal sealed partial class AndroidSliceShell
             case NativeActivityCatalog.WordAssociation:
                 await ExitWordAssociationAsync(cancellationToken);
                 break;
+            case NativeActivityCatalog.Conversation:
+                await ExitConversationAsync(cancellationToken);
+                break;
         }
         ReleaseActivity();
         Publish(() => Destination = NativeDestination.Dashboard);
@@ -170,6 +177,7 @@ internal sealed partial class AndroidSliceShell
         ReleaseShadowing();
         ReleaseHowDoYouSay();
         ReleaseWordAssociation();
+        ReleaseConversation();
         _activityRoute = null;
     }
 }

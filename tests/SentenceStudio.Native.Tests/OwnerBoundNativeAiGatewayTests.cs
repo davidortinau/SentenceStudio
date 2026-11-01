@@ -35,6 +35,24 @@ public sealed class OwnerBoundNativeAiGatewayTests
     }
 
     [Fact]
+    public async Task InstructionsTravelToTheMessagesEndpointUnderTheSameOwnerGuard()
+    {
+        var scenario = new Scenario();
+        var response = await scenario.Gateway.SendWithInstructionsAsync<string>(
+            OwnerA, "persona instructions", "opening task", default);
+
+        Assert.Equal("generated response", response);
+        Assert.Equal("/api/v1/ai/chat-messages", scenario.Server.LastPath);
+        Assert.Equal(OwnerA, scenario.Server.LastOwner);
+        Assert.Equal(scenario.Auth.Token, scenario.Server.LastBearer);
+
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            scenario.Gateway.SendWithInstructionsAsync<string>(
+                OwnerB, "persona instructions", "wrong owner", default));
+        Assert.Equal(1, scenario.Server.Calls);
+    }
+
+    [Fact]
     public async Task AbsentOrMismatchedOwnerAndTokenNeverSendThePrompt()
     {
         var scenario = new Scenario();

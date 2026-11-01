@@ -49,6 +49,15 @@ public interface IOwnerBoundNativeAiGateway
 {
     Task<T?> SendPromptAsync<T>(
         string owner, string prompt, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// One user message with separate system instructions (/api/v1/ai/chat-messages).
+    /// Hosts without it fall back to a single combined prompt.
+    /// </summary>
+    Task<T?> SendWithInstructionsAsync<T>(
+        string owner, string instructions, string message, CancellationToken cancellationToken) =>
+        SendPromptAsync<T>(owner, $"SYSTEM INSTRUCTIONS:\n{instructions}\n\nTASK:\n{message}",
+            cancellationToken);
 }
 
 public sealed record NativeResourceCreateResult(

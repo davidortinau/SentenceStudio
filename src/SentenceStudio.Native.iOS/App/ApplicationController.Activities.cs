@@ -39,6 +39,9 @@ internal sealed partial class ApplicationController
 
     internal void DismissActivitySheet() => _activity?.OnSheetDismissed();
 
+    internal bool TryUpdateActivityInPlace(SourceUiStyle style) =>
+        _activity?.TryUpdateInPlace(style) == true;
+
     private async Task OpenPlanCardAsync(string cardId)
     {
         var card = _dashboardState.Cards.IsDefaultOrEmpty ? null
