@@ -22,7 +22,6 @@ internal sealed class ReadingScreen : IActivityScreen
     private readonly ActivityScreenHost _host;
     private readonly NativeReadingPresenter _presenter;
     private NativeReadingState _state = new(NativePhase.Loading);
-    private NativeReadingNotice? _scheduledNotice;
 
     public ReadingScreen(ActivityScreenHost host)
     {
@@ -32,6 +31,8 @@ internal sealed class ReadingScreen : IActivityScreen
     }
 
     public string TitleKey => NativeReadingText.Title;
+
+    public NativeMessage? Toast => NativeMessages.LatestToast(_state.Notice);
 
     public bool HasExited => _state.Destination == NativeDestination.TodaysPlan;
 
@@ -54,31 +55,7 @@ internal sealed class ReadingScreen : IActivityScreen
     private void OnStateChanged(NativeReadingState state)
     {
         _state = state;
-        ScheduleNoticeDismissal(state.Notice);
         _host.Publish();
-    }
-
-    /// <summary>Source toasts disappear on their own.</summary>
-    private void ScheduleNoticeDismissal(NativeReadingNotice? notice)
-    {
-        if (notice is null || ReferenceEquals(notice, _scheduledNotice))
-            return;
-        _scheduledNotice = notice;
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await Task.Delay(TimeSpan.FromSeconds(4), _host.Lifetime);
-                if (ReferenceEquals(_presenter.State.Notice, notice))
-                    await _presenter.DismissNoticeAsync(_host.Lifetime);
-            }
-            catch (OperationCanceledException)
-            {
-            }
-            catch (ObjectDisposedException)
-            {
-            }
-        });
     }
 
     /// <summary>Commands do not take the controller's busy gate: a word lookup must not disable Back. The presenter serializes them.</summary>
@@ -98,7 +75,7 @@ internal sealed class ReadingScreen : IActivityScreen
         catch (Exception ex)
         {
             _host.Logger?.LogError(ex, "Native iOS Reading action failed.");
-            _state = _state with { Notice = new(NativeText.UnexpectedError, IsError: true) };
+            _state = _state with { Notice = NativeMessage.Error(NativeText.UnexpectedError) };
         }
         _host.Publish();
     }
@@ -158,15 +135,9 @@ internal sealed class ReadingScreen : IActivityScreen
         return style.Page(Views.BottomInset(scroll, Footer(state, style, text)));
     }
 
-    private SwiftView? Notice(NativeReadingState state, SourceUiStyle style, Func<string, string> text)
-    {
-        if (state.Notice is not { } notice)
-            return null;
-        var message = notice.Argument is null ? text(notice.Key)
-            : string.Format(CultureInfo.CurrentCulture, text(notice.Key), notice.Argument);
-        return style.Alert(style.Text(Views.Text(message), SourceTextRole.Body2), !notice.IsError, compact: true)
-            .WithAccessibilityIdentifier(NativeReadingAccess.Notice);
-    }
+    /// <summary>Errors stay inline until the next action; success messages are the scene's toast.</summary>
+    private static SwiftView? Notice(NativeReadingState state, SourceUiStyle style, Func<string, string> text) =>
+        style.MessageBanners(state.Notice, text, NativeReadingAccess.Notice);
 
     private static SwiftView? AudioStatus(NativeReadingState state, SourceUiStyle style, Func<string, string> text)
     {

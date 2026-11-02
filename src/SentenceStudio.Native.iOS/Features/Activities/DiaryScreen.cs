@@ -42,6 +42,8 @@ internal sealed class DiaryScreen : IActivityScreen
 
     public string TitleKey => NativeDiaryText.Title;
 
+    public NativeMessage? Toast => NativeMessages.LatestToast(_state.Notices);
+
     public bool HasExited => _state.Destination == NativeDestination.TodaysPlan;
 
     public bool HasChildPage => !HasExited && !_childDismissed
@@ -119,7 +121,7 @@ internal sealed class DiaryScreen : IActivityScreen
             _host.Logger?.LogError(ex, "Native iOS Diary action failed.");
             Apply(_state with
             {
-                Notices = [new(NativeDiaryNoticeKind.Error, NativeText.UnexpectedError)]
+                Notices = [new(NativeMessageKind.Error, NativeText.UnexpectedError)]
             });
         }
         _host.Publish();
@@ -134,7 +136,8 @@ internal sealed class DiaryScreen : IActivityScreen
         var state = _state;
         var items = new List<SwiftView>();
         if (state.Page == NativeDiaryPage.List && !state.Notices.IsDefaultOrEmpty)
-            items.Add(Notices(state, style));
+            if (Notices(state, style) is { } notices)
+                items.Add(notices);
         var list = state.List;
         if (state.Phase is NativePhase.Blocked or NativePhase.Error)
         {
@@ -476,7 +479,8 @@ internal sealed class DiaryScreen : IActivityScreen
         var text = _host.Text;
         var items = new List<SwiftView>();
         if (!state.Notices.IsDefaultOrEmpty)
-            items.Add(Notices(state, style));
+            if (Notices(state, style) is { } notices)
+                items.Add(notices);
         if (viewer.NotFound)
         {
             var warning = style.Appearance.Warning;
@@ -581,30 +585,15 @@ internal sealed class DiaryScreen : IActivityScreen
     // ---- Shared pieces ----
 
     private SwiftView NoticesOrEmpty(NativeDiaryState state, SourceUiStyle style) =>
-        state.Notices.IsDefaultOrEmpty ? Views.VStack() : Notices(state, style);
+        Notices(state, style) ?? Views.VStack();
 
-    private SwiftView Notices(NativeDiaryState state, SourceUiStyle style)
+    /// <summary>Errors and warnings stay inline until the next action; success and info are the scene's toast.</summary>
+    private SwiftView? Notices(NativeDiaryState state, SourceUiStyle style)
     {
         var text = _host.Text;
-        var rows = new List<SwiftView>();
-        var index = 0;
-        foreach (var notice in state.Notices)
-        {
-            var label = style.Text(Views.Text(text(notice.Key)), SourceTextRole.Body2);
-            var view = notice.Kind == NativeDiaryNoticeKind.Error
-                ? style.Alert(label, success: false, compact: true)
-                : style.InfoAlert(label, compact: true);
-            rows.Add(view.WithAccessibilityIdentifier($"{NativeDiaryAccess.Notice}.{index++}"));
-        }
-        var dismiss = Views.Button(Views.Image("xmark"), () => Fire(_presenter.DismissNoticesAsync))
-            .WithButtonStyle(SwiftButtonStyle.Plain)
-            .WithAccessibilityLabel(text(NativeDiaryText.Dismiss))
-            .WithAccessibilityIdentifier(NativeDiaryAccess.DismissNotices);
-        var stack = Views.VStack(rows.ToArray()).WithFlexibleWidth();
-        stack.Spacing = 6;
-        var row = Views.HStack(stack, dismiss).WithAccessibilityIdentifier(NativeDiaryAccess.Notices);
-        row.Spacing = 8;
-        return row;
+        return style.MessageBanners(state.Notices, text, index => $"{NativeDiaryAccess.Notice}.{index}",
+            () => Fire(_presenter.DismissNoticesAsync), NativeDiaryAccess.DismissNotices,
+            text(NativeDiaryText.Dismiss));
     }
 
     private static SwiftView Spinner(string label) =>

@@ -1096,6 +1096,7 @@ internal sealed partial class ApplicationController : IDisposable
         _lifetime.Cancel();
         _quiz?.Dispose();
         ReleaseActivity();
+        _activityToasts?.Dispose();
         _resources?.Dispose();
         ReleaseVocabulary();
         _skills?.Dispose();

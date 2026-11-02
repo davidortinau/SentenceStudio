@@ -37,6 +37,8 @@ internal sealed class SceneScreen : IActivityScreen
 
     public string TitleKey => NativeSceneText.Title;
 
+    public NativeMessage? Toast => NativeMessages.LatestToast(_state.Notices);
+
     public bool HasExited => _state.Destination == NativeDestination.TodaysPlan;
 
     public bool HasSheet => true;
@@ -93,7 +95,7 @@ internal sealed class SceneScreen : IActivityScreen
             _host.Logger?.LogError(ex, "Native iOS Describe a Scene action failed.");
             _state = _state with
             {
-                Notices = [new(NativeSceneNoticeKind.Error, NativeText.UnexpectedError)]
+                Notices = [new(NativeMessageKind.Error, NativeText.UnexpectedError)]
             };
         }
         Publish();
@@ -109,7 +111,8 @@ internal sealed class SceneScreen : IActivityScreen
         if (HasExited)
             return style.Page(Views.VStack());
         if (!state.Notices.IsDefaultOrEmpty && state.Phase is NativePhase.Ready or NativePhase.Empty)
-            items.Add(Notices(state, style, text));
+            if (Notices(state, style, text) is { } notices)
+                items.Add(notices);
         switch (state.Phase)
         {
             case NativePhase.Idle:
@@ -168,32 +171,12 @@ internal sealed class SceneScreen : IActivityScreen
         return Views.Toolbar(body, gallery);
     }
 
-    private SwiftView Notices(NativeSceneState state, SourceUiStyle style, Func<string, string> text)
+    /// <summary>Errors and warnings stay inline until the next action; success and info are the scene's toast.</summary>
+    private SwiftView? Notices(NativeSceneState state, SourceUiStyle style, Func<string, string> text)
     {
-        var rows = new List<SwiftView>();
-        var index = 0;
-        foreach (var notice in state.Notices)
-        {
-            var message = notice.Argument is null ? text(notice.Key)
-                : string.Format(CultureInfo.CurrentCulture, text(notice.Key), notice.Argument);
-            var label = style.Text(Views.Text(message), SourceTextRole.Body2);
-            var view = notice.Kind switch
-            {
-                NativeSceneNoticeKind.Success => style.Alert(label, success: true, compact: true),
-                NativeSceneNoticeKind.Error => style.Alert(label, success: false, compact: true),
-                _ => style.InfoAlert(label, compact: true)
-            };
-            rows.Add(view.WithAccessibilityIdentifier($"{NativeSceneAccess.Notice}.{index++}"));
-        }
-        var dismiss = Views.Button(Views.Image("xmark"), () => Fire(_presenter.DismissNoticesAsync))
-            .WithButtonStyle(SwiftButtonStyle.Plain)
-            .WithAccessibilityLabel(text(NativeSceneText.Dismiss))
-            .WithAccessibilityIdentifier(NativeSceneAccess.DismissNotices);
-        var stack = Views.VStack(rows.ToArray()).WithFlexibleWidth();
-        stack.Spacing = 6;
-        var row = Views.HStack(stack, dismiss).WithAccessibilityIdentifier(NativeSceneAccess.Notices);
-        row.Spacing = 8;
-        return row;
+        return style.MessageBanners(state.Notices, text, index => $"{NativeSceneAccess.Notice}.{index}",
+            () => Fire(_presenter.DismissNoticesAsync), NativeSceneAccess.DismissNotices,
+            text(NativeSceneText.Dismiss));
     }
 
     /// <summary>Source scene image card (max-height 400, object-fit contain).</summary>
@@ -433,7 +416,8 @@ internal sealed class SceneScreen : IActivityScreen
 
         var rows = new List<SwiftView> { header, addRow, pick };
         if (!_state.Notices.IsDefaultOrEmpty)
-            rows.Add(Notices(_state, style, text));
+            if (Notices(_state, style, text) is { } notices)
+                rows.Add(notices);
         if (gallery.IsLoading)
             rows.Add(Views.IndeterminateProgress(text(NativeSceneText.Loading))
                 .WithAccessibilityIdentifier(NativeSceneAccess.GalleryLoading));

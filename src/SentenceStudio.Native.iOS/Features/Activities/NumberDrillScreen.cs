@@ -219,9 +219,8 @@ internal sealed class NumberDrillScreen : IActivityScreen
                     success: false, compact: true)
                 .WithAccessibilityIdentifier(NativeNumberDrillAccess.Error);
         if (state.NoticeKey is { } notice)
-            yield return style.InfoAlert(style.Text(Views.Text(text(notice)), SourceTextRole.Body2),
-                    compact: true)
-                .WithAccessibilityIdentifier(NativeNumberDrillAccess.Notice);
+            yield return style.MessageBanner(NativeNumberDrillMessages.Notice(notice), text,
+                NativeNumberDrillAccess.Notice);
 
         if (state.Phase == NativePhase.Feedback && state.Feedback is { } feedback)
         {

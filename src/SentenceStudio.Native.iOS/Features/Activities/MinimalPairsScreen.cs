@@ -43,6 +43,8 @@ internal sealed class MinimalPairsScreen : IActivityScreen
 
     public string TitleKey => NativeMinimalPairsText.Title;
 
+    public NativeMessage? Toast => NativeMessages.LatestToast(_state.Notices);
+
     public bool HasExited => _state.Destination == NativeDestination.TodaysPlan;
 
     public bool HasChildPage => !HasExited && !_childDismissed
@@ -133,7 +135,7 @@ internal sealed class MinimalPairsScreen : IActivityScreen
             _host.Logger?.LogError(ex, "Native iOS Minimal Pairs action failed.");
             Apply(_state with
             {
-                Notices = [new(NativeMinimalPairsNoticeKind.Error, NativeText.UnexpectedError)]
+                Notices = [new(NativeMessageKind.Error, NativeText.UnexpectedError)]
             });
         }
         _host.Publish();
@@ -164,7 +166,8 @@ internal sealed class MinimalPairsScreen : IActivityScreen
             return Page(items, style, NativeMinimalPairsAccess.List);
         }
         if (state.Page == NativeMinimalPairsPage.List && !state.Notices.IsDefaultOrEmpty)
-            items.Add(Notices(state, style));
+            if (Notices(state, style) is { } notices)
+                items.Add(notices);
 
         var create = style.LabelButton(IconText("plus", text(NativeMinimalPairsText.CreatePair)),
                 () => Fire(_presenter.OpenCreateAsync), SourceButtonRole.Primary)
@@ -327,7 +330,8 @@ internal sealed class MinimalPairsScreen : IActivityScreen
             return Page(items, style, NativeMinimalPairsAccess.Create);
         }
         if (!state.Notices.IsDefaultOrEmpty)
-            items.Add(Notices(state, style));
+            if (Notices(state, style) is { } notices)
+                items.Add(notices);
         if (create.ErrorKey is { } error)
             items.Add(style.Alert(style.Text(Views.Text(text(error)), SourceTextRole.Body2), success: false)
                 .WithAccessibilityIdentifier(NativeMinimalPairsAccess.CreateError));
@@ -436,7 +440,8 @@ internal sealed class MinimalPairsScreen : IActivityScreen
         var appearance = style.Appearance;
         var items = new List<SwiftView>();
         if (!state.Notices.IsDefaultOrEmpty)
-            items.Add(Notices(state, style));
+            if (Notices(state, style) is { } notices)
+                items.Add(notices);
         if (session.ShowSummary)
         {
             items.Add(Summary(session, style));
@@ -611,26 +616,13 @@ internal sealed class MinimalPairsScreen : IActivityScreen
 
     // ---- Shared pieces ----
 
-    private SwiftView Notices(NativeMinimalPairsState state, SourceUiStyle style)
+    /// <summary>Errors and warnings stay inline until the next action; success and info are the scene's toast.</summary>
+    private SwiftView? Notices(NativeMinimalPairsState state, SourceUiStyle style)
     {
         var text = _host.Text;
-        var rows = new List<SwiftView>();
-        var index = 0;
-        foreach (var notice in state.Notices)
-        {
-            var label = style.Text(Views.Text(text(notice.Key)), SourceTextRole.Body2);
-            rows.Add(style.Alert(label, success: notice.Kind == NativeMinimalPairsNoticeKind.Success, compact: true)
-                .WithAccessibilityIdentifier($"{NativeMinimalPairsAccess.Notice}.{index++}"));
-        }
-        var dismiss = Views.Button(Views.Image("xmark"), () => Fire(_presenter.DismissNoticesAsync))
-            .WithButtonStyle(SwiftButtonStyle.Plain)
-            .WithAccessibilityLabel(text(NativeMinimalPairsText.Dismiss))
-            .WithAccessibilityIdentifier(NativeMinimalPairsAccess.DismissNotices);
-        var stack = Views.VStack(rows.ToArray()).WithFlexibleWidth();
-        stack.Spacing = 6;
-        var row = Views.HStack(stack, dismiss).WithAccessibilityIdentifier(NativeMinimalPairsAccess.Notices);
-        row.Spacing = 8;
-        return row;
+        return style.MessageBanners(state.Notices, text, index => $"{NativeMinimalPairsAccess.Notice}.{index}",
+            () => Fire(_presenter.DismissNoticesAsync), NativeMinimalPairsAccess.DismissNotices,
+            text(NativeMinimalPairsText.Dismiss));
     }
 
     private static SwiftView IconText(string symbol, string label)

@@ -31,6 +31,8 @@ internal sealed class WordAssociationScreen : IActivityScreen
 
     public string TitleKey => NativeWordAssociationText.Title;
 
+    public NativeMessage? Toast => NativeMessages.LatestToast(_state.Notices);
+
     public bool HasExited => _state.Destination == NativeDestination.TodaysPlan;
 
     public async Task OpenAsync(NativeActivityLaunch launch, CancellationToken cancellationToken) =>
@@ -64,7 +66,7 @@ internal sealed class WordAssociationScreen : IActivityScreen
             _host.Logger?.LogError(ex, "Native iOS Word Association action failed.");
             _state = _state with
             {
-                Notices = [new(NativeWordAssociationNoticeKind.Error, NativeText.UnexpectedError)]
+                Notices = [new(NativeMessageKind.Error, NativeText.UnexpectedError)]
             };
         }
         _host.Publish();
@@ -78,7 +80,8 @@ internal sealed class WordAssociationScreen : IActivityScreen
         _add = null;
         if (!state.Notices.IsDefaultOrEmpty && state.Phase is NativePhase.Ready
                 or NativePhase.Empty or NativePhase.Summary)
-            items.Add(Notices(state, style, text));
+            if (Notices(state, style, text) is { } notices)
+                items.Add(notices);
         switch (state.Phase)
         {
             case NativePhase.Idle:
@@ -121,30 +124,12 @@ internal sealed class WordAssociationScreen : IActivityScreen
             : page);
     }
 
-    private SwiftView Notices(NativeWordAssociationState state, SourceUiStyle style, Func<string, string> text)
+    /// <summary>Errors and warnings stay inline until the next action; success and info are the scene's toast.</summary>
+    private SwiftView? Notices(NativeWordAssociationState state, SourceUiStyle style, Func<string, string> text)
     {
-        var rows = new List<SwiftView>();
-        var index = 0;
-        foreach (var notice in state.Notices)
-        {
-            var label = style.Text(Views.Text(text(notice.Key)), SourceTextRole.Body2);
-            var view = notice.Kind switch
-            {
-                NativeWordAssociationNoticeKind.Success => style.Alert(label, success: true, compact: true),
-                NativeWordAssociationNoticeKind.Error => style.Alert(label, success: false, compact: true),
-                _ => style.InfoAlert(label, compact: true)
-            };
-            rows.Add(view.WithAccessibilityIdentifier($"{NativeWordAssociationAccess.Notice}.{index++}"));
-        }
-        var dismiss = Views.Button(Views.Image("xmark"), () => Fire(_presenter.DismissNoticesAsync))
-            .WithButtonStyle(SwiftButtonStyle.Plain)
-            .WithAccessibilityLabel(text(NativeWordAssociationText.Dismiss))
-            .WithAccessibilityIdentifier(NativeWordAssociationAccess.DismissNotices);
-        var stack = Views.VStack(rows.ToArray()).WithFlexibleWidth();
-        stack.Spacing = 6;
-        var row = Views.HStack(stack, dismiss).WithAccessibilityIdentifier(NativeWordAssociationAccess.Notices);
-        row.Spacing = 8;
-        return row;
+        return style.MessageBanners(state.Notices, text, index => $"{NativeWordAssociationAccess.Notice}.{index}",
+            () => Fire(_presenter.DismissNoticesAsync), NativeWordAssociationAccess.DismissNotices,
+            text(NativeWordAssociationText.Dismiss));
     }
 
     private static SwiftView WordHeader(NativeWordAssociationState state, SourceUiStyle style,
