@@ -1,0 +1,15 @@
+@using Microsoft.AspNetCore.Components.AI
+@using SentenceStudio.WebApp.Coach
+
+@* This preview snapshots turns at initialization; restore must replace the list, not the app shell. *@
+<MessageList @key="HistoryVersion">
+    <BlockRenderer TBlock="CoachTimelineBlock">
+        @TimelineItemContent(context.Entry)
+    </BlockRenderer>
+</MessageList>
+
+@code {
+    [Parameter] public long HistoryVersion { get; set; }
+    [CascadingParameter(Name = "CoachTimelineItem")]
+    public RenderFragment<CoachTimelineEntry> TimelineItemContent { get; set; } = default!;
+}

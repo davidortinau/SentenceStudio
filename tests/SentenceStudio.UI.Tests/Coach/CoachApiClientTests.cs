@@ -11,6 +11,53 @@ namespace SentenceStudio.UI.Tests.Coach;
 /// </summary>
 public class CoachApiClientTests
 {
+    [Fact]
+    public async Task OptionalTransportReceivesSessionTurnsAndNormalizedDurableRecoveryHandles()
+    {
+        var transport = new CapturingTurnTransport();
+        using var http = new HttpClient(new StubHandler(_ =>
+            throw new InvalidOperationException("Turn must use the registered host transport.")));
+        var client = new CoachApiClient(http, transport);
+        var turn = new CoachTurnRequest { InputKind = CoachTurnInputKind.Text, Text = "Hello" };
+        await client.SubmitTurnAsync("session-1", turn);
+        transport.Turn.Should().BeSameAs(turn);
+
+        var operation = await client.SubmitConversationTurnAsync("conversation-1", new()
+        {
+            Turn = turn,
+            IdempotencyKey = ""
+        });
+        transport.DurableTurn!.OperationId.Should().NotBeNullOrWhiteSpace();
+        transport.DurableTurn.IdempotencyKey.Should().NotBeNullOrWhiteSpace();
+        operation.OperationId.Should().Be(transport.DurableTurn.OperationId);
+    }
+
+    private sealed class CapturingTurnTransport : ICoachTurnTransport
+    {
+        public CoachTurnRequest? Turn { get; private set; }
+        public CoachConversationTurnRequest? DurableTurn { get; private set; }
+
+        public Task<CoachTurnResponse> SubmitTurnAsync(string id, CoachTurnRequest request, CancellationToken token)
+        {
+            Turn = request;
+            return Task.FromResult(CoachStateMachineTests.Turn());
+        }
+
+        public Task<CoachTurnOperationDto> SubmitConversationTurnAsync(
+            string id, CoachConversationTurnRequest request, CancellationToken token)
+        {
+            DurableTurn = request;
+            return Task.FromResult(new CoachTurnOperationDto
+            {
+                ConversationId = id,
+                OperationId = request.OperationId!,
+                State = CoachTurnOperationState.Completed,
+                CreatedAtUtc = DateTime.UtcNow,
+                UpdatedAtUtc = DateTime.UtcNow
+            });
+        }
+    }
+
     private static CoachApiClient Create(Func<HttpRequestMessage, HttpResponseMessage> responder) =>
         new(new HttpClient(new StubHandler(responder)) { BaseAddress = new Uri("https://api.test") });
 

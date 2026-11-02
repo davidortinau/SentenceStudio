@@ -35,12 +35,14 @@ public sealed class CoachApiClient : ICoachApiClient
     private const string MemoriesPath = BasePath + "/memories";
 
     private readonly HttpClient _httpClient;
+    private readonly ICoachTurnTransport? _turnTransport;
 
-    public CoachApiClient(HttpClient httpClient)
+    public CoachApiClient(HttpClient httpClient, ICoachTurnTransport? turnTransport = null)
     {
         ArgumentNullException.ThrowIfNull(httpClient);
 
         _httpClient = httpClient;
+        _turnTransport = turnTransport;
 
         // The client-adoption gate's client half. The server does not read this yet — no enum
         // value is gated at the current revision — but the header has to be in the field before a
@@ -105,7 +107,9 @@ public sealed class CoachApiClient : ICoachApiClient
         ArgumentException.ThrowIfNullOrWhiteSpace(sessionId);
         ArgumentNullException.ThrowIfNull(request);
 
-        return PostForTurnAsync($"{BasePath}/sessions/{Uri.EscapeDataString(sessionId)}/turns", request, cancellationToken);
+        return _turnTransport is not null
+            ? _turnTransport.SubmitTurnAsync(sessionId, request, cancellationToken)
+            : PostForTurnAsync($"{BasePath}/sessions/{Uri.EscapeDataString(sessionId)}/turns", request, cancellationToken);
     }
 
     public Task<CoachTurnResponse> AcceptSuggestionAsync(string sessionId, string suggestionId, CoachSuggestionDecisionRequest request, CancellationToken cancellationToken = default)
@@ -323,6 +327,12 @@ public sealed class CoachApiClient : ICoachApiClient
                 OperationId = string.IsNullOrWhiteSpace(sent.OperationId) ? NewClientId() : sent.OperationId,
                 IdempotencyKey = string.IsNullOrWhiteSpace(sent.IdempotencyKey) ? NewClientId() : sent.IdempotencyKey
             };
+        }
+
+        if (_turnTransport is not null)
+        {
+            return await _turnTransport.SubmitConversationTurnAsync(conversationId, sent, cancellationToken)
+                .ConfigureAwait(false);
         }
 
         using var message = new HttpRequestMessage(

@@ -1,0 +1,113 @@
+@using Microsoft.AspNetCore.Components.AI
+@using SentenceStudio.WebApp.Coach
+@implements IAsyncDisposable
+@inject CoachWorkspaceState Workspace
+@inject CoachWorkspaceChatClient ChatClient
+
+@code {
+    [CascadingParameter] public AgentContext Context { get; set; } = default!;
+    [Parameter] public EventCallback OnResetContext { get; set; }
+    [Parameter] public EventCallback OnHistoryRestored { get; set; }
+    private bool _refreshRequested = true;
+    private bool _disposed;
+    private bool _restoring;
+    private IDisposable? _statusSubscription;
+    private AgentContext? _subscribedContext;
+    private CoachTimelineEntry[]? _restoredEntries;
+    private string? _restoredEntryId;
+
+    protected override void OnInitialized() => Workspace.Changed += OnChanged;
+
+    protected override Task OnParametersSetAsync()
+    {
+        if (!ReferenceEquals(_subscribedContext, Context))
+        {
+            _statusSubscription?.Dispose();
+            _subscribedContext = Context;
+            _restoredEntries = null;
+            _restoredEntryId = null;
+            _statusSubscription = Context.RegisterOnStatusChanged(status =>
+            {
+                if (!_restoring && status != ConversationStatus.Streaming)
+                {
+                    OnChanged();
+                }
+            });
+        }
+        return RefreshAsync();
+    }
+
+    private async Task RefreshAsync()
+    {
+        _refreshRequested = true;
+        if (_disposed || _restoring || ChatClient.IsSending || Workspace.IsBusy
+            || Context.Status == ConversationStatus.Streaming)
+        {
+            return;
+        }
+        _restoring = true;
+        var resetContext = false;
+        try
+        {
+            do
+            {
+                _refreshRequested = false;
+                var entries = Workspace.Timeline.ToArray();
+                var entryId = Workspace.EntryId;
+                if (OnResetContext.HasDelegate
+                    && ((_restoredEntries is not null && _restoredEntryId != entryId)
+                        || (Context.Status == ConversationStatus.Error && ChatClient.HasRecoveredTurn)))
+                {
+                    resetContext = true;
+                    break;
+                }
+                if (_restoredEntries is not null && _restoredEntryId == entryId
+                    && _restoredEntries.SequenceEqual(entries))
+                {
+                    break;
+                }
+                await Context.RestoreAsync();
+                _restoredEntries = entries;
+                _restoredEntryId = entryId;
+                await OnHistoryRestored.InvokeAsync();
+            }
+            while (_refreshRequested && !_disposed && !ChatClient.IsSending && !Workspace.IsBusy
+                && Context.Status != ConversationStatus.Streaming);
+        }
+        finally
+        {
+            _restoring = false;
+        }
+        if (resetContext && !_disposed)
+        {
+            await OnResetContext.InvokeAsync();
+        }
+    }
+
+    private async void OnChanged()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+        try
+        {
+            await InvokeAsync(RefreshAsync);
+        }
+        catch (Exception ex)
+        {
+            if (!_disposed)
+            {
+                await DispatchExceptionAsync(ex);
+            }
+        }
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        _disposed = true;
+        Workspace.Changed -= OnChanged;
+        _statusSubscription?.Dispose();
+        return ValueTask.CompletedTask;
+    }
+}

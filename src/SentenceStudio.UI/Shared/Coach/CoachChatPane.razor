@@ -125,188 +125,22 @@
     @* One chronological stream, ordered by sequence. Receipts and suggestions are placed inside
        the turn that produced them rather than appended after every message: grouping by type is
        what put two learner questions back to back with a single answer and receipt after them. *@
-    @foreach (var entry in Coach.Timeline)
+    @if (HostMessageList is not null)
     {
-        @switch (entry.Kind)
+        <CascadingValue Name="CoachTimelineItem" Value="TimelineItemContent">
+            @HostMessageList
+        </CascadingValue>
+    }
+    else
+    {
+        @foreach (var entry in Coach.Timeline)
         {
-            case CoachTimelineKind.LearnerMessage:
-            case CoachTimelineKind.CoachMessage:
-                var isLearner = entry.Kind == CoachTimelineKind.LearnerMessage;
-
-                <div class="coach-message @(isLearner ? "coach-message-learner" : "")"
-                     @key="EntryKey(entry)"
-                     id="@MessageAnchorId(entry)">
-                    @* The header is the description both row controls point at, so "Copy" and
-                       "Report this response" keep their short, repeatable accessible names while a
-                       screen reader still hears which message they act on. *@
-                    <div class="coach-message-role" id="@MessageHeaderId(entry)">
-                        <span>@(isLearner ? Localize["Coach_RoleYou"] : Persona.DisplayName)</span>
-                        <CoachTimestamp Value="@entry.Timestamp" />
-                        @* A message that has been shown but not yet confirmed says so, rather than
-                           looking settled and then quietly changing underneath the reader. *@
-                        @if (entry.Status == CoachTimelineStatus.Pending)
-                        {
-                            <span class="ss-caption1 text-secondary-ss">@Localize["Coach_MessagePending"]</span>
-                        }
-                        else if (entry.Status == CoachTimelineStatus.Failed)
-                        {
-                            <span class="ss-caption1 text-secondary-ss">@Localize["Coach_MessageFailed"]</span>
-                        }
-                        @* A notice the operation outcome marks as no-change is an authoritative
-                           refusal — the server decided no write occurred. Show that fact so the
-                           learner never trusts the model's prose over the operation outcome
-                           (Phase 2 defect #2). Durable rows carry the server's reason code;
-                           session-only turns derive the same fact from the turn's own status,
-                           stop reason and missing receipt. *@
-                        else if (entry.ShowsNoChangeMarker)
-                        {
-                            <span class="coach-change-marker">@Localize["Coach_NoChangeApplied"]</span>
-                        }
-                    </div>
-
-                    @* A pedagogical answer arrives twice: as structured blocks on the turn, and as
-                       the same text on this message. Render the blocks when they are paired to
-                       this message, and fall back to the plain text when they are not — never
-                       both. *@
-                    @if (entry.Answer is { } answer)
-                    {
-                        <CoachAnswer Answer="@answer" />
-                    }
-                    else
-                    {
-                        <div>@entry.Message?.Text</div>
-                    }
-
-                    @* W9 P5/P6: what the grounding layer did to the answer directly above.
-                       Inside the message, after the answer body, because that is the answer it
-                       describes. It used to render once at the head of the log, which meant that
-                       on any thread longer than a screen the learner never saw it — the pane
-                       auto-scrolls to the newest message and the notice stayed at the top,
-                       attached to nothing in particular.
-
-                       Separate from the refusal, and it cannot appear beside one: a refused turn
-                       produced no answer to disclose about, so the workspace never attaches a
-                       disclosure to that turn's message. *@
-                    @if (!isLearner)
-                    {
-                        <CoachRepairDisclosureNotice Disclosure="@entry.RepairDisclosure"
-                                                     EvidenceOnScreen="@entry.RepairEvidenceOnScreen" />
-                    }
-
-                    @* Copy is for what Sam said. The learner already has their own words, and a
-                       control is not text. Both actions sit on one row; the report panel opens
-                       below that row, at the message's own width, because it is a form rather than
-                       another action. The report control owns the row so the panel can be its
-                       sibling instead of a flex item wedged in beside Copy. *@
-                    @if (!isLearner)
-                    {
-                        @* Every durable, settled response Sam gives gets the flag, including a
-                           notice — "there is no plan for today yet" is a response a learner can
-                           be dissatisfied with, and it was the one they could not report. What
-                           stays out is the machinery's own bookkeeping: a receipt records a change
-                           that happened, and a no-change marker records a turn that was stopped.
-                           Passing no message id says exactly that, and still gives Copy its row. *@
-                        <CoachReportControl MessageId="@(IsReportable(entry) ? ServerMessageId(entry) : null)"
-                                            DescribedById="@MessageHeaderId(entry)"
-                                            OnReturnFocus="FocusAsync"
-                                            OnDisclosureChanging="BeginViewportChangeAsync"
-                                            OnDisclosureChanged="EndViewportChangeAsync">
-                            <CoachCopyButton Text="@entry.ReadableText()"
-                                             MessageId="@ServerMessageId(entry)"
-                                             DescribedById="@MessageHeaderId(entry)" />
-                        </CoachReportControl>
-
-                        @* Evidence belongs to the turn that cited it, so it renders under that
-                           message and expands in place. A message whose turn cited nothing shows
-                           no control at all rather than one that opens an empty panel. *@
-                        <CoachMessageEvidence Items="@entry.Evidence"
-                                              MessageId="@ServerMessageId(entry)"
-                                              OnDisclosureChanging="BeginViewportChangeAsync"
-                                              OnDisclosureChanged="EndViewportChangeAsync" />
-                    }
-                </div>
-                break;
-
-            case CoachTimelineKind.Receipt:
-                <CoachChangeReceipt @key="EntryKey(entry)" Receipt="@entry.Receipt" OnViewChanges="ShowPlanCanvas" />
-                break;
-
-            @* A stored message that would not decode. Say so; never guess at what it said. *@
-            case CoachTimelineKind.UnreadableMessage:
-                <div class="coach-message coach-message-unreadable" @key="EntryKey(entry)">
-                    <div class="coach-message-role">
-                        <CoachTimestamp Value="@entry.Timestamp" />
-                    </div>
-                    <div class="ss-caption1 text-secondary-ss">@Localize["Coach_UnreadableMessage"]</div>
-                </div>
-                break;
-
-            @* A message this build cannot classify: the server named a kind that has no case here.
-               The content arrived intact, and that is exactly why it is not rendered — the missing
-               case is most likely the controls that made it answerable, and prose stripped of its
-               Accept and Reject reads like a statement rather than a question. No text, no
-               actions, no Copy, no report flag: nothing that would let a learner act on a message
-               this version cannot present truthfully. The slot stays so the thread keeps its
-               shape. *@
-            case CoachTimelineKind.UnsupportedMessage:
-                <div class="coach-message coach-message-unsupported" @key="EntryKey(entry)">
-                    <div class="coach-message-role">
-                        @* Name whoever actually sent it. The placeholder withholds the content, not
-                           the attribution — putting the learner's own unsupported message on Sam's
-                           side of the thread would be a second, avoidable untruth on top of the one
-                           we are already admitting to. Role survives an unknown kind: only Kind
-                           degraded, and CoachMessageRole's own fallback is Coach, so a message whose
-                           author this build cannot name is still attributed to the server rather
-                           than to the learner. *@
-                        <span>@(IsLearnerAuthored(entry) ? Localize["Coach_RoleYou"] : Persona.DisplayName)</span>
-                        <CoachTimestamp Value="@entry.Timestamp" />
-                    </div>
-                    <div class="ss-caption1 text-secondary-ss">@Localize["Coach_UnsupportedMessage"]</div>
-                </div>
-                break;
-
-            @* A suggestion read back out of history is a record of an offer, not the offer. It
-               renders without accept and reject, because those decisions were already made. *@
-            case CoachTimelineKind.HistorySuggestion:
-                <div class="coach-card coach-card-notice" @key="EntryKey(entry)">
-                    <div class="ss-body2">@entry.HistorySuggestion?.Rationale</div>
-                    @if (entry.HistorySuggestion is { ChangeLines.Count: > 0 } historySuggestion)
-                    {
-                        <ul class="ss-caption1 text-secondary-ss mb-0">
-                            @foreach (var line in historySuggestion.ChangeLines)
-                            {
-                                <li>@line</li>
-                            }
-                        </ul>
-                    }
-                </div>
-                break;
-        }
-
-        @* The change this turn proposed belongs to this turn, so it renders here rather than at
-           the top of the thread. Its state is whatever the server last said — reloading rebuilds
-           the same card in the same place from durable history. *@
-        @if (entry.WriteOperation is { } writeOperation)
-        {
-            <SamWriteCard Operation="@writeOperation" />
-        }
-
-        @* What Sam said, then the change it proposed, then the plan suggestion, then the memory
-           candidate. That is the order of consequence — what was said, what it wants to do to the
-           learner's material now, what it wants to do to today's plan, and only last what it wants
-           to remember — and it is also the order that keeps each decision inside the exchange that
-           produced it rather than collecting the whole turn's controls at the end of the thread.
-
-           The proposal card comes first of the three because it is the only one about data the
-           learner already owns; the two below it are about what happens next. *@
-        @if (Coach.PendingSuggestionTurn == entry.TurnSequence && IsLastOfTurn(entry))
-        {
-            <CoachSuggestionCard />
-        }
-
-        @if (Coach.PendingMemoryTurn == entry.TurnSequence && IsLastOfTurn(entry))
-        {
-            <CoachMemoryCandidateCard />
+            <CoachTimelineItem @key="EntryKey(entry)" Entry="entry"
+                               ShowSuggestion="@(Coach.PendingSuggestionTurn == entry.TurnSequence && IsLastOfTurn(entry))"
+                               ShowMemory="@(Coach.PendingMemoryTurn == entry.TurnSequence && IsLastOfTurn(entry))"
+                               OnViewPlan="ShowPlanCanvas" OnReturnFocus="FocusAsync"
+                               OnDisclosureChanging="BeginViewportChangeAsync"
+                               OnDisclosureChanged="EndViewportChangeAsync" />
         }
     }
 
@@ -399,6 +233,16 @@
 </div>
 
 @code {
+    private RenderFragment<CoachTimelineEntry> TimelineItemContent => entry =>
+        @<CoachTimelineItem Entry="entry"
+                           ShowSuggestion="@(Coach.PendingSuggestionTurn == entry.TurnSequence && IsLastOfTurn(entry))"
+                           ShowMemory="@(Coach.PendingMemoryTurn == entry.TurnSequence && IsLastOfTurn(entry))"
+                           OnViewPlan="ShowPlanCanvas" OnReturnFocus="FocusAsync"
+                           OnDisclosureChanging="BeginViewportChangeAsync"
+                           OnDisclosureChanged="EndViewportChangeAsync" />;
+    [CascadingParameter(Name = "CoachMessageList")]
+    public RenderFragment? HostMessageList { get; set; }
+
     /// <summary>Raised when the learner asks for a fresh session after expiry.</summary>
     [Parameter] public EventCallback OnStartNewSession { get; set; }
 
@@ -419,7 +263,7 @@
 
     /// <summary>True for the last artifact of its turn, which is where that turn's suggestion goes.</summary>
     private bool IsLastOfTurn(CoachTimelineEntry entry) =>
-        Coach.Timeline.Last(e => e.TurnSequence == entry.TurnSequence).Sequence == entry.Sequence;
+        Coach.Timeline.LastOrDefault(e => e.TurnSequence == entry.TurnSequence)?.Sequence == entry.Sequence;
 
     /// <summary>True when the pending suggestion has a turn in the stream to sit inside.</summary>
     private bool SuggestionRenderedInline =>
@@ -427,18 +271,6 @@
 
     private bool MemoryRenderedInline =>
         Coach.PendingMemoryTurn is { } turn && Coach.Timeline.Any(e => e.TurnSequence == turn);
-
-    /// <summary>
-    /// A stable DOM id for a durable message, so the viewport can be re-anchored after older
-    /// messages are prepended.
-    /// </summary>
-    /// <remarks>
-    /// The message id is a server handle the learner never sees, but it is not a secret and it is
-    /// not a capability: reading it grants nothing. It stays out of the copied text all the same,
-    /// because an id is not something anybody meant to quote.
-    /// </remarks>
-    private static string? MessageAnchorId(CoachTimelineEntry entry) =>
-        entry.MessageId is { Length: > 0 } id ? "coach-msg-" + id : null;
 
     private async Task LoadEarlier()
     {
@@ -691,92 +523,6 @@
     /// </remarks>
     private static string? ServerMessageId(CoachTimelineEntry entry) =>
         entry.MessageId is { Length: > 0 } id ? id : entry.Message?.MessageId;
-
-    /// <summary>
-    /// True for a message the learner could reasonably report: a durable, settled thing Sam said
-    /// back to them, whatever kind it renders as.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// <b>A notice is reportable.</b> It used to be excluded on the theory that a notice is the
-    /// server describing itself rather than Sam answering. That was wrong about the case reporting
-    /// exists for. "There is no plan for today yet" is a notice, and it is exactly the answer a
-    /// learner is most likely to find unsatisfactory: they asked for something, they were told no,
-    /// and the control that lets them say so was the one control the screen did not offer. A
-    /// notice that reaches this predicate has already been rendered as one of Sam's responses in
-    /// the transcript, which is the whole test of "learner-visible response".
-    /// </para>
-    /// <para>
-    /// <b>A receipt is not.</b> A receipt is the record of a change that was applied; the learner's
-    /// quarrel with it is with the change, and the plan surface owns that. That half of the rule
-    /// lives in <see cref="CoachResponseReportability.IsReportableKind"/> so the server enforces
-    /// the same thing — the two were written separately once, and disagreed.
-    /// </para>
-    /// <para>
-    /// <b>A no-change marker is not.</b> <see cref="CoachTimelineEntry.ShowsNoChangeMarker"/> reads
-    /// the server's own closed reason-code vocabulary, so this excludes the system markers —
-    /// cancelled, timed out, rate limited, validation failed and the rest — without inspecting
-    /// prose. Those rows report the machinery's own bookkeeping: the turn was stopped, or never
-    /// started. Filing them under "the coach's response was unsatisfactory" would bury the reports
-    /// that are about what Sam actually said. An informational notice carries
-    /// <see cref="CoachNoticeReasonCodes.Default"/> and is deliberately outside that set.
-    /// </para>
-    /// <para>
-    /// <b>Durable and settled only.</b> A message with no server-issued id has nothing to report
-    /// against, and an unsettled row is still in flight. Both are withheld rather than offered and
-    /// then failed.
-    /// </para>
-    /// <para>
-    /// This predicate decides what to <i>offer</i>. Whether a report can actually be filed is the
-    /// server's to answer: it pairs the response to the learner request that opened the same turn
-    /// through the operation id it stamped at append time, and refuses when it cannot. A notice
-    /// written outside a learner turn therefore stays unreportable even though it renders like any
-    /// other response, and the client never has to guess at adjacency to work that out.
-    /// </para>
-    /// </remarks>
-    private static bool IsReportable(CoachTimelineEntry entry) =>
-        entry.Kind == CoachTimelineKind.CoachMessage
-        && entry.Status == CoachTimelineStatus.Settled
-        && ServerMessageId(entry) is { Length: > 0 }
-        && entry.Message is { } message
-        && CoachResponseReportability.IsReportableKind(message.Kind)
-        && !entry.ShowsNoChangeMarker;
-
-    /// <summary>
-    /// Whether this entry's message was written by the learner.
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// Used by the unsupported placeholder, which cannot ask <see cref="CoachTimelineEntry.Kind"/>
-    /// who wrote the message — <c>UnsupportedMessage</c> deliberately replaces both role slots so
-    /// that a message this build cannot classify never renders as real content. The role itself is
-    /// still trustworthy: only <see cref="CoachMessageKind"/> degraded, and
-    /// <see cref="CoachMessageRole"/>'s own wire fallback is <see cref="CoachMessageRole.Coach"/>,
-    /// so a message whose author this build cannot name is attributed to the server rather than
-    /// having words put in the learner's mouth.
-    /// </para>
-    /// <para>
-    /// A missing message answers false for the same reason: whatever it was, it came from the
-    /// server, and the server's side is the one with no composer affordances.
-    /// </para>
-    /// </remarks>
-    private static bool IsLearnerAuthored(CoachTimelineEntry entry) =>
-        entry.Message?.Role == CoachMessageRole.Learner;
-
-    /// <summary>
-    /// The id of the message's own header, which names the speaker and the time.
-    /// </summary>
-    /// <remarks>
-    /// A transcript renders one Copy and one Report per response, so without a description every one
-    /// of them reads "Copy" and a screen-reader user's list of controls is a column of identical
-    /// entries. Pointing both at the header reuses text that is already on screen and already
-    /// localized rather than composing a second, longer name for each control.
-    ///
-    /// Derived from the same key the message element uses, so a message with no durable server id
-    /// still gets a stable, unique target.
-    /// </remarks>
-    private static string MessageHeaderId(CoachTimelineEntry entry) =>
-        $"coach-message-header-{EntryKey(entry)}";
 
     /// <summary>
     /// Focuses an element through the imported app.js module.

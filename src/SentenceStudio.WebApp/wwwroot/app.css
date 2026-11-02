@@ -2,6 +2,16 @@ html, body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
 }
 
+.coach-messages .sc-ai-message-list {
+    max-width: none;
+    padding: 0;
+}
+
+.sam-panel__composer fieldset,
+.activity-input-bar fieldset {
+    min-width: 0;
+}
+
 a, .btn-link {
     color: #006bb7;
 }

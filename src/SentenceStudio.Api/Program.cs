@@ -60,6 +60,8 @@ using SentenceStudio.Services.LanguageSegmentation;
 using SentenceStudio.Shared.Models;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =>
+    options.SerializerOptions.TypeInfoResolverChain.Insert(0, AGUI.Abstractions.AGUIJsonUtilities.DefaultTypeInfoResolver));
 builder.AddServiceDefaults("SentenceStudio.Api");
 
 // ASP.NET Core request instrumentation — added here (not in ServiceDefaults) because the
@@ -716,6 +718,7 @@ app.MapActivityLog();
 // Learning Coach. The whole group 404s when the feature is off or the learner is outside
 // the cohort — the routes are always mapped so the flag can be flipped without a redeploy.
 app.MapCoach();
+app.MapCoachAGUI();
 app.MapCoachVocabularySets();
 
 // The learner's response-report routes. Always mapped and gated per request on
