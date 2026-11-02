@@ -49,11 +49,13 @@ public sealed class NativePlanCreationAdapter(
         }
 
         // Older clients can leave active completion rows without their
-        // DailyPlan parent. Archive-only days are safe to generate again.
+        // DailyPlan parent. Archive-only days are safe to generate again, and
+        // so are Choose My Own ("adhoc-") rows: PlanService never loads,
+        // archives or rewrites them when it generates a plan.
         var dateKey = localDate.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
         if (await lease.Database.DailyPlanCompletions.AsNoTracking()
                 .AnyAsync(row => row.UserProfileId == userId && row.Date == dateKey
-                    && !row.IsArchived,
+                    && !row.IsArchived && !row.PlanItemId.StartsWith("adhoc-"),
                     cancellationToken))
             throw new NotSupportedException(
                 "Plan creation refused existing activity rows without a plan.");

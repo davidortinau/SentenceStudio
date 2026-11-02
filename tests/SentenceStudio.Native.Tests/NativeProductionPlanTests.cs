@@ -169,6 +169,45 @@ public sealed class NativeProductionPlanTests
     }
 
     [Fact]
+    public async Task ChooseOwnRowsBeforeTheFirstPlan_DoNotBlockCreationAndStayUntouched()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA);
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.DailyPlanCompletions.Add(new DailyPlanCompletion
+            {
+                Id = "adhoc-row",
+                UserProfileId = NativeSliceFixture.UserA,
+                Date = DateKey,
+                PlanItemId = "adhoc-0f6e2c1d-7a4b-4c55-9d1e-2b8f3a6c9e10",
+                ActivityType = "VocabularyGame",
+                IsCompleted = true,
+                CompletedAt = DateKey.AddHours(7),
+                MinutesSpent = 4,
+                CreatedAt = DateKey.AddHours(6),
+                UpdatedAt = DateKey.AddHours(7)
+            });
+            await db.SaveChangesAsync();
+        }
+
+        fixture.Activate(NativeSliceFixture.UserA);
+        var created = await NewAdapter(fixture).CreateIfAbsentAsync(
+            NativeSliceFixture.UserA, LocalDate, CancellationToken.None);
+
+        Assert.True(created.Created);
+        Assert.DoesNotContain(created.Plan.Items, item => item.Id.StartsWith("adhoc-"));
+        using var verify = fixture.Scope();
+        var persisted = verify.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var adhoc = await persisted.DailyPlanCompletions.AsNoTracking()
+            .SingleAsync(row => row.Id == "adhoc-row");
+        Assert.False(adhoc.IsArchived);
+        Assert.True(adhoc.IsCompleted);
+        Assert.Equal(4, adhoc.MinutesSpent);
+    }
+
+    [Fact]
     public async Task CreateAfterArchivingPreviousPlan_PreservesHistoryAndStartsFresh()
     {
         using var fixture = new NativeSliceFixture();
