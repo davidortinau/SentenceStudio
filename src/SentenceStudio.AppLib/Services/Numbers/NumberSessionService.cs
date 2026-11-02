@@ -219,6 +219,7 @@ public class NumberSessionService
 
         // Compute SM-2 quality from correctness and latency
         int sm2Quality = ComputeSm2Quality(gradeResult.IsCorrect, latencyMs);
+        var prior = new NumberSm2State(progress.EaseFactor, progress.Interval, progress.Repetitions, progress.DueDate);
 
         // Update SM-2 schedule
         var sm2Result = Sm2Scheduler.Update(
@@ -249,8 +250,136 @@ public class NumberSessionService
             userProfileId, item.SubModeCode, item.ContextCode, item.Bucket,
             gradeResult.IsCorrect, latencyMs, masteryDelta, progress.DueDate);
 
-        return new NumberAttemptResult(gradeResult, snapshot);
+        var receipt = new NumberAttemptReceipt(
+            attempt.Id,
+            progress.Id,
+            prior,
+            new NumberSm2State(progress.EaseFactor, progress.Interval, progress.Repetitions, progress.DueDate),
+            progress.LastReviewed,
+            progress.CorrectCount,
+            progress.TotalCount);
+
+        return new NumberAttemptResult(gradeResult, snapshot, receipt);
     }
+
+    /// <summary>
+    /// "I was correct": re-grades one stored attempt as correct for its owner.
+    /// The attempt becomes IsCorrect = true; its ErrorClass is kept so grader
+    /// misses stay diagnosable (a correct attempt with an ErrorClass is an
+    /// override). The mastery row gains one correct answer, and its SM-2 state
+    /// is restored to the pre-attempt values in <paramref name="receipt"/> and
+    /// re-applied with the correct-answer quality for the attempt's latency, so
+    /// the row ends as if the attempt had been graded correct.
+    /// <para>
+    /// Refused with no write when the owner is absent; the attempt or mastery
+    /// row is missing or belongs to another owner; the receipt does not describe
+    /// a wrong grade of that row; or the row has changed since that attempt.
+    /// A second override of the same attempt is a no-op (AlreadyCorrect).
+    /// </para>
+    /// </summary>
+    public async Task<NumberOverrideResult> OverrideAttemptAsync(
+        string userProfileId,
+        NumberAttemptReceipt receipt,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(receipt);
+        if (string.IsNullOrWhiteSpace(userProfileId))
+        {
+            _logger.LogWarning("NumberDrill override refused: no active owner.");
+            return NumberOverrideResult.Refused;
+        }
+
+        var attempt = await _db.NumberAttempts.FirstOrDefaultAsync(a =>
+            a.Id == receipt.AttemptId && a.UserProfileId == userProfileId, ct);
+        if (attempt == null)
+        {
+            _logger.LogWarning(
+                "NumberDrill override refused: attempt {AttemptId} not found for user {UserId}.",
+                receipt.AttemptId, userProfileId);
+            return NumberOverrideResult.Refused;
+        }
+        // A context that stored the attempt still tracks it; read the stored row.
+        await _db.Entry(attempt).ReloadAsync(ct);
+
+        var progress = await _db.NumberMasteryProgresses.FirstOrDefaultAsync(p =>
+            p.Id == receipt.MasteryProgressId &&
+            p.UserProfileId == userProfileId &&
+            p.LanguageCode == attempt.LanguageCode &&
+            p.ContextCode == attempt.ContextCode &&
+            p.CounterId == attempt.CounterId &&
+            p.System == attempt.System &&
+            p.Bucket == attempt.Bucket, ct);
+        if (progress != null)
+            await _db.Entry(progress).ReloadAsync(ct);
+
+        if (attempt.IsCorrect)
+        {
+            _logger.LogInformation(
+                "NumberDrill override ignored: attempt {AttemptId} is already correct.", attempt.Id);
+            return new NumberOverrideResult(NumberOverrideOutcome.AlreadyCorrect,
+                progress == null ? null : Snapshot(progress));
+        }
+
+        if (progress == null)
+        {
+            _logger.LogWarning(
+                "NumberDrill override refused: mastery row {ProgressId} not found for attempt {AttemptId}.",
+                receipt.MasteryProgressId, attempt.Id);
+            return NumberOverrideResult.Refused;
+        }
+
+        // The receipt must describe the wrong grade this attempt applied ...
+        var wrong = Sm2Scheduler.Update(receipt.Prior.EaseFactor, receipt.Prior.Interval,
+            receipt.Prior.Repetitions, ComputeSm2Quality(false, attempt.LatencyMs));
+        var receiptConsistent = wrong.EaseFactor == receipt.After.EaseFactor
+            && wrong.Interval == receipt.After.Interval
+            && wrong.Repetitions == receipt.After.Repetitions;
+        // ... and the row must still be exactly as that attempt left it.
+        var unchanged = progress.EaseFactor == receipt.After.EaseFactor
+            && progress.Interval == receipt.After.Interval
+            && progress.Repetitions == receipt.After.Repetitions
+            && SameInstant(progress.DueDate, receipt.After.DueDate)
+            && SameInstant(progress.LastReviewed, receipt.LastReviewed)
+            && progress.CorrectCount == receipt.CorrectCount
+            && progress.TotalCount == receipt.TotalCount;
+        if (!receiptConsistent || !unchanged)
+        {
+            _logger.LogWarning(
+                "NumberDrill override refused: mastery row {ProgressId} changed since attempt {AttemptId} " +
+                "(receiptConsistent={ReceiptConsistent} unchanged={Unchanged}).",
+                progress.Id, attempt.Id, receiptConsistent, unchanged);
+            return NumberOverrideResult.Refused;
+        }
+
+        var correct = Sm2Scheduler.Update(receipt.Prior.EaseFactor, receipt.Prior.Interval,
+            receipt.Prior.Repetitions, ComputeSm2Quality(true, attempt.LatencyMs));
+        attempt.IsCorrect = true;
+        progress.CorrectCount++;
+        progress.EaseFactor = correct.EaseFactor;
+        progress.Interval = correct.Interval;
+        progress.Repetitions = correct.Repetitions;
+        // Due from the attempt's review time, as the original correct grade would have been.
+        progress.DueDate = (progress.LastReviewed ?? DateTime.UtcNow).AddDays(correct.Interval);
+
+        await _db.SaveChangesAsync(ct);
+
+        _logger.LogInformation(
+            "NumberDrill override applied: user={UserId} attempt={AttemptId} context={Context} " +
+            "bucket={Bucket} errorClass={ErrorClass} nextDue={DueDate:yyyy-MM-dd}",
+            userProfileId, attempt.Id, attempt.ContextCode, attempt.Bucket,
+            attempt.ErrorClass ?? "(none)", progress.DueDate);
+
+        return new NumberOverrideResult(NumberOverrideOutcome.Applied, Snapshot(progress));
+    }
+
+    private static MasteryProgressSnapshot Snapshot(NumberMasteryProgress progress) =>
+        new(progress.CorrectCount, progress.TotalCount, progress.MedianLatencyMs, progress.DueDate);
+
+    // PostgreSQL keeps microseconds; compare stored instants to the millisecond.
+    private static bool SameInstant(DateTime? a, DateTime? b) =>
+        a is null || b is null
+            ? a is null && b is null
+            : Math.Abs((a.Value - b.Value).TotalMilliseconds) < 1;
 
     public Task<NumberSessionSummary> EndSessionAsync(Guid sessionId, CancellationToken ct = default)
     {
@@ -317,8 +446,47 @@ public record NumberSession(
 
 public record NumberAttemptResult(
     GradeResult Grade,
-    MasteryProgressSnapshot Snapshot
+    MasteryProgressSnapshot Snapshot,
+    NumberAttemptReceipt? Receipt = null
 );
+
+/// <summary>SM-2 scheduling values of a mastery row.</summary>
+public record NumberSm2State(
+    double EaseFactor,
+    int Interval,
+    int Repetitions,
+    DateTime DueDate
+);
+
+/// <summary>
+/// What one submit stored: the attempt, its mastery row, the row's SM-2 state
+/// before (<see cref="Prior"/>) and after (<see cref="After"/>) the grade, and
+/// the row's post-grade review time and counts. Pass it back to
+/// <see cref="NumberSessionService.OverrideAttemptAsync"/>.
+/// </summary>
+public record NumberAttemptReceipt(
+    string AttemptId,
+    string MasteryProgressId,
+    NumberSm2State Prior,
+    NumberSm2State After,
+    DateTime? LastReviewed,
+    int CorrectCount,
+    int TotalCount
+);
+
+public enum NumberOverrideOutcome
+{
+    Applied,
+    AlreadyCorrect,
+    Refused
+}
+
+public record NumberOverrideResult(
+    NumberOverrideOutcome Outcome,
+    MasteryProgressSnapshot? Snapshot)
+{
+    public static NumberOverrideResult Refused { get; } = new(NumberOverrideOutcome.Refused, null);
+}
 
 public record MasteryProgressSnapshot(
     int CorrectCount,

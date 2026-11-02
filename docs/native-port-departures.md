@@ -58,4 +58,4 @@ for the WebApp and MAUI app.
 | # | Behavior | Possible change | Decision |
 |---|---|---|---|
 | 25 | Writing clears text you typed while the previous sentence was being graded | Keep the typed text | Keep the clearing |
-| 26 | Number Drill's "I was correct" fixes the session score but not long-term mastery | Also correct mastery | Yes, also correct mastery |
+| 26 | Number Drill's "I was correct" fixes the session score but not long-term mastery | Also correct mastery | Yes, also correct mastery. Implemented (`c3836877`): the stored attempt becomes correct and SM-2 is recomputed as a correct grade; WebApp backport B37 |

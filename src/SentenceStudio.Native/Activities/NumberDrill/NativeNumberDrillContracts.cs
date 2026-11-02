@@ -98,6 +98,7 @@ public static class NativeNumberDrillText
     public const string MasteryProgress = "NumberDrill_MasteryProgress";
     public const string IWasCorrect = "NumberDrill_IWasCorrect";
     public const string OverriddenVerdict = "NumberDrill_OverriddenVerdict";
+    public const string OverrideFailed = "NumberDrill_OverrideFailed";
     public const string DisambiguateTip = "NumberDrill_DisambiguateTip";
     public const string Next = "Common_Next";
     public const string Finish = "NumberDrill_Finish";

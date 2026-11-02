@@ -12370,6 +12370,15 @@ namespace SentenceStudio.Resources.Strings {
         }
 
         /// <summary>
+        ///   Looks up a localized string similar to Your correction could not be saved. This answer stays marked incorrect..
+        /// </summary>
+        internal static string NumberDrill_OverrideFailed {
+            get {
+                return ResourceManager.GetString("NumberDrill_OverrideFailed", resourceCulture);
+            }
+        }
+
+        /// <summary>
         ///   Looks up a localized string similar to Patterns to Review.
         /// </summary>
         internal static string NumberDrill_PatternsToReview {

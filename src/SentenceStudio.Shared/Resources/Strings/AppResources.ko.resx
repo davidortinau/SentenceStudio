@@ -8759,6 +8759,9 @@
   <data name="NumberDrill_SubmitFailed" xml:space="preserve">
     <value>답을 저장하지 못했습니다. 다시 시도하세요.</value>
   </data>
+  <data name="NumberDrill_OverrideFailed" xml:space="preserve">
+    <value>정정을 저장하지 못했습니다. 이 답은 오답으로 남습니다.</value>
+  </data>
   <data name="NumberDrill_EndFailed" xml:space="preserve">
     <value>연습을 마치지 못했습니다. 다시 시도하세요.</value>
   </data>
