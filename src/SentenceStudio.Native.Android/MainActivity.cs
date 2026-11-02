@@ -10,8 +10,12 @@ using AndroidX.Compose;
 
 namespace SentenceStudio.Native.Android;
 
+// Rotation, resizing and density changes do not recreate the activity (as the
+// source MAUI head's MainActivity): the shell, the open activity presenter and a
+// pending system photo pick survive them, and OnConfigurationChanged recomposes.
 [Activity(MainLauncher = true, Exported = true, Theme = "@style/SentenceStudioNativeTheme",
-    ConfigurationChanges = ConfigChanges.UiMode)]
+    ConfigurationChanges = ConfigChanges.UiMode | ConfigChanges.Orientation | ConfigChanges.ScreenSize
+        | ConfigChanges.ScreenLayout | ConfigChanges.SmallestScreenSize | ConfigChanges.Density)]
 public sealed class MainActivity : ComponentActivity
 {
     private AndroidSliceShell? _shell;
@@ -37,6 +41,7 @@ public sealed class MainActivity : ComponentActivity
     public override void OnConfigurationChanged(Configuration newConfig)
     {
         base.OnConfigurationChanged(newConfig);
+        // Theme, orientation and window size all re-read at composition.
         _shell?.RefreshForUiMode();
     }
 
@@ -75,10 +80,14 @@ public sealed class MainActivity : ComponentActivity
     {
         public void OnActivityResult(Java.Lang.Object? result)
         {
+            // Registered in OnCreate, so a result always reaches the current activity.
+            // Only a process-death recreation (which also rebuilds the shell and has no
+            // Scene presenter left to receive it) arrives with no pending pick.
             var callback = activity._photoPicked;
             activity._photoPicked = null;
             callback?.Invoke(result as global::Android.Net.Uri);
         }
+
     }
 
     public override bool DispatchKeyEvent(KeyEvent? e)

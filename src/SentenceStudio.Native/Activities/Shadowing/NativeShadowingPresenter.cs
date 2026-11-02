@@ -40,10 +40,14 @@ public sealed class NativeShadowingPresenter(
     private CancellationTokenSource? _audioLoad;
     private Task? _audioTask;
     private readonly NativeActivityLoad _load = new();
+    private readonly NativeActivityExit _exit = new();
     private CancellationTokenSource? _ticker;
     private bool _subscribed;
     private bool _exited;
     private bool _disposed;
+
+    /// <summary>The Back/Exit fence (tests force continuation ordering through it).</summary>
+    internal NativeActivityExit ExitFence => _exit;
 
     /// <summary>Source playback timer interval.</summary>
     public TimeSpan TickInterval { get; set; } = TimeSpan.FromMilliseconds(100);
@@ -95,17 +99,17 @@ public sealed class NativeShadowingPresenter(
         }
         catch (OperationCanceledException) when (ticket.Token.IsCancellationRequested)
         {
-            return State;
+            return await _exit.StateAsync(_gate, () => State);
         }
         catch (Exception ex)
         {
             failure = ex;
         }
 
-        await _gate.WaitAsync(CancellationToken.None);
+        var proceed = await _exit.EnterAsync(_gate);
         try
         {
-            if (_exited || !_load.IsCurrent(ticket))
+            if (!proceed || _exited || !_load.IsCurrent(ticket))
                 return State;
             if (failure is not null || result is null)
             {
@@ -253,31 +257,41 @@ public sealed class NativeShadowingPresenter(
     public async Task<NativeShadowingState> ExitAsync(CancellationToken cancellationToken = default)
     {
         // A sentence load in flight never holds the gate; cancel it so Back works at once.
-        _load.Cancel();
-        await _gate.WaitAsync(cancellationToken);
+        var exited = false;
+        _exit.Begin();
         try
         {
             _load.Cancel();
-            _exited = true;
-            StopAudioCore();
-            string? errorKey = null;
+            await _exit.AfterCancelAsync();
+            await _gate.WaitAsync(cancellationToken);
             try
             {
-                if (await timer.StopAsync(cancellationToken) == NativeActivityStop.Failed)
+                _load.Cancel();
+                _exited = exited = true;
+                StopAudioCore();
+                string? errorKey = null;
+                try
+                {
+                    if (await timer.StopAsync(cancellationToken) == NativeActivityStop.Failed)
+                        errorKey = NativeText.SaveFailed;
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    logger.LogError(ex, "Shadowing could not save its activity minutes.");
                     errorKey = NativeText.SaveFailed;
+                }
+                return Publish(new(NativePhase.Ready, NativeDestination.TodaysPlan,
+                    ErrorKey: errorKey,
+                    HasPendingSync: _launch is not null && pendingWrites.IsPending(_launch.UserId)));
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            finally
             {
-                logger.LogError(ex, "Shadowing could not save its activity minutes.");
-                errorKey = NativeText.SaveFailed;
+                _gate.Release();
             }
-            return Publish(new(NativePhase.Ready, NativeDestination.TodaysPlan,
-                ErrorKey: errorKey,
-                HasPendingSync: _launch is not null && pendingWrites.IsPending(_launch.UserId)));
         }
         finally
         {
-            _gate.Release();
+            _exit.End(exited);
         }
     }
 
@@ -356,7 +370,7 @@ public sealed class NativeShadowingPresenter(
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested)
         {
-            return State;
+            return await _exit.StateAsync(_gate, () => State);
         }
         catch (Exception ex)
         {
@@ -365,10 +379,10 @@ public sealed class NativeShadowingPresenter(
         }
 
         // Never the caller's token: an abandoned wait would leave the controls buffering.
-        await _gate.WaitAsync(CancellationToken.None);
+        var proceed = await _exit.EnterAsync(_gate);
         try
         {
-            if (version != _audioVersion || _state.Destination != NativeDestination.Activity
+            if (!proceed || version != _audioVersion || _state.Destination != NativeDestination.Activity
                 || _state.Phase != NativePhase.Ready)
                 return State;
             _buffering = false;
@@ -434,7 +448,7 @@ public sealed class NativeShadowingPresenter(
                 await _gate.WaitAsync(token);
                 try
                 {
-                    if (token.IsCancellationRequested || !_playing)
+                    if (token.IsCancellationRequested || !_playing || _exit.HasBegun)
                         return;
                     if (_launch is null || !owner.IsActive(_launch.UserId))
                     {
@@ -485,7 +499,7 @@ public sealed class NativeShadowingPresenter(
         }
         try
         {
-            if (!_playing || _state.Phase != NativePhase.Ready
+            if (!_playing || _exit.HasBegun || _state.Phase != NativePhase.Ready
                 || _state.Destination != NativeDestination.Activity)
                 return;
             _playing = false;
@@ -568,6 +582,7 @@ public sealed class NativeShadowingPresenter(
         if (_disposed)
             return;
         _disposed = true;
+        _exit.Complete();
         _lifetime.Cancel();
         _load.Dispose();
         if (_subscribed)
@@ -578,4 +593,5 @@ public sealed class NativeShadowingPresenter(
         player.Dispose();
         timer.Dispose();
     }
+
 }

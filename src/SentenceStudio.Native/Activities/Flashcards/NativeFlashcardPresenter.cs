@@ -21,6 +21,7 @@ public sealed class NativeFlashcardPresenter(
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly CancellationTokenSource _lifetime = new();
     private readonly NativeActivityLoad _load = new();
+    private readonly NativeActivityExit _exit = new();
     private readonly List<NativeFlashcardResult> _results = [];
     private ImmutableArray<NativeFlashcard> _cards = [];
     private NativeActivityLaunch? _launch;
@@ -30,6 +31,9 @@ public sealed class NativeFlashcardPresenter(
     private long _answer;
     private bool _exited;
     private bool _disposed;
+
+    /// <summary>The Back/Exit fence (tests force continuation ordering through it).</summary>
+    internal NativeActivityExit ExitFence => _exit;
 
     /// <summary>Source AnimateSwipeAsync waits 160 ms before recording the answer.</summary>
     public TimeSpan AnswerDelay { get; set; } = TimeSpan.FromMilliseconds(160);
@@ -72,7 +76,7 @@ public sealed class NativeFlashcardPresenter(
         catch (OperationCanceledException)
         {
             // Exit, a refused owner or disposal cancelled the read.
-            return State;
+            return await _exit.StateAsync(_gate, () => State);
         }
         catch (Exception ex)
         {
@@ -141,13 +145,13 @@ public sealed class NativeFlashcardPresenter(
         }
         catch (OperationCanceledException)
         {
-            return _state;
+            return await _exit.StateAsync(_gate, () => State);
         }
 
-        await _gate.WaitAsync(CancellationToken.None);
+        var proceed = await _exit.EnterAsync(_gate);
         try
         {
-            if (_exited || answer != _answer || _state.Phase != NativePhase.Ready)
+            if (!proceed || _exited || answer != _answer || _state.Phase != NativePhase.Ready)
                 return State;
             if (_launch is null || !owner.IsActive(_launch.UserId))
                 return Refuse();
@@ -167,17 +171,27 @@ public sealed class NativeFlashcardPresenter(
     /// <summary>Back, Go Back, Done or a native pop: there is nothing to save.</summary>
     public async Task<NativeFlashcardState> ExitAsync(CancellationToken cancellationToken = default)
     {
-        _load.Cancel();
-        await _gate.WaitAsync(cancellationToken);
+        var exited = false;
+        _exit.Begin();
         try
         {
-            _exited = true;
-            _answer++;
-            return Publish(_state with { Destination = NativeDestination.TodaysPlan, PendingAnswer = null });
+            _load.Cancel();
+            await _exit.AfterCancelAsync();
+            await _gate.WaitAsync(cancellationToken);
+            try
+            {
+                _exited = exited = true;
+                _answer++;
+                return Publish(_state with { Destination = NativeDestination.TodaysPlan, PendingAnswer = null });
+            }
+            finally
+            {
+                _gate.Release();
+            }
         }
         finally
         {
-            _gate.Release();
+            _exit.End(exited);
         }
     }
 
@@ -201,10 +215,10 @@ public sealed class NativeFlashcardPresenter(
     private async Task<NativeFlashcardState> ApplyAsync(
         NativeActivityLoadTicket ticket, Func<NativeFlashcardState> apply)
     {
-        await _gate.WaitAsync(CancellationToken.None);
+        var proceed = await _exit.EnterAsync(_gate);
         try
         {
-            if (_exited || !_load.IsCurrent(ticket))
+            if (!proceed || _exited || !_load.IsCurrent(ticket))
                 return State;
             if (_launch is null || !owner.IsActive(_launch.UserId))
                 return Refuse();
@@ -245,6 +259,7 @@ public sealed class NativeFlashcardPresenter(
         if (_disposed)
             return;
         _disposed = true;
+        _exit.Complete();
         _load.Dispose();
         _lifetime.Cancel();
     }

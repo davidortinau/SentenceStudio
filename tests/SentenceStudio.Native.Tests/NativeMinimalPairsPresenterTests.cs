@@ -448,6 +448,41 @@ public sealed class NativeMinimalPairsPresenterTests
         Assert.All(sessions, row => Assert.Null(row.EndedAt));
     }
 
+    [Fact]
+    public async Task OnceBackBegins_NoCommandStartsANewPageOperationOrSession()
+    {
+        using var fixture = await SignedInAsync();
+        using var audio = new ScratchAudioCache(fixture);
+        var pairId = await InsertPairAsync(fixture, UserA, 0, 1);
+        var source = new ScratchHowDoYouSaySource { HangSynthesis = true };
+        var test = Create(fixture, source);
+        using var _ = test.Presenter;
+        await test.Presenter.OpenAsync(Launch());
+        await test.Presenter.SelectPairAsync(pairId);
+        var published = new List<NativeMinimalPairsState>();
+        test.Presenter.StateChanged += published.Add;
+
+        // While Back is between its cancel and its gate, a session start (which
+        // would swap in a new page operation) is refused and publishes nothing.
+        NativeMinimalPairsState? started = null;
+        test.Presenter.ExitFence.AfterCancel = async () =>
+        {
+            test.Presenter.ExitFence.AfterCancel = null;
+            started = await test.Presenter.StartSessionAsync();
+        };
+        var exit = await test.Presenter.ExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.Equal(NativeDestination.TodaysPlan, exit.Destination);
+        Assert.NotNull(started);
+        Assert.NotEqual(NativeMinimalPairsPage.Session, started!.Page);
+        Assert.Equal(NativeDestination.TodaysPlan, Assert.Single(published).Destination);
+        await Task.Delay(100);
+        Assert.Empty(test.Player.Rates);
+        using var scope = fixture.Scope();
+        Assert.False(await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
+            .MinimalPairSessions.AnyAsync());
+    }
+
     /// <summary>Learning Value Gate: before Check Answer nothing in the state tells which tile is spoken.</summary>
     private static void AssertNoLeak(NativeMinimalPairsSessionState session)
     {

@@ -387,8 +387,14 @@ public sealed class NativeReadingPresenterTests
         await db.SaveChangesAsync();
     }
 
+    /// <summary>
+    /// Source HandleWordClicked records every lookup whose translation returned,
+    /// even when the panel was closed or another word tapped meanwhile; only the
+    /// shown definition is superseded. Back, a failed or a cancelled lookup
+    /// records nothing.
+    /// </summary>
     [Fact]
-    public async Task SupersededOrExitedLookup_IsNeitherShownNorRecorded()
+    public async Task SupersededLookup_IsRecordedButNotShown_ExitedOrFailedLookupIsNeither()
     {
         using var fixture = new NativeSliceFixture();
         var owner = NativeSliceFixture.UserA;
@@ -414,6 +420,20 @@ public sealed class NativeReadingPresenterTests
         Assert.Equal("친구를", state.WordPanel!.Word);
         Assert.Equal("park", state.WordPanel.Definition);
 
+        // The panel closes before the translation returns: recorded, not reopened.
+        var closed = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        ai.Gates.Enqueue(closed);
+        var afterClose = reading.TapWordAsync(tokens.Single(token => token.Text == "좋아요").Id);
+        Assert.Null((await reading.CloseWordPanelAsync()).WordPanel);
+        closed.SetResult(true);
+        Assert.Null((await afterClose).WordPanel);
+
+        // A failed translation is not recorded.
+        ai.Throws = true;
+        Assert.Equal(NativeReadingPresenter.TranslationUnavailableMarker, (await reading.TapWordAsync(
+            tokens.Single(token => token.Text == "만나요").Id)).WordPanel!.Definition);
+        ai.Throws = false;
+
         // Exit while a lookup is in flight: nothing is recorded for it.
         var gate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         ai.Gates.Enqueue(gate);
@@ -427,7 +447,47 @@ public sealed class NativeReadingPresenterTests
             .UserActivities.AsNoTracking()
             .Where(row => row.UserProfileId == owner && row.Input!.StartsWith("Dictionary lookup"))
             .Select(row => row.Input).ToListAsync();
-        Assert.Equal(["Dictionary lookup: 친구를"], inputs);
+        Assert.Equal(
+            ["Dictionary lookup: 공원에", "Dictionary lookup: 좋아요", "Dictionary lookup: 친구를"],
+            inputs.Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public async Task Back_ReturnsItsDestinationToTheLookup_EvenWhenTheLookupResumesFirst()
+    {
+        using var fixture = new NativeSliceFixture();
+        var owner = NativeSliceFixture.UserA;
+        await SeedReadingAsync(fixture, owner);
+        await SignInAsync(fixture, NativeSliceFixture.EmailA);
+        var ai = new ScratchTranslator("park");
+        using var reading = Presenter(fixture, new ScratchAudioSource(), new ScratchPlayerFactory(), ai);
+        var state = await reading.OpenAsync(ChooseOwnLaunch(fixture, owner));
+        await reading.AudioTask;
+        var tokens = state.Sentences.SelectMany(sentence => sentence.Tokens).ToList();
+        var gate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        ai.Gates.Enqueue(gate);
+        var published = new List<NativeReadingState>();
+        reading.StateChanged += published.Add;
+
+        var lookup = reading.TapWordAsync(tokens.Single(token => token.Text == "공원에").Id);
+        Assert.True(reading.State.WordPanel!.IsTranslating);
+        // The translation returns after Back began but before Back takes the gate.
+        ExitRace.HoldExitUntil(reading.ExitFence, () =>
+        {
+            gate.SetResult(true);
+            return lookup;
+        });
+        var exit = await reading.ExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
+        var late = await lookup.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.Equal(NativeDestination.TodaysPlan, exit.Destination);
+        Assert.Equal(NativeDestination.TodaysPlan, late.Destination);
+        Assert.Equal(NativeDestination.TodaysPlan, published[^1].Destination);
+        Assert.DoesNotContain(published, item => item.WordPanel is { IsTranslating: false });
+        using var scope = fixture.Scope();
+        Assert.False(await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
+            .UserActivities.AnyAsync(row => row.UserProfileId == owner
+                && row.Input!.StartsWith("Dictionary lookup")));
     }
 
     private static NativeReadingPresenter Presenter(NativeSliceFixture fixture,
@@ -448,6 +508,7 @@ public sealed class NativeReadingPresenterTests
     private sealed class ScratchTranslator(string reply) : IOwnerBoundNativeAiGateway
     {
         public string Reply { get; set; } = reply;
+        public bool Throws { get; set; }
         public int Calls { get; private set; }
         public string LastPrompt { get; private set; } = string.Empty;
         public string? Owner { get; private set; }
@@ -462,7 +523,10 @@ public sealed class NativeReadingPresenterTests
             LastPrompt = prompt;
             if (Gates.TryDequeue(out var gate))
                 await gate.Task;
+            if (Throws)
+                throw new HttpRequestException("Synthetic translator offline.");
             return (T?)(object)Reply;
+
         }
     }
 

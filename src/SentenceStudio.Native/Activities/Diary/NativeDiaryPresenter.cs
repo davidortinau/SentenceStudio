@@ -42,6 +42,7 @@ public sealed class NativeDiaryPresenter(
     private readonly TimeProvider _clock = clock ?? TimeProvider.System;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly CancellationTokenSource _lifetime = new();
+    private readonly NativeActivityExit _exit = new();
     private CancellationTokenSource _operation = new();
     private CancellationTokenSource? _autosave;
     private NativeActivityLaunch? _launch;
@@ -65,6 +66,9 @@ public sealed class NativeDiaryPresenter(
     private long _generation;
     private bool _exited;
     private bool _disposed;
+
+    /// <summary>The Back/Exit fence (tests force continuation ordering through it).</summary>
+    internal NativeActivityExit ExitFence => _exit;
 
     public NativeDiaryState State =>
         _launch is not null && !owner.IsActive(_launch.UserId)
@@ -215,6 +219,7 @@ public sealed class NativeDiaryPresenter(
         await _gate.WaitAsync(cancellationToken);
         try
         {
+            // Back flushes the editor itself; an autosave that won the gate defers to it.
             if (Exited)
                 return State;
             if (!Active())
@@ -223,7 +228,10 @@ public sealed class NativeDiaryPresenter(
                 return State;
             CancelAutosave();
             await SaveCoreAsync(silent);
+            if (_exit.HasBegun)
+                return State;
             return Active() ? PublishReady() : Refuse();
+
         }
         finally
         {
@@ -481,24 +489,38 @@ public sealed class NativeDiaryPresenter(
     /// </summary>
     public async Task<NativeDiaryState> ExitAsync(CancellationToken cancellationToken = default)
     {
-        _operation.Cancel();
-        CancelAutosave();
-        await _gate.WaitAsync(cancellationToken);
+        var exited = false;
+        _exit.Begin();
         try
         {
-            if (_exited)
-                return State;
-            if (_page == NativeDiaryPage.Editor && !_editorLoading && Active())
-                await SaveCoreAsync(silent: true);
-            _exited = true;
-            _generation++;
-            return Publish(new(NativePhase.Ready, NativeDestination.TodaysPlan, _page,
-                Notices: _notices,
-                HasPendingSync: _launch is not null && pendingWrites.IsPending(_launch.UserId)));
+            _operation.Cancel();
+            CancelAutosave();
+            await _exit.AfterCancelAsync();
+            await _gate.WaitAsync(cancellationToken);
+            try
+            {
+                if (_exited)
+                {
+                    exited = true;
+                    return State;
+                }
+                // The flush publishes nothing: Back shows no "Saving" on the way out.
+                if (_page == NativeDiaryPage.Editor && !_editorLoading && Active())
+                    await SaveCoreAsync(silent: true);
+                _exited = exited = true;
+                _generation++;
+                return Publish(new(NativePhase.Ready, NativeDestination.TodaysPlan, _page,
+                    Notices: _notices,
+                    HasPendingSync: _launch is not null && pendingWrites.IsPending(_launch.UserId)));
+            }
+            finally
+            {
+                _gate.Release();
+            }
         }
         finally
         {
-            _gate.Release();
+            _exit.End(exited);
         }
     }
 
@@ -533,7 +555,8 @@ public sealed class NativeDiaryPresenter(
             return;
         }
         _saveStatus = NativeDiarySaveStatus.Saving;
-        PublishReady();
+        if (!_exit.HasBegun)
+            PublishReady();
         try
         {
             _entry.Content = content;
@@ -638,20 +661,20 @@ public sealed class NativeDiaryPresenter(
     private void AddNotice(NativeDiaryNoticeKind kind, string key) =>
         _notices = _notices.Add(new(kind, key));
 
+    /// <summary>
+    /// Re-takes the gate for a continuation. False (gate not held) once Exit has
+    /// begun or the presenter was disposed: the caller returns <see cref="_state"/>,
+    /// which is then the state Exit published, never the pre-Exit one.
+    /// </summary>
     private async Task<bool> TryEnterAsync()
     {
-        try
-        {
-            await _gate.WaitAsync(_lifetime.Token);
+        if (await _exit.EnterAsync(_gate))
             return true;
-        }
-        catch (OperationCanceledException)
-        {
-            return false;
-        }
+        _gate.Release();
+        return false;
     }
 
-    private bool Exited => _exited || _state.Destination != NativeDestination.Activity;
+    private bool Exited => _exited || _exit.HasBegun || _state.Destination != NativeDestination.Activity;
 
     private bool Active() => _launch is not null && owner.IsActive(_launch.UserId);
 
@@ -690,7 +713,9 @@ public sealed class NativeDiaryPresenter(
         if (_disposed)
             return;
         _disposed = true;
+        _exit.Complete();
         CancelAutosave();
+
         _operation.Cancel();
         _lifetime.Cancel();
     }

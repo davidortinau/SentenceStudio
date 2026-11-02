@@ -44,7 +44,8 @@ public sealed class NativeConversationPresenter(
 
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly CancellationTokenSource _lifetime = new();
-    private readonly CancellationTokenSource _exit = new();
+    private readonly CancellationTokenSource _exitCancel = new();
+    private readonly NativeActivityExit _exit = new();
     private readonly List<ConversationChunk> _chunks = [];
     private readonly List<VocabularyWord> _vocabulary = [];
     private List<ConversationScenario> _scenarios = [];
@@ -65,6 +66,9 @@ public sealed class NativeConversationPresenter(
     private bool _subscribed;
     private bool _disposed;
     private bool _exited;
+
+    /// <summary>The Back/Exit fence (tests force continuation ordering through it).</summary>
+    internal NativeActivityExit ExitFence => _exit;
 
     public NativeConversationState State =>
         _launch is not null && !owner.IsActive(_launch.UserId)
@@ -231,7 +235,7 @@ public sealed class NativeConversationPresenter(
         }
 
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(
-            cancellationToken, _lifetime.Token, _exit.Token);
+            cancellationToken, _lifetime.Token, _exitCancel.Token);
         Reply? reply = null;
         Exception? failure = null;
         try
@@ -373,7 +377,7 @@ public sealed class NativeConversationPresenter(
             StopAudioCore();
             _notices = [];
             load = CancellationTokenSource.CreateLinkedTokenSource(
-                cancellationToken, _lifetime.Token, _exit.Token);
+                cancellationToken, _lifetime.Token, _exitCancel.Token);
             _audioLoad = load;
             version = _audioVersion;
             userId = _launch!.UserId;
@@ -394,7 +398,7 @@ public sealed class NativeConversationPresenter(
         }
         catch (OperationCanceledException) when (load.IsCancellationRequested)
         {
-            return State;
+            return await _exit.StateAsync(_gate, () => State);
         }
         catch (Exception ex)
         {
@@ -450,31 +454,41 @@ public sealed class NativeConversationPresenter(
     /// </summary>
     public async Task<NativeConversationState> ExitAsync(CancellationToken cancellationToken = default)
     {
-        _exit.Cancel();
-        await _gate.WaitAsync(cancellationToken);
+        var exited = false;
+        _exit.Begin();
         try
         {
-            _generation++;
-            _exited = true;
-            StopAudioCore();
-            string? errorKey = null;
+            _exitCancel.Cancel();
+            await _exit.AfterCancelAsync();
+            await _gate.WaitAsync(cancellationToken);
             try
             {
-                if (await timer.StopAsync(cancellationToken) == NativeActivityStop.Failed)
+                _generation++;
+                _exited = exited = true;
+                StopAudioCore();
+                string? errorKey = null;
+                try
+                {
+                    if (await timer.StopAsync(cancellationToken) == NativeActivityStop.Failed)
+                        errorKey = NativeText.SaveFailed;
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    logger.LogError(ex, "Conversation could not save its activity minutes.");
                     errorKey = NativeText.SaveFailed;
+                }
+                return Publish(new(NativePhase.Ready, NativeDestination.TodaysPlan,
+                    ErrorKey: errorKey,
+                    HasPendingSync: _launch is not null && pendingWrites.IsPending(_launch.UserId)));
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            finally
             {
-                logger.LogError(ex, "Conversation could not save its activity minutes.");
-                errorKey = NativeText.SaveFailed;
+                _gate.Release();
             }
-            return Publish(new(NativePhase.Ready, NativeDestination.TodaysPlan,
-                ErrorKey: errorKey,
-                HasPendingSync: _launch is not null && pendingWrites.IsPending(_launch.UserId)));
         }
         finally
         {
-            _gate.Release();
+            _exit.End(exited);
         }
     }
 
@@ -495,7 +509,7 @@ public sealed class NativeConversationPresenter(
 
     private async Task<NativeConversationState> CompleteOpeningAsync(OpeningRequest request)
     {
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token, _exit.Token);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token, _exitCancel.Token);
         string? opening = null;
         Exception? failure = null;
         try
@@ -621,17 +635,17 @@ public sealed class NativeConversationPresenter(
         }
     }
 
+    /// <summary>
+    /// Re-takes the gate for a continuation. False (gate not held) once Back has
+    /// begun or the presenter was disposed: the caller returns <see cref="_state"/>,
+    /// which is then the state Back published, never the pre-Back one.
+    /// </summary>
     private async Task<bool> EnterAsync()
     {
-        try
-        {
-            await _gate.WaitAsync(_lifetime.Token);
+        if (await _exit.EnterAsync(_gate))
             return true;
-        }
-        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException)
-        {
-            return false;
-        }
+        _gate.Release();
+        return false;
     }
 
     private bool CanCommand(out NativeConversationState state)
@@ -650,7 +664,7 @@ public sealed class NativeConversationPresenter(
         return true;
     }
 
-    private bool Exited => _exited || _state.Destination != NativeDestination.Activity;
+    private bool Exited => _exited || _exit.HasBegun || _state.Destination != NativeDestination.Activity;
 
     private bool Active() => _launch is not null && owner.IsActive(_launch.UserId);
 
@@ -707,7 +721,8 @@ public sealed class NativeConversationPresenter(
         if (_disposed)
             return;
         _disposed = true;
-        _exit.Cancel();
+        _exit.Complete();
+        _exitCancel.Cancel();
         _lifetime.Cancel();
         if (_subscribed)
             player.Ended -= OnPlayerEnded;
@@ -716,4 +731,5 @@ public sealed class NativeConversationPresenter(
         player.Dispose();
         timer.Dispose();
     }
+
 }

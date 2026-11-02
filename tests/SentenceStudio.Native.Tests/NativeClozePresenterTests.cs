@@ -322,6 +322,32 @@ public sealed class NativeClozePresenterTests
     }
 
     [Fact]
+    public async Task Back_ReturnsItsDestinationToTheCancelledLoad_EvenWhenItResumesFirst()
+    {
+        using var fixture = new NativeSliceFixture(resourceAiEnabled: true);
+        var owner = NativeSliceFixture.UserA;
+        // The gateway waits on this gate with the load's token, so Back's cancel ends it.
+        fixture.ResourceAi.ClozeGate = new TaskCompletionSource<bool>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        fixture.ResourceAi.ClozeResponder = _ => Reply(owner, 8);
+        await fixture.SeedAsync(owner, wordCount: 10);
+        await SignInAsync(fixture, NativeSliceFixture.EmailA);
+        using var cloze = Presenter(fixture);
+        var published = new List<NativeClozeState>();
+        cloze.StateChanged += published.Add;
+
+        var open = cloze.OpenAsync(ChooseOwnLaunch(fixture, owner));
+        await WaitForAsync(() => fixture.ResourceAi.LastPrompt is not null);
+        ExitRace.HoldExitUntil(cloze.ExitFence, () => open);
+        var exit = await cloze.ExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
+        var late = await open.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.Equal(NativeDestination.TodaysPlan, exit.Destination);
+        Assert.Equal(NativeDestination.TodaysPlan, late.Destination);
+        Assert.Equal(NativeDestination.TodaysPlan, published[^1].Destination);
+    }
+
+    [Fact]
     public async Task FamiliarWord_GetsTheVerificationProbeAndItsNotice()
     {
         using var fixture = new NativeSliceFixture(resourceAiEnabled: true);

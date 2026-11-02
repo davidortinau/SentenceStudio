@@ -221,6 +221,32 @@ public sealed class NativeScenePresenterTests
     }
 
     [Fact]
+    public async Task Back_ReturnsItsDestinationToTheCancelledGrade_EvenWhenItResumesFirst()
+    {
+        using var fixture = new NativeSliceFixture();
+        var owner = NativeSliceFixture.UserA;
+        await fixture.SeedAsync(owner);
+        await SignInAsync(fixture, NativeSliceFixture.EmailA);
+        var ai = new FakeSceneAi { Hang = true };
+        using var scene = Presenter(fixture, FakeImageStore.WithOne(), ai);
+        await scene.OpenAsync(ChooseOwnLaunch(fixture, owner));
+        var published = new List<NativeSceneState>();
+        scene.StateChanged += published.Add;
+        scene.SetDraft("문장");
+        var pending = scene.GradeAsync();
+        Assert.True(scene.State.IsGrading);
+
+        ExitRace.HoldExitUntil(scene.ExitFence, () => pending);
+        var exit = await scene.ExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
+        var late = await pending.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.Equal(NativeDestination.TodaysPlan, exit.Destination);
+        Assert.Equal(NativeDestination.TodaysPlan, late.Destination);
+        Assert.Equal(NativeDestination.TodaysPlan, published[^1].Destination);
+        Assert.Equal(0, await CountUserActivitiesAsync(fixture, owner));
+    }
+
+    [Fact]
     public async Task HungImageDownload_DoesNotBlockExit()
     {
         using var fixture = new NativeSliceFixture();

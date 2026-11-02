@@ -53,14 +53,16 @@ public sealed class NativeWordAssociationPresenter(
     private long _generation;
     private bool _disposed;
     private bool _exited;
-    private readonly TaskCompletionSource _exitSettled =
-        new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly NativeActivityExit _exit = new();
 
     public NativeWordAssociationState State =>
         _launch is not null && !owner.IsActive(_launch.UserId)
             && _state.Destination != NativeDestination.TodaysPlan
             ? new(NativePhase.Blocked, ErrorKey: NativeWordAssociationText.Unavailable)
             : _state;
+
+    /// <summary>The Back/Exit fence (tests force continuation ordering through it).</summary>
+    internal NativeActivityExit ExitFence => _exit;
 
     public event Action<NativeWordAssociationState>? StateChanged;
 
@@ -204,49 +206,36 @@ public sealed class NativeWordAssociationPresenter(
             failure = ex;
         }
 
-        try
-        {
-            await _gate.WaitAsync(_lifetime.Token);
-        }
-        catch (OperationCanceledException)
-        {
-            return _state;
-        }
+        // Back begins its exit before it takes the gate; a continuation that
+        // resumes meanwhile waits for Back and returns the state Back published.
+        var proceed = await _exit.EnterAsync(_gate);
         try
         {
             _grading = false;
-            // Back marks the exit before it takes the gate. If this continuation got
-            // the gate first, fall through and return the state Back settles below,
-            // not the pre-Back one.
-            if (!Exited || _state.Destination == NativeDestination.TodaysPlan)
+            if (!proceed || generation != _generation || Exited)
+                return State;
+            if (!Active())
+                return Refuse();
+            if (linked.IsCancellationRequested)
+                return PublishReady();
+            var entries = response?.Entries ?? [];
+            if (failure is not null || entries.Count == 0)
             {
-                if (generation != _generation || Exited)
-                    return State;
-                if (!Active())
-                    return Refuse();
-                if (linked.IsCancellationRequested)
-                    return PublishReady();
-                var entries = response?.Entries ?? [];
-                if (failure is not null || entries.Count == 0)
-                {
-                    if (failure is not null)
-                        logger.LogError(failure, "Word Association could not grade clues.");
-                    else
-                        logger.LogWarning("Word Association grading returned no verdicts.");
-                    _notices = [new(NativeWordAssociationNoticeKind.Error, NativeWordAssociationText.GradeFailed)];
-                    return PublishReady();
-                }
-                for (var i = 0; i < pending.Count && i < entries.Count; i++)
-                    pending[i].Apply(entries[i]);
-                return await RecordAsync(userId, word, texts);
+                if (failure is not null)
+                    logger.LogError(failure, "Word Association could not grade clues.");
+                else
+                    logger.LogWarning("Word Association grading returned no verdicts.");
+                _notices = [new(NativeWordAssociationNoticeKind.Error, NativeWordAssociationText.GradeFailed)];
+                return PublishReady();
             }
+            for (var i = 0; i < pending.Count && i < entries.Count; i++)
+                pending[i].Apply(entries[i]);
+            return await RecordAsync(userId, word, texts);
         }
         finally
         {
             _gate.Release();
         }
-        await _exitSettled.Task;
-        return State;
     }
 
     /// <summary>
@@ -327,20 +316,28 @@ public sealed class NativeWordAssociationPresenter(
     public async Task<NativeWordAssociationState> ExitAsync(CancellationToken cancellationToken = default)
     {
         // The AI call runs outside the gate; cancel it first so Back never waits on it.
-        _exited = true;
-        CancelInflight();
-        await _gate.WaitAsync(cancellationToken);
+        var exited = false;
+        _exit.Begin();
         try
         {
-            _generation++;
-            _exited = true;
-            return Publish(new(NativePhase.Ready, NativeDestination.TodaysPlan,
-                HasPendingSync: _launch is not null && pendingWrites.IsPending(_launch.UserId)));
+            CancelInflight();
+            await _exit.AfterCancelAsync();
+            await _gate.WaitAsync(cancellationToken);
+            try
+            {
+                _generation++;
+                _exited = exited = true;
+                return Publish(new(NativePhase.Ready, NativeDestination.TodaysPlan,
+                    HasPendingSync: _launch is not null && pendingWrites.IsPending(_launch.UserId)));
+            }
+            finally
+            {
+                _gate.Release();
+            }
         }
         finally
         {
-            _gate.Release();
-            _exitSettled.TrySetResult();
+            _exit.End(exited);
         }
     }
 
@@ -515,7 +512,8 @@ public sealed class NativeWordAssociationPresenter(
         previous.Cancel();
     }
 
-    private bool Exited => _exited || _state.Destination != NativeDestination.Activity;
+    /// <summary>True once Back has begun (commands then refuse) or the activity left.</summary>
+    private bool Exited => _exited || _exit.HasBegun || _state.Destination != NativeDestination.Activity;
 
     private bool Active() => _launch is not null && owner.IsActive(_launch.UserId);
 
@@ -561,7 +559,9 @@ public sealed class NativeWordAssociationPresenter(
         if (_disposed)
             return;
         _disposed = true;
+        _exit.Complete();
         _exited = true;
+
         _lifetime.Cancel();
         _inflight.Cancel();
     }

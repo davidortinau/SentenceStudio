@@ -45,6 +45,7 @@ public sealed class NativeTranslationPresenter(
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly CancellationTokenSource _lifetime = new();
     private readonly NativeActivityLoad _load = new();
+    private readonly NativeActivityExit _exit = new();
     private readonly List<Challenge> _sentences = [];
     private readonly HashSet<string> _ownedWordIds = new(StringComparer.Ordinal);
     private List<VocabularyWord> _focusWords = [];
@@ -59,6 +60,9 @@ public sealed class NativeTranslationPresenter(
     private double _fluencySum;
     private bool _disposed;
     private bool _exited;
+
+    /// <summary>The Back/Exit fence (tests force continuation ordering through it).</summary>
+    internal NativeActivityExit ExitFence => _exit;
 
     public NativeTranslationState State =>
         _launch is not null && !owner.IsActive(_launch.UserId)
@@ -215,13 +219,13 @@ public sealed class NativeTranslationPresenter(
             failure = ex;
         }
 
-        await _gate.WaitAsync(CancellationToken.None);
+        var proceed = await _exit.EnterAsync(_gate);
         try
         {
             if (ReferenceEquals(_grading, grading))
                 _grading = null;
             grading.Dispose();
-            if (_exited || _state.Destination != NativeDestination.Activity || _launch is null)
+            if (!proceed || _exited || _state.Destination != NativeDestination.Activity || _launch is null)
                 return State;
             if (!owner.IsActive(userId))
                 return Refuse();
@@ -281,30 +285,40 @@ public sealed class NativeTranslationPresenter(
     /// </summary>
     public async Task<NativeTranslationState> ExitAsync(CancellationToken cancellationToken = default)
     {
-        CancelGrading();
-        _load.Cancel();
-        await _gate.WaitAsync(cancellationToken);
+        var exited = false;
+        _exit.Begin();
         try
         {
+            CancelGrading();
             _load.Cancel();
-            _exited = true;
-            string? errorKey = null;
+            await _exit.AfterCancelAsync();
+            await _gate.WaitAsync(cancellationToken);
             try
             {
-                if (await timer.StopAsync(cancellationToken) == NativeActivityStop.Failed)
+                _load.Cancel();
+                _exited = exited = true;
+                string? errorKey = null;
+                try
+                {
+                    if (await timer.StopAsync(cancellationToken) == NativeActivityStop.Failed)
+                        errorKey = NativeText.SaveFailed;
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    logger.LogError(ex, "Translation could not save its activity minutes.");
                     errorKey = NativeText.SaveFailed;
+                }
+                return Publish(new(NativePhase.Ready, NativeDestination.TodaysPlan,
+                    ErrorKey: errorKey, HasPendingSync: HasPending()));
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            finally
             {
-                logger.LogError(ex, "Translation could not save its activity minutes.");
-                errorKey = NativeText.SaveFailed;
+                _gate.Release();
             }
-            return Publish(new(NativePhase.Ready, NativeDestination.TodaysPlan,
-                ErrorKey: errorKey, HasPendingSync: HasPending()));
         }
         finally
         {
-            _gate.Release();
+            _exit.End(exited);
         }
     }
 
@@ -379,17 +393,17 @@ public sealed class NativeTranslationPresenter(
         }
         catch (OperationCanceledException) when (ticket.Token.IsCancellationRequested)
         {
-            return State;
+            return await _exit.StateAsync(_gate, () => State);
         }
         catch (Exception ex)
         {
             failure = ex;
         }
 
-        await _gate.WaitAsync(CancellationToken.None);
+        var proceed = await _exit.EnterAsync(_gate);
         try
         {
-            if (_exited || !_load.IsCurrent(ticket))
+            if (!proceed || _exited || !_load.IsCurrent(ticket))
                 return State;
             if (outcome == LoadOutcome.Refused || !owner.IsActive(launch.UserId))
                 return Refuse();
@@ -717,8 +731,10 @@ public sealed class NativeTranslationPresenter(
         if (_disposed)
             return;
         _disposed = true;
+        _exit.Complete();
         _lifetime.Cancel();
         _load.Dispose();
+
         timer.Dispose();
     }
 }
