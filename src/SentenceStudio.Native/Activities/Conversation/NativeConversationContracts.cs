@@ -59,11 +59,6 @@ public static class NativeConversationText
     public const string Unavailable = "NativeActivity_LaunchUnavailable";
 }
 
-public enum NativeConversationNoticeKind { Info, Error }
-
-/// <summary>A source toast shown inline; <see cref="Key"/> is a localization key.</summary>
-public sealed record NativeConversationNotice(NativeConversationNoticeKind Kind, string Key);
-
 public sealed record NativeConversationScenarioOption(int Id, string DisplayName, string PersonaName);
 
 public sealed record NativeConversationCorrection(string? Original, string? Corrected, string? Explanation);
@@ -102,7 +97,7 @@ public sealed record NativeConversationState(
     bool ShowQuickPhrases = false,
     string Draft = "",
     int DraftVersion = 0,
-    ImmutableArray<NativeConversationNotice> Notices = default,
+    ImmutableArray<NativeMessage> Notices = default,
     string? ErrorKey = null,
     bool HasPendingSync = false)
 {

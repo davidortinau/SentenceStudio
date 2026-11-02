@@ -365,10 +365,16 @@ public sealed class NativeWritingPresenterTests
         writing.SetDraft(block.Text);
         state = await writing.TranslateAsync();
         var cached = Assert.Single(state.Notices);
-        Assert.Equal(NativeWritingNoticeKind.Info, cached.Kind);
+        Assert.Equal(NativeMessageKind.Info, cached.Kind);
         Assert.Null(cached.Key);
         Assert.StartsWith("native-", cached.Argument);
+        // Source ShowInfo(translation): a transient toast showing the literal text.
+        Assert.True(cached.IsToast);
+        Assert.Equal(cached.Argument, cached.Format(key => throw new InvalidOperationException(key)));
         Assert.Empty(ai.Translated);
+
+        // Tapping a block is the learner's next action: the message is cleared.
+        Assert.Empty((await writing.UseBlockAsync(0)).Notices);
 
         writing.SetDraft("새 문장");
         state = await writing.TranslateAsync();

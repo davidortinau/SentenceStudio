@@ -49,7 +49,7 @@ public sealed class NativeDiaryPresenter(
     private NativeDiaryState _state = new(NativePhase.Idle);
     private NativeDiaryPage _page = NativeDiaryPage.List;
     private NativeDiaryListState _list = new(true, null, []);
-    private ImmutableArray<NativeDiaryNotice> _notices = [];
+    private ImmutableArray<NativeMessage> _notices = [];
     // Editor
     private DiaryEntry _entry = new() { WordGoal = NativeDiaryStars.WordGoal };
     private volatile string _content = string.Empty;
@@ -142,7 +142,7 @@ public sealed class NativeDiaryPresenter(
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 logger.LogError(ex, "Diary could not load today's entry.");
-                _notices = [new(NativeDiaryNoticeKind.Error, NativeText.UnexpectedError)];
+                _notices = [new(NativeMessageKind.Error, NativeText.UnexpectedError)];
                 BeginPage(NativeDiaryPage.List);
                 return PublishReady();
             }
@@ -295,7 +295,7 @@ public sealed class NativeDiaryPresenter(
             {
                 if (failure is not null)
                     logger.LogError(failure, "Diary could not generate a prompt.");
-                AddNotice(failure is null ? NativeDiaryNoticeKind.Warning : NativeDiaryNoticeKind.Error,
+                AddNotice(failure is null ? NativeMessageKind.Warning : NativeMessageKind.Error,
                     NativeDiaryText.PromptFailed);
                 return PublishReady();
             }
@@ -312,7 +312,7 @@ public sealed class NativeDiaryPresenter(
                 catch (Exception ex)
                 {
                     logger.LogError(ex, "Diary could not save a new prompt.");
-                    AddNotice(NativeDiaryNoticeKind.Error, NativeDiaryText.PromptFailed);
+                    AddNotice(NativeMessageKind.Error, NativeDiaryText.PromptFailed);
                 }
             }
             return Active() ? PublishReady() : Refuse();
@@ -385,7 +385,7 @@ public sealed class NativeDiaryPresenter(
             {
                 if (failure is not null)
                     logger.LogError(failure, "Diary could not generate feedback.");
-                AddNotice(failure is null ? NativeDiaryNoticeKind.Warning : NativeDiaryNoticeKind.Error,
+                AddNotice(failure is null ? NativeMessageKind.Warning : NativeMessageKind.Error,
                     NativeDiaryText.FeedbackFailed);
                 return PublishReady();
             }
@@ -399,7 +399,7 @@ public sealed class NativeDiaryPresenter(
             catch (Exception ex)
             {
                 logger.LogError(ex, "Diary could not save feedback.");
-                AddNotice(NativeDiaryNoticeKind.Error, NativeDiaryText.FeedbackFailed);
+                AddNotice(NativeMessageKind.Error, NativeDiaryText.FeedbackFailed);
             }
             return Active() ? PublishReady() : Refuse();
         }
@@ -567,7 +567,7 @@ public sealed class NativeDiaryPresenter(
         catch (Exception ex)
         {
             logger.LogError(ex, "Diary could not save the entry.");
-            AddNotice(NativeDiaryNoticeKind.Error, NativeDiaryText.SaveFailed);
+            AddNotice(NativeMessageKind.Error, NativeDiaryText.SaveFailed);
             _saveStatus = NativeDiarySaveStatus.Idle;
         }
     }
@@ -618,7 +618,7 @@ public sealed class NativeDiaryPresenter(
         {
             logger.LogError(ex, "Diary could not load entries.");
             _list = new(false, null, []);
-            AddNotice(NativeDiaryNoticeKind.Error, NativeText.UnexpectedError);
+            AddNotice(NativeMessageKind.Error, NativeText.UnexpectedError);
         }
     }
 
@@ -658,7 +658,7 @@ public sealed class NativeDiaryPresenter(
         _page = page;
     }
 
-    private void AddNotice(NativeDiaryNoticeKind kind, string key) =>
+    private void AddNotice(NativeMessageKind kind, string key) =>
         _notices = _notices.Add(new(kind, key));
 
     /// <summary>

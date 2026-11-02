@@ -148,7 +148,7 @@ public sealed class NativeScenePresenterTests
         Assert.Equal(NativePhase.Empty, state.Phase);
         Assert.Null(state.Image);
         Assert.Contains(state.Notices, notice => notice.Key == NativeSceneText.NoImagesFound
-            && notice.Kind == NativeSceneNoticeKind.Warning);
+            && notice.Kind == NativeMessageKind.Warning);
         Assert.False(state.CanGrade);
         // Browse Gallery works from the empty state.
         state = await scene.OpenGalleryAsync();

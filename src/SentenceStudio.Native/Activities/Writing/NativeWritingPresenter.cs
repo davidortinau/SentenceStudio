@@ -39,7 +39,7 @@ public sealed class NativeWritingPresenter(
     private List<VocabularyWord> _blocks = [];
     private NativeActivityLaunch? _launch;
     private NativeWritingState _state = new(NativePhase.Idle);
-    private ImmutableArray<NativeWritingNotice> _notices = [];
+    private ImmutableArray<NativeMessage> _notices = [];
     private string _draft = string.Empty;
     private bool _usingFocus;
     private bool _grading;
@@ -108,6 +108,8 @@ public sealed class NativeWritingPresenter(
                 return State;
             var word = _blocks[index].TargetLanguageTerm ?? string.Empty;
             _draft = string.IsNullOrEmpty(_draft) ? word : $"{_draft} {word}";
+            // A message stays until the learner's next action (Captain, 2026-11-02).
+            _notices = [];
             return PublishReady();
         }
         finally
@@ -130,6 +132,8 @@ public sealed class NativeWritingPresenter(
             if (_state.Phase != NativePhase.Ready)
                 return State;
             Shuffle();
+            // A message stays until the learner's next action (Captain, 2026-11-02).
+            _notices = [];
             return PublishReady();
         }
         finally
@@ -233,7 +237,7 @@ public sealed class NativeWritingPresenter(
                     logger.LogError(failure, "Writing could not grade a sentence.");
                 else
                     logger.LogWarning("Writing grading returned no verdict.");
-                _notices = [new(NativeWritingNoticeKind.Error, NativeWritingText.GradeFailed)];
+                _notices = [new(NativeMessageKind.Error, NativeWritingText.GradeFailed)];
                 return PublishSession();
             }
             return await ApplyGradeAsync(userId, sentence, grade);
@@ -269,6 +273,7 @@ public sealed class NativeWritingPresenter(
                 || string.IsNullOrWhiteSpace(_draft))
                 return State;
             _translating = true;
+            _notices = [];
             text = _draft;
             userId = _launch!.UserId;
             generation = _generation;
@@ -329,10 +334,10 @@ public sealed class NativeWritingPresenter(
             {
                 if (failure is not null)
                     logger.LogError(failure, "Writing could not translate the sentence.");
-                _notices = [new(NativeWritingNoticeKind.Error, NativeWritingText.TranslateFailed)];
+                _notices = [new(NativeMessageKind.Error, NativeWritingText.TranslateFailed)];
                 return PublishSession();
             }
-            _notices = [new(NativeWritingNoticeKind.Info, null, translation)];
+            _notices = [new(NativeMessageKind.Info, null, translation)];
             return PublishSession();
         }
         finally
@@ -422,7 +427,7 @@ public sealed class NativeWritingPresenter(
     private async Task<NativeWritingState> ApplyGradeAsync(
         string userId, string sentence, GradeResponse grade)
     {
-        var notices = new List<NativeWritingNotice>();
+        var notices = new List<NativeMessage>();
         _sentences.Add(new NativeWritingSentence(
             _sentences.Count, sentence, grade.Accuracy, grade.Fluency,
             grade.GrammarNotes?.RecommendedTranslation,
@@ -464,8 +469,8 @@ public sealed class NativeWritingPresenter(
                         ScoringActivity, DifficultyWeight);
                     foreach (var result in results.Where(result => result.UpdatedProgress.IsFamiliar))
                         notices.Add(result.WasCorrect
-                            ? new(NativeWritingNoticeKind.Success, NativeWritingText.ProbeConfirmed)
-                            : new(NativeWritingNoticeKind.Info, NativeWritingText.ProbeTricky));
+                            ? new(NativeMessageKind.Success, NativeWritingText.ProbeConfirmed)
+                            : new(NativeMessageKind.Info, NativeWritingText.ProbeTricky));
                     if (results.Count > 0)
                         pendingWrites.MarkPending(userId);
                     scope.ServiceProvider.GetService<ProgressCacheService>()?.InvalidateVocabSummary();
@@ -481,12 +486,12 @@ public sealed class NativeWritingPresenter(
         if (!owner.IsActive(userId))
             return Refuse();
         if (saveFailed)
-            notices.Add(new(NativeWritingNoticeKind.Error, NativeText.SaveFailed));
+            notices.Add(new(NativeMessageKind.Error, NativeText.SaveFailed));
         // Source GradeMe clears userInput after every grade, including text typed
         // while the grade was in flight (its field stays enabled while grading).
         _draft = string.Empty;
         Shuffle();
-        notices.Add(new(NativeWritingNoticeKind.Success, NativeWritingText.GradedAccuracy,
+        notices.Add(new(NativeMessageKind.Success, NativeWritingText.GradedAccuracy,
             ((int)grade.Accuracy).ToString(System.Globalization.CultureInfo.InvariantCulture)));
         _notices = [.. notices];
         return PublishSession();
@@ -528,13 +533,13 @@ public sealed class NativeWritingPresenter(
             {
                 var resourceId = launch.ResourceIds.IsDefaultOrEmpty ? null : launch.ResourceIds[0];
                 if (string.IsNullOrWhiteSpace(resourceId))
-                    return Empty(new(NativeWritingNoticeKind.Warning, NativeWritingText.SelectResource));
+                    return Empty(new(NativeMessageKind.Warning, NativeWritingText.SelectResource));
                 cancellationToken.ThrowIfCancellationRequested();
                 var resource = await resources.GetResourceAsync(resourceId, userId);
                 if (!owner.IsActive(userId))
                     return Refuse();
                 if (resource?.UserProfileId != userId || resource.Vocabulary is not { Count: > 0 } words)
-                    return Empty(new(NativeWritingNoticeKind.Warning, NativeWritingText.NoResourceVocabulary));
+                    return Empty(new(NativeMessageKind.Warning, NativeWritingText.NoResourceVocabulary));
 
                 using var scope = scopes.CreateScope();
                 var progress = scope.ServiceProvider.GetRequiredService<IVocabularyProgressService>();
@@ -554,12 +559,14 @@ public sealed class NativeWritingPresenter(
             if (_vocabulary.Count == 0)
                 return Empty(null);
             Shuffle();
+            // A message stays until the learner's next action (Captain, 2026-11-02).
+            _notices = [];
             return PublishReady();
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "Writing could not load vocabulary.");
-            return Empty(new(NativeWritingNoticeKind.Error, NativeWritingText.LoadFailed));
+            return Empty(new(NativeMessageKind.Error, NativeWritingText.LoadFailed));
         }
     }
 
@@ -572,7 +579,7 @@ public sealed class NativeWritingPresenter(
 
     private bool Active() => _launch is not null && owner.IsActive(_launch.UserId);
 
-    private NativeWritingState Empty(NativeWritingNotice? notice)
+    private NativeWritingState Empty(NativeMessage? notice)
     {
         _notices = notice is null ? [] : [notice];
         return Publish(new(NativePhase.Empty, Notices: _notices,

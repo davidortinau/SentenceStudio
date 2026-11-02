@@ -51,7 +51,7 @@ public sealed class NativeMinimalPairsPresenter(
     private NativeMinimalPairsPage _page = NativeMinimalPairsPage.List;
     private NativeMinimalPairsListState _list = new(true, []);
     private NativeMinimalPairsCreateState _create = new(true, []);
-    private ImmutableArray<NativeMinimalPairsNotice> _notices = [];
+    private ImmutableArray<NativeMessage> _notices = [];
     // Session
     private NativeMinimalPairsSessionState _session = new(true);
     private List<MinimalPair> _pairs = [];
@@ -154,7 +154,7 @@ public sealed class NativeMinimalPairsPresenter(
             catch (Exception ex)
             {
                 logger.LogError(ex, "Minimal Pairs could not delete a pair.");
-                AddNotice(NativeMinimalPairsNoticeKind.Error, NativeMinimalPairsText.DeleteFailed);
+                AddNotice(NativeMessageKind.Error, NativeMinimalPairsText.DeleteFailed);
             }
             if (!Active())
                 return Refuse();
@@ -167,7 +167,7 @@ public sealed class NativeMinimalPairsPresenter(
             if (deleted)
             {
                 await LoadPairsCoreAsync(CancellationToken.None);
-                AddNotice(NativeMinimalPairsNoticeKind.Success, NativeMinimalPairsText.Deleted);
+                AddNotice(NativeMessageKind.Success, NativeMinimalPairsText.Deleted);
             }
             return Active() ? PublishReady() : Refuse();
         }
@@ -202,7 +202,7 @@ public sealed class NativeMinimalPairsPresenter(
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 logger.LogError(ex, "Minimal Pairs could not load vocabulary.");
-                AddNotice(NativeMinimalPairsNoticeKind.Error, NativeMinimalPairsText.VocabularyLoadFailed);
+                AddNotice(NativeMessageKind.Error, NativeMinimalPairsText.VocabularyLoadFailed);
             }
             if (!Active())
                 return Refuse();
@@ -310,7 +310,7 @@ public sealed class NativeMinimalPairsPresenter(
             _list = _list with { IsLoading = true };
             PublishReady();
             await LoadPairsCoreAsync(CancellationToken.None);
-            AddNotice(NativeMinimalPairsNoticeKind.Success, NativeMinimalPairsText.Created);
+            AddNotice(NativeMessageKind.Success, NativeMinimalPairsText.Created);
             return Active() ? PublishReady() : Refuse();
         }
         finally
@@ -340,12 +340,12 @@ public sealed class NativeMinimalPairsPresenter(
             _notices = [];
             if (_list.Mode == NativeMinimalPairsMode.Focus && _list.SelectedPairId is null)
             {
-                AddNotice(NativeMinimalPairsNoticeKind.Error, NativeMinimalPairsText.SelectPairFirst);
+                AddNotice(NativeMessageKind.Error, NativeMinimalPairsText.SelectPairFirst);
                 return PublishReady();
             }
             if (_list.Pairs.IsDefaultOrEmpty)
             {
-                AddNotice(NativeMinimalPairsNoticeKind.Error, NativeMinimalPairsText.NoPairsToStart);
+                AddNotice(NativeMessageKind.Error, NativeMinimalPairsText.NoPairsToStart);
                 return PublishReady();
             }
             var mode = _list.Mode;
@@ -455,12 +455,12 @@ public sealed class NativeMinimalPairsPresenter(
                     var stored = await store.RecordAttemptAsync(_launch!.UserId, sessionId, _currentPair.Id,
                         _promptWord.Id, selected, correct, CancellationToken.None);
                     if (stored is null)
-                        AddNotice(NativeMinimalPairsNoticeKind.Error, NativeMinimalPairsText.SaveFailed);
+                        AddNotice(NativeMessageKind.Error, NativeMinimalPairsText.SaveFailed);
                 }
                 catch (Exception ex)
                 {
                     logger.LogError(ex, "Minimal Pairs could not store an attempt.");
-                    AddNotice(NativeMinimalPairsNoticeKind.Error, NativeMinimalPairsText.SaveFailed);
+                    AddNotice(NativeMessageKind.Error, NativeMinimalPairsText.SaveFailed);
                 }
                 if (!Active())
                     return Refuse();
@@ -597,6 +597,8 @@ public sealed class NativeMinimalPairsPresenter(
                 return refused;
             if (_list.IsLoading)
                 return State;
+            // A message stays until the learner's next action (Captain, 2026-11-02).
+            _notices = [];
             command();
             return PublishReady();
         }
@@ -712,12 +714,12 @@ public sealed class NativeMinimalPairsPresenter(
             try
             {
                 if (!await store.EndSessionAsync(_launch!.UserId, sessionId, CancellationToken.None))
-                    AddNotice(NativeMinimalPairsNoticeKind.Error, NativeMinimalPairsText.SaveFailed);
+                    AddNotice(NativeMessageKind.Error, NativeMinimalPairsText.SaveFailed);
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Minimal Pairs could not end the session.");
-                AddNotice(NativeMinimalPairsNoticeKind.Error, NativeMinimalPairsText.SaveFailed);
+                AddNotice(NativeMessageKind.Error, NativeMinimalPairsText.SaveFailed);
             }
         }
         _sessionId = null;
@@ -826,7 +828,7 @@ public sealed class NativeMinimalPairsPresenter(
         {
             logger.LogError(ex, "Minimal Pairs could not load pairs.");
             _list = _list with { IsLoading = false, Pairs = [], SelectedPairId = null };
-            AddNotice(NativeMinimalPairsNoticeKind.Error, NativeMinimalPairsText.LoadFailed);
+            AddNotice(NativeMessageKind.Error, NativeMinimalPairsText.LoadFailed);
         }
     }
 
@@ -879,7 +881,7 @@ public sealed class NativeMinimalPairsPresenter(
             _session = _session with { IsPlayingAudio = false };
     }
 
-    private void AddNotice(NativeMinimalPairsNoticeKind kind, string key) =>
+    private void AddNotice(NativeMessageKind kind, string key) =>
         _notices = _notices.Add(new(kind, key));
 
     /// <summary>The current page operation's token (read under a lock: BeginPage swaps and disposes it).</summary>

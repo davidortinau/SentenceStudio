@@ -81,7 +81,7 @@ public sealed class NativeHowDoYouSayPresenterTests
         Assert.Equal([(NativeSliceFixture.UserA, "안녕하세요", voice)], test.Source.Synthesized);
         Assert.Equal(string.Empty, spoken.Input);
         Assert.False(spoken.IsBusy);
-        Assert.Equal(new NativeHowDoYouSayNotice(NativeHowDoYouSayNoticeKind.Success,
+        Assert.Equal(new NativeMessage(NativeMessageKind.Success,
             NativeHowDoYouSayText.Generated), spoken.Notice);
         var entry = Assert.Single(spoken.History);
         Assert.Equal("안녕하세요", entry.Phrase);
@@ -141,7 +141,7 @@ public sealed class NativeHowDoYouSayPresenterTests
         fixture.SetConnectivity(false);
         test.Presenter.SetInput("안녕");
         var offline = await test.Presenter.SpeakAsync();
-        Assert.Equal(new NativeHowDoYouSayNotice(NativeHowDoYouSayNoticeKind.Warning,
+        Assert.Equal(new NativeMessage(NativeMessageKind.Warning,
             NativeHowDoYouSayText.AudioOffline), offline.Notice);
         Assert.Equal("안녕", offline.Input);
         Assert.True(offline.History.IsDefaultOrEmpty);
@@ -149,7 +149,7 @@ public sealed class NativeHowDoYouSayPresenterTests
         fixture.SetConnectivity(true);
         test.Source.Fails = true;
         var failed = await test.Presenter.SpeakAsync();
-        Assert.Equal(NativeHowDoYouSayNoticeKind.Error, failed.Notice!.Kind);
+        Assert.Equal(NativeMessageKind.Error, failed.Notice!.Kind);
         Assert.Equal("안녕", failed.Input);
         Assert.Empty(test.Player.Rates);
     }
@@ -181,7 +181,7 @@ public sealed class NativeHowDoYouSayPresenterTests
         Assert.False(test.Player.IsPlaying);
 
         var notFound = await test.Presenter.TogglePlayAsync(missing);
-        Assert.Equal(new NativeHowDoYouSayNotice(NativeHowDoYouSayNoticeKind.Warning,
+        Assert.Equal(new NativeMessage(NativeMessageKind.Warning,
             NativeHowDoYouSayText.FileNotFound), notFound.Notice);
 
         await test.Presenter.TogglePlayAsync(withFile);

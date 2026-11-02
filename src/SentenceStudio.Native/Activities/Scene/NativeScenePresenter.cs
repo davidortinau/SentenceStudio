@@ -50,7 +50,7 @@ public sealed class NativeScenePresenter(
     private readonly HashSet<int> _selected = [];
     private NativeActivityLaunch? _launch;
     private NativeSceneState _state = new(NativePhase.Idle);
-    private ImmutableArray<NativeSceneNotice> _notices = [];
+    private ImmutableArray<NativeMessage> _notices = [];
     private SceneImage? _current;
     private bool _currentFailed;
     private string _draft = string.Empty;
@@ -220,7 +220,7 @@ public sealed class NativeScenePresenter(
                     logger.LogError(failure, "Describe a Scene could not grade a description.");
                 else
                     logger.LogWarning("Describe a Scene grading returned no verdict.");
-                _notices = [new(NativeSceneNoticeKind.Error, NativeSceneText.GradeFailed)];
+                _notices = [new(NativeMessageKind.Error, NativeSceneText.GradeFailed)];
                 return PublishPage();
             }
             return await ApplyGradeAsync(userId, input, grade);
@@ -243,6 +243,8 @@ public sealed class NativeScenePresenter(
             if (!Active())
                 return Refuse();
             _expanded = _expanded == index ? -1 : index;
+            // A message stays until the learner's next action (Captain, 2026-11-02).
+            _notices = [];
             return PublishPage();
         }
         finally
@@ -310,6 +312,7 @@ public sealed class NativeScenePresenter(
             if (!Active())
                 return Refuse();
             CloseGallery();
+            _notices = [];
             return PublishPage();
         }
         finally
@@ -332,6 +335,7 @@ public sealed class NativeScenePresenter(
             _selecting = !_selecting;
             if (!_selecting)
                 _selected.Clear();
+            _notices = [];
             return PublishPage();
         }
         finally
@@ -361,6 +365,7 @@ public sealed class NativeScenePresenter(
             {
                 if (!_selected.Add(id))
                     _selected.Remove(id);
+                _notices = [];
                 return PublishPage();
             }
             if (_grading)
@@ -369,6 +374,7 @@ public sealed class NativeScenePresenter(
             _results.Clear();
             _expanded = -1;
             CloseGallery();
+            _notices = [];
             PublishPage();
         }
         finally
@@ -394,7 +400,7 @@ public sealed class NativeScenePresenter(
             _newUrl = string.Empty;
             if (!NativeSceneImageStore.IsSupportedRemoteUrl(url))
             {
-                _notices = [new(NativeSceneNoticeKind.Error, NativeSceneText.InvalidUrl)];
+                _notices = [new(NativeMessageKind.Error, NativeSceneText.InvalidUrl)];
                 return PublishPage();
             }
             return await SaveImageAsync(token => images.AddUrlAsync(_launch!.UserId, url, token),
@@ -422,7 +428,7 @@ public sealed class NativeScenePresenter(
                 return State;
             if (photo.Data.Length > NativeSceneImageStore.MaxImageBytes)
             {
-                _notices = [new(NativeSceneNoticeKind.Error, NativeSceneText.PhotoTooLarge)];
+                _notices = [new(NativeMessageKind.Error, NativeSceneText.PhotoTooLarge)];
                 return PublishPage();
             }
             return await SaveImageAsync(token => images.AddPhotoAsync(_launch!.UserId, photo, token),
@@ -445,7 +451,7 @@ public sealed class NativeScenePresenter(
                 return State;
             if (!Active())
                 return Refuse();
-            _notices = [new(NativeSceneNoticeKind.Error, code == "tooLarge"
+            _notices = [new(NativeMessageKind.Error, code == "tooLarge"
                 ? NativeSceneText.PhotoTooLarge : NativeSceneText.PhotoFailed)];
             return PublishPage();
         }
@@ -489,13 +495,13 @@ public sealed class NativeScenePresenter(
                     _current = null;
                     _currentFailed = false;
                 }
-                _notices = [new(NativeSceneNoticeKind.Success, NativeSceneText.Deleted,
+                _notices = [new(NativeMessageKind.Success, NativeSceneText.Deleted,
                     deleted.ToString(CultureInfo.InvariantCulture))];
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
                 logger.LogError(ex, "Describe a Scene could not delete gallery images.");
-                _notices = [new(NativeSceneNoticeKind.Error, NativeSceneText.DeleteFailed)];
+                _notices = [new(NativeMessageKind.Error, NativeSceneText.DeleteFailed)];
             }
             return PublishPage();
         }
@@ -605,9 +611,9 @@ public sealed class NativeScenePresenter(
             : grade.Accuracy >= 50 ? NativeSceneText.GradeGood
             : NativeSceneText.GradeKeepPracticing;
         _notices = saveFailed
-            ? [new(NativeSceneNoticeKind.Success, label, percent),
-                new(NativeSceneNoticeKind.Error, NativeText.SaveFailed)]
-            : [new(NativeSceneNoticeKind.Success, label, percent)];
+            ? [new(NativeMessageKind.Success, label, percent),
+                new(NativeMessageKind.Error, NativeText.SaveFailed)]
+            : [new(NativeMessageKind.Success, label, percent)];
         return PublishPage();
     }
 
@@ -620,14 +626,14 @@ public sealed class NativeScenePresenter(
             if (!Active())
                 return false;
             if (scene is null)
-                _notices = [new(NativeSceneNoticeKind.Warning, NativeSceneText.NoImagesFound)];
+                _notices = [new(NativeMessageKind.Warning, NativeSceneText.NoImagesFound)];
             else
                 SetCurrent(scene);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "Describe a Scene could not load a scene.");
-            _notices = [new(NativeSceneNoticeKind.Error, NativeSceneText.LoadFailed)];
+            _notices = [new(NativeMessageKind.Error, NativeSceneText.LoadFailed)];
         }
         PublishPage();
         return true;
@@ -763,20 +769,20 @@ public sealed class NativeScenePresenter(
             if (!Active())
                 return Refuse();
             if (saved is null)
-                _notices = [new(NativeSceneNoticeKind.Error, NativeSceneText.ImageSaveFailed)];
+                _notices = [new(NativeMessageKind.Error, NativeSceneText.ImageSaveFailed)];
             else
             {
                 if (knownBytes is not null)
                     Remember(saved.Id, knownBytes);
                 if (!await ReloadGalleryAsync(cancellationToken))
                     return Refuse();
-                _notices = [new(NativeSceneNoticeKind.Success, NativeSceneText.ImageAdded)];
+                _notices = [new(NativeMessageKind.Success, NativeSceneText.ImageAdded)];
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "Describe a Scene could not save a gallery image.");
-            _notices = [new(NativeSceneNoticeKind.Error, NativeSceneText.ImageSaveFailed)];
+            _notices = [new(NativeMessageKind.Error, NativeSceneText.ImageSaveFailed)];
         }
         finally
         {
@@ -817,7 +823,7 @@ public sealed class NativeScenePresenter(
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "Describe a Scene could not load the gallery.");
-            _notices = [new(NativeSceneNoticeKind.Error, NativeSceneText.GalleryLoadFailed)];
+            _notices = [new(NativeMessageKind.Error, NativeSceneText.GalleryLoadFailed)];
         }
         return true;
     }

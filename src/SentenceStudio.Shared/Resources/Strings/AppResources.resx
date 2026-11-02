@@ -9680,4 +9680,12 @@ For example: {0} ...</value>
   <data name="NativeMinimalPairs_VocabularyLoadFailed" xml:space="preserve">
     <value>Failed to load vocabulary.</value>
   </data>
+  <data name="NativeMessage_Information" xml:space="preserve">
+    <value>Information</value>
+    <comment>Spoken/visible kind of a transient activity toast</comment>
+  </data>
+  <data name="NativeMessage_Warning" xml:space="preserve">
+    <value>Warning</value>
+    <comment>Spoken/visible kind of an activity warning banner</comment>
+  </data>
 </root>

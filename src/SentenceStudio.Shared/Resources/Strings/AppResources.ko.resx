@@ -9035,4 +9035,12 @@
   <data name="NativeMinimalPairs_VocabularyLoadFailed" xml:space="preserve">
     <value>어휘를 불러오지 못했습니다.</value>
   </data>
+  <data name="NativeMessage_Information" xml:space="preserve">
+    <value>알림</value>
+    <comment>Spoken/visible kind of a transient activity toast</comment>
+  </data>
+  <data name="NativeMessage_Warning" xml:space="preserve">
+    <value>경고</value>
+    <comment>Spoken/visible kind of an activity warning banner</comment>
+  </data>
 </root>

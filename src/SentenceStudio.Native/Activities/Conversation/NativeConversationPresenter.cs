@@ -52,7 +52,7 @@ public sealed class NativeConversationPresenter(
     private ConversationScenario? _active;
     private NativeActivityLaunch? _launch;
     private NativeConversationState _state = new(NativePhase.Idle);
-    private ImmutableArray<NativeConversationNotice> _notices = [];
+    private ImmutableArray<NativeMessage> _notices = [];
     private CancellationTokenSource? _audioLoad;
     private string _language = "Korean";
     private string _draft = string.Empty;
@@ -118,7 +118,7 @@ public sealed class NativeConversationPresenter(
                 // Source: "Could not start conversation." and no opening request.
                 logger.LogError(ex, "Conversation could not load its scenarios or vocabulary.");
                 _starting = false;
-                _notices = [new(NativeConversationNoticeKind.Error, NativeConversationText.LoadFailed)];
+                _notices = [new(NativeMessageKind.Error, NativeConversationText.LoadFailed)];
                 return PublishReady();
             }
             if (!owner.IsActive(launch.UserId))
@@ -267,7 +267,7 @@ public sealed class NativeConversationPresenter(
                     logger.LogError(failure, "Conversation could not get a reply.");
                 else
                     logger.LogWarning("Conversation reply was empty.");
-                _notices = [new(NativeConversationNoticeKind.Error, NativeConversationText.ReplyFailed)];
+                _notices = [new(NativeMessageKind.Error, NativeConversationText.ReplyFailed)];
                 return PublishReady();
             }
             if (reply!.GrammarCorrections?.Count > 0)
@@ -282,7 +282,7 @@ public sealed class NativeConversationPresenter(
             });
             // Still current and owned (checked above): score before publishing.
             if (await ScoreAsync(userId, reply.VocabularyAnalysis) is false)
-                _notices = [new(NativeConversationNoticeKind.Error, NativeText.SaveFailed)];
+                _notices = [new(NativeMessageKind.Error, NativeText.SaveFailed)];
             if (!Active())
                 return Refuse();
             return PublishReady();
@@ -419,7 +419,7 @@ public sealed class NativeConversationPresenter(
                 return PublishReady();
             player.Stop();
             _playing = false;
-            _notices = [new(NativeConversationNoticeKind.Error,
+            _notices = [new(NativeMessageKind.Error,
                 clip.Status == NativeSpeechClipStatus.Offline
                     ? NativeConversationText.AudioOffline : NativeConversationText.AudioFailed)];
             return PublishReady();
@@ -543,7 +543,7 @@ public sealed class NativeConversationPresenter(
                     logger.LogWarning("Conversation opening line was empty.");
                 // Source toast "Error starting conversation."; the source shows an
                 // empty chat without it when the service swallows the failure.
-                _notices = [new(NativeConversationNoticeKind.Error, NativeConversationText.StartFailed)];
+                _notices = [new(NativeMessageKind.Error, NativeConversationText.StartFailed)];
                 return PublishReady();
             }
             _chunks.Add(new ConversationChunk

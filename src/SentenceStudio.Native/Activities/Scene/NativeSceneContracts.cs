@@ -89,12 +89,6 @@ public static class NativeSceneText
     public const string PhotoTooLarge = "NativeScene_PhotoTooLarge";
 }
 
-/// <summary>Source toast kinds: success, info, warning, error.</summary>
-public enum NativeSceneNoticeKind { Success, Info, Warning, Error }
-
-/// <summary>A source toast shown inline; <see cref="Key"/> is formatted with <see cref="Argument"/> when present.</summary>
-public sealed record NativeSceneNotice(NativeSceneNoticeKind Kind, string Key, string? Argument = null);
-
 /// <summary>Where the current or a gallery image's bytes stand.</summary>
 public enum NativeSceneImageLoad { Loading, Loaded, Failed }
 
@@ -150,7 +144,7 @@ public sealed record NativeSceneState(
     string Draft = "",
     bool IsGrading = false,
     NativeSceneGallery? Gallery = null,
-    ImmutableArray<NativeSceneNotice> Notices = default,
+    ImmutableArray<NativeMessage> Notices = default,
     string? ErrorKey = null,
     bool HasPendingSync = false)
 {

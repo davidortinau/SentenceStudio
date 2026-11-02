@@ -222,13 +222,13 @@ public sealed class NativeDiaryPresenterTests
 
         var state = await diary.OpenTodayAsync();
         var notice = Assert.Single(state.Notices);
-        Assert.Equal(new NativeDiaryNotice(NativeDiaryNoticeKind.Warning, NativeDiaryText.PromptFailed), notice);
+        Assert.Equal(new NativeMessage(NativeMessageKind.Warning, NativeDiaryText.PromptFailed), notice);
         Assert.Null(state.Editor!.PromptText);
 
         ai.ReturnNull = false;
         ai.Fail = true;
         state = await diary.RefreshPromptAsync();
-        Assert.Contains(new NativeDiaryNotice(NativeDiaryNoticeKind.Error, NativeDiaryText.PromptFailed),
+        Assert.Contains(new NativeMessage(NativeMessageKind.Error, NativeDiaryText.PromptFailed),
             state.Notices);
         state = await diary.DismissNoticesAsync();
         Assert.Empty(state.Notices);
@@ -242,7 +242,7 @@ public sealed class NativeDiaryPresenterTests
         await diary.BackToListAsync();
         await diary.OpenEntryAsync(past);
         state = await diary.RequestFeedbackAsync();
-        Assert.Contains(new NativeDiaryNotice(NativeDiaryNoticeKind.Error, NativeDiaryText.FeedbackFailed),
+        Assert.Contains(new NativeMessage(NativeMessageKind.Error, NativeDiaryText.FeedbackFailed),
             state.Notices);
         Assert.False(state.Viewer!.HasFeedback);
         Assert.False(state.Viewer.IsLoadingFeedback);

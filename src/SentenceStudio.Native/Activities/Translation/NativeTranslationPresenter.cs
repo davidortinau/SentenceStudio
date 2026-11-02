@@ -240,7 +240,7 @@ public sealed class NativeTranslationPresenter(
                 return Publish(_state with
                 {
                     IsGrading = false,
-                    Notice = new(NativeTranslationText.GradeFailed, IsError: true)
+                    Notice = NativeMessage.Error(NativeTranslationText.GradeFailed)
                 });
             }
             return await ApplyGradeAsync(userId, index, input, feedback, vocabulary);
@@ -334,7 +334,7 @@ public sealed class NativeTranslationPresenter(
         _accuracySum += feedback.Accuracy;
         _fluencySum += feedback.Fluency;
 
-        NativeTranslationNotice notice = new(NativeTranslationText.GradedAccuracy, IsError: false,
+        NativeMessage notice = NativeMessage.Success(NativeTranslationText.GradedAccuracy,
             ((int)feedback.Accuracy).ToString(System.Globalization.CultureInfo.CurrentCulture));
         try
         {
@@ -359,7 +359,7 @@ public sealed class NativeTranslationPresenter(
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "Translation could not record its grade.");
-            notice = new(NativeTranslationText.SaveFailed, IsError: true);
+            notice = NativeMessage.Error(NativeTranslationText.SaveFailed);
         }
 
         var state = _state.Index == index ? _state : SentenceState(index);
@@ -414,7 +414,7 @@ public sealed class NativeTranslationPresenter(
             }
             if (outcome == LoadOutcome.Empty)
                 return Publish(new(NativePhase.Empty, ErrorKey: NativeTranslationText.NoSentences,
-                    Notice: new(NativeTranslationText.NoSentencesReturned, IsError: false, IsWarning: true)));
+                    Notice: NativeMessage.Warning(NativeTranslationText.NoSentencesReturned)));
 
             _sentences.Clear();
             _sentences.AddRange(content.Sentences);
@@ -685,7 +685,12 @@ public sealed class NativeTranslationPresenter(
             if (_exited || _state.Destination != NativeDestination.Activity)
                 return State;
             var next = change(_state);
-            return ReferenceEquals(next, _state) ? State : Publish(next);
+            if (ReferenceEquals(next, _state))
+                return State;
+            // A message stays until the learner's next action (Captain, 2026-11-02).
+            if (next.Notice is not null && ReferenceEquals(next.Notice, _state.Notice))
+                next = next with { Notice = null };
+            return Publish(next);
         }
         finally
         {

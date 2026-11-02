@@ -86,10 +86,13 @@ public sealed class NativeMinimalPairsPresenterTests
 
         var refused = await test.Presenter.StartSessionAsync();
         Assert.Equal(NativeMinimalPairsPage.List, refused.Page);
-        Assert.Equal(new NativeMinimalPairsNotice(NativeMinimalPairsNoticeKind.Error,
+        Assert.Equal(new NativeMessage(NativeMessageKind.Error,
             NativeMinimalPairsText.SelectPairFirst), Assert.Single(refused.Notices));
 
+        // An error is a banner that stays until the learner's next action.
+        Assert.True(Assert.Single(refused.Notices).IsBanner);
         var selected = await test.Presenter.SelectPairAsync(second);
+        Assert.Empty(selected.Notices);
         Assert.Equal(second, selected.List!.SelectedPairId);
         Assert.True(selected.List.CanStart);
         Assert.True(selected.List.IsHighlighted(second));
@@ -143,8 +146,9 @@ public sealed class NativeMinimalPairsPresenterTests
         test.Presenter.SetContrastLabel("  ㅂ vs ㅃ  ");
         var created = await test.Presenter.CreatePairAsync();
         Assert.Equal(NativeMinimalPairsPage.List, created.Page);
-        Assert.Equal(new NativeMinimalPairsNotice(NativeMinimalPairsNoticeKind.Success,
+        Assert.Equal(new NativeMessage(NativeMessageKind.Success,
             NativeMinimalPairsText.Created), Assert.Single(created.Notices));
+        Assert.True(Assert.Single(created.Notices).IsToast);
         var pair = Assert.Single(created.List!.Pairs);
         Assert.Equal("ㅂ vs ㅃ", pair.ContrastLabel);
         var row = await SinglePairRowAsync(fixture, pair.Id);
@@ -211,7 +215,7 @@ public sealed class NativeMinimalPairsPresenterTests
         Assert.Equal([kept], deleted.List!.Pairs.Select(pair => pair.Id));
         Assert.Null(deleted.List.SelectedPairId);
         Assert.False(deleted.List.IsDeleting);
-        Assert.Equal(new NativeMinimalPairsNotice(NativeMinimalPairsNoticeKind.Success,
+        Assert.Equal(new NativeMessage(NativeMessageKind.Success,
             NativeMinimalPairsText.Deleted), Assert.Single(deleted.Notices));
         using var scope = fixture.Scope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();

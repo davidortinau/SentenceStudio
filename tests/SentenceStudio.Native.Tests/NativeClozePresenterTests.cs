@@ -374,9 +374,10 @@ public sealed class NativeClozePresenterTests
 
         cloze.SetTypedAnswer(Answer(owner, 0));
         var pending = cloze.SubmitAsync();
-        await WaitForAsync(() => cloze.State.NoticeKey is not null);
-        Assert.Equal(NativeClozeText.FamiliarConfirmed, cloze.State.NoticeKey);
-        Assert.True(cloze.State.NoticeIsSuccess);
+        await WaitForAsync(() => cloze.State.Notice is not null);
+        Assert.Equal(NativeClozeText.FamiliarConfirmed, cloze.State.Notice?.Key);
+        Assert.Equal(NativeMessageKind.Success, cloze.State.Notice?.Kind);
+        Assert.True(cloze.State.Notice?.IsToast);
         await pending;
 
         using var check = fixture.Scope();
