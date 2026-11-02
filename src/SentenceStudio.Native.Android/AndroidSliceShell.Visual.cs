@@ -145,6 +145,20 @@ internal sealed partial class AndroidSliceShell
         return bar;
     }
 
+    /// <summary>
+    /// Compose popups (DropdownMenu, ModalBottomSheet) render in their own window
+    /// with a separate semantics root that does not inherit the shell root's
+    /// testTagsAsResourceId; republish it there so their test tags stay addressable.
+    /// </summary>
+    private static Modifier PopupWindowSemantics(Modifier modifier) =>
+        modifier.Semantics(semantics => semantics.TestTagsAsResourceId(true));
+
+    private static DropdownMenu PopupMenu(bool expanded, Action onDismissRequest) =>
+        new(expanded, onDismissRequest)
+        {
+            Modifier = Modifier.Semantics(semantics => semantics.TestTagsAsResourceId(true)),
+        };
+
     private ComposableNode DashboardAppBar(AndroidVisualPalette palette)
     {
         var refresh = new IconButton(RefreshPlan, enabled: !Busy.Value)
@@ -169,7 +183,7 @@ internal sealed partial class AndroidSliceShell
             Modifier = Modifier.Size(24),
             Tint = palette.Text,
         });
-        var menu = new DropdownMenu(
+        var menu = PopupMenu(
             expanded: _dashboardMenuOpen,
             onDismissRequest: () => Publish(() => _dashboardMenuOpen = false));
         if (Dashboard.Phase == NativePhase.Ready)

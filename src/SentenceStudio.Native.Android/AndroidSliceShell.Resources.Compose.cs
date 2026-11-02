@@ -293,7 +293,7 @@ internal sealed partial class AndroidSliceShell
         var dropdown = new DropdownMenu(expanded: _resourceMenu == menu,
             onDismissRequest: CloseResourceMenu)
         {
-            Modifier = Modifier.TestTag($"{tag}.menu"),
+            Modifier = PopupWindowSemantics(Modifier.TestTag($"{tag}.menu")),
         };
         for (var index = 0; index < values.Length; index++)
         {

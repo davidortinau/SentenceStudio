@@ -234,7 +234,7 @@ internal sealed partial class AndroidSliceShell
                     Modifier = Modifier.Size(20), Tint = palette.Text
                 },
             });
-            var dropdown = new DropdownMenu(expanded: _howDoYouSayVoiceMenu,
+            var dropdown = PopupMenu(expanded: _howDoYouSayVoiceMenu,
                 onDismissRequest: () => ToggleHowDoYouSayVoiceMenu(false));
             for (var index = 0; index < state.Voices.Length; index++)
             {

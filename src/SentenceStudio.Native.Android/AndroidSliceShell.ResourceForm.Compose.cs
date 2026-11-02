@@ -222,7 +222,7 @@ internal sealed partial class AndroidSliceShell
                 Modifier = Modifier.Size(24),
                 Tint = palette.Text,
             });
-            var menu = new DropdownMenu(expanded: _resourceMenu == ResourceMenu.FormMore,
+            var menu = PopupMenu(expanded: _resourceMenu == ResourceMenu.FormMore,
                 onDismissRequest: CloseResourceMenu);
             menu.Add(new DropdownMenuItem(text: new Text(Localize("Common_Delete")), onClick: () =>
             {
@@ -329,7 +329,7 @@ internal sealed partial class AndroidSliceShell
             new Text(selected) { Color = palette.Text },
             new Icon(Icons.Default.ArrowDropDown, label) { Modifier = Modifier.Size(20), Tint = palette.Text },
         });
-        var dropdown = new DropdownMenu(expanded: _resourceMenu == menu,
+        var dropdown = PopupMenu(expanded: _resourceMenu == menu,
             onDismissRequest: CloseResourceMenu);
         for (var index = 0; index < options.Count; index++)
         {
@@ -495,7 +495,7 @@ internal sealed partial class AndroidSliceShell
             Shape = Shape.RoundedCorners(AndroidVisualTheme.ControlRadius),
         };
         anchor.Add(new Text(current.Item2));
-        var menu = new DropdownMenu(
+        var menu = PopupMenu(
             expanded: _resourceMenu == ResourceMenu.WordKind && _resourceMenuWordId == word.Id,
             onDismissRequest: CloseResourceMenu);
         for (var index = 0; index < kinds.Length; index++)

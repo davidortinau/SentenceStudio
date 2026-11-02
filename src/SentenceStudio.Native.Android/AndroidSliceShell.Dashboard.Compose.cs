@@ -134,7 +134,7 @@ internal sealed partial class AndroidSliceShell
         var sheet = new ModalBottomSheet(
             onDismissRequest: () => Publish(() => _chooseSelector.Value = (int)ChooseSelector.None))
         {
-            Modifier = Modifier.TestTag("native.dashboard.choose.selector")
+            Modifier = PopupWindowSemantics(Modifier.TestTag("native.dashboard.choose.selector"))
         };
         var content = new Column(Arrangement.SpacedBy(12))
         {

@@ -1235,7 +1235,7 @@ internal sealed partial class AndroidSliceShell
         };
         var sheet = new ModalBottomSheet(onDismissRequest: DismissOverlay)
         {
-            Modifier = Modifier.TestTag(NativeAccess.QuizDetails)
+            Modifier = PopupWindowSemantics(Modifier.TestTag(NativeAccess.QuizDetails))
         };
         var content = new Column(Arrangement.SpacedBy(9))
         {

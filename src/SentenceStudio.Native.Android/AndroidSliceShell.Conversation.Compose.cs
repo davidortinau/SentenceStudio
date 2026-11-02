@@ -229,7 +229,7 @@ internal sealed partial class AndroidSliceShell
         };
         button.Add(new Text(active.DisplayName));
         button.Add(new Icon(Icons.Default.ArrowDropDown, null) { Modifier = Modifier.Size(20) });
-        var menu = new DropdownMenu(expanded: _conversationScenarioMenuOpen,
+        var menu = PopupMenu(expanded: _conversationScenarioMenuOpen,
             onDismissRequest: () => Publish(() => _conversationScenarioMenuOpen = false));
         foreach (var scenario in state.Scenarios)
         {
@@ -265,7 +265,7 @@ internal sealed partial class AndroidSliceShell
         };
         button.Add(new Text(state.TargetLanguage));
         button.Add(new Icon(Icons.Default.ArrowDropDown, null) { Modifier = Modifier.Size(20) });
-        var menu = new DropdownMenu(expanded: _conversationLanguageMenuOpen,
+        var menu = PopupMenu(expanded: _conversationLanguageMenuOpen,
             onDismissRequest: () => Publish(() => _conversationLanguageMenuOpen = false));
         foreach (var language in NativeConversationState.Languages)
         {
