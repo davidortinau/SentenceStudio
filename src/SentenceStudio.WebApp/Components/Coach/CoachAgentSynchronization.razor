@@ -7,6 +7,7 @@
 @code {
     [CascadingParameter] public AgentContext Context { get; set; } = default!;
     [Parameter] public EventCallback OnResetContext { get; set; }
+    [Parameter] public EventCallback OnHistoryRestored { get; set; }
     private bool _refreshRequested = true;
     private bool _disposed;
     private bool _restoring;
@@ -68,7 +69,7 @@
                 await Context.RestoreAsync();
                 _restoredEntries = entries;
                 _restoredEntryId = entryId;
-                ChatClient.NotifyHistoryRestored();
+                await OnHistoryRestored.InvokeAsync();
             }
             while (_refreshRequested && !_disposed && !ChatClient.IsSending && !Workspace.IsBusy
                 && Context.Status != ConversationStatus.Streaming);

@@ -12,9 +12,11 @@ using SentenceStudio.Abstractions;
 using SentenceStudio.Data;
 using SentenceStudio.Infrastructure;
 using SentenceStudio.Services;
+using SentenceStudio.Services.Api;
 using SentenceStudio.Services.Theme;
 using SentenceStudio.Shared.Models;
 using SentenceStudio.WebApp.Auth;
+using SentenceStudio.WebApp.Coach;
 using SentenceStudio.WebApp.Components;
 using SentenceStudio.WebApp.Platform;
 using SentenceStudio.WebApp.Platform.Theme;
@@ -172,17 +174,17 @@ var apiBaseUrl = builder.Configuration.GetValue<string>("ApiBaseUrl") ?? "https+
 builder.Services.AddScoped<IAuthService, ServerAuthService>();
 builder.Services.AddTransient<AuthenticatedHttpMessageHandler>();
 builder.Services.AddApiClients(new Uri(apiBaseUrl));
-builder.Services.AddScoped<SentenceStudio.Services.Api.ICoachTurnTransport, SentenceStudio.WebApp.Coach.CoachAGUITransport>();
-builder.Services.AddScoped<SentenceStudio.WebApp.Coach.CoachWorkspaceChatClient>();
-builder.Services.AddTransient<SentenceStudio.WebApp.Coach.CoachAGUIProblemHandler>();
+builder.Services.AddScoped<ICoachTurnTransport, CoachAGUITransport>();
+builder.Services.AddScoped<CoachWorkspaceChatClient>();
+builder.Services.AddTransient<CoachAGUIProblemHandler>();
 builder.Services.AddHttpClient("coach-agui", client =>
 {
     client.BaseAddress = new Uri(apiBaseUrl);
     client.Timeout = Timeout.InfiniteTimeSpan;
 })
     .AddHttpMessageHandler<AuthenticatedHttpMessageHandler>()
-    .AddHttpMessageHandler<SentenceStudio.Services.Api.PlanTimeZoneHeaderHandler>()
-    .AddHttpMessageHandler<SentenceStudio.WebApp.Coach.CoachAGUIProblemHandler>()
+    .AddHttpMessageHandler<PlanTimeZoneHeaderHandler>()
+    .AddHttpMessageHandler<CoachAGUIProblemHandler>()
     .RemoveAllResilienceHandlers();
 
 // The Sam opportunity operator client. Development-only, matching the API routes it calls, which
@@ -263,7 +265,7 @@ using (var scope = app.Services.CreateScope())
     // Run vocabulary classification backfill (idempotent)
     var backfillService = scope.ServiceProvider.GetRequiredService<VocabularyClassificationBackfillService>();
     await backfillService.BackfillLexicalUnitTypesAsync();
-    
+
     // Run phrase constituent backfill (idempotent, after classification)
     await backfillService.BackfillPhraseConstituentsAsync();
 }
@@ -311,7 +313,7 @@ static void RegisterSentenceStudioServices(IServiceCollection services)
     // Persistence is the per-browser ss_appearance cookie, which the SSR pass can read
     // synchronously off the request and the circuit reads back through JS interop.
     services.AddBrowserAppearance();
-    
+
     // Release notes service (reads from embedded resources)
     services.AddSingleton<ReleaseNotesService>();
 

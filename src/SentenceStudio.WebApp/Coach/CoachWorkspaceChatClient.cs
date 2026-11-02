@@ -17,10 +17,6 @@ public sealed class CoachWorkspaceChatClient(CoachWorkspaceState workspace) : IC
         or CoachUiState.InputTooLong or CoachUiState.Expired or CoachUiState.Incomplete;
     internal bool HasRecoveredTurn => _retryPending && _lastEntryId == workspace.EntryId && !TurnFailed;
     public bool IsSending { get; private set; }
-    public event Action? HistoryRestored;
-
-    internal void NotifyHistoryRestored() => HistoryRestored?.Invoke();
-
     public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
         IEnumerable<ChatMessage> messages,
         ChatOptions? options = null,

@@ -32,7 +32,7 @@ flowchart LR
     REST --> Application
 ```
 
-The web sends turns to `POST /api/v1/coach/agent` using `AGUI.Client` 1.0.1. The API uses `AGUI.Server` 1.0.1 and the SDK's event types and JSON resolver to emit standard server-sent events. The request's thread ID locates an owned session or conversation; client messages and state never replace trusted server history. Client tool declarations and client-supplied results are rejected.
+The web sends turns to `POST /api/v1/coach/agent` using `AGUI.Client` 1.0.1. The API uses `AGUI.Abstractions` 1.0.1 for the SDK's event types and JSON resolver, and ASP.NET Core's `TypedResults.ServerSentEvents` for the response. It does not need the `AGUI.Server` raw-chat stream adapter because application validation must complete first. The request's thread ID locates an owned session or conversation; client messages and state never replace trusted server history. Client tool declarations and client-supplied results are rejected.
 
 A run emits `RUN_STARTED`, a validated `STATE_SNAPSHOT`, assistant `TEXT_MESSAGE_*` events, and `RUN_FINISHED`, or `RUN_ERROR`. The snapshot carries the application's turn result and, for durable conversations, its operation handle. Original client turn IDs, operation IDs, and idempotency keys remain intact for recovery.
 
@@ -40,7 +40,7 @@ The web uses `Microsoft.AspNetCore.Components.AI` 0.1.0-preview.1.26466.103: `UI
 
 A thin web boundary owns and cascades the library's `AgentContext`. This preview's `RestoreAsync` does not clear error/retry state, and changing the library's `AgentBoundary` agent remounts its descendants. The adapter instead replaces the context and agent on thread changes or external recovery without remounting the application shell, and rebinds the input's status subscription. Incomplete or malformed AG-UI responses become handled transport failures so the workspace releases its busy state and retries retain the existing turn and operation identities.
 
-Optional rendering slots in the shared transcript and composer keep the experimental dependencies out of native clients. Availability, conversation directories, history paging, approvals, undo, reports, and other resource operations still use their existing REST endpoints.
+Optional rendering slots in the shared transcript and composer keep the experimental dependencies out of native clients. Both hosts use the same domain timeline item component; the web projects it through a typed `RenderFragment` into the library's `BlockRenderer`. `EventCallback` and component parameters coordinate history restoration and rendering, rather than a separate event bus. Availability, conversation directories, history paging, approvals, undo, reports, and other resource operations still use their existing REST endpoints.
 
 ## Benefits and limitations
 
@@ -60,7 +60,9 @@ Natural-language conversation remains a flexible, empowering foundation, while r
 
 Focused tests exercise the real authenticated API and reducer through the SDK in session-only and durable modes, including idempotent retries and invalid input. Client tests cover state snapshots, durable recovery handles, HTTP problem mapping, protocol run errors, and truncated streams. UI tests cover library retries, canonical-history projection, mounted input, synchronization, and the shared rendering and workspace behaviors retained by native clients.
 
-All 94 selected regression cases passed: 81 UI/workspace/client cases, six SDK transport cases, and seven API cases. Recovery regressions cover empty and populated conversation switches, deletion, external retry and dismissal, removal of stale error UI, subsequent submission, and retrying incomplete streams with unchanged operation identities. An isolated browser harness with real Identity cookies, PostgreSQL, and the API/reducer verified message submission, intentional repeated questions, visible history after refresh, response-report controls, and clearing the transcript when switching to a new conversation. Saved history and the input also rendered at a 390-pixel viewport without horizontal document overflow. The harness used a scripted model and test-server API clients, so it did not verify live inference or production API credential forwarding.
+Selected API, SDK transport, and UI/workspace/client regressions passed. Recovery tests use the actual shared transcript and composer slots and cover empty and populated conversation switches, deletion, external retry and dismissal, removal of stale error UI, subsequent submission, and retrying incomplete streams with unchanged operation identities. A broader rendering-test run also encountered existing fixture failures: several fixtures omit the `NavigationManager` required by `CoachVocabularySetCard`, which the transcript already rendered before this migration.
+
+An isolated browser harness with real Identity cookies, PostgreSQL, and the API/reducer verified message submission, intentional repeated questions, visible history after refresh, response-report controls, and clearing the transcript when switching to a new conversation. Saved history and the input also rendered at a 390-pixel viewport without horizontal document overflow. The harness used a scripted model and test-server API clients, so it did not verify live inference or production API credential forwarding.
 
 ### Live-model verification
 

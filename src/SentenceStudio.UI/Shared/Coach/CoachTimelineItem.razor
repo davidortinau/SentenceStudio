@@ -1,0 +1,120 @@
+@inject BlazorLocalizationService Localize
+@inject CoachPersona Persona
+
+@switch (Entry.Kind)
+{
+    case CoachTimelineKind.LearnerMessage:
+    case CoachTimelineKind.CoachMessage:
+        <div class="coach-message @(Entry.Kind == CoachTimelineKind.LearnerMessage ? "coach-message-learner" : "")"
+             id="@(Entry.MessageId is { Length: > 0 } id ? "coach-msg-" + id : null)">
+            <div class="coach-message-role" id="@HeaderId">
+                <span>@(Entry.Kind == CoachTimelineKind.LearnerMessage ? Localize["Coach_RoleYou"] : Persona.DisplayName)</span>
+                <CoachTimestamp Value="Entry.Timestamp" />
+                @if (Entry.Status == CoachTimelineStatus.Pending)
+                {
+                    <span class="ss-caption1 text-secondary-ss">@Localize["Coach_MessagePending"]</span>
+                }
+                else if (Entry.Status == CoachTimelineStatus.Failed)
+                {
+                    <span class="ss-caption1 text-secondary-ss">@Localize["Coach_MessageFailed"]</span>
+                }
+                else if (Entry.ShowsNoChangeMarker)
+                {
+                    <span class="coach-change-marker">@Localize["Coach_NoChangeApplied"]</span>
+                }
+            </div>
+            @if (Entry.Answer is { } answer)
+            {
+                <CoachAnswer Answer="answer" />
+            }
+            else
+            {
+                <div>@Entry.Message?.Text</div>
+            }
+            @if (Entry.Kind == CoachTimelineKind.CoachMessage)
+            {
+                <CoachRepairDisclosureNotice Disclosure="Entry.RepairDisclosure"
+                                             EvidenceOnScreen="Entry.RepairEvidenceOnScreen" />
+                <CoachReportControl MessageId="@(IsReportable ? MessageId : null)" DescribedById="@HeaderId"
+                                    OnReturnFocus="OnReturnFocus"
+                                    OnDisclosureChanging="OnDisclosureChanging"
+                                    OnDisclosureChanged="OnDisclosureChanged">
+                    <CoachCopyButton Text="@Entry.ReadableText()" MessageId="@MessageId" DescribedById="@HeaderId" />
+                </CoachReportControl>
+                <CoachMessageEvidence Items="Entry.Evidence" MessageId="@MessageId"
+                                      OnDisclosureChanging="OnDisclosureChanging"
+                                      OnDisclosureChanged="OnDisclosureChanged" />
+            }
+        </div>
+        break;
+
+    case CoachTimelineKind.Receipt:
+        <CoachChangeReceipt Receipt="Entry.Receipt" OnViewChanges="OnViewPlan" />
+        break;
+
+    case CoachTimelineKind.UnreadableMessage:
+        <div class="coach-message coach-message-unreadable">
+            <div class="coach-message-role">
+                <CoachTimestamp Value="Entry.Timestamp" />
+            </div>
+            <div class="ss-caption1 text-secondary-ss">@Localize["Coach_UnreadableMessage"]</div>
+        </div>
+        break;
+
+    case CoachTimelineKind.UnsupportedMessage:
+        @* Unknown kinds may require controls this client cannot provide; withhold content and actions. *@
+        <div class="coach-message coach-message-unsupported">
+            <div class="coach-message-role">
+                <span>@(Entry.Message?.Role == CoachMessageRole.Learner ? Localize["Coach_RoleYou"] : Persona.DisplayName)</span>
+                <CoachTimestamp Value="Entry.Timestamp" />
+            </div>
+            <div class="ss-caption1 text-secondary-ss">@Localize["Coach_UnsupportedMessage"]</div>
+        </div>
+        break;
+
+    case CoachTimelineKind.HistorySuggestion:
+        <div class="coach-card coach-card-notice">
+            <div class="ss-body2">@Entry.HistorySuggestion?.Rationale</div>
+            @if (Entry.HistorySuggestion is { ChangeLines.Count: > 0 } suggestion)
+            {
+                <ul class="ss-caption1 text-secondary-ss mb-0">
+                    @foreach (var line in suggestion.ChangeLines)
+                    {
+                        <li>@line</li>
+                    }
+                </ul>
+            }
+        </div>
+        break;
+}
+
+@if (Entry.WriteOperation is { } operation)
+{
+    <SamWriteCard Operation="operation" />
+}
+@if (ShowSuggestion)
+{
+    <CoachSuggestionCard />
+}
+@if (ShowMemory)
+{
+    <CoachMemoryCandidateCard />
+}
+
+@code {
+    [Parameter, EditorRequired] public CoachTimelineEntry Entry { get; set; } = default!;
+    [Parameter] public bool ShowSuggestion { get; set; }
+    [Parameter] public bool ShowMemory { get; set; }
+    [Parameter] public EventCallback OnViewPlan { get; set; }
+    [Parameter] public EventCallback<string> OnReturnFocus { get; set; }
+    [Parameter] public EventCallback OnDisclosureChanging { get; set; }
+    [Parameter] public EventCallback OnDisclosureChanged { get; set; }
+
+    private string? MessageId => Entry.MessageId is { Length: > 0 } id ? id : Entry.Message?.MessageId;
+    private string HeaderId => $"coach-message-header-{MessageId ?? $"{Entry.Kind}:{Entry.TurnSequence}:{Entry.Sequence}"}";
+    // Informational notices are reportable; stopped-turn bookkeeping and unsettled rows are not.
+    private bool IsReportable =>
+        Entry.Kind == CoachTimelineKind.CoachMessage && Entry.Status == CoachTimelineStatus.Settled
+        && MessageId is { Length: > 0 } && Entry.Message is { } message
+        && CoachResponseReportability.IsReportableKind(message.Kind) && !Entry.ShowsNoChangeMarker;
+}

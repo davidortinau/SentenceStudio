@@ -59,7 +59,7 @@
          Microsoft.Agents.AI.Hosting is deliberately NOT pinned — it is still preview-only,
          and the agent is constructed through a manual DI factory instead. -->
     <PackageVersion Include="Azure.AI.OpenAI" Version="2.9.0-beta.1" />
-    <PackageVersion Include="AGUI.Server" Version="1.0.1" />
+    <PackageVersion Include="AGUI.Abstractions" Version="1.0.1" />
     <PackageVersion Include="AGUI.Client" Version="1.0.1" />
     <PackageVersion Include="Microsoft.AspNetCore.Components.AI" Version="0.1.0-preview.1.26466.103" />
     <PackageVersion Include="Azure.Identity" Version="1.21.0" />

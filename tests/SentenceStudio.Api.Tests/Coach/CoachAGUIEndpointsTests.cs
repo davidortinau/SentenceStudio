@@ -37,7 +37,7 @@ public sealed class CoachAGUIEndpointsTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task MissingOrOtherOwnersThreadDoesNotExposeAnything(bool durable)
+    public async Task MissingThreadDoesNotInvokeTheModel(bool durable)
     {
         await using var factory = new CoachApiFactory
         {
@@ -109,7 +109,7 @@ public sealed class CoachAGUIEndpointsTests
         }
         using var http = host.CreateClient();
         Authenticate(http, Owner);
-        var session = await http.PostAsJsonAsync("/api/v1/coach/sessions", new StartCoachSessionRequest { Resume = false });
+        using var session = await http.PostAsJsonAsync("/api/v1/coach/sessions", new StartCoachSessionRequest { Resume = false });
         session.EnsureSuccessStatusCode();
         var id = (await session.Content.ReadFromJsonAsync<CoachSessionResponse>())!.SessionId;
 

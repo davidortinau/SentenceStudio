@@ -14,101 +14,46 @@ using SentenceStudio.Services.Api;
 using SentenceStudio.WebApp.Coach;
 using SentenceStudio.WebApp.Components.Coach;
 using SentenceStudio.WebUI.Services;
+using SentenceStudio.WebUI.Shared.Coach;
 
 namespace SentenceStudio.UI.Tests.Coach;
 
 public sealed class CoachAgentTests
 {
-    [Fact]
-    public async Task MountedSynchronizationTracksExternalWorkspaceChangesWithoutARenderedElement()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task MountedTranscriptAndInputTrackCanonicalWorkspaceHistory(bool durable)
     {
-        var workspace = new CoachWorkspaceState(new FakeCoachApiClient());
-        using var client = new CoachWorkspaceChatClient(workspace);
-        using var agent = new UIAgent(client, options =>
+        var api = new FakeCoachApiClient { DurableHistoryAvailable = durable };
+        var workspace = new CoachWorkspaceState(api, new CoachConversationDirectory(api));
+        await using var mounted = await MountedAgent.CreateAsync(workspace);
+        await mounted.Renderer.Dispatcher.InvokeAsync(async () =>
         {
-            options.Thread = new CoachConversationThread(workspace);
-            options.AddBlockHandler(new CoachTimelineBlockHandler());
-        });
-        using var context = new AgentContext(agent);
-        var services = new ServiceCollection().AddLogging();
-        services.AddSingleton(workspace);
-        services.AddSingleton(client);
-        services.AddScoped<BlazorLocalizationService>();
-        services.AddScoped<CoachPersona>();
-        await using var provider = services.BuildServiceProvider();
-        await using var renderer = new HtmlRenderer(provider, provider.GetRequiredService<ILoggerFactory>());
-        Microsoft.AspNetCore.Components.Web.HtmlRendering.HtmlRootComponent output = default;
-        await renderer.Dispatcher.InvokeAsync(async () =>
-        {
-            RenderFragment synchronization = builder =>
-            {
-                builder.OpenComponent<CoachAgentSynchronization>(0);
-                builder.CloseComponent();
-                builder.OpenComponent<CoachAgentMessages>(1);
-                builder.CloseComponent();
-            };
-            output = await renderer.RenderComponentAsync<CascadingValue<AgentContext>>(
-                ParameterView.FromDictionary(new Dictionary<string, object?>
-                {
-                    ["Value"] = context,
-                    ["ChildContent"] = synchronization
-                }));
+            mounted.Html.Should().NotContain("sc-ai-input__textarea");
             await workspace.OpenAsync(CoachPresentation.Overlay);
             workspace.Draft = "Hello";
             await workspace.SendDraftAsync();
         });
-        await renderer.Dispatcher.InvokeAsync(() =>
+        await mounted.Renderer.Dispatcher.InvokeAsync(() =>
         {
-            context.Turns.SelectMany(t => t.RequestBlocks.Concat(t.ResponseBlocks))
+            mounted.Context.Turns.SelectMany(t => t.RequestBlocks.Concat(t.ResponseBlocks))
                 .OfType<CoachTimelineBlock>().Select(b => b.Entry).Should().Equal(workspace.Timeline);
-            output.ToHtmlString().Should().Contain("Hello");
+            mounted.Html.Should().Contain("Hello").And.Contain("sc-ai-input__textarea");
         });
-        await renderer.Dispatcher.InvokeAsync(() => context.SendMessageAsync("Hello again"));
-        await renderer.Dispatcher.InvokeAsync(() =>
+        await mounted.Renderer.Dispatcher.InvokeAsync(() => mounted.Context.SendMessageAsync("Hello again"));
+        await mounted.Renderer.Dispatcher.InvokeAsync(() =>
         {
-            context.Turns.SelectMany(t => t.RequestBlocks.Concat(t.ResponseBlocks))
+            mounted.Context.Turns.SelectMany(t => t.RequestBlocks.Concat(t.ResponseBlocks))
                 .OfType<CoachTimelineBlock>().Select(b => b.Entry).Should().Equal(workspace.Timeline);
-            output.ToHtmlString().Should().Contain("Hello again");
+            mounted.Html.Should().Contain("Hello again");
         });
-        await renderer.Dispatcher.InvokeAsync(() => workspace.DeleteSessionAsync());
-        await renderer.Dispatcher.InvokeAsync(() =>
+        await mounted.Renderer.Dispatcher.InvokeAsync(() => workspace.DeleteSessionAsync());
+        await mounted.Renderer.Dispatcher.InvokeAsync(() =>
         {
-            context.Turns.Should().BeEmpty();
-            output.ToHtmlString().Should().NotContain("Hello");
+            mounted.Context.Turns.Should().BeEmpty();
+            mounted.Html.Should().NotContain("Hello").And.NotContain("sc-ai-input__textarea");
         });
-    }
-
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public async Task LibraryInputIsPresentForSessionAndDurableConversations(bool durable)
-    {
-        var workspace = new CoachWorkspaceState(new FakeCoachApiClient { DurableHistoryAvailable = durable });
-        using var agent = CreateAgent(workspace);
-        using var context = new AgentContext(agent);
-        var services = new ServiceCollection().AddLogging();
-        services.AddSingleton(workspace);
-        services.AddScoped<BlazorLocalizationService>();
-        await using var provider = services.BuildServiceProvider();
-        await using var renderer = new HtmlRenderer(provider, provider.GetRequiredService<ILoggerFactory>());
-        var html = await renderer.Dispatcher.InvokeAsync(async () =>
-        {
-            RenderFragment input = builder =>
-            {
-                builder.OpenComponent<CoachAgentInput>(0);
-                builder.CloseComponent();
-            };
-            var output = await renderer.RenderComponentAsync<CascadingValue<AgentContext>>(
-                ParameterView.FromDictionary(new Dictionary<string, object?>
-                {
-                    ["Value"] = context,
-                    ["ChildContent"] = input
-                }));
-            output.ToHtmlString().Should().NotContain("sc-ai-input__textarea");
-            await workspace.OpenAsync(CoachPresentation.Overlay);
-            return output.ToHtmlString();
-        });
-        html.Should().Contain("sc-ai-input__textarea");
     }
 
     [Fact]
@@ -255,11 +200,10 @@ public sealed class CoachAgentTests
     }
 
     [Theory]
-    [InlineData(false, true, true)]
-    [InlineData(true, false, true)]
-    [InlineData(true, true, false)]
-    public async Task IncompleteAGUIResponseReleasesWorkspaceAndRetryPreservesDurableHandles(
-        bool snapshot, bool finished, bool operationPresent)
+    [InlineData("missing-snapshot")]
+    [InlineData("missing-finish")]
+    [InlineData("missing-operation")]
+    public async Task IncompleteAGUIResponseReleasesWorkspaceAndRetryPreservesDurableHandles(string failure)
     {
         var api = new FakeCoachApiClient { DurableHistoryAvailable = true };
         var json = new JsonSerializerOptions(JsonSerializerDefaults.Web)
@@ -286,15 +230,15 @@ public sealed class CoachAgentTests
             {
                 new RunStartedEvent { ThreadId = input.ThreadId, RunId = input.RunId }
             };
-            if (snapshot || retry)
+            if (retry || failure != "missing-snapshot")
             {
                 events.Add(new StateSnapshotEvent
                 {
                     Snapshot = JsonSerializer.SerializeToElement(
-                        new CoachAgentState { Operation = operationPresent || retry ? operation : null }, domainJson)
+                        new CoachAgentState { Operation = retry || failure != "missing-operation" ? operation : null }, domainJson)
                 });
             }
-            if (finished || retry)
+            if (retry || failure != "missing-finish")
             {
                 events.Add(new RunFinishedEvent { ThreadId = input.ThreadId, RunId = input.RunId });
             }
@@ -331,35 +275,6 @@ public sealed class CoachAgentTests
         workspace.Timeline.Count(e => e.Kind == CoachTimelineKind.LearnerMessage).Should().Be(1);
     }
 
-    [Fact]
-    public async Task RestoreUsesOnlyCanonicalHistoryAndClearsDeletedConversations()
-    {
-        var api = new FakeCoachApiClient();
-        var workspace = new CoachWorkspaceState(api);
-        await workspace.OpenAsync(CoachPresentation.Overlay);
-        using var agent = CreateAgent(workspace);
-        using var context = new AgentContext(agent);
-
-        await context.SendMessageAsync("Hello");
-        await context.RestoreAsync();
-        await context.RestoreAsync();
-        var entries = context.Turns.SelectMany(t => t.RequestBlocks.Concat(t.ResponseBlocks))
-            .OfType<CoachTimelineBlock>().Select(b => b.Entry).ToList();
-        entries.Should().Equal(workspace.Timeline);
-        api.SubmitTurnCalls.Should().Be(1);
-
-        await workspace.DeleteSessionAsync();
-        await context.RestoreAsync();
-        context.Turns.Should().BeEmpty();
-    }
-
-    private static UIAgent CreateAgent(CoachWorkspaceState workspace) =>
-        new(new CoachWorkspaceChatClient(workspace), options =>
-        {
-            options.Thread = new CoachConversationThread(workspace);
-            options.AddBlockHandler(new CoachTimelineBlockHandler());
-        });
-
     public sealed class ContextProbe : ComponentBase
     {
         [CascadingParameter] public AgentContext Context { get; set; } = default!;
@@ -382,6 +297,7 @@ public sealed class CoachAgentTests
             services.AddScoped<BlazorLocalizationService>();
             services.AddScoped<CoachPersona>();
             services.AddSingleton<IJSRuntime, StubJSRuntime>();
+            services.AddSingleton<NavigationManager, TestNavigationManager>();
             var provider = services.BuildServiceProvider();
             var renderer = new HtmlRenderer(provider, provider.GetRequiredService<ILoggerFactory>());
             var mounted = new MountedAgent(provider, renderer);
@@ -392,17 +308,9 @@ public sealed class CoachAgentTests
                     builder.OpenComponent<ContextProbe>(0);
                     builder.AddComponentReferenceCapture(1, instance => mounted.Probe = (ContextProbe)instance);
                     builder.CloseComponent();
-                    builder.OpenComponent<CascadingValue<CoachTranscriptActions>>(2);
-                    builder.AddAttribute(3, "Value", new CoachTranscriptActions(
-                        () => Task.CompletedTask, () => Task.CompletedTask, _ => Task.CompletedTask,
-                        () => Task.CompletedTask));
-                    builder.AddAttribute(4, "ChildContent", (RenderFragment)(messages =>
-                    {
-                        messages.OpenComponent<CoachAgentMessages>(0);
-                        messages.CloseComponent();
-                    }));
+                    builder.OpenComponent<CoachChatPane>(2);
                     builder.CloseComponent();
-                    builder.OpenComponent<CoachAgentInput>(5);
+                    builder.OpenComponent<CoachComposer>(3);
                     builder.CloseComponent();
                 };
                 mounted._output = await renderer.RenderComponentAsync<CoachAgentBoundary>(

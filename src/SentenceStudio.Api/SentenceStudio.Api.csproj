@@ -16,7 +16,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="AGUI.Server" />
+    <PackageReference Include="AGUI.Abstractions" />
     <PackageReference Include="Aspire.Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="CoreSync.Http.Server" />
     <PackageReference Include="CoreSync.PostgreSQL" />

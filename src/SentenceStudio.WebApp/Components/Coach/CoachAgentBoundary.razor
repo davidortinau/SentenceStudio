@@ -3,12 +3,13 @@
 @implements IAsyncDisposable
 @inject CoachWorkspaceState Workspace
 @inject CoachWorkspaceChatClient ChatClient
+@inject BlazorLocalizationService Localize
 
 @* A replaceable context clears preview-library retry state without remounting the app shell. *@
 <CascadingValue Value="_context">
-    <CoachAgentSynchronization OnResetContext="ResetContext" />
-    <CascadingValue Name="CoachMessageList" Value="MessageListContent" IsFixed="true">
-        <CascadingValue Name="CoachMessageInput" Value="MessageInputContent" IsFixed="true">
+    <CoachAgentSynchronization OnResetContext="ResetContext" OnHistoryRestored="HistoryRestored" />
+    <CascadingValue Name="CoachMessageList" Value="MessageListContent">
+        <CascadingValue Name="CoachMessageInput" Value="MessageInputContent">
             @ChildContent
         </CascadingValue>
     </CascadingValue>
@@ -18,8 +19,18 @@
     [Parameter] public RenderFragment? ChildContent { get; set; }
     private UIAgent _agent = default!;
     private AgentContext _context = default!;
-    private RenderFragment MessageListContent => @<CoachAgentMessages />;
-    private RenderFragment MessageInputContent => @<CoachAgentInput />;
+    private long _historyVersion;
+    private RenderFragment MessageListContent => @<CoachAgentMessages HistoryVersion="_historyVersion" />;
+    private RenderFragment MessageInputContent => @<text>
+        @if (Workspace.EntryId is not null)
+        {
+            <fieldset disabled="@(!Workspace.CanSubmit)">
+                <MessageInput @key="_context" Placeholder="@Localize["Coach_ComposerPlaceholder"]" />
+            </fieldset>
+        }
+    </text>;
+
+    private void HistoryRestored() => _historyVersion++;
 
     protected override void OnInitialized() => CreateContext();
 
