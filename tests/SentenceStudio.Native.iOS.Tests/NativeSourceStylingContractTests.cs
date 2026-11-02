@@ -368,7 +368,7 @@ public sealed class NativeSourceStylingContractTests
 
         var project = Source("SentenceStudio.Native.iOS.csproj");
         Assert.Contains(
-            "<PackageVersion Include=\"Microsoft.SwiftUI\" Version=\"0.1.0-preview.33\" />",
+            "<PackageVersion Include=\"Microsoft.SwiftUI\" Version=\"0.1.0-preview.34\" />",
             project);
         Assert.Contains("SentenceStudio.Native.SourceAtBuildSha", project);
     }
@@ -628,6 +628,25 @@ public sealed class NativeSourceStylingContractTests
         Assert.Contains(".WithButtonGroupLayout(appearance.BootstrapBaseButtonBorderWidth)",
             preferences);
         Assert.DoesNotContain("fillAvailableWidth: true", preferences);
+    }
+
+    [Fact]
+    public void VocabularyMatchingBoard_FillsHeightAndKeepsHiddenSlots()
+    {
+        var screen = Source("Features/Activities/VocabularyMatchingScreen.cs");
+        // Ready board is bounded (no Scroll) so equal flexible rows fill the screen.
+        Assert.Contains("state.Phase == NativePhase.Ready\n            ? Views.VStack(content.WithFlexibleHeight())",
+            screen);
+        Assert.DoesNotContain("Views.LazyVGrid(", screen);
+        var grid = screen[screen.IndexOf("private SwiftView Grid(", StringComparison.Ordinal)..];
+        Assert.Contains("var row = Views.HStack(cells.ToArray())\n                .WithFlexibleWidth()\n                .WithFlexibleHeight();",
+            grid);
+        // Hidden native tiles and short-row fillers take a full, empty tile slot.
+        Assert.Contains("Views.VStack().WithFlexibleWidth().WithFlexibleHeight();", screen);
+        Assert.Contains("if (!tile.IsVisible && !tile.IsMatched)\n            return Placeholder();", screen);
+        Assert.Contains(": Placeholder());", grid);
+        // Matched tiles stay in place at the source's 0.3 opacity.
+        Assert.Contains(".WithOpacity(tile.IsMatched ? 0.3 : 1);", screen);
     }
 
     private static string Source(string relative) =>

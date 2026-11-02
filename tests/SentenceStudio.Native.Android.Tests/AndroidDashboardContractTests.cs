@@ -192,6 +192,23 @@ public sealed class AndroidDashboardContractTests
             RegexOptions.Singleline).Count);
     }
 
+    [Fact]
+    public void VocabularyMatchingBoardFillsHeightAndKeepsHiddenSlots()
+    {
+        var matching = Source("AndroidSliceShell.Matching.Compose.cs");
+        // The Ready board is not scrolled, so weighted rows share the height.
+        Assert.Contains("if (!board)\n            viewportModifier = viewportModifier.VerticalScroll(_quizScroll);",
+            matching);
+        Assert.Contains("Modifier.WidthIn(max: 1100).FillMaxWidth().Weight(1f)", matching);
+        Assert.Contains("Modifier.FillMaxWidth().Weight(1f),", matching);
+        // Hidden native tiles and short-row fillers keep a full tile slot.
+        Assert.Contains("new Box { Modifier.Weight(1f).FillMaxHeight(1f) };", matching);
+        Assert.Contains("if (!tile.IsVisible && !tile.IsMatched)\n            return MatchingPlaceholder();",
+            matching);
+        Assert.Contains("Modifier.Weight(1f).FillMaxHeight(1f).HeightIn(min: 44)", matching);
+        Assert.Contains(".Alpha(tile.IsMatched ? 0.3f : 1f)", matching);
+    }
+
     private static string Source(string name)
     {
         var root = typeof(AndroidDashboardContractTests).Assembly
