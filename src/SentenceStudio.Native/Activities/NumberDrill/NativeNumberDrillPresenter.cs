@@ -15,7 +15,9 @@ namespace SentenceStudio.Native;
 /// KoreanNumberItemGenerator and KoreanNumberAnswerGrader (Korean, "ko").
 /// Every submit writes one NumberAttempt and updates NumberMasteryProgress
 /// (SM-2) through the shared service; no VocabularyProgress or UserActivity,
-/// plan minutes through the activity timer. Unlike the source, every read and
+/// plan minutes through the activity timer. "I was correct" also re-grades the
+/// stored attempt and its mastery row (Captain, 2026-11-02; departure 26).
+/// Unlike the source, every read and
 /// write is bound to the launch owner and refused when that owner is absent
 /// or no longer active, and a learner whose target language is not Korean
 /// gets a message instead of a Korean drill.
@@ -47,6 +49,7 @@ public sealed class NativeNumberDrillPresenter(
     private NumberSession? _session;
     private NumberItem? _item;
     private string? _lastErrorClass;
+    private NumberAttemptReceipt? _lastReceipt;
     private long _advance;
     private bool _disposed;
     private bool _exited;
@@ -376,9 +379,13 @@ public sealed class NativeNumberDrillPresenter(
     }
 
     /// <summary>
-    /// "I was correct": flips the on-screen grade and the local correct count,
-    /// logs the grader miss, then auto-advances after 1500 ms. Like the source,
-    /// the stored attempt and mastery stay as graded.
+    /// "I was correct": re-grades the item's stored attempt as correct and
+    /// corrects its long-term mastery (SM-2) through the shared service
+    /// (Captain, 2026-11-02; the source only flipped the on-screen grade).
+    /// On success it flips the on-screen grade, the local correct count and
+    /// the summary patterns, logs the grader miss, then auto-advances after
+    /// 1500 ms. When the correction cannot be stored it says so, keeps the
+    /// item graded as stored, and the learner continues with Next.
     /// </summary>
     public async Task<NativeNumberDrillState> OverrideAsync(CancellationToken cancellationToken = default)
     {
@@ -397,6 +404,34 @@ public sealed class NativeNumberDrillPresenter(
                 "counter={Counter} digitValue={DigitValue} errorClass={ErrorClass}",
                 item.SubModeCode, item.ContextCode, item.System, item.CounterId ?? "(none)",
                 item.DigitValue, feedback.ErrorClass ?? "(none)");
+            Publish(state with { IsOverriding = true, ErrorKey = null });
+            NumberOverrideResult? stored = null;
+            try
+            {
+                if (_sessions is { } sessions && _lastReceipt is { } receipt)
+                    stored = await sessions.OverrideAttemptAsync(userId, receipt, cancellationToken);
+                else
+                    logger.LogWarning("Number Drill override has no stored attempt to correct.");
+            }
+            catch (OperationCanceledException)
+            {
+                Publish(state with { IsOverriding = false });
+                throw;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Number Drill could not store the override.");
+            }
+            if (!owner.IsActive(userId))
+                return Refuse();
+            if (stored is not { Outcome: NumberOverrideOutcome.Applied or NumberOverrideOutcome.AlreadyCorrect })
+                return Publish(state with
+                {
+                    IsOverriding = false,
+                    ErrorKey = NativeNumberDrillText.OverrideFailed,
+                    HasPendingSync = pendingWrites.IsPending(userId),
+                });
+            _lastReceipt = null;
             if (_lastErrorClass is { } error && _errorClasses.TryGetValue(error, out var count))
             {
                 if (count <= 1)
@@ -413,6 +448,9 @@ public sealed class NativeNumberDrillPresenter(
                 {
                     IsCorrect = true, Overridden = true,
                     Verdict = null, VerdictKey = NativeNumberDrillText.OverriddenVerdict,
+                    ProgressCorrect = stored.Snapshot?.CorrectCount ?? feedback.ProgressCorrect,
+                    ProgressTotal = stored.Snapshot?.TotalCount ?? feedback.ProgressTotal,
+                    NextReviewUtc = stored.Snapshot?.NextDueDate ?? feedback.NextReviewUtc,
                 },
                 HasPendingSync = pendingWrites.IsPending(userId),
             });
@@ -644,6 +682,7 @@ public sealed class NativeNumberDrillPresenter(
             _itemClock.Stop();
             _latencies.Add(latency);
             _lastErrorClass = null;
+            _lastReceipt = result.Receipt;
             if (!result.Grade.IsCorrect)
             {
                 var error = string.IsNullOrEmpty(result.Grade.ErrorClass)
@@ -775,6 +814,7 @@ public sealed class NativeNumberDrillPresenter(
         var item = _session!.Items[index];
         _item = item;
         _lastErrorClass = null;
+        _lastReceipt = null;
         _itemClock.Restart();
         media.StopPlayback();
         return Publish(_state with
@@ -866,6 +906,7 @@ public sealed class NativeNumberDrillPresenter(
     {
         _session = null;
         _item = null;
+        _lastReceipt = null;
         _sessions = null;
         _sessionScope?.Dispose();
         _sessionScope = null;

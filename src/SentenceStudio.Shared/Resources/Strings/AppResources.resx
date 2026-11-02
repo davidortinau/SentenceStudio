@@ -9404,6 +9404,9 @@ For example: {0} ...</value>
   <data name="NumberDrill_SubmitFailed" xml:space="preserve">
     <value>Your answer could not be saved. Try again.</value>
   </data>
+  <data name="NumberDrill_OverrideFailed" xml:space="preserve">
+    <value>Your correction could not be saved. This answer stays marked incorrect.</value>
+  </data>
   <data name="NumberDrill_EndFailed" xml:space="preserve">
     <value>The session could not be finished. Try again.</value>
   </data>

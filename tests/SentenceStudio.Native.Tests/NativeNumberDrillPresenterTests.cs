@@ -146,12 +146,15 @@ public sealed class NativeNumberDrillPresenterTests
                 Assert.Equal("ko", attempt.LanguageCode);
                 Assert.Equal("Counting", attempt.ContextCode);
             });
-            // The override does not rewrite the stored grade (source).
-            Assert.Equal(1, attempts.Count(attempt => attempt.IsCorrect));
+            // "I was correct" re-grades the stored attempt and its mastery (Captain, 2026-11-02).
+            Assert.Equal(2, attempts.Count(attempt => attempt.IsCorrect));
+            var overridden = Assert.Single(attempts, attempt => attempt.IsCorrect && attempt.UserAnswer == "틀림");
+            Assert.False(string.IsNullOrEmpty(overridden.ErrorClass));
             var mastery = await db.NumberMasteryProgresses.AsNoTracking().ToListAsync();
             Assert.NotEmpty(mastery);
             Assert.All(mastery, row => Assert.Equal(NativeSliceFixture.UserA, row.UserProfileId));
             Assert.Equal(5, mastery.Sum(row => row.TotalCount));
+            Assert.Equal(2, mastery.Sum(row => row.CorrectCount));
             Assert.False(await db.UserActivities.AnyAsync());
             Assert.False(await db.VocabularyLearningContexts.AnyAsync());
         }
@@ -200,6 +203,94 @@ public sealed class NativeNumberDrillPresenterTests
             return scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
                 .NumberAttempts.Count();
         }
+    }
+
+    [Fact]
+    public async Task Override_RegradesTheStoredAttemptAndMasteryThenAdvances()
+    {
+        using var fixture = new NativeSliceFixture();
+        using var drill = await StartAsync(fixture, "Counting", "ReadAndProduce");
+        drill.AutoAdvanceDelay = TimeSpan.FromSeconds(30);
+
+        var state = await drill.SubmitAnswerAsync("틀림");
+        Assert.False(state.Feedback!.IsCorrect);
+        Assert.Equal(0, state.Feedback.ProgressCorrect);
+        var pending = drill.OverrideAsync();
+        await WaitForAsync(() => drill.State.Feedback?.Overridden == true);
+
+        state = drill.State;
+        Assert.True(state.Feedback!.IsCorrect);
+        Assert.Equal(NativeNumberDrillText.OverriddenVerdict, state.Feedback.VerdictKey);
+        Assert.Equal(1, state.Feedback.ProgressCorrect);
+        Assert.Equal(1, state.Feedback.ProgressTotal);
+        Assert.Equal(1, state.CorrectCount);
+        Assert.Null(state.ErrorKey);
+        Assert.True(state.IsOverriding);
+        // A second tap during the pause changes nothing.
+        Assert.Equal(1, (await drill.OverrideAsync()).CorrectCount);
+        state = await drill.NextAsync();
+        Assert.Equal(1, state.ItemIndex);
+        await drill.ExitAsync();
+        await pending;
+
+        using var scope = fixture.Scope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var attempt = await db.NumberAttempts.AsNoTracking().SingleAsync();
+        Assert.True(attempt.IsCorrect);
+        Assert.Equal(NativeSliceFixture.UserA, attempt.UserProfileId);
+        var row = await db.NumberMasteryProgresses.AsNoTracking().SingleAsync();
+        Assert.Equal(NativeSliceFixture.UserA, row.UserProfileId);
+        Assert.Equal(1, row.CorrectCount);
+        Assert.Equal(1, row.TotalCount);
+        // Same schedule as a first correct grade: interval 1 -> 6.
+        Assert.Equal(6, row.Interval);
+    }
+
+    [Fact]
+    public async Task Override_WhenTheCorrectionCannotBeStored_SaysSoAndTheSessionContinues()
+    {
+        using var fixture = new NativeSliceFixture();
+        using var drill = await StartAsync(fixture, "Counting", "ReadAndProduce");
+
+        var state = await drill.SubmitAnswerAsync("틀림");
+        Assert.False(state.Feedback!.IsCorrect);
+        var failedError = state.Feedback.ErrorClass;
+        // Another writer changes the mastery row after the attempt.
+        using (var scope = fixture.Scope())
+            await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Database
+                .ExecuteSqlRawAsync("UPDATE NumberMasteryProgress SET Interval = 9");
+
+        state = await drill.OverrideAsync();
+
+        Assert.Equal(NativePhase.Feedback, state.Phase);
+        Assert.Equal(0, state.ItemIndex);
+        Assert.Equal(NativeNumberDrillText.OverrideFailed, state.ErrorKey);
+        Assert.False(state.Feedback!.IsCorrect);
+        Assert.False(state.Feedback.Overridden);
+        Assert.False(state.IsOverriding);
+        Assert.Equal(0, state.CorrectCount);
+
+        state = await drill.NextAsync();
+        Assert.Equal(1, state.ItemIndex);
+        Assert.Null(state.ErrorKey);
+        using (var scope = fixture.Scope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            Assert.False((await db.NumberAttempts.AsNoTracking().SingleAsync()).IsCorrect);
+            var row = await db.NumberMasteryProgresses.AsNoTracking().SingleAsync();
+            Assert.Equal(0, row.CorrectCount);
+            Assert.Equal(9, row.Interval);
+        }
+
+        // The failed item keeps its error class in the summary patterns.
+        for (var i = 1; i < drill.State.ItemTotal; i++)
+        {
+            await drill.SubmitAnswerAsync(Digits(drill.State.Item!.DisplayPrompt));
+            state = await drill.NextAsync();
+        }
+        Assert.Equal(NativePhase.Summary, state.Phase);
+        if (!string.IsNullOrEmpty(failedError))
+            Assert.Contains(state.Summary!.ErrorClassBreakdown, pair => pair.Key == failedError);
     }
 
     [Fact]
