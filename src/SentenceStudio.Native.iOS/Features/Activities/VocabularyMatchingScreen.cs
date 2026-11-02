@@ -106,8 +106,15 @@ internal sealed class VocabularyMatchingScreen : IActivityScreen
             .WithFlexibleWidth()
             .WithAccessibilityIdentifier("native.matching.content");
         content.Spacing = SourceUiLayout.PageGap;
-        var page = style.Page(Views.Scroll(content)
-            .WithAccessibilityIdentifier(NativeMatchingAccess.Screen));
+        // Source CSS: the tile grid fills the height below the header without
+        // scrolling, so the playing board is a bounded stack, not a Scroll.
+        var page = style.Page(state.Phase == NativePhase.Ready
+            ? Views.VStack(content.WithFlexibleHeight())
+                .WithFlexibleWidth()
+                .WithFlexibleHeight()
+                .WithAccessibilityIdentifier(NativeMatchingAccess.Screen)
+            : Views.Scroll(content)
+                .WithAccessibilityIdentifier(NativeMatchingAccess.Screen));
         if (state.Phase == NativePhase.Blocked)
             return page;
 
@@ -153,45 +160,80 @@ internal sealed class VocabularyMatchingScreen : IActivityScreen
     /// <summary>Source CSS: 2 columns up to 768 pt wide, 4 columns above.</summary>
     internal static int Columns(double viewportWidth) => viewportWidth <= 768 ? 2 : 4;
 
+    /// <summary>Wide layouts keep the board centered instead of stretching tiles across a large canvas.</summary>
+    private const double WideGridMaxWidth = 1100;
+
+    /// <summary>
+    /// Source CSS grid: equal rows and columns that share the height below the
+    /// status bar. Every tile, including a hidden native placeholder, takes the
+    /// same slot so the board keeps its shape for the whole round.
+    /// </summary>
     private SwiftView Grid(NativeMatchingState state, SourceUiStyle style,
         Func<string, string> text)
     {
-        var appearance = style.Appearance;
         var tiles = state.Tiles.IsDefault ? [] : state.Tiles;
-        var grid = Views.LazyVGrid(Columns(style.ViewportWidth), tiles.Select(tile =>
+        var columns = Columns(style.ViewportWidth);
+        var gap = style.ViewportWidth <= 768 ? 4 : SourceUiLayout.ItemGap;
+        var rows = new List<SwiftView>();
+        for (var start = 0; start < tiles.Length; start += columns)
         {
-            if (!tile.IsVisible && !tile.IsMatched)
-                // Hidden native tile keeps its grid cell but exposes no text.
-                return Views.VStack()
-                    .WithMinimumHeight(56)
-                    .WithFlexibleWidth();
-            var foreground = tile.IsSelected ? appearance.OnPrimary
-                : tile.IsMatched ? appearance.SecondaryText : appearance.Text;
-            var fill = tile.IsSelected ? appearance.Primary : appearance.BodyBackground;
-            var border = tile.IsSelected ? appearance.Primary
-                : tile.IsTarget && !tile.IsMatched ? appearance.InfoAlertText
-                    : appearance.Border;
-            var label = style.Text(Views.Text(tile.Text), SourceTextRole.Body1,
-                    strongElement: tile.IsTarget)
-                .WithForegroundColor(foreground.Light, foreground.Dark)
-                .WithPadding(6)
-                .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
-                .WithMinimumHeight(56)
-                .WithRoundedSurface(fill.Light, fill.Dark, appearance.BootstrapRadius,
-                    border.Light, border.Dark, 2);
-            var button = Views.Button(label, () => Fire(token =>
-                    _presenter.TapAsync(tile.Id, token)))
-                .WithButtonStyle(SwiftButtonStyle.Plain)
-                .WithAccessibilityLabel(tile.IsMatched
-                    ? $"{tile.Text}, {text(NativeMatchingText.Matched)}" : tile.Text)
-                .WithAccessibilitySelected(tile.IsSelected)
-                .WithAccessibilityIdentifier(tile.AccessibilityId)
-                .WithOpacity(tile.IsMatched ? 0.3 : 1);
-            button.IsEnabled = !tile.IsMatched && !state.IsChecking;
-            return button;
-        }).ToArray()).WithAccessibilityIdentifier(NativeMatchingAccess.Grid);
-        grid.Spacing = style.ViewportWidth <= 768 ? 4 : SourceUiLayout.ItemGap;
+            var cells = new List<SwiftView>();
+            for (var index = start; index < start + columns; index++)
+                cells.Add(index < tiles.Length
+                    ? Tile(tiles[index], state, style, text)
+                    : Placeholder());
+            var row = Views.HStack(cells.ToArray())
+                .WithFlexibleWidth()
+                .WithFlexibleHeight();
+            row.Spacing = gap;
+            rows.Add(row);
+        }
+        var grid = Views.VStack(rows.ToArray())
+            .WithFlexibleWidth(style.ViewportWidth <= 768 ? null : WideGridMaxWidth,
+                SwiftHorizontalAlignment.Center)
+            .WithFlexibleHeight()
+            .WithAccessibilityIdentifier(NativeMatchingAccess.Grid);
+        grid.Spacing = gap;
         return grid;
+    }
+
+    /// <summary>Hidden native tile: an empty slot of a tile's size with no text, focus or accessibility element.</summary>
+    private static SwiftView Placeholder() =>
+        Views.VStack().WithFlexibleWidth().WithFlexibleHeight();
+
+    private SwiftView Tile(NativeMatchingTile tile, NativeMatchingState state,
+        SourceUiStyle style, Func<string, string> text)
+    {
+        if (!tile.IsVisible && !tile.IsMatched)
+            return Placeholder();
+        var appearance = style.Appearance;
+        var foreground = tile.IsSelected ? appearance.OnPrimary
+            : tile.IsMatched ? appearance.SecondaryText : appearance.Text;
+        var fill = tile.IsSelected ? appearance.Primary : appearance.BodyBackground;
+        var border = tile.IsSelected ? appearance.Primary
+            : tile.IsTarget && !tile.IsMatched ? appearance.InfoAlertText
+                : appearance.Border;
+        var label = style.Text(Views.Text(tile.Text), SourceTextRole.Body1,
+                strongElement: tile.IsTarget)
+            .WithForegroundColor(foreground.Light, foreground.Dark)
+            .WithPadding(6)
+            .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
+            .WithFlexibleHeight()
+            .WithMinimumHeight(44)
+            .WithRoundedSurface(fill.Light, fill.Dark, appearance.BootstrapRadius,
+                border.Light, border.Dark, 2);
+        var button = Views.Button(label, () => Fire(token =>
+                _presenter.TapAsync(tile.Id, token)))
+            .WithButtonStyle(SwiftButtonStyle.Plain)
+            .WithFlexibleWidth(alignment: SwiftHorizontalAlignment.Center)
+            .WithFlexibleHeight()
+            .WithAccessibilityLabel(tile.IsMatched
+                ? $"{tile.Text}, {text(NativeMatchingText.Matched)}" : tile.Text)
+            .WithAccessibilitySelected(tile.IsSelected)
+            .WithAccessibilityIdentifier(tile.AccessibilityId)
+            .WithOpacity(tile.IsMatched ? 0.3 : 1);
+        button.IsEnabled = !tile.IsMatched && !state.IsChecking;
+        return button;
     }
 
     private SwiftView Complete(NativeMatchingState state, SourceUiStyle style,

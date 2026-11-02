@@ -85,10 +85,15 @@ internal sealed partial class AndroidSliceShell
     private ComposableNode RenderMatching(AndroidVisualPalette palette)
     {
         var state = Matching;
-        var viewport = new Column(Arrangement.SpacedBy(12))
+        // Source CSS: the playing board fills the height below the header without
+        // scrolling; other phases keep the scrolling page.
+        var board = state.Phase == NativePhase.Ready;
+        var viewportModifier = Modifier.FillMaxWidth().Weight(1f);
+        if (!board)
+            viewportModifier = viewportModifier.VerticalScroll(_quizScroll);
+        var viewport = new Column(Arrangement.SpacedBy(12), Alignment.Horizontal.CenterHorizontally)
         {
-            Modifier = Modifier.FillMaxWidth().Weight(1f)
-                .VerticalScroll(_quizScroll)
+            Modifier = viewportModifier
                 .Padding(horizontal: AndroidVisualTheme.PagePadding, vertical: 16)
                 .TestTag(NativeMatchingAccess.Screen),
         };
@@ -211,36 +216,43 @@ internal sealed partial class AndroidSliceShell
     {
         var tiles = state.Tiles.IsDefault ? [] : state.Tiles;
         var columns = WindowWidthDp > 768 ? 4 : 2;
-        var grid = new Column(Arrangement.SpacedBy(6))
+        var gap = WindowWidthDp > 768 ? 8 : 4;
+        // Source CSS grid: equal rows and columns share the height below the status
+        // bar; wide windows keep the board centered instead of stretching tiles.
+        var grid = new Column(Arrangement.SpacedBy(gap))
         {
-            Modifier.FillMaxWidth().TestTag(NativeMatchingAccess.Grid),
+            Modifier.WidthIn(max: 1100).FillMaxWidth().Weight(1f)
+                .TestTag(NativeMatchingAccess.Grid),
         };
         for (var start = 0; start < tiles.Length; start += columns)
         {
-            var row = new Row(Arrangement.SpacedBy(6), Alignment.Vertical.CenterVertically)
+            var row = new Row(Arrangement.SpacedBy(gap))
             {
-                Modifier.FillMaxWidth(),
+                Modifier.FillMaxWidth().Weight(1f),
             };
             for (var index = start; index < start + columns; index++)
                 row.Add(index < tiles.Length
                     ? MatchingTile(tiles[index], state, palette)
-                    : new Box { Modifier.Weight(1f).HeightIn(min: 56) });
+                    : MatchingPlaceholder());
             grid.Add(row);
         }
         return grid;
     }
 
+    /// <summary>Hidden native tile: an empty slot of a tile's size with no text, focus or semantics.</summary>
+    private static ComposableNode MatchingPlaceholder() =>
+        new Box { Modifier.Weight(1f).FillMaxHeight(1f) };
+
     private ComposableNode MatchingTile(NativeMatchingTile tile, NativeMatchingState state,
         AndroidVisualPalette palette)
     {
         if (!tile.IsVisible && !tile.IsMatched)
-            // Hidden native tile keeps its cell but exposes no text or semantics.
-            return new Box { Modifier.Weight(1f).HeightIn(min: 56) };
+            return MatchingPlaceholder();
         var label = tile.IsMatched
             ? $"{tile.Text}, {Localize(NativeMatchingText.Matched)}" : tile.Text;
         var border = tile.IsSelected ? palette.Primary
             : tile.IsTarget && !tile.IsMatched ? palette.Primary : palette.Border;
-        var modifier = Modifier.Weight(1f).HeightIn(min: 56)
+        var modifier = Modifier.Weight(1f).FillMaxHeight(1f).HeightIn(min: 44)
             .Alpha(tile.IsMatched ? 0.3f : 1f)
             .Border(2, border, AndroidVisualTheme.ControlRadius)
             .TestTag(tile.AccessibilityId);
@@ -277,7 +289,7 @@ internal sealed partial class AndroidSliceShell
         // Only SemiBold/Bold have R8 keep rules (proguard-compose-jni.cfg).
         if (tile.IsTarget)
             text.FontWeight = FontWeight.SemiBold;
-        surface.Add(new Box { Modifier.FillMaxWidth().HeightIn(min: 56), text });
+        surface.Add(new Box { Modifier.FillMaxSize(), text });
         return surface;
     }
 
