@@ -302,6 +302,69 @@ public sealed class NativeWordAssociationPresenterTests
     }
 
     [Fact]
+    public async Task Back_ReturnsItsDestinationToTheCancelledGrade_EvenWhenItResumesFirst()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA, wordCount: 5);
+        await SignInAsync(fixture, NativeSliceFixture.EmailA);
+        var ai = new FakeAi { Hang = true };
+        using var presenter = Presenter(fixture, ai);
+        await presenter.OpenAsync(Launch(fixture, NativeSliceFixture.UserA));
+        presenter.SetDraft("clue");
+        await presenter.AddClueAsync();
+        var published = new List<NativeWordAssociationState>();
+        presenter.StateChanged += published.Add;
+
+        var grading = presenter.GradeAsync();
+        await ai.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        ExitRace.HoldExitUntil(presenter.ExitFence, () => grading);
+        var exit = await presenter.ExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
+        var late = await grading.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.Equal(NativeDestination.TodaysPlan, exit.Destination);
+        Assert.Equal(NativeDestination.TodaysPlan, late.Destination);
+        Assert.Equal(NativeDestination.TodaysPlan, published[^1].Destination);
+        Assert.Equal(0, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
+    }
+
+    [Fact]
+    public async Task AnAbandonedBackOrDisposal_NeverLeavesTheGradeWaiting()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA, wordCount: 5);
+        await SignInAsync(fixture, NativeSliceFixture.EmailA);
+
+        // Back whose own gate wait is cancelled: the grade still completes.
+        var ai = new FakeAi { Hang = true };
+        using (var presenter = Presenter(fixture, ai))
+        {
+            await presenter.OpenAsync(Launch(fixture, NativeSliceFixture.UserA));
+            presenter.SetDraft("clue");
+            await presenter.AddClueAsync();
+            var grading = presenter.GradeAsync();
+            await ai.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(
+                () => presenter.ExitAsync(new CancellationToken(canceled: true)));
+            var late = await grading.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.False(late.IsGrading);
+            Assert.Equal(NativeDestination.TodaysPlan,
+                (await presenter.ExitAsync().WaitAsync(TimeSpan.FromSeconds(10))).Destination);
+        }
+
+        // Disposal while grading: the grade completes too.
+        var hung = new FakeAi { Hang = true };
+        var disposed = Presenter(fixture, hung);
+        await disposed.OpenAsync(Launch(fixture, NativeSliceFixture.UserA));
+        disposed.SetDraft("clue");
+        await disposed.AddClueAsync();
+        var pending = disposed.GradeAsync();
+        await hung.Started.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        disposed.Dispose();
+        await pending.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(0, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
+    }
+
+    [Fact]
     public async Task AbsentOrChangedOwner_FailsClosedWithoutRows()
     {
         using var fixture = new NativeSliceFixture();

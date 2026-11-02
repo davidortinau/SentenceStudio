@@ -53,6 +53,7 @@ public sealed class NativeReadingPresenter(
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly object _sync = new();
     private readonly CancellationTokenSource _lifetime = new();
+    private readonly NativeActivityExit _exit = new();
     private readonly ILogger<NativeReadingPresenter> _logger = loggers.CreateLogger<NativeReadingPresenter>();
     private NativeActivityLaunch? _launch;
     private LearningResource? _resource;
@@ -83,6 +84,9 @@ public sealed class NativeReadingPresenter(
     private bool _exited;
     private bool _disposed;
     private NativeReadingState _state = new(NativePhase.Idle);
+
+    /// <summary>The Back/Exit fence (tests force continuation ordering through it).</summary>
+    internal NativeActivityExit ExitFence => _exit;
 
     public NativeReadingState State
     {
@@ -519,7 +523,7 @@ public sealed class NativeReadingPresenter(
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested || _lifetime.IsCancellationRequested)
         {
-            return State;
+            return await SettledStateAsync();
         }
         catch (Exception ex)
         {
@@ -527,11 +531,11 @@ public sealed class NativeReadingPresenter(
             definition = TranslationUnavailableMarker;
         }
 
-        // A later tap, close, exit or owner change supersedes this lookup: it
-        // is neither shown nor recorded.
-        if (!IsCurrentLookup(lookup, userId))
-            return _state;
-        if (translated)
+        // Source HandleWordClicked records every lookup whose translation
+        // returned, even after the panel closed or another word was tapped; it
+        // is not recorded after Back or for another owner, nor when the
+        // translation failed or was cancelled.
+        if (translated && !_exit.HasBegun && !IsExited())
         {
             try
             {
@@ -543,14 +547,33 @@ public sealed class NativeReadingPresenter(
             }
         }
 
+        // A later tap, close, exit or owner change supersedes the shown definition.
+        bool show;
         lock (_sync)
         {
-            if (lookup != _lookup || _exited || !owner.IsActive(userId) || _panel is null)
-                return _state;
-            _panel = _panel with { Definition = definition, IsTranslating = false };
+            show = lookup == _lookup && !_exited && !_exit.HasBegun && owner.IsActive(userId)
+                && _panel is not null;
+            if (show)
+                _panel = _panel! with { Definition = definition, IsTranslating = false };
         }
-        return Publish();
+        if (show)
+            Publish();
+        return await SettledStateAsync();
     }
+
+    private bool IsExited()
+    {
+        lock (_sync)
+            return _exited;
+    }
+
+    /// <summary>
+    /// The state a lookup returns: once Back has begun, the state Back settles
+    /// (never the pre-Back one); otherwise the current state.
+    /// </summary>
+    private async Task<NativeReadingState> SettledStateAsync() =>
+        _exit.HasBegun ? await _exit.StateAsync(_gate, () => State) : State;
+
 
     /// <summary>
     /// Source TranslationService.TranslateAsync, owner-scoped: an owned word by
@@ -662,54 +685,61 @@ public sealed class NativeReadingPresenter(
     /// <summary>Back / Go Back: stop audio and the timer, record the session, return to the Dashboard.</summary>
     public async Task<NativeReadingState> ExitAsync(CancellationToken cancellationToken = default)
     {
-        await _gate.WaitAsync(cancellationToken);
+        var exited = false;
+        _exit.Begin();
         try
         {
-            if (_exited)
-                return State;
-            LearningResource? resource;
-            lock (_sync)
-            {
-                _exited = true;
-                _lookup++;
-                _audio?.Stop();
-                _playing = false;
-                resource = _resource;
-            }
-            string? errorKey = null;
+            await _exit.AfterCancelAsync();
+            await _gate.WaitAsync(cancellationToken);
             try
             {
-                if (await timer.StopAsync(cancellationToken) == NativeActivityStop.Failed)
+                if (_exited)
+                {
+                    exited = true;
+                    return State;
+                }
+                LearningResource? resource;
+                lock (_sync)
+                {
+                    _exited = exited = true;
+                    _lookup++;
+                    _audio?.Stop();
+                    _playing = false;
+                    resource = _resource;
+                }
+                string? errorKey = null;
+                try
+                {
+                    if (await timer.StopAsync(cancellationToken) == NativeActivityStop.Failed)
+                        errorKey = NativeText.SaveFailed;
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    _logger.LogError(ex, "Reading could not save its activity minutes.");
                     errorKey = NativeText.SaveFailed;
+                }
+                if (resource is not null && _launch is { } launch && owner.IsActive(launch.UserId)
+                    && !await RecordActivityAsync(launch.UserId, $"Reading session: {resource.Title}"))
+                    errorKey ??= NativeText.SaveFailed;
+                lock (_sync)
+                {
+                    _destination = NativeDestination.TodaysPlan;
+                    _phase = NativePhase.Ready;
+                    _panel = null;
+                    _notice = null;
+                    _errorKey = errorKey;
+                }
+                return Publish();
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            finally
             {
-                _logger.LogError(ex, "Reading could not save its activity minutes.");
-                errorKey = NativeText.SaveFailed;
+                _gate.Release();
             }
-            if (resource is not null && _launch is { } launch && owner.IsActive(launch.UserId)
-                && !await RecordActivityAsync(launch.UserId, $"Reading session: {resource.Title}"))
-                errorKey ??= NativeText.SaveFailed;
-            lock (_sync)
-            {
-                _destination = NativeDestination.TodaysPlan;
-                _phase = NativePhase.Ready;
-                _panel = null;
-                _notice = null;
-                _errorKey = errorKey;
-            }
-            return Publish();
         }
         finally
         {
-            _gate.Release();
+            _exit.End(exited);
         }
-    }
-
-    private bool IsCurrentLookup(long lookup, string userId)
-    {
-        lock (_sync)
-            return lookup == _lookup && !_exited && _panel is not null && owner.IsActive(userId);
     }
 
     private async Task<bool> RecordActivityAsync(string userId, string input)
@@ -894,6 +924,10 @@ public sealed class NativeReadingPresenter(
                 PassageLanguageTag(_resource?.Language, _resource?.Transcript));
             state = State;
         }
+        // Once Back has begun, background audio and lookups publish nothing;
+        // only Back's own destination state reaches the screen.
+        if (_exit.HasBegun && state.Destination != NativeDestination.TodaysPlan)
+            return state;
         StateChanged?.Invoke(state);
         return state;
     }
@@ -909,7 +943,9 @@ public sealed class NativeReadingPresenter(
             audio = _audio;
             _audio = null;
         }
+        _exit.Complete();
         _lifetime.Cancel();
+
         if (audio is not null)
         {
             audio.SentenceChanged -= OnSentenceChanged;

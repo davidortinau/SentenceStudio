@@ -35,11 +35,20 @@ public sealed record NativeActivityDefinition(
 /// <item>Never await AI, speech or other network work while holding the
 /// presenter gate. Load content through <see cref="NativeActivityLoad"/>:
 /// Begin under the gate, await off the gate with the ticket token, then
-/// re-take the gate with <c>CancellationToken.None</c> and apply only while
-/// the ticket is current. ExitAsync calls Cancel before waiting on the gate.</item>
+/// re-take the gate with <see cref="NativeActivityExit.EnterAsync"/> and apply
+/// only when it returns true and the ticket is current.</item>
+/// <item>Back/Exit uses <see cref="NativeActivityExit"/>: Begin, then cancel
+/// in-flight work, then wait on the gate, publish the destination, release the
+/// gate and End. Once Exit has begun no continuation may return or publish a
+/// non-Exit state: a cancelled continuation returns
+/// <see cref="NativeActivityExit.StateAsync{T}"/>, and every other one re-enters
+/// through EnterAsync, which waits for Exit to settle. Do not hand-roll a
+/// completion source for this.</item>
 /// <item>Background work a command starts (audio preparation, grading) uses a
-/// presenter-owned token, not the caller's, and re-takes the gate with
-/// <c>CancellationToken.None</c> so its busy flag is always cleared.</item>
+/// presenter-owned token, not the caller's, and re-takes the gate through
+/// <see cref="NativeActivityExit.EnterAsync"/> (it always returns holding the
+/// gate) so its busy flag is always cleared.</item>
+
 /// <item>Write UserActivity rows with <see cref="NativeUserActivity.Create"/>
 /// (UTC instants, explicit owner).</item>
 /// <item>Heads: Android resolves the presenter from the per-launch activity

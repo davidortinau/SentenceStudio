@@ -358,6 +358,52 @@ public sealed class NativeTranslationPresenterTests
         Assert.Equal(nameof(PlanActivityType.Translation), row.ActivityType);
     }
 
+    [Fact]
+    public async Task Back_ReturnsItsDestinationToTheLoadAndGrade_EvenWhenTheyResumeFirst()
+    {
+        using var fixture = new NativeSliceFixture();
+        await SeedSkillAsync(fixture, NativeSliceFixture.UserA, wordCount: 3);
+        await SignInAsync(fixture, NativeSliceFixture.EmailA);
+        var hang = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var ai = new ScratchTranslationAi(NativeSliceFixture.UserA) { GenerateHang = hang };
+        using (var loading = Presenter(fixture, ai))
+        {
+            var published = new List<NativeTranslationState>();
+            loading.StateChanged += published.Add;
+            var open = loading.OpenAsync(Launch(fixture, NativeSliceFixture.UserA));
+            for (var i = 0; i < 500 && ai.GeneratePrompts.Count == 0; i++)
+                await Task.Delay(10);
+            ExitRace.HoldExitUntil(loading.ExitFence, () =>
+            {
+                hang.SetResult(true);
+                return open;
+            });
+            Assert.Equal(NativeDestination.TodaysPlan,
+                (await loading.ExitAsync().WaitAsync(TimeSpan.FromSeconds(10))).Destination);
+            Assert.Equal(NativeDestination.TodaysPlan,
+                (await open.WaitAsync(TimeSpan.FromSeconds(10))).Destination);
+            Assert.Equal(NativeDestination.TodaysPlan, published[^1].Destination);
+        }
+
+        ai.GenerateHang = null;
+        ai.GradeGate = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var translation = Presenter(fixture, ai);
+        await translation.OpenAsync(Launch(fixture, NativeSliceFixture.UserA));
+        await translation.StartAsync();
+        translation.SetInput("가요");
+        var pending = translation.GradeAsync();
+        Assert.True(translation.State.IsGrading);
+        ExitRace.HoldExitUntil(translation.ExitFence, () => pending);
+        Assert.Equal(NativeDestination.TodaysPlan,
+            (await translation.ExitAsync().WaitAsync(TimeSpan.FromSeconds(10))).Destination);
+        var late = await pending.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(NativeDestination.TodaysPlan, late.Destination);
+        Assert.False(late.IsGrading);
+        using var scope = fixture.Scope();
+        Assert.False(await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
+            .UserActivities.AnyAsync());
+    }
+
     private static NativeTranslationPresenter Presenter(NativeSliceFixture fixture, INativeTranslationAi ai) =>
         ActivatorUtilities.CreateInstance<NativeTranslationPresenter>(fixture.Provider, ai);
 

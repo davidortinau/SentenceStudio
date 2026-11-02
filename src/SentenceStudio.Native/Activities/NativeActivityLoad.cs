@@ -10,10 +10,16 @@ public readonly record struct NativeActivityLoadTicket(long Version, Cancellatio
 /// <list type="number">
 /// <item>Under the gate: validate, reset, publish Loading, then <see cref="Begin"/>.</item>
 /// <item>Release the gate and await the load with <see cref="NativeActivityLoadTicket.Token"/>.</item>
-/// <item>Re-take the gate with <c>CancellationToken.None</c> and apply the result only
-/// while <see cref="IsCurrent"/>; otherwise return the current state unchanged.</item>
-/// <item>Exit calls <see cref="Cancel"/> before awaiting the gate; Dispose disposes this.</item>
+/// <item>Re-take the gate through <see cref="NativeActivityExit.EnterAsync"/> (never a
+/// plain gate wait) and apply the result only when it returns true and the ticket
+/// <see cref="IsCurrent"/>; otherwise return the current state unchanged. A cancelled
+/// load returns <see cref="NativeActivityExit.StateAsync{T}"/>.</item>
+/// <item>Exit calls <see cref="NativeActivityExit.Begin"/>, then <see cref="Cancel"/>,
+/// before awaiting the gate, and <see cref="NativeActivityExit.End"/> after releasing it,
+/// so a cancelled load that resumes first returns Exit's state, never the pre-Exit
+/// one. Dispose disposes this and completes the exit fence.</item>
 /// </list>
+
 /// A newer <see cref="Begin"/> cancels and supersedes the previous load.
 /// </summary>
 public sealed class NativeActivityLoad : IDisposable

@@ -39,6 +39,7 @@ public sealed class NativeScenePresenter(
 
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly CancellationTokenSource _lifetime = new();
+    private readonly NativeActivityExit _exit = new();
     private readonly NativeActivityLoad _imageLoad = new();
     private readonly NativeActivityLoad _galleryLoad = new();
     private readonly List<VocabularyWord> _vocabulary = [];
@@ -64,6 +65,9 @@ public sealed class NativeScenePresenter(
     private long _generation;
     private bool _exited;
     private bool _disposed;
+
+    /// <summary>The Back/Exit fence (tests force continuation ordering through it).</summary>
+    internal NativeActivityExit ExitFence => _exit;
 
     public NativeSceneState State =>
         _launch is not null && !owner.IsActive(_launch.UserId)
@@ -200,11 +204,11 @@ public sealed class NativeScenePresenter(
             failure = ex;
         }
 
-        await _gate.WaitAsync(CancellationToken.None);
+        var proceed = await _exit.EnterAsync(_gate);
         try
         {
             _grading = false;
-            if (Exited)
+            if (!proceed || Exited)
                 return State;
             if (!Active())
                 return Refuse();
@@ -505,32 +509,42 @@ public sealed class NativeScenePresenter(
     public async Task<NativeSceneState> ExitAsync(CancellationToken cancellationToken = default)
     {
         // Cancel an in-flight grade and image downloads before waiting for the gate.
-        _lifetime.Cancel();
-        _imageLoad.Cancel();
-        _galleryLoad.Cancel();
-        await _gate.WaitAsync(cancellationToken);
+        var exited = false;
+        _exit.Begin();
         try
         {
-            _generation++;
-            _exited = true;
-            string? errorKey = null;
+            _lifetime.Cancel();
+            _imageLoad.Cancel();
+            _galleryLoad.Cancel();
+            await _exit.AfterCancelAsync();
+            await _gate.WaitAsync(cancellationToken);
             try
             {
-                if (await timer.StopAsync(cancellationToken) == NativeActivityStop.Failed)
+                _generation++;
+                _exited = exited = true;
+                string? errorKey = null;
+                try
+                {
+                    if (await timer.StopAsync(cancellationToken) == NativeActivityStop.Failed)
+                        errorKey = NativeText.SaveFailed;
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    logger.LogError(ex, "Describe a Scene could not save its activity minutes.");
                     errorKey = NativeText.SaveFailed;
+                }
+                return Publish(new(NativePhase.Ready, NativeDestination.TodaysPlan,
+                    ErrorKey: errorKey,
+                    HasPendingSync: _launch is not null && pendingWrites.IsPending(_launch.UserId)));
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            finally
             {
-                logger.LogError(ex, "Describe a Scene could not save its activity minutes.");
-                errorKey = NativeText.SaveFailed;
+                _gate.Release();
             }
-            return Publish(new(NativePhase.Ready, NativeDestination.TodaysPlan,
-                ErrorKey: errorKey,
-                HasPendingSync: _launch is not null && pendingWrites.IsPending(_launch.UserId)));
         }
         finally
         {
-            _gate.Release();
+            _exit.End(exited);
         }
     }
 
@@ -632,10 +646,11 @@ public sealed class NativeScenePresenter(
         SceneImage image;
         string userId;
         NativeActivityLoadTicket ticket;
-        await _gate.WaitAsync(CancellationToken.None);
+        // Opening releases the gate before this; a Back in between settles first.
+        var entered = await _exit.EnterAsync(_gate);
         try
         {
-            if (Exited || !Active() || _current is null)
+            if (!entered || Exited || !Active() || _current is null)
                 return State;
             if (_bytes.TryGetValue(_current.Id, out var cached) && cached is not null)
                 return PublishPage();
@@ -661,10 +676,10 @@ public sealed class NativeScenePresenter(
             logger.LogWarning(ex, "Describe a Scene could not load the scene image.");
         }
 
-        await _gate.WaitAsync(CancellationToken.None);
+        var proceed = await _exit.EnterAsync(_gate);
         try
         {
-            if (!_imageLoad.IsCurrent(ticket) || Exited)
+            if (!proceed || !_imageLoad.IsCurrent(ticket) || Exited)
                 return State;
             if (!Active())
                 return Refuse();
@@ -686,10 +701,11 @@ public sealed class NativeScenePresenter(
         NativeActivityLoadTicket ticket;
         List<SceneImage> pending;
         string userId;
-        await _gate.WaitAsync(CancellationToken.None);
+        var entered = await _exit.EnterAsync(_gate);
         try
         {
-            if (Exited || !Active() || !_galleryOpen)
+            if (!entered || Exited || !Active() || !_galleryOpen)
+
                 return State;
             pending = _gallery.Where(image => !_bytes.ContainsKey(image.Id)).ToList();
             if (pending.Count == 0)
@@ -711,16 +727,16 @@ public sealed class NativeScenePresenter(
             }
             catch (OperationCanceledException) when (ticket.Token.IsCancellationRequested)
             {
-                return State;
+                return await _exit.StateAsync(_gate, () => State);
             }
             catch (Exception ex)
             {
                 logger.LogWarning(ex, "Describe a Scene could not load a gallery image.");
             }
-            await _gate.WaitAsync(CancellationToken.None);
+            var proceed = await _exit.EnterAsync(_gate);
             try
             {
-                if (!_galleryLoad.IsCurrent(ticket) || Exited || !_galleryOpen)
+                if (!proceed || !_galleryLoad.IsCurrent(ticket) || Exited || !_galleryOpen)
                     return State;
                 if (!Active())
                     return Refuse();
@@ -851,7 +867,7 @@ public sealed class NativeScenePresenter(
             string.IsNullOrWhiteSpace(profile?.NativeLanguage) ? "English" : profile.NativeLanguage);
     }
 
-    private bool Exited => _exited || _state.Destination != NativeDestination.Activity;
+    private bool Exited => _exited || _exit.HasBegun || _state.Destination != NativeDestination.Activity;
 
     private bool Active() => _launch is not null && owner.IsActive(_launch.UserId);
 
@@ -915,8 +931,10 @@ public sealed class NativeScenePresenter(
         if (_disposed)
             return;
         _disposed = true;
+        _exit.Complete();
         _lifetime.Cancel();
         _imageLoad.Dispose();
+
         _galleryLoad.Dispose();
         timer.Dispose();
     }

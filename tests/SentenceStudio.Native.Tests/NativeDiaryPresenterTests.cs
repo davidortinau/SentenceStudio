@@ -278,6 +278,35 @@ public sealed class NativeDiaryPresenterTests
     }
 
     [Fact]
+    public async Task Back_ReturnsItsDestinationToThePrompt_EvenWhenItResumesFirst_AndShowsNoSaving()
+    {
+        using var fixture = await SignedInAsync();
+        var ai = new FakeDiaryAi { Hang = true };
+        using var diary = Presenter(fixture, ai);
+        await diary.OpenAsync(Launch(NativeSliceFixture.UserA));
+        var opening = diary.OpenTodayAsync();
+        var watch = Stopwatch.StartNew();
+        while (diary.State.Editor is not { IsLoadingPrompt: true } && watch.Elapsed < TimeSpan.FromSeconds(5))
+            await Task.Delay(10);
+        Assert.True(diary.State.Editor!.IsLoadingPrompt);
+        diary.SetContent("기다리는 중");
+        var published = new List<NativeDiaryState>();
+        diary.StateChanged += published.Add;
+
+        ExitRace.HoldExitUntil(diary.ExitFence, () => opening);
+        var exit = await diary.ExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
+        var late = await opening.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.Equal(NativeDestination.TodaysPlan, exit.Destination);
+        Assert.Equal(NativeDestination.TodaysPlan, late.Destination);
+        // Back's flush saves silently: the only publish after Back began is its destination.
+        Assert.Equal(NativeDestination.TodaysPlan, Assert.Single(published).Destination);
+        using var scope = fixture.Scope();
+        Assert.Equal("기다리는 중", (await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>()
+            .DiaryEntries.AsNoTracking().SingleAsync()).Content);
+    }
+
+    [Fact]
     public async Task HangingFeedback_BackToListReturnsPromptly()
     {
         using var fixture = await SignedInAsync();

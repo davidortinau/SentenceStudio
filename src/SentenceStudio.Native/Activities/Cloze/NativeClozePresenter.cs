@@ -35,6 +35,7 @@ public sealed class NativeClozePresenter(
 
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly CancellationTokenSource _lifetime = new();
+    private readonly NativeActivityExit _exit = new();
     private readonly NativeActivityLoad _load = new();
     private List<NativeClozeChallenge> _sentences = [];
     private NativeActivityLaunch? _launch;
@@ -55,6 +56,9 @@ public sealed class NativeClozePresenter(
     private string? _errorKey;
     private bool _disposed;
     private bool _exited;
+
+    /// <summary>The Back/Exit fence (tests force continuation ordering through it).</summary>
+    internal NativeActivityExit ExitFence => _exit;
 
     /// <summary>Source GradeAnswer waits 1200 ms after a correct answer before advancing.</summary>
     public TimeSpan AdvanceDelay { get; set; } = TimeSpan.FromMilliseconds(1200);
@@ -160,31 +164,41 @@ public sealed class NativeClozePresenter(
     /// </summary>
     public async Task<NativeClozeState> ExitAsync(CancellationToken cancellationToken = default)
     {
-        _load.Cancel();
-        await _gate.WaitAsync(cancellationToken);
+        var exited = false;
+        _exit.Begin();
         try
         {
             _load.Cancel();
-            _generation++;
-            _exited = true;
-            string? errorKey = null;
+            await _exit.AfterCancelAsync();
+            await _gate.WaitAsync(cancellationToken);
             try
             {
-                if (await timer.StopAsync(cancellationToken) == NativeActivityStop.Failed)
+                _load.Cancel();
+                _generation++;
+                _exited = exited = true;
+                string? errorKey = null;
+                try
+                {
+                    if (await timer.StopAsync(cancellationToken) == NativeActivityStop.Failed)
+                        errorKey = NativeText.SaveFailed;
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    logger.LogError(ex, "Cloze could not save its activity minutes.");
                     errorKey = NativeText.SaveFailed;
+                }
+                return Publish(new(NativePhase.Ready, NativeDestination.TodaysPlan,
+                    ErrorKey: errorKey,
+                    HasPendingSync: _launch is not null && pendingWrites.IsPending(_launch.UserId)));
             }
-            catch (Exception ex) when (ex is not OperationCanceledException)
+            finally
             {
-                logger.LogError(ex, "Cloze could not save its activity minutes.");
-                errorKey = NativeText.SaveFailed;
+                _gate.Release();
             }
-            return Publish(new(NativePhase.Ready, NativeDestination.TodaysPlan,
-                ErrorKey: errorKey,
-                HasPendingSync: _launch is not null && pendingWrites.IsPending(_launch.UserId)));
         }
         finally
         {
-            _gate.Release();
+            _exit.End(exited);
         }
     }
 
@@ -233,7 +247,7 @@ public sealed class NativeClozePresenter(
         catch (OperationCanceledException) when (ticket.Token.IsCancellationRequested)
         {
             // Exit, disposal or a newer load superseded this one.
-            return State;
+            return await _exit.StateAsync(_gate, () => State);
         }
         catch (UnauthorizedAccessException)
         {
@@ -244,10 +258,10 @@ public sealed class NativeClozePresenter(
             failure = ex;
         }
 
-        await _gate.WaitAsync(CancellationToken.None);
+        var proceed = await _exit.EnterAsync(_gate);
         try
         {
-            if (_exited || !_load.IsCurrent(ticket))
+            if (!proceed || _exited || !_load.IsCurrent(ticket))
                 return State;
             if (refused || !owner.IsActive(launch.UserId))
                 return Refuse();
@@ -310,18 +324,18 @@ public sealed class NativeClozePresenter(
         {
             if (AdvanceDelay > TimeSpan.Zero)
                 await Task.Delay(AdvanceDelay, linked.Token);
-            await _gate.WaitAsync(linked.Token);
         }
         catch (OperationCanceledException)
         {
             // Disposal or a cancelled caller abandons only the auto-advance; the
             // graded sentence keeps its enabled chevrons, so nothing stays locked.
-            return State;
+            return await _exit.StateAsync(_gate, () => State);
         }
+        var proceed = await _exit.EnterAsync(_gate);
         try
         {
             // A manual next/previous, reload, or exit during the delay supersedes the advance.
-            if (_exited || advance != _generation || _state.Phase != NativePhase.Ready
+            if (!proceed || _exited || advance != _generation || _state.Phase != NativePhase.Ready
                 || _state.Destination != NativeDestination.Activity)
                 return State;
             if (_launch is null || !owner.IsActive(_launch.UserId))
@@ -479,6 +493,7 @@ public sealed class NativeClozePresenter(
         if (_disposed)
             return;
         _disposed = true;
+        _exit.Complete();
         _lifetime.Cancel();
         _load.Dispose();
         timer.Dispose();

@@ -187,6 +187,30 @@ public sealed class NativeFlashcardPresenterTests
         Assert.Equal(NativeDestination.TodaysPlan, flashcards.State.Destination);
     }
 
+    [Fact]
+    public async Task Back_ReturnsItsDestinationToTheThrow_EvenWhenTheThrowResumesFirst()
+    {
+        using var fixture = new NativeSliceFixture();
+        var (dashboard, _) = await SignInWithPreviewAsync(fixture, NativeSliceFixture.UserA);
+        using var flashcards = Presenter(fixture);
+        await flashcards.OpenAsync(Launch(fixture, dashboard));
+        var published = new List<NativeFlashcardState>();
+        flashcards.StateChanged += published.Add;
+        flashcards.AnswerDelay = TimeSpan.FromMilliseconds(100);
+
+        var answer = flashcards.AnswerAsync(true);
+        // Back is held between its start and its gate until the throw has resumed.
+        ExitRace.HoldExitUntil(flashcards.ExitFence, () => answer);
+        var exited = await flashcards.ExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
+        var late = await answer.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.Equal(NativeDestination.TodaysPlan, exited.Destination);
+        Assert.Equal(NativeDestination.TodaysPlan, late.Destination);
+        Assert.Equal(0, late.CorrectCount);
+        Assert.Equal(NativeDestination.TodaysPlan, published[^1].Destination);
+        Assert.Single(published, state => state.Destination == NativeDestination.TodaysPlan);
+    }
+
     private static NativeFlashcardPresenter Presenter(NativeSliceFixture fixture)
     {
         var presenter = fixture.Provider.GetRequiredService<NativeFlashcardPresenter>();

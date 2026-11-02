@@ -254,6 +254,50 @@ public sealed class NativeConversationPresenterTests
     }
 
     [Fact]
+    public async Task Back_ReturnsItsDestinationToTheOpeningAndReply_EvenWhenTheyResumeFirst()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA, wordCount: 1);
+        await SignInAsync(fixture, NativeSliceFixture.EmailA);
+        var ai = new FakeConversationAi { HangStart = new() };
+        using (var conversation = Presenter(fixture, ai))
+        {
+            var published = new List<NativeConversationState>();
+            conversation.StateChanged += published.Add;
+            await conversation.OpenAsync(Launch(fixture, NativeSliceFixture.UserA));
+            // The opening line arrives while Back is between its cancel and its gate.
+            ExitRace.HoldExitUntil(conversation.ExitFence, () =>
+            {
+                ai.HangStart.SetResult();
+                return conversation.Opening;
+            });
+            var exit = await conversation.ExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
+            var late = await conversation.Opening.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.Equal(NativeDestination.TodaysPlan, exit.Destination);
+            Assert.Equal(NativeDestination.TodaysPlan, late.Destination);
+            Assert.Equal(NativeDestination.TodaysPlan, published[^1].Destination);
+        }
+
+        ai.HangStart = null;
+        using var second = Presenter(fixture, ai);
+        await second.OpenAsync(Launch(fixture, NativeSliceFixture.UserA));
+        await second.Opening;
+        ai.HangReply = new();
+        second.SetDraft("target-native-owner-a-0");
+        var sending = second.SendAsync();
+        ExitRace.HoldExitUntil(second.ExitFence, () =>
+        {
+            ai.HangReply.SetResult();
+            return sending;
+        });
+        Assert.Equal(NativeDestination.TodaysPlan,
+            (await second.ExitAsync().WaitAsync(TimeSpan.FromSeconds(10))).Destination);
+        Assert.Equal(NativeDestination.TodaysPlan,
+            (await sending.WaitAsync(TimeSpan.FromSeconds(10))).Destination);
+        Assert.Equal(0, await fixture.AttemptCountAsync(NativeSliceFixture.UserA));
+    }
+
+    [Fact]
     public async Task RestartWhileReplyPending_DiscardsTheStaleReply()
     {
         using var fixture = new NativeSliceFixture();

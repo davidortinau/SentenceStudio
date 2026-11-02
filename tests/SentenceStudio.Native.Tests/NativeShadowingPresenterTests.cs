@@ -437,6 +437,37 @@ public sealed class NativeShadowingPresenterTests
     }
 
     [Fact]
+    public async Task Back_ReturnsItsDestinationToTheLoad_EvenWhenTheLoadResumesFirst()
+    {
+        using var fixture = new NativeSliceFixture();
+        await fixture.SeedAsync(NativeSliceFixture.UserA, wordCount: 3);
+        await SetLexicalTypeAsync(fixture, fixture.WordId(NativeSliceFixture.UserA, 0), LexicalUnitType.Word);
+        await SignInAsync(fixture);
+        var hang = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var ai = new ScratchShadowingAi { Hang = hang };
+        var (presenter, speech, _) = Create(fixture, ai);
+        using var _ = presenter;
+        var published = new List<NativeShadowingState>();
+        presenter.StateChanged += published.Add;
+
+        var open = presenter.OpenAsync(ChooseOwnLaunch(fixture));
+        await WaitAsync(presenter, _ => ai.Calls > 0);
+        // The load finishes while Back is between its cancel and its gate.
+        ExitRace.HoldExitUntil(presenter.ExitFence, () =>
+        {
+            hang.SetResult(true);
+            return open;
+        });
+        var exit = await presenter.ExitAsync().WaitAsync(TimeSpan.FromSeconds(10));
+        var late = await open.WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.Equal(NativeDestination.TodaysPlan, exit.Destination);
+        Assert.Equal(NativeDestination.TodaysPlan, late.Destination);
+        Assert.Equal(NativeDestination.TodaysPlan, published[^1].Destination);
+        Assert.Empty(speech.Requests);
+    }
+
+    [Fact]
     public async Task AudioPreparation_NeverBlocksNavigationOrBackAndAlwaysEndsBuffering()
     {
         using var fixture = new NativeSliceFixture();
