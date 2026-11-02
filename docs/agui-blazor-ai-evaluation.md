@@ -78,6 +78,23 @@ Three learner turns made four successful inference HTTP requests:
 
 After another full refresh, all six messages and both answer cards were present and the input remained usable. These spot checks establish deployment access and working live integration, not reliable linguistic accuracy, broad grounded-answer coverage, or a latency benchmark. No new Azure resources or role assignments were created, and no existing learner data was used.
 
+### Post-simplification recheck
+
+Browser and live-model verification was repeated against commit `7418226e`, using fresh disposable databases and the same approved deployment, real local HTTP hosts, and production authentication forwarding. Seven persisted learner turns across two conversations made eight successful inference HTTP requests. All eleven AG-UI attempts carried bearer authentication; an unauthenticated API request returned 401.
+
+| Case | Observed result |
+| --- | --- |
+| Submission, intentional repetition, and history | Identical greeting questions produced distinct turn identities and answers. Both conversations' direct links restored their saved history after full refreshes. |
+| Incomplete SSE recovery | Two local response faults removed `RUN_FINISHED` after the real backend completed. Both the library's **Retry** and the workspace's **Try again** recovered the committed answer without another inference request or duplicate learner message. Thread, run, operation, idempotency, and client-turn identities were unchanged. |
+| Cross-conversation error isolation | After an injected HTTP 503, creating a conversation cleared the error and retry controls. A new live turn succeeded. Switching between populated conversations restored only their canonical messages, without the abandoned question or a remounted application shell. |
+| External dismissal | **Keep Today's Plan** cleared an injected HTTP error and stale retry controls. A subsequent live turn succeeded, and refresh restored the correct durable history. |
+| Shared rendering and layout | Structured answers, report-panel opening/cancellation and focus restoration, and the composer worked. At 390 pixels, the transcript and input remained usable without horizontal document overflow. The final refreshed page had no browser console errors. |
+| Coach grounding and language quality | The empty-vocabulary question again failed `EvidenceWindow:window_required` / `EvidenceWindow:window_length` validation without applying a learning-data change. This time the translation correctly identified 감사합니다 as formal polite 합니다, rather than a "-요 form"; the earlier model-quality finding is not thereby resolved. |
+
+One transcript UX limitation remains: after dismissal, the abandoned local learner message stayed visible through the next successful turn, then disappeared on refresh. It was not saved in durable history and did not retain an actionable retry. The recheck did not establish whether that behavior predates the migration.
+
+The HTTP failures and missing finish events were deliberate local harness injections, not provider failures. These checks do not exercise protected writes, approval/undo flows, native clients, or a deployed environment. The temporary hosts, databases, container, and generated sign-in artifacts were cleaned up afterward.
+
 The local web build uses an already-installed .NET 11 RC3 SDK with `IncludeMobileTargets=false`; the API remains `net10.0`. A gitignored local SDK pin and session-only NuGet configuration accommodate this machine's installed reference packs and the repository's Mac-specific local feed path. The repository's `lib\coresync` feed is still required. Debug builds of the WebApp test host encountered an SDK-generated hot-reload module endpoint conflict; Release test builds avoid that Debug-only asset issue without changing production code or suppressing warnings.
 
 No new Azure resource is required by AG-UI or Blazor AI. A live coach still needs the existing Foundry endpoint and model deployment configuration, an identity authorized for inference, the coach/cohort feature settings, and the application's databases. ElevenLabs is needed only for the separate speech features. The approved resource and Azure CLI identity were sufficient for the live checks; further model evaluation can reuse them without provisioning another resource.
