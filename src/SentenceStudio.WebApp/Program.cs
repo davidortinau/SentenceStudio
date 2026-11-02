@@ -172,6 +172,18 @@ var apiBaseUrl = builder.Configuration.GetValue<string>("ApiBaseUrl") ?? "https+
 builder.Services.AddScoped<IAuthService, ServerAuthService>();
 builder.Services.AddTransient<AuthenticatedHttpMessageHandler>();
 builder.Services.AddApiClients(new Uri(apiBaseUrl));
+builder.Services.AddScoped<SentenceStudio.Services.Api.ICoachTurnTransport, SentenceStudio.WebApp.Coach.CoachAGUITransport>();
+builder.Services.AddScoped<SentenceStudio.WebApp.Coach.CoachWorkspaceChatClient>();
+builder.Services.AddTransient<SentenceStudio.WebApp.Coach.CoachAGUIProblemHandler>();
+builder.Services.AddHttpClient("coach-agui", client =>
+{
+    client.BaseAddress = new Uri(apiBaseUrl);
+    client.Timeout = Timeout.InfiniteTimeSpan;
+})
+    .AddHttpMessageHandler<AuthenticatedHttpMessageHandler>()
+    .AddHttpMessageHandler<SentenceStudio.Services.Api.PlanTimeZoneHeaderHandler>()
+    .AddHttpMessageHandler<SentenceStudio.WebApp.Coach.CoachAGUIProblemHandler>()
+    .RemoveAllResilienceHandlers();
 
 // The Sam opportunity operator client. Development-only, matching the API routes it calls, which
 // are not mapped outside Development at all. Registering it conditionally means the operator page

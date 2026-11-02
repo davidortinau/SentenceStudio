@@ -1,0 +1,39 @@
+@using Microsoft.AspNetCore.Components.AI
+@using SentenceStudio.WebApp.Coach
+@implements IDisposable
+@inject CoachWorkspaceChatClient ChatClient
+
+@* This preview snapshots turns at initialization; restore must replace the list, not the app shell. *@
+<MessageList @key="_revision">
+    <BlockRenderer TBlock="CoachTimelineBlock">
+        <CoachAgentMessage Entry="context.Entry" />
+    </BlockRenderer>
+</MessageList>
+
+@code {
+    private bool _disposed;
+    private long _revision;
+
+    protected override void OnInitialized() => ChatClient.HistoryRestored += OnHistoryRestored;
+
+    private void OnHistoryRestored()
+    {
+        if (!_disposed)
+        {
+            _ = InvokeAsync(() =>
+            {
+                if (!_disposed)
+                {
+                    _revision++;
+                    StateHasChanged();
+                }
+            });
+        }
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        ChatClient.HistoryRestored -= OnHistoryRestored;
+    }
+}

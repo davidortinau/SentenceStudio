@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
@@ -145,6 +146,8 @@ public class CoachApiFactory : WebApplicationFactory<Program>
         base.Dispose(disposing);
         foreach (var path in new[] { _dbPath, _coachDbPath })
         {
+            using var connection = new SqliteConnection($"Data Source={path}");
+            SqliteConnection.ClearPool(connection);
             if (File.Exists(path))
             {
                 File.Delete(path);

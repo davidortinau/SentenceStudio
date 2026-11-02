@@ -1,0 +1,136 @@
+@using SentenceStudio.Contracts.Coach
+@using SentenceStudio.WebUI.Shared.Coach
+@using SentenceStudio.WebUI.Shared.Sam
+@implements IDisposable
+@inject BlazorLocalizationService Localize
+@inject CoachPersona Persona
+@inject CoachWorkspaceState Workspace
+
+@if (Entry.Kind is CoachTimelineKind.LearnerMessage or CoachTimelineKind.CoachMessage)
+{
+    <div class="coach-message @(Entry.Kind == CoachTimelineKind.LearnerMessage ? "coach-message-learner" : "")"
+         id="@AnchorId">
+        <div class="coach-message-role" id="@HeaderId">
+            <span>@(Entry.Kind == CoachTimelineKind.LearnerMessage ? Localize["Coach_RoleYou"] : Persona.DisplayName)</span>
+            <CoachTimestamp Value="Entry.Timestamp" />
+            @if (Entry.Status == CoachTimelineStatus.Pending)
+            {
+                <span>@Localize["Coach_MessagePending"]</span>
+            }
+            else if (Entry.Status == CoachTimelineStatus.Failed)
+            {
+                <span>@Localize["Coach_MessageFailed"]</span>
+            }
+            else if (Entry.ShowsNoChangeMarker)
+            {
+                <span class="coach-change-marker">@Localize["Coach_NoChangeApplied"]</span>
+            }
+        </div>
+        @if (Entry.Answer is { } answer)
+        {
+            <CoachAnswer Answer="answer" />
+        }
+        else
+        {
+            <div>@Entry.Message?.Text</div>
+        }
+        @if (Entry.Kind == CoachTimelineKind.CoachMessage)
+        {
+            <CoachRepairDisclosureNotice Disclosure="Entry.RepairDisclosure"
+                                         EvidenceOnScreen="Entry.RepairEvidenceOnScreen" />
+            <CoachReportControl MessageId="@ReportableMessageId" DescribedById="@HeaderId"
+                                OnReturnFocus="Actions.ReturnFocus"
+                                OnDisclosureChanging="Actions.BeginViewportChange"
+                                OnDisclosureChanged="Actions.EndViewportChange">
+                <CoachCopyButton Text="@Entry.ReadableText()" MessageId="@MessageId" DescribedById="@HeaderId" />
+            </CoachReportControl>
+            <CoachMessageEvidence Items="Entry.Evidence" MessageId="@MessageId"
+                                  OnDisclosureChanging="Actions.BeginViewportChange"
+                                  OnDisclosureChanged="Actions.EndViewportChange" />
+        }
+    </div>
+}
+else if (Entry.Kind == CoachTimelineKind.Receipt)
+{
+    <CoachChangeReceipt Receipt="Entry.Receipt" OnViewChanges="Actions.ViewPlan" />
+}
+else if (Entry.Kind == CoachTimelineKind.HistorySuggestion)
+{
+    <div class="coach-card coach-card-notice">
+        <div>@Entry.HistorySuggestion?.Rationale</div>
+        @if (Entry.HistorySuggestion is { } suggestion)
+        {
+            <ul>
+                @foreach (var line in suggestion.ChangeLines)
+                {
+                    <li @key="line">@line</li>
+                }
+            </ul>
+        }
+    </div>
+}
+else if (Entry.Kind is CoachTimelineKind.UnreadableMessage or CoachTimelineKind.UnsupportedMessage)
+{
+    <div class="coach-message @(Entry.Message?.Role == CoachMessageRole.Learner ? "coach-message-learner" : "")"
+         id="@AnchorId">
+        <div class="coach-message-role">
+            <span>@(Entry.Message?.Role == CoachMessageRole.Learner ? Localize["Coach_RoleYou"] : Persona.DisplayName)</span>
+            <CoachTimestamp Value="Entry.Timestamp" />
+        </div>
+        <div>@Localize[Entry.Kind == CoachTimelineKind.UnreadableMessage
+            ? "Coach_UnreadableMessage" : "Coach_UnsupportedMessage"]</div>
+    </div>
+}
+
+@if (Entry.WriteOperation is { } operation)
+{
+    <SamWriteCard Operation="operation" />
+}
+
+@if (IsLastOfTurn && Workspace.PendingSuggestionTurn == Entry.TurnSequence)
+{
+    <CoachSuggestionCard />
+}
+@if (IsLastOfTurn && Workspace.PendingMemoryTurn == Entry.TurnSequence)
+{
+    <CoachMemoryCandidateCard />
+}
+
+@code {
+    [Parameter, EditorRequired] public CoachTimelineEntry Entry { get; set; } = default!;
+    [CascadingParameter] public CoachTranscriptActions Actions { get; set; } = default!;
+    private bool _disposed;
+
+    protected override void OnInitialized() => Workspace.Changed += OnChanged;
+
+    private void OnChanged()
+    {
+        if (!_disposed)
+        {
+            _ = InvokeAsync(() =>
+            {
+                if (!_disposed)
+                {
+                    StateHasChanged();
+                }
+            });
+        }
+    }
+
+    public void Dispose()
+    {
+        _disposed = true;
+        Workspace.Changed -= OnChanged;
+    }
+
+    private string? MessageId => Entry.MessageId ?? Entry.Message?.MessageId;
+    private string? AnchorId => MessageId is { Length: > 0 } id ? "coach-msg-" + id : null;
+    private string HeaderId => $"coach-message-header-{MessageId ?? $"{Entry.Kind}:{Entry.TurnSequence}:{Entry.Sequence}"}";
+    private bool IsLastOfTurn =>
+        Workspace.Timeline.LastOrDefault(e => e.TurnSequence == Entry.TurnSequence)?.Sequence == Entry.Sequence;
+
+    private string? ReportableMessageId =>
+        Entry.Kind == CoachTimelineKind.CoachMessage && Entry.Status == CoachTimelineStatus.Settled
+        && Entry.Message is { } message && CoachResponseReportability.IsReportableKind(message.Kind)
+        && !Entry.ShowsNoChangeMarker ? MessageId : null;
+}

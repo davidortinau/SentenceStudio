@@ -125,6 +125,14 @@
     @* One chronological stream, ordered by sequence. Receipts and suggestions are placed inside
        the turn that produced them rather than appended after every message: grouping by type is
        what put two learner questions back to back with a single answer and receipt after them. *@
+    @if (HostMessageList is not null)
+    {
+        <CascadingValue Value="TranscriptActions" IsFixed="true">
+            @HostMessageList
+        </CascadingValue>
+    }
+    else
+    {
     @foreach (var entry in Coach.Timeline)
     {
         @switch (entry.Kind)
@@ -310,6 +318,8 @@
         }
     }
 
+    }
+
     @* A suggestion with no turn of its own — a resumed session reading one back — still has to
        appear. *@
     @if (Coach.PendingSuggestion is not null && !SuggestionRenderedInline)
@@ -399,6 +409,11 @@
 </div>
 
 @code {
+    private CoachTranscriptActions TranscriptActions =>
+        new(BeginViewportChangeAsync, EndViewportChangeAsync, FocusAsync, ShowPlanCanvas);
+    [CascadingParameter(Name = "CoachMessageList")]
+    public RenderFragment? HostMessageList { get; set; }
+
     /// <summary>Raised when the learner asks for a fresh session after expiry.</summary>
     [Parameter] public EventCallback OnStartNewSession { get; set; }
 

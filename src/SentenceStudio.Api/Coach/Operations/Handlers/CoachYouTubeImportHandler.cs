@@ -51,12 +51,12 @@ public sealed class CoachYouTubeImportHandler : CoachWriteHandlerBase<CoachYouTu
     private const int TitleMaxLength = 200;
     private const int CaptionLanguageMaxLength = 12;
 
-    private readonly YouTubeImportService _youtube;
+    private readonly IYouTubeImportService _youtube;
     private readonly LearningResourceRepository _resources;
     private readonly CoachWriteOwnership _ownership;
 
     public CoachYouTubeImportHandler(
-        YouTubeImportService youtube,
+        IYouTubeImportService youtube,
         LearningResourceRepository resources,
         CoachWriteOwnership ownership)
     {

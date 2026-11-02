@@ -9,6 +9,12 @@
    bottom region exists per state — the Plan pane omits it entirely rather than
    rendering an empty bar. *@
 
+@if (HostMessageInput is not null)
+{
+    @HostMessageInput
+}
+else
+{
 <div class="d-flex align-items-end gap-2">
     <div class="flex-grow-1">
         <label class="visually-hidden" for="@CoachElementIds.Composer">@Localize.Get("Coach_ComposerLabelNamed", Persona.DisplayName)</label>
@@ -47,7 +53,12 @@
     }
 </div>
 
+}
+
 @code {
+    [CascadingParameter(Name = "CoachMessageInput")]
+    public RenderFragment? HostMessageInput { get; set; }
+
     /// <summary>
     /// True when a bare Enter sends. Wide presentations send on Enter (Shift+Enter is a
     /// newline); narrow presentations use the explicit send button and let Return insert a
@@ -69,7 +80,7 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender)
+        if (!firstRender || HostMessageInput is not null)
         {
             return;
         }
