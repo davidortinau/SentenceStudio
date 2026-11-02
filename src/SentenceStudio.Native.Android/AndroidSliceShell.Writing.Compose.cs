@@ -113,7 +113,8 @@ internal sealed partial class AndroidSliceShell
                 .TestTag(NativeWritingAccess.Screen),
         };
         if (!state.Notices.IsDefaultOrEmpty && state.Phase is NativePhase.Ready or NativePhase.Empty)
-            viewport.Add(WritingNotices(state, palette));
+            if (WritingNotices(state, palette) is { } notices)
+                viewport.Add(notices);
         switch (state.Phase)
         {
             case NativePhase.Idle:
@@ -155,42 +156,11 @@ internal sealed partial class AndroidSliceShell
         return page;
     }
 
-    private ComposableNode WritingNotices(NativeWritingState state, AndroidVisualPalette palette)
-    {
-        var list = new Column(Arrangement.SpacedBy(6))
-        {
-            Modifier.Weight(1f).TestTag(NativeWritingAccess.Notices),
-        };
-        var index = 0;
-        foreach (var notice in state.Notices)
-        {
-            var message = notice.Key is null ? notice.Argument ?? string.Empty
-                : notice.Argument is null ? Localize(notice.Key)
-                : string.Format(CultureInfo.CurrentCulture, Localize(notice.Key), notice.Argument);
-            list.Add(StatusAlert(message, palette,
-                error: notice.Kind == NativeWritingNoticeKind.Error,
-                success: notice.Kind == NativeWritingNoticeKind.Success,
-                automationId: $"{NativeWritingAccess.Notice}.{index++}"));
-        }
-        var dismissLabel = Localize(NativeWritingText.Dismiss);
-        var dismiss = new IconButton(
-            () => WritingCommand((presenter, token) => presenter.DismissNoticesAsync(token)))
-        {
-            Modifier = Modifier.TestTag(NativeWritingAccess.DismissNotices)
-                .Semantics(semantics => semantics.ContentDescription(dismissLabel)),
-        };
-        dismiss.Add(new Icon(Icons.Default.Close, dismissLabel)
-        {
-            Modifier = Modifier.Size(20),
-            Tint = palette.Text,
-        });
-        return new Row(Arrangement.SpacedBy(8))
-        {
-            Modifier.FillMaxWidth(),
-            list,
-            dismiss,
-        };
-    }
+    /// <summary>Errors and warnings stay inline until the next action; success and info are the shell's snackbar.</summary>
+    private ComposableNode? WritingNotices(NativeWritingState state, AndroidVisualPalette palette) =>
+        MessageBanners(state.Notices, palette, index => $"{NativeWritingAccess.Notice}.{index}",
+            () => WritingCommand((presenter, token) => presenter.DismissNoticesAsync(token)),
+            NativeWritingAccess.DismissNotices, Localize(NativeWritingText.Dismiss));
 
     private ComposableNode WritingSentence(NativeWritingSentence sentence, AndroidVisualPalette palette)
     {

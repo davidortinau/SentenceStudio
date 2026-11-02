@@ -190,7 +190,8 @@ internal sealed partial class AndroidSliceShell
     {
         var items = new List<ComposableNode>();
         if (!state.Notices.IsDefaultOrEmpty)
-            items.Add(MinimalPairsNotices(state, palette));
+            if (MinimalPairsNotices(state, palette) is { } notices)
+                items.Add(notices);
         items.Add(Action(Localize(NativeMinimalPairsText.CreatePair), NativeMinimalPairsAccess.CreatePair,
             () => MinimalPairsCommand((presenter, token) => presenter.OpenCreateAsync(token)),
             !list.IsLoading && !list.IsDeleting));
@@ -369,7 +370,8 @@ internal sealed partial class AndroidSliceShell
             return MinimalPairsScroll(palette, [.. items]);
         }
         if (!state.Notices.IsDefaultOrEmpty)
-            items.Add(MinimalPairsNotices(state, palette));
+            if (MinimalPairsNotices(state, palette) is { } notices)
+                items.Add(notices);
         if (create.ErrorKey is { } error)
             items.Add(StatusAlert(Localize(error), palette, error: true,
                 automationId: NativeMinimalPairsAccess.CreateError));
@@ -473,7 +475,8 @@ internal sealed partial class AndroidSliceShell
     {
         var items = new List<ComposableNode>();
         if (!state.Notices.IsDefaultOrEmpty)
-            items.Add(MinimalPairsNotices(state, palette));
+            if (MinimalPairsNotices(state, palette) is { } notices)
+                items.Add(notices);
         if (session.ShowSummary)
         {
             items.Add(MinimalPairsSummary(session, palette));
@@ -661,31 +664,9 @@ internal sealed partial class AndroidSliceShell
         };
     }
 
-    private ComposableNode MinimalPairsNotices(NativeMinimalPairsState state, AndroidVisualPalette palette)
-    {
-        var column = new Column(Arrangement.SpacedBy(6))
-        {
-            Modifier = Modifier.Weight(1f),
-        };
-        var index = 0;
-        foreach (var notice in state.Notices)
-            column.Add(StatusAlert(Localize(notice.Key), palette,
-                error: notice.Kind == NativeMinimalPairsNoticeKind.Error,
-                automationId: $"{NativeMinimalPairsAccess.Notice}.{index++}",
-                success: notice.Kind == NativeMinimalPairsNoticeKind.Success));
-        var dismissLabel = Localize(NativeMinimalPairsText.Dismiss);
-        var dismiss = new IconButton(
-            () => MinimalPairsCommand((presenter, token) => presenter.DismissNoticesAsync(token)), enabled: true)
-        {
-            Modifier = Modifier.TestTag(NativeMinimalPairsAccess.DismissNotices)
-                .Semantics(semantics => semantics.ContentDescription(dismissLabel)),
-        };
-        dismiss.Add(new Icon(Icons.Default.Close, dismissLabel) { Modifier = Modifier.Size(20), Tint = palette.Text });
-        return new Row(Arrangement.SpacedBy(8))
-        {
-            Modifier.FillMaxWidth().TestTag(NativeMinimalPairsAccess.Notices),
-            column,
-            dismiss,
-        };
-    }
+    /// <summary>Errors and warnings stay inline until the next action; success and info are the shell's snackbar.</summary>
+    private ComposableNode? MinimalPairsNotices(NativeMinimalPairsState state, AndroidVisualPalette palette) =>
+        MessageBanners(state.Notices, palette, index => $"{NativeMinimalPairsAccess.Notice}.{index}",
+            () => MinimalPairsCommand((presenter, token) => presenter.DismissNoticesAsync(token)),
+            NativeMinimalPairsAccess.DismissNotices, Localize(NativeMinimalPairsText.Dismiss));
 }

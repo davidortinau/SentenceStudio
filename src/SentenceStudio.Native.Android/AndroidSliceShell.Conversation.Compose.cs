@@ -157,7 +157,8 @@ internal sealed partial class AndroidSliceShell
                 .Padding(horizontal: AndroidVisualTheme.PagePadding, vertical: 8),
         };
         if (!state.Notices.IsDefaultOrEmpty)
-            top.Add(ConversationNotices(state, palette));
+            if (ConversationNotices(state, palette) is { } notices)
+                top.Add(notices);
         if (!state.Scenarios.IsDefaultOrEmpty)
             top.Add(ConversationScenario(state, palette));
         page.Add(top);
@@ -185,36 +186,11 @@ internal sealed partial class AndroidSliceShell
         return page;
     }
 
-    private ComposableNode ConversationNotices(NativeConversationState state, AndroidVisualPalette palette)
-    {
-        var list = new Column(Arrangement.SpacedBy(6))
-        {
-            Modifier.Weight(1f).TestTag(NativeConversationAccess.Notices),
-        };
-        var index = 0;
-        foreach (var notice in state.Notices)
-            list.Add(StatusAlert(Localize(notice.Key), palette,
-                error: notice.Kind == NativeConversationNoticeKind.Error,
-                automationId: $"{NativeConversationAccess.Notice}.{index++}"));
-        var dismissLabel = Localize(NativeConversationText.Dismiss);
-        var dismiss = new IconButton(
-            () => ConversationCommand((presenter, token) => presenter.DismissNoticesAsync(token)))
-        {
-            Modifier = Modifier.TestTag(NativeConversationAccess.DismissNotices)
-                .Semantics(semantics => semantics.ContentDescription(dismissLabel)),
-        };
-        dismiss.Add(new Icon(Icons.Default.Close, dismissLabel)
-        {
-            Modifier = Modifier.Size(20),
-            Tint = palette.Text,
-        });
-        return new Row(Arrangement.SpacedBy(8))
-        {
-            Modifier.FillMaxWidth(),
-            list,
-            dismiss,
-        };
-    }
+    /// <summary>Errors and warnings stay inline until the next action; success and info are the shell's snackbar.</summary>
+    private ComposableNode? ConversationNotices(NativeConversationState state, AndroidVisualPalette palette) =>
+        MessageBanners(state.Notices, palette, index => $"{NativeConversationAccess.Notice}.{index}",
+            () => ConversationCommand((presenter, token) => presenter.DismissNoticesAsync(token)),
+            NativeConversationAccess.DismissNotices, Localize(NativeConversationText.Dismiss));
 
     /// <summary>Source scenario select: label plus a dropdown of the scenarios.</summary>
     private ComposableNode ConversationScenario(NativeConversationState state, AndroidVisualPalette palette)

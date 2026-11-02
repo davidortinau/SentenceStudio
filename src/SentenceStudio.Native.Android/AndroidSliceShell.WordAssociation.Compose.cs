@@ -110,7 +110,8 @@ internal sealed partial class AndroidSliceShell
         };
         if (!state.Notices.IsDefaultOrEmpty
             && state.Phase is NativePhase.Ready or NativePhase.Empty or NativePhase.Summary)
-            viewport.Add(WordAssociationNotices(state, palette));
+            if (WordAssociationNotices(state, palette) is { } notices)
+                viewport.Add(notices);
         switch (state.Phase)
         {
             case NativePhase.Idle:
@@ -151,37 +152,11 @@ internal sealed partial class AndroidSliceShell
         return page;
     }
 
-    private ComposableNode WordAssociationNotices(NativeWordAssociationState state, AndroidVisualPalette palette)
-    {
-        var list = new Column(Arrangement.SpacedBy(6))
-        {
-            Modifier.Weight(1f).TestTag(NativeWordAssociationAccess.Notices),
-        };
-        var index = 0;
-        foreach (var notice in state.Notices)
-            list.Add(StatusAlert(Localize(notice.Key), palette,
-                error: notice.Kind == NativeWordAssociationNoticeKind.Error,
-                success: notice.Kind == NativeWordAssociationNoticeKind.Success,
-                automationId: $"{NativeWordAssociationAccess.Notice}.{index++}"));
-        var dismissLabel = Localize(NativeWordAssociationText.Dismiss);
-        var dismiss = new IconButton(
-            () => WordAssociationCommand((presenter, token) => presenter.DismissNoticesAsync(token)))
-        {
-            Modifier = Modifier.TestTag(NativeWordAssociationAccess.DismissNotices)
-                .Semantics(semantics => semantics.ContentDescription(dismissLabel)),
-        };
-        dismiss.Add(new Icon(Icons.Default.Close, dismissLabel)
-        {
-            Modifier = Modifier.Size(20),
-            Tint = palette.Text,
-        });
-        return new Row(Arrangement.SpacedBy(8))
-        {
-            Modifier.FillMaxWidth(),
-            list,
-            dismiss,
-        };
-    }
+    /// <summary>Errors and warnings stay inline until the next action; success and info are the shell's snackbar.</summary>
+    private ComposableNode? WordAssociationNotices(NativeWordAssociationState state, AndroidVisualPalette palette) =>
+        MessageBanners(state.Notices, palette, index => $"{NativeWordAssociationAccess.Notice}.{index}",
+            () => WordAssociationCommand((presenter, token) => presenter.DismissNoticesAsync(token)),
+            NativeWordAssociationAccess.DismissNotices, Localize(NativeWordAssociationText.Dismiss));
 
     private ComposableNode WordAssociationHeader(NativeWordAssociationState state, AndroidVisualPalette palette)
     {

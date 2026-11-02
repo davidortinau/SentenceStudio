@@ -268,5 +268,6 @@ internal sealed partial class AndroidSliceShell
         _activityScope?.Dispose();
         _activityScope = null;
         _activityRoute = null;
+        ResetActivityToast();
     }
 }
