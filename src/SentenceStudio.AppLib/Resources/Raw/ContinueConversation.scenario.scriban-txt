@@ -23,17 +23,17 @@ This is an open-ended conversation. Keep exploring topics with follow-up questio
 
 ## Additional instructions
 
-Score your comprehension of my last message on a scale of 0-100, with 0 meaning you didn't understand anything and 100 meaning you understood everything.
+Rate your comprehension of my last message as a whole number from 0 to 100, with 0 meaning you didn't understand anything and 100 meaning you understood everything. Put that number only in comprehension_score.
 
 If my last response is hard to understand or could be said more clearly, then ask for clarification or confirm your understanding of what you think I meant to say. If I asked a question, then respond to the question before asking me a new question. Continue the conversation until I say goodbye. 
 
-In your response only include your newest reply.
+The message must be pure in-character dialogue: never mention a comprehension score, rating, percentage, grade, or notes about my language in it. In the message only include your newest reply.
 
 IMPORTANT: Also analyze the vocabulary words used in my last message. For each word or phrase I used in the target language, identify its dictionary form (base form) and indicate whether it was used correctly in context. This helps track my vocabulary progress.
 
 Format your response as json with properties like this:
 {
-  "message": "Your reply in the target language",
+  "message": "Your in-character reply in the target language only",
   "comprehension_score": 85,
   "comprehension_notes": "Brief explanation of comprehension",
   "grammar_corrections": [

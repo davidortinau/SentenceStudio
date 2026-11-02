@@ -93,10 +93,10 @@ else
                         </div>
                     }
 
-                    @if (chunk.Comprehension > 0)
+                    @if (Reply.NormalizeComprehension(chunk.Comprehension) > 0)
                     {
                         <div class="mt-1">
-                            <small class="text-secondary-ss">@string.Format(Localize["Conversation_Comprehension"], (int)chunk.Comprehension)</small>
+                            <small class="text-secondary-ss">@string.Format(Localize["Conversation_Comprehension"], (int)Reply.NormalizeComprehension(chunk.Comprehension))</small>
                         </div>
                     }
 
@@ -355,7 +355,7 @@ else
                 {
                     userChunk.GrammarCorrections = reply.GrammarCorrections;
                 }
-                userChunk.Comprehension = reply.Comprehension;
+                userChunk.Comprehension = Reply.NormalizeComprehension(reply.Comprehension);
 
                 var aiChunk = new ConversationChunk
                 {

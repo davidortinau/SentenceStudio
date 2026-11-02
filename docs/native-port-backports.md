@@ -40,8 +40,8 @@ Native fix references are commits on `native-platform-heads`.
 | # | Activity | Defect | Where |
 |---|---|---|---|
 | B15 | Conversation | Azure OpenAI content filter rejects the combined "SYSTEM INSTRUCTIONS…TASK…" opening prompt (400), so the chat opens empty. Send instructions as the system role (`/api/v1/ai/chat-messages`) | `ConversationService`, `StartConversation*.scriban-txt` |
-| B16 | Conversation | `Reply.Comprehension` description asks for 0.0-1.0 but prompt and display expect 0-100, so it shows "0%" | `Shared/Models/Reply.cs`, prompts, `Conversation.razor` |
-| B17 | Conversation | Persona replies include the score text ("(이해도: 85/100)") because the scenario prompt asks for scoring in the reply | `Conversation.scenario.scriban-txt` |
+| B16 | Conversation | `Reply.Comprehension` description asks for 0.0-1.0 but prompt and display expect 0-100, so it shows "0%" (WebApp showed "Comprehension: 1%" for a model 1.0 on 2026-11-01). Fixed in shared code (`bebeebd6`): schema says 0-100, `Reply.NormalizeComprehension` maps legacy fractions at web and native assignment/display; verify on WebApp/MAUI | `Shared/Models/Reply.cs`, prompts, `Conversation.razor` |
+| B17 | Conversation | Persona replies include the score text ("(이해도: 85/100)") because the scenario prompt asks for scoring in the reply. Fixed in shared code (`bebeebd6`): opening prompts forbid scores in dialogue, continue prompts put the score only in `comprehension_score`; verify on WebApp/MAUI | `Conversation.scenario.scriban-txt`, `Conversation.system`, `ContinueConversation*.scriban-txt` |
 
 ## Activity behavior bugs
 

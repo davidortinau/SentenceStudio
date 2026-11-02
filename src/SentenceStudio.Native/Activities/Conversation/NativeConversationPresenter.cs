@@ -272,7 +272,7 @@ public sealed class NativeConversationPresenter(
             }
             if (reply!.GrammarCorrections?.Count > 0)
                 userChunk.GrammarCorrections = reply.GrammarCorrections;
-            userChunk.Comprehension = reply.Comprehension;
+            userChunk.Comprehension = Reply.NormalizeComprehension(reply.Comprehension);
             _chunks.Add(new ConversationChunk
             {
                 Text = reply.Message,
@@ -683,7 +683,7 @@ public sealed class NativeConversationPresenter(
                 chunk.GrammarCorrections
                     .Select(item => new NativeConversationCorrection(item.Original, item.Corrected, item.Explanation))
                     .ToImmutableArray(),
-                chunk.Comprehension))
+                Reply.NormalizeComprehension(chunk.Comprehension)))
             .ToImmutableArray(),
         IsStarting: _starting,
         IsWaitingForReply: _waiting,
