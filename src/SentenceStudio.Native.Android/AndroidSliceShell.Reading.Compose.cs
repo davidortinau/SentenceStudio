@@ -322,7 +322,7 @@ internal sealed partial class AndroidSliceShell
                 semantics.ContentDescription($"{Localize(NativeReadingText.PlaybackSpeed)}, {speedLabel}")),
         };
         speedButton.Add(new Text(speedLabel));
-        var menu = new DropdownMenu(expanded: _readingSpeedMenuOpen,
+        var menu = PopupMenu(expanded: _readingSpeedMenuOpen,
             onDismissRequest: () => Publish(() => _readingSpeedMenuOpen = false));
         foreach (var speed in NativeReadingPresenter.PlaybackSpeeds)
         {
@@ -382,7 +382,7 @@ internal sealed partial class AndroidSliceShell
         var sheet = new ModalBottomSheet(
             onDismissRequest: () => ReadingCommand((presenter, token) => presenter.CloseWordPanelAsync(token)))
         {
-            Modifier = Modifier.TestTag(NativeReadingAccess.WordPanel),
+            Modifier = PopupWindowSemantics(Modifier.TestTag(NativeReadingAccess.WordPanel)),
         };
         var content = new Column(Arrangement.SpacedBy(8))
         {

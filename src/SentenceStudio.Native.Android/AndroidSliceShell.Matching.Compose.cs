@@ -166,7 +166,7 @@ internal sealed partial class AndroidSliceShell
             Modifier = Modifier.Size(24),
             Tint = palette.Text,
         });
-        var menu = new DropdownMenu(expanded: _matchingMenuOpen,
+        var menu = PopupMenu(expanded: _matchingMenuOpen,
             onDismissRequest: () => Publish(() => _matchingMenuOpen = false));
         menu.Add(new DropdownMenuItem(
             text: new Text(Localize(state.HideNativeWords

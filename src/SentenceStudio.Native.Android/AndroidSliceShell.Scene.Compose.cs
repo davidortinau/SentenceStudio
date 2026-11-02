@@ -501,7 +501,7 @@ internal sealed partial class AndroidSliceShell
         var sheet = new ModalBottomSheet(
             onDismissRequest: () => SceneCommand((scene, token) => scene.CloseGalleryAsync(token)))
         {
-            Modifier = Modifier.TestTag(NativeSceneAccess.Gallery),
+            Modifier = PopupWindowSemantics(Modifier.TestTag(NativeSceneAccess.Gallery)),
         };
         var content = new Column(Arrangement.SpacedBy(12))
         {

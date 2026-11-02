@@ -329,7 +329,7 @@ internal sealed partial class AndroidSliceShell
             Modifier = Modifier.Size(24),
             Tint = enabled ? palette.Text : palette.SecondaryText,
         });
-        var menu = new DropdownMenu(expanded: _samConversationMenu == id,
+        var menu = PopupMenu(expanded: _samConversationMenu == id,
             onDismissRequest: () => ToggleSamConversationMenu(null));
         menu.Add(new DropdownMenuItem(text: new Text(Localize("Coach_ConversationRename")),
             onClick: () => BeginSamConversationDialog(NativeSamConversationDialogKind.Rename, id))

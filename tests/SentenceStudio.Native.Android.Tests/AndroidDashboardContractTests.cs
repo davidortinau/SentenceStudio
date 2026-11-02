@@ -13,7 +13,7 @@ public sealed class AndroidDashboardContractTests
         var shell = Source("AndroidSliceShell.cs");
 
         Assert.Contains("new TopAppBar", visual);
-        Assert.Contains("new DropdownMenu(", visual);
+        Assert.Contains("var menu = PopupMenu(", visual);
         Assert.Contains("new DropdownMenuItem(", visual);
         Assert.Contains("RegeneratePlan();", visual);
         Assert.Contains("SignOut();", visual);
