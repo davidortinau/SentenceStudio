@@ -43,6 +43,8 @@ public sealed class NativeMinimalPairsPresenter(
     private readonly TimeProvider _clock = clock ?? TimeProvider.System;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly CancellationTokenSource _lifetime = new();
+    private readonly NativeActivityExit _exit = new();
+    private readonly object _operationSync = new();
     private CancellationTokenSource _operation = new();
     private NativeActivityLaunch? _launch;
     private NativeMinimalPairsState _state = new(NativePhase.Idle);
@@ -62,6 +64,9 @@ public sealed class NativeMinimalPairsPresenter(
     private long _audioVersion;
     private bool _exited;
     private bool _disposed;
+
+    /// <summary>The Back/Exit fence (tests force continuation ordering through it).</summary>
+    internal NativeActivityExit ExitFence => _exit;
 
     public NativeMinimalPairsState State =>
         _launch is not null && !owner.IsActive(_launch.UserId)
@@ -522,7 +527,7 @@ public sealed class NativeMinimalPairsPresenter(
     /// </summary>
     public async Task<NativeMinimalPairsState> BackToListAsync(CancellationToken cancellationToken = default)
     {
-        _operation.Cancel();
+        CancelOperation();
         await _gate.WaitAsync(cancellationToken);
         try
         {
@@ -547,20 +552,36 @@ public sealed class NativeMinimalPairsPresenter(
     /// <summary>List Back / Go Back: stops audio and returns to the Dashboard at once, even while speech hangs.</summary>
     public async Task<NativeMinimalPairsState> ExitAsync(CancellationToken cancellationToken = default)
     {
-        _operation.Cancel();
-        await _gate.WaitAsync(cancellationToken);
+        var exited = false;
+        _exit.Begin();
         try
         {
-            if (_exited)
-                return State;
-            _exited = true;
-            _generation++;
-            StopAudioCore();
-            return Publish(new(NativePhase.Ready, NativeDestination.TodaysPlan, _page, Notices: _notices));
+            CancelOperation();
+            await _exit.AfterCancelAsync();
+            await _gate.WaitAsync(cancellationToken);
+            try
+            {
+                // A command that held the gate may have started a new page operation
+                // after the cancel above; cancel again under the gate.
+                CancelOperation();
+                if (_exited)
+                {
+                    exited = true;
+                    return State;
+                }
+                _exited = exited = true;
+                _generation++;
+                StopAudioCore();
+                return Publish(new(NativePhase.Ready, NativeDestination.TodaysPlan, _page, Notices: _notices));
+            }
+            finally
+            {
+                _gate.Release();
+            }
         }
         finally
         {
-            _gate.Release();
+            _exit.End(exited);
         }
     }
 
@@ -631,7 +652,7 @@ public sealed class NativeMinimalPairsPresenter(
     {
         try
         {
-            await Task.Delay(delay, _clock, _operation.Token);
+            await Task.Delay(delay, _clock, OperationToken());
             await PlayPromptAsync(generation);
         }
         catch (OperationCanceledException)
@@ -647,7 +668,7 @@ public sealed class NativeMinimalPairsPresenter(
     {
         try
         {
-            await Task.Delay(AdvanceDelay, _clock, _operation.Token);
+            await Task.Delay(AdvanceDelay, _clock, OperationToken());
             bool play;
             if (!await TryEnterAsync())
                 return;
@@ -727,7 +748,7 @@ public sealed class NativeMinimalPairsPresenter(
             userId = _launch!.UserId;
             text = _promptWord.TargetLanguageTerm ?? string.Empty;
             audio = ++_audioVersion;
-            token = _operation.Token;
+            token = OperationToken();
             _session = _session with { IsPlayingAudio = true, AudioNoticeKey = null };
             PublishReady();
         }
@@ -837,8 +858,14 @@ public sealed class NativeMinimalPairsPresenter(
     private void BeginPage(NativeMinimalPairsPage page)
     {
         _generation++;
-        _operation.Cancel();
-        _operation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        lock (_operationSync)
+        {
+            var previous = _operation;
+            _operation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+            // Cancelled before disposal, so work still holding its token sees cancellation.
+            CancelSource(previous);
+            previous.Dispose();
+        }
         StopAudioCore();
         _notices = [];
         _page = page;
@@ -855,20 +882,45 @@ public sealed class NativeMinimalPairsPresenter(
     private void AddNotice(NativeMinimalPairsNoticeKind kind, string key) =>
         _notices = _notices.Add(new(kind, key));
 
-    private async Task<bool> TryEnterAsync()
+    /// <summary>The current page operation's token (read under a lock: BeginPage swaps and disposes it).</summary>
+    private CancellationToken OperationToken()
+    {
+        lock (_operationSync)
+            return _disposed ? new CancellationToken(canceled: true) : _operation.Token;
+    }
+
+    private void CancelOperation()
+    {
+        lock (_operationSync)
+            CancelSource(_operation);
+    }
+
+    private static void CancelSource(CancellationTokenSource source)
     {
         try
         {
-            await _gate.WaitAsync(_lifetime.Token);
-            return true;
+            source.Cancel();
         }
-        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException)
+        catch (AggregateException)
         {
-            return false;
+            // A cancellation callback failed; the operation is abandoned either way.
         }
     }
 
-    private bool Exited => _exited || _state.Destination != NativeDestination.Activity;
+    /// <summary>
+    /// Re-takes the gate for a continuation. False (gate not held) once Exit has
+    /// begun or the presenter was disposed: the caller returns <see cref="_state"/>,
+    /// which is then the state Exit published, never the pre-Exit one.
+    /// </summary>
+    private async Task<bool> TryEnterAsync()
+    {
+        if (await _exit.EnterAsync(_gate))
+            return true;
+        _gate.Release();
+        return false;
+    }
+
+    private bool Exited => _exited || _exit.HasBegun || _state.Destination != NativeDestination.Activity;
 
     private bool Active() => _launch is not null && owner.IsActive(_launch.UserId);
 
@@ -883,7 +935,7 @@ public sealed class NativeMinimalPairsPresenter(
     private NativeMinimalPairsState Refuse()
     {
         _generation++;
-        _operation.Cancel();
+        CancelOperation();
         StopAudioCore();
         if (_exited)
             return State;
@@ -902,9 +954,13 @@ public sealed class NativeMinimalPairsPresenter(
         if (_disposed)
             return;
         _disposed = true;
-        _operation.Cancel();
+        _exit.Complete();
+        CancelOperation();
         _lifetime.Cancel();
         player.Stop();
         player.Dispose();
+        lock (_operationSync)
+            _operation.Dispose();
+
     }
 }
