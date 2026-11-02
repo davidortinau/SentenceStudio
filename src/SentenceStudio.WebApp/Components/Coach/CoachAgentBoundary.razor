@@ -4,32 +4,45 @@
 @inject CoachWorkspaceState Workspace
 @inject CoachWorkspaceChatClient ChatClient
 
-<AgentBoundary Agent="_agent">
-    <CoachAgentSynchronization />
+@* A replaceable context clears preview-library retry state without remounting the app shell. *@
+<CascadingValue Value="_context">
+    <CoachAgentSynchronization OnResetContext="ResetContext" />
     <CascadingValue Name="CoachMessageList" Value="MessageListContent" IsFixed="true">
         <CascadingValue Name="CoachMessageInput" Value="MessageInputContent" IsFixed="true">
             @ChildContent
         </CascadingValue>
     </CascadingValue>
-</AgentBoundary>
+</CascadingValue>
 
 @code {
     [Parameter] public RenderFragment? ChildContent { get; set; }
     private UIAgent _agent = default!;
+    private AgentContext _context = default!;
     private RenderFragment MessageListContent => @<CoachAgentMessages />;
     private RenderFragment MessageInputContent => @<CoachAgentInput />;
 
-    protected override void OnInitialized()
+    protected override void OnInitialized() => CreateContext();
+
+    private void CreateContext()
     {
         _agent = new UIAgent(ChatClient, options =>
         {
             options.Thread = new CoachConversationThread(Workspace);
             options.AddBlockHandler(new CoachTimelineBlockHandler());
         });
+        _context = new AgentContext(_agent);
+    }
+
+    private void ResetContext()
+    {
+        _context.Dispose();
+        _agent.Dispose();
+        CreateContext();
     }
 
     public ValueTask DisposeAsync()
     {
+        _context.Dispose();
         _agent.Dispose();
         return ValueTask.CompletedTask;
     }

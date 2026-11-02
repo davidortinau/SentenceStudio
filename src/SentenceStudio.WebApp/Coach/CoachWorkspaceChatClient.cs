@@ -13,6 +13,9 @@ public sealed class CoachWorkspaceChatClient(CoachWorkspaceState workspace) : IC
     private ChatMessage? _lastMessage;
     private string? _lastEntryId;
     private bool _retryPending;
+    private bool TurnFailed => workspace.State is CoachUiState.Failed or CoachUiState.Offline or CoachUiState.Limited
+        or CoachUiState.InputTooLong or CoachUiState.Expired or CoachUiState.Incomplete;
+    internal bool HasRecoveredTurn => _retryPending && _lastEntryId == workspace.EntryId && !TurnFailed;
     public bool IsSending { get; private set; }
     public event Action? HistoryRestored;
 
@@ -27,6 +30,11 @@ public sealed class CoachWorkspaceChatClient(CoachWorkspaceState workspace) : IC
         if (message is null || message.Role != ChatRole.User || string.IsNullOrWhiteSpace(message.Text))
         {
             throw new ArgumentException("A coach run requires a user text message.", nameof(messages));
+        }
+        if (_retryPending && ReferenceEquals(message, _lastMessage)
+            && (_lastEntryId != workspace.EntryId || !TurnFailed))
+        {
+            throw new InvalidOperationException("The failed coach turn is no longer current. Use the current conversation's recovery controls.");
         }
         if (!workspace.CanSubmit)
         {
@@ -55,9 +63,7 @@ public sealed class CoachWorkspaceChatClient(CoachWorkspaceState workspace) : IC
                 await workspace.SendDraftAsync(cancellationToken);
             }
             cancellationToken.ThrowIfCancellationRequested();
-            if (entryId != workspace.EntryId
-                || workspace.State is CoachUiState.Failed or CoachUiState.Offline or CoachUiState.Limited
-                or CoachUiState.InputTooLong or CoachUiState.Expired or CoachUiState.Incomplete)
+            if (entryId != workspace.EntryId || TurnFailed)
             {
                 throw new InvalidOperationException("The coach turn did not complete. Use the recovery controls.");
             }

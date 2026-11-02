@@ -6,27 +6,35 @@
 
 @code {
     [CascadingParameter] public AgentContext Context { get; set; } = default!;
+    [Parameter] public EventCallback OnResetContext { get; set; }
     private bool _refreshRequested = true;
     private bool _disposed;
     private bool _restoring;
     private IDisposable? _statusSubscription;
+    private AgentContext? _subscribedContext;
     private CoachTimelineEntry[]? _restoredEntries;
     private string? _restoredEntryId;
 
-    protected override void OnInitialized()
-    {
-        Workspace.Changed += OnChanged;
-        _statusSubscription = Context.RegisterOnStatusChanged(status =>
-        {
-            if (!_restoring && status != ConversationStatus.Streaming)
-            {
-                OnChanged();
-            }
-        });
-    }
+    protected override void OnInitialized() => Workspace.Changed += OnChanged;
 
-    protected override Task OnAfterRenderAsync(bool firstRender) =>
-        firstRender ? RefreshAsync() : Task.CompletedTask;
+    protected override Task OnParametersSetAsync()
+    {
+        if (!ReferenceEquals(_subscribedContext, Context))
+        {
+            _statusSubscription?.Dispose();
+            _subscribedContext = Context;
+            _restoredEntries = null;
+            _restoredEntryId = null;
+            _statusSubscription = Context.RegisterOnStatusChanged(status =>
+            {
+                if (!_restoring && status != ConversationStatus.Streaming)
+                {
+                    OnChanged();
+                }
+            });
+        }
+        return RefreshAsync();
+    }
 
     private async Task RefreshAsync()
     {
@@ -37,6 +45,7 @@
             return;
         }
         _restoring = true;
+        var resetContext = false;
         try
         {
             do
@@ -44,6 +53,13 @@
                 _refreshRequested = false;
                 var entries = Workspace.Timeline.ToArray();
                 var entryId = Workspace.EntryId;
+                if (OnResetContext.HasDelegate
+                    && ((_restoredEntries is not null && _restoredEntryId != entryId)
+                        || (Context.Status == ConversationStatus.Error && ChatClient.HasRecoveredTurn)))
+                {
+                    resetContext = true;
+                    break;
+                }
                 if (_restoredEntries is not null && _restoredEntryId == entryId
                     && _restoredEntries.SequenceEqual(entries))
                 {
@@ -60,6 +76,10 @@
         finally
         {
             _restoring = false;
+        }
+        if (resetContext && !_disposed)
+        {
+            await OnResetContext.InvokeAsync();
         }
     }
 

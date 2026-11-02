@@ -17,7 +17,7 @@ public sealed class CoachAGUITransport(IHttpClientFactory httpClientFactory) : I
     {
         var state = await RunAsync(sessionId, new CoachAgentState { Turn = request },
             request.ClientTurnId, cancellationToken);
-        return state.Result ?? throw new InvalidDataException("The coach stream contained no turn result.");
+        return state.Result ?? throw IncompleteResponse("The coach stream contained no turn result.");
     }
 
     public async Task<CoachTurnOperationDto> SubmitConversationTurnAsync(
@@ -25,7 +25,7 @@ public sealed class CoachAGUITransport(IHttpClientFactory httpClientFactory) : I
     {
         var state = await RunAsync(conversationId, new CoachAgentState { DurableTurn = request },
             request.OperationId, cancellationToken);
-        return state.Operation ?? throw new InvalidDataException("The coach stream contained no operation result.");
+        return state.Operation ?? throw IncompleteResponse("The coach stream contained no operation result.");
     }
 
     private async Task<CoachAgentState> RunAsync(
@@ -46,27 +46,37 @@ public sealed class CoachAGUITransport(IHttpClientFactory httpClientFactory) : I
         };
         CoachAgentState? result = null;
         var finished = false;
-        await foreach (var update in client.GetStreamingResponseAsync(
-            [new ChatMessage(ChatRole.User, state.Turn?.Text ?? state.DurableTurn?.Turn.Text ?? "")],
-            options, cancellationToken))
+        try
         {
-            if (update.RawRepresentation is RunErrorEvent error)
+            await foreach (var update in client.GetStreamingResponseAsync(
+                [new ChatMessage(ChatRole.User, state.Turn?.Text ?? state.DurableTurn?.Turn.Text ?? "")],
+                options, cancellationToken))
             {
-                throw new CoachApiException(HttpStatusCode.BadRequest, error.Code, "Coach run failed", error.Message);
+                if (update.RawRepresentation is RunErrorEvent error)
+                {
+                    throw new CoachApiException(HttpStatusCode.BadRequest, error.Code, "Coach run failed", error.Message);
+                }
+                if (update.RawRepresentation is StateSnapshotEvent snapshot)
+                {
+                    result = snapshot.Snapshot.Deserialize<CoachAgentState>(WireJson.Client);
+                }
+                if (update.RawRepresentation is RunFinishedEvent)
+                {
+                    finished = true;
+                }
             }
-            if (update.RawRepresentation is StateSnapshotEvent snapshot)
-            {
-                result = snapshot.Snapshot.Deserialize<CoachAgentState>(WireJson.Client);
-            }
-            if (update.RawRepresentation is RunFinishedEvent)
-            {
-                finished = true;
-            }
+        }
+        catch (Exception ex) when (ex is JsonException or IOException or InvalidDataException)
+        {
+            throw IncompleteResponse("The coach stream could not be read.", ex);
         }
         if (!finished)
         {
-            throw new InvalidDataException("The coach stream ended before the run completed.");
+            throw IncompleteResponse("The coach stream ended before the run completed.");
         }
-        return result ?? throw new InvalidDataException("The coach stream ended without authoritative state.");
+        return result ?? throw IncompleteResponse("The coach stream ended without authoritative state.");
     }
+
+    private static CoachApiException IncompleteResponse(string message, Exception? innerException = null) =>
+        new(HttpStatusCode.BadGateway, null, "Incomplete coach response", message, innerException);
 }

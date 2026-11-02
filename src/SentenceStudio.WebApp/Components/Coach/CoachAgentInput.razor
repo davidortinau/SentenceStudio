@@ -6,11 +6,12 @@
 @if (Workspace.SessionId is not null || Workspace.ConversationId is not null)
 {
     <fieldset disabled="@(!Workspace.CanSubmit)">
-        <MessageInput Placeholder="@Localize["Coach_ComposerPlaceholder"]" />
+        <MessageInput @key="Context" Placeholder="@Localize["Coach_ComposerPlaceholder"]" />
     </fieldset>
 }
 
 @code {
+    [CascadingParameter] public AgentContext Context { get; set; } = default!;
     private bool _disposed;
 
     protected override void OnInitialized() => Workspace.Changed += OnChanged;

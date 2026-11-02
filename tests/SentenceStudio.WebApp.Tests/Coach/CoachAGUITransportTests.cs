@@ -64,7 +64,8 @@ public sealed class CoachAGUITransportTests
             new RunFinishedEvent { ThreadId = "session-1", RunId = "run-1" }));
         var transport = new CoachAGUITransport(new ClientFactory(handler));
         var act = () => transport.SubmitTurnAsync("session-1", Text(), default);
-        await act.Should().ThrowAsync<InvalidDataException>();
+        var error = await act.Should().ThrowAsync<CoachApiException>();
+        error.Which.StatusCode.Should().Be(HttpStatusCode.BadGateway);
     }
 
     [Fact]
@@ -75,7 +76,23 @@ public sealed class CoachAGUITransportTests
             new StateSnapshotEvent { Snapshot = JsonSerializer.SerializeToElement(new CoachAgentState()) }));
         var transport = new CoachAGUITransport(new ClientFactory(handler));
         var act = () => transport.SubmitTurnAsync("session-1", Text(), default);
-        await act.Should().ThrowAsync<InvalidDataException>().WithMessage("*before the run completed*");
+        var error = await act.Should().ThrowAsync<CoachApiException>().WithMessage("*before the run completed*");
+        error.Which.StatusCode.Should().Be(HttpStatusCode.BadGateway);
+    }
+
+    [Fact]
+    public async Task MalformedSnapshotIsARecoverableTransportFailure()
+    {
+        using var handler = new ResponseHandler(Events(
+            new RunStartedEvent { ThreadId = "session-1", RunId = "run-1" },
+            new StateSnapshotEvent { Snapshot = JsonSerializer.SerializeToElement("not a coach state") },
+            new RunFinishedEvent { ThreadId = "session-1", RunId = "run-1" }));
+        var transport = new CoachAGUITransport(new ClientFactory(handler));
+        var act = () => transport.SubmitTurnAsync("session-1", Text(), default);
+
+        var error = await act.Should().ThrowAsync<CoachApiException>();
+        error.Which.StatusCode.Should().Be(HttpStatusCode.BadGateway);
+        error.Which.InnerException.Should().BeOfType<JsonException>();
     }
 
     [Fact]
